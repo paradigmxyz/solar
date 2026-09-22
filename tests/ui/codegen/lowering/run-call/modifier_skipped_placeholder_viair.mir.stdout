@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_skipped_placeholder_viair.sol:ModifierSkippedPlaceholderViaIr ===
 @module ModifierSkippedPlaceholderViaIr
-fn @f() -> u256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word]] {
+fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jumpi true, bb2, bb3
   bb3:

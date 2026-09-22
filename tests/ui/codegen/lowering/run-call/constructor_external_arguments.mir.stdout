@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_external_arguments.sol:ConstructorExternalArguments ===
 @module ConstructorExternalArguments
-fn @constructor(arg0: bytes3, arg1: bool) [constructor, abi_params=[bytes3, bool]] {
+fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[bytes3, bool]] {
   bb0:
     v0 = and arg0, 0xffffff0000000000000000000000000000000000000000000000000000000000
     v1 = sload 0 !metadata(storage=slot(0))
@@ -11,19 +11,20 @@ fn @constructor(arg0: bytes3, arg1: bool) [constructor, abi_params=[bytes3, bool
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
     v7 = eq arg1, 0
-    v8 = iszero v7
+    v8 = eq v7, false
     v9 = shl 24, 255
     v10 = sload 0 !metadata(storage=slot(0))
     v11 = not v9
     v12 = and v10, v11
-    v13 = and v8, 255
-    v14 = shl 24, v13
-    v15 = or v12, v14
-    sstore 0, v15 !metadata(storage=slot(0))
+    v13 = zext i1 v8 to i256
+    v14 = and v13, 255
+    v15 = shl 24, v14
+    v16 = or v12, v15
+    sstore 0, v16 !metadata(storage=slot(0))
     ret
 }
 
-fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>]] {
+fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>], abi_return_params=[bytes3]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffff
@@ -31,7 +32,7 @@ fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[
     ret v2
 }
 
-fn @getFlag() -> bool [selector=0xf9633930, view, abi_params=[], abi_returns=[word<bool>]] {
+fn @getFlag() -> i256 [selector=0xf9633930, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 24, v0

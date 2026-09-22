@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_member_memory_arg.sol:C ===
 @module C
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
 fn @constructor() [constructor] {
   bb0:
@@ -63,7 +63,7 @@ fn @consume(arg0: memoryarray) -> struct0 [pure] {
   bb4:
     v6 = memory_object_len memoryarray, v3
     v7 = lt v2, v6
-    v8 = iszero v7
+    v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = memory_object_load_element memoryarray<1>, v3, v2
     v10 = checked_add u256, v4, v9
@@ -75,7 +75,7 @@ fn @consume(arg0: memoryarray) -> struct0 [pure] {
     jump bb1
 }
 
-fn @load_storage_word_array(arg0: u256) -> memoryarray {
+fn @load_storage_word_array(arg0: i256) -> memoryarray {
   bb0:
     v0 = load_storage_array u256, arg0
     ret v0

@@ -6,7 +6,7 @@
 // CHECK: + {{v[0-9]+}} = sload [[SLOT]]
 // CHECK: + [[OTHER:v[0-9]+]] = add arg0, 2
 // CHECK: {{^[ +].*}}sstore [[OTHER]], 9
-fn @hoist_symbolic_offset_sload(arg0: u256) -> u256 {
+fn @hoist_symbolic_offset_sload(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -30,7 +30,7 @@ fn @hoist_symbolic_offset_sload(arg0: u256) -> u256 {
 // CHECK: + [[ALIAS:v[0-9]+]] = add arg0, 1
 // CHECK: + {{v[0-9]+}} = sload [[SLOT]]
 // CHECK: + sstore [[ALIAS]], 9
-fn @keep_aliasing_symbolic_offset_sload(arg0: u256) -> u256 {
+fn @keep_aliasing_symbolic_offset_sload(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -52,7 +52,7 @@ fn @keep_aliasing_symbolic_offset_sload(arg0: u256) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @do_not_speculate_symbolic_offset_sload{{[( ]}}
 // CHECK: {{^[ +].*}}jumpi arg1
 // CHECK: + {{v[0-9]+}} = sload
-fn @do_not_speculate_symbolic_offset_sload(arg0: u256, arg1: bool) -> u256 {
+fn @do_not_speculate_symbolic_offset_sload(arg0: i256, arg1: i1) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -71,7 +71,7 @@ fn @do_not_speculate_symbolic_offset_sload(arg0: u256, arg1: bool) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @hoist_affine_memory_base{{[( ]}}
 // CHECK: + [[BASE:v[0-9]+]] = add arg0, 32
 // CHECK: {{^[ +].*}}add [[BASE]], {{v[0-9]+}}
-fn @hoist_affine_memory_base(arg0: u256) -> u256 {
+fn @hoist_affine_memory_base(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -92,7 +92,7 @@ fn @hoist_affine_memory_base(arg0: u256) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @hoist_unknown_trip_affine_memory_base{{[( ]}}
 // CHECK: + [[BASE:v[0-9]+]] = add arg0, 32
 // CHECK: {{^[ +].*}}add [[BASE]], {{v[0-9]+}}
-fn @hoist_unknown_trip_affine_memory_base(arg0: u256, arg1: u256) -> u256 {
+fn @hoist_unknown_trip_affine_memory_base(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:

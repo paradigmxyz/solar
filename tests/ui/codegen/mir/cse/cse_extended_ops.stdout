@@ -2,9 +2,9 @@
 + // === ROOT/tests/ui/codegen/mir/cse/cse_extended_ops.mir (after cse) ===
   @module CseExtendedOps
   types:
-    struct0: {u256, u256, u256, u256, u256, bool}
+    struct0: {i256, i256, i256, i256, i256, i1}
   
-  fn @extended_pure_ops(arg0: u256, arg1: u256, arg2: bool) -> struct0 [return_abi=[u256, u256, u256, u256, u256, bool]] {
+  fn @extended_pure_ops(arg0: i256, arg1: i256, arg2: i1) -> struct0 [return_abi=[i256, i256, i256, i256, i256, i1]] {
     bb0:
       v0 = sdiv arg0, arg1
 -     v1 = sdiv arg0, arg1
@@ -18,11 +18,13 @@
 -     v9 = addmod arg1, arg0, 97
       v10 = select arg2, arg0, arg1
 -     v11 = select arg2, arg0, arg1
--     ret v1, v3, v5, v7, v9, v11
-+     ret v0, v2, v4, v6, v8, v10
+-     v12 = ne v11, 0
+-     ret v1, v3, v5, v7, v9, v12
++     v12 = ne v10, 0
++     ret v0, v2, v4, v6, v8, v12
   }
   
-  fn @calldata_reads(arg0: u256) -> u256 {
+  fn @calldata_reads(arg0: i256) -> i256 {
     bb0:
       v0 = calldataload arg0
 -     v1 = calldataload arg0
@@ -30,7 +32,7 @@
 +     ret v0
   }
   
-  fn @clz(arg0: u256) -> u256 {
+  fn @clz(arg0: i256) -> i256 {
     bb0:
       v0 = clz arg0
 -     v1 = clz arg0

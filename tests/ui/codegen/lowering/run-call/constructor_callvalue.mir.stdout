@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ExplicitNonpayable ===
 @module ExplicitNonpayable
-fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     ret
 }
@@ -41,92 +41,113 @@ fn @constructor() [constructor, payable] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ConstructorCallvalue ===
 @module ConstructorCallvalue
-fn @rejectsExplicit() -> bool [selector=0x90887b1f, payable, abi_params=[], abi_returns=[word<bool>]] {
+fn @rejectsExplicit() -> i256 [selector=0x90887b1f, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 103
+    set_memory_object_len memorybytes, v0, 105
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x6067380380606760c03960c001601f017fffffffffffffffffffffffffffffff
-    v2 = add v1, 32
-    mstore v2, 0xffffffffffffffffffffffffffffffffe0166040523460565760c060c0606738
-    v3 = add v1, 64
-    mstore v3, 0x30160208201915081119050605257605a565b5f5ffd5b5f5ffd5b6003806064
-    v4 = add v1, 96
-    mstore v4, 0x5f395ff35f5ffd00000000000000000000000000000000000000000000000000
-    v5 = abi_encode [word], object, args 1
-    v6 = abi_encode_packed (bytes v0, bytes v5)
-    v7 = icall @deploy, v6
-    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = eq v8, 0
-    ret v9
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x6069380380606960c03960c001601f017fffffffffffffffffffffffffffffff
+    v3 = ptrtoint memptr v1 to i256
+    v4 = add v3, 32
+    mstore v4, 0xffffffffffffffffffffffffffffffffe01660405234151560585760c060c060
+    v5 = ptrtoint memptr v1 to i256
+    v6 = add v5, 64
+    mstore v6, 0x6938030160208201915081119050605457605c565b5f5ffd5b5f5ffd5b600380
+    v7 = ptrtoint memptr v1 to i256
+    v8 = add v7, 96
+    mstore v8, 0x60665f395ff35f5ffd0000000000000000000000000000000000000000000000
+    v9 = abi_encode [word], object, args 1
+    v10 = abi_encode_packed (bytes v0, bytes v9)
+    v11 = icall @deploy, v10
+    v12 = trunc i256 v11 to i160
+    v13 = trunc i256 0 to i160
+    v14 = eq v12, v13
+    v15 = zext i1 v14 to i256
+    ret v15
 }
 
-fn @rejectsImplicit() -> bool [selector=0x05da30eb, payable, abi_params=[], abi_returns=[word<bool>]] {
+fn @rejectsImplicit() -> i256 [selector=0x05da30eb, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 20
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x34600d5760038060115f395ff35b5f5ffd5f5ffd000000000000000000000000
-    v2 = icall @deploy, v0
-    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    v4 = eq v3, 0
-    ret v4
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x34600d5760038060115f395ff35b5f5ffd5f5ffd000000000000000000000000
+    v3 = icall @deploy, v0
+    v4 = trunc i256 v3 to i160
+    v5 = trunc i256 0 to i160
+    v6 = eq v4, v5
+    v7 = zext i1 v6 to i256
+    ret v7
 }
 
-fn @rejectsSynthetic() -> bool [selector=0x28868c98, payable, abi_params=[], abi_returns=[word<bool>]] {
+fn @rejectsSynthetic() -> i256 [selector=0x28868c98, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 33
+    set_memory_object_len memorybytes, v0, 35
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x60c06040523460105760015f556014565b5f5ffd5b600380601e5f395ff35f5f
-    v2 = add v1, 32
-    mstore v2, 0xfd00000000000000000000000000000000000000000000000000000000000000
-    v3 = icall @deploy, v0
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v4, 0
-    ret v5
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x60c060405234151560125760015f556016565b5f5ffd5b60038060205f395ff3
+    v3 = ptrtoint memptr v1 to i256
+    v4 = add v3, 32
+    mstore v4, 0x5f5ffd0000000000000000000000000000000000000000000000000000000000
+    v5 = icall @deploy, v0
+    v6 = trunc i256 v5 to i160
+    v7 = trunc i256 0 to i160
+    v8 = eq v6, v7
+    v9 = zext i1 v8 to i256
+    ret v9
 }
 
-fn @rejectsInherited() -> bool [selector=0xb3ba0b5d, payable, abi_params=[], abi_returns=[word<bool>]] {
+fn @rejectsInherited() -> i256 [selector=0xb3ba0b5d, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 29
+    set_memory_object_len memorybytes, v0, 31
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x60c060405234600c576010565b5f5ffd5b600380601a5f395ff35f5ffd000000
-    v2 = icall @deploy, v0
-    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    v4 = eq v3, 0
-    ret v4
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x60c0604052341515600e576012565b5f5ffd5b600380601c5f395ff35f5ffd00
+    v3 = icall @deploy, v0
+    v4 = trunc i256 v3 to i160
+    v5 = trunc i256 0 to i160
+    v6 = eq v4, v5
+    v7 = zext i1 v6 to i256
+    ret v7
 }
 
-fn @acceptsPayable() -> bool [selector=0xd6e5da6b, payable, abi_params=[], abi_returns=[word<bool>]] {
+fn @acceptsPayable() -> i256 [selector=0xd6e5da6b, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 17
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x60c0604052600380600e5f395ff35f5ffd000000000000000000000000000000
-    v2 = icall @deploy, v0
-    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    v4 = eq v3, 0
-    v5 = iszero v4
-    jumpi v5, bb1, bb2
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x60c0604052600380600e5f395ff35f5ffd000000000000000000000000000000
+    v3 = icall @deploy, v0
+    v4 = trunc i256 v3 to i160
+    v5 = trunc i256 0 to i160
+    v6 = ne v4, v5
+    jumpi v6, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v6 = balance v2
-    v7 = callvalue
-    v8 = eq v6, v7
+    v7 = balance v3
+    v8 = callvalue
+    v9 = eq v7, v8
     jump bb3
   bb3:
-    v9 = phi [bb1: v8], [bb2: false]
-    ret v9
+    v10 = phi [bb1: v9], [bb2: false]
+    v11 = zext i1 v10 to i256
+    ret v11
 }
 
-fn @deploy(arg0: memorybytes) -> address {
+fn @deploy(arg0: memorybytes) -> i256 {
   bb0:
-    v0 = mload arg0
-    v1 = add arg0, 32
-    v2 = callvalue
-    v3 = create v2, v1, v0
-    ret v3
+    v0 = ptrtoint memorybytes arg0 to i256
+    v1 = mload v0
+    v2 = ptrtoint memorybytes arg0 to i256
+    v3 = add v2, 32
+    v4 = callvalue
+    v5 = create v4, v3, v1
+    v6 = zext i160 v5 to i256
+    ret v6
 }

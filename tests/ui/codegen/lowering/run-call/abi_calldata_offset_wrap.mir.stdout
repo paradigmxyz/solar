@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_offset_wrap.sol:AbiCalldataOffsetWrap ===
 @module AbiCalldataOffsetWrap
 types:
-  struct0: {u256, u256, u256}
+  struct0: {i256, i256, i256}
 
 fn @f(arg0: calldataslice) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
@@ -13,7 +13,7 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[ar
   bb1:
     v2 = slice_len arg0
     v3 = lt 0, v2
-    v4 = iszero v3
+    v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = slice_ptr arg0
     v6 = add v5, 0
@@ -27,7 +27,7 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[ar
     v13 = sub v12, v5
     v14 = sub v13, 31
     v15 = slt v10, v14
-    v16 = iszero v15
+    v16 = eq v15, false
     icall revert_if<invalid_calldata_tail_offset>, v16
     v17 = calldataload v11
     v18 = gt v17, 0xffffffffffffffff
@@ -51,7 +51,7 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[ar
   bb4:
     v29 = slice_len arg0
     v30 = lt 1, v29
-    v31 = iszero v30
+    v31 = eq v30, false
     icall panic_if<0x32>, v31
     v32 = slice_ptr arg0
     v33 = add v32, 32
@@ -65,7 +65,7 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[ar
     v40 = sub v39, v32
     v41 = sub v40, 31
     v42 = slt v37, v41
-    v43 = iszero v42
+    v43 = eq v42, false
     icall revert_if<invalid_calldata_tail_offset>, v43
     v44 = calldataload v38
     v45 = gt v44, 0xffffffffffffffff

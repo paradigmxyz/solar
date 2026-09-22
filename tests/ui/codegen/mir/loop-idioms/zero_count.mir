@@ -10,7 +10,7 @@
 // CHECK: + ret [[COUNT]]
 // CHECK: + {{v[0-9]+}} = and {{v[0-9]+}}, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
 // CHECK: + {{v[0-9]+}} = mul {{v[0-9]+}}, 0x1010101010101010101010101010101
-fn @count_zero(arg0: memptr) -> u256 {
+fn @count_zero(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -25,10 +25,12 @@ fn @count_zero(arg0: memptr) -> u256 {
     v6 = mload v5
     v7 = byte 0, v6
     v8 = shl 248, v7
-    jumpi v8, bb5, bb3
+    v14 = ne v8, 0
+    jumpi v14, bb5, bb3
   bb3:
     v9 = add v0, 1
-    jumpi v9, bb5, bb4
+    v15 = ne v9, 0
+    jumpi v15, bb5, bb4
   bb4:
     revert 0, 0
   bb5:
@@ -43,7 +45,7 @@ fn @count_zero(arg0: memptr) -> u256 {
 // CHECK: + {{v[0-9]+}} = calldataload {{v[0-9]+}}
 // CHECK: + {{v[0-9]+}} = and {{v[0-9]+}}, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
 // CHECK: + {{v[0-9]+}} = mul {{v[0-9]+}}, 0x101010101010101010101010101010101010101010101010101010101010101
-fn @count_zero_calldata(arg0: u256, arg1: u256) -> u256 {
+fn @count_zero_calldata(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -55,10 +57,12 @@ fn @count_zero_calldata(arg0: u256, arg1: u256) -> u256 {
     v3 = add arg0, v1
     v4 = calldataload v3
     v5 = byte 0, v4
-    jumpi v5, bb5, bb3
+    v12 = ne v5, 0
+    jumpi v12, bb5, bb3
   bb3:
     v6 = add v0, 1
-    jumpi v6, bb5, bb4
+    v13 = ne v6, 0
+    jumpi v13, bb5, bb4
   bb4:
     revert 0, 0
   bb5:

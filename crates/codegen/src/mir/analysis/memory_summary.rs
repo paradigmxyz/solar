@@ -577,7 +577,11 @@ fn local_summary(
     }
 
     let mut summary = FunctionMemorySummary::empty(func.params.len());
-    let heap_derived = heap_derived_values(func);
+    let heap_derived = if func.params.is_empty() {
+        DenseBitSet::new_empty(func.num_values())
+    } else {
+        heap_derived_values(func)
+    };
     let returning = returning_blocks(func);
     for (block_id, block) in func.blocks.iter_enumerated() {
         // A write or free-memory-pointer move on a path that can only revert is
@@ -753,10 +757,8 @@ fn returning_blocks(func: &Function) -> DenseBitSet<BlockId> {
 /// results count as heap-derived, since a callee may return a heap position.
 fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
     let mut derived = DenseBitSet::new_empty(func.num_values());
-    let mut users = IndexVec::from_vec(vec![Vec::new(); func.num_values()]);
     let mut worklist = Vec::new();
     for inst_id in func.instructions() {
-        let Some(result) = func.inst_result_value(inst_id) else { continue };
         let kind = &func.inst(inst_id).kind;
         let root = match kind {
             InstKind::Fmp
@@ -765,16 +767,23 @@ fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
             InstKind::MLoad(address) => func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT),
             _ => false,
         };
-        if root {
+        if root && let Some(result) = func.inst_result_value(inst_id) {
             derived.insert(result);
             worklist.push(result);
-            continue;
         }
-        if instruction_loads_data(kind) {
-            continue;
-        }
-        for operand in kind.operands() {
-            users[operand].push(result);
+    }
+    if worklist.is_empty() {
+        return derived;
+    }
+    let mut users = IndexVec::from_vec(vec![Vec::new(); func.num_values()]);
+    for inst_id in func.instructions() {
+        if let Some(result) = func.inst_result_value(inst_id)
+            && !derived.contains(result)
+            && !instruction_loads_data(&func.inst(inst_id).kind)
+        {
+            for operand in func.inst(inst_id).kind.operands() {
+                users[operand].push(result);
+            }
         }
     }
     while let Some(value) = worklist.pop() {
@@ -1004,7 +1013,7 @@ fn instruction_compares_values(kind: &InstKind) -> bool {
             | InstKind::SLt(_, _)
             | InstKind::SGt(_, _)
             | InstKind::Eq(_, _)
-            | InstKind::IsZero(_)
+            | InstKind::Ne(..)
     )
 }
 
@@ -1042,7 +1051,7 @@ mod tests {
                 {
                     let mut builder = FunctionBuilder::new(&mut leaf);
                     // return/revert memory[offset..offset + size]
-                    let pointer = builder.add_param(MirType::MemPtr);
+                    let pointer = builder.add_param(MirType::I256);
                     let offset = builder.add_u64_offset(pointer, 32);
                     let size = builder.imm(32);
                     let term = if revert {
@@ -1116,37 +1125,37 @@ mod tests {
         let mut reader = Function::new(Ident::with_dummy_span(sym::memory_read));
         {
             let mut builder = FunctionBuilder::new(&mut reader);
-            let ptr = builder.add_param(MirType::MemPtr);
+            let ptr = builder.add_param(MirType::I256);
             let value = builder.mload(ptr);
             builder.ret([value]);
         }
-        reader.set_return_type(MirType::uint256());
+        reader.set_return_type(MirType::I256);
         let reader = module.add_function(reader);
 
         let mut returning = Function::new(Ident::with_dummy_span(sym::ret));
         {
             let mut builder = FunctionBuilder::new(&mut returning);
-            let ptr = builder.add_param(MirType::MemPtr);
+            let ptr = builder.add_param(MirType::I256);
             builder.ret([ptr]);
         }
-        returning.set_return_type(MirType::MemPtr);
+        returning.set_return_type(MirType::I256);
         let returning = module.add_function(returning);
 
         let mut obfuscated = Function::new(Ident::with_dummy_span(sym::ret));
         {
             let mut builder = FunctionBuilder::new(&mut obfuscated);
-            let ptr = builder.add_param(MirType::MemPtr);
+            let ptr = builder.add_param(MirType::I256);
             let zero = builder.imm(0);
             let value = builder.xor(ptr, zero);
             builder.ret([value]);
         }
-        obfuscated.set_return_type(MirType::MemPtr);
+        obfuscated.set_return_type(MirType::I256);
         let obfuscated = module.add_function(obfuscated);
 
         let mut resetter = Function::new(Ident::with_dummy_span(sym::fmp));
         {
             let mut builder = FunctionBuilder::new(&mut resetter);
-            let ptr = builder.add_param(MirType::MemPtr);
+            let ptr = builder.add_param(MirType::I256);
             builder.set_fmp(ptr);
             builder.ret([]);
         }
@@ -1155,7 +1164,7 @@ mod tests {
         let mut reader_caller = Function::new(Ident::with_dummy_span(sym::icall));
         {
             let mut builder = FunctionBuilder::new(&mut reader_caller);
-            let ptr = builder.add_param(MirType::MemPtr);
+            let ptr = builder.add_param(MirType::I256);
             builder.icall_void(reader, vec![ptr]);
             builder.ret([]);
         }
@@ -1164,7 +1173,7 @@ mod tests {
         let mut returning_caller = Function::new(Ident::with_dummy_span(sym::result_ty));
         {
             let mut builder = FunctionBuilder::new(&mut returning_caller);
-            let ptr = builder.add_param(MirType::MemPtr);
+            let ptr = builder.add_param(MirType::I256);
             builder.icall_void(returning, vec![ptr]);
             builder.ret([]);
         }

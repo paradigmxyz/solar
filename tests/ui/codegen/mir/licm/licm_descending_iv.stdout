@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/licm/licm_descending_iv.mir (before licm) ===
 + // === ROOT/tests/ui/codegen/mir/licm/licm_descending_iv.mir (after licm) ===
   @module LicmDescendingIv
-  fn @keep_mload_descending_iv() -> u256 {
+  fn @keep_mload_descending_iv() -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -20,7 +20,7 @@
       jump bb1
   }
   
-  fn @hoist_mload_ascending_iv() -> u256 {
+  fn @hoist_mload_ascending_iv() -> i256 {
     bb0:
 +     v3 = mload 0
       jump bb1

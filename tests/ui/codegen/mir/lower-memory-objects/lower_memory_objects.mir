@@ -4,22 +4,29 @@
 @phase semantic
 
 // CHECK-LABEL: {{^[ +].*}}fn @objects{{[( ]}}
-// CHECK: + [[OBJECT:v[0-9]+]] = alloc raw
+// CHECK: + [[OBJECT_PTR:v[0-9]+]] = alloc raw
+// CHECK: [[OBJECT:v[0-9]+]] = ptrtoint memptr [[OBJECT_PTR]] to i256
 // CHECK: + mstore [[OBJECT]], 3
-// CHECK: + {{v[0-9]+}} = mload [[OBJECT]]
-// CHECK: + {{v[0-9]+}} = add [[OBJECT]], 32
+// CHECK: + [[LOAD:v[0-9]+]] = ptrtoint memptr [[OBJECT_PTR]] to i256
+// CHECK: + {{v[0-9]+}} = mload [[LOAD]]
+// CHECK: + [[DATA:v[0-9]+]] = ptrtoint memptr [[OBJECT_PTR]] to i256
+// CHECK: + {{v[0-9]+}} = add [[DATA]], 32
 fn @objects(arg0: memorybytes, arg1: memoryarray, arg2: memorystruct, arg3: memoryfixedarray) {
   bb0:
     v4 = alloc memorybytes, exact, zeroed, panic, 96
     set_memory_object_len memorybytes, v4, 3
     v5 = memory_object_len memorybytes, v4
-    v6 = memory_object_data memorybytes, v4
+    v10 = memory_object_data memorybytes, v4
+    v6 = ptrtoint memptr v10 to i256
     mstore8 v6, v5
-    v7 = memory_object_field_addr memorystruct<2>, arg2, 1
+    v11 = memory_object_field_addr memorystruct<2>, arg2, 1
+    v7 = ptrtoint memptr v11 to i256
     mstore v7, v5
-    v8 = memory_object_element_addr memoryarray<1>, arg1, v5
+    v12 = memory_object_element_addr memoryarray<1>, arg1, v5
+    v8 = ptrtoint memptr v12 to i256
     mstore v8, v5
-    v9 = memory_object_element_addr memoryfixedarray<4, 1>, arg3, v5
+    v13 = memory_object_element_addr memoryfixedarray<4, 1>, arg3, v5
+    v9 = ptrtoint memptr v13 to i256
     mstore v9, v5
     stop
 }
@@ -38,45 +45,52 @@ fn @copy_from_slice(arg0: memorybytes, arg1: memoryslice, arg2: calldataslice, a
 
 // CHECK-LABEL: {{^[ +].*}}fn @copy_object{{[( ]}}
 // CHECK: + mcopy [[OBJECT_DEST:v[0-9]+]], [[OBJECT_SOURCE:v[0-9]+]], [[COPY_LEN:(v|arg)[0-9]+]]
-fn @copy_object(arg0: memorybytes, arg1: memorybytes, arg2: u256) {
+fn @copy_object(arg0: memorybytes, arg1: memorybytes, arg2: i256) {
   bb0:
     memory_object_copy memorybytes, arg0, memorybytes, arg1, arg2
     stop
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @raw_pointer{{[( ]}}
-// CHECK: + ret arg0
-fn @raw_pointer(arg0: u256) -> memorybytes {
+// CHECK: + [[POINTER:v[0-9]+]] = inttoptr i256 arg0 to memptr
+// CHECK: ret [[POINTER]]
+fn @raw_pointer(arg0: i256) -> memorybytes {
   bb0:
-    v0 = memory_object_from_ptr memorybytes, arg0
+    v0 = inttoptr i256 arg0 to memorybytes
     ret v0
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @word_carrier{{[( ]}}
-// CHECK: - {{v[0-9]+}} = word_cast arg0
-// CHECK: + {{v[0-9]+}} = mload arg0
-fn @word_carrier(arg0: memorystruct) -> u256 {
+// CHECK: {{^[ +].*}}[[POINTER:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} arg0
+// CHECK: + [[OBJECT_POINTER:v[0-9]+]] = inttoptr i256 [[POINTER]] to memptr
+// CHECK-NOT: + {{.*}}ptrtoint
+// CHECK: + {{v[0-9]+}} = mload [[POINTER]]
+fn @word_carrier(arg0: memorystruct) -> i256 {
   bb0:
-    v0 = word_cast arg0
-    v1 = memory_object_len memorybytes, v0
+    v0 = ptrtoint memorystruct arg0 to i256
+    v2 = inttoptr i256 v0 to memorybytes
+    v1 = memory_object_len memorybytes, v2
     ret v1
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @unreachable_cast_cycle{{[( ]}}
 // CHECK: ret 0
-// CHECK: - {{v[0-9]+}} = word_cast
-fn @unreachable_cast_cycle() -> u256 {
+// CHECK: {{v[0-9]+}} = bitcast
+fn @unreachable_cast_cycle() -> i256 {
   bb0:
     ret 0
   bb1:
-    v0 = word_cast v1
-    v1 = word_cast v0
+    v0 = bitcast i256 v1 to i256
+    v1 = bitcast i256 v0 to i256
     ret v0
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @merged_allocations{{[( ]}}
-// CHECK: + [[BASE:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-// CHECK: + [[NEXT:v[0-9]+]] = add [[BASE]], 32{{$}}
+// CHECK: + [[BASE_PTR:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+// CHECK: [[BASE:v[0-9]+]] = ptrtoint memptr [[BASE_PTR]] to i256
+// CHECK: + mstore [[BASE]], 0
+// CHECK: + [[OFFSET_BASE:v[0-9]+]] = ptrtoint memptr [[BASE_PTR]] to i256
+// CHECK: + [[NEXT:v[0-9]+]] = add [[OFFSET_BASE]], 32{{$}}
 fn @merged_allocations() -> memorybytes {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32

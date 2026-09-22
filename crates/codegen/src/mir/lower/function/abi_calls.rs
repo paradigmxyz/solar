@@ -204,7 +204,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn calldata_word_is_full_width(ty: Ty<'gcx>) -> bool {
-        types::TypeLowerer::mir_type(ty).is_full_abi_word()
+        types::TypeLowerer::value_layout(ty).is_full_abi_word()
     }
 
     pub(super) fn materialize_memory_argument(
@@ -271,7 +271,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
             Some(self.cx.gcx.mk_ty_string_literal(bytes.as_byte_str()))
         });
-        Some(source_ty.map_or(value, |source_ty| self.coerce_value(value, source_ty, ty)))
+        let value = source_ty.map_or(value, |source_ty| self.coerce_value(value, source_ty, ty));
+        Some(value)
     }
 
     pub(super) fn lower_abi_call_argument(
@@ -342,8 +343,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 && self.builder.func().value_ty(value) != Some(MirType::MemoryObject(kind))
                 && self.builder.func().value_slice_location(value).is_none()
             {
-                // object = memory_object_from_ptr value
+                // object = inttoptr value
                 Some(self.builder.memory_object_from_ptr(value, kind))
+            } else if self.builder.func().value_slice_location(value).is_none() {
+                // argument = cast value to the declared parameter type
+                Some(self.builder.cast(value, types::TypeLowerer::mir_signature_type(ty)))
             } else {
                 Some(value)
             }
@@ -716,7 +720,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let available = self.builder.sub(calldata_size, tuple_base);
             let bound = self.builder.sub(available, needed);
             let valid = self.builder.slt(offset, bound);
-            let invalid = self.builder.iszero(valid);
+            let invalid = self.builder.eq_zero(valid);
             self.builder.revert_if(invalid, RevertReason::InvalidCalldataTailOffset);
         }
         Some(value_pos)
@@ -768,7 +772,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // value = calldataload(position)
         let value = self.builder.calldataload(position);
         let validator = if is_external_function {
-            AbiWordValidator::from_mir_type(MirType::Function)
+            AbiWordValidator::from_layout(crate::mir::ValueLayout::Function)
                 .expect("function words always validate")
         } else {
             match ty.kind {
@@ -776,7 +780,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let variants = self.cx.gcx.hir.enumm(id).variants.len() as u64;
                     AbiWordValidator::EnumRange(variants)
                 }
-                _ => match AbiWordValidator::from_mir_type(types::TypeLowerer::mir_type(ty)) {
+                _ => match AbiWordValidator::from_layout(types::TypeLowerer::value_layout(ty)) {
                     Some(validator) => validator,
                     None => return value,
                 },
@@ -784,7 +788,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         // if !valid(value) { revert(0, 0) }
         let valid = validator.condition(&mut self.builder, value, false);
-        let invalid = self.builder.iszero(valid);
+        let invalid = self.builder.eq_zero(valid);
         self.builder.revert_if(invalid, RevertReason::Empty);
         if is_external_function {
             // value = value >> 64

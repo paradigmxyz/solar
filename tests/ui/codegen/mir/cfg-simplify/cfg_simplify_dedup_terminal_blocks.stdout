@@ -1,14 +1,16 @@
 - // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_dedup_terminal_blocks.mir (before cfg-simplify) ===
 + // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_dedup_terminal_blocks.mir (after cfg-simplify) ===
   @module CfgDedupTerminalBlocks
-  fn @dedup_identical_panics(arg0: u256, arg1: u256) {
+  fn @dedup_identical_panics(arg0: i256, arg1: i256) {
     bb0:
-      jumpi arg0, bb1, bb2
+      v0 = ne arg0, 0
+      jumpi v0, bb1, bb2
     bb2:
--     jumpi arg1, bb3, bb4
+      v1 = ne arg1, 0
+-     jumpi v1, bb3, bb4
 -   bb4:
 -     stop
-+     jumpi arg1, bb1, bb3
++     jumpi v1, bb1, bb3
     bb3:
 -     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
 -     mstore 4, 17
@@ -20,11 +22,13 @@
       revert 0, 36
   }
   
-  fn @keep_distinct_panic_codes(arg0: u256, arg1: u256) {
+  fn @keep_distinct_panic_codes(arg0: i256, arg1: i256) {
     bb0:
-      jumpi arg0, bb1, bb2
+      v0 = ne arg0, 0
+      jumpi v0, bb1, bb2
     bb2:
-      jumpi arg1, bb3, bb4
+      v1 = ne arg1, 0
+      jumpi v1, bb3, bb4
     bb4:
       stop
     bb3:
@@ -37,11 +41,13 @@
       revert 0, 36
   }
   
-  fn @keep_distinct_revert_sizes(arg0: u256, arg1: u256) {
+  fn @keep_distinct_revert_sizes(arg0: i256, arg1: i256) {
     bb0:
-      jumpi arg0, bb1, bb2
+      v0 = ne arg0, 0
+      jumpi v0, bb1, bb2
     bb2:
-      jumpi arg1, bb3, bb4
+      v1 = ne arg1, 0
+      jumpi v1, bb3, bb4
     bb4:
       stop
     bb3:
@@ -54,30 +60,34 @@
       revert 0, 36
   }
   
-  fn @dedup_local_computations(arg0: u256, arg1: u256) {
+  fn @dedup_local_computations(arg0: i256, arg1: i256) {
     bb0:
-      jumpi arg0, bb1, bb2
+      v0 = ne arg0, 0
+      jumpi v0, bb1, bb2
     bb2:
--     jumpi arg1, bb3, bb4
+      v2 = ne arg1, 0
+-     jumpi v2, bb3, bb4
 -   bb4:
 -     stop
-+     jumpi arg1, bb1, bb3
++     jumpi v2, bb1, bb3
     bb3:
--     v1 = add arg0, 1
--     mstore 0, v1
+-     v3 = add arg0, 1
+-     mstore 0, v3
 -     revert 0, 32
 +     stop
     bb1:
-      v0 = add arg0, 1
-      mstore 0, v0
+      v1 = add arg0, 1
+      mstore 0, v1
       revert 0, 32
   }
   
-  fn @keep_distinct_outside_operands(arg0: u256, arg1: u256) {
+  fn @keep_distinct_outside_operands(arg0: i256, arg1: i256) {
     bb0:
-      jumpi arg0, bb1, bb2
+      v0 = ne arg0, 0
+      jumpi v0, bb1, bb2
     bb2:
-      jumpi arg1, bb3, bb4
+      v1 = ne arg1, 0
+      jumpi v1, bb3, bb4
     bb4:
       stop
     bb3:
@@ -88,24 +98,26 @@
       revert 0, 32
   }
   
-  fn @keep_distinct_memory_fields(arg0: u256, arg1: u256, arg2: memorystruct) {
+  fn @keep_distinct_memory_fields(arg0: i256, arg1: i256, arg2: memorystruct) {
     bb0:
-      jumpi arg0, bb1, bb2
+      v0 = ne arg0, 0
+      jumpi v0, bb1, bb2
     bb2:
-      jumpi arg1, bb3, bb4
+      v2 = ne arg1, 0
+      jumpi v2, bb3, bb4
     bb4:
       stop
     bb3:
-      v1 = memory_object_load_field memorystruct<2>, arg2, 1
-      mstore 0, v1
+      v3 = memory_object_load_field memorystruct<2>, arg2, 1
+      mstore 0, v3
       revert 0, 32
     bb1:
-      v0 = memory_object_load_field memorystruct<2>, arg2, 0
-      mstore 0, v0
+      v1 = memory_object_load_field memorystruct<2>, arg2, 0
+      mstore 0, v1
       revert 0, 32
   }
   
-  fn @keep_distinct_packed_literals(arg0: bool) -> bytes32 {
+  fn @keep_distinct_packed_literals(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -116,7 +128,7 @@
       ret v0
   }
   
-  fn @keep_distinct_enum_bounds(arg0: bool, arg1: u256) -> memoryarray {
+  fn @keep_distinct_enum_bounds(arg0: i1, arg1: i256) -> memoryarray {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -127,7 +139,7 @@
       ret v0
   }
   
-  fn @merge_equal_packed_literals(arg0: bool) -> bytes32 {
+  fn @merge_equal_packed_literals(arg0: i1) -> i256 {
     bb0:
 -     jumpi arg0, bb1, bb2
 -   bb2:
@@ -138,7 +150,7 @@
       ret v0
   }
   
-  fn @keep_distinct_storage_literals(arg0: bool, arg1: u256) {
+  fn @keep_distinct_storage_literals(arg0: i1, arg1: i256) {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -147,5 +159,16 @@
     bb1:
       store_storage_bytes_literal arg1, hex"61"
       ret
+  }
+  
+  fn @keep_distinct_libraries(arg0: i1) -> i160 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      v1 = library_address "B.sol":"L"
+      ret v1
+    bb1:
+      v0 = library_address "A.sol":"L"
+      ret v0
   }
   

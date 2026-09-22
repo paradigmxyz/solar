@@ -1,18 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/address_code.sol:AddressCode ===
 @module AddressCode
-fn @codeLength(arg0: address) -> u256 [selector=0xbd3736e3, view, abi_params=[address], abi_returns=[word]] {
+fn @codeLength(arg0: i256) -> i256 [selector=0xbd3736e3, view, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = extcodesize arg0
     ret v0
 }
 
-fn @codeHash(arg0: address) -> bytes32 [selector=0x3dc44827, view, abi_params=[address], abi_returns=[word]] {
+fn @codeHash(arg0: i256) -> i256 [selector=0x3dc44827, view, abi_params=[address], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = extcodehash arg0
     ret v0
 }
 
-fn @code(arg0: address) -> memorybytes [selector=0x5b90b752, view, abi_params=[address], abi_returns=[memory_bytes]] {
+fn @code(arg0: i256) -> memorybytes [selector=0x5b90b752, view, abi_params=[address], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extcodesize arg0
     v1 = add v0, 63
@@ -23,13 +23,24 @@ fn @code(arg0: address) -> memorybytes [selector=0x5b90b752, view, abi_params=[a
     v5 = alloc memorybytes, exact, zeroed, panic, v4
     set_memory_object_len memorybytes, v5, v0
     v6 = memory_object_data memorybytes, v5
-    extcodecopy arg0, v6, 0, v0 !metadata(memory=heap)
+    v7 = ptrtoint memptr v6 to i256
+    extcodecopy arg0, v7, 0, v0 !metadata(memory=heap)
     ret v5
 }
 
-fn @addressFromBytes20(arg0: bytes20) -> address [selector=0x247e14fa, pure, abi_params=[bytes20], abi_returns=[word<u160>]] {
+fn @addressFromBytes20(arg0: i256) -> i256 [selector=0x247e14fa, pure, abi_params=[bytes20], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
     v1 = shr 96, v0
-    ret v1
+    v2 = trunc i256 v1 to i160
+    v3 = zext i160 v2 to i256
+    ret v3
+}
+
+fn @callerCodeLength() -> i256 [selector=0xfb7e2a0a, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = caller
+    v1 = zext i160 v0 to i256
+    v2 = extcodesize v1
+    ret v2
 }

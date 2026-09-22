@@ -3,12 +3,12 @@
 
 // Cancellation is modulo 2^256; no no-overflow fact is needed.
 types:
-  struct0: {u256, u256, u256, u256}
-  struct1: {bool, bool}
-  struct2: {u256, bool}
-  struct3: {u256, u256}
+  struct0: {i256, i256, i256, i256}
+  struct1: {i1, i1}
+  struct2: {i256, i1}
+  struct3: {i256, i256}
 
-fn @arithmetic(arg0: u256, arg1: u256) -> struct0 [return_abi=[u256, u256, u256, u256]] {
+fn @arithmetic(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256, i256, i256]] {
   bb0:
     v2 = sub arg0, arg1
     v3 = add v2, arg1
@@ -20,24 +20,24 @@ fn @arithmetic(arg0: u256, arg1: u256) -> struct0 [return_abi=[u256, u256, u256,
 }
 
 // Zero-testing a difference and XOR both become equality.
-fn @equality(arg0: u256, arg1: u256) -> struct1 [return_abi=[bool, bool]] {
+fn @equality(arg0: i256, arg1: i256) -> struct1 [return_abi=[i1, i1]] {
   bb0:
     v2 = sub arg0, arg1
-    v3 = iszero v2
+    v3 = eq v2, 0
     v4 = xor arg0, arg1
-    v5 = iszero v4
+    v5 = eq v4, 0
     ret v3, v5
 }
 
 // Rewrites must leave a difference that has another use available.
-fn @shared_difference(arg0: u256, arg1: u256) -> struct2 [return_abi=[u256, bool]] {
+fn @shared_difference(arg0: i256, arg1: i256) -> struct2 [return_abi=[i256, i1]] {
   bb0:
     v2 = sub arg0, arg1
-    v3 = iszero v2
+    v3 = eq v2, 0
     ret v2, v3
 }
 
-fn @absorption(arg0: u256, arg1: u256) -> struct0 [return_abi=[u256, u256, u256, u256]] {
+fn @absorption(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256, i256, i256]] {
   bb0:
     v2 = or arg0, arg1
     v3 = and arg0, v2
@@ -48,7 +48,7 @@ fn @absorption(arg0: u256, arg1: u256) -> struct0 [return_abi=[u256, u256, u256,
     ret v3, v4, v6, v7
 }
 
-fn @xor_cancel(arg0: u256, arg1: u256) -> struct0 [return_abi=[u256, u256, u256, u256]] {
+fn @xor_cancel(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256, i256, i256]] {
   bb0:
     v2 = xor arg0, arg1
     v3 = xor arg0, v2
@@ -59,11 +59,174 @@ fn @xor_cancel(arg0: u256, arg1: u256) -> struct0 [return_abi=[u256, u256, u256,
 }
 
 // Similar shapes without the repeated operand must keep their computation.
-fn @distinct_operands(arg0: u256, arg1: u256, arg2: u256) -> struct3 [return_abi=[u256, u256]] {
+fn @distinct_operands(arg0: i256, arg1: i256, arg2: i256) -> struct3 [return_abi=[i256, i256]] {
   bb0:
     v3 = sub arg0, arg1
     v4 = add v3, arg2
     v5 = xor arg0, arg1
     v6 = xor v5, arg2
     ret v4, v6
+}
+
+fn @common_add_0(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v3 = add arg0, arg1
+    v4 = add arg0, arg2
+    v5 = sub v3, v4
+    ret v5
+}
+
+fn @common_add_1(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v3 = add arg0, arg1
+    v4 = add arg2, arg0
+    v5 = sub v3, v4
+    ret v5
+}
+
+fn @common_add_2(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v3 = add arg1, arg0
+    v4 = add arg0, arg2
+    v5 = sub v3, v4
+    ret v5
+}
+
+fn @common_add_3(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v3 = add arg1, arg0
+    v4 = add arg2, arg0
+    v5 = sub v3, v4
+    ret v5
+}
+
+fn @common_subtrahend(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v3 = sub arg0, arg2
+    v4 = sub arg1, arg2
+    v5 = sub v3, v4
+    ret v5
+}
+
+fn @common_minuend(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v3 = sub arg0, arg1
+    v4 = sub arg0, arg2
+    v5 = sub v3, v4
+    ret v5
+}
+
+fn @shared_common_add(arg0: i256, arg1: i256, arg2: i256) -> struct3 [return_abi=[i256, i256]] {
+  bb0:
+    v3 = add arg0, arg1
+    v4 = add arg0, arg2
+    v5 = sub v3, v4
+    ret v3, v5
+}
+
+fn @carry_0(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v2 = xor arg0, arg1
+    v3 = and arg0, arg1
+    v4 = shl 1, v3
+    v5 = add v2, v4
+    ret v5
+}
+
+fn @carry_1(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v2 = xor arg0, arg1
+    v3 = and arg1, arg0
+    v4 = shl 1, v3
+    v5 = add v2, v4
+    ret v5
+}
+
+fn @carry_2(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v2 = xor arg0, arg1
+    v3 = and arg0, arg1
+    v4 = shl 1, v3
+    v5 = add v4, v2
+    ret v5
+}
+
+fn @carry_3(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v2 = xor arg0, arg1
+    v3 = and arg1, arg0
+    v4 = shl 1, v3
+    v5 = add v4, v2
+    ret v5
+}
+
+fn @carry_doubled(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v2 = xor arg0, arg1
+    v3 = and arg0, arg1
+    v4 = add v3, v3
+    v5 = add v2, v4
+    ret v5
+}
+
+fn @dynamic_power_mul_0(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v2 = shl arg1, 1
+    v3 = mul arg0, v2
+    ret v3
+}
+
+fn @dynamic_power_mul_1(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v2 = shl arg1, 1
+    v3 = mul v2, arg0
+    ret v3
+}
+
+fn @signed_remainder_minus_one(arg0: i256) -> i256 {
+  bb0:
+    v1 = smod arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    ret v1
+}
+
+fn @xor_comparison_0(arg0: i256, arg1: i256) -> i1 {
+  bb0:
+    v2 = xor arg0, arg1
+    v3 = eq v2, arg0
+    ret v3
+}
+
+fn @xor_comparison_1(arg0: i256, arg1: i256) -> i1 {
+  bb0:
+    v2 = xor arg1, arg0
+    v3 = eq v2, arg0
+    ret v3
+}
+
+fn @xor_comparison_2(arg0: i256, arg1: i256) -> i1 {
+  bb0:
+    v2 = xor arg0, arg1
+    v3 = eq arg0, v2
+    ret v3
+}
+
+fn @xor_comparison_3(arg0: i256, arg1: i256) -> i1 {
+  bb0:
+    v2 = xor arg1, arg0
+    v3 = eq arg0, v2
+    ret v3
+}
+
+fn @wrapping_comparison(arg0: i256, arg1: i256) -> i1 {
+  bb0:
+    v2 = sub arg0, arg1
+    v3 = lt arg0, v2
+    ret v3
+}
+
+fn @wrapping_comparison_reversed(arg0: i256, arg1: i256) -> i1 {
+  bb0:
+    v2 = sub arg0, arg1
+    v3 = gt v2, arg0
+    ret v3
 }

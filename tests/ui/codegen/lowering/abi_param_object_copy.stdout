@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_param_object_copy.sol:AbiParamObjectCopy ===
 @module AbiParamObjectCopy
-fn @storedWords(arg0: u256) -> u256 [selector=0x30038209, view, abi_params=[u256], abi_returns=[word]] {
+fn @storedWords(arg0: i256) -> i256 [selector=0x30038209, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = lt arg0, v0
@@ -11,7 +11,7 @@ fn @storedWords(arg0: u256) -> u256 [selector=0x30038209, view, abi_params=[u256
     ret v4
 }
 
-fn @storedBytes() -> memorybytes [selector=0xbee7414c, view, abi_params=[], abi_returns=[memory_bytes]] {
+fn @storedBytes() -> memorybytes [selector=0xbee7414c, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = load_storage_bytes 1
     ret v0
@@ -56,7 +56,7 @@ fn @constructor(arg0: memoryarray, arg1: memorybytes) [constructor, abi_params=[
     jump bb3
 }
 
-fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

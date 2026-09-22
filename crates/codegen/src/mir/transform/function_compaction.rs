@@ -10,6 +10,10 @@
 //! Constants must reach a pure instruction or a non-return terminator. Direct stores and returns
 //! alone do not justify discarding the call result and pushing the same constant again.
 //!
+//! Structural buckets include canonical operand identities and constants, avoiding pairwise
+//! comparisons between bodies with the same opcodes but different inputs. Hash collisions still
+//! require the exact equivalence check.
+//!
 //! Equivalent bodies merge their source origins, independently of structural
 //! matching, so later lowering cannot attribute shared code to one arbitrary body.
 //! Recursive pairs need no call-graph analysis: corresponding calls must target the same
@@ -687,7 +691,7 @@ fn has_material_use(func: &Function, value: ValueId, function_result_live: bool)
 }
 
 /// A source-independent operand identity used for alpha-equivalence.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum CanonValue {
     Arg(ArgIdx),
     Inst(usize),
@@ -723,10 +727,6 @@ impl<'a> CanonValues<'a> {
             Value::Undef(ty) => CanonValue::Undef(*ty),
             Value::Error(_) => return None,
         })
-    }
-
-    fn operands(&self, operands: impl IntoIterator<Item = ValueId>) -> Option<Vec<CanonValue>> {
-        operands.into_iter().map(|value| self.value(value)).collect()
     }
 
     fn storage_alias(&self, alias: StorageAlias) -> Option<CanonStorageAlias> {
@@ -840,18 +840,28 @@ fn is_merge_candidate(module: &Module, func_id: FunctionId, func: &Function) -> 
 /// Cheaply partitions functions before the exact pairwise alpha-equivalence check.
 fn equivalence_bucket(func: &Function) -> u64 {
     let mut key = FxHasher::default();
+    let values = CanonValues::new(func);
     func.params.hash(&mut key);
     func.return_components().hash(&mut key);
     func.internal_frame_size.hash(&mut key);
     func.external_static_return_size.hash(&mut key);
     func.blocks.len().hash(&mut key);
     for block in &func.blocks {
+        block.instructions.len().hash(&mut key);
         for &inst_id in &block.instructions {
             let inst = func.inst(inst_id);
             inst.kind.mnemonic().hash(&mut key);
             inst.result_ty.hash(&mut key);
+            for operand in inst.kind.operands() {
+                values.value(operand).hash(&mut key);
+            }
         }
         block.terminator.as_ref().map_or("none", Terminator::mnemonic).hash(&mut key);
+        if let Some(term) = &block.terminator {
+            for operand in term.operands() {
+                values.value(operand).hash(&mut key);
+            }
+        }
     }
     key.finish()
 }
@@ -930,10 +940,16 @@ fn equivalent_operands(
     rhs: &CanonValues<'_>,
     rhs_operands: impl IntoIterator<Item = ValueId>,
 ) -> bool {
-    matches!(
-        (lhs.operands(lhs_operands), rhs.operands(rhs_operands)),
-        (Some(lhs), Some(rhs)) if lhs == rhs
-    )
+    let mut rhs_operands = rhs_operands.into_iter();
+    for operand in lhs_operands {
+        if !matches!(
+            (lhs.value(operand), rhs_operands.next().and_then(|value| rhs.value(value))),
+            (Some(lhs), Some(rhs)) if lhs == rhs
+        ) {
+            return false;
+        }
+    }
+    rhs_operands.next().is_none()
 }
 
 fn equivalent_storage_aliases(

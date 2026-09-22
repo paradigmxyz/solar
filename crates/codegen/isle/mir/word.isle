@@ -6,6 +6,8 @@
 ;; stay at the original instruction and compete under Target plus stack traffic.
 ;; Add(value, 0) lets a leaf replacement use the multi-result rewrite interface;
 ;; ordinary simplification removes it without allocating an instruction.
+;; Matching puts constants on the right of commutative pairs and comparisons,
+;; including nested definitions, so constant-left mirrors are unnecessary.
 
 ;; shl(1, x) => x + x
 ;; Keep the producer in place; rebuilding it at a later consumer extends live ranges.
@@ -17,24 +19,20 @@
 (rule (rewrite (Op.Not (sub (shl n (one)) (one)))) (Op.Shl n (imm (u256_max))))
 (rule (rewrite (Op.Not (sub x (one)))) (Op.Sub (imm (u256 0)) x))
 
-;; lt (add x, 1), x => iszero (add x, 1)
-;; gt x, (add x, 1) => iszero (add x, 1)
+;; lt (add x, 1), x => eq (add x, 1), 0
+;; gt x, (add x, 1) => eq (add x, 1), 0
 ;; Only wrapping from MAX to zero can make an increment smaller. Reuse the
 ;; sum so a checked increment does not keep the previous counter live too.
-(rule (rewrite (Op.Lt (and sum (add x (one))) x)) (Op.IsZero sum))
-(rule (rewrite (Op.Lt (and sum (add (one) x)) x)) (Op.IsZero sum))
-(rule (rewrite (Op.Gt x (and sum (add x (one))))) (Op.IsZero sum))
-(rule (rewrite (Op.Gt x (and sum (add (one) x)))) (Op.IsZero sum))
+(rule (rewrite (Op.Lt (and sum (add x (one))) x)) (Op.Eq sum (imm (u256 0))))
+(rule (rewrite (Op.Gt x (and sum (add x (one))))) (Op.Eq sum (imm (u256 0))))
 
-;; gt (sub x, 1), x => iszero x
-;; lt x, (sub x, 1) => iszero x
+;; gt (sub x, 1), x => eq x, 0
+;; lt x, (sub x, 1) => eq x, 0
 ;; Only wrapping from zero to MAX can make a decrement larger.
-(rule (rewrite (Op.Gt (sub x (one)) x)) (Op.IsZero x))
-(rule (rewrite (Op.Lt x (sub x (one)))) (Op.IsZero x))
-(rule (rewrite (Op.Gt (add x (all_ones)) x)) (Op.IsZero x))
-(rule (rewrite (Op.Gt (add (all_ones) x) x)) (Op.IsZero x))
-(rule (rewrite (Op.Lt x (add x (all_ones)))) (Op.IsZero x))
-(rule (rewrite (Op.Lt x (add (all_ones) x))) (Op.IsZero x))
+(rule (rewrite (Op.Gt (sub x (one)) x)) (Op.Eq x (imm (u256 0))))
+(rule (rewrite (Op.Lt x (sub x (one)))) (Op.Eq x (imm (u256 0))))
+(rule (rewrite (Op.Gt (add x (all_ones)) x)) (Op.Eq x (imm (u256 0))))
+(rule (rewrite (Op.Lt x (add x (all_ones)))) (Op.Eq x (imm (u256 0))))
 
 ;; (x & y) & (x ^ y) => 0
 ;; (x & y) & (x | y) => x & y
@@ -86,7 +84,6 @@
 ;; sdiv(x, MAX) => 0 - x
 ;; Includes the EVM minimum-signed-word / -1 wraparound case.
 (rule (rewrite (Op.Mul x (all_ones))) (Op.Sub (imm (u256 0)) x))
-(rule (rewrite (Op.Mul (all_ones) x)) (Op.Sub (imm (u256 0)) x))
 (rule (rewrite (Op.SDiv x (all_ones))) (Op.Sub (imm (u256 0)) x))
 
 ;; ~x - ~y => y - x
@@ -151,12 +148,8 @@
 (rule (rewrite (Op.Or v0 (bnot (band v0 v1)))) (Op.Add (imm (u256_max)) (imm (u256 0))))
 (rule (rewrite (Op.Or v0 (bnot (band v1 v0)))) (Op.Add (imm (u256_max)) (imm (u256 0))))
 
-;; Extract one byte from a word, including both constant-mask orientations.
+;; Extract one byte from a word.
 (rule (rewrite (Op.And (shr (iconst shift) x) (iconst mask)))
-  (if-let true (u256_eq mask 255))
-  (if-let index (sign_byte shift))
-  (Op.Byte (imm index) x))
-(rule (rewrite (Op.And (iconst mask) (shr (iconst shift) x)))
   (if-let true (u256_eq mask 255))
   (if-let index (sign_byte shift))
   (Op.Byte (imm index) x))
@@ -185,13 +178,6 @@
       (if-let true (mask_covers (u256_shr shift (u256_max)) x))
       (Op.Eq x (imm (u256_shr shift c))))
 
-;; c == (x << s) => (c >> s) == x, if x fits and c is aligned to 2^s.
-(rule (rewrite (Op.Eq (iconst c) (shl (iconst shift) x)))
-      (if-let true (u256_lt shift 256))
-      (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
-      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
-      (Op.Eq (imm (u256_shr shift c)) x))
-
 ;; (x << s) < (y << s) => x < y, if neither shift loses bits.
 (rule (rewrite (Op.Lt (shl (iconst shift) x) (shl (iconst shift) y)))
       (if-let true (u256_lt shift 256))
@@ -205,13 +191,6 @@
       (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
       (if-let true (mask_covers (u256_shr shift (u256_max)) x))
       (Op.Lt x (imm (u256_shr shift c))))
-
-;; c < (x << s) => (c >> s) < x, if x fits and c is aligned to 2^s.
-(rule (rewrite (Op.Lt (iconst c) (shl (iconst shift) x)))
-      (if-let true (u256_lt shift 256))
-      (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
-      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
-      (Op.Lt (imm (u256_shr shift c)) x))
 
 ;; (x << s) > (y << s) => x > y, if neither shift loses bits.
 (rule (rewrite (Op.Gt (shl (iconst shift) x) (shl (iconst shift) y)))
@@ -227,13 +206,6 @@
       (if-let true (mask_covers (u256_shr shift (u256_max)) x))
       (Op.Gt x (imm (u256_shr shift c))))
 
-;; c > (x << s) => (c >> s) > x, if x fits and c is aligned to 2^s.
-(rule (rewrite (Op.Gt (iconst c) (shl (iconst shift) x)))
-      (if-let true (u256_lt shift 256))
-      (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
-      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
-      (Op.Gt (imm (u256_shr shift c)) x))
-
 ;; Applying the same sign extension twice has no further effect.
 (rule (rewrite (Op.SignExtend index (signextend index x))) (Op.SignExtend index x))
 
@@ -243,22 +215,13 @@
 (rule (rewrite (Op.Shl (iconst shift) (band x (iconst mask))))
   (if-let true (u256_same (u256_shl shift mask) (u256_shl shift (u256_max))))
   (Op.Shl (imm shift) x))
-(rule (rewrite (Op.Shl (iconst shift) (band (iconst mask) x)))
-  (if-let true (u256_same (u256_shl shift mask) (u256_shl shift (u256_max))))
-  (Op.Shl (imm shift) x))
 (rule (rewrite (Op.Shr (iconst shift) (band x (iconst mask))))
-  (if-let true (u256_same (u256_shr shift mask) (u256_shr shift (u256_max))))
-  (Op.Shr (imm shift) x))
-(rule (rewrite (Op.Shr (iconst shift) (band (iconst mask) x)))
   (if-let true (u256_same (u256_shr shift mask) (u256_shr shift (u256_max))))
   (Op.Shr (imm shift) x))
 
 ;; byte i, (and x, mask) => byte i, x
 ;; BYTE ignores every mask bit outside the selected byte.
 (rule (rewrite (Op.Byte (iconst index) (band x (iconst mask))))
-  (if-let true (u256_eq (u256_byte index mask) 255))
-  (Op.Byte (imm index) x))
-(rule (rewrite (Op.Byte (iconst index) (band (iconst mask) x)))
   (if-let true (u256_eq (u256_byte index mask) 255))
   (Op.Byte (imm index) x))
 

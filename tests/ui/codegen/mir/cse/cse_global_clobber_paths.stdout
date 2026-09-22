@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/cse/cse_global_clobber_paths.mir (before cse) ===
 + // === ROOT/tests/ui/codegen/mir/cse/cse_global_clobber_paths.mir (after cse) ===
   @module CseGlobalClobberPaths
-  fn @diamond_sload_clobbered_arm(arg0: bool) -> u256 {
+  fn @diamond_sload_clobbered_arm(arg0: i1) -> i256 {
     bb0:
       v0 = sload 0
       jumpi arg0, bb1, bb2
@@ -16,7 +16,7 @@
       ret v2
   }
   
-  fn @diamond_sload_clean_arms(arg0: bool) -> u256 {
+  fn @diamond_sload_clean_arms(arg0: i1) -> i256 {
     bb0:
       v0 = sload 0
       jumpi arg0, bb1, bb2
@@ -31,7 +31,7 @@
       ret v2
   }
   
-  fn @diamond_sload_distinct_slot_store(arg0: bool) -> u256 {
+  fn @diamond_sload_distinct_slot_store(arg0: i1) -> i256 {
     bb0:
       v0 = sload 0
       jumpi arg0, bb1, bb2
@@ -47,7 +47,7 @@
       ret v2
   }
   
-  fn @loop_sload_clobbered_body(arg0: u256) -> u256 {
+  fn @loop_sload_clobbered_body(arg0: i256) -> i256 {
     bb0:
       v0 = sload 0
       jump bb1
@@ -63,7 +63,7 @@
       jump bb1
   }
   
-  fn @loop_sload_clean_body(arg0: u256) -> u256 {
+  fn @loop_sload_clean_body(arg0: i256) -> i256 {
     bb0:
       v0 = sload 0
       jump bb1
@@ -80,7 +80,7 @@
       jump bb1
   }
   
-  fn @diamond_mload_clobbered_arm(arg0: bool) -> u256 {
+  fn @diamond_mload_clobbered_arm(arg0: i1) -> i256 {
     bb0:
       mstore 0, 11
 -     v0 = mload 0
@@ -97,7 +97,7 @@
       ret v2
   }
   
-  fn @diamond_call_clobbers_account_reads(arg0: bool, arg1: address) -> u256 {
+  fn @diamond_call_clobbers_account_reads(arg0: i1, arg1: i256) -> i256 {
     bb0:
       v0 = balance arg1
       v1 = extcodesize arg1
@@ -116,7 +116,7 @@
       ret v7
   }
   
-  fn @loop_header_refreshes_load(arg0: u256) -> u256 {
+  fn @loop_header_refreshes_load(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:

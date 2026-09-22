@@ -1,47 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/checked_pow_shapes.sol:CheckedPowShapes ===
 @module CheckedPowShapes
-fn @upow(arg0: u256, arg1: u256) -> u256 [selector=0x11698b2f, pure, abi_params=[u256, u256], abi_returns=[word]] {
-  bb0:
-    jump bb1
-  bb1:
-    v1 = phi [bb0: 1], [bb6: v13]
-    v2 = phi [bb0: arg0], [bb6: v15]
-    v3 = phi [bb0: arg1], [bb6: v14]
-    v4 = gt v3, 0
-    jumpi v4, bb2, bb3
-  bb3:
-    ret v1
-  bb2:
-    v5 = and v3, 1
-    v6 = mul v1, v2
-    v7 = iszero v2
-    v8 = div v6, v2
-    v9 = eq v8, v1
-    v10 = or v7, v9
-    v11 = iszero v10
-    v12 = and v5, v11
-    jumpi v12, bb4, bb5
-  bb5:
-    v13 = select v5, v6, v1
-    v14 = shr 1, v3
-    v15 = mul v2, v2
-    v16 = iszero v2
-    v17 = div v15, v2
-    v18 = eq v17, v2
-    v19 = or v16, v18
-    v20 = iszero v19
-    v21 = gt v14, 0
-    v22 = and v21, v20
-    jumpi v22, bb4, bb6
-  bb6:
-    jump bb1
-  bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    mstore 32, 17 !metadata(memory=scratch)
-    revert 28, 36
-}
-
-fn @spow(arg0: i256, arg1: u256) -> i256 [selector=0x8c0da14f, pure, abi_params=[i256, u256], abi_returns=[word]] {
+fn @upow(arg0: i256, arg1: i256) -> i256 [selector=0x11698b2f, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -55,138 +14,89 @@ fn @spow(arg0: i256, arg1: u256) -> i256 [selector=0x8c0da14f, pure, abi_params=
   bb2:
     v5 = and v3, 1
     v6 = mul v1, v2
-    v7 = iszero v2
+    v7 = eq v2, 0
+    v8 = div v6, v2
+    v9 = eq v8, v1
+    v10 = or v7, v9
+    v11 = zext i1 v10 to i256
+    v12 = eq v11, 0
+    v13 = zext i1 v12 to i256
+    v14 = and v5, v13
+    v15 = ne v14, 0
+    jumpi v15, bb4, bb5
+  bb5:
+    v16 = ne v5, 0
+    v17 = select v16, v6, v1
+    v18 = shr 1, v3
+    v19 = mul v2, v2
+    v20 = eq v2, 0
+    v21 = div v19, v2
+    v22 = eq v21, v2
+    v23 = or v20, v22
+    v24 = zext i1 v23 to i256
+    v25 = eq v24, 0
+    v26 = gt v18, 0
+    v27 = and v26, v25
+    v28 = zext i1 v27 to i256
+    jumpi v27, bb4, bb6
+  bb6:
+    jump bb1
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @spow(arg0: i256, arg1: i256) -> i256 [selector=0x8c0da14f, pure, abi_params=[i256, u256], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 1], [bb6: v22]
+    v2 = phi [bb0: arg0], [bb6: v24]
+    v3 = phi [bb0: arg1], [bb6: v23]
+    v4 = gt v3, 0
+    jumpi v4, bb2, bb3
+  bb3:
+    ret v1
+  bb2:
+    v5 = and v3, 1
+    v6 = mul v1, v2
+    v7 = eq v2, 0
     v8 = sdiv v6, v2
     v9 = eq v8, v1
     v10 = or v7, v9
-    v11 = iszero v10
-    v12 = eq v1, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v13 = slt v2, 0
-    v14 = and v12, v13
-    v15 = or v11, v14
-    v16 = and v5, v15
-    jumpi v16, bb4, bb5
+    v11 = zext i1 v10 to i256
+    v12 = eq v11, 0
+    v13 = eq v1, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v14 = slt v2, 0
+    v15 = and v13, v14
+    v16 = zext i1 v15 to i256
+    v17 = zext i1 v12 to i256
+    v18 = or v17, v16
+    v19 = and v5, v18
+    v20 = ne v19, 0
+    jumpi v20, bb4, bb5
   bb5:
-    v17 = select v5, v6, v1
-    v18 = shr 1, v3
-    v19 = mul v2, v2
-    v20 = iszero v2
-    v21 = sdiv v19, v2
-    v22 = eq v21, v2
-    v23 = or v20, v22
-    v24 = iszero v23
-    v25 = eq v2, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v26 = slt v2, 0
-    v27 = and v25, v26
-    v28 = or v24, v27
-    v29 = gt v18, 0
-    v30 = and v29, v28
-    jumpi v30, bb4, bb6
-  bb6:
-    jump bb1
-  bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    mstore 32, 17 !metadata(memory=scratch)
-    revert 28, 36
-}
-
-fn @upow8(arg0: u8, arg1: u8) -> u8 [selector=0x3f7ced5f, pure, abi_params=[u8, u8], abi_returns=[word<u8>]] {
-  bb0:
-    v0 = and arg0, 255
-    v1 = and arg1, 255
-    jump bb1
-  bb1:
-    v3 = phi [bb0: 1], [bb6: v17]
-    v4 = phi [bb0: v0], [bb6: v19]
-    v5 = phi [bb0: v1], [bb6: v18]
-    v6 = gt v5, 0
-    jumpi v6, bb2, bb3
-  bb3:
-    ret v3
-  bb2:
-    v7 = and v5, 1
-    v8 = mul v3, v4
-    v9 = iszero v4
-    v10 = div v8, v4
-    v11 = eq v10, v3
-    v12 = or v9, v11
-    v13 = iszero v12
-    v14 = gt v8, 255
-    v15 = or v13, v14
-    v16 = and v7, v15
-    jumpi v16, bb4, bb5
-  bb5:
-    v17 = select v7, v8, v3
-    v18 = shr 1, v5
-    v19 = mul v4, v4
-    v20 = iszero v4
-    v21 = div v19, v4
-    v22 = eq v21, v4
-    v23 = or v20, v22
-    v24 = iszero v23
-    v25 = gt v19, 255
-    v26 = or v24, v25
-    v27 = gt v18, 0
-    v28 = and v27, v26
-    jumpi v28, bb4, bb6
-  bb6:
-    jump bb1
-  bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    mstore 32, 17 !metadata(memory=scratch)
-    revert 28, 36
-}
-
-fn @spow8(arg0: i8, arg1: u8) -> i8 [selector=0xd44642ed, pure, abi_params=[i8, u8], abi_returns=[word<i8>]] {
-  bb0:
-    v0 = signextend 0, arg0
-    v1 = and arg1, 255
-    jump bb1
-  bb1:
-    v3 = phi [bb0: 1], [bb6: v23]
-    v4 = phi [bb0: v0], [bb6: v25]
-    v5 = phi [bb0: v1], [bb6: v24]
-    v6 = gt v5, 0
-    jumpi v6, bb2, bb3
-  bb3:
-    ret v3
-  bb2:
-    v7 = and v5, 1
-    v8 = mul v3, v4
-    v9 = iszero v4
-    v10 = sdiv v8, v4
-    v11 = eq v10, v3
-    v12 = or v9, v11
-    v13 = iszero v12
-    v14 = slt v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    v15 = sgt v8, 127
-    v16 = or v14, v15
-    v17 = or v13, v16
-    v18 = eq v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    v19 = slt v4, 0
-    v20 = and v18, v19
-    v21 = or v17, v20
-    v22 = and v7, v21
-    jumpi v22, bb4, bb5
-  bb5:
-    v23 = select v7, v8, v3
-    v24 = shr 1, v5
-    v25 = mul v4, v4
-    v26 = iszero v4
-    v27 = sdiv v25, v4
-    v28 = eq v27, v4
-    v29 = or v26, v28
-    v30 = iszero v29
-    v31 = slt v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    v32 = sgt v25, 127
-    v33 = or v31, v32
-    v34 = or v30, v33
-    v35 = eq v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    v36 = slt v4, 0
-    v37 = and v35, v36
-    v38 = or v34, v37
-    v39 = gt v24, 0
-    v40 = and v39, v38
+    v21 = ne v5, 0
+    v22 = select v21, v6, v1
+    v23 = shr 1, v3
+    v24 = mul v2, v2
+    v25 = eq v2, 0
+    v26 = sdiv v24, v2
+    v27 = eq v26, v2
+    v28 = or v25, v27
+    v29 = zext i1 v28 to i256
+    v30 = eq v29, 0
+    v31 = eq v2, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v32 = slt v2, 0
+    v33 = and v31, v32
+    v34 = zext i1 v33 to i256
+    v35 = zext i1 v30 to i256
+    v36 = or v35, v34
+    v37 = gt v23, 0
+    v38 = zext i1 v37 to i256
+    v39 = and v38, v36
+    v40 = ne v39, 0
     jumpi v40, bb4, bb6
   bb6:
     jump bb1
@@ -196,39 +106,53 @@ fn @spow8(arg0: i8, arg1: u8) -> i8 [selector=0xd44642ed, pure, abi_params=[i8, 
     revert 28, 36
 }
 
-fn @const2(arg0: u256) -> u256 [selector=0xb253ebfa, pure, abi_params=[u256], abi_returns=[word]] {
+fn @upow8(arg0: i256, arg1: i256) -> i256 [selector=0x3f7ced5f, pure, abi_params=[u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
+    v0 = and arg0, 255
+    v1 = and arg1, 255
     jump bb1
   bb1:
-    v1 = phi [bb0: 1], [bb6: v13]
-    v2 = phi [bb0: 2], [bb6: v15]
-    v3 = phi [bb0: arg0], [bb6: v14]
-    v4 = gt v3, 0
-    jumpi v4, bb2, bb3
+    v3 = phi [bb0: 1], [bb6: v21]
+    v4 = phi [bb0: v0], [bb6: v23]
+    v5 = phi [bb0: v1], [bb6: v22]
+    v6 = gt v5, 0
+    jumpi v6, bb2, bb3
   bb3:
-    ret v1
+    ret v3
   bb2:
-    v5 = and v3, 1
-    v6 = mul v1, v2
-    v7 = iszero v2
-    v8 = div v6, v2
-    v9 = eq v8, v1
-    v10 = or v7, v9
-    v11 = iszero v10
-    v12 = and v5, v11
-    jumpi v12, bb4, bb5
+    v7 = and v5, 1
+    v8 = mul v3, v4
+    v9 = eq v4, 0
+    v10 = div v8, v4
+    v11 = eq v10, v3
+    v12 = or v9, v11
+    v13 = zext i1 v12 to i256
+    v14 = eq v13, 0
+    v15 = gt v8, 255
+    v16 = or v14, v15
+    v17 = zext i1 v16 to i256
+    v18 = and v7, v17
+    v19 = ne v18, 0
+    jumpi v19, bb4, bb5
   bb5:
-    v13 = select v5, v6, v1
-    v14 = shr 1, v3
-    v15 = mul v2, v2
-    v16 = iszero v2
-    v17 = div v15, v2
-    v18 = eq v17, v2
-    v19 = or v16, v18
-    v20 = iszero v19
-    v21 = gt v14, 0
-    v22 = and v21, v20
-    jumpi v22, bb4, bb6
+    v20 = ne v7, 0
+    v21 = select v20, v8, v3
+    v22 = shr 1, v5
+    v23 = mul v4, v4
+    v24 = eq v4, 0
+    v25 = div v23, v4
+    v26 = eq v25, v4
+    v27 = or v24, v26
+    v28 = zext i1 v27 to i256
+    v29 = eq v28, 0
+    v30 = gt v23, 255
+    v31 = or v29, v30
+    v32 = zext i1 v31 to i256
+    v33 = gt v22, 0
+    v34 = zext i1 v33 to i256
+    v35 = and v34, v32
+    v36 = ne v35, 0
+    jumpi v36, bb4, bb6
   bb6:
     jump bb1
   bb4:
@@ -237,39 +161,69 @@ fn @const2(arg0: u256) -> u256 [selector=0xb253ebfa, pure, abi_params=[u256], ab
     revert 28, 36
 }
 
-fn @const10(arg0: u256) -> u256 [selector=0xd325f19a, pure, abi_params=[u256], abi_returns=[word]] {
+fn @spow8(arg0: i256, arg1: i256) -> i256 [selector=0xd44642ed, pure, abi_params=[i8, u8], abi_returns=[word<i8>], abi_return_params=[i8]] {
   bb0:
+    v0 = signextend 0, arg0
+    v1 = and arg1, 255
     jump bb1
   bb1:
-    v1 = phi [bb0: 1], [bb6: v13]
-    v2 = phi [bb0: 10], [bb6: v15]
-    v3 = phi [bb0: arg0], [bb6: v14]
-    v4 = gt v3, 0
-    jumpi v4, bb2, bb3
+    v3 = phi [bb0: 1], [bb6: v29]
+    v4 = phi [bb0: v0], [bb6: v31]
+    v5 = phi [bb0: v1], [bb6: v30]
+    v6 = gt v5, 0
+    jumpi v6, bb2, bb3
   bb3:
-    ret v1
+    ret v3
   bb2:
-    v5 = and v3, 1
-    v6 = mul v1, v2
-    v7 = iszero v2
-    v8 = div v6, v2
-    v9 = eq v8, v1
-    v10 = or v7, v9
-    v11 = iszero v10
-    v12 = and v5, v11
-    jumpi v12, bb4, bb5
+    v7 = and v5, 1
+    v8 = mul v3, v4
+    v9 = eq v4, 0
+    v10 = sdiv v8, v4
+    v11 = eq v10, v3
+    v12 = or v9, v11
+    v13 = zext i1 v12 to i256
+    v14 = eq v13, 0
+    v15 = slt v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    v16 = sgt v8, 127
+    v17 = or v15, v16
+    v18 = zext i1 v17 to i256
+    v19 = zext i1 v14 to i256
+    v20 = or v19, v18
+    v21 = eq v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    v22 = slt v4, 0
+    v23 = and v21, v22
+    v24 = zext i1 v23 to i256
+    v25 = or v20, v24
+    v26 = and v7, v25
+    v27 = ne v26, 0
+    jumpi v27, bb4, bb5
   bb5:
-    v13 = select v5, v6, v1
-    v14 = shr 1, v3
-    v15 = mul v2, v2
-    v16 = iszero v2
-    v17 = div v15, v2
-    v18 = eq v17, v2
-    v19 = or v16, v18
-    v20 = iszero v19
-    v21 = gt v14, 0
-    v22 = and v21, v20
-    jumpi v22, bb4, bb6
+    v28 = ne v7, 0
+    v29 = select v28, v8, v3
+    v30 = shr 1, v5
+    v31 = mul v4, v4
+    v32 = eq v4, 0
+    v33 = sdiv v31, v4
+    v34 = eq v33, v4
+    v35 = or v32, v34
+    v36 = zext i1 v35 to i256
+    v37 = eq v36, 0
+    v38 = slt v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    v39 = sgt v31, 127
+    v40 = or v38, v39
+    v41 = zext i1 v40 to i256
+    v42 = zext i1 v37 to i256
+    v43 = or v42, v41
+    v44 = eq v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    v45 = slt v4, 0
+    v46 = and v44, v45
+    v47 = zext i1 v46 to i256
+    v48 = or v43, v47
+    v49 = gt v30, 0
+    v50 = zext i1 v49 to i256
+    v51 = and v50, v48
+    v52 = ne v51, 0
+    jumpi v52, bb4, bb6
   bb6:
     jump bb1
   bb4:
@@ -278,14 +232,108 @@ fn @const10(arg0: u256) -> u256 [selector=0xd325f19a, pure, abi_params=[u256], a
     revert 28, 36
 }
 
-fn @const_neg2(arg0: u256) -> i256 [selector=0xf3adabf1, pure, abi_params=[u256], abi_returns=[word]] {
+fn @const2(arg0: i256) -> i256 [selector=0xb253ebfa, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 1], [bb6: v17]
+    v2 = phi [bb0: 2], [bb6: v19]
+    v3 = phi [bb0: arg0], [bb6: v18]
+    v4 = gt v3, 0
+    jumpi v4, bb2, bb3
+  bb3:
+    ret v1
+  bb2:
+    v5 = and v3, 1
+    v6 = mul v1, v2
+    v7 = eq v2, 0
+    v8 = div v6, v2
+    v9 = eq v8, v1
+    v10 = or v7, v9
+    v11 = zext i1 v10 to i256
+    v12 = eq v11, 0
+    v13 = zext i1 v12 to i256
+    v14 = and v5, v13
+    v15 = ne v14, 0
+    jumpi v15, bb4, bb5
+  bb5:
+    v16 = ne v5, 0
+    v17 = select v16, v6, v1
+    v18 = shr 1, v3
+    v19 = mul v2, v2
+    v20 = eq v2, 0
+    v21 = div v19, v2
+    v22 = eq v21, v2
+    v23 = or v20, v22
+    v24 = zext i1 v23 to i256
+    v25 = eq v24, 0
+    v26 = gt v18, 0
+    v27 = and v26, v25
+    v28 = zext i1 v27 to i256
+    jumpi v27, bb4, bb6
+  bb6:
+    jump bb1
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @const10(arg0: i256) -> i256 [selector=0xd325f19a, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 1], [bb6: v17]
+    v2 = phi [bb0: 10], [bb6: v19]
+    v3 = phi [bb0: arg0], [bb6: v18]
+    v4 = gt v3, 0
+    jumpi v4, bb2, bb3
+  bb3:
+    ret v1
+  bb2:
+    v5 = and v3, 1
+    v6 = mul v1, v2
+    v7 = eq v2, 0
+    v8 = div v6, v2
+    v9 = eq v8, v1
+    v10 = or v7, v9
+    v11 = zext i1 v10 to i256
+    v12 = eq v11, 0
+    v13 = zext i1 v12 to i256
+    v14 = and v5, v13
+    v15 = ne v14, 0
+    jumpi v15, bb4, bb5
+  bb5:
+    v16 = ne v5, 0
+    v17 = select v16, v6, v1
+    v18 = shr 1, v3
+    v19 = mul v2, v2
+    v20 = eq v2, 0
+    v21 = div v19, v2
+    v22 = eq v21, v2
+    v23 = or v20, v22
+    v24 = zext i1 v23 to i256
+    v25 = eq v24, 0
+    v26 = gt v18, 0
+    v27 = and v26, v25
+    v28 = zext i1 v27 to i256
+    jumpi v27, bb4, bb6
+  bb6:
+    jump bb1
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @const_neg2(arg0: i256) -> i256 [selector=0xf3adabf1, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sub 0, 2
     jump bb1
   bb1:
-    v2 = phi [bb0: 1], [bb6: v18]
-    v3 = phi [bb0: v0], [bb6: v20]
-    v4 = phi [bb0: arg0], [bb6: v19]
+    v2 = phi [bb0: 1], [bb6: v23]
+    v3 = phi [bb0: v0], [bb6: v25]
+    v4 = phi [bb0: arg0], [bb6: v24]
     v5 = gt v4, 0
     jumpi v5, bb2, bb3
   bb3:
@@ -293,33 +341,43 @@ fn @const_neg2(arg0: u256) -> i256 [selector=0xf3adabf1, pure, abi_params=[u256]
   bb2:
     v6 = and v4, 1
     v7 = mul v2, v3
-    v8 = iszero v3
+    v8 = eq v3, 0
     v9 = sdiv v7, v3
     v10 = eq v9, v2
     v11 = or v8, v10
-    v12 = iszero v11
-    v13 = eq v2, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v14 = slt v3, 0
-    v15 = and v13, v14
-    v16 = or v12, v15
-    v17 = and v6, v16
-    jumpi v17, bb4, bb5
+    v12 = zext i1 v11 to i256
+    v13 = eq v12, 0
+    v14 = eq v2, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v15 = slt v3, 0
+    v16 = and v14, v15
+    v17 = zext i1 v16 to i256
+    v18 = zext i1 v13 to i256
+    v19 = or v18, v17
+    v20 = and v6, v19
+    v21 = ne v20, 0
+    jumpi v21, bb4, bb5
   bb5:
-    v18 = select v6, v7, v2
-    v19 = shr 1, v4
-    v20 = mul v3, v3
-    v21 = iszero v3
-    v22 = sdiv v20, v3
-    v23 = eq v22, v3
-    v24 = or v21, v23
-    v25 = iszero v24
-    v26 = eq v3, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v27 = slt v3, 0
-    v28 = and v26, v27
-    v29 = or v25, v28
-    v30 = gt v19, 0
-    v31 = and v30, v29
-    jumpi v31, bb4, bb6
+    v22 = ne v6, 0
+    v23 = select v22, v7, v2
+    v24 = shr 1, v4
+    v25 = mul v3, v3
+    v26 = eq v3, 0
+    v27 = sdiv v25, v3
+    v28 = eq v27, v3
+    v29 = or v26, v28
+    v30 = zext i1 v29 to i256
+    v31 = eq v30, 0
+    v32 = eq v3, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v33 = slt v3, 0
+    v34 = and v32, v33
+    v35 = zext i1 v34 to i256
+    v36 = zext i1 v31 to i256
+    v37 = or v36, v35
+    v38 = gt v24, 0
+    v39 = zext i1 v38 to i256
+    v40 = and v39, v37
+    v41 = ne v40, 0
+    jumpi v41, bb4, bb6
   bb6:
     jump bb1
   bb4:
@@ -328,7 +386,7 @@ fn @const_neg2(arg0: u256) -> i256 [selector=0xf3adabf1, pure, abi_params=[u256]
     revert 28, 36
 }
 
-fn @unchecked_pow8(arg0: u8, arg1: u8) -> u8 [selector=0xa376b2ef, pure, abi_params=[u8, u8], abi_returns=[word<u8>]] {
+fn @unchecked_pow8(arg0: i256, arg1: i256) -> i256 [selector=0xa376b2ef, pure, abi_params=[u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = and arg0, 255
     v1 = and arg1, 255

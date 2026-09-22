@@ -6,13 +6,13 @@ immutables:
   signedValue: i64
   initial: u256
 
-fn @initial() -> u256 [selector=0xbb806dc9, view, abi_params=[], abi_returns=[word]] {
+fn @initial() -> i256 [selector=0xbb806dc9, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = loadimmutable initial
     ret v0
 }
 
-fn @constructor(arg0: u64, arg1: u64, arg2: i64) [constructor, abi_params=[u64, u64, i64]] {
+fn @constructor(arg0: i256, arg1: i256, arg2: i256) [constructor, abi_params=[u64, u64, i64]] {
   bb0:
     storeimmutable a, arg0
     storeimmutable b, arg1
@@ -22,7 +22,7 @@ fn @constructor(arg0: u64, arg1: u64, arg2: i64) [constructor, abi_params=[u64, 
     ret
 }
 
-fn @total() -> u256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word]] {
+fn @total() -> i256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = loadimmutable a
     v1 = loadimmutable b
@@ -30,14 +30,14 @@ fn @total() -> u256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word
     ret v2
 }
 
-fn @runtimeOnly() -> u256 [selector=0x31407e50, view, abi_params=[], abi_returns=[word]] {
+fn @runtimeOnly() -> i256 [selector=0x31407e50, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = loadimmutable a
     v1 = checked_add u256, v0, 1
     ret v1
 }
 
-fn @signedPlusOne() -> u256 [selector=0x115fd0af, view, abi_params=[], abi_returns=[word]] {
+fn @signedPlusOne() -> i256 [selector=0x115fd0af, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = loadimmutable signedValue
     v1 = checked_add u256, v0, 1

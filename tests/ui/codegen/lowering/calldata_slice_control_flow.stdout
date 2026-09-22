@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_control_flow.sol:CalldataSliceControlFlow ===
 @module CalldataSliceControlFlow
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
   struct1: {calldataslice, calldataslice}
 
-fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @trimLen(arg0: calldataslice) -> i256 [selector=0x341fda35, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @_trim, arg0
     v1 = slice_len v0
@@ -35,7 +35,7 @@ fn @_trim(arg0: calldataslice) -> calldataslice [pure] {
     ret v12
 }
 
-fn @forward(arg0: calldataslice) -> u256 [selector=0xd948d468, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @forward(arg0: calldataslice) -> i256 [selector=0xd948d468, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = make_calldata_slice 0, 0
     v1 = slice_ptr v0
@@ -54,7 +54,7 @@ fn @forward(arg0: calldataslice) -> u256 [selector=0xd948d468, pure, abi_params=
     ret v13
 }
 
-fn @_sum(arg0: calldataslice, arg1: calldataslice) -> u256 [pure] {
+fn @_sum(arg0: calldataslice, arg1: calldataslice) -> i256 [pure] {
   bb0:
     v0 = slice_len arg0
     v1 = checked_mul u256, v0, 0x3e8
@@ -63,7 +63,7 @@ fn @_sum(arg0: calldataslice, arg1: calldataslice) -> u256 [pure] {
     ret v3
 }
 
-fn @explicitTrim(arg0: calldataslice) -> u256 [selector=0xc127ee09, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @explicitTrim(arg0: calldataslice) -> i256 [selector=0xc127ee09, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @_explicitTrim, arg0
     v1 = slice_len v0
@@ -86,11 +86,12 @@ fn @_explicitTrim(arg0: calldataslice) -> calldataslice [pure] {
     v5 = gt v4, v4
     v6 = lt v4, 4
     v7 = or v5, v6
+    v8 = zext i1 v7 to i256
     icall revert_if<empty>, v7
-    v8 = sub v4, 4
-    v9 = add v3, 4
-    v10 = make_calldata_slice v9, v8
-    ret v10
+    v9 = sub v4, 4
+    v10 = add v3, 4
+    v11 = make_calldata_slice v10, v9
+    ret v11
 }
 
 fn @headTail(arg0: calldataslice) -> struct0 [selector=0xdd941f9b, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -113,30 +114,31 @@ fn @_split(arg0: calldataslice) -> struct1 [pure] {
     v3 = gt v1, v1
     v4 = lt v1, v2
     v5 = or v3, v4
+    v6 = zext i1 v5 to i256
     icall revert_if<empty>, v5
-    v6 = sub v1, v2
-    v7 = add v0, v2
-    v8 = make_calldata_slice v7, v6
-    v9 = slice_len arg0
-    v10 = gt v9, 8
-    jumpi v10, bb1, bb2
+    v7 = sub v1, v2
+    v8 = add v0, v2
+    v9 = make_calldata_slice v8, v7
+    v10 = slice_len arg0
+    v11 = gt v10, 8
+    jumpi v11, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v11 = slice_ptr arg0
-    v12 = add v11, 8
-    v13 = slice_ptr v8
-    v14 = slice_len v8
-    v15 = make_calldata_slice v12, v14
-    v16 = slice_len arg0
-    v17 = sub v16, 8
-    v18 = slice_ptr v15
-    v19 = slice_len v15
-    v20 = make_calldata_slice v18, v17
+    v12 = slice_ptr arg0
+    v13 = add v12, 8
+    v14 = slice_ptr v9
+    v15 = slice_len v9
+    v16 = make_calldata_slice v13, v15
+    v17 = slice_len arg0
+    v18 = sub v17, 8
+    v19 = slice_ptr v16
+    v20 = slice_len v16
+    v21 = make_calldata_slice v19, v18
     jump bb3
   bb3:
-    v21 = phi [bb1: v20], [bb2: v8]
-    v22 = insert_value struct1, undef struct1, 0, arg0
-    v23 = insert_value struct1, v22, 1, v21
-    ret v23
+    v22 = phi [bb1: v21], [bb2: v9]
+    v23 = insert_value struct1, undef struct1, 0, arg0
+    v24 = insert_value struct1, v23, 1, v22
+    ret v24
 }

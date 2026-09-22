@@ -3,7 +3,7 @@
 use super::{
     BlockId, EvmCodegen, EvmMemoryLayout, Function, InstKind, LateGasOperand, Liveness,
     OperandCostModel, OperandPlan, ScheduledOp, SmallVec, StackOp, StackScheduler, U256, Value,
-    ValueId, WORD_BYTES, index_vec, op, rematerializable_nullary_opcode,
+    ValueId, WORD_BYTES, index_vec, op, rematerializable_nullary_value,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -359,7 +359,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     // This handles GAS (which is always fresh) and MLOAD (which re-reads from
                     // memory)
                     let inst_kind = &func.inst(*inst_id).kind;
-                    if let Some(opcode) = rematerializable_nullary_opcode(inst_kind).or_else(|| {
+                    if let Some(opcode) = rematerializable_nullary_value(func, val).or_else(|| {
                         inst_kind.evm_opcode().filter(|_| matches!(inst_kind, InstKind::Gas))
                     }) {
                         self.emit_fresh_scheduled_value(

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/loop_bound_resident.sol:LoopBoundResident ===
 @module LoopBoundResident
-fn @accumulate(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xf39fb277, pure, abi_params=[u256, u256, u256], abi_returns=[word]] {
+fn @accumulate(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf39fb277, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -10,8 +10,8 @@ fn @accumulate(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xf39fb277,
     v3 = phi [bb0: 0], [bb3: v10]
     v4 = phi [bb0: arg1], [bb3: v9]
     v5 = lt v3, v2
-    v6 = eq v5, 0
-    v7 = iszero v6
+    v6 = zext i1 v5 to i256
+    v7 = ne v6, 0
     jumpi v7, bb4, bb5
   bb5:
     jump bb2
@@ -26,4 +26,50 @@ fn @accumulate(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xf39fb277,
   bb3:
     v10 = add v3, 1
     jump bb1
+}
+
+// === ROOT/tests/ui/codegen/lowering/loop_bound_resident.sol:ScanLoop ===
+@module ScanLoop
+fn @orderedSuffix(arg0: memoryarray) -> i256 [selector=0xf6f5f115, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = ptrtoint memoryarray arg0 to i256
+    v1 = mload v0
+    v2 = shl 5, v1
+    v3 = ptrtoint memoryarray arg0 to i256
+    v4 = add v3, v2
+    jump bb1
+  bb1:
+    v5 = phi [bb0: arg0], [bb5: v5]
+    v6 = phi [bb0: v4], [bb5: v6]
+    v7 = phi [bb0: 0], [bb5: v7]
+    v8 = phi [bb0: v4], [bb5: v20]
+    v9 = ptrtoint memoryarray v5 to i256
+    v10 = add v9, 32
+    v11 = gt v8, v10
+    v12 = zext i1 v11 to i256
+    v13 = ne v12, 0
+    jumpi v13, bb3, bb4
+  bb4:
+    jump bb2
+  bb3:
+    v14 = mload v8
+    v15 = sub v8, 32
+    v16 = mload v15
+    v17 = gt v16, v14
+    v18 = zext i1 v17 to i256
+    v19 = ne v18, 0
+    jumpi v19, bb6, bb7
+  bb7:
+    jump bb8
+  bb8:
+    v20 = sub v8, 32
+    jump bb5
+  bb5:
+    jump bb1
+  bb6:
+    jump bb2
+  bb2:
+    v21 = sub v6, v8
+    v22 = shr 5, v21
+    ret v22
 }

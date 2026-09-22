@@ -1,6 +1,7 @@
 //! Memory-backed value construction and default aggregate values.
 
 use super::*;
+use crate::link::RelocatableBytecode;
 
 const MIN_BULK_ZERO_STRUCT_FIELDS: usize = 4;
 
@@ -158,7 +159,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             &mut self.builder,
             bytes,
             AllocationSemantics::INTERNAL,
-            None,
         )
     }
 
@@ -191,8 +191,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // return object
         self.lazy_helper(sym::literal_bytes_word, |_, function| {
             let mut builder = FunctionBuilder::new_semantic(function);
-            let word = builder.add_param(MirType::bytes32());
-            let length = builder.add_param(MirType::uint256());
+            let word = builder.add_param(MirType::I256);
+            let length = builder.add_param(MirType::I256);
             builder.set_return_type(MirType::MemoryObject(MemoryObjectKind::Bytes));
             let size = builder.imm(64);
             let object = builder.alloc_object(
@@ -219,29 +219,58 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         builder: &mut FunctionBuilder<'_>,
         bytes: &[u8],
         semantics: AllocationSemantics,
-        name: Option<Symbol>,
     ) -> Option<ValueId> {
-        // object = bytes(len) !preserves_fmp
-        let words = u64::try_from(bytes.len().div_ceil(32)).ok()?;
-        let size = builder.imm(words.checked_add(1)?.checked_mul(32)?);
-        let object = builder.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
-        let Value::Inst(alloc) = *builder.func().value(object) else {
-            unreachable!("allocation result must reference its instruction")
-        };
-        builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
-        let length = builder.imm(u64::try_from(bytes.len()).ok()?);
-        builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
-        let data = builder.memory_object_data(object, MemoryObjectKind::Bytes);
+        let (object, data, padded_size) = Self::alloc_const_bytes(builder, bytes.len(), semantics)?;
         super::super::data::copy_data_to_memory(
             gcx,
             module,
             builder,
             data,
             bytes,
-            usize::try_from(words.checked_mul(32)?).ok()?,
+            padded_size,
+            None,
+        );
+        Some(object)
+    }
+
+    pub(super) fn build_bytecode(
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        builder: &mut FunctionBuilder<'_>,
+        bytecode: &RelocatableBytecode,
+        name: Symbol,
+    ) -> Option<ValueId> {
+        let (object, data, padded_size) =
+            Self::alloc_const_bytes(builder, bytecode.bytes.len(), AllocationSemantics::INTERNAL)?;
+        super::super::data::copy_bytecode_to_memory(
+            gcx,
+            module,
+            builder,
+            data,
+            bytecode,
+            padded_size,
             name,
         );
         Some(object)
+    }
+
+    fn alloc_const_bytes(
+        builder: &mut FunctionBuilder<'_>,
+        len: usize,
+        semantics: AllocationSemantics,
+    ) -> Option<(ValueId, ValueId, usize)> {
+        // object = bytes(len) !preserves_fmp
+        let words = u64::try_from(len.div_ceil(32)).ok()?;
+        let size = builder.imm(words.checked_add(1)?.checked_mul(32)?);
+        let object = builder.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
+        let Value::Inst(alloc) = *builder.func().value(object) else {
+            unreachable!("allocation result must reference its instruction")
+        };
+        builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
+        let length = builder.imm(u64::try_from(len).ok()?);
+        builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
+        let data = builder.memory_object_data(object, MemoryObjectKind::Bytes);
+        Some((object, data, usize::try_from(words.checked_mul(32)?).ok()?))
     }
 
     fn ensure_bytes_literal_helper(&mut self, symbol: ByteSymbol, index: usize) -> FunctionId {
@@ -255,7 +284,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 &mut builder,
                 symbol.as_byte_str(),
                 AllocationSemantics::INTERNAL,
-                None,
             )
             .expect("literal length fits in a memory object");
             builder.ret([object]);

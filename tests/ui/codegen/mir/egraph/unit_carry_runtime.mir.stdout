@@ -1,32 +1,34 @@
 // === ROOT/tests/ui/codegen/mir/egraph/unit_carry_runtime.sol:UnitCarry ===
 @module UnitCarry
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
-fn @carries(arg0: u256) -> struct0 [selector=0xe64b0efb, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @carries(arg0: i256) -> struct0 [selector=0xe64b0efb, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0
-    v2 = sub arg0, 1
-    v3 = gt v2, arg0
-    v4 = insert_value struct0, undef struct0, 0, v1
-    v5 = insert_value struct0, v4, 1, v3
-    ret v5
+    v2 = zext i1 v1 to i256
+    v3 = sub arg0, 1
+    v4 = gt v3, arg0
+    v5 = zext i1 v4 to i256
+    v6 = insert_value struct0, undef struct0, 0, v2
+    v7 = insert_value struct0, v6, 1, v5
+    ret v7
 }
 
-fn @increment(arg0: u256) -> u256 [selector=0x7cf5dab0, pure, abi_params=[u256], abi_returns=[word]] {
+fn @increment(arg0: i256) -> i256 [selector=0x7cf5dab0, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_add u256, arg0, 1
     ret v0
 }
 
-fn @decrement(arg0: u256) -> u256 [selector=0x3a9ebefd, pure, abi_params=[u256], abi_returns=[word]] {
+fn @decrement(arg0: i256) -> i256 [selector=0x3a9ebefd, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_sub u256, arg0, 1
     ret v0
 }
 
-fn @narrow(arg0: u8) -> u8 [selector=0x3fca863c, pure, abi_params=[u8], abi_returns=[word<u8>]] {
+fn @narrow(arg0: i256) -> i256 [selector=0x3fca863c, pure, abi_params=[u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = and arg0, 255
     v1 = checked_add u8, v0, 1

@@ -3,188 +3,210 @@
 fn @copy(arg0: calldataslice) -> memorystruct [selector=0x0bf8d45f, pure, abi_params=[array<_, function>], abi_returns=[tuple<memory_array<function>>], abi_return_params=[tuple<array<_, function>>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<1>, v0, 0, memoryarray 96
-    v1 = slice_len arg0
-    v2 = slice_ptr arg0
-    v3 = mul v1, 32
-    v4 = iszero 32
-    v5 = div v3, 32
-    v6 = eq v5, v1
-    v7 = or v4, v6
-    v8 = iszero v7
-    icall panic_if<0x41>, v8
-    v9 = calldatasize
-    v10 = sub v9, v2
-    v11 = slt v10, v3
-    icall revert_if<calldata_tail_too_short>, v11
-    v12 = mul v1, 32
-    v13 = iszero 32
-    v14 = div v12, 32
-    v15 = eq v14, v1
-    v16 = or v13, v15
-    v17 = iszero v16
-    icall panic_if<0x41>, v17
-    v18 = add 32, v12
-    v19 = lt v18, 32
-    icall panic_if<0x41>, v19
-    v20 = alloc memoryarray<1>, exact, uninitialized, infallible, v18
-    set_memory_object_len memoryarray, v20, v1
+    v1 = ptrtoint memoryarray 96 to i256
+    memory_object_store_field memorystruct<1>, v0, 0, v1
+    v2 = slice_len arg0
+    v3 = slice_ptr arg0
+    v4 = mul v2, 32
+    v5 = eq 32, 0
+    v6 = div v4, 32
+    v7 = eq v6, v2
+    v8 = or v5, v7
+    v9 = zext i1 v8 to i256
+    v10 = eq v9, 0
+    icall panic_if<0x41>, v10
+    v11 = calldatasize
+    v12 = sub v11, v3
+    v13 = slt v12, v4
+    icall revert_if<calldata_tail_too_short>, v13
+    v14 = mul v2, 32
+    v15 = eq 32, 0
+    v16 = div v14, 32
+    v17 = eq v16, v2
+    v18 = or v15, v17
+    v19 = zext i1 v18 to i256
+    v20 = eq v19, 0
+    icall panic_if<0x41>, v20
+    v21 = add 32, v14
+    v22 = lt v21, 32
+    icall panic_if<0x41>, v22
+    v23 = alloc memoryarray<1>, exact, uninitialized, infallible, v21
+    set_memory_object_len memoryarray, v23, v2
     jump bb1
   bb1:
-    v21 = phi [bb0: 0], [bb2: v31]
-    v22 = lt v21, v1
-    jumpi v22, bb2, bb3
+    v24 = phi [bb0: 0], [bb2: v34]
+    v25 = lt v24, v2
+    jumpi v25, bb2, bb3
   bb3:
-    memory_object_store_field memorystruct<1>, v0, 0, v20
-    v32 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<1>, v32, 0, memoryarray 96
+    v35 = ptrtoint memoryarray v23 to i256
+    memory_object_store_field memorystruct<1>, v0, 0, v35
+    v36 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v37 = ptrtoint memoryarray 96 to i256
+    memory_object_store_field memorystruct<1>, v36, 0, v37
     ret v0
   bb2:
-    v23 = mul v21, 32
-    v24 = add v2, v23
-    v25 = calldataload v24
-    v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v27 = eq v25, v26
-    v28 = iszero v27
-    icall revert_if<empty>, v28
-    v29 = shr 64, v25
-    v30 = shl 64, v29
-    memory_object_store_element memoryarray<1>, v20, v21, v30
-    v31 = add v21, 1
+    v26 = mul v24, 32
+    v27 = add v3, v26
+    v28 = calldataload v27
+    v29 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v30 = eq v28, v29
+    v31 = eq v30, false
+    icall revert_if<empty>, v31
+    v32 = shr 64, v28
+    v33 = shl 64, v32
+    memory_object_store_element memoryarray<1>, v23, v24, v33
+    v34 = add v24, 1
     jump bb1
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_struct_copy.sol:ExternalFunctionPointerStructCopy ===
 @module ExternalFunctionPointerStructCopy
 data:
-  ExternalFunctionPointerStructCopyTarget_initcode_0: hex"34600e576104ac8060125f395ff35b5f5ffd34601a575f3560e01c80630bf8d45f14601657601a565b601e565b5f5ffd5b610480604052602436106104a8576004358061016052600401806102605280610260526020810167ffffffffffffffff610160511136806103a05282119150176104a4578061026052358060a0528060a05260206102605101806080528060805280608052360360051c81116104a4576040518061024052806102405260208101604052606081528160a052602082028061030052806103005260201560208204848060a05290148117905015610492576080518060805236038180610300529012905061048e57602082028061032052806103205260201560208204848060a052901481179050156104925780610320526020018061034052806103405260208110610492576040518061018052806101805281806103405281019150816040529050828060a05281525f608051909091909192915b8061036052848060a052811061042b578180610180528380610240525250509150506040518061016052602081016040526060815250604051806101a052806101a05260208101604052818061024052518061028052915081610280528180610280525182806102805215158060c0528060c0528060c05281028060e05290508060e05260018101806102a052806102a052818060e052811061041957602081806102a05202806101005280610100526020156020820483806102a05290149250829017915081159150836101a05284610280528260e0525090509050905061041957604051806101c052806101c052610100518061010052810160405260e0518060e05281525f60e05160c051610280516101a051939094909192919394935b806103c052828060e05281106103c55781806101c052865250505050506040518061012052806101205260208101806101405280610140528180610120528103825282806101a0525192506020810181806101405281038252835184151581029050806101e052815260206101e051026020820191506020850194508180610200520150806102005283038061022052925082610220526101e05180610200519090919092949293949361032c57509050610388565b82806102205282806103e05201517fffffffffffffffffffffffffffffffffffffffffffffffff00000000000000009016825260018103806102c0529050806102c05260208201806102e0529150816102e0528061032c575090505b8180610140528103905081019050818061012052900390505f9001601f8101601f1981169050604051806101605281810191508160405290508181f35b60208501602082806103c052028101905051848060c05290027fffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000901660208301602083028101905052600181019050610276565b634e487b715f5260416020526024601cfd5b806103605260208102840135806103805280610380527fffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000811681141561048e57806103805260401c60401b60208301602083028101905052600181019050610155565b5f5ffd5b634e487b715f5260416020526024601cfd5b5f5ffd5b5f5ffd"
+  ExternalFunctionPointerStructCopyTarget_initcode_0: hex"34600e5761056e8060125f395ff35b5f5ffd341515601c575f3560e01c80630bf8d45f14601857601c565b6020565b5f5ffd5b6104a06040526024361061056a5760043580608052600401806101205280610120526020810167ffffffffffffffff6080511136806103c0528211915017806101c05250506101c051610566576101205180610120523580610140528061014052602061012051018060e0528060e0528060e052360360051c8111610566576040518060805280608052806102c052806102c052602060805101604052606081806102c052528161014052602082028061032052806103205260201560208204848061014052901481179050156105545760e0518060e052360381806103205290129050610550576020820280610340528061034052602015602082048480610140529014811790501561055457806103405260200180610360528061036052602081106105545760405180608052806080528060c0528060c0528180610360526080510191508160405290508060c0528280610140528152505f60c05160e051919192915b806103805284806101405281106104e857818060c0529150509150915081806102c05252604051806080528060805260206080510160405260608191509052604051806101c052806101c052806101e052806101e05260206101c0510160405281806102c0529150815180610260529150816102605281806102605250818061026052518280610260521515806101605280610160528061016052810280610180529050806101805260018101806102e052806102e05281806101805281106104d657602081806102e05202806102005280610200526020156020820483806102e05290149250829017915081915081159150836101e05284610260528261018052509050905090506104d6576040518060805280608052806101005280610100526102005180610200526080510160405280610100526101805180610180528152505f610100516101805161016051610260516101e051949093909192915b806103e05282806101805281106104725781806101005294505050505081806101e0525260405180608052806080528060a0528060a0528060a052602090018061022052806102205260a0518060a052810360a0518060a0525281806101e05291508151915060208101818061022052810382528250825183151581029050806101a052815260206101a051026020820191508350602084019350839350818061028052015082925080610280528203806102a0529150816102a0526101a051806101a05215156101a0516102805160a051929091909294926103cb57509050610432565b82806102a05282806104005201517fffffffffffffffffffffffffffffffffffffffffffffffff00000000000000009016825260018103806102405290508061024052602082018061030052915081610300528061024052151561024051906103cb575090505b8180610220528103905081019050818060a0529150035f9001601f8101601f19811690506040518060805280608052816080510191508160405290508181f35b8480610260525060208501602082806103e052028101905051848061016052810290507fffffffffffffffffffffffffffffffffffffffffffffffff00000000000000009016828061010052602090016020830281019050526001810190506102e6565b634e487b715f5260416020526024601cfd5b806103805260208102840135806103a052806103a0527fffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000811681141561055057806103a05260401c60401b828060c05260209001602083028101905052600181019050610186565b5f5ffd5b634e487b715f5260416020526024601cfd5b5f5ffd5b5f5ffd"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 0x4dd, v1
+    v2 = and 0x59f, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ExternalFunctionPointerStructCopyTarget_initcode_0, v3, 0x4be
-    v4 = slice_ptr v0
-    v5 = add v3, 0x4be
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 0x4be
-    jumpi v6, bb2, bb1
+    v4 = ptrtoint memptr v3 to i256
+    data_copy ExternalFunctionPointerStructCopyTarget_initcode_0, v4, 0x580
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, 0x580
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, 0x580
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = sload 0 !metadata(storage=slot(0))
-    v8 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = and v7, v8
-    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = or v9, v10
-    sstore 0, v11 !metadata(storage=slot(0))
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = and v12, v13
+    v15 = zext i160 v9 to i256
+    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
+    v17 = or v14, v16
+    sstore 0, v17 !metadata(storage=slot(0))
     ret
 }
 
-fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>]] {
+fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
     set_memory_object_len memoryarray, v0, 3
     v1 = address
-    v2 = shl 32, v1
-    v3 = or v2, 0xd24c5a36
-    v4 = memory_object_len memoryarray, v0
-    v5 = lt 0, v4
-    v6 = iszero v5
-    icall panic_if<0x32>, v6
-    v7 = shl 64, v3
-    memory_object_store_element memoryarray<1>, v0, 0, v7
-    v8 = address
-    v9 = shl 32, v8
-    v10 = or v9, 0xc5337ed4
-    v11 = memory_object_len memoryarray, v0
-    v12 = lt 1, v11
-    v13 = iszero v12
-    icall panic_if<0x32>, v13
-    v14 = shl 64, v10
-    memory_object_store_element memoryarray<1>, v0, 1, v14
-    v15 = address
-    v16 = shl 32, v15
-    v17 = or v16, 0xafb0db5f
-    v18 = memory_object_len memoryarray, v0
-    v19 = lt 2, v18
-    v20 = iszero v19
-    icall panic_if<0x32>, v20
-    v21 = shl 64, v17
-    memory_object_store_element memoryarray<1>, v0, 2, v21
-    v22 = sload 0 !metadata(storage=slot(0))
-    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffff
-    v24 = gas
-    v25 = abi_encode [memory_array<function>], selector 0xbf8d45f00000000000000000000000000000000000000000000000000000000, args v0
-    v26 = slice_ptr v25
-    v27 = slice_len v25
-    v28 = staticcall v24, v23, v26, v27, 0, 0
-    jumpi v28, bb2, bb1
+    v2 = zext i160 v1 to i256
+    v3 = shl 32, v2
+    v4 = or v3, 0xd24c5a36
+    v5 = memory_object_len memoryarray, v0
+    v6 = lt 0, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = shl 64, v4
+    memory_object_store_element memoryarray<1>, v0, 0, v8
+    v9 = address
+    v10 = zext i160 v9 to i256
+    v11 = shl 32, v10
+    v12 = or v11, 0xc5337ed4
+    v13 = memory_object_len memoryarray, v0
+    v14 = lt 1, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = shl 64, v12
+    memory_object_store_element memoryarray<1>, v0, 1, v16
+    v17 = address
+    v18 = zext i160 v17 to i256
+    v19 = shl 32, v18
+    v20 = or v19, 0xafb0db5f
+    v21 = memory_object_len memoryarray, v0
+    v22 = lt 2, v21
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    v24 = shl 64, v20
+    memory_object_store_element memoryarray<1>, v0, 2, v24
+    v25 = sload 0 !metadata(storage=slot(0))
+    v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffff
+    v27 = gas
+    v28 = abi_encode [memory_array<function>], selector 0xbf8d45f00000000000000000000000000000000000000000000000000000000, args v0
+    v29 = slice_ptr v28
+    v30 = slice_len v28
+    v31 = staticcall v27, v26, v29, v30, 0, 0
+    jumpi v31, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v29 = icall returndata_bytes<>
-    v30 = abi_decode [tuple<array<_, function>>], v29
-    v31 = memory_object_load_field memorystruct<1>, v30, 0, memoryarray
-    v32 = memory_object_len memoryarray, v31
-    v33 = eq v32, 3
-    v34 = iszero v33
-    icall revert_if<empty>, v34
-    v35 = memory_object_load_field memorystruct<1>, v30, 0, memoryarray
+    v32 = icall returndata_bytes<>
+    v33 = abi_decode [tuple<array<_, function>>], v32
+    v34 = memory_object_load_field memorystruct<1>, v33, 0
+    v35 = inttoptr i256 v34 to memoryarray
     v36 = memory_object_len memoryarray, v35
-    v37 = lt 0, v36
-    v38 = iszero v37
-    icall panic_if<0x32>, v38
-    v39 = memory_object_load_element memoryarray<1>, v35, 0
-    v40 = shr 64, v39
-    v41 = address
-    v42 = shl 32, v41
-    v43 = or v42, 0xd24c5a36
-    v44 = eq v40, v43
-    v45 = iszero v44
-    icall revert_if<empty>, v45
-    v46 = memory_object_load_field memorystruct<1>, v30, 0, memoryarray
-    v47 = memory_object_len memoryarray, v46
-    v48 = lt 1, v47
-    v49 = iszero v48
-    icall panic_if<0x32>, v49
-    v50 = memory_object_load_element memoryarray<1>, v46, 1
-    v51 = shr 64, v50
-    v52 = address
-    v53 = shl 32, v52
-    v54 = or v53, 0xc5337ed4
-    v55 = eq v51, v54
-    v56 = iszero v55
-    icall revert_if<empty>, v56
-    v57 = memory_object_load_field memorystruct<1>, v30, 0, memoryarray
-    v58 = memory_object_len memoryarray, v57
-    v59 = lt 2, v58
-    v60 = iszero v59
-    icall panic_if<0x32>, v60
-    v61 = memory_object_load_element memoryarray<1>, v57, 2
-    v62 = shr 64, v61
-    v63 = address
-    v64 = shl 32, v63
-    v65 = or v64, 0xafb0db5f
-    v66 = eq v62, v65
-    v67 = iszero v66
-    icall revert_if<empty>, v67
-    ret true
+    v37 = eq v36, 3
+    v38 = eq v37, false
+    icall revert_if<empty>, v38
+    v39 = memory_object_load_field memorystruct<1>, v33, 0
+    v40 = inttoptr i256 v39 to memoryarray
+    v41 = memory_object_len memoryarray, v40
+    v42 = lt 0, v41
+    v43 = eq v42, false
+    icall panic_if<0x32>, v43
+    v44 = memory_object_load_element memoryarray<1>, v40, 0
+    v45 = shr 64, v44
+    v46 = address
+    v47 = zext i160 v46 to i256
+    v48 = shl 32, v47
+    v49 = or v48, 0xd24c5a36
+    v50 = eq v45, v49
+    v51 = eq v50, false
+    icall revert_if<empty>, v51
+    v52 = memory_object_load_field memorystruct<1>, v33, 0
+    v53 = inttoptr i256 v52 to memoryarray
+    v54 = memory_object_len memoryarray, v53
+    v55 = lt 1, v54
+    v56 = eq v55, false
+    icall panic_if<0x32>, v56
+    v57 = memory_object_load_element memoryarray<1>, v53, 1
+    v58 = shr 64, v57
+    v59 = address
+    v60 = zext i160 v59 to i256
+    v61 = shl 32, v60
+    v62 = or v61, 0xc5337ed4
+    v63 = eq v58, v62
+    v64 = eq v63, false
+    icall revert_if<empty>, v64
+    v65 = memory_object_load_field memorystruct<1>, v33, 0
+    v66 = inttoptr i256 v65 to memoryarray
+    v67 = memory_object_len memoryarray, v66
+    v68 = lt 2, v67
+    v69 = eq v68, false
+    icall panic_if<0x32>, v69
+    v70 = memory_object_load_element memoryarray<1>, v66, 2
+    v71 = shr 64, v70
+    v72 = address
+    v73 = zext i160 v72 to i256
+    v74 = shl 32, v73
+    v75 = or v74, 0xafb0db5f
+    v76 = eq v71, v75
+    v77 = eq v76, false
+    icall revert_if<empty>, v77
+    v78 = zext i1 1 to i256
+    ret v78
 }
 
-fn @random1() [selector=0xd24c5a36, pure, abi_params=[], abi_returns=[]] {
+fn @random1() [selector=0xd24c5a36, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @random2() [selector=0xc5337ed4, pure, abi_params=[], abi_returns=[]] {
+fn @random2() [selector=0xc5337ed4, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @random3() [selector=0xafb0db5f, pure, abi_params=[], abi_returns=[]] {
+fn @random3() [selector=0xafb0db5f, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }

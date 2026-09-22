@@ -14,11 +14,11 @@
 // CHECK-NEXT: + [[ADD2]] = add arg0, arg1
 // CHECK-NEXT: {{v[0-9]+}} = sub [[ADD2]], [[DIV2]]
 fn @retired_use_does_not_block_scheduling(
-  arg0: u256,
-  arg1: u256,
-  arg2: u256,
-  arg3: u256
-) -> u256 {
+  arg0: i256,
+  arg1: i256,
+  arg2: i256,
+  arg3: i256
+) -> i256 {
   bb0:
     v4 = add arg0, arg1
     v5 = mul v4, arg2

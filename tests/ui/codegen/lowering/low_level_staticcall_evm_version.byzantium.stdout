@@ -1,23 +1,26 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_staticcall_evm_version.sol:Caller ===
 @module Caller
-fn @probe(arg0: address) -> bool [selector=0x275e5da5, view, abi_params=[address], abi_returns=[word<bool>]] {
+fn @probe(arg0: i256) -> i256 [selector=0x275e5da5, view, abi_params=[address], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gas
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v1, 0
     v2 = memory_object_data memorybytes, v1
-    v3 = address_staticcall arg0, v1, gas v0
-    ret v3
+    v3 = trunc i256 arg0 to i160
+    v4 = address_staticcall v3, v1, gas v0
+    v5 = zext i1 v4 to i256
+    ret v5
 }
 
-fn @probeCall(arg0: address) -> u256 [selector=0x9c6db033, abi_params=[address], abi_returns=[word]] {
+fn @probeCall(arg0: i256) -> i256 [selector=0x9c6db033, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v1, 0
     v2 = memory_object_data memorybytes, v1
-    v3 = address_call arg0, v1, gas v0
-    v4 = icall returndata_bytes<>
-    v5 = memory_object_len memorybytes, v4
-    ret v5
+    v3 = trunc i256 arg0 to i160
+    v4 = address_call v3, v1, gas v0
+    v5 = icall returndata_bytes<>
+    v6 = memory_object_len memorybytes, v5
+    ret v6
 }

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-slices/returndata_slice.mir (before lower-slices) ===
 + // === ROOT/tests/ui/codegen/mir/lower-slices/returndata_slice.mir (after lower-slices) ===
   @module ReturndataSlice
-  fn @copy_returndata() -> memptr {
+  fn @copy_returndata() -> i256 {
     bb0:
       v0 = returndatasize
 -     v1 = make_returndata_slice 0, v0
@@ -13,13 +13,15 @@
 -     set_memory_object_len memorybytes, v5, v3
 +     set_memory_object_len memorybytes, v5, v0
       v6 = memory_object_data memorybytes, v5
--     returndatacopy v6, v2, v3
-+     returndatacopy v6, 0, v0
-      ret v5
+      v7 = ptrtoint memptr v6 to i256
+-     returndatacopy v7, v2, v3
++     returndatacopy v7, 0, v0
+      v8 = ptrtoint memorybytes v5 to i256
+      ret v8
   }
   
-- fn @consume_returndata(arg0: returndataslice) -> u256 {
-+ fn @consume_returndata(arg0: u256, arg1: u256) -> u256 {
+- fn @consume_returndata(arg0: returndataslice) -> i256 {
++ fn @consume_returndata(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = slice_ptr arg0
 -     v1 = slice_len arg0

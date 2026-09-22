@@ -4,7 +4,7 @@
 
 // CHECK-LABEL: {{^[ +].*}}fn @forward_length{{[( ]}}
 // CHECK: + ret 39
-fn @forward_length(arg0: memorybytes) -> u256 {
+fn @forward_length(arg0: memorybytes) -> i256 {
   bb0:
     set_memory_object_len memorybytes, arg0, 39
     v1 = memory_object_len memorybytes, arg0
@@ -14,7 +14,7 @@ fn @forward_length(arg0: memorybytes) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_length_after_clobber{{[( ]}}
 // CHECK: {{^[ +].*}}mstore arg1, 7
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = memory_object_len
-fn @keep_length_after_clobber(arg0: memorybytes, arg1: u256) -> u256 {
+fn @keep_length_after_clobber(arg0: memorybytes, arg1: i256) -> i256 {
   bb0:
     set_memory_object_len memorybytes, arg0, 39
     mstore arg1, 7
@@ -26,7 +26,7 @@ fn @keep_length_after_clobber(arg0: memorybytes, arg1: u256) -> u256 {
 // CHECK: {{^[ +].*}}set_memory_object_len memorybytes, arg1, 32
 // CHECK: {{^[ +].*}}memory_object_store_word memorybytes, arg1, 0, 7
 // CHECK: {{^[ +].*}}store_storage_bytes arg0, arg1
-fn @store_bytes_reads_memory(arg0: u256, arg1: memorybytes) {
+fn @store_bytes_reads_memory(arg0: i256, arg1: memorybytes) {
   bb0:
     set_memory_object_len memorybytes, arg1, 32
     memory_object_store_word memorybytes, arg1, 0, 7
@@ -36,16 +36,19 @@ fn @store_bytes_reads_memory(arg0: u256, arg1: memorybytes) {
 
 // CHECK-LABEL: fn @acyclic_shared_exit
 // CHECK: + ret 39
-fn @acyclic_shared_exit(arg0: u256, arg1: u256) -> u256 {
+fn @acyclic_shared_exit(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    jumpi arg0, bb3, bb1
+    v3 = ne arg0, 0
+    jumpi v3, bb3, bb1
   bb1:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 39
-    v1 = memory_object_data memorybytes, v0
+    v5 = memory_object_data memorybytes, v0
+    v1 = ptrtoint memptr v5 to i256
     mstore v1, 7
     v2 = memory_object_len memorybytes, v0
-    jumpi arg1, bb3, bb2
+    v4 = ne arg1, 0
+    jumpi v4, bb3, bb2
   bb2:
     ret v2
   bb3:

@@ -6,13 +6,13 @@
 // CHECK: - {{.*}}icall @tiny
 // CHECK: + {{v[0-9]+}} = add arg0, 1
 // CHECK: + {{v[0-9]+}} = sub {{v[0-9]+}}, 4
-fn @tiny_caller(arg0: u256) -> u256 {
+fn @tiny_caller(arg0: i256) -> i256 {
   bb0:
     v1 = icall @tiny, arg0
     ret v1
 }
 
-fn @tiny(arg0: u256) -> u256 {
+fn @tiny(arg0: i256) -> i256 {
   bb0:
     v1 = add arg0, 1
     v2 = xor v1, 2
@@ -25,13 +25,13 @@ fn @tiny(arg0: u256) -> u256 {
 // the internal-call protocol without duplicating the body.
 // CHECK-LABEL: {{^[ +].*}}fn @large_caller{{[( ]}}
 // CHECK: - {{.*}}icall @large
-fn @large_caller(arg0: u256) -> u256 {
+fn @large_caller(arg0: i256) -> i256 {
   bb0:
     v1 = icall @large, arg0
     ret v1
 }
 
-fn @large(arg0: u256) -> u256 {
+fn @large(arg0: i256) -> i256 {
   bb0:
     v1 = add arg0, 1
     v2 = xor v1, 2
@@ -44,13 +44,13 @@ fn @large(arg0: u256) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @storage_identity_caller{{[( ]}}
 // CHECK: - {{.*}}icall @storage_identity
 // CHECK: + {{.*}}phi {{.*}}arg0
-fn @storage_identity_caller(arg0: storageptr) -> storageptr {
+fn @storage_identity_caller(arg0: i256) -> i256 {
   bb0:
     v1 = icall @storage_identity, arg0
     ret v1
 }
 
-fn @storage_identity(arg0: storageptr) -> storageptr [pure] {
+fn @storage_identity(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }

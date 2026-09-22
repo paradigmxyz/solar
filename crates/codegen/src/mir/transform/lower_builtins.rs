@@ -13,7 +13,7 @@
 
 use crate::mir::{
     AddressCallKind, AllocationSemantics, Builtin, Callee, ConcatPart, FunctionBuilder, InstKind,
-    MemoryObjectKind, MemoryObjectLayout, MirType, Module, PanicCode, SliceLocation, ValueId,
+    MemoryObjectKind, MemoryObjectLayout, Module, PanicCode, SliceLocation, ValueId,
     pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::U256;
@@ -51,7 +51,7 @@ impl MirPass for LowerBuiltins {
                         }
                     }
                     InstKind::StorageArrayLoad {
-                        element: MirType::MemoryObject(MemoryObjectKind::Bytes),
+                        element: crate::mir::ValueLayout::MemoryObject(MemoryObjectKind::Bytes),
                         ..
                     } => needs_bytes = true,
                     _ => {}
@@ -238,7 +238,9 @@ impl MirPass for LowerBuiltins {
                                 .iter()
                                 .zip(args)
                                 .map(|(&ty, value)| match ty {
-                                    MirType::FixedBytes(size) => ConcatPart::Fixed { value, size },
+                                    crate::mir::ValueLayout::FixedBytes(size) => {
+                                        ConcatPart::Fixed { value, size }
+                                    }
                                     _ => ConcatPart::Bytes(value),
                                 })
                                 .collect(),
@@ -265,6 +267,9 @@ impl MirPass for LowerBuiltins {
                     };
                     let old =
                         builder.func().inst_result_value(id).expect("builtin must produce a value");
+                    // result = cast lowered builtin to its declared result type
+                    let result =
+                        builder.cast(result, builder.func().value_ty(old).expect("typed builtin"));
                     replacements.insert(old, result);
                 }
                 // continuation: remaining instructions; original terminator
@@ -365,7 +370,7 @@ fn lower_send(builder: &mut FunctionBuilder<'_>, address: ValueId, amount: Value
     // success = call(gas, address, amount, 0, 0, 0, 0)
     let zero = builder.imm(0);
     let stipend = builder.imm(2300);
-    let amount_is_zero = builder.iszero(amount);
+    let amount_is_zero = builder.eq_zero(amount);
     let gas = builder.select(amount_is_zero, stipend, zero);
     builder.call(gas, address, amount, zero, zero, zero, zero)
 }

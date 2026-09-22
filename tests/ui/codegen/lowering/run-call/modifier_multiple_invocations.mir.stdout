@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_multiple_invocations.sol:ModifierMultipleInvocations ===
 @module ModifierMultipleInvocations
-fn @f(arg0: u256) -> u256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[word]] {
+fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 2
@@ -18,7 +18,7 @@ fn @f(arg0: u256) -> u256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[
     v8 = checked_sub u256, v7, arg0
     sstore 0, v8 !metadata(storage=slot(0))
     v9 = eq arg0, arg0
-    v10 = iszero v9
+    v10 = eq v9, false
     icall panic_if<0x1>, v10
     jump bb3
   bb3:
@@ -26,7 +26,7 @@ fn @f(arg0: u256) -> u256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[
     v12 = checked_sub u256, v11, 5
     sstore 0, v12 !metadata(storage=slot(0))
     v13 = eq 5, 5
-    v14 = iszero v13
+    v14 = eq v13, false
     icall panic_if<0x1>, v14
     jump bb2
   bb2:
@@ -34,7 +34,7 @@ fn @f(arg0: u256) -> u256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[
     v16 = checked_sub u256, v15, 2
     sstore 0, v16 !metadata(storage=slot(0))
     v17 = eq 2, 2
-    v18 = iszero v17
+    v18 = eq v17, false
     icall panic_if<0x1>, v18
     jump bb1
   bb1:

@@ -20,11 +20,14 @@ jobs:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
     permissions:
+      id-token: write
       contents: read
     concurrency:
       group: ${{ github.workflow }}-pr-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     steps:
+      - name: Secure runner
+        uses: tempoxyz/gh-actions/actions/secure-runner@48ff2b0c97ede86c9f10d105424380b9605f790d
       - name: Checkout candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -43,7 +46,7 @@ jobs:
           test "$(git rev-parse HEAD^2)" = "$HEAD_SHA"
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
           toolchain: "1.96"
 
@@ -70,10 +73,10 @@ jobs:
           set -euo pipefail
           baseline="$RUNNER_TEMP/solar-base"
           git worktree add --detach "$baseline" "$(git rev-parse HEAD^1)"
-          CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target" cargo build --locked --release \
+          CARGO_TARGET_DIR="$RUNNER_TEMP/solar-base-target" cargo build --locked --release \
             --manifest-path "$baseline/Cargo.toml" -p solar-compiler --bin solar
           mkdir -p target/lsp-bench
-          cp target/release/solar target/lsp-bench/solar-base
+          cp "$RUNNER_TEMP/solar-base-target/release/solar" target/lsp-bench/solar-base
           git worktree remove "$baseline"
 
       - name: Build candidate and harness
@@ -228,11 +231,14 @@ jobs:
     runs-on: depot-ubuntu-latest
     timeout-minutes: 360
     permissions:
+      id-token: write
       contents: read
     concurrency:
       group: ${{ github.workflow }}-full-${{ github.ref }}
       cancel-in-progress: false
     steps:
+      - name: Secure runner
+        uses: tempoxyz/gh-actions/actions/secure-runner@48ff2b0c97ede86c9f10d105424380b9605f790d
       - name: Checkout main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -240,7 +246,7 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
           toolchain: "1.96"
 

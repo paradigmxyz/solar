@@ -12,15 +12,18 @@
 // CHECK-NOT: {{^[ +].*}}= gt
 // CHECK: {{^[ +].*}}[[PRODUCT:v[0-9]+]] = mul [[SUM]], [[SUM]]
 // CHECK-NOT: {{^[ +].*}}= and
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = add [[PRODUCT]], [[LT]]
-fn @value_numbering(arg0: u256, arg1: u256) -> u256 {
+// CHECK: {{^[ +].*}}[[WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[LT]]
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = add [[PRODUCT]], [[WORD]]
+fn @value_numbering(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = add arg0, arg1
     v1 = add arg1, arg0
     v2 = lt arg0, arg1
     v3 = gt arg1, arg0
     v4 = mul v0, v1
-    v5 = and v2, v3
+    v7 = zext i1 v2 to i256
+    v8 = zext i1 v3 to i256
+    v5 = and v7, v8
     v6 = add v4, v5
     ret v6
 }
@@ -32,7 +35,7 @@ fn @value_numbering(arg0: u256, arg1: u256) -> u256 {
 // CHECK: {{^[ +].*}}[[SHL:v[0-9]+]] = shl 3, arg0
 // CHECK: {{^[ +].*}}[[OFF:v[0-9]+]] = add arg0, 9
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = add [[SHL]], [[OFF]]
-fn @cheapest_node(arg0: u256) -> u256 {
+fn @cheapest_node(arg0: i256) -> i256 {
   bb0:
     v0 = mul arg0, 8
     v1 = add arg0, 4
@@ -48,7 +51,7 @@ fn @cheapest_node(arg0: u256) -> u256 {
 // CHECK-NOT: {{^[ +].*}}= add arg0, 1
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mul [[SUM]], 3
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mul [[SUM]], 3
-fn @dominance(arg0: u256, arg1: bool) -> u256 {
+fn @dominance(arg0: i256, arg1: i1) -> i256 {
   bb0:
     v0 = add arg0, 1
     jumpi arg1, bb1, bb2
@@ -72,7 +75,7 @@ fn @dominance(arg0: u256, arg1: bool) -> u256 {
 // CHECK-NOT: {{^[ +].*}}= add
 // CHECK: {{^[ +].*}}sstore [[SLOT]], 3
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = sload [[SLOT]]
-fn @skeleton(arg0: u256) -> u256 {
+fn @skeleton(arg0: i256) -> i256 {
   bb0:
     v0 = add arg0, 1
     v1 = add 1, 2

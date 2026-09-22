@@ -5,13 +5,13 @@ immutables:
   duration: u64
   initial: u256
 
-fn @initial() -> u256 [selector=0xbb806dc9, view, abi_params=[], abi_returns=[word]] {
+fn @initial() -> i256 [selector=0xbb806dc9, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = loadimmutable initial
     ret v0
 }
 
-fn @constructor(arg0: u64, arg1: u64) [constructor, abi_params=[u64, u64]] {
+fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[u64, u64]] {
   bb0:
     storeimmutable start, arg0
     storeimmutable duration, arg1
@@ -22,7 +22,7 @@ fn @constructor(arg0: u64, arg1: u64) [constructor, abi_params=[u64, u64]] {
     ret
 }
 
-fn @end() -> u256 [selector=0xefbe1c1c, view, abi_params=[], abi_returns=[word]] {
+fn @end() -> i256 [selector=0xefbe1c1c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = loadimmutable start
     v1 = loadimmutable duration
@@ -30,7 +30,7 @@ fn @end() -> u256 [selector=0xefbe1c1c, view, abi_params=[], abi_returns=[word]]
     ret v2
 }
 
-fn @vested(arg0: u256, arg1: u64) -> u256 [selector=0xcc71fadf, view, abi_params=[u256, u64], abi_returns=[word]] {
+fn @vested(arg0: i256, arg1: i256) -> i256 [selector=0xcc71fadf, view, abi_params=[u256, u64], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and arg1, 0xffffffffffffffff
     v1 = loadimmutable start
@@ -42,7 +42,7 @@ fn @vested(arg0: u256, arg1: u64) -> u256 [selector=0xcc71fadf, view, abi_params
     v3 = and arg1, 0xffffffffffffffff
     v4 = icall @end
     v5 = lt v3, v4
-    v6 = iszero v5
+    v6 = eq v5, false
     jumpi v6, bb4, bb5
   bb5:
     jump bb6

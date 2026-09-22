@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:AbiFixedArray ===
 @module AbiFixedArray
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
 fn @makeFixedArray() -> memoryfixedarray {
   bb0:
@@ -9,7 +9,8 @@ fn @makeFixedArray() -> memoryfixedarray {
     v1 = checked_add u256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    memory_zero v2, 64
+    v3 = ptrtoint memoryfixedarray v2 to i256
+    memory_zero v3, 64
     ret v2
 }
 
@@ -22,70 +23,72 @@ fn @fixedArrayLengthSideEffect() -> struct0 [selector=0x336fc624, abi_params=[],
     ret v3
 }
 
-fn @read(arg0: calldataslice, arg1: u256) -> u256 [selector=0x8f65cc66, pure, abi_params=[array<3, u256>, u256], abi_returns=[word]] {
+fn @read(arg0: calldataslice, arg1: i256) -> i256 [selector=0x8f65cc66, pure, abi_params=[array<3, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt arg1, v0
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = mul arg1, 32
-    v5 = iszero 32
+    v5 = eq 32, 0
     v6 = div v4, 32
     v7 = eq v6, arg1
     v8 = or v5, v7
-    v9 = iszero v8
-    icall panic_if<0x41>, v9
-    v10 = add v3, v4
-    v11 = calldataload v10
-    ret v11
+    v9 = zext i1 v8 to i256
+    v10 = eq v9, 0
+    icall panic_if<0x41>, v10
+    v11 = add v3, v4
+    v12 = calldataload v11
+    ret v12
 }
 
-fn @readDynamic(arg0: memoryarray, arg1: u256) -> u256 [selector=0xcd97b1f2, pure, abi_params=[array<_, u256>, u256], abi_returns=[word]] {
+fn @readDynamic(arg0: memoryarray, arg1: i256) -> i256 [selector=0xcd97b1f2, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = lt arg1, v0
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryarray<1>, arg0, arg1
     ret v3
 }
 
-fn @readDynamicCalldata(arg0: calldataslice, arg1: u256) -> u256 [selector=0x55cc55da, pure, abi_params=[array<_, u256>, u256], abi_returns=[word]] {
+fn @readDynamicCalldata(arg0: calldataslice, arg1: i256) -> i256 [selector=0x55cc55da, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt arg1, v0
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = mul arg1, 32
-    v5 = iszero 32
+    v5 = eq 32, 0
     v6 = div v4, 32
     v7 = eq v6, arg1
     v8 = or v5, v7
-    v9 = iszero v8
-    icall panic_if<0x41>, v9
-    v10 = add v3, v4
-    v11 = calldataload v10
-    ret v11
+    v9 = zext i1 v8 to i256
+    v10 = eq v9, 0
+    icall panic_if<0x41>, v10
+    v11 = add v3, v4
+    v12 = calldataload v11
+    ret v12
 }
 
-fn @readBytes(arg0: memorybytes) -> bytes1 [selector=0x8b33268b, pure, abi_params=[bytes], abi_returns=[word<bytes1>]] {
+fn @readBytes(arg0: memorybytes) -> i256 [selector=0x8b33268b, pure, abi_params=[bytes], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = lt 1, v0
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = memory_object_load_byte memorybytes, arg0, 1
     v4 = shl 248, v3
     ret v4
 }
 
-fn @readBytesCalldata(arg0: calldataslice) -> bytes1 [selector=0x4bc2c5d5, pure, abi_params=[bytes], abi_returns=[word<bytes1>]] {
+fn @readBytesCalldata(arg0: calldataslice) -> i256 [selector=0x4bc2c5d5, pure, abi_params=[bytes], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 1, v0
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = calldata_slice_load_word calldata, arg0, 1
@@ -94,151 +97,162 @@ fn @readBytesCalldata(arg0: calldataslice) -> bytes1 [selector=0x4bc2c5d5, pure,
     ret v6
 }
 
-fn @readPair(arg0: memorystruct) -> u256 [selector=0x5d4d7bfe, pure, abi_params=[tuple<u8, u8>], abi_returns=[word]] {
+fn @readPair(arg0: memorystruct) -> i256 [selector=0x5d4d7bfe, pure, abi_params=[tuple<u8, u8>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_load_field memorystruct<2>, arg0, 0
     v1 = and v0, 255
     ret v1
 }
 
-fn @readDynamicPair(arg0: memorystruct) -> u256 [selector=0x96a23d6f, pure, abi_params=[tuple<u256, bytes>], abi_returns=[word]] {
+fn @readDynamicPair(arg0: memorystruct) -> i256 [selector=0x96a23d6f, pure, abi_params=[tuple<u256, bytes>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_load_field memorystruct<2>, arg0, 0
-    v1 = memory_object_load_field memorystruct<2>, arg0, 1, memorybytes
-    v2 = memory_object_len memorybytes, v1
-    v3 = checked_add u256, v0, v2
-    ret v3
+    v1 = memory_object_load_field memorystruct<2>, arg0, 1
+    v2 = inttoptr i256 v1 to memorybytes
+    v3 = memory_object_len memorybytes, v2
+    v4 = checked_add u256, v0, v3
+    ret v4
 }
 
-fn @readWordList(arg0: memorystruct) -> u256 [selector=0xb5e6ddb8, pure, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word]] {
+fn @readWordList(arg0: memorystruct) -> i256 [selector=0xb5e6ddb8, pure, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = memory_object_load_field memorystruct<2>, arg0, 0, memoryarray
-    v1 = memory_object_len memoryarray, v0
-    v2 = memory_object_load_field memorystruct<2>, arg0, 1
-    v3 = checked_add u256, v1, v2
-    ret v3
+    v0 = memory_object_load_field memorystruct<2>, arg0, 0
+    v1 = inttoptr i256 v0 to memoryarray
+    v2 = memory_object_len memoryarray, v1
+    v3 = memory_object_load_field memorystruct<2>, arg0, 1
+    v4 = checked_add u256, v2, v3
+    ret v4
 }
 
-fn @readSignedList(arg0: memorystruct) -> u256 [selector=0xa15ab30e, pure, abi_params=[tuple<array<_, i256>, u256>], abi_returns=[word]] {
+fn @readSignedList(arg0: memorystruct) -> i256 [selector=0xa15ab30e, pure, abi_params=[tuple<array<_, i256>, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = memory_object_load_field memorystruct<2>, arg0, 0, memoryarray
-    v1 = memory_object_len memoryarray, v0
-    v2 = memory_object_load_field memorystruct<2>, arg0, 1
-    v3 = checked_add u256, v1, v2
-    ret v3
+    v0 = memory_object_load_field memorystruct<2>, arg0, 0
+    v1 = inttoptr i256 v0 to memoryarray
+    v2 = memory_object_len memoryarray, v1
+    v3 = memory_object_load_field memorystruct<2>, arg0, 1
+    v4 = checked_add u256, v2, v3
+    ret v4
 }
 
-fn @readNestedList(arg0: memorystruct) -> u256 [selector=0x2fc71376, pure, abi_params=[tuple<array<_, array<_, u256>>>], abi_returns=[word]] {
+fn @readNestedList(arg0: memorystruct) -> i256 [selector=0x2fc71376, pure, abi_params=[tuple<array<_, array<_, u256>>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = memory_object_load_field memorystruct<1>, arg0, 0, memoryarray
-    v1 = memory_object_len memoryarray, v0
-    v2 = memory_object_load_field memorystruct<1>, arg0, 0, memoryarray
-    v3 = memory_object_len memoryarray, v2
-    v4 = lt 0, v3
-    v5 = iszero v4
-    icall panic_if<0x32>, v5
-    v6 = memory_object_load_element memoryarray<1>, v2, 0
-    v7 = memory_object_from_ptr memoryarray, v6
-    v8 = eq v7, 0
-    jumpi v8, bb1, bb2
+    v0 = memory_object_load_field memorystruct<1>, arg0, 0
+    v1 = inttoptr i256 v0 to memoryarray
+    v2 = memory_object_len memoryarray, v1
+    v3 = memory_object_load_field memorystruct<1>, arg0, 0
+    v4 = inttoptr i256 v3 to memoryarray
+    v5 = memory_object_len memoryarray, v4
+    v6 = lt 0, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = memory_object_load_element memoryarray<1>, v4, 0
+    v9 = inttoptr i256 v8 to memoryarray
+    v10 = eq v8, 0
+    jumpi v10, bb1, bb2
   bb1:
-    v9 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v9, 0
-    memory_object_store_element memoryarray<1>, v2, 0, v9
+    v11 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v11, 0
+    v12 = ptrtoint memoryarray v11 to i256
+    memory_object_store_element memoryarray<1>, v4, 0, v12
     jump bb2
   bb2:
-    v10 = phi [bb0: v7], [bb1: v9]
-    v11 = memory_object_len memoryarray, v10
-    v12 = checked_add u256, v1, v11
-    ret v12
+    v13 = phi [bb0: v9], [bb1: v11]
+    v14 = memory_object_len memoryarray, v13
+    v15 = checked_add u256, v2, v14
+    ret v15
 }
 
-fn @readEnumPair(arg0: memorystruct) -> u256 [selector=0xaea50307, pure, abi_params=[tuple<enum<2, u8>, u256>], abi_returns=[word]] {
+fn @readEnumPair(arg0: memorystruct) -> i256 [selector=0xaea50307, pure, abi_params=[tuple<enum<2, u8>, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_load_field memorystruct<2>, arg0, 0
     v1 = lt v0, 2
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x21>, v2
     v3 = memory_object_load_field memorystruct<2>, arg0, 1
     v4 = checked_add u256, v0, v3
     ret v4
 }
 
-fn @readEnumArray(arg0: memoryfixedarray) -> u256 [selector=0xf8507bf5, pure, abi_params=[array<2, enum<2, u8>>], abi_returns=[word]] {
+fn @readEnumArray(arg0: memoryfixedarray) -> i256 [selector=0xf8507bf5, pure, abi_params=[array<2, enum<2, u8>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = lt 0, 2
-    v1 = iszero v0
+    v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 0
     v3 = lt v2, 2
-    v4 = iszero v3
+    v4 = eq v3, false
     icall panic_if<0x21>, v4
     ret v2
 }
 
-fn @readMode(arg0: u8) -> u256 [selector=0x1bcfbcf9, pure, abi_params=[enum<2, u8>], abi_returns=[word]] {
+fn @readMode(arg0: i256) -> i256 [selector=0x1bcfbcf9, pure, abi_params=[enum<2, u8>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = lt arg0, 2
-    v1 = iszero v0
+    v1 = eq v0, false
     icall panic_if<0x21>, v1
     ret arg0
 }
 
-fn @readNestedArray(arg0: memorystruct) -> u256 [selector=0x8a855eb4, pure, abi_params=[tuple<array<2, u256>, u8>], abi_returns=[word]] {
+fn @readNestedArray(arg0: memorystruct) -> i256 [selector=0x8a855eb4, pure, abi_params=[tuple<array<2, u256>, u8>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = memory_object_load_field memorystruct<2>, arg0, 0, memoryfixedarray
-    v1 = lt 1, 2
-    v2 = iszero v1
-    icall panic_if<0x32>, v2
-    v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
-    v4 = memory_object_load_field memorystruct<2>, arg0, 1
-    v5 = and v4, 255
-    v6 = checked_add u256, v3, v5
-    ret v6
+    v0 = memory_object_load_field memorystruct<2>, arg0, 0
+    v1 = inttoptr i256 v0 to memoryfixedarray
+    v2 = lt 1, 2
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = memory_object_load_element memoryfixedarray<2, 1>, v1, 1
+    v5 = memory_object_load_field memorystruct<2>, arg0, 1
+    v6 = and v5, 255
+    v7 = checked_add u256, v4, v6
+    ret v7
 }
 
-fn @readNestedBytes(arg0: memorystruct) -> u256 [selector=0x8516eaf9, pure, abi_params=[tuple<array<2, bytes>>], abi_returns=[word]] {
+fn @readNestedBytes(arg0: memorystruct) -> i256 [selector=0x8516eaf9, pure, abi_params=[tuple<array<2, bytes>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = memory_object_load_field memorystruct<1>, arg0, 0, memoryfixedarray
-    v1 = lt 0, 2
-    v2 = iszero v1
-    icall panic_if<0x32>, v2
-    v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v4 = memory_object_from_ptr memorybytes, v3
-    v5 = eq v4, 0
-    jumpi v5, bb1, bb2
+    v0 = memory_object_load_field memorystruct<1>, arg0, 0
+    v1 = inttoptr i256 v0 to memoryfixedarray
+    v2 = lt 0, 2
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = memory_object_load_element memoryfixedarray<2, 1>, v1, 0
+    v5 = inttoptr i256 v4 to memorybytes
+    v6 = eq v4, 0
+    jumpi v6, bb1, bb2
   bb1:
-    v6 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v6, 0
-    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v6
+    v7 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v7, 0
+    v8 = ptrtoint memorybytes v7 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, v1, 0, v8
     jump bb2
   bb2:
-    v7 = phi [bb0: v4], [bb1: v6]
-    v8 = memory_object_len memorybytes, v7
-    v9 = memory_object_load_field memorystruct<1>, arg0, 0, memoryfixedarray
-    v10 = lt 1, 2
-    v11 = iszero v10
-    icall panic_if<0x32>, v11
-    v12 = memory_object_load_element memoryfixedarray<2, 1>, v9, 1
-    v13 = memory_object_from_ptr memorybytes, v12
-    v14 = eq v13, 0
-    jumpi v14, bb3, bb4
+    v9 = phi [bb0: v5], [bb1: v7]
+    v10 = memory_object_len memorybytes, v9
+    v11 = memory_object_load_field memorystruct<1>, arg0, 0
+    v12 = inttoptr i256 v11 to memoryfixedarray
+    v13 = lt 1, 2
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = memory_object_load_element memoryfixedarray<2, 1>, v12, 1
+    v16 = inttoptr i256 v15 to memorybytes
+    v17 = eq v15, 0
+    jumpi v17, bb3, bb4
   bb3:
-    v15 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v15, 0
-    memory_object_store_element memoryfixedarray<2, 1>, v9, 1, v15
+    v18 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v18, 0
+    v19 = ptrtoint memorybytes v18 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, v12, 1, v19
     jump bb4
   bb4:
-    v16 = phi [bb2: v13], [bb3: v15]
-    v17 = memory_object_len memorybytes, v16
-    v18 = checked_add u256, v8, v17
-    ret v18
+    v20 = phi [bb2: v16], [bb3: v18]
+    v21 = memory_object_len memorybytes, v20
+    v22 = checked_add u256, v10, v21
+    ret v22
 }
 
-fn @readMixed(arg0: u8, arg1: memorybytes) -> u256 [selector=0xa114c21b, pure, abi_params=[enum<2, u8>, bytes], abi_returns=[word]] {
+fn @readMixed(arg0: i256, arg1: memorybytes) -> i256 [selector=0xa114c21b, pure, abi_params=[enum<2, u8>, bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = lt arg0, 2
-    v1 = iszero v0
+    v1 = eq v0, false
     icall panic_if<0x21>, v1
     v2 = memory_object_len memorybytes, arg1
     v3 = checked_add u256, arg0, v2
@@ -247,7 +261,7 @@ fn @readMixed(arg0: u8, arg1: memorybytes) -> u256 [selector=0xa114c21b, pure, a
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiFixedArray ===
 @module ConstructorAbiFixedArray
-fn @result() -> u256 [selector=0x65372147, view, abi_params=[], abi_returns=[word]] {
+fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -256,31 +270,33 @@ fn @result() -> u256 [selector=0x65372147, view, abi_params=[], abi_returns=[wor
 fn @constructor(arg0: memoryfixedarray, arg1: i256) [constructor, abi_params=[array<2, array<2, u256>>, i256]] {
   bb0:
     v0 = lt 1, 2
-    v1 = iszero v0
+    v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 1
-    v3 = memory_object_from_ptr memoryfixedarray, v2
-    v4 = eq v3, 0
+    v3 = inttoptr i256 v2 to memoryfixedarray
+    v4 = eq v2, 0
     jumpi v4, bb1, bb2
   bb1:
     v5 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    memory_zero v5, 64
-    memory_object_store_element memoryfixedarray<2, 1>, arg0, 1, v5
+    v6 = ptrtoint memoryfixedarray v5 to i256
+    memory_zero v6, 64
+    v7 = ptrtoint memoryfixedarray v5 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, arg0, 1, v7
     jump bb2
   bb2:
-    v6 = phi [bb0: v3], [bb1: v5]
-    v7 = lt 0, 2
-    v8 = iszero v7
-    icall panic_if<0x32>, v8
-    v9 = memory_object_load_element memoryfixedarray<2, 1>, v6, 0
-    v10 = checked_add u256, v9, arg1
-    sstore 0, v10 !metadata(storage=slot(0))
+    v8 = phi [bb0: v3], [bb1: v5]
+    v9 = lt 0, 2
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = memory_object_load_element memoryfixedarray<2, 1>, v8, 0
+    v12 = checked_add u256, v11, arg1
+    sstore 0, v12 !metadata(storage=slot(0))
     ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiDynamic ===
 @module ConstructorAbiDynamic
-fn @result() -> u256 [selector=0x65372147, view, abi_params=[], abi_returns=[word]] {
+fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -290,7 +306,7 @@ fn @constructor(arg0: memoryarray, arg1: memorybytes) [constructor, abi_params=[
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 1, v0
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryarray<1>, arg0, 1
     v4 = memory_object_len memorybytes, arg1
@@ -301,7 +317,7 @@ fn @constructor(arg0: memoryarray, arg1: memorybytes) [constructor, abi_params=[
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiDynamicWords ===
 @module ConstructorAbiDynamicWords
-fn @result() -> u256 [selector=0x65372147, view, abi_params=[], abi_returns=[word]] {
+fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -311,7 +327,7 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, u256>]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 1, v0
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryarray<1>, arg0, 1
     sstore 0, v3 !metadata(storage=slot(0))
@@ -320,7 +336,7 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, u256>]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiBytes ===
 @module ConstructorAbiBytes
-fn @result() -> u256 [selector=0x65372147, view, abi_params=[], abi_returns=[word]] {
+fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -335,7 +351,7 @@ fn @constructor(arg0: memorybytes) [constructor, abi_params=[bytes]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiStruct ===
 @module ConstructorAbiStruct
-fn @result() -> u256 [selector=0x65372147, view, abi_params=[], abi_returns=[word]] {
+fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -344,9 +360,10 @@ fn @result() -> u256 [selector=0x65372147, view, abi_params=[], abi_returns=[wor
 fn @constructor(arg0: memorystruct) [constructor, abi_params=[tuple<u256, bytes>]] {
   bb0:
     v0 = memory_object_load_field memorystruct<2>, arg0, 0
-    v1 = memory_object_load_field memorystruct<2>, arg0, 1, memorybytes
-    v2 = memory_object_len memorybytes, v1
-    v3 = checked_add u256, v0, v2
-    sstore 0, v3 !metadata(storage=slot(0))
+    v1 = memory_object_load_field memorystruct<2>, arg0, 1
+    v2 = inttoptr i256 v1 to memorybytes
+    v3 = memory_object_len memorybytes, v2
+    v4 = checked_add u256, v0, v3
+    sstore 0, v4 !metadata(storage=slot(0))
     ret
 }

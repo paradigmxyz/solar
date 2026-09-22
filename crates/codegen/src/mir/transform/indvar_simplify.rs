@@ -53,14 +53,16 @@ use crate::mir::{
     ArithmeticKind, BlockId, CheckedOp, Function, Immediate, InstId, InstKind, Instruction,
     MemoryRegion, MirType, Module, Terminator, Value, ValueId,
     analysis::{
-        AffineTerm, AliasAnalysis, InductionVariable, Loop, LoopAnalyzer, MemoryBase,
-        ScalarEvolution,
+        AffineTerm, AliasAnalysis, CfgInfo, InductionVariable, Loop, LoopAnalyzer, ScalarEvolution,
     },
-    pass::{MirPass, run_function_pass_with_alias},
+    pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 use std::rc::Rc;
 
 /// Function pass for induction-variable simplification and strength reduction.
@@ -77,9 +79,23 @@ impl MirPass for IndVarSimplify {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass_with_alias(module, analyses, |func, analyses| {
-            IndVarSimplifier::new(Rc::clone(analyses.alias())).run(func).total() != 0
-        })
+        let mut selected = DenseBitSet::new_empty(module.functions.len());
+        for (id, func) in module.functions.iter_enumerated() {
+            if !func.blocks.is_empty() && !analyses.cfg(id, func).cyclic_blocks().is_empty() {
+                selected.insert(id);
+            }
+        }
+        run_selected_function_pass_with_alias_and_cfg(
+            module,
+            analyses,
+            &selected,
+            |func, analyses| {
+                IndVarSimplifier::new(Rc::clone(analyses.alias()))
+                    .run(func, Rc::clone(analyses.cfg()))
+                    .total()
+                    != 0
+            },
+        )
     }
 }
 
@@ -160,11 +176,11 @@ impl IndVarSimplifier {
     }
 
     /// Runs induction-variable simplification once over `func`.
-    fn run(&mut self, func: &mut Function) -> &IndVarSimplifyStats {
+    fn run(&mut self, func: &mut Function, cfg: Rc<CfgInfo>) -> &IndVarSimplifyStats {
         self.stats = IndVarSimplifyStats::default();
 
         let mut analyzer = LoopAnalyzer::new();
-        let loop_info = analyzer.analyze(func);
+        let loop_info = analyzer.analyze_with_cfg(func, cfg);
         let loops: Vec<_> = loop_info.loops.values().cloned().collect();
 
         for loop_data in loops {
@@ -553,16 +569,11 @@ impl IndVarSimplifier {
         }
     }
 
-    /// Whether `value` addresses memory, so scaling a bounded index onto it
-    /// cannot wrap: a heap address, or an offset from a memory-pointer argument,
-    /// which the lowered MIR no longer classifies by region.
+    /// Whether `value` has proven heap provenance, so scaling a bounded index cannot wrap.
     fn is_heap_address(&self, func: &Function, value: ValueId) -> bool {
-        self.alias.memory_address(func, value).is_some_and(|address| {
-            address.region == MemoryRegion::Heap
-                || matches!(address.base, MemoryBase::Value(base)
-                    if matches!(*func.value(base), Value::Arg(index)
-                        if func.arg_ty(index) == MirType::MemPtr))
-        })
+        self.alias
+            .memory_address(func, value)
+            .is_some_and(|address| address.region == MemoryRegion::Heap)
     }
 
     /// Appends to `block` the pointer's value at `index`:
@@ -593,12 +604,9 @@ impl IndVarSimplifier {
         value: ValueId,
     ) -> ValueId {
         match acc {
-            Some(acc) => self.append_inst_value(
-                func,
-                block,
-                InstKind::Add(acc, value),
-                Some(MirType::uint256()),
-            ),
+            Some(acc) => {
+                self.append_inst_value(func, block, InstKind::Add(acc, value), Some(MirType::I256))
+            }
             None => value,
         }
     }
@@ -693,7 +701,13 @@ impl IndVarSimplifier {
             .iter()
             .filter(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
             .count();
-        let mut seen = FxHashSet::default();
+        let mut defined_inside = DenseBitSet::new_empty(func.num_insts());
+        for block in loop_data.blocks.iter() {
+            for &inst in &func.blocks[block].instructions {
+                defined_inside.insert(inst);
+            }
+        }
+        let mut seen = DenseBitSet::new_empty(func.num_values());
         for block in loop_data.blocks.iter() {
             let block = &func.blocks[block];
             for operand in block
@@ -704,11 +718,7 @@ impl IndVarSimplifier {
                 .chain(block.terminator.iter().flat_map(Terminator::operands))
             {
                 let Value::Inst(inst_id) = func.value(operand) else { continue };
-                let defined_inside = loop_data
-                    .blocks
-                    .iter()
-                    .any(|block| func.blocks[block].instructions.contains(inst_id));
-                if !defined_inside && seen.insert(operand) {
+                if !defined_inside.contains(*inst_id) && seen.insert(operand) {
                     count += 1;
                 }
             }
@@ -804,7 +814,7 @@ impl IndVarSimplifier {
             self.pointer_at(func, preheader, key, iv.init)?
         };
         let (phi_inst, phi_value) = func.alloc_value_inst(
-            Instruction::new(InstKind::Phi(vec![(preheader, initial)]), Some(MirType::uint256()))
+            Instruction::new(InstKind::Phi(vec![(preheader, initial)]), Some(MirType::I256))
                 .with_debug_info_dropped(),
         );
         self.insert_header_phi(func, loop_data.header, phi_inst);
@@ -836,7 +846,7 @@ impl IndVarSimplifier {
         } else {
             InstKind::Sub(value, magnitude)
         };
-        Some(self.append_inst_value(func, block, kind, Some(MirType::uint256())))
+        Some(self.append_inst_value(func, block, kind, Some(MirType::I256)))
     }
 
     /// Appends `value * scale` to `block`: a shift for a power of two, a
@@ -853,38 +863,23 @@ impl IndVarSimplifier {
             value
         } else if magnitude.is_power_of_two() {
             let shift = self.offset_value(func, i128::from(magnitude.trailing_zeros()))?;
-            self.append_inst_value(
-                func,
-                block,
-                InstKind::Shl(shift, value),
-                Some(MirType::uint256()),
-            )
+            self.append_inst_value(func, block, InstKind::Shl(shift, value), Some(MirType::I256))
         } else {
             let factor = self.offset_value(func, i128::try_from(magnitude).ok()?)?;
-            self.append_inst_value(
-                func,
-                block,
-                InstKind::Mul(value, factor),
-                Some(MirType::uint256()),
-            )
+            self.append_inst_value(func, block, InstKind::Mul(value, factor), Some(MirType::I256))
         };
         if scale > 0 {
             return Some(scaled);
         }
         let zero = self.offset_value(func, 0)?;
-        Some(self.append_inst_value(
-            func,
-            block,
-            InstKind::Sub(zero, scaled),
-            Some(MirType::uint256()),
-        ))
+        Some(self.append_inst_value(func, block, InstKind::Sub(zero, scaled), Some(MirType::I256)))
     }
 
     fn offset_value(&self, func: &mut Function, offset: i128) -> Option<ValueId> {
         if offset < 0 {
             return None;
         }
-        Some(func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(offset as u128)))))
+        Some(func.alloc_value(Value::Immediate(Immediate::I256(U256::from(offset as u128)))))
     }
 
     fn append_inst_value(
@@ -910,7 +905,7 @@ impl IndVarSimplifier {
     }
 
     fn is_reducible_result(&self, func: &Function, inst_id: InstId) -> bool {
-        if func.inst(inst_id).result_ty != Some(MirType::uint256()) {
+        if func.inst(inst_id).result_ty != Some(MirType::I256) {
             return false;
         }
         matches!(

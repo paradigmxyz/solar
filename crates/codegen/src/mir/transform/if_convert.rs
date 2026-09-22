@@ -22,8 +22,8 @@
 //!   one value collapses one level at a time; and
 //! - any other pair becomes `f + c * (t - f)`.
 //!
-//! A non-boolean condition is normalized with two `iszero`s first. Later
-//! simplification turns a power-of-two multiplier into a shift.
+//! Conditions are canonical booleans and cast to words before arithmetic.
+//! Later simplification turns a power-of-two multiplier into a shift.
 //!
 //! Safety: an arm qualifies only when the branching block is its sole
 //! predecessor, its terminator is a jump to the join, and every instruction
@@ -36,14 +36,15 @@
 //! than the branch, the arm jump, their labels, and the arm that runs on an
 //! average path. Runs after the late CFG cleanup, so folded conditions never
 //! reach it, and before hot-leaf inlining, so cloned lookup helpers arrive
-//! already branch-free.
+//! already branch-free. Converts a sweep of sites with updated predecessor lists before
+//! running CFG cleanup, avoiding a whole-function cleanup for each diamond.
 
 use super::{cfg_simplify::simplify_function, egraph::is_bool_value};
 use crate::{
     backend::evm::op,
     mir::{
-        BlockId, EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType, Module,
-        Terminator, Value, ValueId,
+        BlockId, EffectKind, Function, Immediate, InstId, InstKind, MirType, Module, Terminator,
+        Value, ValueId,
         pass::{MirPass, run_function_pass},
     },
     target::{Cost, Target},
@@ -109,7 +110,7 @@ enum SelectForm {
     Same,
     /// `then = else op k`: `else op c * k`, or `c * then` from a zero else.
     Scaled(Derivation),
-    /// `else = then op k`: `then op (iszero c) * k`, or `(iszero c) * else`.
+    /// `else = then op k`: `then op (c == 0) * k`, or `(c == 0) * else`.
     ScaledNegated(Derivation),
     /// A literal `then` over an `else` that already selects literals on a
     /// condition implied by this one: `else + c * delta`.
@@ -121,8 +122,25 @@ enum SelectForm {
 
 fn if_convert_function(func: &mut Function, target: Target) -> bool {
     let mut changed = false;
-    while let Some(site) = find_site(func, target) {
-        convert(func, &site);
+    loop {
+        let mut preds = predecessors(func);
+        let mut converted = false;
+        for block in func.blocks.indices() {
+            if let Some(site) = find_site(func, target, &preds, block) {
+                convert(func, &site);
+                for arm in [site.then_arm, site.else_arm].into_iter().flatten() {
+                    preds[arm].clear();
+                    preds[site.join].retain(|&pred| pred != arm);
+                }
+                if !preds[site.join].contains(&block) {
+                    preds[site.join].push(block);
+                }
+                converted = true;
+            }
+        }
+        if !converted {
+            break;
+        }
         simplify_function(func);
         changed = true;
     }
@@ -147,38 +165,39 @@ fn predecessors(func: &Function) -> IndexVec<BlockId, Vec<BlockId>> {
     preds
 }
 
-fn find_site(func: &Function, target: Target) -> Option<Site> {
-    let preds = predecessors(func);
-    for (block, body) in func.blocks.iter_enumerated() {
-        let Some(Terminator::Branch { condition, then_block, else_block }) = body.terminator else {
-            continue;
-        };
-        if then_block == else_block || (block != BlockId::ENTRY && preds[block].is_empty()) {
-            continue;
-        }
-        let then_join = arm_join(func, &preds, block, then_block);
-        let else_join = arm_join(func, &preds, block, else_block);
-        let (then_arm, else_arm, join) = match (then_join, else_join) {
-            // then_arm -> join <- else_arm
-            (Some(join), Some(other)) if join == other => {
-                (Some(then_block), Some(else_block), join)
-            }
-            // then_arm -> join, block -> join
-            (Some(join), _) if join == else_block => (Some(then_block), None, join),
-            // block -> join, else_arm -> join
-            (_, Some(join)) if join == then_block => (None, Some(else_block), join),
-            _ => continue,
-        };
-        if join == block {
-            continue;
-        }
-        let mut site = Site { block, condition, then_arm, else_arm, join, selects: Vec::new() };
-        if let Some(selects) = join_selects(func, &site)
-            && profitable(func, target, &site, &selects)
-        {
-            site.selects = selects;
-            return Some(site);
-        }
+fn find_site(
+    func: &Function,
+    target: Target,
+    preds: &IndexVec<BlockId, Vec<BlockId>>,
+    block: BlockId,
+) -> Option<Site> {
+    let body = &func.blocks[block];
+    let Some(Terminator::Branch { condition, then_block, else_block }) = body.terminator else {
+        return None;
+    };
+    if then_block == else_block || (block != BlockId::ENTRY && preds[block].is_empty()) {
+        return None;
+    }
+    let then_join = arm_join(func, preds, block, then_block);
+    let else_join = arm_join(func, preds, block, else_block);
+    let (then_arm, else_arm, join) = match (then_join, else_join) {
+        // then_arm -> join <- else_arm
+        (Some(join), Some(other)) if join == other => (Some(then_block), Some(else_block), join),
+        // then_arm -> join, block -> join
+        (Some(join), _) if join == else_block => (Some(then_block), None, join),
+        // block -> join, else_arm -> join
+        (_, Some(join)) if join == then_block => (None, Some(else_block), join),
+        _ => return None,
+    };
+    if join == block {
+        return None;
+    }
+    let mut site = Site { block, condition, then_arm, else_arm, join, selects: Vec::new() };
+    if let Some(selects) = join_selects(func, &site)
+        && profitable(func, target, &site, &selects)
+    {
+        site.selects = selects;
+        return Some(site);
     }
     None
 }
@@ -195,7 +214,15 @@ fn arm_join(
     }
     let body = &func.blocks[arm];
     let Some(Terminator::Jump(join)) = body.terminator else { return None };
-    if join == arm || join == block || body.instructions.len() > MAX_ARM_INSTRUCTIONS {
+    if join == arm
+        || join == block
+        || body
+            .instructions
+            .iter()
+            .filter(|&&inst| !matches!(func.inst(inst).kind, InstKind::Zext(_)))
+            .count()
+            > MAX_ARM_INSTRUCTIONS
+    {
         return None;
     }
     let speculatable = body.instructions.iter().all(|&inst| {
@@ -234,16 +261,7 @@ fn join_selects(func: &Function, site: &Site) -> Option<Vec<Select>> {
 /// Whether a value carries memory, storage, or calldata provenance that the
 /// arithmetic forms would erase.
 fn is_pointer(func: &Function, value: ValueId) -> bool {
-    matches!(
-        func.value_ty(value),
-        Some(
-            MirType::MemPtr
-                | MirType::MemoryObject(_)
-                | MirType::StoragePtr
-                | MirType::CalldataPtr
-                | MirType::Slice(_)
-        )
-    )
+    matches!(func.value_ty(value), Some(MirType::MemoryObject(_) | MirType::Slice(_)))
 }
 
 fn select_form(
@@ -304,7 +322,12 @@ fn binary_operands(
 /// Whether a nonzero `first` implies a nonzero `second`: the same value, or
 /// bounds of one value by ordered literals (`x < a` implies `x < b` when
 /// `a <= b`, and `x > a` implies `x > b` when `a >= b`).
-fn implies(func: &Function, first: ValueId, second: ValueId) -> bool {
+fn implies(func: &Function, first: ValueId, mut second: ValueId) -> bool {
+    if let Value::Inst(inst) = func.value(second)
+        && let InstKind::Zext(value) = func.inst(*inst).kind
+    {
+        second = value;
+    }
     if first == second {
         return true;
     }
@@ -500,9 +523,9 @@ fn boolean_condition(func: &mut Function, block: BlockId, condition: ValueId) ->
     if is_bool_value(func, condition) {
         return condition;
     }
-    // cond01 = iszero(iszero(cond))
-    let zero = append(func, block, InstKind::IsZero(condition), Some(MirType::Bool));
-    append(func, block, InstKind::IsZero(zero), Some(MirType::Bool))
+    // cond01 = ne cond, 0
+    let zero = literal(func, U256::ZERO);
+    append(func, block, InstKind::Ne(condition, zero), Some(MirType::I1))
 }
 
 /// Builds `cond ? then_value : else_value` at the end of `block` in the
@@ -520,31 +543,27 @@ fn select_value(
         SelectForm::Scaled(derived) => {
             scaled_select(func, block, condition, then_value, else_value, derived, ty)
         }
-        // c ? t : t op k => t op (iszero c) * k
+        // c ? t : t op k => t op (c == 0) * k
         SelectForm::ScaledNegated(derived) => {
-            let negated = append(func, block, InstKind::IsZero(condition), Some(MirType::Bool));
+            let zero = literal(func, U256::ZERO);
+            let negated = append(func, block, InstKind::Eq(condition, zero), Some(MirType::I1));
             scaled_select(func, block, negated, else_value, then_value, derived, ty)
         }
         // c ? A : e => e + c * (A - base - k), for e = base + c2 * k
         SelectForm::Ladder(delta) => {
             let delta = literal(func, delta);
-            let scaled =
-                append(func, block, InstKind::Mul(condition, delta), Some(MirType::uint256()));
+            let scaled = append(func, block, InstKind::Mul(condition, delta), Some(MirType::I256));
             append(func, block, InstKind::Add(else_value, scaled), ty)
         }
         // c ? t : f => f + c * (t - f)
         SelectForm::General(delta) => {
             let delta = match delta {
                 Some(delta) => literal(func, delta),
-                None => append(
-                    func,
-                    block,
-                    InstKind::Sub(then_value, else_value),
-                    Some(MirType::uint256()),
-                ),
+                None => {
+                    append(func, block, InstKind::Sub(then_value, else_value), Some(MirType::I256))
+                }
             };
-            let scaled =
-                append(func, block, InstKind::Mul(condition, delta), Some(MirType::uint256()));
+            let scaled = append(func, block, InstKind::Mul(condition, delta), Some(MirType::I256));
             append(func, block, InstKind::Add(else_value, scaled), ty)
         }
     }
@@ -586,7 +605,7 @@ fn scaled_select(
     ty: Option<MirType>,
 ) -> ValueId {
     let scale = |func: &mut Function, amount| {
-        append(func, block, InstKind::Mul(condition, amount), Some(MirType::uint256()))
+        append(func, block, InstKind::Mul(condition, amount), Some(MirType::I256))
     };
     match derived {
         // c ? t : 0 => c * t
@@ -610,11 +629,20 @@ fn scaled_select(
 }
 
 fn literal(func: &mut Function, value: U256) -> ValueId {
-    func.alloc_value(Value::Immediate(Immediate::uint256(value)))
+    func.alloc_value(Value::Immediate(Immediate::I256(value)))
 }
 
 fn append(func: &mut Function, block: BlockId, kind: InstKind, ty: Option<MirType>) -> ValueId {
-    let (inst, value) = func.alloc_value_inst(Instruction::new(kind, ty).with_debug_info_dropped());
-    func.blocks[block].instructions.push(inst);
+    // operands = zext i1 boolean_operands to i256
+    // result = op operands
+    // typed_result = cast result
+    let start = func.blocks[block].instructions.len();
+    let mut builder = crate::mir::FunctionBuilder::new(func);
+    builder.switch_to_block(block);
+    let value = builder.emit_inst(kind, ty);
+    let insts = builder.func().blocks[block].instructions[start..].to_vec();
+    for inst in insts {
+        builder.func_mut().inst_mut(inst).metadata.mark_debug_info_dropped();
+    }
     value
 }

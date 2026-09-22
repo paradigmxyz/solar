@@ -8,7 +8,7 @@
 // CHECK: + [[POINTER:v[0-9]+]] = phi
 // CHECK: + {{v[0-9]+}} = or {{v[0-9]+}}, {{v[0-9]+}}
 // CHECK: + {{v[0-9]+}} = and {{v[0-9]+}}, 0x8080808080808080808080808080808080808080808080808080808080808080
-fn @ascii(arg0: memptr) -> bool {
+fn @ascii(arg0: i256) -> i1 {
   bb0:
     jump bb1
   bb1:
@@ -28,15 +28,15 @@ fn @ascii(arg0: memptr) -> bool {
     v9 = add v0, 1
     jump bb1
   bb3:
-    ret 1
+    ret true
   bb5:
-    ret 0
+    ret false
 }
 
 // An observable write keeps an otherwise similar loop in scalar form.
 // CHECK-LABEL: {{^[ +].*}}fn @effectful{{[( ]}}
 // CHECK-NOT: 0x8080808080808080808080808080808080808080808080808080808080808080
-fn @effectful(arg0: memptr, arg1: memptr) -> bool {
+fn @effectful(arg0: i256, arg1: i256) -> i1 {
   bb0:
     jump bb1
   bb1:
@@ -57,7 +57,7 @@ fn @effectful(arg0: memptr, arg1: memptr) -> bool {
     v9 = add v0, 1
     jump bb1
   bb3:
-    ret 1
+    ret true
   bb5:
-    ret 0
+    ret false
 }

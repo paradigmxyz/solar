@@ -7,20 +7,20 @@
 // CHECK: - {{v[0-9]+}} = icall @validated
 // CHECK: - icall @guard
 // CHECK: + ret 42
-fn @closed() -> u256 {
+fn @closed() -> i256 {
   bb0:
     v0 = icall @validated, 42
     icall @guard, v0
     ret v0
 }
 
-fn @validated(arg0: u256) -> u256 {
+fn @validated(arg0: i256) -> i256 {
   bb0:
     icall @guard, arg0
     ret arg0
 }
 
-fn @guard(arg0: u256) {
+fn @guard(arg0: i256) {
   bb0:
     v0 = eq arg0, 42
     jumpi v0, bb1, bb2
@@ -43,7 +43,7 @@ fn @failure() {
 // Unknown caller arguments do not satisfy the concrete guard.
 // CHECK-LABEL: fn @unknown
 // CHECK: {{^ +}}icall @guard, arg0
-fn @unknown(arg0: u256) {
+fn @unknown(arg0: i256) {
   bb0:
     icall @guard, arg0
     ret
@@ -62,7 +62,7 @@ fn @effects() {
     ret
 }
 
-fn @write(arg0: u256) {
+fn @write(arg0: i256) {
   bb0:
     sstore 0, arg0
     ret
@@ -88,7 +88,7 @@ fn @recursive_caller() {
     icall @recursive, 42
     ret
 }
-fn @recursive(arg0: u256) {
+fn @recursive(arg0: i256) {
   bb0:
     icall @recursive, arg0
     ret
@@ -99,15 +99,16 @@ fn @recursive(arg0: u256) {
 // CHECK: - icall @guard
 // CHECK: - {{v[0-9]+}} = icall @read
 // CHECK: + ret 19
-fn @known_memory() -> u256 {
+fn @known_memory() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v2 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v2 to i256
     mstore v0, 19
     icall @guard, 42
     v1 = icall @read, v0
     ret v1
 }
-fn @read(arg0: memptr) -> u256 {
+fn @read(arg0: i256) -> i256 {
   bb0:
     v0 = mload arg0
     ret v0
@@ -116,12 +117,12 @@ fn @read(arg0: memptr) -> u256 {
 // Constant references remain calls to avoid disrupting pointer induction.
 // CHECK-LABEL: fn @reference_caller
 // CHECK: {{^ +}}v0 = icall @reference
-fn @reference_caller() -> storageptr {
+fn @reference_caller() -> memorybytes {
   bb0:
     v0 = icall @reference
     ret v0
 }
-fn @reference() -> storageptr {
+fn @reference() -> memorybytes {
   bb0:
-    ret 5
+    ret memorybytes 5
 }

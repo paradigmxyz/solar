@@ -323,9 +323,15 @@ impl<'gcx> Ty<'gcx> {
     }
 
     /// Returns `true` if this type contains a non-public (internal/private) function type.
-    #[inline]
-    pub fn has_internal_function(self) -> bool {
-        self.flags.contains(TyFlags::HAS_INTERNAL_FN)
+    pub fn has_internal_function(self, gcx: Gcx<'gcx>) -> bool {
+        self.visit_with_structs(gcx, &mut |ty| {
+            if ty.flags.contains(TyFlags::HAS_INTERNAL_FN) {
+                ControlFlow::Break(())
+            } else {
+                ControlFlow::Continue(())
+            }
+        })
+        .is_break()
     }
 
     /// Returns `Err(guar)` if this type contains an error.
@@ -345,7 +351,7 @@ impl<'gcx> Ty<'gcx> {
     pub fn can_be_exported(self, gcx: Gcx<'gcx>) -> bool {
         !(self.is_recursive(gcx)
             || self.has_mapping(gcx)
-            || self.has_internal_function()
+            || self.has_internal_function(gcx)
             || self.references_error())
     }
 

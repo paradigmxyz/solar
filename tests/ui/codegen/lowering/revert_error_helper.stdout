@@ -93,11 +93,10 @@ bb0:
   push 160
   push 64
   mstore
-  push 5
+  push 6
   push 4
   calldataload
-  gt
-  iszero
+  lt
   push bb10
   jumpi
   push 4
@@ -138,11 +137,10 @@ bb11:
   push 160
   push 64
   mstore
-  push 5
+  push 6
   push 4
   calldataload
-  gt
-  iszero
+  lt
   push bb13
   jumpi
   push 4
@@ -165,11 +163,10 @@ bb14:
   push 160
   push 64
   mstore
-  push 5
+  push 6
   push 4
   calldataload
-  gt
-  iszero
+  lt
   push bb16
   jumpi
   push 4
@@ -215,8 +212,8 @@ bb17:
   push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
   dup 2
   mstore
-  push 32
-  dup 2
+  push 64
+  dup 3
   add
   push 33
   push 248
@@ -239,11 +236,10 @@ bb20:
   push 160
   push 64
   mstore
-  push 5
+  push 6
   push 4
   calldataload
-  gt
-  iszero
+  lt
   push bb22
   jumpi
   push 4

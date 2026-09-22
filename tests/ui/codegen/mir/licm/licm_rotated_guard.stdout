@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/licm/licm_rotated_guard.mir (before licm) ===
 + // === ROOT/tests/ui/codegen/mir/licm/licm_rotated_guard.mir (after licm) ===
   @module LicmRotatedGuard
-  fn @rotated_guard_overlap() -> u256 {
+  fn @rotated_guard_overlap() -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -18,7 +18,7 @@
       jump bb1
   }
   
-  fn @dowhile_latch_guard_overlap() -> u256 {
+  fn @dowhile_latch_guard_overlap() -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -33,7 +33,7 @@
       ret v2
   }
   
-  fn @top_tested_control() -> u256 {
+  fn @top_tested_control() -> i256 {
     bb0:
 +     v4 = mload 320
       jump bb1
@@ -52,7 +52,7 @@
       jump bb1
   }
   
-  fn @disjoint_past_widened_range() -> u256 {
+  fn @disjoint_past_widened_range() -> i256 {
     bb0:
 +     v2 = mload 384
       jump bb1

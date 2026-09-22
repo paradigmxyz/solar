@@ -38,7 +38,7 @@ fn @vInt16(arg0: i16) -> i16 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @vBool(arg0: bool) -> bool [abi_returns=[word]] {
+fn @vBool(arg0: i1) -> i1 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

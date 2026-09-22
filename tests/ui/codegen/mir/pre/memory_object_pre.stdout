@@ -1,19 +1,21 @@
 - // === ROOT/tests/ui/codegen/mir/pre/memory_object_pre.mir (before pre) ===
 + // === ROOT/tests/ui/codegen/mir/pre/memory_object_pre.mir (after pre) ===
   @module MemoryObjectPre
-  fn @hoist_projection(arg0: memorystruct, arg1: bool) -> memptr {
+  fn @hoist_projection(arg0: memorystruct, arg1: i1) -> i256 {
     bb0:
       jumpi arg1, bb1, bb2
     bb2:
-+     v2 = memory_object_field_addr memorystruct<3>, arg0, 2
++     v4 = memory_object_field_addr memorystruct<3>, arg0, 2
       jump bb3
     bb1:
       v0 = memory_object_field_addr memorystruct<3>, arg0, 2
+      v1 = ptrtoint memptr v0 to i256
       jump bb3
     bb3:
--     v1 = memory_object_field_addr memorystruct<3>, arg0, 2
--     ret v1
-+     v3 = phi [bb1: v0], [bb2: v2]
-+     ret v3
+-     v2 = memory_object_field_addr memorystruct<3>, arg0, 2
+-     v3 = ptrtoint memptr v2 to i256
++     v5 = phi [bb1: v0], [bb2: v4]
++     v3 = ptrtoint memptr v5 to i256
+      ret v3
   }
   

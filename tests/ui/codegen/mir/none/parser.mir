@@ -10,17 +10,19 @@ immutables:
 
 // CHECK-LABEL: @call
 // CHECK: {{^ +}}[[SUCCESS:v[0-9]+]] = call 100, arg0, arg1, 0, 0, 0, 0
-// CHECK: {{^ +}}ret [[SUCCESS]]
-fn @call(arg0: address, arg1: u256) -> u256 {
+// CHECK: {{^ +}}[[WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[SUCCESS]]
+// CHECK: {{^ +}}ret [[WORD]]
+fn @call(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = call 100, arg0, arg1, 0, 0, 0, 0
-    ret v0
+    v1 = zext i1 v0 to i256
+    ret v1
 }
 
 // CHECK-LABEL: @clz
 // CHECK: {{^ +}}[[COUNT:v[0-9]+]] = clz arg0
 // CHECK: {{^ +}}ret [[COUNT]]
-fn @clz(arg0: u256) -> u256 {
+fn @clz(arg0: i256) -> i256 {
   bb0:
     v0 = clz arg0
     ret v0
@@ -28,11 +30,13 @@ fn @clz(arg0: u256) -> u256 {
 
 // CHECK-LABEL: @callcode
 // CHECK: {{^ +}}[[SUCCESS:v[0-9]+]] = callcode 100, arg0, arg1, 0, 0, 0, 0
-// CHECK: {{^ +}}ret [[SUCCESS]]
-fn @callcode(arg0: address, arg1: u256) -> u256 {
+// CHECK: {{^ +}}[[WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[SUCCESS]]
+// CHECK: {{^ +}}ret [[WORD]]
+fn @callcode(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = callcode 100, arg0, arg1, 0, 0, 0, 0
-    ret v0
+    v1 = zext i1 v0 to i256
+    ret v1
 }
 
 // CHECK-LABEL: @hash
@@ -40,7 +44,7 @@ fn @callcode(arg0: address, arg1: u256) -> u256 {
 // CHECK: {{^ +}}mstore 32, 2
 // CHECK: {{^ +}}[[HASH:v[0-9]+]] = keccak256 0, 64
 // CHECK: {{^ +}}ret [[HASH]]
-fn @hash() -> u256 {
+fn @hash() -> i256 {
   bb0:
     mstore 0, 1
     mstore 32, 2
@@ -62,7 +66,7 @@ fn @copy_data() {
 // CHECK: {{^ +}}{{v[0-9]+}} = gas
 // CHECK: {{^ +}}[[CHAIN_ID:v[0-9]+]] = chainid
 // CHECK: {{^ +}}ret [[CHAIN_ID]]
-fn @environment() -> u256 {
+fn @environment() -> i256 {
   bb0:
     v0 = caller
     v1 = callvalue
@@ -75,7 +79,7 @@ fn @environment() -> u256 {
 // CHECK: {{^ +}}[[SELECTED:v[0-9]+]] = select arg0, arg1, arg2
 // CHECK: {{^ +}}log1 0, 32, [[SELECTED]]
 // CHECK: {{^ +}}ret [[SELECTED]]
-fn @select_and_log(arg0: bool, arg1: u256, arg2: u256) -> u256 {
+fn @select_and_log(arg0: i1, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = select arg0, arg1, arg2
     log1 0, 32, v0
@@ -99,7 +103,7 @@ fn @spaced_span() {
 
 // CHECK-LABEL: @immutable
 // CHECK: {{^ +}}{{v[0-9]+}} = loadimmutable fn
-fn @immutable() -> u8 {
+fn @immutable() -> i256 {
   bb0:
     v0 = loadimmutable fn
     ret v0
@@ -108,7 +112,7 @@ fn @immutable() -> u8 {
 // CHECK-LABEL: @constructor
 // CHECK: {{^ +}}[[BASE:v[0-9]+]] = constructor_args_base
 // CHECK: {{^ +}}ret [[BASE]]
-fn @constructor() -> u256 {
+fn @constructor() -> i256 {
   bb0:
     v0 = constructor_args_base
     ret v0
@@ -117,7 +121,7 @@ fn @constructor() -> u256 {
 // CHECK-LABEL: @returndatasize
 // CHECK: {{^ +}}[[SIZE:v[0-9]+]] = returndatasize
 // CHECK: {{^ +}}ret [[SIZE]]
-fn @returndatasize() -> u256 {
+fn @returndatasize() -> i256 {
   bb0:
     v0 = returndatasize
     ret v0
@@ -139,7 +143,7 @@ fn @view() [view] {
 // CHECK: = icall sha256<>, arg0
 // CHECK: = icall ripemd160<>, arg0
 // CHECK: icall ecrecover<>, 0, 0, 0, 0
-fn @precompiles(arg0: memorybytes) -> u256 {
+fn @precompiles(arg0: memorybytes) -> i256 {
   bb0:
     icall sha256<>, arg0
     icall ripemd160<>, arg0
@@ -153,4 +157,133 @@ fn @concatenate(arg0: memorybytes) -> memorybytes {
   bb0:
     v0 = icall concat<memorybytes, bytes2>, arg0, 0x1234000000000000000000000000000000000000000000000000000000000000
     ret v0
+}
+
+// CHECK-LABEL: @address_width
+// CHECK: [[NARROW:v[0-9]+]] = trunc i256 arg0 to i160
+// CHECK: [[WIDE:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[NARROW]]
+// CHECK: ret [[WIDE]]
+fn @address_width(arg0: i256) -> i256 {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    ret v1
+}
+
+// CHECK-LABEL: @address_phi
+// CHECK: phi [bb1: arg1], [bb2: i160 0xffffffffffffffffffffffffffffffffffffffff]
+fn @address_phi(arg0: i1, arg1: i160) -> i160 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: arg1], [bb2: i160 0xffffffffffffffffffffffffffffffffffffffff]
+    ret v0
+}
+
+// CHECK-LABEL: fn @integer_widths(arg0: i8, arg1: i24, arg2: i512, arg3: i4294967295) -> i512
+// CHECK: ret arg2
+fn @integer_widths(arg0: i8, arg1: i24, arg2: i512, arg3: i4294967295) -> i512 {
+  bb0:
+    ret arg2
+}
+
+// CHECK-LABEL: fn @integer_phi
+// CHECK: phi [bb1: arg1], [bb2: i7 127]
+fn @integer_phi(arg0: i1, arg1: i7) -> i7 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: arg1], [bb2: i7 127]
+    ret v0
+}
+
+// CHECK-LABEL: fn @wide_integer_literal
+// CHECK: ret i512 42
+fn @wide_integer_literal() -> i512 {
+  bb0:
+    ret i512 42
+}
+
+// CHECK-LABEL: fn @integer_undef
+// CHECK: ret undef i24
+fn @integer_undef() -> i24 {
+  bb0:
+    ret undef i24
+}
+
+// CHECK-LABEL: fn @llvm_casts
+// CHECK: trunc i256 arg0 to i1
+// CHECK: zext i1 arg1 to i256
+// CHECK: sext i1 arg1 to i256
+// CHECK: ptrtoint memptr arg2 to i160
+// CHECK: inttoptr i256 arg0 to memptr
+// CHECK: bitcast memptr arg2 to memorybytes
+fn @llvm_casts(arg0: i256, arg1: i1, arg2: memptr) -> memptr {
+  bb0:
+    v0 = trunc i256 arg0 to i1
+    v1 = zext i1 arg1 to i256
+    v2 = sext i1 arg1 to i256
+    v3 = ptrtoint memptr arg2 to i160
+    v4 = inttoptr i256 arg0 to memptr
+    v5 = bitcast memptr arg2 to memorybytes
+    ret v4
+}
+
+// CHECK-LABEL: fn @cast_undef
+// CHECK: bitcast memptr undef to memorybytes
+fn @cast_undef() -> memorybytes {
+  bb0:
+    v0 = bitcast memptr undef to memorybytes
+    ret v0
+}
+
+// CHECK-LABEL: fn @syntax_only_casts
+// CHECK: trunc i128 arg0 to i24
+// CHECK: zext i24 {{v[0-9]+}} to i512
+// CHECK: sext i24 {{v[0-9]+}} to i512
+fn @syntax_only_casts(arg0: i128) -> i512 {
+  bb0:
+    v0 = trunc i128 arg0 to i24
+    v1 = zext i24 v0 to i512
+    v2 = sext i24 v0 to i512
+    ret v2
+}
+
+// CHECK-LABEL: fn @forward_integer_phi
+// CHECK: zext i7 {{v[0-9]+}} to i24
+fn @forward_integer_phi(arg0: i1, arg1: i256) -> i24 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb3:
+    v2 = phi [bb1: v0], [bb2: v1]
+    v3 = zext i7 v2 to i24
+    ret v3
+  bb1:
+    v0 = trunc i256 arg1 to i7
+    jump bb3
+  bb2:
+    v1 = trunc i256 31 to i7
+    jump bb3
+}
+
+// CHECK-LABEL: fn @bool_bitwise
+// CHECK: and arg0, arg1
+// CHECK: or {{v[0-9]+}}, false
+// CHECK: xor {{v[0-9]+}}, true
+// CHECK: zext i1 {{v[0-9]+}} to i256
+fn @bool_bitwise(arg0: i1, arg1: i1) -> i256 {
+  bb0:
+    v0 = and arg0, arg1
+    v1 = or v0, false
+    v2 = xor v1, true
+    v3 = zext i1 v2 to i256
+    ret v3
 }

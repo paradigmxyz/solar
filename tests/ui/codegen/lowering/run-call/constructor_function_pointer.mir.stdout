@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:Target ===
 @module Target
-fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: function) [constructor, abi_params=[function]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[function]] {
   bb0:
     v0 = and arg0, 0xffffffff
     v1 = shl 224, v0
@@ -33,7 +33,7 @@ fn @constructor(arg0: function) [constructor, abi_params=[function]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:ArrayTarget ===
 @module ArrayTarget
-fn @raw() -> u256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word]] {
+fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -41,105 +41,123 @@ fn @raw() -> u256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word]]
 
 fn @constructor(arg0: memoryfixedarray) [constructor, abi_params=[array<1, function>]] {
   bb0:
-    v0 = mload arg0
-    sstore 0, v0 !metadata(storage=slot(0))
+    v0 = ptrtoint memoryfixedarray arg0 to i256
+    v1 = mload v0
+    sstore 0, v1 !metadata(storage=slot(0))
     ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:Caller ===
 @module Caller
 data:
-  Target_initcode_0: hex"61011a38038061011a6101403961014001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0166040523460dc576101408060c0528060c05261014061011a380301602082011160d8578060c0525160c01b151560d8576101405160401c8060e0528060e05263ffffffff811660e01b818060e05260201c915060405180610100526020810160405281815290506004810150816101205260205f600483855afa91505060bd573d5f5f3e3d5ffd5b3d6020901060d4575f5f0151505f5f01515f5560e0565b5f5ffd5b5f5ffd5b5f5ffd5b60308060ea5f395ff334601a575f3560e01c80633fa4f24514601657601a565b601e565b5f5ffd5b5f546080526020608001608090036080f3"
-  ArrayTarget_initcode_1: hex"6101203803806101206101803961018001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0166040523460e2576101808060c0528060c052610180610120380301602082011160de575f81018060e05290508060e05260405180610100528061010052602081016040525f5b80610120526001811060985781806101005251925050505f5560e6565b80610120526020810283015180610140528061014052806101405260c01b1560be575f5ffd5b61014051806101405260401c60401b60208202830152600181019050607b565b5f5ffd5b5f5ffd5b60308060f05f395ff334601a575f3560e01c8063c096a63214601657601a565b601e565b5f5ffd5b5f546080526020608001608090036080f3"
+  Target_initcode_0: hex"6101403803806101406101803961018001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405234151560ff576101808060c0528060c052610180610140380301602082011160fb578060c0525160c01b151560fb576101805160401c8060e0528060e05263ffffffff811660e01b818060e05260201c9150604051806101005280610100526020610100510160405280610120525261012051806101205260049001506101205180610120528161014052806101605260205f600483855afa91505060df573d5f5f3e3d5ffd5b3d6020901060f7575f5f0151505f5f01515f55610103565b5f5ffd5b5f5ffd5b5f5ffd5b60328061010e5f395ff3341515601c575f3560e01c80633fa4f24514601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
+  ArrayTarget_initcode_1: hex"6101373803806101376101a0396101a001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405234151560f6576101a08060c0528060c0526101a0610137380301602082011160f2575f81018060e05290508060e0526040518061018052806101805280610100528061010052602061018051016040525f5b80610120526001811060a75781806101005292505050515f5560fa565b80610120526020810283015180610140528061014052806101405260c01b1560cd575f5ffd5b61014051806101405260401c60401b602082028380610100520152600181019050608a565b5f5ffd5b5f5ffd5b6032806101055f395ff3341515601c575f3560e01c8063c096a63214601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
 
-fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
-    v1 = shl 32, v0
-    v2 = or v1, 0x990227f1
-    v3 = abi_encode [function], args v2
-    v4 = not 31
-    v5 = and 345, v4
-    v6 = alloc raw, exact, uninitialized, infallible, v5
-    data_copy Target_initcode_0, v6, 282
-    v7 = slice_ptr v3
-    v8 = add v6, 282
-    mcopy v8, v7, 32 !metadata(memory=heap)
-    v9 = create 0, v6, 314
-    jumpi v9, bb2, bb1
-  bb1:
-    revert_returndata
-  bb2:
-    v10 = gas
-    v11 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v12 = slice_ptr v11
-    v13 = slice_len v11
-    v14 = staticcall v10, v9, v12, v13, 0, 32
-    jumpi v14, bb4, bb3
-  bb3:
-    revert_returndata
-  bb4:
-    v15 = returndatasize
-    v16 = lt v15, 32
-    icall revert_if<tuple_data_too_short>, v16
-    v17 = add 0, 0
-    v18 = mload v17
-    v19 = add 0, 0
-    v20 = mload v19
-    ret v20
-}
-
-fn @fArray() -> bool [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>]] {
-  bb0:
-    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    memory_zero v0, 32
-    v1 = address
+    v1 = zext i160 v0 to i256
     v2 = shl 32, v1
     v3 = or v2, 0x990227f1
-    v4 = lt 0, 1
-    v5 = iszero v4
-    icall panic_if<0x32>, v5
-    v6 = shl 64, v3
-    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v6
-    v7 = abi_encode [array<1, function>], args v0
-    v8 = not 31
-    v9 = and 351, v8
-    v10 = alloc raw, exact, uninitialized, infallible, v9
-    data_copy ArrayTarget_initcode_1, v10, 288
-    v11 = slice_ptr v7
-    v12 = add v10, 288
-    mcopy v12, v11, 32 !metadata(memory=heap)
-    v13 = create 0, v10, 320
-    jumpi v13, bb2, bb1
+    v4 = abi_encode [function], args v3
+    v5 = not 31
+    v6 = and 383, v5
+    v7 = alloc raw, exact, uninitialized, infallible, v6
+    v8 = ptrtoint memptr v7 to i256
+    data_copy Target_initcode_0, v8, 320
+    v9 = slice_ptr v4
+    v10 = ptrtoint memptr v7 to i256
+    v11 = add v10, 320
+    mcopy v11, v9, 32 !metadata(memory=heap)
+    v12 = ptrtoint memptr v7 to i256
+    v13 = create 0, v12, 352
+    v14 = zext i160 v13 to i256
+    v15 = ne v14, 0
+    jumpi v15, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v14 = address
-    v15 = shl 96, v14
-    v16 = shr 224, 0x990227f100000000000000000000000000000000000000000000000000000000
-    v17 = shl 64, v16
-    v18 = or v15, v17
-    v19 = gas
-    v20 = abi_encode [], selector 0xc096a63200000000000000000000000000000000000000000000000000000000
-    v21 = slice_ptr v20
-    v22 = slice_len v20
-    v23 = staticcall v19, v13, v21, v22, 0, 32
-    jumpi v23, bb4, bb3
+    v16 = zext i160 v13 to i256
+    v17 = gas
+    v18 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v19 = slice_ptr v18
+    v20 = slice_len v18
+    v21 = staticcall v17, v16, v19, v20, 0, 32
+    jumpi v21, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v24 = returndatasize
-    v25 = lt v24, 32
-    icall revert_if<tuple_data_too_short>, v25
+    v22 = returndatasize
+    v23 = lt v22, 32
+    icall revert_if<tuple_data_too_short>, v23
+    v24 = add 0, 0
+    v25 = mload v24
     v26 = add 0, 0
     v27 = mload v26
-    v28 = add 0, 0
-    v29 = mload v28
-    v30 = eq v29, v18
-    ret v30
+    ret v27
 }
 
-fn @sixteen() -> u256 [selector=0x990227f1, pure, abi_params=[], abi_returns=[word]] {
+fn @fArray() -> i256 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v1 = ptrtoint memoryfixedarray v0 to i256
+    memory_zero v1, 32
+    v2 = address
+    v3 = zext i160 v2 to i256
+    v4 = shl 32, v3
+    v5 = or v4, 0x990227f1
+    v6 = lt 0, 1
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = shl 64, v5
+    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v8
+    v9 = abi_encode [array<1, function>], args v0
+    v10 = not 31
+    v11 = and 374, v10
+    v12 = alloc raw, exact, uninitialized, infallible, v11
+    v13 = ptrtoint memptr v12 to i256
+    data_copy ArrayTarget_initcode_1, v13, 311
+    v14 = slice_ptr v9
+    v15 = ptrtoint memptr v12 to i256
+    v16 = add v15, 311
+    mcopy v16, v14, 32 !metadata(memory=heap)
+    v17 = ptrtoint memptr v12 to i256
+    v18 = create 0, v17, 343
+    v19 = zext i160 v18 to i256
+    v20 = ne v19, 0
+    jumpi v20, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v21 = zext i160 v18 to i256
+    v22 = address
+    v23 = zext i160 v22 to i256
+    v24 = shl 96, v23
+    v25 = shr 224, 0x990227f100000000000000000000000000000000000000000000000000000000
+    v26 = shl 64, v25
+    v27 = or v24, v26
+    v28 = gas
+    v29 = abi_encode [], selector 0xc096a63200000000000000000000000000000000000000000000000000000000
+    v30 = slice_ptr v29
+    v31 = slice_len v29
+    v32 = staticcall v28, v21, v30, v31, 0, 32
+    jumpi v32, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v33 = returndatasize
+    v34 = lt v33, 32
+    icall revert_if<tuple_data_too_short>, v34
+    v35 = add 0, 0
+    v36 = mload v35
+    v37 = add 0, 0
+    v38 = mload v37
+    v39 = eq v38, v27
+    v40 = zext i1 v39 to i256
+    ret v40
+}
+
+fn @sixteen() -> i256 [selector=0x990227f1, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 16
 }

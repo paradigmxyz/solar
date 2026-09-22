@@ -1,10 +1,11 @@
 // === ROOT/tests/ui/codegen/mir/egraph/cancellation_runtime.sol:Cancellation ===
 @module Cancellation
 types:
-  struct0: {u256, u256, u256}
-  struct1: {u256, u256, u256, u256}
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256, i256, i256}
+  struct2: {i256, i256}
 
-fn @arithmetic(arg0: u256, arg1: u256) -> struct0 [selector=0x6cbb5ae3, pure, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @arithmetic(arg0: i256, arg1: i256) -> struct0 [selector=0x6cbb5ae3, pure, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = sub arg0, arg1
     v1 = add v0, arg1
@@ -18,7 +19,7 @@ fn @arithmetic(arg0: u256, arg1: u256) -> struct0 [selector=0x6cbb5ae3, pure, ab
     ret v8
 }
 
-fn @bitwise(arg0: u256, arg1: u256) -> struct1 [selector=0x2c27aaa9, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @bitwise(arg0: i256, arg1: i256) -> struct1 [selector=0x2c27aaa9, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = or arg0, arg1
     v1 = and arg0, v0
@@ -35,14 +36,150 @@ fn @bitwise(arg0: u256, arg1: u256) -> struct1 [selector=0x2c27aaa9, pure, abi_p
     ret v11
 }
 
-fn @equality(arg0: u256, arg1: u256) -> struct0 [selector=0xf53825c4, pure, abi_params=[u256, u256], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, u256]] {
+fn @equality(arg0: i256, arg1: i256) -> struct0 [selector=0xf53825c4, pure, abi_params=[u256, u256], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, u256]] {
   bb0:
     v0 = sub arg0, arg1
-    v1 = iszero v0
+    v1 = eq v0, 0
+    v2 = zext i1 v1 to i256
+    v3 = xor arg0, arg1
+    v4 = eq v3, 0
+    v5 = zext i1 v4 to i256
+    v6 = insert_value struct0, undef struct0, 0, v2
+    v7 = insert_value struct0, v6, 1, v5
+    v8 = insert_value struct0, v7, 2, v0
+    ret v8
+}
+
+fn @common(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0x233c6b41, pure, abi_params=[u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+  bb0:
+    v0 = add arg0, arg2
+    v1 = add arg0, arg1
+    v2 = sub v1, v0
+    v3 = sub arg1, arg2
+    v4 = sub arg0, arg2
+    v5 = sub v4, v3
+    v6 = sub arg0, arg2
+    v7 = sub arg0, arg1
+    v8 = sub v7, v6
+    v9 = insert_value struct0, undef struct0, 0, v2
+    v10 = insert_value struct0, v9, 1, v5
+    v11 = insert_value struct0, v10, 2, v8
+    ret v11
+}
+
+fn @carry(arg0: i256, arg1: i256) -> i256 [selector=0x8deb15c8, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = and arg0, arg1
+    v1 = shl 1, v0
     v2 = xor arg0, arg1
-    v3 = iszero v2
-    v4 = insert_value struct0, undef struct0, 0, v1
-    v5 = insert_value struct0, v4, 1, v3
-    v6 = insert_value struct0, v5, 2, v0
-    ret v6
+    v3 = add v2, v1
+    ret v3
+}
+
+fn @dynamicPower(arg0: i256, arg1: i256) -> struct2 [selector=0x26dfdcc8, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    v0 = shl arg1, 1
+    v1 = mul arg0, v0
+    v2 = shl arg1, 1
+    v3 = mod arg0, v2
+    v4 = insert_value struct2, undef struct2, 0, v1
+    v5 = insert_value struct2, v4, 1, v3
+    ret v5
+}
+
+fn @signedRemainder(arg0: i256) -> i256 [selector=0xf6544855, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = not 0
+    v1 = smod arg0, v0
+    ret v1
+}
+
+fn @compare(arg0: i256, arg1: i256) -> struct2 [selector=0xf360234c, pure, abi_params=[u256, u256], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
+  bb0:
+    v0 = xor arg0, arg1
+    v1 = eq v0, arg0
+    v2 = zext i1 v1 to i256
+    v3 = sub arg0, arg1
+    v4 = lt arg0, v3
+    v5 = zext i1 v4 to i256
+    v6 = insert_value struct2, undef struct2, 0, v2
+    v7 = insert_value struct2, v6, 1, v5
+    ret v7
+}
+
+fn @selects(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0x413c28d5, pure, abi_params=[bool, u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+  bb0:
+    v0 = eq arg1, arg2
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: arg1], [bb2: arg2]
+    v2 = ne arg0, 0
+    jumpi v2, bb4, bb5
+  bb5:
+    v3 = ne arg0, 0
+    jumpi v3, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    jump bb9
+  bb9:
+    v4 = phi [bb7: arg2], [bb8: arg3]
+    jump bb6
+  bb4:
+    jump bb6
+  bb6:
+    v5 = phi [bb4: arg1], [bb9: v4]
+    v6 = ne arg0, 0
+    jumpi v6, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    v7 = ne arg0, 0
+    jumpi v7, bb13, bb14
+  bb14:
+    jump bb15
+  bb13:
+    jump bb15
+  bb15:
+    v8 = phi [bb13: arg1], [bb14: arg2]
+    jump bb12
+  bb12:
+    v9 = phi [bb15: v8], [bb11: arg3]
+    v10 = insert_value struct0, undef struct0, 0, v1
+    v11 = insert_value struct0, v10, 1, v5
+    v12 = insert_value struct0, v11, 2, v9
+    ret v12
+}
+
+fn @bitTestSelect(arg0: i256) -> struct2 [selector=0xa23456db, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    v0 = and arg0, 255
+    v1 = eq v0, 0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v2 = not 255
+    v3 = and arg0, v2
+    jump bb3
+  bb3:
+    v4 = phi [bb1: v3], [bb2: arg0]
+    v5 = and arg0, 255
+    v6 = eq v5, 0
+    jumpi v6, bb4, bb5
+  bb5:
+    v7 = not 255
+    v8 = and arg0, v7
+    jump bb6
+  bb4:
+    jump bb6
+  bb6:
+    v9 = phi [bb4: arg0], [bb5: v8]
+    v10 = insert_value struct2, undef struct2, 0, v4
+    v11 = insert_value struct2, v10, 1, v9
+    ret v11
 }

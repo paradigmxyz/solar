@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_fixed_dynamic.sol:AbiCalldataFixedDynamic ===
 @module AbiCalldataFixedDynamic
-fn @lengths(arg0: calldataslice) -> u256 [selector=0xe718a709, pure, abi_params=[array<2, bytes>], abi_returns=[word]] {
+fn @lengths(arg0: calldataslice) -> i256 [selector=0xe718a709, pure, abi_params=[array<2, bytes>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 0
@@ -18,7 +18,7 @@ fn @lengths(arg0: calldataslice) -> u256 [selector=0xe718a709, pure, abi_params=
     v11 = sub v10, v3
     v12 = sub v11, 31
     v13 = slt v8, v12
-    v14 = iszero v13
+    v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = calldataload v9
     v16 = gt v15, 0xffffffffffffffff
@@ -34,7 +34,7 @@ fn @lengths(arg0: calldataslice) -> u256 [selector=0xe718a709, pure, abi_params=
     v24 = slice_len v23
     v25 = slice_len arg0
     v26 = lt 1, v25
-    v27 = iszero v26
+    v27 = eq v26, false
     icall panic_if<0x32>, v27
     v28 = slice_ptr arg0
     v29 = add v28, 32
@@ -48,7 +48,7 @@ fn @lengths(arg0: calldataslice) -> u256 [selector=0xe718a709, pure, abi_params=
     v36 = sub v35, v28
     v37 = sub v36, 31
     v38 = slt v33, v37
-    v39 = iszero v38
+    v39 = eq v38, false
     icall revert_if<invalid_calldata_tail_offset>, v39
     v40 = calldataload v34
     v41 = gt v40, 0xffffffffffffffff

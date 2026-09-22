@@ -7,6 +7,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(test, allow(unused_crate_dependencies))]
 
+extern crate alloc;
 extern crate derive_more as _;
 extern crate tracing as _;
 
@@ -20,6 +21,9 @@ pub use contract::{
     ContractArtifact, ContractSelection, ImmutableReference, LibraryReference, RuntimeDataFn,
     generate_contract_bytecodes,
 };
+
+mod link;
+pub use link::{Library, LibraryId, LibraryRelocation, LibraryTable, RelocatableBytecode};
 
 mod ir_parse;
 mod source_info;

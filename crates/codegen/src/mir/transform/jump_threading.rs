@@ -18,7 +18,8 @@
 //! jumps unconditionally and no phi result escapes, move the branch onto the predecessor and
 //! substitute the selected inputs. This exposes nested short-circuit checks within the same
 //! fixpoint, without waiting for another CFG cleanup pass. Targets with phis and cyclic phi
-//! inputs stay unchanged.
+//! inputs stay unchanged. Constant incoming edges also bypass a phi followed by
+//! an equality or inequality with zero, provided no result escapes the block.
 
 use crate::{
     mir::{
@@ -280,32 +281,34 @@ impl JumpThreader {
         (!func.block_has_phi(final_target)).then_some(final_target)
     }
 
-    fn block_phi_results_have_external_uses(func: &Function, block_id: BlockId) -> bool {
-        let phi_results = func.block_phi_results(block_id);
-        if phi_results.is_empty() {
+    fn block_results_have_external_uses(func: &Function, block_id: BlockId) -> bool {
+        let mut results = DenseBitSet::new_empty(func.num_values());
+        for &inst in &func.blocks[block_id].instructions {
+            if let Some(result) = func.inst_result_value(inst) {
+                results.insert(result);
+            }
+        }
+        if results.is_empty() {
             return false;
         }
 
         for (other_block, block) in func.blocks.iter_enumerated() {
-            if other_block != block_id {
-                for &inst_id in &block.instructions {
-                    if func
-                        .inst(inst_id)
-                        .kind
-                        .operands()
-                        .iter()
-                        .any(|&operand| phi_results.contains(operand))
-                    {
-                        return true;
-                    }
-                }
-            }
-
             if other_block == block_id {
                 continue;
             }
+            for &inst_id in &block.instructions {
+                if func
+                    .inst(inst_id)
+                    .kind
+                    .operands()
+                    .iter()
+                    .any(|&operand| results.contains(operand))
+                {
+                    return true;
+                }
+            }
             if let Some(term) = &block.terminator
-                && term.operands().iter().any(|&operand| phi_results.contains(operand))
+                && term.operands().iter().any(|&operand| results.contains(operand))
             {
                 return true;
             }
@@ -320,9 +323,20 @@ impl JumpThreader {
 
         for block_id in block_ids {
             if !func.block_has_only_phis(block_id) {
-                continue;
+                let Some(Terminator::Branch { condition, .. }) = func.blocks[block_id].terminator
+                else {
+                    continue;
+                };
+                if Self::branch_zero_test(func, condition).is_none()
+                    || !func.blocks[block_id].instructions.iter().all(|&inst| {
+                        matches!(func.inst(inst).kind, InstKind::Phi(_))
+                            || func.inst_result_value(inst) == Some(condition)
+                    })
+                {
+                    continue;
+                }
             }
-            if Self::block_phi_results_have_external_uses(func, block_id) {
+            if Self::block_results_have_external_uses(func, block_id) {
                 continue;
             }
 
@@ -382,7 +396,7 @@ impl JumpThreader {
                 continue;
             };
             if term.successors().iter().any(|&target| func.block_has_phi(target))
-                || Self::block_phi_results_have_external_uses(func, block)
+                || Self::block_results_have_external_uses(func, block)
             {
                 continue;
             }
@@ -429,9 +443,11 @@ impl JumpThreader {
     ) -> Option<BlockId> {
         match term {
             Terminator::Branch { condition, then_block, else_block } => {
-                let incoming = Self::incoming_value_for_pred(func, block_id, *condition, pred)?;
-                let condition = func.value_u256(incoming)?;
-                Some(if condition.is_zero() { *else_block } else { *then_block })
+                let (value, invert) =
+                    Self::branch_zero_test(func, *condition).unwrap_or((*condition, false));
+                let incoming = Self::incoming_value_for_pred(func, block_id, value, pred)?;
+                let truth = !func.value_u256(incoming)?.is_zero() ^ invert;
+                Some(if truth { *then_block } else { *else_block })
             }
             Terminator::Switch { value, default, cases } => {
                 let incoming = Self::incoming_value_for_pred(func, block_id, *value, pred)?;
@@ -445,6 +461,27 @@ impl JumpThreader {
             }
             _ => None,
         }
+    }
+
+    fn branch_zero_test(func: &Function, condition: ValueId) -> Option<(ValueId, bool)> {
+        let Value::Inst(inst) = func.value(condition) else { return None };
+        let instruction = func.inst(*inst);
+        if instruction
+            .metadata
+            .effect()
+            .is_some_and(|effect| effect != instruction.kind.effect_kind())
+        {
+            return None;
+        }
+        let (InstKind::Eq(a, b) | InstKind::Ne(a, b)) = instruction.kind else { return None };
+        let value = if func.value_u64(a) == Some(0) {
+            b
+        } else if func.value_u64(b) == Some(0) {
+            a
+        } else {
+            return None;
+        };
+        Some((value, matches!(instruction.kind, InstKind::Eq(..))))
     }
 
     fn incoming_value_for_pred(

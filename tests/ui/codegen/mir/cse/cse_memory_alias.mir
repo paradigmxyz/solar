@@ -4,7 +4,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @reuse_same_memory_load{{[( ]}}
 // CHECK: - {{v[0-9]+}} = mload arg0
 // CHECK: + {{v[0-9]+}} = add [[SAME:v[0-9]+]], [[SAME]]
-fn @reuse_same_memory_load(arg0: u256) -> u256 {
+fn @reuse_same_memory_load(arg0: i256) -> i256 {
   bb0:
     v1 = mload arg0
     v2 = mload arg0
@@ -15,7 +15,7 @@ fn @reuse_same_memory_load(arg0: u256) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @reuse_after_disjoint_memory_store{{[( ]}}
 // CHECK: - {{v[0-9]+}} = mload 64
 // CHECK: + {{v[0-9]+}} = add [[DISJOINT:v[0-9]+]], [[DISJOINT]]
-fn @reuse_after_disjoint_memory_store(arg0: u256) -> u256 {
+fn @reuse_after_disjoint_memory_store(arg0: i256) -> i256 {
   bb0:
     v1 = mload 64
     v2 = mload 64
@@ -29,7 +29,7 @@ fn @reuse_after_disjoint_memory_store(arg0: u256) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_after_overlapping_memory_store{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 64
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 64
-fn @keep_after_overlapping_memory_store(arg0: u256) -> u256 {
+fn @keep_after_overlapping_memory_store(arg0: i256) -> i256 {
   bb0:
     v1 = mload 64
     mstore 80, arg0
@@ -41,7 +41,7 @@ fn @keep_after_overlapping_memory_store(arg0: u256) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @reuse_keccak_after_disjoint_memory_store{{[( ]}}
 // CHECK: - {{v[0-9]+}} = keccak256 128, 64
 // CHECK: + {{v[0-9]+}} = add [[HASH:v[0-9]+]], [[HASH]]
-fn @reuse_keccak_after_disjoint_memory_store(arg0: u256) -> u256 {
+fn @reuse_keccak_after_disjoint_memory_store(arg0: i256) -> i256 {
   bb0:
     v1 = keccak256 128, 64
     mstore 64, arg0
@@ -53,32 +53,34 @@ fn @reuse_keccak_after_disjoint_memory_store(arg0: u256) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @reuse_mload_after_disjoint_call_return{{[( ]}}
 // CHECK: - {{v[0-9]+}} = mload 64
 // CHECK: + {{v[0-9]+}} = add [[CALL_LOAD:v[0-9]+]], [[CALL_LOAD]]
-fn @reuse_mload_after_disjoint_call_return(arg0: u256) -> u256 {
+fn @reuse_mload_after_disjoint_call_return(arg0: i256) -> i256 {
   bb0:
     v1 = mload 64
     v2 = call 100000, arg0, 0, 0, 0, 96, 32
     v3 = mload 64
     v4 = add v1, v3
-    v5 = add v4, v2
+    v6 = zext i1 v2 to i256
+    v5 = add v4, v6
     ret v5
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @keep_mload_after_overlapping_call_return{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 96
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 96
-fn @keep_mload_after_overlapping_call_return(arg0: u256) -> u256 {
+fn @keep_mload_after_overlapping_call_return(arg0: i256) -> i256 {
   bb0:
     v1 = mload 96
     v2 = call 100000, arg0, 0, 0, 0, 96, 32
     v3 = mload 96
     v4 = add v1, v3
-    v5 = add v4, v2
+    v6 = zext i1 v2 to i256
+    v5 = add v4, v6
     ret v5
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @forward_constant_word{{[( ]}}
 // CHECK: + {{ *}}ret 2
-fn @forward_constant_word(arg0: u256) -> u256 {
+fn @forward_constant_word(arg0: i256) -> i256 {
   bb0:
     mstore arg0, 2
     v1 = mload arg0
@@ -87,7 +89,7 @@ fn @forward_constant_word(arg0: u256) -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @forward_constant_after_disjoint_write{{[( ]}}
 // CHECK: + {{ *}}ret 2
-fn @forward_constant_after_disjoint_write(arg0: u256) -> u256 {
+fn @forward_constant_after_disjoint_write(arg0: i256) -> i256 {
   bb0:
     mstore 128, 2
     mstore 160, arg0
@@ -97,7 +99,7 @@ fn @forward_constant_after_disjoint_write(arg0: u256) -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @keep_constant_after_byte_write{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 128
-fn @keep_constant_after_byte_write(arg0: u256) -> u256 {
+fn @keep_constant_after_byte_write(arg0: i256) -> i256 {
   bb0:
     mstore 128, 2
     mstore8 159, arg0
@@ -107,7 +109,7 @@ fn @keep_constant_after_byte_write(arg0: u256) -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @keep_constant_after_unknown_write{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 128
-fn @keep_constant_after_unknown_write(arg0: u256) -> u256 {
+fn @keep_constant_after_unknown_write(arg0: i256) -> i256 {
   bb0:
     mstore 128, 2
     mstore arg0, 3
@@ -117,7 +119,7 @@ fn @keep_constant_after_unknown_write(arg0: u256) -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @keep_constant_after_call_return{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 128
-fn @keep_constant_after_call_return(arg0: address) -> u256 {
+fn @keep_constant_after_call_return(arg0: i256) -> i256 {
   bb0:
     mstore 128, 2
     v1 = call 100000, arg0, 0, 0, 0, 128, 32
@@ -127,7 +129,7 @@ fn @keep_constant_after_call_return(arg0: address) -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @keep_constant_after_diamond_write{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 128
-fn @keep_constant_after_diamond_write(arg0: bool) -> u256 {
+fn @keep_constant_after_diamond_write(arg0: i1) -> i256 {
   bb0:
     mstore 128, 2
     jumpi arg0, bb1, bb2

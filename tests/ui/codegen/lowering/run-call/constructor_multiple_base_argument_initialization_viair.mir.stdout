@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_multiple_base_argument_initialization_viair.sol:ConstructorArgumentInitializationA ===
 @module ConstructorArgumentInitializationA
-fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
     ret
@@ -14,13 +14,13 @@ fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_multiple_base_argument_initialization_viair.sol:ConstructorArgumentInitializationB ===
 @module ConstructorArgumentInitializationB
-fn @y() -> u256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word]] {
+fn @y() -> i256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, 3 !metadata(storage=slot(0))
     ret
@@ -29,7 +29,7 @@ fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_multiple_base_argument_initialization_viair.sol:ConstructorMultipleBaseArgumentInitialization ===
 @module ConstructorMultipleBaseArgumentInitialization
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
 fn @constructor() [constructor] {
   bb0:
@@ -55,25 +55,25 @@ fn @state() -> struct0 [selector=0xc19d93fb, view, abi_params=[], abi_returns=[w
     ret v3
 }
 
-fn @y() -> u256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word]] {
+fn @y() -> i256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     ret v0
 }
 
-fn @touchB() -> u256 {
+fn @touchB() -> i256 {
   bb0:
     sstore 1, 5 !metadata(storage=slot(1))
     ret 0
 }
 
-fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @touchA() -> u256 {
+fn @touchA() -> i256 {
   bb0:
     sstore 0, 4 !metadata(storage=slot(0))
     ret 0

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/dce/dce_side_effects.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/dce/dce_side_effects.mir (after dce) ===
   @module DceSideEffects
-  fn @effects(arg0: u256, arg1: u256) {
+  fn @effects(arg0: i256, arg1: i256) {
     bb0:
       sstore arg0, arg1
       log0 0, 32
@@ -9,7 +9,7 @@
       stop
   }
   
-  fn @calls(arg0: u256) {
+  fn @calls(arg0: i256) {
     bb0:
 -     icall @empty
 -     v0 = icall @identity, arg0
@@ -26,7 +26,7 @@
       ret
   }
   
-  fn @identity(arg0: u256) -> u256 {
+  fn @identity(arg0: i256) -> i256 {
     bb0:
       ret arg0
   }
@@ -55,20 +55,20 @@
       jump bb1
   }
   
-  fn @memory_observer() -> u256 {
+  fn @memory_observer() -> i256 {
     bb0:
       icall @reads_memory
       v0 = msize
       ret v0
   }
   
-  fn @reads_memory() -> u256 {
+  fn @reads_memory() -> i256 {
     bb0:
       v0 = mload 0x1000
       ret v0
   }
   
-  fn @callee_observes_memory(arg0: bool) -> u256 {
+  fn @callee_observes_memory(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb1:
@@ -79,7 +79,7 @@
       ret v1
   }
   
-  fn @observe_memory() -> u256 {
+  fn @observe_memory() -> i256 {
     bb0:
       v0 = msize
       ret v0
@@ -97,7 +97,7 @@
       stop
   }
   
-  fn @unused_storage_reads(arg0: u256) {
+  fn @unused_storage_reads(arg0: i256) {
     bb0:
       v0 = sload arg0
       validate_storage_bytes v0
@@ -105,13 +105,13 @@
       ret
   }
   
-  fn @storage_clear(arg0: u256, arg1: u256) {
+  fn @storage_clear(arg0: i256, arg1: i256) {
     bb0:
       clear_storage_words arg0, 1, arg1
       ret
   }
   
-  fn @unused_storage_array(arg0: u256) {
+  fn @unused_storage_array(arg0: i256) {
     bb0:
       v0 = load_storage_array enum<3>, arg0
       ret
@@ -125,20 +125,20 @@
       ret
   }
   
-  fn @unused_state_queries(arg0: u256) {
+  fn @unused_state_queries(arg0: i256) {
     bb0:
 -     v0 = icall @read_storage, arg0
 -     v1 = icall @read_account, arg0
       ret
   }
   
-  fn @read_storage(arg0: u256) -> u256 {
+  fn @read_storage(arg0: i256) -> i256 {
     bb0:
       v0 = sload arg0
       ret v0
   }
   
-  fn @read_account(arg0: u256) -> u256 {
+  fn @read_account(arg0: i256) -> i256 {
     bb0:
       v0 = balance arg0
       ret v0

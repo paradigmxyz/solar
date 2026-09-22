@@ -84,7 +84,7 @@ def mine(
     if not 2 <= max_ops <= 16 or not 1 <= max_seeds <= 128:
         raise ValueError("mining requires two to 16 operations and one to 128 seeds")
     prices = Prices(fork, objective, runs)
-    bindings = opcode_bindings((ISLE / "select.isle").read_text())
+    bindings = opcode_bindings((ISLE / "mir-to-evm/select.isle").read_text())
     supported = {}
     for name, (opcode, arity, shape, direct) in bindings.items():
         if (

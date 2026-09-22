@@ -1,22 +1,25 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_static_struct_validation.sol:AbiCalldataStaticStructValidation ===
 @module AbiCalldataStaticStructValidation
 types:
-  struct0: {u256, u256, u256}
+  struct0: {i256, i256, i256}
 
 fn @f(arg0: memorystruct) -> struct0 [selector=0x9a869a74, pure, abi_params=[tuple<i16, u8, bytes2>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    v0 = mload arg0
-    v1 = add arg0, 32
-    v2 = mload v1
-    v3 = add arg0, 64
+    v0 = ptrtoint memorystruct arg0 to i256
+    v1 = mload v0
+    v2 = ptrtoint memorystruct arg0 to i256
+    v3 = add v2, 32
     v4 = mload v3
-    v5 = insert_value struct0, undef struct0, 0, v0
-    v6 = insert_value struct0, v5, 1, v2
-    v7 = insert_value struct0, v6, 2, v4
-    ret v7
+    v5 = ptrtoint memorystruct arg0 to i256
+    v6 = add v5, 64
+    v7 = mload v6
+    v8 = insert_value struct0, undef struct0, 0, v1
+    v9 = insert_value struct0, v8, 1, v4
+    v10 = insert_value struct0, v9, 2, v7
+    ret v10
 }
 
-fn @encodeStruct() -> memorybytes [selector=0x01e941a3, pure, abi_params=[], abi_returns=[memory_bytes]] {
+fn @encodeStruct() -> memorybytes [selector=0x01e941a3, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @makeStruct
     v1 = abi_encode [tuple<word<u8>, word<u8>>], object, args v0

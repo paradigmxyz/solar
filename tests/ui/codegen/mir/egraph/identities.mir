@@ -1,19 +1,20 @@
 //@compile-flags: -Zmir-pipeline=egraph
 //@filecheck: --enable-var-scope
-@module InstSimplifyIdentities
+@module Identities
 types:
-  struct0: {u256, u256}
-  struct1: {struct0, u256}
+  struct0: {i256, i256}
+  struct1: {struct0, i256}
 
-  struct2: {u256, u256, u256}
-  struct3: {u256, u256, u256, u256}
-  struct4: {u256, u256, u256, u256, u256}
+  struct2: {i256, i256, i256}
+  struct3: {i256, i256, i256, i256}
+  struct4: {i256, i256, i256, i256, i256}
+  struct5: {i1, i1, i1, i1}
 
 // CHECK-LABEL: @add_zero
 // CHECK: - [[SUM:v[0-9]+]] = add arg0, 0
 // CHECK: - ret [[SUM]]
 // CHECK: ret arg0
-fn @add_zero(arg0: u256) -> u256 {
+fn @add_zero(arg0: i256) -> i256 {
   bb0:
     v1 = add arg0, 0
     ret v1
@@ -23,7 +24,7 @@ fn @add_zero(arg0: u256) -> u256 {
 // CHECK: - [[PRODUCT:v[0-9]+]] = mul 1, arg0
 // CHECK: - ret [[PRODUCT]]
 // CHECK: ret arg0
-fn @mul_one(arg0: u256) -> u256 {
+fn @mul_one(arg0: i256) -> i256 {
   bb0:
     v1 = mul 1, arg0
     ret v1
@@ -33,7 +34,7 @@ fn @mul_one(arg0: u256) -> u256 {
 // CHECK: - [[DIFF:v[0-9]+]] = sub arg0, arg0
 // CHECK: - ret [[DIFF]]
 // CHECK: ret 0
-fn @self_sub(arg0: u256) -> u256 {
+fn @self_sub(arg0: i256) -> i256 {
   bb0:
     v1 = sub arg0, arg0
     ret v1
@@ -45,7 +46,7 @@ fn @self_sub(arg0: u256) -> u256 {
 // CHECK: - [[XOR:v[0-9]+]] = xor arg0, arg0
 // CHECK: - ret [[AND]], [[OR]], [[XOR]]
 // CHECK: ret arg0, arg0, 0
-fn @idempotent_logic(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
+fn @idempotent_logic(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
   bb0:
     v1 = and arg0, arg0
     v2 = or arg0, arg0
@@ -58,7 +59,7 @@ fn @idempotent_logic(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
 // CHECK: -     [[DOUBLE_NOT:v[0-9]+]] = not [[NOT]]
 // CHECK: -     ret [[DOUBLE_NOT]]
 // CHECK: ret arg0
-fn @not_not(arg0: u256) -> u256 {
+fn @not_not(arg0: i256) -> i256 {
   bb0:
     v1 = not arg0
     v2 = not v1
@@ -66,20 +67,19 @@ fn @not_not(arg0: u256) -> u256 {
 }
 
 // CHECK-LABEL: @iszero_immediate
-// CHECK: - [[ZERO:v[0-9]+]] = iszero 0
+// CHECK: - [[ZERO:v[0-9]+]] = eq 0, 0
 // CHECK: - ret [[ZERO]]
 // CHECK: ret true
-fn @iszero_immediate() -> bool {
+fn @iszero_immediate() -> i1 {
   bb0:
-    v0 = iszero 0
+    v0 = eq 0, 0
     ret v0
 }
 
 // CHECK-LABEL: @eq_zero
-// CHECK: -     {{v[0-9]+}} = eq arg0, 0
-// CHECK:       [[ZERO:v[0-9]+]] = iszero arg0
+// CHECK:       [[ZERO:v[0-9]+]] = eq arg0, 0
 // CHECK:       ret [[ZERO]]
-fn @eq_zero(arg0: u256) -> bool {
+fn @eq_zero(arg0: i256) -> i1 {
   bb0:
     v1 = eq arg0, 0
     ret v1
@@ -89,43 +89,47 @@ fn @eq_zero(arg0: u256) -> bool {
 // CHECK: - [[MASKED:v[0-9]+]] = and {{0x[0-9a-f]+}}, arg0
 // CHECK: - ret [[MASKED]]
 // CHECK: ret arg0
-fn @and_all_ones(arg0: u256) -> u256 {
+fn @and_all_ones(arg0: i256) -> i256 {
   bb0:
     v1 = and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
     ret v1
 }
 
 // CHECK-LABEL: @address_mask
-// CHECK:       [[ADDRESS:v[0-9]+]] = address
+// CHECK:       [[NARROW_ADDRESS:v[0-9]+]] = address
+// CHECK: [[ADDRESS:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[NARROW_ADDRESS]]
 // CHECK: -     [[MASKED:v[0-9]+]] = and [[ADDRESS]], {{0x[0-9a-f]+}}
 // CHECK: -     ret [[MASKED]]
 // CHECK:       ret [[ADDRESS]]
-fn @address_mask() -> address {
+fn @address_mask() -> i256 {
   bb0:
-    v0 = address
+    v15 = address
+    v0 = zext i160 v15 to i256
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     ret v1
 }
 
 // CHECK-LABEL: @own_balance
-// CHECK:       [[ADDRESS:v[0-9]+]] = address
+// CHECK:       [[NARROW_ADDRESS:v[0-9]+]] = address
+// CHECK: [[ADDRESS:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[NARROW_ADDRESS]]
 // CHECK: -     {{v[0-9]+}} = balance [[ADDRESS]]
 // CHECK:       [[BALANCE:v[0-9]+]] = selfbalance
 // CHECK:       ret [[BALANCE]]
-fn @own_balance() -> u256 {
+fn @own_balance() -> i256 {
   bb0:
-    v0 = address
+    v16 = address
+    v0 = zext i160 v16 to i256
     v1 = balance v0
     ret v1
 }
 
-// CHECK-LABEL: @invert_iszero_branch
-// CHECK: -     jumpi {{v[0-9]+}}, [[THEN:bb[0-9]+]], [[ELSE:bb[0-9]+]]
-// CHECK:       jumpi arg0, [[ELSE]], [[THEN]]
-fn @invert_iszero_branch(arg0: u256) {
+// CHECK-LABEL: @canonical_zero_branch
+// CHECK: + [[ZERO:v[0-9]+]] = eq arg0, 0
+// CHECK: jumpi [[ZERO]], bb1, bb2
+fn @canonical_zero_branch(arg0: i256) {
   bb0:
     v1 = lt 0, arg0
-    v2 = iszero v1
+    v2 = eq v1, false
     jumpi v2, bb1, bb2
   bb1:
     stop
@@ -134,14 +138,16 @@ fn @invert_iszero_branch(arg0: u256) {
 }
 
 // CHECK-LABEL: @masked_own_balance
-// CHECK:       [[ADDRESS:v[0-9]+]] = address
+// CHECK:       [[NARROW_ADDRESS:v[0-9]+]] = address
+// CHECK: [[ADDRESS:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[NARROW_ADDRESS]]
 // CHECK: -     [[MASKED:v[0-9]+]] = and [[ADDRESS]], {{0x[0-9a-f]+}}
 // CHECK: -     {{v[0-9]+}} = balance [[MASKED]]
 // CHECK:       [[BALANCE:v[0-9]+]] = selfbalance
 // CHECK:       ret [[BALANCE]]
-fn @masked_own_balance() -> u256 {
+fn @masked_own_balance() -> i256 {
   bb0:
-    v0 = address
+    v17 = address
+    v0 = zext i160 v17 to i256
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = balance v1
     ret v2
@@ -150,7 +156,7 @@ fn @masked_own_balance() -> u256 {
 // CHECK-LABEL: @aggregate_projection
 // CHECK: - {{v[0-9]+}} = extract_value
 // CHECK: ret arg0
-fn @aggregate_projection(arg0: u256, arg1: u256) -> u256 {
+fn @aggregate_projection(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, arg0
     v1 = insert_value struct0, v0, 1, arg1
@@ -161,7 +167,7 @@ fn @aggregate_projection(arg0: u256, arg1: u256) -> u256 {
 // CHECK-LABEL: @overwritten_field
 // CHECK: - {{v[0-9]+}} = extract_value
 // CHECK: ret arg1
-fn @overwritten_field(arg0: u256, arg1: u256) -> u256 {
+fn @overwritten_field(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, arg0
     v1 = insert_value struct0, v0, 0, arg1
@@ -171,7 +177,7 @@ fn @overwritten_field(arg0: u256, arg1: u256) -> u256 {
 
 // CHECK-LABEL: @nested_projection
 // CHECK: ret arg0
-fn @nested_projection(arg0: u256) -> u256 {
+fn @nested_projection(arg0: i256) -> i256 {
   bb0:
     v0 = insert_value struct0, undef struct0, 1, arg0
     v1 = insert_value struct1, undef struct1, 0, v0
@@ -182,7 +188,7 @@ fn @nested_projection(arg0: u256) -> u256 {
 
 // CHECK-LABEL: @unknown_field
 // CHECK: {{v[0-9]+}} = extract_value struct0, {{v[0-9]+}}, 1
-fn @unknown_field(arg0: struct0, arg1: u256) -> u256 {
+fn @unknown_field(arg0: struct0, arg1: i256) -> i256 {
   bb0:
     v0 = insert_value struct0, arg0, 0, arg1
     v1 = extract_value struct0, v0, 1
@@ -192,17 +198,19 @@ fn @unknown_field(arg0: struct0, arg1: u256) -> u256 {
 // CHECK-LABEL: @raw_word_carrier
 // CHECK: {{v[0-9]+}} = extract_value struct0, {{v[0-9]+}}, 0
 // CHECK: {{v[0-9]+}} = memory_object_len memorybytes, {{v[0-9]+}}
-fn @raw_word_carrier(arg0: memorystruct) -> u256 {
+fn @raw_word_carrier(arg0: memorystruct) -> i256 {
   bb0:
-    v0 = insert_value struct0, undef struct0, 0, arg0
+    v3 = ptrtoint memorystruct arg0 to i256
+    v0 = insert_value struct0, undef struct0, 0, v3
     v1 = extract_value struct0, v0, 0
-    v2 = memory_object_len memorybytes, v1
+    v4 = inttoptr i256 v1 to memorybytes
+    v2 = memory_object_len memorybytes, v4
     ret v2
 }
 
 // CHECK-LABEL: @unreachable_insertion_cycle
 // CHECK: extract_value struct0
-fn @unreachable_insertion_cycle(arg0: u256) -> u256 {
+fn @unreachable_insertion_cycle(arg0: i256) -> i256 {
   bb0:
     ret arg0
   bb1:
@@ -214,7 +222,7 @@ fn @unreachable_insertion_cycle(arg0: u256) -> u256 {
 
 // CHECK-LABEL: @cancel_offsets
 // CHECK: ret arg1, arg1, arg1, arg0
-fn @cancel_offsets(arg0: u256, arg1: u256) -> struct3 [return_abi=[u256, u256, u256, u256]] {
+fn @cancel_offsets(arg0: i256, arg1: i256) -> struct3 [return_abi=[i256, i256, i256, i256]] {
   bb0:
     v0 = sub arg1, arg0
     v1 = add arg0, v0
@@ -227,7 +235,7 @@ fn @cancel_offsets(arg0: u256, arg1: u256) -> struct3 [return_abi=[u256, u256, u
 
 // CHECK-LABEL: @different_offsets
 // CHECK: {{^[ +].*}}ret v1, v3
-fn @different_offsets(arg0: u256, arg1: u256, arg2: u256) -> struct0 [return_abi=[u256, u256]] {
+fn @different_offsets(arg0: i256, arg1: i256, arg2: i256) -> struct0 [return_abi=[i256, i256]] {
   bb0:
     v0 = sub arg1, arg0
     v1 = add arg2, v0
@@ -238,7 +246,7 @@ fn @different_offsets(arg0: u256, arg1: u256, arg2: u256) -> struct0 [return_abi
 
 // CHECK-LABEL: @masked_left_shift
 // CHECK: ret 0x12345678, 120
-fn @masked_left_shift(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
+fn @masked_left_shift(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
   bb0:
     v0 = shl 32, arg0
     v1 = or v0, 305419896
@@ -250,7 +258,7 @@ fn @masked_left_shift(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
 
 // CHECK-LABEL: @masked_right_shift
 // CHECK: ret 0x1200000000000000000000000000000000000000000000000000000000000000
-fn @masked_right_shift(arg0: u256) -> u256 {
+fn @masked_right_shift(arg0: i256) -> i256 {
   bb0:
     v0 = shr 8, arg0
     v1 = or v0, 0x1200000000000000000000000000000000000000000000000000000000000001
@@ -260,7 +268,7 @@ fn @masked_right_shift(arg0: u256) -> u256 {
 
 // CHECK-LABEL: @masked_constant_covers_bits
 // CHECK: ret 2
-fn @masked_constant_covers_bits(arg0: u256) -> u256 {
+fn @masked_constant_covers_bits(arg0: i256) -> i256 {
   bb0:
     v0 = shl 1, arg0
     v1 = or v0, 2
@@ -270,7 +278,7 @@ fn @masked_constant_covers_bits(arg0: u256) -> u256 {
 
 // CHECK-LABEL: @masked_shift_boundaries
 // CHECK: ret 7, 9, 11
-fn @masked_shift_boundaries(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
+fn @masked_shift_boundaries(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
   bb0:
     v0 = shl 255, arg0
     v1 = or v0, 7
@@ -286,7 +294,7 @@ fn @masked_shift_boundaries(arg0: u256) -> struct2 [return_abi=[u256, u256, u256
 
 // CHECK-LABEL: @masked_unknown_bits
 // CHECK: {{^[ +].*}}ret v2, v5, v8, v11, v14
-fn @masked_unknown_bits(arg0: u256, arg1: u256) -> struct4 [return_abi=[u256, u256, u256, u256, u256]] {
+fn @masked_unknown_bits(arg0: i256, arg1: i256) -> struct4 [return_abi=[i256, i256, i256, i256, i256]] {
   bb0:
     v0 = shl 31, arg0
     v1 = or v0, 7
@@ -307,11 +315,13 @@ fn @masked_unknown_bits(arg0: u256, arg1: u256) -> struct4 [return_abi=[u256, u2
 }
 
 // CHECK-LABEL: @unshift_address
-// CHECK: [[ADDRESS:v[0-9]+]] = address
+// CHECK: [[NARROW_ADDRESS:v[0-9]+]] = address
+// CHECK: [[ADDRESS:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[NARROW_ADDRESS]]
 // CHECK: ret [[ADDRESS]], [[ADDRESS]]
-fn @unshift_address() -> struct0 [return_abi=[u256, u256]] {
+fn @unshift_address() -> struct0 [return_abi=[i256, i256]] {
   bb0:
-    v0 = address
+    v18 = address
+    v0 = zext i160 v18 to i256
     v1 = shl 32, v0
     v2 = or v1, 0x12345678
     v3 = shr 32, v2
@@ -322,10 +332,11 @@ fn @unshift_address() -> struct0 [return_abi=[u256, u256]] {
 }
 
 // CHECK-LABEL: @keep_lossy_address_shifts
-// CHECK: {{^[ +].*}}ret v3, v6, v9, v12
-fn @keep_lossy_address_shifts(arg0: u256) -> struct3 [return_abi=[u256, u256, u256, u256]] {
+// CHECK: {{^[ +].*}}ret v4, v7, v10, v13
+fn @keep_lossy_address_shifts(arg0: i256) -> struct3 [return_abi=[i256, i256, i256, i256]] {
   bb0:
-    v0 = address
+    v19 = address
+    v0 = zext i160 v19 to i256
     v1 = shl 97, v0
     v2 = or v1, 7
     v3 = shr 97, v2
@@ -343,7 +354,7 @@ fn @keep_lossy_address_shifts(arg0: u256) -> struct3 [return_abi=[u256, u256, u2
 
 // CHECK-LABEL: @subtract_common_base
 // CHECK: + ret 32, 2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-fn @subtract_common_base(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
+fn @subtract_common_base(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
   bb0:
     v0 = add arg0, 68
     v1 = add 36, arg0
@@ -358,7 +369,7 @@ fn @subtract_common_base(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] 
 // CHECK-LABEL: @keep_distinct_bases
 // CHECK: {{^ +}}[[DELTA:v[0-9]+]] = sub
 // CHECK: {{^ +}}ret [[DELTA]]
-fn @keep_distinct_bases(arg0: u256, arg1: u256) -> u256 {
+fn @keep_distinct_bases(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = add arg0, 68
     v1 = add arg1, 36
@@ -371,7 +382,7 @@ fn @keep_distinct_bases(arg0: u256, arg1: u256) -> u256 {
 // CHECK: + [[RIGHT:v[0-9]+]] = shr 8, arg0
 // CHECK: + [[SIGNED:v[0-9]+]] = sar 8, arg0
 // CHECK: {{^[ +].*}}ret [[LEFT]], [[RIGHT]], [[SIGNED]]
-fn @nested_shifts(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
+fn @nested_shifts(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
   bb0:
     v0 = shl 3, arg0
     v1 = shl 5, v0
@@ -385,7 +396,7 @@ fn @nested_shifts(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
 // CHECK-LABEL: @nested_shift_limits
 // CHECK: + [[SIGN:v[0-9]+]] = sar 256, arg0
 // CHECK: + ret 0, 0, [[SIGN]]
-fn @nested_shift_limits(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
+fn @nested_shift_limits(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
   bb0:
     v0 = shl 128, arg0
     v1 = shl 128, v0
@@ -401,7 +412,7 @@ fn @nested_shift_limits(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
 // CHECK: {{^[ +].*}}v3 = shr 3, v2
 // CHECK: {{^[ +].*}}v5 = shl arg1, v4
 // CHECK: {{^[ +].*}}ret v1, v3, v5
-fn @mixed_and_variable_shifts(arg0: u256, arg1: u256) -> struct2 [return_abi=[u256, u256, u256]] {
+fn @mixed_and_variable_shifts(arg0: i256, arg1: i256) -> struct2 [return_abi=[i256, i256, i256]] {
   bb0:
     v0 = shl 3, arg0
     v1 = shr 5, v0
@@ -410,4 +421,51 @@ fn @mixed_and_variable_shifts(arg0: u256, arg1: u256) -> struct2 [return_abi=[u2
     v4 = shl 5, arg0
     v5 = shl arg1, v4
     ret v1, v3, v5
+}
+
+// Two immediate operands retain their order; the modulus stays in place.
+// CHECK-LABEL: @constant_multiplicands
+// CHECK: + ret 0, 0
+fn @constant_multiplicands(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
+  bb0:
+    v1 = mulmod 0, 5, arg0
+    v2 = mulmod 5, 0, arg0
+    ret v1, v2
+}
+
+// CHECK-LABEL: @constant_operand_order
+// CHECK: + {{v[0-9]+}} = add arg0, 7
+// CHECK: + {{v[0-9]+}} = mul arg1, 11
+// CHECK: + {{v[0-9]+}} = or arg2, 13
+// CHECK: + {{v[0-9]+}} = xor arg3, 17
+fn @constant_operand_order(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct3 [return_abi=[i256, i256, i256, i256]] {
+  bb0:
+    v4 = add 7, arg0
+    v5 = mul 11, arg1
+    v6 = or 13, arg2
+    v7 = xor 17, arg3
+    ret v4, v5, v6, v7
+}
+
+// CHECK-LABEL: @constant_comparison_order
+// CHECK: + {{v[0-9]+}} = gt arg0, 13
+// CHECK: + {{v[0-9]+}} = lt arg1, 13
+// CHECK: + {{v[0-9]+}} = sgt arg2, 13
+// CHECK: + {{v[0-9]+}} = slt arg3, 13
+fn @constant_comparison_order(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct5 [return_abi=[i1, i1, i1, i1]] {
+  bb0:
+    v4 = lt 13, arg0
+    v5 = gt 13, arg1
+    v6 = slt 13, arg2
+    v7 = sgt 13, arg3
+    ret v4, v5, v6, v7
+}
+
+// CHECK-LABEL: @boolean_or_one
+// CHECK: ret true
+fn @boolean_or_one(arg0: i1) -> i1 {
+  bb0:
+    v0 = or arg0, true
+    v1 = or true, v0
+    ret v1
 }

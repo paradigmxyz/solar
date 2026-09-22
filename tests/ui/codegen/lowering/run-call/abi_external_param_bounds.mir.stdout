@@ -1,81 +1,85 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_external_param_bounds.sol:Bounds ===
 @module Bounds
-fn @bytesMemory(arg0: memorybytes) -> u256 [selector=0x0d39c72c, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @bytesMemory(arg0: memorybytes) -> i256 [selector=0x0d39c72c, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     ret v0
 }
 
-fn @wordsMemory(arg0: memoryarray) -> u256 [selector=0xb59b137f, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
+fn @wordsMemory(arg0: memoryarray) -> i256 [selector=0xb59b137f, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     ret v0
 }
 
-fn @bytesCalldata(arg0: calldataslice) -> u256 [selector=0x616c46ff, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @bytesCalldata(arg0: calldataslice) -> i256 [selector=0x616c46ff, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     ret v0
 }
 
-fn @wordsCalldata(arg0: calldataslice) -> u256 [selector=0x6918e29e, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
+fn @wordsCalldata(arg0: calldataslice) -> i256 [selector=0x6918e29e, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     ret v0
 }
 
-fn @dynamicStruct(arg0: memorystruct) -> u256 [selector=0xb47f1a21, pure, abi_params=[tuple<bytes>], abi_returns=[word]] {
+fn @dynamicStruct(arg0: memorystruct) -> i256 [selector=0xb47f1a21, pure, abi_params=[tuple<bytes>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = memory_object_load_field memorystruct<1>, arg0, 0, memorybytes
-    v1 = memory_object_len memorybytes, v0
-    ret v1
+    v0 = memory_object_load_field memorystruct<1>, arg0, 0
+    v1 = inttoptr i256 v0 to memorybytes
+    v2 = memory_object_len memorybytes, v1
+    ret v2
 }
 
-fn @wideDynamic(arg0: memorystruct) -> u256 [selector=0xe16c8534, pure, abi_params=[tuple<u256, bytes>], abi_returns=[word]] {
+fn @wideDynamic(arg0: memorystruct) -> i256 [selector=0xe16c8534, pure, abi_params=[tuple<u256, bytes>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = memory_object_load_field memorystruct<2>, arg0, 1, memorybytes
-    v1 = memory_object_len memorybytes, v0
-    ret v1
+    v0 = memory_object_load_field memorystruct<2>, arg0, 1
+    v1 = inttoptr i256 v0 to memorybytes
+    v2 = memory_object_len memorybytes, v1
+    ret v2
 }
 
-fn @staticStructs(arg0: memoryarray) -> u256 [selector=0xb2bb789c, pure, abi_params=[array<_, tuple<u256, address>>], abi_returns=[word]] {
+fn @staticStructs(arg0: memoryarray) -> i256 [selector=0xb2bb789c, pure, abi_params=[array<_, tuple<u256, address>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = memory_object_len memoryarray, arg0
     v2 = lt 0, v1
-    v3 = iszero v2
+    v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = memory_object_load_element memoryarray<1>, arg0, 0
-    v5 = memory_object_from_ptr memorystruct, v4
-    v6 = eq v5, 0
+    v5 = inttoptr i256 v4 to memorystruct
+    v6 = eq v4, 0
     jumpi v6, bb1, bb2
   bb1:
     v7 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v7, 0, 0
     memory_object_store_field memorystruct<2>, v7, 1, 0
-    memory_object_store_element memoryarray<1>, arg0, 0, v7
+    v8 = ptrtoint memorystruct v7 to i256
+    memory_object_store_element memoryarray<1>, arg0, 0, v8
     jump bb2
   bb2:
-    v8 = phi [bb0: v5], [bb1: v7]
-    v9 = memory_object_load_field memorystruct<2>, v8, 0
-    v10 = checked_add u256, v0, v9
-    v11 = memory_object_len memoryarray, arg0
-    v12 = lt 1, v11
-    v13 = iszero v12
-    icall panic_if<0x32>, v13
-    v14 = memory_object_load_element memoryarray<1>, arg0, 1
-    v15 = memory_object_from_ptr memorystruct, v14
-    v16 = eq v15, 0
-    jumpi v16, bb3, bb4
+    v9 = phi [bb0: v5], [bb1: v7]
+    v10 = memory_object_load_field memorystruct<2>, v9, 0
+    v11 = checked_add u256, v0, v10
+    v12 = memory_object_len memoryarray, arg0
+    v13 = lt 1, v12
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = memory_object_load_element memoryarray<1>, arg0, 1
+    v16 = inttoptr i256 v15 to memorystruct
+    v17 = eq v15, 0
+    jumpi v17, bb3, bb4
   bb3:
-    v17 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v17, 0, 0
-    memory_object_store_field memorystruct<2>, v17, 1, 0
-    memory_object_store_element memoryarray<1>, arg0, 1, v17
+    v18 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v18, 0, 0
+    memory_object_store_field memorystruct<2>, v18, 1, 0
+    v19 = ptrtoint memorystruct v18 to i256
+    memory_object_store_element memoryarray<1>, arg0, 1, v19
     jump bb4
   bb4:
-    v18 = phi [bb2: v15], [bb3: v17]
-    v19 = memory_object_load_field memorystruct<2>, v18, 0
-    v20 = checked_add u256, v10, v19
-    ret v20
+    v20 = phi [bb2: v16], [bb3: v18]
+    v21 = memory_object_load_field memorystruct<2>, v20, 0
+    v22 = checked_add u256, v11, v21
+    ret v22
 }

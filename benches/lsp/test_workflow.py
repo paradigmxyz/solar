@@ -20,12 +20,8 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = ROOT / ".github/workflows/lsp-bench-command.yml"
 WORKFLOW = WORKFLOW_PATH.read_text(encoding="utf-8")
 BENCH_WORKFLOW = (ROOT / ".github/workflows/bench.yml").read_text(encoding="utf-8")
-UPLOAD_ARTIFACT_ACTION = (
-    "uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
-)
-DOWNLOAD_ARTIFACT_ACTION = (
-    "uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
-)
+UPLOAD_ARTIFACT_ACTION = "uses: actions/upload-artifact@"
+DOWNLOAD_ARTIFACT_ACTION = "uses: actions/download-artifact@"
 
 
 def job_block(name: str) -> str:
@@ -548,9 +544,16 @@ class PermissionAndCheckoutTests(unittest.TestCase):
             job_permissions("queue-comment"),
             {"issues": "write", "pull-requests": "write"},
         )
-        self.assertEqual(job_permissions("build_base"), {"contents": "read"})
-        self.assertEqual(job_permissions("build_candidate"), {"contents": "read"})
-        self.assertEqual(job_permissions("compute"), {"contents": "read"})
+        self.assertEqual(
+            job_permissions("build_base"), {"contents": "read", "id-token": "write"}
+        )
+        self.assertEqual(
+            job_permissions("build_candidate"),
+            {"contents": "read", "id-token": "write"},
+        )
+        self.assertEqual(
+            job_permissions("compute"), {"contents": "read", "id-token": "write"}
+        )
         self.assertEqual(
             job_permissions("render"),
             {

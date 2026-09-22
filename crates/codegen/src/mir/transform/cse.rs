@@ -66,7 +66,10 @@
 //! dominating block when that value is already live into the loading block or
 //! the address is loop-invariant: reviving a dead value across the loop body
 //! costs the scheduler more stack traffic than the load it removes. Acyclic
-//! reuse is unchanged.
+//! reuse is unchanged. Loop and liveness facts are built only when a candidate reuse needs them.
+//!
+//! Unchanged functions without internal calls can skip later runs until their
+//! body changes; callers must still observe any improved callee summaries.
 
 use crate::mir::{
     AddressCallKind, BlockId, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId,
@@ -78,7 +81,9 @@ use crate::mir::{
         MemoryLocation,
     },
     memory::EvmMemoryLayout,
-    pass::{MirPass, run_function_pass, run_function_pass_with_cfg},
+    pass::{
+        MirPass, run_function_pass, run_selected_function_pass, run_selected_function_pass_cached,
+    },
     utils as mir_utils,
 };
 use alloy_primitives::U256;
@@ -103,8 +108,20 @@ impl MirPass for Cse {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let summaries = analyses.call_summaries(module);
-        let changed = run_function_pass_with_cfg(module, analyses, |func, analyses| {
+        let mut leaves = DenseBitSet::new_empty(module.functions.len());
+        let mut callers = DenseBitSet::new_empty(module.functions.len());
+        for (id, func) in module.functions.iter_enumerated() {
+            if func
+                .instructions()
+                .any(|inst| matches!(func.inst(inst).kind, InstKind::ICall { .. }))
+            {
+                callers.insert(id);
+            } else {
+                leaves.insert(id);
+            }
+        }
+        let summaries = (!callers.is_empty()).then(|| analyses.call_summaries(module));
+        let run = |func: &mut Function, analyses: &crate::mir::pass::FunctionAnalyses| {
             if func
                 .instructions()
                 .filter(|&inst_id| func.inst(inst_id).result_ty.is_some())
@@ -119,11 +136,17 @@ impl MirPass for Cse {
             {
                 return false;
             }
-            let mut eliminator =
-                CommonSubexprEliminator::with_call_summaries(Arc::clone(&summaries));
+            let mut eliminator = CommonSubexprEliminator {
+                call_summaries: summaries.as_ref().map(Arc::clone),
+                ..Default::default()
+            };
             eliminator.cfg = Some(Rc::clone(analyses.cfg()));
             eliminator.run_to_fixpoint(func) != 0
-        });
+        };
+        // A callee's new summary can expose CSE in an unchanged caller. Only cache
+        // functions whose result depends entirely on their own body.
+        let mut changed = run_selected_function_pass_cached::<Self>(module, analyses, &leaves, run);
+        changed |= run_selected_function_pass(module, analyses, &callers, run);
         // CSE replaces equivalent values without changing control flow. Its old call
         // summaries remain conservative after redundant reads and computations disappear.
         analyses.preserve_call_summaries();
@@ -232,7 +255,7 @@ enum ExprKey {
     /// Also keys `SGt(a, b)`, normalized as `SLt(b, a)`.
     SLt(OperandKey, OperandKey),
     Eq(OperandKey, OperandKey),
-    IsZero(OperandKey),
+    Ne(OperandKey, OperandKey),
     Not(OperandKey),
     Clz(OperandKey),
     SignExtend(OperandKey, OperandKey),
@@ -289,8 +312,9 @@ struct GlobalCseContext<'a> {
     reachability: &'a FxHashMap<BlockId, DenseBitSet<BlockId>>,
     /// Reachable predecessors, present only when clobbering blocks exist.
     predecessors: &'a IndexVec<BlockId, Vec<BlockId>>,
-    /// Liveness and loop membership, present only when clobbering blocks exist.
-    reuse: Option<&'a MemoryReuseFacts>,
+    cfg: &'a CfgInfo,
+    /// Compute liveness and loop membership only for a reused load on a cycle.
+    reuse: Option<OnceCell<MemoryReuseFacts>>,
     replacements: &'a mut FxHashMap<ValueId, ValueId>,
     dead: &'a mut DenseBitSet<InstId>,
 }
@@ -403,10 +427,6 @@ struct PhiSinkContext<'a> {
 }
 
 impl CommonSubexprEliminator {
-    fn with_call_summaries(summaries: Arc<MemoryCallSummaries>) -> Self {
-        Self { call_summaries: Some(summaries), ..Self::default() }
-    }
-
     fn refresh_alias(&mut self, func: &Function) {
         self.alias = Some(match &self.call_summaries {
             Some(summaries) => AliasAnalysis::with_call_summaries(func, Arc::clone(summaries)),
@@ -468,11 +488,7 @@ impl CommonSubexprEliminator {
             if has_path_sensitive_expr { self.block_clobber_summaries(func) } else { Vec::new() };
         let empty_reachability = FxHashMap::default();
         let mut predecessors = IndexVec::new();
-        let reuse = (!block_clobbers.is_empty()).then(|| MemoryReuseFacts {
-            liveness: Liveness::compute(func),
-            definitions: func.inst_blocks(),
-            loops: LoopAnalyzer::new().analyze(func),
-        });
+        let reuse = (!block_clobbers.is_empty()).then(OnceCell::new);
         let (dom_tree, reachability) = if block_clobbers.is_empty() {
             (cfg.dominators(), &empty_reachability)
         } else {
@@ -492,7 +508,8 @@ impl CommonSubexprEliminator {
             block_clobbers: &block_clobbers,
             reachability,
             predecessors: &predecessors,
-            reuse: reuse.as_ref(),
+            cfg,
+            reuse,
             replacements: &mut replacements,
             dead: &mut dead,
         };
@@ -656,6 +673,7 @@ impl CommonSubexprEliminator {
                     .zip(func.inst_result_value(inst_id));
                 if let Some((key, result)) = &candidate
                     && let Some(cached) = cache.get(key)
+                    && func.value_ty(*result) == func.value_ty(*cached)
                 {
                     if matches!(key, ExprKey::MLoad(_))
                         && !Self::memory_reuse_pays_off(func, ctx, block_id, *cached, kind)
@@ -711,7 +729,15 @@ impl CommonSubexprEliminator {
         cached: ValueId,
         kind: &InstKind,
     ) -> bool {
-        let Some(facts) = ctx.reuse else { return true };
+        let Some(reuse) = &ctx.reuse else { return true };
+        if !ctx.cfg.cyclic_blocks().contains(block) {
+            return true;
+        }
+        let facts = reuse.get_or_init(|| MemoryReuseFacts {
+            liveness: Liveness::compute(func),
+            definitions: func.inst_blocks(),
+            loops: LoopAnalyzer::new().analyze_structure(func),
+        });
         let Some(header) = facts.loops.block_to_loop.get(&block) else { return true };
         let Some(loop_info) = facts.loops.loops.get(header) else { return true };
         let Value::Inst(cached_inst) = func.value(cached) else { return true };
@@ -892,6 +918,7 @@ impl CommonSubexprEliminator {
                 .zip(func.inst_result_value(inst_id));
             if let Some((key, result)) = &candidate
                 && let Some(&cached_value) = expr_cache.get(key)
+                && func.value_ty(*result) == func.value_ty(cached_value)
             {
                 // repeated expression with unchanged read/write dependencies -> cached value
                 replacements.insert(*result, cached_value);
@@ -1003,6 +1030,10 @@ impl CommonSubexprEliminator {
                 let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
                 Some(ExprKey::Eq(a, b))
             }
+            InstKind::Ne(a, b) => {
+                let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
+                Some(ExprKey::Ne(a, b))
+            }
 
             // Non-commutative operations - preserve order
             InstKind::Sub(a, b) => {
@@ -1038,7 +1069,6 @@ impl CommonSubexprEliminator {
             InstKind::SignExtend(a, b) => Some(ExprKey::SignExtend(operand(*a), operand(*b))),
 
             // Unary operations
-            InstKind::IsZero(a) => Some(ExprKey::IsZero(operand(*a))),
             InstKind::Not(a) => Some(ExprKey::Not(operand(*a))),
             InstKind::Clz(a) => Some(ExprKey::Clz(operand(*a))),
             InstKind::CalldataLoad(a) => Some(ExprKey::CalldataLoad(operand(*a))),

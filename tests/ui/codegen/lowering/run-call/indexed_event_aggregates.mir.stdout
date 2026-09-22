@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/indexed_event_aggregates.sol:IndexedAggregates ===
 @module IndexedAggregates
 types:
-  struct0: {u256, memorybytes}
+  struct0: {i256, memorybytes}
 
 fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
@@ -9,267 +9,295 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     set_memory_object_len memoryarray, v0, 2
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v3]
+    v1 = phi [bb0: 0], [bb2: v4]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb3:
-    v4 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    set_memory_object_len memoryarray, v4, 2
-    v5 = memory_object_len memoryarray, v0
-    v6 = lt 0, v5
-    v7 = iszero v6
-    icall panic_if<0x32>, v7
-    memory_object_store_element memoryarray<1>, v0, 0, v4
-    v8 = memory_object_len memoryarray, v0
-    v9 = lt 0, v8
-    v10 = iszero v9
-    icall panic_if<0x32>, v10
-    v11 = memory_object_load_element memoryarray<1>, v0, 0
-    v12 = memory_object_from_ptr memoryarray, v11
-    v13 = eq v12, 0
-    jumpi v13, bb4, bb5
+    v5 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    set_memory_object_len memoryarray, v5, 2
+    v6 = memory_object_len memoryarray, v0
+    v7 = lt 0, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = ptrtoint memoryarray v5 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v9
+    v10 = memory_object_len memoryarray, v0
+    v11 = lt 0, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = memory_object_load_element memoryarray<1>, v0, 0
+    v14 = inttoptr i256 v13 to memoryarray
+    v15 = eq v13, 0
+    jumpi v15, bb4, bb5
   bb4:
-    v14 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v14, 0
-    memory_object_store_element memoryarray<1>, v0, 0, v14
+    v16 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v16, 0
+    v17 = ptrtoint memoryarray v16 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v17
     jump bb5
   bb5:
-    v15 = phi [bb3: v12], [bb4: v14]
-    v16 = memory_object_len memoryarray, v15
-    v17 = lt 0, v16
-    v18 = iszero v17
-    icall panic_if<0x32>, v18
-    memory_object_store_element memoryarray<1>, v15, 0, 1
-    v19 = memory_object_len memoryarray, v0
+    v18 = phi [bb3: v14], [bb4: v16]
+    v19 = memory_object_len memoryarray, v18
     v20 = lt 0, v19
-    v21 = iszero v20
+    v21 = eq v20, false
     icall panic_if<0x32>, v21
-    v22 = memory_object_load_element memoryarray<1>, v0, 0
-    v23 = memory_object_from_ptr memoryarray, v22
-    v24 = eq v23, 0
-    jumpi v24, bb6, bb7
+    memory_object_store_element memoryarray<1>, v18, 0, 1
+    v22 = memory_object_len memoryarray, v0
+    v23 = lt 0, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = memory_object_load_element memoryarray<1>, v0, 0
+    v26 = inttoptr i256 v25 to memoryarray
+    v27 = eq v25, 0
+    jumpi v27, bb6, bb7
   bb6:
-    v25 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v25, 0
-    memory_object_store_element memoryarray<1>, v0, 0, v25
+    v28 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v28, 0
+    v29 = ptrtoint memoryarray v28 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v29
     jump bb7
   bb7:
-    v26 = phi [bb5: v23], [bb6: v25]
-    v27 = memory_object_len memoryarray, v26
-    v28 = lt 1, v27
-    v29 = iszero v28
-    icall panic_if<0x32>, v29
-    memory_object_store_element memoryarray<1>, v26, 1, 2
-    v30 = alloc memoryarray<1>, exact, zeroed, panic, 32
-    set_memory_object_len memoryarray, v30, 0
-    v31 = memory_object_len memoryarray, v0
+    v30 = phi [bb5: v26], [bb6: v28]
+    v31 = memory_object_len memoryarray, v30
     v32 = lt 1, v31
-    v33 = iszero v32
+    v33 = eq v32, false
     icall panic_if<0x32>, v33
-    memory_object_store_element memoryarray<1>, v0, 1, v30
-    v34 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v34, 5
-    v35 = memory_object_data memorybytes, v34
-    mstore v35, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    v36 = memory_object_len memoryarray, v0
+    memory_object_store_element memoryarray<1>, v30, 1, 2
+    v34 = alloc memoryarray<1>, exact, zeroed, panic, 32
+    set_memory_object_len memoryarray, v34, 0
+    v35 = memory_object_len memoryarray, v0
+    v36 = lt 1, v35
+    v37 = eq v36, false
+    icall panic_if<0x32>, v37
+    v38 = ptrtoint memoryarray v34 to i256
+    memory_object_store_element memoryarray<1>, v0, 1, v38
+    v39 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v39, 5
+    v40 = memory_object_data memorybytes, v39
+    v41 = ptrtoint memptr v40 to i256
+    mstore v41, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v42 = memory_object_len memoryarray, v0
     jump bb8
   bb8:
-    v37 = phi [bb7: 0], [bb13: v55]
-    v38 = phi [bb7: 0], [bb13: v53]
-    v39 = lt v37, v36
-    jumpi v39, bb9, bb10
+    v43 = phi [bb7: 0], [bb13: v65]
+    v44 = phi [bb7: 0], [bb13: v63]
+    v45 = lt v43, v42
+    jumpi v45, bb9, bb10
   bb10:
-    v56 = mul v38, 32
-    v57 = iszero 32
-    v58 = div v56, 32
-    v59 = eq v58, v38
-    v60 = or v57, v59
-    v61 = iszero v60
-    icall panic_if<0x41>, v61
-    v62 = add 32, v56
-    v63 = lt v62, 32
-    icall panic_if<0x41>, v63
-    v64 = alloc memorybytes, exact, uninitialized, infallible, v62
-    set_memory_object_len memorybytes, v64, v56
-    v65 = memory_object_len memoryarray, v0
+    v66 = mul v44, 32
+    v67 = eq 32, 0
+    v68 = div v66, 32
+    v69 = eq v68, v44
+    v70 = or v67, v69
+    v71 = zext i1 v70 to i256
+    v72 = eq v71, 0
+    icall panic_if<0x41>, v72
+    v73 = add 32, v66
+    v74 = lt v73, 32
+    icall panic_if<0x41>, v74
+    v75 = alloc memorybytes, exact, uninitialized, infallible, v73
+    set_memory_object_len memorybytes, v75, v66
+    v76 = memory_object_len memoryarray, v0
     jump bb14
   bb14:
-    v66 = phi [bb10: 0], [bb19: v83]
-    v67 = phi [bb10: 0], [bb19: v75]
-    v68 = lt v66, v65
-    jumpi v68, bb15, bb16
+    v77 = phi [bb10: 0], [bb19: v98]
+    v78 = phi [bb10: 0], [bb19: v88]
+    v79 = lt v77, v76
+    jumpi v79, bb15, bb16
   bb16:
-    v84 = keccak256_bytes v64
-    v85 = keccak256_bytes v34
-    log3 0, 0, 0x305fadca9073c40aaec3082e2ca0f173c104f10695c51a17b9cfa47f9fa02e76, v84, v85
-    v86 = memory_object_len memoryarray, v0
-    v87 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v87, 5
-    v88 = memory_object_data memorybytes, v87
-    mstore v88, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    v89 = insert_value struct0, undef struct0, 0, v86
-    v90 = insert_value struct0, v89, 1, v87
-    ret v90
+    v99 = keccak256_bytes v75
+    v100 = keccak256_bytes v39
+    log3 0, 0, 0x305fadca9073c40aaec3082e2ca0f173c104f10695c51a17b9cfa47f9fa02e76, v99, v100
+    v101 = memory_object_len memoryarray, v0
+    v102 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v102, 5
+    v103 = memory_object_data memorybytes, v102
+    v104 = ptrtoint memptr v103 to i256
+    mstore v104, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v105 = insert_value struct0, undef struct0, 0, v101
+    v106 = insert_value struct0, v105, 1, v102
+    ret v106
   bb15:
-    v69 = memory_object_load_element memoryarray<1>, v0, v66
-    v70 = iszero v69
-    v71 = iszero v70
-    v72 = memory_object_len memoryarray, v69
-    v73 = mul v72, v71
+    v80 = memory_object_load_element memoryarray<1>, v0, v77
+    v81 = eq v80, 0
+    v82 = eq v81, false
+    v83 = inttoptr i256 v80 to memoryarray
+    v84 = memory_object_len memoryarray, v83
+    v85 = zext i1 v82 to i256
+    v86 = mul v84, v85
     jump bb17
   bb17:
-    v74 = phi [bb15: 0], [bb18: v82]
-    v75 = phi [bb15: v67], [bb18: v80]
-    v76 = lt v74, v73
-    jumpi v76, bb18, bb19
+    v87 = phi [bb15: 0], [bb18: v97]
+    v88 = phi [bb15: v78], [bb18: v95]
+    v89 = lt v87, v86
+    jumpi v89, bb18, bb19
   bb19:
-    v83 = add v66, 1
+    v98 = add v77, 1
     jump bb14
   bb18:
-    v77 = memory_object_load_element memoryarray<1>, v69, v74
-    v78 = mul v77, v71
-    v79 = and v78, 255
-    memory_object_store_word memorybytes, v64, v75, v79
-    v80 = add v75, 32
-    v81 = lt v80, v75
-    icall panic_if<0x41>, v81
-    v82 = add v74, 1
+    v90 = inttoptr i256 v80 to memoryarray
+    v91 = memory_object_load_element memoryarray<1>, v90, v87
+    v92 = zext i1 v82 to i256
+    v93 = mul v91, v92
+    v94 = and v93, 255
+    memory_object_store_word memorybytes, v75, v88, v94
+    v95 = add v88, 32
+    v96 = lt v95, v88
+    icall panic_if<0x41>, v96
+    v97 = add v87, 1
     jump bb17
   bb9:
-    v40 = memory_object_load_element memoryarray<1>, v0, v37
-    v41 = iszero v40
-    v42 = iszero v41
-    v43 = memory_object_len memoryarray, v40
-    v44 = mul v43, v42
+    v46 = memory_object_load_element memoryarray<1>, v0, v43
+    v47 = eq v46, 0
+    v48 = eq v47, false
+    v49 = inttoptr i256 v46 to memoryarray
+    v50 = memory_object_len memoryarray, v49
+    v51 = zext i1 v48 to i256
+    v52 = mul v50, v51
     jump bb11
   bb11:
-    v45 = phi [bb9: 0], [bb12: v52]
-    v46 = phi [bb9: 0], [bb12: v50]
-    v47 = lt v45, v44
-    jumpi v47, bb12, bb13
+    v53 = phi [bb9: 0], [bb12: v62]
+    v54 = phi [bb9: 0], [bb12: v60]
+    v55 = lt v53, v52
+    jumpi v55, bb12, bb13
   bb13:
-    v53 = add v38, v46
-    v54 = lt v53, v38
-    icall panic_if<0x41>, v54
-    v55 = add v37, 1
+    v63 = add v44, v54
+    v64 = lt v63, v44
+    icall panic_if<0x41>, v64
+    v65 = add v43, 1
     jump bb8
   bb12:
-    v48 = memory_object_load_element memoryarray<1>, v40, v45
-    v49 = mul v48, v42
-    v50 = add v46, 1
-    v51 = lt v50, v46
-    icall panic_if<0x41>, v51
-    v52 = add v45, 1
+    v56 = inttoptr i256 v46 to memoryarray
+    v57 = memory_object_load_element memoryarray<1>, v56, v53
+    v58 = zext i1 v48 to i256
+    v59 = mul v57, v58
+    v60 = add v54, 1
+    v61 = lt v60, v54
+    icall panic_if<0x41>, v61
+    v62 = add v53, 1
     jump bb11
   bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, memoryarray 96
-    v3 = add v1, 1
+    v3 = ptrtoint memoryarray 96 to i256
+    memory_object_store_element memoryarray<1>, v0, v1, v3
+    v4 = add v1, 1
     jump bb1
 }
 
-fn @test_strings() -> memorybytes [selector=0xcdb50c38, abi_params=[], abi_returns=[memory_bytes]] {
+fn @test_strings() -> memorybytes [selector=0xcdb50c38, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v3]
+    v1 = phi [bb0: 0], [bb2: v4]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v4, 1
-    v5 = memory_object_data memorybytes, v4
-    mstore v5, 0x7800000000000000000000000000000000000000000000000000000000000000
-    v6 = memory_object_len memoryarray, v0
-    v7 = lt 0, v6
-    v8 = iszero v7
-    icall panic_if<0x32>, v8
-    memory_object_store_element memoryarray<1>, v0, 0, v4
-    v9 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v9, 5
-    v10 = memory_object_data memorybytes, v9
-    mstore v10, 0x776f726c64000000000000000000000000000000000000000000000000000000
-    v11 = keccak256_bytes v9
-    v12 = memory_object_len memoryarray, v0
+    v5 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v5, 1
+    v6 = memory_object_data memorybytes, v5
+    v7 = ptrtoint memptr v6 to i256
+    mstore v7, 0x7800000000000000000000000000000000000000000000000000000000000000
+    v8 = memory_object_len memoryarray, v0
+    v9 = lt 0, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = ptrtoint memorybytes v5 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v11
+    v12 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v12, 5
+    v13 = memory_object_data memorybytes, v12
+    v14 = ptrtoint memptr v13 to i256
+    mstore v14, 0x776f726c64000000000000000000000000000000000000000000000000000000
+    v15 = keccak256_bytes v12
+    v16 = memory_object_len memoryarray, v0
     jump bb4
   bb4:
-    v13 = phi [bb3: 0], [bb5: v28]
-    v14 = phi [bb3: 0], [bb5: v26]
-    v15 = lt v13, v12
-    jumpi v15, bb5, bb6
+    v17 = phi [bb3: 0], [bb5: v34]
+    v18 = phi [bb3: 0], [bb5: v32]
+    v19 = lt v17, v16
+    jumpi v19, bb5, bb6
   bb6:
-    v29 = mul v14, 32
-    v30 = iszero 32
-    v31 = div v29, 32
-    v32 = eq v31, v14
-    v33 = or v30, v32
-    v34 = iszero v33
-    icall panic_if<0x41>, v34
-    v35 = add 32, v29
-    v36 = lt v35, 32
-    icall panic_if<0x41>, v36
-    v37 = alloc memorybytes, exact, uninitialized, infallible, v35
-    set_memory_object_len memorybytes, v37, v29
-    v38 = memory_object_len memoryarray, v0
+    v35 = mul v18, 32
+    v36 = eq 32, 0
+    v37 = div v35, 32
+    v38 = eq v37, v18
+    v39 = or v36, v38
+    v40 = zext i1 v39 to i256
+    v41 = eq v40, 0
+    icall panic_if<0x41>, v41
+    v42 = add 32, v35
+    v43 = lt v42, 32
+    icall panic_if<0x41>, v43
+    v44 = alloc memorybytes, exact, uninitialized, infallible, v42
+    set_memory_object_len memorybytes, v44, v35
+    v45 = memory_object_len memoryarray, v0
     jump bb7
   bb7:
-    v39 = phi [bb6: 0], [bb11: v57]
-    v40 = phi [bb6: 0], [bb11: v56]
-    v41 = lt v39, v38
-    jumpi v41, bb8, bb9
+    v46 = phi [bb6: 0], [bb11: v68]
+    v47 = phi [bb6: 0], [bb11: v67]
+    v48 = lt v46, v45
+    jumpi v48, bb8, bb9
   bb9:
-    v58 = keccak256_bytes v37
-    log3 0, 0, 0xe9d28597fb984e7305318ffadc229c4d310bb7cf174b53aff9316f6e3cc105e8, v11, v58
-    v59 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v59, 5
-    v60 = memory_object_data memorybytes, v59
-    mstore v60, 0x776f726c64000000000000000000000000000000000000000000000000000000
-    ret v59
+    v69 = keccak256_bytes v44
+    log3 0, 0, 0xe9d28597fb984e7305318ffadc229c4d310bb7cf174b53aff9316f6e3cc105e8, v15, v69
+    v70 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v70, 5
+    v71 = memory_object_data memorybytes, v70
+    v72 = ptrtoint memptr v71 to i256
+    mstore v72, 0x776f726c64000000000000000000000000000000000000000000000000000000
+    ret v70
   bb8:
-    v42 = memory_object_load_element memoryarray<1>, v0, v39
-    v43 = memory_object_len memorybytes, v42
-    v44 = iszero v42
-    v45 = iszero v44
-    v46 = mul v43, v45
-    v47 = add v46, 31
-    v48 = lt v47, v46
-    icall panic_if<0x41>, v48
-    v49 = not 31
-    v50 = and v47, v49
-    v51 = iszero v50
-    jumpi v51, bb11, bb10
+    v49 = memory_object_load_element memoryarray<1>, v0, v46
+    v50 = inttoptr i256 v49 to memorybytes
+    v51 = memory_object_len memorybytes, v50
+    v52 = eq v49, 0
+    v53 = eq v52, false
+    v54 = zext i1 v53 to i256
+    v55 = mul v51, v54
+    v56 = add v55, 31
+    v57 = lt v56, v55
+    icall panic_if<0x41>, v57
+    v58 = not 31
+    v59 = and v56, v58
+    v60 = eq v59, 0
+    jumpi v60, bb11, bb10
   bb10:
-    v52 = sub v50, 32
-    v53 = add v40, v52
-    memory_object_store_word memorybytes, v37, v53, 0
+    v61 = sub v59, 32
+    v62 = add v47, v61
+    memory_object_store_word memorybytes, v44, v62, 0
     jump bb11
   bb11:
-    v54 = memory_object_data memorybytes, v42
-    v55 = make_memory_slice v54, v46
-    memory_object_copy_from_slice_at memorybytes, v37, v40, v55
-    v56 = add v40, v50
-    v57 = add v39, 1
+    v63 = inttoptr i256 v49 to memorybytes
+    v64 = memory_object_data memorybytes, v63
+    v65 = ptrtoint memptr v64 to i256
+    v66 = make_memory_slice v65, v55
+    memory_object_copy_from_slice_at memorybytes, v44, v47, v66
+    v67 = add v47, v59
+    v68 = add v46, 1
     jump bb7
   bb5:
-    v16 = memory_object_load_element memoryarray<1>, v0, v13
-    v17 = memory_object_len memorybytes, v16
-    v18 = iszero v16
-    v19 = iszero v18
-    v20 = mul v17, v19
-    v21 = add v20, 31
-    v22 = lt v21, v20
-    icall panic_if<0x41>, v22
-    v23 = not 31
-    v24 = and v21, v23
-    v25 = div v24, 32
-    v26 = add v14, v25
-    v27 = lt v26, v14
-    icall panic_if<0x41>, v27
-    v28 = add v13, 1
+    v20 = memory_object_load_element memoryarray<1>, v0, v17
+    v21 = inttoptr i256 v20 to memorybytes
+    v22 = memory_object_len memorybytes, v21
+    v23 = eq v20, 0
+    v24 = eq v23, false
+    v25 = zext i1 v24 to i256
+    v26 = mul v22, v25
+    v27 = add v26, 31
+    v28 = lt v27, v26
+    icall panic_if<0x41>, v28
+    v29 = not 31
+    v30 = and v27, v29
+    v31 = div v30, 32
+    v32 = add v18, v31
+    v33 = lt v32, v18
+    icall panic_if<0x41>, v33
+    v34 = add v17, 1
     jump bb4
   bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, memorybytes 96
-    v3 = add v1, 1
+    v3 = ptrtoint memorybytes 96 to i256
+    memory_object_store_element memoryarray<1>, v0, v1, v3
+    v4 = add v1, 1
     jump bb1
 }

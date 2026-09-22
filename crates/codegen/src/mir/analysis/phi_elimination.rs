@@ -325,7 +325,7 @@ mod tests {
         ParallelCopy {
             src: CopySource::Value(ValueId::from_usize(src)),
             dst: CopyDest::Value(ValueId::from_usize(dst)),
-            ty: MirType::uint256(),
+            ty: MirType::I256,
         }
     }
 

@@ -162,7 +162,7 @@ impl TupleHelperKey {
             types: layout.types.clone(),
             arg_types: args
                 .iter()
-                .map(|&arg| func.value_ty(arg).unwrap_or_else(MirType::uint256))
+                .map(|&arg| func.value_ty(arg).unwrap_or(MirType::I256))
                 .collect(),
         }
     }
@@ -219,10 +219,10 @@ fn synthesize_tuple_helpers(
             let mut builder =
                 FunctionBuilder::new(&mut function).with_revert_strings(revert_strings);
             let args = key.arg_types.iter().map(|ty| builder.add_param(*ty)).collect::<Vec<_>>();
-            let selector = key.selector.then(|| builder.add_param(MirType::uint256()));
+            let selector = key.selector.then(|| builder.add_param(MirType::I256));
             let layout = AbiLayout::new(key.types.clone());
             let encoded = lower_encode(&mut builder, &layout, selector, &args, key.mode, helpers);
-            let result_ty = builder.func().value_ty(encoded).unwrap_or_else(MirType::uint256);
+            let result_ty = builder.func().value_ty(encoded).unwrap_or(MirType::I256);
             builder.set_return_type(result_ty);
             builder.ret([encoded]);
         }
@@ -268,9 +268,8 @@ fn synthesize_array_helpers(
                 let location = value
                     .map_or(*location, |value| effective_slice_location(func, value, *location));
                 if location == SliceLocation::Memory && array_loop_element(element).is_some() {
-                    let value_ty = value
-                        .and_then(|value| func.value_ty(value))
-                        .unwrap_or_else(MirType::uint256);
+                    let value_ty =
+                        value.and_then(|value| func.value_ty(value)).unwrap_or(MirType::I256);
                     let next = counts.len();
                     let count = counts
                         .entry(ArrayHelperKey { element: element.as_ref().clone(), value_ty })
@@ -323,9 +322,9 @@ fn synthesize_array_helpers(
             let value = builder.add_param(key.value_ty);
             // The destination is a heap pointer, and typing it so lets the backend's
             // provenance analysis see that the returned tail stays in the heap.
-            let dest = builder.add_param(MirType::MemPtr);
+            let dest = builder.add_param(MirType::I256);
             let tail = encode_memory_array(&mut builder, &key.element, value, dest, &helpers);
-            builder.set_return_type(MirType::uint256());
+            builder.set_return_type(MirType::I256);
             builder.ret([tail]);
         }
         let helper = module.add_function(function);
@@ -342,7 +341,7 @@ fn array_helper(
     value: ValueId,
 ) -> Option<FunctionId> {
     array_loop_element(element)?;
-    let value_ty = func.value_ty(value).unwrap_or_else(MirType::uint256);
+    let value_ty = func.value_ty(value).unwrap_or(MirType::I256);
     helpers.arrays.get(&ArrayHelperKey { element: element.clone(), value_ty }).copied()
 }
 
@@ -352,7 +351,7 @@ fn array_helper(
 fn array_loop_element(element: &AbiType) -> Option<Option<AbiWordValidator>> {
     match element {
         AbiType::Word(cleanup) => cleanup.map(Some),
-        AbiType::Function => Some(AbiWordValidator::from_mir_type(MirType::Function)),
+        AbiType::Function => Some(AbiWordValidator::from_layout(crate::mir::ValueLayout::Function)),
         _ => Some(None),
     }
 }
@@ -453,8 +452,7 @@ fn lower_function(
                 match helpers.tuples.get(&key) {
                     Some(&helper) => {
                         // encoded = icall @encode_abi_tuple, 1, args.., [selector]
-                        let result_ty =
-                            builder.func().value_ty(result).unwrap_or_else(MirType::uint256);
+                        let result_ty = builder.func().value_ty(result).unwrap_or(MirType::I256);
                         let call_args = args.iter().copied().chain(selector).collect();
                         builder.icall(helper, call_args, result_ty)
                     }
@@ -978,7 +976,7 @@ fn encode_static_impl(
                 let shift = builder.imm(64);
                 builder.shl(shift, value)
             } else {
-                AbiWordValidator::from_mir_type(MirType::Function)
+                AbiWordValidator::from_layout(crate::mir::ValueLayout::Function)
                     .expect("function words always require cleanup")
                     .cleanup(builder, value)
             };
@@ -1145,7 +1143,7 @@ fn encode_static_slice(
         AbiType::Function => {
             let value = load_slice_word(builder, source, location);
             let value = if location == SliceLocation::Memory {
-                AbiWordValidator::from_mir_type(MirType::Function)
+                AbiWordValidator::from_layout(crate::mir::ValueLayout::Function)
                     .expect("function words always require cleanup")
                     .cleanup(builder, value)
             } else {
@@ -1223,13 +1221,15 @@ fn encode_dynamic_body(
             let location = effective_slice_location(builder.func(), value, *location);
             if location == SliceLocation::Memory {
                 if let Some(helper) = array_helper(builder.func(), helpers, element, value) {
-                    return builder.icall(helper, vec![value, dest], MirType::uint256());
+                    return builder.icall(helper, vec![value, dest], MirType::I256);
                 }
                 return encode_memory_array(builder, element, value, dest, helpers);
             }
             let word_cleanup = match element.as_ref() {
                 AbiType::Word(cleanup) => Some(*cleanup),
-                AbiType::Function => Some(AbiWordValidator::from_mir_type(MirType::Function)),
+                AbiType::Function => {
+                    Some(AbiWordValidator::from_layout(crate::mir::ValueLayout::Function))
+                }
                 _ => None,
             };
             if let Some(cleanup) = word_cleanup {
@@ -1290,7 +1290,7 @@ fn effective_slice_location(
 ) -> SliceLocation {
     match func.value_ty(value) {
         Some(MirType::Slice(location)) => location,
-        Some(MirType::MemPtr | MirType::MemoryObject(_)) => SliceLocation::Memory,
+        Some(MirType::I256 | MirType::MemoryObject(_)) => SliceLocation::Memory,
         _ if matches!(func.value(value), Value::Inst(inst) if matches!(
             func.inst(*inst).kind,
             InstKind::MemoryObjectLoadField { .. } | InstKind::MemoryObjectLoadElement { .. }
@@ -1439,7 +1439,7 @@ fn encode_calldata_bytes_array(
     let thirty_one = builder.imm(31);
     let bound = builder.sub(available, thirty_one);
     let valid_offset = builder.slt(offset, bound);
-    let invalid_offset = builder.iszero(valid_offset);
+    let invalid_offset = builder.eq_zero(valid_offset);
     builder.revert_if(invalid_offset, RevertReason::InvalidCalldataAccessOffset);
     let element_base = builder.add(source_base, offset);
     let length = builder.calldataload(element_base);
@@ -1607,7 +1607,7 @@ fn encode_bytes(
         // if padded != 0: mstore data_dest + padded - 32, 0
         let zero_block = builder.create_block();
         let copy_block = builder.create_block();
-        let empty = builder.iszero(padded);
+        let empty = builder.eq_zero(padded);
         builder.branch(empty, copy_block, zero_block);
         builder.switch_to_block(zero_block);
         let last_offset = builder.sub(padded, word);
@@ -1631,14 +1631,18 @@ fn memory_object_len(
     value: ValueId,
     kind: MemoryObjectKind,
 ) -> ValueId {
+    if builder.func().value_slice_location(value).is_some() {
+        // len = slice_len value
+        return builder.slice_len(value);
+    }
     let len = builder.memory_object_len(value, kind);
     let non_null = memory_object_non_null(builder, value);
     builder.mul(len, non_null)
 }
 
 fn memory_object_non_null(builder: &mut FunctionBuilder<'_>, object: ValueId) -> ValueId {
-    let non_null = builder.iszero(object);
-    builder.iszero(non_null)
+    let non_null = builder.eq_zero(object);
+    builder.eq_zero(non_null)
 }
 
 /// Finds literal candidates whose allocation and encoding share a block, with

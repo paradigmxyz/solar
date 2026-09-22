@@ -1,87 +1,90 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_function_pointer_array_validation.sol:AbiFunctionPointerArrayValidation ===
 @module AbiFunctionPointerArrayValidation
-fn @target() [selector=0xd4b83992, pure, abi_params=[], abi_returns=[]] {
+fn @target() [selector=0xd4b83992, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @g(arg0: calldataslice) -> u256 [selector=0xc16ea9d4, pure, abi_params=[array<_, function>], abi_returns=[word]] {
+fn @g(arg0: calldataslice) -> i256 [selector=0xc16ea9d4, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 2
 }
 
-fn @h(arg0: calldataslice) -> u256 [selector=0xdae6c3bf, pure, abi_params=[array<_, function>], abi_returns=[word]] {
+fn @h(arg0: calldataslice) -> i256 [selector=0xdae6c3bf, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 0
     v5 = calldataload v4
     v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
     v7 = eq v5, v6
-    v8 = iszero v7
+    v8 = eq v7, false
     icall revert_if<empty>, v8
     v9 = shr 64, v5
     ret 3
 }
 
-fn @m(arg0: memoryarray) -> u256 [selector=0x4d6e4a29, pure, abi_params=[array<_, function>], abi_returns=[word]] {
+fn @m(arg0: memoryarray) -> i256 [selector=0x4d6e4a29, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 4
 }
 
-fn @checkG(arg0: bool) -> u256 [selector=0xb89497e4, view, abi_params=[bool], abi_returns=[word]] {
+fn @checkG(arg0: i256) -> i256 [selector=0xb89497e4, view, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @invoke, 0xc16ea9d400000000000000000000000000000000000000000000000000000000, arg0, 2
     ret v0
 }
 
-fn @checkH(arg0: bool) -> u256 [selector=0x5137faa5, view, abi_params=[bool], abi_returns=[word]] {
+fn @checkH(arg0: i256) -> i256 [selector=0x5137faa5, view, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @invoke, 0xdae6c3bf00000000000000000000000000000000000000000000000000000000, arg0, 3
     ret v0
 }
 
-fn @checkM(arg0: bool) -> u256 [selector=0xfad9a4f1, view, abi_params=[bool], abi_returns=[word]] {
+fn @checkM(arg0: i256) -> i256 [selector=0xfad9a4f1, view, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @invoke, 0x4d6e4a2900000000000000000000000000000000000000000000000000000000, arg0, 4
     ret v0
 }
 
-fn @invoke(arg0: bytes4, arg1: bool, arg2: u256) -> u256 [view] {
+fn @invoke(arg0: i256, arg1: i256, arg2: i256) -> i256 [view] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
     v1 = address
-    v2 = shl 32, v1
-    v3 = or v2, 0xd4b83992
-    v4 = memory_object_len memoryarray, v0
-    v5 = lt 0, v4
-    v6 = iszero v5
-    icall panic_if<0x32>, v6
-    v7 = shl 64, v3
-    memory_object_store_element memoryarray<1>, v0, 0, v7
-    v8 = abi_encode [memory_array<function>], object, selector arg0, args v0
-    jumpi arg1, bb1, bb2
+    v2 = zext i160 v1 to i256
+    v3 = shl 32, v2
+    v4 = or v3, 0xd4b83992
+    v5 = memory_object_len memoryarray, v0
+    v6 = lt 0, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = shl 64, v4
+    memory_object_store_element memoryarray<1>, v0, 0, v8
+    v9 = abi_encode [memory_array<function>], object, selector arg0, args v0
+    v10 = ne arg1, 0
+    jumpi v10, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v9 = add v8, 32
-    v10 = add v9, 92
-    mstore8 v10, 88
+    v11 = ptrtoint memorybytes v9 to i256
+    v12 = add v11, 32
+    v13 = add v12, 92
+    mstore8 v13, 88
     jump bb3
   bb3:
-    v11 = address
-    v12 = gas
-    v13 = address_staticcall v11, v8, gas v12
-    v14 = icall returndata_bytes<>
-    v15 = iszero v13
-    icall revert_if<empty>, v15
-    v16 = abi_decode [u256], v14
-    v17 = eq v16, arg2
-    v18 = iszero v17
+    v14 = address
+    v15 = gas
+    v16 = address_staticcall v14, v9, gas v15
+    v17 = icall returndata_bytes<>
+    v18 = eq v16, false
     icall revert_if<empty>, v18
-    ret v16
+    v19 = abi_decode [u256], v17
+    v20 = eq v19, arg2
+    v21 = eq v20, false
+    icall revert_if<empty>, v21
+    ret v19
 }

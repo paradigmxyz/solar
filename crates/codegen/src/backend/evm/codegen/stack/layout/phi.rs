@@ -33,7 +33,7 @@ use super::super::super::{
     BlockId, DenseBitSet, Function, FunctionId, FxHashMap, FxHashSet, GlobalStackPlan,
     GrowableBitSet, IndexVec, InstId, InstKind, Liveness, Loop, LoopAnalyzer, MAX_STACK_ACCESS,
     STACK_PHI_LAYOUT_LIMIT, SmallVec, StackModel, TargetSlot, Terminator, ValueId, index_vec,
-    lowered_stack_cost, rematerializable_nullary_opcode,
+    lowered_stack_cost, rematerializable_nullary_value,
 };
 
 use crate::{
@@ -302,7 +302,7 @@ impl<'a> StackPhiPlanner<'a> {
         target: Target,
     ) -> Self {
         let mut loop_analyzer = LoopAnalyzer::new();
-        let loop_info = loop_analyzer.analyze(func);
+        let loop_info = loop_analyzer.analyze_structure(func);
         let loops = loop_info.all_loops().cloned().collect();
 
         let mut definitions = index_vec![None; func.num_values()];
@@ -1180,8 +1180,8 @@ impl<'a> StackPhiPlanner<'a> {
     fn carriable(&self, value: ValueId) -> bool {
         matches!(
             self.func.value(value),
-            crate::mir::Value::Inst(inst)
-                if rematerializable_nullary_opcode(&self.func.inst(*inst).kind).is_none()
+            crate::mir::Value::Inst(_)
+                if rematerializable_nullary_value(self.func, value).is_none()
         )
     }
 
@@ -1672,7 +1672,13 @@ impl<'a> StackPhiPlanner<'a> {
                         | InstKind::SLt(_, _)
                         | InstKind::SGt(_, _)
                         | InstKind::Eq(_, _)
-                        | InstKind::IsZero(_)
+                        | InstKind::Ne(..)
+                        | InstKind::Zext(_)
+                        | InstKind::Trunc(..)
+                        | InstKind::Sext(..)
+                        | InstKind::PtrToInt(..)
+                        | InstKind::IntToPtr(..)
+                        | InstKind::Bitcast(..)
                         | InstKind::MLoad(_)
                         | InstKind::MStore(_, _)
                         | InstKind::MStore8(_, _)

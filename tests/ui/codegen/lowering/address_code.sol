@@ -27,4 +27,15 @@ contract AddressCode {
     function addressFromBytes20(bytes20 value) external pure returns (address) {
         return address(value);
     }
+    // CHECK-LABEL: fn @callerCodeLength{{[( ]}}
+    // CHECK: [[CALLER:v[0-9]+]] = caller
+    // CHECK: [[WORD:v[0-9]+]] = zext i160 [[CALLER]] to i256
+    // CHECK-NOT: trunc
+    // CHECK: extcodesize [[WORD]]
+    function callerCodeLength() external view returns (uint256) {
+        address account = msg.sender;
+        assembly { account := account }
+        return account.code.length;
+    }
+
 }

@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_length_access.sol:C ===
 @module C
 types:
-  struct0: {u256, u256, u256}
-  struct1: {u256, u256}
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256}
 
-fn @f(arg0: bytes32) -> struct0 [selector=0xd7da973a, view, abi_params=[bytes32], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @f(arg0: i256) -> struct0 [selector=0xd7da973a, view, abi_params=[bytes32], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = shl 128, 2
     v1 = checked_add u8, 1, 7
@@ -23,7 +23,7 @@ fn @sideEffect() -> struct1 [selector=0x3a058265, abi_params=[], abi_returns=[wo
     ret v3
 }
 
-fn @makeBytes() -> bytes4 {
+fn @makeBytes() -> i256 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = checked_add u256, v0, 1

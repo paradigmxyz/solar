@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_shapes.sol:Callee ===
 @module Callee
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
-fn @f(arg0: u256) -> u256 [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[word]] {
+fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_mul u256, arg0, 2
     ret v0
 }
 
-fn @g(arg0: u256) -> struct0 [selector=0xe420264a, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @g(arg0: i256) -> struct0 [selector=0xe420264a, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = checked_add u256, arg0, 1
     v1 = insert_value struct0, undef struct0, 0, arg0
@@ -20,305 +20,329 @@ fn @g(arg0: u256) -> struct0 [selector=0xe420264a, pure, abi_params=[u256], abi_
 // === ROOT/tests/ui/codegen/lowering/run-call/try_shapes.sol:TryShapes ===
 @module TryShapes
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
 data:
-  Callee_initcode_0: hex"34600d5760d08060115f395ff35b5f5ffd602436103417602d575f3560e01c8063b3de648b146029578063e420264a14602557602d565b607e565b6031565b5f5ffd5b60243610506002600435028060a0528060a0526002156002820460043590148117905015606c578060a0526080526020608001608090036080f35b634e487b715f5260116020526024601cfd5b60e060405260243610506001600435018060c0528060c052600435811060be576004356080526020608001818060c0528152905060209001608090036080f35b634e487b715f5260116020526024601cfd"
+  Callee_initcode_0: hex"34600d5760d28060115f395ff35b5f5ffd6024361034171515602f575f3560e01c8063b3de648b14602b578063e420264a14602757602f565b6080565b6033565b5f5ffd5b60243610506002600435028060a0528060a0526002156002820460043590148117905015606e578060a0526080526020608001608090036080f35b634e487b715f5260116020526024601cfd5b60e060405260243610506001600435018060c0528060c052600435811060c0576004356080526020608001818060c0528152905060209001608090036080f35b634e487b715f5260116020526024601cfd"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 256, v1
+    v2 = and 258, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Callee_initcode_0, v3, 225
-    v4 = slice_ptr v0
-    v5 = add v3, 225
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 225
-    jumpi v6, bb2, bb1
+    v4 = ptrtoint memptr v3 to i256
+    data_copy Callee_initcode_0, v4, 227
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, 227
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, 227
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = sload 0 !metadata(storage=slot(0))
-    v8 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = and v7, v8
-    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = or v9, v10
-    sstore 0, v11 !metadata(storage=slot(0))
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = and v12, v13
+    v15 = zext i160 v9 to i256
+    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
+    v17 = or v14, v16
+    sstore 0, v17 !metadata(storage=slot(0))
     ret
 }
 
-fn @ok() -> u256 [selector=0xd909b403, pure, abi_params=[], abi_returns=[word]] {
+fn @ok() -> i256 [selector=0xd909b403, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 1
 }
 
-fn @bad() [selector=0x9c3674fc, pure, abi_params=[], abi_returns=[word]] {
+fn @bad() [selector=0x9c3674fc, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall require<short_string>, false, 4, 0x626f6f6d00000000000000000000000000000000000000000000000000000000
     invalid
 }
 
-fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] {
+fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0xd909b40300000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = staticcall v1, v0, v3, v4, 0, 0
-    jumpi v5, bb1, bb2
+    v5 = zext i160 v0 to i256
+    v6 = staticcall v1, v5, v3, v4, 0, 0
+    jumpi v6, bb1, bb2
   bb2:
-    v8 = icall returndata_bytes<>
-    v9 = memory_object_data memorybytes, v8
-    v10 = memory_object_len memorybytes, v8
-    v11 = make_memory_slice v9, v10
-    v12 = memory_slice_load_word memory, v11, 0
-    v13 = shr 224, v12
-    v14 = eq v13, 0x8c379a0
-    jumpi v14, bb4, bb5
+    v9 = icall returndata_bytes<>
+    v10 = memory_object_data memorybytes, v9
+    v11 = memory_object_len memorybytes, v9
+    v12 = ptrtoint memptr v10 to i256
+    v13 = make_memory_slice v12, v11
+    v14 = memory_slice_load_word memory, v13, 0
+    v15 = shr 224, v14
+    v16 = eq v15, 0x8c379a0
+    jumpi v16, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v15 = icall @try_decode_error_message, v9, v10
+    v17 = ptrtoint memptr v10 to i256
+    v18 = icall @try_decode_error_message, v17, v11
     jump bb6
   bb6:
-    v16 = phi [bb4: v15], [bb5: false]
-    jumpi v16, bb7, bb8
+    v19 = phi [bb4: v18], [bb5: false]
+    jumpi v19, bb7, bb8
   bb8:
-    revert v9, v10
+    v33 = ptrtoint memptr v10 to i256
+    revert v33, v11
   bb7:
-    v17 = memory_object_data memorybytes, v8
-    v18 = memory_object_len memorybytes, v8
-    v19 = add v17, 4
-    v20 = sub v18, 4
-    v21 = make_memory_slice v19, v20
-    v22 = slice_len v21
-    v23 = add v22, 63
-    v24 = lt v23, v22
-    icall panic_if<0x41>, v24
-    v25 = not 31
-    v26 = and v23, v25
-    v27 = alloc memorybytes, exact, uninitialized, infallible, v26
-    set_memory_object_len memorybytes, v27, v22
-    memory_object_copy_from_slice memorybytes, v27, v21
-    v28 = abi_decode [bytes], v27
+    v20 = memory_object_data memorybytes, v9
+    v21 = memory_object_len memorybytes, v9
+    v22 = ptrtoint memptr v20 to i256
+    v23 = add v22, 4
+    v24 = sub v21, 4
+    v25 = make_memory_slice v23, v24
+    v26 = slice_len v25
+    v27 = add v26, 63
+    v28 = lt v27, v26
+    icall panic_if<0x41>, v28
+    v29 = not 31
+    v30 = and v27, v29
+    v31 = alloc memorybytes, exact, uninitialized, infallible, v30
+    set_memory_object_len memorybytes, v31, v26
+    memory_object_copy_from_slice memorybytes, v31, v25
+    v32 = abi_decode [bytes], v31
     jump bb3
   bb1:
-    v6 = icall returndata_bytes<>
-    v7 = abi_decode [u256], v6
+    v7 = icall returndata_bytes<>
+    v8 = abi_decode [u256], v7
     jump bb3
   bb3:
-    v29 = phi [bb1: v7], [bb7: 100]
-    v30 = address
-    v31 = gas
-    v32 = abi_encode [], selector 0x9c3674fc00000000000000000000000000000000000000000000000000000000
-    v33 = slice_ptr v32
-    v34 = slice_len v32
-    v35 = staticcall v31, v30, v33, v34, 0, 0
-    jumpi v35, bb9, bb10
+    v34 = phi [bb1: v8], [bb7: 100]
+    v35 = address
+    v36 = gas
+    v37 = abi_encode [], selector 0x9c3674fc00000000000000000000000000000000000000000000000000000000
+    v38 = slice_ptr v37
+    v39 = slice_len v37
+    v40 = zext i160 v35 to i256
+    v41 = staticcall v36, v40, v38, v39, 0, 0
+    jumpi v41, bb9, bb10
   bb10:
-    v39 = icall returndata_bytes<>
-    v40 = memory_object_data memorybytes, v39
-    v41 = memory_object_len memorybytes, v39
-    v42 = make_memory_slice v40, v41
-    v43 = memory_slice_load_word memory, v42, 0
-    v44 = shr 224, v43
-    v45 = eq v44, 0x8c379a0
-    jumpi v45, bb12, bb13
+    v45 = icall returndata_bytes<>
+    v46 = memory_object_data memorybytes, v45
+    v47 = memory_object_len memorybytes, v45
+    v48 = ptrtoint memptr v46 to i256
+    v49 = make_memory_slice v48, v47
+    v50 = memory_slice_load_word memory, v49, 0
+    v51 = shr 224, v50
+    v52 = eq v51, 0x8c379a0
+    jumpi v52, bb12, bb13
   bb13:
     jump bb14
   bb12:
-    v46 = icall @try_decode_error_message, v40, v41
+    v53 = ptrtoint memptr v46 to i256
+    v54 = icall @try_decode_error_message, v53, v47
     jump bb14
   bb14:
-    v47 = phi [bb12: v46], [bb13: false]
-    jumpi v47, bb15, bb16
+    v55 = phi [bb12: v54], [bb13: false]
+    jumpi v55, bb15, bb16
   bb16:
     jumpi true, bb17, bb18
   bb18:
-    revert v40, v41
+    v73 = ptrtoint memptr v46 to i256
+    revert v73, v47
   bb17:
-    v63 = checked_add u256, v29, 300
+    v72 = checked_add u256, v34, 300
     jump bb11
   bb15:
-    v48 = memory_object_data memorybytes, v39
-    v49 = memory_object_len memorybytes, v39
-    v50 = add v48, 4
-    v51 = sub v49, 4
-    v52 = make_memory_slice v50, v51
-    v53 = slice_len v52
-    v54 = add v53, 63
-    v55 = lt v54, v53
-    icall panic_if<0x41>, v55
-    v56 = not 31
-    v57 = and v54, v56
-    v58 = alloc memorybytes, exact, uninitialized, infallible, v57
-    set_memory_object_len memorybytes, v58, v53
-    memory_object_copy_from_slice memorybytes, v58, v52
-    v59 = abi_decode [bytes], v58
-    v60 = memory_object_len memorybytes, v59
-    v61 = checked_add u256, 200, v60
-    v62 = checked_add u256, v29, v61
+    v56 = memory_object_data memorybytes, v45
+    v57 = memory_object_len memorybytes, v45
+    v58 = ptrtoint memptr v56 to i256
+    v59 = add v58, 4
+    v60 = sub v57, 4
+    v61 = make_memory_slice v59, v60
+    v62 = slice_len v61
+    v63 = add v62, 63
+    v64 = lt v63, v62
+    icall panic_if<0x41>, v64
+    v65 = not 31
+    v66 = and v63, v65
+    v67 = alloc memorybytes, exact, uninitialized, infallible, v66
+    set_memory_object_len memorybytes, v67, v62
+    memory_object_copy_from_slice memorybytes, v67, v61
+    v68 = abi_decode [bytes], v67
+    v69 = memory_object_len memorybytes, v68
+    v70 = checked_add u256, 200, v69
+    v71 = checked_add u256, v34, v70
     jump bb11
   bb9:
-    v36 = icall returndata_bytes<>
-    v37 = abi_decode [u256], v36
-    v38 = checked_add u256, v29, v37
+    v42 = icall returndata_bytes<>
+    v43 = abi_decode [u256], v42
+    v44 = checked_add u256, v34, v43
     jump bb11
   bb11:
-    v64 = phi [bb9: v38], [bb15: v62], [bb17: v63]
-    v65 = sload 0 !metadata(storage=slot(0))
-    v66 = and v65, 0xffffffffffffffffffffffffffffffffffffffff
-    v67 = gas
-    v68 = abi_encode [word], selector 0xb3de648b00000000000000000000000000000000000000000000000000000000, args 3
-    v69 = slice_ptr v68
-    v70 = slice_len v68
-    v71 = staticcall v67, v66, v69, v70, 0, 0
-    jumpi v71, bb19, bb20
+    v74 = phi [bb9: v44], [bb15: v71], [bb17: v72]
+    v75 = sload 0 !metadata(storage=slot(0))
+    v76 = and v75, 0xffffffffffffffffffffffffffffffffffffffff
+    v77 = gas
+    v78 = abi_encode [word], selector 0xb3de648b00000000000000000000000000000000000000000000000000000000, args 3
+    v79 = slice_ptr v78
+    v80 = slice_len v78
+    v81 = staticcall v77, v76, v79, v80, 0, 0
+    jumpi v81, bb19, bb20
   bb20:
-    v75 = icall returndata_bytes<>
-    v76 = memory_object_data memorybytes, v75
-    v77 = memory_object_len memorybytes, v75
-    v78 = make_memory_slice v76, v77
-    v79 = memory_slice_load_word memory, v78, 0
-    v80 = shr 224, v79
-    v81 = eq v80, 0x4e487b71
-    v82 = lt v77, 36
-    v83 = iszero v82
-    v84 = and v81, v83
-    jumpi v84, bb22, bb23
+    v85 = icall returndata_bytes<>
+    v86 = memory_object_data memorybytes, v85
+    v87 = memory_object_len memorybytes, v85
+    v88 = ptrtoint memptr v86 to i256
+    v89 = make_memory_slice v88, v87
+    v90 = memory_slice_load_word memory, v89, 0
+    v91 = shr 224, v90
+    v92 = eq v91, 0x4e487b71
+    v93 = lt v87, 36
+    v94 = eq v93, false
+    v95 = and v92, v94
+    v96 = zext i1 v95 to i256
+    jumpi v95, bb22, bb23
   bb23:
     jumpi true, bb24, bb25
   bb25:
-    revert v76, v77
+    v104 = ptrtoint memptr v86 to i256
+    revert v104, v87
   bb24:
-    v90 = checked_add u256, v64, 500
+    v103 = checked_add u256, v74, 500
     jump bb21
   bb22:
-    v85 = memory_object_data memorybytes, v75
-    v86 = add v85, 4
-    v87 = make_memory_slice v86, 32
-    v88 = memory_slice_load_word memory, v87, 0
-    v89 = checked_add u256, v64, 400
+    v97 = memory_object_data memorybytes, v85
+    v98 = ptrtoint memptr v97 to i256
+    v99 = add v98, 4
+    v100 = make_memory_slice v99, 32
+    v101 = memory_slice_load_word memory, v100, 0
+    v102 = checked_add u256, v74, 400
     jump bb21
   bb19:
-    v72 = icall returndata_bytes<>
-    v73 = abi_decode [u256], v72
-    v74 = checked_add u256, v64, v73
+    v82 = icall returndata_bytes<>
+    v83 = abi_decode [u256], v82
+    v84 = checked_add u256, v74, v83
     jump bb21
   bb21:
-    v91 = phi [bb19: v74], [bb22: v89], [bb24: v90]
-    v92 = sload 0 !metadata(storage=slot(0))
-    v93 = and v92, 0xffffffffffffffffffffffffffffffffffffffff
-    v94 = gas
-    v95 = abi_encode [word], selector 0xe420264a00000000000000000000000000000000000000000000000000000000, args 4
-    v96 = slice_ptr v95
-    v97 = slice_len v95
-    v98 = staticcall v94, v93, v96, v97, 0, 0
-    jumpi v98, bb26, bb27
+    v105 = phi [bb19: v84], [bb22: v102], [bb24: v103]
+    v106 = sload 0 !metadata(storage=slot(0))
+    v107 = and v106, 0xffffffffffffffffffffffffffffffffffffffff
+    v108 = gas
+    v109 = abi_encode [word], selector 0xe420264a00000000000000000000000000000000000000000000000000000000, args 4
+    v110 = slice_ptr v109
+    v111 = slice_len v109
+    v112 = staticcall v108, v107, v110, v111, 0, 0
+    jumpi v112, bb26, bb27
   bb27:
     jumpi true, bb29, bb30
   bb30:
     icall revert_if<empty>, true
     invalid
   bb29:
-    v105 = checked_add u256, v91, 600
+    v119 = checked_add u256, v105, 600
     jump bb28
   bb26:
-    v99 = icall returndata_bytes<>
-    v100 = abi_decode [u256, u256], v99
-    v101 = extract_value struct0, v100, 0
-    v102 = extract_value struct0, v100, 1
-    v103 = checked_add u256, v101, v102
-    v104 = checked_add u256, v91, v103
+    v113 = icall returndata_bytes<>
+    v114 = abi_decode [u256, u256], v113
+    v115 = extract_value struct0, v114, 0
+    v116 = extract_value struct0, v114, 1
+    v117 = checked_add u256, v115, v116
+    v118 = checked_add u256, v105, v117
     jump bb28
   bb28:
-    v106 = phi [bb26: v104], [bb29: v105]
-    v107 = sload 0 !metadata(storage=slot(0))
-    v108 = and v107, 0xffffffffffffffffffffffffffffffffffffffff
-    v109 = gas
-    v110 = abi_encode [word], selector 0xb3de648b00000000000000000000000000000000000000000000000000000000, args 5
-    v111 = slice_ptr v110
-    v112 = slice_len v110
-    v113 = staticcall 0x186a0, v108, v111, v112, 0, 0
-    jumpi v113, bb31, bb32
+    v120 = phi [bb26: v118], [bb29: v119]
+    v121 = sload 0 !metadata(storage=slot(0))
+    v122 = and v121, 0xffffffffffffffffffffffffffffffffffffffff
+    v123 = gas
+    v124 = abi_encode [word], selector 0xb3de648b00000000000000000000000000000000000000000000000000000000, args 5
+    v125 = slice_ptr v124
+    v126 = slice_len v124
+    v127 = staticcall 0x186a0, v122, v125, v126, 0, 0
+    jumpi v127, bb31, bb32
   bb32:
     jumpi true, bb34, bb35
   bb35:
     icall revert_if<empty>, true
     invalid
   bb34:
-    v117 = checked_add u256, v106, 700
+    v131 = checked_add u256, v120, 700
     jump bb33
   bb31:
-    v114 = icall returndata_bytes<>
-    v115 = abi_decode [u256], v114
-    v116 = checked_add u256, v106, v115
+    v128 = icall returndata_bytes<>
+    v129 = abi_decode [u256], v128
+    v130 = checked_add u256, v120, v129
     jump bb33
   bb33:
-    v118 = phi [bb31: v116], [bb34: v117]
-    v119 = abi_encode []
-    v120 = not 31
-    v121 = and 256, v120
-    v122 = alloc raw, exact, uninitialized, infallible, v121
-    data_copy Callee_initcode_0, v122, 225
-    v123 = slice_ptr v119
-    v124 = add v122, 225
-    mcopy v124, v123, 0 !metadata(memory=heap)
-    v125 = create 0, v122, 225
-    v126 = eq v125, 0
-    v127 = iszero v126
-    jumpi v127, bb36, bb37
+    v132 = phi [bb31: v130], [bb34: v131]
+    v133 = abi_encode []
+    v134 = not 31
+    v135 = and 258, v134
+    v136 = alloc raw, exact, uninitialized, infallible, v135
+    v137 = ptrtoint memptr v136 to i256
+    data_copy Callee_initcode_0, v137, 227
+    v138 = slice_ptr v133
+    v139 = ptrtoint memptr v136 to i256
+    v140 = add v139, 227
+    mcopy v140, v138, 0 !metadata(memory=heap)
+    v141 = ptrtoint memptr v136 to i256
+    v142 = create 0, v141, 227
+    v143 = zext i160 v142 to i256
+    v144 = eq v143, 0
+    v145 = eq v144, false
+    jumpi v145, bb36, bb37
   bb37:
     jumpi true, bb39, bb40
   bb40:
     icall revert_if<empty>, true
     invalid
   bb39:
-    v129 = checked_add u256, v118, 900
+    v147 = checked_add u256, v132, 900
     jump bb38
   bb36:
-    v128 = checked_add u256, v118, 800
+    v146 = checked_add u256, v132, 800
     jump bb38
   bb38:
-    v130 = phi [bb36: v128], [bb39: v129]
-    v131 = sload 0 !metadata(storage=slot(0))
-    v132 = and v131, 0xffffffffffffffffffffffffffffffffffffffff
-    v133 = shl 32, v132
-    v134 = or v133, 0xb3de648b
-    v135 = and v134, 0xffffffff
-    v136 = shl 224, v135
-    v137 = shr 32, v134
-    v138 = gas
-    v139 = abi_encode [word], selector v136, args 6
-    v140 = slice_ptr v139
-    v141 = slice_len v139
-    v142 = call v138, v137, 0, v140, v141, 0, 0
-    jumpi v142, bb41, bb42
+    v148 = phi [bb36: v146], [bb39: v147]
+    v149 = sload 0 !metadata(storage=slot(0))
+    v150 = and v149, 0xffffffffffffffffffffffffffffffffffffffff
+    v151 = shl 32, v150
+    v152 = or v151, 0xb3de648b
+    v153 = and v152, 0xffffffff
+    v154 = shl 224, v153
+    v155 = shr 32, v152
+    v156 = gas
+    v157 = abi_encode [word], selector v154, args 6
+    v158 = slice_ptr v157
+    v159 = slice_len v157
+    v160 = call v156, v155, 0, v158, v159, 0, 0
+    jumpi v160, bb41, bb42
   bb42:
     jumpi true, bb44, bb45
   bb45:
     icall revert_if<empty>, true
     invalid
   bb44:
-    v146 = checked_add u256, v130, 0x3e8
+    v164 = checked_add u256, v148, 0x3e8
     jump bb43
   bb41:
-    v143 = icall returndata_bytes<>
-    v144 = abi_decode [u256], v143
-    v145 = checked_add u256, v130, v144
+    v161 = icall returndata_bytes<>
+    v162 = abi_decode [u256], v161
+    v163 = checked_add u256, v148, v162
     jump bb43
   bb43:
-    v147 = phi [bb41: v145], [bb44: v146]
-    ret v147
+    v165 = phi [bb41: v163], [bb44: v164]
+    ret v165
 }
 
-fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
+fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
   bb0:
     v0 = lt arg1, 68
-    v1 = iszero v0
+    v1 = eq v0, false
     jumpi v1, bb1, bb3
   bb1:
     v2 = add arg0, 4
@@ -327,16 +351,18 @@ fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
     v5 = add v3, 36
     v6 = gt v5, arg1
     v7 = or v4, v6
+    v8 = zext i1 v7 to i256
     jumpi v7, bb3, bb2
   bb2:
-    v8 = add v2, v3
-    v9 = mload v8
-    v10 = gt v9, 0xffffffffffffffff
-    v11 = sub arg1, v5
-    v12 = gt v9, v11
-    v13 = or v10, v12
-    v14 = iszero v13
-    ret v14
+    v9 = add v2, v3
+    v10 = mload v9
+    v11 = gt v10, 0xffffffffffffffff
+    v12 = sub arg1, v5
+    v13 = gt v10, v12
+    v14 = or v11, v13
+    v15 = zext i1 v14 to i256
+    v16 = eq v15, 0
+    ret v16
   bb3:
     ret false
 }

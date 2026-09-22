@@ -11,7 +11,7 @@
 // CHECK: {{^[ +].*}}switch 5, default bb3, [arg0 => bb1, 5 => bb2]
 // CHECK: - ret 3
 // CHECK: + invalid
-fn @earlier_unknown_case_blocks_fold(arg0: u256) -> u256 {
+fn @earlier_unknown_case_blocks_fold(arg0: i256) -> i256 {
   bb0:
     switch 5, default bb3, [arg0 => bb1, 5 => bb2]
   bb1:
@@ -27,7 +27,7 @@ fn @earlier_unknown_case_blocks_fold(arg0: u256) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @constant_cases_fold{{[( ]}}
 // CHECK: - switch 5, default bb3, [1 => bb1, 5 => bb2]
 // CHECK: + jump bb2
-fn @constant_cases_fold() -> u256 {
+fn @constant_cases_fold() -> i256 {
   bb0:
     switch 5, default bb3, [1 => bb1, 5 => bb2]
   bb1:
@@ -44,7 +44,7 @@ fn @constant_cases_fold() -> u256 {
 // CHECK: {{^[ +].*}}switch 5, default bb3, [arg0 => bb1, 4 => bb2]
 // CHECK: - ret 2
 // CHECK: + invalid
-fn @unknown_case_keeps_default(arg0: u256) -> u256 {
+fn @unknown_case_keeps_default(arg0: i256) -> i256 {
   bb0:
     switch 5, default bb3, [arg0 => bb1, 4 => bb2]
   bb1:

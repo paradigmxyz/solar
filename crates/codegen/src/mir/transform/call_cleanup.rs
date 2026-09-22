@@ -7,16 +7,19 @@
 //! cleanliness. Value evaluation follows a bounded number of SSA definitions,
 //! sharing the same opcode semantics as local e-graph width inference.
 //!
-//! External lazy arguments have the canonicality invariant established by ABI
-//! lowering: validation loads the raw calldata word separately before the body
-//! can use `Value::Arg`. Only after that phase may their retained unsigned or
-//! boolean input type seed a bound. Internal nominal types never seed facts;
-//! assembly can pass dirty values through those signatures. Public functions,
+//! ABI lowering supplies transient bounds for the lazy arguments whose raw
+//! calldata words it validates. The same inference runs there before those
+//! proofs are discarded; wrapper metadata alone never establishes a bound.
+//! Booleans always carry the one-bit bound. Public functions,
 //! constructors, and dispatch entries cannot be specialized from direct callers.
 //!
 //! A contiguous low-bit mask disappears only when the proved bound fits inside
-//! it. Instructions stay in place until their uses are redirected; no code is
-//! inserted, moved, or cloned. The pass runs after memory lowering and before
+//! it. A truncation followed by a zero extension disappears under the same
+//! proof when the original and extended values have the same type. Zero tests
+//! of proved-clean truncations compare the original value in its wider type.
+//! Instructions stay in place until their uses are redirected; no code is
+//! moved or cloned; comparisons may insert a zero-cost extension to keep operand
+//! types equal. The pass runs after memory lowering and before
 //! final local simplification, when the complete call graph and ABI guards are
 //! explicit. Unknown return values and path-dependent bounds remain conservative.
 //! Explicit frame-address functions do not receive argument facts: parsed MIR
@@ -24,15 +27,16 @@
 //! are retained for profitability, since replacing their materialized result
 //! with an argument changes which values the stack ABI must preserve or spill.
 //!
-//! A separate bounded fixed point proves helpers that return only zero or one
-//! for every input. Double boolean normalization of their results can disappear
-//! without trusting a nominal `bool` return type. Unknown and recursive return
-//! dependencies start unproved; phis require every incoming value to be clean.
+//! Boolean values are canonical by type, so double negation needs no call-graph proof.
+//! Raw-word return bounds require every explicit return to fit within one bit;
+//! tail calls and unknown recursive results remain conservative. These transient
+//! proofs remove normalization from comparisons and zero-extended results without
+//! changing raw call signatures or assuming that a Solidity boolean is clean.
 
 use super::egraph::max_bits_with_args;
 use crate::mir::{
-    AbiWordValidator, ArgIdx, Function, FunctionId, InstId, InstKind, Module, Terminator, Value,
-    ValueId,
+    ArgIdx, Callee, Function, FunctionId, Immediate, InstId, InstKind, Instruction, MirType,
+    Module, Terminator, Value, ValueId,
     analysis::Liveness,
     pass::{MirPass, ModuleAnalyses},
     utils,
@@ -45,7 +49,8 @@ pub(crate) struct CallCleanup;
 
 const MAX_ROUNDS: usize = 8;
 const MAX_VALUE_DEPTH: u32 = 8;
-type ArgumentBits = FxHashMap<(FunctionId, ArgIdx), u32>;
+pub(super) type ArgumentBits = FxHashMap<(FunctionId, ArgIdx), u32>;
+pub(super) type ReturnBits = FxHashMap<FunctionId, u32>;
 
 struct CallSite<'a> {
     caller: FunctionId,
@@ -65,143 +70,242 @@ impl MirPass for CallCleanup {
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
         let facts = infer_arguments(module);
-        let boolean_returns = infer_boolean_returns(module);
+        let returns = infer_returns(module);
         let mut changed = false;
         for (id, func) in module.functions.iter_mut_enumerated() {
-            let argument_bits = |index| argument_bits(func, id, index, &facts);
-            let mut replacements = FxHashMap::default();
-            let mut dead = DenseBitSet::<InstId>::new_empty(func.num_insts());
-            for inst in func.instructions() {
-                if let InstKind::IsZero(inner) = func.inst(inst).kind
-                    && func
-                        .inst(inst)
-                        .metadata
-                        .effect()
-                        .is_none_or(|effect| effect == func.inst(inst).kind.effect_kind())
-                    && let Value::Inst(inner) = func.value(inner)
-                    && let InstKind::IsZero(value) = func.inst(*inner).kind
-                    && is_boolean(func, value, &boolean_returns, MAX_VALUE_DEPTH, &argument_bits)
-                    && let Some(result) = func.inst_result_value(inst)
-                {
-                    replacements.insert(result, value);
-                    dead.insert(inst);
-                }
-                if let InstKind::And(a, b) = func.inst(inst).kind
-                    && let Some((value, mask)) = func
-                        .value_u256(b)
-                        .map(|mask| (a, mask))
-                        .or_else(|| func.value_u256(a).map(|mask| (b, mask)))
-                    && mask.wrapping_add(U256::ONE) & mask == U256::ZERO
-                    && max_bits_with_args(func, value, MAX_VALUE_DEPTH, &argument_bits)
-                        <= mask.bit_len() as u32
-                    && let Some(result) = func.inst_result_value(inst)
-                {
-                    replacements.insert(result, value);
-                    dead.insert(inst);
-                }
-            }
-            if !replacements.is_empty() {
-                let protected = masks_live_across_calls(func);
-                replacements.retain(|result, _| !protected.contains(*result));
-                for inst in dead.iter().collect::<Vec<_>>() {
-                    if func.inst_result_value(inst).is_some_and(|value| protected.contains(value)) {
-                        dead.remove(inst);
-                    }
-                }
-            }
-            if !replacements.is_empty() {
-                // result = and value, low_mask; use result -> use value
-                // result = iszero(iszero(boolean)); use result -> use boolean
-                // NOTE: Removed cleanup instructions lose their debug checkpoints;
-                // their source locations must not be assigned to the replacement value.
-                func.for_each_instruction_mut(|_, inst| {
-                    inst.rewrite_operands(|value| {
-                        *value = utils::resolve_replacement(*value, &replacements);
-                    });
-                });
-                for block in &mut func.blocks {
-                    block.instructions.retain(|&inst| !dead.contains(inst));
-                    if let Some(term) = &mut block.terminator {
-                        utils::replace_terminator_uses_canonicalized(term, &replacements);
-                    }
-                }
-                changed = true;
-            }
+            changed |=
+                cleanup(func, |func, index| argument_bits(func, id, index, &facts), &returns);
         }
         changed
     }
 }
 
-fn infer_boolean_returns(module: &Module) -> DenseBitSet<FunctionId> {
-    let mut known = DenseBitSet::new_empty(module.functions.len());
-    for _ in 0..MAX_ROUNDS {
-        let mut changed = false;
-        for (id, func) in module.functions.iter_enumerated() {
-            if known.contains(id) || func.return_components().len() != 1 {
-                continue;
-            }
-            let mut has_return = false;
-            let clean = func.blocks.iter().all(|block| match &block.terminator {
-                Some(Terminator::Return { values }) => {
-                    has_return = true;
-                    values.len() == 1
-                        && is_boolean(func, values[0], &known, MAX_VALUE_DEPTH, &|_| 256)
-                }
-                Some(
-                    Terminator::TailCall { .. } | Terminator::Stop | Terminator::ReturnData { .. },
-                )
-                | None => false,
-                _ => true,
-            });
-            if has_return && clean {
-                known.insert(id);
-                changed = true;
+/// Removes cleanup using argument bounds proved at the current call boundary.
+pub(super) fn cleanup(
+    func: &mut Function,
+    argument_bits: impl Fn(&Function, ArgIdx) -> u32,
+    returns: &ReturnBits,
+) -> bool {
+    let mut changed = false;
+    let argument_bits = |index| argument_bits(func, index);
+    let mut replacements = FxHashMap::default();
+    let mut zero_tests = Vec::new();
+    let mut boolean_comparisons = Vec::new();
+    let mut replacement_inputs = FxHashMap::default();
+    for inst in func.instructions() {
+        if let Some(inner) = func.inst(inst).kind.zero_test_operand(func)
+            && native_effect(func, inst)
+            && let Value::Inst(inner) = func.value(inner)
+            && let Some(value) = func.inst(*inner).kind.zero_test_operand(func)
+            && func.value_ty(value) == Some(crate::mir::MirType::I1)
+            && let Some(result) = func.inst_result_value(inst)
+        {
+            replacements.insert(result, value);
+        }
+        if let InstKind::And(a, b) = func.inst(inst).kind
+            && native_effect(func, inst)
+            && let Some((value, mask)) = func
+                .value_u256(b)
+                .map(|mask| (a, mask))
+                .or_else(|| func.value_u256(a).map(|mask| (b, mask)))
+            && mask.wrapping_add(U256::ONE) & mask == U256::ZERO
+            && max_bits_with_args(func, value, MAX_VALUE_DEPTH, &argument_bits)
+                <= mask.bit_len() as u32
+            && let Some(result) = func.inst_result_value(inst)
+        {
+            replacements.insert(result, value);
+        }
+        if let InstKind::Zext(narrowed) = func.inst(inst).kind
+            && native_effect(func, inst)
+            && let Value::Inst(truncation) = func.value(narrowed)
+            && let InstKind::Trunc(value, bits) = func.inst(*truncation).kind
+            && let Some(result) = func.inst_result_value(inst)
+            && func.value_ty(result) == func.value_ty(value)
+            && max_bits_with_args(func, value, MAX_VALUE_DEPTH, &argument_bits) <= bits
+        {
+            replacements.insert(result, value);
+        }
+        if let InstKind::Zext(boolean) = func.inst(inst).kind
+            && let Some(value) = normalized_word(func, boolean, &argument_bits, returns)
+            && let Some(result) = func.inst_result_value(inst)
+            && func.value_ty(result) == func.value_ty(value)
+            && native_effect(func, inst)
+        {
+            replacements.insert(result, value);
+            replacement_inputs.insert(result, boolean);
+        }
+        if let InstKind::Eq(a, b) | InstKind::Ne(a, b) = func.inst(inst).kind
+            && func.value_ty(a) == Some(MirType::I1)
+            && func.value_ty(b) == Some(MirType::I1)
+            && native_effect(func, inst)
+        {
+            let left = normalized_word(func, a, &argument_bits, returns);
+            let right = normalized_word(func, b, &argument_bits, returns);
+            if left.is_some() || right.is_some() {
+                boolean_comparisons.push((inst, [(a, left), (b, right)]));
             }
         }
-        if !changed {
-            break;
+        if let InstKind::Eq(a, b) | InstKind::Ne(a, b) = func.inst(inst).kind
+            && let Some(narrowed) = [(a, b), (b, a)]
+                .into_iter()
+                .find_map(|(value, zero)| (func.value_u64(zero) == Some(0)).then_some(value))
+            && let Value::Inst(truncation) = func.value(narrowed)
+            && let InstKind::Trunc(value, bits) = func.inst(*truncation).kind
+            && max_bits_with_args(func, value, MAX_VALUE_DEPTH, &argument_bits) <= bits
+            && native_effect(func, inst)
+        {
+            zero_tests.push((inst, narrowed, value));
         }
     }
-    known
+    if !replacements.is_empty() || !zero_tests.is_empty() || !boolean_comparisons.is_empty() {
+        let protected = masks_live_across_calls(func);
+        zero_tests.retain(|(_, narrowed, _)| !protected.contains(*narrowed));
+        boolean_comparisons.retain(|(_, operands)| {
+            operands.iter().all(|(value, raw)| raw.is_none() || !protected.contains(*value))
+        });
+        replacements.retain(|result, _| {
+            !protected.contains(*result)
+                && replacement_inputs.get(result).is_none_or(|value| !protected.contains(*value))
+        });
+    }
+    for (inst, _, value) in zero_tests {
+        let zero = func
+            .alloc_value(Value::Immediate(Immediate::for_type(func.value_ty(value), U256::ZERO)));
+        let kind = match func.inst(inst).kind {
+            InstKind::Eq(..) => InstKind::Eq(value, zero),
+            InstKind::Ne(..) => InstKind::Ne(value, zero),
+            _ => unreachable!(),
+        };
+        func.inst_mut(inst).replace_kind(kind);
+        changed = true;
+    }
+    let mut insertions = FxHashMap::default();
+    for (inst, operands) in boolean_comparisons {
+        let [left, right] = operands.map(|(value, raw)| {
+            raw.unwrap_or_else(|| {
+                let (extension, value) = func.alloc_value_inst(
+                    Instruction::new(InstKind::Zext(value), Some(MirType::I256))
+                        .with_debug_info_dropped(),
+                );
+                insertions.insert(inst, extension);
+                value
+            })
+        });
+        let kind = match func.inst(inst).kind {
+            InstKind::Eq(..) => InstKind::Eq(left, right),
+            InstKind::Ne(..) => InstKind::Ne(left, right),
+            _ => unreachable!(),
+        };
+        func.inst_mut(inst).replace_kind(kind);
+        changed = true;
+    }
+    if !insertions.is_empty() {
+        for block in &mut func.blocks {
+            let mut index = 0;
+            while index < block.instructions.len() {
+                if let Some(extension) = insertions.remove(&block.instructions[index]) {
+                    block.instructions.insert(index, extension);
+                    index += 1;
+                }
+                index += 1;
+            }
+        }
+    }
+    if !replacements.is_empty() {
+        let mut dead = DenseBitSet::new_empty(func.num_insts());
+        for &result in replacements.keys() {
+            if let Value::Inst(inst) = func.value(result) {
+                dead.insert(*inst);
+            }
+        }
+        // result = and value, low_mask; use result -> use value
+        // result = zext (trunc value, bits); use result -> use value
+        // result = eq (eq boolean, false), false; use result -> use boolean
+        // NOTE: Removed cleanup instructions lose their debug checkpoints;
+        // their source locations must not be assigned to the replacement value.
+        func.for_each_instruction_mut(|_, inst| {
+            inst.rewrite_operands(|value| {
+                *value = utils::resolve_replacement(*value, &replacements);
+            });
+        });
+        for block in &mut func.blocks {
+            block.instructions.retain(|&inst| !dead.contains(inst));
+            if let Some(term) = &mut block.terminator {
+                utils::replace_terminator_uses_canonicalized(term, &replacements);
+            }
+        }
+        changed = true;
+    }
+    changed
 }
 
-fn is_boolean(
+fn native_effect(func: &Function, inst: InstId) -> bool {
+    let instruction = func.inst(inst);
+    instruction.metadata.effect().is_none_or(|effect| effect == instruction.kind.effect_kind())
+}
+
+fn normalized_word(
     func: &Function,
     value: ValueId,
-    returns: &DenseBitSet<FunctionId>,
-    depth: u32,
-    args: &impl Fn(ArgIdx) -> u32,
-) -> bool {
-    if let Some(value) = func.value_u256(value) {
-        return value <= U256::ONE;
+    argument_bits: &impl Fn(ArgIdx) -> u32,
+    returns: &ReturnBits,
+) -> Option<ValueId> {
+    let Value::Inst(inst) = func.value(value) else { return None };
+    let InstKind::Ne(a, b) = func.inst(*inst).kind else { return None };
+    if !native_effect(func, *inst) {
+        return None;
     }
-    let Some(depth) = depth.checked_sub(1) else { return false };
-    let Value::Inst(inst) = func.value(value) else {
-        return matches!(func.value(value), Value::Arg(index) if args(*index) <= 1);
+    let word = [(a, b), (b, a)]
+        .into_iter()
+        .find_map(|(word, zero)| (func.value_u64(zero) == Some(0)).then_some(word))?;
+    if func.value_ty(word) != Some(MirType::I256) {
+        return None;
+    }
+    let bits = if let Value::Inst(call) = func.value(word)
+        && let InstKind::ICall { function: Callee::Function(callee), .. } = func.inst(*call).kind
+    {
+        returns.get(&callee).copied().unwrap_or(256)
+    } else {
+        max_bits_with_args(func, word, MAX_VALUE_DEPTH, argument_bits)
     };
-    let clean = |value| is_boolean(func, value, returns, depth, args);
-    match &func.inst(*inst).kind {
-        InstKind::Eq(..)
-        | InstKind::Lt(..)
-        | InstKind::Gt(..)
-        | InstKind::SLt(..)
-        | InstKind::SGt(..)
-        | InstKind::IsZero(..) => true,
-        InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
-            returns.contains(*function)
-        }
-        InstKind::Phi(incoming) => {
-            !incoming.is_empty() && incoming.iter().all(|&(_, value)| clean(value))
-        }
-        InstKind::Select(_, a, b) | InstKind::Or(a, b) | InstKind::Xor(a, b) => {
-            clean(*a) && clean(*b)
-        }
-        InstKind::And(a, b) => clean(*a) || clean(*b),
-        _ => false,
-    }
+    (bits <= 1).then_some(word)
 }
 
-fn infer_arguments(module: &Module) -> ArgumentBits {
+/// Proves raw-word return widths without assuming facts about recursive calls.
+pub(super) fn infer_returns(module: &Module) -> ReturnBits {
+    module
+        .functions
+        .iter_enumerated()
+        .filter_map(|(id, func)| {
+            if func.return_components() != [MirType::I256]
+                || func
+                    .blocks
+                    .iter()
+                    .any(|block| matches!(block.terminator, Some(Terminator::TailCall { .. })))
+            {
+                return None;
+            }
+            let mut widest = None;
+            for block in &func.blocks {
+                if let Some(Terminator::Return { values }) = &block.terminator {
+                    let [value] = values.as_slice() else { return None };
+                    let bits = max_bits_with_args(func, *value, MAX_VALUE_DEPTH, &|_| 256);
+                    widest = Some(widest.unwrap_or(0).max(bits));
+                }
+            }
+            widest.filter(|&bits| bits <= 1).map(|bits| (id, bits))
+        })
+        .collect()
+}
+
+pub(super) fn infer_arguments(module: &Module) -> ArgumentBits {
+    infer_arguments_with(module, argument_bits)
+}
+
+pub(super) fn infer_arguments_with(
+    module: &Module,
+    argument_bits: impl Fn(&Function, FunctionId, ArgIdx, &ArgumentBits) -> u32,
+) -> ArgumentBits {
     let mut eligible = DenseBitSet::new_empty(module.functions.len());
     for (id, func) in module.functions.iter_enumerated() {
         if func.selector.is_none()
@@ -272,15 +376,14 @@ fn infer_arguments(module: &Module) -> ArgumentBits {
     facts
 }
 
-fn argument_bits(func: &Function, id: FunctionId, index: ArgIdx, facts: &ArgumentBits) -> u32 {
-    if func.attributes.is_abi_wrapper && func.selector.is_some() && func.params.is_empty() {
-        // ABI validation establishes this bound on the lazy argument. Raw
-        // calldata loads used by the validation itself do not enter this arm.
-        return match AbiWordValidator::from_mir_type(func.arg_ty(index)) {
-            Some(AbiWordValidator::Unsigned(bits)) => u32::from(bits),
-            Some(AbiWordValidator::Bool) => 1,
-            _ => 256,
-        };
+pub(super) fn argument_bits(
+    func: &Function,
+    id: FunctionId,
+    index: ArgIdx,
+    facts: &ArgumentBits,
+) -> u32 {
+    if func.params.get(index) == Some(&crate::mir::MirType::I1) {
+        return 1;
     }
     facts.get(&(id, index)).copied().unwrap_or(256)
 }

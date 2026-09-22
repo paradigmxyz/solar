@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/try_catch_panic.sol:TryCatchPanicTarget ===
 @module TryCatchPanicTarget
-fn @ok() [selector=0xd909b403, pure, abi_params=[], abi_returns=[]] {
+fn @ok() [selector=0xd909b403, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[]] {
+fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = iszero false
+    v0 = eq false, false
     icall panic_if<0x1>, v0
     ret
 }
@@ -15,33 +15,39 @@ fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[]] {
 // === ROOT/tests/ui/codegen/lowering/try_catch_panic.sol:TryCatchPanic ===
 @module TryCatchPanic
 data:
-  TryCatchPanicTarget_initcode_0: hex"34600d5760478060115f395ff35b5f5ffd346028575f3560e01c8063a9cc4718146024578063d909b403146020576028565b602c565b602e565b5f5ffd5b005b5f15603557005b634e487b715f5260016020526024601cfd"
+  TryCatchPanicTarget_initcode_0: hex"34600d5760498060115f395ff35b5f5ffd341515602a575f3560e01c8063a9cc4718146026578063d909b40314602257602a565b602e565b6030565b5f5ffd5b005b5f15603757005b634e487b715f5260016020526024601cfd"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 119, v1
+    v2 = and 121, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy TryCatchPanicTarget_initcode_0, v3, 88
-    v4 = slice_ptr v0
-    v5 = add v3, 88
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 88
-    jumpi v6, bb2, bb1
+    v4 = ptrtoint memptr v3 to i256
+    data_copy TryCatchPanicTarget_initcode_0, v4, 90
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, 90
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, 90
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = sload 0 !metadata(storage=slot(0))
-    v8 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = and v7, v8
-    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = or v9, v10
-    sstore 0, v11 !metadata(storage=slot(0))
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = and v12, v13
+    v15 = zext i160 v9 to i256
+    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
+    v17 = or v14, v16
+    sstore 0, v17 !metadata(storage=slot(0))
     ret
 }
 
-fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word]] {
+fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -50,7 +56,7 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v4 = slice_ptr v3
     v5 = slice_len v3
     v6 = extcodesize v1
-    v7 = iszero v6
+    v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
     v8 = staticcall v2, v1, v4, v5, 0, 0
     jumpi v8, bb1, bb2
@@ -58,29 +64,33 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v9 = icall returndata_bytes<>
     v10 = memory_object_data memorybytes, v9
     v11 = memory_object_len memorybytes, v9
-    v12 = make_memory_slice v10, v11
-    v13 = memory_slice_load_word memory, v12, 0
-    v14 = shr 224, v13
-    v15 = eq v14, 0x4e487b71
-    v16 = lt v11, 36
-    v17 = iszero v16
-    v18 = and v15, v17
-    jumpi v18, bb4, bb5
+    v12 = ptrtoint memptr v10 to i256
+    v13 = make_memory_slice v12, v11
+    v14 = memory_slice_load_word memory, v13, 0
+    v15 = shr 224, v14
+    v16 = eq v15, 0x4e487b71
+    v17 = lt v11, 36
+    v18 = eq v17, false
+    v19 = and v16, v18
+    v20 = zext i1 v19 to i256
+    jumpi v19, bb4, bb5
   bb5:
-    revert v10, v11
+    v26 = ptrtoint memptr v10 to i256
+    revert v26, v11
   bb4:
-    v19 = memory_object_data memorybytes, v9
-    v20 = add v19, 4
-    v21 = make_memory_slice v20, 32
-    v22 = memory_slice_load_word memory, v21, 0
-    ret v22
+    v21 = memory_object_data memorybytes, v9
+    v22 = ptrtoint memptr v21 to i256
+    v23 = add v22, 4
+    v24 = make_memory_slice v23, 32
+    v25 = memory_slice_load_word memory, v24, 0
+    ret v25
   bb1:
     jump bb3
   bb3:
     ret 7
 }
 
-fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word]] {
+fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -89,7 +99,7 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v4 = slice_ptr v3
     v5 = slice_len v3
     v6 = extcodesize v1
-    v7 = iszero v6
+    v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
     v8 = staticcall v2, v1, v4, v5, 0, 0
     jumpi v8, bb1, bb2
@@ -97,22 +107,26 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v9 = icall returndata_bytes<>
     v10 = memory_object_data memorybytes, v9
     v11 = memory_object_len memorybytes, v9
-    v12 = make_memory_slice v10, v11
-    v13 = memory_slice_load_word memory, v12, 0
-    v14 = shr 224, v13
-    v15 = eq v14, 0x4e487b71
-    v16 = lt v11, 36
-    v17 = iszero v16
-    v18 = and v15, v17
-    jumpi v18, bb4, bb5
+    v12 = ptrtoint memptr v10 to i256
+    v13 = make_memory_slice v12, v11
+    v14 = memory_slice_load_word memory, v13, 0
+    v15 = shr 224, v14
+    v16 = eq v15, 0x4e487b71
+    v17 = lt v11, 36
+    v18 = eq v17, false
+    v19 = and v16, v18
+    v20 = zext i1 v19 to i256
+    jumpi v19, bb4, bb5
   bb5:
-    revert v10, v11
+    v26 = ptrtoint memptr v10 to i256
+    revert v26, v11
   bb4:
-    v19 = memory_object_data memorybytes, v9
-    v20 = add v19, 4
-    v21 = make_memory_slice v20, 32
-    v22 = memory_slice_load_word memory, v21, 0
-    ret v22
+    v21 = memory_object_data memorybytes, v9
+    v22 = ptrtoint memptr v21 to i256
+    v23 = add v22, 4
+    v24 = make_memory_slice v23, 32
+    v25 = memory_slice_load_word memory, v24, 0
+    ret v25
   bb1:
     jump bb3
   bb3:

@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/require_modulo_chain.sol:RequireModuloCases ===
 @module RequireModuloCases
-fn @chain(arg0: u256, arg1: u256) -> u256 [selector=0x1ea77144, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @chain(arg0: i256, arg1: i256) -> i256 [selector=0x1ea77144, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_rem u256, arg0, arg1
     v1 = eq v0, 0
-    v2 = iszero v1
+    v2 = eq v1, false
     icall revert_if<empty>, v2
     v3 = checked_rem u256, arg1, 3
     v4 = eq v3, 0
@@ -17,7 +17,7 @@ fn @chain(arg0: u256, arg1: u256) -> u256 [selector=0x1ea77144, pure, abi_params
     jump bb3
   bb3:
     v7 = phi [bb1: v6], [bb2: true]
-    v8 = iszero v7
+    v8 = eq v7, false
     icall revert_if<empty>, v8
     v9 = checked_add u256, arg0, arg1
     ret v9

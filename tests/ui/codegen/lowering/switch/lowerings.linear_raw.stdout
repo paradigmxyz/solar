@@ -1,0 +1,150 @@
+// === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
+@module SwitchLowerings_runtime
+bb0:
+  callvalue
+  iszero
+  iszero
+  push bb2
+  jumpi
+  jump bb1
+bb1:
+  jump bb3
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb3:
+  push 0
+  calldataload
+  dup 1
+  push 128
+  mstore
+  pop
+  push 128
+  mload
+  dup 1
+  push 8
+  sub
+  push bb4
+  jumpi
+  pop
+  jump bb19
+bb4:
+  dup 1
+  push 16
+  sub
+  push bb5
+  jumpi
+  pop
+  jump bb18
+bb5:
+  dup 1
+  push 24
+  sub
+  push bb6
+  jumpi
+  pop
+  jump bb17
+bb6:
+  dup 1
+  push 32
+  sub
+  push bb7
+  jumpi
+  pop
+  jump bb16
+bb7:
+  dup 1
+  push 40
+  sub
+  push bb8
+  jumpi
+  pop
+  jump bb15
+bb8:
+  dup 1
+  push 48
+  sub
+  push bb9
+  jumpi
+  pop
+  jump bb14
+bb9:
+  dup 1
+  push 56
+  sub
+  push bb10
+  jumpi
+  pop
+  jump bb13
+bb10:
+  dup 1
+  push 64
+  sub
+  push bb11
+  jumpi
+  pop
+  jump bb12
+bb11:
+  pop
+  jump bb20
+bb12:
+  push 107
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb13:
+  push 106
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb14:
+  push 105
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb15:
+  push 104
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb16:
+  push 103
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb17:
+  push 102
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb18:
+  push 101
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb19:
+  push 100
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb20 [cold]:
+  push 0
+  push 0
+  revert

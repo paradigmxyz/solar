@@ -66,7 +66,7 @@ def substitute(tree, bindings):
 
 def extractor_definitions():
     definitions = {}
-    for form, _ in forms((ISLE / "extractors.isle").read_text()):
+    for form, _ in forms((ISLE / "mir/extractors.isle").read_text()):
         if form[0] == "extractor":
             _, (name, *params), body = form
             definitions[name] = (params, body)
@@ -104,6 +104,37 @@ class Rule:
         return hashlib.sha256(repr(self.form).encode()).hexdigest()
 
 
+CALL_OPERANDS = {
+    "call": (
+        "gas",
+        "addr",
+        "value",
+        "args_offset",
+        "args_size",
+        "ret_offset",
+        "ret_size",
+    ),
+    "callcode": (
+        "gas",
+        "addr",
+        "value",
+        "args_offset",
+        "args_size",
+        "ret_offset",
+        "ret_size",
+    ),
+    "staticcall": ("gas", "addr", "args_offset", "args_size", "ret_offset", "ret_size"),
+    "delegatecall": (
+        "gas",
+        "addr",
+        "args_offset",
+        "args_size",
+        "ret_offset",
+        "ret_size",
+    ),
+}
+
+
 class Context:
     def __init__(self, selection_source=None):
         self.values = {}
@@ -114,18 +145,34 @@ class Context:
         self.bindings = opcode_bindings(
             selection_source
             if selection_source is not None
-            else (ISLE / "select.isle").read_text()
+            else (ISLE / "mir-to-evm/select.isle").read_text()
         )
         self.fresh_id = 0
         self.memory = MemoryAddresses(self)
 
     def operation(self, name, args):
+        if name.startswith("Op.") and name[3:].lower() in CALL_OPERANDS:
+            opcode = name[3:].lower()
+            declarations = [
+                form[3][1:]
+                for form, _ in forms((ISLE / "mir/prelude.isle").read_text())
+                if form[:3] == ("type", "Op", "extern")
+            ]
+            shapes = {
+                "Op." + variant[0]: variant[1:]
+                for variants in declarations
+                for variant in variants
+            }
+            expected = tuple((field, "Value") for field in CALL_OPERANDS[opcode])
+            if shapes.get(name) != expected or len(args) != len(expected):
+                raise Unsupported(f"unmodeled or changed call operand schema: {name}")
+            return Expr(opcode, tuple(args))
         if name in MemoryAddresses.SHAPES:
             # Semantic projections have no single-opcode selector. Check their
             # schema-generated field names/types before applying the model.
             declarations = [
                 form[3][1:]
-                for form, _ in forms((ISLE / "prelude.isle").read_text())
+                for form, _ in forms((ISLE / "mir/prelude.isle").read_text())
                 if form[:3] == ("type", "Op", "extern")
             ]
             shapes = {
@@ -136,6 +183,35 @@ class Context:
             if shapes.get(name) != MemoryAddresses.SHAPES[name]:
                 raise Unsupported(f"unmodeled or changed memory address schema: {name}")
             return self.memory.operation(name, tuple(args))
+        if name in ("Op.Ne", "Op.Zext", "Op.Bitcast", "Op.IntToPtr"):
+            self.contracts.add(
+                f"{name}: trusted MIR word inequality or bit-preserving scalar cast"
+            )
+            if name == "Op.Ne" and len(args) == 2:
+                return Expr("ne", tuple(args))
+            if name in ("Op.Zext", "Op.Bitcast", "Op.IntToPtr") and len(args) == 1:
+                return args[0]
+            raise Unsupported(f"invalid scalar operation arity: {name}")
+        if name in ("Op.PtrToInt", "Op.Trunc"):
+            if len(args) != 2:
+                raise Unsupported("invalid narrowing cast arity")
+            value, bits = args
+            mask = Expr("sub", (Expr("shl", (bits, Expr.const(1))), Expr.const(1)))
+            self.contracts.add(f"{name}: truncate or zero-extend a 256-bit value")
+            return Expr("and", (value, mask))
+        if name == "Op.Sext":
+            if len(args) != 3:
+                raise Unsupported("invalid sign extension arity")
+            value, source, target = args
+            width = Expr.const(256)
+            capped = Expr("select", (Expr("lt", (source, width)), source, width))
+            shift = Expr("sub", (width, capped))
+            extended = Expr("sar", (shift, Expr("shl", (shift, value))))
+            mask = Expr("sub", (Expr("shl", (target, Expr.const(1))), Expr.const(1)))
+            self.contracts.add(
+                "Sext: sign-extend the source bit width and retain target bits"
+            )
+            return Expr("and", (extended, mask))
         if name == "Op.Select":
             self.contracts.add(
                 "Select: trusted MIR semantics select the true arm for any nonzero word"
@@ -207,6 +283,18 @@ class Context:
                 "current_address: Rust extractor matches an ADDRESS producer in this execution context"
             )
             return self.operation("Op.Address", [])
+        if name == "integer_bits" and len(args) == 1:
+            bits = self.model.eval(self.pattern(args[0]))
+            value = self.fresh()
+            self.assumptions.extend((z3.UGE(bits, word(1)), z3.ULE(bits, word(256))))
+            self.assumptions.append(
+                self.model.eval(value) & ((word(1) << bits) - 1)
+                == self.model.eval(value)
+            )
+            self.contracts.add(
+                "integer_bits: the Rust extractor returns a canonical integer width in 1..=256"
+            )
+            return value
         if name == "bool_value" and not args:
             value = self.fresh()
             self.assumptions.append(z3.ULE(self.model.eval(value), word(1)))
@@ -245,6 +333,8 @@ class Context:
                 self.model.eval(symbol) == z3.If(value, word(1), word(0))
             )
             return symbol
+        if name == "zero_value" and not values:
+            return Expr.const(0)
         if name == "u256_max" and not values:
             return Expr.const(MASK)
         if name == "u256_from_limbs" and len(values) == 4:
@@ -277,6 +367,8 @@ class Context:
                 == {"u256_is_zero": 0, "u256_is_one": 1, "u256_is_all_ones": MASK}[name]
             )
         predicates = {
+            "u32_lt": z3.ULT,
+            "u32_le": z3.ULE,
             "u256_gt": z3.UGT,
             "u256_ge": z3.UGE,
             "u256_lt": z3.ULT,
@@ -313,7 +405,6 @@ class Context:
             )
             return shift
         if name in (
-            "is_const",
             "differ",
             "has_bitwise_shifting",
             "has_self_balance",
@@ -387,6 +478,8 @@ class Context:
             if expr.op in ("var", "const"):
                 return
             for child in expr.args:
+                if child.op in CALL_OPERANDS:
+                    raise Unsupported("calls are only modeled at instruction roots")
                 if child.op in ("balance", "selfbalance"):
                     raise Unsupported(
                         "balance reads are only modeled at instruction roots; nested producers may observe another state"
@@ -397,6 +490,24 @@ class Context:
         # not by arbitrary earlier producers reached through operand extractors.
         validate_snapshot_root(lhs)
         validate_snapshot_root(rhs)
+        if lhs.op in CALL_OPERANDS or rhs.op in CALL_OPERANDS:
+            if lhs.op != rhs.op or len(lhs.args) != len(rhs.args):
+                raise Unsupported("a call rewrite must preserve its opcode and effect")
+            self.contracts.add(
+                "classic CALL-family: preserve the instruction and every effective operand; "
+                "only address bits above 160 are ignored. No call result is modeled as a pure value; "
+                "the rewrite driver preserves effect order. Gas accounting is outside this model"
+            )
+            difference = Expr.const(0)
+            for index, (before, after) in enumerate(
+                zip(lhs.args, rhs.args, strict=True)
+            ):
+                if index == 1:
+                    mask = Expr.const((1 << 160) - 1)
+                    before = Expr("and", (before, mask))
+                    after = Expr("and", (after, mask))
+                difference = Expr("or", (difference, Expr("xor", (before, after))))
+            return difference, Expr.const(0)
         return lhs, rhs
 
 

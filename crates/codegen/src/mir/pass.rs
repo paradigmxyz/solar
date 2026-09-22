@@ -378,6 +378,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // This removes the internal frame protocol without duplicating the body;
     // the pass drops the consumed callee itself.
     &GasOnly::new(inline::InlineSingleUse::Physical),
+    &cfg_simplify::CfgSimplify,
     &lower_evm_shaped::LowerEvmShaped,
 ];
 
@@ -745,6 +746,9 @@ impl ModuleAnalyses {
     ) -> FunctionAnalyses {
         FunctionAnalyses {
             alias: requirements.alias().then(|| {
+                if let Some(alias) = self.alias.get(&func_id) {
+                    return Rc::clone(alias);
+                }
                 let summaries = self.call_summaries(module);
                 self.alias_with_summaries(func_id, summaries)
             }),

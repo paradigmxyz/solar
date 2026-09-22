@@ -1,18 +1,19 @@
 //@ compile-flags: -Zmir-pipeline=cse,dce
 @module PayableCallEffects
 
-fn @observe(arg0: address) -> u256 {
+fn @observe(arg0: i256) -> i256 {
   bb0:
+    v24 = trunc i256 arg0 to i160
     v0 = balance arg0
     v1 = selfbalance
     v2 = sload 0
     v3 = tload 0
-    v4 = icall send<>, arg0, 1
+    v4 = icall send<>, v24, 1
     v5 = balance arg0
     v6 = selfbalance
     v7 = sload 0
     v8 = tload 0
-    icall transfer<>, arg0, 1
+    icall transfer<>, v24, 1
     v9 = balance arg0
     v10 = selfbalance
     v11 = sload 0

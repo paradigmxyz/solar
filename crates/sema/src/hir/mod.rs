@@ -720,8 +720,8 @@ impl<'hir> Item<'_, 'hir> {
     pub fn visibility(self) -> Visibility {
         match self {
             Item::Variable(v) => v.visibility.unwrap_or(Visibility::Internal),
+            Item::Function(f) => f.visibility,
             Item::Contract(_)
-            | Item::Function(_)
             | Item::Struct(_)
             | Item::Enum(_)
             | Item::Udvt(_)

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/storage-load-cse/storage_load_cse.mir (before storage-load-cse) ===
 + // === ROOT/tests/ui/codegen/mir/storage-load-cse/storage_load_cse.mir (after storage-load-cse) ===
   @module StorageLoadCse
-  fn @reuse_across_disjoint_constant_store() -> u256 {
+  fn @reuse_across_disjoint_constant_store() -> i256 {
     bb0:
 -     v0 = sload 0
 -     sstore 1, 9
@@ -13,7 +13,7 @@
       ret v2
   }
   
-  fn @forward_after_same_slot_store() -> u256 {
+  fn @forward_after_same_slot_store() -> i256 {
     bb0:
 -     v0 = sload 0
 -     sstore 0, 9
@@ -25,7 +25,7 @@
       ret v2
   }
   
-  fn @keep_after_symbolic_store(arg0: u256) -> u256 {
+  fn @keep_after_symbolic_store(arg0: i256) -> i256 {
     bb0:
 -     v0 = sload 0
 -     sstore arg0, 9
@@ -37,7 +37,7 @@
       ret v2
   }
   
-  fn @reuse_across_disjoint_offset_store(arg0: u256) -> u256 {
+  fn @reuse_across_disjoint_offset_store(arg0: i256) -> i256 {
     bb0:
       v0 = add arg0, 1
 -     v1 = sload v0
@@ -52,7 +52,7 @@
       ret v5
   }
   
-  fn @keep_when_reuse_extends_live_range() -> u256 {
+  fn @keep_when_reuse_extends_live_range() -> i256 {
     bb0:
 -     v0 = sload 0
 -     sstore 1, 9
@@ -63,7 +63,7 @@
       ret v1
   }
   
-  fn @replace_uses_after_second_load() -> u256 {
+  fn @replace_uses_after_second_load() -> i256 {
     bb0:
 -     v0 = sload 0
 -     v1 = sload 0
@@ -78,7 +78,7 @@
       ret v4
   }
   
-  fn @keep_store_forward_after_gas() -> u256 {
+  fn @keep_store_forward_after_gas() -> i256 {
     bb0:
 -     sstore 0, 9
 +     sstore 0, 9 !metadata(storage=slot(0))
@@ -90,7 +90,7 @@
       ret v3
   }
   
-  fn @keep_store_forward_inside_gas_interval() -> u256 {
+  fn @keep_store_forward_inside_gas_interval() -> i256 {
     bb0:
       v0 = gas
 -     sstore 0, 9

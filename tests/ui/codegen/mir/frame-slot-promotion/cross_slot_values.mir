@@ -1,10 +1,12 @@
 //@compile-flags: -Zmir-pipeline=frame-slot-promotion,dce
 @module CrossSlotValues
 
-fn @same_block() -> u256 {
+fn @same_block() -> i256 {
   bb0:
-    v0 = internal_frame_addr 128
-    v1 = internal_frame_addr 160
+    v4 = internal_frame_addr 128
+    v0 = ptrtoint memptr v4 to i256
+    v5 = internal_frame_addr 160
+    v1 = ptrtoint memptr v5 to i256
     mstore v0, 42
     v2 = mload v0
     mstore v1, v2
@@ -12,10 +14,12 @@ fn @same_block() -> u256 {
     ret v3
 }
 
-fn @dominated_store() -> u256 {
+fn @dominated_store() -> i256 {
   bb0:
-    v0 = internal_frame_addr 128
-    v1 = internal_frame_addr 160
+    v6 = internal_frame_addr 128
+    v0 = ptrtoint memptr v6 to i256
+    v7 = internal_frame_addr 160
+    v1 = ptrtoint memptr v7 to i256
     mstore v0, 42
     v2 = mload v0
     mstore v1, v2

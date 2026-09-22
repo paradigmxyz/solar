@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_virtual_initializer.sol:ConstructorModifierVirtualInitializerBase ===
 @module ConstructorModifierVirtualInitializerBase
-fn @observed() -> u256 [selector=0xba210709, view, abi_params=[], abi_returns=[word]] {
+fn @observed() -> i256 [selector=0xba210709, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -17,26 +17,26 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @value() -> u256 {
+fn @value() -> i256 {
   bb0:
     ret 1
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_virtual_initializer.sol:ConstructorModifierVirtualInitializer ===
 @module ConstructorModifierVirtualInitializer
-fn @valueFromInitializer() -> u256 [selector=0xa6f7461b, view, abi_params=[], abi_returns=[word]] {
+fn @valueFromInitializer() -> i256 [selector=0xa6f7461b, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     ret v0
 }
 
-fn @value() -> u256 [view] {
+fn @value() -> i256 [view] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     ret v0
 }
 
-fn @observed() -> u256 [selector=0xba210709, view, abi_params=[], abi_returns=[word]] {
+fn @observed() -> i256 [selector=0xba210709, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0

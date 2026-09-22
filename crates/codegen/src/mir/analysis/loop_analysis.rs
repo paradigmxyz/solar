@@ -15,6 +15,7 @@ use solar_data_structures::{
     bit_set::DenseBitSet,
     map::{FxHashMap, FxIndexMap},
 };
+use std::rc::Rc;
 
 /// A natural loop in the control flow graph.
 #[derive(Clone, Debug)]
@@ -78,7 +79,7 @@ impl LoopInfo {
 /// Loop analyzer that detects and analyzes loops in MIR functions.
 #[derive(Debug, Default)]
 pub(crate) struct LoopAnalyzer {
-    cfg: Option<CfgInfo>,
+    cfg: Option<Rc<CfgInfo>>,
 }
 
 impl LoopAnalyzer {
@@ -95,26 +96,39 @@ impl LoopAnalyzer {
 
     /// Analyzes loops in a function.
     pub(crate) fn analyze(&mut self, func: &Function) -> LoopInfo {
+        self.analyze_with_cfg(func, Rc::new(CfgInfo::new(func)))
+    }
+
+    /// Analyzes loops using a CFG snapshot of the current function.
+    pub(crate) fn analyze_with_cfg(&mut self, func: &Function, cfg: Rc<CfgInfo>) -> LoopInfo {
+        let mut info = self.analyze_structure_with_cfg(func, cfg);
+        for loop_info in info.loops.values_mut() {
+            self.analyze_induction_vars(func, loop_info);
+            self.find_invariant_instructions(func, loop_info);
+            self.analyze_trip_count(func, loop_info);
+        }
+        info
+    }
+
+    /// Finds loop membership, exits, and preheaders.
+    /// Leaves induction variables, invariants, and trip counts unset.
+    pub(crate) fn analyze_structure(&mut self, func: &Function) -> LoopInfo {
+        self.analyze_structure_with_cfg(func, Rc::new(CfgInfo::new(func)))
+    }
+
+    fn analyze_structure_with_cfg(&mut self, func: &Function, cfg: Rc<CfgInfo>) -> LoopInfo {
         let mut info = LoopInfo::default();
-
-        self.cfg = Some(CfgInfo::new(func));
+        self.cfg = Some(cfg);
         let mut loops = self.find_natural_loops(func);
-
         loops.sort_unstable_by_key(|loop_info| loop_info.header.index());
-
         for mut loop_info in loops {
             self.find_exit_blocks(func, &mut loop_info);
             self.find_preheader(func, &mut loop_info);
-            self.analyze_induction_vars(func, &mut loop_info);
-            self.find_invariant_instructions(func, &mut loop_info);
-            self.analyze_trip_count(func, &mut loop_info);
-
             for block in &loop_info.blocks {
                 info.block_to_loop.insert(block, loop_info.header);
             }
             info.loops.insert(loop_info.header, loop_info);
         }
-
         info
     }
 
@@ -460,7 +474,7 @@ mod tests {
         func.blocks[entry].terminator = Some(Terminator::Jump(header));
         func.blocks[header].predecessors.push(entry);
 
-        let cond = func.alloc_value(Value::Immediate(Immediate::bool(true)));
+        let cond = func.alloc_value(Value::Immediate(Immediate::I1(true)));
         func.blocks[header].terminator =
             Some(Terminator::Branch { condition: cond, then_block: body, else_block: exit });
         func.blocks[body].predecessors.push(header);
@@ -492,8 +506,8 @@ mod tests {
         let second_body = func.alloc_block();
         let exit = func.alloc_block();
 
-        let first_condition = func.alloc_value(Value::Immediate(Immediate::bool(true)));
-        let second_condition = func.alloc_value(Value::Immediate(Immediate::bool(true)));
+        let first_condition = func.alloc_value(Value::Immediate(Immediate::I1(true)));
+        let second_condition = func.alloc_value(Value::Immediate(Immediate::I1(true)));
 
         func.blocks[entry].terminator = Some(Terminator::Jump(first_header));
         func.blocks[first_header].predecessors.push(entry);

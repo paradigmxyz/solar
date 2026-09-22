@@ -5,25 +5,25 @@
 // Argument pruning runs under every objective; result pruning is size-only and
 // is covered by `dead_arg_elim_returns.mir`.
 
-// CHECK-LABEL: fn @leaf(arg0: u256, arg1: u256) -> u256
-fn @leaf(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+// CHECK-LABEL: fn @leaf(arg0: i256, arg1: i256) -> i256
+fn @leaf(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = add arg0, arg2
     ret v0
 }
 
-// CHECK-LABEL: fn @forward(arg0: u256, arg1: u256) -> u256
+// CHECK-LABEL: fn @forward(arg0: i256, arg1: i256) -> i256
 // CHECK: icall @leaf, arg0, arg1
-fn @forward(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @forward(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = icall fn0, arg0, arg1, arg2
     ret v0
 }
 
 // `arg2` is only forwarded around the recursive cycle and is transitively dead.
-// CHECK-LABEL: fn @recursive(arg0: bool, arg1: u256) -> u256
+// CHECK-LABEL: fn @recursive(arg0: i1, arg1: i256) -> i256
 // CHECK: icall @recursive, false, arg1
-fn @recursive(arg0: bool, arg1: u256, arg2: u256) -> u256 {
+fn @recursive(arg0: i1, arg1: i256, arg2: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -34,16 +34,16 @@ fn @recursive(arg0: bool, arg1: u256, arg2: u256) -> u256 {
 }
 
 // External ABI signatures are not rewritten, even when an argument is unused.
-// CHECK-LABEL: fn @external_keeps_abi(arg0: u256, arg1: u256) -> u256
-fn @external_keeps_abi(arg0: u256, arg1: u256) -> u256 [selector=0x01020304] {
+// CHECK-LABEL: fn @external_keeps_abi(arg0: i256, arg1: i256) -> i256
+fn @external_keeps_abi(arg0: i256, arg1: i256) -> i256 [selector=0x01020304] {
   bb0:
     ret arg0
 }
 
-// CHECK-LABEL: fn @entry() -> u256
+// CHECK-LABEL: fn @entry() -> i256
 // CHECK: icall @forward, 1, 3
 // CHECK: icall @recursive, false, 7
-fn @entry() -> u256 [selector=0x01020305] {
+fn @entry() -> i256 [selector=0x01020305] {
   bb0:
     v0 = icall fn1, 1, 2, 3
     v1 = icall fn2, false, 7, 9
@@ -51,17 +51,17 @@ fn @entry() -> u256 [selector=0x01020305] {
     ret v2
 }
 
-// CHECK-LABEL: fn @tail_sink(arg0: u256)
-fn @tail_sink(arg0: u256, arg1: u256) {
+// CHECK-LABEL: fn @tail_sink(arg0: i256)
+fn @tail_sink(arg0: i256, arg1: i256) {
   bb0:
     sstore 0, arg0
     stop
 }
 
 // Tail-call operands participate in the same transitive argument liveness.
-// CHECK-LABEL: fn @tail_forward(arg0: u256)
+// CHECK-LABEL: fn @tail_forward(arg0: i256)
 // CHECK: tail_call @tail_sink, arg0
-fn @tail_forward(arg0: u256, arg1: u256) {
+fn @tail_forward(arg0: i256, arg1: i256) {
   bb0:
     tail_call fn5, arg0, arg1
 }
@@ -73,12 +73,12 @@ fn @tail_entry() [selector=0x01020306] {
     tail_call fn6, 4, 5
 }
 
-// CHECK-LABEL: fn @same_argument(arg0: bool, arg1: u256) -> u256
+// CHECK-LABEL: fn @same_argument(arg0: i1, arg1: i256) -> i256
 // CHECK: sstore 1, arg1
 // CHECK: ret arg1
 // CHECK: sstore 0, arg1
 // CHECK: ret arg1
-fn @same_argument(arg0: bool, arg1: u256) -> u256 {
+fn @same_argument(arg0: i1, arg1: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -89,7 +89,7 @@ fn @same_argument(arg0: bool, arg1: u256) -> u256 {
     ret arg1
 }
 
-fn @different_arguments(arg0: bool, arg1: u256, arg2: u256) -> u256 {
+fn @different_arguments(arg0: i1, arg1: i256, arg2: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -98,7 +98,7 @@ fn @different_arguments(arg0: bool, arg1: u256, arg2: u256) -> u256 {
     ret arg2
 }
 
-fn @tail_result(arg0: bool, arg1: u256) -> u256 {
+fn @tail_result(arg0: i1, arg1: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -107,7 +107,7 @@ fn @tail_result(arg0: bool, arg1: u256) -> u256 {
     tail_call @different_arguments, arg0, arg1, 11
 }
 
-// CHECK-LABEL: fn @forwarded_calls(arg0: bool, arg1: u256) -> u256
+// CHECK-LABEL: fn @forwarded_calls(arg0: i1, arg1: i256) -> i256
 // CHECK:       v0 = icall @same_argument, arg0, arg1
 // CHECK: +     v1 = icall @same_argument, arg0, arg1
 // CHECK: +     v2 = icall @different_arguments, arg0, arg1, 11
@@ -115,7 +115,7 @@ fn @tail_result(arg0: bool, arg1: u256) -> u256 {
 // CHECK: +     v4 = add arg1, v2
 // CHECK:       v5 = add v4, v3
 // CHECK:       ret v5
-fn @forwarded_calls(arg0: bool, arg1: u256) -> u256 [selector=0x01020307] {
+fn @forwarded_calls(arg0: i1, arg1: i256) -> i256 [selector=0x01020307] {
   bb0:
     v0 = icall @same_argument, arg0, arg1
     v1 = icall @same_argument, arg0, v0
@@ -126,11 +126,11 @@ fn @forwarded_calls(arg0: bool, arg1: u256) -> u256 [selector=0x01020307] {
     ret v5
 }
 
-// CHECK-LABEL: fn @constant(arg0: bool, arg1: bool, arg2: u256) -> u256
+// CHECK-LABEL: fn @constant(arg0: i1, arg1: i1, arg2: i256) -> i256
 // CHECK-DAG: sstore 0, arg2
 // CHECK-DAG: sstore 1, arg2
 // CHECK-DAG: revert 0, 0
-fn @constant(arg0: bool, arg1: bool, arg2: u256) -> u256 {
+fn @constant(arg0: i1, arg1: i1, arg2: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -145,7 +145,7 @@ fn @constant(arg0: bool, arg1: bool, arg2: u256) -> u256 {
     revert 0, 0
 }
 
-fn @different_constants(arg0: bool) -> u256 {
+fn @different_constants(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -154,12 +154,12 @@ fn @different_constants(arg0: bool) -> u256 {
     ret 10
 }
 
-// CHECK-LABEL: fn @constant_entry(arg0: bool, arg1: bool, arg2: u256) -> u256
+// CHECK-LABEL: fn @constant_entry(arg0: i1, arg1: i1, arg2: i256) -> i256
 // CHECK:       v0 = icall @constant, arg0, arg1, arg2
 // CHECK:       v1 = icall @different_constants, arg0
 // CHECK: +     v2 = add 9, v1
 // CHECK:       ret v2
-fn @constant_entry(arg0: bool, arg1: bool, arg2: u256) -> u256 [selector=0x01020308] {
+fn @constant_entry(arg0: i1, arg1: i1, arg2: i256) -> i256 [selector=0x01020308] {
   bb0:
     v0 = icall @constant, arg0, arg1, arg2
     v1 = icall @different_constants, arg0
@@ -167,20 +167,20 @@ fn @constant_entry(arg0: bool, arg1: bool, arg2: u256) -> u256 [selector=0x01020
     ret v2
 }
 
-// CHECK-LABEL: fn @constant_store(arg0: bool, arg1: bool, arg2: u256)
+// CHECK-LABEL: fn @constant_store(arg0: i1, arg1: i1, arg2: i256)
 // CHECK: v0 = icall @constant, arg0, arg1, arg2
 // CHECK-NEXT: mstore 128, v0
-fn @constant_store(arg0: bool, arg1: bool, arg2: u256) [selector=0x01020309] {
+fn @constant_store(arg0: i1, arg1: i1, arg2: i256) [selector=0x01020309] {
   bb0:
     v0 = icall @constant, arg0, arg1, arg2
     mstore 128, v0
     ret
 }
 
-// CHECK-LABEL: fn @constant_return(arg0: bool, arg1: bool, arg2: u256) -> u256
+// CHECK-LABEL: fn @constant_return(arg0: i1, arg1: i1, arg2: i256) -> i256
 // CHECK: v0 = icall @constant, arg0, arg1, arg2
 // CHECK-NEXT: ret v0
-fn @constant_return(arg0: bool, arg1: bool, arg2: u256) -> u256 [selector=0x0102030a] {
+fn @constant_return(arg0: i1, arg1: i1, arg2: i256) -> i256 [selector=0x0102030a] {
   bb0:
     v0 = icall @constant, arg0, arg1, arg2
     ret v0

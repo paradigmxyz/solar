@@ -3,35 +3,35 @@
 
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/inheritance_mir.sol:PointerDerived ===
 @module PointerDerived
-fn @target.0() -> u256 [pure] {
+fn @target.0() -> i256 [pure] {
   bb0:
     ret 2
 }
 
-fn @callQualified() -> u256 [selector=0x1a18d84f, abi_params=[], abi_returns=[word]] {
+fn @callQualified() -> i256 [selector=0x1a18d84f, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @internal_dispatcher_p_none_r_u256, 1
     ret v0
 }
 
-fn @callVirtual() -> u256 [selector=0xe9cdf645, abi_params=[], abi_returns=[word]] {
+fn @callVirtual() -> i256 [selector=0xe9cdf645, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @callThroughVirtualPointer
     ret v0
 }
 
-fn @target.3() -> u256 {
+fn @target.3() -> i256 {
   bb0:
     ret 1
 }
 
-fn @callThroughVirtualPointer() -> u256 {
+fn @callThroughVirtualPointer() -> i256 {
   bb0:
     v0 = icall @internal_dispatcher_p_none_r_u256, 3
     ret v0
 }
 
-fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_none_r_u256(arg0: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2

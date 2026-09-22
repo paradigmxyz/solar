@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_calldata_slice.sol:AbiDecodeCalldataSlice ===
 @module AbiDecodeCalldataSlice
 types:
-  struct0: {u256, u256, u256, u256}
-  struct1: {u256, u256}
+  struct0: {i256, i256, i256, i256}
+  struct1: {i256, i256}
 
-fn @f(arg0: u256, arg1: u256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
@@ -13,95 +13,98 @@ fn @f(arg0: u256, arg1: u256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v4 = gt v3, v3
     v5 = lt v3, 4
     v6 = or v4, v5
+    v7 = zext i1 v6 to i256
     icall revert_if<empty>, v6
-    v7 = sub v3, 4
-    v8 = add v2, 4
-    v9 = make_calldata_slice v8, v7
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = gt v11, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v12
-    v13 = calldatasize
-    v14 = sub v13, v11
-    v15 = sgt v10, v14
-    icall revert_if<calldata_tail_too_short>, v15
-    v16 = slice_len v9
-    v17 = add v16, 63
-    v18 = lt v17, v16
-    icall panic_if<0x41>, v18
-    v19 = not 31
-    v20 = and v17, v19
-    v21 = alloc memorybytes, exact, uninitialized, infallible, v20
-    set_memory_object_len memorybytes, v21, v16
-    memory_object_copy_from_slice memorybytes, v21, v9
-    v22 = abi_decode [u256, u256], v21
-    v23 = extract_value struct1, v22, 0
-    v24 = extract_value struct1, v22, 1
-    v25 = calldatasize
-    v26 = make_calldata_slice 0, v25
-    v27 = slice_ptr v26
-    v28 = slice_len v26
-    v29 = add 4, 32
-    v30 = gt v29, v28
-    v31 = lt v29, 4
-    v32 = or v30, v31
-    icall revert_if<empty>, v32
-    v33 = sub v29, 4
-    v34 = add v27, 4
-    v35 = make_calldata_slice v34, v33
-    v36 = slice_ptr v35
-    v37 = slice_len v35
-    v38 = gt v37, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v38
-    v39 = calldatasize
-    v40 = sub v39, v37
-    v41 = sgt v36, v40
-    icall revert_if<calldata_tail_too_short>, v41
-    v42 = slice_len v35
-    v43 = add v42, 63
-    v44 = lt v43, v42
-    icall panic_if<0x41>, v44
-    v45 = not 31
-    v46 = and v43, v45
-    v47 = alloc memorybytes, exact, uninitialized, infallible, v46
-    set_memory_object_len memorybytes, v47, v42
-    memory_object_copy_from_slice memorybytes, v47, v35
-    v48 = abi_decode [u256], v47
-    v49 = calldatasize
-    v50 = make_calldata_slice 0, v49
-    v51 = slice_ptr v50
-    v52 = slice_len v50
-    v53 = add 4, 32
-    v54 = add 4, 32
-    v55 = add v54, 32
-    v56 = gt v55, v52
-    v57 = lt v55, v53
-    v58 = or v56, v57
-    icall revert_if<empty>, v58
-    v59 = sub v55, v53
-    v60 = add v51, v53
-    v61 = make_calldata_slice v60, v59
-    v62 = slice_ptr v61
-    v63 = slice_len v61
-    v64 = gt v63, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v64
-    v65 = calldatasize
-    v66 = sub v65, v63
-    v67 = sgt v62, v66
-    icall revert_if<calldata_tail_too_short>, v67
-    v68 = slice_len v61
-    v69 = add v68, 63
-    v70 = lt v69, v68
-    icall panic_if<0x41>, v70
-    v71 = not 31
-    v72 = and v69, v71
-    v73 = alloc memorybytes, exact, uninitialized, infallible, v72
-    set_memory_object_len memorybytes, v73, v68
-    memory_object_copy_from_slice memorybytes, v73, v61
-    v74 = abi_decode [u256], v73
-    v75 = insert_value struct0, undef struct0, 0, v23
-    v76 = insert_value struct0, v75, 1, v24
-    v77 = insert_value struct0, v76, 2, v48
-    v78 = insert_value struct0, v77, 3, v74
-    ret v78
+    v8 = sub v3, 4
+    v9 = add v2, 4
+    v10 = make_calldata_slice v9, v8
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = gt v12, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v13
+    v14 = calldatasize
+    v15 = sub v14, v12
+    v16 = sgt v11, v15
+    icall revert_if<calldata_tail_too_short>, v16
+    v17 = slice_len v10
+    v18 = add v17, 63
+    v19 = lt v18, v17
+    icall panic_if<0x41>, v19
+    v20 = not 31
+    v21 = and v18, v20
+    v22 = alloc memorybytes, exact, uninitialized, infallible, v21
+    set_memory_object_len memorybytes, v22, v17
+    memory_object_copy_from_slice memorybytes, v22, v10
+    v23 = abi_decode [u256, u256], v22
+    v24 = extract_value struct1, v23, 0
+    v25 = extract_value struct1, v23, 1
+    v26 = calldatasize
+    v27 = make_calldata_slice 0, v26
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = add 4, 32
+    v31 = gt v30, v29
+    v32 = lt v30, 4
+    v33 = or v31, v32
+    v34 = zext i1 v33 to i256
+    icall revert_if<empty>, v33
+    v35 = sub v30, 4
+    v36 = add v28, 4
+    v37 = make_calldata_slice v36, v35
+    v38 = slice_ptr v37
+    v39 = slice_len v37
+    v40 = gt v39, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v40
+    v41 = calldatasize
+    v42 = sub v41, v39
+    v43 = sgt v38, v42
+    icall revert_if<calldata_tail_too_short>, v43
+    v44 = slice_len v37
+    v45 = add v44, 63
+    v46 = lt v45, v44
+    icall panic_if<0x41>, v46
+    v47 = not 31
+    v48 = and v45, v47
+    v49 = alloc memorybytes, exact, uninitialized, infallible, v48
+    set_memory_object_len memorybytes, v49, v44
+    memory_object_copy_from_slice memorybytes, v49, v37
+    v50 = abi_decode [u256], v49
+    v51 = calldatasize
+    v52 = make_calldata_slice 0, v51
+    v53 = slice_ptr v52
+    v54 = slice_len v52
+    v55 = add 4, 32
+    v56 = add 4, 32
+    v57 = add v56, 32
+    v58 = gt v57, v54
+    v59 = lt v57, v55
+    v60 = or v58, v59
+    v61 = zext i1 v60 to i256
+    icall revert_if<empty>, v60
+    v62 = sub v57, v55
+    v63 = add v53, v55
+    v64 = make_calldata_slice v63, v62
+    v65 = slice_ptr v64
+    v66 = slice_len v64
+    v67 = gt v66, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v67
+    v68 = calldatasize
+    v69 = sub v68, v66
+    v70 = sgt v65, v69
+    icall revert_if<calldata_tail_too_short>, v70
+    v71 = slice_len v64
+    v72 = add v71, 63
+    v73 = lt v72, v71
+    icall panic_if<0x41>, v73
+    v74 = not 31
+    v75 = and v72, v74
+    v76 = alloc memorybytes, exact, uninitialized, infallible, v75
+    set_memory_object_len memorybytes, v76, v71
+    memory_object_copy_from_slice memorybytes, v76, v64
+    v77 = abi_decode [u256], v76
+    v78 = insert_value struct0, undef struct0, 0, v24
+    v79 = insert_value struct0, v78, 1, v25
+    v80 = insert_value struct0, v79, 2, v50
+    v81 = insert_value struct0, v80, 3, v77
+    ret v81
 }

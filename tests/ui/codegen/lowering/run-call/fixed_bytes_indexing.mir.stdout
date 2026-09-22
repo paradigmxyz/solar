@@ -1,29 +1,29 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_indexing.sol:C ===
 @module C
-fn @at1(arg0: bytes1, arg1: u256) -> bytes1 [selector=0xc793e4d2, pure, abi_params=[bytes1, u256], abi_returns=[word<bytes1>]] {
+fn @at1(arg0: i256, arg1: i256) -> i256 [selector=0xc793e4d2, pure, abi_params=[bytes1, u256], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = lt arg1, 1
-    v1 = iszero v0
+    v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = byte arg1, arg0
     v3 = shl 248, v2
     ret v3
 }
 
-fn @at7(arg0: bytes7, arg1: u256) -> bytes1 [selector=0x84f023b5, pure, abi_params=[bytes7, u256], abi_returns=[word<bytes1>]] {
+fn @at7(arg0: i256, arg1: i256) -> i256 [selector=0x84f023b5, pure, abi_params=[bytes7, u256], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = lt arg1, 7
-    v1 = iszero v0
+    v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = byte arg1, arg0
     v3 = shl 248, v2
     ret v3
 }
 
-fn @at32(arg0: bytes32, arg1: u256) -> bytes1 [selector=0xabb4fb46, pure, abi_params=[bytes32, u256], abi_returns=[word<bytes1>]] {
+fn @at32(arg0: i256, arg1: i256) -> i256 [selector=0xabb4fb46, pure, abi_params=[bytes32, u256], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = lt arg1, 32
-    v1 = iszero v0
+    v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = byte arg1, arg0
     v3 = shl 248, v2

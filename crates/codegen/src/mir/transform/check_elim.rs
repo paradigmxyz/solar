@@ -21,10 +21,11 @@
 //! recorded facts with checked 256-bit arithmetic; a condition that is
 //! provably constant folds the branch to an unconditional jump, and the dead
 //! panic block is cleaned up by the existing CFG passes. Anything that is
-//! not provable is left untouched. Semantic checks use the same facts in instruction order:
-//! a passing check refines all later execution, and a proven passing check can be removed before
-//! expansion. Facts roll back on leaving each dominator subtree, so a check on one conditional
-//! path cannot justify removing a check on another.
+//! not provable is left untouched. Explicit integer casts retain range facts only
+//! when their width and sign semantics preserve the bounded values. Semantic checks use the same
+//! facts in instruction order: a passing check refines all later execution, and a proven passing
+//! check can be removed before expansion. Facts roll back on leaving each dominator subtree, so a
+//! check on one conditional path cannot justify removing a check on another.
 //!
 //! Before the dominator walk, a bounded forward analysis carries the intersection
 //! of relational facts and the union of ranges across predecessor edges. Phi
@@ -71,6 +72,11 @@
 //! contains a strict edge. Exhausting this bound leaves the check in place; disequality is never
 //! treated as transitive.
 //!
+//! Signed comparisons rotate intervals by the sign bit to use the same ordered
+//! bounds. An interval crossing the rotation boundary widens to unknown; signed
+//! facts only become unsigned relations when both operands have the same known
+//! sign. These bounds use the existing join and dominance scopes.
+//!
 //! Runtime-only functions also use bounds from zero-extended immutable encodings.
 //! These bounds follow the target's actual immediate width, not the result's
 //! nominal type. Constructor-reachable functions, including helpers shared with
@@ -78,8 +84,11 @@
 //! and left-aligned encodings remain unknown. The bounds are immutable facts and
 //! are available to both the forward analysis and the dominator walk.
 //! The separate `immutable-check-elim` adapter runs after ABI getter inlining,
-//! selecting only runtime functions that load bounded immutables. This exposes
-//! facts hidden behind getter calls during the ordinary earlier check passes.
+//! selecting only runtime functions that load bounded immutables. Before using those
+//! bounds, it narrows unsigned immutable encodings when every assignment fits, using
+//! the shared value-width and caller-argument proofs. Missing assignments and unknown
+//! words keep their declared width; unsigned layouts retain their i256 SSA carrier.
+//! This exposes facts hidden behind getter calls during the ordinary earlier check passes.
 
 //! The `late-check-elim` adapter revisits conditions unified by CSE after memory
 //! lowering. Gas mode only removes redundant failure edges from blocks on a CFG
@@ -92,11 +101,11 @@
 //! Run it after the post-memory CSE. Only functions with removed checks receive
 //! CFG cleanup, avoiding unrelated late block merges in other functions.
 
-use super::cfg_simplify::simplify_function;
+use super::{call_cleanup, cfg_simplify::simplify_function, egraph::max_bits_with_args};
 use crate::{
     mir::{
         BlockId, Builtin, Callee, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
-        InstKind, Module, Terminator, Value, ValueId,
+        InstKind, Module, Terminator, TypeSize, Value, ValueId, ValueLayout,
         analysis::{CallGraphInfo, CfgInfo},
         immutable::immutable_push_type_size,
         pass::{
@@ -109,7 +118,7 @@ use crate::{
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{
-    bit_set::DenseBitSet,
+    bit_set::{DenseBitSet, GrowableBitSet},
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
@@ -206,6 +215,7 @@ impl MirPass for ImmutableCheckElim {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let narrowed = narrow_immutable_layouts(module);
         let bounds = module
             .iter_immutables()
             .filter_map(|(id, immutable)| {
@@ -224,7 +234,7 @@ impl MirPass for ImmutableCheckElim {
             })
             .collect::<FxHashMap<_, _>>();
         if bounds.is_empty() {
-            return false;
+            return narrowed;
         }
         let mut runtime_only = runtime_only_functions(module);
         for id in runtime_only.iter().collect::<Vec<_>>() {
@@ -239,8 +249,44 @@ impl MirPass for ImmutableCheckElim {
             let mut eliminator = CheckEliminator::new(Some(&bounds));
             eliminator.cfg = Some(Rc::clone(analyses.cfg()));
             eliminator.run(func) != 0
-        })
+        }) || narrowed
     }
+}
+
+/// Shrinks unsigned encodings only when every assignment preserves all stored bits.
+fn narrow_immutable_layouts(module: &mut Module) -> bool {
+    let can_narrow = |ty| matches!(ty, ValueLayout::UInt(size) if size.bits() > 8);
+    if !module.iter_immutables().any(|(_, immutable)| can_narrow(immutable.ty)) {
+        return false;
+    }
+    let arguments = call_cleanup::infer_arguments(module);
+    let mut widths = FxHashMap::<_, u32>::default();
+    for (id, func) in module.functions.iter_enumerated() {
+        for inst in func.instructions() {
+            if let InstKind::StoreImmutable(immutable, value) = func.inst(inst).kind
+                && can_narrow(module.immutable(immutable).ty)
+            {
+                let bits = max_bits_with_args(func, value, 8, &|index| {
+                    call_cleanup::argument_bits(func, id, index, &arguments)
+                });
+                widths
+                    .entry(immutable)
+                    .and_modify(|width| *width = (*width).max(bits))
+                    .or_insert(bits);
+            }
+        }
+    }
+    let mut changed = false;
+    for (id, bits) in widths {
+        let bits = bits.max(1).div_ceil(8) * 8;
+        if let ValueLayout::UInt(size) = module.immutable(id).ty
+            && bits < u32::from(size.bits())
+        {
+            module.immutable_mut(id).ty = ValueLayout::UInt(TypeSize::new_int_bits(bits as u16));
+            changed = true;
+        }
+    }
+    changed
 }
 
 /// Excludes every constructor-reachable helper, including recursive and tail-call edges.
@@ -310,6 +356,16 @@ impl Range {
         let lo = self.lo.max(other.lo);
         let hi = self.hi.min(other.hi);
         (lo <= hi).then_some(Self { lo, hi })
+    }
+
+    /// Rotates unsigned order into signed order, or back, widening a split interval.
+    fn flip_sign(self) -> Self {
+        if self.lo.bit(255) == self.hi.bit(255) {
+            let sign = U256::from(1) << 255;
+            Self::new(self.lo ^ sign, self.hi ^ sign)
+        } else {
+            Self::FULL
+        }
     }
 
     fn union(self, other: Self) -> Self {
@@ -406,6 +462,8 @@ struct CheckEliminator<'a> {
     difference_index: Option<DifferenceIndex>,
     /// Depth of the sum-bound lemma, which asks relational questions of its own.
     sum_depth: usize,
+    /// Values above a strict edge, shared by queries in the same fact scope.
+    strict_lower_bounds: Option<GrowableBitSet<ValueId>>,
     /// Counting header phis with constant start and step, bounded by the
     /// distance any affordable number of iterations can travel.
     trip_bounds: FxHashMap<ValueId, Range>,
@@ -433,8 +491,10 @@ impl<'a> CheckEliminator<'a> {
         selected: Option<(&DenseBitSet<BlockId>, &FxHashSet<FunctionId>)>,
     ) -> usize {
         self.stats = CheckElimStats::default();
+        self.strict_lower_bounds = None;
         self.relation_index = None;
         self.reverse_index = None;
+        self.difference_index = None;
         self.monotone_relations.clear();
         self.universal_relations.clear();
         self.trip_bounds.clear();
@@ -509,6 +569,8 @@ impl<'a> CheckEliminator<'a> {
                 self.monotone_relations.push(phi.relation());
             }
             self.relation_index = None;
+            self.reverse_index = None;
+            self.strict_lower_bounds = None;
             (folds, checks) = self.collect_folds(func, &cfg, &preds, &facts, &[], &mut Vec::new());
         }
         if let Some((selected, reverting)) = selected {
@@ -578,6 +640,9 @@ impl<'a> CheckEliminator<'a> {
                             Some(range) => self.ranges.insert(value, range),
                             None => self.ranges.remove(&value),
                         };
+                    }
+                    if self.relation_undo.len() > relation_mark {
+                        self.strict_lower_bounds = None;
                     }
                     while self.relation_undo.len() > relation_mark {
                         let relation = self.relation_undo.pop().expect("checked len");
@@ -685,8 +750,12 @@ impl<'a> CheckEliminator<'a> {
                 let mut value = condition;
                 while uses[value] == 1 {
                     consumed_conditions.entry(block).or_default().push(value);
-                    let Some(InstKind::IsZero(inner)) = inst_kind(func, value) else { break };
-                    value = *inner;
+                    let Some(inner) =
+                        inst_kind(func, value).and_then(|kind| kind.zero_test_operand(func))
+                    else {
+                        break;
+                    };
+                    value = inner;
                 }
             }
         }
@@ -706,6 +775,7 @@ impl<'a> CheckEliminator<'a> {
                     for &pred in &preds[block] {
                         cx.ranges.clone_from(&exits[pred].ranges);
                         cx.relations.clone_from(&exits[pred].relations);
+                        cx.strict_lower_bounds = None;
                         cx.range_undo.clear();
                         cx.relation_undo.clear();
                         if let Some(Terminator::Branch { condition, then_block, else_block }) =
@@ -772,6 +842,7 @@ impl<'a> CheckEliminator<'a> {
                 let entry = merged.unwrap_or_default();
                 cx.ranges.clone_from(&entry.ranges);
                 cx.relations.clone_from(&entry.relations);
+                cx.strict_lower_bounds = None;
                 cx.range_undo.clear();
                 cx.relation_undo.clear();
                 for &inst in &func.blocks[block].instructions {
@@ -803,6 +874,7 @@ impl<'a> CheckEliminator<'a> {
         }
         self.relation_index = cx.relation_index;
         self.reverse_index = cx.reverse_index;
+        self.difference_index = cx.difference_index;
         entries
     }
 
@@ -820,9 +892,11 @@ impl<'a> CheckEliminator<'a> {
         let Some(depth) = depth.checked_sub(1) else { return };
         let Some(kind) = inst_kind(func, value) else { return };
         match *kind {
-            InstKind::IsZero(a) => self.assume(func, a, !truth, depth),
+            InstKind::Ne(a, b) => self.assume_eq(func, a, b, !truth, depth),
             InstKind::Lt(a, b) => self.assume_lt(func, a, b, truth, depth),
             InstKind::Gt(a, b) => self.assume_lt(func, b, a, truth, depth),
+            InstKind::SLt(a, b) => self.assume_slt(func, a, b, truth, depth),
+            InstKind::SGt(a, b) => self.assume_slt(func, b, a, truth, depth),
             InstKind::Eq(a, b) => self.assume_eq(func, a, b, truth, depth),
             // `sub a, b` is nonzero iff `a != b`.
             InstKind::Sub(a, b) | InstKind::Xor(a, b) => self.assume_eq(func, a, b, !truth, depth),
@@ -864,8 +938,42 @@ impl<'a> CheckEliminator<'a> {
         }
     }
 
+    /// Refines signed bounds without treating a cross-sign comparison as unsigned.
+    fn assume_slt(&mut self, func: &Function, a: ValueId, b: ValueId, truth: bool, depth: usize) {
+        let ra = self.range_of(func, a, depth);
+        let rb = self.range_of(func, b, depth);
+        if ra.lo.bit(255) == ra.hi.bit(255)
+            && rb.lo.bit(255) == rb.hi.bit(255)
+            && ra.lo.bit(255) == rb.lo.bit(255)
+        {
+            self.assume_lt(func, a, b, truth, depth);
+            return;
+        }
+        let ra = ra.flip_sign();
+        let rb = rb.flip_sign();
+        let (a_limit, b_limit) = if truth {
+            (
+                Range::new(U256::ZERO, rb.hi.saturating_sub(U256::from(1))),
+                Range::new(ra.lo.saturating_add(U256::from(1)), U256::MAX),
+            )
+        } else {
+            (Range::new(rb.lo, U256::MAX), Range::new(U256::ZERO, ra.hi))
+        };
+        if let Some(range) = ra.intersect(a_limit) {
+            self.narrow(a, range.flip_sign());
+        }
+        if let Some(range) = rb.intersect(b_limit) {
+            self.narrow(b, range.flip_sign());
+        }
+    }
+
     /// Records the consequences of `(a == b) == truth`.
     fn assume_eq(&mut self, func: &Function, a: ValueId, b: ValueId, truth: bool, depth: usize) {
+        if const_of(func, b).is_some_and(|v| v.is_zero()) {
+            self.assume(func, a, !truth, depth);
+        } else if const_of(func, a).is_some_and(|v| v.is_zero()) {
+            self.assume(func, b, !truth, depth);
+        }
         let (x, y) = ordered(a, b);
         if truth {
             self.add_relation(Relation::Eq(x, y));
@@ -916,11 +1024,12 @@ impl<'a> CheckEliminator<'a> {
 
     fn add_relation(&mut self, relation: Relation) {
         if self.relations.insert(relation) {
+            self.strict_lower_bounds = None;
             self.relation_undo.push(relation);
         }
     }
 
-    /// Builds the forward and reverse relation indexes on first use.
+    /// Builds the forward relation index on first use.
     fn ensure_relation_index(&mut self, func: &Function) {
         if self.relation_index.is_some() {
             return;
@@ -932,8 +1041,16 @@ impl<'a> CheckEliminator<'a> {
         for &relation in &self.universal_relations {
             index_relation(&mut index, relation);
         }
+        self.relation_index = Some(index);
+    }
+
+    fn ensure_reverse_index(&mut self, func: &Function) {
+        if self.reverse_index.is_some() {
+            return;
+        }
+        self.ensure_relation_index(func);
         let mut reverse = FxHashMap::<_, SmallVec<[Relation; 2]>>::default();
-        for relation in index.values().flatten() {
+        for relation in self.relation_index.as_ref().unwrap().values().flatten() {
             let (a, b) = relation.operands();
             for key in if matches!(relation, Relation::Eq(..)) { [a, b] } else { [b, b] } {
                 let entry = reverse.entry(key).or_default();
@@ -941,6 +1058,13 @@ impl<'a> CheckEliminator<'a> {
                     entry.push(*relation);
                 }
             }
+        }
+        self.reverse_index = Some(reverse);
+    }
+
+    fn ensure_difference_index(&mut self, func: &Function) {
+        if self.difference_index.is_some() {
+            return;
         }
         let mut differences = FxHashMap::<_, SmallVec<[(ValueId, ValueId); 2]>>::default();
         for inst_id in func.instructions() {
@@ -952,8 +1076,6 @@ impl<'a> CheckEliminator<'a> {
                 }
             }
         }
-        self.relation_index = Some(index);
-        self.reverse_index = Some(reverse);
         self.difference_index = Some(differences);
     }
 
@@ -971,7 +1093,7 @@ impl<'a> CheckEliminator<'a> {
             return false;
         }
         let Some(&InstKind::Add(first, second)) = inst_kind(func, sum) else { return false };
-        self.ensure_relation_index(func);
+        self.ensure_difference_index(func);
         self.sum_depth += 1;
         let found = [(first, second), (second, first)].into_iter().any(|(base, offset)| {
             let candidates = self
@@ -1003,7 +1125,7 @@ impl<'a> CheckEliminator<'a> {
         bound: ValueId,
         depth: usize,
     ) -> bool {
-        self.ensure_relation_index(func);
+        self.ensure_reverse_index(func);
         let reverse = self.reverse_index.as_ref().expect("relation index was just built");
         let mut amounts = SmallVec::<[U256; 4]>::new();
         for &fact in reverse.get(&bound).into_iter().flatten() {
@@ -1034,36 +1156,49 @@ impl<'a> CheckEliminator<'a> {
     /// Whether some value is provably below `value` in the current scope,
     /// which puts `value` at one or more: every word is at least zero.
     fn has_strict_lower_bound(&mut self, func: &Function, value: ValueId) -> bool {
-        self.ensure_relation_index(func);
-        let reverse = self.reverse_index.as_ref().expect("relation index was just built");
-        if !reverse.contains_key(&value) {
-            return false;
-        }
-        const MAX_RELATION_STATES: usize = 128;
-        let mut pending = SmallVec::<[_; 8]>::new();
-        pending.push(value);
-        let mut seen = FxHashSet::default();
-        while let Some(current) = pending.pop() {
-            if !seen.insert(current) {
-                continue;
+        if self.strict_lower_bounds.is_none() {
+            let mut nonzero = GrowableBitSet::with_capacity(func.num_values());
+            let mut pending = Vec::new();
+            for &fact in &self.relations {
+                if let Relation::Lt(_, bound) = fact
+                    && nonzero.insert(bound)
+                {
+                    pending.push(bound);
+                }
             }
-            if seen.len() >= MAX_RELATION_STATES {
+            if pending.is_empty() {
+                self.strict_lower_bounds = Some(nonzero);
                 return false;
             }
-            for &fact in reverse.get(&current).into_iter().flatten() {
-                if !self.relations.contains(&fact) && !self.universal_relations.contains(&fact) {
-                    continue;
-                }
-                match fact {
-                    Relation::Lt(_, b) if b == current => return true,
-                    Relation::Le(a, b) if b == current => pending.push(a),
-                    Relation::Eq(a, b) if a == current => pending.push(b),
-                    Relation::Eq(a, b) if b == current => pending.push(a),
-                    _ => {}
+            self.ensure_relation_index(func);
+            let index = self.relation_index.as_ref().expect("relation index was just built");
+            // A strict edge makes its upper endpoint nonzero. Propagate that fact through
+            // active orderings once per scope instead of searching backward for every value.
+            while let Some(current) = pending.pop() {
+                for &fact in index.get(&current).into_iter().flatten() {
+                    if !self.relations.contains(&fact) && !self.universal_relations.contains(&fact)
+                    {
+                        continue;
+                    }
+                    let next = match fact {
+                        Relation::Lt(a, b) | Relation::Le(a, b) if a == current => b,
+                        Relation::Eq(a, b) => {
+                            if a == current {
+                                b
+                            } else {
+                                a
+                            }
+                        }
+                        _ => continue,
+                    };
+                    if nonzero.insert(next) {
+                        pending.push(next);
+                    }
                 }
             }
+            self.strict_lower_bounds = Some(nonzero);
         }
-        false
+        self.strict_lower_bounds.as_ref().unwrap().contains(value)
     }
 
     fn has_relation(&mut self, func: &Function, relation: Relation) -> bool {
@@ -1158,6 +1293,17 @@ impl<'a> CheckEliminator<'a> {
         let Some(depth) = depth.checked_sub(1) else { return range };
         let Some(kind) = inst_kind(func, value) else { return range };
         let derived = match *kind {
+            InstKind::Zext(source) => self.range_of(func, source, depth),
+            InstKind::Trunc(source, bits) if (1..=256).contains(&bits) => {
+                let source = self.range_of(func, source, depth);
+                let mask = U256::MAX >> (256 - bits);
+                if source.hi <= mask { source } else { Range::new(U256::ZERO, mask) }
+            }
+            InstKind::Sext(source, from_bits, _) if (1..=256).contains(&from_bits) => {
+                let source = self.range_of(func, source, depth);
+                // Sign extension preserves nonnegative values; other signs remain unknown.
+                if source.hi < (U256::ONE << (from_bits - 1)) { source } else { Range::FULL }
+            }
             InstKind::LoadImmutable(id) => self
                 .immutable_ranges
                 .and_then(|ranges| ranges.get(&id))
@@ -1234,7 +1380,7 @@ impl<'a> CheckEliminator<'a> {
             | InstKind::SLt(..)
             | InstKind::SGt(..)
             | InstKind::Eq(..)
-            | InstKind::IsZero(..) => match self.eval_truth(func, value, depth) {
+            | InstKind::Ne(..) => match self.eval_truth(func, value, depth) {
                 Some(true) => Range::singleton(U256::from(1)),
                 Some(false) => Range::singleton(U256::ZERO),
                 None => Range::new(U256::ZERO, U256::from(1)),
@@ -1280,8 +1426,10 @@ impl<'a> CheckEliminator<'a> {
         match *kind {
             InstKind::Lt(a, b) => self.eval_lt(func, a, b, depth),
             InstKind::Gt(a, b) => self.eval_lt(func, b, a, depth),
+            InstKind::SLt(a, b) => self.eval_slt(func, a, b, depth),
+            InstKind::SGt(a, b) => self.eval_slt(func, b, a, depth),
             InstKind::Eq(a, b) => self.eval_eq(func, a, b, depth),
-            InstKind::IsZero(a) => self.eval_truth(func, a, depth).map(|truth| !truth),
+            InstKind::Ne(a, b) => self.eval_eq(func, a, b, depth).map(|truth| !truth),
             InstKind::Sub(a, b) | InstKind::Xor(a, b) => {
                 self.eval_eq(func, a, b, depth).map(|eq| !eq)
             }
@@ -1324,6 +1472,30 @@ impl<'a> CheckEliminator<'a> {
                 }
                 None
             }
+        }
+    }
+
+    /// Evaluates signed order using bounds rotated by the sign bit.
+    fn eval_slt(&mut self, func: &Function, a: ValueId, b: ValueId, depth: usize) -> Option<bool> {
+        if a == b {
+            return Some(false);
+        }
+        let ra = self.range_of(func, a, depth);
+        let rb = self.range_of(func, b, depth);
+        if ra.lo.bit(255) == ra.hi.bit(255)
+            && rb.lo.bit(255) == rb.hi.bit(255)
+            && ra.lo.bit(255) == rb.lo.bit(255)
+        {
+            return self.eval_lt(func, a, b, depth);
+        }
+        let ra = ra.flip_sign();
+        let rb = rb.flip_sign();
+        if ra.hi < rb.lo {
+            Some(true)
+        } else if ra.lo >= rb.hi {
+            Some(false)
+        } else {
+            None
         }
     }
 
@@ -1490,7 +1662,7 @@ impl<'a> CheckEliminator<'a> {
         None
     }
 
-    /// Recognizes the checked doubling `or (iszero x), (eq (div (add x, x), x), 2)`,
+    /// Recognizes the checked doubling `or (eq x, 0), (eq (div (add x, x), x), 2)`,
     /// which holds whenever `x + x` cannot wrap: a zero `x` satisfies the first
     /// disjunct and any other `x` divides its doubling back to two.
     fn doubling_check_holds(
@@ -1500,7 +1672,10 @@ impl<'a> CheckEliminator<'a> {
         roundtrip: ValueId,
         depth: usize,
     ) -> bool {
-        let Some(&InstKind::IsZero(x)) = inst_kind(func, zero_test) else { return false };
+        let Some(x) = inst_kind(func, zero_test).and_then(|kind| kind.zero_test_operand(func))
+        else {
+            return false;
+        };
         let Some(&InstKind::Eq(lhs, rhs)) = inst_kind(func, roundtrip) else { return false };
         let (quotient, two) = if const_of(func, rhs) == Some(U256::from(2)) {
             (lhs, rhs)
@@ -1669,11 +1844,16 @@ fn relation_candidates(func: &Function) -> FxHashMap<ValueId, SmallVec<[Relation
                     add(Relation::Lt(a, b));
                     add(Relation::Le(b, a));
                 }
-                Some(&InstKind::Eq(a, b) | &InstKind::Sub(a, b) | &InstKind::Xor(a, b)) => {
+                Some(
+                    &InstKind::Eq(a, b)
+                    | &InstKind::Ne(a, b)
+                    | &InstKind::Sub(a, b)
+                    | &InstKind::Xor(a, b),
+                ) => {
                     let (x, y) = ordered(a, b);
                     add(Relation::Eq(x, y));
                 }
-                Some(&InstKind::IsZero(a)) => pending.push(a),
+
                 Some(&InstKind::And(a, b) | &InstKind::Or(a, b)) => {
                     pending.extend([b, a]);
                 }

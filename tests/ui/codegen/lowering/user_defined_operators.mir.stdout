@@ -1,18 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/user_defined_operators.sol:UserDefinedOperators ===
 @module UserDefinedOperators
-fn @doAdd(arg0: i256, arg1: i256) -> i256 [selector=0xe9148a2a, pure, abi_params=[i256, i256], abi_returns=[word]] {
+fn @doAdd(arg0: i256, arg1: i256) -> i256 [selector=0xe9148a2a, pure, abi_params=[i256, i256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = icall @add, arg0, arg1
     ret v0
 }
 
-fn @doNeg(arg0: i256) -> i256 [selector=0x8fa81b4e, pure, abi_params=[i256], abi_returns=[word]] {
+fn @doNeg(arg0: i256) -> i256 [selector=0x8fa81b4e, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = icall @neg, arg0
     ret v0
 }
 
-fn @doFlip(arg0: i256) -> i256 [selector=0x7cf9d6d4, pure, abi_params=[i256], abi_returns=[word]] {
+fn @doFlip(arg0: i256) -> i256 [selector=0x7cf9d6d4, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = icall @flip, arg0
     ret v0

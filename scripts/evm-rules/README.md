@@ -1,10 +1,12 @@
 # Verified EVM word rewrites
 
 This is an offline search and SMT verification lane for the **actual ISLE source
-compiled into the optimizer**. It currently gates `word.isle`, `word_sequence.isle` and
-`stack_select.isle`, plus the physical rules in `stack_peephole.isle` and
-`late_word.isle`. CI also verifies `egraph.isle` with
-the larger budgets described below. The compiler itself has no solver dependency.
+compiled into the optimizer**. Under `crates/codegen/isle/`, it checks MIR
+rewrites in `mir/word.isle` and `mir/word_sequence.isle`, lowering rules in
+`mir-to-evm/stack_select.isle`, and physical EVM IR rules in
+`evm-ir/stack_peephole.isle` and `evm-ir/late_word.isle`. CI also verifies
+`mir/egraph.isle` with the larger budgets described below. The compiler itself
+has no solver dependency.
 
 ```sh
 uv run scripts/evm-rules/test.py
@@ -85,7 +87,7 @@ bash .github/scripts/run_evm_proofs.sh
 PROOF_AUDIT=true bash .github/scripts/run_evm_proofs.sh target/evm-audit
 
 # Reuse the same cache for a selected file or shard.
-uv run scripts/evm-rules/verify.py verify crates/codegen/isle/word.isle \
+uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/word.isle \
   --cache-dir target/evm-proof-cache --shard-index 0 --shard-count 4 \
   --output target/evm-rules/selected.json --artifacts target/evm-rules/selected
 ```
@@ -143,7 +145,7 @@ five-second limit per strategy per query and fails on every exhausted query.
 Word verification has an optional, explicit cvc5 fallback:
 
 ```sh
-uv run scripts/evm-rules/verify.py verify crates/codegen/isle/egraph.isle \
+uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/egraph.isle \
   --fallback-solver cvc5 --output target/evm-rules/legacy.json \
   --artifacts target/evm-rules/legacy-smt
 ```
@@ -174,7 +176,7 @@ For word queries that remain incomplete, opt into an additional budget for
 proving every output bit separately:
 
 ```sh
-uv run scripts/evm-rules/verify.py verify crates/codegen/isle/egraph.isle \
+uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/egraph.isle \
   --fallback-solver cvc5 --bit-partition-timeout-ms 120000 \
   --bit-partition-jobs 4 \
   --output target/evm-rules/legacy-bits.json \
@@ -265,6 +267,14 @@ The ISLE reader permits balance reads only at the instruction roots being
 replaced. It rejects nested balance producers, which could have executed before
 an intervening call; a shared-state assumption is not silently added for them.
 
+Classic `CALL`, `CALLCODE`, `STATICCALL`, and `DELEGATECALL` rewrites use a
+separate effect-preservation obligation. Both sides must keep the same opcode
+and every effective operand, with the address truncated to 160 bits. The checker
+compares the complete operand tuple; it never models the call result as a pure
+value. Nested calls and rewrites that remove or change the call are rejected.
+The rewrite driver keeps the instruction at its original position. Gas accounting
+and the callee's execution remain outside this proof.
+
 The compiled balance-mask rules remove `address & mask` before `BALANCE` when
 the mask preserves all low 160 bits. Their single-use and same-block guards
 restrict profitability; the proof checks returned-word equality for arbitrary
@@ -318,12 +328,15 @@ structural/fork guards; actual opcode availability and profitability remain the
 compiler's responsibility. There is no claim of a verified compiler or an
 independently checked proof certificate.
 
-The physical stack lane checks the six compiled rules in `stack_peephole.isle`
+The physical stack lane checks the seven compiled rules in `stack_peephole.isle`
 directly, including every supported DUP/SWAP depth from 1 through 235 and every
-legal EXCHANGE pair. It compares every touched word, the final height, required
-input depth and peak growth; an arbitrary deeper prefix stays unchanged.
+legal EXCHANGE pair and the EQ/ISZERO shuffle cleanup. It compares every touched
+word, the final height, required input depth and peak growth; an arbitrary deeper
+prefix stays unchanged.
 Malformed input bytecode and out-of-gas behavior are excluded. The Rust window
 facets, edits and target lowering remain trusted and are recorded by hash.
+The guarded five-op window rejects overridden stack effects and protected
+instruction boundaries; focused window-helper tests check these Rust-side guards.
 Other peepholes, especially memory and branch rewrites, are not covered by this
 lane. Unknown syntax, guards, edits or operations fail verification.
 
@@ -353,7 +366,7 @@ decisions remain unchanged in both cases.
 An audit of the older rules is available explicitly:
 
 ```sh
-uv run scripts/evm-rules/verify.py verify crates/codegen/isle/egraph.isle \
+uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/egraph.isle \
   --timeout-ms 1000 --output target/evm-rules/audit.json
 ```
 

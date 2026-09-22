@@ -6,19 +6,19 @@
 // CHECK-LABEL: @linear
 // CHECK: {{^ +}}[[SUM:v[0-9]+]] = add arg0, 1
 // CHECK: {{^ +}}ret [[SUM]]
-fn @linear(arg0: u256) -> u256 {
+fn @linear(arg0: i256) -> i256 {
   bb0:
     v0 = add arg0, 1
     ret v0
 }
 
 // CHECK-LABEL: @diamond
-// CHECK: {{^ +}}jumpi arg1, [[THEN:bb[0-9]+]], [[ELSE:bb[0-9]+]]
+// CHECK: {{^ +}}jumpi {{(arg[0-9]+|v[0-9]+)}}, [[THEN:bb[0-9]+]], [[ELSE:bb[0-9]+]]
 // CHECK: {{^ +}}[[ELSE]]:
 // CHECK: {{^ +}}ret arg0
 // CHECK: {{^ +}}[[THEN]]:
 // CHECK: {{^ +}}ret arg0
-fn @diamond(arg0: u256, arg1: bool) -> u256 {
+fn @diamond(arg0: i256, arg1: i1) -> i256 {
   bb0:
     jumpi arg1, bb1, bb2
   bb1:
@@ -31,7 +31,7 @@ fn @diamond(arg0: u256, arg1: bool) -> u256 {
 // CHECK: {{^ +}}sstore arg0, arg1 !metadata(storage=symbolic(arg0))
 // CHECK: {{^ +}}[[LOADED:v[0-9]+]] = sload arg0 !metadata(storage=symbolic(arg0))
 // CHECK: {{^ +}}ret [[LOADED]]
-fn @storage_ops(arg0: u256, arg1: u256) -> u256 {
+fn @storage_ops(arg0: i256, arg1: i256) -> i256 {
   bb0:
     sstore arg0, arg1 !metadata(storage=symbolic(arg0))
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
@@ -40,7 +40,7 @@ fn @storage_ops(arg0: u256, arg1: u256) -> u256 {
 
 // CHECK-LABEL: fn @over.load.4(
 // CHECK: icall @over.load.5
-fn @over.load.4() -> u256 {
+fn @over.load.4() -> i256 {
   bb0:
     v0 = icall @over.load.5
     ret v0
@@ -48,7 +48,24 @@ fn @over.load.4() -> u256 {
 
 // CHECK-LABEL: fn @over.load.5(
 // CHECK: ret 1
-fn @over.load.5() -> u256 {
+fn @over.load.5() -> i256 {
   bb0:
     ret 1
+}
+
+// CHECK-LABEL: fn @boolean_ops(
+// CHECK: = and arg0, arg1
+// CHECK: = or
+// CHECK: = xor
+// CHECK: jumpi
+fn @boolean_ops(arg0: i1, arg1: i1) -> i1 {
+  bb0:
+    v0 = and arg0, arg1
+    v1 = or v0, arg1
+    v2 = xor v1, arg0
+    jumpi v2, bb1, bb2
+  bb1:
+    ret v1
+  bb2:
+    ret v0
 }

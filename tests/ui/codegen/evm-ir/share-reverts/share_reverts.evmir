@@ -1,5 +1,8 @@
-//@compile-flags: -Zevm-ir-pipeline=share-reverts
-//@filecheck:
+//@ revisions: direct normalized
+//@[direct] compile-flags: -Zevm-ir-pipeline=share-reverts
+//@[direct] filecheck:
+//@[normalized] compile-flags: -Zevm-ir-pipeline=peephole,share-reverts
+//@[normalized] filecheck: --check-prefix=NORMALIZED
 @module module
 
 // CHECK-LABEL: {{^[ +].*}}bb0:
@@ -76,4 +79,121 @@ bb7 [cold]:
   push 0
   revert
 bb8:
+  stop
+
+// NORMALIZED-LABEL: {{^[ +].*}}bb9:
+// NORMALIZED: - push 7
+// NORMALIZED: + push 6
+// NORMALIZED-LABEL: {{^[ +].*}}bb9:
+// NORMALIZED: - push 6
+// NORMALIZED: + push 7
+// NORMALIZED: - push bb11
+// NORMALIZED: + push bb10
+// NORMALIZED: - jump bb10
+// NORMALIZED: + jump bb11
+bb9:
+  push 7
+  calldatasize
+  lt
+  iszero
+  push bb11
+  jumpi
+  jump bb10
+bb10 [cold]:
+  push 17
+  push 0
+  mstore
+  push 32
+  push 0
+  revert
+bb11:
+  stop
+
+// The bounded matcher cannot cross a gas observation.
+bb12:
+  push 6
+  gas
+  gt
+  push bb14
+  jumpi
+  jump bb13
+bb13 [cold]:
+  push 32
+  push 0
+  revert
+bb14:
+  stop
+
+// Increasing PUSH0 to PUSH1 would increase materialization cost.
+bb15:
+  push 0
+  calldatasize
+  gt
+  push bb17
+  jumpi
+  jump bb16
+bb16 [cold]:
+  push 32
+  push 0
+  revert
+bb17:
+  stop
+
+// Negating x > MAX would require an overflowing constant bound.
+bb18:
+  push 115792089237316195423570985008687907853269984665640564039457584007913129639935
+  calldatasize
+  gt
+  push bb20
+  jumpi
+  jump bb19
+bb19 [cold]:
+  push 32
+  push 0
+  revert
+bb20:
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb21:
+// CHECK: - sub
+// CHECK: - push bb23
+// CHECK: + eq
+// CHECK: + push bb22
+bb21:
+  calldatasize
+  push 7
+  sub
+  push bb23
+  jumpi
+  jump bb22
+bb22 [cold]:
+  push 17
+  push 0
+  mstore
+  push 32
+  push 0
+  revert
+bb23:
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb24:
+// CHECK: - eq
+// CHECK: - push bb26
+// CHECK: + sub
+// CHECK: + push bb25
+bb24:
+  calldatasize
+  push 7
+  eq
+  push bb26
+  jumpi
+  jump bb25
+bb25 [cold]:
+  push 17
+  push 0
+  mstore
+  push 32
+  push 0
+  revert
+bb26:
   stop

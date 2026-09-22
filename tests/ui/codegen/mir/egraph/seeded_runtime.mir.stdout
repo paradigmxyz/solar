@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/egraph/seeded_runtime.sol:SeededWords ===
 @module SeededWords
-fn @rule0(arg0: u256, arg1: u256) -> u256 [selector=0x225a5e11, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @rule0(arg0: i256, arg1: i256) -> i256 [selector=0x225a5e11, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and arg0, arg1
     v1 = or arg0, arg1
@@ -8,7 +8,7 @@ fn @rule0(arg0: u256, arg1: u256) -> u256 [selector=0x225a5e11, pure, abi_params
     ret v2
 }
 
-fn @rule1(arg0: u256, arg1: u256) -> u256 [selector=0xc8b00c15, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @rule1(arg0: i256, arg1: i256) -> i256 [selector=0xc8b00c15, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = xor arg0, arg1
     v1 = or arg0, arg1
@@ -16,7 +16,7 @@ fn @rule1(arg0: u256, arg1: u256) -> u256 [selector=0xc8b00c15, pure, abi_params
     ret v2
 }
 
-fn @rule2(arg0: u256, arg1: u256) -> u256 [selector=0xf4355633, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @rule2(arg0: i256, arg1: i256) -> i256 [selector=0xf4355633, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = or arg0, arg1
     v1 = add arg0, arg1
@@ -24,7 +24,7 @@ fn @rule2(arg0: u256, arg1: u256) -> u256 [selector=0xf4355633, pure, abi_params
     ret v2
 }
 
-fn @rule3(arg0: u256, arg1: u256) -> u256 [selector=0xb94358f4, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @rule3(arg0: i256, arg1: i256) -> i256 [selector=0xb94358f4, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and arg0, arg1
     v1 = add arg0, arg1
@@ -32,7 +32,7 @@ fn @rule3(arg0: u256, arg1: u256) -> u256 [selector=0xb94358f4, pure, abi_params
     ret v2
 }
 
-fn @rule4(arg0: u256, arg1: u256) -> u256 [selector=0xff1fce5d, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @rule4(arg0: i256, arg1: i256) -> i256 [selector=0xff1fce5d, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = not arg1
     v1 = add arg0, v0
@@ -40,7 +40,7 @@ fn @rule4(arg0: u256, arg1: u256) -> u256 [selector=0xff1fce5d, pure, abi_params
     ret v2
 }
 
-fn @rule5(arg0: u256, arg1: u256) -> u256 [selector=0xcd71d5f9, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @rule5(arg0: i256, arg1: i256) -> i256 [selector=0xcd71d5f9, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = not arg0
     v1 = sub v0, arg1
@@ -48,7 +48,7 @@ fn @rule5(arg0: u256, arg1: u256) -> u256 [selector=0xcd71d5f9, pure, abi_params
     ret v2
 }
 
-fn @rule6(arg0: u256, arg1: u256) -> u256 [selector=0xd018bb99, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @rule6(arg0: i256, arg1: i256) -> i256 [selector=0xd018bb99, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and arg0, arg1
     v1 = not v0
@@ -56,7 +56,7 @@ fn @rule6(arg0: u256, arg1: u256) -> u256 [selector=0xd018bb99, pure, abi_params
     ret v2
 }
 
-fn @rule7(arg0: u256, arg1: u256) -> u256 [selector=0xd6009447, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @rule7(arg0: i256, arg1: i256) -> i256 [selector=0xd6009447, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = or arg0, arg1
     v1 = not v0
@@ -64,7 +64,7 @@ fn @rule7(arg0: u256, arg1: u256) -> u256 [selector=0xd6009447, pure, abi_params
     ret v2
 }
 
-fn @checked(arg0: u256, arg1: u256) -> u256 [selector=0xb437bc14, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @checked(arg0: i256, arg1: i256) -> i256 [selector=0xb437bc14, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_add u256, arg0, arg1
     v1 = and arg0, arg1

@@ -28,6 +28,13 @@
 //@ run-call: yulBranch 0, 19 => 7
 //@ run-call: yulBranch 2, 19 => 19
 
+//@ run-call: choose 0, 19, 7 => 7
+//@ run-call: choose 1, 19, 7 => 19
+//@ run-call: choose 2, 19, 7 => 19
+//@ run-call: choose 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0, 7 => 0
+//@ run-call: choose 2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 7 => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+//@ run-call: choose 0, 7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+
 // EVM-LABEL: @module ConstantSelect_runtime
 // SIZE-LABEL: @module ConstantSelect_runtime
 // SIZE: push 0x59834352
@@ -35,6 +42,13 @@
 // SIZE-NEXT: push [[SIGNATURE:bb[0-9]+]]
 contract ConstantSelect {
     bytes saved;
+
+    function choose(uint256 raw, uint256 yes, uint256 no) external pure returns (uint256) {
+        bool condition;
+        assembly { condition := raw }
+        return condition ? yes : no;
+    }
+
 
     // CHECK-LABEL: fn @store(
     function store(bytes memory value) external returns (bytes memory) {
@@ -62,13 +76,23 @@ contract ConstantSelect {
     // SIZE-NEXT: lt
     // SIZE-NEXT: push {{bb[0-9]+}}
     // SIZE-NEXT: jumpi
-    // SIZE-NEXT: push 4
-    // SIZE-NEXT: calldataload
-    // SIZE-NEXT: iszero
     // SIZE-NEXT: push 0xe2179b8e
     // SIZE-NEXT: push 224
     // SIZE-NEXT: shl
+    // SIZE-NEXT: push 4
+    // SIZE-NEXT: calldataload
+    // SIZE-NEXT: iszero
+    // SIZE-NEXT: iszero
     // SIZE-NEXT: push 0x26121ff0
+    // SIZE-NEXT: jump [[SELECT:bb[0-9]+]]
+    // SIZE-NEXT: [[SELECT]]:
+    // SIZE-NEXT: push 224
+    // SIZE-NEXT: shl
+    // SIZE-NEXT: dup 3
+    // SIZE-NEXT: swap 1
+    // SIZE-NEXT: sub
+    // SIZE-NEXT: mul
+    // SIZE-NEXT: add
     // EVM: push 0xbc057b9e
     // EVM-NEXT: push 224
     // EVM-NEXT: shl
@@ -76,7 +100,7 @@ contract ConstantSelect {
     // EVM-NEXT: push 0x26121ff0
     // EVM-NEXT: push 224
     // EVM-NEXT: shl
-    // EVM-NEXT: add
+    // EVM-NEXT: jump {{bb[0-9]+}}
     function signature(bool condition) external pure returns (bytes memory) {
         return abi.encodeWithSignature(condition ? "f()" : "g()");
     }

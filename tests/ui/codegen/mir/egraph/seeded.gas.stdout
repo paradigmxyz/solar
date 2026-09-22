@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/seeded.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/seeded.mir (after egraph) ===
   @module SeededWords
-  fn @rule_0(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_0(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = add arg0, arg1
       v1 = and arg0, arg1
@@ -10,7 +10,7 @@
       ret v2
   }
   
-  fn @rule_1(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_1(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = add arg0, arg1
       v1 = and arg1, arg0
@@ -19,7 +19,7 @@
       ret v2
   }
   
-  fn @rule_2(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_2(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = add arg0, arg1
       v1 = or arg0, arg1
@@ -28,7 +28,7 @@
       ret v2
   }
   
-  fn @rule_3(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_3(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = add arg0, arg1
       v1 = or arg1, arg0
@@ -37,7 +37,7 @@
       ret v2
   }
   
-  fn @rule_4(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_4(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = or arg0, arg1
       v1 = and arg0, arg1
@@ -46,7 +46,7 @@
       ret v2
   }
   
-  fn @rule_5(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_5(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = or arg0, arg1
       v1 = and arg1, arg0
@@ -55,7 +55,7 @@
       ret v2
   }
   
-  fn @rule_6(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_6(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = or arg0, arg1
       v1 = xor arg0, arg1
@@ -64,7 +64,7 @@
       ret v2
   }
   
-  fn @rule_7(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_7(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = or arg0, arg1
       v1 = xor arg1, arg0
@@ -73,7 +73,7 @@
       ret v2
   }
   
-  fn @rule_8(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_8(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = not arg1
       v1 = add v0, arg0
@@ -82,7 +82,7 @@
       ret v2
   }
   
-  fn @rule_9(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_9(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = not arg1
       v1 = add arg0, v0
@@ -91,7 +91,7 @@
       ret v2
   }
   
-  fn @rule_10(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_10(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = not arg0
       v1 = sub v0, arg1

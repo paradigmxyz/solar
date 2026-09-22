@@ -6,14 +6,14 @@
 
 abstract contract TokenReceiver {
     function onERC1155Received(address, address, uint256, uint256, bytes calldata)
-        external
+        public
         virtual
         returns (bytes4);
 }
 
 contract Recipient is TokenReceiver {
     function onERC1155Received(address, address, uint256, uint256, bytes calldata)
-        external
+        public
         virtual
         override
         returns (bytes4)

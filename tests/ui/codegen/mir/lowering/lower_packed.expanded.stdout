@@ -1,41 +1,42 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_packed.mir (before lower-builtins) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_packed.mir (after lower-builtins) ===
   @module PackedEncoding
-  fn @mixed(arg0: u16, arg1: memorybytes) -> memorybytes {
+  fn @mixed(arg0: i256, arg1: memorybytes) -> memorybytes {
     bb0:
 -     v0 = abi_encode_packed (data hex"000102", u16 arg0, bytes arg1)
 -     ret v0
 +     v1 = memory_object_len memorybytes, arg1
 +     v2 = memory_object_data memorybytes, arg1
-+     v3 = make_memory_slice v2, v1
-+     v4 = add 5, v1
-+     v5 = lt v4, 5
-+     jumpi v5, bb1, bb2
++     v3 = ptrtoint memptr v2 to i256
++     v4 = make_memory_slice v3, v1
++     v5 = add 5, v1
++     v6 = lt v5, 5
++     jumpi v6, bb1, bb2
 +   bb2:
-+     v6 = add v4, 63
-+     v7 = lt v6, v4
-+     jumpi v7, bb1, bb3
++     v7 = add v5, 63
++     v8 = lt v7, v5
++     jumpi v8, bb1, bb3
 +   bb3:
-+     v8 = not 31
-+     v9 = and v6, v8
-+     v10 = alloc memorybytes, exact, uninitialized, infallible, v9 !metadata(preserves_fmp)
-+     set_memory_object_len memorybytes, v10, v4
-+     v11 = shl 216, arg0
-+     v12 = or 0x1020000000000000000000000000000000000000000000000000000000000, v11
-+     memory_object_store_word memorybytes, v10, 0, v12
-+     memory_object_copy_from_slice_at memorybytes, v10, 5, v3
-+     v13 = add 5, v1
-+     v14 = lt v13, 5
-+     jumpi v14, bb1, bb4
++     v9 = not 31
++     v10 = and v7, v9
++     v11 = alloc memorybytes, exact, uninitialized, infallible, v10 !metadata(preserves_fmp)
++     set_memory_object_len memorybytes, v11, v5
++     v12 = shl 216, arg0
++     v13 = or 0x1020000000000000000000000000000000000000000000000000000000000, v12
++     memory_object_store_word memorybytes, v11, 0, v13
++     memory_object_copy_from_slice_at memorybytes, v11, 5, v4
++     v14 = add 5, v1
++     v15 = lt v14, 5
++     jumpi v15, bb1, bb4
 +   bb4:
-+     ret v10
++     ret v11
 +   bb1:
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
-  fn @hash(arg0: i16) -> bytes32 {
+  fn @hash(arg0: i256) -> i256 {
     bb0:
 -     v0 = keccak256_packed (data hex"ab", i16 arg0, bytes2 0xcdef000000000000000000000000000000000000000000000000000000000000)
 -     ret v0
@@ -54,90 +55,95 @@
 -     ret v0
 +     v1 = memory_object_len memoryarray, arg0
 +     v2 = mul v1, 32
-+     v3 = iszero 32
++     v3 = eq 32, 0
 +     v4 = div v2, 32
 +     v5 = eq v4, v1
 +     v6 = or v3, v5
-+     v7 = iszero v6
-+     jumpi v7, bb1, bb2
++     v7 = zext i1 v6 to i256
++     v8 = eq v7, 0
++     jumpi v8, bb1, bb2
 +   bb2:
-+     v8 = add 0, v2
-+     v9 = lt v8, 0
-+     jumpi v9, bb1, bb3
++     v9 = add 0, v2
++     v10 = lt v9, 0
++     jumpi v10, bb1, bb3
 +   bb3:
-+     v10 = slice_len arg1
-+     v11 = mul v10, 32
-+     v12 = iszero 32
-+     v13 = div v11, 32
-+     v14 = eq v13, v10
-+     v15 = or v12, v14
-+     v16 = iszero v15
-+     jumpi v16, bb1, bb4
++     v11 = slice_len arg1
++     v12 = mul v11, 32
++     v13 = eq 32, 0
++     v14 = div v12, 32
++     v15 = eq v14, v11
++     v16 = or v13, v15
++     v17 = zext i1 v16 to i256
++     v18 = eq v17, 0
++     jumpi v18, bb1, bb4
 +   bb4:
-+     v17 = add v8, v11
-+     v18 = lt v17, v8
-+     jumpi v18, bb1, bb5
++     v19 = add v9, v12
++     v20 = lt v19, v9
++     jumpi v20, bb1, bb5
 +   bb5:
-+     v19 = add v17, 32
-+     v20 = lt v19, v17
-+     jumpi v20, bb1, bb6
++     v21 = add v19, 32
++     v22 = lt v21, v19
++     jumpi v22, bb1, bb6
 +   bb6:
-+     v21 = alloc memorybytes, exact, uninitialized, infallible, v19 !metadata(preserves_fmp)
-+     set_memory_object_len memorybytes, v21, v17
-+     v22 = mul v1, 32
-+     v23 = iszero 32
-+     v24 = div v22, 32
-+     v25 = eq v24, v1
-+     v26 = or v23, v25
-+     v27 = iszero v26
-+     jumpi v27, bb1, bb7
++     v23 = alloc memorybytes, exact, uninitialized, infallible, v21 !metadata(preserves_fmp)
++     set_memory_object_len memorybytes, v23, v19
++     v24 = mul v1, 32
++     v25 = eq 32, 0
++     v26 = div v24, 32
++     v27 = eq v26, v1
++     v28 = or v25, v27
++     v29 = zext i1 v28 to i256
++     v30 = eq v29, 0
++     jumpi v30, bb1, bb7
 +   bb7:
-+     v28 = add 0, v22
-+     v29 = lt v28, 0
-+     jumpi v29, bb1, bb8
++     v31 = add 0, v24
++     v32 = lt v31, 0
++     jumpi v32, bb1, bb8
 +   bb8:
 +     jump bb9
 +   bb9:
-+     v30 = phi [bb8: 0], [bb10: v36]
-+     v31 = lt v30, v1
-+     jumpi v31, bb10, bb11
++     v33 = phi [bb8: 0], [bb10: v39]
++     v34 = lt v33, v1
++     jumpi v34, bb10, bb11
 +   bb11:
-+     v37 = mul v10, 32
-+     v38 = iszero 32
-+     v39 = div v37, 32
-+     v40 = eq v39, v10
-+     v41 = or v38, v40
-+     v42 = iszero v41
-+     jumpi v42, bb1, bb12
++     v40 = mul v11, 32
++     v41 = eq 32, 0
++     v42 = div v40, 32
++     v43 = eq v42, v11
++     v44 = or v41, v43
++     v45 = zext i1 v44 to i256
++     v46 = eq v45, 0
++     jumpi v46, bb1, bb12
 +   bb12:
-+     v43 = add v28, v37
-+     v44 = lt v43, v28
-+     jumpi v44, bb1, bb13
++     v47 = add v31, v40
++     v48 = lt v47, v31
++     jumpi v48, bb1, bb13
 +   bb13:
-+     v45 = slice_ptr arg1
++     v49 = slice_ptr arg1
 +     jump bb14
 +   bb14:
-+     v46 = phi [bb13: 0], [bb15: v53]
-+     v47 = lt v46, v10
-+     jumpi v47, bb15, bb16
++     v50 = phi [bb13: 0], [bb15: v58]
++     v51 = lt v50, v11
++     jumpi v51, bb15, bb16
 +   bb16:
-+     ret v21
++     ret v23
 +   bb15:
-+     v48 = mul v46, 32
-+     v49 = add v28, v48
-+     v50 = calldata_slice_load_word calldata, arg1, v48
-+     v51 = iszero v50
-+     v52 = iszero v51
-+     memory_object_store_word memorybytes, v21, v49, v52
-+     v53 = add v46, 1
++     v52 = mul v50, 32
++     v53 = add v31, v52
++     v54 = calldata_slice_load_word calldata, arg1, v52
++     v55 = eq v54, 0
++     v56 = eq v55, false
++     v57 = zext i1 v56 to i256
++     memory_object_store_word memorybytes, v23, v53, v57
++     v58 = add v50, 1
 +     jump bb14
 +   bb10:
-+     v32 = mul v30, 32
-+     v33 = add 0, v32
-+     v34 = memory_object_load_element memoryarray<1>, arg0, v30
-+     v35 = signextend 1, v34
-+     memory_object_store_word memorybytes, v21, v33, v35
-+     v36 = add v30, 1
++     v35 = mul v33, 32
++     v36 = add 0, v35
++     v37 = memory_object_load_element memoryarray<1>, arg0, v33
++     v38 = signextend 1, v37
++     memory_object_store_word memorybytes, v23, v36, v38
++     v39 = add v33, 1
 +     jump bb9
 +   bb1:
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -153,7 +159,7 @@
 +     set_memory_object_len memorybytes, v1, 128
 +     jump bb1
 +   bb1:
-+     v2 = phi [bb0: 0], [bb8: v16]
++     v2 = phi [bb0: 0], [bb8: v17]
 +     v3 = lt v2, 2
 +     jumpi v3, bb2, bb3
 +   bb3:
@@ -168,25 +174,26 @@
 +   bb5:
 +     jump bb6
 +   bb6:
-+     v9 = phi [bb5: 0], [bb10: v15]
++     v9 = phi [bb5: 0], [bb10: v16]
 +     v10 = lt v9, 2
 +     jumpi v10, bb7, bb8
 +   bb8:
-+     v16 = add v2, 1
++     v17 = add v2, 1
 +     jump bb1
 +   bb7:
 +     v11 = mul v9, 32
 +     v12 = add v5, v11
-+     v13 = memory_object_load_element memoryfixedarray<2, 1>, v6, v9
-+     v14 = lt v13, 3
-+     jumpi v14, bb10, bb9
++     v13 = inttoptr i256 v6 to memoryfixedarray
++     v14 = memory_object_load_element memoryfixedarray<2, 1>, v13, v9
++     v15 = lt v14, 3
++     jumpi v15, bb10, bb9
 +   bb9:
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 33 !metadata(memory=scratch)
 +     revert 28, 36
 +   bb10:
-+     memory_object_store_word memorybytes, v1, v12, v13
-+     v15 = add v9, 1
++     memory_object_store_word memorybytes, v1, v12, v14
++     v16 = add v9, 1
 +     jump bb6
 +   bb4:
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -194,7 +201,7 @@
 +     revert 28, 36
   }
   
-  fn @edge(arg0: bool, arg1: memoryarray, arg2: memorybytes) -> memorybytes {
+  fn @edge(arg0: i1, arg1: memoryarray, arg2: memorybytes) -> memorybytes {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -203,52 +210,54 @@
 -     v0 = abi_encode_packed (array<word> memoryarray<1> arg1)
 +     v2 = memory_object_len memoryarray, arg1
 +     v3 = mul v2, 32
-+     v4 = iszero 32
++     v4 = eq 32, 0
 +     v5 = div v3, 32
 +     v6 = eq v5, v2
 +     v7 = or v4, v6
-+     v8 = iszero v7
-+     jumpi v8, bb4, bb5
++     v8 = zext i1 v7 to i256
++     v9 = eq v8, 0
++     jumpi v9, bb4, bb5
 +   bb5:
-+     v9 = add 0, v3
-+     v10 = lt v9, 0
-+     jumpi v10, bb4, bb6
++     v10 = add 0, v3
++     v11 = lt v10, 0
++     jumpi v11, bb4, bb6
 +   bb6:
-+     v11 = add v9, 32
-+     v12 = lt v11, v9
-+     jumpi v12, bb4, bb7
++     v12 = add v10, 32
++     v13 = lt v12, v10
++     jumpi v13, bb4, bb7
 +   bb7:
-+     v13 = alloc memorybytes, exact, uninitialized, infallible, v11 !metadata(preserves_fmp)
-+     set_memory_object_len memorybytes, v13, v9
-+     v14 = mul v2, 32
-+     v15 = iszero 32
-+     v16 = div v14, 32
-+     v17 = eq v16, v2
-+     v18 = or v15, v17
-+     v19 = iszero v18
-+     jumpi v19, bb4, bb8
++     v14 = alloc memorybytes, exact, uninitialized, infallible, v12 !metadata(preserves_fmp)
++     set_memory_object_len memorybytes, v14, v10
++     v15 = mul v2, 32
++     v16 = eq 32, 0
++     v17 = div v15, 32
++     v18 = eq v17, v2
++     v19 = or v16, v18
++     v20 = zext i1 v19 to i256
++     v21 = eq v20, 0
++     jumpi v21, bb4, bb8
 +   bb8:
-+     v20 = add 0, v14
-+     v21 = lt v20, 0
-+     jumpi v21, bb4, bb9
++     v22 = add 0, v15
++     v23 = lt v22, 0
++     jumpi v23, bb4, bb9
 +   bb9:
 +     jump bb10
 +   bb10:
-+     v22 = phi [bb9: 0], [bb11: v27]
-+     v23 = lt v22, v2
-+     jumpi v23, bb11, bb12
++     v24 = phi [bb9: 0], [bb11: v29]
++     v25 = lt v24, v2
++     jumpi v25, bb11, bb12
 +   bb12:
       jump bb3
     bb3:
 -     v1 = phi [bb1: v0], [bb2: arg2]
-+     v1 = phi [bb12: v13], [bb2: arg2]
++     v1 = phi [bb12: v14], [bb2: arg2]
       ret v1
 +   bb11:
-+     v24 = mul v22, 32
-+     v25 = add 0, v24
-+     v26 = memory_object_load_element memoryarray<1>, arg1, v22
-+     memory_object_store_word memorybytes, v13, v25, v26
-+     v27 = add v22, 1
++     v26 = mul v24, 32
++     v27 = add 0, v26
++     v28 = memory_object_load_element memoryarray<1>, arg1, v24
++     memory_object_store_word memorybytes, v14, v27, v28
++     v29 = add v24, 1
 +     jump bb10
 +   bb4:
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -262,52 +271,54 @@
 -     ret v0
 +     v1 = memory_object_len memoryarray, arg0
 +     v2 = mul v1, 32
-+     v3 = iszero 32
++     v3 = eq 32, 0
 +     v4 = div v2, 32
 +     v5 = eq v4, v1
 +     v6 = or v3, v5
-+     v7 = iszero v6
-+     jumpi v7, bb1, bb2
++     v7 = zext i1 v6 to i256
++     v8 = eq v7, 0
++     jumpi v8, bb1, bb2
 +   bb2:
-+     v8 = add 1, v2
-+     v9 = lt v8, 1
-+     jumpi v9, bb1, bb3
++     v9 = add 1, v2
++     v10 = lt v9, 1
++     jumpi v10, bb1, bb3
 +   bb3:
-+     v10 = add v8, 63
-+     v11 = lt v10, v8
-+     jumpi v11, bb1, bb4
++     v11 = add v9, 63
++     v12 = lt v11, v9
++     jumpi v12, bb1, bb4
 +   bb4:
-+     v12 = not 31
-+     v13 = and v10, v12
-+     v14 = alloc memorybytes, exact, uninitialized, infallible, v13 !metadata(preserves_fmp)
-+     set_memory_object_len memorybytes, v14, v8
-+     memory_object_store_word memorybytes, v14, 0, 0xab00000000000000000000000000000000000000000000000000000000000000
-+     v15 = mul v1, 32
-+     v16 = iszero 32
-+     v17 = div v15, 32
-+     v18 = eq v17, v1
-+     v19 = or v16, v18
-+     v20 = iszero v19
-+     jumpi v20, bb1, bb5
++     v13 = not 31
++     v14 = and v11, v13
++     v15 = alloc memorybytes, exact, uninitialized, infallible, v14 !metadata(preserves_fmp)
++     set_memory_object_len memorybytes, v15, v9
++     memory_object_store_word memorybytes, v15, 0, 0xab00000000000000000000000000000000000000000000000000000000000000
++     v16 = mul v1, 32
++     v17 = eq 32, 0
++     v18 = div v16, 32
++     v19 = eq v18, v1
++     v20 = or v17, v19
++     v21 = zext i1 v20 to i256
++     v22 = eq v21, 0
++     jumpi v22, bb1, bb5
 +   bb5:
-+     v21 = add 1, v15
-+     v22 = lt v21, 1
-+     jumpi v22, bb1, bb6
++     v23 = add 1, v16
++     v24 = lt v23, 1
++     jumpi v24, bb1, bb6
 +   bb6:
 +     jump bb7
 +   bb7:
-+     v23 = phi [bb6: 0], [bb8: v29]
-+     v24 = lt v23, v1
-+     jumpi v24, bb8, bb9
++     v25 = phi [bb6: 0], [bb8: v31]
++     v26 = lt v25, v1
++     jumpi v26, bb8, bb9
 +   bb9:
-+     ret v14
++     ret v15
 +   bb8:
-+     v25 = mul v23, 32
-+     v26 = add 1, v25
-+     v27 = memory_object_load_element memoryarray<1>, arg0, v23
-+     v28 = and v27, 255
-+     memory_object_store_word memorybytes, v14, v26, v28
-+     v29 = add v23, 1
++     v27 = mul v25, 32
++     v28 = add 1, v27
++     v29 = memory_object_load_element memoryarray<1>, arg0, v25
++     v30 = and v29, 255
++     memory_object_store_word memorybytes, v15, v28, v30
++     v31 = add v25, 1
 +     jump bb7
 +   bb1:
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)

@@ -2,224 +2,187 @@
 @module LoopStateChainSpillHome_runtime
 bb0:
   callvalue
-  push bb31
+  push bb5
   jumpi
   push 0
   calldataload
   push 224
   shr
-  push 4
-  calldataload
-  push 192
-  mstore
-  dup 1
-  push 224
-  mstore
   dup 1
   push 0xce294ff
-  sub
-  push bb2
+  eq
+  push bb7
   jumpi
-  pop
-  push 36
-  calldatasize
-  lt
-  push bb31
-  jumpi
-  push 0
-  push 0
-  jump bb22
-bb22 [loop]:
-  push 192
-  mload
-  dup 3
-  lt
-  push bb24
-  jumpi
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb31 [cold]:
-  push 0
-  push 0
-  revert
-bb2:
   dup 1
   push 0xcb11e62b
-  sub
-  push bb3
+  eq
+  push bb19
   jumpi
-  pop
-  push 36
-  calldatasize
-  lt
-  push bb31
-  jumpi
-  push 0
-  push 0
-  jump bb8
-bb8 [loop]:
-  push 192
-  mload
-  dup 3
-  lt
-  push bb10
-  jumpi
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb3:
   dup 1
   push 0xcf25b09f
   sub
-  push bb31
+  push bb5
   jumpi
-  pop
   push 1
   push 128
   mstore
   push 32
   push 128
   return
-bb10 [loop]:
-  dup 1
-  push 160
-  mstore
-  push bb12
+bb5 [cold]:
+  push 0
+  push 0
+  revert
+bb7:
+  push 36
+  calldatasize
+  lt
+  push bb5
   jumpi
-  push 3
+  push 0
+  push 0
+  jump bb9
+bb9 [loop]:
+  push 4
+  calldataload
+  dup 3
+  lt
+  push bb11
+  jumpi
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb11 [loop]:
+  dup 1
+  iszero
+  push bb16
+  jumpi
+  push 1
   dup 2
   eq
-  push 160
-  mload
+  push bb14
+  jumpi
+  dup 1
+  push 3
+  sub
+  push 2
+  dup 3
+  eq
+  mul
+  add
+  jump bb17
+bb17 [loop]:
+  swap 1
+  push 1
+  add
+  swap 1
+  jump bb9
+bb14 [loop]:
+  dup 1
+  push 2
+  sub
+  push 5
+  dup 4
+  eq
+  mul
+  add
+  jump bb17
+bb16 [loop]:
+  dup 1
   push 1
   sub
-  mul
-  push 160
-  mload
-  add
-  jump bb19
-bb19 [loop]:
-  swap 1
-  push 1
-  add
-  swap 1
-  jump bb8
-bb12 [loop]:
-  push 1
-  push 160
-  mload
+  push 3
+  dup 4
   eq
-  push bb17
+  mul
+  add
+  jump bb17
+bb19:
+  push 36
+  calldatasize
+  lt
+  push bb5
+  jumpi
+  push 0
+  push 0
+  jump bb21
+bb21 [loop]:
+  push 4
+  calldataload
+  dup 3
+  lt
+  push bb23
+  jumpi
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb23 [loop]:
+  dup 1
+  iszero
+  push bb31
+  jumpi
+  push 1
+  dup 2
+  eq
+  push bb29
   jumpi
   push 2
-  push 160
-  mload
+  dup 2
   eq
-  push bb15
+  push bb27
   jumpi
-  push 3
-  push 160
-  mload
-  eq
   push 13
   dup 3
   eq
   iszero
-  push 160
-  mload
+  dup 2
   mul
-  push 160
-  mload
+  dup 2
   swap 1
   sub
-  mul
-  push 160
-  mload
-  add
-  jump bb19
-bb15 [loop]:
-  push 11
-  dup 2
-  eq
-  push 160
-  mload
   push 3
-  sub
-  mul
-  push 160
-  mload
-  add
-  jump bb19
-bb17 [loop]:
-  push 5
-  dup 2
+  dup 3
   eq
-  push 160
-  mload
-  push 2
-  sub
   mul
-  push 160
-  mload
   add
-  jump bb19
-bb24 [loop]:
+  jump bb32
+bb31 [loop]:
   dup 1
-  push 160
-  mstore
-  push bb26
-  jumpi
-  push 3
-  dup 2
-  eq
-  push 160
-  mload
   push 1
   sub
-  mul
-  push 160
-  mload
-  add
-  jump bb30
-bb30 [loop]:
-  swap 1
-  push 1
-  add
-  swap 1
-  jump bb22
-bb26 [loop]:
-  push 1
-  push 160
-  mload
+  push 3
+  dup 4
   eq
-  push bb28
-  jumpi
-  push 160
-  mload
+  mul
+  add
+  jump bb32
+bb32 [loop]:
+  swap 1
+  push 1
+  add
+  swap 1
+  jump bb21
+bb27 [loop]:
+  dup 1
+  push 3
+  sub
+  push 11
+  dup 4
+  eq
+  mul
+  add
+  jump bb32
+bb29 [loop]:
+  dup 1
   push 2
-  dup 2
-  eq
-  dup 2
-  push 3
   sub
-  mul
-  add
-  jump bb30
-bb28 [loop]:
   push 5
-  dup 2
+  dup 4
   eq
-  push 160
-  mload
-  push 2
-  sub
   mul
-  push 160
-  mload
   add
-  jump bb30
+  jump bb32

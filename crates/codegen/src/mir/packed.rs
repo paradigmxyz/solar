@@ -1,13 +1,13 @@
 //! Owned input shapes for packed ABI encoding, independent of HIR types.
 
-use super::{AbiType, MemoryObjectLayout, MirType, SliceLocation, ValueId};
+use super::{AbiType, MemoryObjectLayout, SliceLocation, ValueId, ValueLayout};
 use alloy_primitives::Bytes;
 
 /// One packed argument; array elements retain their padded ABI word shape.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum PackedPart {
     Literal(Bytes),
-    Scalar { value: ValueId, ty: MirType },
+    Scalar { value: ValueId, ty: ValueLayout },
     Bytes(ValueId),
     Array { value: ValueId, element: AbiType, source: PackedArraySource },
 }
