@@ -4,6 +4,25 @@ pragma solidity ^0.8.0;
 // A storage reference crosses an external library call boundary as its slot number, in both
 // directions. The expected values below are solc's.
 library StoragePointerLib {
+    struct Node {
+        uint256 value;
+        Node[] children;
+        mapping(uint256 => Node) byKey;
+    }
+
+    function nodeValue(Node storage node) public view returns (uint256) {
+        return node.value;
+    }
+
+    function appendNode(Node storage node, uint256 value) external returns (Node storage child) {
+        child = node.children.push();
+        child.value = value;
+    }
+
+    function mappedNode(Node storage node, uint256 key) external view returns (Node storage) {
+        return node.byKey[key];
+    }
+
     struct Plain {
         uint256 a;
         uint256 b;
@@ -57,6 +76,7 @@ contract StoragePointers {
     StoragePointerLib.Nested internal nested;
     uint256[][] internal grid;
     uint256 internal guard;
+    StoragePointerLib.Node internal root;
 
     constructor() {
         nums.push(5);
@@ -70,6 +90,16 @@ contract StoragePointers {
         grid[0].push(1);
         grid[0].push(2);
         guard = 77;
+    }
+
+    function recursive(uint256 value) external returns (uint256, uint256, uint256) {
+        StoragePointerLib.Node storage child = StoragePointerLib.appendNode(root, value);
+        StoragePointerLib.mappedNode(child, 7).value = value + 1;
+        return (
+            StoragePointerLib.nodeValue(child),
+            StoragePointerLib.nodeValue(StoragePointerLib.mappedNode(child, 7)),
+            root.children.length
+        );
     }
 
     function len() external view returns (uint256) {
