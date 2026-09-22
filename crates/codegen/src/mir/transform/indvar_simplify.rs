@@ -141,6 +141,15 @@ struct IndVarSimplifier {
     alias: Rc<AliasAnalysis>,
 }
 
+/// The control-flow region in which one loop counter can be reduced.
+#[derive(Clone, Copy)]
+struct LoopRegion<'a> {
+    loop_data: &'a Loop,
+    blocks: &'a DenseBitSet<BlockId>,
+    preheader: BlockId,
+    latches: &'a [BlockId],
+}
+
 /// A comparison of the counter, or of one of its updates, with an invariant
 /// bound: `lt`, `gt` or `eq` with the subject on either side.
 #[derive(Clone, Copy)]
@@ -320,10 +329,9 @@ impl IndVarSimplifier {
                 before.insert(block);
             }
         }
+        let region = LoopRegion { loop_data, blocks: &region, preheader, latches };
         for counter in Self::counters(func, loop_data, preheader, latches) {
-            self.reduce_counter(
-                func, loop_data, &region, &before, &lengths, preheader, latches, counter,
-            );
+            self.reduce_counter(func, region, &before, &lengths, counter);
         }
     }
 
@@ -518,14 +526,12 @@ impl IndVarSimplifier {
     fn reduce_counter(
         &mut self,
         func: &mut Function,
-        loop_data: &Loop,
-        region: &DenseBitSet<BlockId>,
+        loop_region: LoopRegion<'_>,
         before: &DenseBitSet<BlockId>,
         lengths: &FxHashSet<ValueId>,
-        preheader: BlockId,
-        latches: &[BlockId],
         counter: Counter,
     ) {
+        let LoopRegion { loop_data, blocks: region, preheader, .. } = loop_region;
         // Reducing an earlier counter can delete this one's updates as dead
         // address arithmetic, leaving the recorded instructions outside the loop.
         let in_loop = |func: &Function, inst_id: InstId| {
@@ -686,9 +692,9 @@ impl IndVarSimplifier {
                 .iter()
                 .filter_map(|test| Some((test.subject, *derived.get(&test.subject)?)))
                 .collect::<FxHashMap<_, _>>();
-            let Some((pointer, mirrors)) = self.materialize_pointer_phi(
-                func, loop_data, region, preheader, latches, &counter, primary, &subjects,
-            ) else {
+            let Some((pointer, mirrors)) =
+                self.materialize_pointer_phi(func, loop_region, &counter, primary, &subjects)
+            else {
                 tracing::trace!(
                     function = %func.name,
                     header = ?loop_data.header,
@@ -1277,14 +1283,12 @@ impl IndVarSimplifier {
     fn materialize_pointer_phi(
         &mut self,
         func: &mut Function,
-        loop_data: &Loop,
-        region: &DenseBitSet<BlockId>,
-        preheader: BlockId,
-        latches: &[BlockId],
+        loop_region: LoopRegion<'_>,
         counter: &Counter,
         key: &AddressKey,
         subjects: &FxHashMap<ValueId, i128>,
     ) -> Option<(ValueId, FxHashMap<ValueId, ValueId>)> {
+        let LoopRegion { loop_data, blocks: region, preheader, latches } = loop_region;
         for &(_, step) in &counter.leaves {
             if let Step::Constant(constant) = step {
                 constant.checked_mul(key.scale)?;
