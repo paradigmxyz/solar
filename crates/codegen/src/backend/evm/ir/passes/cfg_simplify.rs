@@ -26,12 +26,13 @@
 //! reached by at least two other empty stubs. It amortizes the copy across those paths while
 //! preserving every address-taken label. The default pipeline repeats final cleanup after its
 //! last sharing sweep to restore copies that sharing may fold back into jumps.
-//! Debug events move to retained operations where representable; they do not affect rewrite eligibility.
-//! Other address-taken blocks remain distinct, and block merging requires one reference so changing
-//! a predecessor cannot affect another edge. The pass preserves the condition's stack effect with a
-//! `POP`; later dead-code elimination may remove the pure condition computation. Replacing the
-//! physical form's `PUSH target; JUMPI` with that `POP` changes what runs after the condition, so
-//! it only applies where `keep_with_next` allows that boundary to be disturbed.
+//! Debug events move to retained operations where representable; they do not affect rewrite
+//! eligibility. Other address-taken blocks remain distinct, and block merging requires one
+//! reference so changing a predecessor cannot affect another edge. The pass preserves the
+//! condition's stack effect with a `POP`; later dead-code elimination may remove the pure condition
+//! computation. Replacing the physical form's `PUSH target; JUMPI` with that `POP` changes what
+//! runs after the condition, so it only applies where `keep_with_next` allows that boundary to be
+//! disturbed.
 //!
 //! Compiler-generated return continuations explicitly declare that their label's numeric identity
 //! is unobservable. Empty continuation thunks can therefore be bypassed even through a pushed
