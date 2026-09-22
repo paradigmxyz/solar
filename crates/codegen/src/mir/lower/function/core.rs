@@ -70,7 +70,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         match intrinsic {
-            CoreIntrinsic::Base64Encode => self.lower_core_base64_encode(&operands),
+            CoreIntrinsic::Base64Encode => self.lower_core_base64_encode_call(&operands),
             CoreIntrinsic::Base64Decode => self.lower_core_base64_decode(&operands),
             CoreIntrinsic::ReadBytes(width) => self.lower_core_read(&operands, width),
             CoreIntrinsic::ReadUint256Be => self.lower_core_read(&operands, 32),
