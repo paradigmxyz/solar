@@ -192,7 +192,7 @@ contract Test {
     // allocations also check the output length word and surrounding objects.
     // CHECK-LABEL: fn @roundtrip(
     // CHECK: icall @core_base64_encode
-    // CHECK: icall @core_base64_decode_wide
+    // CHECK: icall @core_base64_decode,
     function roundtrip(uint256 n) public pure returns (bool) {
         bytes memory input = new bytes(n + 32);
         for (uint256 i; i < input.length; ++i) input[i] = bytes1(uint8((i * 37 + 11) % 256));
