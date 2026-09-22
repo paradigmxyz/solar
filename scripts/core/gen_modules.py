@@ -208,7 +208,9 @@ library Arrays {
 
 
 def word_arrays_module() -> str:
-    out = [LICENSE, '''/// @notice Checked algorithms over one-word dynamic memory arrays.
+    out = [LICENSE, '''import {Arrays} from "solar:core/v1/Arrays.sol";
+
+/// @notice Checked algorithms over one-word dynamic memory arrays.
 /// @dev Compiler-owned module, imported as `solar:core/v1/WordArrays.sol`.
 /// The bodies are portable checked Solidity and define the behavior; Solar
 /// lowers every overload to one shared implementation by module identity.
@@ -253,6 +255,17 @@ library WordArrays {
             seen[slot] = i + 1;
         }}
         return false;
+    }}
+
+''')
+        out.append(f'''    /// @dev Removes adjacent duplicates from sorted `a` in place.
+    function uniquifySorted({ty}[] memory a) internal pure {{
+        if (a.length < 2) return;
+        uint256 write = 1;
+        for (uint256 read = 1; read < a.length; ++read) {{
+            if (a[read] != a[write - 1]) a[write++] = a[read];
+        }}
+        Arrays.truncate(a, write);
     }}
 
 ''')
