@@ -105,6 +105,8 @@ pub enum CoreIntrinsic {
     Truncate,
     /// `WordArrays.hasDuplicate(a)` for one-word dynamic arrays.
     ArrayHasDuplicate,
+    /// `WordArrays.sort(a)` for one-word dynamic arrays.
+    ArraySort,
     /// `Revert.raw(data)`: revert with exactly `data`.
     RevertRaw,
     /// `Hash.keccak256Range(b, offset, count)`: hash a range where it lies.
@@ -228,10 +230,10 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
             FxHashMap::from_iter([(sym::truncate, CoreIntrinsic::Truncate)])
         })),
         "solar:core/v1/WordArrays.sol" => Some(WORD_ARRAYS.get_or_init(|| {
-            FxHashMap::from_iter([(
-                Symbol::intern("hasDuplicate"),
-                CoreIntrinsic::ArrayHasDuplicate,
-            )])
+            FxHashMap::from_iter([
+                (Symbol::intern("hasDuplicate"), CoreIntrinsic::ArrayHasDuplicate),
+                (Symbol::intern("sort"), CoreIntrinsic::ArraySort),
+            ])
         })),
         "solar:core/v1/Revert.sol" => Some(
             REVERT.get_or_init(|| FxHashMap::from_iter([(sym::raw, CoreIntrinsic::RevertRaw)])),

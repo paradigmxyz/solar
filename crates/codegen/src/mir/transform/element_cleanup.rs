@@ -216,6 +216,9 @@ fn masked_element(func: &Function, inst: InstId) -> Option<(ValueId, u32)> {
 
 /// The widest word the function's own instructions may store into an array.
 fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u32 {
+    if func.attributes.preserves_array_elements {
+        return 0;
+    }
     let mut bound = 0;
     for inst in func.instructions() {
         let instruction = func.inst(inst);
