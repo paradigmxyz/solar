@@ -207,6 +207,46 @@ library Arrays {
     return "".join(out)
 
 
+def word_arrays_module() -> str:
+    out = [LICENSE, '''/// @notice Checked algorithms over one-word dynamic memory arrays.
+/// @dev Compiler-owned module, imported as `solar:core/v1/WordArrays.sol`.
+/// The bodies are portable checked Solidity and define the behavior; Solar
+/// lowers every overload to one shared implementation by module identity.
+library WordArrays {
+''']
+    duplicate_types = {
+        "uint256": "uint256(a[i])",
+        "int256": "uint256(a[i])",
+        "address": "uint256(uint160(a[i]))",
+        "bytes32": "uint256(a[i])",
+    }
+    for ty, value in duplicate_types.items():
+        out.append(f'''    /// @dev Whether `a` contains the same value at two indices.
+    function hasDuplicate({ty}[] memory a) internal pure returns (bool) {{
+        if (a.length < 2) return false;
+        uint256 capacity = 1;
+        while (capacity < a.length * 2) capacity *= 2;
+        uint256[] memory seen = new uint256[](capacity);
+        uint256 mask = capacity - 1;
+        for (uint256 i = a.length; i != 0;) {{
+            --i;
+            uint256 slot =
+                mulmod({value}, 0x100000000000000000000000000000051, ~uint256(0xbc)) & mask;
+            while (seen[slot] != 0) {{
+                if (a[seen[slot] - 1] == a[i]) return true;
+                slot = (slot + 1) & mask;
+            }}
+            seen[slot] = i + 1;
+        }}
+        return false;
+    }}
+
+''')
+    out.append('''}
+''')
+    return "".join(out)
+
+
 def calldata_bytes_module() -> str:
     out = [LICENSE, '''/// @notice Checked fixed-width byte loads from `bytes calldata`, and bulk copy
 /// out of it.
@@ -344,8 +384,9 @@ library Cast {
 
 (ROOT / "Bytes.sol").write_text(bytes_module())
 (ROOT / "Arrays.sol").write_text(arrays_module())
+(ROOT / "WordArrays.sol").write_text(word_arrays_module())
 (ROOT / "Cast.sol").write_text(cast_module())
 (ROOT / "CalldataBytes.sol").write_text(calldata_bytes_module())
-for name in ("Bytes.sol", "Arrays.sol", "Cast.sol", "CalldataBytes.sol"):
+for name in ("Bytes.sol", "Arrays.sol", "WordArrays.sol", "Cast.sol", "CalldataBytes.sol"):
     path = ROOT / name
     print(path, path.stat().st_size, "bytes")
