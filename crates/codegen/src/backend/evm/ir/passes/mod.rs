@@ -116,7 +116,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &terminal_layout::TerminalLayout,
 ];
 
-/// Schedule an existing pass only for the code-size objective.
+/// Schedule size layout only when gas loop placement is disabled.
 struct SizeOnly<P>(P);
 
 impl<P: EvmPass> EvmPass for SizeOnly<P> {
@@ -125,7 +125,9 @@ impl<P: EvmPass> EvmPass for SizeOnly<P> {
     }
 
     fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
-        gcx.sess.opts.optimization.is_size() && self.0.is_enabled(gcx, module)
+        gcx.sess.opts.optimization.is_size()
+            && !loop_layout::LoopLayout.is_enabled(gcx, module)
+            && self.0.is_enabled(gcx, module)
     }
 
     fn is_required(&self) -> bool {
@@ -199,7 +201,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Cleanup(stack_normalize::StackNormalize),
     &block_layout::BlockLayout,
     &share_reverts::ShareReverts,
-    &cfg_simplify::CfgSimplify::FINAL,
+    &cfg_simplify::CfgSimplify::EARLY,
     &block_layout::BlockLayout,
     // Share tails exposed by outlining and revert cleanup before packing constants.
     &terminal_dedup::TerminalDedup,
@@ -390,6 +392,34 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn final_cfg_cleanup_follows_sharing() {
+        let last_sharing = DEFAULT_PIPELINE
+            .iter()
+            .rposition(|pass| {
+                matches!(
+                    pass.name(),
+                    "terminal-dedup"
+                        | "tail-merge"
+                        | "outline"
+                        | "share-reverts"
+                        | "late-structural"
+                )
+            })
+            .unwrap();
+        let final_cfg = PassCacheKey::new(&cfg_simplify::CfgSimplify::FINAL);
+        assert!(
+            DEFAULT_PIPELINE[..=last_sharing]
+                .iter()
+                .all(|pass| PassCacheKey::new(*pass) != final_cfg)
+        );
+        assert!(
+            DEFAULT_PIPELINE[last_sharing + 1..]
+                .iter()
+                .any(|pass| PassCacheKey::new(*pass) == final_cfg)
+        );
+    }
 
     #[test]
     fn pass_cache_keys_include_configuration() {

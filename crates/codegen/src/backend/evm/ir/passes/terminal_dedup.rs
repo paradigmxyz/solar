@@ -1,7 +1,8 @@
 //! Duplicate terminal block elimination.
 //!
 //! Do not schedule sharing in modules containing `PC`: distinct instruction sites must remain
-//! distinct observations, even when their surrounding bodies become identical.
+//! distinct observations, even when their surrounding bodies become identical. Blocks with custom
+//! instruction stack effects are not candidates: sharing must preserve their stack contracts.
 //!
 //! Terminal blocks with identical machine instruction bodies can share one
 //! implementation because execution never returns to their callers. This pass
@@ -136,7 +137,9 @@ fn merge_debug_origins(module: &mut Module, redirects: &[(BlockId, BlockId)]) {
 
 fn terminal_block_key(block: &Block, redirectable: bool) -> Option<TerminalBlockKey> {
     let terminator = &block.terminator.as_ref()?.kind;
-    if !is_terminal_boundary(terminator) && !redirectable {
+    if (!is_terminal_boundary(terminator) && !redirectable)
+        || block.instructions.iter().any(|inst| !inst.has_canonical_stack_effect())
+    {
         return None;
     }
     let instructions = block

@@ -17,15 +17,15 @@
 //! glued instructions and custom stack effects. Run this after the main sharing sweeps to avoid
 //! changing which physical instruction sequences those sweeps can merge.
 //! Final cleanup also recognizes labels passed straight to a shared `JUMPI` head as direct
-//! jump targets. Later sharing can merge the exposed tails and add jumps back to shortened paths,
-//! so any additional sharing sweep needs end-to-end gas and size measurements.
+//! jump targets. Run final cleanup after all sharing sweeps so those sweeps cannot merge the
+//! exposed tails and add jumps back to shortened paths.
 //! Size cleanup turns a constant label passed to a shared one-instruction `JUMPI` body into
 //! a direct conditional terminator. This lets layout remove the intermediate jump; glued
 //! sequences and custom stack effects remain intact.
 //! Gas cleanup duplicates a word-return body of at most eight bytes into an empty stub
 //! reached by at least two other empty stubs. It amortizes the copy across those paths while
-//! preserving every address-taken label. The default pipeline repeats final cleanup after its
-//! last sharing sweep to restore copies that sharing may fold back into jumps.
+//! preserving every address-taken label. The default pipeline runs final cleanup after its
+//! last sharing sweep so sharing cannot fold these copies back into jumps.
 //! Debug events move to retained operations where representable; they do not affect rewrite
 //! eligibility. Other address-taken blocks remain distinct, and block merging requires one
 //! reference so changing a predecessor cannot affect another edge. The pass preserves the

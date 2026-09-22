@@ -22,3 +22,21 @@ bb2 [loop]:
   push 32
   push 0
   revert
+
+// Different stack contracts keep otherwise identical bodies distinct.
+// CHECK-LABEL: {{^[ +].*}}bb3 [cold]:
+// CHECK: {{^[ +].*}}callf !metadata(stack=0->2)
+// CHECK: {{^[ +].*}}revert
+bb3 [cold]:
+  callf !metadata(stack=0->2)
+  push 32
+  push 0
+  revert
+// CHECK-LABEL: {{^[ +].*}}bb4 [cold]:
+// CHECK: {{^[ +].*}}callf !metadata(stack=0->1)
+// CHECK: {{^[ +].*}}revert
+bb4 [cold]:
+  callf !metadata(stack=0->1)
+  push 32
+  push 0
+  revert

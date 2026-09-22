@@ -16,4 +16,14 @@
 -   push 0
 -   revert
 +   jump bb1
+  bb3 [cold]:
+    callf !metadata(stack=0->2)
+    push 32
+    push 0
+    revert
+  bb4 [cold]:
+    callf !metadata(stack=0->1)
+    push 32
+    push 0
+    revert
   

@@ -134,6 +134,10 @@ terminal-deduplication/CFG/tail-merging/CFG sweep before constant packing, final
 block CSE and peepholes, and size-only block/terminal layout after the last local
 rewrites. All transforms already exist. The size-only adapter shares the underlying
 pass's unchanged-result cache entry; adapters that add rewrites stay distinct.
+Final CFG cleanup runs after all sharing, including conditional late sharing; earlier sweeps
+use early CFG cleanup. The size-layout gate also requires gas loop layout to be
+disabled. Terminal deduplication rejects custom instruction stack effects, and
+tail matching stops at them while allowing canonical suffixes to share.
 
 | Runtime corpus metric | Gas objective | Size objective |
 | --- | ---: | ---: |
@@ -148,9 +152,10 @@ These are sums over the runner's hot calls, not individual transaction costs.
 
 The larger size check compiles every contract in the nine vendored project
 archives, including their tests and helpers. Gas mode compares 1,171 nonempty
-runtime objects: 136 shrink, none grow, and the total falls by 6,605 bytes. Size
-mode compares 938 nonempty objects: 279 shrink, one grows, and the total falls by
-24,455 bytes. The exception is SeaportValidatorHelper, which grows 37 bytes.
+runtime objects: 136 shrink, eight grow by one or two bytes, and the total falls
+by 6,801 bytes. Size mode compares 938 nonempty objects: 278 shrink, three grow,
+and the total falls by 24,419 bytes. SeaportValidatorHelper grows 37 bytes; the
+SqrtPriceMathTest and SwapMathTest helpers each grow two bytes.
 The OpenZeppelin archive fails in size mode in both baseline and candidate with
 the same low-memory forwarding-buffer error and is excluded from that mode.
 
@@ -166,29 +171,28 @@ creation and runtime bytecode with and without ethdebug.
 
 ## Compiler-time tradeoff
 
-Matching debug builds take 1.17% longer by geometric mean across the nine
+Matching debug builds take 1.50% longer by geometric mean across the nine
 whole-project inputs. Each result is the median of three single-compile samples,
-collected in alternating baseline/candidate order after this investigation's
-other builds and benchmarks finished. Both revisions were rebuilt with
-`cargo build -p solar-compiler --bin solar` in the same isolated worktree and
-shared target directory. The host is shared; these samples do not establish a
-release-build cost or a statistical confidence interval.
+collected in alternating baseline/candidate order after other builds and
+benchmarks finished. Both revisions use `cargo build -p solar-compiler --bin solar`
+with the same toolchain and debug profile. The host is shared; these samples do
+not establish a release-build cost or a statistical confidence interval.
 
 | Project | Baseline median | Candidate median | Change |
 | --- | ---: | ---: | ---: |
-| seaport-1.6-project | 82.561 s | 80.705 s | -2.25% |
-| v4-core-project | 10.456 s | 10.756 s | +2.86% |
-| morpho-blue-project | 8.860 s | 9.051 s | +2.15% |
-| openzeppelin-5.6.1-project | 10.437 s | 10.571 s | +1.28% |
-| solady-0.1.26-project | 18.654 s | 18.922 s | +1.44% |
-| forge-std-1.16.1-project | 5.846 s | 5.892 s | +0.79% |
-| prb-math-4.1.1-project | 3.453 s | 3.530 s | +2.23% |
-| solmate-6-project | 7.815 s | 8.043 s | +2.93% |
-| solarray-a547630-project | 0.490 s | 0.486 s | -0.77% |
+| seaport-1.6-project | 84.510 s | 85.035 s | +0.62% |
+| v4-core-project | 10.896 s | 10.879 s | -0.16% |
+| morpho-blue-project | 8.918 s | 9.150 s | +2.60% |
+| openzeppelin-5.6.1-project | 10.556 s | 10.617 s | +0.58% |
+| solady-0.1.26-project | 18.776 s | 19.108 s | +1.77% |
+| forge-std-1.16.1-project | 5.875 s | 5.968 s | +1.58% |
+| prb-math-4.1.1-project | 3.479 s | 3.569 s | +2.57% |
+| solmate-6-project | 7.806 s | 8.134 s | +4.20% |
+| solarray-a547630-project | 0.496 s | 0.495 s | -0.22% |
 
 The schedule trades compiler work for smaller generated code and the measured
 size-mode gas reduction. Raw samples and eligibility checks are in
-`matched-compile-time/`; no compiler-speed improvement is claimed.
+`review-fix-compile-time/`; no compiler-speed improvement is claimed.
 
 ## Reproducing the retained schedule
 
@@ -216,10 +220,13 @@ original settings. The forced-size project check above is a separate experiment.
 
 Local evidence is retained under `target/codegen-bench/pass-scheduling/`:
 `final-debug-full/` and `final-size-artifacts/` hold the final reports and artifact
-diffs; `combined-size-final-terminal-tail-project-sizes/` holds the per-contract
+diffs; `review-fix-project-sizes/` holds the per-contract
 project comparison; `convergence/` records bounded outer-loop behavior;
-`final-debug-neutrality/` and `fuzz-combined-corpus/` hold correctness checks.
+`review-fix-debug-neutrality/`, `review-fix-fuzz-corpus/`, and
+`review-fix-debug-forks.json` hold correctness and fork checks.
 `pc-guard-full/` and `pc-guard-equivalence.json` confirm that the position guard
 preserves the measured corpus outputs. `pc-runtime.json` checks the two distinct
 position observations in the EVM IR fixture. The screen summaries retain rejected
-schedules and their measurements.
+schedules and their measurements. `review-fix-full/` and
+`review-fix-size-equivalence.json` record the final scheduling and stack-contract
+fixes; `review-fix-debug-neutrality/` checks their debug-output neutrality.

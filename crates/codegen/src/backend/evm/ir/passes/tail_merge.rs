@@ -1,7 +1,8 @@
 //! Merge profitable suffixes of machine-level terminal blocks.
 //!
 //! Do not schedule sharing in modules containing `PC`: a shared suffix would collapse distinct
-//! instruction-position observations into one site.
+//! instruction-position observations into one site. Tail matching stops at custom instruction
+//! stack effects so a shared suffix cannot replace a path's stack contract.
 //!
 //! The pass groups blocks by their machine terminator and indexes representative
 //! tails in reverse. This finds each block's longest shared suffix without
@@ -188,7 +189,9 @@ impl RunState {
         let mut matched = None;
         let len = block.instructions.len();
         for (common, inst) in block.instructions.iter().rev().enumerate() {
-            if keep_branches && inst.as_evm_opcode() == Some(op::JUMPI) {
+            if !inst.has_canonical_stack_effect()
+                || (keep_branches && inst.as_evm_opcode() == Some(op::JUMPI))
+            {
                 break;
             }
             let Some(&child) = self.tail_edges.get(&(node, MachineInstKey::new(inst))) else {
@@ -215,8 +218,9 @@ impl RunState {
         // whose start is a legal split point in its own instruction list.
         for common in 0..=len {
             if common > 0 {
-                if keep_branches
-                    && block.instructions[len - common].as_evm_opcode() == Some(op::JUMPI)
+                let inst = &block.instructions[len - common];
+                if !inst.has_canonical_stack_effect()
+                    || (keep_branches && inst.as_evm_opcode() == Some(op::JUMPI))
                 {
                     break;
                 }
