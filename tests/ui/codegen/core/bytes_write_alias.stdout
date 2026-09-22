@@ -14,22 +14,19 @@ fn @doubled() [selector=0x61fe03e4, abi_wrapper, pure] {
   bb0:
     v3 = icall @decode_calldata_type, 4
     v0 = icall @_doubled, v3
-    v28 = ptrtoint memptr v0 to i256
-    v11 = ne v28, 0
-    v12 = zext i1 v11 to i256
-    v7 = mload v28
-    v13 = mul v7, v12
-    v30 = add v28, 32
-    v15 = add v13, 31
-    v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = add v30, v17
-    mstore v19, 0
-    v21 = add v28, 64
-    mcopy v21, v30, v13
-    mstore v28, 32
-    mstore v30, v13
-    v25 = add v17, 64
-    returndata v28, v25
+    v22 = ptrtoint memptr v0 to i256
+    v7 = mload v22
+    v24 = add v22, 32
+    v9 = add v7, 31
+    v11 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = add v24, v11
+    mstore v13, 0
+    v15 = add v22, 64
+    mcopy v15, v24, v7
+    mstore v22, 32
+    mstore v24, v7
+    v19 = add v11, 64
+    returndata v22, v19
 }
 
 fn @doubledTwice() [selector=0x406883b8, abi_wrapper, pure] {
@@ -37,22 +34,19 @@ fn @doubledTwice() [selector=0x406883b8, abi_wrapper, pure] {
     v4 = icall @decode_calldata_type, 4
     v0 = icall @_doubled, v4
     v1 = icall @_doubled, v0
-    v29 = ptrtoint memptr v1 to i256
-    v12 = ne v29, 0
-    v13 = zext i1 v12 to i256
-    v8 = mload v29
-    v14 = mul v8, v13
-    v31 = add v29, 32
-    v16 = add v14, 31
-    v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v20 = add v31, v18
-    mstore v20, 0
-    v22 = add v29, 64
-    mcopy v22, v31, v14
-    mstore v29, 32
-    mstore v31, v14
-    v26 = add v18, 64
-    returndata v29, v26
+    v23 = ptrtoint memptr v1 to i256
+    v8 = mload v23
+    v25 = add v23, 32
+    v10 = add v8, 31
+    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v14 = add v25, v12
+    mstore v14, 0
+    v16 = add v23, 64
+    mcopy v16, v25, v8
+    mstore v23, 32
+    mstore v25, v8
+    v20 = add v12, 64
+    returndata v23, v20
 }
 
 fn @_doubled(arg0: memptr) -> memptr [may_return_memory, pure] {

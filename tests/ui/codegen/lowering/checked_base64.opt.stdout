@@ -14,88 +14,76 @@ fn @decode.0() [selector=0x49145c91, abi_wrapper, pure] {
   bb0:
     v3 = icall @decode_calldata_type, 4
     v0 = icall @decode.8, v3
-    v28 = ptrtoint memptr v0 to i256
-    v11 = ne v28, 0
-    v12 = zext i1 v11 to i256
-    v7 = mload v28
-    v13 = mul v7, v12
-    v30 = add v28, 32
-    v15 = add v13, 31
-    v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = add v30, v17
-    mstore v19, 0
-    v21 = add v28, 64
-    mcopy v21, v30, v13
-    mstore v28, 32
-    mstore v30, v13
-    v25 = add v17, 64
-    returndata v28, v25
+    v22 = ptrtoint memptr v0 to i256
+    v7 = mload v22
+    v24 = add v22, 32
+    v9 = add v7, 31
+    v11 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = add v24, v11
+    mstore v13, 0
+    v15 = add v22, 64
+    mcopy v15, v24, v7
+    mstore v22, 32
+    mstore v24, v7
+    v19 = add v11, 64
+    returndata v22, v19
 }
 
 fn @encode.1() [selector=0x12496a1b, abi_wrapper, pure] {
   bb0:
     v5 = icall @decode_calldata_type, 4
     v1 = icall @encode.4, v5, 0, 0
-    v30 = ptrtoint memptr v1 to i256
-    v13 = ne v30, 0
-    v14 = zext i1 v13 to i256
-    v9 = mload v30
-    v15 = mul v9, v14
-    v32 = add v30, 32
-    v17 = add v15, 31
-    v19 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v21 = add v32, v19
-    mstore v21, 0
-    v23 = add v30, 64
-    mcopy v23, v32, v15
-    mstore v30, 32
-    mstore v32, v15
-    v27 = add v19, 64
-    returndata v30, v27
+    v24 = ptrtoint memptr v1 to i256
+    v9 = mload v24
+    v26 = add v24, 32
+    v11 = add v9, 31
+    v13 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = add v26, v13
+    mstore v15, 0
+    v17 = add v24, 64
+    mcopy v17, v26, v9
+    mstore v24, 32
+    mstore v26, v9
+    v21 = add v13, 64
+    returndata v24, v21
 }
 
 fn @encodeFileSafe() [selector=0x2dba772b, abi_wrapper, pure] {
   bb0:
     v6 = icall @decode_calldata_type, 4
     v2 = icall @encode.4, v6, 1, 0
-    v31 = ptrtoint memptr v2 to i256
-    v14 = ne v31, 0
-    v15 = zext i1 v14 to i256
-    v10 = mload v31
-    v16 = mul v10, v15
-    v33 = add v31, 32
-    v18 = add v16, 31
-    v20 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v22 = add v33, v20
-    mstore v22, 0
-    v24 = add v31, 64
-    mcopy v24, v33, v16
-    mstore v31, 32
-    mstore v33, v16
-    v28 = add v20, 64
-    returndata v31, v28
+    v25 = ptrtoint memptr v2 to i256
+    v10 = mload v25
+    v27 = add v25, 32
+    v12 = add v10, 31
+    v14 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v16 = add v27, v14
+    mstore v16, 0
+    v18 = add v25, 64
+    mcopy v18, v27, v10
+    mstore v25, 32
+    mstore v27, v10
+    v22 = add v14, 64
+    returndata v25, v22
 }
 
 fn @encodeNoPadding() [selector=0x3d92c956, abi_wrapper, pure] {
   bb0:
     v5 = icall @decode_calldata_type, 4
     v2 = icall @encode.4, v5, 0, 1
-    v30 = ptrtoint memptr v2 to i256
-    v13 = ne v30, 0
-    v14 = zext i1 v13 to i256
-    v9 = mload v30
-    v15 = mul v9, v14
-    v32 = add v30, 32
-    v17 = add v15, 31
-    v19 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v21 = add v32, v19
-    mstore v21, 0
-    v23 = add v30, 64
-    mcopy v23, v32, v15
-    mstore v30, 32
-    mstore v32, v15
-    v27 = add v19, 64
-    returndata v30, v27
+    v24 = ptrtoint memptr v2 to i256
+    v9 = mload v24
+    v26 = add v24, 32
+    v11 = add v9, 31
+    v13 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = add v26, v13
+    mstore v15, 0
+    v17 = add v24, 64
+    mcopy v17, v26, v9
+    mstore v24, 32
+    mstore v26, v9
+    v21 = add v13, 64
+    returndata v24, v21
 }
 
 fn @encode.4(arg0: memptr, arg1: i256, arg2: i256) -> memptr [may_return_memory, pure] {

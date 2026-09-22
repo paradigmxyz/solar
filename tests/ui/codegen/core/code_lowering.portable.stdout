@@ -29,22 +29,19 @@ fn @whole() [selector=0xbbbb2e8a, abi_wrapper] {
     v0 = icall @deploy, v5
     v1 = extcodesize v0
     v2 = icall @read, v0, 0, v1
-    v30 = ptrtoint memptr v2 to i256
-    v13 = ne v30, 0
-    v14 = zext i1 v13 to i256
-    v9 = mload v30
-    v15 = mul v9, v14
-    v32 = add v30, 32
-    v17 = add v15, 31
-    v19 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v21 = add v32, v19
-    mstore v21, 0
-    v23 = add v30, 64
-    mcopy v23, v32, v15
-    mstore v30, 32
-    mstore v32, v15
-    v27 = add v19, 64
-    returndata v30, v27
+    v24 = ptrtoint memptr v2 to i256
+    v9 = mload v24
+    v26 = add v24, 32
+    v11 = add v9, 31
+    v13 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = add v26, v13
+    mstore v15, 0
+    v17 = add v24, 64
+    mcopy v17, v26, v9
+    mstore v24, 32
+    mstore v26, v9
+    v21 = add v13, 64
+    returndata v24, v21
   bb1:
     revert 0, 0
 }
@@ -58,22 +55,19 @@ fn @part() [selector=0x107cd163, abi_wrapper] {
     v4 = icall @decode_calldata_type, 4
     v0 = icall @deploy, v4
     v1 = icall @read, v0, arg1, arg2
-    v29 = ptrtoint memptr v1 to i256
-    v12 = ne v29, 0
-    v13 = zext i1 v12 to i256
-    v8 = mload v29
-    v14 = mul v8, v13
-    v31 = add v29, 32
-    v16 = add v14, 31
-    v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v20 = add v31, v18
-    mstore v20, 0
-    v22 = add v29, 64
-    mcopy v22, v31, v14
-    mstore v29, 32
-    mstore v31, v14
-    v26 = add v18, 64
-    returndata v29, v26
+    v23 = ptrtoint memptr v1 to i256
+    v8 = mload v23
+    v25 = add v23, 32
+    v10 = add v8, 31
+    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v14 = add v25, v12
+    mstore v14, 0
+    v16 = add v23, 64
+    mcopy v16, v25, v8
+    mstore v23, 32
+    mstore v25, v8
+    v20 = add v12, 64
+    returndata v23, v20
   bb1:
     revert 0, 0
 }
@@ -85,29 +79,26 @@ fn @patched() [selector=0xfb337b39, abi_wrapper] {
     jumpi v5, bb1, bb2
   bb2:
     v6 = icall @decode_calldata_type, 4
-    v35 = mload 64 !metadata(memory=scratch)
-    v0 = inttoptr i256 v35 to memptr !metadata(memory=scratch)
-    v36 = add v35, 64
-    mstore 64, v36 !metadata(memory=scratch)
-    mstore v35, 6
-    v33 = add v35, 32
-    mstore v33, 0xaaaaaaaaaaaa0000000000000000000000000000000000000000000000000000
+    v29 = mload 64 !metadata(memory=scratch)
+    v0 = inttoptr i256 v29 to memptr !metadata(memory=scratch)
+    v30 = add v29, 64
+    mstore 64, v30 !metadata(memory=scratch)
+    mstore v29, 6
+    v27 = add v29, 32
+    mstore v27, 0xaaaaaaaaaaaa0000000000000000000000000000000000000000000000000000
     v3 = icall @deploy, v6
     icall @copyInto, v0, 1, v3, 0, 4
-    v14 = ne v35, 0
-    v15 = zext i1 v14 to i256
-    v10 = mload v35
-    v16 = mul v10, v15
-    v18 = add v16, 31
-    v20 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v22 = add v33, v20
-    mstore v22, 0
-    v24 = add v35, 64
-    mcopy v24, v33, v16
-    mstore v35, 32
-    mstore v33, v16
-    v28 = add v20, 64
-    returndata v35, v28
+    v10 = mload v29
+    v12 = add v10, 31
+    v14 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v16 = add v27, v14
+    mstore v16, 0
+    v18 = add v29, 64
+    mcopy v18, v27, v10
+    mstore v29, 32
+    mstore v27, v10
+    v22 = add v14, 64
+    returndata v29, v22
   bb1:
     revert 0, 0
 }
@@ -119,35 +110,32 @@ fn @overflow() [selector=0x0992e012, abi_wrapper] {
     jumpi v5, bb1, bb2
   bb2:
     v6 = icall @decode_calldata_type, 4
-    v35 = mload 64 !metadata(memory=scratch)
-    v2 = inttoptr i256 v35 to memptr !metadata(memory=scratch)
-    v36 = add v35, 64
-    v37 = lt v36, v35
-    v38 = gt v36, 0xffffffffffffffff
-    v39 = or v37, v38
-    jumpi v39, bb4, bb3
+    v29 = mload 64 !metadata(memory=scratch)
+    v2 = inttoptr i256 v29 to memptr !metadata(memory=scratch)
+    v30 = add v29, 64
+    v31 = lt v30, v29
+    v32 = gt v30, 0xffffffffffffffff
+    v33 = or v31, v32
+    jumpi v33, bb4, bb3
   bb3:
-    mstore 64, v36 !metadata(memory=scratch)
-    v41 = calldatasize
-    calldatacopy v35, v41, 64
-    mstore v35, 3
+    mstore 64, v30 !metadata(memory=scratch)
+    v35 = calldatasize
+    calldatacopy v29, v35, 64
+    mstore v29, 3
     v3 = icall @deploy, v6
     icall @copyInto, v2, 0, v3, 0, 4
-    v14 = ne v35, 0
-    v15 = zext i1 v14 to i256
-    v10 = mload v35
-    v16 = mul v10, v15
-    v34 = add v35, 32
-    v18 = add v16, 31
-    v20 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v22 = add v34, v20
-    mstore v22, 0
-    v24 = add v35, 64
-    mcopy v24, v34, v16
-    mstore v35, 32
-    mstore v34, v16
-    v28 = add v20, 64
-    returndata v35, v28
+    v10 = mload v29
+    v28 = add v29, 32
+    v12 = add v10, 31
+    v14 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v16 = add v28, v14
+    mstore v16, 0
+    v18 = add v29, 64
+    mcopy v18, v28, v10
+    mstore v29, 32
+    mstore v28, v10
+    v22 = add v14, 64
+    returndata v29, v22
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

@@ -18,21 +18,21 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     jumpi v96, bb5, bb11
   bb11:
     v98 = and v95, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v168 = mload 64 !metadata(memory=scratch)
-    v169 = add v168, v98
-    v170 = lt v169, v168
-    v171 = gt v169, 0xffffffffffffffff
-    v172 = or v170, v171
-    jumpi v172, bb5, bb14
+    v162 = mload 64 !metadata(memory=scratch)
+    v163 = add v162, v98
+    v164 = lt v163, v162
+    v165 = gt v163, 0xffffffffffffffff
+    v166 = or v164, v165
+    jumpi v166, bb5, bb14
   bb14:
-    mstore 64, v169 !metadata(memory=scratch)
-    mstore v168, v93
+    mstore 64, v163 !metadata(memory=scratch)
+    mstore v162, v93
     v100 = sub v84, v88
     v101 = gt v93, v100
     jumpi v101, bb9, bb12
   bb12:
-    v155 = add v168, 32
-    calldatacopy v155, v88, v93
+    v149 = add v162, 32
+    calldatacopy v149, v88, v93
     v58 = div v93, 3
     v59 = shl 2, v58
     v61 = shr 2, v59
@@ -44,65 +44,62 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     jumpi v4, bb5, bb6
   bb6:
     v6 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v162 = mload 64 !metadata(memory=scratch)
-    v163 = add v162, v6
-    v164 = lt v163, v162
-    v165 = gt v163, 0xffffffffffffffff
-    v166 = or v164, v165
-    jumpi v166, bb5, bb13
+    v156 = mload 64 !metadata(memory=scratch)
+    v157 = add v156, v6
+    v158 = lt v157, v156
+    v159 = gt v157, 0xffffffffffffffff
+    v160 = or v158, v159
+    jumpi v160, bb5, bb13
   bb13:
-    mstore 64, v163 !metadata(memory=scratch)
-    v174 = calldatasize
-    calldatacopy v162, v174, v6
-    mstore v162, v59
-    v175 = add v162, 32
-    v179 = add v162, v59
-    v180 = add v179, 32
-    v184 = add v155, v93
+    mstore 64, v157 !metadata(memory=scratch)
+    v168 = calldatasize
+    calldatacopy v156, v168, v6
+    mstore v156, v59
+    v169 = add v156, 32
+    v173 = add v156, v59
+    v174 = add v173, 32
+    v178 = add v149, v93
     jump bb1
   bb1:
-    v176 = phi [bb13: v175], [bb4: v177]
-    v181 = phi [bb13: v155], [bb4: v182]
-    v183 = add v181, 2
-    v15 = lt v183, v184
+    v170 = phi [bb13: v169], [bb4: v171]
+    v175 = phi [bb13: v149], [bb4: v176]
+    v177 = add v175, 2
+    v15 = lt v177, v178
     jumpi v15, bb3, bb2
   bb3:
-    v178 = add v176, 3
-    v17 = lt v178, v180
+    v172 = add v170, 3
+    v17 = lt v172, v174
     jumpi v17, bb4, bb2
   bb2:
-    v110 = ne v162, 0
-    v111 = zext i1 v110 to i256
-    v112 = mul v59, v111
-    v159 = add v162, 32
-    v114 = add v112, 31
-    v116 = and v114, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v118 = add v159, v116
-    mstore v118, 0
-    v120 = add v162, 64
-    mcopy v120, v159, v112
-    mstore v162, 32
-    mstore v159, v112
-    v124 = add v116, 64
-    returndata v162, v124
+    v153 = add v156, 32
+    v108 = add v59, 31
+    v110 = and v108, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v112 = add v153, v110
+    mstore v112, 0
+    v114 = add v156, 64
+    mcopy v114, v153, v59
+    mstore v156, 32
+    mstore v153, v59
+    v118 = add v110, 64
+    returndata v156, v118
   bb4:
-    v130 = mload v181
-    v131 = byte 0, v130
-    mstore8 v176, v131
-    v137 = add v181, 1
-    v138 = mload v137
-    v139 = byte 0, v138
-    v142 = add v176, 1
-    mstore8 v142, v139
-    v145 = add v181, 2
-    v146 = mload v145
-    v147 = byte 0, v146
-    v150 = add v176, 2
-    mstore8 v150, v147
-    v153 = add v176, 3
-    mstore8 v153, 0
-    v177 = add v176, 4
-    v182 = add v181, 3
+    v124 = mload v175
+    v125 = byte 0, v124
+    mstore8 v170, v125
+    v131 = add v175, 1
+    v132 = mload v131
+    v133 = byte 0, v132
+    v136 = add v170, 1
+    mstore8 v136, v133
+    v139 = add v175, 2
+    v140 = mload v139
+    v141 = byte 0, v140
+    v144 = add v170, 2
+    mstore8 v144, v141
+    v147 = add v170, 3
+    mstore8 v147, 0
+    v171 = add v170, 4
+    v176 = add v175, 3
     jump bb1
   bb7:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

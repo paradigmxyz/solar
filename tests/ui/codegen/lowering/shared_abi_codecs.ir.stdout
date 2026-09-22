@@ -9,36 +9,33 @@ fn @encodeFirst() [selector=0xe9a7b169, abi_wrapper, pure] {
   bb2:
     v3 = icall @decode_calldata_type, 4
     v4 = icall @encodeFirst.body, v3
-    v43 = mload 64 !metadata(memory=scratch)
-    v10 = add v43, 32
-    mstore v43, 32
-    v40 = ptrtoint memptr v4 to i256
-    v18 = ne v40, 0
-    v19 = zext i1 v18 to i256
-    v14 = mload v40
-    v20 = mul v14, v19
-    mstore v10, v20
-    v22 = add v20, 31
-    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v24 = add v10, 32
-    v25 = eq v23, 0
-    jumpi v25, bb4, bb3
+    v37 = mload 64 !metadata(memory=scratch)
+    v10 = add v37, 32
+    mstore v37, 32
+    v34 = ptrtoint memptr v4 to i256
+    v14 = mload v34
+    mstore v10, v14
+    v16 = add v14, 31
+    v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v18 = add v10, 32
+    v19 = eq v17, 0
+    jumpi v19, bb4, bb3
   bb3:
-    v26 = sub v23, 32
-    v27 = add v24, v26
-    mstore v27, 0
+    v20 = sub v17, 32
+    v21 = add v18, v20
+    mstore v21, 0
     jump bb4
   bb4:
-    v29 = add v24, v23
-    v42 = add v40, 32
-    mcopy v24, v42, v20
-    v32 = sub v29, v43
-    v34 = add v32, 31
-    v36 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v44 = mload 64
-    v45 = add v44, v36
-    mstore 64, v45
-    returndata v44, v32
+    v23 = add v18, v17
+    v36 = add v34, 32
+    mcopy v18, v36, v14
+    v26 = sub v23, v37
+    v28 = add v26, 31
+    v30 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v38 = mload 64
+    v39 = add v38, v30
+    mstore 64, v39
+    returndata v38, v26
   bb1:
     revert 0, 0
 }
