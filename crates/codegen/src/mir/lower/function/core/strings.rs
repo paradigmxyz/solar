@@ -119,6 +119,152 @@ impl FunctionLowerer<'_, '_> {
         self.builder.memory_object_from_ptr(result, MemoryObjectKind::Bytes)
     }
 
+    /// Packs one short string with word operations instead of a byte loop.
+    pub(super) fn lower_core_string_pack_one_call(
+        &mut self,
+        operands: &[ValueId],
+    ) -> Option<ValueId> {
+        let [input] = *operands else { return None };
+        let bytes = MemoryObjectKind::Bytes;
+        let length = self.builder.memory_object_len(input, bytes);
+        let data = self.builder.memory_object_data(input, bytes);
+        let word = self.builder.mload(data);
+        let thirty_two = self.builder.imm(32);
+        let nonempty = self.builder.ne_zero(length);
+        let fits = self.builder.lt(length, thirty_two);
+        let valid = self.builder.and(nonempty, fits);
+
+        // Move the input down by one byte and clear everything after the
+        // logical payload, since bytes padding is not part of the value.
+        let eight = self.builder.imm(8);
+        let payload = self.builder.shr(eight, word);
+        let thirty_one = self.builder.imm(31);
+        let padding = self.builder.sub(thirty_one, length);
+        let three = self.builder.imm(3);
+        let padding_bits = self.builder.shl(three, padding);
+        let all = self.builder.imm(U256::MAX);
+        let mask = self.builder.shl(padding_bits, all);
+        let payload = self.builder.and(payload, mask);
+        let top_byte = self.builder.imm(248);
+        let length_tag = self.builder.shl(top_byte, length);
+        let packed = self.builder.or(length_tag, payload);
+        let zero = self.builder.imm(0);
+        Some(self.builder.select(valid, packed, zero))
+    }
+
+    /// Reconstructs one short string with one allocation and one word store.
+    pub(super) fn lower_core_string_unpack_one_call(
+        &mut self,
+        operands: &[ValueId],
+    ) -> Option<ValueId> {
+        let [packed] = *operands else { return None };
+        let zero = self.builder.imm(0);
+        let raw_length = self.builder.byte(zero, packed);
+        let thirty_one = self.builder.imm(31);
+        let too_long = self.builder.gt(raw_length, thirty_one);
+        let length = self.builder.select(too_long, thirty_one, raw_length);
+        let out =
+            self.builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+        let data = self.builder.memory_object_data(out, MemoryObjectKind::Bytes);
+        let eight = self.builder.imm(8);
+        let contents = self.builder.shl(eight, packed);
+        self.builder.mstore(data, contents);
+        Some(out)
+    }
+
+    /// Packs two short strings with four word operations and a final mask.
+    pub(super) fn lower_core_string_pack_two_call(
+        &mut self,
+        operands: &[ValueId],
+    ) -> Option<ValueId> {
+        let [a, b] = *operands else { return None };
+        let bytes = MemoryObjectKind::Bytes;
+        let a_length = self.builder.memory_object_len(a, bytes);
+        let b_length = self.builder.memory_object_len(b, bytes);
+        let total = self.builder.add(a_length, b_length);
+        let nonempty = self.builder.ne_zero(total);
+        let thirty_one = self.builder.imm(31);
+        let fits = self.builder.lt(total, thirty_one);
+        let valid = self.builder.and(nonempty, fits);
+        let eight = self.builder.imm(8);
+        let three = self.builder.imm(3);
+        let all = self.builder.imm(U256::MAX);
+
+        let a_data = self.builder.memory_object_data(a, bytes);
+        let a_word = self.builder.mload(a_data);
+        let thirty_two = self.builder.imm(32);
+        let a_padding = self.builder.sub(thirty_two, a_length);
+        let a_padding_bits = self.builder.shl(three, a_padding);
+        let a_mask = self.builder.shl(a_padding_bits, all);
+        let a_payload = self.builder.and(a_word, a_mask);
+        let a_payload = self.builder.shr(eight, a_payload);
+
+        let b_data = self.builder.memory_object_data(b, bytes);
+        let b_word = self.builder.mload(b_data);
+        let b_padding = self.builder.sub(thirty_two, b_length);
+        let b_padding_bits = self.builder.shl(three, b_padding);
+        let b_mask = self.builder.shl(b_padding_bits, all);
+        let b_payload = self.builder.and(b_word, b_mask);
+        let two = self.builder.imm(2);
+        let b_byte_offset = self.builder.add(a_length, two);
+        let b_bit_offset = self.builder.shl(three, b_byte_offset);
+        let b_payload = self.builder.shr(b_bit_offset, b_payload);
+
+        let top_byte = self.builder.imm(248);
+        let a_tag = self.builder.shl(top_byte, a_length);
+        let thirty = self.builder.imm(30);
+        let b_tag_bytes = self.builder.sub(thirty, a_length);
+        let b_tag_bits = self.builder.shl(three, b_tag_bytes);
+        let b_tag = self.builder.shl(b_tag_bits, b_length);
+        let packed = self.builder.or(a_tag, a_payload);
+        let packed = self.builder.or(packed, b_tag);
+        let packed = self.builder.or(packed, b_payload);
+
+        // Discard dirty source padding even when one input is empty.
+        let padding = self.builder.sub(thirty, total);
+        let padding_bits = self.builder.shl(three, padding);
+        let result_mask = self.builder.shl(padding_bits, all);
+        let packed = self.builder.and(packed, result_mask);
+        let zero = self.builder.imm(0);
+        Some(self.builder.select(valid, packed, zero))
+    }
+
+    /// Reconstructs two short strings with two allocations and word stores.
+    pub(super) fn lower_core_string_unpack_two_call(
+        &mut self,
+        operands: &[ValueId],
+    ) -> Option<Vec<ValueId>> {
+        let [packed] = *operands else { return None };
+        let zero = self.builder.imm(0);
+        let thirty = self.builder.imm(30);
+        let raw_a_length = self.builder.byte(zero, packed);
+        let a_too_long = self.builder.gt(raw_a_length, thirty);
+        let a_length = self.builder.select(a_too_long, thirty, raw_a_length);
+        let a =
+            self.builder.alloc_bytes_object(a_length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+        let a_data = self.builder.memory_object_data(a, MemoryObjectKind::Bytes);
+        let eight = self.builder.imm(8);
+        let a_contents = self.builder.shl(eight, packed);
+        self.builder.mstore(a_data, a_contents);
+
+        let one = self.builder.imm(1);
+        let b_index = self.builder.add(a_length, one);
+        let raw_b_length = self.builder.byte(b_index, packed);
+        let remaining = self.builder.sub(thirty, a_length);
+        let b_too_long = self.builder.gt(raw_b_length, remaining);
+        let b_length = self.builder.select(b_too_long, remaining, raw_b_length);
+        let b =
+            self.builder.alloc_bytes_object(b_length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+        let b_data = self.builder.memory_object_data(b, MemoryObjectKind::Bytes);
+        let two = self.builder.imm(2);
+        let b_byte_offset = self.builder.add(a_length, two);
+        let three = self.builder.imm(3);
+        let b_bit_offset = self.builder.shl(three, b_byte_offset);
+        let b_contents = self.builder.shl(b_bit_offset, packed);
+        self.builder.mstore(b_data, b_contents);
+        Some(vec![a, b])
+    }
+
     /// Keep the non-overlapping search and exact result allocation shared.
     pub(super) fn lower_core_string_indices_of_call(
         &mut self,
