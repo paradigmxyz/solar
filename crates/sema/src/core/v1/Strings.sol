@@ -227,4 +227,22 @@ library Strings {
         }
     }
 
+    /// @dev Minimal lowercase hexadecimal digits without a prefix.
+    function toMinimalHexStringNoPrefix(uint256 value) internal pure returns (string memory) {
+        uint256 length = 1;
+        for (uint256 x = value; x > 15; x >>= 4) ++length;
+        bytes memory out = new bytes(length);
+        while (length != 0) {
+            --length;
+            out[length] = DIGITS[value & 15];
+            value >>= 4;
+        }
+        return string(out);
+    }
+
+    /// @dev Minimal lowercase hexadecimal digits after `0x`.
+    function toMinimalHexString(uint256 value) internal pure returns (string memory) {
+        return string.concat("0x", toMinimalHexStringNoPrefix(value));
+    }
+
 }

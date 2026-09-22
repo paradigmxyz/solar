@@ -113,6 +113,10 @@ pub enum CoreIntrinsic {
     StringIndicesOf,
     /// `Strings.split(subject, delimiter)`.
     StringSplit,
+    /// `Strings.toMinimalHexStringNoPrefix(value)`.
+    StringMinimalHex,
+    /// `Strings.toMinimalHexString(value)`.
+    StringMinimalHexPrefixed,
     /// `Revert.raw(data)`: revert with exactly `data`.
     RevertRaw,
     /// `Hash.keccak256Range(b, offset, count)`: hash a range where it lies.
@@ -247,6 +251,8 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (Symbol::intern("replace"), CoreIntrinsic::StringReplace),
                 (Symbol::intern("indicesOf"), CoreIntrinsic::StringIndicesOf),
                 (Symbol::intern("split"), CoreIntrinsic::StringSplit),
+                (Symbol::intern("toMinimalHexStringNoPrefix"), CoreIntrinsic::StringMinimalHex),
+                (Symbol::intern("toMinimalHexString"), CoreIntrinsic::StringMinimalHexPrefixed),
             ])
         })),
         "solar:core/v1/Revert.sol" => Some(
