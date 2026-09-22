@@ -85,21 +85,21 @@ fn @packPair() [selector=0xa2352af0, abi_wrapper, pure] {
     v90 = add v89, 232
     jump bb7
   bb7:
-    v22 = phi [bb11: 0], [bb15: v68]
-    v23 = phi [bb11: v13], [bb15: v32]
+    v22 = phi [bb11: v13], [bb15: v32]
+    v23 = phi [bb11: 0], [bb15: v68]
     v91 = phi [bb11: v90], [bb15: v92]
-    v24 = lt v22, v2
+    v24 = lt v23, v2
     jumpi v24, bb8, bb1
   bb8:
-    v83 = add v82, v22
+    v83 = add v82, v23
     v84 = mload v83
     v85 = byte 0, v84
     v57 = sub 29, v1
     v58 = gt v1, 29
     jumpi v58, bb9, bb13
   bb13:
-    v59 = sub v57, v22
-    v60 = lt v57, v22
+    v59 = sub v57, v23
+    v60 = lt v57, v23
     jumpi v60, bb9, bb14
   bb14:
     v63 = shr 3, v91
@@ -107,8 +107,8 @@ fn @packPair() [selector=0xa2352af0, abi_wrapper, pure] {
     jumpi v67, bb9, bb15
   bb15:
     v31 = shl v91, v85
-    v32 = or v23, v31
-    v68 = add v22, 1
+    v32 = or v22, v31
+    v68 = add v23, 1
     v92 = sub v91, 8
     jump bb7
   bb6:
@@ -126,7 +126,7 @@ fn @packPair() [selector=0xa2352af0, abi_wrapper, pure] {
     v55 = add v8, 1
     jump bb4
   bb1:
-    v34 = phi [bb10: 0], [bb2: 0], [bb7: v23]
+    v34 = phi [bb10: 0], [bb2: 0], [bb7: v22]
     mstore 128, v34
     returndata 128, 32
   bb9:
@@ -216,8 +216,8 @@ fn @unpackTwo(arg0: i256) -> struct0 [may_return_memory, pure, return_abi=[mempt
     v92 = add v99, 32
     jump bb1
   bb1:
-    v15 = phi [bb9: 0], [bb3: v69]
-    v18 = lt v15, v86
+    v13 = phi [bb9: 0], [bb3: v69]
+    v18 = lt v13, v86
     jumpi v18, bb3, bb2
   bb2:
     v67 = add v86, 1
@@ -245,13 +245,13 @@ fn @unpackTwo(arg0: i256) -> struct0 [may_return_memory, pure, return_abi=[mempt
     v95 = add v105, 32
     jump bb4
   bb4:
-    v49 = phi [bb11: 0], [bb8: v81]
-    v53 = lt v49, v90
+    v48 = phi [bb11: 0], [bb8: v81]
+    v53 = lt v48, v90
     jumpi v53, bb6, bb5
   bb5:
     ret v11, v43
   bb6:
-    v73 = add v86, v49
+    v73 = add v86, v48
     v75 = add v73, 2
     v56 = lt v75, 32
     jumpi v56, bb8, bb7
@@ -261,14 +261,14 @@ fn @unpackTwo(arg0: i256) -> struct0 [may_return_memory, pure, return_abi=[mempt
     revert 28, 36
   bb8:
     v58 = byte v75, arg0
-    v96 = add v95, v49
+    v96 = add v95, v48
     mstore8 v96, v58
-    v81 = add v49, 1
+    v81 = add v48, 1
     jump bb4
   bb3:
-    v69 = add v15, 1
+    v69 = add v13, 1
     v22 = byte v69, arg0
-    v93 = add v92, v15
+    v93 = add v92, v13
     mstore8 v93, v22
     jump bb1
   bb10:

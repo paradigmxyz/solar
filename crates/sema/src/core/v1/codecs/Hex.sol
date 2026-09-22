@@ -5,8 +5,10 @@ import {Bytes} from "solar:core/v1/Bytes.sol";
 
 /// @notice Hexadecimal text over `bytes`.
 /// @dev Compiler-owned module, imported as `solar:core/v1/codecs/Hex.sol`.
-/// This is an ordinary source library over `Bytes`; nothing here is lowered
-/// specially. `encode` writes lowercase digits, two to a byte. `decode` is
+/// `encode` and `encodePrefixed` may use specialized lowering; these checked
+/// bodies define the portable behavior and run under `-Zno-core-intrinsics`.
+/// `decode` is an ordinary source function over `Bytes`. `encode` writes
+/// lowercase digits, two to a byte. `decode` is
 /// strict: it accepts either case and an optional `0x` prefix, and reverts
 /// with `InvalidHex()` on any other character or an odd number of digits.
 library Hex {

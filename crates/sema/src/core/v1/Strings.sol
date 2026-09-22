@@ -227,6 +227,48 @@ library Strings {
         }
     }
 
+    /// @dev The low `byteCount` bytes of a value do not hold all of it.
+    error HexLengthInsufficient();
+
+    /// @dev The low `byteCount` bytes of `value` as lowercase hexadecimal,
+    /// two digits per byte, without a prefix. Reverts with
+    /// `HexLengthInsufficient()` when `value` does not fit in them.
+    function toHexStringNoPrefix(uint256 value, uint256 byteCount)
+        internal
+        pure
+        returns (string memory)
+    {
+        bytes memory out = new bytes(byteCount * 2);
+        uint256 i = byteCount;
+        while (i != 0) {
+            --i;
+            out[i * 2 + 1] = DIGITS[value & 15];
+            value >>= 4;
+            out[i * 2] = DIGITS[value & 15];
+            value >>= 4;
+        }
+        if (value != 0) revert HexLengthInsufficient();
+        return string(out);
+    }
+
+    /// @dev `toHexStringNoPrefix(value, byteCount)` after `0x`.
+    function toHexString(uint256 value, uint256 byteCount) internal pure returns (string memory) {
+        return string.concat("0x", toHexStringNoPrefix(value, byteCount));
+    }
+
+    /// @dev `value` as lowercase hexadecimal in its fewest whole bytes, at
+    /// least one, without a prefix.
+    function toHexStringNoPrefix(uint256 value) internal pure returns (string memory) {
+        uint256 length = 1;
+        for (uint256 x = value; x > 255; x >>= 8) ++length;
+        return toHexStringNoPrefix(value, length);
+    }
+
+    /// @dev `toHexStringNoPrefix(value)` after `0x`.
+    function toHexString(uint256 value) internal pure returns (string memory) {
+        return string.concat("0x", toHexStringNoPrefix(value));
+    }
+
     /// @dev Minimal lowercase hexadecimal digits without a prefix.
     function toMinimalHexStringNoPrefix(uint256 value) internal pure returns (string memory) {
         uint256 length = 1;

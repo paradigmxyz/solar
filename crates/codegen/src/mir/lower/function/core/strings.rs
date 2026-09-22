@@ -47,10 +47,18 @@ impl FunctionLowerer<'_, '_> {
     ) -> Option<ValueId> {
         let [value] = *operands else { return None };
         let prefix_length = self.builder.imm(if prefixed { 2 } else { 0 });
-        Some(self.lower_core_string_minimal_hex(value, prefix_length))
+        Some(self.lower_core_string_minimal_hex(value, prefix_length, false))
     }
 
-    fn lower_core_string_minimal_hex(&mut self, value: ValueId, prefix_length: ValueId) -> ValueId {
+    /// Writes two digits per byte from the lowest byte up, stopping after the
+    /// highest nonzero byte. The minimal spelling then drops a leading zero
+    /// digit; `whole_bytes` keeps it, giving the fewest whole bytes instead.
+    pub(super) fn lower_core_string_minimal_hex(
+        &mut self,
+        value: ValueId,
+        prefix_length: ValueId,
+        whole_bytes: bool,
+    ) -> ValueId {
         // Reserve one fixed region and fill it backwards two digits at a time.
         // The returned bytes header may start inside the region; the allocation
         // still owns every possible header, payload, and trailing padding word.
@@ -101,11 +109,15 @@ impl FunctionLowerer<'_, '_> {
 
         self.builder.switch_to_block(done);
         let cursor = self.builder.phi(vec![(body, next_output)]);
-        let first_word = self.builder.mload(cursor);
-        let first = self.builder.byte(zero, first_word);
-        let ascii_zero = self.builder.imm(48);
-        let leading_zero = self.builder.eq(first, ascii_zero);
-        let leading_zero = self.builder.cast_word(leading_zero);
+        let leading_zero = if whole_bytes {
+            zero
+        } else {
+            let first_word = self.builder.mload(cursor);
+            let first = self.builder.byte(zero, first_word);
+            let ascii_zero = self.builder.imm(48);
+            let leading_zero = self.builder.eq(first, ascii_zero);
+            self.builder.cast_word(leading_zero)
+        };
         let header_size = self.builder.imm(32);
         let result = self.builder.sub(cursor, header_size);
         let common_header = self.builder.add(result, leading_zero);

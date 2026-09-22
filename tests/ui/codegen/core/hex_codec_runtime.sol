@@ -15,6 +15,13 @@
 //@ run-call: prefixed 0x000102030405060708090a0b0c0d0e => "0x000102030405060708090a0b0c0d0e"
 //@ run-call: prefixed 0x000102030405060708090a0b0c0d0e0f => "0x000102030405060708090a0b0c0d0e0f"
 //@ run-call: prefixed 0x000102030405060708090a0b0c0d0e0f10 => "0x000102030405060708090a0b0c0d0e0f10"
+//@ run-call: prefixed 0x00 => "0x00"
+//@ run-call: prefixed 0x000102030405060708090a0b0c0d0e => "0x000102030405060708090a0b0c0d0e"
+//@ run-call: prefixed 0x000102030405060708090a0b0c0d0e0f => "0x000102030405060708090a0b0c0d0e0f"
+//@ run-call: prefixed 0x000102030405060708090a0b0c0d0e0f10 => "0x000102030405060708090a0b0c0d0e0f10"
+//@ run-call: prefixed 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e => "0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e"
+//@ run-call: prefixed 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f => "0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+//@ run-call: prefixed 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20 => "0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
 //@ run-call: decode "" => 0x
 //@ run-call: decode "00" => 0x00
 //@ run-call: decode "00ff" => 0x00ff
@@ -35,10 +42,11 @@
 //@ run-call-fail: decode "12 4" => 0xcbbc48a0
 //@ run-call-fail: decode "0x12345" => 0xcbbc48a0
 
-// The hex codec is source code over `Bytes`: sixteen bytes to a word of
-// digits, a pulled-back block for a remainder, a byte at a time below
-// sixteen. `decode` takes either case and an optional prefix and reverts
-// with `InvalidHex()` on anything else or an odd number of digits.
+// `encode` and `encodePrefixed` convert sixteen bytes to a word of digits,
+// with the last partial chunk shifted up and its artificial digits cleared.
+// `decode` is source code over `Bytes`: it takes either case and an optional
+// prefix and reverts with `InvalidHex()` on anything else or an odd number of
+// digits.
 import {Hex} from "solar:core/v1/codecs/Hex.sol";
 
 contract Test {
