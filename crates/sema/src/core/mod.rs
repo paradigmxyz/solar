@@ -119,6 +119,15 @@ pub enum CoreIntrinsic {
     StringMinimalHex,
     /// `Strings.toMinimalHexString(value)`.
     StringMinimalHexPrefixed,
+    /// `Strings.toHexStringNoPrefix(value)` and
+    /// `Strings.toHexStringNoPrefix(value, byteCount)`.
+    StringHex,
+    /// `Strings.toHexString(value)` and `Strings.toHexString(value, byteCount)`.
+    StringHexPrefixed,
+    /// `Hex.encode(data)`.
+    HexEncode,
+    /// `Hex.encodePrefixed(data)`.
+    HexEncodePrefixed,
     /// `Strings.packOne(value)`.
     StringPackOne,
     /// `Strings.unpackOne(packed)`.
@@ -213,7 +222,15 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
     static MATH: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static BASE64: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static STRINGS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static HEX: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     match path {
+        "solar:core/v1/codecs/Hex.sol" => Some(HEX.get_or_init(|| {
+            // `decode` is library code.
+            FxHashMap::from_iter([
+                (sym::encode, CoreIntrinsic::HexEncode),
+                (Symbol::intern("encodePrefixed"), CoreIntrinsic::HexEncodePrefixed),
+            ])
+        })),
         "solar:core/v1/codecs/Base64.sol" => Some(BASE64.get_or_init(|| {
             FxHashMap::from_iter([
                 (sym::encode, CoreIntrinsic::Base64Encode),
@@ -264,6 +281,9 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (Symbol::intern("split"), CoreIntrinsic::StringSplit),
                 (Symbol::intern("toMinimalHexStringNoPrefix"), CoreIntrinsic::StringMinimalHex),
                 (Symbol::intern("toMinimalHexString"), CoreIntrinsic::StringMinimalHexPrefixed),
+                // Both arities share a name; the lowering reads the operand count.
+                (Symbol::intern("toHexStringNoPrefix"), CoreIntrinsic::StringHex),
+                (Symbol::intern("toHexString"), CoreIntrinsic::StringHexPrefixed),
                 (Symbol::intern("packOne"), CoreIntrinsic::StringPackOne),
                 (Symbol::intern("unpackOne"), CoreIntrinsic::StringUnpackOne),
                 (Symbol::intern("packTwo"), CoreIntrinsic::StringPackTwo),

@@ -20,6 +20,7 @@ use super::*;
 use solar_sema::core::CoreIntrinsic;
 
 mod base64;
+mod hex;
 mod strings;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
@@ -94,6 +95,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::StringMinimalHexPrefixed => {
                 self.lower_core_string_minimal_hex_call(&operands, true)
             }
+            CoreIntrinsic::StringHex => self.lower_core_string_hex_call(&operands, false),
+            CoreIntrinsic::StringHexPrefixed => self.lower_core_string_hex_call(&operands, true),
+            CoreIntrinsic::HexEncode => self.lower_core_hex_encode_call(&operands, false),
+            CoreIntrinsic::HexEncodePrefixed => self.lower_core_hex_encode_call(&operands, true),
             CoreIntrinsic::StringPackOne => self.lower_core_string_pack_one_call(&operands),
             CoreIntrinsic::StringUnpackOne => self.lower_core_string_unpack_one_call(&operands),
             CoreIntrinsic::StringPackTwo => self.lower_core_string_pack_two_call(&operands),
