@@ -7,8 +7,8 @@
 //! with the module; `-Zno-core-intrinsics` calls the body instead, which is
 //! how the two are compared.
 //!
-//! Every operation checks that the full range fits before it writes anything
-//! and raises the same `Panic(0x32)` the body raises. Fixed-width reads and
+//! Bounded byte operations check that the full range fits before writing
+//! and raise the same `Panic(0x32)` the body raises. Fixed-width reads and
 //! writes touch the word containing the range, which can reach up to
 //! thirty-one bytes past it; a write puts those bytes back unchanged, so the
 //! difference is visible only as memory expansion and `msize`, never as a
@@ -18,6 +18,8 @@
 
 use super::*;
 use solar_sema::core::CoreIntrinsic;
+
+mod base64;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Returns the intrinsic `function_id` names, when it is one and intrinsic
@@ -68,6 +70,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         match intrinsic {
+            CoreIntrinsic::Base64Encode => self.lower_core_base64_encode(&operands),
+            CoreIntrinsic::Base64Decode => self.lower_core_base64_decode(&operands),
             CoreIntrinsic::ReadBytes(width) => self.lower_core_read(&operands, width),
             CoreIntrinsic::ReadUint256Be => self.lower_core_read(&operands, 32),
             CoreIntrinsic::WriteBytes(width) => self.lower_core_write(&operands, width),

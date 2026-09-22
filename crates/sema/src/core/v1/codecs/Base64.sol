@@ -5,8 +5,9 @@ import {Bytes} from "solar:core/v1/Bytes.sol";
 
 /// @notice Base64 over `bytes`.
 /// @dev Compiler-owned module, imported as `solar:core/v1/codecs/Base64.sol`.
-/// This is an ordinary source library over `Bytes`; nothing here is lowered
-/// specially. `encode` writes the standard alphabet with padding, or the
+/// Calls may use specialized codec lowering; these checked bodies define
+/// the portable behavior and run under `-Zno-core-intrinsics`. `encode` writes
+/// the standard alphabet with padding, or the
 /// URL-safe one and no padding on request. `decode` is strict: it accepts
 /// either alphabet, with or without padding, and reverts with
 /// `InvalidBase64()` on a character outside both, padding anywhere but the
@@ -198,6 +199,12 @@ library Base64 {
 
     /// @dev The bytes `data` encodes. Reverts when `data` is not Base64.
     function decode(string memory data) internal pure returns (bytes memory result) {
+        return decode(data, false);
+    }
+
+    /// @dev With `imap` enabled, also accept comma as the last alphabet symbol.
+    /// All other validation is identical to the one-argument form.
+    function decode(string memory data, bool imap) internal pure returns (bytes memory result) {
         bytes memory input = bytes(data);
         uint256 n = input.length;
         // Padding is at most two characters, at the end of a padded input.
@@ -211,6 +218,7 @@ library Base64 {
         if (tail != 0) length += tail - 1;
         result = new bytes(length);
         bytes memory table = DECODE;
+        if (imap) table[44] = bytes1(uint8(63));
         // Every sextet is below 64 and every invalid entry is 0xff, so the
         // accumulated top bit says whether any character was invalid.
         uint256 seen;
