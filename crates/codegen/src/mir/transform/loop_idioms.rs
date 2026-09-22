@@ -130,22 +130,32 @@ fn payload_pointer<'a>(
         }
         _ => (None, body),
     };
-    let [ptr_inst, rest @ ..] = rest else { return None };
-    let InstKind::Add(first, second) = func.inst(*ptr_inst).kind else { return None };
-    let ptr_base = if second == index {
-        first
-    } else if first == index {
-        second
-    } else {
-        return None;
-    };
+    let (pointer, ptr_base, rest) = indexed_pointer(func, rest, index)?;
     match base {
         Some(base) if ptr_base != base => return None,
         Some(_) => {}
         None if !is_payload_base(func, ptr_base, object) => return None,
         None => {}
     }
-    Some((func.inst_result_value(*ptr_inst)?, rest))
+    Some((pointer, rest))
+}
+
+/// Accepts `pointer = data + index` and returns its loop-invariant base.
+fn indexed_pointer<'a>(
+    func: &Function,
+    body: &'a [InstId],
+    index: ValueId,
+) -> Option<(ValueId, ValueId, &'a [InstId])> {
+    let [ptr_inst, rest @ ..] = body else { return None };
+    let InstKind::Add(first, second) = func.inst(*ptr_inst).kind else { return None };
+    let data = if second == index {
+        first
+    } else if first == index {
+        second
+    } else {
+        return None;
+    };
+    Some((func.inst_result_value(*ptr_inst)?, data, rest))
 }
 
 /// Classifies the exits of a boolean scan whose header leaves to `accept` and
@@ -411,6 +421,7 @@ struct ZeroCountLoop {
 #[derive(Clone, Copy)]
 enum ByteSource {
     Memory { object: ValueId },
+    MemoryData { data: ValueId },
     Calldata { data: ValueId, length: ValueId },
 }
 
@@ -435,10 +446,21 @@ fn count_phis(
     Some((count_phi, index_phi, count, exit))
 }
 
-fn is_nonzero_test(func: &Function, inst: InstId, result: ValueId, value: ValueId) -> bool {
-    func.inst_result_value(inst) == Some(result)
-        && matches!(func.inst(inst).kind, InstKind::Ne(lhs, rhs)
-            if lhs == value && func.value_u64(rhs) == Some(0))
+/// Returns whether `result` is true when `value` is nonzero. Both compare
+/// polarities and operand orders occur after SCCP and branch simplification.
+fn zero_test_kind(func: &Function, inst: InstId, result: ValueId, value: ValueId) -> Option<bool> {
+    if func.inst_result_value(inst) != Some(result) {
+        return None;
+    }
+    let compares_value_and_zero = |lhs, rhs| {
+        (lhs == value && func.value_u64(rhs) == Some(0))
+            || (rhs == value && func.value_u64(lhs) == Some(0))
+    };
+    match func.inst(inst).kind {
+        InstKind::Ne(lhs, rhs) if compares_value_and_zero(lhs, rhs) => Some(true),
+        InstKind::Eq(lhs, rhs) if compares_value_and_zero(lhs, rhs) => Some(false),
+        _ => None,
+    }
 }
 
 /// Whether a continuing exit may take over from the loop `blocks`: it lies outside them and
@@ -483,38 +505,68 @@ fn match_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLo
     let (count_phi, index_phi, count, count_exit) = count_phis(func, phis, header, *exit, index)?;
 
     // body: [base = object + 32]; ptr = base + index; word = mload ptr; byte = byte 0, word
-    //       aligned = shl 248, byte; nonzero = ne aligned, 0; jumpi nonzero, latch, increment
+    //       [aligned = shl 248, byte]; test = (byte or aligned) {eq,ne} 0
+    //       The test polarity selects the increment and latch edges.
     let InstKind::Phi(index_incoming) = &func.inst(index_phi).kind else { unreachable!() };
     let [(preheader, _), _] = index_incoming.as_slice() else { return None };
-    let object = length_object(func, *preheader, len_inst, length)?;
     let hoisted_length = len_inst.is_none().then_some(length);
-    let (pointer, rest) = payload_pointer(func, &func.blocks[*body].instructions, object, index)?;
-    let [load_inst, byte_inst, align_inst, nonzero_inst] = rest else { return None };
-    let InstKind::MLoad(load_pointer) = func.inst(*load_inst).kind else { return None };
+    let object = length_object(func, *preheader, len_inst, length);
+    let (pointer, source, rest) = if let Some(object) = object {
+        let (pointer, rest) =
+            payload_pointer(func, &func.blocks[*body].instructions, object, index)?;
+        (pointer, ByteSource::Memory { object }, rest)
+    } else if len_inst.is_none() {
+        // ABI-wrapper inlining can forward the decoded payload pointer and
+        // length directly instead of reloading the dynamic object's length.
+        // Accept that equivalent shape when the base is defined outside the
+        // loop; the original byte loads already read the same trailing word.
+        let (pointer, data, rest) = indexed_pointer(func, &func.blocks[*body].instructions, index)?;
+        let blocks = func.inst_blocks();
+        if matches!(func.value(data), Value::Inst(inst)
+            if matches!(blocks.get(inst), Some(block) if [header, *body].contains(block)))
+        {
+            return None;
+        }
+        (pointer, ByteSource::MemoryData { data }, rest)
+    } else {
+        return None;
+    };
+    let (load_inst, byte_inst, tested, test_inst) = match rest {
+        [load_inst, byte_inst, test_inst] => (*load_inst, *byte_inst, None, *test_inst),
+        [load_inst, byte_inst, align_inst, test_inst] => {
+            (*load_inst, *byte_inst, Some(*align_inst), *test_inst)
+        }
+        _ => return None,
+    };
+    let InstKind::MLoad(load_pointer) = func.inst(load_inst).kind else { return None };
     if load_pointer != pointer {
         return None;
     }
-    let word = func.inst_result_value(*load_inst)?;
-    let InstKind::Byte(byte_index, byte_word) = func.inst(*byte_inst).kind else { return None };
+    let word = func.inst_result_value(load_inst)?;
+    let InstKind::Byte(byte_index, byte_word) = func.inst(byte_inst).kind else { return None };
     if func.value_u64(byte_index) != Some(0) || byte_word != word {
         return None;
     }
-    let byte = func.inst_result_value(*byte_inst)?;
-    let InstKind::Shl(shift, align_byte) = func.inst(*align_inst).kind else { return None };
-    if func.value_u64(shift) != Some(248) || align_byte != byte {
-        return None;
-    }
-    let aligned = func.inst_result_value(*align_inst)?;
-    let Terminator::Branch { condition: nonzero, then_block: latch, else_block: increment } =
+    let byte = func.inst_result_value(byte_inst)?;
+    let tested = if let Some(align_inst) = tested {
+        let InstKind::Shl(shift, align_byte) = func.inst(align_inst).kind else { return None };
+        if func.value_u64(shift) != Some(248) || align_byte != byte {
+            return None;
+        }
+        func.inst_result_value(align_inst)?
+    } else {
+        byte
+    };
+    let Terminator::Branch { condition: test, then_block, else_block } =
         func.blocks[*body].terminator.as_ref()?
     else {
         return None;
     };
-    if !is_nonzero_test(func, *nonzero_inst, *nonzero, aligned) {
-        return None;
-    }
+    let nonzero_test = zero_test_kind(func, test_inst, *test, tested)?;
+    let (latch, increment) =
+        if nonzero_test { (*then_block, *else_block) } else { (*else_block, *then_block) };
 
-    let [increment_inst, nonzero_inst] = func.blocks[*increment].instructions.as_slice() else {
+    let [increment_inst, nonzero_inst] = func.blocks[increment].instructions.as_slice() else {
         return None;
     };
     let InstKind::Add(increment_count, one) = func.inst(*increment_inst).kind else { return None };
@@ -522,23 +574,20 @@ fn match_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLo
         return None;
     }
     let incremented = func.inst_result_value(*increment_inst)?;
-    let Terminator::Branch {
-        condition: overflow_result,
-        then_block: increment_latch,
-        else_block: _,
-    } = func.blocks[*increment].terminator.as_ref()?
+    let Terminator::Branch { condition: overflow_result, then_block, else_block } =
+        func.blocks[increment].terminator.as_ref()?
     else {
         return None;
     };
-    if !is_nonzero_test(func, *nonzero_inst, *overflow_result, incremented)
-        || *increment_latch != *latch
-    {
+    let nonzero_test = zero_test_kind(func, *nonzero_inst, *overflow_result, incremented)?;
+    let increment_latch = if nonzero_test { *then_block } else { *else_block };
+    if increment_latch != latch {
         return None;
     }
 
-    let [merged_inst, next_inst] = func.blocks[*latch].instructions.as_slice() else { return None };
+    let [merged_inst, next_inst] = func.blocks[latch].instructions.as_slice() else { return None };
     let InstKind::Phi(merged_incoming) = &func.inst(*merged_inst).kind else { return None };
-    if !merged_incoming.contains(&(*increment, incremented))
+    if !merged_incoming.contains(&(increment, incremented))
         || !merged_incoming.contains(&(*body, count))
     {
         return None;
@@ -549,7 +598,7 @@ fn match_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLo
         return None;
     }
     let next = func.inst_result_value(*next_inst)?;
-    if !matches!(func.blocks[*latch].terminator, Some(Terminator::Jump(target)) if target == header)
+    if !matches!(func.blocks[latch].terminator, Some(Terminator::Jump(target)) if target == header)
     {
         return None;
     }
@@ -564,8 +613,8 @@ fn match_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLo
         return None;
     };
     if preheader != index_preheader
-        || count_latch != latch
-        || index_latch != latch
+        || *count_latch != latch
+        || *index_latch != latch
         || *count_next != merged_count
         || *index_next != next
         || func.value_u64(*count_initial) != Some(0)
@@ -575,16 +624,11 @@ fn match_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLo
         return None;
     }
 
-    if !continues_soundly(func, count_exit, &[header, *body, *increment, *latch], [count, index]) {
+    if !continues_soundly(func, count_exit, &[header, *body, increment, latch], [count, index]) {
         return None;
     }
 
-    Some(ZeroCountLoop {
-        preheader: *preheader,
-        source: ByteSource::Memory { object },
-        length: hoisted_length,
-        exit: count_exit,
-    })
+    Some(ZeroCountLoop { preheader: *preheader, source, length: hoisted_length, exit: count_exit })
 }
 
 fn match_calldata_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLoop> {
@@ -607,7 +651,7 @@ fn match_calldata_zero_count_loop(func: &Function, header: BlockId) -> Option<Ze
     }
     let (count_phi, index_phi, count, count_exit) = count_phis(func, phis, header, *exit, index)?;
 
-    let [ptr_inst, load_inst, byte_inst, nonzero_inst] = func.blocks[*body].instructions.as_slice()
+    let [ptr_inst, load_inst, byte_inst, test_inst] = func.blocks[*body].instructions.as_slice()
     else {
         return None;
     };
@@ -626,16 +670,16 @@ fn match_calldata_zero_count_loop(func: &Function, header: BlockId) -> Option<Ze
         return None;
     }
     let byte = func.inst_result_value(*byte_inst)?;
-    let Terminator::Branch { condition: nonzero, then_block: latch, else_block: increment } =
+    let Terminator::Branch { condition: test, then_block, else_block } =
         func.blocks[*body].terminator.as_ref()?
     else {
         return None;
     };
-    if !is_nonzero_test(func, *nonzero_inst, *nonzero, byte) {
-        return None;
-    }
+    let nonzero_test = zero_test_kind(func, *test_inst, *test, byte)?;
+    let (latch, increment) =
+        if nonzero_test { (*then_block, *else_block) } else { (*else_block, *then_block) };
 
-    let [increment_inst, nonzero_inst] = func.blocks[*increment].instructions.as_slice() else {
+    let [increment_inst, nonzero_inst] = func.blocks[increment].instructions.as_slice() else {
         return None;
     };
     let InstKind::Add(increment_count, one) = func.inst(*increment_inst).kind else { return None };
@@ -643,23 +687,20 @@ fn match_calldata_zero_count_loop(func: &Function, header: BlockId) -> Option<Ze
         return None;
     }
     let incremented = func.inst_result_value(*increment_inst)?;
-    let Terminator::Branch {
-        condition: overflow_result,
-        then_block: increment_latch,
-        else_block: _,
-    } = func.blocks[*increment].terminator.as_ref()?
+    let Terminator::Branch { condition: overflow_result, then_block, else_block } =
+        func.blocks[increment].terminator.as_ref()?
     else {
         return None;
     };
-    if !is_nonzero_test(func, *nonzero_inst, *overflow_result, incremented)
-        || *increment_latch != *latch
-    {
+    let nonzero_test = zero_test_kind(func, *nonzero_inst, *overflow_result, incremented)?;
+    let increment_latch = if nonzero_test { *then_block } else { *else_block };
+    if increment_latch != latch {
         return None;
     }
 
-    let [merged_inst, next_inst] = func.blocks[*latch].instructions.as_slice() else { return None };
+    let [merged_inst, next_inst] = func.blocks[latch].instructions.as_slice() else { return None };
     let InstKind::Phi(merged_incoming) = &func.inst(*merged_inst).kind else { return None };
-    if !merged_incoming.contains(&(*increment, incremented))
+    if !merged_incoming.contains(&(increment, incremented))
         || !merged_incoming.contains(&(*body, count))
     {
         return None;
@@ -670,7 +711,7 @@ fn match_calldata_zero_count_loop(func: &Function, header: BlockId) -> Option<Ze
         return None;
     }
     let next = func.inst_result_value(*next_inst)?;
-    if !matches!(func.blocks[*latch].terminator, Some(Terminator::Jump(target)) if target == header)
+    if !matches!(func.blocks[latch].terminator, Some(Terminator::Jump(target)) if target == header)
     {
         return None;
     }
@@ -685,8 +726,8 @@ fn match_calldata_zero_count_loop(func: &Function, header: BlockId) -> Option<Ze
         return None;
     };
     if preheader != index_preheader
-        || count_latch != latch
-        || index_latch != latch
+        || *count_latch != latch
+        || *index_latch != latch
         || *count_next != merged_count
         || *index_next != next
         || func.value_u64(*count_initial) != Some(0)
@@ -696,7 +737,7 @@ fn match_calldata_zero_count_loop(func: &Function, header: BlockId) -> Option<Ze
         return None;
     }
 
-    if !continues_soundly(func, count_exit, &[header, *body, *increment, *latch], [count, index]) {
+    if !continues_soundly(func, count_exit, &[header, *body, increment, latch], [count, index]) {
         return None;
     }
 
@@ -738,6 +779,9 @@ fn rewrite_zero_count_loop(func: &mut Function, candidate: ZeroCountLoop) {
                 let data = builder.add_u64_offset(object, 32);
                 (data, length)
             }
+            ByteSource::MemoryData { data } => {
+                (data, candidate.length.expect("forwarded memory length"))
+            }
             ByteSource::Calldata { data, length } => (data, length),
         };
         length = bound;
@@ -771,7 +815,7 @@ fn rewrite_zero_count_loop(func: &mut Function, candidate: ZeroCountLoop) {
         let all = builder.imm(U256::MAX);
         let padding_mask = builder.shr(data_bits, all);
         let word = match candidate.source {
-            ByteSource::Memory { .. } => builder.mload(data),
+            ByteSource::Memory { .. } | ByteSource::MemoryData { .. } => builder.mload(data),
             ByteSource::Calldata { .. } => builder.calldataload(data),
         };
         let word = builder.or(word, padding_mask);
@@ -793,7 +837,7 @@ fn rewrite_zero_count_loop(func: &mut Function, candidate: ZeroCountLoop) {
         // next_pointer = pointer + 32
         builder.switch_to_block(word_body);
         let word = match candidate.source {
-            ByteSource::Memory { .. } => builder.mload(pointer),
+            ByteSource::Memory { .. } | ByteSource::MemoryData { .. } => builder.mload(pointer),
             ByteSource::Calldata { .. } => builder.calldataload(pointer),
         };
         let lane_count = emit_zero_byte_count(&mut builder, word);
@@ -822,7 +866,7 @@ fn rewrite_zero_count_loop(func: &mut Function, candidate: ZeroCountLoop) {
         let all_bits = builder.imm(U256::MAX);
         let padding_mask = builder.shr(data_bits, all_bits);
         let word = match candidate.source {
-            ByteSource::Memory { .. } => builder.mload(pointer),
+            ByteSource::Memory { .. } | ByteSource::MemoryData { .. } => builder.mload(pointer),
             ByteSource::Calldata { .. } => builder.calldataload(pointer),
         };
         let word = builder.or(word, padding_mask);
