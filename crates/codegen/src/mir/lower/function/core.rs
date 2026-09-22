@@ -32,12 +32,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let intrinsic = solar_sema::core::intrinsic_of(self.cx.gcx, function_id)?;
         // Without the instruction the shipped body is the implementation.
-        let needs_clz = matches!(
-            intrinsic,
-            CoreIntrinsic::LeadingZeros
-                | CoreIntrinsic::HighestSetBit
-                | CoreIntrinsic::TrailingZeros
-        );
+        // `trailingZeros` has a lookup of its own that needs no `clz`.
+        let needs_clz =
+            matches!(intrinsic, CoreIntrinsic::LeadingZeros | CoreIntrinsic::HighestSetBit);
         if needs_clz && !self.cx.gcx.sess.opts.evm_version.has_clz() {
             return None;
         }
@@ -150,7 +147,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let zero = self.builder.imm(U256::ZERO);
                 let negated = self.builder.sub(zero, value);
                 let lowest = self.builder.and(value, negated);
-                Some(self.core_highest_set_bit(lowest))
+                if self.cx.gcx.sess.opts.evm_version.has_clz() {
+                    Some(self.core_highest_set_bit(lowest))
+                } else {
+                    Some(self.core_lowest_bit_index(lowest))
+                }
             }
             CoreIntrinsic::CallInto
             | CoreIntrinsic::StaticCallInto
@@ -170,6 +171,55 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 })
             }
         }
+    }
+
+    /// The index of the single set bit of `bit`, or 256 when it is zero,
+    /// without `clz`. A De Bruijn-like product's top six bits select the
+    /// packed nibble holding the index's top three bits (eight for zero); a
+    /// De Bruijn division inside that bit's 32-bit window gives the low five.
+    /// EVM division by zero yields zero, which the zero input relies on.
+    fn core_lowest_bit_index(&mut self, bit: ValueId) -> ValueId {
+        // high = ((NIBBLES << ((bit * SPREAD >> 250) << 2)) >> 252) << 5
+        // low = byte((0xd76453e0 / (bit >> high)) & 31, LOW)
+        // index = high | low
+        let spread = self.builder.imm(
+            U256::from_str_radix(
+                "b6db6db6ddddddddd34d34d349249249210842108c6318c639ce739cffffffff",
+                16,
+            )
+            .unwrap(),
+        );
+        let product = self.builder.mul(bit, spread);
+        let top_six = self.builder.imm(250);
+        let slot = self.builder.shr(top_six, product);
+        let two = self.builder.imm(2);
+        let slot_bits = self.builder.shl(two, slot);
+        let nibbles = self.builder.imm(
+            U256::from_str_radix(
+                "8040405543005266443200005020610674053026020000107506200176117077",
+                16,
+            )
+            .unwrap(),
+        );
+        let selected = self.builder.shl(slot_bits, nibbles);
+        let top_nibble = self.builder.imm(252);
+        let high = self.builder.shr(top_nibble, selected);
+        let five = self.builder.imm(5);
+        let high = self.builder.shl(five, high);
+        let window = self.builder.shr(high, bit);
+        let de_bruijn = self.builder.imm(0xd764_53e0_u64);
+        let quotient = self.builder.div(de_bruijn, window);
+        let thirty_one = self.builder.imm(31);
+        let slot = self.builder.and(quotient, thirty_one);
+        let low_table = self.builder.imm(
+            U256::from_str_radix(
+                "001f0d1e100c1d070f090b19131c1706010e11080a1a141802121b1503160405",
+                16,
+            )
+            .unwrap(),
+        );
+        let low = self.builder.byte(slot, low_table);
+        self.builder.or(high, low)
     }
 
     /// The index of the highest set bit of `value`, 256 for zero. A count of
