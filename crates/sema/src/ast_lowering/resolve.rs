@@ -1009,9 +1009,8 @@ impl<'gcx> ResolveContext<'gcx> {
                     (_, Err(guar)) => hir::StmtKind::Err(guar),
                 }
             }
-            ast::StmtKind::DeclMulti(vars, expr) => {
-                let expr = self.lower_expr(expr);
-                let vars = self.arena.alloc_slice_fill_iter(vars.iter().map(|var| {
+            ast::StmtKind::DeclMulti(vars, expr) => hir::StmtKind::DeclMulti(
+                self.arena.alloc_slice_fill_iter(vars.iter().map(|var| {
                     var.as_ref().unspan().map(|var| {
                         self.lower_variable(
                             var,
@@ -1020,9 +1019,9 @@ impl<'gcx> ResolveContext<'gcx> {
                         )
                         .0
                     })
-                }));
-                hir::StmtKind::DeclMulti(vars, expr)
-            }
+                })),
+                self.lower_expr(expr),
+            ),
             ast::StmtKind::Assembly(assembly) => self.lower_yul_assembly(assembly),
             ast::StmtKind::Block(stmts) => hir::StmtKind::Block(self.lower_block(stmts)),
             ast::StmtKind::UncheckedBlock(stmts) => {

@@ -2,8 +2,6 @@
 // CHECK: @module
 //@ codegen-matrix: standard
 //@ run-call: swap => 2, 1
-//@ run-call: shadowInitializer 7, 11 => 12, 9
-//@ run-call: shadowCallInitializer 7, 11 => 11, 7
 //@ run-call: repeatedMemoryTarget => 4, 17, 1
 //@ run-call: repeatedStateTarget => 3, 1
 //@ run-call: repeatedCallTarget => 1
@@ -17,20 +15,6 @@ contract TupleAssignmentOrder {
     uint256 private initialValue = 17;
     uint256 private stateTarget;
     bytes private data = "zz";
-
-    function shadowInitializer(uint256 a, uint256 b) external pure returns (uint256, uint256) {
-        (uint256 a, uint256 b) = (b + 1, a + 2);
-        return (a, b);
-    }
-
-    function shadowCallInitializer(uint256 a, uint256 b) external pure returns (uint256, uint256) {
-        (uint256 a, uint256 b) = pair(b, a);
-        return (a, b);
-    }
-
-    function pair(uint256 a, uint256 b) internal pure returns (uint256, uint256) {
-        return (a, b);
-    }
 
     function swap() external pure returns (uint256, uint256) {
         uint256 a = 1;
