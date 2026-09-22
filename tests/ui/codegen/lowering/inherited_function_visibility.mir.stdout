@@ -1,0 +1,196 @@
+// === ROOT/tests/ui/codegen/lowering/inherited_function_visibility.sol:Base ===
+@module Base
+fn @externalHelper() -> u256 [selector=0x7691612a, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 4
+}
+
+fn @publicHelper() -> u256 [selector=0x51d2c44b, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 20
+}
+
+fn @ownPrivate() -> bool [selector=0xe4230b7c, pure, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = icall @authorized, 0
+    ret v0
+}
+
+fn @authorized(arg0: address) -> bool [pure] {
+  bb0:
+    ret true
+}
+
+// === ROOT/tests/ui/codegen/lowering/inherited_function_visibility.sol:Derived ===
+@module Derived
+fn @check(arg0: address) -> bool [selector=0xc23697a8, pure, abi_params=[address], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = icall @authorized.8, arg0
+    ret v0
+}
+
+fn @freeExternal() -> u256 [selector=0xd0210cea, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = icall @externalHelper.9
+    ret v0
+}
+
+fn @inherited() -> u256 [selector=0x176161c1, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = icall @internalHelper
+    v1 = icall @publicHelper
+    v2 = checked_add u256, v0, v1
+    ret v2
+}
+
+fn @callExternal() -> u256 [selector=0x5f431992, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0x7691612a00000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = staticcall v1, v0, v3, v4, 0, 32
+    jumpi v5, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v6 = returndatasize
+    v7 = lt v6, 32
+    icall revert_if<tuple_data_too_short>, v7
+    v8 = add 0, 0
+    v9 = mload v8
+    v10 = add 0, 0
+    v11 = mload v10
+    ret v11
+}
+
+fn @externalHelper.4() -> u256 [selector=0x7691612a, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 4
+}
+
+fn @internalHelper() -> u256 [pure] {
+  bb0:
+    ret 10
+}
+
+fn @publicHelper() -> u256 [selector=0x51d2c44b, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 20
+}
+
+fn @ownPrivate() -> bool [selector=0xe4230b7c, pure, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = icall @authorized.10, 0
+    ret v0
+}
+
+fn @authorized.8(arg0: address) -> bool [pure] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = eq v0, 0xdeadbeef
+    ret v1
+}
+
+fn @externalHelper.9() -> u256 [pure] {
+  bb0:
+    ret 3
+}
+
+fn @authorized.10(arg0: address) -> bool [pure] {
+  bb0:
+    ret true
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}
+
+// === ROOT/tests/ui/codegen/lowering/inherited_function_visibility.sol:Indirect ===
+@module Indirect
+fn @check(arg0: address) -> bool [selector=0xc23697a8, pure, abi_params=[address], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = icall @authorized.8, arg0
+    ret v0
+}
+
+fn @freeExternal() -> u256 [selector=0xd0210cea, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = icall @externalHelper.9
+    ret v0
+}
+
+fn @inherited() -> u256 [selector=0x176161c1, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = icall @internalHelper
+    v1 = icall @publicHelper
+    v2 = checked_add u256, v0, v1
+    ret v2
+}
+
+fn @callExternal() -> u256 [selector=0x5f431992, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0x7691612a00000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = staticcall v1, v0, v3, v4, 0, 32
+    jumpi v5, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v6 = returndatasize
+    v7 = lt v6, 32
+    icall revert_if<tuple_data_too_short>, v7
+    v8 = add 0, 0
+    v9 = mload v8
+    v10 = add 0, 0
+    v11 = mload v10
+    ret v11
+}
+
+fn @externalHelper.4() -> u256 [selector=0x7691612a, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 4
+}
+
+fn @internalHelper() -> u256 [pure] {
+  bb0:
+    ret 10
+}
+
+fn @publicHelper() -> u256 [selector=0x51d2c44b, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 20
+}
+
+fn @ownPrivate() -> bool [selector=0xe4230b7c, pure, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = icall @authorized.10, 0
+    ret v0
+}
+
+fn @authorized.8(arg0: address) -> bool [pure] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = eq v0, 0xdeadbeef
+    ret v1
+}
+
+fn @externalHelper.9() -> u256 [pure] {
+  bb0:
+    ret 3
+}
+
+fn @authorized.10(arg0: address) -> bool [pure] {
+  bb0:
+    ret true
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}
