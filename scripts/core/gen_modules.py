@@ -221,6 +221,20 @@ library WordArrays {
         "bytes32": "uint256(a[i])",
     }
     for ty, value in duplicate_types.items():
+        out.append(f'''    /// @dev Sorts `a` in ascending order.
+    function sort({ty}[] memory a) internal pure {{
+        for (uint256 i = 1; i < a.length; ++i) {{
+            {ty} value = a[i];
+            uint256 j = i;
+            while (j != 0 && a[j - 1] > value) {{
+                a[j] = a[j - 1];
+                --j;
+            }}
+            a[j] = value;
+        }}
+    }}
+
+''')
         out.append(f'''    /// @dev Whether `a` contains the same value at two indices.
     function hasDuplicate({ty}[] memory a) internal pure returns (bool) {{
         if (a.length < 2) return false;
