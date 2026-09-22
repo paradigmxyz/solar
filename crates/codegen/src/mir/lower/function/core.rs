@@ -20,6 +20,7 @@ use super::*;
 use solar_sema::core::CoreIntrinsic;
 
 mod base64;
+mod strings;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Returns the intrinsic `function_id` names, when it is one and intrinsic
@@ -81,6 +82,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::Truncate => self.lower_core_truncate(expr, &operands, &parameter_tys),
             CoreIntrinsic::ArrayHasDuplicate => self.lower_core_array_has_duplicate_call(&operands),
             CoreIntrinsic::ArraySort => self.lower_core_array_sort_call(&operands, &parameter_tys),
+            CoreIntrinsic::StringReplace => self.lower_core_string_replace_call(&operands),
             CoreIntrinsic::RevertRaw => self.lower_core_revert_raw(&operands),
             CoreIntrinsic::Keccak256Range => self.lower_core_keccak256_range(&operands),
             CoreIntrinsic::Deploy | CoreIntrinsic::Deploy2 => {
