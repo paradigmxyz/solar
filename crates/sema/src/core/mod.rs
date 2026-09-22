@@ -35,6 +35,7 @@ pub struct CoreModule {
 pub const MODULES: &[CoreModule] = &[
     CoreModule { path: "solar:core/v1/Bytes.sol", source: include_str!("v1/Bytes.sol") },
     CoreModule { path: "solar:core/v1/Arrays.sol", source: include_str!("v1/Arrays.sol") },
+    CoreModule { path: "solar:core/v1/WordArrays.sol", source: include_str!("v1/WordArrays.sol") },
     CoreModule { path: "solar:core/v1/Revert.sol", source: include_str!("v1/Revert.sol") },
     CoreModule { path: "solar:core/v1/Hash.sol", source: include_str!("v1/Hash.sol") },
     CoreModule { path: "solar:core/v1/Create.sol", source: include_str!("v1/Create.sol") },
@@ -102,6 +103,8 @@ pub enum CoreIntrinsic {
     Fill,
     /// `Arrays.truncate(a, n)` for every supported array type.
     Truncate,
+    /// `WordArrays.hasDuplicate(a)` for one-word dynamic arrays.
+    ArrayHasDuplicate,
     /// `Revert.raw(data)`: revert with exactly `data`.
     RevertRaw,
     /// `Hash.keccak256Range(b, offset, count)`: hash a range where it lies.
@@ -177,6 +180,7 @@ pub fn intrinsic_of(gcx: crate::ty::Gcx<'_>, function: hir::FunctionId) -> Optio
 fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreIntrinsic>> {
     static BYTES: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static ARRAYS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static WORD_ARRAYS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static REVERT: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static HASH: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static CREATE: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
@@ -222,6 +226,12 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
             // Every overload shares the name; the lowering reads the array
             // kind off the declared parameter type.
             FxHashMap::from_iter([(sym::truncate, CoreIntrinsic::Truncate)])
+        })),
+        "solar:core/v1/WordArrays.sol" => Some(WORD_ARRAYS.get_or_init(|| {
+            FxHashMap::from_iter([(
+                Symbol::intern("hasDuplicate"),
+                CoreIntrinsic::ArrayHasDuplicate,
+            )])
         })),
         "solar:core/v1/Revert.sol" => Some(
             REVERT.get_or_init(|| FxHashMap::from_iter([(sym::raw, CoreIntrinsic::RevertRaw)])),
