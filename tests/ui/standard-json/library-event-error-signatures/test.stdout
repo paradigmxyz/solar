@@ -1,0 +1,198 @@
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "L": {
+        "abi": [
+          {
+            "type": "error",
+            "name": "F",
+            "inputs": [
+              {
+                "name": "c",
+                "type": "address",
+                "internalType": "contract C"
+              },
+              {
+                "name": "k",
+                "type": "uint8",
+                "internalType": "enum L.Kind"
+              },
+              {
+                "name": "s",
+                "type": "tuple",
+                "internalType": "struct L.S",
+                "components": [
+                  {
+                    "name": "c",
+                    "type": "address",
+                    "internalType": "contract C"
+                  },
+                  {
+                    "name": "k",
+                    "type": "uint8",
+                    "internalType": "enum L.Kind"
+                  },
+                  {
+                    "name": "n",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "event",
+            "name": "E",
+            "inputs": [
+              {
+                "name": "c",
+                "type": "address",
+                "indexed": false,
+                "internalType": "contract C"
+              },
+              {
+                "name": "k",
+                "type": "uint8",
+                "indexed": false,
+                "internalType": "enum L.Kind"
+              },
+              {
+                "name": "s",
+                "type": "tuple",
+                "indexed": false,
+                "internalType": "struct L.S",
+                "components": [
+                  {
+                    "name": "c",
+                    "type": "address",
+                    "internalType": "contract C"
+                  },
+                  {
+                    "name": "k",
+                    "type": "uint8",
+                    "internalType": "enum L.Kind"
+                  },
+                  {
+                    "name": "n",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                  }
+                ]
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "function",
+            "name": "f",
+            "inputs": [
+              {
+                "name": "c",
+                "type": "address",
+                "internalType": "contract C"
+              },
+              {
+                "name": "k",
+                "type": "uint8",
+                "internalType": "enum L.Kind"
+              },
+              {
+                "name": "s",
+                "type": "tuple",
+                "internalType": "struct L.S",
+                "components": [
+                  {
+                    "name": "c",
+                    "type": "address",
+                    "internalType": "contract C"
+                  },
+                  {
+                    "name": "k",
+                    "type": "uint8",
+                    "internalType": "enum L.Kind"
+                  },
+                  {
+                    "name": "n",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                  }
+                ]
+              }
+            ],
+            "outputs": [
+              {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "stateMutability": "pure"
+          }
+        ],
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "f(C,L.Kind,L.S)": {
+              "notice": "Library function"
+            }
+          },
+          "events": {
+            "E(address,uint8,(address,uint8,uint256))": {
+              "notice": "Emitted values"
+            }
+          },
+          "errors": {
+            "F(address,uint8,(address,uint8,uint256))": [
+              {
+                "notice": "Rejected values"
+              }
+            ]
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "f(C,L.Kind,L.S)": {
+              "details": "Function details"
+            }
+          },
+          "events": {
+            "E(address,uint8,(address,uint8,uint256))": {
+              "details": "Event details",
+              "params": {
+                "c": "Contract value",
+                "k": "Enum value",
+                "s": "Struct value"
+              }
+            }
+          },
+          "errors": {
+            "F(address,uint8,(address,uint8,uint256))": [
+              {
+                "details": "Error details",
+                "params": {
+                  "c": "Contract value",
+                  "k": "Enum value",
+                  "s": "Struct value"
+                }
+              }
+            ]
+          },
+          "version": 1
+        },
+        "evm": {
+          "methodIdentifiers": {
+            "f(C,L.Kind,L.S)": "10bef4d0"
+          }
+        }
+      }
+    }
+  }
+}
