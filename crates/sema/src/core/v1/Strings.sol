@@ -197,6 +197,45 @@ library Strings {
         return found;
     }
 
+    /// @dev The byte offset of the first occurrence of `needle` at or after
+    /// `from`, or `type(uint256).max` when there is none. An empty needle is
+    /// found at `from`, or at the end of a subject shorter than `from`.
+    function indexOf(string memory subject, string memory needle, uint256 from)
+        internal
+        pure
+        returns (uint256)
+    {
+        bytes memory s = bytes(subject);
+        bytes memory n = bytes(needle);
+        if (n.length == 0) return from > s.length ? s.length : from;
+        if (n.length > s.length) return type(uint256).max;
+        uint256 last = s.length - n.length;
+        for (uint256 i = from; i <= last; ++i) {
+            if (_matchAt(s, n, i)) return i;
+        }
+        return type(uint256).max;
+    }
+
+    /// @dev The byte offset of the last occurrence of `needle` at or before
+    /// `from`, or `type(uint256).max` when there is none. An empty needle is
+    /// found at `from`, or at the end of a subject shorter than `from`.
+    function lastIndexOf(string memory subject, string memory needle, uint256 from)
+        internal
+        pure
+        returns (uint256)
+    {
+        bytes memory s = bytes(subject);
+        bytes memory n = bytes(needle);
+        if (n.length > s.length) return type(uint256).max;
+        uint256 last = s.length - n.length;
+        if (from > last) from = last;
+        for (uint256 i = from + 1; i != 0;) {
+            --i;
+            if (_matchAt(s, n, i)) return i;
+        }
+        return type(uint256).max;
+    }
+
     /// @dev Splits `subject` at each non-overlapping `delimiter` occurrence.
     function split(string memory subject, string memory delimiter)
         internal
