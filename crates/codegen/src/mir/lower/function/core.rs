@@ -84,6 +84,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::ArraySort => self.lower_core_array_sort_call(&operands, &parameter_tys),
             CoreIntrinsic::StringReplace => self.lower_core_string_replace_call(&operands),
             CoreIntrinsic::StringIndicesOf => self.lower_core_string_indices_of_call(&operands),
+            CoreIntrinsic::StringSplit => self.lower_core_string_split_call(&operands),
             CoreIntrinsic::RevertRaw => self.lower_core_revert_raw(&operands),
             CoreIntrinsic::Keccak256Range => self.lower_core_keccak256_range(&operands),
             CoreIntrinsic::Deploy | CoreIntrinsic::Deploy2 => {
