@@ -1,0 +1,48 @@
+// === ROOT/tests/ui/codegen/lowering/library_recursive_storage.sol:Recursive ===
+@module Recursive
+@library
+fn @read(arg0: storageptr) -> u256 [selector=0x08123637, view, abi_params=[storageptr], abi_returns=[word]] {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = checked_add u256, v0, 42
+    ret v1
+}
+
+fn @count(arg0: storageptr) -> u256 [selector=0xec7fa3c7, view, abi_params=[storageptr], abi_returns=[word]] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = sload v0 !metadata(storage=offset(arg0, 1))
+    ret v1
+}
+
+fn @child(arg0: storageptr, arg1: u256) -> storageptr [selector=0xfdf833f5, view, abi_params=[storageptr, u256], abi_returns=[word]] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = sload v0 !metadata(storage=offset(arg0, 1))
+    v2 = lt arg1, v1
+    v3 = iszero v2
+    icall panic_if<0x32>, v3
+    v4 = storage_array_data_slot v0
+    v5 = mul arg1, 2
+    v6 = add v4, v5
+    ret v6
+}
+
+fn @arrayCount(arg0: storageptr) -> u256 [selector=0x9c7ebd74, view, abi_params=[storageptr], abi_returns=[word]] {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    ret v0
+}
+
+fn @mapped(arg0: storageptr, arg1: u256) -> u256 [selector=0x6a49b46f, view, abi_params=[storageptr, u256], abi_returns=[word]] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = mapping_slot arg1, v0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    ret v2
+}
+
+fn @mapRef(arg0: storageptr) -> storageptr [selector=0x47b296b8, pure, abi_params=[storageptr], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}
