@@ -8,7 +8,7 @@
 use super::{Edit, is_block_push, materialization_cost, raw_opcode};
 use crate::{
     backend::evm::{
-        ir::{ImmediateMaterialization, Instruction},
+        ir::{ImmediateMaterialization, ImmediatePolicy, Instruction},
         op,
         op::*,
     },
@@ -55,7 +55,8 @@ pub(crate) fn invert_comparison(
                 && ImmediateMaterialization::new(evm_version, bound).stack_peak()
                     <= ImmediateMaterialization::new(evm_version, value).stack_peak()
                 && op::push_len(evm_version, bound)
-                    <= super::immediate_materialization_cost(evm_version, value).0 + 1
+                    <= crate::backend::evm::ir::immediate_materialization_cost(evm_version, value).0
+                        + 1
             {
                 return Some((start, bound, opposite));
             }
@@ -229,12 +230,14 @@ impl TailClass {
 pub(super) struct PeepContext<'a> {
     instructions: &'a [Instruction],
     evm_version: EvmVersion,
+    /// Prices constants as the push compaction emits them.
+    policy: ImmediatePolicy,
     final_cleanup: bool,
 }
 
 impl<'a> PeepContext<'a> {
-    pub(super) fn new(instructions: &'a [Instruction], evm_version: EvmVersion) -> Self {
-        Self { instructions, evm_version, final_cleanup: false }
+    pub(super) fn new(instructions: &'a [Instruction], policy: ImmediatePolicy) -> Self {
+        Self { instructions, evm_version: policy.evm_version(), policy, final_cleanup: false }
     }
 
     pub(super) fn with_final_cleanup(mut self, final_cleanup: bool) -> Self {
@@ -571,9 +574,9 @@ impl generated::Context for PeepContext<'_> {
         let rhs_value = rhs.concrete_immediate()?;
         let opcode = raw_opcode(instruction)?;
         let result = eval::eval_opcode(opcode, &[rhs_value, lhs_value])?;
-        let (lhs_size, lhs_gas) = materialization_cost(self.evm_version, lhs_value);
-        let (rhs_size, rhs_gas) = materialization_cost(self.evm_version, rhs_value);
-        let (result_size, result_gas) = materialization_cost(self.evm_version, result);
+        let (lhs_size, lhs_gas) = materialization_cost(self.policy, lhs_value);
+        let (rhs_size, rhs_gas) = materialization_cost(self.policy, rhs_value);
+        let (result_size, result_gas) = materialization_cost(self.policy, result);
         let input_size = lhs_size + rhs_size + 1;
         let target = Target::with(
             self.evm_version,
@@ -604,8 +607,8 @@ impl generated::Context for PeepContext<'_> {
             OptimizationMode::Gas,
             Target::DEFAULT_EXPECTED_EXECUTIONS,
         );
-        let (input_size, input_gas) = materialization_cost(self.evm_version, value);
-        let (result_size, result_gas) = materialization_cost(self.evm_version, result);
+        let (input_size, input_gas) = materialization_cost(self.policy, value);
+        let (result_size, result_gas) = materialization_cost(self.policy, result);
         let input_size = input_size + 1;
         let input_gas =
             input_gas + target.opcode_with_immediates(opcode, &[Some(value)]).gas as usize;
@@ -756,5 +759,70 @@ impl generated::Context for PeepContext<'_> {
 
     fn rewrite(&mut self, skip: u8, edit: &Edit) -> Rewrite {
         Rewrite { skip, edit: *edit }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn protected_word_rejects_observation_and_unknown_instructions() {
+        let mut instructions =
+            [Instruction::push_value(U256::from(288)), Instruction::opcode(MLOAD)];
+        assert_eq!(protected_word_depth(&instructions), Some(1));
+        for index in 0..instructions.len() {
+            instructions[index].metadata.keep_with_next = true;
+            assert_eq!(protected_word_depth(&instructions), None);
+            instructions[index].metadata.keep_with_next = false;
+        }
+        instructions[1] = Instruction::opcode(0x0c);
+        assert_eq!(protected_word_depth(&instructions), None);
+        instructions[1] = Instruction::stack_op(StackOp::Dup(2));
+        assert_eq!(protected_word_depth(&instructions), None);
+        instructions[1] = Instruction::stack_op(StackOp::Swap(1));
+        assert_eq!(protected_word_depth(&instructions), Some(0));
+    }
+
+    #[test]
+    fn suffix_boundaries_remain_protected() {
+        let mut instructions = [
+            Instruction::opcode(GAS),
+            Instruction::push_value(U256::from(2)),
+            Instruction::opcode(ISZERO),
+        ];
+        assert!(
+            PeepContext::new(&instructions, ImmediatePolicy::Bytes(EvmVersion::Osaka))
+                .unprotected_tail::<2>()
+                .is_some()
+        );
+        for boundary in 0..instructions.len() {
+            instructions[boundary].metadata.keep_with_next = true;
+            assert!(
+                PeepContext::new(&instructions, ImmediatePolicy::Bytes(EvmVersion::Osaka))
+                    .unprotected_tail::<2>()
+                    .is_none()
+            );
+            instructions[boundary].metadata.keep_with_next = false;
+        }
+    }
+
+    #[test]
+    fn equality_shuffle_requires_unprotected_window() {
+        let mut instructions = [GAS, DUP2, EQ, ISZERO, SWAP1, POP].map(Instruction::opcode);
+        assert!(
+            PeepContext::new(&instructions, ImmediatePolicy::Bytes(EvmVersion::Osaka))
+                .unprotected_tail::<5>()
+                .is_some()
+        );
+        for boundary in 0..instructions.len() {
+            instructions[boundary].metadata.keep_with_next = true;
+            assert!(
+                PeepContext::new(&instructions, ImmediatePolicy::Bytes(EvmVersion::Osaka))
+                    .unprotected_tail::<5>()
+                    .is_none()
+            );
+            instructions[boundary].metadata.keep_with_next = false;
+        }
     }
 }
