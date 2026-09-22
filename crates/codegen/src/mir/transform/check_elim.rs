@@ -59,6 +59,16 @@
 //! path such a check guards is unreachable by any transaction, not merely
 //! unlikely, so removing it preserves the checked semantics.
 //!
+//! Paired zero-based cursors also expose a scaled capacity invariant. When an
+//! input cursor advances by one, an output cursor advances by at most `K`, and
+//! a checked allocation reserves `input_length * K`, induction proves every
+//! fixed-width write remains within that allocation. The proof requires the
+//! same natural-loop header/backedge, an active `input < input_length` guard,
+//! an exact capacity product, and alias analysis showing that the input length
+//! and output capacity are stable throughout the loop. Unknown writes, wider
+//! output steps, multiple latches, or logical-length mutations retain their
+//! checks.
+//!
 //! Transitive relational queries lazily index candidate edges once per function,
 //! when a query needs to combine facts. An edge is followed only
 //! when its fact is present in the current scope; the index itself proves
@@ -104,9 +114,10 @@
 use super::{call_cleanup, cfg_simplify::simplify_function, egraph::max_bits_with_args};
 use crate::{
     mir::{
-        BlockId, Builtin, Callee, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
-        InstKind, Module, Terminator, TypeSize, Value, ValueId, ValueLayout,
-        analysis::{CallGraphInfo, CfgInfo},
+        ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, Function, FunctionId,
+        ImmutableEncoding, ImmutableId, InstId, InstKind, Module, Terminator, TypeSize, Value,
+        ValueId, ValueLayout,
+        analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, Location},
         immutable::immutable_push_type_size,
         pass::{
             MirPass, run_function_pass, run_function_pass_with_cfg, run_selected_function_pass,
@@ -417,6 +428,10 @@ struct MonotonePhi {
     value: ValueId,
     /// The incoming value from outside the loop.
     initial: ValueId,
+    /// The predecessor carrying `initial` into the header.
+    preheader: BlockId,
+    /// The predecessor carrying `next` back into the header.
+    latch: BlockId,
     /// The backedge update result, `value - step` or `value + step`.
     next: ValueId,
     /// The constant step operand.
@@ -425,6 +440,24 @@ struct MonotonePhi {
     home: BlockId,
     /// Whether the update subtracts the step.
     decreasing: bool,
+}
+
+/// A loop-carried output cursor that advances by at most `max_step` while a
+/// sibling input cursor advances by exactly one.
+///
+/// Both cursors start at zero and share the same header and backedge. Combined
+/// with `index < length` and an exact `capacity = length * scale` where
+/// `max_step <= scale`, induction gives `cursor <= index * scale`. This is the
+/// checked string-builder shape: every iteration can safely write at most the
+/// capacity reserved for one input item.
+#[derive(Clone, Debug)]
+struct ScaledCursor {
+    cursor: ValueId,
+    index: ValueId,
+    length: ValueId,
+    preheader: BlockId,
+    loop_blocks: DenseBitSet<BlockId>,
+    max_step: U256,
 }
 
 impl MonotonePhi {
@@ -467,6 +500,8 @@ struct CheckEliminator<'a> {
     /// Counting header phis with constant start and step, bounded by the
     /// distance any affordable number of iterations can travel.
     trip_bounds: FxHashMap<ValueId, Range>,
+    /// Structurally proved bounded output cursors in natural loops.
+    scaled_cursors: Vec<ScaledCursor>,
     range_undo: Vec<(ValueId, Option<Range>)>,
     relation_undo: Vec<Relation>,
 }
@@ -498,6 +533,7 @@ impl<'a> CheckEliminator<'a> {
         self.monotone_relations.clear();
         self.universal_relations.clear();
         self.trip_bounds.clear();
+        self.scaled_cursors.clear();
         if !func.blocks.iter().any(|block| {
             matches!(
                 block.terminator,
@@ -541,6 +577,7 @@ impl<'a> CheckEliminator<'a> {
             self.join_facts(func, &cfg, &preds, &relevant)
         };
         let candidates = monotone_phi_candidates(func, &cfg, &preds, &relevant);
+        self.scaled_cursors = scaled_cursor_candidates(func, &cfg, &preds, &candidates);
         for phi in &candidates {
             if let Some(bound) = trip_count_bound(func, phi) {
                 self.trip_bounds.insert(phi.value, bound);
@@ -1206,6 +1243,116 @@ impl<'a> CheckEliminator<'a> {
         Some(strict || c1 < reach)
     }
 
+    /// Whether a bounded loop cursor plus `width` fits in `capacity`.
+    ///
+    /// This discharges checked fixed-width writes in builders that reserve
+    /// `scale * input_length` bytes and consume one input item per iteration.
+    /// The proof is structural and local to a natural loop: both cursors start
+    /// at zero, the input cursor steps by one, every output update is bounded
+    /// by `scale`, and no loop block changes the output object's logical
+    /// length. A checked multiplication, or its still-dominating round-trip
+    /// check after lowering, proves that the capacity product is exact.
+    fn scaled_cursor_fits(
+        &mut self,
+        func: &Function,
+        cursor: ValueId,
+        width: U256,
+        capacity: Option<ValueId>,
+        depth: usize,
+    ) -> bool {
+        let candidates = self
+            .scaled_cursors
+            .iter()
+            .filter(|candidate| candidate.cursor == cursor && width <= candidate.max_step)
+            .cloned()
+            .collect::<Vec<_>>();
+        for candidate in candidates {
+            let active = self.has_relation(func, Relation::Lt(candidate.index, candidate.length));
+            if !active {
+                continue;
+            }
+            let requested_object = capacity.and_then(|value| match inst_kind(func, value) {
+                Some(&InstKind::MemoryObjectLen(object, kind)) => Some((object, kind)),
+                _ => None,
+            });
+            for &inst_id in &func.blocks[candidate.preheader].instructions {
+                let InstKind::SetMemoryObjectLen(object, length, kind) = func.inst(inst_id).kind
+                else {
+                    continue;
+                };
+                if requested_object.is_some_and(|requested| requested != (object, kind)) {
+                    continue;
+                }
+                if capacity.is_some_and(|capacity| {
+                    requested_object.is_none() && !values_equal(func, capacity, length)
+                }) {
+                    continue;
+                }
+                if candidate.loop_blocks.iter().any(|block| {
+                    func.blocks[block].instructions.iter().any(|&inst| {
+                        matches!(func.inst(inst).kind,
+                            InstKind::SetMemoryObjectLen(loop_object, _, loop_kind)
+                                if loop_object == object && loop_kind == kind)
+                    })
+                }) {
+                    continue;
+                }
+                let Some(scale) = self.exact_scale(func, length, &candidate, depth) else {
+                    continue;
+                };
+                if scale >= candidate.max_step && width <= scale {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Returns `scale` for an exact `length * scale` product.
+    fn exact_scale(
+        &mut self,
+        func: &Function,
+        product: ValueId,
+        candidate: &ScaledCursor,
+        depth: usize,
+    ) -> Option<U256> {
+        let (lhs, rhs, checked) = match inst_kind(func, product)? {
+            InstKind::CheckedBinary {
+                op: CheckedOp::Mul,
+                arithmetic: ArithmeticKind::Unsigned(256),
+                lhs,
+                rhs,
+            } => (*lhs, *rhs, true),
+            InstKind::Mul(lhs, rhs) => (*lhs, *rhs, false),
+            _ => return None,
+        };
+        let (source, scale) = if same_stable_length(func, lhs, candidate.length, candidate) {
+            (lhs, const_of(func, rhs)?)
+        } else if same_stable_length(func, rhs, candidate.length, candidate) {
+            (rhs, const_of(func, lhs)?)
+        } else {
+            return None;
+        };
+        if scale.is_zero() {
+            return None;
+        }
+        if checked || self.range_of(func, source, depth).hi.checked_mul(scale).is_some() {
+            return Some(scale);
+        }
+        for inst_id in func.instructions() {
+            let InstKind::Div(dividend, divisor) = func.inst(inst_id).kind else { continue };
+            if dividend != product || const_of(func, divisor) != Some(scale) {
+                continue;
+            }
+            let Some(quotient) = func.inst_result_value(inst_id) else { continue };
+            let (a, b) = ordered(quotient, source);
+            if self.has_relation(func, Relation::Eq(a, b)) {
+                return Some(scale);
+            }
+        }
+        None
+    }
+
     /// Whether some value is provably below `value` in the current scope,
     /// which puts `value` at one or more: every word is at least zero.
     fn has_strict_lower_bound(&mut self, func: &Function, value: ValueId) -> bool {
@@ -1575,6 +1722,28 @@ impl<'a> CheckEliminator<'a> {
             }
         }
 
+        // A variable-rate output cursor in a bounded builder stays within its
+        // reserved capacity. This proves all three forms emitted by checked
+        // indexing: the addition does not wrap, the end offset is not beyond
+        // the capacity, and the current cursor is strictly inside it while
+        // the input loop guard is true.
+        if let Some((cursor, width)) = add_with_bounded_width(func, a) {
+            if b == cursor && self.scaled_cursor_fits(func, cursor, width, None, depth) {
+                return Some(false);
+            }
+            if self.scaled_cursor_fits(func, cursor, width, Some(b), depth) {
+                return Some(true);
+            }
+        }
+        if let Some((cursor, width)) = add_with_bounded_width(func, b)
+            && self.scaled_cursor_fits(func, cursor, width, Some(a), depth)
+        {
+            return Some(false);
+        }
+        if self.scaled_cursor_fits(func, a, U256::ZERO, Some(b), depth) {
+            return Some(true);
+        }
+
         // Underflow check variant `lt x, (sub x, y)`: equivalent to
         // `lt x, y` for every `y` (with wrapping subtraction).
         if let Some(&InstKind::Sub(x, y)) = inst_kind(func, b)
@@ -1929,6 +2098,219 @@ fn relation_candidates(func: &Function) -> FxHashMap<ValueId, SmallVec<[Relation
     index
 }
 
+/// Finds paired zero-based loop cursors where `index` advances by one and
+/// `cursor` advances by a path-dependent amount with a finite maximum.
+fn scaled_cursor_candidates(
+    func: &Function,
+    cfg: &CfgInfo,
+    preds: &IndexVec<BlockId, Vec<BlockId>>,
+    monotone: &[MonotonePhi],
+) -> Vec<ScaledCursor> {
+    let mut candidates = Vec::new();
+    for index_phi in monotone {
+        if index_phi.decreasing
+            || const_of(func, index_phi.initial) != Some(U256::ZERO)
+            || const_of(func, index_phi.step) != Some(U256::ONE)
+        {
+            continue;
+        }
+        let Some(Terminator::Branch { condition, .. }) =
+            func.blocks[index_phi.header].terminator.as_ref()
+        else {
+            continue;
+        };
+        let Some(&InstKind::Lt(index, length)) = inst_kind(func, *condition) else { continue };
+        if index != index_phi.value {
+            continue;
+        }
+        let loop_blocks =
+            natural_loop_blocks(index_phi.header, index_phi.latch, preds, func.blocks.len());
+        if !loop_blocks.contains(index_phi.header)
+            || !loop_blocks.contains(index_phi.latch)
+            || !cfg.dominators().dominates(index_phi.header, index_phi.latch)
+        {
+            continue;
+        }
+        for &inst_id in &func.blocks[index_phi.header].instructions {
+            let InstKind::Phi(incoming) = &func.inst(inst_id).kind else { continue };
+            let Some(cursor) = func.inst_result_value(inst_id) else { continue };
+            if cursor == index {
+                continue;
+            }
+            let mut initial = None;
+            let mut next = None;
+            let mut valid = true;
+            for &(block, value) in incoming {
+                if block == index_phi.preheader {
+                    if initial.replace(value).is_some() {
+                        valid = false;
+                    }
+                } else if block == index_phi.latch {
+                    if next.replace(value).is_some() {
+                        valid = false;
+                    }
+                } else {
+                    valid = false;
+                }
+            }
+            let (Some(initial), Some(next)) = (initial, next) else { continue };
+            if !valid || const_of(func, initial) != Some(U256::ZERO) {
+                continue;
+            }
+            let Some(max_step) = bounded_increment(func, next, cursor, 12) else { continue };
+            if max_step.is_zero() {
+                continue;
+            }
+            candidates.push(ScaledCursor {
+                cursor,
+                index,
+                length,
+                preheader: index_phi.preheader,
+                loop_blocks: loop_blocks.clone(),
+                max_step,
+            });
+        }
+    }
+    candidates
+        .sort_unstable_by_key(|candidate| (candidate.cursor.index(), candidate.index.index()));
+    candidates.dedup_by_key(|candidate| (candidate.cursor, candidate.index));
+    candidates
+}
+
+fn natural_loop_blocks(
+    header: BlockId,
+    latch: BlockId,
+    preds: &IndexVec<BlockId, Vec<BlockId>>,
+    block_count: usize,
+) -> DenseBitSet<BlockId> {
+    let mut blocks = DenseBitSet::new_empty(block_count);
+    blocks.insert(header);
+    let mut pending = vec![latch];
+    while let Some(block) = pending.pop() {
+        if !blocks.insert(block) {
+            continue;
+        }
+        for &pred in &preds[block] {
+            if pred != header {
+                pending.push(pred);
+            }
+        }
+    }
+    blocks
+}
+
+/// Maximum nonnegative increment represented by `next` relative to `base`.
+fn bounded_increment(func: &Function, next: ValueId, base: ValueId, depth: usize) -> Option<U256> {
+    if next == base {
+        return Some(U256::ZERO);
+    }
+    let depth = depth.checked_sub(1)?;
+    match inst_kind(func, next)? {
+        InstKind::Add(a, b)
+        | InstKind::CheckedBinary {
+            op: CheckedOp::Add,
+            arithmetic: ArithmeticKind::Unsigned(256),
+            lhs: a,
+            rhs: b,
+        } => {
+            if *a == base {
+                bounded_value_max(func, *b, depth)
+            } else if *b == base {
+                bounded_value_max(func, *a, depth)
+            } else {
+                None
+            }
+        }
+        InstKind::Phi(incoming) => incoming
+            .iter()
+            .map(|&(_, value)| bounded_increment(func, value, base, depth))
+            .try_fold(U256::ZERO, |max, value| value.map(|value| max.max(value))),
+        InstKind::Select(_, then_value, else_value) => [*then_value, *else_value]
+            .into_iter()
+            .map(|value| bounded_increment(func, value, base, depth))
+            .try_fold(U256::ZERO, |max, value| value.map(|value| max.max(value))),
+        _ => None,
+    }
+}
+
+/// Maximum value of a constant/phi/select expression.
+fn bounded_value_max(func: &Function, value: ValueId, depth: usize) -> Option<U256> {
+    if let Some(constant) = const_of(func, value) {
+        return Some(constant);
+    }
+    let depth = depth.checked_sub(1)?;
+    match inst_kind(func, value)? {
+        InstKind::Phi(incoming) => incoming
+            .iter()
+            .map(|&(_, value)| bounded_value_max(func, value, depth))
+            .try_fold(U256::ZERO, |max, value| value.map(|value| max.max(value))),
+        InstKind::Select(_, then_value, else_value) => [*then_value, *else_value]
+            .into_iter()
+            .map(|value| bounded_value_max(func, value, depth))
+            .try_fold(U256::ZERO, |max, value| value.map(|value| max.max(value))),
+        InstKind::Zext(source) => bounded_value_max(func, *source, depth),
+        InstKind::Trunc(source, bits) if (1..=256).contains(bits) => {
+            let mask = U256::MAX >> (256 - bits);
+            bounded_value_max(func, *source, depth).map(|value| value.min(mask))
+        }
+        InstKind::And(a, b) => match (const_of(func, *a), const_of(func, *b)) {
+            (Some(mask), None) => bounded_value_max(func, *b, depth).map(|value| value.min(mask)),
+            (None, Some(mask)) => bounded_value_max(func, *a, depth).map(|value| value.min(mask)),
+            _ => None,
+        },
+        InstKind::ExtractValue { aggregate, index, .. } => {
+            bounded_aggregate_field_max(func, *aggregate, *index, depth)
+        }
+        _ => None,
+    }
+}
+
+fn bounded_aggregate_field_max(
+    func: &Function,
+    aggregate: ValueId,
+    field: u32,
+    depth: usize,
+) -> Option<U256> {
+    let depth = depth.checked_sub(1)?;
+    match inst_kind(func, aggregate)? {
+        InstKind::InsertValue { aggregate, index, value, .. } => {
+            if *index == field {
+                bounded_value_max(func, *value, depth)
+            } else {
+                bounded_aggregate_field_max(func, *aggregate, field, depth)
+            }
+        }
+        InstKind::Phi(incoming) => incoming
+            .iter()
+            .map(|&(_, value)| bounded_aggregate_field_max(func, value, field, depth))
+            .try_fold(U256::ZERO, |max, value| value.map(|value| max.max(value))),
+        InstKind::Select(_, then_value, else_value) => [*then_value, *else_value]
+            .into_iter()
+            .map(|value| bounded_aggregate_field_max(func, value, field, depth))
+            .try_fold(U256::ZERO, |max, value| value.map(|value| max.max(value))),
+        _ => None,
+    }
+}
+
+/// Splits `base + width` when `width` is a bounded constant expression.
+fn add_with_bounded_width(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
+    let (a, b) = match inst_kind(func, value)? {
+        InstKind::Add(a, b)
+        | InstKind::CheckedBinary {
+            op: CheckedOp::Add,
+            arithmetic: ArithmeticKind::Unsigned(256),
+            lhs: a,
+            rhs: b,
+        } => (*a, *b),
+        _ => return None,
+    };
+    if let Some(width) = bounded_value_max(func, b, 12) {
+        Some((a, width))
+    } else {
+        bounded_value_max(func, a, 12).map(|width| (b, width))
+    }
+}
+
 /// Indexes `relation` under its left operand, and under both operands for an
 /// equality, so transitive searches can leave from either side.
 fn index_relation(index: &mut FxHashMap<ValueId, SmallVec<[Relation; 2]>>, relation: Relation) {
@@ -1993,7 +2375,17 @@ fn monotone_phi_candidates(
                 continue;
             }
             let Some(&home) = definitions.get(next_inst) else { continue };
-            candidates.push(MonotonePhi { header, value, initial, next, step, home, decreasing });
+            candidates.push(MonotonePhi {
+                header,
+                value,
+                initial,
+                preheader: pre,
+                latch,
+                next,
+                step,
+                home,
+                decreasing,
+            });
         }
     }
     candidates
@@ -2115,6 +2507,61 @@ fn values_equal(func: &Function, a: ValueId, b: ValueId) -> bool {
         (Some(a), Some(b)) => a == b,
         _ => false,
     }
+}
+
+/// Whether two SSA values read the same memory-object length and no instruction
+/// that executes from allocation through the loop may change that length. This
+/// lets a loop-header reload stand in for the load used to size a checked
+/// allocation without relying on CSE.
+fn same_stable_length(func: &Function, a: ValueId, b: ValueId, candidate: &ScaledCursor) -> bool {
+    if a == b {
+        return true;
+    }
+    let (
+        Some(&InstKind::MemoryObjectLen(a_object, a_kind)),
+        Some(&InstKind::MemoryObjectLen(b_object, b_kind)),
+    ) = (inst_kind(func, a), inst_kind(func, b))
+    else {
+        return false;
+    };
+    if a_object != b_object || a_kind != b_kind {
+        return false;
+    }
+    let (Value::Inst(a_inst), Value::Inst(_)) = (func.value(a), func.value(b)) else {
+        return false;
+    };
+    let aa = AliasAnalysis::new(func);
+    let Some(location) = aa.memory_object_length_location(func, *a_inst, a_object, a_kind) else {
+        return false;
+    };
+    let location = Location::Memory(location);
+    std::iter::once(candidate.preheader)
+        .chain(candidate.loop_blocks.iter())
+        .flat_map(|block| func.blocks[block].instructions.iter().copied())
+        .all(|inst| {
+            let effects = aa.instruction_mod_ref(func, inst);
+            !effects.may_write(&aa, location)
+                || writes_only_fresh_object(func, &func.inst(inst).kind)
+        })
+}
+
+/// Whether a write is confined to an object produced by this function's
+/// allocator. A fresh allocation and its header/payload cannot overlap an
+/// already-live input object under the MIR allocation contract.
+fn writes_only_fresh_object(func: &Function, kind: &InstKind) -> bool {
+    let object = match *kind {
+        InstKind::Alloc { .. } => return true,
+        InstKind::SetMemoryObjectLen(object, ..)
+        | InstKind::MemoryObjectStoreField { object, .. }
+        | InstKind::MemoryObjectStoreElement { object, .. }
+        | InstKind::MemoryObjectStoreByte { object, .. }
+        | InstKind::MemoryObjectStoreWord { object, .. }
+        | InstKind::MemoryObjectCopyFromSlice { object, .. }
+        | InstKind::MemoryObjectCopyFromSliceAt { object, .. } => object,
+        InstKind::MemoryObjectCopy { destination, .. } => destination,
+        _ => return false,
+    };
+    matches!(inst_kind(func, object), Some(InstKind::Alloc { .. }))
 }
 
 #[cfg(test)]
