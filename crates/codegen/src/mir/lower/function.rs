@@ -748,26 +748,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         | BinOpKind::Lt
                         | BinOpKind::Gt
                         | BinOpKind::Le
-                        | BinOpKind::Ge
-                            if lhs_is_literal =>
-                        {
-                            rhs_ty
-                        }
-                        BinOpKind::Eq
-                        | BinOpKind::Ne
-                        | BinOpKind::Lt
-                        | BinOpKind::Gt
-                        | BinOpKind::Le
                         | BinOpKind::Ge => {
-                            if !rhs_is_literal
-                                && lhs_ty.zip(rhs_ty).is_some_and(|(lhs, rhs)| {
-                                    types::TypeLowerer::mir_type(rhs).integer_bits()
-                                        > types::TypeLowerer::mir_type(lhs).integer_bits()
-                                })
-                            {
+                            if lhs_is_literal && rhs_is_literal {
                                 rhs_ty
                             } else {
                                 lhs_ty
+                                    .zip(rhs_ty)
+                                    .and_then(|(lhs, rhs)| lhs.common_type(rhs, self.cx.gcx))
                             }
                         }
                         BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar if lhs_is_literal => {

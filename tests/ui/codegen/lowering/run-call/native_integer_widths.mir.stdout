@@ -3,6 +3,768 @@
 types:
   struct0: {i8, i8}
 
+fn @compareUnsignedLiterals(arg0: i8) -> i1 [selector=0xdc492d0e, pure, abi_params=[u8], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = zext i8 arg0 to i16
+    v1 = eq v0, i16 300
+    v2 = zext i8 arg0 to i256
+    v3 = eq v2, 300
+    v4 = eq v1, v3
+    jumpi v4, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v5 = zext i8 arg0 to i16
+    v6 = eq i16 300, v5
+    v7 = zext i8 arg0 to i256
+    v8 = eq 300, v7
+    v9 = eq v6, v8
+    jump bb3
+  bb3:
+    v10 = phi [bb1: v9], [bb2: false]
+    jumpi v10, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v11 = zext i8 arg0 to i16
+    v12 = ne v11, i16 300
+    v13 = zext i8 arg0 to i256
+    v14 = ne v13, 300
+    v15 = eq v12, v14
+    jump bb6
+  bb6:
+    v16 = phi [bb4: v15], [bb5: false]
+    jumpi v16, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v17 = zext i8 arg0 to i16
+    v18 = ne i16 300, v17
+    v19 = zext i8 arg0 to i256
+    v20 = ne 300, v19
+    v21 = eq v18, v20
+    jump bb9
+  bb9:
+    v22 = phi [bb7: v21], [bb8: false]
+    jumpi v22, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    v23 = zext i8 arg0 to i16
+    v24 = lt v23, i16 300
+    v25 = zext i8 arg0 to i256
+    v26 = lt v25, 300
+    v27 = eq v24, v26
+    jump bb12
+  bb12:
+    v28 = phi [bb10: v27], [bb11: false]
+    jumpi v28, bb13, bb14
+  bb14:
+    jump bb15
+  bb13:
+    v29 = zext i8 arg0 to i16
+    v30 = lt i16 300, v29
+    v31 = zext i8 arg0 to i256
+    v32 = lt 300, v31
+    v33 = eq v30, v32
+    jump bb15
+  bb15:
+    v34 = phi [bb13: v33], [bb14: false]
+    jumpi v34, bb16, bb17
+  bb17:
+    jump bb18
+  bb16:
+    v35 = zext i8 arg0 to i16
+    v36 = gt v35, i16 300
+    v37 = zext i8 arg0 to i256
+    v38 = gt v37, 300
+    v39 = eq v36, v38
+    jump bb18
+  bb18:
+    v40 = phi [bb16: v39], [bb17: false]
+    jumpi v40, bb19, bb20
+  bb20:
+    jump bb21
+  bb19:
+    v41 = zext i8 arg0 to i16
+    v42 = gt i16 300, v41
+    v43 = zext i8 arg0 to i256
+    v44 = gt 300, v43
+    v45 = eq v42, v44
+    jump bb21
+  bb21:
+    v46 = phi [bb19: v45], [bb20: false]
+    jumpi v46, bb22, bb23
+  bb23:
+    jump bb24
+  bb22:
+    v47 = zext i8 arg0 to i16
+    v48 = gt v47, i16 300
+    v49 = eq v48, false
+    v50 = zext i8 arg0 to i256
+    v51 = gt v50, 300
+    v52 = eq v51, false
+    v53 = eq v49, v52
+    jump bb24
+  bb24:
+    v54 = phi [bb22: v53], [bb23: false]
+    jumpi v54, bb25, bb26
+  bb26:
+    jump bb27
+  bb25:
+    v55 = zext i8 arg0 to i16
+    v56 = gt i16 300, v55
+    v57 = eq v56, false
+    v58 = zext i8 arg0 to i256
+    v59 = gt 300, v58
+    v60 = eq v59, false
+    v61 = eq v57, v60
+    jump bb27
+  bb27:
+    v62 = phi [bb25: v61], [bb26: false]
+    jumpi v62, bb28, bb29
+  bb29:
+    jump bb30
+  bb28:
+    v63 = zext i8 arg0 to i16
+    v64 = lt v63, i16 300
+    v65 = eq v64, false
+    v66 = zext i8 arg0 to i256
+    v67 = lt v66, 300
+    v68 = eq v67, false
+    v69 = eq v65, v68
+    jump bb30
+  bb30:
+    v70 = phi [bb28: v69], [bb29: false]
+    jumpi v70, bb31, bb32
+  bb32:
+    jump bb33
+  bb31:
+    v71 = zext i8 arg0 to i16
+    v72 = lt i16 300, v71
+    v73 = eq v72, false
+    v74 = zext i8 arg0 to i256
+    v75 = lt 300, v74
+    v76 = eq v75, false
+    v77 = eq v73, v76
+    jump bb33
+  bb33:
+    v78 = phi [bb31: v77], [bb32: false]
+    ret v78
+}
+
+fn @compareSignedLiterals(arg0: i8) -> i1 [selector=0x7ce2ee7f, pure, abi_params=[i8], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sub 0, 129
+    v1 = sext i8 arg0 to i16
+    v2 = trunc i256 v0 to i16
+    v3 = eq v1, v2
+    v4 = sext i8 arg0 to i256
+    v5 = sub 0, 129
+    v6 = eq v4, v5
+    v7 = eq v3, v6
+    jumpi v7, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v8 = sub 0, 129
+    v9 = trunc i256 v8 to i16
+    v10 = sext i8 arg0 to i16
+    v11 = eq v9, v10
+    v12 = sub 0, 129
+    v13 = sext i8 arg0 to i256
+    v14 = eq v12, v13
+    v15 = eq v11, v14
+    jump bb3
+  bb3:
+    v16 = phi [bb1: v15], [bb2: false]
+    jumpi v16, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v17 = sub 0, 129
+    v18 = sext i8 arg0 to i16
+    v19 = trunc i256 v17 to i16
+    v20 = ne v18, v19
+    v21 = sext i8 arg0 to i256
+    v22 = sub 0, 129
+    v23 = ne v21, v22
+    v24 = eq v20, v23
+    jump bb6
+  bb6:
+    v25 = phi [bb4: v24], [bb5: false]
+    jumpi v25, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v26 = sub 0, 129
+    v27 = trunc i256 v26 to i16
+    v28 = sext i8 arg0 to i16
+    v29 = ne v27, v28
+    v30 = sub 0, 129
+    v31 = sext i8 arg0 to i256
+    v32 = ne v30, v31
+    v33 = eq v29, v32
+    jump bb9
+  bb9:
+    v34 = phi [bb7: v33], [bb8: false]
+    jumpi v34, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    v35 = sub 0, 129
+    v36 = sext i8 arg0 to i16
+    v37 = trunc i256 v35 to i16
+    v38 = slt v36, v37
+    v39 = sext i8 arg0 to i256
+    v40 = sub 0, 129
+    v41 = slt v39, v40
+    v42 = eq v38, v41
+    jump bb12
+  bb12:
+    v43 = phi [bb10: v42], [bb11: false]
+    jumpi v43, bb13, bb14
+  bb14:
+    jump bb15
+  bb13:
+    v44 = sub 0, 129
+    v45 = trunc i256 v44 to i16
+    v46 = sext i8 arg0 to i16
+    v47 = slt v45, v46
+    v48 = sub 0, 129
+    v49 = sext i8 arg0 to i256
+    v50 = slt v48, v49
+    v51 = eq v47, v50
+    jump bb15
+  bb15:
+    v52 = phi [bb13: v51], [bb14: false]
+    jumpi v52, bb16, bb17
+  bb17:
+    jump bb18
+  bb16:
+    v53 = sub 0, 129
+    v54 = sext i8 arg0 to i16
+    v55 = trunc i256 v53 to i16
+    v56 = sgt v54, v55
+    v57 = sext i8 arg0 to i256
+    v58 = sub 0, 129
+    v59 = sgt v57, v58
+    v60 = eq v56, v59
+    jump bb18
+  bb18:
+    v61 = phi [bb16: v60], [bb17: false]
+    jumpi v61, bb19, bb20
+  bb20:
+    jump bb21
+  bb19:
+    v62 = sub 0, 129
+    v63 = trunc i256 v62 to i16
+    v64 = sext i8 arg0 to i16
+    v65 = sgt v63, v64
+    v66 = sub 0, 129
+    v67 = sext i8 arg0 to i256
+    v68 = sgt v66, v67
+    v69 = eq v65, v68
+    jump bb21
+  bb21:
+    v70 = phi [bb19: v69], [bb20: false]
+    jumpi v70, bb22, bb23
+  bb23:
+    jump bb24
+  bb22:
+    v71 = sub 0, 129
+    v72 = sext i8 arg0 to i16
+    v73 = trunc i256 v71 to i16
+    v74 = sgt v72, v73
+    v75 = eq v74, false
+    v76 = sext i8 arg0 to i256
+    v77 = sub 0, 129
+    v78 = sgt v76, v77
+    v79 = eq v78, false
+    v80 = eq v75, v79
+    jump bb24
+  bb24:
+    v81 = phi [bb22: v80], [bb23: false]
+    jumpi v81, bb25, bb26
+  bb26:
+    jump bb27
+  bb25:
+    v82 = sub 0, 129
+    v83 = trunc i256 v82 to i16
+    v84 = sext i8 arg0 to i16
+    v85 = sgt v83, v84
+    v86 = eq v85, false
+    v87 = sub 0, 129
+    v88 = sext i8 arg0 to i256
+    v89 = sgt v87, v88
+    v90 = eq v89, false
+    v91 = eq v86, v90
+    jump bb27
+  bb27:
+    v92 = phi [bb25: v91], [bb26: false]
+    jumpi v92, bb28, bb29
+  bb29:
+    jump bb30
+  bb28:
+    v93 = sub 0, 129
+    v94 = sext i8 arg0 to i16
+    v95 = trunc i256 v93 to i16
+    v96 = slt v94, v95
+    v97 = eq v96, false
+    v98 = sext i8 arg0 to i256
+    v99 = sub 0, 129
+    v100 = slt v98, v99
+    v101 = eq v100, false
+    v102 = eq v97, v101
+    jump bb30
+  bb30:
+    v103 = phi [bb28: v102], [bb29: false]
+    jumpi v103, bb31, bb32
+  bb32:
+    jump bb33
+  bb31:
+    v104 = sub 0, 129
+    v105 = trunc i256 v104 to i16
+    v106 = sext i8 arg0 to i16
+    v107 = slt v105, v106
+    v108 = eq v107, false
+    v109 = sub 0, 129
+    v110 = sext i8 arg0 to i256
+    v111 = slt v109, v110
+    v112 = eq v111, false
+    v113 = eq v108, v112
+    jump bb33
+  bb33:
+    v114 = phi [bb31: v113], [bb32: false]
+    ret v114
+}
+
+fn @compareLiteralBoundaries(arg0: i8, arg1: i8) -> i1 [selector=0x03bc5c10, pure, abi_params=[u8, i8], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = lt arg0, i8 127
+    v1 = zext i8 arg0 to i256
+    v2 = lt v1, 127
+    v3 = eq v0, v2
+    jumpi v3, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v4 = gt i8 127, arg0
+    v5 = eq v4, false
+    v6 = zext i8 arg0 to i256
+    v7 = gt 127, v6
+    v8 = eq v7, false
+    v9 = eq v5, v8
+    jump bb3
+  bb3:
+    v10 = phi [bb1: v9], [bb2: false]
+    jumpi v10, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v11 = lt arg0, i8 128
+    v12 = zext i8 arg0 to i256
+    v13 = lt v12, 128
+    v14 = eq v11, v13
+    jump bb6
+  bb6:
+    v15 = phi [bb4: v14], [bb5: false]
+    jumpi v15, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v16 = gt i8 128, arg0
+    v17 = eq v16, false
+    v18 = zext i8 arg0 to i256
+    v19 = gt 128, v18
+    v20 = eq v19, false
+    v21 = eq v17, v20
+    jump bb9
+  bb9:
+    v22 = phi [bb7: v21], [bb8: false]
+    jumpi v22, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    v23 = lt arg0, i8 255
+    v24 = zext i8 arg0 to i256
+    v25 = lt v24, 255
+    v26 = eq v23, v25
+    jump bb12
+  bb12:
+    v27 = phi [bb10: v26], [bb11: false]
+    jumpi v27, bb13, bb14
+  bb14:
+    jump bb15
+  bb13:
+    v28 = gt i8 255, arg0
+    v29 = eq v28, false
+    v30 = zext i8 arg0 to i256
+    v31 = gt 255, v30
+    v32 = eq v31, false
+    v33 = eq v29, v32
+    jump bb15
+  bb15:
+    v34 = phi [bb13: v33], [bb14: false]
+    jumpi v34, bb16, bb17
+  bb17:
+    jump bb18
+  bb16:
+    v35 = zext i8 arg0 to i16
+    v36 = lt v35, i16 256
+    v37 = zext i8 arg0 to i256
+    v38 = lt v37, 256
+    v39 = eq v36, v38
+    jump bb18
+  bb18:
+    v40 = phi [bb16: v39], [bb17: false]
+    jumpi v40, bb19, bb20
+  bb20:
+    jump bb21
+  bb19:
+    v41 = zext i8 arg0 to i16
+    v42 = gt i16 256, v41
+    v43 = eq v42, false
+    v44 = zext i8 arg0 to i256
+    v45 = gt 256, v44
+    v46 = eq v45, false
+    v47 = eq v43, v46
+    jump bb21
+  bb21:
+    v48 = phi [bb19: v47], [bb20: false]
+    jumpi v48, bb22, bb23
+  bb23:
+    jump bb24
+  bb22:
+    v49 = zext i8 arg0 to i16
+    v50 = lt v49, i16 257
+    v51 = zext i8 arg0 to i256
+    v52 = lt v51, 257
+    v53 = eq v50, v52
+    jump bb24
+  bb24:
+    v54 = phi [bb22: v53], [bb23: false]
+    jumpi v54, bb25, bb26
+  bb26:
+    jump bb27
+  bb25:
+    v55 = zext i8 arg0 to i16
+    v56 = gt i16 257, v55
+    v57 = eq v56, false
+    v58 = zext i8 arg0 to i256
+    v59 = gt 257, v58
+    v60 = eq v59, false
+    v61 = eq v57, v60
+    jump bb27
+  bb27:
+    v62 = phi [bb25: v61], [bb26: false]
+    jumpi v62, bb28, bb29
+  bb29:
+    jump bb30
+  bb28:
+    v63 = zext i8 arg0 to i16
+    v64 = lt v63, i16 0xffff
+    v65 = zext i8 arg0 to i256
+    v66 = lt v65, 0xffff
+    v67 = eq v64, v66
+    jump bb30
+  bb30:
+    v68 = phi [bb28: v67], [bb29: false]
+    jumpi v68, bb31, bb32
+  bb32:
+    jump bb33
+  bb31:
+    v69 = zext i8 arg0 to i16
+    v70 = gt i16 0xffff, v69
+    v71 = eq v70, false
+    v72 = zext i8 arg0 to i256
+    v73 = gt 0xffff, v72
+    v74 = eq v73, false
+    v75 = eq v71, v74
+    jump bb33
+  bb33:
+    v76 = phi [bb31: v75], [bb32: false]
+    jumpi v76, bb34, bb35
+  bb35:
+    jump bb36
+  bb34:
+    v77 = zext i8 arg0 to i24
+    v78 = lt v77, i24 0x10000
+    v79 = zext i8 arg0 to i256
+    v80 = lt v79, 0x10000
+    v81 = eq v78, v80
+    jump bb36
+  bb36:
+    v82 = phi [bb34: v81], [bb35: false]
+    jumpi v82, bb37, bb38
+  bb38:
+    jump bb39
+  bb37:
+    v83 = zext i8 arg0 to i24
+    v84 = gt i24 0x10000, v83
+    v85 = eq v84, false
+    v86 = zext i8 arg0 to i256
+    v87 = gt 0x10000, v86
+    v88 = eq v87, false
+    v89 = eq v85, v88
+    jump bb39
+  bb39:
+    v90 = phi [bb37: v89], [bb38: false]
+    jumpi v90, bb40, bb41
+  bb41:
+    jump bb42
+  bb40:
+    v91 = sub 0, 127
+    v92 = trunc i256 v91 to i8
+    v93 = slt arg1, v92
+    v94 = sext i8 arg1 to i256
+    v95 = sub 0, 127
+    v96 = slt v94, v95
+    v97 = eq v93, v96
+    jump bb42
+  bb42:
+    v98 = phi [bb40: v97], [bb41: false]
+    jumpi v98, bb43, bb44
+  bb44:
+    jump bb45
+  bb43:
+    v99 = sub 0, 127
+    v100 = trunc i256 v99 to i8
+    v101 = sgt v100, arg1
+    v102 = eq v101, false
+    v103 = sub 0, 127
+    v104 = sext i8 arg1 to i256
+    v105 = sgt v103, v104
+    v106 = eq v105, false
+    v107 = eq v102, v106
+    jump bb45
+  bb45:
+    v108 = phi [bb43: v107], [bb44: false]
+    jumpi v108, bb46, bb47
+  bb47:
+    jump bb48
+  bb46:
+    v109 = sub 0, 128
+    v110 = trunc i256 v109 to i8
+    v111 = slt arg1, v110
+    v112 = sext i8 arg1 to i256
+    v113 = sub 0, 128
+    v114 = slt v112, v113
+    v115 = eq v111, v114
+    jump bb48
+  bb48:
+    v116 = phi [bb46: v115], [bb47: false]
+    jumpi v116, bb49, bb50
+  bb50:
+    jump bb51
+  bb49:
+    v117 = sub 0, 128
+    v118 = trunc i256 v117 to i8
+    v119 = sgt v118, arg1
+    v120 = eq v119, false
+    v121 = sub 0, 128
+    v122 = sext i8 arg1 to i256
+    v123 = sgt v121, v122
+    v124 = eq v123, false
+    v125 = eq v120, v124
+    jump bb51
+  bb51:
+    v126 = phi [bb49: v125], [bb50: false]
+    jumpi v126, bb52, bb53
+  bb53:
+    jump bb54
+  bb52:
+    v127 = sub 0, 129
+    v128 = sext i8 arg1 to i16
+    v129 = trunc i256 v127 to i16
+    v130 = slt v128, v129
+    v131 = sext i8 arg1 to i256
+    v132 = sub 0, 129
+    v133 = slt v131, v132
+    v134 = eq v130, v133
+    jump bb54
+  bb54:
+    v135 = phi [bb52: v134], [bb53: false]
+    jumpi v135, bb55, bb56
+  bb56:
+    jump bb57
+  bb55:
+    v136 = sub 0, 129
+    v137 = trunc i256 v136 to i16
+    v138 = sext i8 arg1 to i16
+    v139 = sgt v137, v138
+    v140 = eq v139, false
+    v141 = sub 0, 129
+    v142 = sext i8 arg1 to i256
+    v143 = sgt v141, v142
+    v144 = eq v143, false
+    v145 = eq v140, v144
+    jump bb57
+  bb57:
+    v146 = phi [bb55: v145], [bb56: false]
+    jumpi v146, bb58, bb59
+  bb59:
+    jump bb60
+  bb58:
+    v147 = sub 0, 255
+    v148 = sext i8 arg1 to i16
+    v149 = trunc i256 v147 to i16
+    v150 = slt v148, v149
+    v151 = sext i8 arg1 to i256
+    v152 = sub 0, 255
+    v153 = slt v151, v152
+    v154 = eq v150, v153
+    jump bb60
+  bb60:
+    v155 = phi [bb58: v154], [bb59: false]
+    jumpi v155, bb61, bb62
+  bb62:
+    jump bb63
+  bb61:
+    v156 = sub 0, 255
+    v157 = trunc i256 v156 to i16
+    v158 = sext i8 arg1 to i16
+    v159 = sgt v157, v158
+    v160 = eq v159, false
+    v161 = sub 0, 255
+    v162 = sext i8 arg1 to i256
+    v163 = sgt v161, v162
+    v164 = eq v163, false
+    v165 = eq v160, v164
+    jump bb63
+  bb63:
+    v166 = phi [bb61: v165], [bb62: false]
+    jumpi v166, bb64, bb65
+  bb65:
+    jump bb66
+  bb64:
+    v167 = sub 0, 256
+    v168 = sext i8 arg1 to i16
+    v169 = trunc i256 v167 to i16
+    v170 = slt v168, v169
+    v171 = sext i8 arg1 to i256
+    v172 = sub 0, 256
+    v173 = slt v171, v172
+    v174 = eq v170, v173
+    jump bb66
+  bb66:
+    v175 = phi [bb64: v174], [bb65: false]
+    jumpi v175, bb67, bb68
+  bb68:
+    jump bb69
+  bb67:
+    v176 = sub 0, 256
+    v177 = trunc i256 v176 to i16
+    v178 = sext i8 arg1 to i16
+    v179 = sgt v177, v178
+    v180 = eq v179, false
+    v181 = sub 0, 256
+    v182 = sext i8 arg1 to i256
+    v183 = sgt v181, v182
+    v184 = eq v183, false
+    v185 = eq v180, v184
+    jump bb69
+  bb69:
+    v186 = phi [bb67: v185], [bb68: false]
+    jumpi v186, bb70, bb71
+  bb71:
+    jump bb72
+  bb70:
+    v187 = sub 0, 257
+    v188 = sext i8 arg1 to i16
+    v189 = trunc i256 v187 to i16
+    v190 = slt v188, v189
+    v191 = sext i8 arg1 to i256
+    v192 = sub 0, 257
+    v193 = slt v191, v192
+    v194 = eq v190, v193
+    jump bb72
+  bb72:
+    v195 = phi [bb70: v194], [bb71: false]
+    jumpi v195, bb73, bb74
+  bb74:
+    jump bb75
+  bb73:
+    v196 = sub 0, 257
+    v197 = trunc i256 v196 to i16
+    v198 = sext i8 arg1 to i16
+    v199 = sgt v197, v198
+    v200 = eq v199, false
+    v201 = sub 0, 257
+    v202 = sext i8 arg1 to i256
+    v203 = sgt v201, v202
+    v204 = eq v203, false
+    v205 = eq v200, v204
+    jump bb75
+  bb75:
+    v206 = phi [bb73: v205], [bb74: false]
+    jumpi v206, bb76, bb77
+  bb77:
+    jump bb78
+  bb76:
+    v207 = sub 0, 0x8000
+    v208 = sext i8 arg1 to i16
+    v209 = trunc i256 v207 to i16
+    v210 = slt v208, v209
+    v211 = sext i8 arg1 to i256
+    v212 = sub 0, 0x8000
+    v213 = slt v211, v212
+    v214 = eq v210, v213
+    jump bb78
+  bb78:
+    v215 = phi [bb76: v214], [bb77: false]
+    jumpi v215, bb79, bb80
+  bb80:
+    jump bb81
+  bb79:
+    v216 = sub 0, 0x8000
+    v217 = trunc i256 v216 to i16
+    v218 = sext i8 arg1 to i16
+    v219 = sgt v217, v218
+    v220 = eq v219, false
+    v221 = sub 0, 0x8000
+    v222 = sext i8 arg1 to i256
+    v223 = sgt v221, v222
+    v224 = eq v223, false
+    v225 = eq v220, v224
+    jump bb81
+  bb81:
+    v226 = phi [bb79: v225], [bb80: false]
+    jumpi v226, bb82, bb83
+  bb83:
+    jump bb84
+  bb82:
+    v227 = sub 0, 0x8001
+    v228 = sext i8 arg1 to i24
+    v229 = trunc i256 v227 to i24
+    v230 = slt v228, v229
+    v231 = sext i8 arg1 to i256
+    v232 = sub 0, 0x8001
+    v233 = slt v231, v232
+    v234 = eq v230, v233
+    jump bb84
+  bb84:
+    v235 = phi [bb82: v234], [bb83: false]
+    jumpi v235, bb85, bb86
+  bb86:
+    jump bb87
+  bb85:
+    v236 = sub 0, 0x8001
+    v237 = trunc i256 v236 to i24
+    v238 = sext i8 arg1 to i24
+    v239 = sgt v237, v238
+    v240 = eq v239, false
+    v241 = sub 0, 0x8001
+    v242 = sext i8 arg1 to i256
+    v243 = sgt v241, v242
+    v244 = eq v243, false
+    v245 = eq v240, v244
+    jump bb87
+  bb87:
+    v246 = phi [bb85: v245], [bb86: false]
+    ret v246
+}
+
 fn @checkedUnsigned8(arg0: i8, arg1: i8) -> i8 [selector=0xcd491b52, pure, abi_params=[u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = checked_add u8, arg0, arg1
@@ -44,24 +806,24 @@ fn @loop8(arg0: i256) -> i256 [selector=0xe47315dc, pure, abi_params=[u256], abi
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: i8 0], [bb3: v7]
-    v2 = phi [bb0: 0], [bb3: v6]
-    v3 = zext i8 v1 to i256
-    v4 = lt v3, v0
+    v0 = phi [bb0: 0], [bb3: v6]
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: i8 0], [bb3: v7]
+    v3 = zext i8 v2 to i256
+    v4 = lt v3, v1
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v2
+    ret v0
   bb4:
-    v5 = zext i8 v1 to i256
-    v6 = checked_add u256, v2, v5
+    v5 = zext i8 v2 to i256
+    v6 = checked_add u256, v0, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u8, v1, i8 1
+    v7 = checked_add u8, v2, i8 1
     jump bb1
 }
 
@@ -572,24 +1334,24 @@ fn @loop16(arg0: i256) -> i256 [selector=0x11b70492, pure, abi_params=[u256], ab
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v6]
-    v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: i16 0], [bb3: v7]
-    v3 = zext i16 v2 to i256
-    v4 = lt v3, v1
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: i16 0], [bb3: v7]
+    v2 = phi [bb0: 0], [bb3: v6]
+    v3 = zext i16 v1 to i256
+    v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v0
+    ret v2
   bb4:
-    v5 = zext i16 v2 to i256
-    v6 = checked_add u256, v0, v5
+    v5 = zext i16 v1 to i256
+    v6 = checked_add u256, v2, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u16, v2, i16 1
+    v7 = checked_add u16, v1, i16 1
     jump bb1
 }
 
@@ -914,24 +1676,24 @@ fn @loop24(arg0: i256) -> i256 [selector=0x2ad132a7, pure, abi_params=[u256], ab
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: i24 0], [bb3: v7]
-    v2 = phi [bb0: 0], [bb3: v6]
-    v3 = zext i24 v1 to i256
-    v4 = lt v3, v0
+    v0 = phi [bb0: i24 0], [bb3: v7]
+    v1 = phi [bb0: 0], [bb3: v6]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = zext i24 v0 to i256
+    v4 = lt v3, v2
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v2
+    ret v1
   bb4:
-    v5 = zext i24 v1 to i256
-    v6 = checked_add u256, v2, v5
+    v5 = zext i24 v0 to i256
+    v6 = checked_add u256, v1, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u24, v1, i24 1
+    v7 = checked_add u24, v0, i24 1
     jump bb1
 }
 
@@ -1256,24 +2018,24 @@ fn @loop32(arg0: i256) -> i256 [selector=0x3a0b7acf, pure, abi_params=[u256], ab
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: i32 0], [bb3: v7]
-    v2 = phi [bb0: 0], [bb3: v6]
-    v3 = zext i32 v1 to i256
-    v4 = lt v3, v0
+    v0 = phi [bb0: 0], [bb3: v6]
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: i32 0], [bb3: v7]
+    v3 = zext i32 v2 to i256
+    v4 = lt v3, v1
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v2
+    ret v0
   bb4:
-    v5 = zext i32 v1 to i256
-    v6 = checked_add u256, v2, v5
+    v5 = zext i32 v2 to i256
+    v6 = checked_add u256, v0, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u32, v1, i32 1
+    v7 = checked_add u32, v2, i32 1
     jump bb1
 }
 
@@ -1598,24 +2360,24 @@ fn @loop40(arg0: i256) -> i256 [selector=0xf171d24d, pure, abi_params=[u256], ab
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: i40 0], [bb3: v7]
-    v1 = phi [bb0: 0], [bb3: v6]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = zext i40 v0 to i256
-    v4 = lt v3, v2
+    v0 = phi [bb0: 0], [bb3: v6]
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: i40 0], [bb3: v7]
+    v3 = zext i40 v2 to i256
+    v4 = lt v3, v1
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v1
+    ret v0
   bb4:
-    v5 = zext i40 v0 to i256
-    v6 = checked_add u256, v1, v5
+    v5 = zext i40 v2 to i256
+    v6 = checked_add u256, v0, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u40, v0, i40 1
+    v7 = checked_add u40, v2, i40 1
     jump bb1
 }
 
@@ -1940,24 +2702,24 @@ fn @loop48(arg0: i256) -> i256 [selector=0x1238dc36, pure, abi_params=[u256], ab
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: i48 0], [bb3: v7]
-    v1 = phi [bb0: 0], [bb3: v6]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = zext i48 v0 to i256
-    v4 = lt v3, v2
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: i48 0], [bb3: v7]
+    v2 = phi [bb0: 0], [bb3: v6]
+    v3 = zext i48 v1 to i256
+    v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v1
+    ret v2
   bb4:
-    v5 = zext i48 v0 to i256
-    v6 = checked_add u256, v1, v5
+    v5 = zext i48 v1 to i256
+    v6 = checked_add u256, v2, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u48, v0, i48 1
+    v7 = checked_add u48, v1, i48 1
     jump bb1
 }
 
@@ -2282,24 +3044,24 @@ fn @loop56(arg0: i256) -> i256 [selector=0xff142831, pure, abi_params=[u256], ab
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v6]
-    v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: i56 0], [bb3: v7]
-    v3 = zext i56 v2 to i256
-    v4 = lt v3, v1
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: i56 0], [bb3: v7]
+    v2 = phi [bb0: 0], [bb3: v6]
+    v3 = zext i56 v1 to i256
+    v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v0
+    ret v2
   bb4:
-    v5 = zext i56 v2 to i256
-    v6 = checked_add u256, v0, v5
+    v5 = zext i56 v1 to i256
+    v6 = checked_add u256, v2, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u56, v2, i56 1
+    v7 = checked_add u56, v1, i56 1
     jump bb1
 }
 
@@ -2624,24 +3386,24 @@ fn @loop64(arg0: i256) -> i256 [selector=0x0817d234, pure, abi_params=[u256], ab
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: i64 0], [bb3: v7]
-    v2 = phi [bb0: 0], [bb3: v6]
-    v3 = zext i64 v1 to i256
-    v4 = lt v3, v0
+    v0 = phi [bb0: i64 0], [bb3: v7]
+    v1 = phi [bb0: 0], [bb3: v6]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = zext i64 v0 to i256
+    v4 = lt v3, v2
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v2
+    ret v1
   bb4:
-    v5 = zext i64 v1 to i256
-    v6 = checked_add u256, v2, v5
+    v5 = zext i64 v0 to i256
+    v6 = checked_add u256, v1, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u64, v1, i64 1
+    v7 = checked_add u64, v0, i64 1
     jump bb1
 }
 
@@ -2966,24 +3728,24 @@ fn @loop72(arg0: i256) -> i256 [selector=0x1b98e095, pure, abi_params=[u256], ab
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: i72 0], [bb3: v7]
-    v2 = phi [bb0: 0], [bb3: v6]
-    v3 = zext i72 v1 to i256
-    v4 = lt v3, v0
+    v0 = phi [bb0: i72 0], [bb3: v7]
+    v1 = phi [bb0: 0], [bb3: v6]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = zext i72 v0 to i256
+    v4 = lt v3, v2
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v2
+    ret v1
   bb4:
-    v5 = zext i72 v1 to i256
-    v6 = checked_add u256, v2, v5
+    v5 = zext i72 v0 to i256
+    v6 = checked_add u256, v1, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u72, v1, i72 1
+    v7 = checked_add u72, v0, i72 1
     jump bb1
 }
 
@@ -3308,24 +4070,24 @@ fn @loop80(arg0: i256) -> i256 [selector=0x90864004, pure, abi_params=[u256], ab
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: i80 0], [bb3: v7]
-    v2 = phi [bb0: 0], [bb3: v6]
-    v3 = zext i80 v1 to i256
-    v4 = lt v3, v0
+    v0 = phi [bb0: 0], [bb3: v6]
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: i80 0], [bb3: v7]
+    v3 = zext i80 v2 to i256
+    v4 = lt v3, v1
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v2
+    ret v0
   bb4:
-    v5 = zext i80 v1 to i256
-    v6 = checked_add u256, v2, v5
+    v5 = zext i80 v2 to i256
+    v6 = checked_add u256, v0, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u80, v1, i80 1
+    v7 = checked_add u80, v2, i80 1
     jump bb1
 }
 
@@ -3650,24 +4412,24 @@ fn @loop88(arg0: i256) -> i256 [selector=0x85a819cf, pure, abi_params=[u256], ab
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: i88 0], [bb3: v7]
-    v1 = phi [bb0: 0], [bb3: v6]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = zext i88 v0 to i256
-    v4 = lt v3, v2
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: i88 0], [bb3: v7]
+    v2 = phi [bb0: 0], [bb3: v6]
+    v3 = zext i88 v1 to i256
+    v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v1
+    ret v2
   bb4:
-    v5 = zext i88 v0 to i256
-    v6 = checked_add u256, v1, v5
+    v5 = zext i88 v1 to i256
+    v6 = checked_add u256, v2, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u88, v0, i88 1
+    v7 = checked_add u88, v1, i88 1
     jump bb1
 }
 
@@ -3992,24 +4754,24 @@ fn @loop96(arg0: i256) -> i256 [selector=0x0d4d2a76, pure, abi_params=[u256], ab
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v6]
-    v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: i96 0], [bb3: v7]
-    v3 = zext i96 v2 to i256
-    v4 = lt v3, v1
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: i96 0], [bb3: v7]
+    v2 = phi [bb0: 0], [bb3: v6]
+    v3 = zext i96 v1 to i256
+    v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v0
+    ret v2
   bb4:
-    v5 = zext i96 v2 to i256
-    v6 = checked_add u256, v0, v5
+    v5 = zext i96 v1 to i256
+    v6 = checked_add u256, v2, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u96, v2, i96 1
+    v7 = checked_add u96, v1, i96 1
     jump bb1
 }
 
@@ -4676,24 +5438,24 @@ fn @loop112(arg0: i256) -> i256 [selector=0xd4f1a015, pure, abi_params=[u256], a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: i112 0], [bb3: v7]
-    v2 = phi [bb0: 0], [bb3: v6]
-    v3 = zext i112 v1 to i256
-    v4 = lt v3, v0
+    v0 = phi [bb0: i112 0], [bb3: v7]
+    v1 = phi [bb0: 0], [bb3: v6]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = zext i112 v0 to i256
+    v4 = lt v3, v2
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v2
+    ret v1
   bb4:
-    v5 = zext i112 v1 to i256
-    v6 = checked_add u256, v2, v5
+    v5 = zext i112 v0 to i256
+    v6 = checked_add u256, v1, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u112, v1, i112 1
+    v7 = checked_add u112, v0, i112 1
     jump bb1
 }
 
@@ -5018,24 +5780,24 @@ fn @loop120(arg0: i256) -> i256 [selector=0x98e67b4b, pure, abi_params=[u256], a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: i120 0], [bb3: v7]
-    v2 = phi [bb0: 0], [bb3: v6]
-    v3 = zext i120 v1 to i256
-    v4 = lt v3, v0
+    v0 = phi [bb0: 0], [bb3: v6]
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: i120 0], [bb3: v7]
+    v3 = zext i120 v2 to i256
+    v4 = lt v3, v1
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v2
+    ret v0
   bb4:
-    v5 = zext i120 v1 to i256
-    v6 = checked_add u256, v2, v5
+    v5 = zext i120 v2 to i256
+    v6 = checked_add u256, v0, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u120, v1, i120 1
+    v7 = checked_add u120, v2, i120 1
     jump bb1
 }
 
@@ -5360,24 +6122,24 @@ fn @loop128(arg0: i256) -> i256 [selector=0x7009af6a, pure, abi_params=[u256], a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: i128 0], [bb3: v7]
-    v1 = phi [bb0: 0], [bb3: v6]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = zext i128 v0 to i256
-    v4 = lt v3, v2
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: i128 0], [bb3: v7]
+    v2 = phi [bb0: 0], [bb3: v6]
+    v3 = zext i128 v1 to i256
+    v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v1
+    ret v2
   bb4:
-    v5 = zext i128 v0 to i256
-    v6 = checked_add u256, v1, v5
+    v5 = zext i128 v1 to i256
+    v6 = checked_add u256, v2, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u128, v0, i128 1
+    v7 = checked_add u128, v1, i128 1
     jump bb1
 }
 
@@ -5702,24 +6464,24 @@ fn @loop136(arg0: i256) -> i256 [selector=0xf7fb7ae7, pure, abi_params=[u256], a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v6]
-    v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: i136 0], [bb3: v7]
-    v3 = zext i136 v2 to i256
-    v4 = lt v3, v1
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: i136 0], [bb3: v7]
+    v2 = phi [bb0: 0], [bb3: v6]
+    v3 = zext i136 v1 to i256
+    v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v0
+    ret v2
   bb4:
-    v5 = zext i136 v2 to i256
-    v6 = checked_add u256, v0, v5
+    v5 = zext i136 v1 to i256
+    v6 = checked_add u256, v2, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u136, v2, i136 1
+    v7 = checked_add u136, v1, i136 1
     jump bb1
 }
 
@@ -6044,24 +6806,24 @@ fn @loop144(arg0: i256) -> i256 [selector=0xbe4b4cba, pure, abi_params=[u256], a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v6]
-    v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: i144 0], [bb3: v7]
-    v3 = zext i144 v2 to i256
-    v4 = lt v3, v1
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: i144 0], [bb3: v7]
+    v2 = phi [bb0: 0], [bb3: v6]
+    v3 = zext i144 v1 to i256
+    v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v0
+    ret v2
   bb4:
-    v5 = zext i144 v2 to i256
-    v6 = checked_add u256, v0, v5
+    v5 = zext i144 v1 to i256
+    v6 = checked_add u256, v2, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u144, v2, i144 1
+    v7 = checked_add u144, v1, i144 1
     jump bb1
 }
 
@@ -6386,24 +7148,24 @@ fn @loop152(arg0: i256) -> i256 [selector=0x705c5cdc, pure, abi_params=[u256], a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: i152 0], [bb3: v7]
-    v2 = phi [bb0: 0], [bb3: v6]
-    v3 = zext i152 v1 to i256
-    v4 = lt v3, v0
+    v0 = phi [bb0: i152 0], [bb3: v7]
+    v1 = phi [bb0: 0], [bb3: v6]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = zext i152 v0 to i256
+    v4 = lt v3, v2
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v2
+    ret v1
   bb4:
-    v5 = zext i152 v1 to i256
-    v6 = checked_add u256, v2, v5
+    v5 = zext i152 v0 to i256
+    v6 = checked_add u256, v1, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u152, v1, i152 1
+    v7 = checked_add u152, v0, i152 1
     jump bb1
 }
 
@@ -6728,24 +7490,24 @@ fn @loop160(arg0: i256) -> i256 [selector=0x5b2f7e90, pure, abi_params=[u256], a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: i160 0], [bb3: v7]
-    v2 = phi [bb0: 0], [bb3: v6]
-    v3 = zext i160 v1 to i256
-    v4 = lt v3, v0
+    v0 = phi [bb0: 0], [bb3: v6]
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: i160 0], [bb3: v7]
+    v3 = zext i160 v2 to i256
+    v4 = lt v3, v1
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v2
+    ret v0
   bb4:
-    v5 = zext i160 v1 to i256
-    v6 = checked_add u256, v2, v5
+    v5 = zext i160 v2 to i256
+    v6 = checked_add u256, v0, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u160, v1, i160 1
+    v7 = checked_add u160, v2, i160 1
     jump bb1
 }
 
@@ -7070,24 +7832,24 @@ fn @loop168(arg0: i256) -> i256 [selector=0x8c2b7776, pure, abi_params=[u256], a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: i168 0], [bb3: v7]
-    v1 = phi [bb0: 0], [bb3: v6]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = zext i168 v0 to i256
-    v4 = lt v3, v2
+    v0 = phi [bb0: 0], [bb3: v6]
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: i168 0], [bb3: v7]
+    v3 = zext i168 v2 to i256
+    v4 = lt v3, v1
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v1
+    ret v0
   bb4:
-    v5 = zext i168 v0 to i256
-    v6 = checked_add u256, v1, v5
+    v5 = zext i168 v2 to i256
+    v6 = checked_add u256, v0, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u168, v0, i168 1
+    v7 = checked_add u168, v2, i168 1
     jump bb1
 }
 
@@ -7412,24 +8174,24 @@ fn @loop176(arg0: i256) -> i256 [selector=0xba58f8b5, pure, abi_params=[u256], a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: i176 0], [bb3: v7]
-    v1 = phi [bb0: 0], [bb3: v6]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = zext i176 v0 to i256
-    v4 = lt v3, v2
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: i176 0], [bb3: v7]
+    v2 = phi [bb0: 0], [bb3: v6]
+    v3 = zext i176 v1 to i256
+    v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v1
+    ret v2
   bb4:
-    v5 = zext i176 v0 to i256
-    v6 = checked_add u256, v1, v5
+    v5 = zext i176 v1 to i256
+    v6 = checked_add u256, v2, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u176, v0, i176 1
+    v7 = checked_add u176, v1, i176 1
     jump bb1
 }
 
@@ -7754,24 +8516,24 @@ fn @loop184(arg0: i256) -> i256 [selector=0xa13b5ce0, pure, abi_params=[u256], a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v6]
-    v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: i184 0], [bb3: v7]
-    v3 = zext i184 v2 to i256
-    v4 = lt v3, v1
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: i184 0], [bb3: v7]
+    v2 = phi [bb0: 0], [bb3: v6]
+    v3 = zext i184 v1 to i256
+    v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v0
+    ret v2
   bb4:
-    v5 = zext i184 v2 to i256
-    v6 = checked_add u256, v0, v5
+    v5 = zext i184 v1 to i256
+    v6 = checked_add u256, v2, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u184, v2, i184 1
+    v7 = checked_add u184, v1, i184 1
     jump bb1
 }
 
@@ -8096,24 +8858,24 @@ fn @loop192(arg0: i256) -> i256 [selector=0x7c3c3982, pure, abi_params=[u256], a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: i192 0], [bb3: v7]
-    v2 = phi [bb0: 0], [bb3: v6]
-    v3 = zext i192 v1 to i256
-    v4 = lt v3, v0
+    v0 = phi [bb0: i192 0], [bb3: v7]
+    v1 = phi [bb0: 0], [bb3: v6]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = zext i192 v0 to i256
+    v4 = lt v3, v2
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v2
+    ret v1
   bb4:
-    v5 = zext i192 v1 to i256
-    v6 = checked_add u256, v2, v5
+    v5 = zext i192 v0 to i256
+    v6 = checked_add u256, v1, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u192, v1, i192 1
+    v7 = checked_add u192, v0, i192 1
     jump bb1
 }
 
@@ -8438,24 +9200,24 @@ fn @loop200(arg0: i256) -> i256 [selector=0xf835b59e, pure, abi_params=[u256], a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: i200 0], [bb3: v7]
-    v2 = phi [bb0: 0], [bb3: v6]
-    v3 = zext i200 v1 to i256
-    v4 = lt v3, v0
+    v0 = phi [bb0: i200 0], [bb3: v7]
+    v1 = phi [bb0: 0], [bb3: v6]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = zext i200 v0 to i256
+    v4 = lt v3, v2
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v2
+    ret v1
   bb4:
-    v5 = zext i200 v1 to i256
-    v6 = checked_add u256, v2, v5
+    v5 = zext i200 v0 to i256
+    v6 = checked_add u256, v1, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u200, v1, i200 1
+    v7 = checked_add u200, v0, i200 1
     jump bb1
 }
 
@@ -8780,24 +9542,24 @@ fn @loop208(arg0: i256) -> i256 [selector=0x62e7bee4, pure, abi_params=[u256], a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: i208 0], [bb3: v7]
-    v2 = phi [bb0: 0], [bb3: v6]
-    v3 = zext i208 v1 to i256
-    v4 = lt v3, v0
+    v0 = phi [bb0: 0], [bb3: v6]
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: i208 0], [bb3: v7]
+    v3 = zext i208 v2 to i256
+    v4 = lt v3, v1
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v2
+    ret v0
   bb4:
-    v5 = zext i208 v1 to i256
-    v6 = checked_add u256, v2, v5
+    v5 = zext i208 v2 to i256
+    v6 = checked_add u256, v0, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u208, v1, i208 1
+    v7 = checked_add u208, v2, i208 1
     jump bb1
 }
 
@@ -9122,24 +9884,24 @@ fn @loop216(arg0: i256) -> i256 [selector=0xb6ee3da2, pure, abi_params=[u256], a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: i216 0], [bb3: v7]
-    v1 = phi [bb0: 0], [bb3: v6]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = zext i216 v0 to i256
-    v4 = lt v3, v2
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: i216 0], [bb3: v7]
+    v2 = phi [bb0: 0], [bb3: v6]
+    v3 = zext i216 v1 to i256
+    v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v1
+    ret v2
   bb4:
-    v5 = zext i216 v0 to i256
-    v6 = checked_add u256, v1, v5
+    v5 = zext i216 v1 to i256
+    v6 = checked_add u256, v2, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u216, v0, i216 1
+    v7 = checked_add u216, v1, i216 1
     jump bb1
 }
 
@@ -9464,24 +10226,24 @@ fn @loop224(arg0: i256) -> i256 [selector=0x0211f6f7, pure, abi_params=[u256], a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v6]
-    v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: i224 0], [bb3: v7]
-    v3 = zext i224 v2 to i256
-    v4 = lt v3, v1
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: i224 0], [bb3: v7]
+    v2 = phi [bb0: 0], [bb3: v6]
+    v3 = zext i224 v1 to i256
+    v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v0
+    ret v2
   bb4:
-    v5 = zext i224 v2 to i256
-    v6 = checked_add u256, v0, v5
+    v5 = zext i224 v1 to i256
+    v6 = checked_add u256, v2, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u224, v2, i224 1
+    v7 = checked_add u224, v1, i224 1
     jump bb1
 }
 
@@ -10148,24 +10910,24 @@ fn @loop240(arg0: i256) -> i256 [selector=0x9d82cce1, pure, abi_params=[u256], a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: i240 0], [bb3: v7]
-    v2 = phi [bb0: 0], [bb3: v6]
-    v3 = zext i240 v1 to i256
-    v4 = lt v3, v0
+    v0 = phi [bb0: i240 0], [bb3: v7]
+    v1 = phi [bb0: 0], [bb3: v6]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = zext i240 v0 to i256
+    v4 = lt v3, v2
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v2
+    ret v1
   bb4:
-    v5 = zext i240 v1 to i256
-    v6 = checked_add u256, v2, v5
+    v5 = zext i240 v0 to i256
+    v6 = checked_add u256, v1, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u240, v1, i240 1
+    v7 = checked_add u240, v0, i240 1
     jump bb1
 }
 
@@ -10490,24 +11252,24 @@ fn @loop248(arg0: i256) -> i256 [selector=0x11cba137, pure, abi_params=[u256], a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: i248 0], [bb3: v7]
-    v2 = phi [bb0: 0], [bb3: v6]
-    v3 = zext i248 v1 to i256
-    v4 = lt v3, v0
+    v0 = phi [bb0: 0], [bb3: v6]
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: i248 0], [bb3: v7]
+    v3 = zext i248 v2 to i256
+    v4 = lt v3, v1
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v2
+    ret v0
   bb4:
-    v5 = zext i248 v1 to i256
-    v6 = checked_add u256, v2, v5
+    v5 = zext i248 v2 to i256
+    v6 = checked_add u256, v0, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u248, v1, i248 1
+    v7 = checked_add u248, v2, i248 1
     jump bb1
 }
 
@@ -11011,22 +11773,22 @@ fn @loop256(arg0: i256) -> i256 [selector=0x8b37debb, pure, abi_params=[u256], a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v4]
-    v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v5]
-    v3 = lt v2, v1
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v5]
+    v2 = phi [bb0: 0], [bb3: v4]
+    v3 = lt v1, v0
     jumpi v3, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v0
+    ret v2
   bb4:
-    v4 = checked_add u256, v0, v2
+    v4 = checked_add u256, v2, v1
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v5 = checked_add u256, v2, 1
+    v5 = checked_add u256, v1, 1
     jump bb1
 }
 

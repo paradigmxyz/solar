@@ -1,4 +1,14 @@
 //@ codegen-matrix: standard
+//@ run-call: compareUnsignedLiterals 0 => true
+//@ run-call: compareUnsignedLiterals 44 => true
+//@ run-call: compareUnsignedLiterals 255 => true
+//@ run-call: compareSignedLiterals -128 => true
+//@ run-call: compareSignedLiterals -1 => true
+//@ run-call: compareSignedLiterals 0 => true
+//@ run-call: compareSignedLiterals 127 => true
+//@ run-call: compareLiteralBoundaries 0, 0 => true
+//@ run-call: compareLiteralBoundaries 255, -128 => true
+//@ run-call: compareLiteralBoundaries 127, 127 => true
 //@ run-call: compoundUnchecked256 100, -3 => true
 //@ run-call: compoundUnchecked256 -100, 3 => true
 //@ run-call: compoundChecked256 100, -3 => true
@@ -489,6 +499,69 @@
 //@ run-call: signed256 57896044618658097711785492504343953926634992332820282019728792003956564819967, 1, 256 => true
 
 contract NativeInteger8 {
+    function compareUnsignedLiterals(uint8 x) external pure returns (bool) {
+        return ((x == 300) == (uint256(x) == 300))
+            && ((300 == x) == (300 == uint256(x)))
+            && ((x != 300) == (uint256(x) != 300))
+            && ((300 != x) == (300 != uint256(x)))
+            && ((x < 300) == (uint256(x) < 300))
+            && ((300 < x) == (300 < uint256(x)))
+            && ((x > 300) == (uint256(x) > 300))
+            && ((300 > x) == (300 > uint256(x)))
+            && ((x <= 300) == (uint256(x) <= 300))
+            && ((300 <= x) == (300 <= uint256(x)))
+            && ((x >= 300) == (uint256(x) >= 300))
+            && ((300 >= x) == (300 >= uint256(x)));
+    }
+
+    function compareSignedLiterals(int8 x) external pure returns (bool) {
+        return ((x == -129) == (int256(x) == -129))
+            && ((-129 == x) == (-129 == int256(x)))
+            && ((x != -129) == (int256(x) != -129))
+            && ((-129 != x) == (-129 != int256(x)))
+            && ((x < -129) == (int256(x) < -129))
+            && ((-129 < x) == (-129 < int256(x)))
+            && ((x > -129) == (int256(x) > -129))
+            && ((-129 > x) == (-129 > int256(x)))
+            && ((x <= -129) == (int256(x) <= -129))
+            && ((-129 <= x) == (-129 <= int256(x)))
+            && ((x >= -129) == (int256(x) >= -129))
+            && ((-129 >= x) == (-129 >= int256(x)));
+    }
+
+    function compareLiteralBoundaries(uint8 u, int8 s) external pure returns (bool) {
+        return ((u < 127) == (uint256(u) < 127))
+            && ((127 <= u) == (127 <= uint256(u)))
+            && ((u < 128) == (uint256(u) < 128))
+            && ((128 <= u) == (128 <= uint256(u)))
+            && ((u < 255) == (uint256(u) < 255))
+            && ((255 <= u) == (255 <= uint256(u)))
+            && ((u < 256) == (uint256(u) < 256))
+            && ((256 <= u) == (256 <= uint256(u)))
+            && ((u < 257) == (uint256(u) < 257))
+            && ((257 <= u) == (257 <= uint256(u)))
+            && ((u < 65535) == (uint256(u) < 65535))
+            && ((65535 <= u) == (65535 <= uint256(u)))
+            && ((u < 65536) == (uint256(u) < 65536))
+            && ((65536 <= u) == (65536 <= uint256(u)))
+            && ((s < -127) == (int256(s) < -127))
+            && ((-127 <= s) == (-127 <= int256(s)))
+            && ((s < -128) == (int256(s) < -128))
+            && ((-128 <= s) == (-128 <= int256(s)))
+            && ((s < -129) == (int256(s) < -129))
+            && ((-129 <= s) == (-129 <= int256(s)))
+            && ((s < -255) == (int256(s) < -255))
+            && ((-255 <= s) == (-255 <= int256(s)))
+            && ((s < -256) == (int256(s) < -256))
+            && ((-256 <= s) == (-256 <= int256(s)))
+            && ((s < -257) == (int256(s) < -257))
+            && ((-257 <= s) == (-257 <= int256(s)))
+            && ((s < -32768) == (int256(s) < -32768))
+            && ((-32768 <= s) == (-32768 <= int256(s)))
+            && ((s < -32769) == (int256(s) < -32769))
+            && ((-32769 <= s) == (-32769 <= int256(s)));
+    }
+
     uint8 private saved;
 
     function checkedUnsigned8(uint8 a, uint8 b) external pure returns (uint8) {
