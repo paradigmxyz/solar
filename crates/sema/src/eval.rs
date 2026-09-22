@@ -399,7 +399,8 @@ pub struct IntScalar {
     ///
     /// Values built only from literals use exact rational arithmetic (subject to the resource
     /// limit) and carry no type. As soon as a typed constant takes part in the expression,
-    /// arithmetic is checked against the declared type instead of yielding the mathematical result.
+    /// arithmetic is checked against the declared type instead of yielding the mathematical
+    /// result.
     ty: Option<IntTy>,
 }
 
