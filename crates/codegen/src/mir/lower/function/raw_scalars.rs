@@ -237,6 +237,11 @@ impl LoweringState {
         for &(id, _) in functions {
             let _ = exposure.visit_nested_function(id);
         }
+        for &base in gcx.hir.contract(contract).linearized_bases {
+            if let Some(id) = gcx.hir.contract(base).ctor {
+                let _ = exposure.visit_nested_function(id);
+            }
+        }
         let mut pending = exposure.raw.iter().copied().collect::<Vec<_>>();
         while let Some(id) = pending.pop() {
             if let Some(neighbors) = exposure.edges.get(&id) {
