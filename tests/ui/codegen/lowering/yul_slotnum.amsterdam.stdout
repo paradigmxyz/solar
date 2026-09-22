@@ -24,10 +24,7 @@ bb4 [cold]:
   push 0
   revert
 bb5:
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   slotnum
   and
   push 128

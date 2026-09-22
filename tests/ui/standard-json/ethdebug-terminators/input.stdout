@@ -545,110 +545,92 @@
                 {
                   "offset": 70,
                   "operation": {
-                    "mnemonic": "PUSH0"
-                  }
-                },
-                {
-                  "offset": 71,
-                  "operation": {
-                    "mnemonic": "NOT"
-                  }
-                },
-                {
-                  "offset": 72,
-                  "operation": {
-                    "mnemonic": "PUSH1",
+                    "mnemonic": "PUSH8",
                     "arguments": [
-                      "0xc0"
+                      "0xffffffffffffffff"
                     ]
-                  }
-                },
-                {
-                  "offset": 74,
-                  "operation": {
-                    "mnemonic": "SHR"
-                  }
-                },
-                {
-                  "offset": 75,
-                  "operation": {
-                    "mnemonic": "LT"
-                  }
-                },
-                {
-                  "offset": 76,
-                  "operation": {
-                    "mnemonic": "CALLDATASIZE"
-                  }
-                },
-                {
-                  "offset": 77,
-                  "operation": {
-                    "mnemonic": "DUP4"
-                  }
-                },
-                {
-                  "offset": 78,
-                  "operation": {
-                    "mnemonic": "GT"
                   }
                 },
                 {
                   "offset": 79,
                   "operation": {
-                    "mnemonic": "OR"
+                    "mnemonic": "LT"
                   }
                 },
                 {
                   "offset": 80,
                   "operation": {
-                    "mnemonic": "SWAP1"
+                    "mnemonic": "CALLDATASIZE"
                   }
                 },
                 {
                   "offset": 81,
                   "operation": {
-                    "mnemonic": "CALLDATALOAD"
+                    "mnemonic": "DUP4"
                   }
                 },
                 {
                   "offset": 82,
                   "operation": {
-                    "mnemonic": "SWAP2"
+                    "mnemonic": "GT"
                   }
                 },
                 {
                   "offset": 83,
                   "operation": {
-                    "mnemonic": "CALLDATASIZE"
+                    "mnemonic": "OR"
                   }
                 },
                 {
                   "offset": 84,
                   "operation": {
-                    "mnemonic": "SUB"
+                    "mnemonic": "SWAP1"
                   }
                 },
                 {
                   "offset": 85,
                   "operation": {
-                    "mnemonic": "DUP3"
+                    "mnemonic": "CALLDATALOAD"
                   }
                 },
                 {
                   "offset": 86,
                   "operation": {
-                    "mnemonic": "GT"
+                    "mnemonic": "SWAP2"
                   }
                 },
                 {
                   "offset": 87,
                   "operation": {
-                    "mnemonic": "OR"
+                    "mnemonic": "CALLDATASIZE"
                   }
                 },
                 {
                   "offset": 88,
+                  "operation": {
+                    "mnemonic": "SUB"
+                  }
+                },
+                {
+                  "offset": 89,
+                  "operation": {
+                    "mnemonic": "DUP3"
+                  }
+                },
+                {
+                  "offset": 90,
+                  "operation": {
+                    "mnemonic": "GT"
+                  }
+                },
+                {
+                  "offset": 91,
+                  "operation": {
+                    "mnemonic": "OR"
+                  }
+                },
+                {
+                  "offset": 92,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -657,13 +639,13 @@
                   }
                 },
                 {
-                  "offset": 90,
+                  "offset": 94,
                   "operation": {
                     "mnemonic": "JUMPI"
                   }
                 },
                 {
-                  "offset": 91,
+                  "offset": 95,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -683,7 +665,7 @@
                   }
                 },
                 {
-                  "offset": 93,
+                  "offset": 97,
                   "operation": {
                     "mnemonic": "MSTORE"
                   },
@@ -700,7 +682,7 @@
                   }
                 },
                 {
-                  "offset": 94,
+                  "offset": 98,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -720,7 +702,7 @@
                   }
                 },
                 {
-                  "offset": 96,
+                  "offset": 100,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -740,7 +722,7 @@
                   }
                 },
                 {
-                  "offset": 98,
+                  "offset": 102,
                   "operation": {
                     "mnemonic": "RETURN"
                   },
@@ -759,7 +741,7 @@
                 }
               ]
             },
-            "sourceMap": ":::-:0;;;;;;;;;;;;;;;:::i;:::-;;;;:::i;:::-;75:15:0;;;-1:-1:-1;83:6:0;;;75:15;;92:9;;;;;;;-1:-1:-1;;;;;;;;;;;;;;;;;;;;;;;;;;;;;172:19:0;;;;"
+            "sourceMap": ":::-:0;;;;;;;;;;;;;;;:::i;:::-;;;;:::i;:::-;75:15:0;;;-1:-1:-1;83:6:0;;;75:15;;92:9;;;;;;;-1:-1:-1;;;;;;;;;;;;;;;;;;;;;;;;;;172:19:0;;;;"
           }
         }
       }

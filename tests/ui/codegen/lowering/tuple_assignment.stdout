@@ -52,10 +52,7 @@ bb6:
   dup 2
   add
   swap 2
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   lt
   calldatasize
   dup 4
@@ -74,10 +71,7 @@ bb6:
   push bb5
   jumpi
   gas
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   dup 3
   gt
   push bb5
