@@ -1,4 +1,6 @@
 //@ codegen-matrix: standard
+//@[mir] filecheck:
+//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: powers => 1, 1, 1, 1, 1, 0
 //@ run-call: quorum 2 => 2
 //@ run-call-fail: quorum 1
@@ -18,15 +20,22 @@ contract ConstantPowZero {
         return (0 ** 0, ONE, 1 ** 0, (-1) ** 0, 42 ** 0, 0 ** 1);
     }
 
+    // CHECK-LABEL: fn @quorum(
+    // CHECK: lt arg0, 2
+    // CHECK: ret 2
     function quorum(uint256 approvals) external view returns (uint256) {
         require(approvals >= values.length);
         return values.length;
     }
 
+    // CHECK-LABEL: fn @at(
+    // CHECK-SAME: abi_params=[array<2, u256>, u256]
     function at(uint256[(0 ** 0) + 1] calldata input, uint256 index) external pure returns (uint256) {
         return input[index];
     }
 
+    // CHECK-LABEL: fn @memoryLayout(
+    // CHECK: alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     function memoryLayout() external pure returns (uint256, uint256, uint256) {
         uint256[(0 ** 0) + 1] memory input;
         input[0] = 11;
@@ -34,6 +43,8 @@ contract ConstantPowZero {
         return (input.length, input[0], input[1]);
     }
 
+    // CHECK-LABEL: fn @storageLayout(
+    // CHECK: sstore 2, 33
     function storageLayout() external returns (uint256, uint256, uint256, uint256) {
         values[0] = 11;
         values[1] = 22;
