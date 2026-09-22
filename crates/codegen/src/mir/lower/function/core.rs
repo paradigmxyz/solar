@@ -94,6 +94,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::StringMinimalHexPrefixed => {
                 self.lower_core_string_minimal_hex_call(&operands, true)
             }
+            CoreIntrinsic::StringPackOne => self.lower_core_string_pack_one_call(&operands),
+            CoreIntrinsic::StringUnpackOne => self.lower_core_string_unpack_one_call(&operands),
+            CoreIntrinsic::StringPackTwo => self.lower_core_string_pack_two_call(&operands),
+            CoreIntrinsic::StringUnpackTwo => {
+                let values = self.lower_core_string_unpack_two_call(&operands)?;
+                let return_tys = function
+                    .returns
+                    .iter()
+                    .map(|&id| self.cx.gcx.type_of_item(id.into()))
+                    .collect::<Vec<_>>();
+                Some(self.pack_return_values(values, &return_tys))
+            }
             CoreIntrinsic::RevertRaw => self.lower_core_revert_raw(&operands),
             CoreIntrinsic::Keccak256Range => self.lower_core_keccak256_range(&operands),
             CoreIntrinsic::Deploy | CoreIntrinsic::Deploy2 => {

@@ -245,4 +245,58 @@ library Strings {
         return string.concat("0x", toMinimalHexStringNoPrefix(value));
     }
 
+    /// @dev Packs a nonempty string of at most 31 bytes into one word. The
+    /// first byte is its length and the remaining bytes are its contents.
+    function packOne(string memory value) internal pure returns (bytes32 result) {
+        bytes memory input = bytes(value);
+        if (input.length == 0 || input.length > 31) return 0;
+        result = bytes32(input.length << 248);
+        for (uint256 i; i < input.length; ++i) {
+            result |= bytes32(uint256(uint8(input[i])) << ((30 - i) * 8));
+        }
+    }
+
+    /// @dev Reconstructs a string produced by {packOne}.
+    function unpackOne(bytes32 packed) internal pure returns (string memory result) {
+        uint256 length = uint8(packed[0]);
+        if (length > 31) length = 31;
+        bytes memory out = new bytes(length);
+        for (uint256 i; i < length; ++i) out[i] = packed[i + 1];
+        return string(out);
+    }
+
+    /// @dev Packs two strings whose combined length is 1..30 bytes into one
+    /// word. Each string is preceded by one length byte.
+    function packTwo(string memory a, string memory b) internal pure returns (bytes32 result) {
+        bytes memory x = bytes(a);
+        bytes memory y = bytes(b);
+        uint256 total = x.length + y.length;
+        if (total == 0 || total > 30) return 0;
+        result = bytes32(x.length << 248);
+        for (uint256 i; i < x.length; ++i) {
+            result |= bytes32(uint256(uint8(x[i])) << ((30 - i) * 8));
+        }
+        result |= bytes32(y.length << ((30 - x.length) * 8));
+        for (uint256 i; i < y.length; ++i) {
+            result |= bytes32(uint256(uint8(y[i])) << ((29 - x.length - i) * 8));
+        }
+    }
+
+    /// @dev Reconstructs two strings produced by {packTwo}.
+    function unpackTwo(bytes32 packed)
+        internal
+        pure
+        returns (string memory resultA, string memory resultB)
+    {
+        uint256 aLength = uint8(packed[0]);
+        if (aLength > 30) aLength = 30;
+        bytes memory a = new bytes(aLength);
+        for (uint256 i; i < aLength; ++i) a[i] = packed[i + 1];
+        uint256 bLength = uint8(packed[aLength + 1]);
+        if (bLength > 30 - aLength) bLength = 30 - aLength;
+        bytes memory b = new bytes(bLength);
+        for (uint256 i; i < bLength; ++i) b[i] = packed[aLength + i + 2];
+        return (string(a), string(b));
+    }
+
 }
