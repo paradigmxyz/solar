@@ -604,21 +604,38 @@ fn return_values_are_fresh(
     fresh: &DenseBitSet<FunctionId>,
 ) -> bool {
     let [value] = values else { return false };
-    let Value::Inst(inst) = func.value(*value) else { return false };
-    match func.inst(*inst).kind {
+    returned_value_is_fresh(func, *value, fresh, 0)
+}
+
+/// A phi of fresh values is fresh to the caller: whichever allocation it
+/// selects was made by this call and is distinct from the caller's objects.
+fn returned_value_is_fresh(
+    func: &Function,
+    value: ValueId,
+    fresh: &DenseBitSet<FunctionId>,
+    depth: usize,
+) -> bool {
+    let Value::Inst(inst) = func.value(value) else { return false };
+    match &func.inst(*inst).kind {
         InstKind::Alloc { .. } => true,
-        InstKind::MLoad(address)
+        &InstKind::MLoad(address)
             if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
                 && func.inst(*inst).metadata.effect() == Some(EffectKind::MemoryWrite) =>
         {
             true
         }
         InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
-            fresh.contains(function)
+            fresh.contains(*function)
         }
+        InstKind::Phi(incoming) if depth < MAX_FRESH_PHI_DEPTH => incoming
+            .iter()
+            .all(|&(_, value)| returned_value_is_fresh(func, value, fresh, depth + 1)),
         _ => false,
     }
 }
+
+/// Bounds the phi nesting a freshness proof follows; loops fail it.
+const MAX_FRESH_PHI_DEPTH: usize = 4;
 
 fn can_encode_dynamic_return_in_place(
     func: &Function,
@@ -866,16 +883,32 @@ fn encode_bounded_bytes_pair_in_place(
     builder.make_slice(base, total, SliceLocation::Memory)
 }
 
+/// Proves that `value` is an object owned by this terminal return: a fresh
+/// object allocation, a fresh call result, or a phi selecting among them.
 fn fresh_memory_object(
     func: &Function,
     value: ValueId,
     fresh_object_returns: &DenseBitSet<FunctionId>,
 ) -> bool {
+    fresh_memory_object_at(func, value, fresh_object_returns, 0)
+}
+
+fn fresh_memory_object_at(
+    func: &Function,
+    value: ValueId,
+    fresh_object_returns: &DenseBitSet<FunctionId>,
+    depth: usize,
+) -> bool {
     let Value::Inst(inst) = func.value(value) else { return false };
-    match func.inst(*inst).kind {
+    match &func.inst(*inst).kind {
         InstKind::Alloc { kind: AllocationKind::Object(_), .. } => true,
         InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
-            fresh_object_returns.contains(function)
+            fresh_object_returns.contains(*function)
+        }
+        InstKind::Phi(incoming) if depth < MAX_FRESH_PHI_DEPTH => {
+            incoming.iter().all(|&(_, value)| {
+                fresh_memory_object_at(func, value, fresh_object_returns, depth + 1)
+            })
         }
         _ => false,
     }
