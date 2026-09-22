@@ -197,4 +197,34 @@ library Strings {
         return found;
     }
 
+    /// @dev Splits `subject` at each non-overlapping `delimiter` occurrence.
+    function split(string memory subject, string memory delimiter)
+        internal
+        pure
+        returns (string[] memory result)
+    {
+        bytes memory s = bytes(subject);
+        bytes memory d = bytes(delimiter);
+        if (d.length == 0) {
+            result = new string[](s.length);
+            for (uint256 i; i < s.length; ++i) {
+                bytes memory part = new bytes(1);
+                part[0] = s[i];
+                result[i] = string(part);
+            }
+            return result;
+        }
+
+        uint256[] memory indices = indicesOf(subject, delimiter);
+        result = new string[](indices.length + 1);
+        uint256 previous;
+        for (uint256 i; i <= indices.length; ++i) {
+            uint256 end = i == indices.length ? s.length : indices[i];
+            bytes memory part = new bytes(end - previous);
+            Bytes.copyInto(part, 0, s, previous, part.length);
+            result[i] = string(part);
+            previous = end + d.length;
+        }
+    }
+
 }
