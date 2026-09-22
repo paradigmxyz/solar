@@ -109,6 +109,8 @@ pub enum CoreIntrinsic {
     ArraySort,
     /// `Strings.replace(subject, needle, replacement)`.
     StringReplace,
+    /// `Strings.indicesOf(subject, needle)`.
+    StringIndicesOf,
     /// `Revert.raw(data)`: revert with exactly `data`.
     RevertRaw,
     /// `Hash.keccak256Range(b, offset, count)`: hash a range where it lies.
@@ -239,7 +241,10 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
             ])
         })),
         "solar:core/v1/Strings.sol" => Some(STRINGS.get_or_init(|| {
-            FxHashMap::from_iter([(Symbol::intern("replace"), CoreIntrinsic::StringReplace)])
+            FxHashMap::from_iter([
+                (Symbol::intern("replace"), CoreIntrinsic::StringReplace),
+                (Symbol::intern("indicesOf"), CoreIntrinsic::StringIndicesOf),
+            ])
         })),
         "solar:core/v1/Revert.sol" => Some(
             REVERT.get_or_init(|| FxHashMap::from_iter([(sym::raw, CoreIntrinsic::RevertRaw)])),
