@@ -22,10 +22,14 @@ contract Test {
 
     // INTRINSIC-LABEL: fn @unpackPair
     // INTRINSIC: byte 0
+    // INTRINSIC: [[FMP:v[0-9]+]] = mload 64
+    // INTRINSIC-NEXT: [[END:v[0-9]+]] = add [[FMP]], 128
+    // INTRINSIC-NEXT: mstore 64, [[END]]
     // INTRINSIC: mstore
-    // INTRINSIC: byte {{v[0-9]+}}, arg0
+    // INTRINSIC: byte 0, {{v[0-9]+}}
     // INTRINSIC: mstore
     // INTRINSIC-NOT: icall @unpackTwo
+    // INTRINSIC-NOT: mcopy
     // PORTABLE-LABEL: fn @unpackPair
     // PORTABLE: icall @unpackTwo
     function unpackPair(bytes32 packed) public pure returns (string memory, string memory) {

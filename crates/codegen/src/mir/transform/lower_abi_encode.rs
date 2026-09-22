@@ -32,9 +32,11 @@
 //! A terminal external return of a freshly allocated full-word array or byte
 //! string is encoded in place. Moving its payload forward by one word makes
 //! room for the ABI tuple offset and reuses the object's length word, avoiding
-//! a second allocation. A module-wide plan selects those sites before shared
-//! tuple helpers are built, so locally cheaper terminal encodings do not leave
-//! an unused shared body.
+//! a second allocation. Two bounded byte strings backed by adjacent words use
+//! the same treatment: load both payloads before overwriting their source,
+//! then lay out both ABI tails over the original allocation. A module-wide plan
+//! selects those sites before shared tuple helpers are built, so locally
+//! cheaper terminal encodings do not leave an unused shared body.
 
 use crate::{
     mir::{
@@ -624,6 +626,13 @@ fn can_encode_dynamic_return_in_place(
     args: &[ValueId],
     fresh_object_returns: &DenseBitSet<FunctionId>,
 ) -> bool {
+    if matches!(
+        &*layout.types,
+        [AbiType::Bytes(SliceLocation::Memory), AbiType::Bytes(SliceLocation::Memory)]
+    ) && adjacent_bounded_bytes_pair_base(func, args).is_some()
+    {
+        return true;
+    }
     let [object] = args else { return false };
     let kind = match &*layout.types {
         [AbiType::DynamicArray { element, location: SliceLocation::Memory }]
@@ -647,6 +656,9 @@ fn encode_dynamic_return_in_place(
 ) -> Option<ValueId> {
     if !can_encode_dynamic_return_in_place(builder.func(), layout, args, fresh_object_returns) {
         return None;
+    }
+    if let Some(base) = adjacent_bounded_bytes_pair_base(builder.func(), args) {
+        return Some(encode_bounded_bytes_pair_in_place(builder, args, base));
     }
     let [object] = args else { unreachable!() };
 
@@ -683,6 +695,175 @@ fn encode_dynamic_return_in_place(
     builder.mstore(source, length);
     let total = builder.add_u64_offset(bytes, 64);
     Some(builder.make_slice(*object, total, SliceLocation::Memory))
+}
+
+/// Returns the shared base of two adjacent two-word byte objects.
+///
+/// This is the compact layout produced for bounded short-string unpacking:
+/// one exact four-word allocation, with object headers at offsets zero and 64.
+fn adjacent_bounded_bytes_pair_base(func: &Function, args: &[ValueId]) -> Option<ValueId> {
+    let [a, b] = args else { return None };
+    if func.value_ty(*a) != Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+        || func.value_ty(*b) != Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+        || !has_bounded_object_length(func, *a, 32)
+        || !has_bounded_object_length(func, *b, 32)
+    {
+        return None;
+    }
+    let base = object_pointer_source(func, *a)?;
+    let b_ptr = object_pointer_source(func, *b)?;
+    let Value::Inst(allocation) = func.value(base) else { return None };
+    let InstKind::Alloc { size, kind: AllocationKind::Raw, .. } = func.inst(*allocation).kind
+    else {
+        return None;
+    };
+    if func.value_u64(size) != Some(128) {
+        return None;
+    }
+    let Value::Inst(add) = func.value(b_ptr) else { return None };
+    let InstKind::Add(lhs, rhs) = func.inst(*add).kind else { return None };
+    ((same_pointer_base(func, lhs, base) && func.value_u64(rhs) == Some(64))
+        || (same_pointer_base(func, rhs, base) && func.value_u64(lhs) == Some(64)))
+    .then_some(base)
+}
+
+/// Whether scalar/pointer casts still name the same allocation base.
+fn same_pointer_base(func: &Function, value: ValueId, base: ValueId) -> bool {
+    if value == base {
+        return true;
+    }
+    let Value::Inst(cast) = func.value(value) else { return false };
+    match func.inst(*cast).kind {
+        InstKind::PtrToInt(source, _) | InstKind::IntToPtr(source) | InstKind::Bitcast(source) => {
+            same_pointer_base(func, source, base)
+        }
+        _ => false,
+    }
+}
+
+/// Proves that the object's sole logical-length write is within `limit`.
+fn has_bounded_object_length(func: &Function, object: ValueId, limit: u64) -> bool {
+    let mut lengths = func.instructions().filter_map(|inst| match func.inst(inst).kind {
+        InstKind::SetMemoryObjectLen(value, length, MemoryObjectKind::Bytes) if value == object => {
+            Some(length)
+        }
+        _ => None,
+    });
+    let Some(length) = lengths.next() else { return false };
+    lengths.next().is_none() && bounded_value_max(func, length, 12).is_some_and(|max| max <= limit)
+}
+
+/// Computes a conservative maximum for the small expressions used as object lengths.
+fn bounded_value_max(func: &Function, value: ValueId, depth: usize) -> Option<u64> {
+    if let Some(value) = func.value_u64(value) {
+        return Some(value);
+    }
+    let depth = depth.checked_sub(1)?;
+    let Value::Inst(inst) = func.value(value) else { return None };
+    match func.inst(*inst).kind {
+        InstKind::Byte(..) => Some(u8::MAX.into()),
+        InstKind::Zext(source) | InstKind::Bitcast(source) => {
+            bounded_value_max(func, source, depth)
+        }
+        InstKind::Trunc(_, bits) if (1..=64).contains(&bits) => Some(u64::MAX >> (64 - bits)),
+        InstKind::And(a, b) => match (func.value_u64(a), func.value_u64(b)) {
+            (Some(mask), None) => bounded_value_max(func, b, depth).map(|max| max.min(mask)),
+            (None, Some(mask)) => bounded_value_max(func, a, depth).map(|max| max.min(mask)),
+            _ => None,
+        },
+        InstKind::Sub(a, b) => {
+            let a = bounded_value_max(func, a, depth)?;
+            (bounded_value_max(func, b, depth)? <= a).then_some(a)
+        }
+        InstKind::Select(condition, then_value, else_value) => {
+            if let Some(limit) = clamped_max(func, condition, then_value, else_value, depth) {
+                return Some(limit);
+            }
+            Some(
+                bounded_value_max(func, then_value, depth)?
+                    .max(bounded_value_max(func, else_value, depth)?),
+            )
+        }
+        _ => None,
+    }
+}
+
+/// Recognizes `select(value > limit, limit, value)` and its `lt` spelling.
+fn clamped_max(
+    func: &Function,
+    condition: ValueId,
+    then_value: ValueId,
+    else_value: ValueId,
+    depth: usize,
+) -> Option<u64> {
+    let Value::Inst(inst) = func.value(condition) else { return None };
+    let (value, limit) = match func.inst(*inst).kind {
+        InstKind::Gt(value, limit) | InstKind::Lt(limit, value) => (value, limit),
+        _ => return None,
+    };
+    if then_value != limit || else_value != value {
+        return None;
+    }
+    bounded_value_max(func, limit, depth)
+}
+
+/// Strips the pointer-to-object cast emitted by `memory_object_from_ptr`.
+fn object_pointer_source(func: &Function, object: ValueId) -> Option<ValueId> {
+    let Value::Inst(cast) = func.value(object) else { return None };
+    match func.inst(*cast).kind {
+        InstKind::Bitcast(pointer) | InstKind::IntToPtr(pointer) => Some(pointer),
+        _ => None,
+    }
+}
+
+/// Encodes two adjacent byte objects over their source allocation.
+fn encode_bounded_bytes_pair_in_place(
+    builder: &mut FunctionBuilder<'_>,
+    args: &[ValueId],
+    base: ValueId,
+) -> ValueId {
+    let [a, b] = args else { unreachable!() };
+    let bytes = MemoryObjectKind::Bytes;
+
+    // Read everything before the ABI heads and first tail overwrite the source.
+    let a_length = builder.memory_object_len(*a, bytes);
+    let a_source = builder.memory_object_data(*a, bytes);
+    let a_word = builder.mload(a_source);
+    let b_length = builder.memory_object_len(*b, bytes);
+    let b_source = builder.memory_object_data(*b, bytes);
+    let b_word = builder.mload(b_source);
+
+    let thirty_one = builder.imm(31);
+    let word_mask = builder.not(thirty_one);
+    let a_rounded = builder.add(a_length, thirty_one);
+    let a_padded = builder.and(a_rounded, word_mask);
+    let b_rounded = builder.add(b_length, thirty_one);
+    let b_padded = builder.and(b_rounded, word_mask);
+
+    let first_offset = builder.imm(64);
+    let first_tail = builder.add(base, first_offset);
+    let first_data = builder.add_u64_offset(first_tail, 32);
+    let first_end = builder.add_u64_offset(first_tail, 32);
+    let second_tail = builder.add(first_end, a_padded);
+    let second_offset = builder.sub(second_tail, base);
+    let second_data = builder.add_u64_offset(second_tail, 32);
+
+    builder.mstore(base, first_offset);
+    let second_head = builder.add_u64_offset(base, 32);
+    builder.mstore(second_head, second_offset);
+    builder.mstore(first_tail, a_length);
+    builder.mstore(first_data, a_word);
+    let zero = builder.imm(0);
+    let first_padding = builder.add(first_data, a_length);
+    builder.mstore(first_padding, zero);
+    builder.mstore(second_tail, b_length);
+    builder.mstore(second_data, b_word);
+    let second_padding = builder.add(second_data, b_length);
+    builder.mstore(second_padding, zero);
+
+    let end = builder.add(second_data, b_padded);
+    let total = builder.sub(end, base);
+    builder.make_slice(base, total, SliceLocation::Memory)
 }
 
 fn fresh_memory_object(

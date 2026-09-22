@@ -163,8 +163,16 @@ impl FunctionLowerer<'_, '_> {
         let thirty_one = self.builder.imm(31);
         let too_long = self.builder.gt(raw_length, thirty_one);
         let length = self.builder.select(too_long, thirty_one, raw_length);
-        let out =
-            self.builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+        // Every result fits in one payload word, so its header and payload
+        // occupy exactly two words. Avoid rebuilding and checking the generic
+        // `align32(length + 32)` allocation expression.
+        let size = self.builder.imm(64);
+        let out = self.builder.alloc_object(
+            size,
+            MemoryObjectLayout::Bytes,
+            AllocationSemantics::INTERNAL,
+        );
+        self.builder.set_memory_object_len(out, length, MemoryObjectKind::Bytes);
         let data = self.builder.memory_object_data(out, MemoryObjectKind::Bytes);
         let eight = self.builder.imm(8);
         let contents = self.builder.shl(eight, packed);
@@ -240,28 +248,33 @@ impl FunctionLowerer<'_, '_> {
         let raw_a_length = self.builder.byte(zero, packed);
         let a_too_long = self.builder.gt(raw_a_length, thirty);
         let a_length = self.builder.select(a_too_long, thirty, raw_a_length);
-        let a =
-            self.builder.alloc_bytes_object(a_length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-        let a_data = self.builder.memory_object_data(a, MemoryObjectKind::Bytes);
-        let eight = self.builder.imm(8);
-        let a_contents = self.builder.shl(eight, packed);
-        self.builder.mstore(a_data, a_contents);
+        // Both bounded strings fit in one payload word. Reserve the two
+        // header/payload pairs with one bump and derive the second object from
+        // the upper half of that allocation.
+        let total_size = self.builder.imm(128);
+        let allocation = self.builder.alloc_raw(total_size, AllocationSemantics::INTERNAL);
+        let a = self.builder.memory_object_from_ptr(allocation, MemoryObjectKind::Bytes);
+        // An unaligned store lays the tag into the low byte of the length word
+        // and the first payload immediately after it. Restore the clamped
+        // length over that tag so malformed words retain the portable body's
+        // bounded result.
+        let tag_slot = self.builder.add_u64_offset(allocation, 31);
+        self.builder.mstore(tag_slot, packed);
+        self.builder.set_memory_object_len(a, a_length, MemoryObjectKind::Bytes);
 
-        let one = self.builder.imm(1);
-        let b_index = self.builder.add(a_length, one);
-        let raw_b_length = self.builder.byte(b_index, packed);
+        let a_data = self.builder.memory_object_data(a, MemoryObjectKind::Bytes);
+        let packed_b_address = self.builder.add(a_data, a_length);
+        let packed_b = self.builder.mload(packed_b_address);
+        let raw_b_length = self.builder.byte(zero, packed_b);
         let remaining = self.builder.sub(thirty, a_length);
         let b_too_long = self.builder.gt(raw_b_length, remaining);
         let b_length = self.builder.select(b_too_long, remaining, raw_b_length);
-        let b =
-            self.builder.alloc_bytes_object(b_length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-        let b_data = self.builder.memory_object_data(b, MemoryObjectKind::Bytes);
-        let two = self.builder.imm(2);
-        let b_byte_offset = self.builder.add(a_length, two);
-        let three = self.builder.imm(3);
-        let b_bit_offset = self.builder.shl(three, b_byte_offset);
-        let b_contents = self.builder.shl(b_bit_offset, packed);
-        self.builder.mstore(b_data, b_contents);
+        let object_size = self.builder.imm(64);
+        let b_ptr = self.builder.add(allocation, object_size);
+        let b = self.builder.memory_object_from_ptr(b_ptr, MemoryObjectKind::Bytes);
+        let b_tag_slot = self.builder.add_u64_offset(b_ptr, 31);
+        self.builder.mstore(b_tag_slot, packed_b);
+        self.builder.set_memory_object_len(b, b_length, MemoryObjectKind::Bytes);
         Some(vec![a, b])
     }
 

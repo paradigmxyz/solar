@@ -93,93 +93,53 @@ fn @packPair() [selector=0xa2352af0, abi_wrapper, pure] {
 
 fn @unpackPair() [selector=0x227bb006, abi_wrapper, pure] {
   bb0:
-    v32 = calldatasize
-    v33 = lt v32, 36
-    jumpi v33, bb3, bb4
-  bb4:
+    v25 = calldatasize
+    v26 = lt v25, 36
+    jumpi v26, bb1, bb2
+  bb2:
     v0 = byte 0, arg0
     v1 = gt v0, 30
     v2 = select v1, 30, v0
-    v3 = add v2, 63
-    v6 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v100 = mload 64 !metadata(memory=scratch)
-    v101 = add v100, v6
-    v102 = lt v101, v100
-    v103 = gt v101, 0xffffffffffffffff
-    v104 = or v102, v103
-    jumpi v104, bb1, bb6
-  bb6:
-    mstore 64, v101 !metadata(memory=scratch)
-    mstore v100, v2
-    v93 = add v100, 32
-    v9 = shl 8, arg0
-    mstore v93, v9
-    v11 = add v2, 1
-    v12 = byte v11, arg0
-    v13 = sub 30, v2
-    v14 = gt v12, v13
-    v15 = select v14, v13, v12
-    v16 = add v15, 63
-    v17 = lt v16, v15
-    jumpi v17, bb1, bb2
-  bb2:
-    v19 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v94 = mload 64 !metadata(memory=scratch)
-    v95 = add v94, v19
-    v96 = lt v95, v94
-    v97 = gt v95, 0xffffffffffffffff
-    v98 = or v96, v97
-    jumpi v98, bb1, bb5
-  bb5:
-    mstore 64, v95 !metadata(memory=scratch)
-    mstore v94, v15
-    v88 = add v94, 32
-    v22 = add v2, 2
-    v23 = shl 3, v22
-    v24 = shl v23, arg0
-    mstore v88, v24
-    v106 = mload 64 !metadata(memory=scratch)
-    v39 = add v106, 64
-    mstore v106, 64
-    v47 = ne v100, 0
-    v48 = zext i1 v47 to i256
-    v43 = mload v100
-    v49 = mul v43, v48
-    v51 = add v49, 31
-    v52 = and v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v53 = add v39, 32
-    v54 = add v39, v52
+    v65 = mload 64 !metadata(memory=scratch)
+    v66 = add v65, 128
+    mstore 64, v66 !metadata(memory=scratch)
+    v6 = add v65, 31
+    mstore v6, arg0
+    mstore v65, v2
+    v63 = add v65, 32
+    v9 = add v63, v2
+    v10 = mload v9
+    v11 = byte 0, v10
+    v12 = sub 30, v2
+    v13 = gt v11, v12
+    v14 = select v13, v12, v11
+    v16 = add v65, 64
+    v18 = add v16, 31
+    mstore v18, v10
+    v33 = mload v63
+    v64 = add v16, 32
+    v37 = mload v64
+    v41 = add v14, 31
+    v42 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v39 = add v2, 31
+    v40 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v47 = add v64, v40
+    v49 = sub v47, v65
+    v50 = add v47, 32
+    mstore v65, 64
+    mstore v63, v49
+    mstore v16, v2
+    mstore v64, v33
+    v54 = add v64, v2
     mstore v54, 0
-    mstore v39, v49
-    v56 = add v53, v52
-    mcopy v53, v93, v49
-    v61 = sub v56, v106
-    v59 = add v106, 32
-    mstore v59, v61
-    v66 = ne v94, 0
-    v67 = zext i1 v66 to i256
-    v62 = mload v94
-    v68 = mul v62, v67
-    v70 = add v68, 31
-    v71 = and v70, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v72 = add v56, 32
-    v73 = add v56, v71
-    mstore v73, 0
-    mstore v56, v68
-    v75 = add v72, v71
-    mcopy v72, v88, v68
-    v78 = sub v75, v106
-    v80 = add v78, 31
-    v82 = and v80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v107 = mload 64 !metadata(memory=scratch)
-    v108 = add v107, v82
-    mstore 64, v108 !metadata(memory=scratch)
-    returndata v107, v78
+    mstore v47, v14
+    mstore v50, v37
+    v55 = add v50, v14
+    mstore v55, 0
+    v56 = add v50, v42
+    v58 = sub v56, v65
+    returndata v65, v58
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    mstore 32, 65 !metadata(memory=scratch)
-    revert 28, 36
-  bb3:
     revert 0, 0
 }
 
