@@ -118,6 +118,7 @@ jobs:
     timeout-minutes: 120
     continue-on-error: true
     permissions:
+      id-token: write
       contents: read
     outputs:
       artifact_id: ${{ steps.upload.outputs.artifact-id }}
@@ -127,6 +128,8 @@ jobs:
           needs.resolve.outputs.repository) }}-${{ needs.resolve.outputs.pr_number }}
       cancel-in-progress: true
     steps:
+      - name: Secure runner
+        uses: tempoxyz/gh-actions/actions/secure-runner@48ff2b0c97ede86c9f10d105424380b9605f790d
       - name: Checkout exact test merge
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -258,11 +261,14 @@ jobs:
     runs-on: depot-ubuntu-latest
     timeout-minutes: 10
     permissions:
+      id-token: write
       actions: read
       contents: read
       issues: write
       pull-requests: write
     steps:
+      - name: Secure runner
+        uses: tempoxyz/gh-actions/actions/secure-runner@48ff2b0c97ede86c9f10d105424380b9605f790d
       - name: Download exact comment data
         id: download
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
