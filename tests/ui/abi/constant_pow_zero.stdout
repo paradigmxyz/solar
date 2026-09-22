@@ -1,0 +1,31 @@
+{
+  "contracts": {
+    "ROOT/tests/ui/abi/constant_pow_zero.sol:ConstantPowZero": {
+      "abi": [
+        {
+          "type": "function",
+          "name": "f",
+          "inputs": [
+            {
+              "name": "input",
+              "type": "uint256[2]",
+              "internalType": "uint256[2]"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256[2]",
+              "internalType": "uint256[2]"
+            }
+          ],
+          "stateMutability": "pure"
+        }
+      ],
+      "hashes": {
+        "f(uint256[2])": "585bda9b"
+      }
+    }
+  },
+  "version": "VERSION"
+}
