@@ -241,4 +241,6 @@ fn rewrite_as_fmp_store(
 fn store_fmp(builder: &mut FunctionBuilder<'_>, ptr: crate::mir::ValueId) {
     let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
     builder.mstore(slot, ptr);
+    let store = *builder.func().blocks[builder.current_block()].instructions.last().unwrap();
+    builder.func_mut().inst_mut(store).metadata.set_preserves_valid_fmp();
 }

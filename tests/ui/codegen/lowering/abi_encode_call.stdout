@@ -14,7 +14,7 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
   bb3:
     v51 = mload 64 !metadata(memory=scratch)
     v52 = add v51, 128
-    mstore 64, v52 !metadata(memory=scratch)
+    mstore 64, v52 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v51, 68
     v49 = add v51, 32
     mstore v49, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
@@ -42,7 +42,7 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
     v43 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v54 = mload 64 !metadata(memory=scratch)
     v55 = add v54, v43
-    mstore 64, v55 !metadata(memory=scratch)
+    mstore 64, v55 !metadata(memory=scratch, preserves_valid_fmp)
     returndata v54, v39
   bb1:
     revert 0, 0
@@ -67,7 +67,7 @@ fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
     v0 = gas
     v34 = mload 64 !metadata(memory=scratch)
     v35 = add v34, 128
-    mstore 64, v35 !metadata(memory=scratch)
+    mstore 64, v35 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v34, 68
     v33 = add v34, 32
     mstore v33, 0xa9059cbb00000000000000000000000000000000000000000000000000000000

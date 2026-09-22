@@ -5,6 +5,7 @@
     bb0:
       v0 = sload 7 !metadata(storage=slot(7), hir=42, span=1..5, loop_depth=2)
       v1 = mload 64 !metadata(memory=scratch, unchecked)
+      mstore 64, v1 !metadata(preserves_valid_fmp)
       v2 = add v0, v1
       v3 = alloc raw, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
       v4 = ptrtoint memptr v3 to i256
