@@ -26,18 +26,18 @@ fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
     jumpi v2, bb8, bb9
   bb9:
     v4 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v175 = mload 64 !metadata(memory=scratch)
-    v176 = add v175, v4
-    v177 = lt v176, v175
-    v178 = gt v176, 0xffffffffffffffff
-    v179 = or v177, v178
-    jumpi v179, bb8, bb18
+    v169 = mload 64 !metadata(memory=scratch)
+    v170 = add v169, v4
+    v171 = lt v170, v169
+    v172 = gt v170, 0xffffffffffffffff
+    v173 = or v171, v172
+    jumpi v173, bb8, bb18
   bb18:
-    mstore 64, v176 !metadata(memory=scratch)
-    v183 = calldatasize
-    calldatacopy v175, v183, v4
-    mstore v175, v81
-    v167 = add v175, 32
+    mstore 64, v170 !metadata(memory=scratch)
+    v177 = calldatasize
+    calldatacopy v169, v177, v4
+    mstore v169, v81
+    v161 = add v169, 32
     jump bb1
   bb1:
     v8 = phi [bb18: arg1], [bb13: v88]
@@ -69,61 +69,58 @@ fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
     v110 = add v70, 0x3030303030303030303030303030303030303030303030303030303030303030
     v112 = mul v73, 39
     v119 = add v110, v112
-    v16 = mload v175
+    v16 = mload v169
     v17 = add v90, 32
     v18 = lt v17, v90
     v19 = gt v17, v16
     v20 = or v18, v19
     jumpi v20, bb10, bb13
   bb13:
-    v168 = add v167, v90
-    mstore v168, v119
+    v162 = add v161, v90
+    mstore v162, v119
     v25 = shr 128, v9
     jump bb1
   bb3:
-    v161 = add v175, 32
-    v184 = shl 1, v8
-    v185 = add v161, v184
-    v186 = sub v185, 1
+    v155 = add v169, 32
+    v178 = shl 1, v8
+    v179 = add v155, v178
+    v180 = sub v179, 1
     jump bb4
   bb4:
     v28 = phi [bb3: v8], [bb11: v97]
     v29 = phi [bb3: v9], [bb11: v54]
-    v187 = phi [bb3: v186], [bb11: v188]
+    v181 = phi [bb3: v180], [bb11: v182]
     v30 = ne v28, 0
     jumpi v30, bb6, bb5
   bb5:
     v55 = ne v29, 0
     jumpi v55, bb12, bb7
   bb7:
-    v137 = ne v175, 0
-    v138 = zext i1 v137 to i256
-    v133 = mload v175
-    v139 = mul v133, v138
-    v173 = add v175, 32
-    v141 = add v139, 31
-    v143 = and v141, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v145 = add v173, v143
-    mstore v145, 0
-    v147 = add v175, 64
-    mcopy v147, v173, v139
-    mstore v175, 32
-    mstore v173, v139
-    v151 = add v143, 64
-    returndata v175, v151
+    v133 = mload v169
+    v167 = add v169, 32
+    v135 = add v133, 31
+    v137 = and v135, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v139 = add v167, v137
+    mstore v139, 0
+    v141 = add v169, 64
+    mcopy v141, v167, v133
+    mstore v169, 32
+    mstore v167, v133
+    v145 = add v137, 64
+    returndata v169, v145
   bb12:
-    v181 = mload 64 !metadata(memory=scratch)
-    v182 = add v181, 32
-    mstore 64, v182 !metadata(memory=scratch)
-    mstore v181, 0x2194895a00000000000000000000000000000000000000000000000000000000
-    revert v181, 4
+    v175 = mload 64 !metadata(memory=scratch)
+    v176 = add v175, 32
+    mstore 64, v176 !metadata(memory=scratch)
+    mstore v175, 0x2194895a00000000000000000000000000000000000000000000000000000000
+    revert v175, 4
   bb6:
     v97 = sub v28, 1
     v32 = and v29, 15
     v35 = byte v32, 0x3031323334353637383961626364656600000000000000000000000000000000
     v99 = add v97, v97
     v106 = add v99, 1
-    v39 = mload v175
+    v39 = mload v169
     v40 = lt v106, v39
     jumpi v40, bb11, bb10
   bb10:
@@ -131,14 +128,14 @@ fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
     mstore 32, 50 !metadata(memory=scratch)
     revert 28, 36
   bb11:
-    mstore8 v187, v35
+    mstore8 v181, v35
     v43 = shr 4, v29
     v44 = and v43, 15
     v47 = byte v44, 0x3031323334353637383961626364656600000000000000000000000000000000
-    v165 = sub v187, 1
-    mstore8 v165, v47
+    v159 = sub v181, 1
+    mstore8 v159, v47
     v54 = shr 4, v43
-    v188 = sub v187, 2
+    v182 = sub v181, 2
     jump bb4
   bb8:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

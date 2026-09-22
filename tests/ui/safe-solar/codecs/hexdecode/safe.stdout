@@ -39,39 +39,36 @@ fn @decode.0() [selector=0x49145c91, abi_wrapper, pure] {
     jumpi v13, bb4, bb5
   bb5:
     v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v52 = mload 64 !metadata(memory=scratch)
-    v16 = inttoptr i256 v52 to memptr !metadata(memory=scratch)
-    v53 = add v52, v15
-    v54 = lt v53, v52
-    v55 = gt v53, 0xffffffffffffffff
-    v56 = or v54, v55
-    jumpi v56, bb4, bb7
+    v46 = mload 64 !metadata(memory=scratch)
+    v16 = inttoptr i256 v46 to memptr !metadata(memory=scratch)
+    v47 = add v46, v15
+    v48 = lt v47, v46
+    v49 = gt v47, 0xffffffffffffffff
+    v50 = or v48, v49
+    jumpi v50, bb4, bb7
   bb7:
-    mstore 64, v53 !metadata(memory=scratch)
-    mstore v52, v10
+    mstore 64, v47 !metadata(memory=scratch)
+    mstore v46, v10
     v17 = sub v1, v5
     v18 = gt v10, v17
     jumpi v18, bb1, bb6
   bb6:
-    v45 = add v52, 32
-    calldatacopy v45, v5, v10
+    v39 = add v46, 32
+    calldatacopy v39, v5, v10
     v0 = icall @decode.1, v16
-    v49 = ptrtoint memptr v0 to i256
-    v27 = ne v49, 0
-    v28 = zext i1 v27 to i256
-    v23 = mload v49
-    v29 = mul v23, v28
-    v51 = add v49, 32
-    v31 = add v29, 31
-    v33 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v35 = add v51, v33
-    mstore v35, 0
-    v37 = add v49, 64
-    mcopy v37, v51, v29
-    mstore v49, 32
-    mstore v51, v29
-    v41 = add v33, 64
-    returndata v49, v41
+    v43 = ptrtoint memptr v0 to i256
+    v23 = mload v43
+    v45 = add v43, 32
+    v25 = add v23, 31
+    v27 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v29 = add v45, v27
+    mstore v29, 0
+    v31 = add v43, 64
+    mcopy v31, v45, v23
+    mstore v43, 32
+    mstore v45, v23
+    v35 = add v27, 64
+    returndata v43, v35
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

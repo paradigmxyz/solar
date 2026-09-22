@@ -37,6 +37,11 @@
 //! then lay out both ABI tails over the original allocation. A module-wide plan
 //! selects those sites before shared tuple helpers are built, so locally
 //! cheaper terminal encodings do not leave an unused shared body.
+//! A zeroed aggregate slot stores null for its default memory object, so an
+//! encoded length is masked to zero unless the object is known to be real.
+//! Optimized builds prove that for allocations, encoded byte strings, nonzero
+//! constant pointers, phis of those, and calls whose every exit returns one,
+//! found by a module-wide least fixpoint over the functions' returns.
 
 use crate::{
     mir::{
@@ -82,6 +87,9 @@ impl MirPass for LowerAbiEncode {
         let target = Target::new(gcx);
         let (fresh_object_returns, mut destructive_returns) =
             plan_destructive_terminal_returns(target, module);
+        // Unoptimized lowering keeps the null mask on every memory object length.
+        let optimize = target.optimization().is_gas() || target.optimization().is_size();
+        let non_null_returns = optimize.then(|| non_null_returning_functions(module));
         let mut helpers = synthesize_array_helpers(target, module, revert_strings);
         synthesize_tuple_helpers(
             target,
@@ -119,6 +127,7 @@ impl MirPass for LowerAbiEncode {
                 helpers,
                 revert_strings,
                 &fresh_object_returns,
+                non_null_returns.as_ref(),
                 &destructive_returns[func_id],
             );
         }
@@ -177,6 +186,9 @@ struct EncodeHelpers {
     tuples: FxHashMap<TupleHelperKey, FunctionId>,
     /// Proven on the original function, before encoding emits raw memory operations.
     literal_objects: FxHashSet<ValueId>,
+    /// Encoded memory objects proven never to be the null default object, so their lengths
+    /// are read without the null mask. Proven on the original function.
+    non_null_objects: FxHashSet<ValueId>,
     branchless_byte_tails: bool,
 }
 
@@ -404,6 +416,7 @@ fn lower_function(
     helpers: &mut EncodeHelpers,
     revert_strings: RevertStrings,
     fresh_object_returns: &DenseBitSet<FunctionId>,
+    non_null_returns: Option<&DenseBitSet<FunctionId>>,
     destructive_returns: &FxHashSet<InstId>,
 ) -> bool {
     let has_encodes =
@@ -412,6 +425,9 @@ fn lower_function(
         return false;
     }
     helpers.literal_objects = literal_objects_at_encodes(func);
+    helpers.non_null_objects = non_null_returns
+        .map(|returns| non_null_objects_at_encodes(func, returns))
+        .unwrap_or_default();
 
     let mut replacements = FxHashMap::default();
     let mut literal_objects = FxHashSet::default();
@@ -597,6 +613,102 @@ pub(super) fn fresh_object_returning_functions(module: &Module) -> DenseBitSet<F
     fresh
 }
 
+/// Finds functions whose every successful exit returns one real memory object.
+///
+/// Only a zeroed aggregate slot produces the null default object, so a caller
+/// reads such a result's length without the null mask. Like the fresh-object
+/// analysis this is a least fixpoint: recursion stays unproved.
+fn non_null_returning_functions(module: &Module) -> DenseBitSet<FunctionId> {
+    let mut non_null = DenseBitSet::new_empty(module.functions.len());
+    loop {
+        let mut changed = false;
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if non_null.contains(func_id) {
+                continue;
+            }
+            let mut returns = func.blocks.iter().filter_map(|block| match &block.terminator {
+                Some(Terminator::Return { values }) => Some(values.as_slice()),
+                _ => None,
+            });
+            let proved = |values: &[ValueId]| {
+                let [value] = values else { return false };
+                non_null_memory_object(func, *value, &non_null)
+            };
+            let Some(first) = returns.next() else { continue };
+            if proved(first) && returns.all(proved) {
+                non_null.insert(func_id);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    non_null
+}
+
+/// Collects the encoded values that are real memory objects.
+fn non_null_objects_at_encodes(
+    func: &Function,
+    non_null_returns: &DenseBitSet<FunctionId>,
+) -> FxHashSet<ValueId> {
+    let mut objects = FxHashSet::default();
+    for inst in func.instructions() {
+        let InstKind::AbiEncode { args, .. } = &func.inst(inst).kind else { continue };
+        for &arg in args.iter() {
+            if non_null_memory_object(func, arg, non_null_returns) {
+                objects.insert(arg);
+            }
+        }
+    }
+    objects
+}
+
+/// Proves that `value` is a real memory object rather than the null default
+/// object: an allocation, an encoded byte string, a nonzero constant pointer, a
+/// call proved by `non_null_returns`, or a phi selecting among them.
+fn non_null_memory_object(
+    func: &Function,
+    value: ValueId,
+    non_null_returns: &DenseBitSet<FunctionId>,
+) -> bool {
+    let mut phis = FxHashSet::default();
+    let mut pending = vec![value];
+    while let Some(value) = pending.pop() {
+        let proved = match func.value(value) {
+            Value::Immediate(immediate) => {
+                immediate.as_u256().is_some_and(|value| !value.is_zero())
+            }
+            Value::Inst(inst) => match &func.inst(*inst).kind {
+                InstKind::Alloc { .. } | InstKind::AbiEncode { mode: AbiEncodeMode::Bytes, .. } => {
+                    true
+                }
+                &InstKind::MLoad(address) => {
+                    func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+                        && func.inst(*inst).metadata.effect() == Some(EffectKind::MemoryWrite)
+                }
+                InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
+                    non_null_returns.contains(*function)
+                }
+                // A phi selects one of its incoming values. A phi reached again
+                // adds none, which also settles loop-carried cycles.
+                InstKind::Phi(incoming) => {
+                    if phis.insert(value) {
+                        pending.extend(incoming.iter().map(|&(_, value)| value));
+                    }
+                    true
+                }
+                _ => false,
+            },
+            Value::Arg(_) | Value::Undef(_) | Value::Error(_) => false,
+        };
+        if !proved {
+            return false;
+        }
+    }
+    true
+}
+
 /// Proves that a successful exit returns one allocation owned by its caller.
 fn return_values_are_fresh(
     func: &Function,
@@ -684,7 +796,7 @@ fn encode_dynamic_return_in_place(
         [AbiType::Bytes(_)] => MemoryObjectKind::Bytes,
         _ => unreachable!(),
     };
-    let length = memory_object_len(builder, *object, kind);
+    let length = memory_object_len(builder, *object, kind, true);
     let source = builder.memory_object_data(*object, kind);
     let bytes = if kind == MemoryObjectKind::DynamicArray {
         let five = builder.imm(5);
@@ -1428,6 +1540,7 @@ fn encode_dynamic_body(
                 dest,
                 location,
                 helpers.literal_objects.contains(&value),
+                helpers.non_null_objects.contains(&value),
                 helpers.branchless_byte_tails,
             )
         }
@@ -1447,7 +1560,8 @@ fn encode_dynamic_body(
                 _ => None,
             };
             if let Some(cleanup) = word_cleanup {
-                return encode_word_array(builder, value, dest, location, cleanup);
+                let non_null = helpers.non_null_objects.contains(&value);
+                return encode_word_array(builder, value, dest, location, cleanup, non_null);
             }
             match location {
                 SliceLocation::Calldata => {
@@ -1535,9 +1649,14 @@ fn encode_memory_array(
             None,
             helpers,
         ),
-        cleanup => {
-            encode_word_array(builder, value, dest, SliceLocation::Memory, cleanup.flatten())
-        }
+        cleanup => encode_word_array(
+            builder,
+            value,
+            dest,
+            SliceLocation::Memory,
+            cleanup.flatten(),
+            helpers.non_null_objects.contains(&value),
+        ),
     }
 }
 
@@ -1552,7 +1671,8 @@ fn encode_memory_array_elements(
 ) -> ValueId {
     let (len, element_area) = match layout {
         MemoryObjectLayout::DynamicArray { .. } => {
-            let len = memory_object_len(builder, value, MemoryObjectKind::DynamicArray);
+            let non_null = helpers.non_null_objects.contains(&value);
+            let len = memory_object_len(builder, value, MemoryObjectKind::DynamicArray, non_null);
             builder.mstore(dest, len);
             let word = builder.imm(32);
             (len, builder.add(dest, word))
@@ -1695,9 +1815,12 @@ fn encode_word_array(
     dest: ValueId,
     location: SliceLocation,
     cleanup: Option<AbiWordValidator>,
+    non_null: bool,
 ) -> ValueId {
     let len = match location {
-        SliceLocation::Memory => memory_object_len(builder, value, MemoryObjectKind::DynamicArray),
+        SliceLocation::Memory => {
+            memory_object_len(builder, value, MemoryObjectKind::DynamicArray, non_null)
+        }
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
     };
     builder.mstore(dest, len);
@@ -1771,6 +1894,7 @@ fn encode_bytes(
     dest: ValueId,
     location: SliceLocation,
     literal_folding: bool,
+    non_null: bool,
     branchless_padding: bool,
 ) -> ValueId {
     if literal_folding
@@ -1793,7 +1917,9 @@ fn encode_bytes(
     }
 
     let len = match location {
-        SliceLocation::Memory => memory_object_len(builder, value, MemoryObjectKind::Bytes),
+        SliceLocation::Memory => {
+            memory_object_len(builder, value, MemoryObjectKind::Bytes, non_null)
+        }
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
     };
     if !branchless_padding {
@@ -1840,16 +1966,24 @@ fn encode_bytes(
     tail
 }
 
+/// Reads a memory object's length, as zero for the null default object unless
+/// `non_null` proves the object real.
 fn memory_object_len(
     builder: &mut FunctionBuilder<'_>,
     value: ValueId,
     kind: MemoryObjectKind,
+    non_null: bool,
 ) -> ValueId {
     if builder.func().value_slice_location(value).is_some() {
         // len = slice_len value
         return builder.slice_len(value);
     }
     let len = builder.memory_object_len(value, kind);
+    if non_null {
+        // len = memory_object_len value
+        return len;
+    }
+    // len = memory_object_len value * (value != 0)
     let non_null = memory_object_non_null(builder, value);
     builder.mul(len, non_null)
 }

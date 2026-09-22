@@ -13,22 +13,19 @@ fn @entry() [entry] {
 fn @shorten() [selector=0xf0187838, abi_wrapper, pure] {
   bb0:
     v4 = icall @decode_calldata_type, 4
-    v25 = ptrtoint memptr v4 to i256
-    v0 = mload v25
+    v19 = ptrtoint memptr v4 to i256
+    v0 = mload v19
     v1 = gt arg1, v0
     jumpi v1, bb1, bb2
   bb2:
-    v12 = ne v25, 0
-    v13 = zext i1 v12 to i256
-    v14 = mul arg1, v13
-    v27 = add v25, 32
-    v16 = shl 5, v14
-    v18 = add v25, 64
-    mcopy v18, v27, v16
-    mstore v25, 32
-    mstore v27, v14
-    v22 = add v16, 64
-    returndata v25, v22
+    v21 = add v19, 32
+    v10 = shl 5, arg1
+    v12 = add v19, 64
+    mcopy v12, v21, v10
+    mstore v19, 32
+    mstore v21, arg1
+    v16 = add v10, 64
+    returndata v19, v16
   bb1:
     tail_call @revert_stub
 }

@@ -40,9 +40,6 @@ bb6:
   add
   push 64
   mstore
-  dup 1
-  dup 2
-  mstore
   push 32
   dup 2
   add
@@ -50,38 +47,27 @@ bb6:
   push_data literal_0
   dup 3
   codecopy
-  dup 2
-  iszero
-  iszero
-  push 7
-  shl
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
-  dup 1
-  dup 4
+  push 160
+  dup 3
   add
   push 0
   swap 1
   mstore
   push 64
-  dup 5
+  dup 3
   add
   dup 3
-  dup 5
+  dup 3
   dup 3
   mcopy
   pop
   push 32
-  dup 5
+  dup 3
   mstore
-  swap 2
+  dup 2
+  swap 1
   mstore
-  push 64
-  add
+  push 192
   dup 2
   return
 
@@ -144,11 +130,11 @@ bb6:
   add
   push 64
   mstore
-  push 470
+  push 453
   push_data ChildWithArg_initcode_0
   dup 3
   codecopy
-  push 470
+  push 453
   dup 2
   add
   push 32
@@ -158,7 +144,7 @@ bb6:
   pop
   swap 1
   pop
-  push 502
+  push 485
   swap 1
   push 0
   create
@@ -225,11 +211,11 @@ bb12:
   add
   push 64
   mstore
-  push 470
+  push 453
   push_data ChildWithArg_initcode_0
   dup 3
   codecopy
-  push 470
+  push 453
   dup 2
   add
   push 32
@@ -239,7 +225,7 @@ bb12:
   pop
   swap 1
   pop
-  push 502
+  push 485
   push 1
   swap 2
   push 0
@@ -265,11 +251,11 @@ bb18:
   add
   push 64
   mstore
-  push 470
+  push 453
   push_data ChildWithArg_initcode_0
   dup 3
   codecopy
-  push 470
+  push 453
   dup 2
   add
   push 32
@@ -279,7 +265,7 @@ bb18:
   pop
   swap 1
   pop
-  push 502
+  push 485
   swap 1
   push 0
   create
@@ -303,11 +289,11 @@ bb18:
   add
   push 64
   mstore
-  push 470
+  push 453
   push_data ChildWithArg_initcode_0
   dup 3
   codecopy
-  push 470
+  push 453
   dup 2
   add
   push 32
@@ -317,7 +303,7 @@ bb18:
   pop
   swap 1
   pop
-  push 502
+  push 485
   swap 1
   push 0
   create
@@ -414,4 +400,4 @@ bb27 [cold]:
   push 28
   revert
 
-@data ChildWithArg_initcode_0 hex"6101d63803806101d660e03960e001601f01601f19166040523460455760e06101d63803016101001160455760e05160c05261010d8060c960e03960c0516101035260e0f35b5f5ffdffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa9988776655443322110034601d575f3560e01c80633fa4f245146021578063a878f85814604b575b5f5ffd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b60808060405260a081016040528081526020810181608d823981151560071b601f8101601f19168083015f9052604084018284825e5060208452915260400181f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+@data ChildWithArg_initcode_0 hex"6101c53803806101c560e03960e001601f01601f19166040523460445760e06101c53803016101001160445760e05160c05260fd8060c860e03960c0516101035260e0f35b5f5ffdffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa9988776655443322110034601d575f3560e01c80633fa4f245146021578063a878f85814604b575b5f5ffd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b60808060405260a081016040526020810181607d823960a082015f9052604082018282825e506020825281905260c081f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"

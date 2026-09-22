@@ -364,15 +364,10 @@ bb21 [continuation]:
 bb27:
   push 128
   mload
-  iszero
-  iszero
-  push 128
+  dup 1
   mload
-  mload
-  mul
   push 32
-  push 128
-  mload
+  dup 3
   add
   push 31
   dup 3
@@ -387,8 +382,7 @@ bb27:
   swap 1
   mstore
   push 64
-  push 128
-  mload
+  dup 5
   add
   dup 4
   dup 4
@@ -396,16 +390,14 @@ bb27:
   mcopy
   pop
   push 32
-  push 128
-  mload
+  dup 5
   mstore
   swap 2
   swap 1
   mstore
   push 64
   add
-  push 128
-  mload
+  dup 2
   return
 bb25:
   push 0

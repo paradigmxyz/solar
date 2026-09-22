@@ -9,22 +9,19 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
   bb2:
     v3 = icall @decode_calldata_type, 4
     v0 = icall @_slice, v3, arg1, arg2
-    v28 = ptrtoint memptr v0 to i256
-    v11 = ne v28, 0
-    v12 = zext i1 v11 to i256
-    v7 = mload v28
-    v13 = mul v7, v12
-    v30 = add v28, 32
-    v15 = add v13, 31
-    v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = add v30, v17
-    mstore v19, 0
-    v21 = add v28, 64
-    mcopy v21, v30, v13
-    mstore v28, 32
-    mstore v30, v13
-    v25 = add v17, 64
-    returndata v28, v25
+    v22 = ptrtoint memptr v0 to i256
+    v7 = mload v22
+    v24 = add v22, 32
+    v9 = add v7, 31
+    v11 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = add v24, v11
+    mstore v13, 0
+    v15 = add v22, 64
+    mcopy v15, v24, v7
+    mstore v22, 32
+    mstore v24, v7
+    v19 = add v11, 64
+    returndata v22, v19
   bb1:
     revert 0, 0
 }
@@ -254,36 +251,33 @@ fn @inPlace() [selector=0xda1b3040, abi_wrapper, pure] {
     jumpi v24, bb4, bb5
   bb5:
     v25 = icall @decode_calldata_type, 4
-    v58 = ptrtoint memptr v25 to i256
-    v51 = add v58, 32
+    v52 = ptrtoint memptr v25 to i256
+    v45 = add v52, 32
     jump bb1
   bb1:
     v0 = phi [bb5: 0], [bb3: v17]
     v17 = add v0, 1
-    v4 = mload v58
+    v4 = mload v52
     v5 = lt v17, v4
     jumpi v5, bb3, bb2
   bb2:
-    v33 = ne v58, 0
-    v34 = zext i1 v33 to i256
-    v35 = mul v4, v34
-    v60 = add v58, 32
-    v37 = add v35, 31
-    v39 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v41 = add v60, v39
-    mstore v41, 0
-    v43 = add v58, 64
-    mcopy v43, v60, v35
-    mstore v58, 32
-    mstore v60, v35
-    v47 = add v39, 64
-    returndata v58, v47
+    v54 = add v52, 32
+    v31 = add v4, 31
+    v33 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v35 = add v54, v33
+    mstore v35, 0
+    v37 = add v52, 64
+    mcopy v37, v54, v4
+    mstore v52, 32
+    mstore v54, v4
+    v41 = add v33, 64
+    returndata v52, v41
   bb3:
-    v52 = add v51, v17
-    v53 = mload v52
-    v54 = byte 0, v53
-    v57 = add v51, v0
-    mstore8 v57, v54
+    v46 = add v45, v17
+    v47 = mload v46
+    v48 = byte 0, v47
+    v51 = add v45, v0
+    mstore8 v51, v48
     jump bb1
   bb4:
     revert 0, 0

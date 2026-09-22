@@ -7,52 +7,40 @@ data:
 
 fn @outer() [selector=0x87c3dbb6, abi_wrapper, pure] {
   bb0:
-    v32 = mload 64 !metadata(memory=scratch)
-    v33 = add v32, 288
-    mstore 64, v33
-    mstore v32, 241
-    v31 = add v32, 32
-    v3 = add v32, 256
+    v26 = mload 64 !metadata(memory=scratch)
+    v27 = add v26, 288
+    mstore 64, v27
+    mstore v26, 241
+    v25 = add v26, 32
+    v3 = add v26, 256
     mstore v3, 0
-    data_copy literal_0, v31, 241
-    v12 = ne v32, 0
-    v13 = zext i1 v12 to i256
-    v14 = mul v13, 241
-    v16 = add v14, 31
-    v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v20 = add v31, v18
-    mstore v20, 0
-    v22 = add v32, 64
-    mcopy v22, v31, v14
-    mstore v32, 32
-    mstore v31, v14
-    v26 = add v18, 64
-    returndata v32, v26
+    data_copy literal_0, v25, 241
+    v14 = add v26, 288
+    mstore v14, 0
+    v16 = add v26, 64
+    mcopy v16, v25, 241
+    mstore v26, 32
+    mstore v25, 241
+    returndata v26, 320
 }
 
 fn @inner() [selector=0x4adb7729, abi_wrapper, pure] {
   bb0:
-    v32 = mload 64 !metadata(memory=scratch)
-    v33 = add v32, 224
-    mstore 64, v33
-    mstore v32, 161
-    v31 = add v32, 32
-    v3 = add v32, 192
+    v26 = mload 64 !metadata(memory=scratch)
+    v27 = add v26, 224
+    mstore 64, v27
+    mstore v26, 161
+    v25 = add v26, 32
+    v3 = add v26, 192
     mstore v3, 0
-    data_copy literal_1, v31, 161
-    v12 = ne v32, 0
-    v13 = zext i1 v12 to i256
-    v14 = mul v13, 161
-    v16 = add v14, 31
-    v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v20 = add v31, v18
-    mstore v20, 0
-    v22 = add v32, 64
-    mcopy v22, v31, v14
-    mstore v32, 32
-    mstore v31, v14
-    v26 = add v18, 64
-    returndata v32, v26
+    data_copy literal_1, v25, 161
+    v14 = add v26, 224
+    mstore v14, 0
+    v16 = add v26, 64
+    mcopy v16, v25, 161
+    mstore v26, 32
+    mstore v25, 161
+    returndata v26, 256
 }
 
 fn @lastDataByte() [selector=0xa5f1fd8f, abi_wrapper, pure] {
@@ -140,40 +128,27 @@ bb6:
   push_data literal_0
   dup 3
   codecopy
-  dup 2
-  iszero
-  iszero
-  push 241
-  jump bb9
-bb9:
-  mul
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
-  dup 1
-  dup 4
+  push 288
+  dup 3
   add
   push 0
   swap 1
   mstore
   push 64
-  dup 5
-  add
   dup 3
-  dup 5
+  add
+  push 241
+  dup 3
   dup 3
   mcopy
   pop
   push 32
-  dup 5
+  dup 3
   mstore
-  swap 2
+  push 241
+  swap 1
   mstore
-  push 64
-  add
+  push 320
   dup 2
   return
 bb7:
@@ -202,11 +177,29 @@ bb7:
   push_data literal_1
   dup 3
   codecopy
-  dup 2
-  iszero
-  iszero
+  push 224
+  dup 3
+  add
+  push 0
+  swap 1
+  mstore
+  push 64
+  dup 3
+  add
   push 161
-  jump bb9
+  dup 3
+  dup 3
+  mcopy
+  pop
+  push 32
+  dup 3
+  mstore
+  push 161
+  swap 1
+  mstore
+  push 256
+  dup 2
+  return
 bb8:
   push 1
   codesize

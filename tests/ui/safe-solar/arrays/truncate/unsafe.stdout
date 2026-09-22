@@ -5,17 +5,14 @@ fn @shorten() [selector=0xf0187838, abi_wrapper, pure] {
   bb0:
     v3 = icall @decode_calldata_type, 4
     v0 = ptrtoint memptr v3 to i256
-    v11 = ne v0, 0
-    v12 = zext i1 v11 to i256
-    v13 = mul arg1, v12
-    v25 = add v0, 32
-    v15 = shl 5, v13
-    v17 = add v0, 64
-    mcopy v17, v25, v15
+    v19 = add v0, 32
+    v9 = shl 5, arg1
+    v11 = add v0, 64
+    mcopy v11, v19, v9
     mstore v0, 32
-    mstore v25, v13
-    v21 = add v15, 64
-    returndata v0, v21
+    mstore v19, arg1
+    v15 = add v9, 64
+    returndata v0, v15
 }
 
 fn @viaAlias() [selector=0xcc1cce1f, abi_wrapper, pure] {

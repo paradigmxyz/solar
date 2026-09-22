@@ -18,21 +18,18 @@ fn @patch() [selector=0xa2c0192a, abi_wrapper, pure] {
     v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v7 = or v6, v3
     mstore v1, v7
-    v21 = ne v0, 0
-    v22 = zext i1 v21 to i256
     v17 = mload v0
-    v23 = mul v17, v22
-    v40 = add v0, 32
-    v25 = add v23, 31
-    v27 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v29 = add v40, v27
-    mstore v29, 0
-    v31 = add v0, 64
-    mcopy v31, v40, v23
+    v34 = add v0, 32
+    v19 = add v17, 31
+    v21 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v23 = add v34, v21
+    mstore v23, 0
+    v25 = add v0, 64
+    mcopy v25, v34, v17
     mstore v0, 32
-    mstore v40, v23
-    v35 = add v27, 64
-    returndata v0, v35
+    mstore v34, v17
+    v29 = add v21, 64
+    returndata v0, v29
 }
 
 fn @word() [selector=0x8ce8a8b7, abi_wrapper, pure] {
@@ -41,20 +38,17 @@ fn @word() [selector=0x8ce8a8b7, abi_wrapper, pure] {
     v0 = ptrtoint memptr v4 to i256
     v1 = add v0, 32
     mstore v1, arg1
-    v12 = ne v0, 0
-    v13 = zext i1 v12 to i256
     v8 = mload v0
-    v14 = mul v8, v13
-    v16 = add v14, 31
-    v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v20 = add v1, v18
-    mstore v20, 0
-    v22 = add v0, 64
-    mcopy v22, v1, v14
+    v10 = add v8, 31
+    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v14 = add v1, v12
+    mstore v14, 0
+    v16 = add v0, 64
+    mcopy v16, v1, v8
     mstore v0, 32
-    mstore v1, v14
-    v26 = add v18, 64
-    returndata v0, v26
+    mstore v1, v8
+    v20 = add v12, 64
+    returndata v0, v20
 }
 
 fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {

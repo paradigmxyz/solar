@@ -126,18 +126,18 @@ fn @copyOut() [selector=0xa6f9b6f1, abi_wrapper, pure] {
     jumpi v1, bb1, bb2
   bb2:
     v3 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v56 = mload 64 !metadata(memory=scratch)
-    v57 = add v56, v3
-    v58 = lt v57, v56
-    v59 = gt v57, 0xffffffffffffffff
-    v60 = or v58, v59
-    jumpi v60, bb1, bb7
+    v50 = mload 64 !metadata(memory=scratch)
+    v51 = add v50, v3
+    v52 = lt v51, v50
+    v53 = gt v51, 0xffffffffffffffff
+    v54 = or v52, v53
+    jumpi v54, bb1, bb7
   bb7:
-    mstore 64, v57 !metadata(memory=scratch)
-    v62 = calldatasize
-    calldatacopy v56, v62, v3
-    mstore v56, arg2
-    v54 = add v56, 32
+    mstore 64, v51 !metadata(memory=scratch)
+    v56 = calldatasize
+    calldatacopy v50, v56, v3
+    mstore v50, arg2
+    v48 = add v50, 32
     v15 = add arg1, arg2
     v16 = lt v15, arg1
     v17 = gt v15, v25
@@ -145,20 +145,17 @@ fn @copyOut() [selector=0xa6f9b6f1, abi_wrapper, pure] {
     jumpi v18, bb3, bb4
   bb4:
     v21 = add v26, arg1
-    calldatacopy v54, v21, arg2
-    v35 = ne v56, 0
-    v36 = zext i1 v35 to i256
-    v37 = mul arg2, v36
-    v39 = add v37, 31
-    v41 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v43 = add v54, v41
-    mstore v43, 0
-    v45 = add v56, 64
-    mcopy v45, v54, v37
-    mstore v56, 32
-    mstore v54, v37
-    v49 = add v41, 64
-    returndata v56, v49
+    calldatacopy v48, v21, arg2
+    v33 = add arg2, 31
+    v35 = and v33, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v37 = add v48, v35
+    mstore v37, 0
+    v39 = add v50, 64
+    mcopy v39, v48, arg2
+    mstore v50, 32
+    mstore v48, arg2
+    v43 = add v35, 64
+    returndata v50, v43
   bb3:
     tail_call @revert_stub
   bb1:
@@ -178,19 +175,19 @@ fn @patch() [selector=0x9f852834, abi_wrapper, pure] {
     v22 = icall @decode_calldata_slice, 4
     v23 = calldataload v22
     v24 = add v22, 32
-    v54 = mload 64 !metadata(memory=scratch)
-    v55 = add v54, 64
-    mstore 64, v55 !metadata(memory=scratch)
-    mstore v54, 6
-    v53 = add v54, 32
-    mstore v53, 0xaaaaaaaaaaaa0000000000000000000000000000000000000000000000000000
+    v48 = mload 64 !metadata(memory=scratch)
+    v49 = add v48, 64
+    mstore 64, v49 !metadata(memory=scratch)
+    mstore v48, 6
+    v47 = add v48, 32
+    mstore v47, 0xaaaaaaaaaaaa0000000000000000000000000000000000000000000000000000
     v4 = add arg3, arg2
     v5 = lt v4, arg3
     v6 = gt v4, 6
     v7 = or v5, v6
     jumpi v7, bb1, bb2
   bb2:
-    v11 = add v53, arg3
+    v11 = add v47, arg3
     v13 = add arg1, arg2
     v14 = lt v13, arg1
     v15 = gt v13, v23
@@ -199,20 +196,17 @@ fn @patch() [selector=0x9f852834, abi_wrapper, pure] {
   bb3:
     v19 = add v24, arg1
     calldatacopy v11, v19, arg2
-    v33 = ne v54, 0
-    v34 = zext i1 v33 to i256
-    v29 = mload v54
-    v35 = mul v29, v34
-    v37 = add v35, 31
-    v39 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v41 = add v53, v39
-    mstore v41, 0
-    v43 = add v54, 64
-    mcopy v43, v53, v35
-    mstore v54, 32
-    mstore v53, v35
-    v47 = add v39, 64
-    returndata v54, v47
+    v29 = mload v48
+    v31 = add v29, 31
+    v33 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v35 = add v47, v33
+    mstore v35, 0
+    v37 = add v48, 64
+    mcopy v37, v47, v29
+    mstore v48, 32
+    mstore v47, v29
+    v41 = add v33, 64
+    returndata v48, v41
   bb1:
     tail_call @revert_stub
   bb4:

@@ -22,9 +22,6 @@ bb0:
   add
   push 64
   mstore
-  push 160
-  dup 2
-  mstore
   push 32
   dup 2
   add
@@ -32,38 +29,27 @@ bb0:
   push_data literal_0
   dup 3
   codecopy
-  dup 2
-  iszero
-  iszero
-  push 160
-  mul
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
-  dup 1
-  dup 4
+  push 192
+  dup 3
   add
   push 0
   swap 1
   mstore
   push 64
-  dup 5
-  add
   dup 3
-  dup 5
+  add
+  push 160
+  dup 3
   dup 3
   mcopy
   pop
   push 32
-  dup 5
+  dup 3
   mstore
-  swap 2
+  push 160
+  swap 1
   mstore
-  push 64
-  add
+  push 224
   dup 2
   return
 bb3 [cold]:

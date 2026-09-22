@@ -691,11 +691,7 @@ bb64:
   jump bb70
 bb70:
   dup 1
-  iszero
-  iszero
-  dup 2
   mload
-  mul
   push 32
   dup 3
   add

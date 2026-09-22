@@ -14,19 +14,16 @@ fn @shift() [selector=0x524ffe38, abi_wrapper, pure] {
     v4 = sub v3, 1
     v5 = add v1, 1
     mcopy v5, v1, v4
-    v16 = ne v0, 0
-    v17 = zext i1 v16 to i256
-    v18 = mul v3, v17
-    v20 = add v18, 31
-    v22 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v24 = add v1, v22
-    mstore v24, 0
-    v26 = add v1, 32
-    mcopy v26, v1, v18
+    v14 = add v3, 31
+    v16 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v18 = add v1, v16
+    mstore v18, 0
+    v20 = add v1, 32
+    mcopy v20, v1, v3
     mstore v0, 32
-    mstore v1, v18
-    v30 = add v22, 64
-    returndata v0, v30
+    mstore v1, v3
+    v24 = add v16, 64
+    returndata v0, v24
   bb1:
     revert 0, 0
 }
@@ -44,21 +41,18 @@ fn @between() [selector=0xf75bb619, abi_wrapper, pure] {
     v2 = ptrtoint memptr v6 to i256
     v3 = add v2, 34
     mcopy v3, v1, 5
-    v15 = ne v2, 0
-    v16 = zext i1 v15 to i256
     v11 = mload v2
-    v17 = mul v11, v16
-    v34 = add v2, 32
-    v19 = add v17, 31
-    v21 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v23 = add v34, v21
-    mstore v23, 0
-    v25 = add v2, 64
-    mcopy v25, v34, v17
+    v28 = add v2, 32
+    v13 = add v11, 31
+    v15 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v17 = add v28, v15
+    mstore v17, 0
+    v19 = add v2, 64
+    mcopy v19, v28, v11
     mstore v2, 32
-    mstore v34, v17
-    v29 = add v21, 64
-    returndata v2, v29
+    mstore v28, v11
+    v23 = add v15, 64
+    returndata v2, v23
   bb1:
     revert 0, 0
 }
