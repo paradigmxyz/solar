@@ -1,0 +1,115 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constant_pow_zero.sol:ConstantPowZero ===
+@module ConstantPowZero
+types:
+  struct0: {u256, u256, u256, u256, u256, u256}
+  struct1: {u256, u256, u256}
+  struct2: {u256, u256, u256, u256}
+
+fn @powers() -> struct0 [selector=0x72a20c78, pure, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, i256, u256, u256]] {
+  bb0:
+    v0 = exp 0, 0
+    v1 = exp 1, 0
+    v2 = sub 0, 1
+    v3 = checked_pow i256, v2, 0
+    v4 = exp 42, 0
+    v5 = exp 0, 1
+    v6 = insert_value struct0, undef struct0, 0, v0
+    v7 = insert_value struct0, v6, 1, 1
+    v8 = insert_value struct0, v7, 2, v1
+    v9 = insert_value struct0, v8, 3, v3
+    v10 = insert_value struct0, v9, 4, v4
+    v11 = insert_value struct0, v10, 5, v5
+    ret v11
+}
+
+fn @quorum(arg0: u256) -> u256 [selector=0xf8ce560a, view, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = lt arg0, 2
+    v1 = iszero v0
+    v2 = iszero v1
+    icall revert_if<empty>, v2
+    ret 2
+}
+
+fn @at(arg0: calldataslice, arg1: u256) -> u256 [selector=0xaaac14d6, pure, abi_params=[array<2, u256>, u256], abi_returns=[word]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt arg1, v0
+    v2 = iszero v1
+    icall panic_if<0x32>, v2
+    v3 = slice_ptr arg0
+    v4 = mul arg1, 32
+    v5 = iszero 32
+    v6 = div v4, 32
+    v7 = eq v6, arg1
+    v8 = or v5, v7
+    v9 = iszero v8
+    icall panic_if<0x41>, v9
+    v10 = add v3, v4
+    v11 = calldataload v10
+    ret v11
+}
+
+fn @memoryLayout() -> struct1 [selector=0x5caf991a, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+  bb0:
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    memory_zero v0, 64
+    v1 = lt 0, 2
+    v2 = iszero v1
+    icall panic_if<0x32>, v2
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 11
+    v3 = lt 1, 2
+    v4 = iszero v3
+    icall panic_if<0x32>, v4
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 22
+    v5 = lt 0, 2
+    v6 = iszero v5
+    icall panic_if<0x32>, v6
+    v7 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
+    v8 = lt 1, 2
+    v9 = iszero v8
+    icall panic_if<0x32>, v9
+    v10 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
+    v11 = insert_value struct1, undef struct1, 0, 2
+    v12 = insert_value struct1, v11, 1, v7
+    v13 = insert_value struct1, v12, 2, v10
+    ret v13
+}
+
+fn @storageLayout() -> struct2 [selector=0xb4c29064, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+  bb0:
+    v0 = lt 0, 2
+    v1 = iszero v0
+    icall panic_if<0x32>, v1
+    v2 = add 0, 0
+    sstore v2, 11 !metadata(storage=slot(0))
+    v3 = lt 1, 2
+    v4 = iszero v3
+    icall panic_if<0x32>, v4
+    v5 = add 0, 1
+    sstore v5, 22 !metadata(storage=slot(1))
+    sstore 2, 33 !metadata(storage=slot(2))
+    v6 = lt 0, 2
+    v7 = iszero v6
+    icall panic_if<0x32>, v7
+    v8 = add 0, 0
+    v9 = sload v8 !metadata(storage=slot(0))
+    v10 = lt 1, 2
+    v11 = iszero v10
+    icall panic_if<0x32>, v11
+    v12 = add 0, 1
+    v13 = sload v12 !metadata(storage=slot(1))
+    v14 = sload 2 !metadata(storage=slot(2))
+    v15 = insert_value struct2, undef struct2, 0, 2
+    v16 = insert_value struct2, v15, 1, v9
+    v17 = insert_value struct2, v16, 2, v13
+    v18 = insert_value struct2, v17, 3, v14
+    ret v18
+}
+
+fn @selector() -> bool [selector=0xea3d508a, pure, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = and 0xaaac14d63554306315fb79bb1dcd01876459d038e4c71812bbc36d7bebb83aab, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v1 = eq 0xaaac14d600000000000000000000000000000000000000000000000000000000, v0
+    ret v1
+}
