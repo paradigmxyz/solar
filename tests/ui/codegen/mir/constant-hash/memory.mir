@@ -1,6 +1,8 @@
-//@ revisions: gas size
+//@ revisions: gas size one many
 //@[gas] compile-flags: -Ogas -Zmir-pipeline=constant-hash
 //@[size] compile-flags: -Osize -Zmir-pipeline=constant-hash
+//@[one] compile-flags: -Ogas --optimize-runs=1 -Zmir-pipeline=constant-hash
+//@[many] compile-flags: -Ogas --optimize-runs=10000 -Zmir-pipeline=constant-hash
 @module Hashes
 
 fn @words() -> i256 {

@@ -11,7 +11,8 @@
 //! hash cannot remove memory expansion visible to MSIZE. Empty hashes access
 //! no memory, including at an out-of-range offset. Stores and other effects
 //! stay in place. Target prices the replacement PUSH against the hash opcode,
-//! including its known dynamic cost, before accepting the fold. Run after
+//! including its known dynamic cost and the deposit cost amortized over the
+//! configured optimizer runs, before accepting the fold. Run after
 //! physical memory lowering, before scalar cleanup and stack scheduling.
 
 use crate::{
@@ -103,12 +104,10 @@ fn fold_block(
             };
             if let Some(bytes) = bytes {
                 let hash = U256::from_be_bytes(keccak256(bytes).0);
-                if target
-                    .cmp(
-                        target.push(hash),
-                        target.op(&instruction.kind.op(), |value| func.value_u256(value)),
-                    )
-                    .is_lt()
+                let replacement = target.push(hash);
+                let original = target.op(&instruction.kind.op(), |value| func.value_u256(value));
+                if target.cmp(replacement, original).is_lt()
+                    && target.lifetime_gas(replacement) < target.lifetime_gas(original)
                 {
                     folded.push((inst, hash));
                 }

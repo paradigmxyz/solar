@@ -85,3 +85,18 @@ borrow the other's width bound and then both lose their masks. Backward AND
 demand therefore uses only literal bounds, and a removed mask forwards the
 consumer's demand unchanged to its source. This also keeps an inner mask when
 it supplies the width guarantee used to remove an outer mask.
+
+## Gas and optimization
+
+Optimizations preserve computed values and required effects, but do not promise
+identical gas usage or out-of-gas outcomes across optimization settings. Replacing
+a finite, pure loop with its closed form can make an otherwise unaffordable call
+succeed. Explicit reverts and checked-arithmetic failures still need to be
+preserved; an infinite loop is not a finite computation.
+
+Gas savings can also change GAS results, forwarded gas, and whether a later
+operation has enough gas to execute. The emitted code remains subject to EVM
+rules, including the SSTORE gas sentry: a call receiving at most 2,300 gas cannot
+store, even to a warm, dirty slot. Removing redundant masks does not bypass that
+check. Fixed-cost rewrites can cost more on short paths, including zero-trip
+loops; gas mode does not guarantee a saving on every input.

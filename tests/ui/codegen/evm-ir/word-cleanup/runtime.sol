@@ -11,7 +11,25 @@
 //@ run-call: nestedMasks 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 255
 //@ run-call: branchUse 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1 => 255
 //@ run-call: branchUse 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0 => 0
+//@ run-call: sentry 2300 => false, 2
+//@ run-call: sentry 100000 => true, 3
 contract Cleanup {
+    function sentry(uint256 stipend) external returns (bool success, uint256 stored) {
+        assembly {
+            sstore(0, 1)
+            sstore(0, 2)
+        }
+        (success,) = address(this).call{gas: stipend}(abi.encodeCall(this.maskBeforeStore, ()));
+        assembly { stored := sload(0) }
+    }
+
+    function maskBeforeStore() external returns (address sender) {
+        assembly {
+            sender := and(caller(), 0xffffffffffffffffffffffffffffffffffffffff)
+            sstore(0, 3)
+        }
+    }
+
     function branchUse(uint256 raw, uint256 takeBranch) external pure returns (uint256) {
         assembly {
             let cleaned := and(raw, 255)

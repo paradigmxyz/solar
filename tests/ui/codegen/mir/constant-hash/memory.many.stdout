@@ -13,8 +13,9 @@
   
   fn @empty() -> i256 {
     bb0:
-      v0 = keccak256 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0
-      ret v0
+-     v0 = keccak256 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0
+-     ret v0
++     ret 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
   }
   
   fn @unknown_write(arg0: i256) -> i256 {

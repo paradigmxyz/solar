@@ -18,6 +18,9 @@
 //! Run after late scalar and CFG cleanup, before EVM shaping. Only gas mode
 //! enables this bounded tradeoff: up to four recurrences replace repeated loop
 //! work with a fixed setup whose code size can exceed the original loop.
+//! This setup can cost more for short or zero-trip loops. Conversely, a large
+//! finite loop that would exhaust gas may now finish; exact gas-exhaustion
+//! outcomes are not preserved across optimization settings.
 
 use crate::mir::{
     BlockId, Function, FunctionBuilder, InstId, InstKind, InstructionMetadata, MirType, Module,

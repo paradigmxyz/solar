@@ -142,23 +142,20 @@ impl Graph {
                 continue;
             }
             if let Some(stack_op) = inst.as_stack_op() {
+                self.ensure_depth(stack_op.required_depth());
                 match stack_op {
                     StackOp::Dup(depth) => {
-                        self.ensure_depth(usize::from(depth));
                         self.stack.push(self.stack[self.stack.len() - usize::from(depth)]);
                     }
                     StackOp::Swap(depth) => {
-                        self.ensure_depth(usize::from(depth) + 1);
                         let top = self.stack.len() - 1;
                         self.stack.swap(top, top - usize::from(depth));
                     }
                     StackOp::Exchange(n, m) => {
-                        self.ensure_depth(usize::from(m) + 1);
                         let top = self.stack.len() - 1;
                         self.stack.swap(top - usize::from(n), top - usize::from(m));
                     }
                     StackOp::Pop => {
-                        self.ensure_depth(1);
                         self.stack.pop();
                     }
                 }
