@@ -7,6 +7,16 @@
 //@ run-call: roundtrip 1; gas=16000000 => true
 //@ run-call: roundtrip 2; gas=16000000 => true
 //@ run-call: roundtrip 3; gas=16000000 => true
+//@ run-call: roundtrip 4; gas=16000000 => true
+//@ run-call: roundtrip 5; gas=16000000 => true
+//@ run-call: roundtrip 6; gas=16000000 => true
+//@ run-call: roundtrip 7; gas=16000000 => true
+//@ run-call: roundtrip 8; gas=16000000 => true
+//@ run-call: roundtrip 9; gas=16000000 => true
+//@ run-call: roundtrip 10; gas=16000000 => true
+//@ run-call: roundtrip 11; gas=16000000 => true
+//@ run-call: roundtrip 12; gas=16000000 => true
+//@ run-call: roundtrip 13; gas=16000000 => true
 //@ run-call: roundtrip 23; gas=16000000 => true
 //@ run-call: roundtrip 24; gas=16000000 => true
 //@ run-call: roundtrip 25; gas=16000000 => true
@@ -23,6 +33,94 @@
 //@ run-call: roundtrip 256; gas=16000000 => true
 //@ run-call: roundtrip 257; gas=16000000 => true
 //@ run-call: roundtrip 1024; gas=16000000 => true
+//@ run-call-fail: invalidShort 2, 0, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 2, 0, 61 => 0xa164f8fe
+//@ run-call-fail: invalidShort 2, 0, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 2, 0, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 2, 1, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 2, 1, 61 => 0xa164f8fe
+//@ run-call-fail: invalidShort 2, 1, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 2, 1, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 3, 0, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 3, 0, 61 => 0xa164f8fe
+//@ run-call-fail: invalidShort 3, 0, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 3, 0, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 3, 1, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 3, 1, 61 => 0xa164f8fe
+//@ run-call-fail: invalidShort 3, 1, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 3, 1, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 3, 2, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 3, 2, 61 => 0xa164f8fe
+//@ run-call-fail: invalidShort 3, 2, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 3, 2, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 4, 0, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 4, 0, 61 => 0xa164f8fe
+//@ run-call-fail: invalidShort 4, 0, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 4, 0, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 4, 2, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 4, 2, 61 => 0xa164f8fe
+//@ run-call-fail: invalidShort 4, 2, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 4, 2, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 4, 3, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 4, 3, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 4, 3, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 6, 0, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 6, 0, 61 => 0xa164f8fe
+//@ run-call-fail: invalidShort 6, 0, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 6, 0, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 6, 3, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 6, 3, 61 => 0xa164f8fe
+//@ run-call-fail: invalidShort 6, 3, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 6, 3, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 6, 5, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 6, 5, 61 => 0xa164f8fe
+//@ run-call-fail: invalidShort 6, 5, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 6, 5, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 7, 0, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 7, 0, 61 => 0xa164f8fe
+//@ run-call-fail: invalidShort 7, 0, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 7, 0, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 7, 3, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 7, 3, 61 => 0xa164f8fe
+//@ run-call-fail: invalidShort 7, 3, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 7, 3, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 7, 6, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 7, 6, 61 => 0xa164f8fe
+//@ run-call-fail: invalidShort 7, 6, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 7, 6, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 8, 0, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 8, 0, 61 => 0xa164f8fe
+//@ run-call-fail: invalidShort 8, 0, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 8, 0, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 8, 4, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 8, 4, 61 => 0xa164f8fe
+//@ run-call-fail: invalidShort 8, 4, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 8, 4, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 8, 7, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 8, 7, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 8, 7, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 12, 0, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 12, 0, 61 => 0xa164f8fe
+//@ run-call-fail: invalidShort 12, 0, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 12, 0, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 12, 6, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 12, 6, 61 => 0xa164f8fe
+//@ run-call-fail: invalidShort 12, 6, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 12, 6, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 12, 11, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 12, 11, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 12, 11, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 16, 0, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 16, 0, 61 => 0xa164f8fe
+//@ run-call-fail: invalidShort 16, 0, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 16, 0, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 16, 8, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 16, 8, 61 => 0xa164f8fe
+//@ run-call-fail: invalidShort 16, 8, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 16, 8, 255 => 0xa164f8fe
+//@ run-call-fail: invalidShort 16, 15, 0 => 0xa164f8fe
+//@ run-call-fail: invalidShort 16, 15, 128 => 0xa164f8fe
+//@ run-call-fail: invalidShort 16, 15, 255 => 0xa164f8fe
 //@ run-call-fail: invalid 0, 0 => 0xa164f8fe
 //@ run-call-fail: invalid 0, 32 => 0xa164f8fe
 //@ run-call-fail: invalid 0, 61 => 0xa164f8fe
@@ -94,7 +192,7 @@ contract Test {
     // allocations also check the output length word and surrounding objects.
     // CHECK-LABEL: fn @roundtrip(
     // CHECK: icall @core_base64_encode
-    // CHECK: div {{.*}}, 32
+    // CHECK: icall @core_base64_decode_wide
     function roundtrip(uint256 n) public pure returns (bool) {
         bytes memory input = new bytes(n + 32);
         for (uint256 i; i < input.length; ++i) input[i] = bytes1(uint8((i * 37 + 11) % 256));
@@ -125,10 +223,20 @@ contract Test {
         data[index] = bytes1(value);
         return Base64.decode(string(data));
     }
-    // Exhaust every byte value in both the scalar and wide decoder. Padding
-    // is placed in the interior, so '=' is invalid in this classification.
+    // Invalid bytes in every group of the single-group and short-loop
+    // decoders, including characters above 127 and interior padding.
+    function invalidShort(uint256 n, uint256 index, uint8 value) public pure returns (bytes memory) {
+        bytes memory data = new bytes(n);
+        for (uint256 i; i < data.length; ++i) data[i] = bytes1(uint8(65));
+        data[index] = bytes1(value);
+        return Base64.decode(string(data));
+    }
+
+    // Exhaust every byte value in the single-group, short-loop, and wide
+    // decoders. Padding is placed in the interior, so '=' is invalid in this
+    // classification.
     function classify(uint256 first) public view returns (bool) {
-        for (uint256 n = 4; n <= 32; n += 28) {
+        for (uint256 n = 4; n <= 32; n += n < 12 ? 8 : 20) {
             bytes memory data = new bytes(n);
             for (uint256 i; i < n; ++i) data[i] = bytes1(uint8(65));
             for (uint256 c = first; c < first + 16; ++c) {
