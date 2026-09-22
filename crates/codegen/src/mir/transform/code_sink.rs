@@ -17,6 +17,7 @@
 //! skipped work must not leave extra gas at an SSTORE sentry on another path.
 //! Internally called functions also retain branch work because their caller
 //! may store after they return. This includes callees reached through tail calls.
+//! Gas consumed by external callers lies outside this module-local guard.
 //! At most one distinct nonconstant operand
 //! may replace the result across the branch, limiting added stack pressure.
 //! It does not attempt shared-code placement,

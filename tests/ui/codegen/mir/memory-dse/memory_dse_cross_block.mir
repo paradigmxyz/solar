@@ -44,3 +44,15 @@ fn @keep_store_into_multi_pred_successor(arg0: i1) -> i256 {
     v4 = mload 128
     ret v4
 }
+
+// Backend frame and deferred-allocation lowering can still read this slot.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_backend_fmp{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 64, arg0
+fn @keep_backend_fmp(arg0: i256) {
+  bb0:
+    mstore 64, arg0
+    mstore 128, arg0
+    jump bb1
+  bb1:
+    returndata 0, 0
+}
