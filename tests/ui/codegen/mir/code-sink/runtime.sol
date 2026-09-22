@@ -7,7 +7,30 @@
 //@ run-call: acrossStores 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 //@ run-call: sentry 2300, 7 => false, 2
 //@ run-call: sentry 100000, 7 => true, 3
+//@ run-call: callerSentry 2300, 7 => false, 2
+//@ run-call: callerSentry 100000, 7 => true, 3
 contract Sink {
+    function callerSentry(uint256 stipend, uint256 a) external returns (bool success, uint256 stored) {
+        assembly {
+            sstore(1, 1)
+            sstore(1, 2)
+        }
+        (success,) = address(this).call{gas: stipend}(abi.encodeCall(this.storeAfterHelper, (false, a)));
+        assembly { stored := sload(1) }
+    }
+
+    function storeAfterHelper(bool condition, uint256 a) external returns (uint256 result) {
+        result = branchValue(condition, a);
+        assembly { sstore(1, 3) }
+    }
+
+    function branchValue(bool condition, uint256 a) internal pure returns (uint256 result) {
+        assembly {
+            let product := mul(a, 9)
+            if condition { result := product }
+        }
+    }
+
     function sentry(uint256 stipend, uint256 a) external returns (bool success, uint256 stored) {
         assembly {
             sstore(1, 1)

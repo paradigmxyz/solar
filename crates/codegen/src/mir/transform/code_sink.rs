@@ -15,6 +15,8 @@
 //! CFG edges or adding instructions. Branch sinking is disabled in functions
 //! that may write persistent storage, including through calls or creation:
 //! skipped work must not leave extra gas at an SSTORE sentry on another path.
+//! Internally called functions also retain branch work because their caller
+//! may store after they return. This includes callees reached through tail calls.
 //! At most one distinct nonconstant operand
 //! may replace the result across the branch, limiting added stack pressure.
 //! It does not attempt shared-code placement,
@@ -30,11 +32,14 @@
 
 use crate::mir::{
     BlockId, EffectKind, Function, InstId, InstKind, Module, Terminator, Value, ValueId,
-    analysis::CfgInfo,
-    pass::{MirPass, ModuleAnalyses, run_function_pass},
+    analysis::{CallGraphInfo, CfgInfo},
+    pass::{MirPass, ModuleAnalyses, run_selected_function_pass},
 };
 use smallvec::SmallVec;
-use solar_data_structures::index::{IndexVec, index_vec};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+};
 use solar_sema::Gcx;
 
 pub(crate) struct CodeSink;
@@ -45,7 +50,21 @@ impl MirPass for CodeSink {
     }
 
     fn run_pass(&self, _: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-        run_function_pass(module, analyses, |func, _| run(func))
+        let mut called = DenseBitSet::new_empty(module.functions.len());
+        for func in &module.functions {
+            called.union(&CallGraphInfo::collect_internal_callees(func, module.functions.len()));
+        }
+        let mut roots = DenseBitSet::new_empty(module.functions.len());
+        for id in module.functions.indices() {
+            if !called.contains(id) {
+                roots.insert(id);
+            }
+        }
+        let mut changed =
+            run_selected_function_pass(module, analyses, &roots, |func, _| run(func, true));
+        changed |=
+            run_selected_function_pass(module, analyses, &called, |func, _| run(func, false));
+        changed
     }
 }
 
@@ -55,10 +74,10 @@ enum Use {
     Edge(BlockId),
 }
 
-fn run(func: &mut Function) -> bool {
+fn run(func: &mut Function, can_sink_branches: bool) -> bool {
     if !func.blocks.iter().any(|block| {
         !block.instructions.is_empty()
-            && (matches!(block.terminator, Some(Terminator::Branch { .. }))
+            && (can_sink_branches && matches!(block.terminator, Some(Terminator::Branch { .. }))
                 || block.instructions.iter().any(|&inst| movable_store(func.inst(inst))))
     }) {
         return false;
@@ -72,14 +91,16 @@ fn run(func: &mut Function) -> bool {
                 | EffectKind::Create
         )
     };
-    let can_sink_branches = !func.instructions().any(|inst| {
-        let instruction = func.inst(inst);
-        may_write_storage(instruction.kind.effect_kind())
-            || instruction.metadata.effect().is_some_and(may_write_storage)
-    }) && !func
-        .blocks
-        .iter()
-        .any(|block| matches!(block.terminator, Some(Terminator::TailCall { .. })));
+    let can_sink_branches = can_sink_branches
+        && !func.instructions().any(|inst| {
+            let instruction = func.inst(inst);
+            may_write_storage(instruction.kind.effect_kind())
+                || instruction.metadata.effect().is_some_and(may_write_storage)
+        })
+        && !func
+            .blocks
+            .iter()
+            .any(|block| matches!(block.terminator, Some(Terminator::TailCall { .. })));
     let cfg = CfgInfo::new(func);
     let mut owners = index_vec![BlockId::ENTRY; func.num_insts()];
     let mut users =

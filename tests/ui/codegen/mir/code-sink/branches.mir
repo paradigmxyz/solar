@@ -130,3 +130,42 @@ fn @reconvergent_store(arg0: i1, arg1: i256) -> i256 {
     sstore 0, arg1
     ret v2
 }
+
+fn @called_branch(arg0: i1, arg1: i256) -> i256 {
+  bb0:
+    v0 = mul arg1, 9
+    jumpi arg0, bb1, bb2
+  bb1:
+    ret v0
+  bb2:
+    ret 0
+}
+
+fn @storing_caller(arg0: i1, arg1: i256) -> i256 {
+  bb0:
+    v0 = icall @called_branch, arg0, arg1
+    sstore 0, arg1
+    ret v0
+}
+
+fn @tail_branch(arg0: i1, arg1: i256) -> i256 {
+  bb0:
+    v0 = mul arg1, 9
+    jumpi arg0, bb1, bb2
+  bb1:
+    ret v0
+  bb2:
+    ret 0
+}
+
+fn @tail_forward(arg0: i1, arg1: i256) -> i256 {
+  bb0:
+    tail_call @tail_branch, arg0, arg1
+}
+
+fn @storing_tail_caller(arg0: i1, arg1: i256) -> i256 {
+  bb0:
+    v0 = icall @tail_forward, arg0, arg1
+    sstore 0, arg1
+    ret v0
+}
