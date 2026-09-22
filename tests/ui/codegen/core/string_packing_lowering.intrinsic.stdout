@@ -1,0 +1,243 @@
+// === <solar:core/v1/Arrays.sol>:Arrays ===
+@module Arrays
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/v1/Bytes.sol>:Bytes ===
+@module Bytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/v1/Buffers.sol>:Buffers ===
+@module Buffers
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/v1/Strings.sol>:Strings ===
+@module Strings
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/string_packing_lowering.sol:Test ===
+@module Test
+@phase lowered
+types:
+  struct0: {memptr, memptr}
+
+fn @packPair() [selector=0xa2352af0, abi_wrapper, pure] {
+  bb0:
+    v39 = calldatasize
+    v40 = lt v39, 68
+    jumpi v40, bb1, bb2
+  bb2:
+    v41 = icall @decode_calldata_type, 4
+    v42 = icall @decode_calldata_type, 36
+    v45 = ptrtoint memptr v41 to i256
+    v0 = mload v45
+    v46 = ptrtoint memptr v42 to i256
+    v1 = mload v46
+    v2 = add v0, v1
+    v3 = ne v2, 0
+    v4 = lt v2, 31
+    v5 = and v3, v4
+    v48 = add v45, 32
+    v9 = mload v48
+    v10 = sub 32, v0
+    v11 = shl 3, v10
+    v12 = shl v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v13 = and v9, v12
+    v14 = shr 8, v13
+    v50 = add v46, 32
+    v17 = mload v50
+    v18 = sub 32, v1
+    v19 = shl 3, v18
+    v20 = shl v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v21 = and v17, v20
+    v22 = add v0, 2
+    v23 = shl 3, v22
+    v24 = shr v23, v21
+    v25 = shl 248, v0
+    v26 = sub 30, v0
+    v27 = shl 3, v26
+    v28 = shl v27, v1
+    v29 = or v25, v14
+    v30 = or v29, v28
+    v31 = or v30, v24
+    v32 = sub 30, v2
+    v33 = shl 3, v32
+    v34 = shl v33, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v35 = and v31, v34
+    v37 = zext i1 v5 to i256
+    v36 = mul v37, v35
+    mstore 128, v36
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @unpackPair() [selector=0x227bb006, abi_wrapper, pure] {
+  bb0:
+    v32 = calldatasize
+    v33 = lt v32, 36
+    jumpi v33, bb3, bb4
+  bb4:
+    v0 = byte 0, arg0
+    v1 = gt v0, 30
+    v2 = select v1, 30, v0
+    v3 = add v2, 63
+    v6 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v100 = mload 64 !metadata(memory=scratch)
+    v101 = add v100, v6
+    v102 = lt v101, v100
+    v103 = gt v101, 0xffffffffffffffff
+    v104 = or v102, v103
+    jumpi v104, bb1, bb6
+  bb6:
+    mstore 64, v101 !metadata(memory=scratch)
+    mstore v100, v2
+    v93 = add v100, 32
+    v9 = shl 8, arg0
+    mstore v93, v9
+    v11 = add v2, 1
+    v12 = byte v11, arg0
+    v13 = sub 30, v2
+    v14 = gt v12, v13
+    v15 = select v14, v13, v12
+    v16 = add v15, 63
+    v17 = lt v16, v15
+    jumpi v17, bb1, bb2
+  bb2:
+    v19 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v94 = mload 64 !metadata(memory=scratch)
+    v95 = add v94, v19
+    v96 = lt v95, v94
+    v97 = gt v95, 0xffffffffffffffff
+    v98 = or v96, v97
+    jumpi v98, bb1, bb5
+  bb5:
+    mstore 64, v95 !metadata(memory=scratch)
+    mstore v94, v15
+    v88 = add v94, 32
+    v22 = add v2, 2
+    v23 = shl 3, v22
+    v24 = shl v23, arg0
+    mstore v88, v24
+    v106 = mload 64 !metadata(memory=scratch)
+    v39 = add v106, 64
+    mstore v106, 64
+    v47 = ne v100, 0
+    v48 = zext i1 v47 to i256
+    v43 = mload v100
+    v49 = mul v43, v48
+    v51 = add v49, 31
+    v52 = and v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v53 = add v39, 32
+    v54 = add v39, v52
+    mstore v54, 0
+    mstore v39, v49
+    v56 = add v53, v52
+    mcopy v53, v93, v49
+    v61 = sub v56, v106
+    v59 = add v106, 32
+    mstore v59, v61
+    v66 = ne v94, 0
+    v67 = zext i1 v66 to i256
+    v62 = mload v94
+    v68 = mul v62, v67
+    v70 = add v68, 31
+    v71 = and v70, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v72 = add v56, 32
+    v73 = add v56, v71
+    mstore v73, 0
+    mstore v56, v68
+    v75 = add v72, v71
+    mcopy v72, v88, v68
+    v78 = sub v75, v106
+    v80 = add v78, 31
+    v82 = and v80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v107 = mload 64 !metadata(memory=scratch)
+    v108 = add v107, v82
+    mstore 64, v108 !metadata(memory=scratch)
+    returndata v107, v78
+  bb1:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload arg0
+    v2 = add v1, 4
+    v3 = add v2, 32
+    v4 = gt v1, 0xffffffffffffffff
+    v5 = gt v3, v0
+    v6 = or v4, v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v8 = calldataload v2
+    v10 = add v8, 63
+    v11 = lt v10, v8
+    jumpi v11, bb3, bb4
+  bb4:
+    v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v23 = mload 64 !metadata(memory=scratch)
+    v14 = inttoptr i256 v23 to memptr !metadata(memory=scratch)
+    v24 = add v23, v13
+    v25 = lt v24, v23
+    v26 = gt v24, 0xffffffffffffffff
+    v27 = or v25, v26
+    jumpi v27, bb3, bb6
+  bb6:
+    mstore 64, v24 !metadata(memory=scratch)
+    mstore v23, v8
+    v15 = sub v0, v3
+    v16 = gt v8, v15
+    jumpi v16, bb1, bb5
+  bb5:
+    v19 = add v23, 32
+    calldatacopy v19, v3, v8
+    ret v14
+  bb3:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb4, [0x227bb006 => bb2, 0xa2352af0 => bb3]
+  bb3:
+    tail_call @packPair
+  bb2:
+    tail_call @unpackPair
+  bb4:
+    revert 0, 0
+}

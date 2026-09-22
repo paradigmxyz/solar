@@ -119,6 +119,14 @@ pub enum CoreIntrinsic {
     StringMinimalHex,
     /// `Strings.toMinimalHexString(value)`.
     StringMinimalHexPrefixed,
+    /// `Strings.packOne(value)`.
+    StringPackOne,
+    /// `Strings.unpackOne(packed)`.
+    StringUnpackOne,
+    /// `Strings.packTwo(a, b)`.
+    StringPackTwo,
+    /// `Strings.unpackTwo(packed)`.
+    StringUnpackTwo,
     /// `Revert.raw(data)`: revert with exactly `data`.
     RevertRaw,
     /// `Hash.keccak256Range(b, offset, count)`: hash a range where it lies.
@@ -256,6 +264,10 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (Symbol::intern("split"), CoreIntrinsic::StringSplit),
                 (Symbol::intern("toMinimalHexStringNoPrefix"), CoreIntrinsic::StringMinimalHex),
                 (Symbol::intern("toMinimalHexString"), CoreIntrinsic::StringMinimalHexPrefixed),
+                (Symbol::intern("packOne"), CoreIntrinsic::StringPackOne),
+                (Symbol::intern("unpackOne"), CoreIntrinsic::StringUnpackOne),
+                (Symbol::intern("packTwo"), CoreIntrinsic::StringPackTwo),
+                (Symbol::intern("unpackTwo"), CoreIntrinsic::StringUnpackTwo),
             ])
         })),
         "solar:core/v1/Revert.sol" => Some(
