@@ -86,6 +86,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::StringReplace => self.lower_core_string_replace_call(&operands),
             CoreIntrinsic::StringIndicesOf => self.lower_core_string_indices_of_call(&operands),
             CoreIntrinsic::StringSplit => self.lower_core_string_split_call(&operands),
+            CoreIntrinsic::StringIndexOf => self.lower_core_string_index_of_call(&operands, false),
+            CoreIntrinsic::StringLastIndexOf => {
+                self.lower_core_string_index_of_call(&operands, true)
+            }
             CoreIntrinsic::StringMinimalHex => {
                 self.lower_core_string_minimal_hex_call(&operands, false)
             }
