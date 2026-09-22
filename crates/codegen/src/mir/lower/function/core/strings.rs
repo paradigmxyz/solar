@@ -1,12 +1,14 @@
 //! String lowering for compiler-owned core operations.
 //!
-//! Replacement scans once and copies unmatched runs in bulk. Short needles
-//! use one masked word comparison; long needles use that comparison as a
-//! prefix filter before hashing. Growing replacements validate a checked upper
-//! bound. Output is streamed at the free-memory pointer and the exact object is
-//! reserved after the scan, so a conservative bound does not inflate later
-//! memory costs. The checked Solidity body remains the reference under
-//! `-Zno-core-intrinsics`.
+//! Replacement scans once and copies unmatched runs in bulk. String search
+//! streams non-overlapping match offsets into one exact array. Splitting asks
+//! that search for one spare word, appends the subject end, then replaces each
+//! offset in place with a bulk-copied string. Short needles use one masked word
+//! comparison; long needles use that comparison as a prefix filter before
+//! hashing. Growing replacements validate a checked upper bound. Streamed
+//! outputs reserve their exact objects only after the scan, so conservative
+//! bounds do not inflate later memory costs. The checked Solidity bodies
+//! remain the reference under `-Zno-core-intrinsics`.
 
 use super::*;
 
@@ -42,59 +44,120 @@ impl FunctionLowerer<'_, '_> {
         operands: &[ValueId],
     ) -> Option<ValueId> {
         let [subject, needle] = *operands else { return None };
-        let helper =
-            self.lazy_helper(Symbol::intern("core_string_indices_of"), |this, function| {
-                function.attributes.no_inline = true;
-                let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
-                let bytes = MirType::MemoryObject(MemoryObjectKind::Bytes);
-                let subject = lowerer.builder.add_param(bytes);
-                let needle = lowerer.builder.add_param(bytes);
-                let result = MirType::MemoryObject(MemoryObjectKind::DynamicArray);
-                lowerer.builder.set_return_type(result);
-                lowerer.lower_core_string_indices_of(subject, needle);
-                Some(())
-            })?;
+        let helper = self.ensure_core_string_indices_helper()?;
+        let split_mode = self.builder.imm(0);
         Some(self.builder.icall(
             helper,
-            vec![subject, needle],
+            vec![subject, needle, split_mode],
             MirType::MemoryObject(MemoryObjectKind::DynamicArray),
         ))
     }
 
-    fn lower_core_string_indices_of(&mut self, subject: ValueId, needle: ValueId) {
+    fn ensure_core_string_indices_helper(&mut self) -> Option<FunctionId> {
+        self.lazy_helper(Symbol::intern("core_string_search"), |this, function| {
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            let bytes = MirType::MemoryObject(MemoryObjectKind::Bytes);
+            let subject = lowerer.builder.add_param(bytes);
+            let needle = lowerer.builder.add_param(bytes);
+            let split_mode = lowerer.builder.add_param(MirType::I256);
+            let result = MirType::MemoryObject(MemoryObjectKind::DynamicArray);
+            lowerer.builder.set_return_type(result);
+            lowerer.lower_core_string_indices_of(subject, needle, split_mode);
+            Some(())
+        })
+    }
+
+    /// Split through the shared offset scanner and reuse its result allocation.
+    pub(super) fn lower_core_string_split_call(&mut self, operands: &[ValueId]) -> Option<ValueId> {
+        let [subject, delimiter] = *operands else { return None };
+        let helper = self.ensure_core_string_indices_helper()?;
+        let split_mode = self.builder.imm(1);
+        Some(self.builder.icall(
+            helper,
+            vec![subject, delimiter, split_mode],
+            MirType::MemoryObject(MemoryObjectKind::DynamicArray),
+        ))
+    }
+
+    fn alloc_core_word_array(&mut self, length: ValueId, extra_capacity: ValueId) -> ValueId {
+        let one = self.builder.imm(1);
+        let words = self.builder.checked_add(length, one);
+        let words = self.builder.checked_add(words, extra_capacity);
+        let word_size = self.builder.imm(32);
+        let size = self.builder.checked_mul(words, word_size);
+        let out = self.builder.alloc_object(
+            size,
+            MemoryObjectLayout::WORD_ARRAY,
+            AllocationSemantics::SOLIDITY_UNINITIALIZED,
+        );
+        self.builder.set_memory_object_len(out, length, MemoryObjectKind::DynamicArray);
+        out
+    }
+
+    /// Allocate bytes whose length is bounded by an existing bytes object.
+    ///
+    /// The source object's successful allocation proves that adding the bytes
+    /// header and rounding this smaller length cannot overflow.
+    fn alloc_core_bounded_bytes(&mut self, length: ValueId) -> ValueId {
+        let padding = self.builder.imm(63);
+        let mask = self.builder.imm(U256::MAX << 5);
+        let size = self.builder.add(length, padding);
+        let size = self.builder.and(size, mask);
+        let out = self.builder.alloc_object(
+            size,
+            MemoryObjectLayout::Bytes,
+            AllocationSemantics::INTERNAL,
+        );
+        self.builder.set_memory_object_len(out, length, MemoryObjectKind::Bytes);
+        out
+    }
+
+    fn lower_core_string_indices_of(
+        &mut self,
+        subject: ValueId,
+        needle: ValueId,
+        split_mode: ValueId,
+    ) {
         let bytes = MemoryObjectKind::Bytes;
         let length = self.builder.memory_object_len(subject, bytes);
         let needle_length = self.builder.memory_object_len(needle, bytes);
         let empty_result = self.builder.create_block();
         let fits = self.builder.create_block();
+        let complete = self.builder.create_block();
         let too_long = self.builder.gt(needle_length, length);
         self.builder.branch(too_long, empty_result, fits);
 
         self.builder.switch_to_block(empty_result);
         let zero = self.builder.imm(0);
-        let (out, _) = self
-            .builder
-            .alloc_dynamic_word_array(zero, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-        self.builder.ret([out]);
+        let empty_out = self.alloc_core_word_array(zero, split_mode);
+        self.builder.jump(complete);
 
         self.builder.switch_to_block(fits);
+        let empty_needle = self.builder.create_block();
         let every_index = self.builder.create_block();
+        let split_empty = self.builder.create_block();
         let nonempty = self.builder.create_block();
         let needle_empty = self.builder.eq_zero(needle_length);
-        self.builder.branch(needle_empty, every_index, nonempty);
+        self.builder.branch(needle_empty, empty_needle, nonempty);
+
+        self.builder.switch_to_block(empty_needle);
+        let make_indices = self.builder.eq_zero(split_mode);
+        self.builder.branch(make_indices, every_index, split_empty);
+
+        self.builder.switch_to_block(split_empty);
+        self.lower_core_string_split_empty(subject, length);
 
         self.builder.switch_to_block(every_index);
         let one = self.builder.imm(1);
         let count = self.builder.checked_add(length, one);
-        let (out, _) = self
-            .builder
-            .alloc_dynamic_word_array(count, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+        let every_out = self.alloc_core_word_array(count, split_mode);
         self.builder.counted_loop(count, |builder, index| {
             let five = builder.imm(5);
             let offset = builder.shl(five, index);
-            builder.memory_object_store_word(out, offset, index);
+            builder.memory_object_store_word(every_out, offset, index);
         });
-        self.builder.ret([out]);
+        let every_complete = self.builder.current_block();
+        self.builder.jump(complete);
 
         self.builder.switch_to_block(nonempty);
         let allocation_base = self.builder.fmp();
@@ -129,7 +192,7 @@ impl FunctionLowerer<'_, '_> {
         self.builder.switch_to_block(scan_entry);
         let needle_hash = self.builder.phi(vec![(long_hash, hash), (short_hash, zero_hash)]);
         let search_end = self.builder.sub(length, needle_length);
-        let zero = self.builder.imm(0);
+        let search_end = self.builder.add(source, search_end);
         let header = self.builder.create_block();
         let compare_prefix = self.builder.create_block();
         let verify = self.builder.create_block();
@@ -140,14 +203,13 @@ impl FunctionLowerer<'_, '_> {
         self.builder.jump(header);
 
         self.builder.switch_to_block(header);
-        let at = self.builder.phi(vec![(scan_entry, zero)]);
-        let count = self.builder.phi(vec![(scan_entry, zero)]);
-        let past_end = self.builder.gt(at, search_end);
+        let cursor = self.builder.phi(vec![(scan_entry, source)]);
+        let output = self.builder.phi(vec![(scan_entry, destination)]);
+        let past_end = self.builder.gt(cursor, search_end);
         self.builder.branch(past_end, finish, compare_prefix);
 
         self.builder.switch_to_block(compare_prefix);
-        let candidate = self.builder.add(source, at);
-        let candidate_word = self.builder.mload(candidate);
+        let candidate_word = self.builder.mload(cursor);
         let different = self.builder.xor(candidate_word, needle_word);
         let different = self.builder.and(different, prefix_mask);
         let prefix_equal = self.builder.eq_zero(different);
@@ -157,29 +219,31 @@ impl FunctionLowerer<'_, '_> {
         self.builder.branch(long, verify_hash, matched);
 
         self.builder.switch_to_block(verify_hash);
-        let candidate_hash = self.builder.keccak256(candidate, needle_length);
+        let candidate_hash = self.builder.keccak256(cursor, needle_length);
         let equal = self.builder.eq(candidate_hash, needle_hash);
         self.builder.branch(equal, matched, advance);
 
         self.builder.switch_to_block(matched);
-        let five = self.builder.imm(5);
-        let offset = self.builder.shl(five, count);
-        let address = self.builder.add(destination, offset);
-        self.builder.mstore(address, at);
-        let next_count = self.builder.add(count, one);
-        let next_at = self.builder.add(at, needle_length);
+        let at = self.builder.sub(cursor, source);
+        self.builder.mstore(output, at);
+        let next_output = self.builder.add(output, word);
+        let next_cursor = self.builder.add(cursor, needle_length);
         self.builder.jump(header);
-        self.builder.add_phi_incoming(at, matched, next_at);
-        self.builder.add_phi_incoming(count, matched, next_count);
+        self.builder.add_phi_incoming(cursor, matched, next_cursor);
+        self.builder.add_phi_incoming(output, matched, next_output);
 
         self.builder.switch_to_block(advance);
-        let next_at = self.builder.add(at, one);
+        let next_cursor = self.builder.add(cursor, one);
         self.builder.jump(header);
-        self.builder.add_phi_incoming(at, advance, next_at);
-        self.builder.add_phi_incoming(count, advance, count);
+        self.builder.add_phi_incoming(cursor, advance, next_cursor);
+        self.builder.add_phi_incoming(output, advance, output);
 
         self.builder.switch_to_block(finish);
+        let output_bytes = self.builder.sub(output, destination);
+        let five = self.builder.imm(5);
+        let count = self.builder.shr(five, output_bytes);
         let words = self.builder.checked_add(count, one);
+        let words = self.builder.checked_add(words, split_mode);
         let allocation_size = self.builder.checked_mul(words, word);
         let out = self.builder.alloc_object(
             allocation_size,
@@ -191,7 +255,123 @@ impl FunctionLowerer<'_, '_> {
         };
         self.builder.func_mut().inst_mut(allocation).metadata.set_preserves_fmp(true);
         self.builder.set_memory_object_len(out, count, MemoryObjectKind::DynamicArray);
+        self.builder.jump(complete);
+
+        self.builder.switch_to_block(complete);
+        let out = self.builder.phi(vec![
+            (empty_result, empty_out),
+            (every_complete, every_out),
+            (finish, out),
+        ]);
+        self.lower_core_string_search_result(out, subject, length, needle_length, split_mode);
+    }
+
+    fn lower_core_string_split_empty(&mut self, subject: ValueId, length: ValueId) {
+        let bytes = MemoryObjectKind::Bytes;
+        let (out, _) = self
+            .builder
+            .alloc_dynamic_word_array(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+        let source = self.builder.memory_object_data(subject, bytes);
+        self.builder.counted_loop(length, |builder, index| {
+            let one = builder.imm(1);
+            let size = builder.imm(64);
+            let piece = builder.alloc_object(
+                size,
+                MemoryObjectLayout::Bytes,
+                AllocationSemantics::INTERNAL,
+            );
+            builder.set_memory_object_len(piece, one, bytes);
+            let source_address = builder.add(source, index);
+            let word = builder.mload(source_address);
+            let zero = builder.imm(0);
+            builder.memory_object_store_word(piece, zero, word);
+            let piece = builder.cast(piece, MirType::I256);
+            let five = builder.imm(5);
+            let offset = builder.shl(five, index);
+            builder.memory_object_store_word(out, offset, piece);
+        });
         self.builder.ret([out]);
+    }
+
+    fn lower_core_string_search_result(
+        &mut self,
+        offsets: ValueId,
+        subject: ValueId,
+        length: ValueId,
+        delimiter_length: ValueId,
+        split_mode: ValueId,
+    ) {
+        let bytes = MemoryObjectKind::Bytes;
+        let array = MemoryObjectKind::DynamicArray;
+        let return_indices = self.builder.create_block();
+        let split = self.builder.create_block();
+        let indices_only = self.builder.eq_zero(split_mode);
+        self.builder.branch(indices_only, return_indices, split);
+
+        self.builder.switch_to_block(return_indices);
+        self.builder.ret([offsets]);
+
+        self.builder.switch_to_block(split);
+        let one = self.builder.imm(1);
+        let count = self.builder.memory_object_len(offsets, array);
+        // The search allocation already reserved `count + 2` words for split.
+        let result_count = self.builder.add(count, one);
+        self.builder.set_memory_object_len(offsets, result_count, array);
+        let offsets_data = self.builder.memory_object_data(offsets, array);
+        let five = self.builder.imm(5);
+        let final_offset = self.builder.shl(five, count);
+        let final_slot = self.builder.add(offsets_data, final_offset);
+        self.builder.mstore(final_slot, length);
+        let result_bytes = self.builder.shl(five, result_count);
+        let offsets_end = self.builder.add(offsets_data, result_bytes);
+        let source = self.builder.memory_object_data(subject, bytes);
+        let entry = self.builder.current_block();
+        let header = self.builder.create_block();
+        let create_piece = self.builder.create_block();
+        let empty_piece = self.builder.create_block();
+        let copied_piece = self.builder.create_block();
+        let store_piece = self.builder.create_block();
+        let done = self.builder.create_block();
+        self.builder.jump(header);
+
+        self.builder.switch_to_block(header);
+        let zero = self.builder.imm(0);
+        let slot = self.builder.phi(vec![(entry, offsets_data)]);
+        let previous = self.builder.phi(vec![(entry, zero)]);
+        let finished = self.builder.eq(slot, offsets_end);
+        self.builder.branch(finished, done, create_piece);
+
+        self.builder.switch_to_block(create_piece);
+        let end = self.builder.mload(slot);
+        let piece_length = self.builder.sub(end, previous);
+        let piece_empty = self.builder.eq_zero(piece_length);
+        self.builder.branch(piece_empty, empty_piece, copied_piece);
+
+        self.builder.switch_to_block(empty_piece);
+        let zero_slot = self.builder.imm(EvmMemoryLayout::ZERO_SLOT);
+        let empty_value = self.builder.cast(zero_slot, MirType::MemoryObject(bytes));
+        self.builder.jump(store_piece);
+
+        self.builder.switch_to_block(copied_piece);
+        let piece = self.alloc_core_bounded_bytes(piece_length);
+        let destination = self.builder.memory_object_data(piece, bytes);
+        let source_address = self.builder.add(source, previous);
+        self.builder.mcopy_heap(destination, source_address, piece_length);
+        self.builder.jump(store_piece);
+
+        self.builder.switch_to_block(store_piece);
+        let piece = self.builder.phi(vec![(empty_piece, empty_value), (copied_piece, piece)]);
+        let piece = self.builder.cast(piece, MirType::I256);
+        self.builder.mstore(slot, piece);
+        let next_previous = self.builder.add(end, delimiter_length);
+        let word = self.builder.imm(32);
+        let next_slot = self.builder.add(slot, word);
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(slot, store_piece, next_slot);
+        self.builder.add_phi_incoming(previous, store_piece, next_previous);
+
+        self.builder.switch_to_block(done);
+        self.builder.ret([offsets]);
     }
 
     fn lower_core_string_replace(

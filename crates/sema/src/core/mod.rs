@@ -111,6 +111,8 @@ pub enum CoreIntrinsic {
     StringReplace,
     /// `Strings.indicesOf(subject, needle)`.
     StringIndicesOf,
+    /// `Strings.split(subject, delimiter)`.
+    StringSplit,
     /// `Revert.raw(data)`: revert with exactly `data`.
     RevertRaw,
     /// `Hash.keccak256Range(b, offset, count)`: hash a range where it lies.
@@ -244,6 +246,7 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
             FxHashMap::from_iter([
                 (Symbol::intern("replace"), CoreIntrinsic::StringReplace),
                 (Symbol::intern("indicesOf"), CoreIntrinsic::StringIndicesOf),
+                (Symbol::intern("split"), CoreIntrinsic::StringSplit),
             ])
         })),
         "solar:core/v1/Revert.sol" => Some(
