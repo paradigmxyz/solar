@@ -84,6 +84,10 @@ pub fn file_name(module: &CoreModule) -> FileName {
 /// An operation the compiler lowers directly instead of calling its body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CoreIntrinsic {
+    /// Base64 encoding with standard/URL alphabets and optional padding.
+    Base64Encode,
+    /// Validated Base64 decoding; the optional flag also accepts IMAP.
+    Base64Decode,
     /// `Bytes.readBytesN(b, offset)`: the `N` bytes at `offset`, left-aligned.
     ReadBytes(u8),
     /// `Bytes.readUint256BE(b, offset)`: the word at `offset`.
@@ -181,7 +185,14 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
     static CALLS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static CALLDATA_BYTES: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static MATH: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static BASE64: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     match path {
+        "solar:core/v1/codecs/Base64.sol" => Some(BASE64.get_or_init(|| {
+            FxHashMap::from_iter([
+                (sym::encode, CoreIntrinsic::Base64Encode),
+                (sym::decode, CoreIntrinsic::Base64Decode),
+            ])
+        })),
         "solar:core/v1/Bytes.sol" => Some(BYTES.get_or_init(|| {
             // The names are built here, so each family shares one
             // definition instead of a symbol per width.
