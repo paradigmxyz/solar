@@ -140,3 +140,50 @@
       ret 1
   }
   
+  fn @minimum(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = lt arg0, arg1
+      v1 = sub arg0, arg1
+      v2 = zext i1 v0 to i256
+      v3 = mul v2, v1
+      v4 = add arg1, v3
+      v5 = gt arg2, v4
+      jumpi v5, bb1, bb2
+    bb2:
+      v6 = gt arg2, arg0
+-     jumpi v6, bb5, bb3
++     jump bb3
+    bb3:
+      v7 = gt arg2, arg1
+-     jumpi v7, bb5, bb4
++     jump bb4
+    bb4:
+      ret arg2
+-   bb5:
+-     revert 0, 0
+    bb1:
+      ret 0
++   bb5:
++     revert 0, 0
+  }
+  
+  fn @maximum(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = gt arg0, arg1
+      v1 = sub arg0, arg1
+      v2 = zext i1 v0 to i256
+      v3 = mul v2, v1
+      v4 = add arg1, v3
+      v5 = gt arg2, v4
+      jumpi v5, bb1, bb2
+    bb2:
+      v6 = gt arg2, arg0
+      jumpi v6, bb4, bb3
+    bb3:
+      ret arg2
+    bb4:
+      revert 0, 0
+    bb1:
+      ret 0
+  }
+  

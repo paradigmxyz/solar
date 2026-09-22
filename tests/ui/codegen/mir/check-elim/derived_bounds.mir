@@ -153,3 +153,56 @@ fn @wide_casts(arg0: i1024) -> i256 {
   bb2:
     ret 0
 }
+
+// If conversion writes `min(a, b)` as `b + (a < b) * (a - b)`. The result is
+// at most both values, so an index below it is below each length.
+// CHECK-LABEL: {{^[ +].*}}fn @minimum{{[( ]}}
+// CHECK: - jumpi {{v[0-9]+}}, [[FAIL:bb[0-9]+]], [[NEXT:bb[0-9]+]]
+// CHECK: + jump [[NEXT]]
+// CHECK: - jumpi {{v[0-9]+}}, [[FAIL]], [[LAST:bb[0-9]+]]
+// CHECK: + jump [[LAST]]
+fn @minimum(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, arg1
+    v1 = sub arg0, arg1
+    v2 = zext i1 v0 to i256
+    v3 = mul v2, v1
+    v4 = add arg1, v3
+    v5 = gt arg2, v4
+    jumpi v5, bb1, bb2
+  bb1:
+    ret 0
+  bb2:
+    v6 = gt arg2, arg0
+    jumpi v6, bb3, bb4
+  bb4:
+    v7 = gt arg2, arg1
+    jumpi v7, bb3, bb5
+  bb5:
+    ret arg2
+  bb3:
+    revert 0, 0
+}
+
+// The same shape selecting the larger value bounds neither.
+// CHECK-LABEL: {{^[ +].*}}fn @maximum{{[( ]}}
+// CHECK-NOT: + jump
+fn @maximum(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, arg1
+    v1 = sub arg0, arg1
+    v2 = zext i1 v0 to i256
+    v3 = mul v2, v1
+    v4 = add arg1, v3
+    v5 = gt arg2, v4
+    jumpi v5, bb1, bb2
+  bb1:
+    ret 0
+  bb2:
+    v6 = gt arg2, arg0
+    jumpi v6, bb3, bb4
+  bb4:
+    ret arg2
+  bb3:
+    revert 0, 0
+}
