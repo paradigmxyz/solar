@@ -438,11 +438,7 @@ bb31:
   jump bb37
 bb37:
   dup 1
-  iszero
-  iszero
-  dup 2
   mload
-  mul
   push 32
   dup 3
   add
