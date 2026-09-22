@@ -88,13 +88,18 @@ contract Test {
         return Base64.decode(data, true);
     }
 
-    // One group decodes without a loop; up to sixteen characters use the
-    // scalar table; longer inputs call the shared word decoder.
+    // The decoder is one shared body per IMAP mode. Up to sixteen characters
+    // decode as one block of four, eight, twelve or sixteen table lookups,
+    // with the table copied from code; longer inputs run the word kernel.
     // CHECK-LABEL: fn @decode.
+    // CHECK: icall @core_base64_decode,
+    // CHECK-LABEL: fn @core_base64_decode(
     // CHECK: memory_object_len memorybytes
     // CHECK: lt {{.*}}, 5
+    // CHECK: lt {{.*}}, 9
+    // CHECK: lt {{.*}}, 13
     // CHECK: lt {{.*}}, 17
-    // CHECK: icall @core_base64_decode_wide
+    // CHECK: data_copy
     function decode(string memory data) public pure returns (bytes memory) {
         return Base64.decode(data);
     }
