@@ -1256,6 +1256,21 @@ RETURN
     }
 
     #[test]
+    #[should_panic(expected = "instruction removal ranges overlap")]
+    fn removing_overlapping_instructions_is_rejected() {
+        with_codegen(CompileOpts::default(), |mut codegen| {
+            let (block, start) = codegen.asm.next_instruction_position();
+            for _ in 0..3 {
+                codegen.asm.emit_op(op::ADD);
+            }
+            codegen.asm.remove_instructions(&mut [
+                (block, start + 1..start + 3),
+                (block, start..start + 2),
+            ]);
+        });
+    }
+
+    #[test]
     fn irreducible_runtime_stack_overflow_terminates() {
         with_codegen(CompileOpts::default(), |mut codegen| {
             let mut module = Module::new(Ident::DUMMY);
