@@ -1823,8 +1823,9 @@ pub(crate) fn natspec_contract_in_source(
 pub fn item_signature(gcx: _, id: hir::ItemId) -> &'gcx str {
     let name = gcx.item_name(id);
     let tys = gcx.item_parameter_types(id);
-    let in_library =
-        gcx.hir.item(id).contract().is_some_and(|c| gcx.hir.contract(c).kind.is_library());
+    // Only library functions use canonical type names; events and errors use ABI types.
+    let in_library = matches!(id, hir::ItemId::Function(_))
+        && gcx.hir.item(id).contract().is_some_and(|c| gcx.hir.contract(c).kind.is_library());
     gcx.bump().alloc_str(&gcx.mk_abi_signature(name.as_str(), tys.iter().copied(), in_library))
 }
 
