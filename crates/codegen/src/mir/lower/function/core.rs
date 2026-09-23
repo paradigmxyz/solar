@@ -20,6 +20,7 @@ use super::*;
 use solar_sema::core::CoreIntrinsic;
 
 mod base64;
+mod escape;
 mod hex;
 mod strings;
 
@@ -91,6 +92,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.lower_core_string_index_of_call(&operands, true)
             }
             CoreIntrinsic::StringRuneCount => self.lower_core_string_rune_count_call(&operands),
+            CoreIntrinsic::StringEscapeHTML => {
+                self.lower_core_string_escape_call(&operands, escape::Escape::Html)
+            }
+            CoreIntrinsic::StringEscapeJSON => {
+                self.lower_core_string_escape_call(&operands, escape::Escape::Json)
+            }
+            CoreIntrinsic::StringEncodeURIComponent => {
+                self.lower_core_string_escape_call(&operands, escape::Escape::Uri)
+            }
             CoreIntrinsic::StringMinimalHex => {
                 self.lower_core_string_minimal_hex_call(&operands, false)
             }

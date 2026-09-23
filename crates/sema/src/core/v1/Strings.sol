@@ -14,6 +14,9 @@ library Strings {
     using Buffers for ByteBuilder;
 
     bytes16 private constant DIGITS = "0123456789abcdef";
+    bytes16 private constant UPPER_DIGITS = "0123456789ABCDEF";
+    /// @dev One bit per byte a URI component keeps: letters, digits and `-_.!~*'()`.
+    uint256 private constant URI_UNRESERVED = 0x47fffffe87fffffe03ff678200000000;
 
     /// @dev `value` in decimal.
     function toString(uint256 value) internal pure returns (string memory) {
@@ -73,8 +76,18 @@ library Strings {
     /// characters, as the short forms where JSON has them and `\u00XX`
     /// elsewhere.
     function escapeJSON(string memory s) internal pure returns (string memory) {
+        return escapeJSON(s, false);
+    }
+
+    /// @dev `escapeJSON(s)`, enclosed in double quotes when `addDoubleQuotes`.
+    function escapeJSON(string memory s, bool addDoubleQuotes)
+        internal
+        pure
+        returns (string memory)
+    {
         bytes memory input = bytes(s);
-        ByteBuilder memory out = Buffers.create(input.length);
+        ByteBuilder memory out = Buffers.create(input.length + 2);
+        if (addDoubleQuotes) out.appendByte('"');
         for (uint256 i; i < input.length; ++i) {
             bytes1 c = input[i];
             if (c == '"' || c == "\\") {
@@ -98,8 +111,53 @@ library Strings {
                 out.appendByte(DIGITS[uint8(c) & 15]);
             }
         }
+        if (addDoubleQuotes) out.appendByte('"');
         return string(out.finish());
     }
+
+    /// @dev `s` with the characters HTML gives meaning to replaced by their
+    /// entities: `&quot;`, `&amp;`, `&#39;`, `&lt;` and `&gt;`.
+    function escapeHTML(string memory s) internal pure returns (string memory) {
+        bytes memory input = bytes(s);
+        ByteBuilder memory out = Buffers.create(input.length);
+        for (uint256 i; i < input.length; ++i) {
+            bytes1 c = input[i];
+            if (c == '"') {
+                out.append("&quot;");
+            } else if (c == "&") {
+                out.append("&amp;");
+            } else if (c == "'") {
+                out.append("&#39;");
+            } else if (c == "<") {
+                out.append("&lt;");
+            } else if (c == ">") {
+                out.append("&gt;");
+            } else {
+                out.appendByte(c);
+            }
+        }
+        return string(out.finish());
+    }
+
+    /// @dev `s` as a URI component, like JavaScript's `encodeURIComponent`:
+    /// every byte other than the letters, the digits and `-_.!~*'()` becomes
+    /// `%` and two uppercase hexadecimal digits.
+    function encodeURIComponent(string memory s) internal pure returns (string memory) {
+        bytes memory input = bytes(s);
+        ByteBuilder memory out = Buffers.create(input.length);
+        for (uint256 i; i < input.length; ++i) {
+            bytes1 c = input[i];
+            if ((URI_UNRESERVED >> uint8(c)) & 1 != 0) {
+                out.appendByte(c);
+            } else {
+                out.appendByte("%");
+                out.appendByte(UPPER_DIGITS[uint8(c) >> 4]);
+                out.appendByte(UPPER_DIGITS[uint8(c) & 15]);
+            }
+        }
+        return string(out.finish());
+    }
+
     /// @dev Returns `subject` with each non-overlapping occurrence of `needle`
     /// replaced by `replacement`.
     function replace(string memory subject, string memory needle, string memory replacement)

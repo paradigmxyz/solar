@@ -30,7 +30,7 @@ fn @signed(arg0: i256) -> memorybytes [selector=0xbfe355dd, pure, abi_params=[i2
 
 fn @escape(arg0: memorybytes) -> memorybytes [selector=0xb00a0672, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = icall @escapeJSON, arg0
+    v0 = icall @core_string_escape_json, arg0
     ret v0
 }
 
@@ -106,34 +106,34 @@ fn @writeBytes1(arg0: memorybytes, arg1: i256, arg2: i256) [pure] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v14]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = phi [bb0: arg2], [bb3: v3]
-    v4 = lt v1, 1
+    v0 = phi [bb0: arg2], [bb3: v0]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v14]
+    v3 = phi [bb0: arg0], [bb3: v3]
+    v4 = lt v2, 1
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
     ret
   bb4:
-    v5 = lt v1, 1
+    v5 = lt v2, 1
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    v7 = byte v1, v3
+    v7 = byte v2, v0
     v8 = shl 248, v7
-    v9 = checked_add u256, v0, v1
-    v10 = memory_object_len memorybytes, v2
+    v9 = checked_add u256, v1, v2
+    v10 = memory_object_len memorybytes, v3
     v11 = lt v9, v10
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = byte 0, v8
-    memory_object_store_byte memorybytes, v2, v9, v13
+    memory_object_store_byte memorybytes, v3, v9, v13
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v14 = checked_add u256, v1, 1
+    v14 = checked_add u256, v2, 1
     jump bb1
 }
 
@@ -681,23 +681,23 @@ fn @toString.16(arg0: i256) -> memorybytes [pure] {
     set_memory_object_len memorybytes, v44, v39
     jump bb22
   bb22:
-    v45 = phi [bb21: memorybytes 96], [bb25: v45]
-    v46 = phi [bb21: v34], [bb25: v46]
-    v47 = phi [bb21: arg0], [bb25: v59]
-    v48 = phi [bb21: v39], [bb25: v50]
-    v49 = phi [bb21: v44], [bb25: v49]
-    v50 = checked_sub u256, v48, 1
-    v51 = checked_rem u256, v47, 10
+    v45 = phi [bb21: v44], [bb25: v45]
+    v46 = phi [bb21: memorybytes 96], [bb25: v46]
+    v47 = phi [bb21: v34], [bb25: v47]
+    v48 = phi [bb21: arg0], [bb25: v59]
+    v49 = phi [bb21: v39], [bb25: v50]
+    v50 = checked_sub u256, v49, 1
+    v51 = checked_rem u256, v48, 10
     v52 = checked_add u256, 48, v51
     v53 = and v52, 255
     v54 = shl 248, v53
-    v55 = memory_object_len memorybytes, v49
+    v55 = memory_object_len memorybytes, v45
     v56 = lt v50, v55
     v57 = eq v56, false
     icall panic_if<0x32>, v57
     v58 = byte 0, v54
-    memory_object_store_byte memorybytes, v49, v50, v58
-    v59 = checked_div u256, v47, 10
+    memory_object_store_byte memorybytes, v45, v50, v58
+    v59 = checked_div u256, v48, 10
     jump bb24
   bb24:
     v60 = ne v50, 0
@@ -705,7 +705,7 @@ fn @toString.16(arg0: i256) -> memorybytes [pure] {
   bb26:
     jump bb23
   bb23:
-    ret v49
+    ret v45
   bb25:
     jump bb22
   bb27:
@@ -744,150 +744,523 @@ fn @equals.18(arg0: memorybytes, arg1: memorybytes) -> i256 [pure] {
     ret v0
 }
 
-fn @escapeJSON(arg0: memorybytes) -> memorybytes [pure] {
+fn @escapeJSON.19(arg0: memorybytes) -> memorybytes [pure] {
+  bb0:
+    v0 = zext i1 0 to i256
+    v1 = icall @core_string_escape_json_quotable, arg0, v0
+    ret v1
+}
+
+fn @escapeJSON.20(arg0: memorybytes, arg1: i256) -> memorybytes [pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
-    v1 = icall @create, v0
-    jump bb1
-  bb1:
-    v2 = phi [bb0: memorybytes 96], [bb3: v2]
-    v3 = phi [bb0: v1], [bb3: v3]
-    v4 = phi [bb0: arg0], [bb3: v4]
-    v5 = phi [bb0: arg0], [bb3: v5]
-    v6 = phi [bb0: 0], [bb3: v55]
-    v7 = memory_object_len memorybytes, v5
-    v8 = lt v6, v7
-    jumpi v8, bb4, bb5
-  bb5:
-    jump bb2
+    v1 = checked_add u256, v0, 2
+    v2 = icall @create, v1
+    v3 = ne arg1, 0
+    jumpi v3, bb1, bb2
   bb2:
-    v56 = icall @finish, v3
-    ret v56
+    jump bb3
+  bb1:
+    icall @appendByte, v2, 0x2200000000000000000000000000000000000000000000000000000000000000
+    jump bb3
+  bb3:
+    jump bb4
   bb4:
-    v9 = memory_object_len memorybytes, v5
-    v10 = lt v6, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = memory_object_load_byte memorybytes, v5, v6
-    v13 = shl 248, v12
-    v14 = eq v13, 0x2200000000000000000000000000000000000000000000000000000000000000
-    jumpi v14, bb8, bb7
-  bb7:
-    v15 = eq v13, 0x5c00000000000000000000000000000000000000000000000000000000000000
-    jump bb9
+    v4 = phi [bb3: memorybytes 96], [bb6: v4]
+    v5 = phi [bb3: arg1], [bb6: v5]
+    v6 = phi [bb3: arg0], [bb6: v6]
+    v7 = phi [bb3: 0], [bb6: v58]
+    v8 = phi [bb3: arg0], [bb6: v8]
+    v9 = phi [bb3: v2], [bb6: v9]
+    v10 = memory_object_len memorybytes, v6
+    v11 = lt v7, v10
+    jumpi v11, bb7, bb8
   bb8:
-    jump bb9
-  bb9:
-    v16 = phi [bb7: v15], [bb8: true]
-    jumpi v16, bb10, bb11
+    jump bb5
+  bb5:
+    v59 = ne v5, 0
+    jumpi v59, bb34, bb35
+  bb35:
+    jump bb36
+  bb34:
+    icall @appendByte, v9, 0x2200000000000000000000000000000000000000000000000000000000000000
+    jump bb36
+  bb36:
+    v60 = icall @finish, v9
+    ret v60
+  bb7:
+    v12 = memory_object_len memorybytes, v6
+    v13 = lt v7, v12
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = memory_object_load_byte memorybytes, v6, v7
+    v16 = shl 248, v15
+    v17 = eq v16, 0x2200000000000000000000000000000000000000000000000000000000000000
+    jumpi v17, bb11, bb10
+  bb10:
+    v18 = eq v16, 0x5c00000000000000000000000000000000000000000000000000000000000000
+    jump bb12
   bb11:
-    v17 = shr 248, v13
-    v18 = lt v17, 32
-    v19 = eq v18, false
+    jump bb12
+  bb12:
+    v19 = phi [bb10: v18], [bb11: true]
     jumpi v19, bb13, bb14
   bb14:
-    v20 = eq v13, 0x800000000000000000000000000000000000000000000000000000000000000
-    jumpi v20, bb16, bb17
+    v20 = shr 248, v16
+    v21 = lt v20, 32
+    v22 = eq v21, false
+    jumpi v22, bb16, bb17
   bb17:
-    v24 = eq v13, 0x900000000000000000000000000000000000000000000000000000000000000
-    jumpi v24, bb19, bb20
+    v23 = eq v16, 0x800000000000000000000000000000000000000000000000000000000000000
+    jumpi v23, bb19, bb20
   bb20:
-    v28 = eq v13, 0xa00000000000000000000000000000000000000000000000000000000000000
-    jumpi v28, bb22, bb23
+    v27 = eq v16, 0x900000000000000000000000000000000000000000000000000000000000000
+    jumpi v27, bb22, bb23
   bb23:
-    v32 = eq v13, 0xc00000000000000000000000000000000000000000000000000000000000000
-    jumpi v32, bb25, bb26
+    v31 = eq v16, 0xa00000000000000000000000000000000000000000000000000000000000000
+    jumpi v31, bb25, bb26
   bb26:
-    v36 = eq v13, 0xd00000000000000000000000000000000000000000000000000000000000000
-    jumpi v36, bb28, bb29
+    v35 = eq v16, 0xc00000000000000000000000000000000000000000000000000000000000000
+    jumpi v35, bb28, bb29
   bb29:
+    v39 = eq v16, 0xd00000000000000000000000000000000000000000000000000000000000000
+    jumpi v39, bb31, bb32
+  bb32:
+    v43 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v43, 4
+    v44 = memory_object_data memorybytes, v43
+    v45 = ptrtoint memptr v44 to i256
+    mstore v45, 0x5c75303000000000000000000000000000000000000000000000000000000000
+    icall @append, v9, v43
+    v46 = shr 248, v16
+    v47 = shr 4, v46
+    v48 = lt v47, 16
+    v49 = eq v48, false
+    icall panic_if<0x32>, v49
+    v50 = byte v47, 0x3031323334353637383961626364656600000000000000000000000000000000
+    v51 = shl 248, v50
+    icall @appendByte, v9, v51
+    v52 = shr 248, v16
+    v53 = and v52, 15
+    v54 = lt v53, 16
+    v55 = eq v54, false
+    icall panic_if<0x32>, v55
+    v56 = byte v53, 0x3031323334353637383961626364656600000000000000000000000000000000
+    v57 = shl 248, v56
+    icall @appendByte, v9, v57
+    jump bb33
+  bb31:
     v40 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v40, 4
+    set_memory_object_len memorybytes, v40, 2
     v41 = memory_object_data memorybytes, v40
     v42 = ptrtoint memptr v41 to i256
-    mstore v42, 0x5c75303000000000000000000000000000000000000000000000000000000000
-    icall @append, v3, v40
-    v43 = shr 248, v13
-    v44 = shr 4, v43
-    v45 = lt v44, 16
-    v46 = eq v45, false
-    icall panic_if<0x32>, v46
-    v47 = byte v44, 0x3031323334353637383961626364656600000000000000000000000000000000
-    v48 = shl 248, v47
-    icall @appendByte, v3, v48
-    v49 = shr 248, v13
-    v50 = and v49, 15
-    v51 = lt v50, 16
-    v52 = eq v51, false
-    icall panic_if<0x32>, v52
-    v53 = byte v50, 0x3031323334353637383961626364656600000000000000000000000000000000
-    v54 = shl 248, v53
-    icall @appendByte, v3, v54
+    mstore v42, 0x5c72000000000000000000000000000000000000000000000000000000000000
+    icall @append, v9, v40
+    jump bb33
+  bb33:
     jump bb30
   bb28:
-    v37 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v37, 2
-    v38 = memory_object_data memorybytes, v37
-    v39 = ptrtoint memptr v38 to i256
-    mstore v39, 0x5c72000000000000000000000000000000000000000000000000000000000000
-    icall @append, v3, v37
+    v36 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v36, 2
+    v37 = memory_object_data memorybytes, v36
+    v38 = ptrtoint memptr v37 to i256
+    mstore v38, 0x5c66000000000000000000000000000000000000000000000000000000000000
+    icall @append, v9, v36
     jump bb30
   bb30:
     jump bb27
   bb25:
-    v33 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v33, 2
-    v34 = memory_object_data memorybytes, v33
-    v35 = ptrtoint memptr v34 to i256
-    mstore v35, 0x5c66000000000000000000000000000000000000000000000000000000000000
-    icall @append, v3, v33
+    v32 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v32, 2
+    v33 = memory_object_data memorybytes, v32
+    v34 = ptrtoint memptr v33 to i256
+    mstore v34, 0x5c6e000000000000000000000000000000000000000000000000000000000000
+    icall @append, v9, v32
     jump bb27
   bb27:
     jump bb24
   bb22:
-    v29 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v29, 2
-    v30 = memory_object_data memorybytes, v29
-    v31 = ptrtoint memptr v30 to i256
-    mstore v31, 0x5c6e000000000000000000000000000000000000000000000000000000000000
-    icall @append, v3, v29
+    v28 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v28, 2
+    v29 = memory_object_data memorybytes, v28
+    v30 = ptrtoint memptr v29 to i256
+    mstore v30, 0x5c74000000000000000000000000000000000000000000000000000000000000
+    icall @append, v9, v28
     jump bb24
   bb24:
     jump bb21
   bb19:
-    v25 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v25, 2
-    v26 = memory_object_data memorybytes, v25
-    v27 = ptrtoint memptr v26 to i256
-    mstore v27, 0x5c74000000000000000000000000000000000000000000000000000000000000
-    icall @append, v3, v25
+    v24 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v24, 2
+    v25 = memory_object_data memorybytes, v24
+    v26 = ptrtoint memptr v25 to i256
+    mstore v26, 0x5c62000000000000000000000000000000000000000000000000000000000000
+    icall @append, v9, v24
     jump bb21
   bb21:
     jump bb18
   bb16:
-    v21 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v21, 2
-    v22 = memory_object_data memorybytes, v21
-    v23 = ptrtoint memptr v22 to i256
-    mstore v23, 0x5c62000000000000000000000000000000000000000000000000000000000000
-    icall @append, v3, v21
+    icall @appendByte, v9, v16
     jump bb18
   bb18:
     jump bb15
   bb13:
-    icall @appendByte, v3, v13
+    icall @appendByte, v9, 0x5c00000000000000000000000000000000000000000000000000000000000000
+    icall @appendByte, v9, v16
     jump bb15
   bb15:
-    jump bb12
-  bb10:
-    icall @appendByte, v3, 0x5c00000000000000000000000000000000000000000000000000000000000000
-    icall @appendByte, v3, v13
-    jump bb12
-  bb12:
+    jump bb9
+  bb9:
     jump bb6
   bb6:
-    jump bb3
+    v58 = checked_add u256, v7, 1
+    jump bb4
+}
+
+fn @core_string_escape_json(arg0: memorybytes) -> memorybytes {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    v1 = memory_object_data memorybytes, arg0
+    v2 = ptrtoint memptr v1 to i256
+    v3 = add v2, v0
+    v4 = fmp
+    v5 = ptrtoint memptr v4 to i256
+    v6 = add v5, 32
+    mstore 21, 0x5c75303030303031323334353637383961626364656662746e006672 !metadata(memory=scratch)
+    jump bb4
+  bb4:
+    v7 = phi [bb0: v1], [bb6: v30], [bb11: v61], [bb19: v94]
+    v8 = phi [bb0: v6], [bb6: v29], [bb11: v56], [bb19: v89]
+    v9 = ptrtoint memptr v7 to i256
+    v10 = add v9, 32
+    v11 = gt v10, v3
+    jumpi v11, bb1, bb5
+  bb5:
+    v12 = ptrtoint memptr v7 to i256
+    v13 = mload v12
+    v14 = sub v13, 0x2020202020202020202020202020202020202020202020202020202020202020
+    v15 = not v13
+    v16 = and v14, v15
+    v17 = xor v13, 0x2222222222222222222222222222222222222222222222222222222222222222
+    v18 = sub v17, 0x101010101010101010101010101010101010101010101010101010101010101
+    v19 = not v17
+    v20 = and v18, v19
+    v21 = xor v13, 0x5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c
+    v22 = sub v21, 0x101010101010101010101010101010101010101010101010101010101010101
+    v23 = not v21
+    v24 = and v22, v23
+    v25 = or v16, v20
+    v26 = or v25, v24
+    v27 = and v26, 0x8080808080808080808080808080808080808080808080808080808080808080
+    v28 = eq v27, 0
+    jumpi v28, bb6, bb7
+  bb7:
+    jump bb8
+  bb8:
+    v31 = phi [bb7: v7], [bb11: v60]
+    v32 = phi [bb7: v8], [bb11: v56]
+    v33 = ptrtoint memptr v31 to i256
+    v34 = mload v33
+    v35 = byte 0, v34
+    v36 = shr v35, 0x1000000000000004ffffffff
+    v37 = and v36, 1
+    v38 = ne v37, 0
+    jumpi v38, bb10, bb9
+  bb9:
+    mstore8 v32, v35
+    v39 = add v32, 1
+    jump bb11
+  bb10:
+    v40 = lt v35, 32
+    jumpi v40, bb13, bb12
+  bb12:
+    mstore8 v32, 92
+    v41 = add v32, 1
+    mstore8 v41, v35
+    v42 = add v32, 2
+    jump bb11
+  bb13:
+    v43 = shr v35, 0x3700
+    v44 = and v43, 1
+    v45 = ne v44, 0
+    jumpi v45, bb14, bb15
+  bb15:
+    v50 = shr 4, v35
+    v51 = mload v50
+    mstore8 29, v51 !metadata(memory=scratch)
+    v52 = and v35, 15
+    v53 = mload v52
+    mstore8 30, v53 !metadata(memory=scratch)
+    v54 = mload 25 !metadata(memory=scratch)
+    mstore v32, v54
+    v55 = add v32, 6
+    jump bb11
+  bb14:
+    mstore8 v32, 92
+    v46 = add v35, 8
+    v47 = mload v46
+    v48 = add v32, 1
+    mstore8 v48, v47
+    v49 = add v32, 2
+    jump bb11
+  bb11:
+    v56 = phi [bb9: v39], [bb12: v42], [bb14: v49], [bb15: v55]
+    v57 = ptrtoint memptr v31 to i256
+    v58 = add v57, 1
+    v59 = lt v58, v10
+    v60 = inttoptr i256 v58 to memptr
+    v61 = inttoptr i256 v58 to memptr
+    jumpi v59, bb8, bb4
+  bb6:
+    mstore v8, v13
+    v29 = add v8, 32
+    v30 = inttoptr i256 v10 to memptr
+    jump bb4
+  bb1:
+    v62 = ptrtoint memptr v7 to i256
+    v63 = lt v62, v3
+    jumpi v63, bb2, bb3
   bb3:
-    v55 = checked_add u256, v6, 1
-    jump bb1
+    v95 = sub v8, v6
+    mstore v8, 0
+    v96 = add v95, 63
+    v97 = not 31
+    v98 = and v96, v97
+    v99 = alloc memorybytes, exact, uninitialized, infallible, v98 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v99, v95
+    ret v99
+  bb2:
+    jump bb16
+  bb16:
+    v64 = phi [bb2: v7], [bb19: v93]
+    v65 = phi [bb2: v8], [bb19: v89]
+    v66 = ptrtoint memptr v64 to i256
+    v67 = mload v66
+    v68 = byte 0, v67
+    v69 = shr v68, 0x1000000000000004ffffffff
+    v70 = and v69, 1
+    v71 = ne v70, 0
+    jumpi v71, bb18, bb17
+  bb17:
+    mstore8 v65, v68
+    v72 = add v65, 1
+    jump bb19
+  bb18:
+    v73 = lt v68, 32
+    jumpi v73, bb21, bb20
+  bb20:
+    mstore8 v65, 92
+    v74 = add v65, 1
+    mstore8 v74, v68
+    v75 = add v65, 2
+    jump bb19
+  bb21:
+    v76 = shr v68, 0x3700
+    v77 = and v76, 1
+    v78 = ne v77, 0
+    jumpi v78, bb22, bb23
+  bb23:
+    v83 = shr 4, v68
+    v84 = mload v83
+    mstore8 29, v84 !metadata(memory=scratch)
+    v85 = and v68, 15
+    v86 = mload v85
+    mstore8 30, v86 !metadata(memory=scratch)
+    v87 = mload 25 !metadata(memory=scratch)
+    mstore v65, v87
+    v88 = add v65, 6
+    jump bb19
+  bb22:
+    mstore8 v65, 92
+    v79 = add v68, 8
+    v80 = mload v79
+    v81 = add v65, 1
+    mstore8 v81, v80
+    v82 = add v65, 2
+    jump bb19
+  bb19:
+    v89 = phi [bb17: v72], [bb20: v75], [bb22: v82], [bb23: v88]
+    v90 = ptrtoint memptr v64 to i256
+    v91 = add v90, 1
+    v92 = lt v91, v3
+    v93 = inttoptr i256 v91 to memptr
+    v94 = inttoptr i256 v91 to memptr
+    jumpi v92, bb16, bb4
+}
+
+fn @core_string_escape_json_quotable(arg0: memorybytes, arg1: i256) -> memorybytes {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    v1 = memory_object_data memorybytes, arg0
+    v2 = ptrtoint memptr v1 to i256
+    v3 = add v2, v0
+    v4 = fmp
+    v5 = ptrtoint memptr v4 to i256
+    v6 = add v5, 32
+    mstore 21, 0x5c75303030303031323334353637383961626364656662746e006672 !metadata(memory=scratch)
+    v7 = ne arg1, 0
+    v8 = zext i1 v7 to i256
+    mstore8 v6, 34
+    v9 = add v6, v8
+    jump bb4
+  bb4:
+    v10 = phi [bb0: v1], [bb6: v33], [bb11: v64], [bb19: v97]
+    v11 = phi [bb0: v9], [bb6: v32], [bb11: v59], [bb19: v92]
+    v12 = ptrtoint memptr v10 to i256
+    v13 = add v12, 32
+    v14 = gt v13, v3
+    jumpi v14, bb1, bb5
+  bb5:
+    v15 = ptrtoint memptr v10 to i256
+    v16 = mload v15
+    v17 = sub v16, 0x2020202020202020202020202020202020202020202020202020202020202020
+    v18 = not v16
+    v19 = and v17, v18
+    v20 = xor v16, 0x2222222222222222222222222222222222222222222222222222222222222222
+    v21 = sub v20, 0x101010101010101010101010101010101010101010101010101010101010101
+    v22 = not v20
+    v23 = and v21, v22
+    v24 = xor v16, 0x5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c
+    v25 = sub v24, 0x101010101010101010101010101010101010101010101010101010101010101
+    v26 = not v24
+    v27 = and v25, v26
+    v28 = or v19, v23
+    v29 = or v28, v27
+    v30 = and v29, 0x8080808080808080808080808080808080808080808080808080808080808080
+    v31 = eq v30, 0
+    jumpi v31, bb6, bb7
+  bb7:
+    jump bb8
+  bb8:
+    v34 = phi [bb7: v10], [bb11: v63]
+    v35 = phi [bb7: v11], [bb11: v59]
+    v36 = ptrtoint memptr v34 to i256
+    v37 = mload v36
+    v38 = byte 0, v37
+    v39 = shr v38, 0x1000000000000004ffffffff
+    v40 = and v39, 1
+    v41 = ne v40, 0
+    jumpi v41, bb10, bb9
+  bb9:
+    mstore8 v35, v38
+    v42 = add v35, 1
+    jump bb11
+  bb10:
+    v43 = lt v38, 32
+    jumpi v43, bb13, bb12
+  bb12:
+    mstore8 v35, 92
+    v44 = add v35, 1
+    mstore8 v44, v38
+    v45 = add v35, 2
+    jump bb11
+  bb13:
+    v46 = shr v38, 0x3700
+    v47 = and v46, 1
+    v48 = ne v47, 0
+    jumpi v48, bb14, bb15
+  bb15:
+    v53 = shr 4, v38
+    v54 = mload v53
+    mstore8 29, v54 !metadata(memory=scratch)
+    v55 = and v38, 15
+    v56 = mload v55
+    mstore8 30, v56 !metadata(memory=scratch)
+    v57 = mload 25 !metadata(memory=scratch)
+    mstore v35, v57
+    v58 = add v35, 6
+    jump bb11
+  bb14:
+    mstore8 v35, 92
+    v49 = add v38, 8
+    v50 = mload v49
+    v51 = add v35, 1
+    mstore8 v51, v50
+    v52 = add v35, 2
+    jump bb11
+  bb11:
+    v59 = phi [bb9: v42], [bb12: v45], [bb14: v52], [bb15: v58]
+    v60 = ptrtoint memptr v34 to i256
+    v61 = add v60, 1
+    v62 = lt v61, v13
+    v63 = inttoptr i256 v61 to memptr
+    v64 = inttoptr i256 v61 to memptr
+    jumpi v62, bb8, bb4
+  bb6:
+    mstore v11, v16
+    v32 = add v11, 32
+    v33 = inttoptr i256 v13 to memptr
+    jump bb4
+  bb1:
+    v65 = ptrtoint memptr v10 to i256
+    v66 = lt v65, v3
+    jumpi v66, bb2, bb3
+  bb3:
+    mstore8 v11, 34
+    v98 = add v11, v8
+    v99 = sub v98, v6
+    mstore v98, 0
+    v100 = add v99, 63
+    v101 = not 31
+    v102 = and v100, v101
+    v103 = alloc memorybytes, exact, uninitialized, infallible, v102 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v103, v99
+    ret v103
+  bb2:
+    jump bb16
+  bb16:
+    v67 = phi [bb2: v10], [bb19: v96]
+    v68 = phi [bb2: v11], [bb19: v92]
+    v69 = ptrtoint memptr v67 to i256
+    v70 = mload v69
+    v71 = byte 0, v70
+    v72 = shr v71, 0x1000000000000004ffffffff
+    v73 = and v72, 1
+    v74 = ne v73, 0
+    jumpi v74, bb18, bb17
+  bb17:
+    mstore8 v68, v71
+    v75 = add v68, 1
+    jump bb19
+  bb18:
+    v76 = lt v71, 32
+    jumpi v76, bb21, bb20
+  bb20:
+    mstore8 v68, 92
+    v77 = add v68, 1
+    mstore8 v77, v71
+    v78 = add v68, 2
+    jump bb19
+  bb21:
+    v79 = shr v71, 0x3700
+    v80 = and v79, 1
+    v81 = ne v80, 0
+    jumpi v81, bb22, bb23
+  bb23:
+    v86 = shr 4, v71
+    v87 = mload v86
+    mstore8 29, v87 !metadata(memory=scratch)
+    v88 = and v71, 15
+    v89 = mload v88
+    mstore8 30, v89 !metadata(memory=scratch)
+    v90 = mload 25 !metadata(memory=scratch)
+    mstore v68, v90
+    v91 = add v68, 6
+    jump bb19
+  bb22:
+    mstore8 v68, 92
+    v82 = add v71, 8
+    v83 = mload v82
+    v84 = add v68, 1
+    mstore8 v84, v83
+    v85 = add v68, 2
+    jump bb19
+  bb19:
+    v92 = phi [bb17: v75], [bb20: v78], [bb22: v85], [bb23: v91]
+    v93 = ptrtoint memptr v67 to i256
+    v94 = add v93, 1
+    v95 = lt v94, v3
+    v96 = inttoptr i256 v94 to memptr
+    v97 = inttoptr i256 v94 to memptr
+    jumpi v95, bb16, bb4
 }
