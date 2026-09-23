@@ -1,8 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/indvar-simplify/merge_counters.sol:Test ===
 @module Test
 @phase lowered
-@inline_assembly
-fn @merge() [selector=0x088b9bf6, abi_wrapper, pure] {
+fn @merge() [selector=0x088b9bf6, abi_wrapper, inline_assembly, pure] {
   bb0:
     v122 = calldatasize
     v123 = lt v122, 68

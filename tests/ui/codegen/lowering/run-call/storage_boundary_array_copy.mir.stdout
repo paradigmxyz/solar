@@ -1,13 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_boundary_array_copy.sol:StorageBoundaryArrayCopy ===
 @module StorageBoundaryArrayCopy
-@inline_assembly
-fn @getX() -> i256 [pure] {
+fn @getX() -> i256 [inline_assembly, pure] {
   bb0:
     v0 = sub 0, 5
     ret v0
 }
 
-fn @getY() -> i256 [pure] {
+fn @getY() -> i256 [inline_assembly, pure] {
   bb0:
     ret 5
 }

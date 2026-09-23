@@ -1,8 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/loop_checked_helper.sol:LoopCheckedHelper ===
 @module LoopCheckedHelper
 @phase lowered
-@inline_assembly
-fn @panicArithmetic() [pure] {
+fn @panicArithmetic() [inline_assembly, pure] {
   bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
     mstore 4, 17 !metadata(memory=scratch)

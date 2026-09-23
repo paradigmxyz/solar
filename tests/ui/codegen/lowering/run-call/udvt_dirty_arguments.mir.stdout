@@ -1,12 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/udvt_dirty_arguments.sol:UdvtDirtyArguments ===
 @module UdvtDirtyArguments
-@inline_assembly
-fn @inject(arg0: i256) -> i256 [pure] {
+fn @inject(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     ret arg0
 }
 
-fn @injectSigned(arg0: i256) -> i256 [pure] {
+fn @injectSigned(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     ret arg0
 }
