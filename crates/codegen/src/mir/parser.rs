@@ -1461,6 +1461,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 sym::preserves_fmp => {
                     metadata.set_preserves_fmp(true);
                 }
+                sym::nonnull => {
+                    metadata.set_nonnull();
+                }
                 kw::Storage => {
                     self.parser.expect(TokenKind::Eq)?;
                     metadata.set_storage_alias(Some(self.parse_storage_alias(builder)?));

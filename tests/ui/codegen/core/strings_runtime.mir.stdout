@@ -37,7 +37,7 @@ fn @decimal(arg0: i256) -> memorybytes [selector=0xf371efa4, pure, abi_params=[u
     v10 = sub v2, v5
     v11 = sub v5, 32
     mstore v11, v10
-    v12 = inttoptr i256 v11 to memorybytes
+    v12 = inttoptr i256 v11 to memorybytes !metadata(nonnull)
     ret v12
 }
 
@@ -69,7 +69,7 @@ fn @signed(arg0: i256) -> memorybytes [selector=0xbfe355dd, pure, abi_params=[i2
     v16 = sub v5, v15
     v17 = sub v15, 32
     mstore v17, v16
-    v18 = inttoptr i256 v17 to memorybytes
+    v18 = inttoptr i256 v17 to memorybytes !metadata(nonnull)
     ret v18
 }
 
@@ -794,7 +794,7 @@ fn @toString.17(arg0: i256) -> memorybytes [pure] {
     v29 = sub v21, v24
     v30 = sub v24, 32
     mstore v30, v29
-    v31 = inttoptr i256 v30 to memorybytes
+    v31 = inttoptr i256 v30 to memorybytes !metadata(nonnull)
     v32 = icall concat<bytes1, memorybytes>, 0x2d00000000000000000000000000000000000000000000000000000000000000, v31
     ret v32
   bb1:
@@ -817,7 +817,7 @@ fn @toString.17(arg0: i256) -> memorybytes [pure] {
     v12 = sub v4, v7
     v13 = sub v7, 32
     mstore v13, v12
-    v14 = inttoptr i256 v13 to memorybytes
+    v14 = inttoptr i256 v13 to memorybytes !metadata(nonnull)
     ret v14
 }
 

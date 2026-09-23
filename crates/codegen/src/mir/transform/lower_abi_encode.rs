@@ -666,7 +666,8 @@ fn non_null_objects_at_encodes(
 
 /// Proves that `value` is a real memory object rather than the null default
 /// object: an allocation, an encoded byte string, a nonzero constant pointer, a
-/// call proved by `non_null_returns`, or a phi selecting among them.
+/// cast marked `nonnull` by the lowering that allocated it, a call proved by
+/// `non_null_returns`, or a phi selecting among them.
 fn non_null_memory_object(
     func: &Function,
     value: ValueId,
@@ -690,6 +691,8 @@ fn non_null_memory_object(
                 InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
                     non_null_returns.contains(*function)
                 }
+                // A cast lowering marked as addressing its own allocation.
+                InstKind::IntToPtr(_) | InstKind::Bitcast(_) => func.inst(*inst).metadata.nonnull(),
                 // A phi selects one of its incoming values. A phi reached again
                 // adds none, which also settles loop-carried cycles.
                 InstKind::Phi(incoming) => {

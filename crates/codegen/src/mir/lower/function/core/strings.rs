@@ -132,7 +132,7 @@ impl FunctionLowerer<'_, '_> {
         let digits = self.builder.sub(pair_digits, leading_zero);
         let length = self.builder.add(digits, prefix_length);
         self.builder.mstore(result, length);
-        self.builder.memory_object_from_ptr(result, MemoryObjectKind::Bytes)
+        self.builder.memory_object_in_allocation(result, MemoryObjectKind::Bytes)
     }
 
     /// Lowers `Strings.toString` of a `uint256` or `int256` into the caller.
@@ -209,7 +209,7 @@ impl FunctionLowerer<'_, '_> {
         let header_size = self.builder.imm(32);
         let result = self.builder.sub(start, header_size);
         self.builder.mstore(result, length);
-        self.builder.memory_object_from_ptr(result, MemoryObjectKind::Bytes)
+        self.builder.memory_object_in_allocation(result, MemoryObjectKind::Bytes)
     }
 
     /// Packs one short string with word operations instead of a byte loop.
@@ -346,7 +346,7 @@ impl FunctionLowerer<'_, '_> {
         // the upper half of that allocation.
         let total_size = self.builder.imm(128);
         let allocation = self.builder.alloc_raw(total_size, AllocationSemantics::INTERNAL);
-        let a = self.builder.memory_object_from_ptr(allocation, MemoryObjectKind::Bytes);
+        let a = self.builder.memory_object_in_allocation(allocation, MemoryObjectKind::Bytes);
         // An unaligned store lays the tag into the low byte of the length word
         // and the first payload immediately after it. Restore the clamped
         // length over that tag so malformed words retain the portable body's
@@ -364,7 +364,7 @@ impl FunctionLowerer<'_, '_> {
         let b_length = self.builder.select(b_too_long, remaining, raw_b_length);
         let object_size = self.builder.imm(64);
         let b_ptr = self.builder.add(allocation, object_size);
-        let b = self.builder.memory_object_from_ptr(b_ptr, MemoryObjectKind::Bytes);
+        let b = self.builder.memory_object_in_allocation(b_ptr, MemoryObjectKind::Bytes);
         let b_tag_slot = self.builder.add_u64_offset(b_ptr, 31);
         self.builder.mstore(b_tag_slot, packed_b);
         self.builder.set_memory_object_len(b, b_length, MemoryObjectKind::Bytes);
