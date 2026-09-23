@@ -260,7 +260,7 @@ impl LowerAbiCx {
             self.synthesize_shared_return_cleanup_helpers(module, &targets);
         }
         let canonical_return_calls = if gas_mode {
-            find_canonical_return_calls(module, &targets, &self.return_cleanup_helpers)
+            find_canonical_return_calls(module, &targets)
         } else {
             FxHashSet::default()
         };
@@ -3239,7 +3239,6 @@ fn can_encode_live_returns(module: &Module, func: &Function) -> bool {
 fn find_canonical_return_calls(
     module: &Module,
     targets: &[FunctionId],
-    cleanup_helpers: &FxHashMap<AbiParamType, FunctionId>,
 ) -> FxHashSet<(FunctionId, AbiParamType)> {
     let mut candidates = FxHashSet::default();
     for &id in targets {
@@ -3248,9 +3247,12 @@ fn find_canonical_return_calls(
         for block in &func.blocks {
             let Some(Terminator::Return { values }) = &block.terminator else { continue };
             for (&value, ty) in values.iter().zip(&layout.types) {
-                // Lowering types a returned array as the raw pointer it is, so a proved
-                // element width stands in for the exact type match.
-                if cleanup_helpers.contains_key(ty)
+                // Only aggregates that would otherwise be cleaned word by word are candidates,
+                // whether or not several wrappers share a cleanup helper for them. Lowering
+                // types a returned array as the raw pointer it is, so a proved element width
+                // stands in for the exact type match.
+                if !ty.is_scalar_word()
+                    && ty.needs_return_cleanup()
                     && let Value::Inst(inst) = func.value(value)
                     && let InstKind::ICall { function: Callee::Function(function), .. } =
                         func.inst(*inst).kind

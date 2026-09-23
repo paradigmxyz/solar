@@ -1,0 +1,150 @@
+// === ROOT/tests/ui/codegen/lowering/abi_return_single_call_array.sol:SingleCallArray ===
+@module SingleCallArray
+@phase lowered
+fn @copy(arg0: memptr) -> memptr [may_return_memory, pure] {
+  bb0:
+    v43 = ptrtoint memptr arg0 to i256
+    v0 = mload v43
+    v8 = add v0, 1
+    v9 = eq v8, 0
+    jumpi v9, bb4, bb5
+  bb5:
+    v10 = shl 5, v8
+    v12 = shr 5, v10
+    v16 = ne v12, v8
+    jumpi v16, bb4, bb6
+  bb6:
+    v47 = mload 64 !metadata(memory=scratch)
+    v17 = inttoptr i256 v47 to memptr !metadata(memory=scratch)
+    v48 = add v47, v10
+    v49 = lt v48, v47
+    v50 = gt v48, 0xffffffffffffffff
+    v51 = or v49, v50
+    jumpi v51, bb4, bb9
+  bb9:
+    mstore 64, v48 !metadata(memory=scratch)
+    v53 = calldatasize
+    calldatacopy v47, v53, v10
+    mstore v47, v0
+    v36 = add v43, 32
+    v40 = add v47, 32
+    jump bb1
+  bb1:
+    v19 = phi [bb9: 0], [bb8: v33]
+    v21 = mload v43
+    v22 = lt v19, v21
+    jumpi v22, bb3, bb2
+  bb2:
+    ret v17
+  bb3:
+    v37 = shl 5, v19
+    v38 = add v36, v37
+    v26 = mload v38
+    v28 = mload v47
+    v29 = lt v19, v28
+    jumpi v29, bb8, bb7
+  bb7:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
+  bb8:
+    v42 = add v40, v37
+    mstore v42, v26
+    v33 = add v19, 1
+    jump bb1
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @copied() [selector=0x3feb34a9, abi_wrapper, pure] {
+  bb0:
+    v1 = calldatasize
+    v2 = lt v1, 36
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = calldataload 4
+    v4 = add v3, 4
+    v5 = add v4, 32
+    v6 = gt v3, 0xffffffffffffffff
+    v7 = gt v5, v1
+    v8 = or v6, v7
+    jumpi v8, bb1, bb3
+  bb3:
+    v10 = calldataload v4
+    v12 = shl 5, v10
+    v14 = shr 5, v12
+    v18 = ne v14, v10
+    jumpi v18, bb4, bb5
+  bb5:
+    v19 = add v12, 32
+    v20 = lt v19, v12
+    jumpi v20, bb4, bb6
+  bb6:
+    v56 = mload 64 !metadata(memory=scratch)
+    v21 = inttoptr i256 v56 to memptr !metadata(memory=scratch)
+    v57 = add v56, v19
+    v58 = lt v57, v56
+    v59 = gt v57, 0xffffffffffffffff
+    v60 = or v58, v59
+    jumpi v60, bb4, bb12
+  bb12:
+    mstore 64, v57 !metadata(memory=scratch)
+    mstore v56, v10
+    v22 = sub v1, v5
+    v23 = shr 5, v22
+    v24 = gt v10, v23
+    jumpi v24, bb1, bb7
+  bb7:
+    jump bb8
+  bb8:
+    v25 = phi [bb7: 0], [bb11: v32]
+    v26 = lt v25, v10
+    jumpi v26, bb9, bb10
+  bb10:
+    v49 = add v56, 32
+    calldatacopy v49, v5, v12
+    v0 = icall @copy, v21
+    v53 = ptrtoint memptr v0 to i256
+    v37 = mload v53
+    v55 = add v53, 32
+    v39 = shl 5, v37
+    v41 = add v53, 64
+    mcopy v41, v55, v39
+    mstore v53, 32
+    mstore v55, v37
+    v45 = add v39, 64
+    returndata v53, v45
+  bb9:
+    v27 = shl 5, v25
+    v28 = add v5, v27
+    v29 = calldataload v28
+    v30 = shr 160, v29
+    v31 = eq v30, 0
+    jumpi v31, bb11, bb1
+  bb11:
+    v32 = add v25, 1
+    jump bb8
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0x3feb34a9 => bb2]
+  bb2:
+    tail_call @copied
+  bb3:
+    revert 0, 0
+}
