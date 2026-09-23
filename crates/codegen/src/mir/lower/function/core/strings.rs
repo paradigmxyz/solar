@@ -1,6 +1,9 @@
 //! String lowering for compiler-owned core operations.
 //!
-//! Replacement scans once and copies unmatched runs in bulk. String search
+//! Replacement scans once and copies unmatched runs in bulk. Its pointer
+//! cursors and separate loops for short and long needles keep neither the
+//! subject base, the output base nor the needle hash in a short scan's state,
+//! which is what spilled on short subjects. String search
 //! streams non-overlapping match offsets into one exact array. Splitting asks
 //! that search for one spare word, appends the subject end, then replaces each
 //! offset in place with a bulk-copied string. Short needles use one masked word
@@ -886,11 +889,20 @@ impl FunctionLowerer<'_, '_> {
         let every_complete = self.builder.current_block();
         self.builder.jump(complete);
 
+        // destination = fmp + 32
+        // source = data(subject)
+        // last = source + (length - needle_length)
+        // needle_word = mload data(needle)
+        // prefix_mask = ~0 << 8 * (32 - needle_length % 32)
+        // jumpi needle_length < 32, short_scan, long_hash
         self.builder.switch_to_block(nonempty);
         let allocation_base = self.builder.fmp();
         let header_size = self.builder.imm(32);
         let destination = self.builder.add(allocation_base, header_size);
         let source = self.builder.memory_object_data(subject, bytes);
+        let source = self.builder.cast_word(source);
+        let search_end = self.builder.sub(length, needle_length);
+        let last = self.builder.add(source, search_end);
         let needle_data = self.builder.memory_object_data(needle, bytes);
         let needle_word = self.builder.mload(needle_data);
         let low_five = self.builder.imm(31);
@@ -901,71 +913,29 @@ impl FunctionLowerer<'_, '_> {
         let masked_bits = self.builder.mul(missing, eight);
         let all = self.builder.imm(U256::MAX);
         let prefix_mask = self.builder.shl(masked_bits, all);
+        let short_scan = self.builder.create_block();
         let long_hash = self.builder.create_block();
-        let short_hash = self.builder.create_block();
-        let scan_entry = self.builder.create_block();
-        let short = self.builder.lt(needle_length, word);
-        let long = self.builder.eq_zero(short);
-        self.builder.branch(long, long_hash, short_hash);
-
-        self.builder.switch_to_block(long_hash);
-        let hash = self.builder.keccak256(needle_data, needle_length);
-        self.builder.jump(scan_entry);
-
-        self.builder.switch_to_block(short_hash);
-        let zero_hash = self.builder.imm(0);
-        self.builder.jump(scan_entry);
-
-        self.builder.switch_to_block(scan_entry);
-        let needle_hash = self.builder.phi(vec![(long_hash, hash), (short_hash, zero_hash)]);
-        let search_end = self.builder.sub(length, needle_length);
-        let search_end = self.builder.add(source, search_end);
-        let header = self.builder.create_block();
-        let compare_prefix = self.builder.create_block();
-        let verify = self.builder.create_block();
-        let verify_hash = self.builder.create_block();
-        let matched = self.builder.create_block();
-        let advance = self.builder.create_block();
         let finish = self.builder.create_block();
-        self.builder.jump(header);
+        let short = self.builder.lt(needle_length, word);
+        self.builder.branch(short, short_scan, long_hash);
 
-        self.builder.switch_to_block(header);
-        let cursor = self.builder.phi(vec![(scan_entry, source)]);
-        let output = self.builder.phi(vec![(scan_entry, destination)]);
-        let past_end = self.builder.gt(cursor, search_end);
-        self.builder.branch(past_end, finish, compare_prefix);
+        let scan =
+            SearchScan { source, destination, last, needle_word, prefix_mask, needle_length };
+        self.builder.switch_to_block(short_scan);
+        let (short_exit, short_output) = self.lower_core_string_indices_scan(&scan, None, finish);
 
-        self.builder.switch_to_block(compare_prefix);
-        let candidate_word = self.builder.mload(cursor);
-        let different = self.builder.xor(candidate_word, needle_word);
-        let different = self.builder.and(different, prefix_mask);
-        let prefix_equal = self.builder.eq_zero(different);
-        self.builder.branch(prefix_equal, verify, advance);
+        // needle_hash = keccak256(data(needle), needle_length)
+        self.builder.switch_to_block(long_hash);
+        let needle_hash = self.builder.keccak256(needle_data, needle_length);
+        let (long_exit, long_output) =
+            self.lower_core_string_indices_scan(&scan, Some(needle_hash), finish);
 
-        self.builder.switch_to_block(verify);
-        self.builder.branch(long, verify_hash, matched);
-
-        self.builder.switch_to_block(verify_hash);
-        let candidate_hash = self.builder.keccak256(cursor, needle_length);
-        let equal = self.builder.eq(candidate_hash, needle_hash);
-        self.builder.branch(equal, matched, advance);
-
-        self.builder.switch_to_block(matched);
-        let at = self.builder.sub(cursor, source);
-        self.builder.mstore(output, at);
-        let next_output = self.builder.add(output, word);
-        let next_cursor = self.builder.add(cursor, needle_length);
-        self.builder.jump(header);
-        self.builder.add_phi_incoming(cursor, matched, next_cursor);
-        self.builder.add_phi_incoming(output, matched, next_output);
-
-        self.builder.switch_to_block(advance);
-        let next_cursor = self.builder.add(cursor, one);
-        self.builder.jump(header);
-        self.builder.add_phi_incoming(cursor, advance, next_cursor);
-        self.builder.add_phi_incoming(output, advance, output);
-
+        // output = phi [short: output], [long: output]
+        // count = (output - destination) / 32
+        // out = alloc word array at fmp for count + 1 + split_mode words; len(out) = count
         self.builder.switch_to_block(finish);
+        let output = self.builder.phi(vec![(short_exit, short_output), (long_exit, long_output)]);
+        let one = self.builder.imm(1);
         let output_bytes = self.builder.sub(output, destination);
         let five = self.builder.imm(5);
         let count = self.builder.shr(five, output_bytes);
@@ -991,6 +961,71 @@ impl FunctionLowerer<'_, '_> {
             (finish, out),
         ]);
         self.lower_core_string_search_result(out, subject, length, needle_length, split_mode);
+    }
+
+    /// Emits one match-offset scan from the current block with pointer cursors,
+    /// streaming each non-overlapping match's offset as a word. Returns the
+    /// header that exits to `finish` and the output cursor it exits with. Long
+    /// needles confirm each prefix match by hash.
+    fn lower_core_string_indices_scan(
+        &mut self,
+        scan: &SearchScan,
+        needle_hash: Option<ValueId>,
+        finish: BlockId,
+    ) -> (BlockId, ValueId) {
+        let entry = self.builder.current_block();
+        let header = self.builder.create_block();
+        let compare = self.builder.create_block();
+        let matched = self.builder.create_block();
+        let advance = self.builder.create_block();
+        self.builder.jump(header);
+
+        // cursor = phi [entry: source], [matched: cursor + needle_length], [advance: cursor + 1]
+        // output = phi [entry: destination], [matched: output + 32], [advance: output]
+        // jumpi cursor > last, finish, compare
+        self.builder.switch_to_block(header);
+        let cursor = self.builder.phi(vec![(entry, scan.source)]);
+        let output = self.builder.phi(vec![(entry, scan.destination)]);
+        let past_end = self.builder.gt(cursor, scan.last);
+        self.builder.branch(past_end, finish, compare);
+
+        // jumpi (mload(cursor) ^ needle_word) & prefix_mask == 0, matched, advance
+        self.builder.switch_to_block(compare);
+        let candidate_word = self.builder.mload(cursor);
+        let different = self.builder.xor(candidate_word, scan.needle_word);
+        let different = self.builder.and(different, scan.prefix_mask);
+        let prefix_equal = self.builder.eq_zero(different);
+        if let Some(needle_hash) = needle_hash {
+            // jumpi keccak256(cursor, needle_length) == needle_hash, matched, advance
+            let verify = self.builder.create_block();
+            self.builder.branch(prefix_equal, verify, advance);
+            self.builder.switch_to_block(verify);
+            let candidate_hash = self.builder.keccak256(cursor, scan.needle_length);
+            let equal = self.builder.eq(candidate_hash, needle_hash);
+            self.builder.branch(equal, matched, advance);
+        } else {
+            self.builder.branch(prefix_equal, matched, advance);
+        }
+
+        // mstore output, cursor - source
+        self.builder.switch_to_block(matched);
+        let at = self.builder.sub(cursor, scan.source);
+        self.builder.mstore(output, at);
+        let word = self.builder.imm(32);
+        let next_output = self.builder.add(output, word);
+        let next_cursor = self.builder.add(cursor, scan.needle_length);
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(cursor, matched, next_cursor);
+        self.builder.add_phi_incoming(output, matched, next_output);
+
+        self.builder.switch_to_block(advance);
+        let one = self.builder.imm(1);
+        let next_cursor = self.builder.add(cursor, one);
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(cursor, advance, next_cursor);
+        self.builder.add_phi_incoming(output, advance, output);
+
+        (header, output)
     }
 
     fn lower_core_string_split_empty(&mut self, subject: ValueId, length: ValueId) {
@@ -1228,13 +1263,22 @@ impl FunctionLowerer<'_, '_> {
         let _grown_capacity = self.builder.checked_add(length, growth);
         self.builder.jump(allocate);
 
+        // destination = fmp + 32
+        // source = data(subject)
+        // last = source + (length - needle_length)
+        // needle_word = mload data(needle)
+        // prefix_mask = ~0 << 8 * (32 - needle_length % 32)
+        // jumpi needle_length < 32, short_scan, long_hash
         self.builder.switch_to_block(allocate);
         let allocation_base = self.builder.fmp();
-        let source = self.builder.memory_object_data(subject, kind);
-        let needle_data = self.builder.memory_object_data(needle, kind);
-        let replacement_data = self.builder.memory_object_data(replacement, kind);
         let header = self.builder.imm(32);
         let destination = self.builder.add(allocation_base, header);
+        let source = self.builder.memory_object_data(subject, kind);
+        let source = self.builder.cast_word(source);
+        let search_end = self.builder.sub(length, needle_length);
+        let last = self.builder.add(source, search_end);
+        let needle_data = self.builder.memory_object_data(needle, kind);
+        let replacement_data = self.builder.memory_object_data(replacement, kind);
         let needle_word = self.builder.mload(needle_data);
         let low_five = self.builder.imm(31);
         let remainder = self.builder.and(needle_length, low_five);
@@ -1244,86 +1288,52 @@ impl FunctionLowerer<'_, '_> {
         let masked_bits = self.builder.mul(missing, eight);
         let all = self.builder.imm(U256::MAX);
         let prefix_mask = self.builder.shl(masked_bits, all);
+        let short_scan = self.builder.create_block();
         let long_hash = self.builder.create_block();
-        let short_hash = self.builder.create_block();
-        let scan_entry = self.builder.create_block();
-        let short = self.builder.lt(needle_length, word);
-        let long = self.builder.eq_zero(short);
-        self.builder.branch(long, long_hash, short_hash);
-
-        self.builder.switch_to_block(long_hash);
-        let hash = self.builder.keccak256(needle_data, needle_length);
-        self.builder.jump(scan_entry);
-
-        self.builder.switch_to_block(short_hash);
-        let zero_hash = self.builder.imm(0);
-        self.builder.jump(scan_entry);
-
-        self.builder.switch_to_block(scan_entry);
-        let needle_hash = self.builder.phi(vec![(long_hash, hash), (short_hash, zero_hash)]);
-        let search_end = self.builder.sub(length, needle_length);
-        let zero = self.builder.imm(0);
-        let header = self.builder.create_block();
-        let compare_prefix = self.builder.create_block();
-        let verify = self.builder.create_block();
-        let verify_hash = self.builder.create_block();
-        let matched = self.builder.create_block();
-        let advance = self.builder.create_block();
         let finish = self.builder.create_block();
-        self.builder.jump(header);
+        let short = self.builder.lt(needle_length, word);
+        self.builder.branch(short, short_scan, long_hash);
 
-        self.builder.switch_to_block(header);
-        let at = self.builder.phi(vec![(scan_entry, zero)]);
-        let copied = self.builder.phi(vec![(scan_entry, zero)]);
-        let output = self.builder.phi(vec![(scan_entry, zero)]);
-        let past_end = self.builder.gt(at, search_end);
-        self.builder.branch(past_end, finish, compare_prefix);
+        let scan = ReplaceScan {
+            source,
+            destination,
+            last,
+            needle_word,
+            prefix_mask,
+            needle_length,
+            replacement_data,
+            replacement_length,
+        };
+        self.builder.switch_to_block(short_scan);
+        let (short_exit, short_copied, short_output) =
+            self.lower_core_string_replace_scan(&scan, None, finish);
 
-        self.builder.switch_to_block(compare_prefix);
-        let candidate = self.builder.add(source, at);
-        let candidate_word = self.builder.mload(candidate);
-        let different = self.builder.xor(candidate_word, needle_word);
-        let different = self.builder.and(different, prefix_mask);
-        let prefix_equal = self.builder.eq_zero(different);
-        self.builder.branch(prefix_equal, verify, advance);
+        // needle_hash = keccak256(data(needle), needle_length)
+        self.builder.switch_to_block(long_hash);
+        let needle_hash = self.builder.keccak256(needle_data, needle_length);
+        let (long_exit, long_copied, long_output) =
+            self.lower_core_string_replace_scan(&scan, Some(needle_hash), finish);
 
-        self.builder.switch_to_block(verify);
-        self.builder.branch(long, verify_hash, matched);
-
-        self.builder.switch_to_block(verify_hash);
-        let candidate_hash = self.builder.keccak256(candidate, needle_length);
-        let equal = self.builder.eq(candidate_hash, needle_hash);
-        self.builder.branch(equal, matched, advance);
-
-        self.builder.switch_to_block(matched);
-        let run = self.builder.sub(at, copied);
-        let output_address = self.builder.add(destination, output);
-        let copied_address = self.builder.add(source, copied);
-        self.builder.mcopy_heap(output_address, copied_address, run);
-        let after_run = self.builder.add(output, run);
-        let replacement_address = self.builder.add(destination, after_run);
-        self.builder.mcopy_heap(replacement_address, replacement_data, replacement_length);
-        let next_output = self.builder.add(after_run, replacement_length);
-        let next_at = self.builder.add(at, needle_length);
-        self.builder.jump(header);
-        self.builder.add_phi_incoming(at, matched, next_at);
-        self.builder.add_phi_incoming(copied, matched, next_at);
-        self.builder.add_phi_incoming(output, matched, next_output);
-
-        self.builder.switch_to_block(advance);
-        let one = self.builder.imm(1);
-        let next_at = self.builder.add(at, one);
-        self.builder.jump(header);
-        self.builder.add_phi_incoming(at, advance, next_at);
-        self.builder.add_phi_incoming(copied, advance, copied);
-        self.builder.add_phi_incoming(output, advance, output);
-
+        // copied = phi [short: copied], [long: copied]
+        // output = phi [short: output], [long: output]
+        // tail = last + needle_length - copied
+        // mcopy output, copied, tail
+        // output_length = output + tail - (fmp + 32)
+        // out = alloc bytes at fmp, padded(output_length); len(out) = output_length
         self.builder.switch_to_block(finish);
-        let tail = self.builder.sub(length, copied);
-        let output_address = self.builder.add(destination, output);
-        let copied_address = self.builder.add(source, copied);
-        self.builder.mcopy_heap(output_address, copied_address, tail);
-        let output_length = self.builder.add(output, tail);
+        let copied = self.builder.phi(vec![(short_exit, short_copied), (long_exit, long_copied)]);
+        let output = self.builder.phi(vec![(short_exit, short_output), (long_exit, long_output)]);
+        let end = self.builder.add(last, needle_length);
+        let tail = self.builder.sub(end, copied);
+        self.builder.mcopy_heap(output, copied, tail);
+        let output_end = self.builder.add(output, tail);
+        // The scans allocate nothing, so the free-memory pointer still marks
+        // the output header; reading it again keeps the destination out of
+        // the loops' live state.
+        let allocation_base = self.builder.fmp();
+        let header = self.builder.imm(32);
+        let destination = self.builder.add(allocation_base, header);
+        let output_length = self.builder.sub(output_end, destination);
         let allocation_size = self.builder.checked_padded_size(output_length);
         let out = self.builder.alloc_object(
             allocation_size,
@@ -1337,6 +1347,110 @@ impl FunctionLowerer<'_, '_> {
         self.builder.set_memory_object_len(out, output_length, kind);
         self.builder.ret([out]);
     }
+
+    /// Emits one replacement scan from the current block, with pointer
+    /// cursors so that neither the subject nor the output base stays live.
+    /// Returns the header that exits to `finish` and the pending-run start and
+    /// output cursor it exits with. Long needles confirm each prefix match by
+    /// hash.
+    fn lower_core_string_replace_scan(
+        &mut self,
+        scan: &ReplaceScan,
+        needle_hash: Option<ValueId>,
+        finish: BlockId,
+    ) -> (BlockId, ValueId, ValueId) {
+        let entry = self.builder.current_block();
+        let header = self.builder.create_block();
+        let compare = self.builder.create_block();
+        let matched = self.builder.create_block();
+        let advance = self.builder.create_block();
+        self.builder.jump(header);
+
+        // at = phi [entry: source], [matched: at + needle_length], [advance: at + 1]
+        // copied = phi [entry: source], [matched: at + needle_length], [advance: copied]
+        // output = phi [entry: destination], [matched: next_output], [advance: output]
+        // jumpi at > last, finish, compare
+        self.builder.switch_to_block(header);
+        let at = self.builder.phi(vec![(entry, scan.source)]);
+        let copied = self.builder.phi(vec![(entry, scan.source)]);
+        let output = self.builder.phi(vec![(entry, scan.destination)]);
+        let past_end = self.builder.gt(at, scan.last);
+        self.builder.branch(past_end, finish, compare);
+
+        // jumpi (mload(at) ^ needle_word) & prefix_mask == 0, matched, advance
+        self.builder.switch_to_block(compare);
+        let candidate_word = self.builder.mload(at);
+        let different = self.builder.xor(candidate_word, scan.needle_word);
+        let different = self.builder.and(different, scan.prefix_mask);
+        let prefix_equal = self.builder.eq_zero(different);
+        if let Some(needle_hash) = needle_hash {
+            // jumpi keccak256(at, needle_length) == needle_hash, matched, advance
+            let verify = self.builder.create_block();
+            self.builder.branch(prefix_equal, verify, advance);
+            self.builder.switch_to_block(verify);
+            let candidate_hash = self.builder.keccak256(at, scan.needle_length);
+            let equal = self.builder.eq(candidate_hash, needle_hash);
+            self.builder.branch(equal, matched, advance);
+        } else {
+            self.builder.branch(prefix_equal, matched, advance);
+        }
+
+        // mcopy output, copied, at - copied
+        // mcopy output + (at - copied), data(replacement), replacement_length
+        self.builder.switch_to_block(matched);
+        let run = self.builder.sub(at, copied);
+        self.builder.mcopy_heap(output, copied, run);
+        let after_run = self.builder.add(output, run);
+        self.builder.mcopy_heap(after_run, scan.replacement_data, scan.replacement_length);
+        let next_output = self.builder.add(after_run, scan.replacement_length);
+        let next_at = self.builder.add(at, scan.needle_length);
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(at, matched, next_at);
+        self.builder.add_phi_incoming(copied, matched, next_at);
+        self.builder.add_phi_incoming(output, matched, next_output);
+
+        self.builder.switch_to_block(advance);
+        let one = self.builder.imm(1);
+        let next_at = self.builder.add(at, one);
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(at, advance, next_at);
+        self.builder.add_phi_incoming(copied, advance, copied);
+        self.builder.add_phi_incoming(output, advance, output);
+
+        (header, copied, output)
+    }
+}
+
+/// Loop-invariant words of one replacement scan.
+struct ReplaceScan {
+    /// First subject byte.
+    source: ValueId,
+    /// First output byte, one word above the free-memory pointer.
+    destination: ValueId,
+    /// Last position where the needle still fits.
+    last: ValueId,
+    /// The needle's first word.
+    needle_word: ValueId,
+    /// Keeps the needle's first `length % 32` bytes of a word.
+    prefix_mask: ValueId,
+    needle_length: ValueId,
+    replacement_data: ValueId,
+    replacement_length: ValueId,
+}
+
+/// Loop-invariant words of one match-offset scan.
+struct SearchScan {
+    /// First subject byte.
+    source: ValueId,
+    /// First output word, one word above the free-memory pointer.
+    destination: ValueId,
+    /// Last position where the needle still fits.
+    last: ValueId,
+    /// The needle's first word.
+    needle_word: ValueId,
+    /// Keeps the needle's first `length % 32` bytes of a word.
+    prefix_mask: ValueId,
+    needle_length: ValueId,
 }
 
 /// Top-bit marks of one word's byte classes, from which runes are counted.
