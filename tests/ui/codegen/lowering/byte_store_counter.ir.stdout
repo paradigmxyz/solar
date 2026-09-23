@@ -556,11 +556,18 @@ bb41:
   mstore
   push 32
   add
-  push 0
-  jump bb45
-bb45 [loop]:
   push 4
   calldataload
+  dup 2
+  add
+  push 255
+  dup 3
+  add
+  swap 1
+  swap 2
+  jump bb45
+bb45 [loop]:
+  dup 3
   dup 2
   lt
   push bb47
@@ -573,8 +580,6 @@ bb45 [loop]:
   return
 bb47 [loop]:
   dup 1
-  dup 3
-  add
   mload
   push 0
   byte
@@ -591,9 +596,10 @@ bb47 [loop]:
 bb49 [loop]:
   push 1
   add
-  push 256
   dup 2
-  lt
+  dup 2
+  gt
+  iszero
   push bb45
   jumpi
   push 0x4e487b71

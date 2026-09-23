@@ -737,33 +737,34 @@ bb68:
   push 32
   dup 4
   add
-  push 0
-  exchange 3, 4
+  swap 2
+  push 5
+  shl
+  dup 3
+  add
+  swap 2
+  swap 1
   jump bb69
 bb71 [loop]:
   dup 1
-  dup 4
-  add
   sload
-  dup 2
-  push 5
-  shl
-  dup 4
-  add
+  dup 3
   mstore
   push 1
   add
+  swap 1
+  push 32
+  add
+  swap 1
   jump bb69
 bb69 [loop]:
-  dup 5
-  dup 2
+  dup 3
+  dup 3
   lt
   push bb71
   jumpi
   pop
   pop
-  pop
-  swap 1
   pop
   jump bb70
 bb40 [cold]:

@@ -364,13 +364,14 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // instead of reloading its argument and re-adding the header every
     // iteration.
     &GasOnly::new(loop_opt::Licm),
+    // Collapse canonical read-only byte scans after bounds cleanup and word
+    // simplification expose their final physical shape, while their bytes are
+    // still addressed from the loop index the matchers expect.
+    &GasOnly::new(loop_idioms::LoopIdioms),
     // With the base hoisted, each element address is `base + scale * index`
     // plus invariants; carry it as a pointer stepped on the latch instead of
     // rebuilding it from the index every iteration.
     &GasOnly::new(indvar_simplify::IndVarSimplify),
-    // Collapse canonical read-only byte scans after bounds cleanup and word
-    // simplification expose their final physical shape.
-    &GasOnly::new(loop_idioms::LoopIdioms),
     // ABI and memory lowering leave dead guards and empty trampoline blocks.
     // Clean them before EVM shaping isolates phi copies on critical edges.
     &cfg_simplify::CfgSimplify,

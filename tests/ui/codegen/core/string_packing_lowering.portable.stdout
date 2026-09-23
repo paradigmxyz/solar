@@ -243,27 +243,28 @@ fn @unpackTwo(arg0: i256) -> struct0 [may_return_memory, pure, return_abi=[mempt
     calldatacopy v105, v112, v42
     mstore v105, v90
     v95 = add v105, 32
+    v113 = add v86, 2
+    v118 = add v95, v90
     jump bb4
   bb4:
-    v50 = phi [bb11: 0], [bb8: v81]
-    v53 = lt v50, v90
+    v114 = phi [bb11: v113], [bb8: v115]
+    v116 = phi [bb11: v95], [bb8: v117]
+    v53 = lt v116, v118
     jumpi v53, bb6, bb5
   bb5:
     ret v11, v43
   bb6:
-    v73 = add v86, v50
-    v75 = add v73, 2
-    v56 = lt v75, 32
+    v56 = lt v114, 32
     jumpi v56, bb8, bb7
   bb7:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
     revert 28, 36
   bb8:
-    v58 = byte v75, arg0
-    v96 = add v95, v50
-    mstore8 v96, v58
-    v81 = add v50, 1
+    v58 = byte v114, arg0
+    mstore8 v116, v58
+    v115 = add v114, 1
+    v117 = add v116, 1
     jump bb4
   bb3:
     v69 = add v17, 1

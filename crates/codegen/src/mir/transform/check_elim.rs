@@ -303,7 +303,7 @@ fn narrow_immutable_layouts(module: &mut Module) -> bool {
 }
 
 /// Excludes every constructor-reachable helper, including recursive and tail-call edges.
-fn runtime_only_functions(module: &Module) -> DenseBitSet<FunctionId> {
+pub(super) fn runtime_only_functions(module: &Module) -> DenseBitSet<FunctionId> {
     let graph = CallGraphInfo::new(module);
     let roots = |constructor| {
         module.functions.iter_enumerated().filter_map(move |(id, func)| {

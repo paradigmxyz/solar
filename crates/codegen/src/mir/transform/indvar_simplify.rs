@@ -40,14 +40,18 @@
 //! index duplication, scaling, base duplication and additions, outweigh the one
 //! duplication per pointer use, two per sibling use, the latch update, and the
 //! extra carried word it adds. The pass runs on the semantic MIR and once more
-//! in gas mode after memory lowering, where element addresses become explicit.
+//! in gas mode after memory lowering, where element addresses become explicit,
+//! and after the loop idioms have matched the byte scans they collapse.
 //!
 //! When the header's exit test compares the counter with an invariant bound
 //! and the counter has no other use than the addresses being replaced, the
 //! test is replaced by comparing an ascending pointer with its value at the
 //! bound, computed once in the preheader, and the counter's phi and update
 //! die. Then every address family is reduced at once, since removing the
-//! counter pays for a pointer that alone would only break even. The pointer
+//! counter pays for a pointer that alone would only break even. In a function
+//! only deployed code runs, that includes a pointer over single bytes, which
+//! then replaces the counter instead of riding beside it; code that also runs
+//! at construction keeps the counter, whose setup is cheaper in bytes. The pointer
 //! must not wrap between the start and the bound: its base is a heap address,
 //! bounded by the memory a call can afford, and a loop cannot run
 //! `2^MAX_TRIP_COUNT_BITS` iterations, the trip-count assumption the loop split
@@ -65,7 +69,7 @@
 //! - recognize checked unsigned word updates while retaining their failure checks.
 //! - add only one scaled address counter when the original update must stay live.
 
-use super::egraph::max_bits_with_args;
+use super::{check_elim::runtime_only_functions, egraph::max_bits_with_args};
 use crate::mir::{
     ArithmeticKind, BlockId, CheckedOp, Function, Immediate, InstId, InstKind, Instruction,
     MemoryRegion, MirType, Module, Terminator, Value, ValueId,
@@ -103,17 +107,26 @@ impl MirPass for IndVarSimplify {
                 selected.insert(id);
             }
         }
-        run_selected_function_pass_with_alias_and_cfg(
-            module,
-            analyses,
-            &selected,
-            |func, analyses| {
-                IndVarSimplifier::new(Rc::clone(analyses.alias()))
-                    .run(func, Rc::clone(analyses.cfg()))
-                    .total()
-                    != 0
-            },
-        )
+        // Deployed code repays a pointer's setup on every call; code that also
+        // runs at construction pays for it in the bytes of the artifact.
+        let mut runtime = runtime_only_functions(module);
+        runtime.intersect(&selected);
+        selected.subtract(&runtime);
+        let mut changed = false;
+        for (functions, runtime_only) in [(&runtime, true), (&selected, false)] {
+            changed |= run_selected_function_pass_with_alias_and_cfg(
+                module,
+                analyses,
+                functions,
+                |func, analyses| {
+                    IndVarSimplifier::new(Rc::clone(analyses.alias()), runtime_only)
+                        .run(func, Rc::clone(analyses.cfg()))
+                        .total()
+                        != 0
+                },
+            );
+        }
+        changed
     }
 }
 
@@ -139,6 +152,8 @@ impl IndVarSimplifyStats {
 struct IndVarSimplifier {
     stats: IndVarSimplifyStats,
     alias: Rc<AliasAnalysis>,
+    /// Whether the function runs only in deployed code.
+    runtime_only: bool,
 }
 
 /// The control-flow region in which one loop counter can be reduced.
@@ -263,8 +278,8 @@ impl AddressKey {
 impl IndVarSimplifier {
     /// Creates a new induction-variable simplifier.
     #[must_use]
-    fn new(alias: Rc<AliasAnalysis>) -> Self {
-        Self { stats: IndVarSimplifyStats::default(), alias }
+    fn new(alias: Rc<AliasAnalysis>, runtime_only: bool) -> Self {
+        Self { stats: IndVarSimplifyStats::default(), alias, runtime_only }
     }
 
     /// Runs induction-variable simplification once over `func`.
@@ -646,7 +661,15 @@ impl IndVarSimplifier {
                 .sum::<usize>();
             let after = families
                 .iter()
-                .map(|members| Self::family_cost_after(members, carried, &loop_addresses, &counter))
+                .map(|members| {
+                    Self::family_cost_after(
+                        members,
+                        carried,
+                        &loop_addresses,
+                        &counter,
+                        self.runtime_only,
+                    )
+                })
                 .sum::<usize>();
             before + Self::COUNTER_COST > after
         };
@@ -1124,15 +1147,22 @@ impl IndVarSimplifier {
 
     /// Operations a family's pointer costs per iteration: one duplication per
     /// primary use, an add per sibling use, the latch update, and the carried word.
+    /// With `counter_dies` the pointer replaces the counter the loop would
+    /// otherwise hold, so a byte pointer is not charged for sitting beside it;
+    /// only deployed code takes that, since construction pays in bytes.
     fn family_cost_after(
         members: &[(AddressKey, Vec<ValueId>)],
         carried: usize,
         loop_addresses: &FxHashSet<ValueId>,
         counter: &Counter,
+        counter_dies: bool,
     ) -> usize {
         let carry = 2 + carried.saturating_sub(4);
         let key = &members[0].0;
-        let byte_pointer = if key.scale.abs() == 1 && key.constant == 0 && key.invariants.is_empty()
+        let byte_pointer = if !counter_dies
+            && key.scale.abs() == 1
+            && key.constant == 0
+            && key.invariants.is_empty()
         {
             2
         } else {
@@ -1185,7 +1215,7 @@ impl IndVarSimplifier {
         // (`uniquifySorted` lost 3.7% carrying one beside its write index).
         let merges = counter.phis.len() * Self::MERGE_COST;
         Self::family_cost_before(members, offset_shared, loop_addresses)
-            > Self::family_cost_after(members, carried, loop_addresses, counter) + merges
+            > Self::family_cost_after(members, carried, loop_addresses, counter, false) + merges
     }
 
     /// Operations one mirror phi costs per iteration beside a live counter.
