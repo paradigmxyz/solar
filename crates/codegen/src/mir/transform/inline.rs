@@ -4,6 +4,9 @@
 //! protocol and expose further optimization opportunities. The dedicated single-use pass only
 //! consumes one-call-site, frameless scalar helpers without reference returns. The
 //! original body disappears through function DCE, so this avoids duplicating shared bodies.
+//! Consuming a helper moves its calls into the caller, where each may have become the
+//! only call of its callee, so the single-use pass repeats for a few bounded rounds
+//! until one inlines nothing.
 //! Recursive calls, explicit no-inline functions, large helpers, and aggregate allocation
 //! semantics stay with the existing call convention. It runs before late scalar cleanup.
 //! For gas-oriented lifetime decisions, statically counted loops weight call-protocol
@@ -223,6 +226,11 @@ pub(crate) enum InlineSingleUse {
     Physical,
 }
 
+impl InlineSingleUse {
+    /// Rounds of consuming helpers whose last call a previous round moved.
+    const MAX_ROUNDS: usize = 4;
+}
+
 impl MirPass for InlineSingleUse {
     fn name(&self) -> &'static str {
         "inline-single-use"
@@ -234,22 +242,32 @@ impl MirPass for InlineSingleUse {
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let stats = MirInliner {
-            mode: InlineMode::SingleUse,
-            max_single_call_sanity_instructions: 256,
-            frame_staging_allowed: matches!(self, Self::Semantic)
-                && module.phase < MirPhase::Lowered,
-            ..MirInliner::default()
+        // Consuming a callee moves its calls into the caller, where each can be
+        // single-use in turn. Rounds repeat until one inlines nothing, at most
+        // `MAX_ROUNDS` times.
+        let mut changed = false;
+        for _ in 0..Self::MAX_ROUNDS {
+            let stats = MirInliner {
+                mode: InlineMode::SingleUse,
+                max_single_call_sanity_instructions: 256,
+                frame_staging_allowed: matches!(self, Self::Semantic)
+                    && module.phase < MirPhase::Lowered,
+                ..MirInliner::default()
+            }
+            .run(gcx, module);
+            // The consumed bodies are dead now. Remove exactly those instead of a
+            // module-wide dead-function sweep, which would also delete uncalled
+            // functions that were never reachable, such as the subjects of
+            // pipeline tests.
+            if !stats.consumed.is_empty() {
+                super::cfg_simplify::remove_unreferenced_functions(module, &stats.consumed);
+            }
+            if stats.inlined == 0 {
+                break;
+            }
+            changed = true;
         }
-        .run(gcx, module);
-        // The consumed bodies are dead now. Remove exactly those instead of a
-        // module-wide dead-function sweep, which would also delete uncalled
-        // functions that were never reachable, such as the subjects of
-        // pipeline tests.
-        if !stats.consumed.is_empty() {
-            super::cfg_simplify::remove_unreferenced_functions(module, &stats.consumed);
-        }
-        stats.inlined != 0
+        changed
     }
 }
 

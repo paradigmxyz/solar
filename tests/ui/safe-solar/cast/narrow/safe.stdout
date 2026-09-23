@@ -12,27 +12,22 @@ fn @entry() [entry] {
 @phase lowered
 fn @narrow() [selector=0x0ebb6188, abi_wrapper, pure] {
   bb0:
-    v4 = calldatasize
-    v5 = lt v4, 36
-    jumpi v5, bb3, bb4
+    v7 = calldatasize
+    v8 = lt v7, 36
+    jumpi v8, bb3, bb4
   bb4:
     v1 = gt arg0, 0xffffffffff
-    jumpi v1, bb1, bb2
-  bb2:
+    jumpi v1, bb2, bb1
+  bb1:
     v2 = and arg0, 0xffffffffff
     mstore 128, v2
     returndata 128, 32
-  bb1:
-    tail_call @_overflow
-  bb3:
-    revert 0, 0
-}
-
-fn @_overflow() [pure] {
-  bb0:
+  bb2:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
     revert 28, 36
+  bb3:
+    revert 0, 0
 }
 
 fn @entry() [entry] {

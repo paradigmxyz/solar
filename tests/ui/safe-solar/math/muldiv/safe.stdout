@@ -24,86 +24,86 @@ types:
 
 fn @quotient() [selector=0x211bc189, abi_wrapper, pure] {
   bb0:
-    v1 = calldatasize
-    v2 = lt v1, 100
-    jumpi v2, bb1, bb2
-  bb2:
-    v7 = mul arg0, arg1
-    v8 = mulmod arg0, arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v9 = sub v8, v7
-    v10 = lt v8, v7
-    v11 = zext i1 v10 to i256
-    v12 = sub v9, v11
-    v13 = eq v9, v11
-    jumpi v13, bb4, bb5
-  bb5:
-    v15 = gt arg2, v12
-    jumpi v15, bb7, bb6
-  bb6:
-    v16 = eq arg2, 0
-    jumpi v16, bb8, bb11
+    v78 = calldatasize
+    v79 = lt v78, 100
+    jumpi v79, bb10, bb11
   bb11:
-    mstore 0, 0x4e487b71
-    mstore 32, 17
+    v8 = mul arg0, arg1
+    v9 = mulmod arg0, arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v10 = sub v9, v8
+    v11 = lt v9, v8
+    v12 = zext i1 v11 to i256
+    v13 = sub v10, v12
+    v14 = eq v10, v12
+    jumpi v14, bb2, bb3
+  bb3:
+    v16 = gt arg2, v13
+    jumpi v16, bb5, bb4
+  bb4:
+    v17 = eq arg2, 0
+    jumpi v17, bb6, bb9
+  bb9:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
     revert 28, 36
-  bb7:
-    v17 = mulmod arg0, arg1, arg2
-    v19 = sub v12, 1
-    v20 = sub v19, v12
-    v18 = gt v17, v7
-    v21 = zext i1 v18 to i256
-    v22 = mul v21, v20
-    v23 = add v12, v22
-    v24 = sub v7, v17
-    v25 = sub 0, arg2
-    v26 = and arg2, v25
-    v27 = ne v26, 0
-    jumpi v27, bb10, bb8
-  bb10:
-    v29 = div arg2, v26
-    v30 = div v24, v26
-    v31 = sub 0, v26
-    v32 = div v31, v26
-    v33 = add v32, 1
-    v34 = mul v23, v33
-    v35 = or v30, v34
-    v36 = mul v29, 3
-    v37 = xor v36, 2
-    v38 = mul v29, v37
+  bb5:
+    v59 = mulmod arg0, arg1, arg2
+    v21 = sub v13, 1
+    v74 = sub v21, v13
+    v19 = gt v59, v8
+    v75 = zext i1 v19 to i256
+    v76 = mul v75, v74
+    v77 = add v13, v76
+    v23 = sub v8, v59
+    v24 = sub 0, arg2
+    v25 = and arg2, v24
+    v66 = ne v25, 0
+    jumpi v66, bb8, bb6
+  bb8:
+    v67 = div arg2, v25
+    v69 = div v23, v25
+    v28 = sub 0, v25
+    v71 = div v28, v25
+    v30 = add v71, 1
+    v31 = mul v77, v30
+    v32 = or v69, v31
+    v33 = mul v67, 3
+    v34 = xor v33, 2
+    v35 = mul v67, v34
+    v36 = sub 2, v35
+    v37 = mul v34, v36
+    v38 = mul v67, v37
     v39 = sub 2, v38
     v40 = mul v37, v39
-    v41 = mul v29, v40
+    v41 = mul v67, v40
     v42 = sub 2, v41
     v43 = mul v40, v42
-    v44 = mul v29, v43
+    v44 = mul v67, v43
     v45 = sub 2, v44
     v46 = mul v43, v45
-    v47 = mul v29, v46
+    v47 = mul v67, v46
     v48 = sub 2, v47
     v49 = mul v46, v48
-    v50 = mul v29, v49
+    v50 = mul v67, v49
     v51 = sub 2, v50
     v52 = mul v49, v51
-    v53 = mul v29, v52
-    v54 = sub 2, v53
-    v55 = mul v52, v54
-    v56 = mul v35, v55
-    jump bb3
-  bb4:
-    v14 = ne arg2, 0
-    jumpi v14, bb9, bb8
-  bb8:
-    mstore 0, 0x4e487b71
-    mstore 32, 18
+    v53 = mul v32, v52
+    jump bb1
+  bb2:
+    v62 = ne arg2, 0
+    jumpi v62, bb7, bb6
+  bb6:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 18 !metadata(memory=scratch)
     revert 28, 36
-  bb9:
-    v28 = div v7, arg2
-    jump bb3
-  bb3:
-    v57 = phi [bb9: v28], [bb10: v56]
-    mstore 128, v57
-    returndata 128, 32
+  bb7:
+    v63 = div v8, arg2
+    jump bb1
   bb1:
+    v5 = phi [bb7: v63], [bb8: v53]
+    mstore 128, v5
+    returndata 128, 32
+  bb10:
     revert 0, 0
 }
 
