@@ -43,10 +43,10 @@ fn @decimal() [selector=0xf371efa4, abi_wrapper, pure] {
     v14 = lt v13, 36
     jumpi v14, bb3, bb4
   bb4:
-    v51 = mload 64 !metadata(memory=scratch)
-    v52 = add v51, 160
-    mstore 64, v52 !metadata(memory=scratch)
-    v2 = add v51, 128
+    v45 = mload 64 !metadata(memory=scratch)
+    v46 = add v45, 160
+    mstore 64, v46 !metadata(memory=scratch)
+    v2 = add v45, 128
     mstore v2, 0
     jump bb1
   bb1:
@@ -63,9 +63,9 @@ fn @decimal() [selector=0xf371efa4, abi_wrapper, pure] {
     v10 = sub v2, v5
     v11 = sub v5, 32
     mstore v11, v10
-    v48 = mload 64 !metadata(memory=scratch)
-    v20 = add v48, 32
-    mstore v48, 32
+    v44 = mload 64 !metadata(memory=scratch)
+    v20 = add v44, 32
+    mstore v44, 32
     v27 = ne v11, 0
     v28 = zext i1 v27 to i256
     v24 = mload v11
@@ -78,13 +78,8 @@ fn @decimal() [selector=0xf371efa4, abi_wrapper, pure] {
     mstore v20, v29
     v36 = add v33, v32
     mcopy v33, v5, v29
-    v39 = sub v36, v48
-    v41 = add v39, 31
-    v43 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v49 = mload 64 !metadata(memory=scratch)
-    v50 = add v49, v43
-    mstore 64, v50 !metadata(memory=scratch)
-    returndata v49, v39
+    v39 = sub v36, v44
+    returndata v44, v39
   bb3:
     revert 0, 0
 }

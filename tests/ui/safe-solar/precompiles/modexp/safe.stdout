@@ -23,77 +23,77 @@ fn @power() [selector=0x2e894bdf, abi_wrapper, view] {
     v66 = icall @decode_calldata_type, 36
     v67 = icall @decode_calldata_type, 68
     v5 = gas
-    v143 = ptrtoint memptr v65 to i256
-    v6 = mload v143
-    v144 = ptrtoint memptr v66 to i256
-    v7 = mload v144
-    v145 = ptrtoint memptr v67 to i256
-    v8 = mload v145
-    v147 = add v143, 32
+    v139 = ptrtoint memptr v65 to i256
+    v6 = mload v139
+    v140 = ptrtoint memptr v66 to i256
+    v7 = mload v140
+    v141 = ptrtoint memptr v67 to i256
+    v8 = mload v141
+    v143 = add v139, 32
     v26 = add v6, 96
-    v149 = add v144, 32
+    v145 = add v140, 32
     v32 = add v26, v7
-    v151 = add v145, 32
+    v147 = add v141, 32
     v38 = add v32, v8
     v40 = add v38, 63
     v43 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v162 = mload 64 !metadata(memory=scratch)
-    v163 = add v162, v43
-    mstore 64, v163 !metadata(memory=scratch)
-    mstore v162, v38
-    v113 = add v162, 32
-    mstore v113, v6
-    v117 = add v162, 64
-    mstore v117, v7
-    v120 = add v162, 96
-    mstore v120, v8
-    v123 = add v162, 128
-    mcopy v123, v147, v6
-    v128 = add v113, v26
-    mcopy v128, v149, v7
-    v133 = add v113, v32
-    mcopy v133, v151, v8
-    v55 = staticcall v5, 5, v113, v38, 0, 0
+    v156 = mload 64 !metadata(memory=scratch)
+    v157 = add v156, v43
+    mstore 64, v157 !metadata(memory=scratch)
+    mstore v156, v38
+    v109 = add v156, 32
+    mstore v109, v6
+    v113 = add v156, 64
+    mstore v113, v7
+    v116 = add v156, 96
+    mstore v116, v8
+    v119 = add v156, 128
+    mcopy v119, v143, v6
+    v124 = add v109, v26
+    mcopy v124, v145, v7
+    v129 = add v109, v32
+    mcopy v129, v147, v8
+    v55 = staticcall v5, 5, v109, v38, 0, 0
     v56 = returndatasize
     v57 = add v56, 63
     v58 = lt v57, v56
     jumpi v58, bb5, bb6
   bb6:
     v60 = and v57, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v160 = mload 64 !metadata(memory=scratch)
-    v61 = inttoptr i256 v160 to memptr !metadata(memory=scratch)
-    v161 = add v160, v60
-    mstore 64, v161 !metadata(memory=scratch)
-    mstore v160, v56
-    v109 = add v160, 32
-    returndatacopy v109, 0, v56
+    v154 = mload 64 !metadata(memory=scratch)
+    v61 = inttoptr i256 v154 to memptr !metadata(memory=scratch)
+    v155 = add v154, v60
+    mstore 64, v155 !metadata(memory=scratch)
+    mstore v154, v56
+    v105 = add v154, 32
+    returndatacopy v105, 0, v56
     jumpi v55, bb2, bb3
   bb2:
-    v13 = mload v145
+    v13 = mload v141
     v14 = ne v56, v13
     jumpi v14, bb3, bb4
   bb4:
     v18 = zext i1 v55 to i256
     jump bb1
   bb3:
-    v158 = mload 64 !metadata(memory=scratch)
-    v15 = inttoptr i256 v158 to memptr !metadata(memory=scratch)
-    v159 = add v158, 32
-    mstore 64, v159 !metadata(memory=scratch)
-    mstore v158, 0
+    v152 = mload 64 !metadata(memory=scratch)
+    v15 = inttoptr i256 v152 to memptr !metadata(memory=scratch)
+    v153 = add v152, 32
+    mstore 64, v153 !metadata(memory=scratch)
+    mstore v152, 0
     jump bb1
   bb1:
-    v106 = phi [bb3: 0], [bb4: v18]
-    v107 = phi [bb3: v15], [bb4: v61]
-    v155 = mload 64 !metadata(memory=scratch)
-    v76 = add v155, 64
-    mstore v155, v106
-    v79 = add v155, 32
+    v102 = phi [bb3: 0], [bb4: v18]
+    v103 = phi [bb3: v15], [bb4: v61]
+    v151 = mload 64 !metadata(memory=scratch)
+    v76 = add v151, 64
+    mstore v151, v102
+    v79 = add v151, 32
     mstore v79, 64
-    v136 = ptrtoint memptr v107 to i256
-    v86 = ne v136, 0
+    v132 = ptrtoint memptr v103 to i256
+    v86 = ne v132, 0
     v87 = zext i1 v86 to i256
-    v82 = mload v136
+    v82 = mload v132
     v88 = mul v82, v87
     v90 = add v88, 31
     v91 = and v90, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -102,15 +102,10 @@ fn @power() [selector=0x2e894bdf, abi_wrapper, view] {
     mstore v93, 0
     mstore v76, v88
     v95 = add v92, v91
-    v138 = add v136, 32
-    mcopy v92, v138, v88
-    v98 = sub v95, v155
-    v100 = add v98, 31
-    v102 = and v100, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v156 = mload 64 !metadata(memory=scratch)
-    v157 = add v156, v102
-    mstore 64, v157 !metadata(memory=scratch)
-    returndata v156, v98
+    v134 = add v132, 32
+    mcopy v92, v134, v88
+    v98 = sub v95, v151
+    returndata v151, v98
   bb5:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

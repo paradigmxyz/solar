@@ -23,17 +23,12 @@ fn @dirty() [selector=0x74016a59, abi_wrapper, inline_assembly, pure] {
     v2 = add v1, 32
     mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v6 = icall @cleanup_return, v5
-    v26 = mload 64 !metadata(memory=scratch)
-    v12 = add v26, 32
-    mstore v26, 32
+    v22 = mload 64 !metadata(memory=scratch)
+    v12 = add v22, 32
+    mstore v22, 32
     v16 = icall @encode_abi_array, v6, v12
-    v18 = sub v16, v26
-    v20 = add v18, 31
-    v22 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v27 = mload 64 !metadata(memory=scratch)
-    v28 = add v27, v22
-    mstore 64, v28 !metadata(memory=scratch)
-    returndata v27, v18
+    v18 = sub v16, v22
+    returndata v22, v18
 }
 
 fn @viaHelper() [selector=0x43a4968c, abi_wrapper, inline_assembly, pure] {
@@ -43,17 +38,12 @@ fn @viaHelper() [selector=0x43a4968c, abi_wrapper, inline_assembly, pure] {
     v1 = add v0, 32
     mstore v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v5 = icall @cleanup_return, v4
-    v25 = mload 64 !metadata(memory=scratch)
-    v11 = add v25, 32
-    mstore v25, 32
+    v21 = mload 64 !metadata(memory=scratch)
+    v11 = add v21, 32
+    mstore v21, 32
     v15 = icall @encode_abi_array, v5, v11
-    v17 = sub v15, v25
-    v19 = add v17, 31
-    v21 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v26 = mload 64 !metadata(memory=scratch)
-    v27 = add v26, v21
-    mstore 64, v27 !metadata(memory=scratch)
-    returndata v26, v17
+    v17 = sub v15, v21
+    returndata v21, v17
 }
 
 fn @aliasedStruct() [selector=0x8c175a3d, abi_wrapper, inline_assembly, pure] {

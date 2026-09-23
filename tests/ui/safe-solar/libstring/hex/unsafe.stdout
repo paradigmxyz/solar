@@ -40,9 +40,9 @@ fn @toHex() [selector=0xe1425395, abi_wrapper, inline_assembly, pure] {
     v33 = sub v5, v18
     v34 = sub v18, 32
     mstore v34, v33
-    v71 = mload 64 !metadata(memory=scratch)
-    v43 = add v71, 32
-    mstore v71, 32
+    v67 = mload 64 !metadata(memory=scratch)
+    v43 = add v67, 32
+    mstore v67, 32
     v50 = ne v34, 0
     v51 = zext i1 v50 to i256
     v47 = mload v34
@@ -55,13 +55,8 @@ fn @toHex() [selector=0xe1425395, abi_wrapper, inline_assembly, pure] {
     mstore v43, v52
     v59 = add v56, v55
     mcopy v56, v18, v52
-    v62 = sub v59, v71
-    v64 = add v62, 31
-    v66 = and v64, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v72 = mload 64 !metadata(memory=scratch)
-    v73 = add v72, v66
-    mstore 64, v73 !metadata(memory=scratch)
-    returndata v72, v62
+    v62 = sub v59, v67
+    returndata v67, v62
   bb3:
     mstore 0, 0x2194895a !metadata(memory=scratch)
     revert 28, 4

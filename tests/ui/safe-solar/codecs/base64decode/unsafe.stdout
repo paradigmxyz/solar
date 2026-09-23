@@ -21,30 +21,30 @@ fn @decode() [selector=0x49145c91, abi_wrapper, pure] {
     jumpi v13, bb4, bb5
   bb5:
     v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v61 = mload 64 !metadata(memory=scratch)
-    v16 = inttoptr i256 v61 to memptr !metadata(memory=scratch)
-    v62 = add v61, v15
-    v63 = lt v62, v61
-    v64 = gt v62, 0xffffffffffffffff
-    v65 = or v63, v64
-    jumpi v65, bb4, bb7
+    v57 = mload 64 !metadata(memory=scratch)
+    v16 = inttoptr i256 v57 to memptr !metadata(memory=scratch)
+    v58 = add v57, v15
+    v59 = lt v58, v57
+    v60 = gt v58, 0xffffffffffffffff
+    v61 = or v59, v60
+    jumpi v61, bb4, bb7
   bb7:
-    mstore 64, v62 !metadata(memory=scratch)
-    mstore v61, v10
+    mstore 64, v58 !metadata(memory=scratch)
+    mstore v57, v10
     v17 = sub v1, v5
     v18 = gt v10, v17
     jumpi v18, bb1, bb6
   bb6:
-    v54 = add v61, 32
-    calldatacopy v54, v5, v10
+    v50 = add v57, 32
+    calldatacopy v50, v5, v10
     v0 = icall @_decode, v16
-    v67 = mload 64 !metadata(memory=scratch)
-    v25 = add v67, 32
-    mstore v67, 32
-    v58 = ptrtoint memptr v0 to i256
-    v33 = ne v58, 0
+    v63 = mload 64 !metadata(memory=scratch)
+    v25 = add v63, 32
+    mstore v63, 32
+    v54 = ptrtoint memptr v0 to i256
+    v33 = ne v54, 0
     v34 = zext i1 v33 to i256
-    v29 = mload v58
+    v29 = mload v54
     v35 = mul v29, v34
     v37 = add v35, 31
     v38 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -53,15 +53,10 @@ fn @decode() [selector=0x49145c91, abi_wrapper, pure] {
     mstore v40, 0
     mstore v25, v35
     v42 = add v39, v38
-    v60 = add v58, 32
-    mcopy v39, v60, v35
-    v45 = sub v42, v67
-    v47 = add v45, 31
-    v49 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v68 = mload 64 !metadata(memory=scratch)
-    v69 = add v68, v49
-    mstore 64, v69 !metadata(memory=scratch)
-    returndata v68, v45
+    v56 = add v54, 32
+    mcopy v39, v56, v35
+    v45 = sub v42, v63
+    returndata v63, v45
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

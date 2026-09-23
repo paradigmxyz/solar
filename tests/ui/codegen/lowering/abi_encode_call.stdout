@@ -12,22 +12,22 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
     v7 = eq v6, 0
     jumpi v7, bb3, bb1
   bb3:
-    v51 = mload 64 !metadata(memory=scratch)
-    v52 = add v51, 128
-    mstore 64, v52 !metadata(memory=scratch)
-    mstore v51, 68
-    v49 = add v51, 32
-    mstore v49, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v15 = add v51, 36
+    v47 = mload 64 !metadata(memory=scratch)
+    v48 = add v47, 128
+    mstore 64, v48 !metadata(memory=scratch)
+    mstore v47, 68
+    v45 = add v47, 32
+    mstore v45, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v15 = add v47, 36
     mstore v15, arg0
     v16 = add v15, 32
     mstore v16, arg1
-    v53 = mload 64 !metadata(memory=scratch)
-    v19 = add v53, 32
-    mstore v53, 32
-    v27 = ne v51, 0
+    v49 = mload 64 !metadata(memory=scratch)
+    v19 = add v49, 32
+    mstore v49, 32
+    v27 = ne v47, 0
     v28 = zext i1 v27 to i256
-    v23 = mload v51
+    v23 = mload v47
     v29 = mul v23, v28
     v31 = add v29, 31
     v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -36,14 +36,9 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
     mstore v34, 0
     mstore v19, v29
     v36 = add v33, v32
-    mcopy v33, v49, v29
-    v39 = sub v36, v53
-    v41 = add v39, 31
-    v43 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v54 = mload 64 !metadata(memory=scratch)
-    v55 = add v54, v43
-    mstore 64, v55 !metadata(memory=scratch)
-    returndata v54, v39
+    mcopy v33, v45, v29
+    v39 = sub v36, v49
+    returndata v49, v39
   bb1:
     revert 0, 0
 }

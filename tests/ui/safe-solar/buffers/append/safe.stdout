@@ -39,41 +39,41 @@ fn @build() [selector=0x5de3b44c, abi_wrapper, pure] {
   bb2:
     v9 = icall @decode_calldata_type, 4
     v10 = icall @decode_calldata_type, 36
-    v69 = mload 64
-    v70 = add v69, 64
-    v71 = lt v70, v69
-    v72 = gt v70, 0xffffffffffffffff
-    v73 = or v71, v72
-    jumpi v73, bb4, bb3
+    v63 = mload 64
+    v64 = add v63, 64
+    v65 = lt v64, v63
+    v66 = gt v64, 0xffffffffffffffff
+    v67 = or v65, v66
+    jumpi v67, bb4, bb3
   bb3:
-    mstore 64, v70
-    v74 = calldatasize
-    calldatacopy v69, v74, 64
-    mstore v69, 4
-    v75 = mload 64
-    v76 = inttoptr i256 v75 to memptr
-    v77 = add v75, 64
-    mstore 64, v77
-    mstore v75, 96
-    v78 = add v75, 32
-    mstore v78, 0
-    mstore v75, v69
-    v64 = mload 64 !metadata(memory=scratch)
-    v65 = add v64, 64
-    mstore 64, v65 !metadata(memory=scratch)
-    mstore v64, 4
-    v59 = add v64, 32
-    mstore v59, 0x1122334400000000000000000000000000000000000000000000000000000000
-    icall @append, v76, v9
-    icall @append, v76, v10
-    v4 = icall @finish, v76
-    v66 = mload 64 !metadata(memory=scratch)
-    v16 = add v66, 64
-    mstore v66, 64
-    v60 = ptrtoint memptr v4 to i256
-    v24 = ne v60, 0
+    mstore 64, v64
+    v68 = calldatasize
+    calldatacopy v63, v68, 64
+    mstore v63, 4
+    v69 = mload 64
+    v70 = inttoptr i256 v69 to memptr
+    v71 = add v69, 64
+    mstore 64, v71
+    mstore v69, 96
+    v72 = add v69, 32
+    mstore v72, 0
+    mstore v69, v63
+    v60 = mload 64 !metadata(memory=scratch)
+    v61 = add v60, 64
+    mstore 64, v61 !metadata(memory=scratch)
+    mstore v60, 4
+    v55 = add v60, 32
+    mstore v55, 0x1122334400000000000000000000000000000000000000000000000000000000
+    icall @append, v70, v9
+    icall @append, v70, v10
+    v4 = icall @finish, v70
+    v62 = mload 64 !metadata(memory=scratch)
+    v16 = add v62, 64
+    mstore v62, 64
+    v56 = ptrtoint memptr v4 to i256
+    v24 = ne v56, 0
     v25 = zext i1 v24 to i256
-    v20 = mload v60
+    v20 = mload v56
     v26 = mul v20, v25
     v28 = add v26, 31
     v29 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -81,13 +81,13 @@ fn @build() [selector=0x5de3b44c, abi_wrapper, pure] {
     v31 = add v16, v29
     mstore v31, 0
     mstore v16, v26
-    v62 = add v60, 32
+    v58 = add v56, 32
     v33 = add v30, v29
-    mcopy v30, v62, v26
-    v38 = sub v33, v66
-    v36 = add v66, 32
+    mcopy v30, v58, v26
+    v38 = sub v33, v62
+    v36 = add v62, 32
     mstore v36, v38
-    v39 = mload v64
+    v39 = mload v60
     v41 = add v39, 31
     v42 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v43 = add v33, 32
@@ -95,14 +95,9 @@ fn @build() [selector=0x5de3b44c, abi_wrapper, pure] {
     mstore v44, 0
     mstore v33, v39
     v46 = add v43, v42
-    mcopy v43, v59, v39
-    v49 = sub v46, v66
-    v51 = add v49, 31
-    v53 = and v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v67 = mload 64 !metadata(memory=scratch)
-    v68 = add v67, v53
-    mstore 64, v68 !metadata(memory=scratch)
-    returndata v67, v49
+    mcopy v43, v55, v39
+    v49 = sub v46, v62
+    returndata v62, v49
   bb4:
     mstore 0, 0x4e487b71
     mstore 32, 65

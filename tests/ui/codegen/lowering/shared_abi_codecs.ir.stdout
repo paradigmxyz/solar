@@ -9,11 +9,11 @@ fn @encodeFirst() [selector=0xe9a7b169, abi_wrapper, pure] {
   bb2:
     v3 = icall @decode_calldata_type, 4
     v4 = icall @encodeFirst.body, v3
-    v37 = mload 64 !metadata(memory=scratch)
-    v10 = add v37, 32
-    mstore v37, 32
-    v34 = ptrtoint memptr v4 to i256
-    v14 = mload v34
+    v33 = mload 64 !metadata(memory=scratch)
+    v10 = add v33, 32
+    mstore v33, 32
+    v30 = ptrtoint memptr v4 to i256
+    v14 = mload v30
     mstore v10, v14
     v16 = add v14, 31
     v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -27,15 +27,10 @@ fn @encodeFirst() [selector=0xe9a7b169, abi_wrapper, pure] {
     jump bb4
   bb4:
     v23 = add v18, v17
-    v36 = add v34, 32
-    mcopy v18, v36, v14
-    v26 = sub v23, v37
-    v28 = add v26, 31
-    v30 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v38 = mload 64
-    v39 = add v38, v30
-    mstore 64, v39
-    returndata v38, v26
+    v32 = add v30, 32
+    mcopy v18, v32, v14
+    v26 = sub v23, v33
+    returndata v33, v26
   bb1:
     revert 0, 0
 }
@@ -47,15 +42,15 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
     jumpi v2, bb1, bb2
   bb2:
     v3 = icall @decode_calldata_type, 4
-    v66 = mload 64 !metadata(memory=scratch)
-    v9 = add v66, 32
+    v62 = mload 64 !metadata(memory=scratch)
+    v9 = add v62, 32
     v10 = add v9, 32
     mstore v9, 32
-    v61 = ptrtoint memptr v3 to i256
-    v60 = add v61, 32
-    v13 = mload v60
+    v57 = ptrtoint memptr v3 to i256
+    v56 = add v57, 32
+    v13 = mload v56
     v14 = add v10, 64
-    v12 = mload v61
+    v12 = mload v57
     mstore v10, v12
     v15 = add v10, 32
     mstore v15, 64
@@ -66,16 +61,16 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
     jumpi v23, bb3, bb4
   bb4:
     v25 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v67 = mload 64
-    v68 = add v67, v25
-    mstore 64, v68
-    mstore v67, v20
-    v69 = mload 64
-    v29 = add v69, 32
-    mstore v69, 32
-    v37 = ne v67, 0
+    v63 = mload 64
+    v64 = add v63, v25
+    mstore 64, v64
+    mstore v63, v20
+    v65 = mload 64
+    v29 = add v65, 32
+    mstore v65, 32
+    v37 = ne v63, 0
     v38 = zext i1 v37 to i256
-    v33 = mload v67
+    v33 = mload v63
     v39 = mul v33, v38
     mstore v29, v39
     v41 = add v39, 31
@@ -90,15 +85,10 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
     jump bb6
   bb6:
     v48 = add v43, v42
-    v65 = add v67, 32
-    mcopy v43, v65, v39
-    v51 = sub v48, v69
-    v53 = add v51, 31
-    v55 = and v53, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v70 = mload 64
-    v71 = add v70, v55
-    mstore 64, v71
-    returndata v70, v51
+    v61 = add v63, 32
+    mcopy v43, v61, v39
+    v51 = sub v48, v65
+    returndata v65, v51
   bb3:
     mstore 0, 0x4e487b71
     mstore 32, 65

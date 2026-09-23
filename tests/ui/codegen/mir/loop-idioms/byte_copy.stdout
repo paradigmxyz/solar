@@ -32,13 +32,13 @@ fn @rawOverlap() [selector=0x3facacff, abi_wrapper, inline_assembly, pure] {
     v1 = add v0, 31
     mstore8 v1, 65
     v2 = icall @copyRaw, v1, 4
-    v39 = mload 64 !metadata(memory=scratch)
-    v8 = add v39, 32
-    mstore v39, 32
-    v36 = ptrtoint memptr v2 to i256
-    v16 = ne v36, 0
+    v35 = mload 64 !metadata(memory=scratch)
+    v8 = add v35, 32
+    mstore v35, 32
+    v32 = ptrtoint memptr v2 to i256
+    v16 = ne v32, 0
     v17 = zext i1 v16 to i256
-    v12 = mload v36
+    v12 = mload v32
     v18 = mul v12, v17
     v20 = add v18, 31
     v21 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -47,15 +47,10 @@ fn @rawOverlap() [selector=0x3facacff, abi_wrapper, inline_assembly, pure] {
     mstore v23, 0
     mstore v8, v18
     v25 = add v22, v21
-    v38 = add v36, 32
-    mcopy v22, v38, v18
-    v28 = sub v25, v39
-    v30 = add v28, 31
-    v32 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v40 = mload 64 !metadata(memory=scratch)
-    v41 = add v40, v32
-    mstore 64, v41 !metadata(memory=scratch)
-    returndata v40, v28
+    v34 = add v32, 32
+    mcopy v22, v34, v18
+    v28 = sub v25, v35
+    returndata v35, v28
 }
 
 fn @objectOverlap() [selector=0xb7a73332, abi_wrapper, inline_assembly, pure] {
@@ -66,13 +61,13 @@ fn @objectOverlap() [selector=0xb7a73332, abi_wrapper, inline_assembly, pure] {
     mstore8 v2, 65
     v3 = inttoptr i256 v1 to memptr
     v4 = icall @copyObject, v3, 4
-    v41 = mload 64 !metadata(memory=scratch)
-    v10 = add v41, 32
-    mstore v41, 32
-    v38 = ptrtoint memptr v4 to i256
-    v18 = ne v38, 0
+    v37 = mload 64 !metadata(memory=scratch)
+    v10 = add v37, 32
+    mstore v37, 32
+    v34 = ptrtoint memptr v4 to i256
+    v18 = ne v34, 0
     v19 = zext i1 v18 to i256
-    v14 = mload v38
+    v14 = mload v34
     v20 = mul v14, v19
     v22 = add v20, 31
     v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -81,15 +76,10 @@ fn @objectOverlap() [selector=0xb7a73332, abi_wrapper, inline_assembly, pure] {
     mstore v25, 0
     mstore v10, v20
     v27 = add v24, v23
-    v40 = add v38, 32
-    mcopy v24, v40, v20
-    v30 = sub v27, v41
-    v32 = add v30, 31
-    v34 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v42 = mload 64 !metadata(memory=scratch)
-    v43 = add v42, v34
-    mstore 64, v43 !metadata(memory=scratch)
-    returndata v42, v30
+    v36 = add v34, 32
+    mcopy v24, v36, v20
+    v30 = sub v27, v37
+    returndata v37, v30
 }
 
 fn @allocationOverlap() [selector=0x46aad008, abi_wrapper, inline_assembly, pure] {

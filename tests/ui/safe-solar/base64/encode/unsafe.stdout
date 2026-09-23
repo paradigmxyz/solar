@@ -29,22 +29,22 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, inline_assembly, pure] {
     jumpi v89, bb11, bb12
   bb12:
     v91 = and v88, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v134 = mload 64 !metadata(memory=scratch)
-    v92 = inttoptr i256 v134 to memptr !metadata(memory=scratch)
-    v135 = add v134, v91
-    v136 = lt v135, v134
-    v137 = gt v135, 0xffffffffffffffff
-    v138 = or v136, v137
-    jumpi v138, bb11, bb14
+    v130 = mload 64 !metadata(memory=scratch)
+    v92 = inttoptr i256 v130 to memptr !metadata(memory=scratch)
+    v131 = add v130, v91
+    v132 = lt v131, v130
+    v133 = gt v131, 0xffffffffffffffff
+    v134 = or v132, v133
+    jumpi v134, bb11, bb14
   bb14:
-    mstore 64, v135 !metadata(memory=scratch)
-    mstore v134, v86
+    mstore 64, v131 !metadata(memory=scratch)
+    mstore v130, v86
     v93 = sub v73, v81
     v94 = gt v86, v93
     jumpi v94, bb6, bb13
   bb13:
-    v129 = add v134, 32
-    calldatacopy v129, v81, v86
+    v125 = add v130, 32
+    calldatacopy v125, v81, v86
     v2 = ne v86, 0
     jumpi v2, bb1, bb2
   bb1:
@@ -60,7 +60,7 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, inline_assembly, pure] {
     mstore 63, v10 !metadata(memory=scratch)
     v11 = add v6, 32
     v12 = add v11, v5
-    v15 = add v129, v86
+    v15 = add v125, v86
     v16 = mload v15
     mstore v15, 0
     jump bb3
@@ -106,9 +106,9 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, inline_assembly, pure] {
     jump bb2
   bb2:
     v66 = phi [bb4: v6], [bb13: 96]
-    v140 = mload 64 !metadata(memory=scratch)
-    v101 = add v140, 32
-    mstore v140, 32
+    v136 = mload 64 !metadata(memory=scratch)
+    v101 = add v136, 32
+    mstore v136, 32
     v108 = ne v66, 0
     v109 = zext i1 v108 to i256
     v105 = mload v66
@@ -120,15 +120,10 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, inline_assembly, pure] {
     mstore v115, 0
     mstore v101, v110
     v117 = add v114, v113
-    v132 = add v66, 32
-    mcopy v114, v132, v110
-    v120 = sub v117, v140
-    v122 = add v120, 31
-    v124 = and v122, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v141 = mload 64 !metadata(memory=scratch)
-    v142 = add v141, v124
-    mstore 64, v142 !metadata(memory=scratch)
-    returndata v141, v120
+    v128 = add v66, 32
+    mcopy v114, v128, v110
+    v120 = sub v117, v136
+    returndata v136, v120
   bb5:
     v49 = inttoptr i256 v29 to memptr
     jump bb3

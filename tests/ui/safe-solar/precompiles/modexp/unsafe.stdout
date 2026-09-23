@@ -64,12 +64,7 @@ fn @power() [selector=0x2e894bdf, abi_wrapper, inline_assembly, view] {
     v67 = add v64, v63
     mcopy v64, v25, v60
     v70 = sub v67, v32
-    v72 = add v70, 31
-    v74 = and v72, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v80 = mload 64 !metadata(memory=scratch)
-    v81 = add v80, v74
-    mstore 64, v81 !metadata(memory=scratch)
-    returndata v80, v70
+    returndata v32, v70
   bb1:
     revert 0, 0
 }

@@ -8,13 +8,13 @@ fn @decimal() [selector=0xf371efa4, abi_wrapper, pure] {
     jumpi v2, bb1, bb2
   bb2:
     v0 = icall @_toString, arg0
-    v39 = mload 64 !metadata(memory=scratch)
-    v8 = add v39, 32
-    mstore v39, 32
-    v36 = ptrtoint memptr v0 to i256
-    v16 = ne v36, 0
+    v35 = mload 64 !metadata(memory=scratch)
+    v8 = add v35, 32
+    mstore v35, 32
+    v32 = ptrtoint memptr v0 to i256
+    v16 = ne v32, 0
     v17 = zext i1 v16 to i256
-    v12 = mload v36
+    v12 = mload v32
     v18 = mul v12, v17
     v20 = add v18, 31
     v21 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -23,15 +23,10 @@ fn @decimal() [selector=0xf371efa4, abi_wrapper, pure] {
     mstore v23, 0
     mstore v8, v18
     v25 = add v22, v21
-    v38 = add v36, 32
-    mcopy v22, v38, v18
-    v28 = sub v25, v39
-    v30 = add v28, 31
-    v32 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v40 = mload 64 !metadata(memory=scratch)
-    v41 = add v40, v32
-    mstore 64, v41 !metadata(memory=scratch)
-    returndata v40, v28
+    v34 = add v32, 32
+    mcopy v22, v34, v18
+    v28 = sub v25, v35
+    returndata v35, v28
   bb1:
     revert 0, 0
 }
