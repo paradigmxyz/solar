@@ -368,7 +368,8 @@ impl FunctionLowerer<'_, '_> {
         Some(out)
     }
 
-    /// Packs two short strings with four word operations and a final mask.
+    /// Packs two short strings with one load each, whose words already hold
+    /// each length byte ahead of its payload, and a final mask.
     pub(super) fn lower_core_string_pack_two_call(
         &mut self,
         operands: &[ValueId],
@@ -377,50 +378,45 @@ impl FunctionLowerer<'_, '_> {
         let bytes = MemoryObjectKind::Bytes;
         let a_length = self.builder.memory_object_len(a, bytes);
         let b_length = self.builder.memory_object_len(b, bytes);
+        // valid = a.length + b.length - 1 < 30, which is 1..=30 combined
         let total = self.builder.add(a_length, b_length);
-        let nonempty = self.builder.ne_zero(total);
-        let thirty_one = self.builder.imm(31);
-        let fits = self.builder.lt(total, thirty_one);
-        let valid = self.builder.and(nonempty, fits);
-        let eight = self.builder.imm(8);
-        let three = self.builder.imm(3);
-        let all = self.builder.imm(U256::MAX);
-
-        let a_data = self.builder.memory_object_data(a, bytes);
-        let a_word = self.builder.mload(a_data);
-        let thirty_two = self.builder.imm(32);
-        let a_padding = self.builder.sub(thirty_two, a_length);
-        let a_padding_bits = self.builder.shl(three, a_padding);
-        let a_mask = self.builder.shl(a_padding_bits, all);
-        let a_payload = self.builder.and(a_word, a_mask);
-        let a_payload = self.builder.shr(eight, a_payload);
-
-        let b_data = self.builder.memory_object_data(b, bytes);
-        let b_word = self.builder.mload(b_data);
-        let b_padding = self.builder.sub(thirty_two, b_length);
-        let b_padding_bits = self.builder.shl(three, b_padding);
-        let b_mask = self.builder.shl(b_padding_bits, all);
-        let b_payload = self.builder.and(b_word, b_mask);
-        let two = self.builder.imm(2);
-        let b_byte_offset = self.builder.add(a_length, two);
-        let b_bit_offset = self.builder.shl(three, b_byte_offset);
-        let b_payload = self.builder.shr(b_bit_offset, b_payload);
-
-        let top_byte = self.builder.imm(248);
-        let a_tag = self.builder.shl(top_byte, a_length);
+        let one = self.builder.imm(1);
+        let before_total = self.builder.sub(total, one);
         let thirty = self.builder.imm(30);
-        let b_tag_bytes = self.builder.sub(thirty, a_length);
-        let b_tag_bits = self.builder.shl(three, b_tag_bytes);
-        let b_tag = self.builder.shl(b_tag_bits, b_length);
-        let packed = self.builder.or(a_tag, a_payload);
-        let packed = self.builder.or(packed, b_tag);
-        let packed = self.builder.or(packed, b_payload);
+        let valid = self.builder.lt(before_total, thirty);
 
-        // Discard dirty source padding even when one input is empty.
+        // The word ending with a's payload starts with the zero high bytes
+        // of its length word and then the length byte, so shifting it up
+        // leaves the length, the payload and zeros.
+        // a_part = mload(a + a.length) << 8 * (31 - a.length)
+        let a_base = self.builder.cast_word(a);
+        let a_address = self.builder.add(a_base, a_length);
+        let a_word = self.builder.mload(a_address);
+        let thirty_one = self.builder.imm(31);
+        let a_shift_bytes = self.builder.sub(thirty_one, a_length);
+        let three = self.builder.imm(3);
+        let a_shift = self.builder.shl(three, a_shift_bytes);
+        let a_part = self.builder.shl(a_shift, a_word);
+
+        // The word 30 - a.length bytes into b's length word holds zeros for
+        // a's bytes, b's length byte right after them, then b's payload.
+        // Only a valid pair offsets the load, so a long `a` cannot move it
+        // below `b`. The bytes after the payload may be stale; the mask
+        // keeps the two lengths and the payloads.
+        // b_part = mload(b + 30 - a.length * valid)
+        // packed = (a_part | b_part) & ~0 << 8 * (30 - total)
+        let offset = self.builder.cast_word(valid);
+        let offset = self.builder.mul(a_length, offset);
+        let b_base = self.builder.cast_word(b);
+        let b_end = self.builder.add(b_base, thirty);
+        let b_address = self.builder.sub(b_end, offset);
+        let b_part = self.builder.mload(b_address);
+        let packed = self.builder.or(a_part, b_part);
         let padding = self.builder.sub(thirty, total);
         let padding_bits = self.builder.shl(three, padding);
-        let result_mask = self.builder.shl(padding_bits, all);
-        let packed = self.builder.and(packed, result_mask);
+        let all = self.builder.imm(U256::MAX);
+        let mask = self.builder.shl(padding_bits, all);
+        let packed = self.builder.and(packed, mask);
         let zero = self.builder.imm(0);
         Some(self.builder.select(valid, packed, zero))
     }
