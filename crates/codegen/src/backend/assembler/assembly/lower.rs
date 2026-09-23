@@ -1,12 +1,15 @@
 //! Lowering from block EVM IR to its finalized layout-linear form.
 
 use super::{AsmInst, AsmInstKind, Program, indexed_jump};
-use crate::backend::{
-    assembler::{ArtifactKind, Assembler, Label, PreparedAssembly},
-    evm::{
-        ir::{self, BlockId},
-        op,
+use crate::{
+    backend::{
+        assembler::{ArtifactKind, Assembler, Label, PreparedAssembly},
+        evm::{
+            ir::{self, BlockId},
+            op,
+        },
     },
+    target::Target,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 
@@ -125,10 +128,19 @@ pub(in crate::backend) fn lower_evm_ir(
     // transform that deletes a block and reuses its sparse textual label cannot inherit the
     // deleted block's assembler label.
     reset_assembler_labels(labels);
+    // Moving case comparisons into table entries trades padding for gas.
+    let entry_head_executions = assembler
+        .gcx
+        .sess
+        .opts
+        .optimization
+        .is_gas()
+        .then(|| Target::new(assembler.gcx).expected_executions());
     let (mut indexed_jump_lowerings, mut tables) = indexed_jump::materialize_tables_with_metadata(
         module,
         assembler.gcx.sess.opts.evm_version,
         assembler.gcx.sess.opts.optimization.is_size(),
+        entry_head_executions,
     );
     indexed_jump::initialize_indexed_jump_widths(
         &mut indexed_jump_lowerings,
@@ -240,6 +252,12 @@ fn lower_evm_ir_once(
                 labels,
                 indexed_jump_lowerings[block_id],
             );
+            // Unreachable bytes after an outlined entry keep the table's stride.
+            let padding = indexed_jump_lowerings[block_id]
+                .entry_padding(block, assembler.gcx.sess.opts.evm_version);
+            for _ in 0..padding {
+                program.push_op(op::INVALID);
+            }
             // NOTE: A fallthrough emits no instruction. Its activation event is
             // unknown, not an event on the preceding instruction. Do not retain
             // a jump or change layout just to preserve this debug information.
@@ -407,6 +425,16 @@ fn lower_terminator(
             program.push_op(op::JUMP);
         }
         ir::TerminatorKind::JumpI { then_block, else_block } => {
+            if let Some(table_target_width) = indexed_jump.outlined_entry_width {
+                // A table entry has a fixed length and never falls through.
+                let then_label = label_for_block(assembler, module, *then_block, labels);
+                program.push(AsmInst::push_label_fixed(then_label, table_target_width));
+                program.push_op(op::JUMPI);
+                let else_label = label_for_block(assembler, module, *else_block, labels);
+                program.push(AsmInst::push_label_fixed(else_label, table_target_width));
+                program.push_op(op::JUMP);
+                return;
+            }
             let next = module.next_block(block_id);
             if next == Some(*else_block) {
                 let label = label_for_block(assembler, module, *then_block, labels);

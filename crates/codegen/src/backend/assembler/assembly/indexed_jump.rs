@@ -1,19 +1,41 @@
 //! Indexed jump table planning and assembly lowering.
+//!
+//! An indexed jump either packs its targets into pushed words or jumps into a
+//! table of outlined entries at a fixed stride. An outlined entry normally only
+//! jumps to its target. When a target is reachable only through its slot and
+//! opens with a case comparison, as a modulo-bucket switch emits for each bucket,
+//! the comparison can move into the entry itself:
+//!
+//! ```text
+//! entry:  JUMPDEST DUP1 PUSH sel EQ PUSHw hit JUMPI PUSHw rest JUMP INVALID*
+//! ```
+//!
+//! The bucket's first case then skips the entry's jump, while later cases pay
+//! the same jump from the entry instead of into the bucket. Every entry pads to
+//! the longest one, so the conversion prices the padding's deposit against the
+//! saved gas over the target's expected executions, with each case equally
+//! likely.
 
 use super::{Program, lower};
-use crate::backend::{
-    assembler::{Assembler, Label},
-    evm::{
-        ir::{
-            self, BlockId, ImmediateMaterialization, ImmediateMaterializationOp,
-            immediate_materialization_len,
+use crate::{
+    backend::{
+        assembler::{Assembler, Label},
+        evm::{
+            ir::{
+                self, BlockId, ImmediateMaterialization, ImmediateMaterializationOp,
+                immediate_materialization_len,
+            },
+            op::{self, StackOp, WORD_BYTES, push_len},
         },
-        op::{self, WORD_BYTES, push_len},
     },
+    target::{GasTier, Target},
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
-use solar_data_structures::index::{IndexVec, index_vec};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+};
 
 fn push_immediate(
     assembler: &mut Assembler<'_>,
@@ -48,6 +70,23 @@ pub(super) struct IndexedJumpLowering {
     /// Width of the target push in outlined entry blocks; on the source block,
     /// this also determines the entry stride.
     pub(super) outlined_entry_width: Option<u8>,
+    /// Length of the longest case comparison moved into the table's outlined
+    /// entries. It is set on the source block and on every entry, which pads
+    /// to the stride it implies.
+    entry_head_len: Option<u8>,
+}
+
+impl IndexedJumpLowering {
+    /// Returns the `INVALID` bytes that pad this outlined entry to its table's
+    /// stride, or zero for any other block.
+    pub(super) fn entry_padding(&self, block: &ir::Block, evm_version: EvmVersion) -> usize {
+        let (None, Some(width), Some(head_len)) =
+            (self.table, self.outlined_entry_width, self.entry_head_len)
+        else {
+            return 0;
+        };
+        entry_stride(width, Some(head_len)) - outlined_entry_len(block, width, evm_version)
+    }
 }
 
 /// Returns the conservative target width used before final EVM IR layout.
@@ -78,6 +117,10 @@ pub(super) struct IndexedJumpTable {
     pub(super) targets: Box<[BlockId]>,
     /// Outlined entry blocks, when the table is not packed.
     pub(super) entries: Box<[BlockId]>,
+    /// Blocks whose labels the outlined entries push.
+    entry_targets: Box<[BlockId]>,
+    /// Longest case comparison moved into the outlined entries.
+    entry_head_len: Option<u8>,
 }
 
 #[cfg(test)]
@@ -86,13 +129,17 @@ pub(super) fn materialize_tables(
     evm_version: EvmVersion,
     pack_two_word_tables: bool,
 ) -> IndexVec<BlockId, IndexedJumpLowering> {
-    materialize_tables_with_metadata(module, evm_version, pack_two_word_tables).0
+    materialize_tables_with_metadata(module, evm_version, pack_two_word_tables, None).0
 }
 
+/// Chooses each table's encoding and creates the outlined entries of tables
+/// that are not packed. `entry_head_executions` enables moving case
+/// comparisons into entries, priced over that many executions.
 pub(super) fn materialize_tables_with_metadata(
     module: &mut ir::Module,
     evm_version: EvmVersion,
     pack_two_word_tables: bool,
+    entry_head_executions: Option<u64>,
 ) -> (IndexVec<BlockId, IndexedJumpLowering>, Vec<IndexedJumpTable>) {
     let tables = module
         .blocks
@@ -102,7 +149,13 @@ pub(super) fn materialize_tables_with_metadata(
                 ir::TerminatorKind::IndexedJump(targets) => targets.clone(),
                 _ => return None,
             };
-            Some(IndexedJumpTable { source: block, targets, entries: Box::new([]) })
+            Some(IndexedJumpTable {
+                source: block,
+                targets,
+                entries: Box::new([]),
+                entry_targets: Box::new([]),
+                entry_head_len: None,
+            })
         })
         .collect::<Vec<_>>();
     if tables.is_empty() {
@@ -168,11 +221,22 @@ pub(super) fn materialize_tables_with_metadata(
 
     for (table, encoding) in tables.iter_mut().zip(&encodings) {
         if encoding.packed_chunks == PackedTableChunks::None {
+            let heads = entry_head_executions.and_then(|executions| {
+                plan_entry_heads(module, &table.targets, encoding.width, evm_version, executions)
+            });
             let mut entries = Vec::with_capacity(table.targets.len());
-            for &target in &table.targets {
+            let mut entry_targets = Vec::with_capacity(table.targets.len());
+            for (slot, &target) in table.targets.iter().enumerate() {
                 let mut block = ir::Block::new(next_label);
                 next_label = next_label.checked_add(1).expect("EVM IR block label overflow");
-                block.terminator = Some(ir::Terminator::new(ir::TerminatorKind::Jump(target)));
+                if heads.as_ref().is_some_and(|heads| heads.lens[slot].is_some()) {
+                    move_entry_head(module, target, &mut block);
+                } else {
+                    block.terminator = Some(ir::Terminator::new(ir::TerminatorKind::Jump(target)));
+                }
+                if let Some(terminator) = &block.terminator {
+                    terminator.kind.visit_targets(|target| entry_targets.push(target));
+                }
                 let entry = module.add_block(block);
                 entries.push(entry);
             }
@@ -182,6 +246,8 @@ pub(super) fn materialize_tables_with_metadata(
                 .expect("indexed jump source must have a terminator")
                 .kind = ir::TerminatorKind::IndexedJump(entries.clone().into_boxed_slice());
             table.entries = entries.into_boxed_slice();
+            table.entry_targets = entry_targets.into_boxed_slice();
+            table.entry_head_len = heads.map(|heads| heads.max_len);
         }
     }
 
@@ -190,12 +256,220 @@ pub(super) fn materialize_tables_with_metadata(
         lowerings[table.source].table = Some(encoding);
         if encoding.packed_chunks == PackedTableChunks::None {
             lowerings[table.source].outlined_entry_width = Some(encoding.width);
+            lowerings[table.source].entry_head_len = table.entry_head_len;
             for &entry in &table.entries {
                 lowerings[entry].outlined_entry_width = Some(encoding.width);
+                lowerings[entry].entry_head_len = table.entry_head_len;
             }
         }
     }
     (lowerings, tables)
+}
+
+/// Case comparisons selected to move into one table's outlined entries.
+struct EntryHeads {
+    /// Encoded length of `DUP1 PUSH sel EQ` for each slot whose target's first
+    /// comparison moves into its entry.
+    lens: Vec<Option<u8>>,
+    /// Longest head, which sets the table's stride.
+    max_len: u8,
+}
+
+/// Selects the table slots whose target's first case comparison moves into the
+/// slot's entry, or `None` when the conversion does not pay for its padding.
+///
+/// A slot qualifies when its target is referenced only by that slot, so no
+/// other path observes the removed comparison. Each case in the table's
+/// distinct targets ends its comparison with `JUMPI`; the price sums one
+/// dispatch of every case, like the lifetime pricing of the selector switch.
+fn plan_entry_heads(
+    module: &ir::Module,
+    targets: &[BlockId],
+    width: u8,
+    evm_version: EvmVersion,
+    expected_executions: u64,
+) -> Option<EntryHeads> {
+    let references = block_references(module);
+    let lens = targets
+        .iter()
+        .map(|&target| {
+            (references[target] == 1)
+                .then(|| entry_head_len(&module.blocks[target], evm_version))
+                .flatten()
+        })
+        .collect::<Vec<_>>();
+    let max_len = lens.iter().flatten().copied().max()?;
+
+    let mut distinct = DenseBitSet::new_empty(module.blocks.len());
+    let cases = targets
+        .iter()
+        .filter(|&&target| distinct.insert(target))
+        .map(|&target| {
+            module.blocks[target].instructions.iter().filter(|inst| is_op(inst, op::JUMPI)).count()
+        })
+        .sum::<usize>()
+        .max(1);
+
+    // Bytes: every slot grows to the new stride. Each moved head leaves its
+    // target with the target's label push and JUMPI, and a target left with
+    // only a jump is threaded away with its JUMPDEST.
+    let label_push_len = usize::from(width) + 1;
+    let old_stride = entry_stride(width, None);
+    let new_stride = entry_stride(width, Some(max_len));
+    let mut removed = 0;
+    for (&target, len) in targets.iter().zip(&lens) {
+        let Some(len) = len else { continue };
+        removed += usize::from(*len) + label_push_len + 1;
+        if threaded_entry_rest(&module.blocks[target]).is_some() {
+            removed += 1 + label_push_len + 1;
+        }
+    }
+    let added = targets.len() * (new_stride - old_stride);
+
+    // Gas summed over one dispatch of each case: a moved head's case skips the
+    // entry's PUSH and JUMP and its target's JUMPDEST, and a power-of-two
+    // stride scales the index with SHL instead of MUL.
+    let hop_gas =
+        GasTier::VeryLow.fixed_gas() + GasTier::Mid.fixed_gas() + GasTier::Jumpdest.fixed_gas();
+    let heads = lens.iter().flatten().count();
+    let saved_gas = i128::from(hop_gas) * heads as i128
+        + (i128::from(stride_scale_gas(old_stride, evm_version))
+            - i128::from(stride_scale_gas(new_stride, evm_version)))
+            * cases as i128;
+    let runtime = -saved_gas * i128::from(expected_executions);
+    let deposit = (added as i128 - removed as i128)
+        * i128::from(Target::CODE_DEPOSIT_GAS_PER_BYTE)
+        * cases as i128;
+    (runtime + deposit < 0).then_some(EntryHeads { lens, max_len })
+}
+
+/// Counts every reference to each block: pushed labels, terminator targets
+/// including each indexed slot, and the fallthrough of a block without a
+/// terminator.
+fn block_references(module: &ir::Module) -> IndexVec<BlockId, usize> {
+    let mut references = index_vec![0usize; module.blocks.len()];
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        for inst in &block.instructions {
+            if let Some(target) = inst.pushed_block() {
+                references[target] += 1;
+            }
+        }
+        match &block.terminator {
+            Some(terminator) => terminator.kind.visit_targets(|target| references[target] += 1),
+            None => {
+                if let Some(next) = module.next_block(block_id) {
+                    references[next] += 1;
+                }
+            }
+        }
+    }
+    references
+}
+
+/// Returns the encoded length of `DUP1 PUSH sel EQ` when `block` opens with the
+/// case comparison `DUP1 PUSH sel EQ PUSH hit JUMPI` and enters no function.
+fn entry_head_len(block: &ir::Block, evm_version: EvmVersion) -> Option<u8> {
+    let [dup, value, eq, hit, jumpi, ..] = block.instructions.as_slice() else { return None };
+    if block.metadata.function_invoke.is_some()
+        || dup.as_stack_op() != Some(StackOp::Dup(1))
+        || !is_op(eq, op::EQ)
+        || hit.pushed_block().is_none()
+        || !is_op(jumpi, op::JUMPI)
+    {
+        return None;
+    }
+    let len = dup.as_stack_op()?.assembled_len(evm_version)?
+        + push_len(evm_version, value.concrete_immediate()?)
+        + 1;
+    u8::try_from(len).ok()
+}
+
+fn is_op(inst: &ir::Instruction, opcode: u8) -> bool {
+    inst.opcode == opcode && !inst.is_encoded_push() && inst.as_stack_op().is_none()
+}
+
+/// Returns the jump target that replaces `block` once its case comparison
+/// moves out, when nothing else remains in it.
+fn threaded_entry_rest(block: &ir::Block) -> Option<BlockId> {
+    match (block.instructions.len(), &block.terminator) {
+        (5, Some(ir::Terminator { kind: ir::TerminatorKind::Jump(target), .. })) => Some(*target),
+        _ => None,
+    }
+}
+
+/// Moves the first case comparison of `target` into the outlined `entry`.
+///
+///   entry: dup 1; push sel; eq; jumpi hit, rest
+///   rest:  target without its first comparison, or its jump target when
+///          nothing else remains
+fn move_entry_head(module: &mut ir::Module, target: BlockId, entry: &mut ir::Block) {
+    let threaded = threaded_entry_rest(&module.blocks[target]);
+    let block = &mut module.blocks[target];
+    let mut head = block.instructions.drain(..5).collect::<Vec<_>>();
+    let jumpi = head.pop().expect("case comparison ends with JUMPI");
+    let hit = head.pop().and_then(|push| push.pushed_block()).expect("case target push");
+    let rest = if let Some(rest) = threaded {
+        // An unreferenced empty block emits no bytes.
+        block.terminator = None;
+        rest
+    } else {
+        target
+    };
+    entry.instructions = head;
+    let mut terminator =
+        ir::Terminator::new(ir::TerminatorKind::JumpI { then_block: hit, else_block: rest });
+    terminator.metadata = jumpi.metadata;
+    entry.terminator = Some(terminator);
+}
+
+/// Returns the stride of an outlined table whose entries push `width`-byte
+/// labels, with the longest moved case comparison `head_len` when there is one.
+fn entry_stride(width: u8, head_len: Option<u8>) -> usize {
+    let label_push_len = usize::from(width) + 1;
+    match head_len {
+        // JUMPDEST head PUSHw JUMPI PUSHw JUMP
+        Some(head_len) => 1 + usize::from(head_len) + 2 * label_push_len + 2,
+        // JUMPDEST PUSHw JUMP
+        None => 1 + label_push_len + 1,
+    }
+}
+
+/// Returns the encoded length of an outlined entry without padding.
+fn outlined_entry_len(block: &ir::Block, width: u8, evm_version: EvmVersion) -> usize {
+    let label_push_len = usize::from(width) + 1;
+    let instructions = block
+        .instructions
+        .iter()
+        .map(|inst| {
+            if let Some(value) = inst.concrete_immediate() {
+                push_len(evm_version, value)
+            } else if let Some(stack_op) = inst.as_stack_op() {
+                stack_op
+                    .assembled_len(evm_version)
+                    .expect("outlined entries only use target-compatible stack operations")
+            } else {
+                debug_assert!(!inst.is_encoded_push(), "outlined entries push only immediates");
+                1
+            }
+        })
+        .sum::<usize>();
+    let terminator = match block.terminator.as_ref().map(|terminator| &terminator.kind) {
+        Some(ir::TerminatorKind::Jump(_)) => label_push_len + 1,
+        Some(ir::TerminatorKind::JumpI { .. }) => 2 * label_push_len + 2,
+        _ => unreachable!("outlined entries end with a jump"),
+    };
+    1 + instructions + terminator
+}
+
+/// Returns the gas that scales a table index by `stride`.
+fn stride_scale_gas(stride: usize, evm_version: EvmVersion) -> u32 {
+    if stride.is_power_of_two() && evm_version.has_bitwise_shifting() {
+        // SHL
+        GasTier::VeryLow.fixed_gas()
+    } else {
+        // MUL
+        GasTier::Low.fixed_gas()
+    }
 }
 
 /// Resets the selected table shapes to a one-byte entry width before exact
@@ -312,6 +586,8 @@ pub(super) fn refine_indexed_jump_widths(
                 .expect("indexed jump source must have a terminator")
                 .kind = ir::TerminatorKind::IndexedJump(entries.clone().into_boxed_slice());
             table.entries = entries.into_boxed_slice();
+            table.entry_targets = table.targets.clone();
+            table.entry_head_len = None;
             lowerings.resize(module.blocks.len(), IndexedJumpLowering::default());
             changed = true;
         }
@@ -322,7 +598,7 @@ pub(super) fn refine_indexed_jump_widths(
         }
         if next.packed_chunks == PackedTableChunks::None {
             let entry_width =
-                indexed_jump_target_width(&table.targets, &block_offsets, global_width);
+                indexed_jump_target_width(&table.entry_targets, &block_offsets, global_width);
             let source_width =
                 lowerings[table.source].outlined_entry_width.unwrap_or(1).max(entry_width);
             if lowerings[table.source].outlined_entry_width != Some(source_width) {
@@ -962,9 +1238,16 @@ pub(super) fn lower(
             .all(|(index, target)| { target.index() == table.index() + index + 1 })
     );
     let entry_width = indexed_jump.outlined_entry_width.expect("outlined indexed jump entry width");
-    let stub_len = u32::from(entry_width) + 3;
-    push_immediate(assembler, program, evm_version, U256::from(stub_len));
-    program.push_op(op::MUL);
+    let stride = entry_stride(entry_width, indexed_jump.entry_head_len);
+    if stride.is_power_of_two() && evm_version.has_bitwise_shifting() {
+        // index << log2(stride)
+        push_immediate(assembler, program, evm_version, U256::from(stride.ilog2()));
+        program.push_op(op::SHL);
+    } else {
+        // index * stride
+        push_immediate(assembler, program, evm_version, U256::from(stride));
+        program.push_op(op::MUL);
+    }
     program.push_label(lower::label_for_block(assembler, module, table, labels));
     program.push_op(op::ADD);
     program.push_op(op::JUMP);
