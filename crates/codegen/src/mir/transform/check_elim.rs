@@ -87,11 +87,13 @@
 //! Two more universal equalities feed those proofs. A checked `u256` sum equals
 //! a wrapping sum of the same operands wherever it is defined, so a loop test
 //! on `i + 16` covers a bounds check that adds 16 to `i` again. In a module
-//! without inline assembly, rereads of a parameter object's length agree when
-//! nothing in the function can write that length: stores into fresh objects
-//! cannot reach it, a write in a block that leaves the function reaches only
-//! later reads in that block, and calls count through their memory summaries.
-//! The rereads themselves stay in place for the scheduler to price.
+//! without inline assembly, rereads of a parameter object's length agree, and
+//! a fresh object's rereads equal the length stored at its allocation, when
+//! nothing in the function can write that length: stores into other fresh
+//! objects cannot reach it, a write in a block that leaves the function
+//! reaches only later reads in that block, and calls count through their
+//! memory summaries. The rereads themselves stay in place for the scheduler to
+//! price.
 //!
 //! Transitive relational queries lazily index candidate edges once per function,
 //! when a query needs to combine facts. An edge is followed only
@@ -670,7 +672,7 @@ impl<'a> CheckEliminator<'a> {
         self.universal_relations.extend(checked_sum_twins(func));
         if self.object_lengths.is_some() {
             self.universal_relations
-                .extend(stable_parameter_lengths(func, self.call_summaries.clone()));
+                .extend(stable_object_lengths(func, self.call_summaries.clone()));
         }
 
         // Predecessors recomputed from reachable terminators: facts must only
@@ -2443,32 +2445,64 @@ fn checked_sum_twins(func: &Function) -> Vec<Relation> {
     relations
 }
 
-/// Equates rereads of a parameter object's length that nothing in the function
-/// can change.
+/// Equates rereads of an object's length that nothing in the function can
+/// change: with each other for a parameter object, and with the length set at
+/// allocation for a fresh object whose length is set once.
 ///
 /// Callers run this only for modules without inline assembly. There a
 /// parameter object lies below the free-memory pointer at entry, while the
-/// function's own allocations start at or above it, so writes into fresh
-/// objects cannot reach the parameter's length word. A write in a block that
-/// leaves the function, such as a panic's encoding, reaches only the reads
-/// after it in that block. Any other write that may reach the word, including
-/// every call with memory effects, keeps the reads apart. The loads stay where
-/// they are: only the checks learn that they agree.
-fn stable_parameter_lengths(
+/// function's own allocations start at or above it, so writes into other
+/// fresh objects cannot reach its length word, and a fresh object's length
+/// changes only through its own length stores. A write in a block that leaves
+/// the function, such as a panic's encoding or a final truncation, reaches
+/// only the reads after it in that block. Any other write that may reach the
+/// word, including every call with memory effects, keeps the reads apart. The
+/// loads stay where they are: only the checks learn that they agree.
+fn stable_object_lengths(
     func: &Function,
     summaries: Option<Arc<MemoryCallSummaries>>,
 ) -> Vec<Relation> {
     let mut reads = FxHashMap::<_, SmallVec<[(InstId, ValueId); 2]>>::default();
     for inst_id in func.instructions() {
         if let InstKind::MemoryObjectLen(object, kind) = func.inst(inst_id).kind
-            && matches!(func.value(object), Value::Arg(_))
             && let Some(value) = func.inst_result_value(inst_id)
         {
             reads.entry((object, kind)).or_default().push((inst_id, value));
         }
     }
-    reads.retain(|_, reads| reads.len() > 1);
-    if reads.is_empty() {
+    // A fresh object's anchor is the length stored right after its allocation,
+    // before any read in that block; a parameter's is its first read.
+    let definitions = func.inst_blocks();
+    let mut anchors = FxHashMap::<_, (Option<InstId>, ValueId)>::default();
+    for (&(object, kind), group) in &reads {
+        match func.value(object) {
+            Value::Arg(_) if group.len() > 1 => {
+                anchors.insert((object, kind), (None, group[0].1));
+            }
+            &Value::Inst(alloc) if matches!(func.inst(alloc).kind, InstKind::Alloc { .. }) => {
+                let Some(&block) = definitions.get(&alloc) else { continue };
+                let instructions = &func.blocks[block].instructions;
+                let Some(position) = instructions.iter().position(|&inst| inst == alloc) else {
+                    continue;
+                };
+                for &inst in &instructions[position + 1..] {
+                    if group.iter().any(|&(read, _)| read == inst) {
+                        break;
+                    }
+                    if let InstKind::SetMemoryObjectLen(set_object, length, set_kind) =
+                        func.inst(inst).kind
+                        && set_object == object
+                        && set_kind == kind
+                    {
+                        anchors.insert((object, kind), (Some(inst), length));
+                        break;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    if anchors.is_empty() {
         return Vec::new();
     }
     let aa = match summaries {
@@ -2476,7 +2510,8 @@ fn stable_parameter_lengths(
         None => AliasAnalysis::new(func),
     };
     let mut relations = Vec::new();
-    for (&(object, kind), group) in &reads {
+    for (&(object, kind), &(anchor_set, anchor)) in &anchors {
+        let group = &reads[&(object, kind)];
         let Some(location) = aa.memory_object_length_location(func, group[0].0, object, kind)
         else {
             continue;
@@ -2485,8 +2520,12 @@ fn stable_parameter_lengths(
         let stable = func.blocks.iter().all(|block| {
             let exits = block.terminator.as_ref().is_some_and(|term| term.successors().is_empty());
             block.instructions.iter().enumerate().all(|(position, &inst)| {
-                !aa.instruction_mod_ref(func, inst).may_write(&aa, location)
-                    || writes_only_fresh_object(func, &func.inst(inst).kind)
+                let inst_kind = &func.inst(inst).kind;
+                let sets_object = matches!(*inst_kind,
+                    InstKind::SetMemoryObjectLen(set_object, ..) if set_object == object);
+                Some(inst) == anchor_set
+                    || !aa.instruction_mod_ref(func, inst).may_write(&aa, location)
+                    || (writes_only_fresh_object(func, inst_kind) && !sets_object)
                     || (exits
                         && block.instructions[position + 1..]
                             .iter()
@@ -2494,11 +2533,12 @@ fn stable_parameter_lengths(
             })
         });
         if stable {
-            let first = group[0].1;
-            relations.extend(group[1..].iter().map(|&(_, value)| {
-                let (a, b) = ordered(first, value);
-                Relation::Eq(a, b)
-            }));
+            relations.extend(group.iter().filter(|&&(_, value)| value != anchor).map(
+                |&(_, value)| {
+                    let (a, b) = ordered(anchor, value);
+                    Relation::Eq(a, b)
+                },
+            ));
         }
     }
     relations
