@@ -8,6 +8,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/string_literal_internal_args.sol:StringLiteralInternalArgs ===
 @module StringLiteralInternalArgs
+@inline_assembly
 fn @libLiteral() -> i256 [selector=0x71bacd94, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)

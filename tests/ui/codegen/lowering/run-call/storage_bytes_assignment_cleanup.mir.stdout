@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_assignment_cleanup.sol:StorageBytesAssignmentCleanup ===
 @module StorageBytesAssignmentCleanup
-@types
+@inline_assembly
+types:
   struct0: {i256, i256, i256}
 
 fn @cleanup() -> struct0 [selector=0x3cecd719, inline_assembly, abi_params=[], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, u256]] {

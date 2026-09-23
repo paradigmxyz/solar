@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/evm-ir/reorder-expressions/calldata_runtime.sol:ClosedCalldata ===
 @module ClosedCalldata
-@types
+@inline_assembly
+types:
   struct0: {i256, i256}
 
 fn @words(arg0: i256, arg1: i256) -> struct0 [selector=0xa5a43888, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {

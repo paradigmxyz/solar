@@ -1,0 +1,108 @@
+- // === ROOT/tests/ui/codegen/mir/check-elim/binary_search.mir (before check-elim) ===
++ // === ROOT/tests/ui/codegen/mir/check-elim/binary_search.mir (after check-elim) ===
+  @module CheckElimBinarySearch
+  fn @search(arg0: memoryarray, arg1: i256) -> i256 {
+    bb0:
+      v0 = memory_object_len memoryarray, arg0
+      jump bb1
+    bb1:
+      v1 = phi [bb0: 1], [bb9: v15]
+      v2 = phi [bb0: v0], [bb9: v16]
+      v3 = gt v1, v2
+      jumpi v3, bb10, bb2
+    bb2:
+      v4 = add v1, v2
+      v5 = lt v4, v1
+-     jumpi v5, bb11, bb3
++     jump bb3
+    bb3:
+      v6 = shr 1, v4
+      v7 = eq v6, 0
+-     jumpi v7, bb11, bb4
++     jump bb4
+    bb4:
+      v8 = sub v6, 1
+      v9 = lt v8, v0
+-     jumpi v9, bb5, bb12
+-   bb12:
+-     revert 0, 0
++     jump bb5
+    bb5:
+      v10 = memory_object_load_element memoryarray<1>, arg0, v8
+      v11 = eq v10, arg1
+      jumpi v11, bb13, bb6
+    bb6:
+      v12 = gt arg1, v10
+      jumpi v12, bb8, bb7
+    bb7:
+      jump bb9
+    bb8:
+      v13 = add v6, 1
+      v14 = eq v13, 0
+-     jumpi v14, bb11, bb9
++     jump bb9
+    bb9:
+      v15 = phi [bb7: v1], [bb8: v13]
+      v16 = phi [bb7: v8], [bb8: v2]
+      jump bb1
+    bb13:
+      ret v8
+-   bb11:
+-     revert 0, 0
+    bb10:
+      ret 0
++   bb11:
++     revert 0, 0
++   bb12:
++     revert 0, 0
+  }
+  
+  fn @keep_arbitrary_update(arg0: memoryarray, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = memory_object_len memoryarray, arg0
+      jump bb1
+    bb1:
+      v1 = phi [bb0: 1], [bb9: v15]
+      v2 = phi [bb0: v0], [bb9: v16]
+      v3 = gt v1, v2
+      jumpi v3, bb10, bb2
+    bb2:
+      v4 = add v1, v2
+      v5 = lt v4, v1
+      jumpi v5, bb11, bb3
+    bb3:
+      v6 = shr 1, v4
+      v7 = eq v6, 0
+      jumpi v7, bb11, bb4
+    bb4:
+      v8 = sub v6, 1
+      v9 = lt v8, v0
+      jumpi v9, bb5, bb12
+    bb12:
+      revert 0, 0
+    bb5:
+      v10 = memory_object_load_element memoryarray<1>, arg0, v8
+      v11 = eq v10, arg1
+      jumpi v11, bb13, bb6
+    bb6:
+      v12 = gt arg1, v10
+      jumpi v12, bb8, bb7
+    bb7:
+      jump bb9
+    bb8:
+      v13 = add v6, 1
+      v14 = eq v13, 0
+-     jumpi v14, bb11, bb9
++     jump bb9
+    bb9:
+      v15 = phi [bb7: v1], [bb8: v13]
+      v16 = phi [bb7: arg2], [bb8: v2]
+      jump bb1
+    bb13:
+      ret v8
+    bb11:
+      revert 0, 0
+    bb10:
+      ret 0
+  }
+  

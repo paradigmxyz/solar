@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/run-call/addmod_mulmod.sol:AddmodMulmod ===
 @module AddmodMulmod
+@inline_assembly
 fn @am(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xc1013215, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall checked_addmod<>, arg0, arg1, arg2

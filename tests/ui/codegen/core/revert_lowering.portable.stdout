@@ -10,6 +10,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/revert_lowering.sol:Test ===
 @module Test
 @phase lowered
+@inline_assembly
 fn @boom() [selector=0x6b8d59f9, abi_wrapper, pure] {
   bb0:
     v0 = calldatasize

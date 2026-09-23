@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/decl_initializer_mutation.sol:DeclInitializerMutation ===
 @module DeclInitializerMutation
+@inline_assembly
 fn @countLoop() -> i256 [selector=0xcf886ab8, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1

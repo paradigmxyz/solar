@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/loop_checked_helper.sol:LoopCheckedHelper ===
 @module LoopCheckedHelper
+@inline_assembly
 fn @checkedAdd(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = add arg0, arg1

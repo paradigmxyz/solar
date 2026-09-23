@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mapping_dynamic_literal.sol:MappingDynamicLiteral ===
 @module MappingDynamicLiteral
+@inline_assembly
 fn @constructor() [constructor] {
   bb0:
     store_storage_bytes_literal 0, hex"616263"

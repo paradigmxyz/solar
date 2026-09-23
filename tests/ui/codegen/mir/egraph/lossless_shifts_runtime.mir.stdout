@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/egraph/lossless_shifts_runtime.sol:LosslessShifts ===
 @module LosslessShifts
-@types
+@inline_assembly
+types:
   struct0: {i256, i256, i256, i256}
   struct1: {i256, i256, i256, i256, i256, i256}
   struct2: {i256, i256, i256}

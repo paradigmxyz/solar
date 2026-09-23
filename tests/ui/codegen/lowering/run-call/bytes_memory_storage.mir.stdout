@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/bytes_memory_storage.sol:BytesMemoryStorage ===
 @module BytesMemoryStorage
+@inline_assembly
 fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)

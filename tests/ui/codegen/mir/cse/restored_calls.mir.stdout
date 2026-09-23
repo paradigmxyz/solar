@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/cse/restored_calls.sol:RestoredCalls ===
 @module RestoredCalls
-@types
+@inline_assembly
+types:
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 

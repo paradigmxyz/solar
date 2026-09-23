@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/call-cleanup/dirty_arguments.sol:DirtyArguments ===
 @module DirtyArguments
+@inline_assembly
 fn @normalizedReturn(arg0: i256) -> i256 [selector=0xaca23352, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @rawReturn, arg0

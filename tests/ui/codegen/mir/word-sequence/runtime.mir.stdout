@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/word-sequence/runtime.sol:WordRecipes ===
 @module WordRecipes
-@types
+@inline_assembly
+types:
   struct0: {i256, i256, i256, i256, i256}
   struct1: {i256, i256, i256, i256}
   struct2: {i256, i256, i256}
