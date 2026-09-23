@@ -127,11 +127,9 @@ async fn dirty_open_document_rejects_disk_flycheck_result() {
     let state = freshness_state(&project).await;
     let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
     let path = project.path("/src/Test.sol");
-    let mut sources = crate::flycheck::SourceSnapshot::default();
-    sources.insert(path, Rope::from("the saved source"));
     let result = crate::flycheck::FlycheckResult {
         diagnostics: DiagnosticMap::from_iter([(uri, vec![diagnostic("saved warning")])]),
-        sources,
+        sources: [(path, Rope::from("the saved source"))].into_iter().collect(),
         sources_unchanged: true,
     };
 

@@ -38,25 +38,23 @@ pub(crate) async fn run(
     let source_snapshot = disk_source_snapshot(source_paths.clone()).await?;
     let output = command_output(&config, timeout, cancel).await?;
     let current_source_snapshot = disk_source_snapshot(source_paths).await?;
-    let (source_snapshot, sources_unchanged) =
-        stable_source_snapshot(source_snapshot, &current_source_snapshot);
-    let (output, diagnostics, sources) = tokio::task::spawn_blocking(move || {
-        let diagnostics = parse_output_with_snapshot(&output, &config, Some(&source_snapshot));
-        (output, diagnostics, source_snapshot)
+    let (sources, sources_unchanged) =
+        stable_source_snapshot(source_snapshot, current_source_snapshot);
+    tokio::task::spawn_blocking(move || {
+        let diagnostics = match parse_output_with_snapshot(&output, &config, Some(&sources)) {
+            Ok(diagnostics) => diagnostics,
+            Err(_) if !output.status.success() => return Err(command_failed(&output)),
+            Err(error) => return Err(error.into()),
+        };
+
+        if !output.status.success() && diagnostics.is_empty() {
+            return Err(command_failed(&output));
+        }
+
+        Ok(FlycheckResult { diagnostics, sources, sources_unchanged })
     })
     .await
-    .map_err(io::Error::other)?;
-    let diagnostics = match diagnostics {
-        Ok(diagnostics) => diagnostics,
-        Err(_) if !output.status.success() => return Err(command_failed(&output)),
-        Err(error) => return Err(error.into()),
-    };
-
-    if !output.status.success() && diagnostics.is_empty() {
-        return Err(command_failed(&output));
-    }
-
-    Ok(FlycheckResult { diagnostics, sources, sources_unchanged })
+    .map_err(io::Error::other)?
 }
 
 #[derive(Debug, Default)]
@@ -123,7 +121,7 @@ async fn disk_source_snapshot(paths: Vec<PathBuf>) -> io::Result<DiskSourceSnaps
 
 fn stable_source_snapshot(
     source_snapshot: DiskSourceSnapshot,
-    current_source_snapshot: &DiskSourceSnapshot,
+    current_source_snapshot: DiskSourceSnapshot,
 ) -> (SourceSnapshot, bool) {
     let DiskSourceSnapshot { mut sources, revisions, incomplete } = source_snapshot;
     let source_count = sources.len();
@@ -374,7 +372,7 @@ mod tests {
         project.write_file("/Test.sol", "new");
         let after = disk_source_snapshot(vec![path]).await.unwrap();
 
-        let (sources, unchanged) = stable_source_snapshot(before, &after);
+        let (sources, unchanged) = stable_source_snapshot(before, after);
         assert!(sources.is_empty());
         assert!(!unchanged);
     }
@@ -392,7 +390,7 @@ mod tests {
         let snapshot = disk_source_snapshot(vec![path.clone()]).await.unwrap();
         assert_eq!(snapshot.sources[&path].byte_slice(..), "contract Test {}");
         let current = disk_source_snapshot(vec![path.clone()]).await.unwrap();
-        let (sources, unchanged) = stable_source_snapshot(snapshot, &current);
+        let (sources, unchanged) = stable_source_snapshot(snapshot, current);
         assert!(unchanged);
         assert_eq!(sources[&path].byte_slice(..), "contract Test {}");
     }
@@ -404,7 +402,7 @@ mod tests {
         let before = disk_source_snapshot(vec![path.clone()]).await.unwrap();
         let after = disk_source_snapshot(vec![path]).await.unwrap();
 
-        let (sources, unchanged) = stable_source_snapshot(before, &after);
+        let (sources, unchanged) = stable_source_snapshot(before, after);
         assert!(sources.is_empty());
         assert!(!unchanged);
     }

@@ -881,8 +881,7 @@ impl GlobalState {
         removed_paths: Vec<PathBuf>,
         force_rediscover: bool,
     ) {
-        self.invalidate_flychecks_for_paths(&disk_paths);
-        self.invalidate_flychecks_for_paths(&removed_paths);
+        self.invalidate_flychecks_for_paths(disk_paths.iter().chain(&removed_paths));
         let changed_paths = disk_paths.clone();
         let mode =
             if force_rediscover { AnalysisMode::Rediscover } else { AnalysisMode::Recompute };
@@ -1681,13 +1680,12 @@ impl GlobalState {
         &mut self,
         owners: impl IntoIterator<Item = DiagnosticOwner>,
     ) {
-        let owners = owners.into_iter().collect::<Vec<_>>();
         self.invalidate_flycheck_owners(owners, false);
     }
 
-    fn invalidate_flychecks_for_paths(&mut self, paths: &[PathBuf]) {
+    fn invalidate_flychecks_for_paths<'a>(&mut self, paths: impl IntoIterator<Item = &'a PathBuf>) {
         let owners = paths
-            .iter()
+            .into_iter()
             .flat_map(|path| self.config.flychecks_for_path(path))
             .map(|flycheck| flycheck.owner())
             .collect::<FxHashSet<_>>();
