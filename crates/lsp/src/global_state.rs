@@ -459,6 +459,9 @@ pub(crate) struct GlobalState {
     diagnostics: Arc<RwLock<DiagnosticStore>>,
     import_completion_cache: Mutex<ImportCompletionCache>,
     last_vfs_path: Option<(Url, Arc<VfsPath>)>,
+    /// Keep scheduled benchmark analyses on the same compiler thread policy as CPU benchmarks.
+    #[cfg(any(test, feature = "bench"))]
+    benchmark_threads: Option<solar_config::Threads>,
 }
 
 pub(crate) struct AnalysisRevision {
@@ -509,6 +512,8 @@ impl GlobalState {
             diagnostics: Arc::new(Default::default()),
             import_completion_cache: Mutex::new(ImportCompletionCache::default()),
             last_vfs_path: None,
+            #[cfg(any(test, feature = "bench"))]
+            benchmark_threads: None,
             config,
             launch_config: crate::LaunchConfig::default(),
         }
@@ -1723,7 +1728,7 @@ impl GlobalState {
             symbol_tables: self.symbol_tables.clone(),
             diagnostics: self.diagnostics.clone(),
             #[cfg(any(test, feature = "bench"))]
-            benchmark_threads: None,
+            benchmark_threads: self.benchmark_threads,
         }
     }
 

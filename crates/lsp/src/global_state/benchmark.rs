@@ -4,7 +4,8 @@
 //! shutdown does not join worker threads, so teardown from fixture setup can otherwise enter the
 //! next measured operation. Rename and quick-fix workloads call the production validation and
 //! edit-building functions synchronously; these CPU benchmarks exclude Tokio task scheduling.
-//! End-to-end request latency belongs in the session benchmarks under `benches/lsp/`.
+//! The separate `lsp_pending` target uses production scheduling for in-process request latency.
+//! Protocol and process latency belongs in the session benchmarks under `benches/lsp/`.
 
 use super::{
     AnalysisBatch, AnalysisResult, AnalysisResultAccumulator, AnalysisTaskOutcome, DiagnosticMap,
@@ -47,6 +48,9 @@ use std::{
     sync::Arc,
     task::{Context, Poll, Waker},
 };
+
+mod pending;
+pub use pending::BenchmarkPendingRequests;
 
 /// An opaque error returned while preparing an LSP benchmark project.
 #[doc(hidden)]
