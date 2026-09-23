@@ -1,7 +1,9 @@
 use super::*;
+use crate::test_support::start_request;
 use lsp_types::{
-    DocumentSymbolParams, GotoDefinitionParams, HoverParams, ReferenceContext, ReferenceParams,
-    RenameParams, TextDocumentPositionParams,
+    CompletionParams, CompletionResponse, DocumentSymbolParams, GotoDefinitionParams, HoverParams,
+    ReferenceContext, ReferenceParams, RenameParams, SignatureHelpParams,
+    TextDocumentPositionParams,
 };
 
 fn fixture() -> (TestProject, GlobalState, Url) {
@@ -433,4 +435,347 @@ async fn content_identical_edits_preserve_pending_requests() {
     drop(gate);
     let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, hover).await.unwrap().unwrap();
     assert!(response.is_some());
+}
+
+const USING_SOURCE: &str = r#"library Math {
+    function twice(uint256 value) internal pure returns (uint256) { return value * 2; }
+    function triple(uint256 value) internal pure returns (uint256) { return value * 3; }
+}
+contract C {
+    using {Math.twice} for uint256;
+    function f() public pure {
+        uint256 x;
+        // completion
+    }
+}"#;
+
+async fn using_fixture() -> (TestProject, GlobalState, Url) {
+    let (project, mut state, uri) = fixture();
+    change(&mut state, &uri, 1, USING_SOURCE);
+    state.prioritize_pending_analysis();
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    (project, state, uri)
+}
+
+fn completion_params(uri: &Url, position: Position) -> CompletionParams {
+    CompletionParams {
+        text_document_position: TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier::new(uri.clone()),
+            position,
+        },
+        work_done_progress_params: Default::default(),
+        partial_result_params: Default::default(),
+        context: None,
+    }
+}
+
+fn signature_params(uri: &Url, position: Position) -> SignatureHelpParams {
+    SignatureHelpParams {
+        text_document_position_params: completion_params(uri, position).text_document_position,
+        work_done_progress_params: Default::default(),
+        context: None,
+    }
+}
+
+fn completion_labels(response: Option<CompletionResponse>) -> Vec<String> {
+    let Some(CompletionResponse::Array(items)) = response else {
+        panic!("expected completion array")
+    };
+    items.into_iter().map(|item| item.label).collect()
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn completion_refreshes_local_names_and_using_methods_after_edits() {
+    for (changed, expression, expected) in [
+        (
+            USING_SOURCE.replace("uint256 x;", "uint256 x; uint256 addedLocal;"),
+            "addedL",
+            vec!["addedLocal"],
+        ),
+        (USING_SOURCE.replace("uint256 x;", "uint256 newLocal;"), "newL", vec!["newLocal"]),
+        (USING_SOURCE.replace("{Math.twice}", "Math"), "x.", vec!["triple", "twice"]),
+        (USING_SOURCE.replace("{Math.twice}", "{Math.triple}"), "x.", vec!["triple"]),
+        (USING_SOURCE.replace("using {Math.twice} for uint256;", ""), "x.", vec![]),
+    ] {
+        let (_project, mut state, uri) = using_fixture().await;
+        let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
+        change(&mut state, &uri, 2, &changed.replace("// completion", expression));
+        let mut request = std::pin::pin!(crate::handlers::completion(
+            &mut state,
+            completion_params(&uri, Position::new(8, 8 + expression.len() as u32)),
+        ));
+        assert!(request.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
+        assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
+        drop(gate);
+        let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, request).await.unwrap().unwrap();
+        assert_eq!(completion_labels(response), expected);
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn signature_help_waits_for_a_new_attached_call() {
+    let (_project, mut state, uri) = using_fixture().await;
+    let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
+    change(&mut state, &uri, 2, &USING_SOURCE.replace("// completion", "x.twice("));
+    let mut request = std::pin::pin!(crate::handlers::signature_help(
+        &mut state,
+        signature_params(&uri, Position::new(8, 16)),
+    ));
+    assert!(request.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
+    assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
+    drop(gate);
+    let response =
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, request).await.unwrap().unwrap().unwrap();
+    snapbox::assert_data_eq!(
+        response.signatures[0].label.as_str(),
+        snapbox::str!["function twice() internal pure returns (uint256)"]
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn completion_and_signature_help_reject_failed_analysis() {
+    let (_project, mut state, uri) = using_fixture().await;
+    let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
+    change(&mut state, &uri, 2, &USING_SOURCE.replace("// completion", "x.twice("));
+    let completion = start_request(crate::handlers::completion(
+        &mut state,
+        completion_params(&uri, Position::new(8, 10)),
+    ));
+    let signature = start_request(crate::handlers::signature_help(
+        &mut state,
+        signature_params(&uri, Position::new(8, 16)),
+    ));
+    handle_analysis_failure(
+        state.analysis_version.load(Ordering::Acquire),
+        "test analysis failure",
+        &state.analysis_version,
+        &state.published_analysis_version,
+        &state.analysis_commit,
+    );
+    assert_eq!(completion.await.unwrap_err().code, ErrorCode::REQUEST_FAILED);
+    assert_eq!(signature.await.unwrap_err().code, ErrorCode::REQUEST_FAILED);
+    for clear in [false, true] {
+        if clear {
+            // Clearing publishes the current epoch, but does not make its empty table usable.
+            state.clear_analysis_cache();
+        }
+        let completion = expect_ready(crate::handlers::completion(
+            &mut state,
+            completion_params(&uri, Position::new(8, 10)),
+        ));
+        let signature = expect_ready(crate::handlers::signature_help(
+            &mut state,
+            signature_params(&uri, Position::new(8, 16)),
+        ));
+        assert_eq!(completion.unwrap_err().code, ErrorCode::REQUEST_FAILED);
+        assert_eq!(signature.unwrap_err().code, ErrorCode::REQUEST_FAILED);
+    }
+    drop(gate);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn completion_and_signature_help_reject_superseded_inputs() {
+    for configuration in [false, true] {
+        for published in [false, true] {
+            let (_project, mut state, uri) = using_fixture().await;
+            let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
+            change(&mut state, &uri, 2, &USING_SOURCE.replace("// completion", "x.twice("));
+            let completion = start_request(crate::handlers::completion(
+                &mut state,
+                completion_params(&uri, Position::new(8, 10)),
+            ));
+            let signature = start_request(crate::handlers::signature_help(
+                &mut state,
+                signature_params(&uri, Position::new(8, 16)),
+            ));
+            if published {
+                let mut snapshot = state.snapshot();
+                let result = analyze(snapshot.analysis_batches(Vec::new()).pop().unwrap());
+                assert!(
+                    snapshot
+                        .publish_analysis(state.analysis_version.load(Ordering::Acquire), result)
+                );
+            }
+            if configuration {
+                let _ = crate::handlers::did_change_configuration(
+                    &mut state,
+                    DidChangeConfigurationParams { settings: serde_json::Value::Null },
+                );
+            } else {
+                change(&mut state, &uri, 3, &USING_SOURCE.replace("// completion", "x.triple("));
+            }
+            assert_eq!(expect_ready(completion).unwrap_err().code, ErrorCode::CONTENT_MODIFIED);
+            assert_eq!(expect_ready(signature).unwrap_err().code, ErrorCode::CONTENT_MODIFIED);
+            drop(gate);
+        }
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn completion_and_signature_help_refresh_changed_imports() {
+    let fixture = support::RequestFixture::new(
+        r#"
+        //- /Math.sol open
+        library Math {
+            function twice(uint256 value, uint256 amount) internal pure returns (uint256) {
+                return value + amount;
+            }
+        }
+        //- /Request.sol open
+        import {Math} from "./Math.sol";
+        contract C {
+            using Math for uint256;
+            function f(uint256 x) public pure {
+                x.$1twice($2 1);
+            }
+        }
+        "#,
+        "/Request.sol",
+    );
+    let mut state = fixture.state();
+    let (uri, completion_position) = fixture.marker_location("$1");
+    let (_, signature_position) = fixture.marker_location("$2");
+    let imported = Url::from_file_path(fixture.project_path("/Math.sol")).unwrap();
+    let changed = fixture.project_contents("/Math.sol").replace("amount", "count").replace(
+        "library Math {",
+        "library Math { function triple(uint256 value) internal pure returns (uint256) { return value * 3; }",
+    );
+    let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
+    change(&mut state, &imported, 1, &changed);
+    let completion = start_request(crate::handlers::completion(
+        &mut state,
+        completion_params(&uri, completion_position),
+    ));
+    let signature = start_request(crate::handlers::signature_help(
+        &mut state,
+        signature_params(&uri, signature_position),
+    ));
+    change(&mut state, &imported, 2, &changed.replace("count", "increment"));
+    assert_eq!(expect_ready(completion).unwrap_err().code, ErrorCode::CONTENT_MODIFIED);
+    assert_eq!(expect_ready(signature).unwrap_err().code, ErrorCode::CONTENT_MODIFIED);
+    let completion = start_request(crate::handlers::completion(
+        &mut state,
+        completion_params(&uri, completion_position),
+    ));
+    let signature = start_request(crate::handlers::signature_help(
+        &mut state,
+        signature_params(&uri, signature_position),
+    ));
+    drop(gate);
+    let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, completion).await.unwrap().unwrap();
+    assert_eq!(completion_labels(response), ["triple", "twice"]);
+    let response =
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, signature).await.unwrap().unwrap().unwrap();
+    snapbox::assert_data_eq!(
+        response.signatures[0].label.as_str(),
+        snapbox::str!["function twice(uint256 increment) internal pure returns (uint256)"]
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn completion_and_signature_help_share_analysis_through_identical_edits() {
+    let (_project, mut state, uri) = using_fixture().await;
+    let source = USING_SOURCE.replace("// completion", "x.twice(");
+    let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
+    change(&mut state, &uri, 2, &source);
+    let coordinator = state.analysis_scheduler.tasks.lock().coordinator.as_ref().unwrap().1.clone();
+    let completion = start_request(crate::handlers::completion(
+        &mut state,
+        completion_params(&uri, Position::new(8, 10)),
+    ));
+    let signature = start_request(crate::handlers::signature_help(
+        &mut state,
+        signature_params(&uri, Position::new(8, 16)),
+    ));
+    change(&mut state, &uri, 3, &source);
+    let second = start_request(crate::handlers::completion(
+        &mut state,
+        completion_params(&uri, Position::new(8, 10)),
+    ));
+    assert_eq!(
+        state.analysis_scheduler.tasks.lock().coordinator.as_ref().unwrap().1.id(),
+        coordinator.id()
+    );
+    drop(gate);
+    let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, completion).await.unwrap().unwrap();
+    assert_eq!(completion_labels(response), ["twice"]);
+    assert_eq!(completion_labels(second.await.unwrap()), ["twice"]);
+    let response =
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, signature).await.unwrap().unwrap().unwrap();
+    let ready_completion = expect_ready(crate::handlers::completion(
+        &mut state,
+        completion_params(&uri, Position::new(8, 10)),
+    ))
+    .unwrap();
+    assert_eq!(completion_labels(ready_completion), ["twice"]);
+    let ready_signature = expect_ready(crate::handlers::signature_help(
+        &mut state,
+        signature_params(&uri, Position::new(8, 16)),
+    ))
+    .unwrap()
+    .unwrap();
+    assert_eq!(response, ready_signature);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn ready_completion_and_signature_help_recheck_inputs_when_polled() {
+    let (_project, mut state, uri) = using_fixture().await;
+    let completion =
+        crate::handlers::completion(&mut state, completion_params(&uri, Position::new(8, 8)));
+    let signature =
+        crate::handlers::signature_help(&mut state, signature_params(&uri, Position::new(8, 8)));
+    let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
+    change(&mut state, &uri, 2, &USING_SOURCE.replace("uint256 x;", "uint256 other;"));
+    assert_eq!(expect_ready(completion).unwrap_err().code, ErrorCode::CONTENT_MODIFIED);
+    assert_eq!(expect_ready(signature).unwrap_err().code, ErrorCode::CONTENT_MODIFIED);
+    drop(gate);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn completion_syntax_and_invalid_positions_do_not_wait_for_analysis() {
+    let (_project, mut state, uri) = using_fixture().await;
+    Arc::make_mut(&mut state.config).enable_completion_snippets();
+    let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
+    for (version, source, position) in [
+        (2, "///\ncontract C {}", Position::new(0, 3)),
+        (3, "import \"./\";", Position::new(0, 10)),
+    ] {
+        change(&mut state, &uri, version, source);
+        let response = expect_ready(crate::handlers::completion(
+            &mut state,
+            completion_params(&uri, position),
+        ))
+        .unwrap();
+        assert!(!completion_labels(response).is_empty());
+        assert!(state.analysis_scheduler.tasks.lock().debounce.is_some());
+    }
+    change(&mut state, &uri, 4, USING_SOURCE);
+    for trigger in ["/", "*", "\"", "'"] {
+        let mut params = completion_params(&uri, Position::new(7, 17));
+        params.context = Some(lsp_types::CompletionContext {
+            trigger_kind: lsp_types::CompletionTriggerKind::TRIGGER_CHARACTER,
+            trigger_character: Some(trigger.into()),
+        });
+        let response = expect_ready(crate::handlers::completion(&mut state, params)).unwrap();
+        assert!(completion_labels(response).is_empty());
+        assert!(state.analysis_scheduler.tasks.lock().debounce.is_some());
+    }
+    for (request_uri, position) in [
+        (uri.clone(), Position::new(u32::MAX, u32::MAX)),
+        (uri.join("Missing.sol").unwrap(), Position::new(0, 0)),
+    ] {
+        let response = expect_ready(crate::handlers::completion(
+            &mut state,
+            completion_params(&request_uri, position),
+        ))
+        .unwrap();
+        assert!(completion_labels(response).is_empty());
+        let response = expect_ready(crate::handlers::signature_help(
+            &mut state,
+            signature_params(&request_uri, position),
+        ))
+        .unwrap();
+        assert!(response.is_none());
+    }
+    drop(gate);
 }

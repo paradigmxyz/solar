@@ -1491,6 +1491,49 @@ impl GlobalState {
         }
     }
 
+    /// Gets a successful snapshot for an interactive request's captured source revision.
+    ///
+    /// Published epochs avoid watch subscriptions. Pending epochs share the existing worker;
+    /// a failed worker may finish its epoch without publishing a usable symbol table.
+    pub(crate) fn interactive_analysis(
+        &self,
+        vfs_content_revision: u64,
+    ) -> impl Future<Output = Result<Arc<SymbolTables>, ResponseError>> + use<> {
+        let revision = self.analysis_revision();
+        let pending = *self.published_analysis_version.borrow() < revision.version;
+        let analysis = pending.then(|| {
+            let analysis = self.latest_analysis();
+            self.prioritize_pending_analysis();
+            analysis
+        });
+        let symbol_tables = self.symbol_tables.clone();
+        async move {
+            if let Some(analysis) = analysis {
+                analysis.await?;
+            }
+            let commit = revision.commit.lock();
+            if revision.current.load(Ordering::Acquire) != revision.version
+                || revision.vfs.read().content_revision() != vfs_content_revision
+            {
+                return Err(ResponseError::new(
+                    async_lsp::ErrorCode::CONTENT_MODIFIED,
+                    "analysis inputs changed since request",
+                ));
+            }
+            if commit.cache_invalidated
+                || commit.symbol_tables_version != revision.version
+                || commit.vfs_content_revision != vfs_content_revision
+            {
+                return Err(ResponseError::new(
+                    async_lsp::ErrorCode::REQUEST_FAILED,
+                    "analysis did not produce current results",
+                ));
+            }
+            // Capture the table while publication is locked, together with its validated epoch.
+            Ok(symbol_tables.load_full())
+        }
+    }
+
     pub(crate) fn pull_diagnostic_report(
         &self,
         uri: Url,

@@ -1737,7 +1737,7 @@ fn member_completion_cache_preserves_source_and_contract_context() {
         library Second {
             function second(uint256 value) internal pure returns (uint256) { return value; }
         }
-        //- /Other.sol
+        //- /Other.sol open
         import {First} from "./Libraries.sol";
         using First for uint256;
         function readOther(uint256 value) pure { value.$1; }
@@ -1908,7 +1908,7 @@ fn dot_completions_never_fall_back_to_globals() {
 }
 
 #[test]
-fn completes_library_members_before_analysis_finishes() {
+fn completes_library_members_after_edits() {
     let fixture = RequestFixture::new(
         r#"
         //- /Math.sol
@@ -1943,7 +1943,7 @@ Numbers Module
         .replace("value;", "value.")
         .replace("x;", "x.");
     for marker in ["$1", "$2", "$4"] {
-        fixture.check_completion_details_after_change(
+        fixture.check_completion_details_after_reanalysis(
             marker,
             "/Completion.sol",
             &changed,
@@ -2017,7 +2017,7 @@ fn incomplete_uint_members_do_not_complete_globals() {
 }
 
 #[test]
-fn pending_members_respect_shadowing_and_chained_receivers() {
+fn edited_members_respect_shadowing_and_chained_receivers() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Completion.sol open
@@ -2035,9 +2035,9 @@ fn pending_members_respect_shadowing_and_chained_receivers() {
     );
     let changed = fixture
         .project_contents("/Completion.sol")
-        .replace("msg;", "msg.")
+        .replace("        msg;", "        msg.")
         .replace("msg.field;", "msg.field.");
-    fixture.check_completion_details_after_change(
+    fixture.check_completion_details_after_reanalysis(
         "$1",
         "/Completion.sol",
         &changed,
@@ -2053,11 +2053,11 @@ new_text:
 
 "#]],
     );
-    fixture.check_completion_details_after_change("$2", "/Completion.sol", &changed, str![""]);
+    fixture.check_completion_details_after_reanalysis("$2", "/Completion.sol", &changed, str![""]);
 }
 
 #[test]
-fn completes_all_declaration_receivers_before_analysis() {
+fn completes_all_declaration_receivers_after_edits() {
     let fixture = RequestFixture::new(
         r#"
         //- /Completion.sol open
@@ -2157,7 +2157,7 @@ total Method
 }
 
 #[test]
-fn completes_namespace_receivers_before_analysis() {
+fn completes_namespace_receivers_after_edits() {
     let fixture = RequestFixture::new_in_batches(
         r#"
         //- /Definitions.sol
@@ -2186,8 +2186,8 @@ Definitions Module
     );
     let changed = fixture
         .project_contents("/Completion.sol")
-        .replace("Definitions;", "Definitions.")
-        .replace("Exports;", "Exports.");
+        .replace("        Definitions;", "        Definitions.;")
+        .replace("        Exports;", "        Exports.;");
     fixture.check_completion_after_change(
         "$2",
         "/Completion.sol",
@@ -2210,7 +2210,7 @@ Numbers Module
 }
 
 #[test]
-fn pending_receivers_use_the_callers_contract_scope() {
+fn edited_receivers_use_the_callers_contract_scope() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Base.sol
@@ -2290,7 +2290,7 @@ selector Method
 }
 
 #[test]
-fn completes_function_value_members_before_analysis() {
+fn completes_function_value_members_after_edits() {
     let fixture = RequestFixture::new(
         r#"
         //- /Completion.sol open
