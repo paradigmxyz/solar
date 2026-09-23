@@ -1,0 +1,59 @@
+- // === ROOT/tests/ui/codegen/mir/check-elim/fresh_length.mir (before check-elim) ===
++ // === ROOT/tests/ui/codegen/mir/check-elim/fresh_length.mir (after check-elim) ===
+  @module FreshLength
+  fn @copy(arg0: memoryarray) -> memoryarray {
+    bb0:
+      v0 = memory_object_len memoryarray, arg0
+      v1 = shl 5, v0
+      v2 = alloc memoryarray<1>, exact, zeroed, panic, v1
+      set_memory_object_len memoryarray, v2, v0
+      jump bb1
+    bb1:
+      v3 = phi [bb0: 0], [bb4: v9]
+      v4 = memory_object_len memoryarray, arg0
+      v5 = lt v3, v4
+      jumpi v5, bb2, bb5
+    bb5:
+      ret v2
+    bb2:
+      v6 = memory_object_len memoryarray, v2
+      v7 = lt v3, v6
+      v8 = eq v7, false
+-     jumpi v8, bb3, bb4
++     jump bb4
+    bb4:
+      memory_object_store_element memoryarray<1>, v2, v3, 1
+      v9 = add v3, 1
+      jump bb1
+    bb3:
+      revert 0, 0
+  }
+  
+  fn @keep_shortened(arg0: memoryarray) -> memoryarray {
+    bb0:
+      v0 = memory_object_len memoryarray, arg0
+      v1 = shl 5, v0
+      v2 = alloc memoryarray<1>, exact, zeroed, panic, v1
+      set_memory_object_len memoryarray, v2, v0
+      jump bb1
+    bb1:
+      v3 = phi [bb0: 0], [bb4: v9]
+      v4 = memory_object_len memoryarray, arg0
+      v5 = lt v3, v4
+      jumpi v5, bb2, bb5
+    bb5:
+      ret v2
+    bb2:
+      v6 = memory_object_len memoryarray, v2
+      v7 = lt v3, v6
+      v8 = eq v7, false
+      jumpi v8, bb3, bb4
+    bb4:
+      memory_object_store_element memoryarray<1>, v2, v3, 1
+      set_memory_object_len memoryarray, v2, v3
+      v9 = add v3, 1
+      jump bb1
+    bb3:
+      revert 0, 0
+  }
+  

@@ -7,23 +7,23 @@ fn @copy(arg0: memptr) -> memptr [may_return_memory, pure] {
     v0 = mload v43
     v8 = add v0, 1
     v10 = shl 5, v8
-    v47 = mload 64 !metadata(memory=scratch)
-    v17 = inttoptr i256 v47 to memptr !metadata(memory=scratch)
-    v48 = add v47, v10
-    v49 = lt v48, v47
-    v50 = gt v48, 0xffffffffffffffff
-    v51 = or v49, v50
-    jumpi v51, bb7, bb6
-  bb6:
-    mstore 64, v48 !metadata(memory=scratch)
-    v53 = calldatasize
-    calldatacopy v47, v53, v10
-    mstore v47, v0
+    v46 = mload 64 !metadata(memory=scratch)
+    v17 = inttoptr i256 v46 to memptr !metadata(memory=scratch)
+    v47 = add v46, v10
+    v48 = lt v47, v46
+    v49 = gt v47, 0xffffffffffffffff
+    v50 = or v48, v49
+    jumpi v50, bb5, bb4
+  bb4:
+    mstore 64, v47 !metadata(memory=scratch)
+    v52 = calldatasize
+    calldatacopy v46, v52, v10
+    mstore v46, v0
     v36 = add v43, 32
-    v40 = add v47, 32
+    v40 = add v46, 32
     jump bb1
   bb1:
-    v19 = phi [bb6: 0], [bb5: v33]
+    v19 = phi [bb4: 0], [bb3: v33]
     v21 = mload v43
     v22 = lt v19, v21
     jumpi v22, bb3, bb2
@@ -33,19 +33,11 @@ fn @copy(arg0: memptr) -> memptr [may_return_memory, pure] {
     v37 = shl 5, v19
     v38 = add v36, v37
     v26 = mload v38
-    v28 = mload v47
-    v29 = lt v19, v28
-    jumpi v29, bb5, bb4
-  bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    mstore 32, 50 !metadata(memory=scratch)
-    revert 28, 36
-  bb5:
     v42 = add v40, v37
     mstore v42, v26
     v33 = add v19, 1
     jump bb1
-  bb7:
+  bb5:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36
