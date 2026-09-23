@@ -101,6 +101,8 @@ pub enum CoreIntrinsic {
     CopyInto,
     /// `Bytes.fill(dst, offset, count, value)`.
     Fill,
+    /// `Bytes.equalsAt(a, offset, b)`: whether `b` occurs in `a` at `offset`.
+    EqualsAt,
     /// `Arrays.truncate(a, n)` for every supported array type.
     Truncate,
     /// `WordArrays.groupSum(keys, values)` for one-word key arrays.
@@ -276,6 +278,7 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
             table.insert(sym::tryReadUint256BE, CoreIntrinsic::TryReadUint256Be);
             table.insert(sym::copyInto, CoreIntrinsic::CopyInto);
             table.insert(sym::fill, CoreIntrinsic::Fill);
+            table.insert(sym::equalsAt, CoreIntrinsic::EqualsAt);
             table
         })),
         "solar:core/v1/Arrays.sol" => Some(ARRAYS.get_or_init(|| {

@@ -142,6 +142,18 @@ library Bytes {
         return true;
     }
 
+    /// @dev Whether the `b.length` bytes of `a` at `offset` are the bytes of
+    /// `b`. Reverts with `Panic(0x32)` unless they all lie inside `a`, before
+    /// comparing any byte.
+    function equalsAt(bytes memory a, uint256 offset, bytes memory b) internal pure returns (bool) {
+        uint256 count = b.length;
+        if (offset > a.length || count > a.length - offset) offset = _outOfBounds();
+        for (uint256 k; k < count; ++k) {
+            if (a[offset + k] != b[k]) return false;
+        }
+        return true;
+    }
+
     /// @dev Raises the `Panic(0x32)` an out-of-range index raises, which is the
     /// portable spelling of a failed range check.
     function _outOfBounds() private pure returns (uint256) {

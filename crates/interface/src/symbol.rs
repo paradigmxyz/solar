@@ -1096,6 +1096,7 @@ symbols! {
         encode_abi_tuple,
         entry,
         environment_read,
+        equalsAt,
         erc7201,
         err,
         error,
