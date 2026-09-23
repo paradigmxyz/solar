@@ -54,7 +54,10 @@ const JUMPDEST_GAS: usize = GasTier::Jumpdest.fixed_gas() as usize;
 const PACKED_TERMINAL_TARGET_MAX_SIZE: usize = 2;
 const MIN_BUCKET_CASES: usize = 2;
 // Bound table footprint and the number of bucket blocks processed by EVM IR passes.
-const MAX_BUCKET_CASES: usize = 64;
+// Lifetime pricing weighs the selector switch's footprint itself, so the bound only
+// needs to keep the table searches small; 128 cases admit large ABIs such as a full
+// set of integer casts.
+const MAX_BUCKET_CASES: usize = 128;
 const MAX_PERFECT_BIT_TABLE_SIZE: usize = 256;
 const MAX_DENSE_RANGE: usize = 4096;
 const MAX_BUCKET_CANDIDATES: usize = 33;
