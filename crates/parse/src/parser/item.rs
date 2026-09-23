@@ -34,7 +34,33 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         };
 
         let mut items = Vec::new();
-        while let Some(item) = self.parse_item()? {
+        loop {
+            let start = self.recovery_point();
+            let item = match self.parse_item() {
+                Ok(Some(item)) => item,
+                Ok(None)
+                    if !self.recover_incomplete_input
+                        || self.token.kind == end
+                        || self.token.kind == TokenKind::Eof =>
+                {
+                    break;
+                }
+                Ok(None) => {
+                    let (msg, note) = get_msg_note(self);
+                    self.dcx().err(msg).span(self.token.span).note(note).emit();
+                    self.recover_item(start);
+                    if self.recovery_point().position() == start.position() {
+                        self.bump();
+                    }
+                    continue;
+                }
+                Err(err) if self.recover_incomplete_input => {
+                    err.emit();
+                    self.recover_item(start);
+                    continue;
+                }
+                Err(err) => return Err(err),
+            };
             if self.in_contract && !item.is_allowed_in_contract() {
                 let msg = format!("{}s are not allowed in contracts", item.description());
                 let (_, note) = get_msg_note(self);
