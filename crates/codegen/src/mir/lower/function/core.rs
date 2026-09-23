@@ -15,6 +15,12 @@
 //! value. `copyInto` is a move by contract, which is what `mcopy` is, so its
 //! two ranges need no disjointness proof; `truncate` is a store to the length
 //! word, which the alias and value-numbering analyses already model.
+//!
+//! The `WordArrays` set operations merge with branch-free steps and move the
+//! remaining tail with `mcopy`. Their bodies' index and truncation checks
+//! cannot fail, because every committed element consumes an input element and
+//! the output holds as many as the inputs can supply, so the lowering leaves
+//! them out; the output allocation keeps the body's size and panics.
 
 use super::*;
 use solar_sema::core::CoreIntrinsic;
@@ -23,6 +29,14 @@ mod base64;
 mod escape;
 mod hex;
 mod strings;
+
+/// The merges of two sorted word arrays that `WordArrays` provides.
+#[derive(Clone, Copy)]
+enum SetOperation {
+    Union,
+    Intersection,
+    Difference,
+}
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Returns the intrinsic `function_id` names, when it is one and intrinsic
@@ -85,6 +99,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::ArraySort => self.lower_core_array_sort_call(&operands, &parameter_tys),
             CoreIntrinsic::ArrayUniquifySorted => {
                 self.lower_core_array_uniquify_sorted_call(&operands)
+            }
+            CoreIntrinsic::ArrayUnion => {
+                self.lower_core_array_set_call(&operands, &parameter_tys, SetOperation::Union)
+            }
+            CoreIntrinsic::ArrayIntersection => self.lower_core_array_set_call(
+                &operands,
+                &parameter_tys,
+                SetOperation::Intersection,
+            ),
+            CoreIntrinsic::ArrayDifference => {
+                self.lower_core_array_set_call(&operands, &parameter_tys, SetOperation::Difference)
             }
             CoreIntrinsic::StringReplace => self.lower_core_string_replace_call(&operands),
             CoreIntrinsic::StringIndicesOf => self.lower_core_string_indices_of_call(&operands),
@@ -444,6 +469,188 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let compacted_length = self.builder.shr(five, compacted_bytes);
         self.builder.set_memory_object_len(input, compacted_length, kind);
         self.builder.ret([]);
+    }
+
+    /// Lowers every overload of one set operation to a shared helper, one for
+    /// signed and one for unsigned words: addresses and `bytes32` values
+    /// compare as unsigned words, like the body's `>`. Addresses still get a
+    /// helper of their own: element cleanup bounds a helper's result by the
+    /// widest array any call site passes it, so sharing one with full-word
+    /// arrays would lose the proof that the returned addresses are clean.
+    fn lower_core_array_set_call(
+        &mut self,
+        operands: &[ValueId],
+        parameter_tys: &[Ty<'gcx>],
+        operation: SetOperation,
+    ) -> Option<ValueId> {
+        let ([a, b], [array_ty, _]) = (operands, parameter_tys) else { return None };
+        let TyKind::DynArray(element) = array_ty.peel_refs().kind else { return None };
+        let signed = element.is_signed();
+        let address = matches!(element.kind, TyKind::Elementary(ElementaryType::Address(_)));
+        let name = match (operation, signed, address) {
+            (SetOperation::Union, true, _) => sym::core_array_set_union_signed,
+            (SetOperation::Union, false, true) => sym::core_array_set_union_address,
+            (SetOperation::Union, false, false) => sym::core_array_set_union,
+            (SetOperation::Intersection, true, _) => sym::core_array_set_intersection_signed,
+            (SetOperation::Intersection, false, true) => sym::core_array_set_intersection_address,
+            (SetOperation::Intersection, false, false) => sym::core_array_set_intersection,
+            (SetOperation::Difference, true, _) => sym::core_array_set_difference_signed,
+            (SetOperation::Difference, false, true) => sym::core_array_set_difference_address,
+            (SetOperation::Difference, false, false) => sym::core_array_set_difference,
+        };
+        let array = MirType::MemoryObject(MemoryObjectKind::DynamicArray);
+        let helper = self.lazy_helper(name, |this, function| {
+            function.attributes.no_inline = true;
+            function.attributes.preserves_array_elements = true;
+            function.attributes.returns_param_elements = true;
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            let a = lowerer.builder.add_param(array);
+            let b = lowerer.builder.add_param(array);
+            lowerer.builder.set_return_type(array);
+            lowerer.lower_core_array_set(operation, signed, a, b);
+            Some(())
+        })?;
+        Some(self.builder.icall(helper, vec![*a, *b], array))
+    }
+
+    /// Merges two word arrays the way the module's bodies do, without their
+    /// checks, which cannot fail: the output allocation holds every element
+    /// the merge can store, and the cursors never pass their arrays' ends.
+    ///
+    /// The result is allocated as the body allocates it, with the same panics,
+    /// but uninitialized. One merge step compares the heads `u` and `v`:
+    ///
+    ///   union:        store (u > v ? v : u) and commit it
+    ///   intersection: store u, commit when u == v
+    ///   difference:   store u, commit when u < v
+    ///   a advances unless u > v; b advances unless u < v
+    ///
+    /// Storing before deciding keeps the step free of branches. An uncommitted
+    /// store lands in the slot the next commit overwrites, which is inside the
+    /// allocation: each commit consumes at least one input element, and the
+    /// allocation holds as many elements as the inputs the operation can commit
+    /// from. Union then moves the rest of both inputs, and difference the rest of
+    /// `a`, with `mcopy`; the other input is exhausted. The final length counts
+    /// the committed words.
+    fn lower_core_array_set(
+        &mut self,
+        operation: SetOperation,
+        signed: bool,
+        a: ValueId,
+        b: ValueId,
+    ) {
+        let kind = MemoryObjectKind::DynamicArray;
+        let a_length = self.builder.memory_object_len(a, kind);
+        let b_length = self.builder.memory_object_len(b, kind);
+        // capacity = union: a.length + b.length (panic 0x11 on overflow)
+        //            intersection: min(a.length, b.length)
+        //            difference: a.length
+        // c = new word[](capacity), uninitialized
+        let capacity = match operation {
+            SetOperation::Union => {
+                let sum = self.builder.add(a_length, b_length);
+                let overflow = self.builder.lt(sum, a_length);
+                self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
+                sum
+            }
+            SetOperation::Intersection => {
+                let a_shorter = self.builder.lt(a_length, b_length);
+                self.builder.select(a_shorter, a_length, b_length)
+            }
+            SetOperation::Difference => a_length,
+        };
+        let (output, _) = self
+            .builder
+            .alloc_dynamic_word_array(capacity, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+
+        // a_cursor = data(a); a_end = a_cursor + 32 * a.length
+        // b_cursor = data(b); b_end = b_cursor + 32 * b.length
+        // out_start = data(c)
+        let five = self.builder.imm(5);
+        let a_start = self.builder.memory_object_data(a, kind);
+        let a_start = self.builder.cast_word(a_start);
+        let a_bytes = self.builder.shl(five, a_length);
+        let a_end = self.builder.add(a_start, a_bytes);
+        let b_start = self.builder.memory_object_data(b, kind);
+        let b_start = self.builder.cast_word(b_start);
+        let b_bytes = self.builder.shl(five, b_length);
+        let b_end = self.builder.add(b_start, b_bytes);
+        let out_start = self.builder.memory_object_data(output, kind);
+        let out_start = self.builder.cast_word(out_start);
+        let entry = self.builder.current_block();
+        let header = self.builder.create_block();
+        let body = self.builder.create_block();
+        let done = self.builder.create_block();
+        self.builder.jump(header);
+
+        // jumpi (a_cursor < a_end) & (b_cursor < b_end), body, done
+        self.builder.switch_to_block(header);
+        let out_cursor = self.builder.phi(vec![(entry, out_start)]);
+        let a_cursor = self.builder.phi(vec![(entry, a_start)]);
+        let b_cursor = self.builder.phi(vec![(entry, b_start)]);
+        let a_more = self.builder.lt(a_cursor, a_end);
+        let b_more = self.builder.lt(b_cursor, b_end);
+        let more = self.builder.and(a_more, b_more);
+        self.builder.branch(more, body, done);
+
+        // u = mload a_cursor; v = mload b_cursor
+        // mstore out_cursor, stored; out_cursor += 32 * committed
+        // a_cursor += 32 * !(u > v); b_cursor += 32 * !(u < v)
+        self.builder.switch_to_block(body);
+        let u = self.builder.mload(a_cursor);
+        let v = self.builder.mload(b_cursor);
+        let (greater, less) = if signed {
+            (self.builder.sgt(u, v), self.builder.slt(u, v))
+        } else {
+            (self.builder.gt(u, v), self.builder.lt(u, v))
+        };
+        let (stored, committed) = match operation {
+            SetOperation::Union => (self.builder.select(greater, v, u), None),
+            SetOperation::Intersection => (u, Some(self.builder.eq(u, v))),
+            SetOperation::Difference => (u, Some(less)),
+        };
+        self.builder.mstore(out_cursor, stored);
+        let next_out = match committed {
+            Some(committed) => {
+                let committed = self.builder.cast_word(committed);
+                let advance = self.builder.shl(five, committed);
+                self.builder.add(out_cursor, advance)
+            }
+            None => self.builder.add_u64_offset(out_cursor, 32),
+        };
+        let a_stays = self.builder.cast_word(greater);
+        let a_advance = self.builder.eq_zero(a_stays);
+        let a_advance = self.builder.cast_word(a_advance);
+        let a_advance = self.builder.shl(five, a_advance);
+        let next_a = self.builder.add(a_cursor, a_advance);
+        let b_stays = self.builder.cast_word(less);
+        let b_advance = self.builder.eq_zero(b_stays);
+        let b_advance = self.builder.cast_word(b_advance);
+        let b_advance = self.builder.shl(five, b_advance);
+        let next_b = self.builder.add(b_cursor, b_advance);
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(out_cursor, body, next_out);
+        self.builder.add_phi_incoming(a_cursor, body, next_a);
+        self.builder.add_phi_incoming(b_cursor, body, next_b);
+
+        // union: mcopy the rest of a, then of b; difference: the rest of a
+        // len(c) = (out_cursor - out_start) / 32
+        self.builder.switch_to_block(done);
+        let mut out_end = out_cursor;
+        let tails = match operation {
+            SetOperation::Union => vec![(a_cursor, a_end), (b_cursor, b_end)],
+            SetOperation::Intersection => Vec::new(),
+            SetOperation::Difference => vec![(a_cursor, a_end)],
+        };
+        for (cursor, end) in tails {
+            let rest = self.builder.sub(end, cursor);
+            self.builder.mcopy_heap(out_end, cursor, rest);
+            out_end = self.builder.add(out_end, rest);
+        }
+        let out_bytes = self.builder.sub(out_end, out_start);
+        let length = self.builder.shr(five, out_bytes);
+        self.builder.set_memory_object_len(output, length, kind);
+        self.builder.ret([output]);
     }
 
     /// Lowers every `groupSum` overload to one helper: keys compare as words.

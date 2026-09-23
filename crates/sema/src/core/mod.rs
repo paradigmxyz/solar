@@ -113,6 +113,12 @@ pub enum CoreIntrinsic {
     ArraySort,
     /// `WordArrays.uniquifySorted(a)` for one-word dynamic arrays.
     ArrayUniquifySorted,
+    /// `WordArrays.union(a, b)` for one-word dynamic arrays.
+    ArrayUnion,
+    /// `WordArrays.intersection(a, b)` for one-word dynamic arrays.
+    ArrayIntersection,
+    /// `WordArrays.difference(a, b)` for one-word dynamic arrays.
+    ArrayDifference,
     /// `Strings.replace(subject, needle, replacement)`.
     StringReplace,
     /// `Strings.indicesOf(subject, needle)`.
@@ -292,6 +298,9 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (Symbol::intern("hasDuplicate"), CoreIntrinsic::ArrayHasDuplicate),
                 (Symbol::intern("sort"), CoreIntrinsic::ArraySort),
                 (Symbol::intern("uniquifySorted"), CoreIntrinsic::ArrayUniquifySorted),
+                (sym::union, CoreIntrinsic::ArrayUnion),
+                (sym::intersection, CoreIntrinsic::ArrayIntersection),
+                (sym::difference, CoreIntrinsic::ArrayDifference),
             ])
         })),
         "solar:core/v1/Strings.sol" => Some(STRINGS.get_or_init(|| {
