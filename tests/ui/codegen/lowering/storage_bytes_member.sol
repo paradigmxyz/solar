@@ -104,7 +104,7 @@ contract StorageBytesMember {
     // CHECK: caller
     // CHECK: push 32
     // CHECK-NEXT: mstore
-    // CHECK: mcopy
+    // CHECK-NOT: mcopy
     // CHECK: return
     function whole() external view returns (bytes memory) {
         KeccakState storage state = states[msg.sender];
