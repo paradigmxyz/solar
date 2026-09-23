@@ -152,10 +152,17 @@ pub(crate) fn vfs_path(url: &lsp_types::Url) -> Option<vfs::VfsPath> {
 /// This does not resolve symlinks or require the file to exist. Non-file URIs are preserved;
 /// callers retain their existing support checks. Common canonical URIs need no allocation.
 pub(crate) fn normalize_file_uri(uri: lsp_types::Url) -> lsp_types::Url {
-    if uri.scheme() != "file" {
+    if uri.scheme() != "file" || is_normalized_file_uri(&uri) {
         return uri;
     }
+    vfs_path(&uri)
+        .and_then(|path| lsp_types::Url::from_file_path(path.as_path()?).ok())
+        .unwrap_or(uri)
+}
 
+/// Checks the allocation-free fast path for lexical file URI normalization.
+#[inline(always)]
+pub(crate) fn is_normalized_file_uri(uri: &lsp_types::Url) -> bool {
     let path = uri.path();
     let is_windows_drive_root = cfg!(windows)
         && path.len() == 4
@@ -168,7 +175,8 @@ pub(crate) fn normalize_file_uri(uri: lsp_types::Url) -> lsp_types::Url {
         && path.as_bytes()[0] == b'/'
         && path.as_bytes()[1].is_ascii_lowercase()
         && path.as_bytes()[2] == b':';
-    if uri.host_str().is_none()
+    uri.scheme() == "file"
+        && uri.host_str().is_none()
         && uri.query().is_none()
         && uri.fragment().is_none()
         && path.starts_with('/')
@@ -177,12 +185,6 @@ pub(crate) fn normalize_file_uri(uri: lsp_types::Url) -> lsp_types::Url {
         && (!path.ends_with('/') || path == "/" || is_windows_drive_root)
         && !path.split('/').any(|segment| matches!(segment, "." | ".."))
         && !has_lowercase_windows_drive
-    {
-        return uri;
-    }
-    vfs_path(&uri)
-        .and_then(|path| lsp_types::Url::from_file_path(path.as_path()?).ok())
-        .unwrap_or(uri)
 }
 
 /// Converts an [`lsp_types::Range`] to a [`Range`].
