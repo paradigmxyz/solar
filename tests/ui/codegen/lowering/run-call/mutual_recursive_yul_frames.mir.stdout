@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mutual_recursive_yul_frames.sol:MutualRecursiveYulFrames ===
 @module MutualRecursiveYulFrames
+@inline_assembly
 types:
   struct0: {i256, i256, i256}
   struct1: {i256, i256}

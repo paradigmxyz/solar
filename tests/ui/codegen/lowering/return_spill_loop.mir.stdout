@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/return_spill_loop.sol:ReturnCopy ===
 @module ReturnCopy
+@inline_assembly
 types:
   struct0: {i256, i256, i256}
 

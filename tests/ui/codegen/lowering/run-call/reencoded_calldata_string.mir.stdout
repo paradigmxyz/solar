@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/reencoded_calldata_string.sol:C ===
 @module C
+@inline_assembly
 fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)

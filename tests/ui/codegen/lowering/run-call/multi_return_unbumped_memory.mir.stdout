@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/multi_return_unbumped_memory.sol:MultiReturnUnbumpedMemory ===
 @module MultiReturnUnbumpedMemory
+@inline_assembly
 types:
   struct0: {i256, i256}
 

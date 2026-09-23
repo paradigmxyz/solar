@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/cse/internal_call_effects.sol:InternalCallEffects ===
 @module InternalCallEffects
+@inline_assembly
 fn @disjoint() -> i256 [selector=0xbf1f2d2a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 10 !metadata(storage=slot(0))

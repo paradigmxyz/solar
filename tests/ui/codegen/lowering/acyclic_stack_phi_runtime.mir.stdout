@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/acyclic_stack_phi_runtime.sol:AcyclicStackPhi ===
 @module AcyclicStackPhi
+@inline_assembly
 types:
   struct0: {i256, i256}
 

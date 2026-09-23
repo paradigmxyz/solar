@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_default_memory_aggregate.sol:AbiEncodeDefaultMemoryAggregates ===
 @module AbiEncodeDefaultMemoryAggregates
+@inline_assembly
 fn @hashStaticTuple() -> i256 [selector=0x432a72da, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64

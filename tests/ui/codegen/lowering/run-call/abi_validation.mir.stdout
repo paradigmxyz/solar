@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_validation.sol:AbiValidation ===
 @module AbiValidation
+@inline_assembly
 fn @vBool(arg0: i256) -> i256 [selector=0x18a11c47, pure, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     ret arg0

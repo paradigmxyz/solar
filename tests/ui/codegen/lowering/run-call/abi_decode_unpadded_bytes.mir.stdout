@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_unpadded_bytes.sol:AbiDecodeUnpaddedBytes ===
 @module AbiDecodeUnpaddedBytes
+@inline_assembly
 types:
   struct0: {i256, i256}
 

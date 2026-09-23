@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dirty_addmod_modulus.sol:DirtyAddmodModulus ===
 @module DirtyAddmodModulus
+@inline_assembly
 fn @addmodDirtyModulus(arg0: i256, arg1: i256) -> i256 [selector=0x6725e18c, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and 256, 255

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/forwarded_calldata_slice_return.sol:ForwardedCalldataSliceReturn ===
 @module ForwardedCalldataSliceReturn
+@inline_assembly
 types:
   struct0: {i256, memorybytes}
   struct1: {i256, calldataslice}

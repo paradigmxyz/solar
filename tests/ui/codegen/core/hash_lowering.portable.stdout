@@ -68,42 +68,39 @@ fn @keccak256Range(arg0: memptr, arg1: i256, arg2: i256) -> i256 [may_return_mem
     jumpi v42, bb5, bb1
   bb1:
     v8 = add arg2, 63
-    v9 = lt v8, arg2
-    jumpi v9, bb6, bb7
-  bb7:
     v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v65 = mload 64 !metadata(memory=scratch)
-    v66 = add v65, v11
-    v67 = lt v66, v65
-    v68 = gt v66, 0xffffffffffffffff
-    v69 = or v67, v68
-    jumpi v69, bb6, bb13
-  bb13:
-    mstore 64, v66 !metadata(memory=scratch)
+    v59 = mload 64 !metadata(memory=scratch)
+    v60 = add v59, v11
+    v61 = lt v60, v59
+    v62 = gt v60, 0xffffffffffffffff
+    v63 = or v61, v62
+    jumpi v63, bb11, bb10
+  bb10:
+    mstore 64, v60 !metadata(memory=scratch)
     v71 = calldatasize
-    calldatacopy v65, v71, v11
-    mstore v65, arg2
+    calldatacopy v59, v71, v11
+    mstore v59, arg2
     v48 = add v55, 32
-    v53 = add v65, 32
+    v53 = add v59, 32
     jump bb2
   bb2:
-    v14 = phi [bb13: 0], [bb9: v40]
+    v14 = phi [bb10: 0], [bb7: v40]
     v19 = lt v14, arg2
     jumpi v19, bb4, bb3
   bb3:
-    v44 = mload v65
-    v46 = add v65, 32
+    v44 = mload v59
+    v46 = add v59, 32
     v31 = keccak256 v46, v44
     ret v31
   bb4:
     v38 = add arg1, v14
     v39 = lt v38, arg1
-    jumpi v39, bb10, bb11
-  bb11:
+    jumpi v39, bb8, bb9
+  bb9:
     v21 = mload v55
     v22 = lt v38, v21
-    jumpi v22, bb9, bb8
-  bb9:
+    jumpi v22, bb7, bb6
+  bb7:
     v49 = add v48, v38
     v50 = mload v49
     v51 = byte 0, v50
@@ -111,27 +108,27 @@ fn @keccak256Range(arg0: memptr, arg1: i256, arg2: i256) -> i256 [may_return_mem
     mstore8 v54, v51
     v40 = add v14, 1
     jump bb2
-  bb10:
+  bb8:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
     revert 28, 36
   bb5:
-    v59 = mload 64 !metadata(memory=scratch)
-    v60 = add v59, 32
-    v61 = lt v60, v59
-    v62 = gt v60, 0xffffffffffffffff
-    v63 = or v61, v62
-    jumpi v63, bb6, bb12
+    v65 = mload 64 !metadata(memory=scratch)
+    v66 = add v65, 32
+    v67 = lt v66, v65
+    v68 = gt v66, 0xffffffffffffffff
+    v69 = or v67, v68
+    jumpi v69, bb11, bb12
   bb12:
-    mstore 64, v60 !metadata(memory=scratch)
-    mstore v59, 0
-    mstore v59, 0
-    jump bb8
-  bb8:
+    mstore 64, v66 !metadata(memory=scratch)
+    mstore v65, 0
+    mstore v65, 0
+    jump bb6
+  bb6:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
     revert 28, 36
-  bb6:
+  bb11:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36

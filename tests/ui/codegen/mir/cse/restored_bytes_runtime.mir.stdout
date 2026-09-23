@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/cse/restored_bytes_runtime.sol:Test ===
 @module Test
+@inline_assembly
 types:
   struct0: {i256, i256}
 

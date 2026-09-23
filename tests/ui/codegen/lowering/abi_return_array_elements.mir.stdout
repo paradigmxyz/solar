@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_return_array_elements.sol:AbiReturnArrayElements ===
 @module AbiReturnArrayElements
+@inline_assembly
 fn @clean(arg0: memoryarray) -> memoryarray [selector=0x945bb2ba, pure, abi_params=[array<_, address>], abi_returns=[memory_array<word<u160>>], abi_return_params=[array<_, address>]] {
   bb0:
     ret arg0

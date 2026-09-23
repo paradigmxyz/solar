@@ -118,8 +118,8 @@ fn @decode.1(arg0: memptr) -> memptr [may_return_memory, pure] {
     v180 = lt v179, v178
     v181 = gt v179, 0xffffffffffffffff
     v182 = or v180, v181
-    jumpi v182, bb19, bb18
-  bb18:
+    jumpi v182, bb18, bb17
+  bb17:
     mstore 64, v179 !metadata(memory=scratch)
     v190 = calldatasize
     calldatacopy v178, v190, v33
@@ -146,9 +146,9 @@ fn @decode.1(arg0: memptr) -> memptr [may_return_memory, pure] {
     mstore v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb5
   bb5:
-    v52 = phi [bb18: 0], [bb17: v87]
-    v54 = phi [bb18: 0], [bb17: v119]
-    v56 = phi [bb18: v24], [bb17: v117]
+    v52 = phi [bb17: 0], [bb13: v87]
+    v54 = phi [bb17: 0], [bb13: v119]
+    v56 = phi [bb17: v24], [bb13: v117]
     v60 = lt v56, v0
     jumpi v60, bb7, bb6
   bb6:
@@ -197,12 +197,9 @@ fn @decode.1(arg0: memptr) -> memptr [may_return_memory, pure] {
     v170 = add v169, v54
     mstore8 v170, v91
     v117 = add v56, 2
-    v118 = lt v117, v56
-    jumpi v118, bb14, bb17
-  bb17:
     v119 = add v54, 1
     jump bb5
-  bb19:
+  bb18:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36

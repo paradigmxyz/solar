@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/safe-solar/math/muldiv/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
+@inline_assembly
 fn @quotient() [selector=0x211bc189, abi_wrapper, pure] {
   bb0:
     v2 = calldatasize

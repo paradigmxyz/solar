@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/yul_leave_named_returns.sol:C ===
 @module C
+@inline_assembly
 types:
   struct0: {i256, i256}
 

@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/inline-dispatch/raw_memory.sol:RawMemory ===
 @module RawMemory
 @phase lowered
+@inline_assembly
 fn @raw() [selector=0x302e678f, abi_wrapper, pure] {
   bb0:
     v0 = calldatasize
@@ -52,6 +53,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/mir/inline-dispatch/raw_memory.sol:RawRevert ===
 @module RawRevert
 @phase lowered
+@inline_assembly
 fn @raw() [selector=0x302e678f, abi_wrapper, pure] {
   bb0:
     v0 = calldatasize

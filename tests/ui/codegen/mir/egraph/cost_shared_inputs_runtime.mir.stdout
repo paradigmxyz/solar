@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/egraph/cost_shared_inputs_runtime.sol:SharedInputCosts ===
 @module SharedInputCosts
+@inline_assembly
 types:
   struct0: {i256, i256}
   struct1: {i256, i256, i256}

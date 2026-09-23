@@ -139,16 +139,7 @@ bb23 [loop]:
   dup 3
   eq
   iszero
-  dup 2
   mul
-  dup 2
-  swap 1
-  sub
-  push 3
-  dup 3
-  eq
-  mul
-  add
   jump bb32
 bb31 [loop]:
   dup 1

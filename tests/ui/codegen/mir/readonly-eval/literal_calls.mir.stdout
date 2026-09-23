@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/readonly-eval/literal_calls.sol:LiteralCalls ===
 @module LiteralCalls
+@inline_assembly
 types:
   struct0: {i256, i256}
 

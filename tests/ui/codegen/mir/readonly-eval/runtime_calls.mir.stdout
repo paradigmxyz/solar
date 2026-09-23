@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/readonly-eval/runtime_calls.sol:RuntimeCalls ===
 @module RuntimeCalls
+@inline_assembly
 fn @emptyBytes() -> i256 [selector=0x55c4baff, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)

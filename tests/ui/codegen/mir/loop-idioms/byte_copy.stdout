@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/loop-idioms/byte_copy.sol:Test ===
 @module Test
 @phase lowered
+@inline_assembly
 fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
   bb0:
     v1 = calldatasize

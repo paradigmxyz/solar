@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_string_bytes_conversion.sol:StorageStringBytesConversion ===
 @module StorageStringBytesConversion
+@inline_assembly
 types:
   struct0: {memorybytes, i256}
 

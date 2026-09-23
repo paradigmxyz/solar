@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/store_operand_order.sol:StoreOperands ===
 @module StoreOperands
+@inline_assembly
 types:
   struct0: {i256, i256, i256}
 

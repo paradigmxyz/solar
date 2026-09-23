@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_memory_cleanup.sol:ExternalFunctionPointerMemoryCleanup ===
 @module ExternalFunctionPointerMemoryCleanup
+@inline_assembly
 types:
   struct0: {i256, i256}
 

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/inline/return_words_runtime.sol:Test ===
 @module Test
+@inline_assembly
 types:
   struct0: {i256, i256}
   struct1: {i256, i256, i256}

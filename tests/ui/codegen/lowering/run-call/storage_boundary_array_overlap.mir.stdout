@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_boundary_array_overlap.sol:StorageBoundaryArrayOverlap ===
 @module StorageBoundaryArrayOverlap
+@inline_assembly
 types:
   struct0: {i256, i256, i256}
 

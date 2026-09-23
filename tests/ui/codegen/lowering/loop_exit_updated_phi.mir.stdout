@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/loop_exit_updated_phi.sol:Test ===
 @module Test
+@inline_assembly
 fn @decimal(arg0: i256) -> memorybytes [selector=0xf371efa4, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/lower-abi-encode/byte_padding_runtime.sol:BytePadding ===
 @module BytePadding
+@inline_assembly
 fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gt arg0, 65

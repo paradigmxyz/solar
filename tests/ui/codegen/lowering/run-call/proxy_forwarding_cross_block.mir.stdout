@@ -18,6 +18,7 @@ fn @set(arg0: i256, arg1: i256, arg2: i256, arg3: calldataslice) [selector=0x526
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:FixedRangeProxy ===
 @module FixedRangeProxy
+@inline_assembly
 fn @constructor(arg0: i256) [constructor, abi_params=[address]] {
   bb0:
     v0 = trunc i256 arg0 to i160
@@ -60,6 +61,7 @@ fn @fallback() [fallback] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:CrossBlockProxy ===
 @module CrossBlockProxy
+@inline_assembly
 fn @constructor(arg0: i256) [constructor, abi_params=[address]] {
   bb0:
     v0 = trunc i256 arg0 to i160
@@ -115,6 +117,7 @@ fn @fallback() [fallback] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:ForwardingHarness ===
 @module ForwardingHarness
+@inline_assembly
 data:
   ForwardingImplementation_initcode_0: hex"34600e576101128060125f395ff35b5f5ffd341515602a575f3560e01c80633fa4f2451460265780635269df1a14602257602a565b6041565b602e565b5f5ffd5b6001546080526020608001608090036080f35b6084361061010e576064358060c0526004016020810167ffffffffffffffff60c0511136806101005282119150178135806101205280610120526020830192508236039250828111925082925082821791509150151561010a57602435600435018060805280608052600435811060f8576044358180608052018060a0528060a0528180608052811091509060f857818061012052818060a052018060e05291508160e0528060a052811060f8578060e052600155005b634e487b715f5260116020526024601cfd5b5f5ffd5b5f5ffd"
   FixedRangeProxy_initcode_1: hex"61010538038061010560e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405234151560a65760e08060c0528060c05260e0610105380301602082011160a2578060c0525160a01c151560a25760e05173ffffffffffffffffffffffffffffffffffffffff165f5473ffffffffffffffffffffffffffffffffffffffff1981169050819150175f5560aa565b5f5ffd5b5f5ffd5b60518060b45f395ff3341515600957600d565b5f5ffd5b6130006040525f5473ffffffffffffffffffffffffffffffffffffffff90166130005f5f375f5f365f845af490501515156049573d5f5f3e3d5ff35b3d5f5f3e3d5ffd"
@@ -345,6 +348,7 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:RevertingProducer ===
 @module RevertingProducer
+@inline_assembly
 fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     mstore 0, 0x1234 !metadata(memory=scratch)
@@ -381,6 +385,7 @@ fn @bubble() -> memorybytes [selector=0x4ce637d6, view, abi_params=[], abi_retur
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:SharedPublicFrame ===
 @module SharedPublicFrame
+@inline_assembly
 fn @helper(arg0: i256) -> i256 [selector=0xdabf7ec4, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     calldatacopy 0, 0, 0x1000 !metadata(memory=scratch)
@@ -395,6 +400,7 @@ fn @entry() -> i256 [selector=0x67f239dd, pure, abi_params=[], abi_returns=[word
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:HelperReturnedHeapBuffer ===
 @module HelperReturnedHeapBuffer
+@inline_assembly
 fn @buffer() -> i256 [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)

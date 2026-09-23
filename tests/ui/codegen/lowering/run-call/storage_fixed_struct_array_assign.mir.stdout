@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_fixed_struct_array_assign.sol:StorageFixedStructArrayAssign ===
 @module StorageFixedStructArrayAssign
+@inline_assembly
 types:
   struct0: {i256, i256, i256}
 

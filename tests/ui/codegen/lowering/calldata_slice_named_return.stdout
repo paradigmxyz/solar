@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_named_return.sol:CalldataSliceNamedReturn ===
 @module CalldataSliceNamedReturn
 @phase lowered
+@inline_assembly
 fn @unwrap(arg0: i256, arg1: i256) -> calldataslice [pure, return_abi=[i256, i256]] {
   bb0:
     v1 = sub arg1, 32

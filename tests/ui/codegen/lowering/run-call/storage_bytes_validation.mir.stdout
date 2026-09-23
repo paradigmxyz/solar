@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_validation.sol:StorageBytesValidation ===
 @module StorageBytesValidation
+@inline_assembly
 fn @unusedInvalidLength() [selector=0x200cc212, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))

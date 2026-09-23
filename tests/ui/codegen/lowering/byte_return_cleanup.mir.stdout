@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/byte_return_cleanup.sol:ByteReturnCleanup ===
 @module ByteReturnCleanup
+@inline_assembly
 types:
   struct0: {i256, i256}
 

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/power_of_two_mul.sol:PowerOfTwoMul ===
 @module PowerOfTwoMul
+@inline_assembly
 fn @exp2(arg0: i256) -> i256 [selector=0xa75826ae, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = exp 2, arg0

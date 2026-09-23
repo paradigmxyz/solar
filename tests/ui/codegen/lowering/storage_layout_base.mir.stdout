@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutSlots ===
 @module LayoutSlots
+@inline_assembly
 types:
   struct0: {i256, i256, i256, i256, i256, i256}
 
@@ -16,6 +17,7 @@ fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[w
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutStorage ===
 @module LayoutStorage
+@inline_assembly
 types:
   struct0: {i256, i256}
 
@@ -41,6 +43,7 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutDerived ===
 @module LayoutDerived
+@inline_assembly
 types:
   struct0: {i256, i256, i256}
 
@@ -59,6 +62,7 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutTransient ===
 @module LayoutTransient
+@inline_assembly
 types:
   struct0: {i256, i256}
 
@@ -71,6 +75,7 @@ fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[w
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutErc7201 ===
 @module LayoutErc7201
+@inline_assembly
 fn @matchesReference() -> i256 [selector=0xedf3feeb, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)

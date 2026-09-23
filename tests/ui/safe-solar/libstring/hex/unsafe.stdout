@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/safe-solar/libstring/hex/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
+@inline_assembly
 fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
   bb0:
     v36 = calldatasize

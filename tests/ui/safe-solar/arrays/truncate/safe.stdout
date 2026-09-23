@@ -10,6 +10,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/safe-solar/arrays/truncate/safe.sol:Safe ===
 @module Safe
 @phase lowered
+@inline_assembly
 fn @shorten() [selector=0xf0187838, abi_wrapper, pure] {
   bb0:
     v4 = icall @decode_calldata_type, 4

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/assembly_calldata_reference_assignment.sol:AssemblyCalldataReferenceAssignment ===
 @module AssemblyCalldataReferenceAssignment
+@inline_assembly
 types:
   struct0: {i256, i256}
   struct1: {i256, i256, i256}

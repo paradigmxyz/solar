@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/nested_copy_stack.sol:NestedCopyStack ===
 @module NestedCopyStack
+@inline_assembly
 fn @copyGroups(arg0: i256, arg1: i256, arg2: i256) -> memorybytes [selector=0x03aba4f0, pure, abi_params=[u256, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = gt arg0, 4

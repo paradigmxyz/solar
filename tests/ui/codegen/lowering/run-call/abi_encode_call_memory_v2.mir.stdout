@@ -7,6 +7,7 @@ fn @something() [selector=0xa7a0d537, pure, abi_params=[], abi_returns=[], abi_r
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_memory_v2.sol:AbiEncodeCallMemory ===
 @module AbiEncodeCallMemory
+@inline_assembly
 data:
   AbiEncodeCallMemoryTarget_initcode_0: hex"34600d5760218060115f395ff35b5f5ffd341515601c575f3560e01c8063a7a0d53714601857601c565b6020565b5f5ffd5b"
 

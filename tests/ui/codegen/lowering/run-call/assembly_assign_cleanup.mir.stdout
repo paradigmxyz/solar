@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/assembly_assign_cleanup.sol:C ===
 @module C
+@inline_assembly
 fn @parseSel(arg0: memorybytes) -> i256 [pure] {
   bb0:
     v0 = ptrtoint memorybytes arg0 to i256

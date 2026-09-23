@@ -1,0 +1,57 @@
+//@compile-flags: -Zmir-pipeline=check-elim
+//@filecheck:
+@module CheckElimObjectLengths
+
+// Without inline assembly every length was written by a checked allocation, so
+// two lengths cannot sum past the word size and the wrap test folds.
+// CHECK-LABEL: @sum_of_lengths
+// CHECK: {{^ +}}[[SUM:v[0-9]+]] = add
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = lt [[SUM]],
+// CHECK-NEXT: -     jumpi
+// CHECK-NEXT: +     jump
+fn @sum_of_lengths(arg0: memoryarray, arg1: memorybytes) -> i256 {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    v1 = memory_object_len memorybytes, arg1
+    v2 = add v0, v1
+    v3 = lt v2, v0
+    jumpi v3, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v2
+}
+
+// A length scaled to bytes still fits, so the multiplication's round trip holds.
+// CHECK-LABEL: @scaled_length
+// CHECK: {{^ +}}{{v[0-9]+}} = eq
+// CHECK-NEXT: -     jumpi
+// CHECK: +     jump
+fn @scaled_length(arg0: memoryarray) -> i256 {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    v1 = mul v0, 32
+    v2 = div v1, 32
+    v3 = eq v2, v0
+    jumpi v3, bb2, bb1
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v1
+}
+
+// An arbitrary word added to a length can still wrap.
+// CHECK-LABEL: @keep_word_sum
+// CHECK: {{^ +}}{{v[0-9]+}} = lt
+// CHECK-NEXT: {{^ +}}jumpi
+fn @keep_word_sum(arg0: memoryarray, arg1: i256) -> i256 {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    v1 = add v0, arg1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v1
+}

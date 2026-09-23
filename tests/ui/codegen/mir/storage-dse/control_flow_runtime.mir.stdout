@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/storage-dse/control_flow_runtime.sol:StorageControlFlow ===
 @module StorageControlFlow
+@inline_assembly
 fn @changingSlot() -> i256 [selector=0xf8e62371, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1

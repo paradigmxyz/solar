@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_function_pointer_array_validation.sol:AbiFunctionPointerArrayValidation ===
 @module AbiFunctionPointerArrayValidation
+@inline_assembly
 fn @target() [selector=0xd4b83992, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret

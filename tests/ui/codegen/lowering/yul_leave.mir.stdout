@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/yul_leave.sol:YulLeave ===
 @module YulLeave
+@inline_assembly
 types:
   struct0: {i256, i256}
 

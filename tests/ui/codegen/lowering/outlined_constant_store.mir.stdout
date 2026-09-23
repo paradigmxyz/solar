@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/outlined_constant_store.sol:OutlinedConstantStore ===
 @module OutlinedConstantStore
+@inline_assembly
 fn @first(arg0: i256) -> i256 [selector=0x0b3f62f5, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     mstore 128, 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef

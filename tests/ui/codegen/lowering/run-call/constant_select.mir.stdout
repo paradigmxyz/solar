@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constant_select.sol:ConstantSelect ===
 @module ConstantSelect
+@inline_assembly
 fn @choose(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x739ca28b, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = ne arg0, 0

@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/abi_return_array_elements.sol:AbiReturnArrayElements ===
 @module AbiReturnArrayElements
 @phase lowered
+@inline_assembly
 fn @clean() [selector=0x945bb2ba, abi_wrapper, pure] {
   bb0:
     v2 = icall @decode_calldata_type.8, 4

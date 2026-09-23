@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/transfer_send.sol:GasReceiver ===
 @module GasReceiver
+@inline_assembly
 fn @receive() [receive, payable] {
   bb0:
     log0 0, 0
@@ -14,6 +15,7 @@ fn @receive() [receive, payable] {
 
 // === ROOT/tests/ui/codegen/lowering/transfer_send.sol:RevertReceiver ===
 @module RevertReceiver
+@inline_assembly
 fn @receive() [receive, payable] {
   bb0:
     v0 = shl 224, 0xdeadbeef
@@ -23,6 +25,7 @@ fn @receive() [receive, payable] {
 
 // === ROOT/tests/ui/codegen/lowering/transfer_send.sol:TransferSend ===
 @module TransferSend
+@inline_assembly
 types:
   struct0: {i256, i256, i256}
 

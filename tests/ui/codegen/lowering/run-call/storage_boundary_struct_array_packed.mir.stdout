@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_boundary_struct_array_packed.sol:StorageBoundaryStructArrayPacked ===
 @module StorageBoundaryStructArrayPacked
+@inline_assembly
 types:
   struct0: {i256, i256}
 

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.sol:MinedWords ===
 @module MinedWords
+@inline_assembly
 types:
   struct0: {i256, i256}
 

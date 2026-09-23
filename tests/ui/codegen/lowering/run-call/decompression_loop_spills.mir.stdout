@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/decompression_loop_spills.sol:Decompressor ===
 @module Decompressor
+@inline_assembly
 fn @fallback() [fallback, payable] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))

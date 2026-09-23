@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/extended_stack.sol:ExtendedStack ===
 @module ExtendedStack
+@inline_assembly
 fn @check() -> i256 [selector=0x919840ad, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gas

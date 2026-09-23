@@ -41,6 +41,12 @@
 //! After an edge consumes a single-use predicate, its own range and single-use
 //! negations are discarded. Operand ranges and relations remain available;
 //! predicates referenced by instructions, phis, or other terminators stay live.
+//! A loop header phi's range leaves out the paths that carry it around the loop
+//! unchanged: every visit holds the preheader value or a value an earlier
+//! iteration stored, so the union of the stores' edge ranges covers it by
+//! induction over the header's visits. Phis between a store and the latch are
+//! decomposed into their incoming edges. This bounds a binary search's `low`
+//! and `high`, which one path updates while the other carries them.
 //!
 //! Loop header phis of the form `p = phi [pre: init], [latch: p - c]` with a
 //! constant nonzero step are monotone when the update provably cannot wrap at
@@ -49,6 +55,13 @@
 //! scope without assuming the invariant, then adds the relation to the header's
 //! entry facts and walks again. This establishes `j <= i < length` for a
 //! descending inner index initialized from a bounded outer counter.
+//!
+//! A header phi whose updates are not constant steps is monotone when each
+//! update is proven, in the scope computing it, to stay on the phi's side of its
+//! current value. A binary search's `high = mid - 1` stays below `high` because
+//! the midpoint lies between the bounds, which establishes `high <= length`. The
+//! midpoint fact itself is recorded where `(x + y) >> 1` is defined: when the
+//! scope orders `x <= y` and the sum cannot wrap, it lies between them.
 //!
 //! When both the start and the step of such a phi are constants, the phi also
 //! carries a range bound from the target's trip-count limit: a counter cannot
@@ -89,6 +102,11 @@
 //! facts only become unsigned relations when both operands have the same known
 //! sign. These bounds use the existing join and dominance scopes.
 //!
+//! A module without inline assembly bounds every memory object's logical length by the
+//! allocation limit: each length was written by a checked allocation, an ABI decoder, or a core
+//! operation that only shortens an object. Assembly can store any word in a length word, so a
+//! module containing it keeps lengths unknown.
+//!
 //! Runtime-only functions also use bounds from zero-extended immutable encodings.
 //! These bounds follow the target's actual immediate width, not the result's
 //! nominal type. Constructor-reachable functions, including helpers shared with
@@ -121,6 +139,7 @@ use crate::{
         ValueId, ValueLayout,
         analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, Location},
         immutable::immutable_push_type_size,
+        memory::EvmMemoryLayout,
         pass::{
             MirPass, run_function_pass, run_function_pass_with_cfg, run_selected_function_pass,
         },
@@ -151,8 +170,9 @@ impl MirPass for CheckElim {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let object_lengths = object_length_bound(module);
         run_function_pass(module, analyses, |func, _| {
-            let mut eliminator = CheckEliminator::new(None);
+            let mut eliminator = CheckEliminator::new(None, object_lengths);
             eliminator.run(func) != 0
         })
     }
@@ -179,13 +199,14 @@ impl MirPass for LateCheckElim {
                 leads_to_revert(func, BlockId::ENTRY, &FxHashSet::default()).then_some(id)
             })
             .collect::<FxHashSet<_>>();
+        let object_lengths = object_length_bound(module);
         run_function_pass_with_cfg(module, analyses, |func, analyses| {
             let selected =
                 gcx.sess.opts.optimization.is_gas().then(|| analyses.cfg().cyclic_blocks());
             if selected.is_some_and(DenseBitSet::is_empty) {
                 return false;
             }
-            let mut eliminator = CheckEliminator::new(None);
+            let mut eliminator = CheckEliminator::new(None, object_lengths);
             eliminator.cfg = Some(Rc::clone(analyses.cfg()));
             let changed =
                 eliminator.run_in_blocks(func, selected.map(|blocks| (blocks, &reverting))) != 0;
@@ -215,6 +236,16 @@ fn leads_to_revert(func: &Function, mut block: BlockId, reverting: &FxHashSet<Fu
 }
 
 /// Applies runtime immutable bounds after getter inlining exposes their loads.
+/// The range every memory object's logical length stays in, when the module guarantees one.
+///
+/// Without inline assembly, each length was written by a checked allocation, an ABI decoder,
+/// or a core operation that only shortens an object, so the object and its header fit below
+/// the allocation limit. Assembly can store any word in a length, so it leaves lengths unknown.
+fn object_length_bound(module: &Module) -> Option<Range> {
+    (!module.inline_assembly)
+        .then(|| Range::new(U256::ZERO, U256::from(EvmMemoryLayout::MAX_ALLOCATION_END)))
+}
+
 pub(crate) struct ImmutableCheckElim;
 
 impl MirPass for ImmutableCheckElim {
@@ -258,8 +289,9 @@ impl MirPass for ImmutableCheckElim {
                 runtime_only.remove(id);
             }
         }
+        let object_lengths = object_length_bound(module);
         run_selected_function_pass(module, analyses, &runtime_only, |func, analyses| {
-            let mut eliminator = CheckEliminator::new(Some(&bounds));
+            let mut eliminator = CheckEliminator::new(Some(&bounds), object_lengths);
             eliminator.cfg = Some(Rc::clone(analyses.cfg()));
             eliminator.run(func) != 0
         }) || narrowed
@@ -473,11 +505,48 @@ impl MonotonePhi {
     }
 }
 
+/// A loop header phi whose updates never move it away from its initial value,
+/// pending a proof of each update in the scope computing it.
+///
+/// `p = phi [pre: init], [latch: next]`, where `next` reaches the latch through
+/// phis whose inputs are `p` itself or an update instruction. When every update
+/// `u` satisfies `u <= p` (or `p <= u`) where it is computed, `p <= init` (or
+/// `init <= p`) holds on every iteration by induction: each header visit holds
+/// `init`, the previous visit's value, or an update no further from `init` than
+/// that value. Unlike [`MonotonePhi`], an update need not be a constant step:
+/// a binary search's `high = mid - 1` stays below `high` because `mid <= high`.
+#[derive(Clone, Debug)]
+struct BoundedPhi {
+    /// The loop header holding the phi.
+    header: BlockId,
+    /// The phi result.
+    value: ValueId,
+    /// The incoming value from outside the loop.
+    initial: ValueId,
+    /// Whether every update must stay at or below the phi, rather than at or above it.
+    decreasing: bool,
+    /// Each update with the block defining it, whose facts decide the update's bound.
+    updates: SmallVec<[(ValueId, BlockId); 2]>,
+}
+
+impl BoundedPhi {
+    /// The invariant that holds once every update is known to stay bounded.
+    fn relation(&self) -> Relation {
+        if self.decreasing {
+            Relation::Le(self.value, self.initial)
+        } else {
+            Relation::Le(self.initial, self.value)
+        }
+    }
+}
+
 /// Range-based overflow-check eliminator.
 #[derive(Default)]
 struct CheckEliminator<'a> {
     /// Context-independent bounds for runtime-only immutable loads.
     immutable_ranges: Option<&'a FxHashMap<ImmutableId, Range>>,
+    /// Bound on every memory object's logical length, when the module guarantees one.
+    object_lengths: Option<Range>,
     /// Shared CFG snapshot taken at entry, matching the previous fresh build.
     cfg: Option<Rc<CfgInfo>>,
     /// Statistics from the last run.
@@ -511,8 +580,11 @@ struct CheckEliminator<'a> {
 impl<'a> CheckEliminator<'a> {
     /// Creates a new check eliminator.
     #[must_use]
-    fn new(immutable_ranges: Option<&'a FxHashMap<ImmutableId, Range>>) -> Self {
-        Self { immutable_ranges, ..Self::default() }
+    fn new(
+        immutable_ranges: Option<&'a FxHashMap<ImmutableId, Range>>,
+        object_lengths: Option<Range>,
+    ) -> Self {
+        Self { immutable_ranges, object_lengths, ..Self::default() }
     }
 
     /// Runs check elimination on a function. Returns the number of folded
@@ -579,6 +651,7 @@ impl<'a> CheckEliminator<'a> {
             self.join_facts(func, &cfg, &preds, &relevant)
         };
         let candidates = monotone_phi_candidates(func, &cfg, &preds, &relevant);
+        let bounded = bounded_phi_candidates(func, &cfg, &preds, &relevant, &candidates);
         self.scaled_cursors = scaled_cursor_candidates(func, &cfg, &preds, &candidates);
         for phi in &candidates {
             if let Some(bound) = trip_count_bound(func, phi) {
@@ -586,31 +659,58 @@ impl<'a> CheckEliminator<'a> {
             }
         }
         let mut proven = Vec::new();
-        let (mut folds, mut checks) =
-            self.collect_folds(func, &cfg, &preds, &facts, &candidates, &mut proven);
-        if !proven.is_empty() {
+        let mut bounded_proofs = vec![0; bounded.len()];
+        let (mut folds, mut checks) = self.collect_folds(
+            func,
+            &cfg,
+            &preds,
+            &facts,
+            (&candidates, &mut proven),
+            (&bounded, &mut bounded_proofs),
+        );
+        let invariants = proven
+            .iter()
+            .map(|phi| (phi.header, phi.value, phi.initial, phi.decreasing, phi.relation()))
+            .chain(
+                bounded
+                    .iter()
+                    .zip(&bounded_proofs)
+                    .filter(|&(phi, &proofs)| proofs == phi.updates.len())
+                    .map(|(phi, _)| {
+                        (phi.header, phi.value, phi.initial, phi.decreasing, phi.relation())
+                    }),
+            )
+            .collect::<Vec<_>>();
+        if !invariants.is_empty() {
             // The invariant is available wherever the phi is: attach it to the
             // header's entry facts and index it for transitive queries.
-            for phi in &proven {
-                facts[phi.header].relations.insert(phi.relation());
-                if let Some(initial) = const_of(func, phi.initial) {
-                    let bound = if phi.decreasing {
+            for (header, value, initial, decreasing, relation) in invariants {
+                facts[header].relations.insert(relation);
+                if let Some(initial) = const_of(func, initial) {
+                    let bound = if decreasing {
                         Range::new(U256::ZERO, initial)
                     } else {
                         Range::new(initial, U256::MAX)
                     };
-                    let ranges = &mut facts[phi.header].ranges;
+                    let ranges = &mut facts[header].ranges;
                     let narrowed = ranges
-                        .get(&phi.value)
+                        .get(&value)
                         .map_or(bound, |range| range.intersect(bound).unwrap_or(*range));
-                    ranges.insert(phi.value, narrowed);
+                    ranges.insert(value, narrowed);
                 }
-                self.monotone_relations.push(phi.relation());
+                self.monotone_relations.push(relation);
             }
             self.relation_index = None;
             self.reverse_index = None;
             self.strict_lower_bounds = None;
-            (folds, checks) = self.collect_folds(func, &cfg, &preds, &facts, &[], &mut Vec::new());
+            (folds, checks) = self.collect_folds(
+                func,
+                &cfg,
+                &preds,
+                &facts,
+                (&[], &mut Vec::new()),
+                (&[], &mut []),
+            );
         }
         if let Some((selected, reverting)) = selected {
             folds.retain(|&(block, keep)| {
@@ -651,16 +751,17 @@ impl<'a> CheckEliminator<'a> {
 
     /// Walks the dominator tree, recording edge and check facts. Returns branch folds and
     /// proven passing checks to remove.
-    /// `candidates` whose update is proven wrap-free in its defining block's
-    /// scope are appended to `proven`.
+    /// Monotone candidates whose update is proven wrap-free in its defining block's
+    /// scope are appended to their `proven` list. Each bounded candidate's count
+    /// grows by one for every update proven to stay bounded in its own scope.
     fn collect_folds(
         &mut self,
         func: &Function,
         cfg: &CfgInfo,
         preds: &IndexVec<BlockId, Vec<BlockId>>,
         facts: &IndexVec<BlockId, Facts>,
-        candidates: &[MonotonePhi],
-        proven: &mut Vec<MonotonePhi>,
+        (candidates, proven): (&[MonotonePhi], &mut Vec<MonotonePhi>),
+        (bounded, bounded_proofs): (&[BoundedPhi], &mut [usize]),
     ) -> (Vec<(BlockId, BlockId)>, DenseBitSet<InstId>) {
         enum Walk {
             Enter(BlockId),
@@ -727,6 +828,19 @@ impl<'a> CheckEliminator<'a> {
                             }
                             self.assume(func, condition, passing, MAX_DEPTH);
                         }
+                        if let Some(average) = func.inst_result_value(id) {
+                            self.assume_average(func, average);
+                        }
+                    }
+
+                    // Every path from an update to the latch leaves this block, so the
+                    // facts at its end hold wherever the update reaches the phi.
+                    for (phi, proofs) in bounded.iter().zip(bounded_proofs.iter_mut()) {
+                        for &(update, home) in &phi.updates {
+                            if home == block && self.update_stays_bounded(func, phi, update) {
+                                *proofs += 1;
+                            }
+                        }
                     }
 
                     if let Some(Terminator::Branch { condition, then_block, else_block }) =
@@ -744,6 +858,34 @@ impl<'a> CheckEliminator<'a> {
             }
         }
         (folds, checks)
+    }
+
+    /// Decides in the current scope whether a bounded phi's update stays on the
+    /// phi's side of its current value, without assuming the invariant it would
+    /// establish.
+    fn update_stays_bounded(&mut self, func: &Function, phi: &BoundedPhi, update: ValueId) -> bool {
+        let (low, high) = if phi.decreasing { (update, phi.value) } else { (phi.value, update) };
+        self.eval_lt(func, high, low, MAX_DEPTH) == Some(false)
+            || self.eval_lt(func, low, high, MAX_DEPTH) == Some(true)
+    }
+
+    /// Records that a halved sum lies between its addends.
+    ///
+    /// `(x + y) >> 1` is at least `x` and at most `y` when `x <= y` and the sum
+    /// does not wrap: `2x <= x + y <= 2y`, and halving keeps the order. A binary
+    /// search's midpoint then stays within its bounds.
+    fn assume_average(&mut self, func: &Function, average: ValueId) {
+        let Some((sum, x, y)) = halved_sum(func, average) else { return };
+        if self.eval_lt(func, sum, x, MAX_DEPTH) != Some(false) {
+            return;
+        }
+        for (low, high) in [(x, y), (y, x)] {
+            if self.has_relation(func, Relation::Le(low, high)) {
+                self.add_relation(Relation::Le(low, average));
+                self.add_relation(Relation::Le(average, high));
+                return;
+            }
+        }
     }
 
     /// Decides in the current scope whether a monotone phi's update cannot
@@ -800,7 +942,16 @@ impl<'a> CheckEliminator<'a> {
         }
         let mut entries = index_vec![Facts::default(); func.blocks.len()];
         let mut exits = entries.clone();
-        let mut cx = Self::new(self.immutable_ranges);
+        // Loop headers: blocks entered by an edge from a block they dominate.
+        let mut headers = DenseBitSet::new_empty(func.blocks.len());
+        for &block in cfg.rpo() {
+            if preds[block].iter().any(|&pred| cfg.dominators().dominates(block, pred)) {
+                headers.insert(block);
+            }
+        }
+        // The latest range of each phi input on its incoming edge.
+        let mut edge_ranges = FxHashMap::<(ValueId, BlockId), Range>::default();
+        let mut cx = Self::new(self.immutable_ranges, self.object_lengths);
         cx.universal_relations.clone_from(&self.universal_relations);
         let mut pending = cfg.reachable().clone();
         for _ in 0..MAX_ROUNDS {
@@ -841,6 +992,9 @@ impl<'a> CheckEliminator<'a> {
                                 Some((value, cx.range_of(func, input, MAX_DEPTH)))
                             })
                             .collect();
+                        for &(value, range) in &phi_ranges {
+                            edge_ranges.insert((value, pred), range);
+                        }
                         for value in consumed_conditions.get(&pred).into_iter().flatten() {
                             cx.ranges.remove(value);
                         }
@@ -875,6 +1029,34 @@ impl<'a> CheckEliminator<'a> {
                                 ranges: std::mem::take(&mut cx.ranges),
                                 relations: std::mem::take(&mut cx.relations),
                             });
+                        }
+                    }
+                }
+                if headers.contains(block)
+                    && let Some(merged) = &mut merged
+                {
+                    for &inst in &func.blocks[block].instructions {
+                        let InstKind::Phi(incoming) = &func.inst(inst).kind else { continue };
+                        let Some(value) = func.inst_result_value(inst) else { continue };
+                        if !relevant.contains(value) {
+                            continue;
+                        }
+                        let carried =
+                            incoming.iter().try_fold(None::<Range>, |acc, &(pred, input)| {
+                                let range =
+                                    carried_range(func, value, value, pred, input, &edge_ranges, 4);
+                                let acc = match (acc, range) {
+                                    (Some(acc), Some(range)) => Some(acc.union(range)),
+                                    (acc, range) => acc.or(range),
+                                };
+                                (acc != Some(Range::FULL)).then_some(acc)
+                            });
+                        if let Some(Some(range)) = carried {
+                            let narrowed = merged
+                                .ranges
+                                .get(&value)
+                                .map_or(range, |known| known.intersect(range).unwrap_or(*known));
+                            merged.ranges.insert(value, narrowed);
                         }
                     }
                 }
@@ -1511,6 +1693,7 @@ impl<'a> CheckEliminator<'a> {
                 .and_then(|ranges| ranges.get(&id))
                 .copied()
                 .unwrap_or(Range::FULL),
+            InstKind::MemoryObjectLen(..) => self.object_lengths.unwrap_or(Range::FULL),
             InstKind::Add(a, b) => {
                 let ra = self.range_of(func, a, depth);
                 let rb = self.range_of(func, b, depth);
@@ -1959,6 +2142,50 @@ impl<'a> CheckEliminator<'a> {
 /// Values whose ranges can affect a branch, closed over all SSA operands.
 /// Phi inputs keep loop-carried dependencies in the set. Memory and call
 /// operands are included conservatively even when range evaluation stops there.
+/// The range of `input`, the value `owner` receives from `pred`, as far as it can reach the
+/// loop header phi `header_phi`, or `None` when the input is the header phi itself.
+///
+/// A header phi holds either its preheader value or a value an earlier iteration stored in
+/// it. A path that carries the phi around the loop unchanged stores what the phi already held,
+/// so by induction over the header's visits the union of the other inputs covers every value
+/// it takes; the carried paths contribute nothing to that union. Phis between the update and
+/// the latch are decomposed into their own incoming edges, each with the range recorded for
+/// that edge, up to `depth` levels. Every range is a fact about one edge that holds in each
+/// execution, so the union is sound whether or not the forward analysis has converged.
+fn carried_range(
+    func: &Function,
+    header_phi: ValueId,
+    owner: ValueId,
+    pred: BlockId,
+    input: ValueId,
+    edge_ranges: &FxHashMap<(ValueId, BlockId), Range>,
+    depth: usize,
+) -> Option<Range> {
+    if input == header_phi {
+        return None;
+    }
+    if let Some(depth) = depth.checked_sub(1)
+        && let Value::Inst(inst) = func.value(input)
+        && let InstKind::Phi(incoming) = &func.inst(*inst).kind
+    {
+        let mut carried = None::<Range>;
+        for &(inner_pred, inner) in incoming {
+            let Some(range) =
+                carried_range(func, header_phi, input, inner_pred, inner, edge_ranges, depth)
+            else {
+                continue;
+            };
+            let union = carried.map_or(range, |known| known.union(range));
+            if union == Range::FULL {
+                return Some(Range::FULL);
+            }
+            carried = Some(union);
+        }
+        return carried;
+    }
+    Some(edge_ranges.get(&(owner, pred)).copied().unwrap_or(Range::FULL))
+}
+
 fn branch_inputs(func: &Function, cfg: &CfgInfo) -> DenseBitSet<ValueId> {
     let mut relevant = DenseBitSet::new_empty(func.num_values());
     let mut pending = cfg
@@ -2070,6 +2297,17 @@ fn relation_candidates(func: &Function) -> FxHashMap<ValueId, SmallVec<[Relation
             index_relation(&mut index, relation);
         }
     };
+    // A halved sum can lie between its addends in either order.
+    for inst in func.instructions() {
+        if let Some(average) = func.inst_result_value(inst)
+            && let Some((_, x, y)) = halved_sum(func, average)
+        {
+            for bound in [x, y] {
+                add(Relation::Le(bound, average));
+                add(Relation::Le(average, bound));
+            }
+        }
+    }
     let mut visited = DenseBitSet::new_empty(func.num_values());
     let mut pending = Vec::new();
     for block in &func.blocks {
@@ -2398,6 +2636,100 @@ fn monotone_phi_candidates(
         }
     }
     candidates
+}
+
+/// Splits `(x + y) >> 1` or `(x + y) / 2` into the sum and its addends.
+fn halved_sum(func: &Function, value: ValueId) -> Option<(ValueId, ValueId, ValueId)> {
+    let sum = match *inst_kind(func, value)? {
+        InstKind::Shr(shift, sum) if const_of(func, shift) == Some(U256::ONE) => sum,
+        InstKind::Div(sum, divisor) if const_of(func, divisor) == Some(U256::from(2)) => sum,
+        _ => return None,
+    };
+    let InstKind::Add(x, y) = *inst_kind(func, sum)? else { return None };
+    Some((sum, x, y))
+}
+
+/// Finds header phis whose latch value is the phi itself or an update, through
+/// at most a few phis, and that are not constant-step monotone candidates.
+/// Each is proposed in both directions; only one can have every update proven.
+fn bounded_phi_candidates(
+    func: &Function,
+    cfg: &CfgInfo,
+    preds: &IndexVec<BlockId, Vec<BlockId>>,
+    relevant: &DenseBitSet<ValueId>,
+    monotone: &[MonotonePhi],
+) -> Vec<BoundedPhi> {
+    let mut candidates = Vec::new();
+    let cyclic = cfg.cyclic_blocks();
+    if cyclic.is_empty() {
+        return candidates;
+    }
+    let definitions = func.inst_blocks();
+    let dominators = cfg.dominators();
+    for header in cyclic.iter() {
+        for &inst in &func.blocks[header].instructions {
+            let InstKind::Phi(incoming) = &func.inst(inst).kind else { continue };
+            let Some(value) = func.inst_result_value(inst) else { continue };
+            if !relevant.contains(value) || monotone.iter().any(|phi| phi.value == value) {
+                continue;
+            }
+            let mut initial = None;
+            let mut updates = SmallVec::new();
+            let mut valid = true;
+            for &(pred, input) in incoming {
+                if !preds[header].contains(&pred) {
+                    continue;
+                }
+                if !dominators.dominates(header, pred) {
+                    valid &= initial.replace(input).is_none();
+                } else {
+                    valid &= collect_updates(func, &definitions, value, input, &mut updates, 4);
+                }
+            }
+            let Some(initial) = initial else { continue };
+            if !valid || updates.is_empty() {
+                continue;
+            }
+            for decreasing in [true, false] {
+                candidates.push(BoundedPhi {
+                    header,
+                    value,
+                    initial,
+                    decreasing,
+                    updates: updates.clone(),
+                });
+            }
+        }
+    }
+    candidates
+}
+
+/// Collects the instructions a latch input can carry into `phi`, looking through
+/// at most `depth` phis. Fails on any other input, such as an argument.
+fn collect_updates(
+    func: &Function,
+    definitions: &FxHashMap<InstId, BlockId>,
+    phi: ValueId,
+    input: ValueId,
+    updates: &mut SmallVec<[(ValueId, BlockId); 2]>,
+    depth: usize,
+) -> bool {
+    if input == phi {
+        return true;
+    }
+    let Value::Inst(inst) = *func.value(input) else { return false };
+    if let InstKind::Phi(incoming) = &func.inst(inst).kind
+        && let Some(depth) = depth.checked_sub(1)
+    {
+        return incoming
+            .iter()
+            .all(|&(_, inner)| collect_updates(func, definitions, phi, inner, updates, depth));
+    }
+    let Some(&home) = definitions.get(&inst) else { return false };
+    if !updates.contains(&(input, home)) {
+        updates.push((input, home));
+    }
+    true
 }
 
 /// Returns the fact implied on the unique dominating edge into `block`:

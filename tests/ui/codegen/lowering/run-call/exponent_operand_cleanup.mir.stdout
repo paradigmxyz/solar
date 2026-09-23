@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/exponent_operand_cleanup.sol:ExponentOperandCleanup ===
 @module ExponentOperandCleanup
+@inline_assembly
 types:
   struct0: {i256, i256}
 

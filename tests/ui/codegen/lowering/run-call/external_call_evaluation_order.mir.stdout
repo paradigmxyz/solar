@@ -10,6 +10,7 @@ fn @mutate() -> i256 [selector=0x7795b5fc, abi_params=[], abi_returns=[word], ab
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_evaluation_order.sol:ExternalCallEvaluationOrder ===
 @module ExternalCallEvaluationOrder
+@inline_assembly
 data:
   MutatingBase_initcode_0: hex"34600d5760668060115f395ff35b5f5ffd341515601c575f3560e01c80637795b5fc14601857601c565b6020565b5f5ffd5b5f54600181018060a0528060a0528181109150906054578060a0525f5560a0518060a0526080526020608001608090036080f35b634e487b715f5260116020526024601cfd"
 

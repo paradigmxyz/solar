@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/egraph/unit_carry_runtime.sol:UnitCarry ===
 @module UnitCarry
+@inline_assembly
 types:
   struct0: {i256, i256}
 

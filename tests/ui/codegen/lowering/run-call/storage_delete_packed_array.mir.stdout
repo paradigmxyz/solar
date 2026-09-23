@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_delete_packed_array.sol:StorageDeletePackedArray ===
 @module StorageDeletePackedArray
+@inline_assembly
 types:
   struct0: {i256, i256, i256}
   struct1: {i256, i256, i256, i256, i256, i256}

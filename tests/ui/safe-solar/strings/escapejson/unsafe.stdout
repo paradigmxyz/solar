@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/safe-solar/strings/escapejson/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
+@inline_assembly
 fn @escape() [selector=0xb00a0672, abi_wrapper, pure] {
   bb0:
     v2 = calldatasize

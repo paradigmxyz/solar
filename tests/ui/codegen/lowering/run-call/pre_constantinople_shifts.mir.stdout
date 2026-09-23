@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/pre_constantinople_shifts.sol:PreConstantinopleShifts ===
 @module PreConstantinopleShifts
+@inline_assembly
 types:
   struct0: {i256, i256}
   struct1: {i256, i256, i256}

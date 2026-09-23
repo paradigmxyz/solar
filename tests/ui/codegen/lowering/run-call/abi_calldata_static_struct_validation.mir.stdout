@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_static_struct_validation.sol:AbiCalldataStaticStructValidation ===
 @module AbiCalldataStaticStructValidation
+@inline_assembly
 types:
   struct0: {i256, i256, i256}
 

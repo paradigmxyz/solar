@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/delete_storage_dynamic_array.sol:DeleteStorageDynamicArray ===
 @module DeleteStorageDynamicArray
+@inline_assembly
 types:
   struct0: {i256, i256}
 

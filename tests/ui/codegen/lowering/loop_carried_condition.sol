@@ -2,22 +2,23 @@
 //@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
 //@[ir] filecheck:
 //@[run] compile-flags: -Ogas
-//@ run-call: capacity [] => 1
-//@ run-call: capacity [7] => 2
-//@ run-call: capacity [7, 8, 9] => 8
-//@ run-call: capacity [1, 2, 3, 4, 5, 6, 7, 8] => 16
-//@ run-call: capacities [7, 8, 9], [7] => 10
+//@ run-call: capacity 0 => 1
+//@ run-call: capacity 1 => 2
+//@ run-call: capacity 3 => 8
+//@ run-call: capacity 8 => 16
+//@ run-call-fail: capacity 57896044618658097711785492504343953926634992332820282019728792003956564819968 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call: capacities 3, 1 => 10
 
 contract LoopCarriedCondition {
-    function capacity(uint256[] memory a) external pure returns (uint256) {
-        return _capacity(a);
+    function capacity(uint256 n) external pure returns (uint256) {
+        return _capacity(n);
     }
 
-    function capacities(uint256[] memory a, uint256[] memory b) external pure returns (uint256) {
+    function capacities(uint256 a, uint256 b) external pure returns (uint256) {
         return _capacity(a) + _capacity(b);
     }
 
-    // Doubling the length cannot be shown not to wrap, and the test for it is invariant, so
+    // Doubling a word cannot be shown not to wrap, and the test for it is invariant, so
     // code motion leaves the header a branch on a word computed before the loop. The branch
     // does not compute that word, so `JUMPI` takes a copy and the word goes around the loop
     // on the stack with the bound beside it, where the latch finds both. Nothing in the loop
@@ -37,8 +38,8 @@ contract LoopCarriedCondition {
     // CHECK: push [[HEADER]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: jump [[PANIC]]
-    function _capacity(uint256[] memory a) private pure returns (uint256 c) {
+    function _capacity(uint256 n) private pure returns (uint256 c) {
         c = 1;
-        while (c < a.length * 2) c *= 2;
+        while (c < n * 2) c *= 2;
     }
 }

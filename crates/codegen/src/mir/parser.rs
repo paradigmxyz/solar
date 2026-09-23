@@ -196,6 +196,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_module(&mut self) -> PResult<'sess, Module> {
         let mut phase = super::MirPhase::default();
         let mut is_library = false;
+        let mut inline_assembly = false;
         self.parser.expect(TokenKind::At)?;
         self.parser.expect_keyword(sym::module)?;
         let module_name = self.parser.parse_ident()?;
@@ -211,6 +212,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     })?;
                 }
                 kw::Library => is_library = true,
+                sym::inline_assembly => inline_assembly = true,
                 _ => return Err(self.parser.error(format!("unknown module attribute `@{attr}`"))),
             }
         }
@@ -219,6 +221,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut module = Module::new(module_ident);
         module.phase = phase;
         module.is_library = is_library;
+        module.inline_assembly = inline_assembly;
         let mut function_refs = Vec::new();
 
         if self.parser.eat_keyword(sym::types) {

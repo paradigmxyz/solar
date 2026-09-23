@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/evm-ir/reorder-expressions/calldata_runtime.sol:ClosedCalldata ===
 @module ClosedCalldata
+@inline_assembly
 types:
   struct0: {i256, i256}
 

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/uninitialized_memory_allocation.sol:UninitializedMemoryAllocation ===
 @module UninitializedMemoryAllocation
+@inline_assembly
 types:
   struct0: {i256, i256, i256, i256}
   struct1: {i256, i256, i256}

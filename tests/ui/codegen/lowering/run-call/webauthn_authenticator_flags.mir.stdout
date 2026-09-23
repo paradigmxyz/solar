@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/webauthn_authenticator_flags.sol:C ===
 @module C
+@inline_assembly
 data:
   literal_0: hex"68de9469627f4002c727fe634985a916f4414d6309d81cc2a26ca3f1785725b649ddbb03b8b89d41b77e5e5ad00b388d3e95043177ee2ef763a67a3e2cd40000"
 

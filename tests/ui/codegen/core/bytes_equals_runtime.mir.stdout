@@ -12,6 +12,7 @@
 
 // === ROOT/tests/ui/codegen/core/bytes_equals_runtime.sol:Test ===
 @module Test
+@inline_assembly
 types:
   struct0: {memoryarray, i256}
 

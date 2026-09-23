@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/inline_assembly_scalar_cleanup.sol:InlineAssemblyScalarCleanup ===
 @module InlineAssemblyScalarCleanup
+@inline_assembly
 types:
   struct0: {i256, i256, i256, i256, i256, i256}
   struct1: {i256, i256}

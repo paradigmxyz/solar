@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/inline-memory-wrappers/runtime.sol:SharedMemoryWrapper ===
 @module SharedMemoryWrapper
+@inline_assembly
 types:
   struct0: {memorybytes, memorybytes, memorybytes}
 

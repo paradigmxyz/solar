@@ -28,6 +28,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/safe-solar/buffers/append/safe.sol:Safe ===
 @module Safe
 @phase lowered
+@inline_assembly
 types:
   struct0: {memptr, memptr}
 

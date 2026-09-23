@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/event_encoding.sol:EventEncoding ===
 @module EventEncoding
+@inline_assembly
 fn @emitArray(arg0: memoryfixedarray) [selector=0x86cb3475, abi_params=[array<2, u256>], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode [array<2, word>], args arg0

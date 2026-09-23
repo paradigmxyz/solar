@@ -4,6 +4,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:CheckpointTarget ===
 @module CheckpointTarget
+@inline_assembly
 types:
   struct0: {i256, i256, i256}
 

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/run-call/abi_encode_packed_signed.sol:AbiEncodePackedSigned ===
 @module AbiEncodePackedSigned
+@inline_assembly
 fn @firstByteInt8(arg0: i256, arg1: i256) -> i256 [selector=0xdf400c36, pure, abi_params=[u8, i8], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = and arg0, 255

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_yul_bounds.sol:CalldataSliceYulBounds ===
 @module CalldataSliceYulBounds
+@inline_assembly
 fn @_empty() -> calldataslice [pure] {
   bb0:
     v0 = make_calldata_slice 0, 0

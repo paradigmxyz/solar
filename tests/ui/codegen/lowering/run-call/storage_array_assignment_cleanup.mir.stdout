@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_assignment_cleanup.sol:StorageArrayAssignmentCleanup ===
 @module StorageArrayAssignmentCleanup
+@inline_assembly
 types:
   struct0: {i256, i256}
 

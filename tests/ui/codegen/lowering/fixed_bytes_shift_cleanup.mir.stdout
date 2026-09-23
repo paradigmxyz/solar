@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/fixed_bytes_shift_cleanup.sol:FixedBytesShiftCleanup ===
 @module FixedBytesShiftCleanup
+@inline_assembly
 types:
   struct0: {i256, i256, i256}
 

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/egraph/clz_runtime.sol:YulClzSimplify ===
 @module YulClzSimplify
+@inline_assembly
 types:
   struct0: {i256, i256, i256, i256}
   struct1: {i256, i256, i256, i256, i256, i256, i256, i256, i256, i256}

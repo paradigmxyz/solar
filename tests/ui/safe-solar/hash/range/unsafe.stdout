@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/safe-solar/hash/range/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
+@inline_assembly
 fn @range() [selector=0xb835317c, abi_wrapper, pure] {
   bb0:
     v4 = calldatasize

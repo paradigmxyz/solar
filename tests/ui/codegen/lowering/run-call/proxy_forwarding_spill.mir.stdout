@@ -18,6 +18,7 @@ fn @setBig(arg0: i256, arg1: i256, arg2: i256, arg3: calldataslice) [selector=0x
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Proxy ===
 @module Proxy
+@inline_assembly
 immutables:
   _defaultImplementation: bytes32
 

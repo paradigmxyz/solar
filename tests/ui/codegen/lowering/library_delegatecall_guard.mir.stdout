@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/library_delegatecall_guard.sol:Lib ===
 @module Lib
 @library
+@inline_assembly
 types:
   struct0: {i256, i256}
 

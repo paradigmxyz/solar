@@ -15,6 +15,7 @@ fn @invoke(arg0: i256) [selector=0x2605fe98, pure, abi_params=[bool], abi_return
 
 // === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:TerminatedControlFlow ===
 @module TerminatedControlFlow
+@inline_assembly
 types:
   struct0: {i256, i256}
 
@@ -474,6 +475,7 @@ fn @continueSkipsTail() -> i256 [selector=0xc45ef923, pure, abi_params=[], abi_r
 
 // === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:StopsInConstructor ===
 @module StopsInConstructor
+@inline_assembly
 fn @constructor() [constructor] {
   bb0:
     stop
@@ -486,6 +488,7 @@ fn @present() -> i256 [selector=0xe735afb2, pure, abi_params=[], abi_returns=[wo
 
 // === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:RevertsInConstructor ===
 @module RevertsInConstructor
+@inline_assembly
 fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     v0 = icall @fail, arg0
@@ -501,6 +504,7 @@ fn @fail(arg0: i256) -> i256 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:RevertsWithoutArgs ===
 @module RevertsWithoutArgs
+@inline_assembly
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @fail

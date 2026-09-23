@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_reference_reassignment.sol:StorageReferenceReassignment ===
 @module StorageReferenceReassignment
+@inline_assembly
 types:
   struct0: {i256, i256}
   struct1: {i256, i256, i256}

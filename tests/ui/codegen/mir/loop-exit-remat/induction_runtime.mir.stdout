@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/loop-exit-remat/induction_runtime.sol:Test ===
 @module Test
+@inline_assembly
 types:
   struct0: {i256, i256, i256, i256}
 

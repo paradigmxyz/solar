@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_dirty_memory_fields.sol:AbiEncodeDirtyMemoryFields ===
 @module AbiEncodeDirtyMemoryFields
+@inline_assembly
 fn @dirty() -> memorystruct [pure] {
   bb0:
     v0 = alloc memorystruct<6>, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)

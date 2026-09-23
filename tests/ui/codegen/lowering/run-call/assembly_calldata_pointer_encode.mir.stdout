@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/assembly_calldata_pointer_encode.sol:AssemblyCalldataPointerEncode ===
 @module AssemblyCalldataPointerEncode
+@inline_assembly
 fn @arrayCopy() -> memoryfixedarray [selector=0xb192499e, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
     v0 = make_calldata_slice 4, 2

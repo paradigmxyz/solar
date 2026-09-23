@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/yul_local_phi.sol:YulLocalPhi ===
 @module YulLocalPhi
+@inline_assembly
 fn @branchLocal(arg0: i256) -> i256 [selector=0xd9935fb1, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = ne arg0, 0

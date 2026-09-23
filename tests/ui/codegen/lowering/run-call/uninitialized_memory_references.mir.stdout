@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/uninitialized_memory_references.sol:UninitializedMemoryReferences ===
 @module UninitializedMemoryReferences
+@inline_assembly
 types:
   struct0: {i256, i256, i256}
 

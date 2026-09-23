@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/egraph/seeded_runtime.sol:SeededWords ===
 @module SeededWords
+@inline_assembly
 fn @rule0(arg0: i256, arg1: i256) -> i256 [selector=0x225a5e11, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and arg0, arg1

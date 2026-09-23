@@ -25,6 +25,7 @@ fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], a
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol:ExternalCallReturndataSize ===
 @module ExternalCallReturndataSize
+@inline_assembly
 types:
   struct0: {i256, i256}
   struct1: {i256, i256, i256}

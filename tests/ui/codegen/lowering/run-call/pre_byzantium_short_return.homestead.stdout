@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/pre_byzantium_short_return.sol:ShortReturns ===
 @module ShortReturns
+@inline_assembly
 types:
   struct0: {i256, i256}
   struct1: {i256, i256, i256, i256}

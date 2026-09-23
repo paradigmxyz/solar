@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_push_pop_in_place.sol:StorageBytesPushPop ===
 @module StorageBytesPushPop
+@inline_assembly
 types:
   struct0: {memorybytes, i256}
   struct1: {i256, i256, i256}

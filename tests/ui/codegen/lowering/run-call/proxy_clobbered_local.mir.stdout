@@ -7,6 +7,7 @@ fn @echo(arg0: i256) -> i256 [selector=0x6279e43c, pure, abi_params=[u256], abi_
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_clobbered_local.sol:C ===
 @module C
+@inline_assembly
 data:
   Impl_initcode_0: hex"34600d57603e8060115f395ff35b5f5ffd341515601c575f3560e01c80636279e43c14601857601c565b6020565b5f5ffd5b60243610603a576004356080526020608001608090036080f35b5f5ffd"
 

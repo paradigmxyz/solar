@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/safe-solar/strings/tostring/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
+@inline_assembly
 fn @decimal() [selector=0xf371efa4, abi_wrapper, pure] {
   bb0:
     v1 = calldatasize

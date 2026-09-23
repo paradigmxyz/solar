@@ -10,6 +10,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/safe-solar/revert/raw/safe.sol:Safe ===
 @module Safe
 @phase lowered
+@inline_assembly
 fn @boom() [selector=0x6b8d59f9, abi_wrapper, pure] {
   bb0:
     v3 = calldatasize

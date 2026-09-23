@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/assembly_signature_cast.sol:InternalFunctionPointerAssemblyCast ===
 @module InternalFunctionPointerAssemblyCast
+@inline_assembly
 fn @compareBytes32(arg0: i256, arg1: i256) -> i256 [selector=0x824a2a4e, pure, abi_params=[bytes32, bytes32], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @internal_dispatcher_p_u256_u256_r_bool, 2, arg0, arg1

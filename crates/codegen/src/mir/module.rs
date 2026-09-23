@@ -117,6 +117,14 @@ pub struct Module {
     /// caller's value, and guards its non-view external functions with
     /// [`Self::library_deploy_address`].
     pub(crate) is_library: bool,
+    /// Whether a function lowered into this module contains inline assembly.
+    ///
+    /// Only assembly can write a memory object's length word or turn an arbitrary word into a
+    /// memory object. Without it, every length was written by a checked allocation, an ABI
+    /// decoder, or a core operation that only shortens an object, so each stays below
+    /// [`MAX_ALLOCATION_END`](super::memory::EvmMemoryLayout::MAX_ALLOCATION_END). Check
+    /// elimination relies on that bound.
+    pub(crate) inline_assembly: bool,
     /// The lowering phase this module is in.
     pub(super) phase: MirPhase,
     /// Whether passes must account for every instruction's source debug information.
@@ -181,6 +189,7 @@ impl Module {
             linked_data_index: FxHashMap::default(),
             is_interface: false,
             is_library: false,
+            inline_assembly: false,
             phase: MirPhase::Semantic,
             debug_info_tracked: false,
         }
@@ -549,6 +558,9 @@ impl Module {
             }
             if self.is_library {
                 writeln!(f, "@library")?;
+            }
+            if self.inline_assembly {
+                writeln!(f, "@inline_assembly")?;
             }
             if !self.struct_types.is_empty() {
                 writeln!(f, "types:")?;

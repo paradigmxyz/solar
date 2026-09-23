@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/require_evaluation_order.sol:RequireEvaluationOrder ===
 @module RequireEvaluationOrder
+@inline_assembly
 fn @customError() -> i256 [selector=0xdda3a7bd, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 0 !metadata(storage=slot(0))

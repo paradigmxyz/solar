@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_abi.sol:ExternalFunctionAbi ===
 @module ExternalFunctionAbi
+@inline_assembly
 fn @target(arg0: i256) -> i256 [selector=0x9811c7c1, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_add u256, arg0, 1

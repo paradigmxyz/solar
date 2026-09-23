@@ -10,6 +10,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/safe-solar/create/trydeploy/safe.sol:Safe ===
 @module Safe
 @phase lowered
+@inline_assembly
 types:
   struct0: {i256, memptr}
   struct1: {i256, i256}

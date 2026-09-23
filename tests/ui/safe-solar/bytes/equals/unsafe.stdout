@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/safe-solar/bytes/equals/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
+@inline_assembly
 fn @same() [selector=0xfc39552e, abi_wrapper, pure] {
   bb0:
     v12 = calldatasize

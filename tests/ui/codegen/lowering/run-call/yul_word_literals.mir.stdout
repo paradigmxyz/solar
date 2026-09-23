@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/yul_word_literals.sol:C ===
 @module C
+@inline_assembly
 fn @direct() -> i256 [selector=0x222b1407, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     ret 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f

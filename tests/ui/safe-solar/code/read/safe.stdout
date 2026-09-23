@@ -19,6 +19,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/safe-solar/code/read/safe.sol:Safe ===
 @module Safe
 @phase lowered
+@inline_assembly
 fn @part() [selector=0x107cd163, abi_wrapper] {
   bb0:
     v26 = calldatasize

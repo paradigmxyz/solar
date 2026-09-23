@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/enum_memory_store_validation.sol:EnumMemoryStoreValidation ===
 @module EnumMemoryStoreValidation
+@inline_assembly
 fn @dirty() -> i256 [pure] {
   bb0:
     ret 4

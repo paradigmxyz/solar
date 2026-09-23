@@ -10,6 +10,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/safe-solar/create/deploy/safe.sol:Safe ===
 @module Safe
 @phase lowered
+@inline_assembly
 fn @spawn() [selector=0x0da0cf17, abi_wrapper] {
   bb0:
     v15 = calldatasize

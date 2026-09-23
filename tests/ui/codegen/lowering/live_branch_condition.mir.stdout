@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/live_branch_condition.sol:LiveBranchCondition ===
 @module LiveBranchCondition
+@inline_assembly
 fn @next(arg0: i256) -> i256 [selector=0xedd004e5, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_add u256, arg0, 1
@@ -22,6 +23,7 @@ fn @both(arg0: i256) -> i256 [selector=0x75de2d6b, pure, abi_params=[u256], abi_
 
 // === ROOT/tests/ui/codegen/lowering/live_branch_condition.sol:ReturndataBranch ===
 @module ReturndataBranch
+@inline_assembly
 fn @test(arg0: i256) [selector=0x29e99f07, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas

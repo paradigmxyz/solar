@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/safe-solar/libstring/search/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
+@inline_assembly
 fn @indexOf() [selector=0x86e2d68c, abi_wrapper, pure] {
   bb0:
     v118 = calldatasize

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dirty_internal_named_return.sol:DirtyInternalNamedReturn ===
 @module DirtyInternalNamedReturn
+@inline_assembly
 fn @dispatchAddress(arg0: i256) -> i256 [selector=0x58955a9d, pure, abi_params=[address], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = icall @internal_dispatcher_p_address_r_address, 5, arg0

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/stack_only_rematerialization.sol:StackOnlyRematerialization ===
 @module StackOnlyRematerialization
+@inline_assembly
 fn @first(arg0: i256) -> i256 [selector=0x6c94fb44, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @storeAtDerivedAddress, 256, arg0

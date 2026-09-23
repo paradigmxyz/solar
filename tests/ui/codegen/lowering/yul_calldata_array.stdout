@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/yul_calldata_array.sol:C ===
 @module C
+@inline_assembly
 types:
   struct0: {i256, i256}
 

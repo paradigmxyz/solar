@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/egraph/balance_masks.sol:BalanceMasks ===
 @module BalanceMasks
+@inline_assembly
 types:
   struct0: {i256, i256}
   struct1: {i256, i256, i256}

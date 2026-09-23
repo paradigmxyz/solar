@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/fmp_reload_across_blocks.sol:ExcessReturnDataRecipient ===
 @module ExcessReturnDataRecipient
+@inline_assembly
 fn @setRevertDataSize(arg0: i256) [selector=0xe998da54, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
