@@ -78,7 +78,7 @@ fn @same() [selector=0xfc39552e, abi_wrapper, pure] {
     v60 = add v45, 1
     jump bb9
   bb1:
-    v53 = phi [bb13: 0], [bb5: 0], [bb11: 0], [bb4: 1], [bb9: 1], [bb7: v44]
+    v53 = phi [bb13: 0], [bb5: 0], [bb4: 1], [bb7: v44], [bb9: 1], [bb11: 0]
     mstore 128, v53
     returndata 128, 32
   bb12:

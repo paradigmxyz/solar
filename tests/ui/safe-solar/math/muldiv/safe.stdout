@@ -41,7 +41,7 @@ fn @quotient() [selector=0x211bc189, abi_wrapper, pure] {
     jumpi v15, bb7, bb6
   bb6:
     v16 = eq arg2, 0
-    jumpi v16, bb4, bb11
+    jumpi v16, bb8, bb11
   bb11:
     mstore 0, 0x4e487b71
     mstore 32, 17

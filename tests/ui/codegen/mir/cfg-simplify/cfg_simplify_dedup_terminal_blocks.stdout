@@ -117,37 +117,57 @@
       revert 0, 32
   }
   
-  fn @keep_distinct_packed_literals(arg0: i1) -> i256 {
+  fn @keep_distinct_packed_literals(arg0: i1) {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
       v1 = keccak256_packed (data hex"62")
-      ret v1
+      mstore 0, v1
+      returndata 0, 32
     bb1:
       v0 = keccak256_packed (data hex"61")
-      ret v0
+      mstore 0, v0
+      returndata 0, 32
   }
   
-  fn @keep_distinct_enum_bounds(arg0: i1, arg1: i256) -> memoryarray {
+  fn @keep_distinct_enum_bounds(arg0: i1, arg1: i256) {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
       v1 = load_storage_array enum<3>, arg1
-      ret v1
+      icall @consume_array, v1
+      stop
     bb1:
       v0 = load_storage_array enum<2>, arg1
-      ret v0
+      icall @consume_array, v0
+      stop
   }
   
-  fn @merge_equal_packed_literals(arg0: i1) -> i256 {
+  fn @consume_array(arg0: memoryarray) {
+    bb0:
+      ret
+  }
+  
+  fn @merge_equal_packed_literals(arg0: i1) {
     bb0:
 -     jumpi arg0, bb1, bb2
 -   bb2:
 -     v1 = keccak256_packed (data hex"61")
--     ret v1
+-     mstore 0, v1
+-     returndata 0, 32
 -   bb1:
       v0 = keccak256_packed (data hex"61")
-      ret v0
+      mstore 0, v0
+      returndata 0, 32
+  }
+  
+  fn @keep_internal_returns(arg0: i1) -> i256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      ret 0
+    bb1:
+      ret 0
   }
   
   fn @keep_distinct_storage_literals(arg0: i1, arg1: i256) {
@@ -155,20 +175,24 @@
       jumpi arg0, bb1, bb2
     bb2:
       store_storage_bytes_literal arg1, hex"62"
-      ret
+      stop
     bb1:
       store_storage_bytes_literal arg1, hex"61"
-      ret
+      stop
   }
   
-  fn @keep_distinct_libraries(arg0: i1) -> i160 {
+  fn @keep_distinct_libraries(arg0: i1) {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
-      v1 = library_address "B.sol":"L"
-      ret v1
+      v2 = library_address "B.sol":"L"
+      v3 = zext i160 v2 to i256
+      mstore 0, v3
+      returndata 0, 32
     bb1:
       v0 = library_address "A.sol":"L"
-      ret v0
+      v1 = zext i160 v0 to i256
+      mstore 0, v1
+      returndata 0, 32
   }
   
