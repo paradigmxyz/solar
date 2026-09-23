@@ -7,7 +7,9 @@
 //! The matchers require complete canonical loop shapes, standard byte-address
 //! calculations, exact bounds and exits, and no additional effects or uses.
 //! The length bound may be read in the header or hoisted into the preheader,
-//! the payload base may be computed in the body or hoisted, and the exits may
+//! or, for the ASCII predicate, be the value last stored to the object's length
+//! word when forwarding replaced the load, as in an ABI wrapper that decoded the
+//! payload; the payload base may be computed in the body or hoisted, and the exits may
 //! be distinct `ret` blocks or, once the scan was inlined into its ABI wrapper,
 //! one block whose phi selects the result from the header and body edges or a
 //! lowered `mstore`/`returndata` epilogue. A counting scan inlined into a
@@ -26,7 +28,7 @@
 
 use crate::mir::{
     BlockId, Function, FunctionBuilder, InstId, InstKind, Module, Terminator, Value, ValueId,
-    analysis::{AliasAnalysis, LocationSize},
+    analysis::{AliasAnalysis, Location, LocationSize},
     pass::{MirPass, ModuleAnalyses, run_function_pass_with_alias},
     utils::{fold_terminator_to_jump, invalidate_unreachable_block},
 };
@@ -103,6 +105,42 @@ fn length_object(
         .iter()
         .all(|&inst| !func.inst(inst).kind.has_side_effects())
         .then_some(object)
+}
+
+/// Blocks searched upwards from a preheader for the store of a forwarded length.
+const MAX_LENGTH_STORE_BLOCKS: usize = 8;
+
+/// Finds the object whose length word holds `length` when the loop starts: a
+/// store `mstore object, length` in the preheader or in a block reaching it
+/// through single-predecessor edges, with no later write on that path that may
+/// touch the word. ABI decoding stores the decoded length there, and once the
+/// scan is inlined into its wrapper, forwarding bounds it by the stored value
+/// instead of a load.
+fn stored_length_object(
+    func: &Function,
+    alias: &AliasAnalysis,
+    preheader: BlockId,
+    length: ValueId,
+) -> Option<ValueId> {
+    let mut block = preheader;
+    let mut later = Vec::new();
+    for _ in 0..MAX_LENGTH_STORE_BLOCKS {
+        for &inst in func.blocks[block].instructions.iter().rev() {
+            if let InstKind::MStore(object, value) = func.inst(inst).kind
+                && value == length
+            {
+                let word = alias.bare_memory_location(func, object, LocationSize::Const(32))?;
+                let untouched = later.iter().all(|&later| {
+                    !alias.instruction_mod_ref(func, later).may_write(alias, Location::Memory(word))
+                });
+                return untouched.then_some(object);
+            }
+            later.push(inst);
+        }
+        let [predecessor] = func.blocks[block].predecessors.as_slice() else { return None };
+        block = *predecessor;
+    }
+    None
 }
 
 /// Whether `value` is `object + 32`, the payload base of a dynamic object.
@@ -255,7 +293,7 @@ fn run_function(func: &mut Function, alias: &AliasAnalysis) -> bool {
     let mut changed = false;
     loop {
         if let Some(candidate) =
-            func.blocks.indices().find_map(|header| match_ascii_loop(func, header))
+            func.blocks.indices().find_map(|header| match_ascii_loop(func, alias, header))
         {
             rewrite_ascii_loop(func, candidate);
         } else if let Some(candidate) =
@@ -279,7 +317,7 @@ fn run_function(func: &mut Function, alias: &AliasAnalysis) -> bool {
     changed
 }
 
-fn match_ascii_loop(func: &Function, header: BlockId) -> Option<AsciiLoop> {
+fn match_ascii_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> Option<AsciiLoop> {
     macro_rules! reject {
         ($reason:literal) => {{ return None }};
     }
@@ -302,8 +340,10 @@ fn match_ascii_loop(func: &Function, header: BlockId) -> Option<AsciiLoop> {
     if lhs != index {
         reject!("less operands");
     }
-    let object = length_object(func, *preheader, len_inst, length)?;
     let hoisted_length = len_inst.is_none().then_some(length);
+    let object = length_object(func, *preheader, len_inst, length).or_else(|| {
+        hoisted_length.and_then(|length| stored_length_object(func, alias, *preheader, length))
+    })?;
     let condition = func.inst_result_value(less_inst)?;
     let Terminator::Branch { condition: branch_condition, then_block: body, else_block: accept } =
         func.blocks[header].terminator.as_ref()?
