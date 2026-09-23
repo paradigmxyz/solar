@@ -1,4 +1,10 @@
 //@ codegen-matrix: standard
+//@ run-call: signedAsUnsigned(); constructor=[0, 0, -1] => 18446744073709551615
+//@ run-call: signedInitial(); constructor=[0, 0, -1] => 18446744073709551615
+//@ run-call: signedEqualsMinusOne(); constructor=[0, 0, -1] => true
+//@ run-call: signedInitialEqual(); constructor=[0, 0, -1] => true
+//@ run-call: signedShift(); constructor=[0, 0, -1] => 9223372036854775807
+//@ run-call: signedNegative(); constructor=[0, 0, -1] => true
 //@ run-call: total(); constructor=[0, 0, 0] => 0
 //@ run-call: narrowed(); constructor=[255, 0, 0] => 256
 //@ run-call: narrowThreeBytes(); constructor=[255, 0, 0] => 256
@@ -20,6 +26,8 @@ contract ImmutableBounds {
     uint24 private immutable threeBytes;
     uint160 private immutable narrowAddressWidth;
     uint64 public immutable narrowInitial;
+    uint256 public immutable signedInitial;
+    bool public immutable signedInitialEqual;
 
     constructor(uint64 x, uint64 y, int64 s) {
         narrow = uint8(x);
@@ -29,6 +37,8 @@ contract ImmutableBounds {
         a = x;
         b = y;
         signedValue = s;
+        signedInitial = signedAsUnsigned();
+        signedInitialEqual = signedEqualsMinusOne();
         initial = total();
     }
 
@@ -50,6 +60,22 @@ contract ImmutableBounds {
 
     function runtimeOnly() public view returns (uint256) {
         return uint256(a) + 1;
+    }
+
+    function signedAsUnsigned() public view returns (uint256) {
+        return uint256(uint64(signedValue));
+    }
+
+    function signedEqualsMinusOne() public view returns (bool) {
+        return signedValue == -1;
+    }
+
+    function signedShift() public view returns (uint256) {
+        return uint64(signedValue) >> 1;
+    }
+
+    function signedNegative() public view returns (bool) {
+        return signedValue < 0;
     }
 
     function signedPlusOne() public view returns (uint256) {

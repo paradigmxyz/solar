@@ -15,6 +15,8 @@ bb0:
   jumpi
   push_immutable 0, 1
   push_immutable 1, 32
+  push 0xffff
+  and
   push_immutable 2, 32
   push_immutable 3, 20
   push_immutable 4, 32

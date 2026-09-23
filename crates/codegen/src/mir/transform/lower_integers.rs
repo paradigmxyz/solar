@@ -10,12 +10,16 @@
 //! Sign extension uses SIGNEXTEND for byte widths and negation for i1. All signatures and value
 //! types change together, preserving SSA identities across calls and cyclic phis. No ABI layout
 //! changes: narrow argument bit patterns are already clean at this internal boundary.
+//! Signed immutable loads need explicit cleanup because runtime placeholders can
+//! sign-extend their stored bits to a full word.
 
 use crate::mir::{
-    Function, FunctionBuilder, Immediate, InstKind, MirType, Module, ResultKind, Value, ValueId,
+    Function, FunctionBuilder, Immediate, ImmutableId, InstKind, MirType, Module, ResultKind,
+    Value, ValueId, ValueLayout,
     pass::{MirPass, ModuleAnalyses},
 };
 use alloy_primitives::U256;
+use solar_data_structures::map::FxHashSet;
 
 pub(crate) struct LowerIntegers;
 
@@ -60,8 +64,12 @@ impl MirPass for LowerIntegers {
                 *field = lowered;
             }
         }
+        let signed_immutables = module
+            .iter_immutables()
+            .filter_map(|(id, immutable)| matches!(immutable.ty, ValueLayout::Int(_)).then_some(id))
+            .collect();
         for func in &mut module.functions {
-            changed |= lower_function(func);
+            changed |= lower_function(func, &signed_immutables);
         }
         changed
     }
@@ -74,7 +82,7 @@ fn lower_type(ty: MirType) -> MirType {
     }
 }
 
-fn lower_function(func: &mut Function) -> bool {
+fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId>) -> bool {
     let narrow = |ty| lower_type(ty) != ty;
     if !narrow(func.return_type())
         && !func.arg_indices().any(|index| narrow(func.arg_ty(index)))
@@ -155,13 +163,21 @@ fn lower_function(func: &mut Function) -> bool {
             let narrow_scalar = (inst.kind.op_def().result == ResultKind::Integer
                 || matches!(inst.kind, InstKind::SLt(..) | InstKind::SGt(..)))
                 && inst.kind.operands().first().is_some_and(|&value| bits(value) < 256);
-            if !conversion && !narrow_scalar {
+            let narrow_immutable = matches!(inst.kind, InstKind::LoadImmutable(immutable)
+                if signed_immutables.contains(&immutable)
+                    && inst.result().is_some_and(|value| bits(value) < 256));
+            if !conversion && !narrow_scalar && !narrow_immutable {
                 builder.func_mut().blocks[block].instructions.push(id);
                 continue;
             }
             let inst = inst.clone();
             builder.set_debug_context(&inst.metadata.debug_context());
             let kind = match inst.kind {
+                InstKind::LoadImmutable(immutable) if narrow_immutable => {
+                    // Runtime placeholders may sign-extend the stored integer.
+                    let value = builder.load_immutable(immutable, MirType::I256);
+                    Some(clean(&mut builder, value, bits(inst.result().unwrap())))
+                }
                 InstKind::Trunc(value, width) => Some(clean(&mut builder, value, width)),
                 InstKind::Sext(value, from, to) => {
                     let value = signed(&mut builder, value, from);

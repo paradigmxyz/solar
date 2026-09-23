@@ -1,6 +1,9 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before lower-integers) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after lower-integers) ===
   @module Integers
+  immutables:
+    signed: i64
+  
 - fn @arithmetic(arg0: i8, arg1: i8) -> i8 {
 + fn @arithmetic(arg0: i256, arg1: i256) -> i256 {
     bb0:
@@ -227,9 +230,28 @@
       ret v2
   }
   
+  fn @signed_immutable() -> i256 {
+    bb0:
+-     v0 = loadimmutable signed
+-     v1 = zext i64 v0 to i256
++     v2: i256 = loadimmutable signed
++     v0 = and v2, 0xffffffffffffffff
++     v1 = bitcast i256 v0 to i256
+      ret v1
+  }
+  
+  fn @signed_immutable_word() -> i256 {
+    bb0:
+      v0: i256 = loadimmutable signed
+      ret v0
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before integer-cleanup) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after integer-cleanup) ===
   @module Integers
+  immutables:
+    signed: i64
+  
   fn @arithmetic(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v7 = add arg0, arg1
@@ -414,9 +436,26 @@
       ret v2
   }
   
+  fn @signed_immutable() -> i256 {
+    bb0:
+      v2: i256 = loadimmutable signed
+      v0 = and v2, 0xffffffffffffffff
+      v1 = bitcast i256 v0 to i256
+      ret v1
+  }
+  
+  fn @signed_immutable_word() -> i256 {
+    bb0:
+      v0: i256 = loadimmutable signed
+      ret v0
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after egraph) ===
   @module Integers
+  immutables:
+    signed: i64
+  
   fn @arithmetic(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v7 = add arg0, arg1
@@ -607,10 +646,28 @@
       ret v2
   }
   
+  fn @signed_immutable() -> i256 {
+    bb0:
+      v2: i256 = loadimmutable signed
+      v0 = and v2, 0xffffffffffffffff
+-     v1 = bitcast i256 v0 to i256
+-     ret v1
++     ret v0
+  }
+  
+  fn @signed_immutable_word() -> i256 {
+    bb0:
+      v0: i256 = loadimmutable signed
+      ret v0
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before lower-evm-shaped) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after lower-evm-shaped) ===
   @module Integers
 + @phase lowered
+  immutables:
+    signed: i64
+  
   fn @arithmetic(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v7 = add arg0, arg1
@@ -777,5 +834,18 @@
       v4 = sub arg0, arg1
       v2 = and v4, 255
       ret v2
+  }
+  
+  fn @signed_immutable() -> i256 {
+    bb0:
+      v2: i256 = loadimmutable signed
+      v0 = and v2, 0xffffffffffffffff
+      ret v0
+  }
+  
+  fn @signed_immutable_word() -> i256 {
+    bb0:
+      v0: i256 = loadimmutable signed
+      ret v0
   }
   
