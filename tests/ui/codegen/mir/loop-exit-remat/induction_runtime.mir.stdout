@@ -1,10 +1,9 @@
 // === ROOT/tests/ui/codegen/mir/loop-exit-remat/induction_runtime.sol:Test ===
 @module Test
-@inline_assembly
 types:
   struct0: {i256, i256, i256, i256}
 
-fn @previous(arg0: i256) -> i256 [selector=0x3c311f3c, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @previous(arg0: i256) -> i256 [selector=0x3c311f3c, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -34,7 +33,7 @@ fn @previous(arg0: i256) -> i256 [selector=0x3c311f3c, pure, abi_params=[u256], 
     ret v7
 }
 
-fn @wrapping(arg0: i256) -> i256 [selector=0x45d1ad99, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @wrapping(arg0: i256) -> i256 [selector=0x45d1ad99, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -64,7 +63,7 @@ fn @wrapping(arg0: i256) -> i256 [selector=0x45d1ad99, pure, abi_params=[u256], 
     ret v8
 }
 
-fn @descending() -> struct0 [selector=0x94c06a58, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @descending() -> struct0 [selector=0x94c06a58, inline_assembly, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
     memory_object_store_element memoryfixedarray<4, 1>, v0, 0, 4

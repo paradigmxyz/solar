@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_delete_packed_struct.sol:StorageDeletePackedStruct ===
 @module StorageDeletePackedStruct
-@inline_assembly
 types:
   struct0: {i256, i256, i256, i256, i256, i256}
   struct1: {i256, i256, i256}
@@ -406,7 +405,7 @@ fn @assign() -> struct1 [selector=0x12ae6397, abi_params=[], abi_returns=[word<u
     ret v58
 }
 
-fn @clearDirtyWord() -> i256 [selector=0xc9cbcc52, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @clearDirtyWord() -> i256 [selector=0xc9cbcc52, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = not 0
     sstore 2, v0 !metadata(storage=slot(2))
@@ -415,7 +414,7 @@ fn @clearDirtyWord() -> i256 [selector=0xc9cbcc52, abi_params=[], abi_returns=[w
     ret v1
 }
 
-fn @clearStructWithMapping() -> struct2 [selector=0xb447ab5f, abi_params=[], abi_returns=[word, word<u8>, word, word], abi_return_params=[u256, u8, u256, u256]] {
+fn @clearStructWithMapping() -> struct2 [selector=0xb447ab5f, inline_assembly, abi_params=[], abi_returns=[word, word<u8>, word, word], abi_return_params=[u256, u8, u256, u256]] {
   bb0:
     v0 = add 3, 1
     sstore 3, 1 !metadata(storage=slot(3))

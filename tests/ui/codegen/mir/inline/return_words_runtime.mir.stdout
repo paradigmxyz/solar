@@ -1,11 +1,10 @@
 // === ROOT/tests/ui/codegen/mir/inline/return_words_runtime.sol:Test ===
 @module Test
-@inline_assembly
 types:
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 
-fn @pair(arg0: i256, arg1: i256) -> struct0 [selector=0x9280bddf, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @pair(arg0: i256, arg1: i256) -> struct0 [selector=0x9280bddf, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = icall @swap, arg0, arg1
     v1 = extract_value struct0, v0, 0
@@ -15,7 +14,7 @@ fn @pair(arg0: i256, arg1: i256) -> struct0 [selector=0x9280bddf, pure, abi_para
     ret v4
 }
 
-fn @triple(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0x10b574a8, pure, abi_params=[u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @triple(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0x10b574a8, inline_assembly, pure, abi_params=[u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = icall @rotate, arg0, arg1, arg2
     v1 = extract_value struct1, v0, 0
@@ -27,14 +26,14 @@ fn @triple(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0x10b574a8, 
     ret v6
 }
 
-fn @swap(arg0: i256, arg1: i256) -> struct0 {
+fn @swap(arg0: i256, arg1: i256) -> struct0 [inline_assembly] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, arg1
     v1 = insert_value struct0, v0, 1, arg0
     ret v1
 }
 
-fn @rotate(arg0: i256, arg1: i256, arg2: i256) -> struct1 {
+fn @rotate(arg0: i256, arg1: i256, arg2: i256) -> struct1 [inline_assembly] {
   bb0:
     v0 = insert_value struct1, undef struct1, 0, arg2
     v1 = insert_value struct1, v0, 1, arg0

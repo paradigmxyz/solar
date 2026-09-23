@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/loop_checked_helper.sol:LoopCheckedHelper ===
 @module LoopCheckedHelper
-@inline_assembly
 fn @checkedAdd(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = add arg0, arg1
@@ -15,7 +14,7 @@ fn @checkedAdd(arg0: i256, arg1: i256) -> i256 [pure] {
     ret v0
 }
 
-fn @panicArithmetic() [pure] {
+fn @panicArithmetic() [inline_assembly, pure] {
   bb0:
     v0 = shl 224, 0x4e487b71
     mstore 0, v0 !metadata(memory=scratch)

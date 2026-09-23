@@ -1,13 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/static_frame_context.sol:StaticFrameContext ===
 @module StaticFrameContext
-@inline_assembly
 fn @low(arg0: i256) -> i256 [selector=0x10c888cd, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @twice, arg0
     ret v0
 }
 
-fn @high(arg0: i256) -> i256 [selector=0x6257139f, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @high(arg0: i256) -> i256 [selector=0x6257139f, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     mstore 0x1fe0, arg0
     v0 = icall @fourTimes, arg0

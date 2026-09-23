@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/selection_mir.sol:FunctionPointerSelection ===
 @module FunctionPointerSelection
-@inline_assembly
 fn @choose(arg0: i256, arg1: i256) -> i256 [selector=0xced8609d, abi_params=[bool, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = ne arg0, 0
@@ -40,7 +39,7 @@ fn @throughCast(arg0: i256) -> i256 [selector=0x090ff363, pure, abi_params=[u256
     ret v1
 }
 
-fn @castViewToPure(arg0: i256) -> i256 [pure] {
+fn @castViewToPure(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     ret arg0
 }

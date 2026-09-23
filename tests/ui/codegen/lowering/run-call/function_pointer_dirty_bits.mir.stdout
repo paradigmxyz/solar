@@ -1,12 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/function_pointer_dirty_bits.sol:FunctionPointerDirtyBits ===
 @module FunctionPointerDirtyBits
-@inline_assembly
 fn @g() [selector=0xe2179b8e, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @comparison() -> i256 [selector=0xaae103ad, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @comparison() -> i256 [selector=0xaae103ad, inline_assembly, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
@@ -38,7 +37,7 @@ fn @comparison() -> i256 [selector=0xaae103ad, view, abi_params=[], abi_returns=
     ret v26
 }
 
-fn @abiEncoding() -> i256 [selector=0xe9e87e69, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @abiEncoding() -> i256 [selector=0xe9e87e69, inline_assembly, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256

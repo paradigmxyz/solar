@@ -10,7 +10,6 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/revert_lowering.sol:Test ===
 @module Test
 @phase lowered
-@inline_assembly
 fn @boom() [selector=0x6b8d59f9, abi_wrapper, pure] {
   bb0:
     v0 = calldatasize
@@ -45,7 +44,7 @@ fn @maybe() [selector=0x5bab7980, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @raw(arg0: memptr) [may_return_memory, pure] {
+fn @raw(arg0: memptr) [may_return_memory, inline_assembly, pure] {
   bb0:
     v0 = ptrtoint memptr arg0 to i256
     v1 = mload v0

@@ -1,11 +1,10 @@
 // === ROOT/tests/ui/safe-solar/math/mul512/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
-@inline_assembly
 types:
   struct0: {i256, i256}
 
-fn @product() [selector=0xba88c3b7, abi_wrapper, pure] {
+fn @product() [selector=0xba88c3b7, abi_wrapper, inline_assembly, pure] {
   bb0:
     v9 = calldatasize
     v10 = lt v9, 68

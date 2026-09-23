@@ -1,10 +1,9 @@
 // === ROOT/tests/ui/codegen/mir/word-sequence/mined_masks_runtime.sol:MinedMasks ===
 @module MinedMasks
-@inline_assembly
 types:
   struct0: {i256, i256}
 
-fn @masks(arg0: i256) -> struct0 [selector=0x94c49b69, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @masks(arg0: i256) -> struct0 [selector=0x94c49b69, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = shl arg0, 1
     v1 = sub v0, 1
@@ -16,14 +15,14 @@ fn @masks(arg0: i256) -> struct0 [selector=0x94c49b69, pure, abi_params=[u256], 
     ret v6
 }
 
-fn @negate(arg0: i256) -> i256 [selector=0x8d1bea6e, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @negate(arg0: i256) -> i256 [selector=0x8d1bea6e, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sub arg0, 1
     v1 = not v0
     ret v1
 }
 
-fn @same(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf708a77c, pure, abi_params=[u256, u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @same(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf708a77c, inline_assembly, pure, abi_params=[u256, u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg1, arg2
     v1 = and arg0, arg2

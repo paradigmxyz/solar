@@ -1,11 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mutual_recursive_yul_frames.sol:MutualRecursiveYulFrames ===
 @module MutualRecursiveYulFrames
-@inline_assembly
 types:
   struct0: {i256, i256, i256}
   struct1: {i256, i256}
 
-fn @encode(arg0: i256) -> struct0 [selector=0xdeb21fa2, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, bytes32]] {
+fn @encode(arg0: i256) -> struct0 [selector=0xdeb21fa2, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, bytes32]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = icall @walk, arg0, v0
@@ -19,7 +18,7 @@ fn @encode(arg0: i256) -> struct0 [selector=0xdeb21fa2, pure, abi_params=[u256],
     ret v8
 }
 
-fn @walk(arg0: i256, arg1: i256) -> struct1 {
+fn @walk(arg0: i256, arg1: i256) -> struct1 [inline_assembly] {
   bb0:
     v0 = eq arg0, 0
     v1 = zext i1 v0 to i256
@@ -42,7 +41,7 @@ fn @walk(arg0: i256, arg1: i256) -> struct1 {
     ret v5
 }
 
-fn @container(arg0: i256, arg1: i256) -> struct1 {
+fn @container(arg0: i256, arg1: i256) -> struct1 [inline_assembly] {
   bb0:
     v0 = add arg1, 1
     v1 = sub arg0, 1

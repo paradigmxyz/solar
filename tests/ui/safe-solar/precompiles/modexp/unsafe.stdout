@@ -1,11 +1,10 @@
 // === ROOT/tests/ui/safe-solar/precompiles/modexp/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
-@inline_assembly
 types:
   struct0: {i256, memptr}
 
-fn @power() [selector=0x2e894bdf, abi_wrapper, view] {
+fn @power() [selector=0x2e894bdf, abi_wrapper, inline_assembly, view] {
   bb0:
     v36 = calldatasize
     v37 = lt v36, 100

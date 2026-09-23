@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_member_slice_bounds.sol:CalldataStructMemberSliceBounds ===
 @module CalldataStructMemberSliceBounds
-@inline_assembly
 fn @edge(arg0: calldataslice) -> i256 [selector=0xf583b19b, pure, abi_params=[tuple<bytes, bytes>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_ptr arg0
@@ -82,7 +81,7 @@ fn @abiEdge(arg0: calldataslice) -> i256 [selector=0xdff25446, pure, abi_params=
     ret v34
 }
 
-fn @_decodeBatch(arg0: calldataslice) -> calldataslice [pure] {
+fn @_decodeBatch(arg0: calldataslice) -> calldataslice [inline_assembly, pure] {
   bb0:
     v0 = slice_ptr arg0
     v1 = calldataload v0

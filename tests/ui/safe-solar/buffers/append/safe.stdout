@@ -28,7 +28,6 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/safe-solar/buffers/append/safe.sol:Safe ===
 @module Safe
 @phase lowered
-@inline_assembly
 types:
   struct0: {memptr, memptr}
 
@@ -183,10 +182,6 @@ fn @_grow(arg0: memptr, arg1: i256) [may_return_memory, pure] {
     v0 = mload v46
     v2 = mload v0
     v33 = add v2, v2
-    v35 = shr 1, v33
-    v39 = ne v35, v2
-    jumpi v39, bb6, bb7
-  bb7:
     v40 = sub arg1, v33
     v4 = lt v33, arg1
     v41 = zext i1 v4 to i256
@@ -202,8 +197,8 @@ fn @_grow(arg0: memptr, arg1: i256) [may_return_memory, pure] {
     v55 = lt v54, v53
     v56 = gt v54, 0xffffffffffffffff
     v57 = or v55, v56
-    jumpi v57, bb9, bb8
-  bb8:
+    jumpi v57, bb7, bb6
+  bb6:
     mstore 64, v54 !metadata(memory=scratch)
     v59 = calldatasize
     calldatacopy v53, v59, v9
@@ -225,16 +220,12 @@ fn @_grow(arg0: memptr, arg1: i256) [may_return_memory, pure] {
     ret
   bb3:
     tail_call @revert_stub.6
-  bb9:
+  bb7:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     tail_call @revert_stub.5
-  bb6:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    mstore 32, 17 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @revert_stub.5() {

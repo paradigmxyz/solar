@@ -1,10 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/exponent_operand_cleanup.sol:ExponentOperandCleanup ===
 @module ExponentOperandCleanup
-@inline_assembly
 types:
   struct0: {i256, i256}
 
-fn @checkedDirtyOperands() -> struct0 [selector=0xfef4b418, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[i256, i256]] {
+fn @checkedDirtyOperands() -> struct0 [selector=0xfef4b418, inline_assembly, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[i256, i256]] {
   bb0:
     v0 = sub 0, 3
     v1 = and 258, 255
@@ -16,7 +15,7 @@ fn @checkedDirtyOperands() -> struct0 [selector=0xfef4b418, pure, abi_params=[],
     ret v6
 }
 
-fn @uncheckedDirtyOperands() -> i256 [selector=0x84faa534, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @uncheckedDirtyOperands() -> i256 [selector=0x84faa534, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and 0xfffffffffe, 0xffffffff
     v1 = and 258, 255
@@ -25,14 +24,14 @@ fn @uncheckedDirtyOperands() -> i256 [selector=0x84faa534, pure, abi_params=[], 
     ret v3
 }
 
-fn @copiedDirtyOperand() -> i256 [selector=0x2f5133b3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @copiedDirtyOperand() -> i256 [selector=0x2f5133b3, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and 258, 255
     v1 = checked_pow u256, 3, v0
     ret v1
 }
 
-fn @branchedDirtyOperand(arg0: i256) -> i256 [selector=0x3d6d96b7, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[i256]] {
+fn @branchedDirtyOperand(arg0: i256) -> i256 [selector=0x3d6d96b7, inline_assembly, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2

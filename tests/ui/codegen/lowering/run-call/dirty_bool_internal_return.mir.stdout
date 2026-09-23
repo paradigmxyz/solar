@@ -1,16 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dirty_bool_internal_return.sol:DirtyBoolInternalReturn ===
 @module DirtyBoolInternalReturn
-@inline_assembly
 types:
   struct0: {i256, i256}
 
-fn @dirty(arg0: i256) -> i256 [pure] {
+fn @dirty(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = mul arg0, 3
     ret v0
 }
 
-fn @readDirty() -> struct0 [selector=0xd1f2dbc1, pure, abi_params=[], abi_returns=[word<bool>, word], abi_return_params=[bool, u256]] {
+fn @readDirty() -> struct0 [selector=0xd1f2dbc1, inline_assembly, pure, abi_params=[], abi_returns=[word<bool>, word], abi_return_params=[bool, u256]] {
   bb0:
     v0 = zext i1 1 to i256
     v1 = icall @dirty, v0
@@ -23,7 +22,7 @@ fn @readDirty() -> struct0 [selector=0xd1f2dbc1, pure, abi_params=[], abi_return
     ret v7
 }
 
-fn @join(arg0: i256) -> i256 [selector=0xe2c05593, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @join(arg0: i256) -> i256 [selector=0xe2c05593, inline_assembly, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
@@ -37,7 +36,7 @@ fn @join(arg0: i256) -> i256 [selector=0xe2c05593, pure, abi_params=[bool], abi_
     ret v2
 }
 
-fn @reverseJoin(arg0: i256) -> i256 [selector=0x2022dd82, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @reverseJoin(arg0: i256) -> i256 [selector=0x2022dd82, inline_assembly, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
@@ -51,7 +50,7 @@ fn @reverseJoin(arg0: i256) -> i256 [selector=0x2022dd82, pure, abi_params=[bool
     ret v2
 }
 
-fn @chooseValue(arg0: i256) -> i256 [selector=0x204ac68b, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @chooseValue(arg0: i256) -> i256 [selector=0x204ac68b, inline_assembly, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
@@ -67,7 +66,7 @@ fn @chooseValue(arg0: i256) -> i256 [selector=0x204ac68b, pure, abi_params=[bool
     ret v4
 }
 
-fn @loopValue(arg0: i256) -> i256 [selector=0x0f49c3a4, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @loopValue(arg0: i256) -> i256 [selector=0x0f49c3a4, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = zext i1 1 to i256
     jump bb1

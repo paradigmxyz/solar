@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/uninitialized_memory_allocation.sol:UninitializedMemoryAllocation ===
 @module UninitializedMemoryAllocation
-@inline_assembly
 types:
   struct0: {i256, i256, i256, i256}
   struct1: {i256, i256, i256}
@@ -40,7 +39,7 @@ fn @aliasDoesNotAllocate() -> i256 [selector=0xb2b4bf46, pure, abi_params=[], ab
     ret v4
 }
 
-fn @dynamicDefaults() -> struct0 [selector=0xd295ba8d, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @dynamicDefaults() -> struct0 [selector=0xd295ba8d, inline_assembly, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = icall @freeMemoryPointer
     v1 = icall @freeMemoryPointer
@@ -57,7 +56,7 @@ fn @dynamicDefaults() -> struct0 [selector=0xd295ba8d, pure, abi_params=[], abi_
     ret v11
 }
 
-fn @nestedDynamicDefaults() -> struct0 [selector=0xd34386dc, pure, abi_params=[], abi_returns=[word, word, word, word<bool>], abi_return_params=[u256, u256, u256, bool]] {
+fn @nestedDynamicDefaults() -> struct0 [selector=0xd34386dc, inline_assembly, pure, abi_params=[], abi_returns=[word, word, word, word<bool>], abi_return_params=[u256, u256, u256, bool]] {
   bb0:
     v0 = icall @freeMemoryPointer
     v1 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
@@ -100,7 +99,7 @@ fn @defaultThroughICall() -> i256 [selector=0x4ed54f6b, pure, abi_params=[], abi
     ret v0
 }
 
-fn @fixedArrayDynamicDefaults() -> struct1 [selector=0x94633452, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @fixedArrayDynamicDefaults() -> struct1 [selector=0x94633452, inline_assembly, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = icall @freeMemoryPointer
     v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
@@ -128,7 +127,7 @@ fn @fixedArrayDynamicDefaults() -> struct1 [selector=0x94633452, pure, abi_param
     jump bb1
 }
 
-fn @nestedStaticDefaults() -> i256 [selector=0x1ebfa70d, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @nestedStaticDefaults() -> i256 [selector=0x1ebfa70d, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @freeMemoryPointer
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
@@ -198,7 +197,7 @@ fn @isEmpty(arg0: memorybytes) -> i256 [pure] {
     ret v2
 }
 
-fn @rawPointerPair() -> struct3 [pure] {
+fn @rawPointerPair() -> struct3 [inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 64
@@ -219,7 +218,7 @@ fn @rawPointerPair() -> struct3 [pure] {
     ret v10
 }
 
-fn @freeMemoryPointer() -> i256 [pure] {
+fn @freeMemoryPointer() -> i256 [inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     ret v0

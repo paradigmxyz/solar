@@ -12,7 +12,6 @@
 
 // === ROOT/tests/ui/codegen/core/buffers_runtime.sol:Test ===
 @module Test
-@inline_assembly
 types:
   struct0: {memorybytes, i256}
   struct1: {memorybytes, memorybytes, i256}
@@ -89,7 +88,7 @@ fn @neighbour(arg0: memorybytes, arg1: memorybytes) -> struct2 [selector=0x5409b
     ret v6
 }
 
-fn @truncate(arg0: memorybytes, arg1: i256) [pure] {
+fn @truncate(arg0: memorybytes, arg1: i256) [inline_assembly, pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = gt arg1, v0

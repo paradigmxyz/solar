@@ -1,11 +1,10 @@
 // === ROOT/tests/ui/safe-solar/calldata/tryread/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
-@inline_assembly
 types:
   struct0: {i256, i256}
 
-fn @peek() [selector=0xa230438f, abi_wrapper, pure] {
+fn @peek() [selector=0xa230438f, abi_wrapper, inline_assembly, pure] {
   bb0:
     v5 = calldatasize
     v6 = lt v5, 68

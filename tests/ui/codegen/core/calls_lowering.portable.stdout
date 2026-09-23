@@ -28,7 +28,6 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/calls_lowering.sol:Test ===
 @module Test
 @phase lowered
-@inline_assembly
 types:
   struct0: {i256, i256, i256, i256}
   struct1: {i256, i256, i256}
@@ -339,7 +338,7 @@ fn @fill(arg0: memptr, arg1: i256, arg2: i256) [may_return_memory, pure] {
     jump bb1
 }
 
-fn @callInto(arg0: i256, arg1: i256, arg2: i256, arg3: memptr, arg4: memptr) -> struct1 [may_return_memory, return_abi=[i256, i256, i256]] {
+fn @callInto(arg0: i256, arg1: i256, arg2: i256, arg3: memptr, arg4: memptr) -> struct1 [may_return_memory, inline_assembly, return_abi=[i256, i256, i256]] {
   bb0:
     v0 = ptrtoint memptr arg4 to i256
     v1 = mload v0
@@ -358,7 +357,7 @@ fn @callInto(arg0: i256, arg1: i256, arg2: i256, arg3: memptr, arg4: memptr) -> 
     ret v9, v25, v10
 }
 
-fn @staticCallInto(arg0: i256, arg1: i256, arg2: memptr, arg3: memptr) -> struct1 [may_return_memory, view, return_abi=[i256, i256, i256]] {
+fn @staticCallInto(arg0: i256, arg1: i256, arg2: memptr, arg3: memptr) -> struct1 [may_return_memory, inline_assembly, view, return_abi=[i256, i256, i256]] {
   bb0:
     v0 = ptrtoint memptr arg3 to i256
     v1 = mload v0
@@ -377,7 +376,7 @@ fn @staticCallInto(arg0: i256, arg1: i256, arg2: memptr, arg3: memptr) -> struct
     ret v9, v25, v10
 }
 
-fn @delegateCallInto(arg0: i256, arg1: i256, arg2: memptr, arg3: memptr) -> struct1 [may_return_memory, return_abi=[i256, i256, i256]] {
+fn @delegateCallInto(arg0: i256, arg1: i256, arg2: memptr, arg3: memptr) -> struct1 [may_return_memory, inline_assembly, return_abi=[i256, i256, i256]] {
   bb0:
     v0 = ptrtoint memptr arg3 to i256
     v1 = mload v0
@@ -396,7 +395,7 @@ fn @delegateCallInto(arg0: i256, arg1: i256, arg2: memptr, arg3: memptr) -> stru
     ret v9, v25, v10
 }
 
-fn @deploy(arg0: memptr) -> i256 [may_return_memory] {
+fn @deploy(arg0: memptr) -> i256 [may_return_memory, inline_assembly] {
   bb0:
     v0 = ptrtoint memptr arg0 to i256
     v1 = mload v0

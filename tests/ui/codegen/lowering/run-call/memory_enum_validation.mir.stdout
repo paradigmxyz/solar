@@ -1,7 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_enum_validation.sol:MemoryEnumValidation ===
 @module MemoryEnumValidation
-@inline_assembly
-fn @structField() -> i256 [selector=0x3442156e, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {
+fn @structField() -> i256 [selector=0x3442156e, inline_assembly, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -14,7 +13,7 @@ fn @structField() -> i256 [selector=0x3442156e, pure, abi_params=[], abi_returns
     ret v2
 }
 
-fn @fixedArrayElement() -> i256 [selector=0x43876e90, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {
+fn @fixedArrayElement() -> i256 [selector=0x43876e90, inline_assembly, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     v1 = ptrtoint memoryfixedarray v0 to i256
@@ -31,7 +30,7 @@ fn @fixedArrayElement() -> i256 [selector=0x43876e90, pure, abi_params=[], abi_r
     ret v5
 }
 
-fn @dynamicArrayElement() -> i256 [selector=0xff96177b, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {
+fn @dynamicArrayElement() -> i256 [selector=0xff96177b, inline_assembly, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1

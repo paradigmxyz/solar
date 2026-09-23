@@ -1,11 +1,10 @@
 // === ROOT/tests/ui/safe-solar/precompiles/ecadd/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
-@inline_assembly
 types:
   struct0: {i256, i256, i256}
 
-fn @add() [selector=0xe022d77c, abi_wrapper, view] {
+fn @add() [selector=0xe022d77c, abi_wrapper, inline_assembly, view] {
   bb0:
     v13 = calldatasize
     v14 = lt v13, 132

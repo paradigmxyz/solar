@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/inline-memory-wrappers/runtime.sol:SharedMemoryWrapper ===
 @module SharedMemoryWrapper
-@inline_assembly
 types:
   struct0: {memorybytes, memorybytes, memorybytes}
 
@@ -20,7 +19,7 @@ fn @twice(arg0: memorybytes) -> struct0 [selector=0xff491092, pure, abi_params=[
     ret v4
 }
 
-fn @wrap(arg0: memorybytes) -> memorybytes [pure] {
+fn @wrap(arg0: memorybytes) -> memorybytes [inline_assembly, pure] {
   bb0:
     v0 = icall @copy, arg0
     v1 = ptrtoint memorybytes v0 to i256

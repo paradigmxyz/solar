@@ -1,8 +1,7 @@
 // === ROOT/tests/ui/safe-solar/bytes/fill/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
-@inline_assembly
-fn @blank() [selector=0xc89c9e3d, abi_wrapper, pure] {
+fn @blank() [selector=0xc89c9e3d, abi_wrapper, inline_assembly, pure] {
   bb0:
     v31 = calldatasize
     v32 = lt v31, 100

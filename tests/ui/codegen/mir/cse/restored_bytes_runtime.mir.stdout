@@ -1,10 +1,9 @@
 // === ROOT/tests/ui/codegen/mir/cse/restored_bytes_runtime.sol:Test ===
 @module Test
-@inline_assembly
 types:
   struct0: {i256, i256}
 
-fn @temporary(arg0: i256) -> i256 [pure] {
+fn @temporary(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = mload arg0
     v1 = add arg0, 31
@@ -14,7 +13,7 @@ fn @temporary(arg0: i256) -> i256 [pure] {
     ret v2
 }
 
-fn @check(arg0: i256) -> struct0 [selector=0x5f72f450, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @check(arg0: i256) -> struct0 [selector=0x5f72f450, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 32

@@ -1,8 +1,7 @@
 // === ROOT/tests/ui/safe-solar/bytes/write/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
-@inline_assembly
-fn @patch() [selector=0xa2c0192a, abi_wrapper, pure] {
+fn @patch() [selector=0xa2c0192a, abi_wrapper, inline_assembly, pure] {
   bb0:
     v10 = calldataload 36
     v11 = shl 32, v10
@@ -33,7 +32,7 @@ fn @patch() [selector=0xa2c0192a, abi_wrapper, pure] {
     returndata v0, v29
 }
 
-fn @word() [selector=0x8ce8a8b7, abi_wrapper, pure] {
+fn @word() [selector=0x8ce8a8b7, abi_wrapper, inline_assembly, pure] {
   bb0:
     v4 = icall @decode_calldata_type, 4
     v0 = ptrtoint memptr v4 to i256

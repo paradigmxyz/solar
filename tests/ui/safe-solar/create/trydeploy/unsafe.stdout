@@ -1,11 +1,10 @@
 // === ROOT/tests/ui/safe-solar/create/trydeploy/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
-@inline_assembly
 types:
   struct0: {i256, memptr}
 
-fn @attempt() [selector=0xa95d7aa6, abi_wrapper] {
+fn @attempt() [selector=0xa95d7aa6, abi_wrapper, inline_assembly] {
   bb0:
     v20 = calldatasize
     v21 = lt v20, 36

@@ -1,8 +1,7 @@
 // === ROOT/tests/ui/safe-solar/math/sqrt/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
-@inline_assembly
-fn @root() [selector=0xe56bf027, abi_wrapper, pure] {
+fn @root() [selector=0xe56bf027, abi_wrapper, inline_assembly, pure] {
   bb0:
     v49 = calldatasize
     v50 = lt v49, 36

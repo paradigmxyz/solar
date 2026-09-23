@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_length_cap.sol:C ===
 @module C
-@inline_assembly
 types:
   struct0: {i256, i256, i256}
 
@@ -43,7 +42,7 @@ fn @grow() -> struct0 [selector=0x5298948e, abi_params=[], abi_returns=[word, wo
     ret v25
 }
 
-fn @wrapOntoOwner() -> i256 [selector=0x428ae2e7, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @wrapOntoOwner() -> i256 [selector=0x428ae2e7, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 1, 0x4ef1d2ad89edf8c4d91132028e8195cdf30bb4b5053d4f8cd260341d4805f30a !metadata(storage=slot(1))
     v0 = sload 1 !metadata(storage=slot(1))
@@ -58,7 +57,7 @@ fn @wrapOntoOwner() -> i256 [selector=0x428ae2e7, abi_params=[], abi_returns=[wo
     ret v5
 }
 
-fn @atCap() [selector=0xdb9a763c, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @atCap() [selector=0xdb9a763c, inline_assembly, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 1, 0x10000000000000000 !metadata(storage=slot(1))
     v0 = sload 1 !metadata(storage=slot(1))

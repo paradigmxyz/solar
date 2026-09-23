@@ -1,11 +1,10 @@
 // === ROOT/tests/ui/codegen/mir/egraph/cost_shared_inputs_runtime.sol:SharedInputCosts ===
 @module SharedInputCosts
-@inline_assembly
 types:
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 
-fn @retained(arg0: i256) -> struct0 [selector=0x0634616b, pure, abi_params=[u256], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
+fn @retained(arg0: i256) -> struct0 [selector=0x0634616b, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
   bb0:
     v0 = byte 31, arg0
     v1 = shl 248, v0
@@ -17,7 +16,7 @@ fn @retained(arg0: i256) -> struct0 [selector=0x0634616b, pure, abi_params=[u256
     ret v6
 }
 
-fn @several(arg0: i256) -> struct1 [selector=0x640af651, pure, abi_params=[u256], abi_returns=[word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool]] {
+fn @several(arg0: i256) -> struct1 [selector=0x640af651, inline_assembly, pure, abi_params=[u256], abi_returns=[word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool]] {
   bb0:
     v0 = byte 31, arg0
     v1 = shl 248, v0
@@ -36,14 +35,14 @@ fn @several(arg0: i256) -> struct1 [selector=0x640af651, pure, abi_params=[u256]
     ret v13
 }
 
-fn @repeated(arg0: i256) -> i256 [selector=0x0abef8a2, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @repeated(arg0: i256) -> i256 [selector=0x0abef8a2, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = shl 1, arg0
     v1 = shl 1, v0
     ret v1
 }
 
-fn @returned(arg0: i256) -> struct0 [selector=0xf8c883cc, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @returned(arg0: i256) -> struct0 [selector=0xf8c883cc, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = shl 1, arg0
     v1 = shl 1, v0

@@ -1,17 +1,16 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dirty_internal_multi_return.sol:DirtyInternalMultiReturn ===
 @module DirtyInternalMultiReturn
-@inline_assembly
 types:
   struct0: {i256, i256}
 
-fn @dirtyPair() -> struct0 [pure] {
+fn @dirtyPair() -> struct0 [inline_assembly, pure] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, 0
     v1 = insert_value struct0, v0, 1, 257
     ret v1
 }
 
-fn @dirty(arg0: i256) -> i256 [pure] {
+fn @dirty(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     ret 257
 }

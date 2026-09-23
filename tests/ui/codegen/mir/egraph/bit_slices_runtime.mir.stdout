@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/egraph/bit_slices_runtime.sol:BitSlices ===
 @module BitSlices
-@inline_assembly
 types:
   struct0: {i256, i256, i256, i256}
   struct1: {i256, i256}
@@ -23,7 +22,7 @@ fn @comparisons(arg0: i256) -> struct0 [selector=0xe32e96a3, pure, abi_params=[u
     ret v11
 }
 
-fn @masked(arg0: i256) -> struct1 [selector=0x38caca52, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @masked(arg0: i256) -> struct1 [selector=0x38caca52, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = shl 32, arg0
     v1 = or v0, 0x12345678
@@ -38,7 +37,7 @@ fn @masked(arg0: i256) -> struct1 [selector=0x38caca52, pure, abi_params=[u256],
     ret v9
 }
 
-fn @offsets(arg0: i256) -> i256 [selector=0x81914619, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @offsets(arg0: i256) -> i256 [selector=0x81914619, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sub arg0, 8
     v1 = add arg0, 32
@@ -46,7 +45,7 @@ fn @offsets(arg0: i256) -> i256 [selector=0x81914619, pure, abi_params=[u256], a
     ret v2
 }
 
-fn @addressRoundtrip() -> i256 [selector=0xe6132fae, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @addressRoundtrip() -> i256 [selector=0xe6132fae, inline_assembly, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
@@ -60,14 +59,14 @@ fn @addressRoundtrip() -> i256 [selector=0xe6132fae, view, abi_params=[], abi_re
     ret v8
 }
 
-fn @repeated(arg0: i256, arg1: i256) -> i256 [selector=0x6196485c, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @repeated(arg0: i256, arg1: i256) -> i256 [selector=0x6196485c, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = signextend arg1, arg0
     v1 = signextend arg1, v0
     ret v1
 }
 
-fn @chains(arg0: i256) -> struct2 [selector=0x550325b5, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @chains(arg0: i256) -> struct2 [selector=0x550325b5, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = shl 8, arg0
     v1 = shl 16, v0
@@ -81,7 +80,7 @@ fn @chains(arg0: i256) -> struct2 [selector=0x550325b5, pure, abi_params=[u256],
     ret v8
 }
 
-fn @overflow(arg0: i256) -> struct2 [selector=0x517550bf, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @overflow(arg0: i256) -> struct2 [selector=0x517550bf, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = shl 1, arg0
     v1 = not 0
@@ -97,7 +96,7 @@ fn @overflow(arg0: i256) -> struct2 [selector=0x517550bf, pure, abi_params=[u256
     ret v10
 }
 
-fn @slices(arg0: i256) -> struct0 [selector=0xe84df24a, pure, abi_params=[u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @slices(arg0: i256) -> struct0 [selector=0xe84df24a, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = shl 248, arg0
     v1 = shr 248, v0

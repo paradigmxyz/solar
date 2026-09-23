@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/return_spill_loop.sol:ReturnCopy ===
 @module ReturnCopy
-@inline_assembly
 types:
   struct0: {i256, i256, i256}
 
@@ -90,7 +89,7 @@ fn @twice(arg0: memorybytes, arg1: i256) -> memorybytes [selector=0x5a2aaa96, pu
     ret v1
 }
 
-fn @copy(arg0: memorybytes, arg1: i256) -> memorybytes [pure] {
+fn @copy(arg0: memorybytes, arg1: i256) -> memorybytes [inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = ptrtoint memorybytes arg0 to i256

@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/require_evaluation_order.sol:RequireEvaluationOrder ===
 @module RequireEvaluationOrder
-@inline_assembly
 fn @customError() -> i256 [selector=0xdda3a7bd, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 0 !metadata(storage=slot(0))
@@ -93,7 +92,7 @@ fn @reason() -> memorybytes {
     ret v2
 }
 
-fn @returnSeven() -> i256 [pure] {
+fn @returnSeven() -> i256 [inline_assembly, pure] {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)
     returndata 0, 32

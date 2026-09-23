@@ -28,7 +28,6 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/safe-solar/calls/bounded/safe.sol:Safe ===
 @module Safe
 @phase lowered
-@inline_assembly
 types:
   struct0: {i256, i256, i256, i256}
   struct1: {i256, i256, i256}

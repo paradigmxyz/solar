@@ -1,8 +1,7 @@
 // === ROOT/tests/ui/safe-solar/create/deploy/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
-@inline_assembly
-fn @spawn() [selector=0x0da0cf17, abi_wrapper] {
+fn @spawn() [selector=0x0da0cf17, abi_wrapper, inline_assembly] {
   bb0:
     v14 = calldatasize
     v15 = lt v14, 36
@@ -53,7 +52,7 @@ fn @spawn() [selector=0x0da0cf17, abi_wrapper] {
     revert 0, 0
 }
 
-fn @spawnAt() [selector=0x9639302c, abi_wrapper] {
+fn @spawnAt() [selector=0x9639302c, abi_wrapper, inline_assembly] {
   bb0:
     v14 = calldatasize
     v15 = lt v14, 68

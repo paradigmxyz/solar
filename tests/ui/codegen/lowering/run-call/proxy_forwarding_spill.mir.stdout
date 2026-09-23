@@ -18,7 +18,6 @@ fn @setBig(arg0: i256, arg1: i256, arg2: i256, arg3: calldataslice) [selector=0x
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Proxy ===
 @module Proxy
-@inline_assembly
 immutables:
   _defaultImplementation: bytes32
 
@@ -31,7 +30,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[address]] {
     ret
 }
 
-fn @fallback() [fallback, payable] {
+fn @fallback() [inline_assembly, fallback, payable] {
   bb0:
     v0 = returndatasize
     mstore 64, v0 !metadata(memory=scratch)

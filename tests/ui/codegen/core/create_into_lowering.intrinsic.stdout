@@ -19,7 +19,6 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/create_into_lowering.sol:Test ===
 @module Test
 @phase lowered
-@inline_assembly
 types:
   struct0: {i256, memptr, i256, i256, memptr}
   struct1: {i256, i256, i256, i256}

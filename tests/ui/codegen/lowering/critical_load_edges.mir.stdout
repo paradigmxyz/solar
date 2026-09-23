@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/critical_load_edges.sol:CriticalLoadEdges ===
 @module CriticalLoadEdges
-@inline_assembly
 fn @branch(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x5b2c5464, abi_params=[bool, bool, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = ne arg0, 0
@@ -26,7 +25,7 @@ fn @branch(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x5b2c5464, abi
     ret v6
 }
 
-fn @transientRead(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd519425a, abi_params=[bool, bool, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @transientRead(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd519425a, inline_assembly, abi_params=[bool, bool, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     switch arg0, default bb3, [1 => bb2]
   bb2:

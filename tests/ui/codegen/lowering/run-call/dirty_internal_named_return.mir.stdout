@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dirty_internal_named_return.sol:DirtyInternalNamedReturn ===
 @module DirtyInternalNamedReturn
-@inline_assembly
 fn @dispatchAddress(arg0: i256) -> i256 [selector=0x58955a9d, pure, abi_params=[address], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = icall @internal_dispatcher_p_address_r_address, 5, arg0
@@ -24,7 +23,7 @@ fn @bytesAddress(arg0: i256) -> i256 [selector=0xab9e6c0c, pure, abi_params=[byt
     ret v3
 }
 
-fn @joinAddress(arg0: i256) -> i256 [selector=0xbfc95d7a, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @joinAddress(arg0: i256) -> i256 [selector=0xbfc95d7a, inline_assembly, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
@@ -42,33 +41,33 @@ fn @joinAddress(arg0: i256) -> i256 [selector=0xbfc95d7a, pure, abi_params=[bool
     ret v6
 }
 
-fn @dirtyAddress(arg0: i256) -> i256 [pure] {
+fn @dirtyAddress(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = shl 160, 1
     v1 = or arg0, v0
     ret v1
 }
 
-fn @dirtyBytes(arg0: i256) -> i256 [pure] {
+fn @dirtyBytes(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = or arg0, 1
     ret v0
 }
 
-fn @dirtyUint8(arg0: i256) -> i256 [pure] {
+fn @dirtyUint8(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = shl 8, 1
     v1 = or arg0, v0
     ret v1
 }
 
-fn @dirtyBool(arg0: i256) -> i256 [pure] {
+fn @dirtyBool(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = mul arg0, 2
     ret v0
 }
 
-fn @addressBits() -> i256 [selector=0xf41cb93b, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @addressBits() -> i256 [selector=0xf41cb93b, inline_assembly, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = trunc i256 2 to i160
     v1 = zext i160 v0 to i256
@@ -81,7 +80,7 @@ fn @addressBits() -> i256 [selector=0xf41cb93b, pure, abi_params=[], abi_returns
     ret v7
 }
 
-fn @bytesBits() -> i256 [selector=0x92ad518d, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @bytesBits() -> i256 [selector=0x92ad518d, inline_assembly, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @dirtyBytes, 0x4200000000000000000000000000000000000000000000000000000000000000
     v1 = shr 248, v0
@@ -234,7 +233,7 @@ fn @directComparisonCleans() -> i256 [selector=0x38576c60, pure, abi_params=[], 
     ret v14
 }
 
-fn @boolBits() -> i256 [selector=0xc674afd7, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @boolBits() -> i256 [selector=0xc674afd7, inline_assembly, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = zext i1 1 to i256
     v1 = icall @dirtyBool, v0

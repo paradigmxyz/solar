@@ -1,7 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_dse_unaligned_overlap.sol:MemoryDseUnalignedOverlap ===
 @module MemoryDseUnalignedOverlap
-@inline_assembly
-fn @restore() -> i256 [selector=0x2fda332e, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @restore() -> i256 [selector=0x2fda332e, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     mstore 128, 0x1234
     mstore 129, 0

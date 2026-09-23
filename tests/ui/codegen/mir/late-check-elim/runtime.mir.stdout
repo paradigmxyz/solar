@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/late-check-elim/runtime.sol:LateMemoryRuntime ===
 @module LateMemoryRuntime
-@inline_assembly
 fn @ascii(arg0: i256) -> i256 [selector=0x394abd12, pure, abi_params=[u8], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = not 31
@@ -82,7 +81,7 @@ fn @sum(arg0: memoryarray) -> i256 [selector=0x0194db8e, pure, abi_params=[array
     jump bb1
 }
 
-fn @shrinkingLoop() -> i256 [selector=0x99f5cf3a, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @shrinkingLoop() -> i256 [selector=0x99f5cf3a, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = not 31
     v1 = and 64, v0
@@ -119,7 +118,7 @@ fn @shrinkingLoop() -> i256 [selector=0x99f5cf3a, pure, abi_params=[], abi_retur
     jump bb1
 }
 
-fn @shrink(arg0: i256, arg1: i256) -> i256 [selector=0xefab6938, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @shrink(arg0: i256, arg1: i256) -> i256 [selector=0xefab6938, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gt arg1, arg0
     v1 = eq v0, false

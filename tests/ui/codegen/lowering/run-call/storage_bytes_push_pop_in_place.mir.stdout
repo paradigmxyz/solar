@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_push_pop_in_place.sol:StorageBytesPushPop ===
 @module StorageBytesPushPop
-@inline_assembly
 types:
   struct0: {memorybytes, i256}
   struct1: {i256, i256, i256}
@@ -493,7 +492,7 @@ fn @popTo(arg0: i256, arg1: i256) -> struct0 [selector=0x6203376f, abi_params=[u
     jump bb1
 }
 
-fn @slots(arg0: i256, arg1: i256) -> struct1 [selector=0xec823b6d, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[bytes32, bytes32, bytes32]] {
+fn @slots(arg0: i256, arg1: i256) -> struct1 [selector=0xec823b6d, inline_assembly, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[bytes32, bytes32, bytes32]] {
   bb0:
     icall @_push, arg0
     jump bb1
@@ -1491,7 +1490,7 @@ fn @_pushPop(arg0: i256, arg1: i256) -> memorybytes {
     jump bb1
 }
 
-fn @pushZeroRead(arg0: i256) -> struct3 [selector=0x421e4f69, abi_params=[u256], abi_returns=[word<bytes1>, word], abi_return_params=[bytes1, bytes32]] {
+fn @pushZeroRead(arg0: i256) -> struct3 [selector=0x421e4f69, inline_assembly, abi_params=[u256], abi_returns=[word<bytes1>, word], abi_return_params=[bytes1, bytes32]] {
   bb0:
     v0 = mod arg0, 32
     v1 = mul v0, 2
@@ -1557,7 +1556,7 @@ fn @pushZeroRead(arg0: i256) -> struct3 [selector=0x421e4f69, abi_params=[u256],
     ret v43
 }
 
-fn @pushZeroReadLong(arg0: i256) -> struct1 [selector=0x18e52e09, abi_params=[u256], abi_returns=[word<bytes1>, word, word], abi_return_params=[bytes1, bytes32, bytes32]] {
+fn @pushZeroReadLong(arg0: i256) -> struct1 [selector=0x18e52e09, inline_assembly, abi_params=[u256], abi_returns=[word<bytes1>, word, word], abi_return_params=[bytes1, bytes32, bytes32]] {
   bb0:
     v0 = mod arg0, 32
     v1 = add v0, 32

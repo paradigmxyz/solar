@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/readonly-eval/runtime_calls.sol:RuntimeCalls ===
 @module RuntimeCalls
-@inline_assembly
 fn @emptyBytes() -> i256 [selector=0x55c4baff, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
@@ -21,7 +20,7 @@ fn @nonemptyBytes() -> i256 [selector=0xe23ba52c, pure, abi_params=[], abi_retur
     ret v3
 }
 
-fn @isEmpty(arg0: memorybytes) -> i256 [pure] {
+fn @isEmpty(arg0: memorybytes) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = ptrtoint memorybytes arg0 to i256
     v1 = mload v0
@@ -30,7 +29,7 @@ fn @isEmpty(arg0: memorybytes) -> i256 [pure] {
     ret v3
 }
 
-fn @constantWord() -> i256 [selector=0xf7bfd103, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @constantWord() -> i256 [selector=0xf7bfd103, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
@@ -43,7 +42,7 @@ fn @constantWord() -> i256 [selector=0xf7bfd103, pure, abi_params=[], abi_return
     ret v5
 }
 
-fn @dynamicWord(arg0: i256) -> i256 [selector=0x0c872375, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @dynamicWord(arg0: i256) -> i256 [selector=0x0c872375, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
@@ -56,7 +55,7 @@ fn @dynamicWord(arg0: i256) -> i256 [selector=0x0c872375, pure, abi_params=[u256
     ret v5
 }
 
-fn @afterOverwrite(arg0: i256) -> i256 [selector=0xb7519bca, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @afterOverwrite(arg0: i256) -> i256 [selector=0xb7519bca, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
@@ -87,7 +86,7 @@ fn @dynamicShort(arg0: memorybytes) -> i256 [selector=0x5def3fed, pure, abi_para
     ret v0
 }
 
-fn @read(arg0: memorybytes) -> i256 [pure] {
+fn @read(arg0: memorybytes) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = eq v0, 32
@@ -99,7 +98,7 @@ fn @read(arg0: memorybytes) -> i256 [pure] {
     ret v5
 }
 
-fn @short(arg0: memorybytes) -> i256 [pure] {
+fn @short(arg0: memorybytes) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = lt v0, 32
@@ -121,7 +120,7 @@ fn @short(arg0: memorybytes) -> i256 [pure] {
     ret v15
 }
 
-fn @overwrite(arg0: memorybytes, arg1: i256) [pure] {
+fn @overwrite(arg0: memorybytes, arg1: i256) [inline_assembly, pure] {
   bb0:
     v0 = ptrtoint memorybytes arg0 to i256
     v1 = add v0, 32

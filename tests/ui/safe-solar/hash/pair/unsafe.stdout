@@ -1,8 +1,7 @@
 // === ROOT/tests/ui/safe-solar/hash/pair/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
-@inline_assembly
-fn @pair() [selector=0x9280bddf, abi_wrapper, pure] {
+fn @pair() [selector=0x9280bddf, abi_wrapper, inline_assembly, pure] {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 68
@@ -17,7 +16,7 @@ fn @pair() [selector=0x9280bddf, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @mixed() [selector=0x662ae64e, abi_wrapper, pure] {
+fn @mixed() [selector=0x662ae64e, abi_wrapper, inline_assembly, pure] {
   bb0:
     v2 = calldatasize
     v3 = lt v2, 68
@@ -43,7 +42,7 @@ fn @mixed() [selector=0x662ae64e, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @single() [selector=0x6bd47c49, abi_wrapper, pure] {
+fn @single() [selector=0x6bd47c49, abi_wrapper, inline_assembly, pure] {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36

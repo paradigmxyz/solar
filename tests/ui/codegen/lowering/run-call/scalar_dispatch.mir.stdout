@@ -1,7 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/scalar_dispatch.sol:ScalarDispatch ===
 @module ScalarDispatch
-@inline_assembly
-fn @difference(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x214636e1, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @difference(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x214636e1, inline_assembly, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -31,7 +30,7 @@ fn @difference(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x214636e1,
     jump bb1
 }
 
-fn @sumDifference(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xe6dd5714, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @sumDifference(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xe6dd5714, inline_assembly, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -61,7 +60,7 @@ fn @sumDifference(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xe6dd57
     jump bb1
 }
 
-fn @complement(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x82829e9f, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @complement(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x82829e9f, inline_assembly, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -91,7 +90,7 @@ fn @complement(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x82829e9f,
     jump bb1
 }
 
-fn @absorb(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x0f92ced6, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @absorb(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x0f92ced6, inline_assembly, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:

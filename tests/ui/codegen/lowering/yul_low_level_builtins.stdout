@@ -1,20 +1,19 @@
 // === ROOT/tests/ui/codegen/lowering/yul_low_level_builtins.sol:YulLowLevelBuiltins ===
 @module YulLowLevelBuiltins
-@inline_assembly
-fn @yulStringLiteral() -> i256 [selector=0x6756b569, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @yulStringLiteral() -> i256 [selector=0x6756b569, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     mstore 0, 0x736f6c6172000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     v0 = mload 0 !metadata(memory=scratch)
     ret v0
 }
 
-fn @leadingZeros(arg0: i256) -> i256 [selector=0x8d9d94e2, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @leadingZeros(arg0: i256) -> i256 [selector=0x8d9d94e2, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = clz arg0
     ret v0
 }
 
-fn @callCode(arg0: i256) -> i256 [selector=0xc66764e1, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
+fn @callCode(arg0: i256) -> i256 [selector=0xc66764e1, inline_assembly, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = callcode v0, arg0, 0, 0, 0, 0, 0
@@ -22,7 +21,7 @@ fn @callCode(arg0: i256) -> i256 [selector=0xc66764e1, abi_params=[address], abi
     ret v2
 }
 
-fn @safeCall(arg0: i256, arg1: i256) -> i256 [selector=0x1dee2645, abi_params=[address, bytes4], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @safeCall(arg0: i256, arg1: i256) -> i256 [selector=0x1dee2645, inline_assembly, abi_params=[address, bytes4], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore 0, arg1 !metadata(memory=scratch)

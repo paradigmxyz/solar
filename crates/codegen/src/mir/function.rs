@@ -674,6 +674,16 @@ pub(crate) struct FunctionAttributes {
     /// the original signature's frame-lifetime constraint. The backend uses this sticky bit to
     /// avoid reclaiming memory that may have escaped through inline assembly.
     pub(crate) may_return_memory: bool,
+    /// Whether this function's body came from inline assembly, directly or through a callee
+    /// inlined into it.
+    ///
+    /// Only assembly can write a memory object's length word or turn an arbitrary word into a
+    /// memory object. While no function in a module has this bit, every length was written by
+    /// a checked allocation, an ABI decoder, or a core operation that only shortens an object,
+    /// so each stays below
+    /// [`MAX_ALLOCATION_END`](super::memory::EvmMemoryLayout::MAX_ALLOCATION_END). The bit is
+    /// sticky: inlining carries it into the caller, and only functions with equal bits merge.
+    pub(crate) inline_assembly: bool,
     /// Whether this function dispatches an internal function-pointer shape.
     pub(crate) is_function_pointer_dispatcher: bool,
     /// Never clone this function into multiple callers.
@@ -707,6 +717,7 @@ impl Default for FunctionAttributes {
             is_receive: false,
             is_yul: false,
             may_return_memory: false,
+            inline_assembly: false,
             is_function_pointer_dispatcher: false,
             no_inline: false,
             preserves_array_elements: false,

@@ -1,12 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_writer_spills.sol:DynamicWriterSpills ===
 @module DynamicWriterSpills
-@inline_assembly
-fn @payload() [selector=0xa878f858, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @payload() [selector=0xa878f858, inline_assembly, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     returndata 0, 0x600
 }
 
-fn @run() -> i256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @run() -> i256 [selector=0xc0406226, inline_assembly, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = gas

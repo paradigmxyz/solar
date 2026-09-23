@@ -1,11 +1,10 @@
 // === ROOT/tests/ui/safe-solar/buffers/append/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
-@inline_assembly
 types:
   struct0: {memptr, memptr}
 
-fn @build() [selector=0x5de3b44c, abi_wrapper, pure] {
+fn @build() [selector=0x5de3b44c, abi_wrapper, inline_assembly, pure] {
   bb0:
     v25 = calldatasize
     v26 = lt v25, 68

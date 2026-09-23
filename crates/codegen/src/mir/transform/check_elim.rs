@@ -105,7 +105,7 @@
 //! A module without inline assembly bounds every memory object's logical length by the
 //! allocation limit: each length was written by a checked allocation, an ABI decoder, or a core
 //! operation that only shortens an object. Assembly can store any word in a length word, so a
-//! module containing it keeps lengths unknown.
+//! module with any function carrying assembly, directly or inlined, keeps lengths unknown.
 //!
 //! Runtime-only functions also use bounds from zero-extended immutable encodings.
 //! These bounds follow the target's actual immediate width, not the result's
@@ -240,9 +240,11 @@ fn leads_to_revert(func: &Function, mut block: BlockId, reverting: &FxHashSet<Fu
 ///
 /// Without inline assembly, each length was written by a checked allocation, an ABI decoder,
 /// or a core operation that only shortens an object, so the object and its header fit below
-/// the allocation limit. Assembly can store any word in a length, so it leaves lengths unknown.
+/// the allocation limit. Assembly can store any word in a length, so any function carrying it
+/// leaves lengths unknown. Removed functions no longer run, and inlining keeps the bit on the
+/// callers that received their code.
 fn object_length_bound(module: &Module) -> Option<Range> {
-    (!module.inline_assembly)
+    (!module.functions.iter().any(|func| func.attributes.inline_assembly))
         .then(|| Range::new(U256::ZERO, U256::from(EvmMemoryLayout::MAX_ALLOCATION_END)))
 }
 
@@ -2139,9 +2141,6 @@ impl<'a> CheckEliminator<'a> {
     }
 }
 
-/// Values whose ranges can affect a branch, closed over all SSA operands.
-/// Phi inputs keep loop-carried dependencies in the set. Memory and call
-/// operands are included conservatively even when range evaluation stops there.
 /// The range of `input`, the value `owner` receives from `pred`, as far as it can reach the
 /// loop header phi `header_phi`, or `None` when the input is the header phi itself.
 ///
@@ -2186,6 +2185,9 @@ fn carried_range(
     Some(edge_ranges.get(&(owner, pred)).copied().unwrap_or(Range::FULL))
 }
 
+/// Values whose ranges can affect a branch, closed over all SSA operands.
+/// Phi inputs keep loop-carried dependencies in the set. Memory and call
+/// operands are included conservatively even when range evaluation stops there.
 fn branch_inputs(func: &Function, cfg: &CfgInfo) -> DenseBitSet<ValueId> {
     let mut relevant = DenseBitSet::new_empty(func.num_values());
     let mut pending = cfg

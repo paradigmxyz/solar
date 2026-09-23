@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/low_level_call_evaluation_order.sol:LowLevelCallEvaluationOrder ===
 @module LowLevelCallEvaluationOrder
-@inline_assembly
 types:
   struct0: {memorybytes, memorybytes}
   struct1: {i256, memorybytes}
@@ -83,7 +82,7 @@ fn @write() [selector=0xbcb4ab0e, abi_params=[], abi_returns=[], abi_return_para
     ret
 }
 
-fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @fail() [selector=0xa9cc4718, inline_assembly, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = shl 224, 0xdeadbeef
     mstore 0, v0 !metadata(memory=scratch)

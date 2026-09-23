@@ -1,8 +1,7 @@
 // === ROOT/tests/ui/safe-solar/base64/encode/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
-@inline_assembly
-fn @encode() [selector=0xfc4c4555, abi_wrapper, pure] {
+fn @encode() [selector=0xfc4c4555, abi_wrapper, inline_assembly, pure] {
   bb0:
     v73 = calldatasize
     v74 = lt v73, 100

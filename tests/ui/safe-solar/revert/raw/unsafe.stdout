@@ -1,8 +1,7 @@
 // === ROOT/tests/ui/safe-solar/revert/raw/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
-@inline_assembly
-fn @boom() [selector=0x6b8d59f9, abi_wrapper, pure] {
+fn @boom() [selector=0x6b8d59f9, abi_wrapper, inline_assembly, pure] {
   bb0:
     v4 = calldatasize
     v5 = lt v4, 36
@@ -17,7 +16,7 @@ fn @boom() [selector=0x6b8d59f9, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @maybe() [selector=0x5bab7980, abi_wrapper, pure] {
+fn @maybe() [selector=0x5bab7980, abi_wrapper, inline_assembly, pure] {
   bb0:
     v5 = calldatasize
     v6 = lt v5, 68

@@ -303,6 +303,9 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
         if func.attributes.may_return_memory {
             write_function_attribute(f, &mut first, "may_return_memory")?;
         }
+        if func.attributes.inline_assembly {
+            write_function_attribute(f, &mut first, "inline_assembly")?;
+        }
         if func.attributes.is_function_pointer_dispatcher {
             write_function_attribute(f, &mut first, "function_pointer_dispatcher")?;
         }

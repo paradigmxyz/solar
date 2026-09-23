@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/address_code.sol:AddressCode ===
 @module AddressCode
-@inline_assembly
 fn @codeLength(arg0: i256) -> i256 [selector=0xbd3736e3, view, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = extcodesize arg0
@@ -38,7 +37,7 @@ fn @addressFromBytes20(arg0: i256) -> i256 [selector=0x247e14fa, pure, abi_param
     ret v3
 }
 
-fn @callerCodeLength() -> i256 [selector=0xfb7e2a0a, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @callerCodeLength() -> i256 [selector=0xfb7e2a0a, inline_assembly, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = caller
     v1 = zext i160 v0 to i256

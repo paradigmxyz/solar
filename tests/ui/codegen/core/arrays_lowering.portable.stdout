@@ -10,11 +10,10 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/arrays_lowering.sol:Test ===
 @module Test
 @phase lowered
-@inline_assembly
 types:
   struct0: {i256, i256}
 
-fn @shorten() [selector=0xf0187838, abi_wrapper, pure] {
+fn @shorten() [selector=0xf0187838, abi_wrapper, inline_assembly, pure] {
   bb0:
     v4 = calldatasize
     v5 = lt v4, 68

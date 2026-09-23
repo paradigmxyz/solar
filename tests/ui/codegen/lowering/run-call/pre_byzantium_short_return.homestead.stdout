@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/pre_byzantium_short_return.sol:ShortReturns ===
 @module ShortReturns
-@inline_assembly
 types:
   struct0: {i256, i256}
   struct1: {i256, i256, i256, i256}
@@ -10,31 +9,31 @@ fn @fallback() [fallback] {
     ret
 }
 
-fn @shortWord() [selector=0x818f5840, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @shortWord() [selector=0x818f5840, inline_assembly, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     mstore 0, 0x1122334455667788990011223344556677889900112233445566778899001122 !metadata(memory=scratch)
     returndata 0, 4
 }
 
-fn @shortPair() [selector=0x80cc0433, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @shortPair() [selector=0x80cc0433, inline_assembly, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     mstore 0, 0x1122334455667788990011223344556677889900112233445566778899001122 !metadata(memory=scratch)
     returndata 0, 36
 }
 
-fn @shortAgg() [selector=0x391c2d28, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @shortAgg() [selector=0x391c2d28, inline_assembly, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     mstore 0, 0x1122334455667788990011223344556677889900112233445566778899001122 !metadata(memory=scratch)
     returndata 0, 36
 }
 
-fn @shortFour() [selector=0xfb8720fc, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @shortFour() [selector=0xfb8720fc, inline_assembly, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     mstore 0, 0x1122334455667788990011223344556677889900112233445566778899001122 !metadata(memory=scratch)
     returndata 0, 4
 }
 
-fn @emptySingle() -> i256 [selector=0x52635aa1, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @emptySingle() -> i256 [selector=0x52635aa1, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     mstore 0, 42 !metadata(memory=scratch)
     v0 = address
@@ -93,7 +92,7 @@ fn @emptySingleArg() -> i256 [selector=0x44cc61d5, abi_params=[], abi_returns=[w
     ret v17
 }
 
-fn @emptyPair() -> struct0 [selector=0xa086baae, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @emptyPair() -> struct0 [selector=0xa086baae, inline_assembly, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     mstore 0, 42 !metadata(memory=scratch)
     mstore 32, 43 !metadata(memory=scratch)
@@ -357,7 +356,7 @@ fn @partialAgg() -> memoryfixedarray [selector=0xbf0809fa, abi_params=[], abi_re
     ret v19
 }
 
-fn @dirtyFour() -> struct1 [selector=0x42fc804f, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @dirtyFour() -> struct1 [selector=0x42fc804f, inline_assembly, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = not 0

@@ -41,7 +41,6 @@ fn @constructor() [constructor, payable] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ConstructorCallvalue ===
 @module ConstructorCallvalue
-@inline_assembly
 fn @rejectsExplicit() -> i256 [selector=0x90887b1f, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
@@ -141,7 +140,7 @@ fn @acceptsPayable() -> i256 [selector=0xd6e5da6b, payable, abi_params=[], abi_r
     ret v11
 }
 
-fn @deploy(arg0: memorybytes) -> i256 {
+fn @deploy(arg0: memorybytes) -> i256 [inline_assembly] {
   bb0:
     v0 = ptrtoint memorybytes arg0 to i256
     v1 = mload v0

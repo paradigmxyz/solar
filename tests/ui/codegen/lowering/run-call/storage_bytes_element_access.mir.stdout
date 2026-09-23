@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_element_access.sol:StorageBytesElementAccess ===
 @module StorageBytesElementAccess
-@inline_assembly
 types:
   struct0: {i256, i256}
   struct1: {i256, i256, i256, i256, i256}
@@ -895,7 +894,7 @@ fn @deleteLast(arg0: i256) -> struct2 [selector=0x32a309a7, abi_params=[u256], a
     ret v78
 }
 
-fn @rawByte(arg0: i256) -> i256 [selector=0xa88f9005, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @rawByte(arg0: i256) -> i256 [selector=0xa88f9005, inline_assembly, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall @_fill, arg0
     v0 = checked_sub u256, arg0, 1

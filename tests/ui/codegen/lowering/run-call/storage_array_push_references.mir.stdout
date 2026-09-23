@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_references.sol:StorageArrayPushReferences ===
 @module StorageArrayPushReferences
-@inline_assembly
 types:
   struct0: {i256, i256, i256}
   struct1: {i256, i256}
@@ -486,7 +485,7 @@ fn @bytesTransition() -> i256 [selector=0xe0a151c6, abi_params=[], abi_returns=[
     ret v83
 }
 
-fn @pushPreservesStorage() -> i256 [selector=0x2bc06499, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @pushPreservesStorage() -> i256 [selector=0x2bc06499, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     mstore 0, 0 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)

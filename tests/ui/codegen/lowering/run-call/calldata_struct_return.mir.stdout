@@ -4,7 +4,6 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_return.sol:CalldataStructReturn ===
 @module CalldataStructReturn
-@inline_assembly
 types:
   struct0: {i256, i256}
   struct1: {i256, calldataslice}
@@ -90,7 +89,7 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
     ret v41
 }
 
-fn @decode.3(arg0: calldataslice) -> struct1 [pure] {
+fn @decode.3(arg0: calldataslice) -> struct1 [inline_assembly, pure] {
   bb0:
     v0 = slice_ptr arg0
     v1 = make_calldata_slice v0, 0

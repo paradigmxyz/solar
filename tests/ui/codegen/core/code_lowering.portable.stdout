@@ -19,7 +19,6 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/code_lowering.sol:Test ===
 @module Test
 @phase lowered
-@inline_assembly
 fn @whole() [selector=0xbbbb2e8a, abi_wrapper] {
   bb0:
     v3 = calldatasize
@@ -145,7 +144,7 @@ fn @overflow() [selector=0x0992e012, abi_wrapper] {
     revert 0, 0
 }
 
-fn @copyInto(arg0: memptr, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_return_memory, view] {
+fn @copyInto(arg0: memptr, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_return_memory, inline_assembly, view] {
   bb0:
     v24 = ptrtoint memptr arg0 to i256
     v0 = mload v24
@@ -222,7 +221,7 @@ fn @_outOfBounds() -> i256 [pure] {
     revert 28, 36
 }
 
-fn @deploy(arg0: memptr) -> i256 [may_return_memory] {
+fn @deploy(arg0: memptr) -> i256 [may_return_memory, inline_assembly] {
   bb0:
     v0 = ptrtoint memptr arg0 to i256
     v1 = mload v0

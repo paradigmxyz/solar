@@ -33,14 +33,13 @@ fn @constructor(arg0: i256) [constructor, abi_params=[function]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:ArrayTarget ===
 @module ArrayTarget
-@inline_assembly
 fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: memoryfixedarray) [constructor, abi_params=[array<1, function>]] {
+fn @constructor(arg0: memoryfixedarray) [constructor, inline_assembly, abi_params=[array<1, function>]] {
   bb0:
     v0 = ptrtoint memoryfixedarray arg0 to i256
     v1 = mload v0

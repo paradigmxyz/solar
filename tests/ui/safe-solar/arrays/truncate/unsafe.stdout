@@ -1,8 +1,7 @@
 // === ROOT/tests/ui/safe-solar/arrays/truncate/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
-@inline_assembly
-fn @shorten() [selector=0xf0187838, abi_wrapper, pure] {
+fn @shorten() [selector=0xf0187838, abi_wrapper, inline_assembly, pure] {
   bb0:
     v3 = icall @decode_calldata_type, 4
     v0 = ptrtoint memptr v3 to i256
@@ -16,7 +15,7 @@ fn @shorten() [selector=0xf0187838, abi_wrapper, pure] {
     returndata v0, v15
 }
 
-fn @viaAlias() [selector=0xcc1cce1f, abi_wrapper, pure] {
+fn @viaAlias() [selector=0xcc1cce1f, abi_wrapper, inline_assembly, pure] {
   bb0:
     v4 = icall @decode_calldata_type, 4
     v0 = ptrtoint memptr v4 to i256

@@ -1,7 +1,6 @@
 // === ROOT/tests/ui/safe-solar/strings/tostring/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
-@inline_assembly
 fn @decimal() [selector=0xf371efa4, abi_wrapper, pure] {
   bb0:
     v1 = calldatasize
@@ -37,7 +36,7 @@ fn @decimal() [selector=0xf371efa4, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @_toString(arg0: i256) -> memptr [may_return_memory, pure] {
+fn @_toString(arg0: i256) -> memptr [may_return_memory, inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 128

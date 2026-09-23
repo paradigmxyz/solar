@@ -1,8 +1,7 @@
 // === ROOT/tests/ui/safe-solar/abi/encodeinto/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
-@inline_assembly
-fn @payload() [selector=0x63fd6252, abi_wrapper, pure] {
+fn @payload() [selector=0x63fd6252, abi_wrapper, inline_assembly, pure] {
   bb0:
     v13 = calldataload 4
     v14 = shr 160, v13
@@ -40,7 +39,7 @@ fn @payload() [selector=0x63fd6252, abi_wrapper, pure] {
     revert 28, 36
 }
 
-fn @short() [selector=0xb2d29f33, abi_wrapper, pure] {
+fn @short() [selector=0xb2d29f33, abi_wrapper, inline_assembly, pure] {
   bb0:
     v13 = calldataload 4
     v14 = shr 160, v13

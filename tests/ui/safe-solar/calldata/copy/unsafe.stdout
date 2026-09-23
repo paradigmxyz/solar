@@ -1,8 +1,7 @@
 // === ROOT/tests/ui/safe-solar/calldata/copy/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
-@inline_assembly
-fn @part() [selector=0x107cd163, abi_wrapper, pure] {
+fn @part() [selector=0x107cd163, abi_wrapper, inline_assembly, pure] {
   bb0:
     v9 = calldatasize
     v10 = lt v9, 100

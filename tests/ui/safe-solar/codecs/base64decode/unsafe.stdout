@@ -1,7 +1,6 @@
 // === ROOT/tests/ui/safe-solar/codecs/base64decode/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
-@inline_assembly
 fn @decode() [selector=0x49145c91, abi_wrapper, pure] {
   bb0:
     v1 = calldatasize
@@ -71,7 +70,7 @@ fn @decode() [selector=0x49145c91, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @_decode(arg0: memptr) -> memptr [may_return_memory, pure] {
+fn @_decode(arg0: memptr) -> memptr [may_return_memory, inline_assembly, pure] {
   bb0:
     v0 = ptrtoint memptr arg0 to i256
     v1 = mload v0

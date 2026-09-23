@@ -1,12 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/abi_return_array_elements.sol:AbiReturnArrayElements ===
 @module AbiReturnArrayElements
-@inline_assembly
 fn @clean(arg0: memoryarray) -> memoryarray [selector=0x945bb2ba, pure, abi_params=[array<_, address>], abi_returns=[memory_array<word<u160>>], abi_return_params=[array<_, address>]] {
   bb0:
     ret arg0
 }
 
-fn @dirty(arg0: memoryarray) -> memoryarray [selector=0x74016a59, pure, abi_params=[array<_, address>], abi_returns=[memory_array<word<u160>>], abi_return_params=[array<_, address>]] {
+fn @dirty(arg0: memoryarray) -> memoryarray [selector=0x74016a59, inline_assembly, pure, abi_params=[array<_, address>], abi_returns=[memory_array<word<u160>>], abi_return_params=[array<_, address>]] {
   bb0:
     v0 = not 0
     v1 = ptrtoint memoryarray arg0 to i256
@@ -21,7 +20,7 @@ fn @viaHelper(arg0: memoryarray) -> memoryarray [selector=0x43a4968c, pure, abi_
     ret arg0
 }
 
-fn @aliasedStruct(arg0: memoryarray) -> i256 [selector=0x8c175a3d, pure, abi_params=[array<_, u8>], abi_returns=[word], abi_return_params=[u256]] {
+fn @aliasedStruct(arg0: memoryarray) -> i256 [selector=0x8c175a3d, inline_assembly, pure, abi_params=[array<_, u8>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -38,7 +37,7 @@ fn @aliasedStruct(arg0: memoryarray) -> i256 [selector=0x8c175a3d, pure, abi_par
     ret v8
 }
 
-fn @aliasedBytes(arg0: memoryarray) -> i256 [selector=0x4a6c046c, pure, abi_params=[array<_, u8>], abi_returns=[word], abi_return_params=[u256]] {
+fn @aliasedBytes(arg0: memoryarray) -> i256 [selector=0x4a6c046c, inline_assembly, pure, abi_params=[array<_, u8>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = bitcast memoryarray arg0 to memorybytes
     v1 = memory_object_len memorybytes, v0
@@ -57,7 +56,7 @@ fn @aliasedBytes(arg0: memoryarray) -> i256 [selector=0x4a6c046c, pure, abi_para
     ret v10
 }
 
-fn @unalignedArray(arg0: memoryarray) -> i256 [selector=0xd621b19f, pure, abi_params=[array<_, u8>], abi_returns=[word], abi_return_params=[u256]] {
+fn @unalignedArray(arg0: memoryarray) -> i256 [selector=0xd621b19f, inline_assembly, pure, abi_params=[array<_, u8>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     v1 = ptrtoint memoryfixedarray v0 to i256
@@ -78,7 +77,7 @@ fn @unalignedArray(arg0: memoryarray) -> i256 [selector=0xd621b19f, pure, abi_pa
     ret v11
 }
 
-fn @unalignedHelper(arg0: memoryarray) -> i256 [selector=0x29dcbdaa, pure, abi_params=[array<_, u8>], abi_returns=[word], abi_return_params=[u256]] {
+fn @unalignedHelper(arg0: memoryarray) -> i256 [selector=0x29dcbdaa, inline_assembly, pure, abi_params=[array<_, u8>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     v1 = ptrtoint memoryfixedarray v0 to i256
@@ -96,7 +95,7 @@ fn @unalignedHelper(arg0: memoryarray) -> i256 [selector=0x29dcbdaa, pure, abi_p
     ret v9
 }
 
-fn @_scribble(arg0: memoryarray) [pure] {
+fn @_scribble(arg0: memoryarray) [inline_assembly, pure] {
   bb0:
     v0 = not 0
     v1 = ptrtoint memoryarray arg0 to i256

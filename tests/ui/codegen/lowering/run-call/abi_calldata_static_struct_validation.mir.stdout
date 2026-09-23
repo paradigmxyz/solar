@@ -1,10 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_static_struct_validation.sol:AbiCalldataStaticStructValidation ===
 @module AbiCalldataStaticStructValidation
-@inline_assembly
 types:
   struct0: {i256, i256, i256}
 
-fn @f(arg0: memorystruct) -> struct0 [selector=0x9a869a74, pure, abi_params=[tuple<i16, u8, bytes2>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @f(arg0: memorystruct) -> struct0 [selector=0x9a869a74, inline_assembly, pure, abi_params=[tuple<i16, u8, bytes2>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = ptrtoint memorystruct arg0 to i256
     v1 = mload v0
@@ -27,7 +26,7 @@ fn @encodeStruct() -> memorybytes [selector=0x01e941a3, pure, abi_params=[], abi
     ret v1
 }
 
-fn @makeStruct() -> calldataslice [pure] {
+fn @makeStruct() -> calldataslice [inline_assembly, pure] {
   bb0:
     v0 = make_calldata_slice 4, 0
     ret v0

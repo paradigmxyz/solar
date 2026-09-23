@@ -4,7 +4,6 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:CheckpointTarget ===
 @module CheckpointTarget
-@inline_assembly
 types:
   struct0: {i256, i256, i256}
 
@@ -135,7 +134,7 @@ fn @latest(arg0: i256) -> struct0 [view] {
     ret v12
 }
 
-fn @unsafeAccess(arg0: i256, arg1: i256) -> i256 [pure] {
+fn @unsafeAccess(arg0: i256, arg1: i256) -> i256 [inline_assembly, pure] {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)

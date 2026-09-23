@@ -1,8 +1,7 @@
 // === ROOT/tests/ui/safe-solar/bytes/read/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
-@inline_assembly
-fn @selector() [selector=0xb3b5a8a9, abi_wrapper, pure] {
+fn @selector() [selector=0xb3b5a8a9, abi_wrapper, inline_assembly, pure] {
   bb0:
     v5 = calldatasize
     v6 = lt v5, 36
@@ -19,7 +18,7 @@ fn @selector() [selector=0xb3b5a8a9, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @word() [selector=0x8ce8a8b7, abi_wrapper, pure] {
+fn @word() [selector=0x8ce8a8b7, abi_wrapper, inline_assembly, pure] {
   bb0:
     v4 = calldatasize
     v5 = lt v4, 68

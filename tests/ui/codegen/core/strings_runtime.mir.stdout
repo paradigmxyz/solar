@@ -16,7 +16,6 @@
 
 // === ROOT/tests/ui/codegen/core/strings_runtime.sol:Test ===
 @module Test
-@inline_assembly
 fn @decimal(arg0: i256) -> memorybytes [selector=0xf371efa4, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 160
@@ -86,7 +85,7 @@ fn @same(arg0: memorybytes, arg1: memorybytes) -> i256 [selector=0x6df1667c, pur
     ret v0
 }
 
-fn @truncate(arg0: memorybytes, arg1: i256) [pure] {
+fn @truncate(arg0: memorybytes, arg1: i256) [inline_assembly, pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = gt arg1, v0

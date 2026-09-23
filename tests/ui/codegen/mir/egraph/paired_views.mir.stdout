@@ -1,10 +1,9 @@
 // === ROOT/tests/ui/codegen/mir/egraph/paired_views.sol:PairedViews ===
 @module PairedViews
-@inline_assembly
 types:
   struct0: {i256, i256, i256, i256}
 
-fn @words(arg0: i256, arg1: i256) -> struct0 [selector=0xa5a43888, pure, abi_params=[u256, u256], abi_returns=[word<bool>, word, word, word], abi_return_params=[bool, u256, u256, u256]] {
+fn @words(arg0: i256, arg1: i256) -> struct0 [selector=0xa5a43888, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word<bool>, word, word, word], abi_return_params=[bool, u256, u256, u256]] {
   bb0:
     v0 = not 0
     v1 = xor arg1, v0

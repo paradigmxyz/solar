@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/forwarded_calldata_slice_return.sol:ForwardedCalldataSliceReturn ===
 @module ForwardedCalldataSliceReturn
-@inline_assembly
 types:
   struct0: {i256, memorybytes}
   struct1: {i256, calldataslice}
@@ -164,7 +163,7 @@ fn @_parseSlices(arg0: calldataslice) -> struct4 [pure] {
     ret v6
 }
 
-fn @_tryParseSlices(arg0: calldataslice) -> struct5 [pure] {
+fn @_tryParseSlices(arg0: calldataslice) -> struct5 [inline_assembly, pure] {
   bb0:
     v0 = icall @_splitSlices, arg0
     v1 = extract_value struct6, v0, 0
@@ -252,7 +251,7 @@ fn @_splitSlices(arg0: calldataslice) -> struct6 [pure] {
     ret v46
 }
 
-fn @_delegate(arg0: calldataslice) -> struct1 [pure] {
+fn @_delegate(arg0: calldataslice) -> struct1 [inline_assembly, pure] {
   bb0:
     v0 = slice_ptr arg0
     v1 = calldataload v0
@@ -273,7 +272,7 @@ fn @_delegate(arg0: calldataslice) -> struct1 [pure] {
     ret v15
 }
 
-fn @_single(arg0: calldataslice) -> struct3 [pure] {
+fn @_single(arg0: calldataslice) -> struct3 [inline_assembly, pure] {
   bb0:
     v0 = slice_ptr arg0
     v1 = calldataload v0

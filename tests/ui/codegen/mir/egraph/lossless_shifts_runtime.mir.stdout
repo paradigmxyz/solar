@@ -1,13 +1,12 @@
 // === ROOT/tests/ui/codegen/mir/egraph/lossless_shifts_runtime.sol:LosslessShifts ===
 @module LosslessShifts
-@inline_assembly
 types:
   struct0: {i256, i256, i256, i256}
   struct1: {i256, i256, i256, i256, i256, i256}
   struct2: {i256, i256, i256}
   struct3: {i256, i256}
 
-fn @narrow(arg0: i256, arg1: i256) -> struct0 [selector=0x6945dd4d, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @narrow(arg0: i256, arg1: i256) -> struct0 [selector=0x6945dd4d, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = byte 31, arg0
     v1 = shl 248, v0
@@ -27,7 +26,7 @@ fn @narrow(arg0: i256, arg1: i256) -> struct0 [selector=0x6945dd4d, pure, abi_pa
     ret v14
 }
 
-fn @aligned(arg0: i256) -> struct1 [selector=0x86ae3e38, pure, abi_params=[u256], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
+fn @aligned(arg0: i256) -> struct1 [selector=0x86ae3e38, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
     v0 = byte 31, arg0
     v1 = shl 248, v0
@@ -53,7 +52,7 @@ fn @aligned(arg0: i256) -> struct1 [selector=0x86ae3e38, pure, abi_params=[u256]
     ret v20
 }
 
-fn @unaligned(arg0: i256) -> struct2 [selector=0x6035a068, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @unaligned(arg0: i256) -> struct2 [selector=0x6035a068, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = byte 31, arg0
     v1 = shl 248, v0
@@ -71,14 +70,14 @@ fn @unaligned(arg0: i256) -> struct2 [selector=0x6035a068, pure, abi_params=[u25
     ret v12
 }
 
-fn @truncating(arg0: i256) -> i256 [selector=0xdbd8726b, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @truncating(arg0: i256) -> i256 [selector=0xdbd8726b, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = shl 248, arg0
     v1 = shr 248, v0
     ret v1
 }
 
-fn @signedCompare(arg0: i256, arg1: i256) -> struct3 [selector=0xd094ad81, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @signedCompare(arg0: i256, arg1: i256) -> struct3 [selector=0xd094ad81, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = byte 31, arg0
     v1 = shl 248, v0
@@ -93,7 +92,7 @@ fn @signedCompare(arg0: i256, arg1: i256) -> struct3 [selector=0xd094ad81, pure,
     ret v9
 }
 
-fn @equal(arg0: i256, arg1: i256) -> i256 [selector=0x30191626, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @equal(arg0: i256, arg1: i256) -> i256 [selector=0x30191626, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = byte 31, arg1
     v1 = shl 248, v0
@@ -104,7 +103,7 @@ fn @equal(arg0: i256, arg1: i256) -> i256 [selector=0x30191626, pure, abi_params
     ret v5
 }
 
-fn @isSeven(arg0: i256) -> i256 [selector=0xf14f88c5, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @isSeven(arg0: i256) -> i256 [selector=0xf14f88c5, inline_assembly, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = shl 248, 7
     v1 = byte 31, arg0
@@ -114,7 +113,7 @@ fn @isSeven(arg0: i256) -> i256 [selector=0xf14f88c5, pure, abi_params=[u256], a
     ret v4
 }
 
-fn @less(arg0: i256, arg1: i256) -> i256 [selector=0x2d738965, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @less(arg0: i256, arg1: i256) -> i256 [selector=0x2d738965, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = byte 31, arg1
     v1 = shl 248, v0
@@ -125,7 +124,7 @@ fn @less(arg0: i256, arg1: i256) -> i256 [selector=0x2d738965, pure, abi_params=
     ret v5
 }
 
-fn @belowSeven(arg0: i256) -> i256 [selector=0x5c9802fa, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @belowSeven(arg0: i256) -> i256 [selector=0x5c9802fa, inline_assembly, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = shl 248, 7
     v1 = byte 31, arg0
@@ -135,7 +134,7 @@ fn @belowSeven(arg0: i256) -> i256 [selector=0x5c9802fa, pure, abi_params=[u256]
     ret v4
 }
 
-fn @greater(arg0: i256, arg1: i256) -> i256 [selector=0x71343515, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @greater(arg0: i256, arg1: i256) -> i256 [selector=0x71343515, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = byte 31, arg1
     v1 = shl 248, v0
@@ -146,7 +145,7 @@ fn @greater(arg0: i256, arg1: i256) -> i256 [selector=0x71343515, pure, abi_para
     ret v5
 }
 
-fn @aboveSeven(arg0: i256) -> i256 [selector=0x0a8d6615, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @aboveSeven(arg0: i256) -> i256 [selector=0x0a8d6615, inline_assembly, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = shl 248, 7
     v1 = byte 31, arg0

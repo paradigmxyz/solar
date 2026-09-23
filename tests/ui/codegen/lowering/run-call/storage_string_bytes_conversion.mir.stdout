@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_string_bytes_conversion.sol:StorageStringBytesConversion ===
 @module StorageStringBytesConversion
-@inline_assembly
 types:
   struct0: {memorybytes, i256}
 
@@ -223,7 +222,7 @@ fn @popThroughConversion() -> memorybytes [selector=0x14044da4, abi_params=[], a
     ret v44
 }
 
-fn @transitionThroughConversion() -> struct0 [selector=0x7117dd67, abi_params=[], abi_returns=[memory_bytes, word], abi_return_params=[bytes, bytes32]] {
+fn @transitionThroughConversion() -> struct0 [selector=0x7117dd67, inline_assembly, abi_params=[], abi_returns=[memory_bytes, word], abi_return_params=[bytes, bytes32]] {
   bb0:
     jump bb1
   bb1:

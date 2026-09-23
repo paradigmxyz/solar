@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_packed_complex_types.sol:AbiPackedComplexTypes ===
 @module AbiPackedComplexTypes
-@inline_assembly
 types:
   struct0: {i256, i256, i256}
 
@@ -247,14 +246,14 @@ fn @hashStructAbi() -> i256 [selector=0x46dfc0fe, pure, abi_params=[], abi_retur
     ret v21
 }
 
-fn @hashScalarAbi() -> i256 [selector=0x9a69e01a, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @hashScalarAbi() -> i256 [selector=0x9a69e01a, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = and 258, 255
     v1 = keccak256_packed (u256 v0)
     ret v1
 }
 
-fn @scalarCall() -> i256 [selector=0x6c091940, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @scalarCall() -> i256 [selector=0x6c091940, inline_assembly, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas

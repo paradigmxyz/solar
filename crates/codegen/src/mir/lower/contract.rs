@@ -374,6 +374,7 @@ pub(super) fn declaration(
         is_receive: function.kind == hir::FunctionKind::Receive,
         is_yul: function.is_yul,
         may_return_memory: false,
+        inline_assembly: function.is_yul,
         is_function_pointer_dispatcher: false,
         no_inline: false,
         preserves_array_elements: false,

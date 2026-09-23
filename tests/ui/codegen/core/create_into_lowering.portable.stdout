@@ -19,7 +19,6 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/create_into_lowering.sol:Test ===
 @module Test
 @phase lowered
-@inline_assembly
 types:
   struct0: {i256, memptr, i256, i256, memptr}
   struct1: {i256, i256, i256, i256}
@@ -180,7 +179,7 @@ fn @fill(arg0: memptr, arg1: i256, arg2: i256) [may_return_memory, pure] {
     jump bb1
 }
 
-fn @tryDeployInto(arg0: memptr, arg1: i256, arg2: memptr) -> struct1 [may_return_memory, return_abi=[i256, i256, i256, i256]] {
+fn @tryDeployInto(arg0: memptr, arg1: i256, arg2: memptr) -> struct1 [may_return_memory, inline_assembly, return_abi=[i256, i256, i256, i256]] {
   bb0:
     v0 = ptrtoint memptr arg0 to i256
     v1 = mload v0

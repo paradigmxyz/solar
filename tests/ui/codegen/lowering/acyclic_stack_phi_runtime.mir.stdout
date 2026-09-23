@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/acyclic_stack_phi_runtime.sol:AcyclicStackPhi ===
 @module AcyclicStackPhi
-@inline_assembly
 types:
   struct0: {i256, i256}
 
@@ -207,7 +206,7 @@ fn @emptyExitSelfLoop(arg0: i256) -> i256 [selector=0xe817f803, pure, abi_params
     invalid
 }
 
-fn @repeatedLoopExit(arg0: i256, arg1: i256) -> struct0 [selector=0x6c126bdd, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @repeatedLoopExit(arg0: i256, arg1: i256) -> struct0 [selector=0x6c126bdd, inline_assembly, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = shl 128, arg0
     sstore 0, v0 !metadata(storage=slot(0))
@@ -242,7 +241,7 @@ fn @repeatedLoopExit(arg0: i256, arg1: i256) -> struct0 [selector=0x6c126bdd, ab
     jump bb1
 }
 
-fn @findLoopExit(arg0: i256) -> struct0 [view] {
+fn @findLoopExit(arg0: i256) -> struct0 [inline_assembly, view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 128, v0

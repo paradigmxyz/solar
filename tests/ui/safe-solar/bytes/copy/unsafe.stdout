@@ -1,8 +1,7 @@
 // === ROOT/tests/ui/safe-solar/bytes/copy/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
-@inline_assembly
-fn @shift() [selector=0x524ffe38, abi_wrapper, pure] {
+fn @shift() [selector=0x524ffe38, abi_wrapper, inline_assembly, pure] {
   bb0:
     v6 = calldatasize
     v7 = lt v6, 36
@@ -29,7 +28,7 @@ fn @shift() [selector=0x524ffe38, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @between() [selector=0xf75bb619, abi_wrapper, pure] {
+fn @between() [selector=0xf75bb619, abi_wrapper, inline_assembly, pure] {
   bb0:
     v4 = calldatasize
     v5 = lt v4, 68

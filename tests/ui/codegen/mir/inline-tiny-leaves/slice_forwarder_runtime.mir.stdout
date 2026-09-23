@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/slice_forwarder_runtime.sol:SliceForwarder ===
 @module SliceForwarder
-@inline_assembly
 fn @emptyLength() -> i256 [selector=0x11864a7a, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @empty
@@ -25,7 +24,7 @@ fn @emptyLength() -> i256 [selector=0x11864a7a, pure, abi_params=[], abi_returns
     ret v13
 }
 
-fn @prefix(arg0: calldataslice, arg1: i256) -> memorybytes [selector=0x15de319c, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @prefix(arg0: calldataslice, arg1: i256) -> memorybytes [selector=0x15de319c, inline_assembly, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = icall @construct, v0, arg1
@@ -72,7 +71,7 @@ fn @redirected(arg0: calldataslice, arg1: calldataslice) -> memorybytes [selecto
     ret v6
 }
 
-fn @empty() -> calldataslice [pure] {
+fn @empty() -> calldataslice [inline_assembly, pure] {
   bb0:
     v0 = make_calldata_slice 0, 0
     v1 = slice_ptr v0
@@ -84,7 +83,7 @@ fn @empty() -> calldataslice [pure] {
     ret v6
 }
 
-fn @construct(arg0: i256, arg1: i256) -> calldataslice [pure] {
+fn @construct(arg0: i256, arg1: i256) -> calldataslice [inline_assembly, pure] {
   bb0:
     v0 = make_calldata_slice 0, 0
     v1 = slice_ptr v0
@@ -96,7 +95,7 @@ fn @construct(arg0: i256, arg1: i256) -> calldataslice [pure] {
     ret v6
 }
 
-fn @redirect(arg0: calldataslice, arg1: calldataslice) -> calldataslice [pure] {
+fn @redirect(arg0: calldataslice, arg1: calldataslice) -> calldataslice [inline_assembly, pure] {
   bb0:
     v0 = slice_ptr arg1
     v1 = slice_ptr arg0

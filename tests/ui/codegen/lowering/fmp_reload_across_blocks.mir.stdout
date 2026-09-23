@@ -1,13 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/fmp_reload_across_blocks.sol:ExcessReturnDataRecipient ===
 @module ExcessReturnDataRecipient
-@inline_assembly
 fn @setRevertDataSize(arg0: i256) [selector=0xe998da54, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     ret
 }
 
-fn @ln(arg0: i256) -> i256 [pure] {
+fn @ln(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = sub arg0, 1
     v1 = div v0, 2
@@ -60,7 +59,7 @@ fn @ln(arg0: i256) -> i256 [pure] {
     ret v38
 }
 
-fn @sqrt(arg0: i256) -> i256 [pure] {
+fn @sqrt(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = gt arg0, 3
     v1 = zext i1 v0 to i256
@@ -96,7 +95,7 @@ fn @sqrt(arg0: i256) -> i256 [pure] {
     ret v14
 }
 
-fn @onERC1155Received(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: calldataslice) -> i256 [selector=0xf23a6e61, view, abi_params=[address, address, u256, u256, bytes], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+fn @onERC1155Received(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: calldataslice) -> i256 [selector=0xf23a6e61, inline_assembly, view, abi_params=[address, address, u256, u256, bytes], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0

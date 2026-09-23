@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_nested_element_slices.sol:CalldataNestedElementSlices ===
 @module CalldataNestedElementSlices
-@inline_assembly
 types:
   struct0: {i256, i256}
   struct1: {i256, i256, calldataslice}
@@ -200,7 +199,7 @@ fn @structMember() -> struct0 [selector=0x9f2d7231, view, abi_params=[], abi_ret
     jump bb1
 }
 
-fn @inspect(arg0: calldataslice) -> struct0 [selector=0x903f85b3, pure, abi_params=[array<_, tuple<address, u256, bytes>>], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
+fn @inspect(arg0: calldataslice) -> struct0 [selector=0x903f85b3, inline_assembly, pure, abi_params=[array<_, tuple<address, u256, bytes>>], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0
