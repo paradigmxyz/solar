@@ -151,55 +151,55 @@ fn @tailHash.4(arg0: i256, arg1: i256) -> i256 [pure] {
     v2 = calldatasize
     v3 = sub v2, v1
     v4 = slt v3, 32
-    jumpi v4, bb3, bb4
-  bb4:
+    jumpi v4, bb2, bb3
+  bb3:
     v5 = calldataload v1
     v6 = add arg0, v5
     v7 = calldatasize
     v8 = sub v7, arg0
     v9 = sub v8, 31
     v10 = slt v5, v9
-    jumpi v10, bb5, bb3
-  bb5:
+    jumpi v10, bb4, bb2
+  bb4:
     v12 = calldataload v6
     v13 = gt v12, 0xffffffffffffffff
-    jumpi v13, bb3, bb6
-  bb6:
+    jumpi v13, bb2, bb5
+  bb5:
     v15 = add v6, 32
     v16 = calldatasize
     v17 = sub v16, v12
     v18 = sgt v15, v17
-    jumpi v18, bb3, bb7
-  bb7:
+    jumpi v18, bb2, bb6
+  bb6:
     v22 = lt v12, 20
-    jumpi v22, bb2, bb1
+    jumpi v22, bb12, bb1
   bb1:
     v25 = calldatasize
     v26 = sub v25, v1
     v27 = slt v26, 32
-    jumpi v27, bb3, bb8
-  bb8:
+    jumpi v27, bb2, bb7
+  bb7:
     v30 = calldatasize
     v31 = sub v30, arg0
     v32 = sub v31, 31
     v33 = slt v5, v32
-    jumpi v33, bb9, bb3
-  bb9:
+    jumpi v33, bb8, bb2
+  bb8:
     v39 = calldatasize
     v40 = sub v39, v12
     v41 = sgt v15, v40
-    jumpi v41, bb3, bb10
-  bb10:
+    jumpi v41, bb2, bb9
+  bb9:
     v50 = sub v12, 20
     v51 = add v15, 20
     v55 = gt v50, 0xffffffffffffffff
-    jumpi v55, bb3, bb11
-  bb11:
+    jumpi v55, bb2, bb10
+  bb10:
     v56 = calldatasize
     v57 = sub v56, v50
     v58 = sgt v51, v57
-    jumpi v58, bb3, bb12
-  bb12:
+    jumpi v58, bb2, bb11
+  bb11:
     v60 = add v50, 63
     v63 = and v60, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v76 = mload 64 !metadata(memory=scratch)
@@ -209,11 +209,10 @@ fn @tailHash.4(arg0: i256, arg1: i256) -> i256 [pure] {
     v68 = add v76, 32
     calldatacopy v68, v51, v50
     v65 = keccak256 v68, v50
-    jump bb2
+    ret v65
+  bb12:
+    ret 0
   bb2:
-    v66 = phi [bb7: 0], [bb12: v65]
-    ret v66
-  bb3:
     revert 0, 0
 }
 

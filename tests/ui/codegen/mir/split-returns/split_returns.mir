@@ -1,0 +1,78 @@
+//@compile-flags: -Zmir-pipeline=split-returns
+//@filecheck:
+@module SplitReturns
+
+// A loop's exit and an early exit share one return. Each edge gets a return of
+// its own, and the phi resolves to the value arriving on that edge.
+// CHECK-LABEL: {{^[ +].*}}fn @loop_exit{{[( ]}}
+// CHECK: {{^[ +].*}}jumpi {{v[0-9]+}}, [[EARLY:bb[0-9]+]], [[LOOP:bb[0-9]+]]
+// CHECK: [[SUM:v[0-9]+]] = add
+// CHECK: + jumpi {{v[0-9]+}}, [[LOOP]], [[EXIT:bb[0-9]+]]
+// CHECK-NEXT: + [[EXIT]]:
+// CHECK-NEXT: + ret [[SUM]]
+// CHECK: {{^[ +].*}}[[EARLY]]:
+// CHECK-NOT: {{^[ +].*}}phi [
+// CHECK: + ret 0
+fn @loop_exit(arg0: i256) -> i256 {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb2, bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb1: v3]
+    v2 = phi [bb0: arg0], [bb1: v4]
+    v3 = add v1, v2
+    v4 = sub v2, 1
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = phi [bb0: 0], [bb1: v3]
+    ret v6
+}
+
+// A predecessor that jumps to the shared return takes the return over.
+// CHECK-LABEL: {{^[ +].*}}fn @jump_predecessor{{[( ]}}
+// CHECK: {{^[ +].*}}jumpi arg0, [[LEFT:bb[0-9]+]], [[RIGHT:bb[0-9]+]]
+// CHECK-DAG: + ret [[DOUBLED:v[0-9]+]]
+// CHECK-DAG: + ret arg1
+// CHECK-NOT: phi [
+fn @jump_predecessor(arg0: i1, arg1: i256) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = add arg1, arg1
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: v0], [bb2: arg1]
+    ret v1
+}
+
+// A return block that computes a value stays shared.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_computing_return{{[( ]}}
+// CHECK-NOT: {{^[+-]}}
+fn @keep_computing_return(arg0: i1, arg1: i256) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = add arg1, 1
+    jump bb2
+  bb2:
+    v1 = phi [bb0: arg1], [bb1: v0]
+    v2 = mul v1, 3
+    ret v2
+}
+
+// An external entry keeps its shared return for ABI lowering.
+// CHECK-LABEL: {{^[ +].*}}fn @external_entry{{[( ]}}
+// CHECK-NOT: {{^[+-]}}
+fn @external_entry(arg0: i1, arg1: i256) -> i256 [selector=0x12345678] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = add arg1, 1
+    jump bb2
+  bb2:
+    v1 = phi [bb0: arg1], [bb1: v0]
+    ret v1
+}

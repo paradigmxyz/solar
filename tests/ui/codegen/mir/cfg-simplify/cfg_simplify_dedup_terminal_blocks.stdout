@@ -161,12 +161,25 @@
       returndata 0, 32
   }
   
-  fn @keep_internal_returns(arg0: i1) -> i256 {
+  fn @keep_internal_returns(arg0: i1, arg1: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
+      jumpi arg1, bb3, bb4
+    bb4:
+      ret 1
+    bb3:
       ret 0
     bb1:
+      ret 0
+  }
+  
+  fn @fold_equal_returns(arg0: i1) -> i256 {
+    bb0:
+-     jumpi arg0, bb1, bb2
+-   bb2:
+-     ret 0
+-   bb1:
       ret 0
   }
   

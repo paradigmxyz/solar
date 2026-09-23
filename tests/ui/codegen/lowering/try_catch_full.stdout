@@ -271,7 +271,7 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     v5 = add v3, 36
     v6 = gt v5, arg1
     v7 = or v4, v6
-    jumpi v7, bb3, bb2
+    jumpi v7, bb4, bb2
   bb2:
     v9 = add v2, v3
     v10 = mload v9
@@ -281,6 +281,8 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     v14 = or v11, v13
     v16 = eq v14, false
     ret v16
+  bb4:
+    ret false
   bb3:
     ret false
 }

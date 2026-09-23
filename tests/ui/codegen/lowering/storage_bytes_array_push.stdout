@@ -258,8 +258,8 @@ fn @load_storage_bytes(arg0: i256) -> memptr [may_return_memory] {
     v35 = lt v34, v33
     v36 = gt v34, 0xffffffffffffffff
     v37 = or v35, v36
-    jumpi v37, bb9, bb8
-  bb8:
+    jumpi v37, bb8, bb7
+  bb7:
     mstore 64, v34 !metadata(memory=scratch)
     mstore v33, v7
     jumpi v3, bb4, bb3
@@ -267,28 +267,28 @@ fn @load_storage_bytes(arg0: i256) -> memptr [may_return_memory] {
     v17 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v27 = add v33, 32
     mstore v27, v17
-    jump bb5
+    ret v16
   bb4:
     mstore 0, arg0 !metadata(memory=scratch)
     v25 = keccak256 0, 32 !metadata(memory=scratch)
     v30 = add v33, 32
     v43 = shl 5, v11
     v44 = add v30, v43
-    jump bb6
-  bb6:
-    v39 = phi [bb4: v25], [bb7: v40]
-    v41 = phi [bb4: v30], [bb7: v42]
-    v20 = lt v41, v44
-    jumpi v20, bb7, bb5
+    jump bb5
   bb5:
+    v39 = phi [bb4: v25], [bb6: v40]
+    v41 = phi [bb4: v30], [bb6: v42]
+    v20 = lt v41, v44
+    jumpi v20, bb6, bb9
+  bb9:
     ret v16
-  bb7:
+  bb6:
     v22 = sload v39
     mstore v41, v22
     v40 = add v39, 1
     v42 = add v41, 32
-    jump bb6
-  bb9:
+    jump bb5
+  bb8:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36

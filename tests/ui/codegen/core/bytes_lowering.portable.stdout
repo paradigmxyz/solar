@@ -193,7 +193,9 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: memptr, arg3: i256, arg4: i256) [ma
   bb8:
     v40 = phi [bb4: 0], [bb15: v83]
     v43 = lt v40, arg4
-    jumpi v43, bb9, bb5
+    jumpi v43, bb9, bb24
+  bb24:
+    ret
   bb9:
     v73 = add arg3, v40
     v74 = lt v73, arg3

@@ -92,14 +92,15 @@ fn @clz.4(arg0: i256) -> i256 [pure] {
     v1 = icall @fls.3, arg0
     v4 = sub 255, v1
     v5 = gt v1, 255
-    jumpi v5, bb3, bb2
+    jumpi v5, bb3, bb4
+  bb4:
+    ret v4
   bb3:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
     revert 28, 36
   bb2:
-    v3 = phi [bb0: 256], [bb1: v4]
-    ret v3
+    ret 256
 }
 
 fn @ffs.5(arg0: i256) -> i256 [pure] {
@@ -111,10 +112,9 @@ fn @ffs.5(arg0: i256) -> i256 [pure] {
     v6 = add v1, 1
     v3 = and arg0, v6
     v4 = icall @fls.3, v3
-    jump bb2
+    ret v4
   bb2:
-    v5 = phi [bb0: 256], [bb1: v4]
-    ret v5
+    ret 256
 }
 
 fn @entry() [entry] {

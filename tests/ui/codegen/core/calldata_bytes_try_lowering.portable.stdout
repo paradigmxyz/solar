@@ -272,7 +272,7 @@ fn @readBytes32(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
 fn @tryReadBytes4(arg0: i256, arg1: i256, arg2: i256) -> struct0 [pure, return_abi=[i256, i256]] {
   bb0:
     v1 = gt arg2, arg1
-    jumpi v1, bb2, bb1
+    jumpi v1, bb4, bb1
   bb1:
     v13 = sub arg1, arg2
     v4 = lt v13, 4
@@ -281,6 +281,8 @@ fn @tryReadBytes4(arg0: i256, arg1: i256, arg2: i256) -> struct0 [pure, return_a
     v9 = icall @readBytes4, arg0, arg1, arg2
     ret 1, v9
   bb2:
+    ret 0, 0
+  bb4:
     ret 0, 0
 }
 
