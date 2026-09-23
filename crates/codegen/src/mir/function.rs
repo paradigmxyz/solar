@@ -679,8 +679,9 @@ pub(crate) struct FunctionAttributes {
     /// Never clone this function into multiple callers.
     pub(crate) no_inline: bool,
     /// Every memory write either permutes words already present in an array
-    /// argument or stores into an array whose elements are full words, so
-    /// calls cannot widen any array's element bit width.
+    /// argument, stores into an array whose elements are full words, or writes
+    /// free memory above the free-memory pointer, so calls cannot widen any
+    /// array's element bit width.
     ///
     /// This is a trusted invariant for compiler-synthesized helpers. It must
     /// stay false for source functions and for helpers that store new words

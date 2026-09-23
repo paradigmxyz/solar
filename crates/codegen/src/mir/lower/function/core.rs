@@ -446,14 +446,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn lower_core_array_group_sum_call(&mut self, operands: &[ValueId]) -> Option<ValueId> {
         let [keys, values] = *operands else { return None };
         let inner = self.lazy_helper(sym::core_array_group_sort_inner, |this, function| {
-            let helper = *this.cx.state.helpers.get(&sym::core_array_group_sort_inner)?;
             function.attributes.no_inline = true;
             function.attributes.preserves_array_elements = true;
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
             let low = lowerer.builder.add_param(MirType::I256);
             let high = lowerer.builder.add_param(MirType::I256);
             let pair = lowerer.builder.add_param(MirType::I256);
-            lowerer.lower_core_array_sort(helper, false, low, high, Some(pair));
+            lowerer.lower_core_array_sort(false, low, high, Some(pair));
             Some(())
         })?;
         let sort = self.lazy_helper(sym::core_array_group_sort, |this, function| {
@@ -595,13 +594,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             "core_array_sort_inner"
         });
         let inner = self.lazy_helper(inner_name, |this, function| {
-            let helper = *this.cx.state.helpers.get(&inner_name)?;
             function.attributes.no_inline = true;
             function.attributes.preserves_array_elements = true;
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
             let low = lowerer.builder.add_param(MirType::I256);
             let high = lowerer.builder.add_param(MirType::I256);
-            lowerer.lower_core_array_sort(helper, signed, low, high, None);
+            lowerer.lower_core_array_sort(signed, low, high, None);
             Some(())
         })?;
         let entry_name =
@@ -756,17 +754,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// Emits median-of-three Hoare quicksort with insertion-sort leaves.
-    /// One partition is called recursively and the other is processed by the
-    /// outer loop, bounding helper-frame depth to logarithmic on balanced data.
+    /// After each partition the loop goes on with the smaller part and stacks
+    /// the larger one above the free-memory pointer, so at most `log2(n)`
+    /// ranges wait there and the helper never calls itself. The stack is
+    /// addressed by its entry count, never below the free-memory pointer.
     /// With `pair`, each value moves with its key.
     fn lower_core_array_sort(
         &mut self,
-        helper: FunctionId,
         signed: bool,
         initial_low: ValueId,
         initial_high: ValueId,
         pair: Option<ValueId>,
     ) {
+        // base = fmp
+        let base = self.builder.fmp();
+        let zero = self.builder.imm(0);
         let entry = self.builder.current_block();
         let partition_header = self.builder.create_block();
         let partition = self.builder.create_block();
@@ -776,6 +778,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(partition_header);
         let low = self.builder.phi(vec![(entry, initial_low)]);
         let high = self.builder.phi(vec![(entry, initial_high)]);
+        let pending = self.builder.phi(vec![(entry, zero)]);
         let extent = self.builder.sub(high, low);
         let threshold = self.builder.imm(13 * 32);
         let large = self.builder.gt(extent, threshold);
@@ -876,24 +879,72 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let left_size = self.builder.sub(split, low);
         let right_size = self.builder.sub(high, split);
         let left_smaller = self.builder.lt(left_size, right_size);
-        let recurse_left = self.builder.create_block();
-        let recurse_right = self.builder.create_block();
-        self.builder.branch(left_smaller, recurse_left, recurse_right);
+        let sort_left = self.builder.create_block();
+        let sort_right = self.builder.create_block();
+        self.builder.branch(left_smaller, sort_left, sort_right);
 
-        self.builder.switch_to_block(recurse_left);
-        self.builder.icall_void(helper, [low, split].into_iter().chain(pair).collect());
+        // stack [split, high); go on with [low, split)
+        self.builder.switch_to_block(sort_left);
+        let stacked = self.core_sort_push_range(base, pending, split, high);
         self.builder.jump(partition_header);
-        self.builder.add_phi_incoming(low, recurse_left, split);
-        self.builder.add_phi_incoming(high, recurse_left, high);
+        self.builder.add_phi_incoming(low, sort_left, low);
+        self.builder.add_phi_incoming(high, sort_left, split);
+        self.builder.add_phi_incoming(pending, sort_left, stacked);
 
-        self.builder.switch_to_block(recurse_right);
-        self.builder.icall_void(helper, [split, high].into_iter().chain(pair).collect());
+        // stack [low, split); go on with [split, high)
+        self.builder.switch_to_block(sort_right);
+        let stacked = self.core_sort_push_range(base, pending, low, split);
         self.builder.jump(partition_header);
-        self.builder.add_phi_incoming(low, recurse_right, low);
-        self.builder.add_phi_incoming(high, recurse_right, split);
+        self.builder.add_phi_incoming(low, sort_right, split);
+        self.builder.add_phi_incoming(high, sort_right, high);
+        self.builder.add_phi_incoming(pending, sort_right, stacked);
 
         self.builder.switch_to_block(insertion);
         self.lower_core_array_insertion_sort(signed, low, high, pair);
+        let pop = self.builder.create_block();
+        let done = self.builder.create_block();
+        let waiting = self.builder.ne_zero(pending);
+        self.builder.branch(waiting, pop, done);
+
+        // pending' = pending - 1; slot = base + (pending' << 6)
+        // low' = mload(slot); high' = mload(slot + 32)
+        self.builder.switch_to_block(pop);
+        let one = self.builder.imm(1);
+        let remaining = self.builder.sub(pending, one);
+        let six = self.builder.imm(6);
+        let offset = self.builder.shl(six, remaining);
+        let slot = self.builder.add(base, offset);
+        let popped_low = self.builder.mload(slot);
+        let upper = self.builder.add(slot, word);
+        let popped_high = self.builder.mload(upper);
+        self.builder.jump(partition_header);
+        self.builder.add_phi_incoming(low, pop, popped_low);
+        self.builder.add_phi_incoming(high, pop, popped_high);
+        self.builder.add_phi_incoming(pending, pop, remaining);
+
+        self.builder.switch_to_block(done);
+        self.builder.ret([]);
+    }
+
+    /// Stacks the range `[low, high)` as entry `pending` above `base` and
+    /// returns the new entry count.
+    fn core_sort_push_range(
+        &mut self,
+        base: ValueId,
+        pending: ValueId,
+        low: ValueId,
+        high: ValueId,
+    ) -> ValueId {
+        // slot = base + (pending << 6); mstore(slot, low); mstore(slot + 32, high)
+        let six = self.builder.imm(6);
+        let offset = self.builder.shl(six, pending);
+        let slot = self.builder.add(base, offset);
+        self.builder.mstore(slot, low);
+        let word = self.builder.imm(32);
+        let upper = self.builder.add(slot, word);
+        self.builder.mstore(upper, high);
+        let one = self.builder.imm(1);
+        self.builder.add(pending, one)
     }
 
     /// Exchanges the sampled values at `a` and `b` when `swap` holds, as the
@@ -912,7 +963,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         values[b].1 = self.builder.select(swap, first, second);
     }
 
-    /// Emits insertion sort for the current quicksort leaf.
+    /// Emits insertion sort for the current quicksort leaf and leaves the
+    /// builder in the block reached once the leaf is sorted.
     fn lower_core_array_insertion_sort(
         &mut self,
         signed: bool,
@@ -975,7 +1027,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.add_phi_incoming(cursor, place, next);
 
         self.builder.switch_to_block(done);
-        self.builder.ret([]);
     }
 
     fn core_sort_lt(&mut self, lhs: ValueId, rhs: ValueId, signed: bool) -> ValueId {
