@@ -1250,6 +1250,34 @@ impl<'a> FunctionBuilder<'a> {
         self.or(shifted, one)
     }
 
+    /// Gives raw pointer bits an object type without checking the object.
+    pub(crate) fn memory_object_from_ptr(
+        &mut self,
+        ptr: ValueId,
+        _kind: MemoryObjectKind,
+    ) -> ValueId {
+        // object = inttoptr word to object, or bitcast pointer to object
+        self.cast(ptr, MirType::MemPtr)
+    }
+
+    /// Gives an address inside a region the caller allocated an object type,
+    /// marking the cast as a real object: the null default object, which only a
+    /// zeroed aggregate slot produces, never comes from here.
+    pub(crate) fn memory_object_in_allocation(
+        &mut self,
+        ptr: ValueId,
+        kind: MemoryObjectKind,
+    ) -> ValueId {
+        // object = inttoptr word to object !metadata(nonnull)
+        let object = self.memory_object_from_ptr(ptr, kind);
+        if object != ptr
+            && let Value::Inst(inst) = *self.func.value(object)
+        {
+            self.func.inst_mut(inst).metadata.set_nonnull();
+        }
+        object
+    }
+
     /// Builds a struct from its ordered field values.
     pub(crate) fn make_struct(
         &mut self,
