@@ -50,6 +50,7 @@ use std::{
 };
 
 mod pending;
+#[cfg(feature = "bench")]
 pub use pending::BenchmarkPendingRequests;
 
 /// An opaque error returned while preparing an LSP benchmark project.
