@@ -56,7 +56,7 @@ bb85 [cold]:
   push 28
   revert
 bb9:
-  push 128
+  push 160
   push 64
   mstore
   push 36
@@ -273,41 +273,35 @@ bb56 [loop]:
 bb12 [continuation]:
   dup 1
   mload
-  push 32
-  dup 3
-  add
   push 31
-  dup 3
+  dup 2
   add
   push 31
   not
   and
-  dup 1
-  dup 3
+  push 32
+  dup 4
+  add
+  swap 1
+  swap 2
   add
   push 0
   swap 1
   mstore
-  push 64
-  dup 5
-  add
-  dup 4
-  dup 4
-  dup 3
-  mcopy
-  pop
   push 32
-  dup 5
-  mstore
-  swap 2
   swap 1
+  swap 2
+  sub
+  push 32
+  dup 2
   mstore
+  swap 1
   push 64
   add
   dup 2
   return
 bb14:
-  push 128
+  push 160
   push 64
   mstore
   push 36

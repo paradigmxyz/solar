@@ -74,19 +74,17 @@ fn @patch() [selector=0xa2c0192a, abi_wrapper, pure] {
   bb3:
     v5 = icall @decode_calldata_type, 4
     icall @writeBytes4, v5, arg1
-    v24 = ptrtoint memptr v5 to i256
-    v9 = mload v24
-    v26 = add v24, 32
-    v11 = add v9, 31
-    v13 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v15 = add v26, v13
+    v20 = ptrtoint memptr v5 to i256
+    v9 = mload v20
+    v10 = add v9, 31
+    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v22 = add v20, 32
+    v15 = add v22, v9
     mstore v15, 0
-    v17 = add v24, 64
-    mcopy v17, v26, v9
-    mstore v24, 32
-    mstore v26, v9
-    v21 = add v13, 64
-    returndata v24, v21
+    v17 = sub v20, 32
+    mstore v17, 32
+    v18 = add v12, 64
+    returndata v17, v18
   bb1:
     revert 0, 0
 }
@@ -99,19 +97,17 @@ fn @move() [selector=0x42e3f4e4, abi_wrapper, pure] {
   bb2:
     v2 = icall @decode_calldata_type, 4
     icall @copyInto, v2, arg1, v2, arg2, arg3
-    v21 = ptrtoint memptr v2 to i256
-    v6 = mload v21
-    v23 = add v21, 32
-    v8 = add v6, 31
-    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v12 = add v23, v10
+    v17 = ptrtoint memptr v2 to i256
+    v6 = mload v17
+    v7 = add v6, 31
+    v9 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v19 = add v17, 32
+    v12 = add v19, v6
     mstore v12, 0
-    v14 = add v21, 64
-    mcopy v14, v23, v6
-    mstore v21, 32
-    mstore v23, v6
-    v18 = add v10, 64
-    returndata v21, v18
+    v14 = sub v17, 32
+    mstore v14, 32
+    v15 = add v9, 64
+    returndata v14, v15
   bb1:
     revert 0, 0
 }
@@ -124,19 +120,17 @@ fn @blank() [selector=0xc59f587e, abi_wrapper, pure] {
   bb2:
     v2 = icall @decode_calldata_type, 4
     icall @fill, v2, arg1, 0x2a00000000000000000000000000000000000000000000000000000000000000
-    v21 = ptrtoint memptr v2 to i256
-    v6 = mload v21
-    v23 = add v21, 32
-    v8 = add v6, 31
-    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v12 = add v23, v10
+    v17 = ptrtoint memptr v2 to i256
+    v6 = mload v17
+    v7 = add v6, 31
+    v9 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v19 = add v17, 32
+    v12 = add v19, v6
     mstore v12, 0
-    v14 = add v21, 64
-    mcopy v14, v23, v6
-    mstore v21, 32
-    mstore v23, v6
-    v18 = add v10, 64
-    returndata v21, v18
+    v14 = sub v17, 32
+    mstore v14, 32
+    v15 = add v9, 64
+    returndata v14, v15
   bb1:
     revert 0, 0
 }

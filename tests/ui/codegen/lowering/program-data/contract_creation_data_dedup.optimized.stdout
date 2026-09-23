@@ -31,41 +31,37 @@ bb5:
   push 128
   return
 bb6:
-  push 128
+  push 160
   dup 1
   push 64
   mstore
-  push 160
+  dup 1
   dup 2
   add
   push 64
+  mstore
+  push 128
+  dup 2
   mstore
   push 32
   dup 2
   add
-  dup 2
+  push 128
   push_data literal_0
   dup 3
   codecopy
-  push 160
-  dup 3
+  pop
+  dup 1
+  dup 2
   add
   push 0
   swap 1
   mstore
-  push 64
-  dup 3
-  add
-  dup 3
-  dup 3
-  dup 3
-  mcopy
-  pop
   push 32
-  dup 3
-  mstore
-  dup 2
   swap 1
+  sub
+  push 32
+  dup 2
   mstore
   push 192
   dup 2
@@ -124,11 +120,11 @@ bb6:
   add
   push 64
   mstore
-  push 239
+  push 235
   push_data Child_initcode_0
   dup 3
   codecopy
-  push 239
+  push 235
   swap 1
   push 0
   create
@@ -187,11 +183,11 @@ bb18:
   add
   push 64
   mstore
-  push 239
+  push 235
   push_data Child_initcode_0
   dup 3
   codecopy
-  push 239
+  push 235
   swap 1
   push 0
   create
@@ -209,11 +205,11 @@ bb18:
   add
   push 64
   mstore
-  push 239
+  push 235
   push_data Child_initcode_0
   dup 3
   codecopy
-  push 239
+  push 235
   swap 1
   push 0
   create
@@ -310,4 +306,4 @@ bb27 [cold]:
   push 28
   revert
 
-@data Child_initcode_0 hex"34600d5760de8060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b60808060405260a081016040526020810181605e823960a082015f9052604082018282825e506020825281905260c081f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+@data Child_initcode_0 hex"34600d5760da8060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b60a08060405280810160405260808152602081016080605a8239508081015f9052602090036020815260c081f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"

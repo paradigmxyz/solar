@@ -147,18 +147,16 @@ fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
     jumpi v11, bb1, bb2
   bb2:
     v19 = add v2, 32
-    v59 = mload 64 !metadata(memory=scratch)
-    v60 = add v59, v19
-    mstore 64, v60 !metadata(memory=scratch)
-    mstore v59, v32
-    v53 = add v59, 32
-    calldatacopy v53, v27, v2
-    v45 = add v59, 64
-    mcopy v45, v53, v2
-    mstore v59, 32
-    mstore v53, v32
-    v49 = add v2, 64
-    returndata v59, v49
+    v52 = mload 64 !metadata(memory=scratch)
+    v53 = add v52, v19
+    mstore 64, v53 !metadata(memory=scratch)
+    mstore v52, v32
+    v48 = add v52, 32
+    calldatacopy v48, v27, v2
+    v44 = sub v52, 32
+    mstore v44, 32
+    v45 = add v2, 64
+    returndata v44, v45
   bb1:
     revert 0, 0
 }

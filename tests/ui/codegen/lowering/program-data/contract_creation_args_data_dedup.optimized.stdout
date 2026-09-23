@@ -31,41 +31,37 @@ bb5:
   push 128
   return
 bb6:
-  push 128
+  push 160
   dup 1
   push 64
   mstore
-  push 160
+  dup 1
   dup 2
   add
   push 64
+  mstore
+  push 128
+  dup 2
   mstore
   push 32
   dup 2
   add
-  dup 2
+  push 128
   push_data literal_0
   dup 3
   codecopy
-  push 160
-  dup 3
+  pop
+  dup 1
+  dup 2
   add
   push 0
   swap 1
   mstore
-  push 64
-  dup 3
-  add
-  dup 3
-  dup 3
-  dup 3
-  mcopy
-  pop
   push 32
-  dup 3
-  mstore
-  dup 2
   swap 1
+  sub
+  push 32
+  dup 2
   mstore
   push 192
   dup 2
@@ -130,11 +126,11 @@ bb6:
   add
   push 64
   mstore
-  push 453
+  push 449
   push_data ChildWithArg_initcode_0
   dup 3
   codecopy
-  push 453
+  push 449
   dup 2
   add
   push 32
@@ -144,7 +140,7 @@ bb6:
   pop
   swap 1
   pop
-  push 485
+  push 481
   swap 1
   push 0
   create
@@ -211,11 +207,11 @@ bb12:
   add
   push 64
   mstore
-  push 453
+  push 449
   push_data ChildWithArg_initcode_0
   dup 3
   codecopy
-  push 453
+  push 449
   dup 2
   add
   push 32
@@ -225,7 +221,7 @@ bb12:
   pop
   swap 1
   pop
-  push 485
+  push 481
   push 1
   swap 2
   push 0
@@ -251,11 +247,11 @@ bb18:
   add
   push 64
   mstore
-  push 453
+  push 449
   push_data ChildWithArg_initcode_0
   dup 3
   codecopy
-  push 453
+  push 449
   dup 2
   add
   push 32
@@ -265,7 +261,7 @@ bb18:
   pop
   swap 1
   pop
-  push 485
+  push 481
   swap 1
   push 0
   create
@@ -289,11 +285,11 @@ bb18:
   add
   push 64
   mstore
-  push 453
+  push 449
   push_data ChildWithArg_initcode_0
   dup 3
   codecopy
-  push 453
+  push 449
   dup 2
   add
   push 32
@@ -303,7 +299,7 @@ bb18:
   pop
   swap 1
   pop
-  push 485
+  push 481
   swap 1
   push 0
   create
@@ -400,4 +396,4 @@ bb27 [cold]:
   push 28
   revert
 
-@data ChildWithArg_initcode_0 hex"6101c53803806101c560e03960e001601f01601f19166040523460445760e06101c53803016101001160445760e05160c05260fd8060c860e03960c0516101035260e0f35b5f5ffdffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa9988776655443322110034601d575f3560e01c80633fa4f245146021578063a878f85814604b575b5f5ffd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b60808060405260a081016040526020810181607d823960a082015f9052604082018282825e506020825281905260c081f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+@data ChildWithArg_initcode_0 hex"6101c13803806101c160e03960e001601f01601f19166040523460445760e06101c13803016101001160445760e05160c05260f98060c860e03960c0516101035260e0f35b5f5ffdffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa9988776655443322110034601d575f3560e01c80633fa4f245146021578063a878f85814604b575b5f5ffd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b60a0806040528081016040526080815260208101608060798239508081015f9052602090036020815260c081f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
