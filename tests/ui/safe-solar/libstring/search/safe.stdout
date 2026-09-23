@@ -220,7 +220,7 @@ fn @_scanWords(arg0: memptr, arg1: memptr, arg2: i256, arg3: i256) -> i256 [may_
     v148 = lt v147, v32
     jumpi v148, bb22, bb29
   bb29:
-    jumpi v96, bb17, bb16
+    jumpi v96, bb33, bb16
   bb16:
     v97 = icall @_matchAt, arg0, arg1, v147
     v100 = ne v97, 0
@@ -240,6 +240,8 @@ fn @_scanWords(arg0: memptr, arg1: memptr, arg2: i256, arg3: i256) -> i256 [may_
     v106 = and v87, v105
     jump bb14
   bb17:
+    ret v147
+  bb33:
     ret v147
   bb18:
     tail_call @revert_stub

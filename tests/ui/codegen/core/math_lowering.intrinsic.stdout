@@ -180,7 +180,9 @@ fn @mulDiv.6(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [pure] {
     revert 28, 36
   bb5:
     v3 = eq arg3, 1
-    jumpi v3, bb1, bb3
+    jumpi v3, bb1, bb18
+  bb18:
+    ret v63
   bb1:
     v9 = ne arg2, 0
     jumpi v9, bb7, bb6
@@ -189,14 +191,15 @@ fn @mulDiv.6(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [pure] {
   bb7:
     v10 = mulmod arg0, arg1, arg2
     v5 = ne v10, 0
-    jumpi v5, bb2, bb3
+    jumpi v5, bb2, bb19
+  bb19:
+    ret v63
   bb2:
     v11 = add v63, 1
     v12 = eq v11, 0
     jumpi v12, bb8, bb3
   bb3:
-    v8 = phi [bb2: v11], [bb7: v63], [bb5: v63]
-    ret v8
+    ret v11
   bb8:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)

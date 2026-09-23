@@ -199,11 +199,28 @@ fn @merge_equal_packed_literals(arg0: i1) {
 // Internal returns stay separate, so a loop's exit branch keeps a target of its own.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_internal_returns{{[( ]}}
 // CHECK: {{^[ +].*}}jumpi arg0, bb1, bb2
-// CHECK: {{^[ +].*}}bb2:
-// CHECK-NEXT: {{^[ +].*}}ret 0
-// CHECK: {{^[ +].*}}bb1:
-// CHECK-NEXT: {{^[ +].*}}ret 0
-fn @keep_internal_returns(arg0: i1) -> i256 {
+// CHECK: {{^[ +].*}}jumpi arg1, bb3, bb4
+// CHECK-COUNT-2: {{^[ +].*}}ret 0
+fn @keep_internal_returns(arg0: i1, arg1: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    ret 0
+  bb2:
+    jumpi arg1, bb3, bb4
+  bb3:
+    ret 0
+  bb4:
+    ret 1
+}
+
+// A branch between two returns of the same value folds to one of them.
+// CHECK-LABEL: {{^[ +].*}}fn @fold_equal_returns{{[( ]}}
+// CHECK: - jumpi arg0, bb1, bb2
+// CHECK-NOT: {{^[ +].*}}jumpi
+// CHECK: {{^[ +].*}}ret 0
+// CHECK-NOT: {{^[ +].*}}ret
+fn @fold_equal_returns(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:

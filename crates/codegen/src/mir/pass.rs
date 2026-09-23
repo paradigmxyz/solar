@@ -83,6 +83,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &jump_threading::JumpThreading,
     &cfg_simplify::BranchSimplify,
     &cfg_simplify::CfgSimplify,
+    &cfg_simplify::SplitReturns,
     &frame_promotion::FrameSlotPromotion,
     &function_compaction::DeadArgElim,
     &function_compaction::MergeEquivalentFunctions,
@@ -383,6 +384,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // the pass drops the consumed callee itself.
     &GasOnly::new(inline::InlineSingleUse::Physical),
     &cfg_simplify::CfgSimplify,
+    // With inlining done, loop exits may reach a return of their own; a shared
+    // return would cost the loop its carried stack on every iteration.
+    &cfg_simplify::SplitReturns,
     &lower_evm_shaped::LowerEvmShaped,
 ];
 

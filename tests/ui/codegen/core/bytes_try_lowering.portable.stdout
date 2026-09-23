@@ -283,7 +283,7 @@ fn @tryReadBytes4(arg0: memptr, arg1: i256) -> struct0 [may_return_memory, pure,
     v15 = ptrtoint memptr arg0 to i256
     v0 = mload v15
     v1 = gt arg1, v0
-    jumpi v1, bb2, bb1
+    jumpi v1, bb4, bb1
   bb1:
     v13 = sub v0, arg1
     v4 = lt v13, 4
@@ -292,6 +292,8 @@ fn @tryReadBytes4(arg0: memptr, arg1: i256) -> struct0 [may_return_memory, pure,
     v9 = icall @readBytes4, arg0, arg1
     ret 1, v9
   bb2:
+    ret 0, 0
+  bb4:
     ret 0, 0
 }
 

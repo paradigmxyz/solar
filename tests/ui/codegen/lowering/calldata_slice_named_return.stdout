@@ -8,11 +8,10 @@ fn @unwrap(arg0: i256, arg1: i256) -> calldataslice [pure, return_abi=[i256, i25
     v4 = calldataload v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb1:
-    jump bb2
   bb2:
-    v17 = phi [bb1: v1], [bb0: arg1]
-    ret arg0, v17
+    ret arg0, arg1
+  bb1:
+    ret arg0, v1
 }
 
 fn @use() [selector=0x01bd03f7, abi_wrapper, pure] {
