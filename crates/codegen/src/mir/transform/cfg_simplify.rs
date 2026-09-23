@@ -24,6 +24,10 @@
 //! layouts and literal payloads, while comparing SSA operands by definition position. It ignores
 //! source context. Shared instructions and
 //! terminators retain the bounded union of their original locations instead.
+//! Internal returns are not shared: a shared return would give a loop's exit branch a target with
+//! several predecessors, and the backend cannot carry the loop's stack across such a branch. The
+//! EVM IR terminal deduplication and tail merging share identical return sequences after stack
+//! scheduling instead.
 
 use crate::{
     mir::{
@@ -148,10 +152,9 @@ impl MirPass for FunctionDce {
     }
 }
 
-/// Alpha-equivalence key for a terminal block used by
-/// [`CfgSimplifier::deduplicate_terminal_blocks`].
+/// Alpha-equivalence key for a terminal block, built by [`terminal_block_key`].
 #[derive(Debug, PartialEq, Eq, Hash)]
-struct CanonBlock {
+pub(super) struct CanonBlock {
     insts: Vec<CanonInst>,
     term_mnemonic: &'static str,
     term_function: Option<FunctionId>,
@@ -271,6 +274,12 @@ impl CfgSimplifier {
     /// function. The rewrite is phi-safe by construction: the kept block has
     /// no phis and a terminal block has no successors, so no phi inputs
     /// elsewhere can mention it.
+    ///
+    /// Internal returns stay separate. A shared return gives a loop's exit
+    /// edge a target with several predecessors, where the backend cannot keep
+    /// the loop's carried stack across the branch and spills it on every
+    /// iteration. The backend shares identical return sequences after stack
+    /// scheduling instead.
     fn deduplicate_terminal_blocks(&mut self, func: &mut Function) {
         // Equal keys imply equal terminator mnemonics and block lengths, so only
         // blocks sharing that shape with another candidate need a key.
@@ -280,7 +289,7 @@ impl CfgSimplifier {
             let mut has_successor = false;
             term.for_each_successor(|_| has_successor = true);
             (!block.predecessors.is_empty()
-                && !matches!(term, Terminator::Invalid)
+                && !matches!(term, Terminator::Invalid | Terminator::Return { .. })
                 && !has_successor)
                 .then(|| (term.mnemonic(), block.instructions.len()))
         };
@@ -296,7 +305,7 @@ impl CfgSimplifier {
             if shape(block_id).is_none_or(|shape| shapes[&shape] < 2) {
                 continue;
             }
-            let Some(canon) = Self::canonicalize_terminal_block(func, block_id) else {
+            let Some(canon) = terminal_block_key(func, block_id) else {
                 continue;
             };
             let keep = *kept.entry(canon).or_insert(block_id);
@@ -331,85 +340,6 @@ impl CfgSimplifier {
             func.blocks[dup].predecessors.clear();
             self.stats.terminal_blocks_deduplicated += 1;
         }
-    }
-
-    /// Builds the alpha-equivalence key of a terminal block, or `None` if the
-    /// block is not a dedup candidate.
-    fn canonicalize_terminal_block(func: &Function, block_id: BlockId) -> Option<CanonBlock> {
-        let block = &func.blocks[block_id];
-        let term = block.terminator.as_ref()?;
-        if matches!(term, Terminator::Invalid) || !term.successors().is_empty() {
-            return None;
-        }
-
-        let mut local_defs: FxHashMap<ValueId, usize> = FxHashMap::default();
-        for (position, &inst_id) in block.instructions.iter().enumerate() {
-            if let Some(result) = func.inst_result_value(inst_id) {
-                local_defs.insert(result, position);
-            }
-        }
-
-        let canon_operand = |value: ValueId| {
-            if let Some(&position) = local_defs.get(&value) {
-                return CanonOperand::Local(position);
-            }
-            match func.value(value) {
-                Value::Immediate(imm) => CanonOperand::Imm(imm.clone()),
-                _ => CanonOperand::Outside(value),
-            }
-        };
-
-        let mut insts = Vec::with_capacity(block.instructions.len());
-        for &inst_id in &block.instructions {
-            let inst = func.inst(inst_id);
-            match &inst.kind {
-                InstKind::Phi(_)
-                | InstKind::Alloc { .. }
-                | InstKind::MemoryObjectLen(_, _)
-                | InstKind::SetMemoryObjectLen(_, _, _)
-                | InstKind::MemoryObjectData(_, _)
-                | InstKind::MemoryObjectFieldAddr { .. }
-                | InstKind::MemoryObjectElementAddr { .. }
-                | InstKind::MemoryObjectLoadField { .. }
-                | InstKind::MemoryObjectStoreField { .. }
-                | InstKind::MemoryObjectLoadElement { .. }
-                | InstKind::MemoryObjectLoadByte { .. }
-                | InstKind::MemoryObjectStoreElement { .. }
-                | InstKind::MemoryObjectStoreByte { .. }
-                | InstKind::MemoryObjectStoreWord { .. }
-                | InstKind::MemorySliceLoadWord { .. }
-                | InstKind::CalldataSliceLoadWord { .. }
-                | InstKind::MemoryObjectCopyFromSlice { .. }
-                | InstKind::MemoryObjectCopyFromSliceAt { .. }
-                | InstKind::MemoryObjectCopy { .. }
-                | InstKind::AbiEncode { .. }
-                | InstKind::AbiDecode { .. }
-                | InstKind::StorageToMemory { .. }
-                | InstKind::MemoryToStorage { .. }
-                | InstKind::ClearStorage { .. }
-                | InstKind::FrameLoad { .. }
-                | InstKind::FrameStore { .. }
-                | InstKind::StoreImmutable(_, _)
-                | InstKind::LoadImmutable(_)
-                | InstKind::StorageArrayElementSlot { .. } => return None,
-                _ => {}
-            }
-            let mut metadata = inst.metadata.clone();
-            metadata.set_hir_expr(None);
-            metadata.mark_debug_info_dropped();
-            metadata.loop_depth = 0;
-            insts.push(CanonInst {
-                kind: inst.kind.clone_without_operands(),
-                operands: inst.kind.operands().into_iter().map(canon_operand).collect(),
-                result_ty: inst.result_ty,
-                metadata,
-            });
-        }
-
-        let term_function =
-            if let Terminator::TailCall { function, .. } = term { Some(*function) } else { None };
-        let term_operands = term.operands().into_iter().map(canon_operand).collect();
-        Some(CanonBlock { insts, term_mnemonic: term.mnemonic(), term_function, term_operands })
     }
 
     fn simplify_trivial_phis(&mut self, func: &mut Function) {
@@ -1017,4 +947,83 @@ fn retain_functions(module: &mut Module, keep: &DenseBitSet<FunctionId>) -> usiz
     }
 
     removed
+}
+
+/// Builds the alpha-equivalence key of a terminal block, or `None` if the
+/// block cannot be shared.
+pub(super) fn terminal_block_key(func: &Function, block_id: BlockId) -> Option<CanonBlock> {
+    let block = &func.blocks[block_id];
+    let term = block.terminator.as_ref()?;
+    if matches!(term, Terminator::Invalid) || !term.successors().is_empty() {
+        return None;
+    }
+
+    let mut local_defs: FxHashMap<ValueId, usize> = FxHashMap::default();
+    for (position, &inst_id) in block.instructions.iter().enumerate() {
+        if let Some(result) = func.inst_result_value(inst_id) {
+            local_defs.insert(result, position);
+        }
+    }
+
+    let canon_operand = |value: ValueId| {
+        if let Some(&position) = local_defs.get(&value) {
+            return CanonOperand::Local(position);
+        }
+        match func.value(value) {
+            Value::Immediate(imm) => CanonOperand::Imm(imm.clone()),
+            _ => CanonOperand::Outside(value),
+        }
+    };
+
+    let mut insts = Vec::with_capacity(block.instructions.len());
+    for &inst_id in &block.instructions {
+        let inst = func.inst(inst_id);
+        match &inst.kind {
+            InstKind::Phi(_)
+            | InstKind::Alloc { .. }
+            | InstKind::MemoryObjectLen(_, _)
+            | InstKind::SetMemoryObjectLen(_, _, _)
+            | InstKind::MemoryObjectData(_, _)
+            | InstKind::MemoryObjectFieldAddr { .. }
+            | InstKind::MemoryObjectElementAddr { .. }
+            | InstKind::MemoryObjectLoadField { .. }
+            | InstKind::MemoryObjectStoreField { .. }
+            | InstKind::MemoryObjectLoadElement { .. }
+            | InstKind::MemoryObjectLoadByte { .. }
+            | InstKind::MemoryObjectStoreElement { .. }
+            | InstKind::MemoryObjectStoreByte { .. }
+            | InstKind::MemoryObjectStoreWord { .. }
+            | InstKind::MemorySliceLoadWord { .. }
+            | InstKind::CalldataSliceLoadWord { .. }
+            | InstKind::MemoryObjectCopyFromSlice { .. }
+            | InstKind::MemoryObjectCopyFromSliceAt { .. }
+            | InstKind::MemoryObjectCopy { .. }
+            | InstKind::AbiEncode { .. }
+            | InstKind::AbiDecode { .. }
+            | InstKind::StorageToMemory { .. }
+            | InstKind::MemoryToStorage { .. }
+            | InstKind::ClearStorage { .. }
+            | InstKind::FrameLoad { .. }
+            | InstKind::FrameStore { .. }
+            | InstKind::StoreImmutable(_, _)
+            | InstKind::LoadImmutable(_)
+            | InstKind::StorageArrayElementSlot { .. } => return None,
+            _ => {}
+        }
+        let mut metadata = inst.metadata.clone();
+        metadata.set_hir_expr(None);
+        metadata.mark_debug_info_dropped();
+        metadata.loop_depth = 0;
+        insts.push(CanonInst {
+            kind: inst.kind.clone_without_operands(),
+            operands: inst.kind.operands().into_iter().map(canon_operand).collect(),
+            result_ty: inst.result_ty,
+            metadata,
+        });
+    }
+
+    let term_function =
+        if let Terminator::TailCall { function, .. } = term { Some(*function) } else { None };
+    let term_operands = term.operands().into_iter().map(canon_operand).collect();
+    Some(CanonBlock { insts, term_mnemonic: term.mnemonic(), term_function, term_operands })
 }

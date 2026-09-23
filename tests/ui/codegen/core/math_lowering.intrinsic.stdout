@@ -112,7 +112,7 @@ fn @mulDiv.6(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [pure] {
     jumpi v21, bb13, bb12
   bb12:
     v22 = eq arg2, 0
-    jumpi v22, bb10, bb17
+    jumpi v22, bb14, bb17
   bb17:
     mstore 0, 0x4e487b71
     mstore 32, 17

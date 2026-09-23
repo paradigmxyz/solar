@@ -11,6 +11,8 @@
 //! with a header guard and no other exit receive that weight. Conditional calls and
 //! unknown loop bounds retain the ordinary per-invocation estimate; size mode keeps
 //! its existing growth policy. These are profitability estimates, never legality facts.
+//! Callee summaries count alpha-equivalent return blocks once: MIR keeps returns unshared
+//! for the backend, which shares identical return sequences after stack scheduling.
 //! Tiny check wrappers containing a semantic check and an optional boolean
 //! negation also inline before check lowering. This exposes the guard to caller
 //! analyses without duplicating arbitrary control flow or allocation. Ordinary
@@ -75,13 +77,18 @@ use crate::{
         immutable::immutable_push_type_size,
         memory::{EvmMemoryLayout, MemoryLayoutPolicy},
         pass::MirPass,
+        transform::cfg_simplify::terminal_block_key,
         utils::{replace_terminator_uses_canonicalized, resolve_replacement},
     },
     target::{Cost, Target},
 };
 use smallvec::SmallVec;
 use solar_ast::StateMutability;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_sema::Gcx;
 
 /// Module pass for metadata-backed MIR inlining.
@@ -1185,7 +1192,17 @@ fn summarize_function(
         ..MirInlineSummary::default()
     };
 
-    for block in func.blocks.iter() {
+    // Alpha-equivalent returns count once: the backend shares them after stack
+    // scheduling, and the limits below were tuned on shared returns.
+    let mut returns = FxHashSet::default();
+    for (block_id, block) in func.blocks.iter_enumerated() {
+        if matches!(block.terminator, Some(Terminator::Return { .. }))
+            && let Some(key) = terminal_block_key(func, block_id)
+            && !returns.insert(key)
+        {
+            summary.block_count -= 1;
+            continue;
+        }
         for &inst_id in &block.instructions {
             let kind = &func.inst(inst_id).kind;
             let (inst_cost, instructions) = estimate_inst_cost(gcx, module, kind);
