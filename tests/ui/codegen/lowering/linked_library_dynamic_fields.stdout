@@ -394,7 +394,7 @@ bb4 [cold]:
   push 0
   push 0
   revert
-bb26 [cold]:
+bb25 [cold]:
   push 0x4e487b71
   push 0
   mstore
@@ -510,13 +510,6 @@ bb9:
   dup 3
   push 5
   shl
-  dup 1
-  push 5
-  shr
-  dup 5
-  sub
-  push bb26
-  jumpi
   dup 5
   calldatasize
   sub
@@ -530,7 +523,7 @@ bb9:
   push 32
   dup 2
   lt
-  push bb26
+  push bb25
   jumpi
   push 64
   mload
@@ -779,7 +772,7 @@ bb9:
   pop
   pop
   iszero
-  push bb23
+  push bb22
   jumpi
   returndatasize
   push 63
@@ -788,7 +781,7 @@ bb9:
   dup 2
   dup 2
   lt
-  push bb26
+  push bb25
   jumpi
   push 31
   not
@@ -828,7 +821,7 @@ bb9:
   push 32
   push 128
   return
-bb23 [cold]:
+bb22 [cold]:
   returndatasize
   push 0
   push 0

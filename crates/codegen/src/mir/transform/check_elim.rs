@@ -97,6 +97,10 @@
 //! contains a strict edge. Exhausting this bound leaves the check in place; disequality is never
 //! treated as transitive.
 //!
+//! Checked scaling by a power of two tests that `(x << k) >> k == x`; the test
+//! holds whenever `x`'s range leaves its top `k` bits clear, so an allocation
+//! sized from a bounded length drops it.
+//!
 //! Signed comparisons rotate intervals by the sign bit to use the same ordered
 //! bounds. An interval crossing the rotation boundary widens to unknown; signed
 //! facts only become unsigned relations when both operands have the same known
@@ -2048,6 +2052,20 @@ impl<'a> CheckEliminator<'a> {
         }
         if let Some(truth) = self.eval_muldiv_roundtrip(func, b, a, depth) {
             return Some(truth);
+        }
+        // A scaling shift's check `eq (shr k, (shl k, x)), x` holds iff no set bit
+        // of `x` shifts out, which `x < 2^(256 - k)` rules out.
+        for (shifted, expected) in [(a, b), (b, a)] {
+            if let Some(&InstKind::Shr(count, product)) = inst_kind(func, shifted)
+                && let Some(&InstKind::Shl(inner, source)) = inst_kind(func, product)
+                && source == expected
+                && let Some(bits) = const_of(func, count)
+                && const_of(func, inner) == Some(bits)
+                && bits < U256::from(256)
+                && U256::from(self.range_of(func, expected, depth).hi.leading_zeros()) >= bits
+            {
+                return Some(true);
+            }
         }
         // Its doubling form `eq (shr 1, (add x, x)), x` holds iff `x + x` did not wrap.
         for (shifted, expected) in [(a, b), (b, a)] {

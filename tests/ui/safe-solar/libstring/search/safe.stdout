@@ -177,21 +177,17 @@ fn @_scanWords(arg0: memptr, arg1: memptr, arg2: i256, arg3: i256) -> i256 [may_
   bb26:
     v132 = add v128, 1
     v134 = shl 3, v132
-    v136 = shr 3, v134
-    v140 = ne v136, v132
-    jumpi v140, bb22, bb27
-  bb27:
     v56 = shr v134, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v57 = not v56
     v58 = and v50, v57
     jump bb10
   bb10:
-    v59 = phi [bb27: v58], [bb25: v50]
+    v59 = phi [bb26: v58], [bb25: v50]
     jumpi v8, bb11, bb12
   bb11:
     v62 = ne v59, 0
-    jumpi v62, bb28, bb12
-  bb28:
+    jumpi v62, bb27, bb12
+  bb27:
     v66 = lt v34, v28
     jumpi v66, bb21, bb13
   bb21:
@@ -200,7 +196,7 @@ fn @_scanWords(arg0: memptr, arg1: memptr, arg2: i256, arg3: i256) -> i256 [may_
     v181 = byte 0, v180
     jump bb13
   bb13:
-    v74 = phi [bb21: v181], [bb28: 0]
+    v74 = phi [bb21: v181], [bb27: 0]
     v75 = shl 8, v42
     v76 = or v75, v74
     v77 = xor v76, v16
@@ -211,37 +207,37 @@ fn @_scanWords(arg0: memptr, arg1: memptr, arg2: i256, arg3: i256) -> i256 [may_
     v80 = phi [bb13: v79], [bb11: v59], [bb10: v59]
     jump bb14
   bb14:
-    v87 = phi [bb12: v80], [bb32: v106]
+    v87 = phi [bb12: v80], [bb31: v106]
     v92 = ne v87, 0
     jumpi v92, bb15, bb3
   bb15:
     v93 = icall @_firstMarkedByte, v87
     v147 = add v32, v93
     v148 = lt v147, v32
-    jumpi v148, bb22, bb29
-  bb29:
-    jumpi v96, bb33, bb16
+    jumpi v148, bb22, bb28
+  bb28:
+    jumpi v96, bb32, bb16
   bb16:
     v97 = icall @_matchAt, arg0, arg1, v147
     v100 = ne v97, 0
-    jumpi v100, bb17, bb30
-  bb30:
+    jumpi v100, bb17, bb29
+  bb29:
     v151 = shl 3, v93
     v153 = shr 3, v151
     v157 = ne v153, v93
-    jumpi v157, bb22, bb31
-  bb31:
+    jumpi v157, bb22, bb30
+  bb30:
     v158 = sub 248, v151
     v159 = gt v151, 248
-    jumpi v159, bb22, bb32
-  bb32:
+    jumpi v159, bb22, bb31
+  bb31:
     v104 = shl v158, 255
     v105 = not v104
     v106 = and v87, v105
     jump bb14
   bb17:
     ret v147
-  bb33:
+  bb32:
     ret v147
   bb18:
     tail_call @revert_stub
