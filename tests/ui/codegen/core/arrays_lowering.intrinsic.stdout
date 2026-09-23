@@ -28,35 +28,31 @@ fn @shorten() [selector=0xf0187838, abi_wrapper, pure] {
     jumpi v13, bb3, bb5
   bb5:
     v15 = calldataload v9
-    v17 = shl 5, v15
-    v19 = shr 5, v17
-    v23 = ne v19, v15
-    jumpi v23, bb6, bb7
+    v17 = gt v15, 0xffffffffffffffff
+    jumpi v17, bb6, bb7
   bb7:
-    v24 = add v17, 32
-    v25 = lt v24, v17
-    jumpi v25, bb6, bb8
-  bb8:
-    v41 = mload 64 !metadata(memory=scratch)
-    v42 = add v41, v24
-    v43 = lt v42, v41
-    v44 = gt v42, 0xffffffffffffffff
-    v45 = or v43, v44
-    jumpi v45, bb6, bb10
-  bb10:
-    mstore 64, v42 !metadata(memory=scratch)
-    mstore v41, v15
-    v27 = sub v6, v10
-    v28 = shr 5, v27
-    v29 = gt v15, v28
-    jumpi v29, bb3, bb9
+    v18 = shl 5, v15
+    v19 = add v18, 32
+    v35 = mload 64 !metadata(memory=scratch)
+    v36 = add v35, v19
+    v37 = lt v36, v35
+    v38 = gt v36, 0xffffffffffffffff
+    v39 = or v37, v38
+    jumpi v39, bb6, bb9
   bb9:
-    v35 = add v41, 32
-    calldatacopy v35, v10, v17
+    mstore 64, v36 !metadata(memory=scratch)
+    mstore v35, v15
+    v21 = sub v6, v10
+    v22 = shr 5, v21
+    v23 = gt v15, v22
+    jumpi v23, bb3, bb8
+  bb8:
+    v29 = add v35, 32
+    calldatacopy v29, v10, v18
     v2 = gt arg1, v15
     jumpi v2, bb1, bb2
   bb2:
-    mstore v41, arg1
+    mstore v35, arg1
     mstore 128, v15
     mstore 160, arg1
     returndata 128, 64

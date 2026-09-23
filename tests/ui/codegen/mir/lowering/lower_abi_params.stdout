@@ -49,33 +49,25 @@
 +   bb7:
 +     v25 = calldataload v19
 +     v26 = add v19, 32
-+     v27 = mul v25, 32
-+     v28 = eq 32, 0
-+     v29 = div v27, 32
-+     v30 = eq v29, v25
-+     v31 = or v28, v30
-+     v32 = zext i1 v31 to i256
-+     v33 = eq v32, 0
-+     jumpi v33, bb8, bb9
++     v27 = gt v25, 0xffffffffffffffff
++     jumpi v27, bb8, bb9
 +   bb9:
-+     v34 = add v27, 32
-+     v35 = lt v34, v27
-+     jumpi v35, bb8, bb10
++     v28 = mul v25, 32
++     v29 = add v28, 32
++     v30 = alloc memoryarray<1>, exact, uninitialized, panic, v29
++     set_memory_object_len memoryarray, v30, v25
++     v31 = sub v9, v26
++     v32 = shr 5, v31
++     v33 = gt v25, v32
++     jumpi v33, bb4, bb10
 +   bb10:
-+     v36 = alloc memoryarray<1>, exact, uninitialized, panic, v34
-+     set_memory_object_len memoryarray, v36, v25
-+     v37 = sub v9, v26
-+     v38 = shr 5, v37
-+     v39 = gt v25, v38
-+     jumpi v39, bb4, bb11
-+   bb11:
-+     v40 = make_calldata_slice v26, v27
-+     memory_object_copy_from_slice memoryarray, v36, v40
-+     v41 = ptrtoint memoryarray v36 to i256
-+     memory_object_store_field memorystruct<3>, v17, 0, v41
-+     v42 = add v12, 32
-+     v43 = calldataload v42
-+     memory_object_store_field memorystruct<3>, v17, 1, v43
++     v34 = make_calldata_slice v26, v28
++     memory_object_copy_from_slice memoryarray, v30, v34
++     v35 = ptrtoint memoryarray v30 to i256
++     memory_object_store_field memorystruct<3>, v17, 0, v35
++     v36 = add v12, 32
++     v37 = calldataload v36
++     memory_object_store_field memorystruct<3>, v17, 1, v37
 +     memory_object_store_field memorystruct<3>, v17, 2, v12
 +     jump bb1
 +   bb1:
@@ -91,9 +83,9 @@
       v8 = add v4, v7
 -     ret v8
 +     mstore 128, v8
-+     v44 = add 128, 32
-+     v45 = sub v44, 128
-+     returndata 128, v45
++     v38 = add 128, 32
++     v39 = sub v38, 128
++     returndata 128, v39
 +   bb8:
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)

@@ -28,57 +28,53 @@ fn @shorten() [selector=0xf0187838, abi_wrapper, inline_assembly, pure] {
     jumpi v11, bb1, bb3
   bb3:
     v13 = calldataload v7
-    v15 = shl 5, v13
-    v17 = shr 5, v15
-    v21 = ne v17, v13
-    jumpi v21, bb4, bb5
+    v15 = gt v13, 0xffffffffffffffff
+    jumpi v15, bb4, bb5
   bb5:
-    v22 = add v15, 32
-    v23 = lt v22, v15
-    jumpi v23, bb4, bb6
-  bb6:
-    v39 = mload 64 !metadata(memory=scratch)
-    v24 = inttoptr i256 v39 to memptr !metadata(memory=scratch)
-    v40 = add v39, v22
-    v41 = lt v40, v39
-    v42 = gt v40, 0xffffffffffffffff
-    v43 = or v41, v42
-    jumpi v43, bb4, bb8
-  bb8:
-    mstore 64, v40 !metadata(memory=scratch)
-    mstore v39, v13
-    v25 = sub v4, v8
-    v26 = shr 5, v25
-    v27 = gt v13, v26
-    jumpi v27, bb1, bb7
+    v16 = shl 5, v13
+    v17 = add v16, 32
+    v33 = mload 64 !metadata(memory=scratch)
+    v18 = inttoptr i256 v33 to memptr !metadata(memory=scratch)
+    v34 = add v33, v17
+    v35 = lt v34, v33
+    v36 = gt v34, 0xffffffffffffffff
+    v37 = or v35, v36
+    jumpi v37, bb4, bb7
   bb7:
-    v33 = add v39, 32
-    calldatacopy v33, v8, v15
-    v45 = ptrtoint memptr v24 to i256
-    v46 = mload v45
-    v47 = gt arg1, v46
-    jumpi v47, bb10, bb9
-  bb9:
-    mstore v45, arg1
-    v1 = mload v39
+    mstore 64, v34 !metadata(memory=scratch)
+    mstore v33, v13
+    v19 = sub v4, v8
+    v20 = shr 5, v19
+    v21 = gt v13, v20
+    jumpi v21, bb1, bb6
+  bb6:
+    v27 = add v33, 32
+    calldatacopy v27, v8, v16
+    v39 = ptrtoint memptr v18 to i256
+    v40 = mload v39
+    v41 = gt arg1, v40
+    jumpi v41, bb9, bb8
+  bb8:
+    mstore v39, arg1
+    v1 = mload v33
     mstore 128, v13
     mstore 160, v1
     returndata 128, 64
+  bb9:
+    v42 = mload 64
+    v43 = add v42, 32
+    v44 = lt v43, v42
+    v45 = gt v43, 0xffffffffffffffff
+    v46 = or v44, v45
+    jumpi v46, bb11, bb10
   bb10:
-    v48 = mload 64
-    v49 = add v48, 32
-    v50 = lt v49, v48
-    v51 = gt v49, 0xffffffffffffffff
-    v52 = or v50, v51
-    jumpi v52, bb12, bb11
-  bb11:
-    mstore 64, v49
-    mstore v48, 0
-    mstore v48, 0
+    mstore 64, v43
+    mstore v42, 0
+    mstore v42, 0
     mstore 0, 0x4e487b71
     mstore 32, 50
     revert 28, 36
-  bb12:
+  bb11:
     mstore 0, 0x4e487b71
     mstore 32, 65
     revert 28, 36
