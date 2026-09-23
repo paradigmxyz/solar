@@ -39,120 +39,54 @@ fn @entry() [entry] {
 @phase lowered
 fn @decimal() [selector=0xf371efa4, abi_wrapper, pure] {
   bb0:
-    v1 = calldatasize
-    v2 = lt v1, 36
-    jumpi v2, bb1, bb2
-  bb2:
-    v0 = icall @toString, arg0
-    v21 = ptrtoint memptr v0 to i256
-    v6 = mload v21
-    v23 = add v21, 32
-    v8 = add v6, 31
-    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v12 = add v23, v10
-    mstore v12, 0
-    v14 = add v21, 64
-    mcopy v14, v23, v6
-    mstore v21, 32
-    mstore v23, v6
-    v18 = add v10, 64
-    returndata v21, v18
-  bb1:
-    revert 0, 0
-}
-
-fn @toString(arg0: i256) -> memptr [may_return_memory, pure] {
-  bb0:
-    v0 = lt arg0, 0x184f03e93ff9f4daa797ed6e38ed64bf6a1f010000000000000000
-    jumpi v0, bb1, bb9
-  bb9:
-    v63 = div arg0, 0x184f03e93ff9f4daa797ed6e38ed64bf6a1f010000000000000000
+    v13 = calldatasize
+    v14 = lt v13, 36
+    jumpi v14, bb3, bb4
+  bb4:
+    v51 = mload 64 !metadata(memory=scratch)
+    v52 = add v51, 160
+    mstore 64, v52 !metadata(memory=scratch)
+    v2 = add v51, 128
+    mstore v2, 0
     jump bb1
   bb1:
-    v4 = phi [bb9: v63], [bb0: arg0]
-    v5 = phi [bb9: 65], [bb0: 1]
-    v6 = lt v4, 0x4ee2d6d415b85acef8100000000
-    jumpi v6, bb2, bb10
-  bb10:
-    v65 = div v4, 0x4ee2d6d415b85acef8100000000
-    v66 = add v5, 32
-    jump bb2
+    v3 = phi [bb4: arg0], [bb1: v8]
+    v4 = phi [bb4: v2], [bb1: v5]
+    v5 = sub v4, 1
+    v6 = mod v3, 10
+    v7 = add v6, 48
+    mstore8 v5, v7
+    v8 = div v3, 10
+    v9 = eq v8, 0
+    jumpi v9, bb2, bb1
   bb2:
-    v10 = phi [bb10: v65], [bb1: v4]
-    v11 = phi [bb10: v66], [bb1: v5]
-    v12 = lt v10, 0x2386f26fc10000
-    jumpi v12, bb3, bb11
-  bb11:
-    v69 = div v10, 0x2386f26fc10000
-    v70 = add v11, 16
-    jump bb3
+    v10 = sub v2, v5
+    v11 = sub v5, 32
+    mstore v11, v10
+    v48 = mload 64 !metadata(memory=scratch)
+    v20 = add v48, 32
+    mstore v48, 32
+    v27 = ne v11, 0
+    v28 = zext i1 v27 to i256
+    v24 = mload v11
+    v29 = mul v24, v28
+    v31 = add v29, 31
+    v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v33 = add v20, 32
+    v34 = add v20, v32
+    mstore v34, 0
+    mstore v20, v29
+    v36 = add v33, v32
+    mcopy v33, v5, v29
+    v39 = sub v36, v48
+    v41 = add v39, 31
+    v43 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v49 = mload 64 !metadata(memory=scratch)
+    v50 = add v49, v43
+    mstore 64, v50 !metadata(memory=scratch)
+    returndata v49, v39
   bb3:
-    v16 = phi [bb11: v69], [bb2: v10]
-    v17 = phi [bb11: v70], [bb2: v11]
-    v18 = lt v16, 0x5f5e100
-    jumpi v18, bb4, bb12
-  bb12:
-    v73 = div v16, 0x5f5e100
-    v74 = add v17, 8
-    jump bb4
-  bb4:
-    v22 = phi [bb12: v73], [bb3: v16]
-    v23 = phi [bb12: v74], [bb3: v17]
-    v24 = lt v22, 0x2710
-    jumpi v24, bb5, bb13
-  bb13:
-    v77 = div v22, 0x2710
-    v78 = add v23, 4
-    jump bb5
-  bb5:
-    v28 = phi [bb13: v77], [bb4: v22]
-    v29 = phi [bb13: v78], [bb4: v23]
-    v30 = lt v28, 100
-    jumpi v30, bb6, bb14
-  bb14:
-    v81 = div v28, 100
-    v82 = add v29, 2
-    jump bb6
-  bb6:
-    v34 = phi [bb14: v81], [bb5: v28]
-    v35 = phi [bb14: v82], [bb5: v29]
-    v36 = lt v34, 10
-    v95 = eq v36, false
-    v96 = zext i1 v95 to i256
-    v98 = add v35, v96
-    v40 = add v98, 63
-    v43 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v103 = mload 64 !metadata(memory=scratch)
-    v44 = inttoptr i256 v103 to memptr !metadata(memory=scratch)
-    v104 = add v103, v43
-    v105 = lt v104, v103
-    v106 = gt v104, 0xffffffffffffffff
-    v107 = or v105, v106
-    jumpi v107, bb16, bb15
-  bb15:
-    mstore 64, v104 !metadata(memory=scratch)
-    v109 = calldatasize
-    calldatacopy v103, v109, v43
-    mstore v103, v98
-    v100 = add v103, 32
-    jump bb7
-  bb7:
-    v48 = phi [bb15: arg0], [bb7: v93]
-    v49 = phi [bb15: v98], [bb7: v86]
-    v86 = sub v49, 1
-    v89 = mod v48, 10
-    v90 = add v89, 48
-    v101 = add v100, v86
-    mstore8 v101, v90
-    v93 = div v48, 10
-    v60 = ne v86, 0
-    jumpi v60, bb7, bb8
-  bb8:
-    ret v44
-  bb16:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    mstore 32, 65 !metadata(memory=scratch)
-    revert 28, 36
+    revert 0, 0
 }
 
 fn @entry() [entry] {

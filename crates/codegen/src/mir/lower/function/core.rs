@@ -93,6 +93,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.lower_core_string_index_of_call(&operands, true)
             }
             CoreIntrinsic::StringRuneCount => self.lower_core_string_rune_count_call(&operands),
+            CoreIntrinsic::StringToString => {
+                self.lower_core_string_to_string_call(&operands, &parameter_tys)
+            }
             CoreIntrinsic::StringEscapeHTML => {
                 self.lower_core_string_escape_call(&operands, escape::Escape::Html)
             }
