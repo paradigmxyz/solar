@@ -299,6 +299,10 @@ pub struct EvmCodegen<'gcx> {
     /// Functions that are recursive or can reach recursion. A preserved
     /// prefix must not be carried into an unbounded descendant.
     recursion_reaching_functions: DenseBitSet<FunctionId>,
+    /// Stack-returning callees whose return area a call site used as the
+    /// multi-return buffer. That buffer is addressed by offset from its base,
+    /// so these frames keep their layout instead of being packed.
+    stack_return_buffers: DenseBitSet<FunctionId>,
     /// High-water mark of the modeled stack above each function's inherited
     /// untracked prefix.
     function_stack_peaks: FxHashMap<FunctionId, usize>,
@@ -432,6 +436,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             recursive_frame_functions: DenseBitSet::new_empty(0),
             recursive_frame_edges: FxHashSet::default(),
             recursion_reaching_functions: DenseBitSet::new_empty(0),
+            stack_return_buffers: DenseBitSet::new_empty(0),
             function_stack_peaks: FxHashMap::default(),
             icall_stack_edges: Vec::new(),
             runtime_stack_args: false,
@@ -497,6 +502,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.recursive_frame_functions.clear_to(module.functions.len());
         self.recursive_frame_edges.clear();
         self.recursion_reaching_functions.clear_to(module.functions.len());
+        self.stack_return_buffers.clear_to(module.functions.len());
         self.function_stack_peaks.clear();
         self.icall_stack_edges.clear();
         self.runtime_stack_args = false;

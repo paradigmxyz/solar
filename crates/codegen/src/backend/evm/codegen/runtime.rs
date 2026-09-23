@@ -129,6 +129,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.recursive_frame_functions.clear_to(module.functions.len());
         self.recursive_frame_edges.clear();
         self.recursion_reaching_functions.clear_to(module.functions.len());
+        self.stack_return_buffers.clear_to(module.functions.len());
         self.function_stack_peaks.clear();
         self.icall_stack_edges.clear();
         self.runtime_stack_args = true;

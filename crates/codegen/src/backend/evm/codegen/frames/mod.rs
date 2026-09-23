@@ -55,7 +55,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// callers and callees while unused signature and spill words disappear.
     ///
     /// Address-taken locals, multiword return buffers and recursive frames retain their layouts.
-    /// Constructors retain their independent frame convention.
+    /// A multiword helper that returns on the stack has no such buffer unless a call site
+    /// staged its results there. Constructors retain their independent frame convention.
     pub(in crate::backend::evm::codegen) fn pack_scalar_static_frames(&mut self, module: &Module) {
         if !self.runtime_stack_args
             || !(self.gcx.sess.opts.optimization.is_gas()
@@ -70,7 +71,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             let func = &module.functions[func_id];
             if !self.recursive_frame_functions.contains(func_id)
                 && func.internal_frame_size == 0
-                && func.return_components().len() <= 1
+                && (func.return_components().len() <= 1
+                    || (self.stack_return_plan(func_id).is_some()
+                        && !self.stack_return_buffers.contains(func_id)))
                 && !func
                     .instructions()
                     .any(|inst| matches!(func.inst(inst).kind, InstKind::InternalFrameAddr(_)))
