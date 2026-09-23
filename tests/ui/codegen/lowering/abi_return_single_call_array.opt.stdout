@@ -58,59 +58,52 @@ fn @copied() [selector=0x3feb34a9, abi_wrapper, pure] {
     jumpi v8, bb1, bb3
   bb3:
     v10 = calldataload v4
-    v12 = shl 5, v10
-    v14 = shr 5, v12
-    v18 = ne v14, v10
-    jumpi v18, bb4, bb5
+    v12 = gt v10, 0xffffffffffffffff
+    jumpi v12, bb4, bb5
   bb5:
-    v19 = add v12, 32
-    v20 = lt v19, v12
-    jumpi v20, bb4, bb6
-  bb6:
-    v56 = mload 64 !metadata(memory=scratch)
-    v21 = inttoptr i256 v56 to memptr !metadata(memory=scratch)
-    v57 = add v56, v19
-    v58 = lt v57, v56
-    v59 = gt v57, 0xffffffffffffffff
-    v60 = or v58, v59
-    jumpi v60, bb4, bb12
-  bb12:
-    mstore 64, v57 !metadata(memory=scratch)
-    mstore v56, v10
-    v22 = sub v1, v5
-    v23 = shr 5, v22
-    v24 = gt v10, v23
-    jumpi v24, bb1, bb7
-  bb7:
-    jump bb8
-  bb8:
-    v25 = phi [bb7: 0], [bb11: v32]
-    v26 = lt v25, v10
-    jumpi v26, bb9, bb10
-  bb10:
-    v49 = add v56, 32
-    calldatacopy v49, v5, v12
-    v0 = icall @copy, v21
-    v53 = ptrtoint memptr v0 to i256
-    v37 = mload v53
-    v55 = add v53, 32
-    v39 = shl 5, v37
-    v41 = add v53, 64
-    mcopy v41, v55, v39
-    mstore v53, 32
-    mstore v55, v37
-    v45 = add v39, 64
-    returndata v53, v45
-  bb9:
-    v27 = shl 5, v25
-    v28 = add v5, v27
-    v29 = calldataload v28
-    v30 = shr 160, v29
-    v31 = eq v30, 0
-    jumpi v31, bb11, bb1
+    v13 = shl 5, v10
+    v14 = add v13, 32
+    v43 = mload 64 !metadata(memory=scratch)
+    v15 = inttoptr i256 v43 to memptr !metadata(memory=scratch)
+    v44 = add v43, v14
+    v45 = lt v44, v43
+    v46 = gt v44, 0xffffffffffffffff
+    v47 = or v45, v46
+    jumpi v47, bb4, bb11
   bb11:
-    v32 = add v25, 1
-    jump bb8
+    mstore 64, v44 !metadata(memory=scratch)
+    mstore v43, v10
+    v16 = sub v1, v5
+    v17 = shr 5, v16
+    v18 = gt v10, v17
+    jumpi v18, bb1, bb6
+  bb6:
+    jump bb7
+  bb7:
+    v19 = phi [bb6: 0], [bb10: v26]
+    v20 = lt v19, v10
+    jumpi v20, bb8, bb9
+  bb9:
+    v38 = add v43, 32
+    calldatacopy v38, v5, v13
+    v0 = icall @copy, v15
+    v42 = ptrtoint memptr v0 to i256
+    v31 = mload v42
+    v32 = shl 5, v31
+    v34 = sub v42, 32
+    mstore v34, 32
+    v35 = add v32, 64
+    returndata v34, v35
+  bb8:
+    v21 = shl 5, v19
+    v22 = add v5, v21
+    v23 = calldataload v22
+    v24 = shr 160, v23
+    v25 = eq v24, 0
+    jumpi v25, bb10, bb1
+  bb10:
+    v26 = add v19, 1
+    jump bb7
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

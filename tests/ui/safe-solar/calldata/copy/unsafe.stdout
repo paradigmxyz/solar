@@ -27,30 +27,28 @@ fn @part() [selector=0x107cd163, abi_wrapper, inline_assembly, pure] {
     jumpi v1, bb1, bb2
   bb2:
     v3 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v48 = mload 64 !metadata(memory=scratch)
-    v49 = add v48, v3
-    v50 = lt v49, v48
-    v51 = gt v49, 0xffffffffffffffff
-    v52 = or v50, v51
-    jumpi v52, bb1, bb6
+    v44 = mload 64 !metadata(memory=scratch)
+    v45 = add v44, v3
+    v46 = lt v45, v44
+    v47 = gt v45, 0xffffffffffffffff
+    v48 = or v46, v47
+    jumpi v48, bb1, bb6
   bb6:
-    mstore 64, v49 !metadata(memory=scratch)
-    v54 = calldatasize
-    calldatacopy v48, v54, v3
-    mstore v48, arg2
+    mstore 64, v45 !metadata(memory=scratch)
+    v50 = calldatasize
+    calldatacopy v44, v50, v3
+    mstore v44, arg2
     v6 = add v13, arg1
-    v8 = add v48, 32
+    v8 = add v44, 32
     calldatacopy v8, v6, arg2
-    v31 = add arg2, 31
-    v33 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v35 = add v8, v33
+    v30 = add arg2, 31
+    v32 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v35 = add v8, arg2
     mstore v35, 0
-    v37 = add v48, 64
-    mcopy v37, v8, arg2
-    mstore v48, 32
-    mstore v8, arg2
-    v41 = add v33, 64
-    returndata v48, v41
+    v37 = sub v44, 32
+    mstore v37, 32
+    v38 = add v32, 64
+    returndata v37, v38
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

@@ -28,33 +28,31 @@ fn @payload() [selector=0x63fd6252, abi_wrapper, pure] {
   bb1:
     revert 0, 0
   bb2:
-    v40 = mload 64 !metadata(memory=scratch)
-    v6 = inttoptr i256 v40 to memptr !metadata(memory=scratch)
-    v41 = add v40, 128
-    v42 = lt v41, v40
-    v43 = gt v41, 0xffffffffffffffff
-    v44 = or v42, v43
-    jumpi v44, bb4, bb3
+    v36 = mload 64 !metadata(memory=scratch)
+    v6 = inttoptr i256 v36 to memptr !metadata(memory=scratch)
+    v37 = add v36, 128
+    v38 = lt v37, v36
+    v39 = gt v37, 0xffffffffffffffff
+    v40 = or v38, v39
+    jumpi v40, bb4, bb3
   bb3:
-    mstore 64, v41 !metadata(memory=scratch)
-    v46 = calldatasize
-    calldatacopy v40, v46, 128
-    mstore v40, 68
+    mstore 64, v37 !metadata(memory=scratch)
+    v42 = calldatasize
+    calldatacopy v36, v42, 128
+    mstore v36, 68
     v7 = icall @encodeSelectorInto, v6, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
     v8 = icall @encodeInto.4, v6, 4, arg0
     v10 = icall @encodeInto.4, v6, 36, arg1
-    v21 = mload v40
-    v39 = add v40, 32
-    v23 = add v21, 31
-    v25 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v27 = add v39, v25
+    v21 = mload v36
+    v22 = add v21, 31
+    v24 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v35 = add v36, 32
+    v27 = add v35, v21
     mstore v27, 0
-    v29 = add v40, 64
-    mcopy v29, v39, v21
-    mstore v40, 32
-    mstore v39, v21
-    v33 = add v25, 64
-    returndata v40, v33
+    v29 = sub v36, 32
+    mstore v29, 32
+    v30 = add v24, 64
+    returndata v29, v30
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
@@ -70,33 +68,31 @@ fn @short() [selector=0xb2d29f33, abi_wrapper, pure] {
   bb1:
     revert 0, 0
   bb2:
-    v39 = mload 64 !metadata(memory=scratch)
-    v5 = inttoptr i256 v39 to memptr !metadata(memory=scratch)
-    v40 = add v39, 96
-    v41 = lt v40, v39
-    v42 = gt v40, 0xffffffffffffffff
-    v43 = or v41, v42
-    jumpi v43, bb4, bb3
+    v35 = mload 64 !metadata(memory=scratch)
+    v5 = inttoptr i256 v35 to memptr !metadata(memory=scratch)
+    v36 = add v35, 96
+    v37 = lt v36, v35
+    v38 = gt v36, 0xffffffffffffffff
+    v39 = or v37, v38
+    jumpi v39, bb4, bb3
   bb3:
-    mstore 64, v40 !metadata(memory=scratch)
-    v45 = calldatasize
-    calldatacopy v39, v45, 96
-    mstore v39, 36
+    mstore 64, v36 !metadata(memory=scratch)
+    v41 = calldatasize
+    calldatacopy v35, v41, 96
+    mstore v35, 36
     v6 = icall @encodeSelectorInto, v5, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
     v7 = icall @encodeInto.4, v5, 4, arg0
     v9 = icall @encodeInto.4, v5, 36, arg1
-    v20 = mload v39
-    v38 = add v39, 32
-    v22 = add v20, 31
-    v24 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v26 = add v38, v24
+    v20 = mload v35
+    v21 = add v20, 31
+    v23 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v34 = add v35, 32
+    v26 = add v34, v20
     mstore v26, 0
-    v28 = add v39, 64
-    mcopy v28, v38, v20
-    mstore v39, 32
-    mstore v38, v20
-    v32 = add v24, 64
-    returndata v39, v32
+    v28 = sub v35, 32
+    mstore v28, 32
+    v29 = add v23, 64
+    returndata v28, v29
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

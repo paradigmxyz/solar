@@ -20,28 +20,26 @@ fn @patch() [selector=0xa2c0192a, abi_wrapper, pure] {
     revert 0, 0
   bb4:
     v18 = icall @decode_calldata_type, 4
-    v42 = ptrtoint memptr v18 to i256
-    v0 = mload v42
+    v38 = ptrtoint memptr v18 to i256
+    v0 = mload v38
     v3 = lt v0, 5
     jumpi v3, bb1, bb2
   bb2:
-    v41 = add v42, 32
-    v8 = add v42, 33
+    v37 = add v38, 32
+    v8 = add v38, 33
     v9 = mload v8
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v11 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v12 = or v10, v11
     mstore v8, v12
-    v24 = add v0, 31
-    v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v28 = add v41, v26
+    v23 = add v0, 31
+    v25 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v28 = add v37, v0
     mstore v28, 0
-    v30 = add v42, 64
-    mcopy v30, v41, v0
-    mstore v42, 32
-    mstore v41, v0
-    v34 = add v26, 64
-    returndata v42, v34
+    v30 = sub v38, 32
+    mstore v30, 32
+    v31 = add v25, 64
+    returndata v30, v31
   bb1:
     tail_call @revert_stub
 }
@@ -49,23 +47,21 @@ fn @patch() [selector=0xa2c0192a, abi_wrapper, pure] {
 fn @word() [selector=0x8ce8a8b7, abi_wrapper, pure] {
   bb0:
     v11 = icall @decode_calldata_type, 4
-    v33 = ptrtoint memptr v11 to i256
-    v0 = mload v33
+    v29 = ptrtoint memptr v11 to i256
+    v0 = mload v29
     v3 = lt v0, 32
     jumpi v3, bb1, bb2
   bb2:
-    v31 = add v33, 32
-    mstore v31, arg1
-    v17 = add v0, 31
-    v19 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v21 = add v31, v19
+    v27 = add v29, 32
+    mstore v27, arg1
+    v16 = add v0, 31
+    v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v21 = add v27, v0
     mstore v21, 0
-    v23 = add v33, 64
-    mcopy v23, v31, v0
-    mstore v33, 32
-    mstore v31, v0
-    v27 = add v19, 64
-    returndata v33, v27
+    v23 = sub v29, 32
+    mstore v23, 32
+    v24 = add v18, 64
+    returndata v23, v24
   bb1:
     tail_call @revert_stub
 }

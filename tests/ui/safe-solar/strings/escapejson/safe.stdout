@@ -57,36 +57,34 @@ fn @escape() [selector=0xb00a0672, abi_wrapper, pure] {
     jumpi v13, bb4, bb5
   bb5:
     v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v46 = mload 64 !metadata(memory=scratch)
-    v16 = inttoptr i256 v46 to memptr !metadata(memory=scratch)
-    v47 = add v46, v15
-    v48 = lt v47, v46
-    v49 = gt v47, 0xffffffffffffffff
-    v50 = or v48, v49
-    jumpi v50, bb4, bb7
+    v42 = mload 64 !metadata(memory=scratch)
+    v16 = inttoptr i256 v42 to memptr !metadata(memory=scratch)
+    v43 = add v42, v15
+    v44 = lt v43, v42
+    v45 = gt v43, 0xffffffffffffffff
+    v46 = or v44, v45
+    jumpi v46, bb4, bb7
   bb7:
-    mstore 64, v47 !metadata(memory=scratch)
-    mstore v46, v10
+    mstore 64, v43 !metadata(memory=scratch)
+    mstore v42, v10
     v17 = sub v1, v5
     v18 = gt v10, v17
     jumpi v18, bb1, bb6
   bb6:
-    v39 = add v46, 32
-    calldatacopy v39, v5, v10
+    v35 = add v42, 32
+    calldatacopy v35, v5, v10
     v0 = icall @core_string_escape_json, v16
-    v43 = ptrtoint memptr v0 to i256
-    v23 = mload v43
-    v45 = add v43, 32
-    v25 = add v23, 31
-    v27 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v29 = add v45, v27
+    v39 = ptrtoint memptr v0 to i256
+    v23 = mload v39
+    v24 = add v23, 31
+    v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v41 = add v39, 32
+    v29 = add v41, v23
     mstore v29, 0
-    v31 = add v43, 64
-    mcopy v31, v45, v23
-    mstore v43, 32
-    mstore v45, v23
-    v35 = add v27, 64
-    returndata v43, v35
+    v31 = sub v39, 32
+    mstore v31, 32
+    v32 = add v26, 64
+    returndata v31, v32
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

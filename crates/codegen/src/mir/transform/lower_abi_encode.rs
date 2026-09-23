@@ -779,7 +779,10 @@ fn can_encode_dynamic_return_in_place(
         && fresh_memory_object(func, *object, fresh_object_returns)
 }
 
-/// Encodes a one-element dynamic tuple over the returned object's storage.
+/// Encodes a one-element dynamic tuple around the returned object's storage:
+/// the offset goes in the word below the object and the payload stays where it
+/// is. Only a terminal return reads memory after the encode, so the word below,
+/// whatever it held, is free to overwrite.
 fn encode_dynamic_return_in_place(
     builder: &mut FunctionBuilder<'_>,
     layout: &AbiLayout,
@@ -800,7 +803,6 @@ fn encode_dynamic_return_in_place(
         _ => unreachable!(),
     };
     let length = memory_object_len(builder, *object, kind, true);
-    let source = builder.memory_object_data(*object, kind);
     let bytes = if kind == MemoryObjectKind::DynamicArray {
         let five = builder.imm(5);
         builder.shl(five, length)
@@ -810,23 +812,23 @@ fn encode_dynamic_return_in_place(
         let mask = builder.not(thirty_one);
         let padded = builder.and(rounded, mask);
         // object: [length, bytes..., padding]
-        // => [32, length, bytes..., zero padding]
-        let last = builder.add(source, padded);
+        // => [length, bytes..., zero padding]
+        let source = builder.memory_object_data(*object, kind);
+        let end = builder.add(source, length);
         let zero = builder.imm(0);
-        builder.mstore(last, zero);
+        builder.mstore(end, zero);
         padded
     };
 
-    // object: [length, payload...]
-    // => [32, length, payload...]
-    let destination = builder.add_u64_offset(source, 32);
-    let copy_size = if kind == MemoryObjectKind::Bytes { length } else { bytes };
-    builder.mcopy(destination, source, copy_size);
-    let offset = builder.imm(32);
-    builder.mstore(*object, offset);
-    builder.mstore(source, length);
+    // The word below the object only needs to hold the offset until the
+    // return reads it, since nothing runs after the encode.
+    // object - 32: [32, length, payload...]
+    let base = builder.cast(*object, MirType::I256);
+    let word = builder.imm(32);
+    let head = builder.sub(base, word);
+    builder.mstore(head, word);
     let total = builder.add_u64_offset(bytes, 64);
-    Some(builder.make_slice(*object, total, SliceLocation::Memory))
+    Some(builder.make_slice(head, total, SliceLocation::Memory))
 }
 
 /// Returns the shared base of two adjacent two-word byte objects.

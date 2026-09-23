@@ -82,7 +82,7 @@ bb0:
   swap 2
   swap 1
   log1
-  push 235
+  push 228
   dup 1
   push 373
   push 0

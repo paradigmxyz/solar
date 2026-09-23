@@ -13,19 +13,17 @@ fn @entry() [entry] {
 fn @shorten() [selector=0xf0187838, abi_wrapper, pure] {
   bb0:
     v4 = icall @decode_calldata_type, 4
-    v19 = ptrtoint memptr v4 to i256
-    v0 = mload v19
+    v14 = ptrtoint memptr v4 to i256
+    v0 = mload v14
     v1 = gt arg1, v0
     jumpi v1, bb1, bb2
   bb2:
-    v21 = add v19, 32
-    v10 = shl 5, arg1
-    v12 = add v19, 64
-    mcopy v12, v21, v10
-    mstore v19, 32
-    mstore v21, arg1
-    v16 = add v10, 64
-    returndata v19, v16
+    mstore v14, arg1
+    v9 = shl 5, arg1
+    v11 = sub v14, 32
+    mstore v11, 32
+    v12 = add v9, 64
+    returndata v11, v12
   bb1:
     tail_call @revert_stub
 }
@@ -64,33 +62,29 @@ fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
     jumpi v6, bb1, bb2
   bb2:
     v8 = calldataload v2
-    v10 = shl 5, v8
-    v12 = shr 5, v10
-    v16 = ne v12, v8
-    jumpi v16, bb3, bb4
+    v10 = gt v8, 0xffffffffffffffff
+    jumpi v10, bb3, bb4
   bb4:
-    v17 = add v10, 32
-    v18 = lt v17, v10
-    jumpi v18, bb3, bb5
-  bb5:
-    v29 = mload 64 !metadata(memory=scratch)
-    v19 = inttoptr i256 v29 to memptr !metadata(memory=scratch)
-    v30 = add v29, v17
-    v31 = lt v30, v29
-    v32 = gt v30, 0xffffffffffffffff
-    v33 = or v31, v32
-    jumpi v33, bb3, bb7
-  bb7:
-    mstore 64, v30 !metadata(memory=scratch)
-    mstore v29, v8
-    v20 = sub v0, v3
-    v21 = shr 5, v20
-    v22 = gt v8, v21
-    jumpi v22, bb1, bb6
+    v11 = shl 5, v8
+    v12 = add v11, 32
+    v23 = mload 64 !metadata(memory=scratch)
+    v13 = inttoptr i256 v23 to memptr !metadata(memory=scratch)
+    v24 = add v23, v12
+    v25 = lt v24, v23
+    v26 = gt v24, 0xffffffffffffffff
+    v27 = or v25, v26
+    jumpi v27, bb3, bb6
   bb6:
-    v25 = add v29, 32
-    calldatacopy v25, v3, v10
-    ret v19
+    mstore 64, v24 !metadata(memory=scratch)
+    mstore v23, v8
+    v14 = sub v0, v3
+    v15 = shr 5, v14
+    v16 = gt v8, v15
+    jumpi v16, bb1, bb5
+  bb5:
+    v19 = add v23, 32
+    calldatacopy v19, v3, v11
+    ret v13
   bb3:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

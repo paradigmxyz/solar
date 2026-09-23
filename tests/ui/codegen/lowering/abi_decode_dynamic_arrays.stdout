@@ -7,17 +7,17 @@ types:
 fn @words() [selector=0x5a7641c8, abi_wrapper, pure] {
   bb0:
     v44 = icall @decode_calldata_type, 4
-    v63 = ptrtoint memptr v44 to i256
-    v64 = add v63, 32
-    v2 = mload v63
-    v4 = add v64, v2
-    v6 = lt v4, v64
+    v58 = ptrtoint memptr v44 to i256
+    v59 = add v58, 32
+    v2 = mload v58
+    v4 = add v59, v2
+    v6 = lt v4, v59
     v7 = lt v2, 32
     v8 = or v6, v7
     jumpi v8, bb1, bb2
   bb2:
-    v11 = mload v64
-    v13 = add v64, v11
+    v11 = mload v59
+    v13 = add v59, v11
     v14 = add v13, 32
     v15 = gt v11, 0xffffffffffffffff
     v16 = gt v14, v4
@@ -34,15 +34,15 @@ fn @words() [selector=0x5a7641c8, abi_wrapper, pure] {
     v29 = ne v25, v21
     jumpi v29, bb4, bb6
   bb6:
-    v70 = mload 64 !metadata(memory=scratch)
-    v71 = add v70, v23
-    v72 = lt v71, v70
-    v73 = gt v71, 0xffffffffffffffff
-    v74 = or v72, v73
-    jumpi v74, bb4, bb9
+    v63 = mload 64 !metadata(memory=scratch)
+    v64 = add v63, v23
+    v65 = lt v64, v63
+    v66 = gt v64, 0xffffffffffffffff
+    v67 = or v65, v66
+    jumpi v67, bb4, bb9
   bb9:
-    mstore 64, v71 !metadata(memory=scratch)
-    mstore v70, v19
+    mstore 64, v64 !metadata(memory=scratch)
+    mstore v63, v19
     v31 = shl 5, v19
     v33 = shr 5, v31
     v37 = ne v33, v19
@@ -53,14 +53,12 @@ fn @words() [selector=0x5a7641c8, abi_wrapper, pure] {
     v40 = gt v19, v39
     jumpi v40, bb1, bb8
   bb8:
-    v60 = add v70, 32
-    mcopy v60, v14, v31
-    v52 = add v70, 64
-    mcopy v52, v60, v31
-    mstore v70, 32
-    mstore v60, v19
-    v56 = add v31, 64
-    returndata v70, v56
+    v55 = add v63, 32
+    mcopy v55, v14, v31
+    v51 = sub v63, 32
+    mstore v51, 32
+    v52 = add v31, 64
+    returndata v51, v52
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

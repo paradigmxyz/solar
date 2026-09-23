@@ -19,29 +19,27 @@ fn @spawn() [selector=0x0da0cf17, abi_wrapper, inline_assembly] {
     jumpi v8, bb1, bb2
   bb2:
     v10 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v39 = mload 64 !metadata(memory=scratch)
-    v40 = add v39, v10
-    v41 = lt v40, v39
-    v42 = gt v40, 0xffffffffffffffff
-    v43 = or v41, v42
-    jumpi v43, bb6, bb5
+    v35 = mload 64 !metadata(memory=scratch)
+    v36 = add v35, v10
+    v37 = lt v36, v35
+    v38 = gt v36, 0xffffffffffffffff
+    v39 = or v37, v38
+    jumpi v39, bb6, bb5
   bb5:
-    mstore 64, v40 !metadata(memory=scratch)
-    v45 = calldatasize
-    calldatacopy v39, v45, v10
-    mstore v39, v6
-    v37 = add v39, 32
-    extcodecopy v5, v37, 0, v6
-    v22 = add v6, 31
-    v24 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v26 = add v37, v24
+    mstore 64, v36 !metadata(memory=scratch)
+    v41 = calldatasize
+    calldatacopy v35, v41, v10
+    mstore v35, v6
+    v33 = add v35, 32
+    extcodecopy v5, v33, 0, v6
+    v21 = add v6, 31
+    v23 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v26 = add v33, v6
     mstore v26, 0
-    v28 = add v39, 64
-    mcopy v28, v37, v6
-    mstore v39, 32
-    mstore v37, v6
-    v32 = add v24, 64
-    returndata v39, v32
+    v28 = sub v35, 32
+    mstore v28, 32
+    v29 = add v23, 64
+    returndata v28, v29
   bb6:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
@@ -70,29 +68,27 @@ fn @spawnAt() [selector=0x9639302c, abi_wrapper, inline_assembly] {
     jumpi v8, bb1, bb2
   bb2:
     v10 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v39 = mload 64 !metadata(memory=scratch)
-    v40 = add v39, v10
-    v41 = lt v40, v39
-    v42 = gt v40, 0xffffffffffffffff
-    v43 = or v41, v42
-    jumpi v43, bb6, bb5
+    v35 = mload 64 !metadata(memory=scratch)
+    v36 = add v35, v10
+    v37 = lt v36, v35
+    v38 = gt v36, 0xffffffffffffffff
+    v39 = or v37, v38
+    jumpi v39, bb6, bb5
   bb5:
-    mstore 64, v40 !metadata(memory=scratch)
-    v45 = calldatasize
-    calldatacopy v39, v45, v10
-    mstore v39, v6
-    v37 = add v39, 32
-    extcodecopy v5, v37, 0, v6
-    v22 = add v6, 31
-    v24 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v26 = add v37, v24
+    mstore 64, v36 !metadata(memory=scratch)
+    v41 = calldatasize
+    calldatacopy v35, v41, v10
+    mstore v35, v6
+    v33 = add v35, 32
+    extcodecopy v5, v33, 0, v6
+    v21 = add v6, 31
+    v23 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v26 = add v33, v6
     mstore v26, 0
-    v28 = add v39, 64
-    mcopy v28, v37, v6
-    mstore v39, 32
-    mstore v37, v6
-    v32 = add v24, 64
-    returndata v39, v32
+    v28 = sub v35, 32
+    mstore v28, 32
+    v29 = add v23, 64
+    returndata v28, v29
   bb6:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

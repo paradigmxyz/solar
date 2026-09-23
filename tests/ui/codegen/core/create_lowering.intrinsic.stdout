@@ -21,10 +21,10 @@ fn @spawn() [selector=0x0da0cf17, abi_wrapper] {
     jumpi v16, bb5, bb6
   bb6:
     v17 = icall @decode_calldata_type, 4
-    v40 = ptrtoint memptr v17 to i256
-    v0 = mload v40
-    v42 = add v40, 32
-    v3 = create 0, v42, v0
+    v36 = ptrtoint memptr v17 to i256
+    v0 = mload v36
+    v38 = add v36, 32
+    v3 = create 0, v38, v0
     v4 = eq v3, i160 0
     jumpi v4, bb1, bb2
   bb2:
@@ -35,29 +35,27 @@ fn @spawn() [selector=0x0da0cf17, abi_wrapper] {
     jumpi v8, bb3, bb4
   bb4:
     v10 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v43 = mload 64 !metadata(memory=scratch)
-    v44 = add v43, v10
-    v45 = lt v44, v43
-    v46 = gt v44, 0xffffffffffffffff
-    v47 = or v45, v46
-    jumpi v47, bb8, bb7
+    v39 = mload 64 !metadata(memory=scratch)
+    v40 = add v39, v10
+    v41 = lt v40, v39
+    v42 = gt v40, 0xffffffffffffffff
+    v43 = or v41, v42
+    jumpi v43, bb8, bb7
   bb7:
-    mstore 64, v44 !metadata(memory=scratch)
-    v49 = calldatasize
-    calldatacopy v43, v49, v10
-    mstore v43, v6
-    v38 = add v43, 32
-    extcodecopy v5, v38, 0, v6
-    v23 = add v6, 31
-    v25 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v27 = add v38, v25
+    mstore 64, v40 !metadata(memory=scratch)
+    v45 = calldatasize
+    calldatacopy v39, v45, v10
+    mstore v39, v6
+    v34 = add v39, 32
+    extcodecopy v5, v34, 0, v6
+    v22 = add v6, 31
+    v24 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v27 = add v34, v6
     mstore v27, 0
-    v29 = add v43, 64
-    mcopy v29, v38, v6
-    mstore v43, 32
-    mstore v38, v6
-    v33 = add v25, 64
-    returndata v43, v33
+    v29 = sub v39, 32
+    mstore v29, 32
+    v30 = add v24, 64
+    returndata v29, v30
   bb8:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
@@ -77,10 +75,10 @@ fn @spawnAt() [selector=0x9639302c, abi_wrapper] {
     jumpi v15, bb5, bb6
   bb6:
     v16 = icall @decode_calldata_type, 4
-    v39 = ptrtoint memptr v16 to i256
-    v0 = mload v39
-    v41 = add v39, 32
-    v3 = create2 0, v41, v0, arg1
+    v35 = ptrtoint memptr v16 to i256
+    v0 = mload v35
+    v37 = add v35, 32
+    v3 = create2 0, v37, v0, arg1
     v4 = zext i160 v3 to i256
     v5 = eq v4, 0
     jumpi v5, bb1, bb2
@@ -91,29 +89,27 @@ fn @spawnAt() [selector=0x9639302c, abi_wrapper] {
     jumpi v8, bb3, bb4
   bb4:
     v10 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v42 = mload 64 !metadata(memory=scratch)
-    v43 = add v42, v10
-    v44 = lt v43, v42
-    v45 = gt v43, 0xffffffffffffffff
-    v46 = or v44, v45
-    jumpi v46, bb8, bb7
+    v38 = mload 64 !metadata(memory=scratch)
+    v39 = add v38, v10
+    v40 = lt v39, v38
+    v41 = gt v39, 0xffffffffffffffff
+    v42 = or v40, v41
+    jumpi v42, bb8, bb7
   bb7:
-    mstore 64, v43 !metadata(memory=scratch)
-    v48 = calldatasize
-    calldatacopy v42, v48, v10
-    mstore v42, v6
-    v37 = add v42, 32
-    extcodecopy v4, v37, 0, v6
-    v22 = add v6, 31
-    v24 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v26 = add v37, v24
+    mstore 64, v39 !metadata(memory=scratch)
+    v44 = calldatasize
+    calldatacopy v38, v44, v10
+    mstore v38, v6
+    v33 = add v38, 32
+    extcodecopy v4, v33, 0, v6
+    v21 = add v6, 31
+    v23 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v26 = add v33, v6
     mstore v26, 0
-    v28 = add v42, 64
-    mcopy v28, v37, v6
-    mstore v42, 32
-    mstore v37, v6
-    v32 = add v24, 64
-    returndata v42, v32
+    v28 = sub v38, 32
+    mstore v28, 32
+    v29 = add v23, 64
+    returndata v28, v29
   bb8:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

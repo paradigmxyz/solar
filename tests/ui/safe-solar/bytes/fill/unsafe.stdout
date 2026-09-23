@@ -21,22 +21,22 @@ fn @blank() [selector=0xc89c9e3d, abi_wrapper, inline_assembly, pure] {
     jumpi v43, bb9, bb10
   bb10:
     v45 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v76 = mload 64 !metadata(memory=scratch)
-    v77 = add v76, v45
-    v78 = lt v77, v76
-    v79 = gt v77, 0xffffffffffffffff
-    v80 = or v78, v79
-    jumpi v80, bb9, bb12
+    v72 = mload 64 !metadata(memory=scratch)
+    v73 = add v72, v45
+    v74 = lt v73, v72
+    v75 = gt v73, 0xffffffffffffffff
+    v76 = or v74, v75
+    jumpi v76, bb9, bb12
   bb12:
-    mstore 64, v77 !metadata(memory=scratch)
-    mstore v76, v40
+    mstore 64, v73 !metadata(memory=scratch)
+    mstore v72, v40
     v47 = sub v31, v35
     v48 = gt v40, v47
     jumpi v48, bb6, bb11
   bb11:
-    v69 = add v76, 32
-    calldatacopy v69, v35, v40
-    v2 = add v69, arg1
+    v65 = add v72, 32
+    calldatacopy v65, v35, v40
+    v2 = add v65, arg1
     v3 = add v2, arg2
     jump bb1
   bb1:
@@ -62,17 +62,15 @@ fn @blank() [selector=0xc89c9e3d, abi_wrapper, inline_assembly, pure] {
     mstore v11, v30
     jump bb5
   bb5:
-    v53 = mload v76
-    v55 = add v53, 31
-    v57 = and v55, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v59 = add v69, v57
+    v53 = mload v72
+    v54 = add v53, 31
+    v56 = and v54, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v59 = add v65, v53
     mstore v59, 0
-    v61 = add v76, 64
-    mcopy v61, v69, v53
-    mstore v76, 32
-    mstore v69, v53
-    v65 = add v57, 64
-    returndata v76, v65
+    v61 = sub v72, 32
+    mstore v61, 32
+    v62 = add v56, 64
+    returndata v61, v62
   bb9:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

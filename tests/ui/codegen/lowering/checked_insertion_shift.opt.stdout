@@ -8,50 +8,47 @@ fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
     jumpi v46, bb8, bb9
   bb9:
     v47 = icall @decode_calldata_type, 4
-    v84 = ptrtoint memptr v47 to i256
-    v35 = mload v84
-    v63 = add v84, 32
-    v89 = add v63, 32
+    v77 = ptrtoint memptr v47 to i256
+    v35 = mload v77
+    v58 = add v77, 32
+    v82 = add v58, 32
     jump bb1
   bb1:
     v2 = phi [bb9: 1], [bb5: v41]
-    v90 = phi [bb9: v89], [bb5: v91]
+    v83 = phi [bb9: v82], [bb5: v84]
     v4 = lt v2, v35
     jumpi v4, bb3, bb2
   bb2:
-    v83 = add v84, 32
-    v53 = shl 5, v35
-    v55 = add v84, 64
-    mcopy v55, v83, v53
-    mstore v84, 32
-    mstore v83, v35
-    v59 = add v53, 64
-    returndata v84, v59
+    v52 = shl 5, v35
+    v54 = sub v77, 32
+    mstore v54, 32
+    v55 = add v52, 64
+    returndata v54, v55
   bb3:
-    v8 = mload v90
+    v8 = mload v83
     jump bb4
   bb4:
     v13 = phi [bb3: v2], [bb7: v37]
-    v87 = phi [bb3: v90], [bb7: v88]
+    v80 = phi [bb3: v83], [bb7: v81]
     v14 = ne v13, 0
     jumpi v14, bb6, bb5
   bb6:
     v37 = sub v13, 1
-    v73 = sub v87, 32
-    v19 = mload v73
+    v68 = sub v80, 32
+    v19 = mload v68
     v20 = gt v19, v8
     jumpi v20, bb7, bb5
   bb5:
-    v68 = shl 5, v13
-    v69 = add v63, v68
-    mstore v69, v8
+    v63 = shl 5, v13
+    v64 = add v58, v63
+    mstore v64, v8
     v41 = add v2, 1
-    v91 = add v90, 32
+    v84 = add v83, 32
     jump bb1
   bb7:
-    v26 = mload v73
-    mstore v87, v26
-    v88 = sub v87, 32
+    v26 = mload v68
+    mstore v80, v26
+    v81 = sub v80, 32
     jump bb4
   bb8:
     revert 0, 0
@@ -68,35 +65,32 @@ fn @shiftAt() [selector=0xa227bfd8, abi_wrapper, pure] {
     jumpi v0, bb1, bb2
   bb1:
     v9 = sub arg1, 1
-    v36 = ptrtoint memptr v13 to i256
-    v2 = mload v36
+    v31 = ptrtoint memptr v13 to i256
+    v2 = mload v31
     v3 = lt v9, v2
     jumpi v3, bb4, bb3
   bb4:
-    v29 = add v36, 32
-    v30 = shl 5, v9
-    v31 = add v29, v30
-    v5 = mload v31
+    v24 = add v31, 32
+    v25 = shl 5, v9
+    v26 = add v24, v25
+    v5 = mload v26
     v7 = lt arg1, v2
     jumpi v7, bb5, bb3
   bb3:
     tail_call @revert_stub
   bb5:
-    v34 = shl 5, arg1
-    v35 = add v29, v34
-    mstore v35, v5
+    v29 = shl 5, arg1
+    v30 = add v24, v29
+    mstore v30, v5
     jump bb2
   bb2:
-    v37 = ptrtoint memptr v13 to i256
-    v17 = mload v37
-    v39 = add v37, 32
-    v19 = shl 5, v17
-    v21 = add v37, 64
-    mcopy v21, v39, v19
-    mstore v37, 32
-    mstore v39, v17
-    v25 = add v19, 64
-    returndata v37, v25
+    v32 = ptrtoint memptr v13 to i256
+    v17 = mload v32
+    v18 = shl 5, v17
+    v20 = sub v32, 32
+    mstore v20, 32
+    v21 = add v18, 64
+    returndata v20, v21
   bb6:
     revert 0, 0
 }
@@ -120,33 +114,29 @@ fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
     jumpi v6, bb1, bb2
   bb2:
     v8 = calldataload v2
-    v10 = shl 5, v8
-    v12 = shr 5, v10
-    v16 = ne v12, v8
-    jumpi v16, bb3, bb4
+    v10 = gt v8, 0xffffffffffffffff
+    jumpi v10, bb3, bb4
   bb4:
-    v17 = add v10, 32
-    v18 = lt v17, v10
-    jumpi v18, bb3, bb5
-  bb5:
-    v29 = mload 64 !metadata(memory=scratch)
-    v19 = inttoptr i256 v29 to memptr !metadata(memory=scratch)
-    v30 = add v29, v17
-    v31 = lt v30, v29
-    v32 = gt v30, 0xffffffffffffffff
-    v33 = or v31, v32
-    jumpi v33, bb3, bb7
-  bb7:
-    mstore 64, v30 !metadata(memory=scratch)
-    mstore v29, v8
-    v20 = sub v0, v3
-    v21 = shr 5, v20
-    v22 = gt v8, v21
-    jumpi v22, bb1, bb6
+    v11 = shl 5, v8
+    v12 = add v11, 32
+    v23 = mload 64 !metadata(memory=scratch)
+    v13 = inttoptr i256 v23 to memptr !metadata(memory=scratch)
+    v24 = add v23, v12
+    v25 = lt v24, v23
+    v26 = gt v24, 0xffffffffffffffff
+    v27 = or v25, v26
+    jumpi v27, bb3, bb6
   bb6:
-    v25 = add v29, 32
-    calldatacopy v25, v3, v10
-    ret v19
+    mstore 64, v24 !metadata(memory=scratch)
+    mstore v23, v8
+    v14 = sub v0, v3
+    v15 = shr 5, v14
+    v16 = gt v8, v15
+    jumpi v16, bb1, bb5
+  bb5:
+    v19 = add v23, 32
+    calldatacopy v19, v3, v11
+    ret v13
   bb3:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

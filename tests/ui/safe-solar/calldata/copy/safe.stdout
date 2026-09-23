@@ -36,18 +36,18 @@ fn @part() [selector=0x107cd163, abi_wrapper, pure] {
     jumpi v1, bb1, bb2
   bb2:
     v3 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v61 = mload 64 !metadata(memory=scratch)
-    v62 = add v61, v3
-    v63 = lt v62, v61
-    v64 = gt v62, 0xffffffffffffffff
-    v65 = or v63, v64
-    jumpi v65, bb1, bb8
+    v57 = mload 64 !metadata(memory=scratch)
+    v58 = add v57, v3
+    v59 = lt v58, v57
+    v60 = gt v58, 0xffffffffffffffff
+    v61 = or v59, v60
+    jumpi v61, bb1, bb8
   bb8:
-    mstore 64, v62 !metadata(memory=scratch)
-    v67 = calldatasize
-    calldatacopy v61, v67, v3
-    mstore v61, arg2
-    v59 = add v61, 32
+    mstore 64, v58 !metadata(memory=scratch)
+    v63 = calldatasize
+    calldatacopy v57, v63, v3
+    mstore v57, arg2
+    v55 = add v57, 32
     v15 = add arg1, arg2
     v16 = lt v15, arg1
     v17 = gt v15, v31
@@ -55,17 +55,15 @@ fn @part() [selector=0x107cd163, abi_wrapper, pure] {
     jumpi v18, bb3, bb4
   bb4:
     v21 = add v26, arg1
-    calldatacopy v59, v21, arg2
-    v44 = add arg2, 31
-    v46 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v48 = add v59, v46
+    calldatacopy v55, v21, arg2
+    v43 = add arg2, 31
+    v45 = and v43, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v48 = add v55, arg2
     mstore v48, 0
-    v50 = add v61, 64
-    mcopy v50, v59, arg2
-    mstore v61, 32
-    mstore v59, arg2
-    v54 = add v46, 64
-    returndata v61, v54
+    v50 = sub v57, 32
+    mstore v50, 32
+    v51 = add v45, 64
+    returndata v50, v51
   bb3:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)

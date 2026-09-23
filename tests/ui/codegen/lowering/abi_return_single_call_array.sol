@@ -7,8 +7,9 @@
 
 // The only wrapper returning `address[]` returns what an internal copy built
 // from validated input. Element cleanup proves the copy's words fit an
-// address, so the result is encoded with one copy even though no second
-// wrapper of the same return type shares a cleanup helper with it.
+// address, so the result is returned in place, with its offset in the word
+// below it, even though no second wrapper of the same return type shares a
+// cleanup helper with it.
 contract SingleCallArray {
     function copy(address[] memory a) internal pure returns (address[] memory result) {
         result = new address[](a.length);
@@ -20,8 +21,9 @@ contract SingleCallArray {
     // CHECK-LABEL: fn @copied{{[( ]}}
     // CHECK: icall @copy
     // CHECK-NOT: and {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffffffffffff
-    // CHECK: mcopy
-    // CHECK: returndata
+    // CHECK: [[HEAD:v[0-9]+]] = sub {{v[0-9]+}}, 32
+    // CHECK-NEXT: mstore [[HEAD]], 32
+    // CHECK: returndata [[HEAD]],
     function copied(address[] memory a) external pure returns (address[] memory) {
         return copy(a);
     }

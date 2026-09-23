@@ -17,25 +17,23 @@ fn @shift() [selector=0x524ffe38, abi_wrapper, pure] {
     jumpi v23, bb3, bb4
   bb4:
     v24 = icall @decode_calldata_type, 4
-    v45 = ptrtoint memptr v24 to i256
-    v0 = mload v45
+    v41 = ptrtoint memptr v24 to i256
+    v0 = mload v41
     v20 = sub v0, 1
     v21 = eq v0, 0
     jumpi v21, bb1, bb2
   bb2:
-    v44 = add v45, 32
-    v10 = add v45, 33
-    mcopy v10, v44, v20
-    v30 = add v0, 31
-    v32 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v34 = add v44, v32
+    v40 = add v41, 32
+    v10 = add v41, 33
+    mcopy v10, v40, v20
+    v29 = add v0, 31
+    v31 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v34 = add v40, v0
     mstore v34, 0
-    v36 = add v45, 64
-    mcopy v36, v44, v0
-    mstore v45, 32
-    mstore v44, v0
-    v40 = add v32, 64
-    returndata v45, v40
+    v36 = sub v41, 32
+    mstore v36, 32
+    v37 = add v31, 64
+    returndata v36, v37
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
@@ -52,30 +50,28 @@ fn @between() [selector=0xf75bb619, abi_wrapper, pure] {
   bb5:
     v20 = icall @decode_calldata_type, 4
     v21 = icall @decode_calldata_type, 36
-    v45 = ptrtoint memptr v20 to i256
-    v0 = mload v45
+    v41 = ptrtoint memptr v20 to i256
+    v0 = mload v41
     v3 = lt v0, 7
     jumpi v3, bb1, bb2
   bb2:
-    v41 = add v45, 32
-    v8 = add v45, 34
-    v42 = ptrtoint memptr v21 to i256
-    v9 = mload v42
+    v37 = add v41, 32
+    v8 = add v41, 34
+    v38 = ptrtoint memptr v21 to i256
+    v9 = mload v38
     v12 = lt v9, 6
     jumpi v12, bb1, bb3
   bb3:
-    v17 = add v42, 33
+    v17 = add v38, 33
     mcopy v8, v17, 5 !metadata(memory=heap)
-    v27 = add v0, 31
-    v29 = and v27, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v31 = add v41, v29
+    v26 = add v0, 31
+    v28 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v31 = add v37, v0
     mstore v31, 0
-    v33 = add v45, 64
-    mcopy v33, v41, v0
-    mstore v45, 32
-    mstore v41, v0
-    v37 = add v29, 64
-    returndata v45, v37
+    v33 = sub v41, 32
+    mstore v33, 32
+    v34 = add v28, 64
+    returndata v33, v34
   bb1:
     tail_call @revert_stub
   bb4:

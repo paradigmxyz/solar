@@ -87,7 +87,7 @@ bb86:
   push 128
   return
 bb15:
-  push 480
+  push 512
   push 64
   mstore
   push 36
@@ -364,37 +364,31 @@ bb21 [continuation]:
 bb27:
   push 128
   mload
-  dup 1
   mload
-  push 32
-  dup 3
-  add
   push 31
-  dup 3
+  dup 2
   add
   push 31
   not
   and
-  dup 1
-  dup 3
+  push 32
+  push 128
+  mload
+  add
+  swap 1
+  swap 2
   add
   push 0
   swap 1
   mstore
-  push 64
-  dup 5
-  add
-  dup 4
-  dup 4
-  dup 3
-  mcopy
-  pop
   push 32
-  dup 5
+  push 128
+  mload
+  sub
+  push 32
+  dup 2
   mstore
-  swap 2
   swap 1
-  mstore
   push 64
   add
   dup 2

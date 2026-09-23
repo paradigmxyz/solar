@@ -10,29 +10,28 @@ fn @payload() [selector=0x63fd6252, abi_wrapper, inline_assembly, pure] {
   bb1:
     revert 0, 0
   bb2:
-    v36 = mload 64 !metadata(memory=scratch)
-    v37 = add v36, 128
-    v38 = lt v37, v36
-    v39 = gt v37, 0xffffffffffffffff
-    v40 = or v38, v39
-    jumpi v40, bb4, bb3
+    v33 = mload 64 !metadata(memory=scratch)
+    v34 = add v33, 128
+    v35 = lt v34, v33
+    v36 = gt v34, 0xffffffffffffffff
+    v37 = or v35, v36
+    jumpi v37, bb4, bb3
   bb3:
-    mstore 64, v37 !metadata(memory=scratch)
-    v42 = calldatasize
-    calldatacopy v36, v42, 128
-    v7 = add v36, 32
+    mstore 64, v34 !metadata(memory=scratch)
+    v39 = calldatasize
+    calldatacopy v33, v39, 128
+    mstore v33, 68
+    v7 = add v33, 32
     mstore v7, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
     v9 = add v7, 4
     mstore v9, arg0
     v10 = add v7, 36
     mstore v10, arg1
-    v25 = add v7, 96
+    v25 = add v7, 68
     mstore v25, 0
-    v27 = add v7, 32
-    mcopy v27, v7, 68
-    mstore v36, 32
-    mstore v7, 68
-    returndata v36, 160
+    v27 = sub v33, 32
+    mstore v27, 32
+    returndata v27, 160
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
@@ -48,29 +47,26 @@ fn @short() [selector=0xb2d29f33, abi_wrapper, inline_assembly, pure] {
   bb1:
     revert 0, 0
   bb2:
-    v36 = mload 64 !metadata(memory=scratch)
-    v37 = add v36, 96
-    v38 = lt v37, v36
-    v39 = gt v37, 0xffffffffffffffff
-    v40 = or v38, v39
-    jumpi v40, bb4, bb3
+    v33 = mload 64 !metadata(memory=scratch)
+    v34 = add v33, 96
+    v35 = lt v34, v33
+    v36 = gt v34, 0xffffffffffffffff
+    v37 = or v35, v36
+    jumpi v37, bb4, bb3
   bb3:
-    mstore 64, v37 !metadata(memory=scratch)
-    v42 = calldatasize
-    calldatacopy v36, v42, 96
-    v7 = add v36, 32
+    mstore 64, v34 !metadata(memory=scratch)
+    v39 = calldatasize
+    calldatacopy v33, v39, 96
+    mstore v33, 36
+    v7 = add v33, 32
     mstore v7, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
     v9 = add v7, 4
     mstore v9, arg0
-    v10 = add v7, 36
-    mstore v10, arg1
-    v25 = add v7, 64
+    v25 = add v7, 36
     mstore v25, 0
-    v27 = add v7, 32
-    mcopy v27, v7, 36
-    mstore v36, 32
-    mstore v7, 36
-    returndata v36, 128
+    v27 = sub v33, 32
+    mstore v27, 32
+    returndata v27, 128
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

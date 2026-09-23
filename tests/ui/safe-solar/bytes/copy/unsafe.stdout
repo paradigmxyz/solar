@@ -14,16 +14,14 @@ fn @shift() [selector=0x524ffe38, abi_wrapper, inline_assembly, pure] {
     v4 = sub v3, 1
     v5 = add v1, 1
     mcopy v5, v1, v4
-    v14 = add v3, 31
-    v16 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v18 = add v1, v16
+    v13 = add v3, 31
+    v15 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v18 = add v1, v3
     mstore v18, 0
-    v20 = add v1, 32
-    mcopy v20, v1, v3
-    mstore v0, 32
-    mstore v1, v3
-    v24 = add v16, 64
-    returndata v0, v24
+    v20 = sub v0, 32
+    mstore v20, 32
+    v21 = add v15, 64
+    returndata v20, v21
   bb1:
     revert 0, 0
 }
@@ -42,17 +40,15 @@ fn @between() [selector=0xf75bb619, abi_wrapper, inline_assembly, pure] {
     v3 = add v2, 34
     mcopy v3, v1, 5
     v11 = mload v2
-    v28 = add v2, 32
-    v13 = add v11, 31
-    v15 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v17 = add v28, v15
+    v12 = add v11, 31
+    v14 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v24 = add v2, 32
+    v17 = add v24, v11
     mstore v17, 0
-    v19 = add v2, 64
-    mcopy v19, v28, v11
-    mstore v2, 32
-    mstore v28, v11
-    v23 = add v15, 64
-    returndata v2, v23
+    v19 = sub v2, 32
+    mstore v19, 32
+    v20 = add v14, 64
+    returndata v19, v20
   bb1:
     revert 0, 0
 }
