@@ -2,7 +2,10 @@
 //!
 //! `Strings.toHexString(value)` and its unprefixed form spell the fewest whole
 //! bytes of a value, two digits per byte from the low end, through the
-//! minimal-hex digit loop. The fixed-width forms and `Hex.encode` convert
+//! minimal-hex digit loop. Gas builds spell the first two bytes that way and
+//! a wider value a word at a time like the fixed widths, placing the header by
+//! a count of the value's significant bytes. The fixed-width forms and
+//! `Hex.encode` convert
 //! sixteen bytes at a time: nibble spreading puts each of 32 nibbles in its
 //! own byte, and one carry marks the nibbles that become letters. A value of
 //! up to sixteen bytes is one word; up to 32 is two, and a wider width first
@@ -484,7 +487,7 @@ impl FunctionLowerer<'_, '_> {
 
 /// The 32 lowercase digits of the sixteen bytes in `x`, which must be below
 /// `2**128`, most significant first.
-fn hex_word(builder: &mut FunctionBuilder<'_>, x: ValueId) -> ValueId {
+pub(super) fn hex_word(builder: &mut FunctionBuilder<'_>, x: ValueId) -> ValueId {
     // Spread the 32 nibbles one to a byte, halving the packing each step.
     // x = (x | x << s) & mask for s = 64, 32, 16, 8, 4
     let mut x = x;

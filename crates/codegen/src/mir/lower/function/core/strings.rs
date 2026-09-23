@@ -14,7 +14,10 @@
 //! words of well-formed UTF-8 at once and steps the rest through a scratch
 //! table of lead lengths. Decimal and minimal-hex spellings fill one fixed
 //! region backwards and return a header inside it, so neither counts digits
-//! first. The checked Solidity bodies remain the reference under
+//! first; a gas build spells a hex value wider than two bytes a word at a
+//! time instead, counting its significant bytes with one multiplication.
+//! Each spelling path writes its own header, so only the result joins. The
+//! checked Solidity bodies remain the reference under
 //! `-Zno-core-intrinsics`.
 
 use super::*;
@@ -76,46 +79,109 @@ impl FunctionLowerer<'_, '_> {
         let zero = self.builder.imm(0);
         self.builder.mstore(end, zero);
 
+        if !self.cx.gcx.sess.opts.optimization.is_gas() {
+            let cursor = self.lower_core_hex_bytes(value, end);
+            let result = self.lower_core_hex_header(cursor, end, prefix_length, whole_bytes);
+            return self.builder.memory_object_in_allocation(result, MemoryObjectKind::Bytes);
+        }
+
+        // The lowest byte is spelled first, which finishes one-byte values at
+        // the loop's cost. A second byte is spelled the same way; anything
+        // wider is spelled again a word at a time, whose fixed cost beats
+        // two digits per byte from three bytes up. Each path finishes its own
+        // header so that only the result joins. This trades code for gas;
+        // size builds keep only the loop.
+        // x1, out1 = spell(value, end)
+        // result = x1 == 0 ? header(out1)
+        //     : x1 <= 0xff ? header(spell(x1, out1).1)
+        //     : header(spell_words(value))
+        let table_address = self.builder.imm(15);
+        let table = self.builder.imm(U256::from_be_slice(b"0123456789abcdef"));
+        self.builder.mstore(table_address, table);
+        let one_byte = self.builder.create_block();
+        let wider = self.builder.create_block();
+        let two_bytes = self.builder.create_block();
+        let words = self.builder.create_block();
+        let finish = self.builder.create_block();
+        let (x1, out1) = self.lower_core_hex_byte(value, end);
+        let finished = self.builder.eq_zero(x1);
+        self.builder.branch(finished, one_byte, wider);
+
+        self.builder.switch_to_block(one_byte);
+        let one_result = self.lower_core_hex_header(out1, end, prefix_length, whole_bytes);
+        let one_exit = self.builder.current_block();
+        self.builder.jump(finish);
+
+        self.builder.switch_to_block(wider);
+        let byte = self.builder.imm(0xff);
+        let wide = self.builder.gt(x1, byte);
+        self.builder.branch(wide, words, two_bytes);
+
+        self.builder.switch_to_block(two_bytes);
+        let (_, out2) = self.lower_core_hex_byte(x1, out1);
+        let two_result = self.lower_core_hex_header(out2, end, prefix_length, whole_bytes);
+        let two_exit = self.builder.current_block();
+        self.builder.jump(finish);
+
+        self.builder.switch_to_block(words);
+        let cursor = self.lower_core_minimal_hex_words(value, end);
+        let words_result = self.lower_core_hex_header(cursor, end, prefix_length, whole_bytes);
+        let words_exit = self.builder.current_block();
+        self.builder.jump(finish);
+
+        self.builder.switch_to_block(finish);
+        let result = self.builder.phi(vec![
+            (one_exit, one_result),
+            (two_exit, two_result),
+            (words_exit, words_result),
+        ]);
+        self.builder.memory_object_in_allocation(result, MemoryObjectKind::Bytes)
+    }
+
+    /// Spells the fewest whole bytes of `value` two digits at a time through
+    /// the scratch digit table, ending at `end`, and returns where the
+    /// digits start.
+    fn lower_core_hex_bytes(&mut self, value: ValueId, end: ValueId) -> ValueId {
         // With the table in the low scratch region, `mload(nibble)` has the
         // selected ASCII digit as its low byte.
         let table_address = self.builder.imm(15);
         let table = self.builder.imm(U256::from_be_slice(b"0123456789abcdef"));
         self.builder.mstore(table_address, table);
 
+        // do { x, output = spell(x, output) } while (x != 0)
         let entry = self.builder.current_block();
-        let header = self.builder.create_block();
         let body = self.builder.create_block();
         let done = self.builder.create_block();
-        self.builder.jump(header);
-
-        self.builder.switch_to_block(header);
-        let x = self.builder.phi(vec![(entry, value)]);
-        let output = self.builder.phi(vec![(entry, end)]);
         self.builder.jump(body);
 
         self.builder.switch_to_block(body);
-        let two = self.builder.imm(2);
-        let next_output = self.builder.sub(output, two);
-        let fifteen = self.builder.imm(15);
-        let low_nibble = self.builder.and(x, fifteen);
-        let low_digit = self.builder.mload(low_nibble);
-        let one = self.builder.imm(1);
-        let low_output = self.builder.add(next_output, one);
-        self.builder.mstore8(low_output, low_digit);
-        let four = self.builder.imm(4);
-        let high_nibble = self.builder.shr(four, x);
-        let high_nibble = self.builder.and(high_nibble, fifteen);
-        let high_digit = self.builder.mload(high_nibble);
-        self.builder.mstore8(next_output, high_digit);
-        let eight = self.builder.imm(8);
-        let next_x = self.builder.shr(eight, x);
+        let x = self.builder.phi(vec![(entry, value)]);
+        let output = self.builder.phi(vec![(entry, end)]);
+        let (next_x, next_output) = self.lower_core_hex_byte(x, output);
         let finished = self.builder.eq_zero(next_x);
-        self.builder.branch(finished, done, header);
+        self.builder.branch(finished, done, body);
         self.builder.add_phi_incoming(x, body, next_x);
         self.builder.add_phi_incoming(output, body, next_output);
 
         self.builder.switch_to_block(done);
-        let cursor = self.builder.phi(vec![(body, next_output)]);
+        next_output
+    }
+
+    /// Writes the header for the digits from `cursor` to `end`: the length
+    /// word, dropping a leading '0' digit unless `whole_bytes`, and the `0x`
+    /// prefix when `prefix_length` is two. Returns the header's address.
+    fn lower_core_hex_header(
+        &mut self,
+        cursor: ValueId,
+        end: ValueId,
+        prefix_length: ValueId,
+        whole_bytes: bool,
+    ) -> ValueId {
+        // leading_zero = !whole_bytes && byte(0, mload(cursor)) == '0'
+        // mstore(cursor - 32 + leading_zero, "0x")
+        // result = cursor - 32 + leading_zero - prefix_length
+        // mstore(result, end - cursor - leading_zero + prefix_length)
+        let zero = self.builder.imm(0);
         let leading_zero = if whole_bytes {
             zero
         } else {
@@ -135,7 +201,33 @@ impl FunctionLowerer<'_, '_> {
         let digits = self.builder.sub(pair_digits, leading_zero);
         let length = self.builder.add(digits, prefix_length);
         self.builder.mstore(result, length);
-        self.builder.memory_object_in_allocation(result, MemoryObjectKind::Bytes)
+        result
+    }
+
+    /// Spells the low byte of `x` as the two digits before `output` through
+    /// the scratch digit table, returning the remaining bytes and the new
+    /// output start.
+    fn lower_core_hex_byte(&mut self, x: ValueId, output: ValueId) -> (ValueId, ValueId) {
+        // next_output = output - 2
+        // mstore8(next_output + 1, mload(x & 15))
+        // mstore8(next_output, mload((x >> 4) & 15))
+        // next_x = x >> 8
+        let two = self.builder.imm(2);
+        let next_output = self.builder.sub(output, two);
+        let fifteen = self.builder.imm(15);
+        let low_nibble = self.builder.and(x, fifteen);
+        let low_digit = self.builder.mload(low_nibble);
+        let one = self.builder.imm(1);
+        let low_output = self.builder.add(next_output, one);
+        self.builder.mstore8(low_output, low_digit);
+        let four = self.builder.imm(4);
+        let high_nibble = self.builder.shr(four, x);
+        let high_nibble = self.builder.and(high_nibble, fifteen);
+        let high_digit = self.builder.mload(high_nibble);
+        self.builder.mstore8(next_output, high_digit);
+        let eight = self.builder.imm(8);
+        let next_x = self.builder.shr(eight, x);
+        (next_x, next_output)
     }
 
     /// Lowers `Strings.toString` of a `uint256` or `int256` into the caller.
@@ -1134,6 +1226,63 @@ impl FunctionLowerer<'_, '_> {
 
         self.builder.switch_to_block(done);
         self.builder.ret([offsets]);
+    }
+
+    /// Spells `value` a word at a time: the digits of its low sixteen bytes
+    /// end at `end`, and those of the high sixteen precede them when any is
+    /// set. Returns where the digits of the highest set byte start, two per
+    /// significant byte before `end`, leaving the builder in the block that
+    /// continues with them.
+    fn lower_core_minimal_hex_words(&mut self, value: ValueId, end: ValueId) -> ValueId {
+        let high_half = self.builder.create_block();
+        let join = self.builder.create_block();
+
+        // Each byte from the highest set one down becomes nonzero, and a
+        // multiplication sums one mark per such byte into the top byte:
+        // smeared = value | value >> 8 | value >> 16 | ... | value >> 248
+        // marks = ((smeared & 0x7f..7f) + 0x7f..7f | smeared) & 0x80..80
+        // digits = (marks >> 7) * 0x0202..02 >> 248
+        // mstore(end - 32, hex_word(value & (2**128 - 1)))
+        let mut smeared = value;
+        for shift in [8, 16, 32, 64, 128] {
+            let shift = self.builder.imm(shift);
+            let shifted = self.builder.shr(shift, smeared);
+            smeared = self.builder.or(smeared, shifted);
+        }
+        let ones = U256::MAX / U256::from(255);
+        let low_bits = self.builder.imm(ones * U256::from(0x7f));
+        let kept = self.builder.and(smeared, low_bits);
+        let carried = self.builder.add(kept, low_bits);
+        let any = self.builder.or(carried, smeared);
+        let top_bits = self.builder.imm(ones * U256::from(0x80));
+        let marks = self.builder.and(any, top_bits);
+        let seven = self.builder.imm(7);
+        let marks = self.builder.shr(seven, marks);
+        let twos = self.builder.imm(ones * U256::from(2));
+        let digits = self.builder.mul(marks, twos);
+        let top = self.builder.imm(248);
+        let digits = self.builder.shr(top, digits);
+        let cursor = self.builder.sub(end, digits);
+        let low_mask = self.builder.imm(U256::MAX >> 128);
+        let low = self.builder.and(value, low_mask);
+        let low = super::hex::hex_word(&mut self.builder, low);
+        let word = self.builder.imm(32);
+        let low_start = self.builder.sub(end, word);
+        self.builder.mstore(low_start, low);
+        let half = self.builder.imm(128);
+        let high = self.builder.shr(half, value);
+        let has_high = self.builder.ne_zero(high);
+        self.builder.branch(has_high, high_half, join);
+
+        // mstore(end - 64, hex_word(value >> 128))
+        self.builder.switch_to_block(high_half);
+        let high = super::hex::hex_word(&mut self.builder, high);
+        let high_start = self.builder.sub(low_start, word);
+        self.builder.mstore(high_start, high);
+        self.builder.jump(join);
+
+        self.builder.switch_to_block(join);
+        cursor
     }
 
     fn lower_core_string_replace(
