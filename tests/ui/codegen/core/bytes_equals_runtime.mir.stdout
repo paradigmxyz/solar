@@ -26,25 +26,25 @@ fn @squares(arg0: i256) -> memoryarray [selector=0x1d1d15d4, pure, abi_params=[u
     v0 = icall @createWords, 2
     jump bb1
   bb1:
-    v1 = phi [bb0: memoryarray 96], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v7]
-    v3 = phi [bb0: arg0], [bb3: v3]
-    v4 = phi [bb0: v0], [bb3: v4]
-    v5 = lt v2, v3
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: v0], [bb3: v2]
+    v3 = phi [bb0: memoryarray 96], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v7]
+    v5 = lt v4, v1
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v8 = icall @finish, v4
+    v8 = icall @finish, v2
     ret v8
   bb4:
-    v6 = checked_mul u256, v2, v2
-    icall @append, v4, v6
+    v6 = checked_mul u256, v4, v4
+    icall @append, v2, v6
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u256, v2, 1
+    v7 = checked_add u256, v4, 1
     jump bb1
 }
 
@@ -53,36 +53,36 @@ fn @evens(arg0: i256) -> struct0 [selector=0xe3adac5e, pure, abi_params=[u256], 
     v0 = icall @createWords, 0
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb3: v9]
-    v2 = phi [bb0: 0], [bb3: v2]
-    v3 = phi [bb0: memoryarray 96], [bb3: v3]
-    v4 = phi [bb0: v0], [bb3: v4]
-    v5 = phi [bb0: arg0], [bb3: v5]
-    v6 = lt v1, v5
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v9]
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: memoryarray 96], [bb3: v4]
+    v5 = phi [bb0: v0], [bb3: v5]
+    v6 = lt v2, v1
     jumpi v6, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v10 = icall @finish, v4
-    v11 = icall @length, v4
+    v10 = icall @finish, v5
+    v11 = icall @length, v5
     v12 = insert_value struct0, undef struct0, 0, v10
     v13 = insert_value struct0, v12, 1, v11
     ret v13
   bb4:
-    v7 = checked_rem u256, v1, 2
+    v7 = checked_rem u256, v2, 2
     v8 = eq v7, 0
     jumpi v8, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    icall @append, v4, v1
+    icall @append, v5, v2
     jump bb9
   bb9:
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v9 = checked_add u256, v1, 1
+    v9 = checked_add u256, v2, 1
     jump bb1
 }
 
@@ -413,37 +413,37 @@ fn @_growWords(arg0: memorystruct, arg1: i256) [pure] {
     set_memory_object_len memoryarray, v22, v5
     jump bb4
   bb4:
-    v23 = phi [bb3: arg0], [bb6: v23]
-    v24 = phi [bb3: v5], [bb6: v24]
-    v25 = phi [bb3: 0], [bb6: v39]
-    v26 = phi [bb3: arg1], [bb6: v26]
-    v27 = phi [bb3: v22], [bb6: v27]
-    v28 = memory_object_load_field memorystruct<2>, v23, 1
-    v29 = lt v25, v28
+    v23 = phi [bb3: arg1], [bb6: v23]
+    v24 = phi [bb3: v22], [bb6: v24]
+    v25 = phi [bb3: arg0], [bb6: v25]
+    v26 = phi [bb3: v5], [bb6: v26]
+    v27 = phi [bb3: 0], [bb6: v39]
+    v28 = memory_object_load_field memorystruct<2>, v25, 1
+    v29 = lt v27, v28
     jumpi v29, bb7, bb8
   bb8:
     jump bb5
   bb5:
-    v40 = ptrtoint memoryarray v27 to i256
-    memory_object_store_field memorystruct<2>, v23, 0, v40
+    v40 = ptrtoint memoryarray v24 to i256
+    memory_object_store_field memorystruct<2>, v25, 0, v40
     ret
   bb7:
-    v30 = memory_object_load_field memorystruct<2>, v23, 0
+    v30 = memory_object_load_field memorystruct<2>, v25, 0
     v31 = inttoptr i256 v30 to memoryarray
     v32 = memory_object_len memoryarray, v31
-    v33 = lt v25, v32
+    v33 = lt v27, v32
     v34 = eq v33, false
     icall panic_if<0x32>, v34
-    v35 = memory_object_load_element memoryarray<1>, v31, v25
-    v36 = memory_object_len memoryarray, v27
-    v37 = lt v25, v36
+    v35 = memory_object_load_element memoryarray<1>, v31, v27
+    v36 = memory_object_len memoryarray, v24
+    v37 = lt v27, v36
     v38 = eq v37, false
     icall panic_if<0x32>, v38
-    memory_object_store_element memoryarray<1>, v27, v25, v35
+    memory_object_store_element memoryarray<1>, v24, v27, v35
     jump bb9
   bb9:
     jump bb6
   bb6:
-    v39 = checked_add u256, v25, 1
+    v39 = checked_add u256, v27, 1
     jump bb4
 }
