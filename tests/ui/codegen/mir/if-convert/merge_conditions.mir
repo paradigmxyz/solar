@@ -1,0 +1,174 @@
+//@compile-flags: -Zmir-pipeline=if-convert
+//@filecheck:
+@module MergeConditions
+
+// `a || b`: both tests reach the shared target when they hold, so the arm's
+// comparison moves up and one `or` feeds the branch.
+// CHECK-LABEL: {{^[ +].*}}fn @either{{[( ]}}
+// CHECK: [[B:v[0-9]+]] = eq arg0, 7
+// CHECK: + [[C:v[0-9]+]] = or [[A:v[0-9]+]], [[B]]
+// CHECK: + jumpi [[C]], [[ONE:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: {{^[ +].*}}[[ONE]]:
+// CHECK-NEXT: {{^[ +].*}}ret 1
+fn @either(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, arg1
+    jumpi v0, bb2, bb1
+  bb1:
+    v1 = eq arg0, 7
+    jumpi v1, bb2, bb3
+  bb2:
+    ret 1
+  bb3:
+    ret 0
+}
+
+// `a && b`: both tests reach the shared target when they fail, so `and`
+// selects the arm's other target and no test is negated.
+// CHECK-LABEL: {{^[ +].*}}fn @both{{[( ]}}
+// CHECK: [[B:v[0-9]+]] = eq arg0, 7
+// CHECK: + [[C:v[0-9]+]] = and [[A:v[0-9]+]], [[B]]
+// CHECK: + jumpi [[C]], [[ONE:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: {{^[ +].*}}[[ONE]]:
+// CHECK-NEXT: {{^[ +].*}}ret 1
+fn @both(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, arg1
+    jumpi v0, bb1, bb3
+  bb1:
+    v1 = eq arg0, 7
+    jumpi v1, bb2, bb3
+  bb2:
+    ret 1
+  bb3:
+    ret 0
+}
+
+// `a || !b`: the arm reaches the shared target when its test fails, so that
+// test is inverted before the `or`.
+// CHECK-LABEL: {{^[ +].*}}fn @mixed{{[( ]}}
+// CHECK: [[B:v[0-9]+]] = eq arg0, arg2
+// CHECK: + [[W:v[0-9]+]] = zext i1 [[B]] to i256
+// CHECK: + [[N:v[0-9]+]] = eq [[W]], 0
+// CHECK: + [[C:v[0-9]+]] = or [[A:v[0-9]+]], [[N]]
+// CHECK: + jumpi [[C]], [[ONE:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: {{^[ +].*}}[[ONE]]:
+// CHECK-NEXT: {{^[ +].*}}ret 1
+fn @mixed(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, arg1
+    v1 = eq arg0, arg2
+    jumpi v0, bb2, bb1
+  bb1:
+    jumpi v1, bb3, bb2
+  bb2:
+    ret 1
+  bb3:
+    ret 0
+}
+
+// With a comparison in the arm, the inversion makes the merged test cost more
+// on the path that skipped the arm than the removed branch saves: keep it.
+// CHECK-LABEL: {{^[ +].*}}fn @mixed_compare{{[( ]}}
+// CHECK-NOT: {{^[+].*}}or
+fn @mixed_compare(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, arg1
+    jumpi v0, bb2, bb1
+  bb1:
+    v1 = eq arg0, arg2
+    jumpi v1, bb3, bb2
+  bb2:
+    ret 1
+  bb3:
+    ret 0
+}
+
+// The shared target merges the same value along both edges, so its phi keeps
+// only the block's entry.
+// CHECK-LABEL: {{^[ +].*}}fn @agreeing_phi{{[( ]}}
+// CHECK: + {{v[0-9]+}} = or
+// CHECK-NOT: {{^[ +].*}}jumpi {{v[0-9]+}}, bb3
+fn @agreeing_phi(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, arg1
+    jumpi v0, bb2, bb1
+  bb1:
+    v1 = eq arg0, 7
+    jumpi v1, bb2, bb3
+  bb2:
+    v2 = phi [bb0: 5], [bb1: 5]
+    ret v2
+  bb3:
+    ret 0
+}
+
+// Different values along the two edges would need a select: keep the arm.
+// CHECK-LABEL: {{^[ +].*}}fn @disagreeing_phi{{[( ]}}
+// CHECK-NOT: {{^[+].*}}or
+fn @disagreeing_phi(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, arg1
+    jumpi v0, bb2, bb1
+  bb1:
+    v1 = eq arg0, 7
+    jumpi v1, bb2, bb3
+  bb2:
+    v2 = phi [bb0: 5], [bb1: 6]
+    ret v2
+  bb3:
+    ret 0
+}
+
+// A memory read cannot run on the path that skipped it: keep the arm.
+// CHECK-LABEL: {{^[ +].*}}fn @reading_arm{{[( ]}}
+// CHECK-NOT: {{^[+].*}}or
+fn @reading_arm(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, arg1
+    jumpi v0, bb2, bb1
+  bb1:
+    v1 = mload arg0
+    v2 = eq v1, 7
+    jumpi v2, bb2, bb3
+  bb2:
+    ret 1
+  bb3:
+    ret 0
+}
+
+// A zero test that only feeds its branch is free there, since the jump tests
+// the word itself. As an operand of the merged test it becomes two `iszero`s,
+// which the removed branch cannot pay for: keep the arm.
+// CHECK-LABEL: {{^[ +].*}}fn @zero_tests{{[( ]}}
+// CHECK-NOT: {{^[+].*}}or
+fn @zero_tests(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = ne arg0, 0
+    jumpi v0, bb2, bb1
+  bb1:
+    v1 = ne arg1, 0
+    jumpi v1, bb2, bb3
+  bb2:
+    ret 1
+  bb3:
+    ret 0
+}
+
+// The arm's difference is also used past its branch, so running it on the
+// path that skipped the arm would keep it live there: keep the arm.
+// CHECK-LABEL: {{^[ +].*}}fn @used_past_branch{{[( ]}}
+// CHECK-NOT: {{^[+].*}}or
+fn @used_past_branch(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, arg1
+    jumpi v0, bb2, bb1
+  bb1:
+    v1 = sub arg1, arg0
+    v2 = gt v1, 7
+    jumpi v2, bb2, bb3
+  bb2:
+    ret 1
+  bb3:
+    ret v1
+}
