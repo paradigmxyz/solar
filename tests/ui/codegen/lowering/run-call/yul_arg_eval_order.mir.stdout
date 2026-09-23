@@ -1,7 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/yul_arg_eval_order.sol:C ===
 @module C
-@inline_assembly
-fn @builtinOrder() -> i256 [selector=0x0eb481d9, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @builtinOrder() -> i256 [selector=0x0eb481d9, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     mstore 0, 3 !metadata(memory=scratch)
     v0 = icall @eff
@@ -10,7 +9,7 @@ fn @builtinOrder() -> i256 [selector=0x0eb481d9, pure, abi_params=[], abi_return
     ret v2
 }
 
-fn @userFnOrder() -> i256 [selector=0x6b0e5af2, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @userFnOrder() -> i256 [selector=0x6b0e5af2, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     mstore 0, 1 !metadata(memory=scratch)
     v0 = icall @w, 7
@@ -20,7 +19,7 @@ fn @userFnOrder() -> i256 [selector=0x6b0e5af2, pure, abi_params=[], abi_returns
     ret v3
 }
 
-fn @deployIdiom() -> i256 [selector=0x298d6964, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @deployIdiom() -> i256 [selector=0x298d6964, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 20
@@ -40,19 +39,19 @@ fn @deployIdiom() -> i256 [selector=0x298d6964, abi_params=[], abi_returns=[word
     ret v11
 }
 
-fn @eff() -> i256 {
+fn @eff() -> i256 [inline_assembly] {
   bb0:
     mstore 0, 5 !metadata(memory=scratch)
     ret 10
 }
 
-fn @w(arg0: i256) -> i256 {
+fn @w(arg0: i256) -> i256 [inline_assembly] {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
     ret arg0
 }
 
-fn @doCreate(arg0: i256) -> i256 {
+fn @doCreate(arg0: i256) -> i256 [inline_assembly] {
   bb0:
     v0 = mload arg0
     v1 = add arg0, 32

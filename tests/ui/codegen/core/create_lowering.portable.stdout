@@ -10,12 +10,11 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/create_lowering.sol:Test ===
 @module Test
 @phase lowered
-@inline_assembly
 types:
   struct0: {i256, memptr}
   struct1: {i256, i256}
 
-fn @spawn() [selector=0x0da0cf17, abi_wrapper] {
+fn @spawn() [selector=0x0da0cf17, abi_wrapper, inline_assembly] {
   bb0:
     v19 = calldatasize
     v20 = lt v19, 36
@@ -156,7 +155,7 @@ fn @predicted() [selector=0x1aab0aa1, abi_wrapper] {
     revert 0, 0
 }
 
-fn @attempt() [selector=0xa95d7aa6, abi_wrapper] {
+fn @attempt() [selector=0xa95d7aa6, abi_wrapper, inline_assembly] {
   bb0:
     v23 = calldatasize
     v24 = lt v23, 36
@@ -303,7 +302,7 @@ fn @twice() [selector=0x8cf98279, abi_wrapper] {
     revert 0, 0
 }
 
-fn @deploy2(arg0: memptr, arg1: i256) -> i256 [may_return_memory] {
+fn @deploy2(arg0: memptr, arg1: i256) -> i256 [may_return_memory, inline_assembly] {
   bb0:
     v0 = ptrtoint memptr arg0 to i256
     v1 = mload v0
@@ -322,7 +321,7 @@ fn @deploy2(arg0: memptr, arg1: i256) -> i256 [may_return_memory] {
     revert v17, 4
 }
 
-fn @tryDeploy2(arg0: memptr, arg1: i256, arg2: i256) -> struct1 [may_return_memory, return_abi=[i256, i256]] {
+fn @tryDeploy2(arg0: memptr, arg1: i256, arg2: i256) -> struct1 [may_return_memory, inline_assembly, return_abi=[i256, i256]] {
   bb0:
     v0 = ptrtoint memptr arg0 to i256
     v1 = mload v0

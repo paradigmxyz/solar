@@ -1,7 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/indvar-simplify/two_counters.sol:Test ===
 @module Test
 @phase lowered
-@inline_assembly
 fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
   bb0:
     v84 = calldatasize
@@ -114,7 +113,7 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @rawBase() [selector=0xcc1fc46b, abi_wrapper, pure] {
+fn @rawBase() [selector=0xcc1fc46b, abi_wrapper, inline_assembly, pure] {
   bb0:
     jump bb1
   bb1:

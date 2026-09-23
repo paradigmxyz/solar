@@ -1,7 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/loop-idioms/byte_copy.sol:Test ===
 @module Test
 @phase lowered
-@inline_assembly
 fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
   bb0:
     v1 = calldatasize
@@ -27,7 +26,7 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @rawOverlap() [selector=0x3facacff, abi_wrapper, pure] {
+fn @rawOverlap() [selector=0x3facacff, abi_wrapper, inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 31
@@ -59,7 +58,7 @@ fn @rawOverlap() [selector=0x3facacff, abi_wrapper, pure] {
     returndata v40, v28
 }
 
-fn @objectOverlap() [selector=0xb7a73332, abi_wrapper, pure] {
+fn @objectOverlap() [selector=0xb7a73332, abi_wrapper, inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = sub v0, 1
@@ -93,7 +92,7 @@ fn @objectOverlap() [selector=0xb7a73332, abi_wrapper, pure] {
     returndata v42, v30
 }
 
-fn @allocationOverlap() [selector=0x46aad008, abi_wrapper, pure] {
+fn @allocationOverlap() [selector=0x46aad008, abi_wrapper, inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, 1
@@ -131,7 +130,7 @@ fn @allocationOverlap() [selector=0x46aad008, abi_wrapper, pure] {
     revert 28, 36
 }
 
-fn @oversizedCopy() [selector=0x1e820d5e, abi_wrapper, pure] {
+fn @oversizedCopy() [selector=0x1e820d5e, abi_wrapper, inline_assembly, pure] {
   bb0:
     v45 = mload 64 !metadata(memory=scratch)
     v46 = add v45, 64
@@ -189,7 +188,7 @@ fn @oversizedCopy() [selector=0x1e820d5e, abi_wrapper, pure] {
     revert 28, 36
 }
 
-fn @zeroTripHeader() [selector=0xe0b1133b, abi_wrapper, pure] {
+fn @zeroTripHeader() [selector=0xe0b1133b, abi_wrapper, inline_assembly, pure] {
   bb0:
     v11 = calldatasize
     v12 = lt v11, 36
@@ -212,7 +211,7 @@ fn @zeroTripHeader() [selector=0xe0b1133b, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @headerExpansion() [selector=0xfb7c0847, abi_wrapper, pure] {
+fn @headerExpansion() [selector=0xfb7c0847, abi_wrapper, inline_assembly, pure] {
   bb0:
     v24 = calldatasize
     v25 = lt v24, 36
@@ -369,7 +368,7 @@ fn @_slice(arg0: memptr, arg1: i256, arg2: i256) -> memptr [may_return_memory, p
     revert 28, 36
 }
 
-fn @copyObject(arg0: memptr, arg1: i256) -> memptr [may_return_memory, pure] {
+fn @copyObject(arg0: memptr, arg1: i256) -> memptr [may_return_memory, inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 32
@@ -396,7 +395,7 @@ fn @copyObject(arg0: memptr, arg1: i256) -> memptr [may_return_memory, pure] {
     jump bb1
 }
 
-fn @copyRaw(arg0: i256, arg1: i256) -> memptr [may_return_memory, pure] {
+fn @copyRaw(arg0: i256, arg1: i256) -> memptr [may_return_memory, inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 32

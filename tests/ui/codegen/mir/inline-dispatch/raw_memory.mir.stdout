@@ -1,7 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/inline-dispatch/raw_memory.sol:RawMemory ===
 @module RawMemory
-@inline_assembly
-fn @raw(arg0: i256) [selector=0x302e678f, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @raw(arg0: i256) [selector=0x302e678f, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     returndata arg0, 32
 }
@@ -14,8 +13,7 @@ fn @sum(arg0: i256, arg1: i256) -> i256 [selector=0xcad0899b, pure, abi_params=[
 
 // === ROOT/tests/ui/codegen/mir/inline-dispatch/raw_memory.sol:RawRevert ===
 @module RawRevert
-@inline_assembly
-fn @raw(arg0: i256) [selector=0x302e678f, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @raw(arg0: i256) [selector=0x302e678f, inline_assembly, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     revert arg0, 32
 }

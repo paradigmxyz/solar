@@ -303,7 +303,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         .emit();
                 }
                 self.builder.func_mut().attributes.inline_assembly = true;
-                self.cx.module.inline_assembly = true;
                 let previous = std::mem::replace(&mut self.in_inline_assembly, true);
                 let result = self.lower_block(*block);
                 self.in_inline_assembly = previous;

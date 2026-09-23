@@ -212,7 +212,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     })?;
                 }
                 kw::Library => module.is_library = true,
-                sym::inline_assembly => module.inline_assembly = true,
                 sym::types => self.parse_type_declarations()?,
                 sym::libraries => self.parser.parse_library_declarations()?,
                 sym::data => {

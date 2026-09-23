@@ -15,7 +15,6 @@ fn @invoke(arg0: i256) [selector=0x2605fe98, pure, abi_params=[bool], abi_return
 
 // === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:TerminatedControlFlow ===
 @module TerminatedControlFlow
-@inline_assembly
 types:
   struct0: {i256, i256}
 
@@ -147,7 +146,7 @@ fn @stopInHelper() [selector=0xd738ac61, pure, abi_params=[], abi_returns=[], ab
     invalid
 }
 
-fn @stopHelper() [pure] {
+fn @stopHelper() [inline_assembly, pure] {
   bb0:
     stop
 }
@@ -159,7 +158,7 @@ fn @scalarFailure(arg0: i256) -> i256 [selector=0x97ca1c76, pure, abi_params=[u2
     ret v1
 }
 
-fn @failScalar(arg0: i256) -> i256 [pure] {
+fn @failScalar(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
     revert 0, 32
@@ -177,13 +176,13 @@ fn @pairFailure(arg0: i256) -> struct0 [selector=0xbdf5d4d3, pure, abi_params=[u
     ret v6
 }
 
-fn @failPair(arg0: i256) -> struct0 [pure] {
+fn @failPair(arg0: i256) -> struct0 [inline_assembly, pure] {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
     revert 0, 32
 }
 
-fn @recursiveFailure(arg0: i256, arg1: i256) -> i256 [selector=0x0d8ae7f2, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @recursiveFailure(arg0: i256, arg1: i256) -> i256 [selector=0x0d8ae7f2, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -275,19 +274,19 @@ fn @constructorWithoutArgs() -> i256 [selector=0x1f01d869, abi_params=[], abi_re
     ret 0
 }
 
-fn @oversizedReturn() [selector=0xe98a2448, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @oversizedReturn() [selector=0xe98a2448, inline_assembly, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     mstore 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0, 7
     returndata 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0, 32
 }
 
-fn @unaffordableReturn() [selector=0x0acfbfd5, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @unaffordableReturn() [selector=0x0acfbfd5, inline_assembly, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     mstore 0x123456789abcdef0, 7
     returndata 0x123456789abcdef0, 32
 }
 
-fn @precompileReturndata(arg0: i256, arg1: i256) -> i256 [selector=0x3553277c, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @precompileReturndata(arg0: i256, arg1: i256) -> i256 [selector=0x3553277c, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -378,7 +377,7 @@ fn @storageRevertPayload() -> i256 [selector=0x0156c876, abi_params=[], abi_retu
     ret 0
 }
 
-fn @failWithStorageBytes(arg0: i256) [selector=0x49740e5b, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @failWithStorageBytes(arg0: i256) [selector=0x49740e5b, inline_assembly, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
     jump bb1
@@ -475,8 +474,7 @@ fn @continueSkipsTail() -> i256 [selector=0xc45ef923, pure, abi_params=[], abi_r
 
 // === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:StopsInConstructor ===
 @module StopsInConstructor
-@inline_assembly
-fn @constructor() [constructor] {
+fn @constructor() [constructor, inline_assembly] {
   bb0:
     stop
 }
@@ -488,15 +486,14 @@ fn @present() -> i256 [selector=0xe735afb2, pure, abi_params=[], abi_returns=[wo
 
 // === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:RevertsInConstructor ===
 @module RevertsInConstructor
-@inline_assembly
-fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, inline_assembly, abi_params=[u256]] {
   bb0:
     v0 = icall @fail, arg0
     sstore 0, v0 !metadata(storage=slot(0))
     ret
 }
 
-fn @fail(arg0: i256) -> i256 [pure] {
+fn @fail(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
     revert 0, 32
@@ -504,15 +501,14 @@ fn @fail(arg0: i256) -> i256 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:RevertsWithoutArgs ===
 @module RevertsWithoutArgs
-@inline_assembly
-fn @constructor() [constructor] {
+fn @constructor() [constructor, inline_assembly] {
   bb0:
     v0 = icall @fail
     sstore 0, v0 !metadata(storage=slot(0))
     ret
 }
 
-fn @fail() -> i256 [view] {
+fn @fail() -> i256 [inline_assembly, view] {
   bb0:
     v0 = number
     v1 = checked_add u256, v0, 11

@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_return_validation.sol:ExternalReturnValidation ===
 @module ExternalReturnValidation
-@inline_assembly
 types:
   struct0: {memorystruct, memorystruct}
 

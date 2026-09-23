@@ -1,13 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_boundary_struct_array_multislot.sol:StorageBoundaryStructArrayMultislot ===
 @module StorageBoundaryStructArrayMultislot
-@inline_assembly
-fn @getSource() -> i256 [pure] {
+fn @getSource() -> i256 [inline_assembly, pure] {
   bb0:
     v0 = sub 0, 5
     ret v0
 }
 
-fn @getDest() -> i256 [pure] {
+fn @getDest() -> i256 [inline_assembly, pure] {
   bb0:
     ret 5
 }

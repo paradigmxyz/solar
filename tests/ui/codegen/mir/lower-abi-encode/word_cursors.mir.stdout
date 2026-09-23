@@ -1,7 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/lower-abi-encode/word_cursors.sol:WordCursors ===
 @module WordCursors
-@inline_assembly
-fn @reencode(arg0: memoryarray, arg1: i256) -> memorybytes [selector=0x6c07f40d, pure, abi_params=[array<_, u8>, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @reencode(arg0: memoryarray, arg1: i256) -> memorybytes [selector=0x6c07f40d, inline_assembly, pure, abi_params=[array<_, u8>, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jump bb1
   bb1:
@@ -35,7 +34,7 @@ fn @reencode(arg0: memoryarray, arg1: i256) -> memorybytes [selector=0x6c07f40d,
     jump bb1
 }
 
-fn @encode(arg0: i256, arg1: i256) -> memorybytes [selector=0xdc0aa2af, pure, abi_params=[u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encode(arg0: i256, arg1: i256) -> memorybytes [selector=0xdc0aa2af, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = gt arg0, 64
     v1 = eq v0, false
@@ -94,7 +93,7 @@ fn @encode(arg0: i256, arg1: i256) -> memorybytes [selector=0xdc0aa2af, pure, ab
     jump bb1
 }
 
-fn @enums(arg0: i256, arg1: i256) -> memorybytes [selector=0x7918856a, pure, abi_params=[u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @enums(arg0: i256, arg1: i256) -> memorybytes [selector=0x7918856a, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -108,7 +107,7 @@ fn @enums(arg0: i256, arg1: i256) -> memorybytes [selector=0x7918856a, pure, abi
     ret v5
 }
 
-fn @grownSmall() -> memorybytes [selector=0x220ca531, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @grownSmall() -> memorybytes [selector=0x220ca531, inline_assembly, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1

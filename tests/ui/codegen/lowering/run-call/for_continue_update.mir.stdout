@@ -1,7 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/for_continue_update.sol:ForContinueUpdate ===
 @module ForContinueUpdate
-@inline_assembly
-fn @yulLoop() -> i256 [selector=0x8bd7fdaf, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @yulLoop() -> i256 [selector=0x8bd7fdaf, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -65,7 +64,7 @@ fn @solidityLoop() -> i256 [selector=0xf8459dc8, pure, abi_params=[], abi_return
     ret v1
 }
 
-fn @yulRevert() [selector=0x0d5e326b, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @yulRevert() [selector=0x0d5e326b, inline_assembly, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     jump bb1
   bb1:

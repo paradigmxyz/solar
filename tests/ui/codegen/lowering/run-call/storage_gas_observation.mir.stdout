@@ -40,8 +40,7 @@ fn @forwardedLoad() -> i256 [selector=0x7cfab297, abi_params=[], abi_returns=[wo
 
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_gas_observation.sol:StorageGasCfgObservation ===
 @module StorageGasCfgObservation
-@inline_assembly
-fn @diamond(arg0: i256) -> i256 [selector=0xdf460a0e, view, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @diamond(arg0: i256) -> i256 [selector=0xdf460a0e, inline_assembly, view, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = ne arg0, 0
@@ -67,7 +66,7 @@ fn @diamond(arg0: i256) -> i256 [selector=0xdf460a0e, view, abi_params=[bool], a
     ret v14
 }
 
-fn @loop() -> i256 [selector=0xa92100cb, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @loop() -> i256 [selector=0xa92100cb, inline_assembly, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     jump bb1

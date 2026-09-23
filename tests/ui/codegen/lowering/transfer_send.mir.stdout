@@ -1,7 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/transfer_send.sol:GasReceiver ===
 @module GasReceiver
-@inline_assembly
-fn @receive() [receive, payable] {
+fn @receive() [inline_assembly, receive, payable] {
   bb0:
     log0 0, 0
     log0 0, 0
@@ -15,8 +14,7 @@ fn @receive() [receive, payable] {
 
 // === ROOT/tests/ui/codegen/lowering/transfer_send.sol:RevertReceiver ===
 @module RevertReceiver
-@inline_assembly
-fn @receive() [receive, payable] {
+fn @receive() [inline_assembly, receive, payable] {
   bb0:
     v0 = shl 224, 0xdeadbeef
     mstore 0, v0 !metadata(memory=scratch)
@@ -25,7 +23,6 @@ fn @receive() [receive, payable] {
 
 // === ROOT/tests/ui/codegen/lowering/transfer_send.sol:TransferSend ===
 @module TransferSend
-@inline_assembly
 types:
   struct0: {i256, i256, i256}
 
@@ -143,7 +140,7 @@ fn @balances() -> struct0 [selector=0x7bb98a68, payable, abi_params=[], abi_retu
     ret v15
 }
 
-fn @sendRevertData() -> i256 [selector=0x2acce81c, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+fn @sendRevertData() -> i256 [selector=0x2acce81c, inline_assembly, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff

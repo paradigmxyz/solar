@@ -1,7 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/entry_spill_cleanup.sol:EntrySpillCleanup ===
 @module EntrySpillCleanup
-@inline_assembly
-fn @prefixed(arg0: memorybytes) -> memorybytes [selector=0x13e7d096, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @prefixed(arg0: memorybytes) -> memorybytes [selector=0x13e7d096, inline_assembly, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @toHexStringNoPrefix, arg0
     v1 = ptrtoint memorybytes v0 to i256
@@ -16,7 +15,7 @@ fn @prefixed(arg0: memorybytes) -> memorybytes [selector=0x13e7d096, pure, abi_p
     ret v7
 }
 
-fn @toHexStringNoPrefix(arg0: memorybytes) -> memorybytes [selector=0x449f3447, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @toHexStringNoPrefix(arg0: memorybytes) -> memorybytes [selector=0x449f3447, inline_assembly, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = ptrtoint memorybytes arg0 to i256
     v1 = mload v0

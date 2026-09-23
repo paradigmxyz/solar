@@ -12,7 +12,6 @@
 
 // === ROOT/tests/ui/codegen/core/bytes_equals_runtime.sol:Test ===
 @module Test
-@inline_assembly
 types:
   struct0: {memoryarray, i256}
 
@@ -87,7 +86,7 @@ fn @evens(arg0: i256) -> struct0 [selector=0xe3adac5e, pure, abi_params=[u256], 
     jump bb1
 }
 
-fn @truncate(arg0: memoryarray, arg1: i256) [pure] {
+fn @truncate(arg0: memoryarray, arg1: i256) [inline_assembly, pure] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = gt arg1, v0
