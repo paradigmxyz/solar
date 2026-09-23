@@ -1,0 +1,128 @@
+//@compile-flags: -Zmir-pipeline=check-elim
+//@filecheck:
+@module SteppedCursor
+
+// Sixteen input bytes become one output word per iteration: the input cursor
+// steps by 16, the output cursor by 32, and the output reserves `n + n` bytes.
+// The body runs while `i + 16 <= n`, so the output end stays within the
+// reservation. The input bound check rereads `n` and adds 16 to `i` again, and
+// both still match the loop test: nothing writes the parameter, since the loop
+// stores only into the fresh output and calls a helper that writes no memory.
+// All four wrap and bound checks fold.
+// CHECK-LABEL: {{^[ +].*}}fn @nibble_blocks{{[( ]}}
+// CHECK: - jumpi {{v[0-9]+}}, bb8, bb3
+// CHECK: + jump bb3
+// CHECK: - jumpi {{v[0-9]+}}, bb8, bb4
+// CHECK: + jump bb4
+// CHECK: - jumpi {{v[0-9]+}}, bb8, bb5
+// CHECK: + jump bb5
+// CHECK: - jumpi {{v[0-9]+}}, bb8, bb6
+// CHECK: + jump bb6
+fn @nibble_blocks(arg0: memorybytes) -> memorybytes {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    v1 = add v0, v0
+    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    set_memory_object_len memorybytes, v2, v1
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb6: v6]
+    v4 = phi [bb0: 0], [bb6: v12]
+    v6 = add v3, 16
+    v7 = gt v6, v0
+    jumpi v7, bb7, bb2
+  bb2:
+    v8 = lt v6, v3
+    jumpi v8, bb8, bb3
+  bb3:
+    v9 = memory_object_len memorybytes, arg0
+    v10 = gt v6, v9
+    jumpi v10, bb8, bb4
+  bb4:
+    v11 = icall @spread, v3
+    v12 = add v4, 32
+    v13 = lt v12, v4
+    jumpi v13, bb8, bb5
+  bb5:
+    v14 = memory_object_len memorybytes, v2
+    v15 = gt v12, v14
+    jumpi v15, bb8, bb6
+  bb6:
+    memory_object_store_word memorybytes, v2, v4, v11
+    jump bb1
+  bb7:
+    ret v2
+  bb8:
+    revert 0, 0
+}
+
+// A 33-byte write needs more than the 32 bytes reserved per block.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_block_overrun{{[( ]}}
+// CHECK: {{^ +}}jumpi {{v[0-9]+}}, bb4, bb3
+fn @keep_block_overrun(arg0: memorybytes) -> memorybytes {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    v1 = add v0, v0
+    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    set_memory_object_len memorybytes, v2, v1
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb3: v6]
+    v4 = phi [bb0: 0], [bb3: v9]
+    v6 = add v3, 16
+    v7 = gt v6, v0
+    jumpi v7, bb5, bb2
+  bb2:
+    v8 = add v4, 33
+    v9 = add v4, 32
+    v10 = memory_object_len memorybytes, v2
+    v11 = gt v8, v10
+    jumpi v11, bb4, bb3
+  bb3:
+    memory_object_store_byte memorybytes, v2, v4, 1
+    jump bb1
+  bb4:
+    revert 0, 0
+  bb5:
+    ret v2
+}
+
+// A helper that may write memory may shorten the parameter, so the reread
+// length says nothing about the loop test's.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_written_parameter{{[( ]}}
+// CHECK: {{^ +}}jumpi {{v[0-9]+}}, bb4, bb3
+fn @keep_written_parameter(arg0: memorybytes) {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb3: v6]
+    v6 = add v3, 16
+    v7 = gt v6, v0
+    jumpi v7, bb5, bb2
+  bb2:
+    icall @clobber, arg0
+    v9 = memory_object_len memorybytes, arg0
+    v10 = gt v6, v9
+    jumpi v10, bb4, bb3
+  bb3:
+    jump bb1
+  bb4:
+    revert 0, 0
+  bb5:
+    ret
+}
+
+fn @spread(arg0: i256) -> i256 {
+  bb0:
+    v0 = shl 64, arg0
+    v1 = or arg0, v0
+    ret v1
+}
+
+fn @clobber(arg0: memorybytes) {
+  bb0:
+    v0 = ptrtoint memorybytes arg0 to i256
+    mstore v0, 0
+    ret
+}

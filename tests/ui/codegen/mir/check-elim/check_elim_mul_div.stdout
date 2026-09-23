@@ -33,3 +33,37 @@
       revert 0, 0
   }
   
+  fn @fold_product_check_with_zero_disjunct(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = shr 128, arg0
+      v1 = shr 128, arg1
+      v2 = mul v0, v1
+      v3 = eq v1, 0
+      v4 = div v2, v1
+      v5 = eq v4, v0
+      v6 = or v3, v5
+      v7 = eq v6, false
+-     jumpi v7, bb1, bb2
++     jump bb2
+    bb2:
+      ret v2
+    bb1:
+      revert 0, 0
+  }
+  
+  fn @keep_product_check_with_one_bound(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = shr 128, arg0
+      v1 = mul v0, arg1
+      v2 = eq arg1, 0
+      v3 = div v1, arg1
+      v4 = eq v3, v0
+      v5 = or v2, v4
+      v6 = eq v5, false
+      jumpi v6, bb1, bb2
+    bb2:
+      ret v1
+    bb1:
+      revert 0, 0
+  }
+  
