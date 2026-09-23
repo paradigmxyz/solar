@@ -678,11 +678,13 @@ pub(crate) struct FunctionAttributes {
     pub(crate) is_function_pointer_dispatcher: bool,
     /// Never clone this function into multiple callers.
     pub(crate) no_inline: bool,
-    /// Every memory write only permutes words already present in an array
-    /// argument, so calls cannot widen that array's element bit width.
+    /// Every memory write either permutes words already present in an array
+    /// argument or stores into an array whose elements are full words, so
+    /// calls cannot widen any array's element bit width.
     ///
     /// This is a trusted invariant for compiler-synthesized helpers. It must
-    /// stay false for source functions and helpers that create new words.
+    /// stay false for source functions and for helpers that store new words
+    /// into arrays with narrower elements.
     pub(crate) preserves_array_elements: bool,
     /// Proved upper bound, in bits, on the words each array parameter can
     /// hold while this function reads it, recorded by element cleanup for

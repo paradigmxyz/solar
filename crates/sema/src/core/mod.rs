@@ -103,6 +103,8 @@ pub enum CoreIntrinsic {
     Fill,
     /// `Arrays.truncate(a, n)` for every supported array type.
     Truncate,
+    /// `WordArrays.groupSum(keys, values)` for one-word key arrays.
+    ArrayGroupSum,
     /// `WordArrays.hasDuplicate(a)` for one-word dynamic arrays.
     ArrayHasDuplicate,
     /// `WordArrays.sort(a)` for one-word dynamic arrays.
@@ -281,6 +283,7 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
         })),
         "solar:core/v1/WordArrays.sol" => Some(WORD_ARRAYS.get_or_init(|| {
             FxHashMap::from_iter([
+                (sym::groupSum, CoreIntrinsic::ArrayGroupSum),
                 (Symbol::intern("hasDuplicate"), CoreIntrinsic::ArrayHasDuplicate),
                 (Symbol::intern("sort"), CoreIntrinsic::ArraySort),
                 (Symbol::intern("uniquifySorted"), CoreIntrinsic::ArrayUniquifySorted),

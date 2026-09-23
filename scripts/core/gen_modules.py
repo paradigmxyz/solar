@@ -269,7 +269,51 @@ library WordArrays {
     }}
 
 ''')
-    out.append('''}
+        word = "uint256({})" if ty == "int256" else "{}"
+        before = word.format("keys[j - 1]") + " > " + word.format("key")
+        out.append(f'''    /// @dev Sorts `keys` by their word values with `values` moved alongside,
+    /// keeps one of each key, and gives it the sum of the values its copies had.
+    /// Both arrays shrink to the kept keys. The arrays must have one length, and
+    /// every sum must fit a word.
+    function groupSum({ty}[] memory keys, uint256[] memory values) internal pure {{
+        uint256 n = keys.length;
+        if (values.length != n) n = _outOfBounds();
+        if (n < 2) return;
+        for (uint256 i = 1; i < n; ++i) {{
+            {ty} key = keys[i];
+            uint256 value = values[i];
+            uint256 j = i;
+            while (j != 0 && {before}) {{
+                keys[j] = keys[j - 1];
+                values[j] = values[j - 1];
+                --j;
+            }}
+            keys[j] = key;
+            values[j] = value;
+        }}
+        uint256 kept = 0;
+        uint256 sum = values[0];
+        for (uint256 i = 1; i < n; ++i) {{
+            if (keys[i] == keys[kept]) {{
+                sum += values[i];
+            }} else {{
+                values[kept] = sum;
+                keys[++kept] = keys[i];
+                sum = values[i];
+            }}
+        }}
+        values[kept] = sum;
+        Arrays.truncate(keys, kept + 1);
+        Arrays.truncate(values, kept + 1);
+    }}
+
+''')
+    out.append('''    /// @dev Raises the `Panic(0x32)` an out-of-range index raises, which is the
+    /// portable spelling of a failed range check.
+    function _outOfBounds() private pure returns (uint256) {
+        return new uint256[](0)[0];
+    }
+}
 ''')
     return "".join(out)
 
