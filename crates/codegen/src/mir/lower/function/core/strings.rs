@@ -7,8 +7,10 @@
 //! comparison; long needles use that comparison as a prefix filter before
 //! hashing. Growing replacements validate a checked upper bound. Streamed
 //! outputs reserve their exact objects only after the scan, so conservative
-//! bounds do not inflate later memory costs. The checked Solidity bodies
-//! remain the reference under `-Zno-core-intrinsics`.
+//! bounds do not inflate later memory costs. Rune counting classifies whole
+//! words of well-formed UTF-8 at once and steps the rest through a scratch
+//! table of lead lengths. The checked Solidity bodies remain the reference
+//! under `-Zno-core-intrinsics`.
 
 use super::*;
 
@@ -303,6 +305,234 @@ impl FunctionLowerer<'_, '_> {
             vec![subject, needle, split_mode],
             MirType::MemoryObject(MemoryObjectKind::DynamicArray),
         ))
+    }
+
+    /// Count runes directly in the caller: the result is one word and the body
+    /// holds no frame, so the call protocol would be most of a short count.
+    pub(super) fn lower_core_string_rune_count_call(
+        &mut self,
+        operands: &[ValueId],
+    ) -> Option<ValueId> {
+        let [subject] = *operands else { return None };
+        Some(self.lower_core_string_rune_count(subject))
+    }
+
+    /// Counts the runes of `subject` the way `Strings.runeCount` steps them:
+    /// each by the length its lead byte declares.
+    ///
+    /// A whole word starting at a rune is counted at once when its text is
+    /// well formed. Each byte's top bit marks its class: continuation bytes
+    /// (`10xxxxxx`) and leads of at least two, three and four bytes. The
+    /// continuation bytes must be exactly those the leads declare, and no lead
+    /// may declare five or six bytes; then every other byte starts a rune, and
+    /// the last rune runs past the word by what its lead declares beyond it.
+    /// Summing the marks with one multiplication counts both. A word of bytes
+    /// below 0x80 is 32 runes, and so is a shorter tail of them, masked to the
+    /// subject, when its first byte is one. Anything else steps rune by rune
+    /// through a table of lengths written to scratch, a malformed word until
+    /// its end and a tail until the subject's. Loads may read past the
+    /// subject, but those bytes are masked or never stepped to.
+    fn lower_core_string_rune_count(&mut self, subject: ValueId) -> ValueId {
+        let bytes = MemoryObjectKind::Bytes;
+        let length = self.builder.memory_object_len(subject, bytes);
+        let data = self.builder.memory_object_data(subject, bytes);
+        let end = self.builder.add(data, length);
+        let zero = self.builder.imm(0);
+        let word = self.builder.imm(32);
+        let high_bits = self.builder.imm((U256::MAX / U256::from(255)) << 7);
+        let entry = self.builder.current_block();
+        let words = self.builder.create_block();
+        let load = self.builder.create_block();
+        let ascii = self.builder.create_block();
+        let classify = self.builder.create_block();
+        let valid = self.builder.create_block();
+        let word_steps = self.builder.create_block();
+        let tail = self.builder.create_block();
+        let tail_load = self.builder.create_block();
+        let tail_probe = self.builder.create_block();
+        let tail_ascii = self.builder.create_block();
+        let tail_steps = self.builder.create_block();
+        let done = self.builder.create_block();
+        self.builder.jump(words);
+
+        // next = p + 32; a whole word remains when next <= end
+        self.builder.switch_to_block(words);
+        let cursor = self.builder.phi(vec![(entry, data)]);
+        let count = self.builder.phi(vec![(entry, zero)]);
+        let next = self.builder.add(cursor, word);
+        let short = self.builder.gt(next, end);
+        self.builder.branch(short, tail, load);
+
+        // high = mload(p) & 0x8080..80; a word below 0x80 is 32 runes
+        self.builder.switch_to_block(load);
+        let text = self.builder.mload(cursor);
+        let high = self.builder.and(text, high_bits);
+        let all_ascii = self.builder.eq_zero(high);
+        self.builder.branch(all_ascii, ascii, classify);
+        self.builder.switch_to_block(ascii);
+        let ascii_count = self.builder.add(count, word);
+        self.builder.jump(words);
+        self.builder.add_phi_incoming(cursor, ascii, next);
+        self.builder.add_phi_incoming(count, ascii, ascii_count);
+
+        self.builder.switch_to_block(classify);
+        let marks = self.rune_marks(text, high);
+        self.builder.branch(marks.well_formed, valid, word_steps);
+
+        // count += 32 - conts; p = next + spans - conts
+        self.builder.switch_to_block(valid);
+        let (conts, spans) = self.rune_sums(&marks);
+        let runes = self.builder.sub(word, conts);
+        let valid_count = self.builder.add(count, runes);
+        let past = self.builder.sub(spans, conts);
+        let valid_cursor = self.builder.add(next, past);
+        self.builder.jump(words);
+        self.builder.add_phi_incoming(cursor, valid, valid_cursor);
+        self.builder.add_phi_incoming(count, valid, valid_count);
+
+        // A malformed word is stepped rune by rune until its end.
+        self.builder.switch_to_block(word_steps);
+        let (word_step, stepped_cursor, stepped_count) =
+            self.rune_steps(cursor, count, next, words);
+        self.builder.add_phi_incoming(cursor, word_step, stepped_cursor);
+        self.builder.add_phi_incoming(count, word_step, stepped_count);
+
+        // if p < end: a tail starting with a byte below 0x80 counts at once
+        // when all of its bytes are, and is stepped rune by rune otherwise
+        self.builder.switch_to_block(tail);
+        let more = self.builder.lt(cursor, end);
+        self.builder.branch(more, tail_load, done);
+        self.builder.switch_to_block(tail_load);
+        let text = self.builder.mload(cursor);
+        let top_bit = self.builder.imm(255);
+        let first_high = self.builder.shr(top_bit, text);
+        self.builder.branch(first_high, tail_steps, tail_probe);
+        // rest = end - p; mask = ~(MAX >> 8 * rest)
+        self.builder.switch_to_block(tail_probe);
+        let rest = self.builder.sub(end, cursor);
+        let three = self.builder.imm(3);
+        let rest_bits = self.builder.shl(three, rest);
+        let all = self.builder.imm(U256::MAX);
+        let beyond = self.builder.shr(rest_bits, all);
+        let within = self.builder.not(beyond);
+        let tail_text = self.builder.and(text, within);
+        let tail_high = self.builder.and(tail_text, high_bits);
+        let tail_all_ascii = self.builder.eq_zero(tail_high);
+        self.builder.branch(tail_all_ascii, tail_ascii, tail_steps);
+        self.builder.switch_to_block(tail_ascii);
+        let ascii_tail_count = self.builder.add(count, rest);
+        self.builder.jump(done);
+
+        // The same stepping, until the subject's end.
+        self.builder.switch_to_block(tail_steps);
+        let (tail_step, _, stepped_tail_count) = self.rune_steps(cursor, count, end, done);
+
+        self.builder.switch_to_block(done);
+        self.builder.phi(vec![
+            (tail, count),
+            (tail_ascii, ascii_tail_count),
+            (tail_step, stepped_tail_count),
+        ])
+    }
+
+    /// Marks each byte of `text` in its top bit by class: continuation bytes,
+    /// and leads of at least two, three and four bytes; `high` is the word's
+    /// top bits. The word is well formed when the continuation bytes are
+    /// exactly those its leads declare and no lead declares five or six bytes.
+    fn rune_marks(&mut self, text: ValueId, high: ValueId) -> RuneMarks {
+        // lead = high & (w << 1); cont = high ^ lead
+        // lead3 = lead & (w << 2); lead4 = lead3 & (w << 3)
+        // declared = lead >> 8 | lead3 >> 16 | lead4 >> 24
+        // well_formed = (lead4 & (w << 4)) | (declared ^ cont) == 0
+        let one = self.builder.imm(1);
+        let shifted = self.builder.shl(one, text);
+        let lead = self.builder.and(high, shifted);
+        let cont = self.builder.xor(high, lead);
+        let two = self.builder.imm(2);
+        let shifted = self.builder.shl(two, text);
+        let lead3 = self.builder.and(lead, shifted);
+        let three = self.builder.imm(3);
+        let shifted = self.builder.shl(three, text);
+        let lead4 = self.builder.and(lead3, shifted);
+        let four = self.builder.imm(4);
+        let shifted = self.builder.shl(four, text);
+        let long_lead = self.builder.and(lead4, shifted);
+        let eight = self.builder.imm(8);
+        let sixteen = self.builder.imm(16);
+        let twenty_four = self.builder.imm(24);
+        let declared = self.builder.shr(eight, lead);
+        let second = self.builder.shr(sixteen, lead3);
+        let declared = self.builder.or(declared, second);
+        let third = self.builder.shr(twenty_four, lead4);
+        let declared = self.builder.or(declared, third);
+        let undeclared = self.builder.xor(declared, cont);
+        let malformed = self.builder.or(undeclared, long_lead);
+        let well_formed = self.builder.eq_zero(malformed);
+        RuneMarks { well_formed, cont, lead, lead3, lead4 }
+    }
+
+    /// Counts the continuation bytes and the bytes the leads declare, summing
+    /// each word of marks with one multiplication.
+    fn rune_sums(&mut self, marks: &RuneMarks) -> (ValueId, ValueId) {
+        // conts = ((cont >> 7) * 0x0101..01) >> 248
+        // spans = (((lead >> 7) + (lead3 >> 7) + (lead4 >> 7)) * 0x0101..01) >> 248
+        let seven = self.builder.imm(7);
+        let top = self.builder.imm(248);
+        let ones = self.builder.imm(U256::MAX / U256::from(255));
+        let cont = self.builder.shr(seven, marks.cont);
+        let cont = self.builder.mul(cont, ones);
+        let conts = self.builder.shr(top, cont);
+        let spans = self.builder.shr(seven, marks.lead);
+        let second = self.builder.shr(seven, marks.lead3);
+        let spans = self.builder.add(spans, second);
+        let third = self.builder.shr(seven, marks.lead4);
+        let spans = self.builder.add(spans, third);
+        let spans = self.builder.mul(spans, ones);
+        let spans = self.builder.shr(top, spans);
+        (conts, spans)
+    }
+
+    /// Steps runes from `start` until one starts at or past `bound`, then
+    /// jumps to `exit`. Returns the loop block and the cursor and count it
+    /// leaves with, for `exit`'s phis.
+    fn rune_steps(
+        &mut self,
+        start: ValueId,
+        count: ValueId,
+        bound: ValueId,
+        exit: BlockId,
+    ) -> (BlockId, ValueId, ValueId) {
+        // mstore(0, 0x0101..01); mstore(32, lengths): byte(0, mload(k)) is the
+        // length of a rune whose lead has top six bits k
+        let zero = self.builder.imm(0);
+        let ones = self.builder.imm(U256::MAX / U256::from(255));
+        self.builder.mstore(zero, ones);
+        let word = self.builder.imm(32);
+        let lengths = self.builder.imm(U256::from_be_slice(&[
+            2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4,
+            4, 5, 6,
+        ]));
+        self.builder.mstore(word, lengths);
+        // do { q += byte(0, mload(mload(q) >> 250)); c += 1 } while (q < bound)
+        let entry = self.builder.current_block();
+        let step = self.builder.create_block();
+        self.builder.jump(step);
+        self.builder.switch_to_block(step);
+        let rune = self.builder.phi(vec![(entry, start)]);
+        let stepped = self.builder.phi(vec![(entry, count)]);
+        let lead_word = self.builder.mload(rune);
+        let lead_shift = self.builder.imm(250);
+        let class = self.builder.shr(lead_shift, lead_word);
+        let class_word = self.builder.mload(class);
+        let rune_length = self.builder.byte(zero, class_word);
+        let next_rune = self.builder.add(rune, rune_length);
+        let one = self.builder.imm(1);
+        let next_count = self.builder.add(stepped, one);
+        let within = self.builder.lt(next_rune, bound);
+        self.builder.branch(within, step, exit);
+        self.builder.add_phi_incoming(rune, step, next_rune);
+        self.builder.add_phi_incoming(stepped, step, next_count);
+        (step, next_rune, next_count)
     }
 
     /// Keep each search direction as one callable body per module; a scalar
@@ -1028,4 +1258,18 @@ impl FunctionLowerer<'_, '_> {
         self.builder.set_memory_object_len(out, output_length, kind);
         self.builder.ret([out]);
     }
+}
+
+/// Top-bit marks of one word's byte classes, from which runes are counted.
+struct RuneMarks {
+    /// Whether the continuation bytes are exactly those the leads declare.
+    well_formed: ValueId,
+    /// Continuation bytes, `10xxxxxx`.
+    cont: ValueId,
+    /// Leads of at least two bytes, `11xxxxxx`.
+    lead: ValueId,
+    /// Leads of at least three bytes, `111xxxxx`.
+    lead3: ValueId,
+    /// Leads of at least four bytes, `1111xxxx`.
+    lead4: ValueId,
 }

@@ -119,6 +119,8 @@ pub enum CoreIntrinsic {
     StringIndexOf,
     /// `Strings.lastIndexOf(subject, needle, from)`.
     StringLastIndexOf,
+    /// `Strings.runeCount(subject)`.
+    StringRuneCount,
     /// `Strings.toMinimalHexStringNoPrefix(value)`.
     StringMinimalHex,
     /// `Strings.toMinimalHexString(value)`.
@@ -285,6 +287,7 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (Symbol::intern("split"), CoreIntrinsic::StringSplit),
                 (sym::indexOf, CoreIntrinsic::StringIndexOf),
                 (sym::lastIndexOf, CoreIntrinsic::StringLastIndexOf),
+                (sym::runeCount, CoreIntrinsic::StringRuneCount),
                 (Symbol::intern("toMinimalHexStringNoPrefix"), CoreIntrinsic::StringMinimalHex),
                 (Symbol::intern("toMinimalHexString"), CoreIntrinsic::StringMinimalHexPrefixed),
                 // Both arities share a name; the lowering reads the operand count.

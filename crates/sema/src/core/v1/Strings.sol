@@ -236,6 +236,19 @@ library Strings {
         return type(uint256).max;
     }
 
+    /// @dev The number of UTF-8 runes in `subject`. Each rune is stepped over by
+    /// the length its lead byte declares from the byte's top six bits: one below
+    /// 0x80, two up to 0xdf (a stray continuation byte included), then three,
+    /// four, five and six. Malformed text is counted by the same steps.
+    function runeCount(string memory subject) internal pure returns (uint256 count) {
+        bytes memory s = bytes(subject);
+        // One nibble per value of the top six bits, at four times that value.
+        uint256 lengths = 0x6544333322222222222222222222222211111111111111111111111111111111;
+        for (uint256 i; i < s.length; ++count) {
+            i += (lengths >> (uint8(s[i]) & 0xfc)) & 15;
+        }
+    }
+
     /// @dev Splits `subject` at each non-overlapping `delimiter` occurrence.
     function split(string memory subject, string memory delimiter)
         internal

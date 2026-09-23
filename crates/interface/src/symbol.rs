@@ -1251,6 +1251,7 @@ symbols! {
         revert_returndata,
         revert_stub,
         ripemd160,
+        runeCount,
         runtime,
         runtimeCode,
         salt,

@@ -90,6 +90,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::StringLastIndexOf => {
                 self.lower_core_string_index_of_call(&operands, true)
             }
+            CoreIntrinsic::StringRuneCount => self.lower_core_string_rune_count_call(&operands),
             CoreIntrinsic::StringMinimalHex => {
                 self.lower_core_string_minimal_hex_call(&operands, false)
             }
