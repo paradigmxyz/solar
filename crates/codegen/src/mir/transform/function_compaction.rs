@@ -981,6 +981,7 @@ fn equivalent_attributes(lhs: &Function, rhs: &Function) -> bool {
             == rhs.attributes.is_function_pointer_dispatcher
         && lhs.attributes.no_inline == rhs.attributes.no_inline
         && lhs.attributes.preserves_array_elements == rhs.attributes.preserves_array_elements
+        && lhs.attributes.returns_param_elements == rhs.attributes.returns_param_elements
         // A proved element width is part of what callers rely on: merging a body
         // whose address array is proved canonical into one that is not would make
         // its callers re-clean every returned element.

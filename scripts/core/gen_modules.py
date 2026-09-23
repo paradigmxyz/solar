@@ -281,6 +281,107 @@ library WordArrays {
     }}
 
 ''')
+        out.append(f'''    /// @dev The sorted union of sorted, duplicate-free `a` and `b`.
+    function union({ty}[] memory a, {ty}[] memory b)
+        internal
+        pure
+        returns ({ty}[] memory c)
+    {{
+        c = new {ty}[](a.length + b.length);
+        uint256 i;
+        uint256 j;
+        uint256 k;
+        while (i < a.length && j < b.length) {{
+            {ty} u = a[i];
+            {ty} v = b[j];
+            if (u == v) {{
+                c[k] = u;
+                ++k;
+                ++i;
+                ++j;
+            }} else if (u > v) {{
+                c[k] = v;
+                ++k;
+                ++j;
+            }} else {{
+                c[k] = u;
+                ++k;
+                ++i;
+            }}
+        }}
+        while (i < a.length) {{
+            c[k] = a[i];
+            ++k;
+            ++i;
+        }}
+        while (j < b.length) {{
+            c[k] = b[j];
+            ++k;
+            ++j;
+        }}
+        Arrays.truncate(c, k);
+    }}
+
+    /// @dev The sorted intersection of sorted, duplicate-free `a` and `b`.
+    function intersection({ty}[] memory a, {ty}[] memory b)
+        internal
+        pure
+        returns ({ty}[] memory c)
+    {{
+        c = new {ty}[](a.length < b.length ? a.length : b.length);
+        uint256 i;
+        uint256 j;
+        uint256 k;
+        while (i < a.length && j < b.length) {{
+            {ty} u = a[i];
+            {ty} v = b[j];
+            if (u == v) {{
+                c[k] = u;
+                ++k;
+                ++i;
+                ++j;
+            }} else if (u > v) {{
+                ++j;
+            }} else {{
+                ++i;
+            }}
+        }}
+        Arrays.truncate(c, k);
+    }}
+
+    /// @dev The sorted difference of sorted, duplicate-free `a` and `b`.
+    function difference({ty}[] memory a, {ty}[] memory b)
+        internal
+        pure
+        returns ({ty}[] memory c)
+    {{
+        c = new {ty}[](a.length);
+        uint256 i;
+        uint256 j;
+        uint256 k;
+        while (i < a.length && j < b.length) {{
+            {ty} u = a[i];
+            {ty} v = b[j];
+            if (u == v) {{
+                ++i;
+                ++j;
+            }} else if (u > v) {{
+                ++j;
+            }} else {{
+                c[k] = u;
+                ++k;
+                ++i;
+            }}
+        }}
+        while (i < a.length) {{
+            c[k] = a[i];
+            ++k;
+            ++i;
+        }}
+        Arrays.truncate(c, k);
+    }}
+
+''')
         word = "uint256({})" if ty == "int256" else "{}"
         before = word.format("keys[j - 1]") + " > " + word.format("key")
         out.append(f'''    /// @dev Sorts `keys` by their word values with `values` moved alongside,

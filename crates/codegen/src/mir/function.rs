@@ -697,6 +697,12 @@ pub(crate) struct FunctionAttributes {
     /// stay false for source functions and for helpers that store new words
     /// into arrays with narrower elements.
     pub(crate) preserves_array_elements: bool,
+    /// Every element word of the single array this function returns was read
+    /// from an element of one of its array parameters, so the result holds no
+    /// wider words than they do.
+    ///
+    /// This is a trusted invariant for compiler-synthesized helpers.
+    pub(crate) returns_param_elements: bool,
     /// Proved upper bound, in bits, on the words each array parameter can
     /// hold while this function reads it, recorded by element cleanup for
     /// the ABI return proofs that run after the element masks are gone.
@@ -721,6 +727,7 @@ impl Default for FunctionAttributes {
             is_function_pointer_dispatcher: false,
             no_inline: false,
             preserves_array_elements: false,
+            returns_param_elements: false,
             array_element_bits: FxHashMap::default(),
             array_return_element_bits: None,
         }

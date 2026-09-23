@@ -52,6 +52,106 @@ library WordArrays {
         Arrays.truncate(a, write);
     }
 
+    /// @dev The sorted union of sorted, duplicate-free `a` and `b`.
+    function union(uint256[] memory a, uint256[] memory b)
+        internal
+        pure
+        returns (uint256[] memory c)
+    {
+        c = new uint256[](a.length + b.length);
+        uint256 i;
+        uint256 j;
+        uint256 k;
+        while (i < a.length && j < b.length) {
+            uint256 u = a[i];
+            uint256 v = b[j];
+            if (u == v) {
+                c[k] = u;
+                ++k;
+                ++i;
+                ++j;
+            } else if (u > v) {
+                c[k] = v;
+                ++k;
+                ++j;
+            } else {
+                c[k] = u;
+                ++k;
+                ++i;
+            }
+        }
+        while (i < a.length) {
+            c[k] = a[i];
+            ++k;
+            ++i;
+        }
+        while (j < b.length) {
+            c[k] = b[j];
+            ++k;
+            ++j;
+        }
+        Arrays.truncate(c, k);
+    }
+
+    /// @dev The sorted intersection of sorted, duplicate-free `a` and `b`.
+    function intersection(uint256[] memory a, uint256[] memory b)
+        internal
+        pure
+        returns (uint256[] memory c)
+    {
+        c = new uint256[](a.length < b.length ? a.length : b.length);
+        uint256 i;
+        uint256 j;
+        uint256 k;
+        while (i < a.length && j < b.length) {
+            uint256 u = a[i];
+            uint256 v = b[j];
+            if (u == v) {
+                c[k] = u;
+                ++k;
+                ++i;
+                ++j;
+            } else if (u > v) {
+                ++j;
+            } else {
+                ++i;
+            }
+        }
+        Arrays.truncate(c, k);
+    }
+
+    /// @dev The sorted difference of sorted, duplicate-free `a` and `b`.
+    function difference(uint256[] memory a, uint256[] memory b)
+        internal
+        pure
+        returns (uint256[] memory c)
+    {
+        c = new uint256[](a.length);
+        uint256 i;
+        uint256 j;
+        uint256 k;
+        while (i < a.length && j < b.length) {
+            uint256 u = a[i];
+            uint256 v = b[j];
+            if (u == v) {
+                ++i;
+                ++j;
+            } else if (u > v) {
+                ++j;
+            } else {
+                c[k] = u;
+                ++k;
+                ++i;
+            }
+        }
+        while (i < a.length) {
+            c[k] = a[i];
+            ++k;
+            ++i;
+        }
+        Arrays.truncate(c, k);
+    }
+
     /// @dev Sorts `keys` by their word values with `values` moved alongside,
     /// keeps one of each key, and gives it the sum of the values its copies had.
     /// Both arrays shrink to the kept keys. The arrays must have one length, and
@@ -129,6 +229,106 @@ library WordArrays {
             if (a[read] != a[write - 1]) a[write++] = a[read];
         }
         Arrays.truncate(a, write);
+    }
+
+    /// @dev The sorted union of sorted, duplicate-free `a` and `b`.
+    function union(int256[] memory a, int256[] memory b)
+        internal
+        pure
+        returns (int256[] memory c)
+    {
+        c = new int256[](a.length + b.length);
+        uint256 i;
+        uint256 j;
+        uint256 k;
+        while (i < a.length && j < b.length) {
+            int256 u = a[i];
+            int256 v = b[j];
+            if (u == v) {
+                c[k] = u;
+                ++k;
+                ++i;
+                ++j;
+            } else if (u > v) {
+                c[k] = v;
+                ++k;
+                ++j;
+            } else {
+                c[k] = u;
+                ++k;
+                ++i;
+            }
+        }
+        while (i < a.length) {
+            c[k] = a[i];
+            ++k;
+            ++i;
+        }
+        while (j < b.length) {
+            c[k] = b[j];
+            ++k;
+            ++j;
+        }
+        Arrays.truncate(c, k);
+    }
+
+    /// @dev The sorted intersection of sorted, duplicate-free `a` and `b`.
+    function intersection(int256[] memory a, int256[] memory b)
+        internal
+        pure
+        returns (int256[] memory c)
+    {
+        c = new int256[](a.length < b.length ? a.length : b.length);
+        uint256 i;
+        uint256 j;
+        uint256 k;
+        while (i < a.length && j < b.length) {
+            int256 u = a[i];
+            int256 v = b[j];
+            if (u == v) {
+                c[k] = u;
+                ++k;
+                ++i;
+                ++j;
+            } else if (u > v) {
+                ++j;
+            } else {
+                ++i;
+            }
+        }
+        Arrays.truncate(c, k);
+    }
+
+    /// @dev The sorted difference of sorted, duplicate-free `a` and `b`.
+    function difference(int256[] memory a, int256[] memory b)
+        internal
+        pure
+        returns (int256[] memory c)
+    {
+        c = new int256[](a.length);
+        uint256 i;
+        uint256 j;
+        uint256 k;
+        while (i < a.length && j < b.length) {
+            int256 u = a[i];
+            int256 v = b[j];
+            if (u == v) {
+                ++i;
+                ++j;
+            } else if (u > v) {
+                ++j;
+            } else {
+                c[k] = u;
+                ++k;
+                ++i;
+            }
+        }
+        while (i < a.length) {
+            c[k] = a[i];
+            ++k;
+            ++i;
+        }
+        Arrays.truncate(c, k);
     }
 
     /// @dev Sorts `keys` by their word values with `values` moved alongside,
@@ -210,6 +410,106 @@ library WordArrays {
         Arrays.truncate(a, write);
     }
 
+    /// @dev The sorted union of sorted, duplicate-free `a` and `b`.
+    function union(address[] memory a, address[] memory b)
+        internal
+        pure
+        returns (address[] memory c)
+    {
+        c = new address[](a.length + b.length);
+        uint256 i;
+        uint256 j;
+        uint256 k;
+        while (i < a.length && j < b.length) {
+            address u = a[i];
+            address v = b[j];
+            if (u == v) {
+                c[k] = u;
+                ++k;
+                ++i;
+                ++j;
+            } else if (u > v) {
+                c[k] = v;
+                ++k;
+                ++j;
+            } else {
+                c[k] = u;
+                ++k;
+                ++i;
+            }
+        }
+        while (i < a.length) {
+            c[k] = a[i];
+            ++k;
+            ++i;
+        }
+        while (j < b.length) {
+            c[k] = b[j];
+            ++k;
+            ++j;
+        }
+        Arrays.truncate(c, k);
+    }
+
+    /// @dev The sorted intersection of sorted, duplicate-free `a` and `b`.
+    function intersection(address[] memory a, address[] memory b)
+        internal
+        pure
+        returns (address[] memory c)
+    {
+        c = new address[](a.length < b.length ? a.length : b.length);
+        uint256 i;
+        uint256 j;
+        uint256 k;
+        while (i < a.length && j < b.length) {
+            address u = a[i];
+            address v = b[j];
+            if (u == v) {
+                c[k] = u;
+                ++k;
+                ++i;
+                ++j;
+            } else if (u > v) {
+                ++j;
+            } else {
+                ++i;
+            }
+        }
+        Arrays.truncate(c, k);
+    }
+
+    /// @dev The sorted difference of sorted, duplicate-free `a` and `b`.
+    function difference(address[] memory a, address[] memory b)
+        internal
+        pure
+        returns (address[] memory c)
+    {
+        c = new address[](a.length);
+        uint256 i;
+        uint256 j;
+        uint256 k;
+        while (i < a.length && j < b.length) {
+            address u = a[i];
+            address v = b[j];
+            if (u == v) {
+                ++i;
+                ++j;
+            } else if (u > v) {
+                ++j;
+            } else {
+                c[k] = u;
+                ++k;
+                ++i;
+            }
+        }
+        while (i < a.length) {
+            c[k] = a[i];
+            ++k;
+            ++i;
+        }
+        Arrays.truncate(c, k);
+    }
+
     /// @dev Sorts `keys` by their word values with `values` moved alongside,
     /// keeps one of each key, and gives it the sum of the values its copies had.
     /// Both arrays shrink to the kept keys. The arrays must have one length, and
@@ -287,6 +587,106 @@ library WordArrays {
             if (a[read] != a[write - 1]) a[write++] = a[read];
         }
         Arrays.truncate(a, write);
+    }
+
+    /// @dev The sorted union of sorted, duplicate-free `a` and `b`.
+    function union(bytes32[] memory a, bytes32[] memory b)
+        internal
+        pure
+        returns (bytes32[] memory c)
+    {
+        c = new bytes32[](a.length + b.length);
+        uint256 i;
+        uint256 j;
+        uint256 k;
+        while (i < a.length && j < b.length) {
+            bytes32 u = a[i];
+            bytes32 v = b[j];
+            if (u == v) {
+                c[k] = u;
+                ++k;
+                ++i;
+                ++j;
+            } else if (u > v) {
+                c[k] = v;
+                ++k;
+                ++j;
+            } else {
+                c[k] = u;
+                ++k;
+                ++i;
+            }
+        }
+        while (i < a.length) {
+            c[k] = a[i];
+            ++k;
+            ++i;
+        }
+        while (j < b.length) {
+            c[k] = b[j];
+            ++k;
+            ++j;
+        }
+        Arrays.truncate(c, k);
+    }
+
+    /// @dev The sorted intersection of sorted, duplicate-free `a` and `b`.
+    function intersection(bytes32[] memory a, bytes32[] memory b)
+        internal
+        pure
+        returns (bytes32[] memory c)
+    {
+        c = new bytes32[](a.length < b.length ? a.length : b.length);
+        uint256 i;
+        uint256 j;
+        uint256 k;
+        while (i < a.length && j < b.length) {
+            bytes32 u = a[i];
+            bytes32 v = b[j];
+            if (u == v) {
+                c[k] = u;
+                ++k;
+                ++i;
+                ++j;
+            } else if (u > v) {
+                ++j;
+            } else {
+                ++i;
+            }
+        }
+        Arrays.truncate(c, k);
+    }
+
+    /// @dev The sorted difference of sorted, duplicate-free `a` and `b`.
+    function difference(bytes32[] memory a, bytes32[] memory b)
+        internal
+        pure
+        returns (bytes32[] memory c)
+    {
+        c = new bytes32[](a.length);
+        uint256 i;
+        uint256 j;
+        uint256 k;
+        while (i < a.length && j < b.length) {
+            bytes32 u = a[i];
+            bytes32 v = b[j];
+            if (u == v) {
+                ++i;
+                ++j;
+            } else if (u > v) {
+                ++j;
+            } else {
+                c[k] = u;
+                ++k;
+                ++i;
+            }
+        }
+        while (i < a.length) {
+            c[k] = a[i];
+            ++k;
+            ++i;
+        }
+        Arrays.truncate(c, k);
     }
 
     /// @dev Sorts `keys` by their word values with `values` moved alongside,
