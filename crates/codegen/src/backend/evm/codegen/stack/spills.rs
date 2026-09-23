@@ -1054,7 +1054,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.restore_stack_prefix(func, saved_above);
     }
 
-    fn save_stack_prefix(&mut self, func: &Function, count: usize) -> Vec<(ValueId, ScheduledOp)> {
+    pub(in crate::backend::evm::codegen) fn save_stack_prefix(
+        &mut self,
+        func: &Function,
+        count: usize,
+    ) -> Vec<(ValueId, ScheduledOp)> {
         let mut saved_above = Vec::with_capacity(count);
         for _ in 0..count {
             let Some(top) = self.scheduler.stack.top() else {
@@ -1078,7 +1082,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         saved_above
     }
 
-    fn restore_stack_prefix(&mut self, func: &Function, saved_above: Vec<(ValueId, ScheduledOp)>) {
+    pub(in crate::backend::evm::codegen) fn restore_stack_prefix(
+        &mut self,
+        func: &Function,
+        saved_above: Vec<(ValueId, ScheduledOp)>,
+    ) {
         for (saved, restore) in saved_above.into_iter().rev() {
             let stack_depth = self.scheduler.depth();
             self.record_scheduled_ops_peak(stack_depth, std::slice::from_ref(&restore));

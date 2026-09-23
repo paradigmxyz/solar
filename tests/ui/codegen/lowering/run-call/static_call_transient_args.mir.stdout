@@ -242,6 +242,57 @@ fn @_schedule(arg0: i256, arg1: i256) {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/static_call_transient_args.sol:DeepCallArguments ===
 @module DeepCallArguments
+fn @buried(arg0: i256) -> i256 [selector=0x121df711, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @buriedInner, arg0
+    ret v0
+}
+
+fn @buriedInner(arg0: i256) -> i256 [view] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = sload 1 !metadata(storage=slot(1))
+    v2 = sload 2 !metadata(storage=slot(2))
+    v3 = sload 3 !metadata(storage=slot(3))
+    v4 = sload 4 !metadata(storage=slot(4))
+    v5 = sload 5 !metadata(storage=slot(5))
+    v6 = sload 6 !metadata(storage=slot(6))
+    v7 = sload 7 !metadata(storage=slot(7))
+    v8 = sload 8 !metadata(storage=slot(8))
+    v9 = sload 9 !metadata(storage=slot(9))
+    v10 = sload 10 !metadata(storage=slot(10))
+    v11 = sload 11 !metadata(storage=slot(11))
+    v12 = sload 12 !metadata(storage=slot(12))
+    v13 = sload 13 !metadata(storage=slot(13))
+    v14 = sload 14 !metadata(storage=slot(14))
+    v15 = sload 15 !metadata(storage=slot(15))
+    v16 = sload 16 !metadata(storage=slot(16))
+    v17 = sload 17 !metadata(storage=slot(17))
+    v18 = sload 18 !metadata(storage=slot(18))
+    v19 = sload 19 !metadata(storage=slot(19))
+    v20 = add arg0, v0
+    v21 = add v20, v1
+    v22 = add v21, v2
+    v23 = add v22, v3
+    v24 = add v23, v4
+    v25 = add v24, v5
+    v26 = add v25, v6
+    v27 = add v26, v7
+    v28 = add v27, v8
+    v29 = add v28, v9
+    v30 = add v29, v10
+    v31 = add v30, v11
+    v32 = add v31, v12
+    v33 = add v32, v13
+    v34 = add v33, v14
+    v35 = add v34, v15
+    v36 = add v35, v16
+    v37 = add v36, v17
+    v38 = add v37, v18
+    v39 = add v38, v19
+    ret v39
+}
+
 fn @wide(arg0: i256) -> i256 [selector=0x598b5337, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = add arg0, 0

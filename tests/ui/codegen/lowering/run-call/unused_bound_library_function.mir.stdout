@@ -57,3 +57,71 @@ fn @builtinReferences() -> i256 [selector=0x96f217d0, pure, abi_params=[], abi_r
   bb0:
     ret 7
 }
+
+fn @freeReceiverEffect() -> i256 [selector=0xe6b85063, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @next
+    v1 = sload 0 !metadata(storage=slot(0))
+    ret v1
+}
+
+fn @tupleReceiverEffect() -> i256 [selector=0x838a913a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @next
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = checked_add u256, v1, 3
+    ret v2
+}
+
+fn @tupleAssignmentEffect() -> i256 [selector=0x2e89541f, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @next
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = checked_add u256, v1, 3
+    ret v2
+}
+
+fn @freeReceiverRevert() [selector=0xe1675ff9, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = icall @fail
+    ret
+}
+
+fn @tupleReceiverRevert() -> i256 [selector=0x48efbf0f, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @fail
+    ret 3
+}
+
+fn @nestedReceiverEffect(arg0: i256) -> i256 [selector=0xa644188c, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    v2 = icall @fail
+    jump bb3
+  bb1:
+    v1 = icall @next
+    jump bb3
+  bb3:
+    v3 = phi [bb1: v1], [bb2: v2]
+    v4 = sload 0 !metadata(storage=slot(0))
+    ret v4
+}
+
+fn @freeCheckedReceiver() [selector=0x13dcdc32, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v0, 1
+    v1 = memory_object_len memoryarray, v0
+    v2 = lt 1, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = memory_object_load_element memoryarray<1>, v0, 1
+    ret
+}
+
+fn @identity(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret arg0
+}

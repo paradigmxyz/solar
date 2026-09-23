@@ -90,7 +90,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let operands = kind.operands();
-        self.materialize_lazy_stack_args(func_id, kind, block, inst_idx);
+        self.materialize_lazy_stack_args(func_id, func, kind, block, inst_idx);
         let transient_growth = Self::instruction_transient_growth(kind, operands.len());
         self.materialize_deep_stack_args(func_id, func, transient_growth);
 

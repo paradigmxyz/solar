@@ -1126,9 +1126,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut before: FxHashMap<VariableId, StorageAccess>,
         states: &[LoopState],
     ) -> FxHashMap<VariableId, StorageAccess> {
-        let ids = before.keys().copied().collect::<Vec<_>>();
+        let mut ids = before.keys().copied().collect::<Vec<_>>();
+        ids.extend(states.iter().flat_map(|state| state.storage_refs.keys().copied()));
+        ids.sort_unstable();
+        ids.dedup();
         for id in ids {
             let fallback = before.get(&id).copied();
+            if fallback.is_none()
+                && states.iter().any(|state| !state.storage_refs.contains_key(&id))
+            {
+                continue;
+            }
             let incoming = states
                 .iter()
                 .filter_map(|state| {

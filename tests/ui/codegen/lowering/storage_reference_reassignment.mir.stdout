@@ -290,3 +290,91 @@ fn @rebindParameterInner(arg0: i256, arg1: i256, arg2: i256) {
     sstore v0, arg2 !metadata(storage=symbolic(v0))
     ret
 }
+
+fn @switchBind(arg0: i256, arg1: i256) -> i256 [selector=0x68f229f2, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    switch arg0, default bb5, [0 => bb2, 1 => bb3, 3 => bb4]
+  bb4:
+    revert 0, 0
+  bb3:
+    jump bb1
+  bb2:
+    jump bb1
+  bb5:
+    jump bb1
+  bb1:
+    v0 = phi [bb2: 42], [bb3: 43], [bb5: 44]
+    v1 = add v0, 1
+    sstore v1, arg1 !metadata(storage=offset(v0, 1))
+    v2 = icall @readB, v0
+    ret v2
+}
+
+fn @doWhileBind(arg0: i256) -> i256 [selector=0xe97129c1, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb4: v0]
+    v1 = phi [bb0: 0], [bb4: v1]
+    v2 = mapping_slot 1, 0
+    jump bb3
+  bb3:
+    jumpi false, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v3 = add v2, 1
+    sstore v3, v0 !metadata(storage=offset(v2, 1))
+    v4 = icall @readB, v2
+    ret v4
+  bb4:
+    jump bb1
+  bb6:
+    invalid
+}
+
+fn @mayFail(arg0: i256) [selector=0x8aef7752, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = eq v0, false
+    v2 = eq v1, false
+    v3 = eq v2, false
+    icall revert_if<empty>, v3
+    ret
+}
+
+fn @tryBind(arg0: i256, arg1: i256) -> i256 [selector=0x9a0c8f93, abi_params=[bool, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = eq arg0, 0
+    v3 = eq v2, false
+    v4 = zext i1 v3 to i256
+    v5 = abi_encode [word<bool>], selector 0x8aef775200000000000000000000000000000000000000000000000000000000, args v4
+    v6 = slice_ptr v5
+    v7 = slice_len v5
+    v8 = zext i160 v0 to i256
+    v9 = extcodesize v8
+    v10 = eq v9, 0
+    icall revert_if<target_contract_has_no_code>, v10
+    v11 = zext i160 v0 to i256
+    v12 = staticcall v1, v11, v6, v7, 0, 0
+    jumpi v12, bb1, bb2
+  bb2:
+    jumpi true, bb4, bb5
+  bb5:
+    icall revert_if<empty>, true
+    invalid
+  bb4:
+    v14 = mapping_slot 2, 0
+    jump bb3
+  bb1:
+    v13 = mapping_slot 1, 0
+    jump bb3
+  bb3:
+    v15 = phi [bb1: v13], [bb4: v14]
+    v16 = add v15, 1
+    sstore v16, arg1 !metadata(storage=offset(v15, 1))
+    v17 = icall @readB, v15
+    ret v17
+}

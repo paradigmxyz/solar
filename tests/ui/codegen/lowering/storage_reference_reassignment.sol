@@ -16,6 +16,13 @@
 //@ run-call: mappingAssignmentExpression 3, 5, 17 => 1, 0, 0, 17
 
 //@ run-call: yulBind 17 => 17, 18
+//@ run-call: switchBind 0, 17 => 17
+//@ run-call: switchBind 1, 19 => 19
+//@ run-call: switchBind 2, 23 => 23
+//@ run-call-fail: switchBind 3, 23 => 0x
+//@ run-call: doWhileBind 17 => 17
+//@ run-call: tryBind false, 17 => 17
+//@ run-call: tryBind true, 19 => 19
 //@ run-call: branchBind true, 17 => 17, 18, 0
 //@ run-call: branchBind false, 17 => 0, 18, 17
 //@ run-call: branchBindReturn true, 17 => 0
@@ -194,5 +201,41 @@ contract StorageReferenceReassignment {
     function rebindParameterInner(Item storage item, uint256 key, uint256 value) internal {
         item = items[key];
         item.a = value;
+    }
+    function switchBind(uint256 which, uint256 value) external returns (uint256) {
+        Item storage item;
+        assembly {
+            switch which
+            case 0 { item.slot := 42 }
+            case 1 { item.slot := 43 }
+            case 3 { revert(0, 0) }
+            default { item.slot := 44 }
+        }
+        item.b = value;
+        return readB(item);
+    }
+
+    function doWhileBind(uint256 value) external returns (uint256) {
+        Item storage item;
+        do {
+            item = items[1];
+        } while (false);
+        item.b = value;
+        return readB(item);
+    }
+
+    function mayFail(bool fail) external pure {
+        require(!fail);
+    }
+
+    function tryBind(bool fail, uint256 value) external returns (uint256) {
+        Item storage item;
+        try this.mayFail(fail) {
+            item = items[1];
+        } catch {
+            item = items[2];
+        }
+        item.b = value;
+        return readB(item);
     }
 }

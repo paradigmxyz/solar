@@ -115,6 +115,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn emit_global_branch_cleanup(&mut self, func: &Function, layout: &[ValueId]) {
+        // Divergent arms share spill state, so cleanup must not save a deep prefix.
+        assert!(self.scheduler.depth() <= self.stack_access_limit());
         self.pop_stack_values_not_needed_by(func, layout);
         let target: Vec<_> = layout.iter().copied().map(TargetSlot::Value).collect();
         let shuffle = self
@@ -338,6 +340,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn emit_stack_phi_edge_layout(&mut self, func: &Function, edge: &StackPhiEdge) {
+        // Divergent arms share spill state, so cleanup must not save a deep prefix.
+        assert!(self.scheduler.depth() <= self.stack_access_limit());
         self.pop_stack_values_not_needed_by(func, &edge.sources);
         // edge: push deferred_immediates; shuffle sources; rename to results
         for value in Self::missing_stack_phi_sources(&self.scheduler.stack, &edge.sources) {
