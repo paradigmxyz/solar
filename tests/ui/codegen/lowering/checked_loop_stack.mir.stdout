@@ -63,18 +63,18 @@ fn @checkedLatch(arg0: i256, arg1: i256) -> i256 [selector=0x3ed7bb22, pure, abi
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v6]
-    v2 = phi [bb0: arg1], [bb3: v2]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v6]
     v3 = phi [bb0: arg0], [bb3: v7]
-    v4 = gt v3, v2
+    v4 = gt v3, v1
     v5 = eq v4, false
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v1
+    ret v2
   bb4:
-    v6 = add v1, v3
+    v6 = add v2, v3
     jump bb6
   bb6:
     jump bb3
@@ -87,20 +87,20 @@ fn @diagnostic(arg0: i256, arg1: i256) -> i256 [selector=0x6f25cb96, pure, abi_p
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb5: v0]
-    v1 = phi [bb0: arg0], [bb5: v7]
-    v2 = phi [bb0: arg0], [bb5: v2]
-    v3 = phi [bb0: 0], [bb5: v6]
-    v4 = gt v1, v0
+    v0 = phi [bb0: arg0], [bb5: v0]
+    v1 = phi [bb0: arg1], [bb5: v1]
+    v2 = phi [bb0: 0], [bb5: v6]
+    v3 = phi [bb0: arg0], [bb5: v7]
+    v4 = gt v3, v1
     v5 = eq v4, false
     jumpi v5, bb3, bb4
   bb4:
     jump bb2
   bb2:
-    ret v3
+    ret v2
   bb3:
-    v6 = add v3, v1
-    v7 = add v1, 1
+    v6 = add v2, v3
+    v7 = add v3, 1
     v8 = eq v7, 0
     jumpi v8, bb6, bb7
   bb7:
@@ -110,6 +110,6 @@ fn @diagnostic(arg0: i256, arg1: i256) -> i256 [selector=0x6f25cb96, pure, abi_p
   bb5:
     jump bb1
   bb6:
-    icall require<custom_error [word, word]>, false, 0x760769fe00000000000000000000000000000000000000000000000000000000, v1, v6
+    icall require<custom_error [word, word]>, false, 0x760769fe00000000000000000000000000000000000000000000000000000000, v3, v6
     invalid
 }

@@ -31,16 +31,16 @@ fn @skip(arg0: i256) -> i256 [inline_assembly] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb3: v6]
-    v1 = phi [bb0: arg0], [bb3: v1]
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg0], [bb3: v6]
     v2 = ne 1, 0
     jumpi v2, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v0
+    ret v1
   bb4:
-    v3 = eq v0, 5
+    v3 = eq v1, 5
     v4 = zext i1 v3 to i256
     v5 = ne v4, 0
     jumpi v5, bb7, bb8
@@ -51,10 +51,10 @@ fn @skip(arg0: i256) -> i256 [inline_assembly] {
   bb6:
     jump bb3
   bb3:
-    v6 = add v0, 1
+    v6 = add v1, 1
     jump bb1
   bb7:
-    ret v0
+    ret v1
 }
 
 fn @f(arg0: i256) -> i256 [inline_assembly] {

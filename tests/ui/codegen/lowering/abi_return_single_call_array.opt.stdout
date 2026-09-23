@@ -23,19 +23,19 @@ fn @copy(arg0: memptr) -> memptr [may_return_memory, pure] {
     v40 = add v46, 32
     jump bb1
   bb1:
-    v19 = phi [bb4: 0], [bb3: v33]
+    v20 = phi [bb4: 0], [bb3: v33]
     v21 = mload v43
-    v22 = lt v19, v21
+    v22 = lt v20, v21
     jumpi v22, bb3, bb2
   bb2:
     ret v17
   bb3:
-    v37 = shl 5, v19
+    v37 = shl 5, v20
     v38 = add v36, v37
     v26 = mload v38
     v42 = add v40, v37
     mstore v42, v26
-    v33 = add v19, 1
+    v33 = add v20, 1
     jump bb1
   bb5:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

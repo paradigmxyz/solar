@@ -70,50 +70,50 @@ fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, pure, ab
     v59 = extract_value struct0, v57, 1
     jump bb10
   bb10:
-    v60 = phi [bb2: v37], [bb12: v60]
-    v61 = phi [bb2: 0], [bb12: v61]
-    v62 = phi [bb2: v58], [bb12: v62]
-    v63 = phi [bb2: 0], [bb12: v76]
-    v64 = phi [bb2: arg0], [bb12: v64]
-    v65 = phi [bb2: v3], [bb12: v65]
-    v66 = phi [bb2: v31], [bb12: v66]
-    v67 = phi [bb2: v19], [bb12: v67]
-    v68 = phi [bb2: arg1], [bb12: v68]
-    v69 = phi [bb2: v35], [bb12: v69]
-    v70 = phi [bb2: v7], [bb12: v70]
-    v71 = phi [bb2: v23], [bb12: v71]
-    v72 = phi [bb2: arg2], [bb12: v72]
-    v73 = phi [bb2: v59], [bb12: v73]
-    v74 = and v66, 3
-    v75 = lt v63, v74
+    v60 = phi [bb2: arg0], [bb12: v60]
+    v61 = phi [bb2: arg1], [bb12: v61]
+    v62 = phi [bb2: arg2], [bb12: v62]
+    v63 = phi [bb2: 0], [bb12: v63]
+    v64 = phi [bb2: v3], [bb12: v64]
+    v65 = phi [bb2: v7], [bb12: v65]
+    v66 = phi [bb2: v59], [bb12: v66]
+    v67 = phi [bb2: v58], [bb12: v67]
+    v68 = phi [bb2: v19], [bb12: v68]
+    v69 = phi [bb2: v23], [bb12: v69]
+    v70 = phi [bb2: v37], [bb12: v70]
+    v71 = phi [bb2: v31], [bb12: v71]
+    v72 = phi [bb2: v35], [bb12: v72]
+    v73 = phi [bb2: 0], [bb12: v76]
+    v74 = and v71, 3
+    v75 = lt v73, v74
     jumpi v75, bb13, bb14
   bb14:
     jump bb11
   bb11:
     jump bb16
   bb16:
-    v77 = phi [bb11: v60], [bb20: v96]
-    v78 = phi [bb11: v62], [bb20: v78]
-    v79 = phi [bb11: v65], [bb20: v93]
-    v80 = phi [bb11: 0], [bb20: v92]
-    v81 = phi [bb11: v68], [bb20: v81]
-    v82 = phi [bb11: v69], [bb20: v82]
-    v83 = phi [bb11: v71], [bb20: v83]
-    v84 = phi [bb11: v73], [bb20: v84]
-    v85 = phi [bb11: v61], [bb20: v85]
-    v86 = phi [bb11: v63], [bb20: v86]
-    v87 = phi [bb11: v64], [bb20: v87]
-    v88 = phi [bb11: v66], [bb20: v88]
-    v89 = phi [bb11: v67], [bb20: v89]
-    v90 = phi [bb11: v70], [bb20: v90]
-    v91 = phi [bb11: v72], [bb20: v91]
+    v77 = phi [bb11: v60], [bb20: v77]
+    v78 = phi [bb11: v61], [bb20: v78]
+    v79 = phi [bb11: v62], [bb20: v79]
+    v80 = phi [bb11: v63], [bb20: v80]
+    v81 = phi [bb11: v64], [bb20: v93]
+    v82 = phi [bb11: v65], [bb20: v82]
+    v83 = phi [bb11: v66], [bb20: v83]
+    v84 = phi [bb11: v67], [bb20: v84]
+    v85 = phi [bb11: v68], [bb20: v85]
+    v86 = phi [bb11: v69], [bb20: v86]
+    v87 = phi [bb11: v70], [bb20: v96]
+    v88 = phi [bb11: v71], [bb20: v88]
+    v89 = phi [bb11: v72], [bb20: v89]
+    v90 = phi [bb11: v73], [bb20: v90]
+    v91 = phi [bb11: 0], [bb20: v92]
     jumpi true, bb18, bb19
   bb19:
     jump bb17
   bb18:
-    v92 = add v80, 1
-    v93 = xor v79, v92
-    v94 = and v89, 3
+    v92 = add v91, 1
+    v93 = xor v81, v92
+    v94 = and v85, 3
     v95 = gt v92, v94
     jumpi v95, bb21, bb22
   bb22:
@@ -126,35 +126,35 @@ fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, pure, ab
   bb21:
     jump bb17
   bb17:
-    v97 = phi [bb21: v93], [bb19: v79]
-    v98 = phi [bb21: v92], [bb19: v80]
+    v97 = phi [bb21: v93], [bb19: v81]
+    v98 = phi [bb21: v92], [bb19: v91]
     jump bb3
   bb13:
     jump bb15
   bb15:
     jump bb12
   bb12:
-    v76 = add v63, 1
+    v76 = add v73, 1
     jump bb10
   bb1:
     jump bb4
   bb4:
-    v40 = phi [bb1: v37], [bb6: v40]
-    v41 = phi [bb1: 0], [bb6: v41]
-    v42 = phi [bb1: v15], [bb6: v42]
-    v43 = phi [bb1: arg0], [bb6: v43]
+    v40 = phi [bb1: arg0], [bb6: v40]
+    v41 = phi [bb1: arg1], [bb6: v41]
+    v42 = phi [bb1: arg2], [bb6: v42]
+    v43 = phi [bb1: 0], [bb6: v43]
     v44 = phi [bb1: v3], [bb6: v44]
-    v45 = phi [bb1: v31], [bb6: v45]
-    v46 = phi [bb1: v19], [bb6: v46]
-    v47 = phi [bb1: arg1], [bb6: v47]
-    v48 = phi [bb1: v35], [bb6: v48]
-    v49 = phi [bb1: v7], [bb6: v49]
-    v50 = phi [bb1: v23], [bb6: v50]
-    v51 = phi [bb1: 0], [bb6: v56]
-    v52 = phi [bb1: arg2], [bb6: v52]
-    v53 = phi [bb1: v11], [bb6: v53]
-    v54 = and v40, 3
-    v55 = lt v51, v54
+    v45 = phi [bb1: v7], [bb6: v45]
+    v46 = phi [bb1: v11], [bb6: v46]
+    v47 = phi [bb1: v15], [bb6: v47]
+    v48 = phi [bb1: v19], [bb6: v48]
+    v49 = phi [bb1: v23], [bb6: v49]
+    v50 = phi [bb1: v37], [bb6: v50]
+    v51 = phi [bb1: v31], [bb6: v51]
+    v52 = phi [bb1: v35], [bb6: v52]
+    v53 = phi [bb1: 0], [bb6: v56]
+    v54 = and v50, 3
+    v55 = lt v53, v54
     jumpi v55, bb7, bb8
   bb8:
     jump bb5
@@ -162,34 +162,34 @@ fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, pure, ab
     jump bb3
   bb3:
     v99 = phi [bb5: v40], [bb17: v77]
-    v100 = phi [bb5: v41], [bb17: v85]
-    v101 = phi [bb5: v42], [bb17: v78]
-    v102 = phi [bb5: v43], [bb17: v87]
+    v100 = phi [bb5: v41], [bb17: v78]
+    v101 = phi [bb5: v42], [bb17: v79]
+    v102 = phi [bb5: v43], [bb17: v80]
     v103 = phi [bb5: v44], [bb17: v97]
-    v104 = phi [bb5: v45], [bb17: v88]
-    v105 = phi [bb5: v46], [bb17: v89]
-    v106 = phi [bb5: v47], [bb17: v81]
-    v107 = phi [bb5: v48], [bb17: v82]
-    v108 = phi [bb5: v49], [bb17: v90]
-    v109 = phi [bb5: v50], [bb17: v83]
-    v110 = phi [bb5: v52], [bb17: v91]
-    v111 = phi [bb5: v53], [bb17: v84]
+    v104 = phi [bb5: v45], [bb17: v82]
+    v105 = phi [bb5: v46], [bb17: v83]
+    v106 = phi [bb5: v47], [bb17: v84]
+    v107 = phi [bb5: v48], [bb17: v85]
+    v108 = phi [bb5: v49], [bb17: v86]
+    v109 = phi [bb5: v50], [bb17: v87]
+    v110 = phi [bb5: v51], [bb17: v88]
+    v111 = phi [bb5: v52], [bb17: v89]
     v112 = mul v103, 1
-    v113 = mul v108, 2
+    v113 = mul v104, 2
     v114 = xor v112, v113
-    v115 = mul v111, 3
+    v115 = mul v105, 3
     v116 = xor v114, v115
-    v117 = mul v101, 4
+    v117 = mul v106, 4
     v118 = xor v116, v117
-    v119 = mul v105, 5
+    v119 = mul v107, 5
     v120 = xor v118, v119
-    v121 = mul v109, 6
+    v121 = mul v108, 6
     v122 = xor v120, v121
-    v123 = mul v99, 7
+    v123 = mul v109, 7
     v124 = xor v122, v123
-    v125 = mul v104, 8
+    v125 = mul v110, 8
     v126 = xor v124, v125
-    v127 = mul v107, 9
+    v127 = mul v111, 9
     v128 = xor v126, v127
     ret v128
   bb7:
@@ -197,6 +197,6 @@ fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, pure, ab
   bb9:
     jump bb6
   bb6:
-    v56 = add v51, 1
+    v56 = add v53, 1
     jump bb4
 }
