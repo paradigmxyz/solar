@@ -7,10 +7,11 @@ contract UdvtSelector {
     // CHECK: "unwrapAndAdd(uint256,uint256)": "8d2f9995"
     // CHECK: @module UdvtSelector_runtime
     // CHECK: push 0x8d2f9995
-    // CHECK: push 36
-    // CHECK-NEXT: calldataload
     // CHECK: push 4
     // CHECK-NEXT: calldataload
+    // CHECK-NEXT: push 36
+    // CHECK-NEXT: calldataload
+    // CHECK-NEXT: dup 2
     // CHECK-NEXT: add
     // CHECK: return
     function unwrapAndAdd(Wad x, uint256 y) external pure returns (uint256) {

@@ -154,14 +154,15 @@ bb6:
   lt
   push bb25
   jumpi
-  push 7
   push 4
   calldataload
-  mod
+  push 7
   dup 2
+  mod
+  dup 3
   push 288
   mstore
-  dup 3
+  dup 4
   push 224
   mstore
   push 64
@@ -177,8 +178,7 @@ bb6:
   push 64
   add
   mstore
-  push 4
-  calldataload
+  dup 3
   dup 2
   push 96
   add
@@ -190,6 +190,7 @@ bb6:
   add
   push 64
   mstore
+  pop
   pop
   pop
   pop
@@ -265,9 +266,10 @@ bb18 [continuation]:
   mstore
   push 256
   mstore
-  push 5
   push 4
   calldataload
+  push 5
+  dup 2
   mod
   push 64
   mload
@@ -282,8 +284,7 @@ bb18 [continuation]:
   push 64
   add
   mstore
-  push 4
-  calldataload
+  dup 3
   dup 2
   push 96
   add
@@ -295,6 +296,7 @@ bb18 [continuation]:
   add
   push 64
   mstore
+  pop
   pop
   push bb19
   jump bb41

@@ -42,72 +42,72 @@ bb4:
   iszero
   push bb44
   jumpi
+  push 4
+  calldataload
   push 2
-  push 4
-  calldataload
+  dup 2
   add
-  push 4
-  calldataload
+  swap 1
   dup 2
   lt
   push bb44
   jumpi
+  push 4
+  calldataload
   push 3
-  push 4
-  calldataload
+  dup 2
   add
-  push 4
-  calldataload
+  swap 1
   dup 2
   lt
   push bb44
   jumpi
   push 4
-  dup 1
   calldataload
-  add
   push 4
-  calldataload
+  dup 2
+  add
+  swap 1
   dup 2
   lt
   push bb44
   jumpi
+  push 4
+  calldataload
   push 5
-  push 4
-  calldataload
+  dup 2
   add
-  push 4
-  calldataload
+  swap 1
   dup 2
   lt
   push bb44
   jumpi
+  push 4
+  calldataload
   push 6
-  push 4
-  calldataload
+  dup 2
   add
-  push 4
-  calldataload
+  swap 1
   dup 2
   lt
   push bb44
   jumpi
+  push 4
+  calldataload
   push 7
-  push 4
-  calldataload
+  dup 2
   add
-  push 4
-  calldataload
+  swap 1
   dup 2
   lt
   push bb44
   jumpi
+  push 4
+  calldataload
   push 8
-  push 4
-  calldataload
+  dup 2
   add
-  push 4
-  calldataload
+  swap 1
   dup 2
   lt
   push bb44
@@ -215,73 +215,73 @@ bb4:
   pop
   push bb44
   jumpi
+  push 4
+  calldataload
   push 14
-  push 4
-  calldataload
+  dup 2
   add
-  push 4
-  calldataload
+  swap 1
   dup 2
   lt
   push bb44
   jumpi
+  push 4
+  calldataload
   push 15
-  push 4
-  calldataload
+  dup 2
   add
-  push 4
-  calldataload
+  swap 1
   dup 2
   lt
   push bb44
   jumpi
+  push 4
+  calldataload
   push 16
-  push 4
-  calldataload
+  dup 2
   add
-  push 4
-  calldataload
+  swap 1
   dup 2
   lt
   push bb44
   jumpi
+  push 4
+  calldataload
   push 17
-  push 4
-  calldataload
+  dup 2
   add
-  push 4
-  calldataload
+  swap 1
   dup 2
   lt
   push bb44
   jumpi
+  push 4
+  calldataload
   push 18
-  push 4
-  calldataload
+  dup 2
   add
-  push 4
-  calldataload
+  swap 1
   dup 2
   lt
   push bb44
   jumpi
+  push 4
+  calldataload
   push 19
-  push 4
-  calldataload
+  dup 2
   add
-  push 4
-  calldataload
+  swap 1
   dup 2
   lt
   push bb44
   jumpi
+  push 4
+  calldataload
   push 160
   mload
-  push 4
-  calldataload
+  dup 2
   add
-  push 4
-  calldataload
+  swap 1
   dup 2
   lt
   push bb44

@@ -231,10 +231,10 @@ bb38:
 bb42 [loop]:
   push 36
   calldataload
-  dup 2
+  dup 1
+  dup 3
   mul
-  push 36
-  calldataload
+  swap 1
   dup 2
   div
   swap 1

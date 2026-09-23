@@ -2,9 +2,15 @@
 
 use super::{
     BlockId, EvmCodegen, EvmMemoryLayout, Function, InstKind, LateGasOperand, Liveness,
-    OperandCostModel, OperandPlan, ScheduledOp, SmallVec, StackOp, StackScheduler, U256, Value,
-    ValueId, WORD_BYTES, index_vec, op, rematerializable_nullary_value,
+    OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, SmallVec, StackOp, StackScheduler,
+    U256, Value, ValueId, WORD_BYTES, index_vec, op, rematerializable_nullary_value,
 };
+use std::cmp::Ordering;
+
+/// Straight-line instructions within which an argument's next use keeps a stack copy.
+const ARG_REUSE_WINDOW: usize = 16;
+/// Stack depth below which a copy of a reused argument stays resident.
+const ARG_REUSE_DEPTH: usize = 8;
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Emits a value to the stack.
@@ -65,6 +71,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         inst_idx: usize,
     ) -> SmallVec<[ValueId; 8]> {
         let mut preserved = SmallVec::<[ValueId; 8]>::new();
+        // An external entry reloads an argument by pushing its offset and reading calldata
+        // again. Internal functions keep arguments through their own stack-argument plans.
+        let optimization = self.gcx.sess.opts.optimization;
+        let arg_reload_costs_more = !self.in_internal_function
+            && !self.in_constructor
+            && ScheduleCost::memory_load(self.operand_cost_model()).cmp_for(
+                ScheduleCost::stack_op(StackOp::Dup(1), self.gcx.sess.opts.evm_version),
+                optimization,
+            ) == Ordering::Greater;
         for value in scheduler.stack.iter().flatten() {
             if scheduler.is_stack_only_value(value)
                 && liveness.is_used_at_or_after(value, block, inst_idx + 1)
@@ -87,11 +102,25 @@ impl<'gcx> EvmCodegen<'gcx> {
             let carried_arg_is_live = self.global_stack_active
                 && matches!(func.value(value), crate::mir::Value::Arg(_))
                 && !liveness.is_dead_after(value, block, inst_idx);
+            // A copy kept on a shallow stack serves the argument's next uses through DUPs. It is
+            // an ordinary stack word and never owns a spill slot, but it can cost shuffles
+            // before its next use, so it is kept only for the next instruction or for at least
+            // two more uses in the next few straight-line instructions.
+            let arg_reused_soon = arg_reload_costs_more
+                && matches!(func.value(value), crate::mir::Value::Arg(_))
+                && scheduler.stack.depth() < ARG_REUSE_DEPTH
+                && {
+                    let mut uses = func.blocks[block].instructions[inst_idx + 1..]
+                        .iter()
+                        .take(ARG_REUSE_WINDOW)
+                        .map(|&inst| func.inst(inst).kind.operands().contains(&value));
+                    uses.next() == Some(true) || uses.filter(|&used| used).count() >= 2
+                };
             let rematerializable = Self::is_rematerializable_value(func, value)
                 || Self::is_always_rematerializable_value(func, value);
             if !preserved.contains(&value)
                 && (!liveness.is_dead_after(value, block, inst_idx) || alias_is_live)
-                && (!rematerializable || carried_arg_is_live)
+                && (!rematerializable || carried_arg_is_live || arg_reused_soon)
                 && (scheduler.reloadable_spill(value).is_none()
                     || scheduler.stack.contains(value)
                     || used_by_next_instruction)
