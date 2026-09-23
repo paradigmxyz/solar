@@ -120,11 +120,11 @@ bb7 [continuation]:
 bb8:
   push 4
   calldataload
+  dup 1
   push 0x1fe0
   mstore
   push bb9
-  push 4
-  calldataload
+  dup 2
   jump bb23
 bb23:
   push 0x2000
@@ -154,8 +154,6 @@ bb24 [loop]:
   mload
   jump bb30
 bb9 [continuation]:
-  push 4
-  calldataload
   add
   push 128
   mstore

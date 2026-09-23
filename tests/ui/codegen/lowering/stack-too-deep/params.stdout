@@ -34,13 +34,13 @@ bb4:
   lt
   push bb3
   jumpi
+  push 4
+  calldataload
   push 36
   calldataload
-  push 4
-  calldataload
+  dup 2
   add
-  push 4
-  calldataload
+  swap 1
   dup 2
   lt
   push bb25

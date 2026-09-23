@@ -124,9 +124,10 @@ bb20:
 bb21 [continuation]:
   push 4
   calldataload
+  swap 1
+  dup 2
   add
-  push 4
-  calldataload
+  swap 1
   dup 2
   lt
   push bb26

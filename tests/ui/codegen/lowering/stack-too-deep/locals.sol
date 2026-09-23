@@ -14,8 +14,7 @@ contract StackTooDeepLocals {
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: add
     // CHECK: push 21
-    // CHECK-NEXT: push 4
-    // CHECK-NEXT: calldataload
+    // CHECK-NEXT: dup 2
     // CHECK-NEXT: add
     // CHECK: mload
     // CHECK: add

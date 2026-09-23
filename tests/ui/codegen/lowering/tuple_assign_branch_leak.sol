@@ -25,9 +25,10 @@ contract TupleAssignBranchLeak {
     // CHECK-NEXT: push [[THEN:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // The fallthrough else arm rebuilds `off` from calldata, not the other arm's result.
-    // CHECK-NEXT: push 7
     // CHECK-NEXT: push 36
     // CHECK-NEXT: calldataload
+    // CHECK-NEXT: push 7
+    // CHECK-NEXT: dup 2
     // CHECK-NEXT: add
     // CHECK: lt
     // CHECK-NEXT: push [[OVERFLOW:bb[0-9]+]]
