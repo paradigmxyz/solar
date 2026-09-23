@@ -1,0 +1,194 @@
+// === ROOT/tests/ui/codegen/mir/loop-idioms/gas_pipeline.sol:Test ===
+@module Test
+@phase lowered
+fn @ascii() [selector=0x6f11c5d5, abi_wrapper, pure] {
+  bb0:
+    v18 = calldatasize
+    v19 = lt v18, 36
+    jumpi v19, bb3, bb4
+  bb4:
+    v20 = icall @decode_calldata_type, 4
+    v36 = ptrtoint memptr v20 to i256
+    v14 = mload v36
+    v37 = lt v14, 64
+    jumpi v37, bb5, bb9
+  bb9:
+    v57 = add v36, 32
+    v58 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc0
+    v59 = add v57, v58
+    jump bb10
+  bb10:
+    v60 = phi [bb9: v57], [bb12: v67]
+    v61 = xor v60, v59
+    v62 = ne v61, 0
+    jumpi v62, bb12, bb11
+  bb11:
+    v70 = and v14, 32
+    v71 = ne v70, 0
+    jumpi v71, bb14, bb13
+  bb14:
+    v82 = mload v60
+    v83 = add v60, 32
+    jump bb13
+  bb13:
+    v72 = phi [bb11: v60], [bb14: v83]
+    v73 = phi [bb11: 0], [bb14: v82]
+    v77 = mload v72
+    v74 = and v14, 31
+    v75 = sub 32, v74
+    v76 = mul v75, 8
+    v78 = shr v76, v77
+    v79 = or v73, v78
+    v80 = and v79, 0x8080808080808080808080808080808080808080808080808080808080808080
+    v81 = eq v80, 0
+    jump bb15
+  bb12:
+    v63 = mload v60
+    v64 = add v60, 32
+    v67 = add v64, 32
+    v65 = mload v64
+    v66 = or v63, v65
+    v68 = and v66, 0x8080808080808080808080808080808080808080808080808080808080808080
+    v69 = ne v68, 0
+    jumpi v69, bb2, bb10
+  bb2:
+    mstore 128, 0
+    returndata 128, 32
+  bb5:
+    v38 = ne v14, 0
+    jumpi v38, bb7, bb1
+  bb1:
+    mstore 128, 1
+    returndata 128, 32
+  bb7:
+    v39 = lt v14, 33
+    jumpi v39, bb6, bb8
+  bb8:
+    v47 = add v36, 32
+    v48 = mload v47
+    v49 = add v47, 32
+    v50 = mload v49
+    v51 = sub 64, v14
+    v52 = mul v51, 8
+    v53 = shr v52, v50
+    v54 = or v48, v53
+    v55 = and v54, 0x8080808080808080808080808080808080808080808080808080808080808080
+    v56 = eq v55, 0
+    jump bb15
+  bb6:
+    v40 = add v36, 32
+    v41 = mload v40
+    v42 = sub 32, v14
+    v43 = mul v42, 8
+    v44 = shr v43, v41
+    v45 = and v44, 0x8080808080808080808080808080808080808080808080808080808080808080
+    v46 = eq v45, 0
+    jump bb15
+  bb15:
+    v84 = phi [bb6: v46], [bb8: v56], [bb13: v81]
+    v85 = zext i1 v84 to i256
+    mstore 128, v85
+    returndata 128, 32
+  bb3:
+    revert 0, 0
+}
+
+fn @allowed() [selector=0x5bae29a6, abi_wrapper, pure] {
+  bb0:
+    v23 = calldatasize
+    v24 = lt v23, 68
+    jumpi v24, bb6, bb7
+  bb7:
+    v25 = calldataload 36
+    v26 = shr 128, v25
+    v27 = eq v26, 0
+    jumpi v27, bb8, bb6
+  bb8:
+    v28 = icall @decode_calldata_type, 4
+    v44 = ptrtoint memptr v28 to i256
+    v19 = mload v44
+    v40 = add v44, 32
+    v47 = add v40, v19
+    jump bb1
+  bb1:
+    v45 = phi [bb8: v40], [bb3: v46]
+    v5 = lt v45, v47
+    jumpi v5, bb4, bb2
+  bb2:
+    mstore 128, 1
+    returndata 128, 32
+  bb4:
+    v42 = mload v45
+    v43 = byte 0, v42
+    v13 = shr v43, arg1
+    v14 = and v13, 1
+    v15 = eq v14, 0
+    jumpi v15, bb5, bb3
+  bb3:
+    v46 = add v45, 1
+    jump bb1
+  bb5:
+    mstore 128, 0
+    returndata 128, 32
+  bb6:
+    revert 0, 0
+}
+
+fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload arg0
+    v2 = add v1, 4
+    v3 = add v2, 32
+    v4 = gt v1, 0xffffffffffffffff
+    v5 = gt v3, v0
+    v6 = or v4, v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v8 = calldataload v2
+    v10 = add v8, 63
+    v11 = lt v10, v8
+    jumpi v11, bb3, bb4
+  bb4:
+    v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v23 = mload 64 !metadata(memory=scratch)
+    v14 = inttoptr i256 v23 to memptr !metadata(memory=scratch)
+    v24 = add v23, v13
+    v25 = lt v24, v23
+    v26 = gt v24, 0xffffffffffffffff
+    v27 = or v25, v26
+    jumpi v27, bb3, bb6
+  bb6:
+    mstore 64, v24 !metadata(memory=scratch)
+    mstore v23, v8
+    v15 = sub v0, v3
+    v16 = gt v8, v15
+    jumpi v16, bb1, bb5
+  bb5:
+    v19 = add v23, 32
+    calldatacopy v19, v3, v8
+    ret v14
+  bb3:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb4, [0x5bae29a6 => bb2, 0x6f11c5d5 => bb3]
+  bb3:
+    tail_call @ascii
+  bb2:
+    tail_call @allowed
+  bb4:
+    revert 0, 0
+}

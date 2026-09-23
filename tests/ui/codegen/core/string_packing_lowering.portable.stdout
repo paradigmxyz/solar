@@ -66,9 +66,9 @@ fn @packPair() [selector=0xa2352af0, abi_wrapper, pure] {
     v77 = add v86, 32
     jump bb4
   bb4:
-    v7 = phi [bb3: v6], [bb12: v20]
-    v8 = phi [bb3: 0], [bb12: v55]
-    v9 = lt v8, v1
+    v7 = phi [bb3: 0], [bb12: v55]
+    v8 = phi [bb3: v6], [bb12: v20]
+    v9 = lt v7, v1
     jumpi v9, bb6, bb5
   bb5:
     v37 = sub 30, v1
@@ -78,7 +78,7 @@ fn @packPair() [selector=0xa2352af0, abi_wrapper, pure] {
     jumpi v45, bb9, bb11
   bb11:
     v12 = shl v39, v2
-    v13 = or v7, v12
+    v13 = or v8, v12
     v82 = add v87, 32
     v88 = shl 3, v1
     v89 = sub 0, v88
@@ -112,18 +112,18 @@ fn @packPair() [selector=0xa2352af0, abi_wrapper, pure] {
     v92 = sub v91, 8
     jump bb7
   bb6:
-    v78 = add v77, v8
+    v78 = add v77, v7
     v79 = mload v78
     v80 = byte 0, v79
-    v46 = sub 30, v8
+    v46 = sub 30, v7
     v48 = shl 3, v46
     v50 = shr 3, v48
     v54 = ne v50, v46
     jumpi v54, bb9, bb12
   bb12:
     v19 = shl v48, v80
-    v20 = or v7, v19
-    v55 = add v8, 1
+    v20 = or v8, v19
+    v55 = add v7, 1
     jump bb4
   bb1:
     v34 = phi [bb10: 0], [bb2: 0], [bb7: v23]
@@ -201,22 +201,22 @@ fn @unpackTwo(arg0: i256) -> struct0 [may_return_memory, pure, return_abi=[mempt
     v86 = add v2, v85
     v7 = add v86, 63
     v10 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v101 = mload 64 !metadata(memory=scratch)
-    v11 = inttoptr i256 v101 to memptr !metadata(memory=scratch)
-    v102 = add v101, v10
-    v103 = lt v102, v101
-    v104 = gt v102, 0xffffffffffffffff
-    v105 = or v103, v104
-    jumpi v105, bb12, bb11
-  bb11:
-    mstore 64, v102 !metadata(memory=scratch)
-    v113 = calldatasize
-    calldatacopy v101, v113, v10
-    mstore v101, v86
-    v92 = add v101, 32
+    v99 = mload 64 !metadata(memory=scratch)
+    v11 = inttoptr i256 v99 to memptr !metadata(memory=scratch)
+    v100 = add v99, v10
+    v101 = lt v100, v99
+    v102 = gt v100, 0xffffffffffffffff
+    v103 = or v101, v102
+    jumpi v103, bb10, bb9
+  bb9:
+    mstore 64, v100 !metadata(memory=scratch)
+    v111 = calldatasize
+    calldatacopy v99, v111, v10
+    mstore v99, v86
+    v92 = add v99, 32
     jump bb1
   bb1:
-    v17 = phi [bb11: 0], [bb8: v69]
+    v17 = phi [bb9: 0], [bb3: v69]
     v18 = lt v17, v86
     jumpi v18, bb3, bb2
   bb2:
@@ -230,56 +230,49 @@ fn @unpackTwo(arg0: i256) -> struct0 [may_return_memory, pure, return_abi=[mempt
     v90 = add v32, v89
     v39 = add v90, 63
     v42 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v107 = mload 64 !metadata(memory=scratch)
-    v43 = inttoptr i256 v107 to memptr !metadata(memory=scratch)
-    v108 = add v107, v42
-    v109 = lt v108, v107
-    v110 = gt v108, 0xffffffffffffffff
-    v111 = or v109, v110
-    jumpi v111, bb12, bb13
-  bb13:
-    mstore 64, v108 !metadata(memory=scratch)
-    v114 = calldatasize
-    calldatacopy v107, v114, v42
-    mstore v107, v90
-    v95 = add v107, 32
+    v105 = mload 64 !metadata(memory=scratch)
+    v43 = inttoptr i256 v105 to memptr !metadata(memory=scratch)
+    v106 = add v105, v42
+    v107 = lt v106, v105
+    v108 = gt v106, 0xffffffffffffffff
+    v109 = or v107, v108
+    jumpi v109, bb10, bb11
+  bb11:
+    mstore 64, v106 !metadata(memory=scratch)
+    v112 = calldatasize
+    calldatacopy v105, v112, v42
+    mstore v105, v90
+    v95 = add v105, 32
+    v113 = add v86, 2
+    v118 = add v95, v90
     jump bb4
   bb4:
-    v50 = phi [bb13: 0], [bb10: v81]
-    v53 = lt v50, v90
+    v114 = phi [bb11: v113], [bb8: v115]
+    v116 = phi [bb11: v95], [bb8: v117]
+    v53 = lt v116, v118
     jumpi v53, bb6, bb5
   bb5:
     ret v11, v43
   bb6:
-    v73 = add v86, v50
-    v75 = add v73, 2
-    v56 = lt v75, 32
-    jumpi v56, bb9, bb7
-  bb9:
-    v58 = byte v75, arg0
-    v60 = mload v107
-    v61 = lt v50, v60
-    jumpi v61, bb10, bb7
-  bb10:
-    v96 = add v95, v50
-    mstore8 v96, v58
-    v81 = add v50, 1
-    jump bb4
-  bb3:
-    v69 = add v17, 1
-    v22 = byte v69, arg0
-    v24 = mload v101
-    v25 = lt v17, v24
-    jumpi v25, bb8, bb7
+    v56 = lt v114, 32
+    jumpi v56, bb8, bb7
   bb7:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
     revert 28, 36
   bb8:
+    v58 = byte v114, arg0
+    mstore8 v116, v58
+    v115 = add v114, 1
+    v117 = add v116, 1
+    jump bb4
+  bb3:
+    v69 = add v17, 1
+    v22 = byte v69, arg0
     v93 = add v92, v17
     mstore8 v93, v22
     jump bb1
-  bb12:
+  bb10:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36
