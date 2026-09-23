@@ -40,14 +40,14 @@ fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
     v161 = add v169, 32
     jump bb1
   bb1:
-    v8 = phi [bb18: arg1], [bb13: v88]
-    v9 = phi [bb18: arg0], [bb13: v25]
-    v10 = lt v8, 16
+    v6 = phi [bb18: arg0], [bb13: v25]
+    v9 = phi [bb18: arg1], [bb13: v88]
+    v10 = lt v9, 16
     jumpi v10, bb3, bb2
   bb2:
-    v88 = sub v8, 16
+    v88 = sub v9, 16
     v90 = add v88, v88
-    v14 = and v9, 0xffffffffffffffffffffffffffffffff
+    v14 = and v6, 0xffffffffffffffffffffffffffffffff
     v56 = shl 64, v14
     v57 = or v14, v56
     v58 = and v57, 0xffffffffffffffff0000000000000000ffffffffffffffff
@@ -78,22 +78,22 @@ fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
   bb13:
     v162 = add v161, v90
     mstore v162, v119
-    v25 = shr 128, v9
+    v25 = shr 128, v6
     jump bb1
   bb3:
     v155 = add v169, 32
-    v178 = shl 1, v8
+    v178 = shl 1, v9
     v179 = add v155, v178
     v180 = sub v179, 1
     jump bb4
   bb4:
-    v28 = phi [bb3: v8], [bb11: v97]
-    v29 = phi [bb3: v9], [bb11: v54]
+    v26 = phi [bb3: v6], [bb11: v54]
+    v29 = phi [bb3: v9], [bb11: v97]
     v181 = phi [bb3: v180], [bb11: v182]
-    v30 = ne v28, 0
+    v30 = ne v29, 0
     jumpi v30, bb6, bb5
   bb5:
-    v55 = ne v29, 0
+    v55 = ne v26, 0
     jumpi v55, bb12, bb7
   bb7:
     v133 = mload v169
@@ -115,8 +115,8 @@ fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
     mstore v175, 0x2194895a00000000000000000000000000000000000000000000000000000000
     revert v175, 4
   bb6:
-    v97 = sub v28, 1
-    v32 = and v29, 15
+    v97 = sub v29, 1
+    v32 = and v26, 15
     v35 = byte v32, 0x3031323334353637383961626364656600000000000000000000000000000000
     v99 = add v97, v97
     v106 = add v99, 1
@@ -129,7 +129,7 @@ fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
     revert 28, 36
   bb11:
     mstore8 v181, v35
-    v43 = shr 4, v29
+    v43 = shr 4, v26
     v44 = and v43, 15
     v47 = byte v44, 0x3031323334353637383961626364656600000000000000000000000000000000
     v159 = sub v181, 1

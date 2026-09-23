@@ -78,6 +78,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::WriteUint256Be => self.lower_core_write(&operands, 32),
             CoreIntrinsic::CopyInto => self.lower_core_copy(&operands),
             CoreIntrinsic::Fill => self.lower_core_fill(&operands),
+            CoreIntrinsic::EqualsAt => self.lower_core_equals_at(&operands),
             CoreIntrinsic::Truncate => self.lower_core_truncate(expr, &operands, &parameter_tys),
             CoreIntrinsic::ArrayGroupSum => self.lower_core_array_group_sum_call(&operands),
             CoreIntrinsic::ArrayHasDuplicate => self.lower_core_array_has_duplicate_call(&operands),
@@ -1423,6 +1424,82 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.jump(done);
         self.builder.switch_to_block(done);
         Some(self.builder.imm(U256::ZERO))
+    }
+
+    /// `equalsAt(a, offset, b)`: whether the `b.length` bytes of `a` at
+    /// `offset` are the bytes of `b`, after the range check the portable body
+    /// makes first.
+    ///
+    /// Whole words compare from the front; the bytes a whole word did not cover
+    /// compare as the low bytes of the two words that end where the ranges end.
+    /// Every read lies inside memory the objects already occupy: the range is
+    /// inside `a`, and a word ending at most one word into an object's data
+    /// starts no lower than the object's own length word. The differences
+    /// accumulate without an early exit, so a mismatch costs no branch per word.
+    fn lower_core_equals_at(&mut self, operands: &[ValueId]) -> Option<ValueId> {
+        let [a, offset, b] = *operands else { return None };
+        let kind = MemoryObjectKind::Bytes;
+        // count = len(b)
+        // left = data(a) + offset, after panic(0x32) unless offset + count <= len(a)
+        // right = data(b)
+        let count = self.builder.memory_object_len(b, kind);
+        let left = self.core_checked_range(a, offset, Width::Dynamic(count));
+        let right = self.builder.memory_object_data(b, kind);
+
+        // words = count >> 5
+        // loop w in 0..words: diff |= mload(left + 32w) ^ mload(right + 32w)
+        let five = self.builder.imm(5);
+        let words = self.builder.shr(five, count);
+        let entry = self.builder.current_block();
+        let header = self.builder.create_block();
+        let body = self.builder.create_block();
+        let tail = self.builder.create_block();
+        self.builder.jump(header);
+
+        self.builder.switch_to_block(header);
+        let zero = self.builder.imm(0);
+        let word = self.builder.phi(vec![(entry, zero)]);
+        let diff = self.builder.phi(vec![(entry, zero)]);
+        let more = self.builder.lt(word, words);
+        self.builder.branch(more, body, tail);
+
+        self.builder.switch_to_block(body);
+        let five = self.builder.imm(5);
+        let stride = self.builder.shl(five, word);
+        let left_word = self.builder.add(left, stride);
+        let left_word = self.builder.mload(left_word);
+        let right_word = self.builder.add(right, stride);
+        let right_word = self.builder.mload(right_word);
+        let different = self.builder.xor(left_word, right_word);
+        let next_diff = self.builder.or(diff, different);
+        let one = self.builder.imm(1);
+        let next_word = self.builder.add(word, one);
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(word, body, next_word);
+        self.builder.add_phi_incoming(diff, body, next_diff);
+
+        // back = count - 32 (below the data start when count < 32)
+        // rest_mask = (1 << (8 * (count & 31))) - 1
+        // diff |= (mload(left + back) ^ mload(right + back)) & rest_mask
+        // result = diff == 0
+        self.builder.switch_to_block(tail);
+        let thirty_two = self.builder.imm(32);
+        let back = self.builder.sub(count, thirty_two);
+        let left_end = self.builder.add(left, back);
+        let left_end = self.builder.mload(left_end);
+        let right_end = self.builder.add(right, back);
+        let right_end = self.builder.mload(right_end);
+        let different = self.builder.xor(left_end, right_end);
+        let low = self.builder.imm(31);
+        let rest = self.builder.and(count, low);
+        let three = self.builder.imm(3);
+        let bits = self.builder.shl(three, rest);
+        let one = self.builder.imm(1);
+        let bit = self.builder.shl(bits, one);
+        let rest_mask = self.builder.sub(bit, one);
+        let different = self.builder.and(different, rest_mask);
+        let total = self.builder.or(diff, different);
+        Some(self.builder.eq_zero(total))
     }
 
     /// `truncate(a, n)`: shortens a dynamic memory array in place.

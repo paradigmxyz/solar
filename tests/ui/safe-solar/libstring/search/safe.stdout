@@ -67,15 +67,15 @@ fn @_scan(arg0: memptr, arg1: memptr, arg2: i256, arg3: i256) -> i256 [may_retur
     v32 = add v37, 32
     jump bb1
   bb1:
-    v1 = phi [bb0: arg2], [bb3: v24]
-    v6 = gt v1, arg3
+    v2 = phi [bb0: arg2], [bb3: v24]
+    v6 = gt v2, arg3
     jumpi v6, bb2, bb4
   bb4:
     v8 = mload v36
-    v9 = lt v1, v8
+    v9 = lt v2, v8
     jumpi v9, bb8, bb7
   bb8:
-    v28 = add v27, v1
+    v28 = add v27, v2
     v29 = mload v28
     v30 = byte 0, v29
     v13 = mload v37
@@ -89,14 +89,14 @@ fn @_scan(arg0: memptr, arg1: memptr, arg2: i256, arg3: i256) -> i256 [may_retur
     v18 = eq v30, v35
     jumpi v18, bb5, bb3
   bb5:
-    v19 = icall @_matchAt, arg0, arg1, v1
+    v19 = icall @_matchAt, arg0, arg1, v2
     v22 = ne v19, 0
     jumpi v22, bb6, bb3
   bb3:
-    v24 = add v1, 1
+    v24 = add v2, 1
     jump bb1
   bb6:
-    ret v1
+    ret v2
   bb2:
     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 }
@@ -125,12 +125,12 @@ fn @_scanWords(arg0: memptr, arg1: memptr, arg2: i256, arg3: i256) -> i256 [may_
     v96 = lt v0, 3
     jump bb3
   bb3:
-    v22 = phi [bb2: arg2], [bb14: v34]
-    v25 = gt v22, arg3
+    v20 = phi [bb2: arg2], [bb14: v34]
+    v25 = gt v20, arg3
     jumpi v25, bb4, bb5
   bb5:
-    v115 = add v22, 32
-    v116 = lt v115, v22
+    v115 = add v20, 32
+    v116 = lt v115, v20
     jumpi v116, bb22, bb23
   bb23:
     v185 = ptrtoint memptr arg0 to i256
@@ -142,7 +142,7 @@ fn @_scanWords(arg0: memptr, arg1: memptr, arg2: i256, arg3: i256) -> i256 [may_
     v118 = lt v28, 32
     jumpi v118, bb22, bb7
   bb7:
-    v32 = phi [bb6: v117], [bb23: v22]
+    v32 = phi [bb6: v117], [bb23: v20]
     v34 = add v32, 32
     v35 = lt v34, v32
     v36 = gt v34, v28
@@ -154,10 +154,10 @@ fn @_scanWords(arg0: memptr, arg1: memptr, arg2: i256, arg3: i256) -> i256 [may_
     v42 = mload v41
     v43 = xor v42, v160
     v44 = icall @_zeroBytes, v43
-    v45 = lt v32, v22
+    v45 = lt v32, v20
     jumpi v45, bb8, bb9
   bb8:
-    v119 = sub v22, v32
+    v119 = sub v20, v32
     v121 = shl 3, v119
     v123 = shr 3, v121
     v127 = ne v123, v119
@@ -207,11 +207,11 @@ fn @_scanWords(arg0: memptr, arg1: memptr, arg2: i256, arg3: i256) -> i256 [may_
     v80 = phi [bb13: v79], [bb11: v59], [bb10: v59]
     jump bb14
   bb14:
-    v87 = phi [bb12: v80], [bb31: v106]
-    v92 = ne v87, 0
+    v83 = phi [bb12: v80], [bb31: v106]
+    v92 = ne v83, 0
     jumpi v92, bb15, bb3
   bb15:
-    v93 = icall @_firstMarkedByte, v87
+    v93 = icall @_firstMarkedByte, v83
     v147 = add v32, v93
     v148 = lt v147, v32
     jumpi v148, bb22, bb28
@@ -233,7 +233,7 @@ fn @_scanWords(arg0: memptr, arg1: memptr, arg2: i256, arg3: i256) -> i256 [may_
   bb31:
     v104 = shl v158, 255
     v105 = not v104
-    v106 = and v87, v105
+    v106 = and v83, v105
     jump bb14
   bb17:
     ret v147
@@ -258,13 +258,13 @@ fn @_matchAt(arg0: memptr, arg1: memptr, arg2: i256) -> i256 [may_return_memory,
     v34 = add v38, 32
     jump bb1
   bb1:
-    v4 = phi [bb0: 0], [bb3: v24]
-    v6 = lt v4, v22
+    v1 = phi [bb0: 0], [bb3: v24]
+    v6 = lt v1, v22
     jumpi v6, bb4, bb2
   bb2:
     ret 1
   bb4:
-    v26 = add arg2, v4
+    v26 = add arg2, v1
     v27 = lt v26, arg2
     jumpi v27, bb8, bb9
   bb9:
@@ -274,7 +274,7 @@ fn @_matchAt(arg0: memptr, arg1: memptr, arg2: i256) -> i256 [may_return_memory,
   bb6:
     tail_call @revert_stub
   bb7:
-    v35 = add v34, v4
+    v35 = add v34, v1
     v36 = mload v35
     v37 = byte 0, v36
     v17 = shl 248, v37
@@ -285,7 +285,7 @@ fn @_matchAt(arg0: memptr, arg1: memptr, arg2: i256) -> i256 [may_return_memory,
     v18 = ne v12, v17
     jumpi v18, bb5, bb3
   bb3:
-    v24 = add v4, 1
+    v24 = add v1, 1
     jump bb1
   bb5:
     ret 0

@@ -31,30 +31,30 @@ fn @counted(arg0: i256) -> struct0 [selector=0xe4b83521, pure, abi_params=[u256]
     v0 = icall @create, 2
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb3: v9]
-    v2 = phi [bb0: v0], [bb3: v2]
-    v3 = phi [bb0: memorybytes 96], [bb3: v3]
-    v4 = phi [bb0: arg0], [bb3: v4]
-    v5 = phi [bb0: 0], [bb3: v5]
-    v6 = lt v1, v4
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v9]
+    v4 = phi [bb0: v0], [bb3: v4]
+    v5 = phi [bb0: memorybytes 96], [bb3: v5]
+    v6 = lt v3, v1
     jumpi v6, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v10 = icall @length, v2
-    v11 = icall @finish, v2
+    v10 = icall @length, v4
+    v11 = icall @finish, v4
     v12 = insert_value struct0, undef struct0, 0, v11
     v13 = insert_value struct0, v12, 1, v10
     ret v13
   bb4:
-    v7 = and v1, 255
+    v7 = and v3, 255
     v8 = shl 248, v7
-    icall @appendByte, v2, v8
+    icall @appendByte, v4, v8
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v9 = checked_add u256, v1, 1
+    v9 = checked_add u256, v3, 1
     jump bb1
 }
 

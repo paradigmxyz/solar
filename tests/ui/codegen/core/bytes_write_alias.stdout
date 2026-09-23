@@ -71,14 +71,14 @@ fn @_doubled(arg0: memptr) -> memptr [may_return_memory, pure] {
     v62 = add v75, 32
     jump bb1
   bb1:
-    v8 = phi [bb10: 0], [bb8: v50]
-    v50 = add v8, 32
-    v51 = lt v50, v8
+    v7 = phi [bb10: 0], [bb8: v50]
+    v50 = add v7, 32
+    v51 = lt v50, v7
     v10 = mload v67
     v11 = gt v50, v10
     jumpi v11, bb3, bb2
   bb2:
-    v21 = add v70, v8
+    v21 = add v70, v7
     v22 = mload v21
     v23 = add v22, v22
     v25 = mload v75
@@ -86,34 +86,34 @@ fn @_doubled(arg0: memptr) -> memptr [may_return_memory, pure] {
     v29 = or v51, v28
     jumpi v29, bb7, bb8
   bb8:
-    v63 = add v62, v8
+    v63 = add v62, v7
     mstore v63, v23
     jump bb1
   bb3:
     v65 = add v75, 32
     jump bb4
   bb4:
-    v36 = phi [bb3: v8], [bb9: v54]
+    v37 = phi [bb3: v7], [bb9: v54]
     v38 = mload v67
-    v39 = lt v36, v38
+    v39 = lt v37, v38
     jumpi v39, bb6, bb5
   bb5:
     ret v5
   bb6:
-    v58 = add v70, v36
+    v58 = add v70, v37
     v59 = mload v58
     v60 = byte 0, v59
     v45 = mload v75
-    v46 = lt v36, v45
+    v46 = lt v37, v45
     jumpi v46, bb9, bb7
   bb7:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
     revert 28, 36
   bb9:
-    v66 = add v65, v36
+    v66 = add v65, v37
     mstore8 v66, v60
-    v54 = add v36, 1
+    v54 = add v37, 1
     jump bb4
   bb11:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
