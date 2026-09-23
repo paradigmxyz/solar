@@ -676,7 +676,9 @@ pub(crate) fn parse_file_uri(uri: &str) -> Option<PathBuf> {
 }
 
 pub(crate) fn file_path_from_url(uri: &Url) -> Option<PathBuf> {
-    (uri.scheme() == "file").then(|| uri.to_file_path().ok()).flatten()
+    (uri.scheme() == "file")
+        .then(|| crate::proto::normalize_file_uri(uri.clone()).to_file_path().ok())
+        .flatten()
 }
 
 impl fmt::Display for FileMoveError {
@@ -1231,5 +1233,16 @@ mod tests {
         .unwrap();
 
         assert!(batch.is_empty());
+    }
+
+    #[test]
+    fn file_operations_normalize_equivalent_file_uris() {
+        let path = std::env::temp_dir().join("Contract.sol");
+        let uri = Url::from_file_path(&path).unwrap();
+        let equivalent =
+            Url::parse(&uri.as_str().replacen("Contract.sol", "missing%2F..%2FContract.sol", 1))
+                .unwrap();
+
+        assert_eq!(file_path_from_url(&equivalent), Some(path));
     }
 }

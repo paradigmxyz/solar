@@ -461,41 +461,43 @@ fn document_diagnostic_waits_for_committed_analysis_diagnostics() {
 
 #[test]
 fn document_diagnostic_canonicalizes_file_uris() {
-    let canonical_uri = diagnostic_uri();
-    let encoded_uri =
-        Url::parse(&canonical_uri.as_str().replacen("Diagnostics.sol", "%44iagnostics.sol", 1))
-            .expect("encoded URI should be valid");
-    assert_ne!(canonical_uri, encoded_uri);
-    assert_eq!(canonical_uri.to_file_path(), encoded_uri.to_file_path());
+    for spelling in ["%44iagnostics.sol", "nested%2F..%2FDiagnostics.sol"] {
+        let canonical_uri = diagnostic_uri();
+        let encoded_uri =
+            Url::parse(&canonical_uri.as_str().replacen("Diagnostics.sol", spelling, 1))
+                .expect("encoded URI should be valid");
+        assert_ne!(canonical_uri, encoded_uri);
+        assert_eq!(crate::proto::vfs_path(&canonical_uri), crate::proto::vfs_path(&encoded_uri));
 
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.snapshot().publish_diagnostics(
-        DiagnosticOwner::Compiler,
-        DiagnosticMap::from_iter([(canonical_uri.clone(), vec![diagnostic("compiler")])]),
-    );
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.snapshot().publish_diagnostics(
+            DiagnosticOwner::Compiler,
+            DiagnosticMap::from_iter([(canonical_uri.clone(), vec![diagnostic("compiler")])]),
+        );
 
-    let response = expect_ready(crate::handlers::document_diagnostic(
-        &mut state,
-        document_diagnostic_params(encoded_uri, None),
-    ));
-    let DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(report)) =
-        response.unwrap()
-    else {
-        panic!("first diagnostic pull should return a full report");
-    };
-    assert_eq!(report.full_document_diagnostic_report.items, vec![diagnostic("compiler")]);
-    let result_id = report.full_document_diagnostic_report.result_id.unwrap();
+        let response = expect_ready(crate::handlers::document_diagnostic(
+            &mut state,
+            document_diagnostic_params(encoded_uri, None),
+        ));
+        let DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(report)) =
+            response.unwrap()
+        else {
+            panic!("first diagnostic pull should return a full report");
+        };
+        assert_eq!(report.full_document_diagnostic_report.items, vec![diagnostic("compiler")]);
+        let result_id = report.full_document_diagnostic_report.result_id.unwrap();
 
-    let response = expect_ready(crate::handlers::document_diagnostic(
-        &mut state,
-        document_diagnostic_params(canonical_uri, Some(result_id.clone())),
-    ));
-    let DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Unchanged(report)) =
-        response.unwrap()
-    else {
-        panic!("equivalent URI should share the cached result ID");
-    };
-    assert_eq!(report.unchanged_document_diagnostic_report.result_id, result_id);
+        let response = expect_ready(crate::handlers::document_diagnostic(
+            &mut state,
+            document_diagnostic_params(canonical_uri, Some(result_id.clone())),
+        ));
+        let DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Unchanged(report)) =
+            response.unwrap()
+        else {
+            panic!("equivalent URI should share the cached result ID");
+        };
+        assert_eq!(report.unchanged_document_diagnostic_report.result_id, result_id);
+    }
 }
 
 fn pause_blocking_pool() -> (std_mpsc::Sender<()>, tokio::task::JoinHandle<()>) {
@@ -1912,6 +1914,46 @@ fn saving_without_matching_flychecks_keeps_previous_flycheck_results_current() {
     state.run_flychecks_on_save(PathBuf::from("/workspace/Untracked.sol"));
 
     assert!(snapshot.is_current_flycheck(&owner, 0));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn saving_equivalent_file_uri_selects_workspace_flycheck() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /workspace/foundry.toml
+        [profile.default]
+        src = "src"
+        //- /workspace/src/Test.sol
+        contract Test {}
+        "#,
+    );
+    let mut params = project.initialize_params_with_roots(&["/workspace"]);
+    params.initialization_options = Some(serde_json::json!({
+        "flychecks": [{
+            "id": "save",
+            "command": std::env::current_exe().unwrap(),
+            "args": ["--list"]
+        }]
+    }));
+    let (_, mut config) = negotiate_capabilities(params);
+    config.rediscover_workspaces();
+    let [owner] = config.flycheck_owners().collect::<Vec<_>>().try_into().unwrap();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+    let snapshot = state.snapshot();
+    let uri = Url::parse(&format!(
+        "{}/missing%2F..%2Fworkspace/src/Test.sol",
+        Url::from_file_path(project.root()).unwrap()
+    ))
+    .unwrap();
+
+    let result = crate::handlers::did_save_text_document(
+        &mut state,
+        DidSaveTextDocumentParams { text_document: TextDocumentIdentifier::new(uri), text: None },
+    );
+
+    assert!(matches!(result, ControlFlow::Continue(())));
+    assert!(!snapshot.is_current_flycheck(&owner, 0));
 }
 
 #[test]

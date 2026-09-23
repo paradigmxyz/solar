@@ -147,6 +147,44 @@ pub(crate) fn vfs_path(url: &lsp_types::Url) -> Option<vfs::VfsPath> {
     url.to_file_path().map(VfsPath::from).ok()
 }
 
+/// Returns the internal document URI using the same lexical identity as the VFS.
+///
+/// This does not resolve symlinks or require the file to exist. Non-file URIs are preserved;
+/// callers retain their existing support checks. Common canonical URIs need no allocation.
+pub(crate) fn normalize_file_uri(uri: lsp_types::Url) -> lsp_types::Url {
+    if uri.scheme() != "file" {
+        return uri;
+    }
+
+    let path = uri.path();
+    let is_windows_drive_root = cfg!(windows)
+        && path.len() == 4
+        && path.as_bytes()[0] == b'/'
+        && path.as_bytes()[1].is_ascii_alphabetic()
+        && path.as_bytes()[2] == b':'
+        && path.as_bytes()[3] == b'/';
+    let has_lowercase_windows_drive = cfg!(windows)
+        && path.len() >= 3
+        && path.as_bytes()[0] == b'/'
+        && path.as_bytes()[1].is_ascii_lowercase()
+        && path.as_bytes()[2] == b':';
+    if uri.host_str().is_none()
+        && uri.query().is_none()
+        && uri.fragment().is_none()
+        && path.starts_with('/')
+        && !path.as_bytes().contains(&b'%')
+        && !path.as_bytes().windows(2).any(|bytes| bytes == b"//")
+        && (!path.ends_with('/') || path == "/" || is_windows_drive_root)
+        && !path.split('/').any(|segment| matches!(segment, "." | ".."))
+        && !has_lowercase_windows_drive
+    {
+        return uri;
+    }
+    vfs_path(&uri)
+        .and_then(|path| lsp_types::Url::from_file_path(path.as_path()?).ok())
+        .unwrap_or(uri)
+}
+
 /// Converts an [`lsp_types::Range`] to a [`Range`].
 ///
 /// This assumes the position encoding in LSP is UTF-16, which is mandatory to support in the LSP
@@ -598,10 +636,12 @@ fn severity(level: Level) -> lsp_types::DiagnosticSeverity {
 
 #[cfg(test)]
 mod tests {
-    use super::{checked_text_range, collect_line_starts, position_at_byte, text_range};
+    use super::{
+        checked_text_range, collect_line_starts, normalize_file_uri, position_at_byte, text_range,
+    };
     use crate::utils::apply_document_changes;
     use crop::Rope;
-    use lsp_types::{Position, Range, TextDocumentContentChangeEvent, request::Request};
+    use lsp_types::{Position, Range, TextDocumentContentChangeEvent, Url, request::Request};
     use solar_interface::{
         BytePos, SourceMap, Span,
         diagnostics::{Applicability, Diag, DiagMsg, Level},
@@ -611,6 +651,69 @@ mod tests {
         panic::{AssertUnwindSafe, catch_unwind},
         sync::Arc,
     };
+
+    #[test]
+    fn equivalent_file_uris_share_the_vfs_document_key() {
+        let canonical = Url::from_file_path(std::env::temp_dir().join("Token.sol")).unwrap();
+        for spelling in ["%54oken.sol", "/Token.sol", "nested%2F..%2FToken.sol"] {
+            let alias = Url::parse(&canonical.as_str().replacen("Token.sol", spelling, 1)).unwrap();
+            assert_ne!(alias, canonical);
+            assert_eq!(super::vfs_path(&alias), super::vfs_path(&canonical));
+            assert_eq!(normalize_file_uri(alias), canonical);
+        }
+        assert_eq!(normalize_file_uri(canonical.clone()), canonical);
+    }
+
+    fn vfs_file_uri(uri: Url) -> Url {
+        super::vfs_path(&uri)
+            .and_then(|path| Url::from_file_path(path.as_path()?).ok())
+            .unwrap_or(uri)
+    }
+
+    #[test]
+    fn file_uri_fast_path_matches_vfs_identity() {
+        let mut uris = vec![
+            Url::from_file_path(std::env::temp_dir().join("Canonical.sol")).unwrap(),
+            Url::from_file_path(std::env::temp_dir().join("nested/../Token.sol")).unwrap(),
+            Url::from_file_path(std::env::temp_dir().join("nested/./Token.sol")).unwrap(),
+            Url::parse("file:///").unwrap(),
+            Url::parse("file:///tmp/Encoded%20Name.sol").unwrap(),
+            Url::parse("file:///tmp//Repeated.sol").unwrap(),
+            Url::parse("file:///tmp/directory/").unwrap(),
+            Url::parse("file://localhost/tmp/Hosted.sol").unwrap(),
+            Url::parse("file:///tmp/Query.sol?version=1").unwrap(),
+            Url::parse("file:///tmp/Fragment.sol#source").unwrap(),
+        ];
+        if cfg!(windows) {
+            uris.extend([
+                Url::parse("file:///C:/tmp/Canonical.sol").unwrap(),
+                Url::parse("file:///C:/").unwrap(),
+                Url::parse("file:///tmp/NoDrive.sol").unwrap(),
+                Url::parse("file:///C%3A/tmp/EncodedDrive.sol").unwrap(),
+                Url::parse("file://server/share/Hosted.sol").unwrap(),
+            ]);
+        }
+
+        for uri in uris {
+            assert_eq!(normalize_file_uri(uri.clone()), vfs_file_uri(uri.clone()), "{uri}");
+        }
+    }
+
+    #[test]
+    fn normalize_file_uri_preserves_non_file_uris() {
+        let uri = Url::parse("untitled:/tmp/Virtual.sol").unwrap();
+
+        assert_eq!(normalize_file_uri(uri.clone()), uri);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn normalize_file_uri_canonicalizes_lowercase_windows_drive() {
+        let lowercase = Url::parse("file:///c:/tmp/Contract.sol").unwrap();
+        let uppercase = Url::parse("file:///C:/tmp/Contract.sol").unwrap();
+
+        assert_eq!(normalize_file_uri(lowercase), uppercase);
+    }
 
     fn diagnostic_refresh_support(workspace: serde_json::Value) -> Option<bool> {
         let params: <super::Initialize as Request>::Params =

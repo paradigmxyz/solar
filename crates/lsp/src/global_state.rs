@@ -1500,6 +1500,7 @@ impl GlobalState {
             Ok(path) => (Url::from_file_path(path).unwrap_or(uri), Some(self.latest_analysis())),
             Err(()) => (uri, None),
         };
+        let uri = proto::normalize_file_uri(uri);
         let diagnostics = self.diagnostics.clone();
         let include_data = self.config.supports_pull_diagnostics_data();
         async move {
@@ -1523,6 +1524,7 @@ impl GlobalState {
             Ok(path) => (Url::from_file_path(path).unwrap_or(uri), Some(self.latest_analysis())),
             Err(()) => (uri, None),
         };
+        let uri = proto::normalize_file_uri(uri);
         let diagnostics = self.diagnostics.clone();
         async move {
             if let Some(latest_analysis) = latest_analysis {
