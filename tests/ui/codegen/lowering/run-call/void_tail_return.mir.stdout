@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/void_tail_return.sol:VoidTailReturn ===
 @module VoidTailReturn
-@types
+@inline_assembly
+types:
   struct0: {i256, i256, i256}
   struct1: {i256, i256}
 

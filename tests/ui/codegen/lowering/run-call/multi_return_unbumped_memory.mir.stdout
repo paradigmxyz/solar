@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/multi_return_unbumped_memory.sol:MultiReturnUnbumpedMemory ===
 @module MultiReturnUnbumpedMemory
-@types
+@inline_assembly
+types:
   struct0: {i256, i256}
 
 fn @output() -> i256 [selector=0xf20eaeb8, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {

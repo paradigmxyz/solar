@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/word-sequence/mined_masks_runtime.sol:MinedMasks ===
 @module MinedMasks
-@types
+@inline_assembly
+types:
   struct0: {i256, i256}
 
 fn @masks(arg0: i256) -> struct0 [selector=0x94c49b69, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {

@@ -59,20 +59,12 @@ contract LoopStateChainSpillHome {
     // CHECK: push 2{{$}}
     // CHECK-NEXT: dup 2
     // CHECK-NEXT: eq
+    // The state only ever holds 0 to 3, so the last arm knows it is 3.
     // CHECK: push 13{{$}}
     // CHECK-NEXT: dup 3
     // CHECK-NEXT: eq
     // CHECK-NEXT: iszero
-    // CHECK-NEXT: dup 2
     // CHECK-NEXT: mul
-    // CHECK-NEXT: dup 2
-    // CHECK-NEXT: swap 1
-    // CHECK-NEXT: sub
-    // CHECK-NEXT: push 3{{$}}
-    // CHECK-NEXT: dup 3
-    // CHECK-NEXT: eq
-    // CHECK-NEXT: mul
-    // CHECK-NEXT: add
     function fourStates(uint256 n) external pure returns (uint256) {
         uint256 state = 0;
         for (uint256 i = 0; i < n; i++) {

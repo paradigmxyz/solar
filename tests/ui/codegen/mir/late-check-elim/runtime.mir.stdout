@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/late-check-elim/runtime.sol:LateMemoryRuntime ===
 @module LateMemoryRuntime
+@inline_assembly
 fn @ascii(arg0: i256) -> i256 [selector=0x394abd12, pure, abi_params=[u8], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = not 31

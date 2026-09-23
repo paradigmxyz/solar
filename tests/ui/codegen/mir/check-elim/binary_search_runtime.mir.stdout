@@ -1,0 +1,216 @@
+// === ROOT/tests/ui/codegen/mir/check-elim/binary_search_runtime.sol:Search ===
+@module Search
+types:
+  struct0: {i256, i256}
+
+fn @search(arg0: memoryarray, arg1: i256) -> struct0 [selector=0xd43fc471, pure, abi_params=[array<_, u256>, u256], abi_returns=[word<bool>, word], abi_return_params=[bool, u256]] {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb5: v1]
+    v2 = phi [bb0: v0], [bb5: v25]
+    v3 = phi [bb0: arg0], [bb5: v3]
+    v4 = phi [bb0: 1], [bb5: v26]
+    v5 = phi [bb0: 0], [bb5: v5]
+    v6 = phi [bb0: arg1], [bb5: v6]
+    v7 = gt v4, v2
+    v8 = eq v7, false
+    jumpi v8, bb3, bb4
+  bb4:
+    jump bb2
+  bb2:
+    v27 = eq v2, 0
+    jumpi v27, bb12, bb13
+  bb13:
+    v28 = checked_sub u256, v2, 1
+    jump bb14
+  bb12:
+    jump bb14
+  bb14:
+    v29 = phi [bb12: 0], [bb13: v28]
+    v30 = zext i1 0 to i256
+    v31 = insert_value struct0, undef struct0, 0, v30
+    v32 = insert_value struct0, v31, 1, v29
+    ret v32
+  bb3:
+    v9 = checked_add u256, v4, v2
+    v10 = checked_div u256, v9, 2
+    v11 = checked_sub u256, v10, 1
+    v12 = memory_object_len memoryarray, v3
+    v13 = lt v11, v12
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = memory_object_load_element memoryarray<1>, v3, v11
+    v16 = eq v15, v6
+    jumpi v16, bb6, bb7
+  bb7:
+    jump bb8
+  bb8:
+    v21 = gt v6, v15
+    v22 = eq v21, false
+    jumpi v22, bb9, bb10
+  bb10:
+    v24 = checked_add u256, v10, 1
+    jump bb11
+  bb9:
+    v23 = checked_sub u256, v10, 1
+    jump bb11
+  bb11:
+    v25 = phi [bb9: v23], [bb10: v2]
+    v26 = phi [bb9: v4], [bb10: v24]
+    jump bb5
+  bb5:
+    jump bb1
+  bb6:
+    v17 = checked_sub u256, v10, 1
+    v18 = zext i1 1 to i256
+    v19 = insert_value struct0, undef struct0, 0, v18
+    v20 = insert_value struct0, v19, 1, v17
+    ret v20
+}
+
+fn @searchSigned(arg0: memoryarray, arg1: i256) -> struct0 [selector=0x9c2637a2, pure, abi_params=[array<_, i256>, i256], abi_returns=[word<bool>, word], abi_return_params=[bool, u256]] {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb5: v1]
+    v2 = phi [bb0: arg1], [bb5: v2]
+    v3 = phi [bb0: v0], [bb5: v25]
+    v4 = phi [bb0: 0], [bb5: v4]
+    v5 = phi [bb0: arg0], [bb5: v5]
+    v6 = phi [bb0: 1], [bb5: v26]
+    v7 = gt v6, v3
+    v8 = eq v7, false
+    jumpi v8, bb3, bb4
+  bb4:
+    jump bb2
+  bb2:
+    v27 = eq v3, 0
+    jumpi v27, bb12, bb13
+  bb13:
+    v28 = checked_sub u256, v3, 1
+    jump bb14
+  bb12:
+    jump bb14
+  bb14:
+    v29 = phi [bb12: 0], [bb13: v28]
+    v30 = zext i1 0 to i256
+    v31 = insert_value struct0, undef struct0, 0, v30
+    v32 = insert_value struct0, v31, 1, v29
+    ret v32
+  bb3:
+    v9 = checked_add u256, v6, v3
+    v10 = checked_div u256, v9, 2
+    v11 = checked_sub u256, v10, 1
+    v12 = memory_object_len memoryarray, v5
+    v13 = lt v11, v12
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = memory_object_load_element memoryarray<1>, v5, v11
+    v16 = eq v15, v2
+    jumpi v16, bb6, bb7
+  bb7:
+    jump bb8
+  bb8:
+    v21 = sgt v2, v15
+    v22 = eq v21, false
+    jumpi v22, bb9, bb10
+  bb10:
+    v24 = checked_add u256, v10, 1
+    jump bb11
+  bb9:
+    v23 = checked_sub u256, v10, 1
+    jump bb11
+  bb11:
+    v25 = phi [bb9: v23], [bb10: v3]
+    v26 = phi [bb9: v6], [bb10: v24]
+    jump bb5
+  bb5:
+    jump bb1
+  bb6:
+    v17 = checked_sub u256, v10, 1
+    v18 = zext i1 1 to i256
+    v19 = insert_value struct0, undef struct0, 0, v18
+    v20 = insert_value struct0, v19, 1, v17
+    ret v20
+}
+
+// === ROOT/tests/ui/codegen/mir/check-elim/binary_search_runtime.sol:ForgedSearch ===
+@module ForgedSearch
+@inline_assembly
+types:
+  struct0: {i256, i256}
+
+fn @forged(arg0: i256, arg1: i256) -> struct0 [selector=0xdd29ebdb, pure, abi_params=[u256, u256], abi_returns=[word<bool>, word], abi_return_params=[bool, u256]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 32
+    set_memory_object_len memoryarray, v0, 0
+    v1 = ptrtoint memoryarray v0 to i256
+    mstore v1, arg0
+    v2 = memory_object_len memoryarray, v0
+    jump bb1
+  bb1:
+    v3 = phi [bb0: arg0], [bb5: v3]
+    v4 = phi [bb0: 0], [bb5: v4]
+    v5 = phi [bb0: v0], [bb5: v5]
+    v6 = phi [bb0: v2], [bb5: v29]
+    v7 = phi [bb0: arg1], [bb5: v7]
+    v8 = phi [bb0: 1], [bb5: v28]
+    v9 = phi [bb0: 0], [bb5: v9]
+    v10 = gt v8, v6
+    v11 = eq v10, false
+    jumpi v11, bb3, bb4
+  bb4:
+    jump bb2
+  bb2:
+    v30 = eq v6, 0
+    jumpi v30, bb12, bb13
+  bb13:
+    v31 = checked_sub u256, v6, 1
+    jump bb14
+  bb12:
+    jump bb14
+  bb14:
+    v32 = phi [bb12: 0], [bb13: v31]
+    v33 = zext i1 0 to i256
+    v34 = insert_value struct0, undef struct0, 0, v33
+    v35 = insert_value struct0, v34, 1, v32
+    ret v35
+  bb3:
+    v12 = checked_add u256, v8, v6
+    v13 = checked_div u256, v12, 2
+    v14 = checked_sub u256, v13, 1
+    v15 = memory_object_len memoryarray, v5
+    v16 = lt v14, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = memory_object_load_element memoryarray<1>, v5, v14
+    v19 = eq v18, v7
+    jumpi v19, bb6, bb7
+  bb7:
+    jump bb8
+  bb8:
+    v24 = gt v7, v18
+    v25 = eq v24, false
+    jumpi v25, bb9, bb10
+  bb10:
+    v27 = checked_add u256, v13, 1
+    jump bb11
+  bb9:
+    v26 = checked_sub u256, v13, 1
+    jump bb11
+  bb11:
+    v28 = phi [bb9: v8], [bb10: v27]
+    v29 = phi [bb9: v26], [bb10: v6]
+    jump bb5
+  bb5:
+    jump bb1
+  bb6:
+    v20 = checked_sub u256, v13, 1
+    v21 = zext i1 1 to i256
+    v22 = insert_value struct0, undef struct0, 0, v21
+    v23 = insert_value struct0, v22, 1, v20
+    ret v23
+}

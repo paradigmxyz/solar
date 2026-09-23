@@ -19,6 +19,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/code_lowering.sol:Test ===
 @module Test
 @phase lowered
+@inline_assembly
 fn @whole() [selector=0xbbbb2e8a, abi_wrapper] {
   bb0:
     v8 = calldatasize

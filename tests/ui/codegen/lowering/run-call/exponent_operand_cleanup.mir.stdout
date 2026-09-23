@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/exponent_operand_cleanup.sol:ExponentOperandCleanup ===
 @module ExponentOperandCleanup
-@types
+@inline_assembly
+types:
   struct0: {i256, i256}
 
 fn @checkedDirtyOperands() -> struct0 [selector=0xfef4b418, inline_assembly, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[i256, i256]] {

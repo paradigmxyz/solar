@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_fixed_struct_array_assign.sol:StorageFixedStructArrayAssign ===
 @module StorageFixedStructArrayAssign
-@types
+@inline_assembly
+types:
   struct0: {i256, i256, i256}
 
 fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_params=[]] {

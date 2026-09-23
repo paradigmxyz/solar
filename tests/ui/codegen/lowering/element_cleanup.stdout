@@ -1,6 +1,7 @@
 - // === ROOT/tests/ui/codegen/lowering/element_cleanup.sol:ElementCleanup (before element-cleanup) ===
 + // === ROOT/tests/ui/codegen/lowering/element_cleanup.sol:ElementCleanup (after element-cleanup) ===
   @module ElementCleanup
+  @inline_assembly
   fn @first(arg0: memoryarray) -> i256 [selector=0x61c4cbc4, pure, abi_params=[array<_, address>], abi_returns=[word<u160>], abi_return_params=[address]] {
     bb0:
       v0 = memory_object_len memoryarray, arg0

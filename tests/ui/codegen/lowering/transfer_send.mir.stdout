@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/transfer_send.sol:GasReceiver ===
 @module GasReceiver
-fn @receive() [inline_assembly, receive, payable] {
+@inline_assembly
+fn @receive() [receive, payable] {
   bb0:
     log0 0, 0
     log0 0, 0
@@ -14,7 +15,8 @@ fn @receive() [inline_assembly, receive, payable] {
 
 // === ROOT/tests/ui/codegen/lowering/transfer_send.sol:RevertReceiver ===
 @module RevertReceiver
-fn @receive() [inline_assembly, receive, payable] {
+@inline_assembly
+fn @receive() [receive, payable] {
   bb0:
     v0 = shl 224, 0xdeadbeef
     mstore 0, v0 !metadata(memory=scratch)
@@ -23,27 +25,28 @@ fn @receive() [inline_assembly, receive, payable] {
 
 // === ROOT/tests/ui/codegen/lowering/transfer_send.sol:TransferSend ===
 @module TransferSend
-@types
+@inline_assembly
+types:
   struct0: {i256, i256, i256}
 
-@data
-  GasReceiver_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/transfer_send.sol:GasReceiver"
-  RevertReceiver_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/transfer_send.sol:RevertReceiver"
+data:
+  GasReceiver_initcode_0: hex"34600d5760238060115f395ff35b5f5ffd361515600957600d565b5f5ffd5b5f5fa05f5fa05f5fa05f5fa05f5fa05f5fa05f5fa0"
+  RevertReceiver_initcode_1: hex"34600d57601c8060115f395ff35b5f5ffd361515600957600d565b5f5ffd5b63deadbeef60e01b5f5260045ffd"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize GasReceiver_creation_code_0
-    v2 = datasize GasReceiver_creation_code_0, 31, aligned
+    v1 = not 31
+    v2 = and 83, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy GasReceiver_creation_code_0, v4, v1
+    data_copy GasReceiver_initcode_0, v4, 52
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
+    v7 = add v6, 52
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
+    v9 = create 0, v8, 52
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -58,17 +61,17 @@ fn @constructor() [constructor] {
     v17 = or v14, v16
     sstore 0, v17 !metadata(storage=slot(0))
     v18 = abi_encode []
-    v19 = datasize RevertReceiver_creation_code_1
-    v20 = datasize RevertReceiver_creation_code_1, 31, aligned
+    v19 = not 31
+    v20 = and 76, v19
     v21 = alloc raw, exact, uninitialized, infallible, v20
     v22 = ptrtoint memptr v21 to i256
-    datacopy RevertReceiver_creation_code_1, v22, v19
+    data_copy RevertReceiver_initcode_1, v22, 45
     v23 = slice_ptr v18
     v24 = ptrtoint memptr v21 to i256
-    v25 = add v24, v19
+    v25 = add v24, 45
     mcopy v25, v23, 0 !metadata(memory=heap)
     v26 = ptrtoint memptr v21 to i256
-    v27 = create 0, v26, v19
+    v27 = create 0, v26, 45
     v28 = zext i160 v27 to i256
     v29 = ne v28, 0
     jumpi v29, bb4, bb3
@@ -140,7 +143,7 @@ fn @balances() -> struct0 [selector=0x7bb98a68, payable, abi_params=[], abi_retu
     ret v15
 }
 
-fn @sendRevertData() -> i256 [selector=0x2acce81c, inline_assembly, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+fn @sendRevertData() -> i256 [selector=0x2acce81c, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff

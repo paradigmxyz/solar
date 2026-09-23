@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dirty_bool_internal_return.sol:DirtyBoolInternalReturn ===
 @module DirtyBoolInternalReturn
-@types
+@inline_assembly
+types:
   struct0: {i256, i256}
 
 fn @dirty(arg0: i256) -> i256 [inline_assembly, pure] {

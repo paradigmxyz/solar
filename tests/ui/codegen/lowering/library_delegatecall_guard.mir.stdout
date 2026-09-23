@@ -1,10 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/library_delegatecall_guard.sol:Lib ===
 @module Lib
 @library
-@types
+@inline_assembly
+types:
   struct0: {i256, i256}
 
-@immutables
+immutables:
   library_deploy_address: address
 
 fn @bump(arg0: i256, arg1: i256) -> i256 [selector=0x14f9a01b, abi_params=[storageptr, u256], abi_returns=[word], abi_return_params=[u256]] {

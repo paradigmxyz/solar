@@ -54,9 +54,6 @@ fn @_doubled(arg0: memptr) -> memptr [may_return_memory, pure] {
     v67 = ptrtoint memptr arg0 to i256
     v0 = mload v67
     v1 = add v0, 63
-    v2 = lt v1, v0
-    jumpi v2, bb7, bb8
-  bb8:
     v4 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v75 = mload 64 !metadata(memory=scratch)
     v5 = inttoptr i256 v75 to memptr !metadata(memory=scratch)
@@ -64,31 +61,31 @@ fn @_doubled(arg0: memptr) -> memptr [may_return_memory, pure] {
     v77 = lt v76, v75
     v78 = gt v76, 0xffffffffffffffff
     v79 = or v77, v78
-    jumpi v79, bb7, bb12
-  bb12:
+    jumpi v79, bb11, bb10
+  bb10:
     mstore 64, v76 !metadata(memory=scratch)
     v81 = calldatasize
     calldatacopy v75, v81, v4
     mstore v75, v0
-    v74 = add v67, 32
+    v70 = add v67, 32
     v62 = add v75, 32
     jump bb1
   bb1:
-    v8 = phi [bb12: 0], [bb10: v50]
+    v8 = phi [bb10: 0], [bb8: v50]
     v50 = add v8, 32
     v51 = lt v50, v8
     v10 = mload v67
     v11 = gt v50, v10
     jumpi v11, bb3, bb2
   bb2:
-    v21 = add v74, v8
+    v21 = add v70, v8
     v22 = mload v21
     v23 = add v22, v22
     v25 = mload v75
     v28 = gt v50, v25
     v29 = or v51, v28
-    jumpi v29, bb9, bb10
-  bb10:
+    jumpi v29, bb7, bb8
+  bb8:
     v63 = add v62, v8
     mstore v63, v23
     jump bb1
@@ -96,29 +93,29 @@ fn @_doubled(arg0: memptr) -> memptr [may_return_memory, pure] {
     v65 = add v75, 32
     jump bb4
   bb4:
-    v36 = phi [bb3: v8], [bb11: v54]
+    v36 = phi [bb3: v8], [bb9: v54]
     v38 = mload v67
     v39 = lt v36, v38
     jumpi v39, bb6, bb5
   bb5:
     ret v5
   bb6:
-    v58 = add v74, v36
+    v58 = add v70, v36
     v59 = mload v58
     v60 = byte 0, v59
     v45 = mload v75
     v46 = lt v36, v45
-    jumpi v46, bb11, bb9
-  bb9:
+    jumpi v46, bb9, bb7
+  bb7:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
     revert 28, 36
-  bb11:
+  bb9:
     v66 = add v65, v36
     mstore8 v66, v60
     v54 = add v36, 1
     jump bb4
-  bb7:
+  bb11:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36

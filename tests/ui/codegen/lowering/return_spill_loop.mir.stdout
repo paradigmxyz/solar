@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/return_spill_loop.sol:ReturnCopy ===
 @module ReturnCopy
-@types
+@inline_assembly
+types:
   struct0: {i256, i256, i256}
 
 fn @probe(arg0: i256) -> struct0 [selector=0xdb082440, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {

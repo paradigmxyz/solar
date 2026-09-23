@@ -15,29 +15,30 @@ fn @invoke(arg0: i256) [selector=0x2605fe98, pure, abi_params=[bool], abi_return
 
 // === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:TerminatedControlFlow ===
 @module TerminatedControlFlow
-@types
+@inline_assembly
+types:
   struct0: {i256, i256}
 
-@data
-  TryTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:TryTarget"
-  StopsInConstructor_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:StopsInConstructor"
-  RevertsInConstructor_creation_code_2: creation_code "ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:RevertsInConstructor"
-  RevertsWithoutArgs_creation_code_3: creation_code "ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:RevertsWithoutArgs"
+data:
+  TryTarget_initcode_0: hex"34600d57604b8060115f395ff35b5f5ffd341515601c575f3560e01c80632605fe9814601857601c565b6020565b5f5ffd5b6024361060475760043560029010156047576004351515603c57005b6001604357fe5b5f5ffd5b5f5ffd"
+  StopsInConstructor_initcode_1: hex"60c0604052341515600c57005b5f5ffd60328060195f395ff3341515601c575f3560e01c8063e735afb214601857601c565b6020565b5f5ffd5b60016080526020608001608090036080f3"
+  RevertsInConstructor_initcode_2: hex"60ab38038060ab60c03960c001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0166040526046565b60a051604001515f5260205ffd5b341515609b5760c060c060ab3803016020820191508111905060975760405160a051816020015260c05181604001528060a05260800160405260856038565b60a05160405260a0516020015160a052fe5b5f5ffd5b5f5ffd60038060a85f395ff35f5ffd"
+  RevertsWithoutArgs_initcode_3: hex"60c060405260a5565b600b43018060a051606001528060a05160600152438110609357601642018060a051608001528060a05160800152428110609357602146018060a05160a001528060a05160a001524681106093575a5f9011606b575050506001606757fe5b5f5ffd5b828060a051606001525f5291508060a051608001526020528060a05160a0015260405260605ffd5b634e487b715f5260116020526024601cfd5b34151560d85760405160a05181602001528060a05260c00160405260c66008565b60a05160405260a0516020015160a052fe5b5f5ffd60038060e55f395ff35f5ffd"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize TryTarget_creation_code_0
-    v2 = datasize TryTarget_creation_code_0, 31, aligned
+    v1 = not 31
+    v2 = and 123, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy TryTarget_creation_code_0, v4, v1
+    data_copy TryTarget_initcode_0, v4, 92
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
+    v7 = add v6, 92
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
+    v9 = create 0, v8, 92
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -117,17 +118,17 @@ fn @tryFailure() -> i256 [selector=0x86763122, view, abi_params=[], abi_returns=
 fn @constructorStop() -> i256 [selector=0x2114ee15, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize StopsInConstructor_creation_code_1
-    v2 = datasize StopsInConstructor_creation_code_1, 31, aligned
+    v1 = not 31
+    v2 = and 106, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy StopsInConstructor_creation_code_1, v4, v1
+    data_copy StopsInConstructor_initcode_1, v4, 75
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
+    v7 = add v6, 75
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
+    v9 = create 0, v8, 75
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -146,7 +147,7 @@ fn @stopInHelper() [selector=0xd738ac61, pure, abi_params=[], abi_returns=[], ab
     invalid
 }
 
-fn @stopHelper() [inline_assembly, pure] {
+fn @stopHelper() [pure] {
   bb0:
     stop
 }
@@ -158,7 +159,7 @@ fn @scalarFailure(arg0: i256) -> i256 [selector=0x97ca1c76, pure, abi_params=[u2
     ret v1
 }
 
-fn @failScalar(arg0: i256) -> i256 [inline_assembly, pure] {
+fn @failScalar(arg0: i256) -> i256 [pure] {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
     revert 0, 32
@@ -176,13 +177,13 @@ fn @pairFailure(arg0: i256) -> struct0 [selector=0xbdf5d4d3, pure, abi_params=[u
     ret v6
 }
 
-fn @failPair(arg0: i256) -> struct0 [inline_assembly, pure] {
+fn @failPair(arg0: i256) -> struct0 [pure] {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
     revert 0, 32
 }
 
-fn @recursiveFailure(arg0: i256, arg1: i256) -> i256 [selector=0x0d8ae7f2, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @recursiveFailure(arg0: i256, arg1: i256) -> i256 [selector=0x0d8ae7f2, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -201,42 +202,41 @@ fn @recursiveFailure(arg0: i256, arg1: i256) -> i256 [selector=0x0d8ae7f2, inlin
 fn @constructorFailure(arg0: i256) -> i256 [selector=0x61e5bcd1, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = abi_encode [word], args arg0
-    v1 = datasize RevertsInConstructor_creation_code_2
-    v2 = datasize RevertsInConstructor_creation_code_2, 32
-    v3 = datasize RevertsInConstructor_creation_code_2, 63, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
-    v5 = ptrtoint memptr v4 to i256
-    datacopy RevertsInConstructor_creation_code_2, v5, v1
-    v6 = slice_ptr v0
-    v7 = ptrtoint memptr v4 to i256
-    v8 = add v7, v1
-    mcopy v8, v6, 32 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
-    v10 = create 0, v9, v2
-    v11 = zext i160 v10 to i256
-    v12 = ne v11, 0
-    jumpi v12, bb2, bb1
+    v1 = not 31
+    v2 = and 234, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v4 = ptrtoint memptr v3 to i256
+    data_copy RevertsInConstructor_initcode_2, v4, 171
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, 171
+    mcopy v7, v5, 32 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, 203
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = zext i160 v10 to i256
-    ret v13
+    v12 = zext i160 v9 to i256
+    ret v12
 }
 
 fn @constructorWithoutArgs() -> i256 [selector=0x1f01d869, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize RevertsWithoutArgs_creation_code_3
-    v2 = datasize RevertsWithoutArgs_creation_code_3, 31, aligned
+    v1 = not 31
+    v2 = and 263, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy RevertsWithoutArgs_creation_code_3, v4, v1
+    data_copy RevertsWithoutArgs_initcode_3, v4, 232
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
+    v7 = add v6, 232
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
+    v9 = create 0, v8, 232
     v10 = zext i160 v9 to i256
     v11 = eq v10, 0
     v12 = eq v11, false
@@ -275,19 +275,19 @@ fn @constructorWithoutArgs() -> i256 [selector=0x1f01d869, abi_params=[], abi_re
     ret 0
 }
 
-fn @oversizedReturn() [selector=0xe98a2448, inline_assembly, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @oversizedReturn() [selector=0xe98a2448, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     mstore 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0, 7
     returndata 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0, 32
 }
 
-fn @unaffordableReturn() [selector=0x0acfbfd5, inline_assembly, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @unaffordableReturn() [selector=0x0acfbfd5, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     mstore 0x123456789abcdef0, 7
     returndata 0x123456789abcdef0, 32
 }
 
-fn @precompileReturndata(arg0: i256, arg1: i256) -> i256 [selector=0x3553277c, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @precompileReturndata(arg0: i256, arg1: i256) -> i256 [selector=0x3553277c, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -378,7 +378,7 @@ fn @storageRevertPayload() -> i256 [selector=0x0156c876, abi_params=[], abi_retu
     ret 0
 }
 
-fn @failWithStorageBytes(arg0: i256) [selector=0x49740e5b, inline_assembly, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @failWithStorageBytes(arg0: i256) [selector=0x49740e5b, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
     jump bb1
@@ -475,7 +475,8 @@ fn @continueSkipsTail() -> i256 [selector=0xc45ef923, pure, abi_params=[], abi_r
 
 // === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:StopsInConstructor ===
 @module StopsInConstructor
-fn @constructor() [constructor, inline_assembly] {
+@inline_assembly
+fn @constructor() [constructor] {
   bb0:
     stop
 }
@@ -487,14 +488,15 @@ fn @present() -> i256 [selector=0xe735afb2, pure, abi_params=[], abi_returns=[wo
 
 // === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:RevertsInConstructor ===
 @module RevertsInConstructor
-fn @constructor(arg0: i256) [constructor, inline_assembly, abi_params=[u256]] {
+@inline_assembly
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     v0 = icall @fail, arg0
     sstore 0, v0 !metadata(storage=slot(0))
     ret
 }
 
-fn @fail(arg0: i256) -> i256 [inline_assembly, pure] {
+fn @fail(arg0: i256) -> i256 [pure] {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
     revert 0, 32
@@ -502,14 +504,15 @@ fn @fail(arg0: i256) -> i256 [inline_assembly, pure] {
 
 // === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:RevertsWithoutArgs ===
 @module RevertsWithoutArgs
-fn @constructor() [constructor, inline_assembly] {
+@inline_assembly
+fn @constructor() [constructor] {
   bb0:
     v0 = icall @fail
     sstore 0, v0 !metadata(storage=slot(0))
     ret
 }
 
-fn @fail() -> i256 [inline_assembly, view] {
+fn @fail() -> i256 [view] {
   bb0:
     v0 = number
     v1 = checked_add u256, v0, 11

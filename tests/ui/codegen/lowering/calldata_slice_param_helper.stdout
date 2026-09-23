@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_param_helper.sol:CalldataSliceParamHelper ===
 @module CalldataSliceParamHelper
 @phase lowered
+@inline_assembly
 fn @lastWord() [selector=0x3955f902, abi_wrapper, pure] {
   bb0:
     v3 = icall @decode_calldata_slice, 4

@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_boundary_array_assignment.sol:StorageBoundaryArrayAssignment ===
 @module StorageBoundaryArrayAssignment
-fn @getArray() -> i256 [inline_assembly, pure] {
+@inline_assembly
+fn @getArray() -> i256 [pure] {
   bb0:
     v0 = sub 0, 5
     ret v0

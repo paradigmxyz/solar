@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constant_bytes_value.sol:ConstantBytesValue ===
 @module ConstantBytesValue
+@inline_assembly
 fn @length() -> i256 [selector=0x1f7b6d32, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)

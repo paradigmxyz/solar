@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_packed_word_array.sol:AbiEncodePackedWordArray ===
 @module AbiEncodePackedWordArray
-@types
+@inline_assembly
+types:
   struct0: {i256, i256}
 
 fn @pack() -> struct0 [selector=0xef082838, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, u256]] {

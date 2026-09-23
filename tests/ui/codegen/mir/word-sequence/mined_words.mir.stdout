@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.sol:MinedWords ===
 @module MinedWords
-@types
+@inline_assembly
+types:
   struct0: {i256, i256}
 
 fn @odd(arg0: i256) -> i256 [selector=0x0602c36a, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {

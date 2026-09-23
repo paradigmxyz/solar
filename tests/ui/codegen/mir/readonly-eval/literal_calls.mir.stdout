@@ -1,9 +1,10 @@
 // === ROOT/tests/ui/codegen/mir/readonly-eval/literal_calls.sol:LiteralCalls ===
 @module LiteralCalls
-@types
+@inline_assembly
+types:
   struct0: {i256, i256}
 
-@immutables
+immutables:
   answer: u256
   shortWord: bytes32
 

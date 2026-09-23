@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/loop-exit-remat/induction_runtime.sol:Test ===
 @module Test
-@types
+@inline_assembly
+types:
   struct0: {i256, i256, i256, i256}
 
 fn @previous(arg0: i256) -> i256 [selector=0x3c311f3c, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {

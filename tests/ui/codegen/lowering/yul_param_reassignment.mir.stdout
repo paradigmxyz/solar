@@ -4,6 +4,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/yul_param_reassignment.sol:YulParamReassignment ===
 @module YulParamReassignment
+@inline_assembly
 fn @indexOf.0(arg0: memorybytes, arg1: memorybytes, arg2: i256) -> i256 [selector=0x86e2d68c, pure, abi_params=[bytes, bytes, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @indexOf.1, arg0, arg1, arg2

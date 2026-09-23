@@ -1,7 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/scalar_dispatch.sol:ScalarDispatch ===
 @module ScalarDispatch
 @phase lowered
-fn @entry() [entry, inline_assembly] {
+@inline_assembly
+fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = calldatasize

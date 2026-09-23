@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_storage_packing.sol:ExternalFunctionPointerStoragePacking ===
 @module ExternalFunctionPointerStoragePacking
+@inline_assembly
 fn @constructor() [constructor] {
   bb0:
     v0 = address

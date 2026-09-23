@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_return_validation.sol:ExternalReturnValidation ===
 @module ExternalReturnValidation
-@types
+@inline_assembly
+types:
   struct0: {memorystruct, memorystruct}
 
 fn @short() -> i256 [selector=0x38bea4cb, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
