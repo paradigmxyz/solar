@@ -338,9 +338,6 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5:
     v27 = calldataload v53
     v28 = byte 0, v27
     v46 = add arg1, v17
-    v47 = lt v46, arg1
-    jumpi v47, bb10, bb12
-  bb12:
     v32 = lt v46, v0
     jumpi v32, bb9, bb7
   bb9:
@@ -358,15 +355,15 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5:
     v61 = lt v60, v59
     v62 = gt v60, 0xffffffffffffffff
     v63 = or v61, v62
-    jumpi v63, bb14, bb13
-  bb13:
+    jumpi v63, bb13, bb12
+  bb12:
     mstore 64, v60 !metadata(memory=scratch)
     mstore v59, 0
     mstore v59, 0
     jump bb7
   bb7:
     tail_call @revert_stub
-  bb14:
+  bb13:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36

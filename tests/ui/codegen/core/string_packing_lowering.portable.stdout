@@ -44,8 +44,8 @@ fn @packPair() [selector=0xa2352af0, abi_wrapper, pure] {
   bb0:
     v70 = calldatasize
     v71 = lt v70, 68
-    jumpi v71, bb13, bb14
-  bb14:
+    jumpi v71, bb12, bb13
+  bb13:
     v72 = icall @decode_calldata_type, 4
     v73 = icall @decode_calldata_type, 36
     v86 = ptrtoint memptr v72 to i256
@@ -73,14 +73,10 @@ fn @packPair() [selector=0xa2352af0, abi_wrapper, pure] {
     v12 = shl v39, v2
     v13 = or v7, v12
     v82 = add v87, 32
-    v88 = shl 3, v1
-    v89 = sub 0, v88
-    v90 = add v89, 232
     jump bb7
   bb7:
-    v22 = phi [bb5: v13], [bb12: v32]
-    v23 = phi [bb5: 0], [bb12: v68]
-    v91 = phi [bb5: v90], [bb12: v92]
+    v22 = phi [bb5: v13], [bb11: v32]
+    v23 = phi [bb5: 0], [bb11: v68]
     v24 = lt v23, v2
     jumpi v24, bb8, bb1
   bb8:
@@ -95,14 +91,10 @@ fn @packPair() [selector=0xa2352af0, abi_wrapper, pure] {
     v60 = lt v57, v23
     jumpi v60, bb9, bb11
   bb11:
-    v63 = shr 3, v91
-    v67 = ne v63, v59
-    jumpi v67, bb9, bb12
-  bb12:
-    v31 = shl v91, v85
+    v61 = shl 3, v59
+    v31 = shl v61, v85
     v32 = or v22, v31
     v68 = add v23, 1
-    v92 = sub v91, 8
     jump bb7
   bb9:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -119,10 +111,10 @@ fn @packPair() [selector=0xa2352af0, abi_wrapper, pure] {
     v55 = add v8, 1
     jump bb4
   bb1:
-    v34 = phi [bb14: 0], [bb2: 0], [bb7: v22]
+    v34 = phi [bb13: 0], [bb2: 0], [bb7: v22]
     mstore 128, v34
     returndata 128, 32
-  bb13:
+  bb12:
     revert 0, 0
 }
 

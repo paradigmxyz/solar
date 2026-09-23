@@ -73,14 +73,25 @@
 //! unlikely, so removing it preserves the checked semantics.
 //!
 //! Paired zero-based cursors also expose a scaled capacity invariant. When an
-//! input cursor advances by one, an output cursor advances by at most `K`, and
-//! a checked allocation reserves `input_length * K`, induction proves every
-//! fixed-width write remains within that allocation. The proof requires the
-//! same natural-loop header/backedge, an active `input < input_length` guard,
-//! an exact capacity product, and alias analysis showing that the input length
-//! and output capacity are stable throughout the loop. Unknown writes, wider
-//! output steps, multiple latches, or logical-length mutations retain their
-//! checks.
+//! input cursor advances by a constant `S`, an output cursor advances by at
+//! most `K * S`, and a checked allocation reserves `input_length * K`,
+//! induction proves every write of at most `K * S` bytes remains within that
+//! allocation. The proof requires the same natural-loop header/backedge, an
+//! active guard (`input < input_length` for a unit step, `input + S <=
+//! input_length` otherwise, found past the header's own checks), an exact
+//! capacity product or doubling, and alias analysis showing that the input
+//! length and output capacity are stable throughout the loop. Unknown writes,
+//! wider output steps, multiple latches, or logical-length mutations retain
+//! their checks.
+//!
+//! Two more universal equalities feed those proofs. A checked `u256` sum equals
+//! a wrapping sum of the same operands wherever it is defined, so a loop test
+//! on `i + 16` covers a bounds check that adds 16 to `i` again. In a module
+//! without inline assembly, rereads of a parameter object's length agree when
+//! nothing in the function can write that length: stores into fresh objects
+//! cannot reach it, a write in a block that leaves the function reaches only
+//! later reads in that block, and calls count through their memory summaries.
+//! The rereads themselves stay in place for the scheduler to price.
 //!
 //! Transitive relational queries lazily index candidate edges once per function,
 //! when a query needs to combine facts. An edge is followed only
@@ -103,7 +114,12 @@
 //!
 //! Checked scaling by a power of two tests that `(x << k) >> k == x`; the test
 //! holds whenever `x`'s range leaves its top `k` bits clear, so an allocation
-//! sized from a bounded length drops it.
+//! sized from a bounded length drops it. A checked product
+//! `or (eq y, 0), (eq (div (mul x, y), y), x)` holds whenever the bounds of `x`
+//! and `y` multiply without wrapping; its first disjunct covers a zero `y`. A
+//! difference `a - b` taken where the scope orders `b <= a` cannot wrap, so it
+//! stays below `a`'s bound even when the operands' ranges overlap. Together they
+//! drop the capacity checks of a replacement sized from bounded lengths.
 //!
 //! Signed comparisons rotate intervals by the sign bit to use the same ordered
 //! bounds. An interval crossing the rotation boundary widens to unknown; signed
@@ -145,7 +161,7 @@ use crate::{
         ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, Function, FunctionId,
         ImmutableEncoding, ImmutableId, InstId, InstKind, Module, Terminator, TypeSize, Value,
         ValueId, ValueLayout,
-        analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, Location},
+        analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, Location, MemoryCallSummaries},
         immutable::immutable_push_type_size,
         memory::EvmMemoryLayout,
         pass::{
@@ -162,7 +178,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
-use std::rc::Rc;
+use std::{rc::Rc, sync::Arc};
 
 /// Function pass for range-based overflow-check elimination.
 pub(crate) struct CheckElim;
@@ -179,8 +195,10 @@ impl MirPass for CheckElim {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let object_lengths = object_length_bound(module);
+        let summaries = object_lengths.is_some().then(|| analyses.call_summaries(module));
         run_function_pass(module, analyses, |func, _| {
             let mut eliminator = CheckEliminator::new(None, object_lengths);
+            eliminator.call_summaries.clone_from(&summaries);
             eliminator.run(func) != 0
         })
     }
@@ -487,18 +505,27 @@ struct MonotonePhi {
 }
 
 /// A loop-carried output cursor that advances by at most `max_step` while a
-/// sibling input cursor advances by exactly one.
+/// sibling input cursor advances by a constant `step`.
 ///
 /// Both cursors start at zero and share the same header and backedge. Combined
-/// with `index < length` and an exact `capacity = length * scale` where
-/// `max_step <= scale`, induction gives `cursor <= index * scale`. This is the
-/// checked string-builder shape: every iteration can safely write at most the
-/// capacity reserved for one input item.
+/// with the loop guard, which puts `index + step <= length` in the body, and an
+/// exact `capacity = length * scale` where `max_step <= scale * step`,
+/// induction gives `cursor <= index * scale`. This is the checked
+/// string-builder shape: every iteration can safely write at most the capacity
+/// reserved for the input items it consumes.
 #[derive(Clone, Debug)]
 struct ScaledCursor {
     cursor: ValueId,
     index: ValueId,
     length: ValueId,
+    /// The input cursor's constant step.
+    step: U256,
+    /// The guard fact active in the loop body: `index < length` for a unit
+    /// step, or `index + step <= length`.
+    guard: Relation,
+    /// Whether the guard's sum wraps instead of checking, so that the proof
+    /// must bound the index first.
+    wrapping_sum: bool,
     preheader: BlockId,
     loop_blocks: DenseBitSet<BlockId>,
     max_step: U256,
@@ -557,6 +584,9 @@ struct CheckEliminator<'a> {
     immutable_ranges: Option<&'a FxHashMap<ImmutableId, Range>>,
     /// Bound on every memory object's logical length, when the module guarantees one.
     object_lengths: Option<Range>,
+    /// Module call summaries, which let calls that write no parameter keep its
+    /// length stable.
+    call_summaries: Option<Arc<MemoryCallSummaries>>,
     /// Shared CFG snapshot taken at entry, matching the previous fresh build.
     cfg: Option<Rc<CfgInfo>>,
     /// Statistics from the last run.
@@ -637,6 +667,11 @@ impl<'a> CheckEliminator<'a> {
             return 0;
         }
         self.universal_relations = universal_relations(func, &relevant);
+        self.universal_relations.extend(checked_sum_twins(func));
+        if self.object_lengths.is_some() {
+            self.universal_relations
+                .extend(stable_parameter_lengths(func, self.call_summaries.clone()));
+        }
 
         // Predecessors recomputed from reachable terminators: facts must only
         // come from edges that can actually execute.
@@ -1440,12 +1475,13 @@ impl<'a> CheckEliminator<'a> {
     /// Whether a bounded loop cursor plus `width` fits in `capacity`.
     ///
     /// This discharges checked fixed-width writes in builders that reserve
-    /// `scale * input_length` bytes and consume one input item per iteration.
-    /// The proof is structural and local to a natural loop: both cursors start
-    /// at zero, the input cursor steps by one, every output update is bounded
-    /// by `scale`, and no loop block changes the output object's logical
-    /// length. A checked multiplication, or its still-dominating round-trip
-    /// check after lowering, proves that the capacity product is exact.
+    /// `scale * input_length` bytes and consume a constant number of input
+    /// items per iteration. The proof is structural and local to a natural
+    /// loop: both cursors start at zero, the input cursor steps by a constant,
+    /// every output update is bounded by `scale` times that step, and no loop
+    /// block changes the output object's logical length. A checked
+    /// multiplication, or its still-dominating round-trip check after
+    /// lowering, proves that the capacity product is exact.
     fn scaled_cursor_fits(
         &mut self,
         func: &Function,
@@ -1461,8 +1497,14 @@ impl<'a> CheckEliminator<'a> {
             .cloned()
             .collect::<Vec<_>>();
         for candidate in candidates {
-            let active = self.has_relation(func, Relation::Lt(candidate.index, candidate.length));
-            if !active {
+            if !self.has_relation(func, candidate.guard)
+                || (candidate.wrapping_sum
+                    && self
+                        .range_of(func, candidate.index, depth)
+                        .hi
+                        .checked_add(candidate.step)
+                        .is_none())
+            {
                 continue;
             }
             let requested_object = capacity.and_then(|value| match inst_kind(func, value) {
@@ -1494,7 +1536,8 @@ impl<'a> CheckEliminator<'a> {
                 let Some(scale) = self.exact_scale(func, length, &candidate, depth) else {
                     continue;
                 };
-                if scale >= candidate.max_step && width <= scale {
+                let Some(reach) = scale.checked_mul(candidate.step) else { continue };
+                if reach >= candidate.max_step && width <= reach {
                     return true;
                 }
             }
@@ -1510,6 +1553,12 @@ impl<'a> CheckEliminator<'a> {
         candidate: &ScaledCursor,
         depth: usize,
     ) -> Option<U256> {
+        // A doubling `length + length` is the product by two the egraph leaves.
+        if let Some((source, false)) = doubled(func, product) {
+            return (same_stable_length(func, source, candidate.length, candidate)
+                && self.range_of(func, source, depth).hi.leading_zeros() >= 1)
+                .then(|| U256::from(2));
+        }
         let (lhs, rhs, checked) = match inst_kind(func, product)? {
             InstKind::CheckedBinary {
                 op: CheckedOp::Mul,
@@ -1715,7 +1764,14 @@ impl<'a> CheckEliminator<'a> {
             InstKind::Sub(a, b) => {
                 let ra = self.range_of(func, a, depth);
                 let rb = self.range_of(func, b, depth);
-                if ra.lo >= rb.hi { Range::new(ra.lo - rb.hi, ra.hi - rb.lo) } else { Range::FULL }
+                if ra.lo >= rb.hi {
+                    Range::new(ra.lo - rb.hi, ra.hi - rb.lo)
+                } else if ra.hi >= rb.lo && self.has_relation(func, Relation::Le(b, a)) {
+                    // A known `b <= a` rules out wrapping where the ranges overlap.
+                    Range::new(U256::ZERO, ra.hi - rb.lo)
+                } else {
+                    Range::FULL
+                }
             }
             InstKind::Mul(a, b) => {
                 let ra = self.range_of(func, a, depth);
@@ -1855,6 +1911,8 @@ impl<'a> CheckEliminator<'a> {
             InstKind::Or(a, b) => {
                 if self.doubling_check_holds(func, a, b, depth)
                     || self.doubling_check_holds(func, b, a, depth)
+                    || self.product_check_holds(func, a, b, depth)
+                    || self.product_check_holds(func, b, a, depth)
                 {
                     return Some(true);
                 }
@@ -2058,6 +2116,18 @@ impl<'a> CheckEliminator<'a> {
         if a == b {
             return Some(true);
         }
+        // A zero test negates the truth of an `or` or `and`, which their
+        // operands may prove where bit ranges cannot, as for a checked
+        // product's disjunction. Comparisons already reach their truth
+        // through their ranges.
+        for (tested, zero) in [(a, b), (b, a)] {
+            if const_of(func, zero) == Some(U256::ZERO)
+                && matches!(inst_kind(func, tested), Some(InstKind::Or(..) | InstKind::And(..)))
+                && let Some(truth) = self.eval_truth(func, tested, depth)
+            {
+                return Some(!truth);
+            }
+        }
 
         // Overflow check for checked mul: `eq (div (mul x, y), y), x` holds
         // iff `x * y` did not wrap, provided the divisor is nonzero. Recognize
@@ -2144,6 +2214,42 @@ impl<'a> CheckEliminator<'a> {
             return false;
         }
         self.range_of(func, x, depth).hi.leading_zeros() >= 1
+    }
+
+    /// Recognizes the checked product `or (eq y, 0), (eq (div (mul x, y), y), x)`,
+    /// which holds whenever `x * y` cannot wrap: a zero `y` satisfies the first
+    /// disjunct and any other `y` divides the exact product back to `x`.
+    fn product_check_holds(
+        &mut self,
+        func: &Function,
+        zero_test: ValueId,
+        roundtrip: ValueId,
+        depth: usize,
+    ) -> bool {
+        let Some(y) = inst_kind(func, zero_test).and_then(|kind| kind.zero_test_operand(func))
+        else {
+            return false;
+        };
+        let Some(&InstKind::Eq(lhs, rhs)) = inst_kind(func, roundtrip) else { return false };
+        for (quotient, expected) in [(lhs, rhs), (rhs, lhs)] {
+            let Some(&InstKind::Div(product, divisor)) = inst_kind(func, quotient) else {
+                continue;
+            };
+            let Some(&InstKind::Mul(p, q)) = inst_kind(func, product) else { continue };
+            if !values_equal(func, divisor, y) {
+                continue;
+            }
+            for (x, factor) in [(p, q), (q, p)] {
+                if x == expected && values_equal(func, factor, y) {
+                    let rx = self.range_of(func, x, depth);
+                    let ry = self.range_of(func, y, depth);
+                    if rx.hi.checked_mul(ry.hi).is_some() {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
     }
 
     /// Recognizes `div (mul x, y), d == x` with `d == y` and proves it true
@@ -2297,6 +2403,107 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
     relations
 }
 
+/// Equates each checked `u256` sum with a wrapping sum of the same operands.
+///
+/// The checked sum is defined only where it did not wrap, and there both hold
+/// the same word, so a guard on one bounds the other: a loop test on
+/// `i + 16` then covers a bounds check that adds `16` to `i` again.
+fn checked_sum_twins(func: &Function) -> Vec<Relation> {
+    // Constants may be distinct values with equal words.
+    let key = |value: ValueId| match const_of(func, value) {
+        Some(constant) => (true, constant),
+        None => (false, U256::from(value.index())),
+    };
+    let mut sums = FxHashMap::<_, (SmallVec<[ValueId; 2]>, SmallVec<[ValueId; 2]>)>::default();
+    for inst_id in func.instructions() {
+        let Some(value) = func.inst_result_value(inst_id) else { continue };
+        let (a, b, checked) = match func.inst(inst_id).kind {
+            InstKind::Add(a, b) => (a, b, false),
+            InstKind::CheckedBinary {
+                op: CheckedOp::Add,
+                arithmetic: ArithmeticKind::Unsigned(256),
+                lhs,
+                rhs,
+            } => (lhs, rhs, true),
+            _ => continue,
+        };
+        let (a, b) = (key(a), key(b));
+        let entry = sums.entry(if a <= b { (a, b) } else { (b, a) }).or_default();
+        if checked { entry.1.push(value) } else { entry.0.push(value) }
+    }
+    let mut relations = Vec::new();
+    for (wrapping, checked) in sums.values() {
+        for &checked in checked {
+            for &wrapping in wrapping {
+                let (a, b) = ordered(checked, wrapping);
+                relations.push(Relation::Eq(a, b));
+            }
+        }
+    }
+    relations
+}
+
+/// Equates rereads of a parameter object's length that nothing in the function
+/// can change.
+///
+/// Callers run this only for modules without inline assembly. There a
+/// parameter object lies below the free-memory pointer at entry, while the
+/// function's own allocations start at or above it, so writes into fresh
+/// objects cannot reach the parameter's length word. A write in a block that
+/// leaves the function, such as a panic's encoding, reaches only the reads
+/// after it in that block. Any other write that may reach the word, including
+/// every call with memory effects, keeps the reads apart. The loads stay where
+/// they are: only the checks learn that they agree.
+fn stable_parameter_lengths(
+    func: &Function,
+    summaries: Option<Arc<MemoryCallSummaries>>,
+) -> Vec<Relation> {
+    let mut reads = FxHashMap::<_, SmallVec<[(InstId, ValueId); 2]>>::default();
+    for inst_id in func.instructions() {
+        if let InstKind::MemoryObjectLen(object, kind) = func.inst(inst_id).kind
+            && matches!(func.value(object), Value::Arg(_))
+            && let Some(value) = func.inst_result_value(inst_id)
+        {
+            reads.entry((object, kind)).or_default().push((inst_id, value));
+        }
+    }
+    reads.retain(|_, reads| reads.len() > 1);
+    if reads.is_empty() {
+        return Vec::new();
+    }
+    let aa = match summaries {
+        Some(summaries) => AliasAnalysis::with_call_summaries(func, summaries),
+        None => AliasAnalysis::new(func),
+    };
+    let mut relations = Vec::new();
+    for (&(object, kind), group) in &reads {
+        let Some(location) = aa.memory_object_length_location(func, group[0].0, object, kind)
+        else {
+            continue;
+        };
+        let location = Location::Memory(location);
+        let stable = func.blocks.iter().all(|block| {
+            let exits = block.terminator.as_ref().is_some_and(|term| term.successors().is_empty());
+            block.instructions.iter().enumerate().all(|(position, &inst)| {
+                !aa.instruction_mod_ref(func, inst).may_write(&aa, location)
+                    || writes_only_fresh_object(func, &func.inst(inst).kind)
+                    || (exits
+                        && block.instructions[position + 1..]
+                            .iter()
+                            .all(|later| group.iter().all(|&(read, _)| read != *later)))
+            })
+        });
+        if stable {
+            let first = group[0].1;
+            relations.extend(group[1..].iter().map(|&(_, value)| {
+                let (a, b) = ordered(first, value);
+                Relation::Eq(a, b)
+            }));
+        }
+    }
+    relations
+}
+
 /// The upper limit of a clamp written as `x + (x > limit) * (limit - x)`.
 ///
 /// The product is zero when the test fails, leaving `x`, and `limit - x` when
@@ -2380,8 +2587,15 @@ fn relation_candidates(func: &Function) -> FxHashMap<ValueId, SmallVec<[Relation
     index
 }
 
-/// Finds paired zero-based loop cursors where `index` advances by one and
-/// `cursor` advances by a path-dependent amount with a finite maximum.
+/// Finds paired zero-based loop cursors where `index` advances by a constant
+/// step and `cursor` advances by a path-dependent amount with a finite maximum.
+///
+/// The header guards the body with `index < length` for a unit step, or with
+/// `index + step > length` exiting the loop, where the sum is the checked or
+/// wrapping sum the backedge also stores. A wrapping sum qualifies because the
+/// guard fact names that exact value: a wrapped sum would still sit below
+/// `length`, so the proof requires the index's range to rule wrapping out
+/// before trusting it.
 fn scaled_cursor_candidates(
     func: &Function,
     cfg: &CfgInfo,
@@ -2390,19 +2604,8 @@ fn scaled_cursor_candidates(
 ) -> Vec<ScaledCursor> {
     let mut candidates = Vec::new();
     for index_phi in monotone {
-        if index_phi.decreasing
-            || const_of(func, index_phi.initial) != Some(U256::ZERO)
-            || const_of(func, index_phi.step) != Some(U256::ONE)
-        {
-            continue;
-        }
-        let Some(Terminator::Branch { condition, .. }) =
-            func.blocks[index_phi.header].terminator.as_ref()
-        else {
-            continue;
-        };
-        let Some(&InstKind::Lt(index, length)) = inst_kind(func, *condition) else { continue };
-        if index != index_phi.value {
+        let Some(step) = const_of(func, index_phi.step) else { continue };
+        if index_phi.decreasing || const_of(func, index_phi.initial) != Some(U256::ZERO) {
             continue;
         }
         let loop_blocks =
@@ -2413,6 +2616,12 @@ fn scaled_cursor_candidates(
         {
             continue;
         }
+        let index = index_phi.value;
+        let Some((length, guard, wrapping_sum)) =
+            loop_guard(func, index_phi.header, &loop_blocks, index, step)
+        else {
+            continue;
+        };
         for &inst_id in &func.blocks[index_phi.header].instructions {
             let InstKind::Phi(incoming) = &func.inst(inst_id).kind else { continue };
             let Some(cursor) = func.inst_result_value(inst_id) else { continue };
@@ -2447,6 +2656,9 @@ fn scaled_cursor_candidates(
                 cursor,
                 index,
                 length,
+                step,
+                guard,
+                wrapping_sum,
                 preheader: index_phi.preheader,
                 loop_blocks: loop_blocks.clone(),
                 max_step,
@@ -2457,6 +2669,71 @@ fn scaled_cursor_candidates(
         .sort_unstable_by_key(|candidate| (candidate.cursor.index(), candidate.index.index()));
     candidates.dedup_by_key(|candidate| (candidate.cursor, candidate.index));
     candidates
+}
+
+/// Finds the test guarding a loop body: the first branch from the header, past
+/// checks whose failing side leaves the function, that compares the index or
+/// its stepped sum with a length. Returns the length, the fact the body sees,
+/// and whether that fact names a wrapping sum.
+fn loop_guard(
+    func: &Function,
+    header: BlockId,
+    loop_blocks: &DenseBitSet<BlockId>,
+    index: ValueId,
+    step: U256,
+) -> Option<(ValueId, Relation, bool)> {
+    let exits = |block: BlockId| {
+        func.blocks[block].terminator.as_ref().is_some_and(|term| term.successors().is_empty())
+    };
+    let mut block = header;
+    for _ in 0..8 {
+        match *func.blocks[block].terminator.as_ref()? {
+            Terminator::Branch { condition, then_block, else_block } => {
+                match *inst_kind(func, condition)? {
+                    InstKind::Lt(tested, length) if tested == index && step == U256::ONE => {
+                        return Some((length, Relation::Lt(index, length), false));
+                    }
+                    InstKind::Gt(sum, length) | InstKind::Lt(length, sum)
+                        if let Some(wrapping) = step_sum(func, sum, index, step) =>
+                    {
+                        return Some((length, Relation::Le(sum, length), wrapping));
+                    }
+                    _ => {}
+                }
+                block = if exits(then_block) {
+                    else_block
+                } else if exits(else_block) {
+                    then_block
+                } else {
+                    return None;
+                };
+            }
+            Terminator::Jump(next) => block = next,
+            _ => return None,
+        }
+        if block == header || !loop_blocks.contains(block) {
+            return None;
+        }
+    }
+    None
+}
+
+/// Whether `sum` adds the constant `step` to `index`, and if so whether the
+/// sum wraps (`Some(true)`) or is a checked `u256` sum (`Some(false)`).
+fn step_sum(func: &Function, sum: ValueId, index: ValueId, step: U256) -> Option<bool> {
+    let (a, b, wrapping) = match *inst_kind(func, sum)? {
+        InstKind::Add(a, b) => (a, b, true),
+        InstKind::CheckedBinary {
+            op: CheckedOp::Add,
+            arithmetic: ArithmeticKind::Unsigned(256),
+            lhs,
+            rhs,
+        } => (lhs, rhs, false),
+        _ => return None,
+    };
+    let matches =
+        |base: ValueId, offset: ValueId| base == index && const_of(func, offset) == Some(step);
+    (matches(a, b) || matches(b, a)).then_some(wrapping)
 }
 
 fn natural_loop_blocks(

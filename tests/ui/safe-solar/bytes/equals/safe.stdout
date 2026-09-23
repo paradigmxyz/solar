@@ -12,74 +12,74 @@ fn @entry() [entry] {
 @phase lowered
 fn @same() [selector=0xfc39552e, abi_wrapper, pure] {
   bb0:
-    v64 = calldatasize
-    v65 = lt v64, 68
-    jumpi v65, bb12, bb13
+    v62 = calldatasize
+    v63 = lt v62, 68
+    jumpi v63, bb12, bb13
   bb13:
-    v66 = icall @decode_calldata_type, 4
-    v67 = icall @decode_calldata_type, 36
-    v89 = ptrtoint memptr v66 to i256
-    v1 = mload v89
-    v90 = ptrtoint memptr v67 to i256
-    v2 = mload v90
+    v64 = icall @decode_calldata_type, 4
+    v65 = icall @decode_calldata_type, 36
+    v87 = ptrtoint memptr v64 to i256
+    v1 = mload v87
+    v88 = ptrtoint memptr v65 to i256
+    v2 = mload v88
     v3 = ne v1, v2
     jumpi v3, bb1, bb2
   bb2:
-    v84 = add v89, 32
-    v86 = add v90, 32
+    v82 = add v87, 32
+    v84 = add v88, 32
     jump bb3
   bb3:
-    v6 = phi [bb2: 0], [bb5: v54]
-    v54 = add v6, 32
-    v8 = gt v54, v1
+    v6 = phi [bb2: 0], [bb5: v52]
+    v52 = add v6, 32
+    v8 = gt v52, v1
     jumpi v8, bb4, bb5
   bb5:
-    v20 = add v86, v6
-    v21 = mload v20
-    v14 = add v84, v6
+    v18 = add v84, v6
+    v19 = mload v18
+    v14 = add v82, v6
     v15 = mload v14
-    v22 = ne v15, v21
-    jumpi v22, bb1, bb3
+    v20 = ne v15, v19
+    jumpi v20, bb1, bb3
   bb4:
     v9 = eq v6, v1
     jumpi v9, bb1, bb6
   bb6:
-    v24 = lt v1, 32
-    jumpi v24, bb8, bb7
+    v22 = lt v1, 32
+    jumpi v22, bb8, bb7
   bb7:
-    v58 = sub v1, 32
-    v32 = add v84, v58
-    v33 = mload v32
-    v88 = add v90, 32
-    v41 = add v88, v58
-    v42 = mload v41
-    v43 = eq v33, v42
-    v44 = zext i1 v43 to i256
+    v56 = sub v1, 32
+    v30 = add v82, v56
+    v31 = mload v30
+    v86 = add v88, 32
+    v39 = add v86, v56
+    v40 = mload v39
+    v41 = eq v31, v40
+    v42 = zext i1 v41 to i256
     jump bb1
   bb8:
-    v79 = add v90, 32
+    v77 = add v88, 32
     jump bb9
   bb9:
-    v45 = phi [bb8: v6], [bb10: v60]
-    v46 = lt v45, v1
-    jumpi v46, bb11, bb1
+    v43 = phi [bb8: v6], [bb10: v58]
+    v44 = lt v43, v1
+    jumpi v44, bb11, bb1
   bb11:
-    v80 = add v79, v45
-    v81 = mload v80
-    v82 = byte 0, v81
-    v51 = shl 248, v82
-    v75 = add v84, v45
-    v76 = mload v75
-    v77 = byte 0, v76
-    v49 = shl 248, v77
-    v52 = ne v49, v51
-    jumpi v52, bb1, bb10
+    v78 = add v77, v43
+    v79 = mload v78
+    v80 = byte 0, v79
+    v49 = shl 248, v80
+    v73 = add v82, v43
+    v74 = mload v73
+    v75 = byte 0, v74
+    v47 = shl 248, v75
+    v50 = ne v47, v49
+    jumpi v50, bb1, bb10
   bb10:
-    v60 = add v45, 1
+    v58 = add v43, 1
     jump bb9
   bb1:
-    v53 = phi [bb13: 0], [bb5: 0], [bb4: 1], [bb7: v44], [bb9: 1], [bb11: 0]
-    mstore 128, v53
+    v51 = phi [bb13: 0], [bb5: 0], [bb4: 1], [bb7: v42], [bb9: 1], [bb11: 0]
+    mstore 128, v51
     returndata 128, 32
   bb12:
     revert 0, 0

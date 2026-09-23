@@ -193,14 +193,11 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: memptr, arg3: i256, arg4: i256) [ma
   bb8:
     v40 = phi [bb4: 0], [bb15: v83]
     v43 = lt v40, arg4
-    jumpi v43, bb9, bb24
-  bb24:
+    jumpi v43, bb9, bb22
+  bb22:
     ret
   bb9:
     v73 = add arg3, v40
-    v74 = lt v73, arg3
-    jumpi v74, bb16, bb19
-  bb19:
     v45 = mload v103
     v46 = lt v73, v45
     jumpi v46, bb14, bb11
@@ -209,9 +206,6 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: memptr, arg3: i256, arg4: i256) [ma
     v97 = mload v96
     v98 = byte 0, v97
     v81 = add arg1, v40
-    v82 = lt v81, arg1
-    jumpi v82, bb16, bb21
-  bb21:
     v52 = lt v81, v0
     jumpi v52, bb15, bb11
   bb15:
@@ -254,8 +248,8 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: memptr, arg3: i256, arg4: i256) [ma
     v90 = byte 0, v89
     v75 = add arg1, v16
     v76 = lt v75, arg1
-    jumpi v76, bb16, bb20
-  bb20:
+    jumpi v76, bb16, bb19
+  bb19:
     v77 = sub v75, 1
     v33 = lt v77, v0
     jumpi v33, bb13, bb11
@@ -275,15 +269,15 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: memptr, arg3: i256, arg4: i256) [ma
     v109 = lt v108, v107
     v110 = gt v108, 0xffffffffffffffff
     v111 = or v109, v110
-    jumpi v111, bb23, bb22
-  bb22:
+    jumpi v111, bb21, bb20
+  bb20:
     mstore 64, v108 !metadata(memory=scratch)
     mstore v107, 0
     mstore v107, 0
     jump bb11
   bb11:
     tail_call @revert_stub
-  bb23:
+  bb21:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36
