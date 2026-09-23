@@ -137,14 +137,14 @@ fn @toString(arg0: i256) -> memptr [may_return_memory, pure] {
     v100 = add v103, 32
     jump bb7
   bb7:
-    v47 = phi [bb15: arg0], [bb7: v93]
-    v48 = phi [bb15: v98], [bb7: v86]
-    v86 = sub v48, 1
-    v89 = mod v47, 10
+    v48 = phi [bb15: arg0], [bb7: v93]
+    v49 = phi [bb15: v98], [bb7: v86]
+    v86 = sub v49, 1
+    v89 = mod v48, 10
     v90 = add v89, 48
     v101 = add v100, v86
     mstore8 v101, v90
-    v93 = div v47, 10
+    v93 = div v48, 10
     v60 = ne v86, 0
     jumpi v60, bb7, bb8
   bb8:

@@ -5,10 +5,11 @@
 //@ run-call: escape 0x011f => 0x5c75303030315c7530303166
 //@ run-call: escape 0x => 0x
 
-// Escaping for JSON, built in a `ByteBuilder` that grows when escapes make the
-// text longer. No pointer arithmetic, no guess at the output's size.
+// Escaping for JSON through the compiler-owned `Strings.escapeJSON`, which
+// streams the output at the free-memory pointer and reserves its exact size.
+// No pointer arithmetic, no guess at the output's size.
 // CHECK-LABEL: fn @escape
-// CHECK: mcopy
+// CHECK: icall @core_string_escape_json,
 import {Strings} from "solar:core/v1/Strings.sol";
 
 contract Safe {

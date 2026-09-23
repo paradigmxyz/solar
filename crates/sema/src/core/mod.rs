@@ -121,6 +121,12 @@ pub enum CoreIntrinsic {
     StringLastIndexOf,
     /// `Strings.runeCount(subject)`.
     StringRuneCount,
+    /// `Strings.escapeHTML(subject)`.
+    StringEscapeHTML,
+    /// `Strings.escapeJSON(subject)` and `Strings.escapeJSON(subject, addDoubleQuotes)`.
+    StringEscapeJSON,
+    /// `Strings.encodeURIComponent(subject)`.
+    StringEncodeURIComponent,
     /// `Strings.toMinimalHexStringNoPrefix(value)`.
     StringMinimalHex,
     /// `Strings.toMinimalHexString(value)`.
@@ -288,6 +294,10 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (sym::indexOf, CoreIntrinsic::StringIndexOf),
                 (sym::lastIndexOf, CoreIntrinsic::StringLastIndexOf),
                 (sym::runeCount, CoreIntrinsic::StringRuneCount),
+                (sym::escapeHTML, CoreIntrinsic::StringEscapeHTML),
+                // Both arities share a name; the lowering reads the operand count.
+                (sym::escapeJSON, CoreIntrinsic::StringEscapeJSON),
+                (sym::encodeURIComponent, CoreIntrinsic::StringEncodeURIComponent),
                 (Symbol::intern("toMinimalHexStringNoPrefix"), CoreIntrinsic::StringMinimalHex),
                 (Symbol::intern("toMinimalHexString"), CoreIntrinsic::StringMinimalHexPrefixed),
                 // Both arities share a name; the lowering reads the operand count.
