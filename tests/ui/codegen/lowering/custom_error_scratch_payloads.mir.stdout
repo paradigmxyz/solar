@@ -1,0 +1,99 @@
+// === ROOT/tests/ui/codegen/lowering/custom_error_scratch_payloads.sol:CustomErrorPayloads ===
+@module CustomErrorPayloads
+fn @none() [selector=0xa877db9f, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    icall require<custom_error []>, false, 0x3db2a12a00000000000000000000000000000000000000000000000000000000
+    invalid
+}
+
+fn @one(arg0: i256) [selector=0xef56f928, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    icall require<custom_error [word]>, false, 0xb24d1aa00000000000000000000000000000000000000000000000000000000, arg0
+    invalid
+}
+
+fn @three(arg0: i256, arg1: i256, arg2: i256) [selector=0x1f65ea94, pure, abi_params=[i8, bytes4, bool], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = signextend 0, arg0
+    v1 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v2 = eq arg2, 0
+    v3 = eq v2, false
+    v4 = zext i1 v3 to i256
+    icall require<custom_error [word<i8>, word<bytes4>, word<bool>]>, false, 0x599e757300000000000000000000000000000000000000000000000000000000, v0, v1, v4
+    invalid
+}
+
+fn @four(arg0: i256) [selector=0xb00fe555, pure, abi_params=[u160], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = trunc i256 v0 to i160
+    v2 = zext i160 v1 to i256
+    icall require<custom_error [word, word, word, word<u160>]>, false, 0xbfd2e92100000000000000000000000000000000000000000000000000000000, 1, 2, 3, v2
+    invalid
+}
+
+fn @dynamic(arg0: i256) [selector=0x691a82eb, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v0, 3
+    v1 = memory_object_data memorybytes, v0
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x6162630000000000000000000000000000000000000000000000000000000000
+    icall require<custom_error [word, memory_bytes]>, false, 0x2f609bb100000000000000000000000000000000000000000000000000000000, arg0, v0
+    invalid
+}
+
+fn @required(arg0: i256) [selector=0x1b73f830, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = eq arg0, 0
+    icall require<custom_error [word]>, v0, 0xb24d1aa00000000000000000000000000000000000000000000000000000000, arg0
+    ret
+}
+
+fn @allocateBelow(arg0: i256) -> i256 [selector=0x552a8664, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = gt arg0, 10
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v1 = mul arg0, 1
+    v2 = eq 1, 0
+    v3 = div v1, 1
+    v4 = eq v3, arg0
+    v5 = or v2, v4
+    v6 = zext i1 v5 to i256
+    v7 = eq v6, 0
+    icall panic_if<0x41>, v7
+    v8 = add v1, 1
+    v9 = lt v8, v1
+    icall panic_if<0x41>, v9
+    v10 = mul v8, 32
+    v11 = eq 32, 0
+    v12 = div v10, 32
+    v13 = eq v12, v8
+    v14 = or v11, v13
+    v15 = zext i1 v14 to i256
+    v16 = eq v15, 0
+    icall panic_if<0x41>, v16
+    v17 = alloc memoryarray<1>, exact, zeroed, panic, v10
+    set_memory_object_len memoryarray, v17, arg0
+    v18 = checked_sub u256, arg0, 1
+    v19 = memory_object_len memoryarray, v17
+    v20 = lt v18, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    memory_object_store_element memoryarray<1>, v17, v18, arg0
+    v22 = memory_object_len memoryarray, v17
+    v23 = checked_sub u256, arg0, 1
+    v24 = memory_object_len memoryarray, v17
+    v25 = lt v23, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = memory_object_load_element memoryarray<1>, v17, v23
+    v28 = checked_add u256, v22, v27
+    ret v28
+  bb1:
+    icall require<custom_error [word]>, false, 0xb24d1aa00000000000000000000000000000000000000000000000000000000, arg0
+    invalid
+}

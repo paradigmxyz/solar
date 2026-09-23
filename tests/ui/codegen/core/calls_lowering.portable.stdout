@@ -407,11 +407,8 @@ fn @deploy(arg0: memptr) -> i256 [may_return_memory, inline_assembly] {
   bb1:
     ret v5
   bb2:
-    v17 = mload 64 !metadata(memory=scratch)
-    v18 = add v17, 32
-    mstore 64, v18 !metadata(memory=scratch)
-    mstore v17, 0x3011642500000000000000000000000000000000000000000000000000000000
-    revert v17, 4
+    mstore 0, 0x30116425 !metadata(memory=scratch)
+    revert 28, 4
 }
 
 fn @revert_stub() {

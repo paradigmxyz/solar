@@ -198,7 +198,7 @@ bb17:
   push 128
   return
 bb21:
-  push 256
+  push 160
   push 64
   mstore
   push 68
@@ -247,23 +247,14 @@ bb12 [cold]:
   push 28
   revert
 bb27 [cold]:
-  push 160
   push 0x760769fe
-  push 224
-  shl
-  dup 2
+  push 0
   mstore
-  push 4
-  dup 2
-  add
-  swap 4
-  dup 5
-  mstore
-  swap 3
+  swap 2
   push 32
-  add
-  exchange 1, 2
+  mstore
+  push 64
   mstore
   push 68
-  dup 3
+  push 28
   revert
