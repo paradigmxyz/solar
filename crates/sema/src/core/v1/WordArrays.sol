@@ -52,6 +52,42 @@ library WordArrays {
         Arrays.truncate(a, write);
     }
 
+    /// @dev Sorts `keys` by their word values with `values` moved alongside,
+    /// keeps one of each key, and gives it the sum of the values its copies had.
+    /// Both arrays shrink to the kept keys. The arrays must have one length, and
+    /// every sum must fit a word.
+    function groupSum(uint256[] memory keys, uint256[] memory values) internal pure {
+        uint256 n = keys.length;
+        if (values.length != n) n = _outOfBounds();
+        if (n < 2) return;
+        for (uint256 i = 1; i < n; ++i) {
+            uint256 key = keys[i];
+            uint256 value = values[i];
+            uint256 j = i;
+            while (j != 0 && keys[j - 1] > key) {
+                keys[j] = keys[j - 1];
+                values[j] = values[j - 1];
+                --j;
+            }
+            keys[j] = key;
+            values[j] = value;
+        }
+        uint256 kept = 0;
+        uint256 sum = values[0];
+        for (uint256 i = 1; i < n; ++i) {
+            if (keys[i] == keys[kept]) {
+                sum += values[i];
+            } else {
+                values[kept] = sum;
+                keys[++kept] = keys[i];
+                sum = values[i];
+            }
+        }
+        values[kept] = sum;
+        Arrays.truncate(keys, kept + 1);
+        Arrays.truncate(values, kept + 1);
+    }
+
     /// @dev Sorts `a` in ascending order.
     function sort(int256[] memory a) internal pure {
         for (uint256 i = 1; i < a.length; ++i) {
@@ -93,6 +129,42 @@ library WordArrays {
             if (a[read] != a[write - 1]) a[write++] = a[read];
         }
         Arrays.truncate(a, write);
+    }
+
+    /// @dev Sorts `keys` by their word values with `values` moved alongside,
+    /// keeps one of each key, and gives it the sum of the values its copies had.
+    /// Both arrays shrink to the kept keys. The arrays must have one length, and
+    /// every sum must fit a word.
+    function groupSum(int256[] memory keys, uint256[] memory values) internal pure {
+        uint256 n = keys.length;
+        if (values.length != n) n = _outOfBounds();
+        if (n < 2) return;
+        for (uint256 i = 1; i < n; ++i) {
+            int256 key = keys[i];
+            uint256 value = values[i];
+            uint256 j = i;
+            while (j != 0 && uint256(keys[j - 1]) > uint256(key)) {
+                keys[j] = keys[j - 1];
+                values[j] = values[j - 1];
+                --j;
+            }
+            keys[j] = key;
+            values[j] = value;
+        }
+        uint256 kept = 0;
+        uint256 sum = values[0];
+        for (uint256 i = 1; i < n; ++i) {
+            if (keys[i] == keys[kept]) {
+                sum += values[i];
+            } else {
+                values[kept] = sum;
+                keys[++kept] = keys[i];
+                sum = values[i];
+            }
+        }
+        values[kept] = sum;
+        Arrays.truncate(keys, kept + 1);
+        Arrays.truncate(values, kept + 1);
     }
 
     /// @dev Sorts `a` in ascending order.
@@ -138,6 +210,42 @@ library WordArrays {
         Arrays.truncate(a, write);
     }
 
+    /// @dev Sorts `keys` by their word values with `values` moved alongside,
+    /// keeps one of each key, and gives it the sum of the values its copies had.
+    /// Both arrays shrink to the kept keys. The arrays must have one length, and
+    /// every sum must fit a word.
+    function groupSum(address[] memory keys, uint256[] memory values) internal pure {
+        uint256 n = keys.length;
+        if (values.length != n) n = _outOfBounds();
+        if (n < 2) return;
+        for (uint256 i = 1; i < n; ++i) {
+            address key = keys[i];
+            uint256 value = values[i];
+            uint256 j = i;
+            while (j != 0 && keys[j - 1] > key) {
+                keys[j] = keys[j - 1];
+                values[j] = values[j - 1];
+                --j;
+            }
+            keys[j] = key;
+            values[j] = value;
+        }
+        uint256 kept = 0;
+        uint256 sum = values[0];
+        for (uint256 i = 1; i < n; ++i) {
+            if (keys[i] == keys[kept]) {
+                sum += values[i];
+            } else {
+                values[kept] = sum;
+                keys[++kept] = keys[i];
+                sum = values[i];
+            }
+        }
+        values[kept] = sum;
+        Arrays.truncate(keys, kept + 1);
+        Arrays.truncate(values, kept + 1);
+    }
+
     /// @dev Sorts `a` in ascending order.
     function sort(bytes32[] memory a) internal pure {
         for (uint256 i = 1; i < a.length; ++i) {
@@ -181,4 +289,45 @@ library WordArrays {
         Arrays.truncate(a, write);
     }
 
+    /// @dev Sorts `keys` by their word values with `values` moved alongside,
+    /// keeps one of each key, and gives it the sum of the values its copies had.
+    /// Both arrays shrink to the kept keys. The arrays must have one length, and
+    /// every sum must fit a word.
+    function groupSum(bytes32[] memory keys, uint256[] memory values) internal pure {
+        uint256 n = keys.length;
+        if (values.length != n) n = _outOfBounds();
+        if (n < 2) return;
+        for (uint256 i = 1; i < n; ++i) {
+            bytes32 key = keys[i];
+            uint256 value = values[i];
+            uint256 j = i;
+            while (j != 0 && keys[j - 1] > key) {
+                keys[j] = keys[j - 1];
+                values[j] = values[j - 1];
+                --j;
+            }
+            keys[j] = key;
+            values[j] = value;
+        }
+        uint256 kept = 0;
+        uint256 sum = values[0];
+        for (uint256 i = 1; i < n; ++i) {
+            if (keys[i] == keys[kept]) {
+                sum += values[i];
+            } else {
+                values[kept] = sum;
+                keys[++kept] = keys[i];
+                sum = values[i];
+            }
+        }
+        values[kept] = sum;
+        Arrays.truncate(keys, kept + 1);
+        Arrays.truncate(values, kept + 1);
+    }
+
+    /// @dev Raises the `Panic(0x32)` an out-of-range index raises, which is the
+    /// portable spelling of a failed range check.
+    function _outOfBounds() private pure returns (uint256) {
+        return new uint256[](0)[0];
+    }
 }

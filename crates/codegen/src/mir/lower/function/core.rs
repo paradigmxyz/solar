@@ -79,6 +79,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::CopyInto => self.lower_core_copy(&operands),
             CoreIntrinsic::Fill => self.lower_core_fill(&operands),
             CoreIntrinsic::Truncate => self.lower_core_truncate(expr, &operands, &parameter_tys),
+            CoreIntrinsic::ArrayGroupSum => self.lower_core_array_group_sum_call(&operands),
             CoreIntrinsic::ArrayHasDuplicate => self.lower_core_array_has_duplicate_call(&operands),
             CoreIntrinsic::ArraySort => self.lower_core_array_sort_call(&operands, &parameter_tys),
             CoreIntrinsic::ArrayUniquifySorted => {
@@ -441,6 +442,144 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.ret([]);
     }
 
+    /// Lowers every `groupSum` overload to one helper: keys compare as words.
+    fn lower_core_array_group_sum_call(&mut self, operands: &[ValueId]) -> Option<ValueId> {
+        let [keys, values] = *operands else { return None };
+        let inner = self.lazy_helper(sym::core_array_group_sort_inner, |this, function| {
+            let helper = *this.cx.state.helpers.get(&sym::core_array_group_sort_inner)?;
+            function.attributes.no_inline = true;
+            function.attributes.preserves_array_elements = true;
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            let low = lowerer.builder.add_param(MirType::I256);
+            let high = lowerer.builder.add_param(MirType::I256);
+            let pair = lowerer.builder.add_param(MirType::I256);
+            lowerer.lower_core_array_sort(helper, false, low, high, Some(pair));
+            Some(())
+        })?;
+        let sort = self.lazy_helper(sym::core_array_group_sort, |this, function| {
+            function.attributes.no_inline = true;
+            function.attributes.preserves_array_elements = true;
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            let low = lowerer.builder.add_param(MirType::I256);
+            let high = lowerer.builder.add_param(MirType::I256);
+            let pair = lowerer.builder.add_param(MirType::I256);
+            lowerer.lower_core_array_sort_entry(inner, false, low, high, Some(pair));
+            lowerer.builder.ret([]);
+            Some(())
+        })?;
+        let helper = self.lazy_helper(sym::core_array_group_sum, |this, function| {
+            function.attributes.no_inline = true;
+            // Keys are only permuted; the sums land in `uint256[]` values.
+            function.attributes.preserves_array_elements = true;
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            let ty = MirType::MemoryObject(MemoryObjectKind::DynamicArray);
+            let keys = lowerer.builder.add_param(ty);
+            let values = lowerer.builder.add_param(ty);
+            lowerer.lower_core_array_group_sum(sort, keys, values);
+            Some(())
+        })?;
+        self.builder.icall_void(helper, vec![keys, values]);
+        Some(self.builder.imm(U256::ZERO))
+    }
+
+    /// Sorts the pairs by key word, then keeps the first key of every run and
+    /// gives it the checked sum of the run's values, shrinking both arrays.
+    fn lower_core_array_group_sum(&mut self, sort: FunctionId, keys: ValueId, values: ValueId) {
+        let kind = MemoryObjectKind::DynamicArray;
+        // panic(0x32) if len(keys) != len(values)
+        let length = self.builder.memory_object_len(keys, kind);
+        let value_length = self.builder.memory_object_len(values, kind);
+        let differs = self.builder.ne(length, value_length);
+        self.builder.panic_if(differs, PanicCode::ArrayOutOfBounds);
+        let two = self.builder.imm(2);
+        let small = self.builder.lt(length, two);
+        let done = self.builder.create_block();
+        let start = self.builder.create_block();
+        self.builder.branch(small, done, start);
+
+        // low = data(keys); pair = data(values) - low; high = low + 32 * length
+        self.builder.switch_to_block(start);
+        let low = self.builder.memory_object_data(keys, kind);
+        let low = self.builder.cast(low, MirType::I256);
+        let value_low = self.builder.memory_object_data(values, kind);
+        let value_low = self.builder.cast(value_low, MirType::I256);
+        let pair = self.builder.sub(value_low, low);
+        let five = self.builder.imm(5);
+        let bytes = self.builder.shl(five, length);
+        let high = self.builder.add(low, bytes);
+        self.builder.icall_void(sort, vec![low, high, pair]);
+
+        // first run: write = low, sum = mload(low + pair)
+        let word = self.builder.imm(32);
+        let first = self.builder.add(low, word);
+        let first_sum = self.builder.mload(value_low);
+        let scan = self.builder.current_block();
+        let header = self.builder.create_block();
+        let body = self.builder.create_block();
+        let accumulate = self.builder.create_block();
+        let new_run = self.builder.create_block();
+        let latch = self.builder.create_block();
+        let finish = self.builder.create_block();
+        self.builder.jump(header);
+
+        self.builder.switch_to_block(header);
+        let read = self.builder.phi(vec![(scan, first)]);
+        let write = self.builder.phi(vec![(scan, low)]);
+        let sum = self.builder.phi(vec![(scan, first_sum)]);
+        let more = self.builder.lt(read, high);
+        self.builder.branch(more, body, finish);
+
+        // key = mload(read); value = mload(read + pair)
+        self.builder.switch_to_block(body);
+        let key = self.builder.mload(read);
+        let kept = self.builder.mload(write);
+        let value_address = self.builder.add(read, pair);
+        let value = self.builder.mload(value_address);
+        let same = self.builder.eq(key, kept);
+        self.builder.branch(same, accumulate, new_run);
+
+        // sum' = sum + value; panic(0x11) if sum' < value
+        self.builder.switch_to_block(accumulate);
+        let total = self.builder.add(sum, value);
+        let overflow = self.builder.lt(total, value);
+        self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
+        let accumulated = self.builder.current_block();
+        self.builder.jump(latch);
+
+        // mstore(write + pair, sum); write' = write + 32; mstore(write', key)
+        self.builder.switch_to_block(new_run);
+        let sum_address = self.builder.add(write, pair);
+        self.builder.mstore(sum_address, sum);
+        let next_write = self.builder.add(write, word);
+        self.builder.mstore(next_write, key);
+        self.builder.jump(latch);
+
+        self.builder.switch_to_block(latch);
+        let latch_write = self.builder.phi(vec![(accumulated, write), (new_run, next_write)]);
+        let latch_sum = self.builder.phi(vec![(accumulated, total), (new_run, value)]);
+        let next_read = self.builder.add(read, word);
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(read, latch, next_read);
+        self.builder.add_phi_incoming(write, latch, latch_write);
+        self.builder.add_phi_incoming(sum, latch, latch_sum);
+
+        // mstore(write + pair, sum); count = (write - low) / 32 + 1
+        // set_len(keys, count); set_len(values, count)
+        self.builder.switch_to_block(finish);
+        let sum_address = self.builder.add(write, pair);
+        self.builder.mstore(sum_address, sum);
+        let kept_bytes = self.builder.sub(write, low);
+        let kept_words = self.builder.shr(five, kept_bytes);
+        let one = self.builder.imm(1);
+        let count = self.builder.add(kept_words, one);
+        self.builder.set_memory_object_len(keys, count, kind);
+        self.builder.set_memory_object_len(values, count, kind);
+        self.builder.jump(done);
+
+        self.builder.switch_to_block(done);
+        self.builder.ret([]);
+    }
+
     /// Lowers every supported sort overload to one signed or unsigned helper.
     fn lower_core_array_sort_call(
         &mut self,
@@ -462,7 +601,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
             let low = lowerer.builder.add_param(MirType::I256);
             let high = lowerer.builder.add_param(MirType::I256);
-            lowerer.lower_core_array_sort(helper, signed, low, high);
+            lowerer.lower_core_array_sort(helper, signed, low, high, None);
             Some(())
         })?;
         let entry_name =
@@ -473,7 +612,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
             let low = lowerer.builder.add_param(MirType::I256);
             let high = lowerer.builder.add_param(MirType::I256);
-            lowerer.lower_core_array_sort_entry(inner, signed, low, high);
+            lowerer.lower_core_array_sort_entry(inner, signed, low, high, None);
+            lowerer.builder.ret([]);
             Some(())
         })?;
 
@@ -499,13 +639,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// Returns for sorted input, reverses descending input, and sends only a
-    /// genuinely mixed range through quicksort.
+    /// genuinely mixed range through quicksort. With `pair`, the byte distance
+    /// from each key to its value, every move of a key moves its value too.
+    /// Leaves the builder in the block reached once the range is sorted.
     fn lower_core_array_sort_entry(
         &mut self,
         inner: FunctionId,
         signed: bool,
         low: ValueId,
         high: ValueId,
+        pair: Option<ValueId>,
     ) {
         let word = self.builder.imm(32);
         let last = self.builder.sub(high, word);
@@ -563,7 +706,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let length = self.builder.mload(header);
         let sentinel = self.builder.imm(if signed { U256::ONE << 255 } else { U256::ZERO });
         self.builder.mstore(header, sentinel);
-        self.builder.icall_void(inner, vec![low, high]);
+        self.builder.icall_void(inner, [low, high].into_iter().chain(pair).collect());
         self.builder.mstore(header, length);
         self.builder.jump(done);
 
@@ -576,8 +719,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(reverse_body);
         let left_value = self.builder.mload(left);
         let right_value = self.builder.mload(right);
-        self.builder.mstore(left, right_value);
-        self.builder.mstore(right, left_value);
+        self.core_sort_exchange(left, right, left_value, right_value, pair);
         let next_left = self.builder.add(left, word);
         let next_right = self.builder.sub(right, word);
         self.builder.jump(reverse_header);
@@ -585,18 +727,45 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.add_phi_incoming(right, reverse_body, next_right);
 
         self.builder.switch_to_block(done);
-        self.builder.ret([]);
+    }
+
+    /// Exchanges the keys at `left` and `right`, and with `pair` their values.
+    /// The values move first, so keys and values passed as one array (a zero
+    /// `pair`) end up exchanged once: the key stores repeat the value stores.
+    fn core_sort_exchange(
+        &mut self,
+        left: ValueId,
+        right: ValueId,
+        left_key: ValueId,
+        right_key: ValueId,
+        pair: Option<ValueId>,
+    ) {
+        if let Some(pair) = pair {
+            // left_value = mload(left + pair); right_value = mload(right + pair)
+            // mstore(left + pair, right_value); mstore(right + pair, left_value)
+            let left = self.builder.add(left, pair);
+            let right = self.builder.add(right, pair);
+            let left_value = self.builder.mload(left);
+            let right_value = self.builder.mload(right);
+            self.builder.mstore(left, right_value);
+            self.builder.mstore(right, left_value);
+        }
+        // mstore(left, right_key); mstore(right, left_key)
+        self.builder.mstore(left, right_key);
+        self.builder.mstore(right, left_key);
     }
 
     /// Emits median-of-three Hoare quicksort with insertion-sort leaves.
     /// One partition is called recursively and the other is processed by the
     /// outer loop, bounding helper-frame depth to logarithmic on balanced data.
+    /// With `pair`, each value moves with its key.
     fn lower_core_array_sort(
         &mut self,
         helper: FunctionId,
         signed: bool,
         initial_low: ValueId,
         initial_high: ValueId,
+        pair: Option<ValueId>,
     ) {
         let entry = self.builder.current_block();
         let partition_header = self.builder.create_block();
@@ -620,6 +789,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let middle_offset = self.builder.shl(five, middle_words);
         let middle = self.builder.add(low, middle_offset);
         let last = self.builder.sub(high, word);
+        // The paired values of the three sampled keys follow the same selects.
+        let mut paired = pair.map(|pair| {
+            let [first, middle, last] = [low, middle, last].map(|key| {
+                let address = self.builder.add(key, pair);
+                (address, self.builder.mload(address))
+            });
+            [first, middle, last]
+        });
         let mut first_value = self.builder.mload(low);
         let mut middle_value = self.builder.mload(middle);
         let swap = self.core_sort_lt(middle_value, first_value, signed);
@@ -627,20 +804,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let new_middle = self.builder.select(swap, first_value, middle_value);
         first_value = new_first;
         middle_value = new_middle;
+        self.core_sort_select_pair(&mut paired, swap, 0, 1);
         let mut last_value = self.builder.mload(last);
         let swap = self.core_sort_lt(last_value, middle_value, signed);
         let new_middle = self.builder.select(swap, last_value, middle_value);
         let new_last = self.builder.select(swap, middle_value, last_value);
         middle_value = new_middle;
         last_value = new_last;
+        self.core_sort_select_pair(&mut paired, swap, 1, 2);
         let swap = self.core_sort_lt(middle_value, first_value, signed);
         let new_first = self.builder.select(swap, middle_value, first_value);
         let new_middle = self.builder.select(swap, first_value, middle_value);
         first_value = new_first;
         middle_value = new_middle;
+        self.core_sort_select_pair(&mut paired, swap, 0, 1);
         self.builder.mstore(low, first_value);
         self.builder.mstore(middle, middle_value);
         self.builder.mstore(last, last_value);
+        for (address, value) in paired.into_iter().flatten() {
+            self.builder.mstore(address, value);
+        }
         let initial_left = self.builder.add(low, word);
         let initial_right = self.builder.sub(last, word);
         let scan_left = self.builder.create_block();
@@ -681,8 +864,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(ordered, exchange, partition_done);
 
         self.builder.switch_to_block(exchange);
-        self.builder.mstore(left, right_value);
-        self.builder.mstore(right, left_value);
+        self.core_sort_exchange(left, right, left_value, right_value, pair);
         let next_left = self.builder.add(left, word);
         let next_right = self.builder.sub(right, word);
         self.builder.jump(scan_left);
@@ -699,23 +881,45 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(left_smaller, recurse_left, recurse_right);
 
         self.builder.switch_to_block(recurse_left);
-        self.builder.icall_void(helper, vec![low, split]);
+        self.builder.icall_void(helper, [low, split].into_iter().chain(pair).collect());
         self.builder.jump(partition_header);
         self.builder.add_phi_incoming(low, recurse_left, split);
         self.builder.add_phi_incoming(high, recurse_left, high);
 
         self.builder.switch_to_block(recurse_right);
-        self.builder.icall_void(helper, vec![split, high]);
+        self.builder.icall_void(helper, [split, high].into_iter().chain(pair).collect());
         self.builder.jump(partition_header);
         self.builder.add_phi_incoming(low, recurse_right, low);
         self.builder.add_phi_incoming(high, recurse_right, split);
 
         self.builder.switch_to_block(insertion);
-        self.lower_core_array_insertion_sort(signed, low, high);
+        self.lower_core_array_insertion_sort(signed, low, high, pair);
+    }
+
+    /// Exchanges the sampled values at `a` and `b` when `swap` holds, as the
+    /// median-of-three selects exchange their keys.
+    fn core_sort_select_pair(
+        &mut self,
+        paired: &mut Option<[(ValueId, ValueId); 3]>,
+        swap: ValueId,
+        a: usize,
+        b: usize,
+    ) {
+        let Some(values) = paired else { return };
+        // value_a' = swap ? value_b : value_a; value_b' = swap ? value_a : value_b
+        let (first, second) = (values[a].1, values[b].1);
+        values[a].1 = self.builder.select(swap, second, first);
+        values[b].1 = self.builder.select(swap, first, second);
     }
 
     /// Emits insertion sort for the current quicksort leaf.
-    fn lower_core_array_insertion_sort(&mut self, signed: bool, low: ValueId, high: ValueId) {
+    fn lower_core_array_insertion_sort(
+        &mut self,
+        signed: bool,
+        low: ValueId,
+        high: ValueId,
+        pair: Option<ValueId>,
+    ) {
         let word = self.builder.imm(32);
         let initial = self.builder.add(low, word);
         let preheader = self.builder.current_block();
@@ -734,6 +938,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         self.builder.switch_to_block(outer_body);
         let key = self.builder.mload(cursor);
+        let key_value = pair.map(|pair| {
+            let address = self.builder.add(cursor, pair);
+            self.builder.mload(address)
+        });
         self.builder.jump(shift_header);
 
         self.builder.switch_to_block(shift_header);
@@ -745,11 +953,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         self.builder.switch_to_block(shift);
         self.builder.mstore(slot, previous_value);
+        if let Some(pair) = pair {
+            // mstore(slot + pair, mload(previous + pair))
+            let from = self.builder.add(previous, pair);
+            let value = self.builder.mload(from);
+            let to = self.builder.add(slot, pair);
+            self.builder.mstore(to, value);
+        }
         self.builder.jump(shift_header);
         self.builder.add_phi_incoming(slot, shift, previous);
 
         self.builder.switch_to_block(place);
         self.builder.mstore(slot, key);
+        if let (Some(pair), Some(key_value)) = (pair, key_value) {
+            // mstore(slot + pair, key_value)
+            let to = self.builder.add(slot, pair);
+            self.builder.mstore(to, key_value);
+        }
         let next = self.builder.add(cursor, word);
         self.builder.jump(outer_header);
         self.builder.add_phi_incoming(cursor, place, next);
