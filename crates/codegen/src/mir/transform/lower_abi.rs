@@ -1893,11 +1893,13 @@ impl LowerAbiCx {
                     // allocating and copying an equivalent object.
                     return base;
                 }
-                let bytes = Self::checked_mul(builder, len, word, current);
-                let (ptr, layout) = if let Some(object) = checked_object {
-                    object
+                let (ptr, layout, bytes) = if let Some(object) = checked_object {
+                    let bytes = Self::checked_mul(builder, len, word, current);
+                    (object.0, object.1, bytes)
                 } else {
-                    let total = Self::checked_add(builder, bytes, word, current);
+                    // bytes = len * 32; total = bytes + 32
+                    let bytes = Self::checked_word_array_bytes(builder, len, current);
+                    let total = builder.add(bytes, word);
                     let layout = crate::mir::MemoryObjectLayout::WORD_ARRAY;
                     let ptr = builder.alloc_object(
                         total,
@@ -1905,7 +1907,7 @@ impl LowerAbiCx {
                         crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED,
                     );
                     builder.set_memory_object_len(ptr, len, layout.kind());
-                    (ptr, layout)
+                    (ptr, layout, bytes)
                 };
                 Self::guard_input_dynamic_array(builder, len, data, input_end, current, 32);
                 let source = builder.make_slice(data, bytes, location);
@@ -1943,14 +1945,16 @@ impl LowerAbiCx {
                     None
                 };
                 let word = builder.imm(32);
-                let bytes = Self::checked_mul(builder, len, word, current);
 
                 let copy_validated =
                     !constructor && validate_array_elements && Self::is_scalar_or_enum(element);
-                let (ptr, layout) = if let Some(object) = checked_object {
-                    object
+                let (ptr, layout, bytes) = if let Some(object) = checked_object {
+                    let bytes = Self::checked_mul(builder, len, word, current);
+                    (object.0, object.1, bytes)
                 } else {
-                    let total = Self::checked_add(builder, bytes, word, current);
+                    // bytes = len * 32; total = bytes + 32
+                    let bytes = Self::checked_word_array_bytes(builder, len, current);
+                    let total = builder.add(bytes, word);
                     let layout = crate::mir::MemoryObjectLayout::WORD_ARRAY;
                     let ptr = builder.alloc_object(
                         total,
@@ -1958,7 +1962,7 @@ impl LowerAbiCx {
                         crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED,
                     );
                     builder.set_memory_object_len(ptr, len, layout.kind());
-                    (ptr, layout)
+                    (ptr, layout, bytes)
                 };
                 Self::guard_input_dynamic_array(
                     builder,
@@ -2601,6 +2605,27 @@ impl LowerAbiCx {
         builder.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
         *current = builder.current_block();
         result
+    }
+
+    /// Returns the byte size of a decoded word array's elements. Like solc's
+    /// `array_allocation_size`, a length above `2^64 - 1` panics; the bound
+    /// also rules out overflow in the size and in the object size that adds the
+    /// length word. Any longer array would fail the allocation's own memory
+    /// bound with the same panic, so the order of failures is unchanged.
+    fn checked_word_array_bytes(
+        builder: &mut FunctionBuilder<'_>,
+        len: ValueId,
+        current: &mut BlockId,
+    ) -> ValueId {
+        builder.switch_to_block(*current);
+        // panic_if len > 0xffffffffffffffff
+        // bytes = mul len, 32
+        let limit = builder.imm(u64::MAX);
+        let too_long = builder.gt(len, limit);
+        builder.panic_if(too_long, PanicCode::MemoryAllocationOverflow);
+        *current = builder.current_block();
+        let word = builder.imm(32);
+        builder.mul(len, word)
     }
 
     fn checked_padded_size(
