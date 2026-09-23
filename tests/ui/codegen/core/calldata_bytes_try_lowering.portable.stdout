@@ -15,29 +15,28 @@ types:
 
 fn @try1() [selector=0x7c4fe00c, abi_wrapper, pure] {
   bb0:
-    v17 = calldatasize
-    v18 = lt v17, 68
-    jumpi v18, bb4, bb5
-  bb5:
-    v19 = icall @decode_calldata_slice, 4
-    v20 = calldataload v19
-    v21 = add v19, 32
-    v6 = gt arg1, v20
-    jumpi v6, bb1, bb2
+    v18 = calldatasize
+    v19 = lt v18, 68
+    jumpi v19, bb3, bb4
+  bb4:
+    v20 = icall @decode_calldata_slice, 4
+    v21 = calldataload v20
+    v22 = add v20, 32
+    v6 = gt arg1, v21
+    v8 = eq v21, arg1
+    v17 = or v6, v8
+    jumpi v17, bb1, bb2
   bb2:
-    v8 = eq v20, arg1
-    jumpi v8, bb1, bb3
-  bb3:
-    v11 = icall @readBytes1, v21, v20, arg1
+    v11 = icall @readBytes1, v22, v21, arg1
     jump bb1
   bb1:
-    v30 = phi [bb5: 0], [bb2: 0], [bb3: 1]
-    v31 = phi [bb5: 0], [bb2: 0], [bb3: v11]
-    v25 = and v31, 0xff00000000000000000000000000000000000000000000000000000000000000
-    mstore 128, v30
-    mstore 160, v25
+    v31 = phi [bb4: 0], [bb2: 1]
+    v32 = phi [bb4: 0], [bb2: v11]
+    v26 = and v32, 0xff00000000000000000000000000000000000000000000000000000000000000
+    mstore 128, v31
+    mstore 160, v26
     returndata 128, 64
-  bb4:
+  bb3:
     revert 0, 0
 }
 

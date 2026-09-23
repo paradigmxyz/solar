@@ -1,0 +1,195 @@
+// === ROOT/tests/ui/codegen/mir/if-convert/merge_conditions_runtime.sol:MergeConditions ===
+@module MergeConditions
+types:
+  struct0: {i256, i256}
+
+fn @search(arg0: memoryarray, arg1: i256) -> struct0 [selector=0xd43fc471, pure, abi_params=[array<_, u256>, u256], abi_returns=[word<bool>, word], abi_return_params=[bool, u256]] {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb5: v9]
+    v2 = phi [bb0: v0], [bb5: v26]
+    v3 = phi [bb0: arg0], [bb5: v3]
+    v4 = phi [bb0: 1], [bb5: v27]
+    v5 = phi [bb0: 0], [bb5: v16]
+    v6 = phi [bb0: 0], [bb5: v6]
+    v7 = phi [bb0: arg1], [bb5: v7]
+    jumpi true, bb3, bb4
+  bb4:
+    jump bb2
+  bb3:
+    v8 = checked_add u256, v4, v2
+    v9 = checked_div u256, v8, 2
+    v10 = ne v9, 0
+    jumpi v10, bb6, bb7
+  bb7:
+    jump bb8
+  bb6:
+    v11 = checked_sub u256, v9, 1
+    v12 = memory_object_len memoryarray, v3
+    v13 = lt v11, v12
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = memory_object_load_element memoryarray<1>, v3, v11
+    jump bb8
+  bb8:
+    v16 = phi [bb6: v15], [bb7: v5]
+    v17 = gt v4, v2
+    jumpi v17, bb10, bb9
+  bb9:
+    v18 = ne v9, 0
+    jumpi v18, bb12, bb13
+  bb13:
+    jump bb14
+  bb12:
+    v19 = eq v16, v7
+    jump bb14
+  bb14:
+    v20 = phi [bb12: v19], [bb13: false]
+    jump bb11
+  bb10:
+    jump bb11
+  bb11:
+    v21 = phi [bb14: v20], [bb10: true]
+    jumpi v21, bb15, bb16
+  bb16:
+    jump bb17
+  bb17:
+    v22 = gt v7, v16
+    v23 = eq v22, false
+    jumpi v23, bb18, bb19
+  bb19:
+    v25 = checked_add u256, v9, 1
+    jump bb20
+  bb18:
+    v24 = checked_sub u256, v9, 1
+    jump bb20
+  bb20:
+    v26 = phi [bb18: v24], [bb19: v2]
+    v27 = phi [bb18: v4], [bb19: v25]
+    jump bb5
+  bb5:
+    jump bb1
+  bb15:
+    jump bb2
+  bb2:
+    v28 = phi [bb15: v9], [bb4: v1]
+    v29 = phi [bb15: v16], [bb4: v5]
+    v30 = ne v28, 0
+    jumpi v30, bb21, bb22
+  bb22:
+    jump bb23
+  bb21:
+    v31 = eq v29, v7
+    jump bb23
+  bb23:
+    v32 = phi [bb21: v31], [bb22: false]
+    v33 = ne v28, 0
+    jumpi v33, bb24, bb25
+  bb25:
+    jump bb26
+  bb24:
+    v34 = checked_sub u256, v28, 1
+    jump bb26
+  bb26:
+    v35 = phi [bb24: v34], [bb25: v28]
+    v36 = zext i1 v32 to i256
+    v37 = insert_value struct0, undef struct0, 0, v36
+    v38 = insert_value struct0, v37, 1, v35
+    ret v38
+}
+
+fn @countBoth(arg0: memoryarray, arg1: i256, arg2: i256) -> i256 [selector=0x7ca4e7d6, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg2], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v16]
+    v3 = phi [bb0: arg1], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v15]
+    v5 = memory_object_len memoryarray, v0
+    v6 = lt v2, v5
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v4
+  bb4:
+    v7 = memory_object_len memoryarray, v0
+    v8 = lt v2, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = memory_object_load_element memoryarray<1>, v0, v2
+    v11 = gt v10, v3
+    jumpi v11, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v12 = ne v10, v1
+    jump bb9
+  bb9:
+    v13 = phi [bb7: v12], [bb8: false]
+    jumpi v13, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    v14 = checked_add u256, v4, 1
+    jump bb12
+  bb12:
+    v15 = phi [bb10: v14], [bb11: v4]
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v16 = checked_add u256, v2, 1
+    jump bb1
+}
+
+fn @countEither(arg0: memoryarray, arg1: i256, arg2: i256) -> i256 [selector=0x8bfceda8, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg1], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v15]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = phi [bb0: arg2], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v16]
+    v5 = memory_object_len memoryarray, v2
+    v6 = lt v4, v5
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v1
+  bb4:
+    v7 = memory_object_len memoryarray, v2
+    v8 = lt v4, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = memory_object_load_element memoryarray<1>, v2, v4
+    v11 = lt v10, v0
+    jumpi v11, bb8, bb7
+  bb7:
+    v12 = eq v10, v3
+    jump bb9
+  bb8:
+    jump bb9
+  bb9:
+    v13 = phi [bb7: v12], [bb8: true]
+    jumpi v13, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    v14 = checked_add u256, v1, 1
+    jump bb12
+  bb12:
+    v15 = phi [bb10: v14], [bb11: v1]
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v16 = checked_add u256, v4, 1
+    jump bb1
+}

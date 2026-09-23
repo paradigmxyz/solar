@@ -15,23 +15,22 @@ types:
 
 fn @try1() [selector=0x7c4fe00c, abi_wrapper, pure] {
   bb0:
-    v19 = icall @decode_calldata_type, 4
-    v29 = ptrtoint memptr v19 to i256
-    v5 = mload v29
+    v20 = icall @decode_calldata_type, 4
+    v30 = ptrtoint memptr v20 to i256
+    v5 = mload v30
     v6 = gt arg1, v5
-    jumpi v6, bb1, bb2
-  bb2:
     v8 = eq v5, arg1
-    jumpi v8, bb1, bb3
-  bb3:
-    v11 = icall @readBytes1, v19, arg1
+    v17 = or v6, v8
+    jumpi v17, bb1, bb2
+  bb2:
+    v11 = icall @readBytes1, v20, arg1
     jump bb1
   bb1:
-    v27 = phi [bb0: 0], [bb2: 0], [bb3: 1]
-    v28 = phi [bb0: 0], [bb2: 0], [bb3: v11]
-    v22 = and v28, 0xff00000000000000000000000000000000000000000000000000000000000000
-    mstore 128, v27
-    mstore 160, v22
+    v28 = phi [bb0: 0], [bb2: 1]
+    v29 = phi [bb0: 0], [bb2: v11]
+    v23 = and v29, 0xff00000000000000000000000000000000000000000000000000000000000000
+    mstore 128, v28
+    mstore 160, v23
     returndata 128, 64
 }
 

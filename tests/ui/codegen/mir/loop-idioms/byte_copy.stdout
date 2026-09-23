@@ -96,17 +96,17 @@ fn @allocationOverlap() [selector=0x46aad008, abi_wrapper, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, 1
-    v19 = mload 64 !metadata(memory=scratch)
-    v20 = add v19, 64
-    v21 = lt v20, v19
-    v22 = gt v20, 0xffffffffffffffff
-    v23 = or v21, v22
-    jumpi v23, bb6, bb5
-  bb5:
-    mstore 64, v20 !metadata(memory=scratch)
-    v25 = calldatasize
-    calldatacopy v19, v25, 64
-    mstore v19, 7
+    v20 = mload 64 !metadata(memory=scratch)
+    v21 = add v20, 64
+    v22 = lt v21, v20
+    v23 = gt v21, 0xffffffffffffffff
+    v24 = or v22, v23
+    jumpi v24, bb5, bb4
+  bb4:
+    mstore 64, v21 !metadata(memory=scratch)
+    v26 = calldatasize
+    calldatacopy v20, v26, 64
+    mstore v20, 7
     v5 = mload v0
     v10 = add v5, 1
     v11 = eq v10, 0
@@ -114,10 +114,9 @@ fn @allocationOverlap() [selector=0x46aad008, abi_wrapper, pure] {
   bb3:
     v12 = add v10, 7
     v13 = lt v12, v10
-    jumpi v13, bb2, bb4
-  bb4:
     v15 = lt v12, 7
-    jumpi v15, bb2, bb1
+    v16 = or v13, v15
+    jumpi v16, bb2, bb1
   bb1:
     mstore 128, v10
     returndata 128, 32
@@ -125,7 +124,7 @@ fn @allocationOverlap() [selector=0x46aad008, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
     revert 28, 36
-  bb6:
+  bb5:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36

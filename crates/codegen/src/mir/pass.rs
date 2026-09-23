@@ -46,6 +46,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::InlineTinyLeaves,
     &inline::InlineHotLeaves,
     &if_convert::IfConvert,
+    &if_convert::MergeConditions,
     &inline::InlineImmutableLeaves,
     &inline::InlineMemoryWrappers,
     &inline_dispatch::InlineDispatch,
@@ -375,6 +376,8 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // ABI and memory lowering leave dead guards and empty trampoline blocks.
     // Clean them before EVM shaping isolates phi copies on critical edges.
     &cfg_simplify::CfgSimplify,
+    // Proved argument widths leave short-circuit arms a single comparison.
+    &if_convert::MergeConditions,
     // A word-at-a-time loop is compact enough to consume at its sole call site.
     // This removes the internal frame protocol without duplicating the body;
     // the pass drops the consumed callee itself.

@@ -25,6 +25,30 @@
 //! Conditions are canonical booleans and cast to words before arithmetic.
 //! Later simplification turns a power-of-two multiplier into a shift.
 //!
+//! A branch whose arm only tests one more condition before reaching one of the
+//! branch's own targets merges both tests into one branch, as short-circuit
+//! evaluation of `a || b` and `a && b` leaves them:
+//!
+//! ```text
+//! block: br a, shared, arm        block: t = ...
+//! arm:   t = ...                  =>     br (a | b), shared, exit
+//!        br b, shared, exit
+//! ```
+//!
+//! Two negated tests combine with `and` and swap the targets, and one negated
+//! test is inverted with `eq t, 0`. The arm's instructions run on every path,
+//! so they must be speculatable and their values must die in the arm: a value
+//! used past the branch would stay live on the path that skipped the arm,
+//! costing stack moves the pricing below does not see. Every phi of the shared
+//! target must receive the same value from the block and the arm. Check
+//! elimination still reads both tests from a merged branch: `a | b` fails only
+//! when both fail, and `a & b` holds only when both hold.
+//!
+//! The `merge-conditions` adapter repeats only the merging after ABI and
+//! memory lowering. ABI lowering proves argument widths after this pass, so an
+//! arm comparing an address argument still carries the casts that priced it
+//! out here; word simplification later leaves a single comparison.
+//!
 //! Safety: an arm qualifies only when the branching block is its sole
 //! predecessor, its terminator is a jump to the join, and every instruction
 //! is a pure computation (no memory or state reads, calls, or effects), so
@@ -34,8 +58,13 @@
 //! per arm and two phis per join are considered, and a site converts only
 //! when running both arms plus the selects on every execution costs no more
 //! than the branch, the arm jump, their labels, and the arm that runs on an
-//! average path. Runs after the late CFG cleanup, so folded conditions never
-//! reach it, and before hot-leaf inlining, so cloned lookup helpers arrive
+//! average path. A test merges when running the arm and the combining
+//! operation on every execution costs no more than the arm's branch, its
+//! label and the arm on an average path. A zero test that only feeds its
+//! branch costs nothing there, since the jump tests the word itself, so the
+//! merged form pays for materializing it. Runs after the late CFG cleanup, so
+//! folded conditions never reach it, and before hot-leaf inlining, so cloned
+//! lookup helpers arrive
 //! already branch-free. Converts a sweep of sites with updated predecessor lists before
 //! running CFG cleanup, avoiding a whole-function cleanup for each diamond.
 
@@ -72,7 +101,26 @@ impl MirPass for IfConvert {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let target = Target::new(gcx);
-        run_function_pass(module, analyses, |func, _| if_convert_function(func, target))
+        run_function_pass(module, analyses, |func, _| if_convert_function(func, target, true))
+    }
+}
+
+/// Function pass that only merges short-circuit tests, after ABI and memory lowering.
+pub(crate) struct MergeConditions;
+
+impl MirPass for MergeConditions {
+    fn name(&self) -> &'static str {
+        "merge-conditions"
+    }
+
+    fn run_pass(
+        &self,
+        gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        let target = Target::new(gcx);
+        run_function_pass(module, analyses, |func, _| if_convert_function(func, target, false))
     }
 }
 
@@ -120,13 +168,14 @@ enum SelectForm {
     General(Option<U256>),
 }
 
-fn if_convert_function(func: &mut Function, target: Target) -> bool {
+fn if_convert_function(func: &mut Function, target: Target, selects: bool) -> bool {
     let mut changed = false;
     loop {
         let mut preds = predecessors(func);
+        let uses = Uses::new(func);
         let mut converted = false;
         for block in func.blocks.indices() {
-            if let Some(site) = find_site(func, target, &preds, block) {
+            if let Some(site) = selects.then(|| find_site(func, target, &preds, block)).flatten() {
                 convert(func, &site);
                 for arm in [site.then_arm, site.else_arm].into_iter().flatten() {
                     preds[arm].clear();
@@ -134,6 +183,16 @@ fn if_convert_function(func: &mut Function, target: Target) -> bool {
                 }
                 if !preds[site.join].contains(&block) {
                     preds[site.join].push(block);
+                }
+                converted = true;
+            } else if let Some(chain) = find_chain(func, target, &preds, &uses, block) {
+                merge_chain(func, &chain);
+                preds[chain.arm].clear();
+                preds[chain.shared].retain(|&pred| pred != chain.arm);
+                for pred in &mut preds[chain.exit] {
+                    if *pred == chain.arm {
+                        *pred = block;
+                    }
                 }
                 converted = true;
             }
@@ -145,6 +204,49 @@ fn if_convert_function(func: &mut Function, target: Target) -> bool {
         changed = true;
     }
     changed
+}
+
+/// How the values of a function are used, collected once per conversion round.
+struct Uses {
+    /// Values used outside the block that defines them, including by phis.
+    escaping: DenseBitSet<ValueId>,
+    /// Operand uses of each value, including phi inputs and terminators.
+    counts: FxHashMap<ValueId, usize>,
+}
+
+impl Uses {
+    fn new(func: &Function) -> Self {
+        let mut defined_in = FxHashMap::default();
+        for (block, body) in func.blocks.iter_enumerated() {
+            for &inst in &body.instructions {
+                if let Some(result) = func.inst_result_value(inst) {
+                    defined_in.insert(result, block);
+                }
+            }
+        }
+        let mut escaping = DenseBitSet::new_empty(func.num_values());
+        let mut counts = FxHashMap::default();
+        for (block, body) in func.blocks.iter_enumerated() {
+            let operands = body
+                .instructions
+                .iter()
+                .flat_map(|&inst| func.inst(inst).kind.operands())
+                .chain(body.terminator.iter().flat_map(|terminator| terminator.operands()));
+            for value in operands {
+                *counts.entry(value).or_default() += 1;
+                if defined_in.get(&value).is_some_and(|&definition| definition != block) {
+                    escaping.insert(value);
+                }
+            }
+        }
+        Self { escaping, counts }
+    }
+
+    /// Whether `value` may be used outside its block. Values created by an earlier
+    /// conversion in the same round are not recorded yet and count as escaping.
+    fn escapes(&self, value: ValueId) -> bool {
+        value.index() >= self.escaping.domain_size() || self.escaping.contains(value)
+    }
 }
 
 /// Predecessor lists over the blocks reachable from the entry.
@@ -212,27 +314,217 @@ fn arm_join(
     if arm == block || preds[arm].as_slice() != [block] {
         return None;
     }
-    let body = &func.blocks[arm];
-    let Some(Terminator::Jump(join)) = body.terminator else { return None };
-    if join == arm
-        || join == block
-        || body
-            .instructions
-            .iter()
-            .filter(|&&inst| !matches!(func.inst(inst).kind, InstKind::Zext(_)))
-            .count()
-            > MAX_ARM_INSTRUCTIONS
-    {
+    let Some(Terminator::Jump(join)) = func.blocks[arm].terminator else { return None };
+    if join == arm || join == block || !speculatable(func, arm) {
         return None;
     }
-    let speculatable = body.instructions.iter().all(|&inst| {
-        let kind = &func.inst(inst).kind;
-        !matches!(kind, InstKind::Phi(_))
-            && !kind.has_side_effects()
-            && kind.effect_kind() == EffectKind::Pure
-            && func.inst_result_value(inst).is_some()
-    });
-    speculatable.then_some(join)
+    Some(join)
+}
+
+/// Whether an arm holds at most `MAX_ARM_INSTRUCTIONS` pure computations, not
+/// counting zero extensions, so running it on every path cannot trap, expand
+/// memory, or change observable state.
+fn speculatable(func: &Function, arm: BlockId) -> bool {
+    let instructions = &func.blocks[arm].instructions;
+    instructions.iter().filter(|&&inst| !matches!(func.inst(inst).kind, InstKind::Zext(_))).count()
+        <= MAX_ARM_INSTRUCTIONS
+        && instructions.iter().all(|&inst| {
+            let kind = &func.inst(inst).kind;
+            !matches!(kind, InstKind::Phi(_))
+                && !kind.has_side_effects()
+                && kind.effect_kind() == EffectKind::Pure
+                && func.inst_result_value(inst).is_some()
+        })
+}
+
+/// A branch whose arm tests one more condition before reaching one of the
+/// branch's own targets.
+struct Chain {
+    /// The branching block, which absorbs the arm.
+    block: BlockId,
+    condition: ValueId,
+    /// The single-predecessor arm holding the second test.
+    arm: BlockId,
+    arm_condition: ValueId,
+    /// The target both tests reach.
+    shared: BlockId,
+    /// The arm's other target.
+    exit: BlockId,
+    /// Whether the block reaches `shared` when its condition holds.
+    block_holds: bool,
+    /// Whether the arm reaches `shared` when its condition holds.
+    arm_holds: bool,
+}
+
+fn find_chain(
+    func: &Function,
+    target: Target,
+    preds: &IndexVec<BlockId, Vec<BlockId>>,
+    uses: &Uses,
+    block: BlockId,
+) -> Option<Chain> {
+    let Some(Terminator::Branch { condition, then_block, else_block }) =
+        func.blocks[block].terminator
+    else {
+        return None;
+    };
+    if then_block == else_block || (block != BlockId::ENTRY && preds[block].is_empty()) {
+        return None;
+    }
+    [(else_block, then_block, true), (then_block, else_block, false)].into_iter().find_map(
+        |(arm, shared, block_holds)| {
+            if arm == block || shared == block || preds[arm].as_slice() != [block] {
+                return None;
+            }
+            let Some(Terminator::Branch {
+                condition: arm_condition,
+                then_block: arm_then,
+                else_block: arm_else,
+            }) = func.blocks[arm].terminator
+            else {
+                return None;
+            };
+            let (exit, arm_holds) = match (arm_then == shared, arm_else == shared) {
+                (true, false) => (arm_else, true),
+                (false, true) => (arm_then, false),
+                _ => return None,
+            };
+            // A value the arm hands on would stay live on the path that skipped the arm.
+            if exit == block
+                || exit == arm
+                || !speculatable(func, arm)
+                || func.blocks[arm].instructions.iter().any(|&inst| {
+                    func.inst_result_value(inst).is_some_and(|value| uses.escapes(value))
+                })
+            {
+                return None;
+            }
+            // Every value the shared target merges must agree along both edges.
+            let agree = func.blocks[shared].instructions.iter().all(|&inst| {
+                let InstKind::Phi(incoming) = &func.inst(inst).kind else { return true };
+                let from = |pred| incoming.iter().find(|&&(from, _)| from == pred).map(|&(_, v)| v);
+                from(block).zip(from(arm)).is_some_and(|(first, second)| {
+                    first == second
+                        || matches!(
+                            (func.value(first), func.value(second)),
+                            (Value::Immediate(first), Value::Immediate(second)) if first == second
+                        )
+                })
+            });
+            let chain = Chain {
+                block,
+                condition,
+                arm,
+                arm_condition,
+                shared,
+                exit,
+                block_holds,
+                arm_holds,
+            };
+            (agree && chain_profitable(func, target, uses, &chain)).then_some(chain)
+        },
+    )
+}
+
+/// Whether running the arm and the combining operation on every execution
+/// costs no more than the arm's branch, its label, and the arm on the half of
+/// the executions an average path sends through it.
+fn chain_profitable(func: &Function, target: Target, uses: &Uses, chain: &Chain) -> bool {
+    let arm = func.blocks[chain.arm]
+        .instructions
+        .iter()
+        .fold(Cost::ZERO, |cost, &inst| cost.plus(inst_cost(func, target, inst)));
+    let mut combine = target.opcode(op::OR);
+    if chain.block_holds != chain.arm_holds {
+        combine = combine.plus(target.opcode(op::ISZERO));
+    }
+    // A zero test that only feeds its branch is free there: the jump tests the
+    // word itself. As an operand of the merged test it becomes a real `iszero`,
+    // twice for `ne x, 0` of a word that is not already zero or one.
+    for condition in [chain.condition, chain.arm_condition] {
+        let Value::Inst(inst) = func.value(condition) else { continue };
+        let (tested, zeros) = match func.inst(*inst).kind {
+            InstKind::Ne(tested, zero) if func.value_u256(zero) == Some(U256::ZERO) => (tested, 2),
+            InstKind::Eq(tested, zero) if func.value_u256(zero) == Some(U256::ZERO) => (tested, 1),
+            _ => continue,
+        };
+        if uses.counts.get(&condition) == Some(&1) && !(zeros == 2 && is_bool_value(func, tested)) {
+            combine = combine.plus(target.opcode(op::ISZERO).times(zeros));
+        }
+    }
+    // Doubled costs: the transfer and the arm run on one of the two paths.
+    let transfer =
+        target.opcode(op::JUMPI).plus(target.opcode(op::PUSH2)).plus(target.opcode(op::JUMPDEST));
+    let before = transfer.plus(arm);
+    let after = arm.plus(combine).times(2);
+    target.cmp(after, before) != Ordering::Greater
+}
+
+fn merge_chain(func: &mut Function, chain: &Chain) {
+    let Chain { block, condition, arm, arm_condition, shared, exit, block_holds, arm_holds } =
+        *chain;
+    // block: ...; br a, shared, arm      (or br a, arm, shared)
+    // arm:   t = ...; br b, shared, exit (or br b, exit, shared)
+    // =>
+    // block: ...; t = ...; c = combine a, b; br c, ...
+    let moved = std::mem::take(&mut func.blocks[arm].instructions);
+    func.blocks[block].instructions.extend(moved);
+    let (merged, taken, other) = match (block_holds, arm_holds) {
+        // both tests fail towards shared: !a | !b == !(a & b)
+        // both = and a, b
+        // br both, exit, shared
+        (false, false) => (
+            append(func, block, InstKind::And(condition, arm_condition), Some(MirType::I1)),
+            exit,
+            shared,
+        ),
+        // a' = a, or eq a, 0 when a fails towards shared
+        // b' = b, or eq b, 0 when b fails towards shared
+        // either = or a', b'
+        // br either, shared, exit
+        _ => {
+            let holds = |func: &mut Function, value, holds| {
+                if holds {
+                    return value;
+                }
+                let zero = literal(func, U256::ZERO);
+                append(func, block, InstKind::Eq(value, zero), Some(MirType::I1))
+            };
+            let first = holds(func, condition, block_holds);
+            let second = holds(func, arm_condition, arm_holds);
+            (append(func, block, InstKind::Or(first, second), Some(MirType::I1)), shared, exit)
+        }
+    };
+    let (_, mut metadata) = func.blocks[block].take_terminator();
+    let (_, arm_metadata) = func.blocks[arm].take_terminator();
+    metadata.merge_debug_context(&arm_metadata);
+    func.blocks[block].set_terminator(
+        Terminator::Branch { condition: merged, then_block: taken, else_block: other },
+        metadata,
+    );
+    for &inst in &func.blocks[shared].instructions.clone() {
+        if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
+            incoming.retain(|&(from, _)| from != arm);
+        }
+    }
+    for &inst in &func.blocks[exit].instructions.clone() {
+        if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
+            for (from, _) in incoming.iter_mut() {
+                if *from == arm {
+                    *from = block;
+                }
+            }
+        }
+    }
+    // The arm is unreachable now; its targets see the block instead.
+    func.blocks[arm].set_generated_terminator(Terminator::Invalid);
+    func.blocks[arm].predecessors.clear();
+    func.blocks[shared].predecessors.retain(|pred| *pred != arm);
+    for pred in &mut func.blocks[exit].predecessors {
+        if *pred == arm {
+            *pred = block;
+        }
+    }
 }
 
 /// The select for every phi of the join, when there are few enough and each

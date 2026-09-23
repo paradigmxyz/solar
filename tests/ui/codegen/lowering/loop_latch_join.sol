@@ -31,16 +31,21 @@ contract LoopLatchJoin {
     // the header's own order it is empty, so both arms jump to the header and no block of
     // swaps runs between them on every iteration.
     // CHECK-LABEL: @module LoopLatchJoin_runtime
-    // CHECK: [[RAISE:bb[0-9]+]] [loop]:
-    // CHECK-NEXT: swap 1
-    // CHECK-NEXT: pop
-    // CHECK-NEXT: push 1
-    // CHECK-NEXT: add
-    // CHECK-NEXT: jump [[HEADER:bb[0-9]+]]
+    // CHECK: [loop]:
+    // CHECK: gt
+    // CHECK-NEXT: push [[RAISE:bb[0-9]+]]
+    // CHECK-NEXT: jumpi
+    // CHECK: jump [[HEADER:bb[0-9]+]]
     // CHECK-NEXT: [[HEADER]] [loop]:
     // CHECK: shr
     // CHECK-NEXT: dup 1
     // CHECK-NEXT: iszero
+    // CHECK: [[RAISE]] [loop]:
+    // CHECK-NEXT: swap 1
+    // CHECK-NEXT: pop
+    // CHECK-NEXT: push 1
+    // CHECK-NEXT: add
+    // CHECK-NEXT: jump [[HEADER]]
     function _search(uint256[] memory a, uint256 needle)
         private
         pure
