@@ -71,23 +71,23 @@ fn @_doubled(arg0: memptr) -> memptr [may_return_memory, pure] {
     v57 = add v73, 32
     jump bb1
   bb1:
-    v7 = phi [bb7: 0], [bb2: v50]
-    v50 = add v7, 32
+    v8 = phi [bb7: 0], [bb2: v50]
+    v50 = add v8, 32
     v10 = mload v67
     v11 = gt v50, v10
     jumpi v11, bb3, bb2
   bb2:
-    v21 = add v70, v7
+    v21 = add v70, v8
     v22 = mload v21
     v23 = add v22, v22
-    v58 = add v57, v7
+    v58 = add v57, v8
     mstore v58, v23
     jump bb1
   bb3:
     v65 = add v73, 32
     jump bb4
   bb4:
-    v37 = phi [bb3: v7], [bb6: v52]
+    v37 = phi [bb3: v8], [bb6: v52]
     v38 = mload v67
     v39 = lt v37, v38
     jumpi v39, bb6, bb5

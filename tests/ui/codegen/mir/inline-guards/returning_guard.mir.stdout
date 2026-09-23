@@ -24,9 +24,9 @@ fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, abi_params=[u256], abi_returns
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v4]
-    v2 = phi [bb0: 0], [bb3: v2]
-    v3 = lt v1, 8
+    v1 = phi [bb0: 0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v4]
+    v3 = lt v2, 8
     jumpi v3, bb4, bb5
   bb5:
     jump bb2
@@ -34,13 +34,13 @@ fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, abi_params=[u256], abi_returns
     v5 = sload 0 !metadata(storage=slot(0))
     ret v5
   bb4:
-    icall @check, v1, v0
-    icall @check, v1, v1
+    icall @check, v2, v0
+    icall @check, v2, v2
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v4 = checked_add u256, v1, 1
+    v4 = checked_add u256, v2, 1
     jump bb1
 }
 

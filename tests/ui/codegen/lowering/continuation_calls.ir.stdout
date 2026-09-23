@@ -83,23 +83,26 @@ bb34:
 bb37 [loop]:
   push 192
   mload
-  dup 3
+  dup 2
   add
-  swap 2
-  dup 3
+  swap 1
+  dup 2
   lt
   push bb26
   jumpi
+  swap 1
   push 1
   add
+  swap 1
   jump bb35
 bb35 [loop]:
   push 160
   mload
-  dup 2
+  dup 3
   lt
   push bb37
   jumpi
+  swap 1
   pop
   swap 1
   jump

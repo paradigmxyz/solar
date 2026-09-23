@@ -4,11 +4,11 @@ fn @freshInLoop(arg0: i256) -> i256 [selector=0x533a7d1b, pure, abi_params=[byte
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v30]
-    v1 = phi [bb0: arg0], [bb3: v1]
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: memorybytes 96], [bb3: v5]
-    v3 = phi [bb0: 0], [bb3: v3]
-    v4 = lt v0, 2
+    v3 = phi [bb0: 0], [bb3: v30]
+    v4 = lt v3, 2
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
@@ -37,7 +37,7 @@ fn @freshInLoop(arg0: i256) -> i256 [selector=0x533a7d1b, pure, abi_params=[byte
   bb11:
     jump bb12
   bb12:
-    v16 = ne v0, 0
+    v16 = ne v3, 0
     jumpi v16, bb13, bb14
   bb14:
     jump bb15
@@ -48,7 +48,7 @@ fn @freshInLoop(arg0: i256) -> i256 [selector=0x533a7d1b, pure, abi_params=[byte
     icall panic_if<0x32>, v19
     v20 = memory_object_load_byte memorybytes, v2, 0
     v21 = shl 248, v20
-    v22 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v22 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
     v23 = ne v21, v22
     jump bb15
   bb15:
@@ -61,13 +61,13 @@ fn @freshInLoop(arg0: i256) -> i256 [selector=0x533a7d1b, pure, abi_params=[byte
     v27 = lt 0, v26
     v28 = eq v27, false
     icall panic_if<0x32>, v28
-    v29 = byte 0, v1
+    v29 = byte 0, v0
     memory_object_store_byte memorybytes, v5, 0, v29
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v30 = checked_add u256, v0, 1
+    v30 = checked_add u256, v3, 1
     jump bb1
   bb16:
     v25 = zext i1 0 to i256

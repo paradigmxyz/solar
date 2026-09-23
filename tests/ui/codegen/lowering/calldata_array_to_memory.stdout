@@ -152,39 +152,41 @@ bb17 [loop]:
   dup 4
   mload
   dup 1
-  dup 4
+  dup 3
   lt
   iszero
   push bb20
   jumpi
-  dup 3
+  dup 2
   push 5
   shl
   dup 5
   add
   mload
-  dup 3
+  dup 4
   add
-  swap 2
-  dup 3
+  swap 3
+  dup 4
   lt
   push bb45
   jumpi
-  swap 2
+  swap 1
   push 1
   add
+  swap 1
+  swap 2
   jump bb15
 bb15 [loop]:
   swap 2
-  dup 3
+  dup 2
   lt
   push bb17
   jumpi
-  dup 1
+  dup 2
   push 0
   sstore
-  swap 3
   pop
+  swap 2
   pop
   pop
   push 128

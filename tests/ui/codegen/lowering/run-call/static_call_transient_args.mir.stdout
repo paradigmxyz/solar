@@ -80,45 +80,45 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     icall @_schedule, v19, arg5
     jump bb12
   bb12:
-    v20 = phi [bb11: arg5], [bb14: v20]
-    v21 = phi [bb11: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1], [bb14: v21]
-    v22 = phi [bb11: arg2], [bb14: v22]
-    v23 = phi [bb11: v19], [bb14: v23]
+    v20 = phi [bb11: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1], [bb14: v20]
+    v21 = phi [bb11: arg0], [bb14: v21]
+    v22 = phi [bb11: arg1], [bb14: v22]
+    v23 = phi [bb11: arg2], [bb14: v23]
     v24 = phi [bb11: arg3], [bb14: v24]
-    v25 = phi [bb11: 0], [bb14: v100]
-    v26 = phi [bb11: arg0], [bb14: v26]
-    v27 = phi [bb11: arg4], [bb14: v27]
-    v28 = phi [bb11: arg1], [bb14: v28]
-    v29 = slice_len v26
-    v30 = lt v25, v29
+    v25 = phi [bb11: arg4], [bb14: v25]
+    v26 = phi [bb11: arg5], [bb14: v26]
+    v27 = phi [bb11: v19], [bb14: v27]
+    v28 = phi [bb11: 0], [bb14: v100]
+    v29 = slice_len v21
+    v30 = lt v28, v29
     jumpi v30, bb15, bb16
   bb16:
     jump bb13
   bb13:
-    v101 = ne v27, 0
+    v101 = ne v25, 0
     jumpi v101, bb18, bb19
   bb19:
     jump bb20
   bb18:
-    mstore 0, v27 !metadata(memory=scratch)
-    log2 0, 32, 0x20fda5fd27a1ea7bf5b9567f143ac5470bb059374a27e8f67cb44f946f6d0387, v23
+    mstore 0, v25 !metadata(memory=scratch)
+    log2 0, 32, 0x20fda5fd27a1ea7bf5b9567f143ac5470bb059374a27e8f67cb44f946f6d0387, v27
     jump bb20
   bb20:
     jump bb5
   bb5:
     jump bb1
   bb1:
-    ret v23
+    ret v27
   bb15:
-    v31 = slice_len v26
-    v32 = lt v25, v31
+    v31 = slice_len v21
+    v32 = lt v28, v31
     v33 = eq v32, false
     icall panic_if<0x32>, v33
-    v34 = slice_ptr v26
-    v35 = mul v25, 32
+    v34 = slice_ptr v21
+    v35 = mul v28, 32
     v36 = eq 32, 0
     v37 = div v35, 32
-    v38 = eq v37, v25
+    v38 = eq v37, v28
     v39 = or v36, v38
     v40 = zext i1 v39 to i256
     v41 = eq v40, 0
@@ -129,30 +129,30 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v45 = eq v43, v44
     v46 = eq v45, false
     icall revert_if<empty>, v46
-    v47 = slice_len v28
-    v48 = lt v25, v47
+    v47 = slice_len v22
+    v48 = lt v28, v47
     v49 = eq v48, false
     icall panic_if<0x32>, v49
-    v50 = slice_ptr v28
-    v51 = mul v25, 32
+    v50 = slice_ptr v22
+    v51 = mul v28, 32
     v52 = eq 32, 0
     v53 = div v51, 32
-    v54 = eq v53, v25
+    v54 = eq v53, v28
     v55 = or v52, v54
     v56 = zext i1 v55 to i256
     v57 = eq v56, 0
     icall panic_if<0x41>, v57
     v58 = add v50, v51
     v59 = calldataload v58
-    v60 = slice_len v22
-    v61 = lt v25, v60
+    v60 = slice_len v23
+    v61 = lt v28, v60
     v62 = eq v61, false
     icall panic_if<0x32>, v62
-    v63 = slice_ptr v22
-    v64 = mul v25, 32
+    v63 = slice_ptr v23
+    v64 = mul v28, 32
     v65 = eq 32, 0
     v66 = div v64, 32
-    v67 = eq v66, v25
+    v67 = eq v66, v28
     v68 = or v65, v67
     v69 = zext i1 v68 to i256
     v70 = eq v69, 0
@@ -189,15 +189,15 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v95 = sub v94, v92
     v96 = sgt v91, v95
     icall revert_if<calldata_tail_too_short>, v96
-    v97 = abi_encode [word<u160>, word, calldata_bytes, word, word], args v43, v59, v90, v24, v20
+    v97 = abi_encode [word<u160>, word, calldata_bytes, word, word], args v43, v59, v90, v24, v26
     v98 = slice_ptr v97
     v99 = slice_len v97
-    log3 v98, v99, 0x4cf4410cc57040e44862ef0f45f3dd5a5e02db8eb8add648d4b0e236f1d07dca, v23, v25
+    log3 v98, v99, 0x4cf4410cc57040e44862ef0f45f3dd5a5e02db8eb8add648d4b0e236f1d07dca, v27, v28
     jump bb17
   bb17:
     jump bb14
   bb14:
-    v100 = checked_add u256, v25, 1
+    v100 = checked_add u256, v28, 1
     jump bb12
   bb9:
     v16 = slice_len arg0

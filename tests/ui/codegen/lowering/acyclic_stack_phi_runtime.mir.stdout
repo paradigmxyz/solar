@@ -53,15 +53,15 @@ fn @loopJoin(arg0: i256) -> i256 [selector=0x136d329b, pure, abi_params=[u256], 
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v9]
-    v1 = phi [bb0: arg0], [bb3: v1]
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v9]
     v2 = phi [bb0: 0], [bb3: v10]
-    v3 = lt v2, v1
+    v3 = lt v2, v0
     jumpi v3, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v0
+    ret v1
   bb4:
     v4 = and v2, 1
     v5 = eq v4, 0
@@ -74,7 +74,7 @@ fn @loopJoin(arg0: i256) -> i256 [selector=0x136d329b, pure, abi_params=[u256], 
     jump bb9
   bb9:
     v8 = phi [bb7: v6], [bb8: v7]
-    v9 = checked_add u256, v0, v8
+    v9 = checked_add u256, v1, v8
     jump bb6
   bb6:
     jump bb3
@@ -87,25 +87,25 @@ fn @nestedLoops(arg0: i256, arg1: i256) -> i256 [selector=0xc538770a, pure, abi_
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb3: v5]
-    v1 = phi [bb0: 0], [bb3: v15]
-    v2 = phi [bb0: arg0], [bb3: v7]
-    v3 = phi [bb0: 0], [bb3: v8]
-    v4 = lt v1, v2
+    v0 = phi [bb0: arg0], [bb3: v5]
+    v1 = phi [bb0: arg1], [bb3: v6]
+    v2 = phi [bb0: 0], [bb3: v7]
+    v3 = phi [bb0: 0], [bb3: v15]
+    v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v3
+    ret v2
   bb4:
     jump bb7
   bb7:
     v5 = phi [bb4: v0], [bb9: v5]
     v6 = phi [bb4: v1], [bb9: v6]
-    v7 = phi [bb4: v2], [bb9: v7]
-    v8 = phi [bb4: v3], [bb9: v13]
+    v7 = phi [bb4: v2], [bb9: v13]
+    v8 = phi [bb4: v3], [bb9: v8]
     v9 = phi [bb4: 0], [bb9: v14]
-    v10 = lt v9, v5
+    v10 = lt v9, v6
     jumpi v10, bb10, bb11
   bb11:
     jump bb8
@@ -114,12 +114,12 @@ fn @nestedLoops(arg0: i256, arg1: i256) -> i256 [selector=0xc538770a, pure, abi_
   bb6:
     jump bb3
   bb3:
-    v15 = checked_add u256, v6, 1
+    v15 = checked_add u256, v8, 1
     jump bb1
   bb10:
-    v11 = checked_add u256, v6, v9
+    v11 = checked_add u256, v8, v9
     v12 = checked_add u256, v11, 1
-    v13 = checked_add u256, v8, v12
+    v13 = checked_add u256, v7, v12
     jump bb12
   bb12:
     jump bb9
@@ -133,17 +133,17 @@ fn @conditionalSelfLoop(arg0: i256, arg1: i256) -> i256 [selector=0x5ade831a, pu
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v16]
-    v1 = phi [bb0: 0], [bb3: v17]
-    v2 = phi [bb0: arg1], [bb3: v18]
+    v1 = phi [bb0: arg1], [bb3: v17]
+    v2 = phi [bb0: 0], [bb3: v18]
     v3 = phi [bb0: 0], [bb3: v20]
     v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v1
+    ret v2
   bb4:
-    v5 = eq v2, 0
+    v5 = eq v1, 0
     jumpi v5, bb7, bb8
   bb8:
     jump bb9
@@ -151,17 +151,17 @@ fn @conditionalSelfLoop(arg0: i256, arg1: i256) -> i256 [selector=0x5ade831a, pu
     jump bb10
   bb10:
     v6 = phi [bb9: v0], [bb13: v6]
-    v7 = phi [bb9: v1], [bb13: v13]
-    v8 = phi [bb9: 0], [bb13: v14]
-    v9 = phi [bb9: v2], [bb13: v9]
-    v10 = phi [bb9: v3], [bb13: v10]
-    v11 = add v10, v8
+    v7 = phi [bb9: v1], [bb13: v7]
+    v8 = phi [bb9: v2], [bb13: v13]
+    v9 = phi [bb9: v3], [bb13: v9]
+    v10 = phi [bb9: 0], [bb13: v14]
+    v11 = add v9, v10
     v12 = add v11, 1
-    v13 = add v7, v12
-    v14 = add v8, 1
+    v13 = add v8, v12
+    v14 = add v10, 1
     jump bb12
   bb12:
-    v15 = lt v14, v9
+    v15 = lt v14, v7
     jumpi v15, bb13, bb14
   bb14:
     jump bb11
@@ -175,9 +175,9 @@ fn @conditionalSelfLoop(arg0: i256, arg1: i256) -> i256 [selector=0x5ade831a, pu
     jump bb3
   bb3:
     v16 = phi [bb6: v6], [bb7: v0]
-    v17 = phi [bb6: v13], [bb7: v1]
-    v18 = phi [bb6: v9], [bb7: v2]
-    v19 = phi [bb6: v10], [bb7: v3]
+    v17 = phi [bb6: v7], [bb7: v1]
+    v18 = phi [bb6: v13], [bb7: v2]
+    v19 = phi [bb6: v9], [bb7: v3]
     v20 = checked_add u256, v19, 1
     jump bb1
   bb15:
@@ -188,13 +188,13 @@ fn @emptyExitSelfLoop(arg0: i256) -> i256 [selector=0xe817f803, pure, abi_params
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb4: v3]
+    v0 = phi [bb0: arg0], [bb4: v0]
     v1 = phi [bb0: 0], [bb4: v1]
-    v2 = phi [bb0: arg0], [bb4: v2]
-    v3 = add v0, 1
+    v2 = phi [bb0: 0], [bb4: v3]
+    v3 = add v2, 1
     jump bb3
   bb3:
-    v4 = lt v3, v2
+    v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
@@ -212,32 +212,32 @@ fn @repeatedLoopExit(arg0: i256, arg1: i256) -> struct0 [selector=0x6c126bdd, in
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    v1 = phi [bb0: arg1], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v2]
-    v3 = phi [bb0: arg0], [bb3: v3]
-    v4 = phi [bb0: arg0], [bb3: v10]
-    v5 = phi [bb0: 0], [bb3: v5]
-    v6 = ne v4, 0
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: arg1], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v4]
+    v5 = phi [bb0: arg0], [bb3: v10]
+    v6 = ne v5, 0
     jumpi v6, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v11 = icall @findLoopExit, v1
+    v11 = icall @findLoopExit, v2
     v12 = extract_value struct0, v11, 0
     v13 = extract_value struct0, v11, 1
     v14 = insert_value struct0, undef struct0, 0, v12
     v15 = insert_value struct0, v14, 1, v13
     ret v15
   bb4:
-    v7 = sub v4, 1
-    v8 = shl 160, v4
+    v7 = sub v5, 1
+    v8 = shl 160, v5
     v9 = or v8, v7
-    sstore v4, v9 !metadata(storage=symbolic(v4))
+    sstore v5, v9 !metadata(storage=symbolic(v5))
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v10 = sub v4, 1
+    v10 = sub v5, 1
     jump bb1
 }
 
@@ -248,8 +248,8 @@ fn @findLoopExit(arg0: i256) -> struct0 [inline_assembly, view] {
     jump bb1
   bb1:
     v2 = phi [bb0: arg0], [bb5: v2]
-    v3 = phi [bb0: 0], [bb5: v3]
-    v4 = phi [bb0: 0], [bb5: v5]
+    v3 = phi [bb0: 0], [bb5: v5]
+    v4 = phi [bb0: 0], [bb5: v4]
     v5 = phi [bb0: v1], [bb5: v19]
     v6 = ne v5, 0
     jumpi v6, bb3, bb4
@@ -287,7 +287,7 @@ fn @findLoopExit(arg0: i256) -> struct0 [inline_assembly, view] {
   bb2:
     v20 = phi [bb9: v5], [bb4: v3]
     v21 = phi [bb9: v5], [bb4: v4]
-    v22 = insert_value struct0, undef struct0, 0, v21
-    v23 = insert_value struct0, v22, 1, v20
+    v22 = insert_value struct0, undef struct0, 0, v20
+    v23 = insert_value struct0, v22, 1, v21
     ret v23
 }

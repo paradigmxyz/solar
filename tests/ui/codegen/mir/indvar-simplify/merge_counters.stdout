@@ -40,12 +40,12 @@ fn @merge() [selector=0x088b9bf6, abi_wrapper, inline_assembly, pure] {
     v199 = add v192, 32
     jump bb1
   bb1:
-    v20 = phi [bb30: 0], [bb6: v61]
-    v21 = phi [bb30: 0], [bb6: v141]
-    v24 = phi [bb30: 0], [bb6: v62]
+    v23 = phi [bb30: 0], [bb6: v60]
+    v24 = phi [bb30: 0], [bb6: v61]
+    v25 = phi [bb30: 0], [bb6: v141]
     v200 = phi [bb30: v199], [bb6: v201]
     v26 = mload v190
-    v27 = lt v20, v26
+    v27 = lt v23, v26
     jumpi v27, bb2, bb3
   bb2:
     v28 = mload v191
@@ -53,38 +53,38 @@ fn @merge() [selector=0x088b9bf6, abi_wrapper, inline_assembly, pure] {
     jumpi v29, bb20, bb3
   bb3:
     v143 = add v190, 32
-    v202 = shl 5, v21
+    v202 = shl 5, v25
     v203 = add v192, v202
     v204 = add v203, 32
     jump bb10
   bb10:
-    v63 = phi [bb3: v20], [bb24: v116]
-    v64 = phi [bb3: v21], [bb24: v114]
+    v66 = phi [bb3: v23], [bb24: v116]
+    v68 = phi [bb3: v25], [bb24: v114]
     v205 = phi [bb3: v204], [bb24: v206]
     v69 = mload v190
-    v70 = lt v63, v69
+    v70 = lt v66, v69
     jumpi v70, bb11, bb12
   bb12:
     v147 = add v191, 32
-    v207 = shl 5, v64
+    v207 = shl 5, v68
     v208 = add v192, v207
     v209 = add v208, 32
     jump bb13
   bb13:
-    v81 = phi [bb12: v64], [bb25: v118]
     v84 = phi [bb12: v24], [bb25: v120]
+    v85 = phi [bb12: v68], [bb25: v118]
     v210 = phi [bb12: v209], [bb25: v211]
     v86 = mload v191
     v87 = lt v84, v86
     jumpi v87, bb15, bb14
   bb14:
-    mstore v192, v81
+    mstore v192, v85
     v187 = add v192, 32
-    v131 = shl 5, v81
+    v131 = shl 5, v85
     v133 = add v192, 64
     mcopy v133, v187, v131
     mstore v192, 32
-    mstore v187, v81
+    mstore v187, v85
     v137 = add v131, 64
     returndata v192, v137
   bb15:
@@ -92,30 +92,30 @@ fn @merge() [selector=0x088b9bf6, abi_wrapper, inline_assembly, pure] {
     v149 = add v147, v148
     v91 = mload v149
     v92 = mload v192
-    v93 = lt v81, v92
+    v93 = lt v85, v92
     jumpi v93, bb25, bb19
   bb25:
     mstore v210, v91
-    v118 = add v81, 1
+    v118 = add v85, 1
     v120 = add v84, 1
     v211 = add v210, 32
     jump bb13
   bb11:
-    v144 = shl 5, v63
+    v144 = shl 5, v66
     v145 = add v143, v144
     v74 = mload v145
     v75 = mload v192
-    v76 = lt v64, v75
+    v76 = lt v68, v75
     jumpi v76, bb24, bb19
   bb24:
     mstore v205, v74
-    v114 = add v64, 1
-    v116 = add v63, 1
+    v114 = add v68, 1
+    v116 = add v66, 1
     v206 = add v205, 32
     jump bb10
   bb20:
     v151 = add v190, 32
-    v152 = shl 5, v20
+    v152 = shl 5, v23
     v153 = add v151, v152
     v34 = mload v153
     v155 = add v191, 32
@@ -129,27 +129,27 @@ fn @merge() [selector=0x088b9bf6, abi_wrapper, inline_assembly, pure] {
     jumpi v46, bb7, bb8
   bb8:
     v52 = mload v192
-    v53 = lt v21, v52
+    v53 = lt v25, v52
     jumpi v53, bb23, bb19
   bb23:
     mstore v200, v34
-    v112 = add v20, 1
+    v112 = add v23, 1
     jump bb9
   bb7:
     v47 = mload v192
-    v48 = lt v21, v47
+    v48 = lt v25, v47
     jumpi v48, bb22, bb19
   bb22:
     mstore v200, v38
     v108 = add v24, 1
     jump bb9
   bb9:
-    v58 = phi [bb22: v20], [bb23: v112]
-    v59 = phi [bb22: v108], [bb23: v24]
+    v57 = phi [bb22: v23], [bb23: v112]
+    v58 = phi [bb22: v108], [bb23: v24]
     jump bb6
   bb4:
     v40 = mload v192
-    v41 = lt v21, v40
+    v41 = lt v25, v40
     jumpi v41, bb21, bb19
   bb19:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -157,13 +157,13 @@ fn @merge() [selector=0x088b9bf6, abi_wrapper, inline_assembly, pure] {
     revert 28, 36
   bb21:
     mstore v200, v34
-    v102 = add v20, 1
+    v102 = add v23, 1
     v104 = add v24, 1
     jump bb6
   bb6:
-    v61 = phi [bb21: v102], [bb9: v58]
-    v62 = phi [bb21: v104], [bb9: v59]
-    v141 = add v21, 1
+    v60 = phi [bb21: v102], [bb9: v57]
+    v61 = phi [bb21: v104], [bb9: v58]
+    v141 = add v25, 1
     v201 = add v200, 32
     jump bb1
   bb16:

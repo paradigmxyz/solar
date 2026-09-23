@@ -64,20 +64,21 @@ bb16:
   push 0
   jump bb17
 bb22 [loop]:
-  swap 1
   push 2
   add
   swap 1
   push 1
   add
+  swap 1
   jump bb17
 bb17 [loop]:
   push 0x2000
   mload
-  dup 2
+  dup 3
   lt
   push bb22
   jumpi
+  swap 1
   pop
   push bb19
   push 0x2000
@@ -90,24 +91,27 @@ bb30:
   push 0
   jump bb31
 bb33 [loop]:
-  dup 1
-  dup 3
+  dup 2
+  dup 2
   add
-  swap 2
-  dup 3
+  swap 1
+  dup 2
   lt
   push bb15
   jumpi
+  swap 1
   push 1
   add
+  swap 1
   jump bb31
 bb31 [loop]:
   push 0x2020
   mload
-  dup 2
+  dup 3
   lt
   push bb33
   jumpi
+  swap 1
   pop
   swap 1
   jump
