@@ -304,71 +304,69 @@ fn @readUint256BE(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
 
 fn @copyInto(arg0: memptr, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) [may_return_memory, pure] {
   bb0:
-    v55 = ptrtoint memptr arg0 to i256
-    v0 = mload v55
+    v57 = ptrtoint memptr arg0 to i256
+    v0 = mload v57
     v1 = gt arg5, v0
-    jumpi v1, bb8, bb1
-  bb1:
     v40 = sub v0, arg5
     v4 = gt arg1, v40
-    jumpi v4, bb8, bb2
-  bb2:
+    v50 = or v1, v4
+    jumpi v50, bb6, bb1
+  bb1:
     v7 = gt arg5, arg3
-    jumpi v7, bb8, bb3
-  bb3:
     v42 = sub arg3, arg5
     v11 = gt arg4, v42
-    jumpi v11, bb8, bb4
-  bb4:
-    v53 = add v55, 32
-    jump bb5
-  bb5:
-    v17 = phi [bb4: 0], [bb11: v48]
+    v51 = or v7, v11
+    jumpi v51, bb6, bb2
+  bb2:
+    v55 = add v57, 32
+    jump bb3
+  bb3:
+    v17 = phi [bb2: 0], [bb9: v48]
     v21 = lt v17, arg5
-    jumpi v21, bb7, bb6
-  bb6:
+    jumpi v21, bb5, bb4
+  bb4:
     ret
-  bb7:
+  bb5:
     v44 = add arg4, v17
     v45 = lt v44, arg4
-    jumpi v45, bb12, bb13
-  bb13:
+    jumpi v45, bb10, bb11
+  bb11:
     v24 = lt v44, arg3
-    jumpi v24, bb10, bb9
-  bb10:
-    v51 = add arg2, v44
-    v27 = calldataload v51
+    jumpi v24, bb8, bb7
+  bb8:
+    v53 = add arg2, v44
+    v27 = calldataload v53
     v28 = byte 0, v27
     v46 = add arg1, v17
     v47 = lt v46, arg1
-    jumpi v47, bb12, bb14
-  bb14:
-    v32 = lt v46, v0
-    jumpi v32, bb11, bb9
-  bb11:
-    v54 = add v53, v46
-    mstore8 v54, v28
-    v48 = add v17, 1
-    jump bb5
+    jumpi v47, bb10, bb12
   bb12:
+    v32 = lt v46, v0
+    jumpi v32, bb9, bb7
+  bb9:
+    v56 = add v55, v46
+    mstore8 v56, v28
+    v48 = add v17, 1
+    jump bb3
+  bb10:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
     revert 28, 36
-  bb8:
-    v57 = mload 64 !metadata(memory=scratch)
-    v58 = add v57, 32
-    v59 = lt v58, v57
-    v60 = gt v58, 0xffffffffffffffff
-    v61 = or v59, v60
-    jumpi v61, bb16, bb15
-  bb15:
-    mstore 64, v58 !metadata(memory=scratch)
-    mstore v57, 0
-    mstore v57, 0
-    jump bb9
-  bb9:
+  bb6:
+    v59 = mload 64 !metadata(memory=scratch)
+    v60 = add v59, 32
+    v61 = lt v60, v59
+    v62 = gt v60, 0xffffffffffffffff
+    v63 = or v61, v62
+    jumpi v63, bb14, bb13
+  bb13:
+    mstore 64, v60 !metadata(memory=scratch)
+    mstore v59, 0
+    mstore v59, 0
+    jump bb7
+  bb7:
     tail_call @revert_stub
-  bb16:
+  bb14:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36

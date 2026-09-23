@@ -91,6 +91,7 @@ time: <TIME>	MIR TimePasses egraph changed=true
 time: <TIME>	MIR TimePasses word-sequence changed=false
 time: <TIME>	MIR TimePasses byte-run-loads changed=false
 time: <TIME>	MIR TimePasses cfg-simplify changed=false
+time: <TIME>	MIR TimePasses merge-conditions changed=false
 time: <TIME>	MIR TimePasses cfg-simplify changed=false
 time: <TIME>	MIR TimePasses lower-evm-shaped changed=true
 time: <TIME>	MIR TimePasses const-fold changed=false
