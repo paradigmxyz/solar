@@ -668,19 +668,29 @@ impl Config {
             .or_else(|| path.parent().map(Path::to_path_buf))
     }
 
+    fn matching_flychecks_for_path<'a>(
+        &'a self,
+        path: &'a Path,
+    ) -> impl Iterator<Item = &'a FlycheckConfig> + 'a {
+        self.flychecks.iter().filter(move |flycheck| {
+            flycheck.applies_to(path)
+                || self.workspaces.iter().any(|workspace| {
+                    workspace.compile_opts().base_path.as_deref()
+                        == Some(flycheck.workspace_root.as_path())
+                        && workspace.tracks_flycheck_file(&self.index_policy, path)
+                })
+        })
+    }
+
     pub(crate) fn flychecks_for_path(&self, path: &Path) -> Vec<FlycheckConfig> {
-        self.flychecks
-            .iter()
-            .filter(|flycheck| {
-                flycheck.applies_to(path)
-                    || self.workspaces.iter().any(|workspace| {
-                        workspace.compile_opts().base_path.as_deref()
-                            == Some(flycheck.workspace_root.as_path())
-                            && workspace.tracks_flycheck_file(&self.index_policy, path)
-                    })
-            })
-            .cloned()
-            .collect()
+        self.matching_flychecks_for_path(path).cloned().collect()
+    }
+
+    pub(crate) fn flycheck_owners_for_path<'a>(
+        &'a self,
+        path: &'a Path,
+    ) -> impl Iterator<Item = DiagnosticOwner> + 'a {
+        self.matching_flychecks_for_path(path).map(FlycheckConfig::owner)
     }
 
     pub(crate) fn flycheck_owners(&self) -> impl Iterator<Item = DiagnosticOwner> + '_ {
@@ -2072,8 +2082,11 @@ mod tests {
         config.rediscover_workspaces();
 
         let flychecks = config.flychecks_for_path(&project.path("/src/Test.sol"));
+        let owners =
+            config.flycheck_owners_for_path(&project.path("/src/Test.sol")).collect::<Vec<_>>();
 
         assert_eq!(flychecks.len(), 1);
+        assert_eq!(owners, flychecks.iter().map(FlycheckConfig::owner).collect::<Vec<_>>());
         assert_eq!(flychecks[0].id, "custom");
         assert_eq!(flychecks[0].command, PathBuf::from("custom-lint"));
         assert_eq!(flychecks[0].args, ["--json"]);

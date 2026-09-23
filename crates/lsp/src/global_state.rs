@@ -1686,8 +1686,7 @@ impl GlobalState {
     fn invalidate_flychecks_for_paths<'a>(&mut self, paths: impl IntoIterator<Item = &'a PathBuf>) {
         let owners = paths
             .into_iter()
-            .flat_map(|path| self.config.flychecks_for_path(path))
-            .map(|flycheck| flycheck.owner())
+            .flat_map(|path| self.config.flycheck_owners_for_path(path))
             .collect::<FxHashSet<_>>();
         self.invalidate_flycheck_owners(owners, true);
     }
@@ -2577,12 +2576,9 @@ impl GlobalStateSnapshot {
 
         result.diagnostics.keys().all(|uri| {
             let Some(path) = proto::vfs_path(uri) else { return true };
-            let Some(current) = vfs.get_file_contents(&path) else { return true };
+            let Some(_current) = vfs.get_file_contents(&path) else { return true };
             let Some(path) = path.as_path() else { return false };
-            result
-                .sources
-                .get(path)
-                .is_some_and(|source| current.byte_slice(..) == source.byte_slice(..))
+            result.sources.contains_key(path)
         })
     }
 

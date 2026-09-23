@@ -135,3 +135,17 @@ async fn dirty_open_document_rejects_disk_flycheck_result() {
 
     assert!(!state.snapshot().flycheck_sources_match_vfs(&result));
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn diagnostic_without_snapshot_source_is_rejected() {
+    let project = freshness_project();
+    let state = freshness_state(&project).await;
+    let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
+    let result = crate::flycheck::FlycheckResult {
+        diagnostics: DiagnosticMap::from_iter([(uri, vec![diagnostic("saved warning")])]),
+        sources: Default::default(),
+        sources_unchanged: true,
+    };
+
+    assert!(!state.snapshot().flycheck_sources_match_vfs(&result));
+}

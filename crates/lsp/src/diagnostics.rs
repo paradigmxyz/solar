@@ -134,6 +134,9 @@ impl DiagnosticStore {
                 affected_uris.extend(diagnostics.into_keys());
             }
         }
+        if affected_uris.is_empty() {
+            return DiagnosticUpdate::default();
+        }
         self.publish_batches(affected_uris)
     }
 
@@ -844,6 +847,76 @@ mod tests {
             vec![PublishDiagnosticsParams::new(file, vec![diagnostic("compiler")], None)]
         );
         assert!(update.pull_reports_changed);
+    }
+
+    #[test]
+    fn clearing_empty_owner_keeps_workspace_uri_cache() {
+        let file = uri("src/Test.sol");
+        let mut store = DiagnosticStore::default();
+        let retained_owner = DiagnosticOwner::Flycheck {
+            id: "retained".into(),
+            workspace: PathBuf::from("/workspace"),
+        };
+        let absent_owner = DiagnosticOwner::Flycheck {
+            id: "absent".into(),
+            workspace: PathBuf::from("/workspace"),
+        };
+        store.replace_compiler_snapshot_and_publish_batches(
+            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("compiler")])]),
+            AnalyzedDocuments::from_iter([(file.clone(), Some(7))]),
+        );
+        store.replace_and_publish_batches(
+            retained_owner.clone(),
+            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("lint")])]),
+        );
+        let initial = store.workspace_pull_reports(Vec::new());
+        let [initial] = initial.try_into().unwrap();
+        let PullReport::Full { result_id: initial_result_id, diagnostics } = initial.report else {
+            panic!("initial report should be full");
+        };
+        assert_eq!(initial.version, Some(7));
+        assert_eq!(diagnostics, [diagnostic("compiler"), diagnostic("lint")]);
+
+        let previous = [PreviousResultId { uri: file.clone(), value: initial_result_id.clone() }];
+        let update = store.clear_owners_and_publish_batches([absent_owner.clone()]);
+        assert!(update.batches.is_empty());
+        assert!(!update.pull_reports_changed);
+        let [unchanged] = store.workspace_pull_reports(previous.to_vec()).try_into().unwrap();
+        assert_eq!(unchanged.uri, file);
+        assert_eq!(unchanged.version, Some(7));
+        assert_eq!(
+            unchanged.report,
+            PullReport::Unchanged { result_id: initial_result_id.clone() }
+        );
+
+        let update = store.clear_owners_and_publish_batches([absent_owner]);
+        assert!(update.batches.is_empty());
+        assert!(!update.pull_reports_changed);
+        let [unchanged] = store.workspace_pull_reports(previous.to_vec()).try_into().unwrap();
+        assert_eq!(unchanged.version, Some(7));
+        assert_eq!(
+            unchanged.report,
+            PullReport::Unchanged { result_id: initial_result_id.clone() }
+        );
+
+        let update = store.clear_owners_and_publish_batches([retained_owner]);
+        assert_eq!(
+            update.batches,
+            vec![PublishDiagnosticsParams::new(
+                file.clone(),
+                vec![diagnostic("compiler")],
+                Some(7),
+            )]
+        );
+        assert!(update.pull_reports_changed);
+        let [cleared] = store.workspace_pull_reports(previous.to_vec()).try_into().unwrap();
+        assert_eq!(cleared.uri, file);
+        assert_eq!(cleared.version, Some(7));
+        let PullReport::Full { result_id, diagnostics } = cleared.report else {
+            panic!("clearing an owner should change the report");
+        };
+        assert_ne!(result_id, initial_result_id);
+        assert_eq!(diagnostics, [diagnostic("compiler")]);
     }
 
     #[test]
