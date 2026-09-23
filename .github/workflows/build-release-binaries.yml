@@ -50,7 +50,7 @@ jobs:
             pgo: false
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@7e2ea6e1a8f5a22f16c2d4b389ffde25da93fa1b # 2026-09-22T22-21-59Z-7e2ea6e1
+        uses: tempoxyz/gh-actions/actions/secure-runner@117919c943b804057be733b0c4034c5542e58959 # 2026-09-23T05-09-41Z-117919c9
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -64,14 +64,14 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
         run: python scripts/pgo/dist_config.py --target "$TARGET" >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
         with:
           toolchain: ${{ steps.release-config.outputs.rust_toolchain }}
           targets: ${{ matrix.target }}
       - name: Install LLVM profiling tools
         if: matrix.pgo
         run: rustup component add llvm-tools-preview
-      - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           cache-on-failure: true
           cache-targets: false
@@ -80,26 +80,28 @@ jobs:
         run: sudo apt-get update && sudo apt-get install --yes musl-tools
       - name: Build release binary
         shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
 
           target_dir="${{ github.workspace }}/target/solar-release"
           if [[ "${{ matrix.pgo }}" == "true" ]]; then
             python scripts/pgo/build.py \
-              --target "${{ matrix.target }}" \
+              --target "$TARGET" \
               --target-dir "$target_dir"
           else
             python scripts/pgo/build.py \
-              --target "${{ matrix.target }}" \
+              --target "$TARGET" \
               --target-dir "$target_dir" \
               --baseline-only
           fi
 
           suffix=""
-          if [[ "${{ matrix.target }}" == *-windows-msvc ]]; then
+          if [[ "$TARGET" == *-windows-msvc ]]; then
             suffix=".exe"
           fi
-          echo "SOLAR_BINARY=$target_dir/${{ matrix.target }}/dist/solar$suffix" >> "$GITHUB_ENV"
+          echo "SOLAR_BINARY=$target_dir/${TARGET}/dist/solar$suffix" >> "$GITHUB_ENV"
       - name: Test release binary
         shell: bash
         run: |
@@ -151,13 +153,15 @@ jobs:
           fi
       - name: Package release binary
         shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
 
-          archive="solar-${{ matrix.target }}"
+          archive="solar-${TARGET}"
           package_dir="$RUNNER_TEMP/$archive"
           mkdir -p "$package_dir"
-          if [[ "${{ matrix.target }}" == *-windows-msvc ]]; then
+          if [[ "$TARGET" == *-windows-msvc ]]; then
             cp "$SOLAR_BINARY" "$package_dir/solar.exe"
             (
               cd "$package_dir"
@@ -193,7 +197,7 @@ jobs:
       contents: read
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@7e2ea6e1a8f5a22f16c2d4b389ffde25da93fa1b # 2026-09-22T22-21-59Z-7e2ea6e1
+        uses: tempoxyz/gh-actions/actions/secure-runner@117919c943b804057be733b0c4034c5542e58959 # 2026-09-23T05-09-41Z-117919c9
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false

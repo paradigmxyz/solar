@@ -48,21 +48,22 @@ jobs:
       BASE_BRANCH: ${{ github.base_ref || 'main' }}
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@7e2ea6e1a8f5a22f16c2d4b389ffde25da93fa1b # 2026-09-22T22-21-59Z-7e2ea6e1
+        uses: tempoxyz/gh-actions/actions/secure-runner@117919c943b804057be733b0c4034c5542e58959 # 2026-09-23T05-09-41Z-117919c9
       - name: Checkout Solar
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
 
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
         with:
           toolchain: stable
 
-      - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           cache-on-failure: true
           cache-targets: false
@@ -124,8 +125,10 @@ jobs:
             base_sha="$(git rev-parse "origin/$BASE_BRANCH")"
             base_ref="$BASE_BRANCH"
           fi
-          echo "sha=$base_sha" >> "$GITHUB_OUTPUT"
-          echo "ref=$base_ref" >> "$GITHUB_OUTPUT"
+          {
+            echo "sha=$base_sha"
+            echo "ref=$base_ref"
+          } >> "$GITHUB_OUTPUT"
 
           runs_json="$(
             gh run list \
@@ -327,16 +330,17 @@ jobs:
       contents: read
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@7e2ea6e1a8f5a22f16c2d4b389ffde25da93fa1b # 2026-09-22T22-21-59Z-7e2ea6e1
+        uses: tempoxyz/gh-actions/actions/secure-runner@117919c943b804057be733b0c4034c5542e58959 # 2026-09-23T05-09-41Z-117919c9
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           submodules: true
       - name: Checkout submodules
         run: git submodule update --checkout
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
         with:
           toolchain: stable
-      - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           cache-bin: false
           cache-on-failure: true
