@@ -419,22 +419,9 @@ bb25 [continuation]:
   pop
   swap 2
   pop
-  swap 1
+  dup 1
+  swap 2
   sub
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
-  push 64
-  mload
-  swap 1
-  dup 2
-  add
-  push 64
-  mstore
-  dup 2
   dup 2
   return
 bb27:

@@ -695,20 +695,10 @@ bb85:
   pop
   pop
   pop
-  sub
-  push 31
   dup 2
-  add
-  push 31
-  not
-  and
-  push 64
-  mload
   swap 1
-  dup 2
-  add
-  push 64
-  mstore
+  sub
+  swap 1
   swap 2
   jump
 bb43 [continuation]:

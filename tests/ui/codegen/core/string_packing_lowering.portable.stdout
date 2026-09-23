@@ -132,17 +132,17 @@ fn @unpackPair() [selector=0x227bb006, abi_wrapper, pure] {
     v6 = lt v5, 36
     jumpi v6, bb1, bb2
   bb2:
-    v59 = icall @unpackTwo, arg0
-    v64 = mload 32 !metadata(memory=scratch)
-    v61 = add v64, 32
-    v62 = mload v61
-    v69 = mload 64 !metadata(memory=scratch)
-    v12 = add v69, 64
-    mstore v69, 64
-    v65 = ptrtoint memptr v59 to i256
-    v20 = ne v65, 0
+    v55 = icall @unpackTwo, arg0
+    v60 = mload 32 !metadata(memory=scratch)
+    v57 = add v60, 32
+    v58 = mload v57
+    v65 = mload 64 !metadata(memory=scratch)
+    v12 = add v65, 64
+    mstore v65, 64
+    v61 = ptrtoint memptr v55 to i256
+    v20 = ne v61, 0
     v21 = zext i1 v20 to i256
-    v16 = mload v65
+    v16 = mload v61
     v22 = mul v16, v21
     v24 = add v22, 31
     v25 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -150,15 +150,15 @@ fn @unpackPair() [selector=0x227bb006, abi_wrapper, pure] {
     v27 = add v12, v25
     mstore v27, 0
     mstore v12, v22
-    v67 = add v65, 32
+    v63 = add v61, 32
     v29 = add v26, v25
-    mcopy v26, v67, v22
-    v34 = sub v29, v69
-    v32 = add v69, 32
+    mcopy v26, v63, v22
+    v34 = sub v29, v65
+    v32 = add v65, 32
     mstore v32, v34
-    v39 = ne v62, 0
+    v39 = ne v58, 0
     v40 = zext i1 v39 to i256
-    v35 = mload v62
+    v35 = mload v58
     v41 = mul v35, v40
     v43 = add v41, 31
     v44 = and v43, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -167,15 +167,10 @@ fn @unpackPair() [selector=0x227bb006, abi_wrapper, pure] {
     mstore v46, 0
     mstore v29, v41
     v48 = add v45, v44
-    v68 = add v62, 32
-    mcopy v45, v68, v41
-    v51 = sub v48, v69
-    v53 = add v51, 31
-    v55 = and v53, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v70 = mload 64 !metadata(memory=scratch)
-    v71 = add v70, v55
-    mstore 64, v71 !metadata(memory=scratch)
-    returndata v70, v51
+    v64 = add v58, 32
+    mcopy v45, v64, v41
+    v51 = sub v48, v65
+    returndata v65, v51
   bb1:
     revert 0, 0
 }

@@ -26,13 +26,13 @@ fn @endPastLength() [selector=0x8063d43b, abi_wrapper, pure] {
   bb4:
     v16 = add v6, 63
     v19 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v54 = mload 64 !metadata(memory=scratch)
-    v55 = add v54, v19
-    mstore 64, v55 !metadata(memory=scratch)
-    mstore v54, v6
-    v56 = mload 64 !metadata(memory=scratch)
-    v32 = add v56, 32
-    mstore v56, 32
+    v50 = mload 64 !metadata(memory=scratch)
+    v51 = add v50, v19
+    mstore 64, v51 !metadata(memory=scratch)
+    mstore v50, v6
+    v52 = mload 64 !metadata(memory=scratch)
+    v32 = add v52, 32
+    mstore v52, 32
     v38 = add v6, 31
     v39 = and v38, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v40 = add v32, 32
@@ -41,13 +41,8 @@ fn @endPastLength() [selector=0x8063d43b, abi_wrapper, pure] {
     mstore v32, v6
     v43 = add v40, v39
     calldatacopy v40, v7, v6
-    v45 = sub v43, v56
-    v47 = add v45, 31
-    v49 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v57 = mload 64 !metadata(memory=scratch)
-    v58 = add v57, v49
-    mstore 64, v58 !metadata(memory=scratch)
-    returndata v57, v45
+    v45 = sub v43, v52
+    returndata v52, v45
   bb1:
     revert 0, 0
 }
@@ -78,13 +73,13 @@ fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
   bb4:
     v16 = add v6, 63
     v19 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v54 = mload 64 !metadata(memory=scratch)
-    v55 = add v54, v19
-    mstore 64, v55 !metadata(memory=scratch)
-    mstore v54, v6
-    v56 = mload 64 !metadata(memory=scratch)
-    v32 = add v56, 32
-    mstore v56, 32
+    v50 = mload 64 !metadata(memory=scratch)
+    v51 = add v50, v19
+    mstore 64, v51 !metadata(memory=scratch)
+    mstore v50, v6
+    v52 = mload 64 !metadata(memory=scratch)
+    v32 = add v52, 32
+    mstore v52, 32
     v38 = add v6, 31
     v39 = and v38, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v40 = add v32, 32
@@ -93,13 +88,8 @@ fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
     mstore v32, v6
     v43 = add v40, v39
     calldatacopy v40, v7, v6
-    v45 = sub v43, v56
-    v47 = add v45, 31
-    v49 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v57 = mload 64 !metadata(memory=scratch)
-    v58 = add v57, v49
-    mstore 64, v58 !metadata(memory=scratch)
-    returndata v57, v45
+    v45 = sub v43, v52
+    returndata v52, v45
   bb1:
     revert 0, 0
 }

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_multi_return.sol:TryMultiReturnTarget ===
 @module TryMultiReturnTarget
-@types
+types:
   struct0: {i256, memorybytes}
 
 fn @value(arg0: i256) -> struct0 [selector=0xc4d47ed1, pure, abi_params=[bool], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
@@ -27,26 +27,26 @@ fn @value(arg0: i256) -> struct0 [selector=0xc4d47ed1, pure, abi_params=[bool], 
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_multi_return.sol:TryMultiReturn ===
 @module TryMultiReturn
-@types
+types:
   struct0: {i256, memorybytes}
 
-@data
-  TryMultiReturnTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/try_catch_multi_return.sol:TryMultiReturnTarget"
+data:
+  TryMultiReturnTarget_initcode_0: hex"34600e576101a48060125f395ff35b5f5ffd341515601c575f3560e01c8063c4d47ed114601857601c565b6020565b5f5ffd5b6101406040526024361061016557600435600290101561016557600435158060c052155060c05161012e576040518060c0528060c052604060c051016040528060a052600281525060a0518060a052602090017f6f6b0000000000000000000000000000000000000000000000000000000000008152506040518060e0528060e052806080526040900160805180608052600d8152506080518060805260209001608051806080528203905260a0518060a0525160a0518060a0525f811490501581029050601f19601f820116602083018184015f815250828452925060a0518060a0526020900181840191508281855e5091505060805180608052810390505f9001608051806080528181f35b5f610163576002610100527f6e6f00000000000000000000000000000000000000000000000000000000000061012052610169565bfe5b5f5ffd5b7f08c379a0000000000000000000000000000000000000000000000000000000005f526020600452610100516024526101205160445260645ffd"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize TryMultiReturnTarget_creation_code_0
-    v2 = datasize TryMultiReturnTarget_creation_code_0, 31, aligned
+    v1 = not 31
+    v2 = and 469, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy TryMultiReturnTarget_creation_code_0, v4, v1
+    data_copy TryMultiReturnTarget_initcode_0, v4, 438
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
+    v7 = add v6, 438
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
+    v9 = create 0, v8, 438
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
