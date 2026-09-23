@@ -123,6 +123,8 @@ pub enum CoreIntrinsic {
     StringLastIndexOf,
     /// `Strings.runeCount(subject)`.
     StringRuneCount,
+    /// `Strings.toString(value)` for `uint256` and `int256` values.
+    StringToString,
     /// `Strings.escapeHTML(subject)`.
     StringEscapeHTML,
     /// `Strings.escapeJSON(subject)` and `Strings.escapeJSON(subject, addDoubleQuotes)`.
@@ -297,6 +299,8 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (sym::indexOf, CoreIntrinsic::StringIndexOf),
                 (sym::lastIndexOf, CoreIntrinsic::StringLastIndexOf),
                 (sym::runeCount, CoreIntrinsic::StringRuneCount),
+                // Both overloads share a name; the lowering reads the parameter type.
+                (sym::toString, CoreIntrinsic::StringToString),
                 (sym::escapeHTML, CoreIntrinsic::StringEscapeHTML),
                 // Both arities share a name; the lowering reads the operand count.
                 (sym::escapeJSON, CoreIntrinsic::StringEscapeJSON),

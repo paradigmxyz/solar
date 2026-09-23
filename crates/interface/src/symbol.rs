@@ -1308,6 +1308,7 @@ symbols! {
         terminal,
         this,
         to,
+        toString,
         trailingZeros,
         transfer,
         transient,

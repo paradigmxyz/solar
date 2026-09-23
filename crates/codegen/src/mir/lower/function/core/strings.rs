@@ -9,8 +9,10 @@
 //! outputs reserve their exact objects only after the scan, so conservative
 //! bounds do not inflate later memory costs. Rune counting classifies whole
 //! words of well-formed UTF-8 at once and steps the rest through a scratch
-//! table of lead lengths. The checked Solidity bodies remain the reference
-//! under `-Zno-core-intrinsics`.
+//! table of lead lengths. Decimal and minimal-hex spellings fill one fixed
+//! region backwards and return a header inside it, so neither counts digits
+//! first. The checked Solidity bodies remain the reference under
+//! `-Zno-core-intrinsics`.
 
 use super::*;
 
@@ -129,6 +131,83 @@ impl FunctionLowerer<'_, '_> {
         let pair_digits = self.builder.sub(end, cursor);
         let digits = self.builder.sub(pair_digits, leading_zero);
         let length = self.builder.add(digits, prefix_length);
+        self.builder.mstore(result, length);
+        self.builder.memory_object_from_ptr(result, MemoryObjectKind::Bytes)
+    }
+
+    /// Lowers `Strings.toString` of a `uint256` or `int256` into the caller.
+    pub(super) fn lower_core_string_to_string_call(
+        &mut self,
+        operands: &[ValueId],
+        parameter_tys: &[Ty<'_>],
+    ) -> Option<ValueId> {
+        let ([value], [ty]) = (operands, parameter_tys) else { return None };
+        Some(self.lower_core_string_to_string(*value, ty.peel_refs().is_signed()))
+    }
+
+    /// Writes the decimal digits backwards from the end of one fixed region,
+    /// without counting them first, and a `-` below them when the value is
+    /// negative. As in the minimal-hex spelling, the returned bytes header
+    /// starts inside the region, which owns every possible header, payload
+    /// and padding word: 78 digits and a sign fit below its 128-byte end.
+    /// Two digits per step would need as many divisions and keep the last
+    /// pair live after the loop, which measured slower.
+    fn lower_core_string_to_string(&mut self, value: ValueId, signed: bool) -> ValueId {
+        // negative = value <s 0; magnitude = negative ? 0 - value : value
+        let zero = self.builder.imm(0);
+        let (magnitude, negative) = if signed {
+            let negative = self.builder.slt(value, zero);
+            let negated = self.builder.sub(zero, value);
+            (self.builder.select(negative, negated, value), Some(negative))
+        } else {
+            (value, None)
+        };
+        // region = alloc(160); end = region + 128; mstore(end, 0)
+        let allocation_size = self.builder.imm(160);
+        let allocation = self.builder.alloc_raw(allocation_size, AllocationSemantics::INTERNAL);
+        let end_offset = self.builder.imm(128);
+        let end = self.builder.add(allocation, end_offset);
+        self.builder.mstore(end, zero);
+
+        // do { output -= 1; mstore8(output, 48 + x % 10); x /= 10 } while (x != 0)
+        let entry = self.builder.current_block();
+        let body = self.builder.create_block();
+        let done = self.builder.create_block();
+        self.builder.jump(body);
+
+        self.builder.switch_to_block(body);
+        let x = self.builder.phi(vec![(entry, magnitude)]);
+        let output = self.builder.phi(vec![(entry, end)]);
+        let one = self.builder.imm(1);
+        let next_output = self.builder.sub(output, one);
+        let ten = self.builder.imm(10);
+        let digit = self.builder.mod_(x, ten);
+        let ascii_zero = self.builder.imm(48);
+        let character = self.builder.add(digit, ascii_zero);
+        self.builder.mstore8(next_output, character);
+        let next_x = self.builder.div(x, ten);
+        let finished = self.builder.eq_zero(next_x);
+        self.builder.branch(finished, done, body);
+        self.builder.add_phi_incoming(x, body, next_x);
+        self.builder.add_phi_incoming(output, body, next_output);
+
+        // mstore8(output - 1, '-'); start = output - negative
+        // A non-negative value's length store below overwrites the sign byte.
+        self.builder.switch_to_block(done);
+        let start = match negative {
+            Some(negative) => {
+                let sign_address = self.builder.sub(next_output, one);
+                let minus = self.builder.imm(b'-');
+                self.builder.mstore8(sign_address, minus);
+                let negative = self.builder.cast_word(negative);
+                self.builder.sub(next_output, negative)
+            }
+            None => next_output,
+        };
+        // result = start - 32; mstore(result, end - start)
+        let length = self.builder.sub(end, start);
+        let header_size = self.builder.imm(32);
+        let result = self.builder.sub(start, header_size);
         self.builder.mstore(result, length);
         self.builder.memory_object_from_ptr(result, MemoryObjectKind::Bytes)
     }

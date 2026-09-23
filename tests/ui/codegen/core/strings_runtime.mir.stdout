@@ -18,14 +18,59 @@
 @module Test
 fn @decimal(arg0: i256) -> memorybytes [selector=0xf371efa4, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = icall @toString.16, arg0
-    ret v0
+    v0 = alloc raw, exact, uninitialized, infallible, 160
+    v1 = ptrtoint memptr v0 to i256
+    v2 = add v1, 128
+    mstore v2, 0
+    jump bb1
+  bb1:
+    v3 = phi [bb0: arg0], [bb1: v8]
+    v4 = phi [bb0: v2], [bb1: v5]
+    v5 = sub v4, 1
+    v6 = mod v3, 10
+    v7 = add v6, 48
+    mstore8 v5, v7
+    v8 = div v3, 10
+    v9 = eq v8, 0
+    jumpi v9, bb2, bb1
+  bb2:
+    v10 = sub v2, v5
+    v11 = sub v5, 32
+    mstore v11, v10
+    v12 = inttoptr i256 v11 to memorybytes
+    ret v12
 }
 
 fn @signed(arg0: i256) -> memorybytes [selector=0xbfe355dd, pure, abi_params=[i256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = icall @toString.17, arg0
-    ret v0
+    v0 = slt arg0, 0
+    v1 = sub 0, arg0
+    v2 = select v0, v1, arg0
+    v3 = alloc raw, exact, uninitialized, infallible, 160
+    v4 = ptrtoint memptr v3 to i256
+    v5 = add v4, 128
+    mstore v5, 0
+    jump bb1
+  bb1:
+    v6 = phi [bb0: v2], [bb1: v11]
+    v7 = phi [bb0: v5], [bb1: v8]
+    v8 = sub v7, 1
+    v9 = mod v6, 10
+    v10 = add v9, 48
+    mstore8 v8, v10
+    v11 = div v6, 10
+    v12 = eq v11, 0
+    jumpi v12, bb2, bb1
+  bb2:
+    v13 = sub v8, 1
+    mstore8 v13, 45
+    v14 = zext i1 v0 to i256
+    v15 = sub v8, v14
+    v16 = sub v5, v15
+    v17 = sub v15, 32
+    mstore v17, v16
+    v18 = inttoptr i256 v17 to memorybytes
+    ret v18
 }
 
 fn @escape(arg0: memorybytes) -> memorybytes [selector=0xb00a0672, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -720,22 +765,60 @@ fn @toString.17(arg0: i256) -> memorybytes [pure] {
   bb2:
     jump bb3
   bb3:
-    v3 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
-    jumpi v3, bb4, bb5
-  bb5:
-    v5 = checked_sub i256, 0, arg0
-    jump bb6
-  bb4:
-    v4 = shl 255, 1
-    jump bb6
+    v15 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    jumpi v15, bb6, bb7
+  bb7:
+    v17 = checked_sub i256, 0, arg0
+    jump bb8
   bb6:
-    v6 = phi [bb4: v4], [bb5: v5]
-    v7 = icall @toString.16, v6
-    v8 = icall concat<bytes1, memorybytes>, 0x2d00000000000000000000000000000000000000000000000000000000000000, v7
-    ret v8
+    v16 = shl 255, 1
+    jump bb8
+  bb8:
+    v18 = phi [bb6: v16], [bb7: v17]
+    v19 = alloc raw, exact, uninitialized, infallible, 160
+    v20 = ptrtoint memptr v19 to i256
+    v21 = add v20, 128
+    mstore v21, 0
+    jump bb9
+  bb9:
+    v22 = phi [bb8: v18], [bb9: v27]
+    v23 = phi [bb8: v21], [bb9: v24]
+    v24 = sub v23, 1
+    v25 = mod v22, 10
+    v26 = add v25, 48
+    mstore8 v24, v26
+    v27 = div v22, 10
+    v28 = eq v27, 0
+    jumpi v28, bb10, bb9
+  bb10:
+    v29 = sub v21, v24
+    v30 = sub v24, 32
+    mstore v30, v29
+    v31 = inttoptr i256 v30 to memorybytes
+    v32 = icall concat<bytes1, memorybytes>, 0x2d00000000000000000000000000000000000000000000000000000000000000, v31
+    ret v32
   bb1:
-    v2 = icall @toString.16, arg0
-    ret v2
+    v2 = alloc raw, exact, uninitialized, infallible, 160
+    v3 = ptrtoint memptr v2 to i256
+    v4 = add v3, 128
+    mstore v4, 0
+    jump bb4
+  bb4:
+    v5 = phi [bb1: arg0], [bb4: v10]
+    v6 = phi [bb1: v4], [bb4: v7]
+    v7 = sub v6, 1
+    v8 = mod v5, 10
+    v9 = add v8, 48
+    mstore8 v7, v9
+    v10 = div v5, 10
+    v11 = eq v10, 0
+    jumpi v11, bb5, bb4
+  bb5:
+    v12 = sub v4, v7
+    v13 = sub v7, 32
+    mstore v13, v12
+    v14 = inttoptr i256 v13 to memorybytes
+    ret v14
 }
 
 fn @equals.18(arg0: memorybytes, arg1: memorybytes) -> i256 [pure] {
