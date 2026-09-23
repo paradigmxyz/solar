@@ -154,23 +154,23 @@ fn @fill(arg0: memptr, arg1: i256, arg2: i256) [may_return_memory, pure] {
     v17 = add v19, 32
     jump bb1
   bb1:
-    v2 = phi [bb0: 0], [bb4: v14]
-    v5 = lt v2, arg1
+    v4 = phi [bb0: 0], [bb4: v14]
+    v5 = lt v4, arg1
     jumpi v5, bb5, bb2
   bb2:
     ret
   bb5:
     v7 = mload v19
-    v8 = lt v2, v7
+    v8 = lt v4, v7
     jumpi v8, bb4, bb3
   bb3:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
     revert 28, 36
   bb4:
-    v18 = add v17, v2
+    v18 = add v17, v4
     mstore8 v18, v10
-    v14 = add v2, 1
+    v14 = add v4, 1
     jump bb1
 }
 

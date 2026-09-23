@@ -65,9 +65,9 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, inline_assembly, pure] {
     mstore v15, 0
     jump bb3
   bb3:
-    v20 = phi [bb1: v11], [bb5: v43]
-    v23 = phi [bb1: v92], [bb5: v49]
-    v28 = ptrtoint memptr v23 to i256
+    v17 = phi [bb1: v92], [bb5: v49]
+    v23 = phi [bb1: v11], [bb5: v43]
+    v28 = ptrtoint memptr v17 to i256
     v29 = add v28, 3
     v30 = mload v29
     v31 = shr 18, v30
@@ -86,8 +86,8 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, inline_assembly, pure] {
     v41 = mload v40
     mstore8 3, v41 !metadata(memory=scratch)
     v42 = mload 0 !metadata(memory=scratch)
-    mstore v20, v42
-    v43 = add v20, 4
+    mstore v23, v42
+    v43 = add v23, 4
     v44 = lt v43, v12
     jumpi v44, bb5, bb4
   bb4:
@@ -105,13 +105,13 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, inline_assembly, pure] {
     mstore v6, v64
     jump bb2
   bb2:
-    v66 = phi [bb4: v6], [bb13: 96]
+    v70 = phi [bb4: v6], [bb13: 96]
     v136 = mload 64 !metadata(memory=scratch)
     v101 = add v136, 32
     mstore v136, 32
-    v108 = ne v66, 0
+    v108 = ne v70, 0
     v109 = zext i1 v108 to i256
-    v105 = mload v66
+    v105 = mload v70
     v110 = mul v105, v109
     v112 = add v110, 31
     v113 = and v112, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -120,7 +120,7 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, inline_assembly, pure] {
     mstore v115, 0
     mstore v101, v110
     v117 = add v114, v113
-    v128 = add v66, 32
+    v128 = add v70, 32
     mcopy v114, v128, v110
     v120 = sub v117, v136
     returndata v136, v120

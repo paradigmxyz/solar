@@ -300,24 +300,24 @@ fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 [inline_assembly] {
     v41 = sub v40, v38
     jump bb7
   bb7:
-    v42 = phi [bb3: v1], [bb11: v42]
-    v43 = phi [bb3: v41], [bb11: v43]
-    v44 = phi [bb3: arg1], [bb11: v44]
-    v45 = phi [bb3: arg2], [bb11: v45]
-    v46 = phi [bb3: v34], [bb11: v46]
-    v47 = phi [bb3: v39], [bb11: v47]
+    v42 = phi [bb3: arg0], [bb11: v42]
+    v43 = phi [bb3: arg1], [bb11: v43]
+    v44 = phi [bb3: arg2], [bb11: v44]
+    v45 = phi [bb3: v39], [bb11: v45]
+    v46 = phi [bb3: v1], [bb11: v46]
+    v47 = phi [bb3: v34], [bb11: v47]
     v48 = phi [bb3: v38], [bb11: v53]
-    v49 = phi [bb3: arg0], [bb11: v49]
+    v49 = phi [bb3: v41], [bb11: v49]
     v50 = ne 1, 0
     jumpi v50, bb9, bb10
   bb10:
     jump bb8
   bb9:
-    v51 = add v43, v48
+    v51 = add v49, v48
     v52 = mload v51
     mstore v48, v52
     v53 = add v48, 32
-    v54 = lt v53, v47
+    v54 = lt v53, v45
     v55 = zext i1 v54 to i256
     v56 = eq v55, 0
     v57 = zext i1 v56 to i256
@@ -333,13 +333,13 @@ fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 [inline_assembly] {
     jump bb8
   bb8:
     v59 = phi [bb12: v53], [bb10: v48]
-    v60 = shl 3, v46
+    v60 = shl 3, v47
     v61 = sub 248, v60
-    v62 = shl v61, v42
-    v63 = mload v44
+    v62 = shl v61, v46
+    v63 = mload v43
     v64 = or v63, v62
-    mstore v44, v64
-    ret v47
+    mstore v43, v64
+    ret v45
   bb1:
     v7 = add 32, arg0
     v8 = mload v7
@@ -383,10 +383,10 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 [inline_assembly] {
     v5 = add arg1, 32
     jump bb4
   bb4:
-    v6 = phi [bb3: arg1], [bb8: v6], [bb15: v6], [bb17: v6], [bb18: v6], [bb21: v6]
-    v7 = phi [bb3: v5], [bb8: v48], [bb15: v29], [bb17: v33], [bb18: v39], [bb21: v45]
-    v8 = phi [bb3: arg0], [bb8: v8], [bb15: v8], [bb17: v8], [bb18: v8], [bb21: v8]
-    v9 = phi [bb3: 0], [bb8: v9], [bb15: v9], [bb17: v9], [bb18: v9], [bb21: v9]
+    v6 = phi [bb3: arg0], [bb8: v6], [bb15: v6], [bb17: v6], [bb18: v6], [bb21: v6]
+    v7 = phi [bb3: arg1], [bb8: v7], [bb15: v7], [bb17: v7], [bb18: v7], [bb21: v7]
+    v8 = phi [bb3: 0], [bb8: v8], [bb15: v8], [bb17: v8], [bb18: v8], [bb21: v8]
+    v9 = phi [bb3: v5], [bb8: v48], [bb15: v29], [bb17: v33], [bb18: v39], [bb21: v45]
     v10 = phi [bb3: arg0], [bb8: v13], [bb15: v13], [bb17: v13], [bb18: v13], [bb21: v13]
     v11 = ne 1, 0
     jumpi v11, bb6, bb7
@@ -429,19 +429,19 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 [inline_assembly] {
   bb23:
     v46 = mload v13
     v47 = shr 48, v46
-    v48 = icall @encodeAddress, v47, v7
+    v48 = icall @encodeAddress, v47, v9
     jump bb8
   bb8:
     jump bb4
   bb21:
     v43 = mload v13
     v44 = shr 48, v43
-    v45 = icall @encodeList, v44, v7
+    v45 = icall @encodeList, v44, v9
     jump bb4
   bb18:
     v37 = mload v13
     v38 = shr 48, v37
-    v39 = icall @encodeBytes, v38, v7, 128
+    v39 = icall @encodeBytes, v38, v9, 128
     jump bb4
   bb12:
     v24 = eq v18, 0
@@ -454,19 +454,19 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 [inline_assembly] {
     v30 = mload v13
     v31 = shr 48, v30
     v32 = mload v31
-    v33 = icall @encodeUint, v32, v7
+    v33 = icall @encodeUint, v32, v9
     jump bb4
   bb15:
     v27 = mload v13
     v28 = shr 48, v27
-    v29 = icall @encodeUint, v28, v7
+    v29 = icall @encodeUint, v28, v9
     jump bb4
   bb9:
     jump bb5
   bb5:
     v49 = phi [bb9: v13], [bb7: v10]
-    v50 = add v6, 32
-    v51 = sub v7, v50
+    v50 = add v7, 32
+    v51 = sub v9, v50
     v52 = gt v51, 55
     v53 = zext i1 v52 to i256
     v54 = eq v53, 0
@@ -476,21 +476,21 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 [inline_assembly] {
   bb25:
     jump bb26
   bb26:
-    mstore v6, v51
-    v66 = icall @encodeBytes, v6, v6, 192
+    mstore v7, v51
+    v66 = icall @encodeBytes, v7, v7, 192
     ret v66
   bb24:
     v57 = add v51, 192
-    mstore8 v6, v57
-    v58 = add v6, 32
+    mstore8 v7, v57
+    v58 = add v7, 32
     v59 = mload v58
-    v60 = add v6, 1
+    v60 = add v7, 1
     mstore v60, v59
-    v61 = add v6, 64
+    v61 = add v7, 64
     v62 = mload v61
-    v63 = add v6, 33
+    v63 = add v7, 33
     mstore v63, v62
-    v64 = add v6, 1
+    v64 = add v7, 1
     v65 = add v51, v64
     ret v65
   bb1:

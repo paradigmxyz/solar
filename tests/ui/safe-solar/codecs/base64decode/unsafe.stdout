@@ -105,9 +105,9 @@ fn @_decode(arg0: memptr) -> memptr [may_return_memory, inline_assembly, pure] {
     mstore 26, 0xf8fcf800fcd0d4d8dce0e4e8ecf0f4 !metadata(memory=scratch)
     jump bb6
   bb6:
-    v35 = phi [bb3: v31], [bb8: v61]
-    v37 = phi [bb3: arg0], [bb8: v67]
-    v41 = ptrtoint memptr v37 to i256
+    v33 = phi [bb3: arg0], [bb8: v67]
+    v37 = phi [bb3: v31], [bb8: v61]
+    v41 = ptrtoint memptr v33 to i256
     v42 = add v41, 4
     v43 = mload v42
     v44 = byte 31, v43
@@ -127,8 +127,8 @@ fn @_decode(arg0: memptr) -> memptr [may_return_memory, inline_assembly, pure] {
     v58 = mload v57
     v59 = and v58, 0xfc000000fc00686c7074787c8084888c9094989ca0a4a8acb0b4b8bcc0c4c8cc
     v60 = or v59, v56
-    mstore v35, v60
-    v61 = add v35, 3
+    mstore v37, v60
+    v61 = add v37, 3
     v62 = lt v61, v32
     jumpi v62, bb8, bb7
   bb7:
@@ -138,8 +138,8 @@ fn @_decode(arg0: memptr) -> memptr [may_return_memory, inline_assembly, pure] {
     mstore 96, 0 !metadata(memory=scratch)
     jump bb2
   bb2:
-    v76 = phi [bb7: v30], [bb0: 96]
-    v77 = inttoptr i256 v76 to memptr
+    v75 = phi [bb7: v30], [bb0: 96]
+    v77 = inttoptr i256 v75 to memptr
     ret v77
   bb8:
     v67 = inttoptr i256 v42 to memptr

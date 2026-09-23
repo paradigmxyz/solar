@@ -12,27 +12,27 @@ fn @loopCarried(arg0: i256, arg1: i256) -> i256 [selector=0x71b76bb2, pure, abi_
     v1 = phi [bb1: 7], [bb2: 11]
     jump bb4
   bb4:
-    v2 = phi [bb3: 0], [bb6: v2]
-    v3 = phi [bb3: 0], [bb6: v11]
-    v4 = phi [bb3: arg1], [bb6: v4]
+    v2 = phi [bb3: arg0], [bb6: v2]
+    v3 = phi [bb3: arg1], [bb6: v3]
+    v4 = phi [bb3: 0], [bb6: v4]
     v5 = phi [bb3: v1], [bb6: v5]
-    v6 = phi [bb3: 0], [bb6: v12]
-    v7 = phi [bb3: arg0], [bb6: v7]
-    v8 = lt v6, v7
+    v6 = phi [bb3: 0], [bb6: v11]
+    v7 = phi [bb3: 0], [bb6: v12]
+    v8 = lt v7, v2
     jumpi v8, bb7, bb8
   bb8:
     jump bb5
   bb5:
-    ret v3
+    ret v6
   bb7:
-    v9 = checked_mul u256, v6, 3
+    v9 = checked_mul u256, v7, 3
     v10 = checked_add u256, v9, v5
-    v11 = checked_add u256, v3, v10
+    v11 = checked_add u256, v6, v10
     jump bb9
   bb9:
     jump bb6
   bb6:
-    v12 = checked_add u256, v6, 1
+    v12 = checked_add u256, v7, 1
     jump bb4
 }
 
@@ -41,47 +41,47 @@ fn @sequential(arg0: i256, arg1: i256) -> i256 [selector=0xfb08deb2, pure, abi_p
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v8]
-    v3 = phi [bb0: arg1], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v7]
-    v5 = lt v2, v0
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v7]
+    v4 = phi [bb0: 0], [bb3: v8]
+    v5 = lt v4, v0
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
     jump bb7
   bb7:
-    v9 = phi [bb2: 0], [bb9: v19]
-    v10 = phi [bb2: v0], [bb9: v10]
-    v11 = phi [bb2: v1], [bb9: v11]
-    v12 = phi [bb2: v2], [bb9: v12]
-    v13 = phi [bb2: v3], [bb9: v13]
-    v14 = phi [bb2: v4], [bb9: v18]
-    v15 = lt v9, v13
+    v9 = phi [bb2: v0], [bb9: v9]
+    v10 = phi [bb2: v1], [bb9: v10]
+    v11 = phi [bb2: v2], [bb9: v11]
+    v12 = phi [bb2: v3], [bb9: v18]
+    v13 = phi [bb2: v4], [bb9: v13]
+    v14 = phi [bb2: 0], [bb9: v19]
+    v15 = lt v14, v10
     jumpi v15, bb10, bb11
   bb11:
     jump bb8
   bb8:
-    ret v14
+    ret v12
   bb10:
-    v16 = checked_mul u256, v9, 2
+    v16 = checked_mul u256, v14, 2
     v17 = checked_add u256, v16, 3
-    v18 = checked_add u256, v14, v17
+    v18 = checked_add u256, v12, v17
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v19 = checked_add u256, v9, 1
+    v19 = checked_add u256, v14, 1
     jump bb7
   bb4:
-    v6 = checked_add u256, v2, 1
-    v7 = checked_add u256, v4, v6
+    v6 = checked_add u256, v4, 1
+    v7 = checked_add u256, v3, v6
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v8 = checked_add u256, v2, 1
+    v8 = checked_add u256, v4, 1
     jump bb1
 }
 
@@ -89,27 +89,27 @@ fn @nested(arg0: i256, arg1: i256) -> i256 [selector=0x50d1f082, pure, abi_param
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb3: v6]
-    v1 = phi [bb0: 0], [bb3: v7]
-    v2 = phi [bb0: arg0], [bb3: v9]
-    v3 = phi [bb0: 0], [bb3: v10]
+    v0 = phi [bb0: arg0], [bb3: v6]
+    v1 = phi [bb0: arg1], [bb3: v7]
+    v2 = phi [bb0: 0], [bb3: v8]
+    v3 = phi [bb0: 0], [bb3: v9]
     v4 = phi [bb0: 0], [bb3: v17]
-    v5 = lt v4, v2
+    v5 = lt v4, v0
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v1
+    ret v3
   bb4:
     jump bb7
   bb7:
     v6 = phi [bb4: v0], [bb9: v6]
-    v7 = phi [bb4: v1], [bb9: v15]
-    v8 = phi [bb4: 0], [bb9: v16]
-    v9 = phi [bb4: v2], [bb9: v9]
-    v10 = phi [bb4: v3], [bb9: v10]
-    v11 = phi [bb4: v4], [bb9: v11]
-    v12 = lt v8, v6
+    v7 = phi [bb4: v1], [bb9: v7]
+    v8 = phi [bb4: v2], [bb9: v8]
+    v9 = phi [bb4: v3], [bb9: v15]
+    v10 = phi [bb4: v4], [bb9: v10]
+    v11 = phi [bb4: 0], [bb9: v16]
+    v12 = lt v11, v7
     jumpi v12, bb10, bb11
   bb11:
     jump bb8
@@ -118,17 +118,17 @@ fn @nested(arg0: i256, arg1: i256) -> i256 [selector=0x50d1f082, pure, abi_param
   bb6:
     jump bb3
   bb3:
-    v17 = checked_add u256, v11, 1
+    v17 = checked_add u256, v10, 1
     jump bb1
   bb10:
-    v13 = checked_add u256, v11, v8
+    v13 = checked_add u256, v10, v11
     v14 = checked_add u256, v13, 1
-    v15 = checked_add u256, v7, v14
+    v15 = checked_add u256, v9, v14
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v16 = checked_add u256, v8, 1
+    v16 = checked_add u256, v11, 1
     jump bb7
 }
 
@@ -136,21 +136,21 @@ fn @storeAfterLoop(arg0: i256, arg1: i256, arg2: i256) [selector=0xd8c2ef0a, abi
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb3: v0]
-    v1 = phi [bb0: arg0], [bb3: v10]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = phi [bb0: arg2], [bb3: v3]
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: arg2], [bb3: v2]
+    v3 = phi [bb0: arg0], [bb3: v10]
     v4 = phi [bb0: 0], [bb3: v11]
-    v5 = lt v4, v3
+    v5 = lt v4, v2
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    sstore 0, v1 !metadata(storage=slot(0))
+    sstore 0, v3 !metadata(storage=slot(0))
     ret
   bb4:
-    v6 = checked_mul u256, v1, v0
-    v7 = checked_add u256, v6, v2
+    v6 = checked_mul u256, v3, v1
+    v7 = checked_add u256, v6, v0
     v8 = checked_div u256, v7, 2
     v9 = checked_rem u256, v8, 0xf4240
     v10 = checked_add u256, v9, 1

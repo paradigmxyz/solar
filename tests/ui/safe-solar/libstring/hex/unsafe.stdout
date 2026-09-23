@@ -19,18 +19,18 @@ fn @toHex() [selector=0xe1425395, abi_wrapper, inline_assembly, pure] {
     v8 = sub v5, v1
     jump bb1
   bb1:
-    v13 = phi [bb6: v5], [bb1: v18]
-    v15 = phi [bb6: arg0], [bb1: v25]
-    v18 = add v13, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
-    v19 = and v15, 15
+    v12 = phi [bb6: v5], [bb1: v18]
+    v16 = phi [bb6: arg0], [bb1: v25]
+    v18 = add v12, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+    v19 = and v16, 15
     v20 = mload v19
     v21 = add v18, 1
     mstore8 v21, v20
-    v22 = shr 4, v15
+    v22 = shr 4, v16
     v23 = and v22, 15
     v24 = mload v23
     mstore8 v18, v24
-    v25 = shr 8, v15
+    v25 = shr 8, v16
     v27 = eq v18, v8
     jumpi v27, bb2, bb1
   bb2:

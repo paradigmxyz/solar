@@ -26,26 +26,26 @@ fn @accumulate(arg0: i256) -> i256 [selector=0xb4e7d02a, pure, abi_params=[u256]
     jump bb1
   bb1:
     v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: v0], [bb3: v2]
-    v3 = phi [bb0: 0], [bb3: v9]
-    v4 = phi [bb0: 0], [bb3: v4]
-    v5 = lt v3, v1
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: v0], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v9]
+    v5 = lt v4, v1
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v10 = memory_object_load_field memorystruct<2>, v2, 0
+    v10 = memory_object_load_field memorystruct<2>, v3, 0
     ret v10
   bb4:
-    v6 = checked_add u256, v3, 1
-    v7 = memory_object_load_field memorystruct<2>, v2, 0
+    v6 = checked_add u256, v4, 1
+    v7 = memory_object_load_field memorystruct<2>, v3, 0
     v8 = checked_add u256, v7, v6
-    memory_object_store_field memorystruct<2>, v2, 0, v8
+    memory_object_store_field memorystruct<2>, v3, 0, v8
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v9 = checked_add u256, v3, 1
+    v9 = checked_add u256, v4, 1
     jump bb1
 }
 
@@ -53,10 +53,10 @@ fn @fresh(arg0: i256) -> i256 [selector=0x0538087c, pure, abi_params=[u256], abi
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v9]
+    v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v8]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = lt v0, v2
+    v2 = phi [bb0: 0], [bb3: v9]
+    v3 = lt v2, v0
     jumpi v3, bb4, bb5
   bb5:
     jump bb2
@@ -66,7 +66,7 @@ fn @fresh(arg0: i256) -> i256 [selector=0x0538087c, pure, abi_params=[u256], abi
     v4 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v4, 0, 0
     memory_object_store_field memorystruct<2>, v4, 1, 0
-    v5 = checked_rem u256, v0, 2
+    v5 = checked_rem u256, v2, 2
     v6 = eq v5, 0
     jumpi v6, bb7, bb8
   bb8:
@@ -81,7 +81,7 @@ fn @fresh(arg0: i256) -> i256 [selector=0x0538087c, pure, abi_params=[u256], abi
   bb6:
     jump bb3
   bb3:
-    v9 = checked_add u256, v0, 1
+    v9 = checked_add u256, v2, 1
     jump bb1
 }
 

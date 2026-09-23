@@ -31,11 +31,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb1
   bb1:
     v9 = phi [bb0: v8], [bb3: v9]
-    v10 = phi [bb0: 1], [bb3: v22]
+    v10 = phi [bb0: 0], [bb3: v10]
     v11 = phi [bb0: 0], [bb3: v11]
-    v12 = phi [bb0: 0], [bb3: v12]
+    v12 = phi [bb0: 1], [bb3: v22]
     v13 = phi [bb0: v0], [bb3: v13]
-    v14 = lt v10, 10
+    v14 = lt v12, 10
     jumpi v14, bb4, bb5
   bb5:
     jump bb2
@@ -68,16 +68,16 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     icall panic_if<0x32>, v16
     v17 = mul 0, 10
     v18 = add v13, v17
-    v19 = lt v10, 10
+    v19 = lt v12, 10
     v20 = eq v19, false
     icall panic_if<0x32>, v20
-    v21 = add v18, v10
-    sstore v21, v10 !metadata(storage=symbolic(v21))
+    v21 = add v18, v12
+    sstore v21, v12 !metadata(storage=symbolic(v21))
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v22 = checked_add u256, v10, 1
+    v22 = checked_add u256, v12, 1
     jump bb1
 }
 

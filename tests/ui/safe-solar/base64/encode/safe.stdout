@@ -87,13 +87,13 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, pure] {
     mstore v324, v11
     jump bb2
   bb2:
-    v20 = phi [bb37: 0], [bb19: v182]
-    v22 = phi [bb37: 0], [bb19: v42]
-    v182 = add v20, 24
+    v23 = phi [bb37: 0], [bb19: v182]
+    v24 = phi [bb37: 0], [bb19: v42]
+    v182 = add v23, 24
     v26 = gt v182, v227
     jumpi v26, bb3, bb4
   bb4:
-    v36 = add v312, v20
+    v36 = add v312, v23
     v37 = mload v36
     v39 = shr 64, v37
     v354 = mul arg1, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
@@ -151,14 +151,14 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, pure] {
   bb41:
     v403 = mul v357, v394
     v404 = add v401, v403
-    v42 = add v22, 32
-    v43 = lt v42, v22
+    v42 = add v24, 32
+    v43 = lt v42, v24
     v44 = gt v42, v11
     v45 = or v43, v44
     jumpi v45, bb18, bb19
   bb19:
     v288 = add v324, 32
-    v289 = add v288, v22
+    v289 = add v288, v24
     mstore v289, v404
     jump bb2
   bb39:
@@ -181,9 +181,9 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, pure] {
     mstore8 v260, 95
     jump bb6
   bb6:
-    v339 = add v312, v20
+    v339 = add v312, v23
     v344 = add v312, v227
-    v345 = add v324, v22
+    v345 = add v324, v24
     v346 = add v345, 32
     v352 = add v324, v11
     v353 = add v352, 32

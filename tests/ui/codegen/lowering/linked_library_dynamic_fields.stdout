@@ -264,11 +264,11 @@ bb1:
   mstore
   swap 2
   mload
-  dup 2
-  mload
-  mload
   push 0
-  exchange 1, 2
+  dup 3
+  mload
+  mload
+  swap 2
   exchange 3, 5
   jump bb18
 bb21 [loop]:
@@ -276,23 +276,23 @@ bb21 [loop]:
   mload
   dup 1
   mload
-  dup 3
+  dup 4
   lt
   iszero
   push bb24
   jumpi
   push 32
   add
-  dup 2
+  dup 3
   push 5
   shl
   add
   mload
-  swap 1
+  swap 2
   push 1
   add
   dup 1
-  dup 3
+  dup 4
   mul
   dup 2
   iszero
@@ -300,26 +300,26 @@ bb21 [loop]:
   dup 3
   div
   swap 1
-  swap 4
+  swap 5
   eq
   swap 1
-  swap 3
+  swap 4
   or
   iszero
   push bb25
   jumpi
-  swap 1
-  dup 3
-  add
   swap 2
-  dup 3
+  dup 2
+  add
+  swap 1
+  dup 2
   lt
   push bb25
   jumpi
   jump bb18
 bb18 [loop]:
   dup 3
-  dup 2
+  dup 3
   lt
   push bb21
   jumpi
@@ -327,7 +327,6 @@ bb18 [loop]:
   mload
   swap 5
   pop
-  swap 3
   pop
   pop
   swap 2

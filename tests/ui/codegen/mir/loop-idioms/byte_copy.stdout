@@ -149,8 +149,8 @@ fn @oversizedCopy() [selector=0x1e820d5e, abi_wrapper, inline_assembly, pure] {
     v23 = add v51, 32
     jump bb1
   bb1:
-    v10 = phi [bb8: 0], [bb3: v25]
-    v14 = lt v10, 65
+    v13 = phi [bb8: 0], [bb3: v25]
+    v14 = lt v13, 65
     jumpi v14, bb3, bb2
   bb2:
     v26 = mload v51
@@ -165,12 +165,12 @@ fn @oversizedCopy() [selector=0x1e820d5e, abi_wrapper, inline_assembly, pure] {
     mstore 128, v41
     returndata 128, 32
   bb3:
-    v19 = add v35, v10
+    v19 = add v35, v13
     v20 = mload v19
     v21 = byte 0, v20
-    v24 = add v23, v10
+    v24 = add v23, v13
     mstore8 v24, v21
-    v25 = add v10, 1
+    v25 = add v13, 1
     jump bb1
   bb7:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -186,16 +186,16 @@ fn @zeroTripHeader() [selector=0xe0b1133b, abi_wrapper, inline_assembly, pure] {
   bb5:
     jump bb2
   bb2:
-    v3 = phi [bb5: 0], [bb3: v9]
-    v4 = phi [bb5: 0], [bb3: v6]
-    v5 = lt v3, arg0
+    v3 = phi [bb5: 0], [bb3: v6]
+    v4 = phi [bb5: 0], [bb3: v9]
+    v5 = lt v4, arg0
     jumpi v5, bb3, bb1
   bb1:
-    mstore 128, v4
+    mstore 128, v3
     returndata 128, 32
   bb3:
     v6 = mload 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v9 = add v3, 1
+    v9 = add v4, 1
     jump bb2
   bb4:
     revert 0, 0
@@ -209,12 +209,12 @@ fn @headerExpansion() [selector=0xfb7c0847, abi_wrapper, inline_assembly, pure] 
   bb5:
     jump bb1
   bb1:
-    v0 = phi [bb5: 0], [bb3: v13]
-    v1 = phi [bb5: 0], [bb3: v18]
-    v4 = lt v1, arg0
+    v1 = phi [bb5: 0], [bb3: v13]
+    v3 = phi [bb5: 0], [bb3: v18]
+    v4 = lt v3, arg0
     jumpi v4, bb3, bb2
   bb2:
-    mstore 128, v0
+    mstore 128, v1
     returndata 128, 32
   bb3:
     v14 = msize
@@ -226,7 +226,7 @@ fn @headerExpansion() [selector=0xfb7c0847, abi_wrapper, inline_assembly, pure] 
     v21 = zext i1 v10 to i256
     v22 = mul v20, v21
     v23 = ne v22, 0
-    v18 = add v1, 1
+    v18 = add v3, 1
     v13 = zext i1 v23 to i256
     jump bb1
   bb4:
@@ -244,8 +244,8 @@ fn @inPlace() [selector=0xda1b3040, abi_wrapper, pure] {
     v45 = add v52, 32
     jump bb1
   bb1:
-    v0 = phi [bb5: 0], [bb3: v17]
-    v17 = add v0, 1
+    v2 = phi [bb5: 0], [bb3: v17]
+    v17 = add v2, 1
     v4 = mload v52
     v5 = lt v17, v4
     jumpi v5, bb3, bb2
@@ -265,7 +265,7 @@ fn @inPlace() [selector=0xda1b3040, abi_wrapper, pure] {
     v46 = add v45, v17
     v47 = mload v46
     v48 = byte 0, v47
-    v51 = add v45, v0
+    v51 = add v45, v2
     mstore8 v51, v48
     jump bb1
   bb4:
@@ -368,20 +368,20 @@ fn @copyObject(arg0: memptr, arg1: i256) -> memptr [may_return_memory, inline_as
     v12 = add v11, 32
     jump bb1
   bb1:
-    v5 = phi [bb0: 0], [bb3: v17]
-    v8 = lt v5, arg1
+    v7 = phi [bb0: 0], [bb3: v17]
+    v8 = lt v7, arg1
     jumpi v8, bb3, bb2
   bb2:
     mstore v0, arg1
     v18 = inttoptr i256 v0 to memptr
     ret v18
   bb3:
-    v13 = add v12, v5
+    v13 = add v12, v7
     v14 = mload v13
     v15 = byte 0, v14
-    v16 = add v1, v5
+    v16 = add v1, v7
     mstore8 v16, v15
-    v17 = add v5, 1
+    v17 = add v7, 1
     jump bb1
 }
 
@@ -393,20 +393,20 @@ fn @copyRaw(arg0: i256, arg1: i256) -> memptr [may_return_memory, inline_assembl
     mstore 64, v2 !metadata(memory=scratch)
     jump bb1
   bb1:
-    v3 = phi [bb0: 0], [bb3: v15]
-    v8 = lt v3, arg1
+    v7 = phi [bb0: 0], [bb3: v15]
+    v8 = lt v7, arg1
     jumpi v8, bb3, bb2
   bb2:
     mstore v0, arg1
     v16 = inttoptr i256 v0 to memptr
     ret v16
   bb3:
-    v11 = add arg0, v3
+    v11 = add arg0, v7
     v12 = mload v11
     v13 = byte 0, v12
-    v14 = add v1, v3
+    v14 = add v1, v7
     mstore8 v14, v13
-    v15 = add v3, 1
+    v15 = add v7, 1
     jump bb1
 }
 

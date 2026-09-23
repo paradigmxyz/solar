@@ -75,16 +75,16 @@ fn @_escapeJSON(arg0: memptr) -> memptr [may_return_memory, inline_assembly, pur
     v11 = add v8, v9
     jump bb1
   bb1:
-    v13 = phi [bb0: v1], [bb9: v55], [bb6: v38], [bb7: v40], [bb8: v51]
-    v15 = phi [bb0: arg0], [bb9: v56], [bb6: v57], [bb7: v58], [bb8: v59]
-    v18 = ptrtoint memptr v15 to i256
+    v12 = phi [bb0: arg0], [bb9: v56], [bb6: v57], [bb7: v58], [bb8: v59]
+    v15 = phi [bb0: v1], [bb9: v55], [bb6: v38], [bb7: v40], [bb8: v51]
+    v18 = ptrtoint memptr v12 to i256
     v21 = ne v18, v11
     jumpi v21, bb3, bb2
   bb2:
-    mstore v13, 0
-    v64 = sub v13, v1
+    mstore v15, 0
+    v64 = sub v15, v1
     mstore v0, v64
-    v65 = add v13, 32
+    v65 = add v15, 32
     mstore 64, v65 !metadata(memory=scratch)
     v66 = inttoptr i256 v0 to memptr
     ret v66
@@ -100,15 +100,15 @@ fn @_escapeJSON(arg0: memptr) -> memptr [may_return_memory, inline_assembly, pur
     v35 = eq v34, 0
     jumpi v35, bb6, bb7
   bb7:
-    mstore8 v13, 92
-    v39 = add v13, 1
+    mstore8 v15, 92
+    v39 = add v15, 1
     mstore8 v39, v27
-    v40 = add v13, 2
+    v40 = add v15, 2
     v58 = inttoptr i256 v25 to memptr
     jump bb1
   bb6:
-    mstore8 v13, v27
-    v38 = add v13, 1
+    mstore8 v15, v27
+    v38 = add v15, 1
     v57 = inttoptr i256 v25 to memptr
     jump bb1
   bb5:
@@ -117,12 +117,12 @@ fn @_escapeJSON(arg0: memptr) -> memptr [may_return_memory, inline_assembly, pur
     v43 = eq v42, 0
     jumpi v43, bb8, bb9
   bb9:
-    mstore8 v13, 92
+    mstore8 v15, 92
     v52 = add v27, 8
     v53 = mload v52
-    v54 = add v13, 1
+    v54 = add v15, 1
     mstore8 v54, v53
-    v55 = add v13, 2
+    v55 = add v15, 2
     v56 = inttoptr i256 v25 to memptr
     jump bb1
   bb8:
@@ -133,8 +133,8 @@ fn @_escapeJSON(arg0: memptr) -> memptr [may_return_memory, inline_assembly, pur
     v49 = mload v48
     mstore8 30, v49 !metadata(memory=scratch)
     v50 = mload 25 !metadata(memory=scratch)
-    mstore v13, v50
-    v51 = add v13, 6
+    mstore v15, v50
+    v51 = add v15, 6
     v59 = inttoptr i256 v25 to memptr
     jump bb1
 }

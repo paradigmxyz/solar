@@ -11,33 +11,33 @@ fn @sumEvens(arg0: i256) -> i256 [selector=0x0c4376eb, abi_params=[u256], abi_re
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v10]
-    v2 = phi [bb0: 0], [bb3: v9]
-    v3 = lt v1, v0
+    v1 = phi [bb0: 0], [bb3: v9]
+    v2 = phi [bb0: 0], [bb3: v10]
+    v3 = lt v2, v0
     jumpi v3, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v2
+    ret v1
   bb4:
-    v4 = checked_rem u256, v1, 2
+    v4 = checked_rem u256, v2, 2
     v5 = eq v4, 0
     jumpi v5, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v6 = checked_add u256, v2, v1
+    v6 = checked_add u256, v1, v2
     v7 = sload 0 !metadata(storage=slot(0))
     v8 = checked_add u256, v7, 1
     sstore 0, v8 !metadata(storage=slot(0))
     jump bb9
   bb9:
-    v9 = phi [bb7: v6], [bb8: v2]
+    v9 = phi [bb7: v6], [bb8: v1]
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v10 = checked_add u256, v1, 1
+    v10 = checked_add u256, v2, 1
     jump bb1
 }
 
@@ -46,10 +46,10 @@ fn @countdown(arg0: i256, arg1: i256) -> i256 [selector=0x8275b13a, pure, abi_pa
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb7: v0]
-    v1 = phi [bb0: 0], [bb7: v4]
-    v2 = phi [bb0: arg1], [bb7: v2]
+    v1 = phi [bb0: arg1], [bb7: v1]
+    v2 = phi [bb0: 0], [bb7: v4]
     v3 = phi [bb0: arg0], [bb7: v6]
-    v4 = checked_add u256, v1, v3
+    v4 = checked_add u256, v2, v3
     v5 = eq v3, 0
     jumpi v5, bb4, bb5
   bb5:
@@ -67,7 +67,7 @@ fn @countdown(arg0: i256, arg1: i256) -> i256 [selector=0x8275b13a, pure, abi_pa
     jump bb2
   bb2:
     v7 = phi [bb4: v3], [bb8: v6]
-    v8 = checked_add u256, v4, v2
+    v8 = checked_add u256, v4, v1
     ret v8
   bb9:
     invalid

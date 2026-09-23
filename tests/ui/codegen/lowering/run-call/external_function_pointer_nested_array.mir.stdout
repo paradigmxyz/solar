@@ -97,13 +97,13 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     set_memory_object_len memoryarray, v0, 3
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb3: v16]
+    v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
-    v3 = phi [bb0: v0], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v4]
-    v5 = phi [bb0: 0], [bb3: v5]
-    v6 = memory_object_len memoryarray, v3
-    v7 = lt v1, v6
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: v0], [bb3: v4]
+    v5 = phi [bb0: 0], [bb3: v16]
+    v6 = memory_object_len memoryarray, v4
+    v7 = lt v5, v6
     jumpi v7, bb4, bb5
   bb5:
     jump bb2
@@ -112,12 +112,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v18 = zext i160 v17 to i256
     v19 = shl 32, v18
     v20 = or v19, 0x573a6b2f
-    v21 = memory_object_len memoryarray, v3
+    v21 = memory_object_len memoryarray, v4
     v22 = lt 0, v21
     v23 = eq v22, false
     icall panic_if<0x32>, v23
     v24 = shl 64, v20
-    memory_object_store_element memoryarray<1>, v3, 0, v24
+    memory_object_store_element memoryarray<1>, v4, 0, v24
     v25 = abi_encode []
     v26 = not 31
     v27 = and 0x7a1, v26
@@ -137,7 +137,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     revert_returndata
   bb8:
     v37 = gas
-    v38 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v3
+    v38 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v4
     v39 = slice_ptr v38
     v40 = slice_len v38
     v41 = alloc raw, exact, uninitialized, infallible, 96
@@ -240,17 +240,17 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v9 = zext i160 v8 to i256
     v10 = shl 32, v9
     v11 = or v10, 0xb8c9d365
-    v12 = memory_object_len memoryarray, v3
-    v13 = lt v1, v12
+    v12 = memory_object_len memoryarray, v4
+    v13 = lt v5, v12
     v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = shl 64, v11
-    memory_object_store_element memoryarray<1>, v3, v1, v15
+    memory_object_store_element memoryarray<1>, v4, v5, v15
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v16 = checked_add u256, v1, 1
+    v16 = checked_add u256, v5, 1
     jump bb1
 }
 

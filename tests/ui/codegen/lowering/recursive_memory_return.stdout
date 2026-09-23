@@ -53,22 +53,22 @@ fn @mkArr(arg0: i256) -> memoryarray [selector=0xfb67dbf3, pure, abi_params=[u25
     jump bb1
   bb1:
     v17 = phi [bb0: arg0], [bb3: v17]
-    v18 = phi [bb0: v16], [bb3: v18]
-    v19 = phi [bb0: memoryarray 96], [bb3: v19]
+    v18 = phi [bb0: memoryarray 96], [bb3: v18]
+    v19 = phi [bb0: v16], [bb3: v19]
     v20 = phi [bb0: 0], [bb3: v26]
     v21 = lt v20, v17
     jumpi v21, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v18
+    ret v19
   bb4:
     v22 = checked_mul u256, v20, 10
-    v23 = memory_object_len memoryarray, v18
+    v23 = memory_object_len memoryarray, v19
     v24 = lt v20, v23
     v25 = eq v24, false
     icall panic_if<0x32>, v25
-    memory_object_store_element memoryarray<1>, v18, v20, v22
+    memory_object_store_element memoryarray<1>, v19, v20, v22
     jump bb6
   bb6:
     jump bb3

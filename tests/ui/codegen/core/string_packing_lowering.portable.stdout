@@ -192,8 +192,8 @@ fn @unpackTwo(arg0: i256) -> struct0 [may_return_memory, pure, return_abi=[mempt
     v92 = add v99, 32
     jump bb1
   bb1:
-    v12 = phi [bb9: 0], [bb3: v69]
-    v18 = lt v12, v86
+    v17 = phi [bb9: 0], [bb3: v69]
+    v18 = lt v17, v86
     jumpi v18, bb3, bb2
   bb2:
     v67 = add v86, 1
@@ -243,9 +243,9 @@ fn @unpackTwo(arg0: i256) -> struct0 [may_return_memory, pure, return_abi=[mempt
     v117 = add v116, 1
     jump bb4
   bb3:
-    v69 = add v12, 1
+    v69 = add v17, 1
     v22 = byte v69, arg0
-    v93 = add v92, v12
+    v93 = add v92, v17
     mstore8 v93, v22
     jump bb1
   bb10:

@@ -5,27 +5,27 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, inline_assembly,
     v0 = mload 64 !metadata(memory=scratch)
     jump bb1
   bb1:
-    v1 = phi [bb0: v0], [bb3: v10]
-    v2 = phi [bb0: arg0], [bb3: v2]
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: memorybytes 96], [bb3: v2]
     v3 = phi [bb0: v0], [bb3: v3]
-    v4 = phi [bb0: memorybytes 96], [bb3: v4]
+    v4 = phi [bb0: v0], [bb3: v10]
     v5 = add v3, 256
-    v6 = lt v1, v5
+    v6 = lt v4, v5
     v7 = zext i1 v6 to i256
     v8 = ne v7, 0
     jumpi v8, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v11 = slice_ptr v2
-    v12 = slice_len v2
+    v11 = slice_ptr v1
+    v12 = slice_len v1
     v13 = gt v12, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v13
     v14 = calldatasize
     v15 = sub v14, v12
     v16 = sgt v11, v15
     icall revert_if<calldata_tail_too_short>, v16
-    v17 = abi_encode [calldata_bytes], object, args v2
+    v17 = abi_encode [calldata_bytes], object, args v1
     v18 = ptrtoint memorybytes v17 to i256
     v19 = eq v3, v18
     v20 = zext i1 v19 to i256
@@ -41,12 +41,12 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, inline_assembly,
     revert 0, 0
   bb4:
     v9 = sub 0, 1
-    mstore v1, v9
+    mstore v4, v9
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v10 = add v1, 32
+    v10 = add v4, 32
     jump bb1
 }
 

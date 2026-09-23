@@ -146,30 +146,30 @@ fn @decode.1(arg0: memptr) -> memptr [may_return_memory, pure] {
     mstore v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb5
   bb5:
-    v53 = phi [bb17: v24], [bb13: v117]
-    v57 = phi [bb17: 0], [bb13: v87]
+    v56 = phi [bb17: v24], [bb13: v117]
+    v58 = phi [bb17: 0], [bb13: v87]
     v59 = phi [bb17: 0], [bb13: v119]
-    v60 = lt v53, v0
+    v60 = lt v56, v0
     jumpi v60, bb7, bb6
   bb6:
-    v99 = and v57, 128
+    v99 = and v58, 128
     v100 = ne v99, 0
     jumpi v100, bb10, bb8
   bb8:
     ret v34
   bb7:
     v61 = mload v171
-    v62 = lt v53, v61
+    v62 = lt v56, v61
     jumpi v62, bb11, bb9
   bb11:
     v149 = add v171, 32
-    v150 = add v149, v53
+    v150 = add v149, v56
     v151 = mload v150
     v152 = byte 0, v151
     v155 = add v177, v152
     v156 = mload v155
     v157 = byte 0, v156
-    v115 = add v53, 1
+    v115 = add v56, 1
     v75 = lt v115, v61
     jumpi v75, bb12, bb9
   bb12:
@@ -180,7 +180,7 @@ fn @decode.1(arg0: memptr) -> memptr [may_return_memory, pure] {
     v166 = mload v165
     v167 = byte 0, v166
     v86 = or v157, v167
-    v87 = or v57, v86
+    v87 = or v58, v86
     v88 = shl 4, v157
     v89 = and v167, 15
     v90 = or v88, v89
@@ -196,7 +196,7 @@ fn @decode.1(arg0: memptr) -> memptr [may_return_memory, pure] {
     v169 = add v178, 32
     v170 = add v169, v59
     mstore8 v170, v91
-    v117 = add v53, 2
+    v117 = add v56, 2
     v119 = add v59, 1
     jump bb5
   bb18:

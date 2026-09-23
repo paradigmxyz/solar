@@ -6,7 +6,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
   bb2:
     v0 = phi [bb0: 0]
     v1 = phi [bb0: 0]
-    v2 = lt v1, 10
+    v2 = lt v0, 10
     jumpi v2, bb5, bb6
   bb6:
     jump bb3
@@ -17,7 +17,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
   bb9:
     v3 = phi [bb5: 0]
     v4 = phi [bb5: 0]
-    v5 = lt v4, 10
+    v5 = lt v3, 10
     jumpi v5, bb12, bb13
   bb13:
     jump bb10
@@ -28,7 +28,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
   bb16:
     v6 = phi [bb12: 0]
     v7 = phi [bb12: 0]
-    v8 = lt v7, 10
+    v8 = lt v6, 10
     jumpi v8, bb19, bb20
   bb20:
     jump bb17
@@ -37,10 +37,10 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
   bb19:
     jump bb23
   bb23:
-    v9 = phi [bb19: 0]
+    v9 = phi [bb19: v6]
     v10 = phi [bb19: 0]
-    v11 = phi [bb19: v7]
-    v12 = lt v10, 10
+    v11 = phi [bb19: 0]
+    v12 = lt v11, 10
     jumpi v12, bb26, bb27
   bb27:
     jump bb24
@@ -52,27 +52,27 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     sstore 0, v14 !metadata(storage=slot(0))
     jump bb22
   bb22:
-    v15 = phi [bb26: 42], [bb24: v9]
+    v15 = phi [bb26: 42], [bb24: v10]
     v16 = sload 0 !metadata(storage=slot(0))
     v17 = checked_add u256, v16, 1
     sstore 0, v17 !metadata(storage=slot(0))
     jump bb15
   bb15:
-    v18 = phi [bb22: v15], [bb17: v6]
-    v19 = phi [bb22: v11], [bb17: v4]
+    v18 = phi [bb22: v9], [bb17: v3]
+    v19 = phi [bb22: v15], [bb17: v7]
     v20 = sload 0 !metadata(storage=slot(0))
     v21 = checked_add u256, v20, 1
     sstore 0, v21 !metadata(storage=slot(0))
     jump bb8
   bb8:
-    v22 = phi [bb15: v18], [bb10: v3]
-    v23 = phi [bb15: v19], [bb10: v1]
+    v22 = phi [bb15: v18], [bb10: v0]
+    v23 = phi [bb15: v19], [bb10: v4]
     v24 = sload 0 !metadata(storage=slot(0))
     v25 = checked_add u256, v24, 1
     sstore 0, v25 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    v26 = phi [bb8: v22], [bb3: v0]
+    v26 = phi [bb8: v23], [bb3: v1]
     ret v26
   bb4:
     invalid

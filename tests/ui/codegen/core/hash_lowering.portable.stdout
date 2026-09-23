@@ -84,8 +84,8 @@ fn @keccak256Range(arg0: memptr, arg1: i256, arg2: i256) -> i256 [may_return_mem
     v53 = add v59, 32
     jump bb2
   bb2:
-    v14 = phi [bb8: 0], [bb7: v40]
-    v19 = lt v14, arg2
+    v18 = phi [bb8: 0], [bb7: v40]
+    v19 = lt v18, arg2
     jumpi v19, bb4, bb3
   bb3:
     v44 = mload v59
@@ -93,7 +93,7 @@ fn @keccak256Range(arg0: memptr, arg1: i256, arg2: i256) -> i256 [may_return_mem
     v31 = keccak256 v46, v44
     ret v31
   bb4:
-    v38 = add arg1, v14
+    v38 = add arg1, v18
     v21 = mload v55
     v22 = lt v38, v21
     jumpi v22, bb7, bb6
@@ -101,9 +101,9 @@ fn @keccak256Range(arg0: memptr, arg1: i256, arg2: i256) -> i256 [may_return_mem
     v49 = add v48, v38
     v50 = mload v49
     v51 = byte 0, v50
-    v54 = add v53, v14
+    v54 = add v53, v18
     mstore8 v54, v51
-    v40 = add v14, 1
+    v40 = add v18, 1
     jump bb2
   bb5:
     v65 = mload 64 !metadata(memory=scratch)

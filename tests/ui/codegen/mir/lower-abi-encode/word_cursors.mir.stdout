@@ -4,25 +4,25 @@ fn @reencode(arg0: memoryarray, arg1: i256) -> memorybytes [selector=0x6c07f40d,
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v14]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = phi [bb0: memorybytes 96], [bb3: v3]
-    v4 = ptrtoint memoryarray v2 to i256
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: memorybytes 96], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v14]
+    v4 = ptrtoint memoryarray v0 to i256
     v5 = mload v4
-    v6 = lt v1, v5
+    v6 = lt v3, v5
     v7 = zext i1 v6 to i256
     v8 = ne v7, 0
     jumpi v8, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v15 = abi_encode [memory_array<word<u8>>], object, args v2
+    v15 = abi_encode [memory_array<word<u8>>], object, args v0
     ret v15
   bb4:
-    v9 = add v0, v1
-    v10 = mul v1, 32
-    v11 = ptrtoint memoryarray v2 to i256
+    v9 = add v1, v3
+    v10 = mul v3, 32
+    v11 = ptrtoint memoryarray v0 to i256
     v12 = add v11, 32
     v13 = add v12, v10
     mstore v13, v9
@@ -30,7 +30,7 @@ fn @reencode(arg0: memoryarray, arg1: i256) -> memorybytes [selector=0x6c07f40d,
   bb6:
     jump bb3
   bb3:
-    v14 = add v1, 1
+    v14 = add v3, 1
     jump bb1
 }
 
@@ -65,31 +65,31 @@ fn @encode(arg0: i256, arg1: i256) -> memorybytes [selector=0xdc0aa2af, inline_a
     v21 = add v20, 32
     jump bb1
   bb1:
-    v22 = phi [bb0: arg1], [bb3: v22]
-    v23 = phi [bb0: v19], [bb3: v23]
-    v24 = phi [bb0: 0], [bb3: v34]
-    v25 = phi [bb0: arg0], [bb3: v25]
+    v22 = phi [bb0: arg0], [bb3: v22]
+    v23 = phi [bb0: arg1], [bb3: v23]
+    v24 = phi [bb0: memorybytes 96], [bb3: v24]
+    v25 = phi [bb0: v19], [bb3: v25]
     v26 = phi [bb0: v21], [bb3: v26]
-    v27 = phi [bb0: memorybytes 96], [bb3: v27]
-    v28 = lt v24, v25
+    v27 = phi [bb0: 0], [bb3: v34]
+    v28 = lt v27, v22
     v29 = zext i1 v28 to i256
     v30 = ne v29, 0
     jumpi v30, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v35 = abi_encode [memory_array<word<u8>>], object, args v23
+    v35 = abi_encode [memory_array<word<u8>>], object, args v25
     ret v35
   bb4:
-    v31 = add v22, v24
-    v32 = mul v24, 32
+    v31 = add v23, v27
+    v32 = mul v27, 32
     v33 = add v26, v32
     mstore v33, v31
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v34 = add v24, 1
+    v34 = add v27, 1
     jump bb1
 }
 

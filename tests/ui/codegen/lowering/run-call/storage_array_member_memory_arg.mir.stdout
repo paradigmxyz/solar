@@ -48,30 +48,30 @@ fn @consume(arg0: memoryarray) -> struct0 [pure] {
     v0 = memory_object_len memoryarray, arg0
     jump bb1
   bb1:
-    v1 = phi [bb0: v0], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v11]
-    v3 = phi [bb0: arg0], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v10]
-    v5 = lt v2, v1
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: v0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v10]
+    v4 = phi [bb0: 0], [bb3: v11]
+    v5 = lt v4, v2
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v12 = insert_value struct0, undef struct0, 0, v1
-    v13 = insert_value struct0, v12, 1, v4
+    v12 = insert_value struct0, undef struct0, 0, v2
+    v13 = insert_value struct0, v12, 1, v3
     ret v13
   bb4:
-    v6 = memory_object_len memoryarray, v3
-    v7 = lt v2, v6
+    v6 = memory_object_len memoryarray, v1
+    v7 = lt v4, v6
     v8 = eq v7, false
     icall panic_if<0x32>, v8
-    v9 = memory_object_load_element memoryarray<1>, v3, v2
-    v10 = checked_add u256, v4, v9
+    v9 = memory_object_load_element memoryarray<1>, v1, v4
+    v10 = checked_add u256, v3, v9
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v11 = checked_add u256, v2, 1
+    v11 = checked_add u256, v4, 1
     jump bb1
 }
 

@@ -206,13 +206,12 @@ bb21:
   lt
   push bb5
   jumpi
-  push 0
   push 4
   calldataload
+  push 0
   jump bb23
 bb25 [loop]:
-  dup 1
-  swap 2
+  dup 2
   add
   push 1
   dup 3
@@ -223,17 +222,15 @@ bb25 [loop]:
   jumpi
   swap 2
   pop
-  swap 1
   jump bb23
 bb23 [loop]:
   push 36
   calldataload
-  dup 2
+  dup 3
   gt
   iszero
   push bb25
   jumpi
-  swap 1
   push 128
   mstore
   push 32

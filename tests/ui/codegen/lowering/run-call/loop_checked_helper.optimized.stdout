@@ -15,16 +15,16 @@ fn @accumulate() [selector=0x4256913b, abi_wrapper, pure] {
   bb5:
     jump bb1
   bb1:
-    v4 = phi [bb5: arg1], [bb7: v10]
+    v5 = phi [bb5: arg1], [bb7: v10]
     v6 = phi [bb5: 0], [bb7: v13]
     v7 = lt v6, arg0
     jumpi v7, bb3, bb2
   bb2:
-    mstore 128, v4
+    mstore 128, v5
     returndata 128, 32
   bb3:
-    v10 = add v4, v6
-    v11 = lt v10, v4
+    v10 = add v5, v6
+    v11 = lt v10, v5
     jumpi v11, bb6, bb7
   bb7:
     v13 = add v6, 1

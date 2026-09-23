@@ -42,33 +42,33 @@ fn @copy(arg0: memorybytes) -> memorybytes [pure] {
     set_memory_object_len memorybytes, v5, v0
     jump bb1
   bb1:
-    v6 = phi [bb0: v5], [bb3: v6]
-    v7 = phi [bb0: 0], [bb3: v20]
-    v8 = phi [bb0: arg0], [bb3: v8]
-    v9 = memory_object_len memorybytes, v8
-    v10 = lt v7, v9
+    v6 = phi [bb0: arg0], [bb3: v6]
+    v7 = phi [bb0: v5], [bb3: v7]
+    v8 = phi [bb0: 0], [bb3: v20]
+    v9 = memory_object_len memorybytes, v6
+    v10 = lt v8, v9
     jumpi v10, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v6
+    ret v7
   bb4:
-    v11 = memory_object_len memorybytes, v8
-    v12 = lt v7, v11
+    v11 = memory_object_len memorybytes, v6
+    v12 = lt v8, v11
     v13 = eq v12, false
     icall panic_if<0x32>, v13
-    v14 = memory_object_load_byte memorybytes, v8, v7
+    v14 = memory_object_load_byte memorybytes, v6, v8
     v15 = shl 248, v14
-    v16 = memory_object_len memorybytes, v6
-    v17 = lt v7, v16
+    v16 = memory_object_len memorybytes, v7
+    v17 = lt v8, v16
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = byte 0, v15
-    memory_object_store_byte memorybytes, v6, v7, v19
+    memory_object_store_byte memorybytes, v7, v8, v19
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v20 = checked_add u256, v7, 1
+    v20 = checked_add u256, v8, 1
     jump bb1
 }

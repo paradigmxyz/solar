@@ -4,15 +4,15 @@ fn @changingSlot() -> i256 [selector=0xf8e62371, inline_assembly, abi_params=[],
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v8]
-    v1 = phi [bb0: 0], [bb3: v1]
+    v0 = phi [bb0: 0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v8]
     v2 = ne 1, 0
     jumpi v2, bb4, bb5
   bb5:
     jump bb2
   bb4:
-    sstore v0, 1 !metadata(storage=symbolic(v0))
-    v3 = lt v0, 2
+    sstore v1, 1 !metadata(storage=symbolic(v1))
+    v3 = lt v1, 2
     v4 = zext i1 v3 to i256
     v5 = eq v4, 0
     v6 = zext i1 v5 to i256
@@ -21,12 +21,12 @@ fn @changingSlot() -> i256 [selector=0xf8e62371, inline_assembly, abi_params=[],
   bb8:
     jump bb9
   bb9:
-    sstore v0, 2 !metadata(storage=symbolic(v0))
+    sstore v1, 2 !metadata(storage=symbolic(v1))
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v8 = add v0, 1
+    v8 = add v1, 1
     jump bb1
   bb7:
     jump bb2

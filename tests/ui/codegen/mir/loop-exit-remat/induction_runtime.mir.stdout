@@ -7,14 +7,14 @@ fn @previous(arg0: i256) -> i256 [selector=0x3c311f3c, inline_assembly, pure, ab
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb5: v1]
-    v1 = phi [bb0: arg0], [bb5: v3]
+    v0 = phi [bb0: arg0], [bb5: v3]
+    v1 = phi [bb0: 0], [bb5: v0]
     v2 = ne 1, 0
     jumpi v2, bb3, bb4
   bb4:
     jump bb2
   bb3:
-    v3 = sub v1, 1
+    v3 = sub v0, 1
     v4 = eq v3, 0
     v5 = zext i1 v4 to i256
     v6 = ne v5, 0
@@ -28,9 +28,9 @@ fn @previous(arg0: i256) -> i256 [selector=0x3c311f3c, inline_assembly, pure, ab
   bb6:
     jump bb2
   bb2:
-    v7 = phi [bb6: v1], [bb4: v0]
-    v8 = phi [bb6: v3], [bb4: v1]
-    ret v7
+    v7 = phi [bb6: v3], [bb4: v0]
+    v8 = phi [bb6: v0], [bb4: v1]
+    ret v8
 }
 
 fn @wrapping(arg0: i256) -> i256 [selector=0x45d1ad99, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -77,13 +77,13 @@ fn @descending() -> struct0 [selector=0x94c06a58, inline_assembly, pure, abi_par
     jump bb1
   bb1:
     v5 = phi [bb0: 0], [bb3: v18]
-    v6 = phi [bb0: v2], [bb3: v19]
-    v7 = phi [bb0: 0], [bb3: v22]
-    v8 = phi [bb0: 0], [bb3: v24]
-    v9 = phi [bb0: 0], [bb3: v20]
-    v10 = phi [bb0: v4], [bb3: v38]
-    v11 = phi [bb0: v0], [bb3: v25]
-    v12 = gt v10, v6
+    v6 = phi [bb0: 0], [bb3: v19]
+    v7 = phi [bb0: 0], [bb3: v20]
+    v8 = phi [bb0: 0], [bb3: v21]
+    v9 = phi [bb0: v0], [bb3: v22]
+    v10 = phi [bb0: v2], [bb3: v23]
+    v11 = phi [bb0: v4], [bb3: v38]
+    v12 = gt v11, v10
     v13 = zext i1 v12 to i256
     v14 = eq v13, 0
     v15 = zext i1 v14 to i256
@@ -95,38 +95,38 @@ fn @descending() -> struct0 [selector=0x94c06a58, inline_assembly, pure, abi_par
     v39 = lt 0, 4
     v40 = eq v39, false
     icall panic_if<0x32>, v40
-    v41 = memory_object_load_element memoryfixedarray<4, 1>, v11, 0
+    v41 = memory_object_load_element memoryfixedarray<4, 1>, v9, 0
     v42 = lt 1, 4
     v43 = eq v42, false
     icall panic_if<0x32>, v43
-    v44 = memory_object_load_element memoryfixedarray<4, 1>, v11, 1
+    v44 = memory_object_load_element memoryfixedarray<4, 1>, v9, 1
     v45 = lt 2, 4
     v46 = eq v45, false
     icall panic_if<0x32>, v46
-    v47 = memory_object_load_element memoryfixedarray<4, 1>, v11, 2
+    v47 = memory_object_load_element memoryfixedarray<4, 1>, v9, 2
     v48 = lt 3, 4
     v49 = eq v48, false
     icall panic_if<0x32>, v49
-    v50 = memory_object_load_element memoryfixedarray<4, 1>, v11, 3
+    v50 = memory_object_load_element memoryfixedarray<4, 1>, v9, 3
     v51 = insert_value struct0, undef struct0, 0, v41
     v52 = insert_value struct0, v51, 1, v44
     v53 = insert_value struct0, v52, 2, v47
     v54 = insert_value struct0, v53, 3, v50
     ret v54
   bb4:
-    v17 = mload v10
+    v17 = mload v11
     jump bb7
   bb7:
     v18 = phi [bb4: v5], [bb11: v18]
     v19 = phi [bb4: v6], [bb11: v19]
-    v20 = phi [bb4: v9], [bb11: v20]
-    v21 = phi [bb4: v10], [bb11: v21]
-    v22 = phi [bb4: v7], [bb11: v22]
-    v23 = phi [bb4: v17], [bb11: v23]
-    v24 = phi [bb4: v8], [bb11: v24]
-    v25 = phi [bb4: v11], [bb11: v25]
-    v26 = phi [bb4: v10], [bb11: v31]
-    v27 = ptrtoint memoryfixedarray v25 to i256
+    v20 = phi [bb4: v7], [bb11: v20]
+    v21 = phi [bb4: v8], [bb11: v21]
+    v22 = phi [bb4: v9], [bb11: v22]
+    v23 = phi [bb4: v10], [bb11: v23]
+    v24 = phi [bb4: v11], [bb11: v24]
+    v25 = phi [bb4: v17], [bb11: v25]
+    v26 = phi [bb4: v11], [bb11: v31]
+    v27 = ptrtoint memoryfixedarray v22 to i256
     v28 = gt v26, v27
     v29 = zext i1 v28 to i256
     v30 = ne v29, 0
@@ -136,7 +136,7 @@ fn @descending() -> struct0 [selector=0x94c06a58, inline_assembly, pure, abi_par
   bb9:
     v31 = sub v26, 32
     v32 = mload v31
-    v33 = gt v32, v23
+    v33 = gt v32, v25
     v34 = zext i1 v33 to i256
     v35 = eq v34, 0
     v36 = zext i1 v35 to i256
@@ -152,11 +152,11 @@ fn @descending() -> struct0 [selector=0x94c06a58, inline_assembly, pure, abi_par
   bb12:
     jump bb8
   bb8:
-    mstore v26, v23
+    mstore v26, v25
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v38 = add v21, 32
+    v38 = add v24, 32
     jump bb1
 }

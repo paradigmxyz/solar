@@ -47,9 +47,9 @@ fn @decode() [selector=0x49145c91, abi_wrapper, inline_assembly, pure] {
     mstore 64, v9 !metadata(memory=scratch)
     jump bb1
   bb1:
-    v11 = phi [bb9: 0], [bb3: v48]
+    v15 = phi [bb9: 0], [bb3: v48]
     v51 = phi [bb9: v101], [bb3: v52]
-    v16 = lt v11, v62
+    v16 = lt v15, v62
     jumpi v16, bb3, bb2
   bb2:
     v112 = mload 64 !metadata(memory=scratch)
@@ -88,10 +88,10 @@ fn @decode() [selector=0x49145c91, abi_wrapper, inline_assembly, pure] {
     v43 = sub v34, 16
     v44 = shl 4, v43
     v45 = or v44, v42
-    v46 = shr 1, v11
+    v46 = shr 1, v15
     v47 = add v5, v46
     mstore8 v47, v45
-    v48 = add v11, 2
+    v48 = add v15, 2
     v52 = add v51, 2
     jump bb1
   bb7:

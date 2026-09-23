@@ -147,14 +147,14 @@ fn @writeBytes4(arg0: memptr, arg1: i256) [may_return_memory, pure] {
     v20 = add v22, 32
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb5: v15]
-    v4 = lt v1, 4
+    v3 = phi [bb0: 0], [bb5: v15]
+    v4 = lt v3, 4
     jumpi v4, bb3, bb2
   bb2:
     ret
   bb3:
-    v7 = byte v1, arg1
-    v15 = add v1, 1
+    v7 = byte v3, arg1
+    v15 = add v3, 1
     v10 = mload v22
     v11 = lt v15, v10
     jumpi v11, bb5, bb4
@@ -191,13 +191,13 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: memptr, arg3: i256, arg4: i256) [ma
     v100 = add v102, 32
     jump bb8
   bb8:
-    v40 = phi [bb4: 0], [bb15: v83]
-    v43 = lt v40, arg4
+    v42 = phi [bb4: 0], [bb15: v83]
+    v43 = lt v42, arg4
     jumpi v43, bb9, bb22
   bb22:
     ret
   bb9:
-    v73 = add arg3, v40
+    v73 = add arg3, v42
     v45 = mload v103
     v46 = lt v73, v45
     jumpi v46, bb14, bb11
@@ -205,13 +205,13 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: memptr, arg3: i256, arg4: i256) [ma
     v96 = add v95, v73
     v97 = mload v96
     v98 = byte 0, v97
-    v81 = add arg1, v40
+    v81 = add arg1, v42
     v52 = lt v81, v0
     jumpi v52, bb15, bb11
   bb15:
     v101 = add v100, v81
     mstore8 v101, v98
-    v83 = add v40, 1
+    v83 = add v42, 1
     jump bb8
   bb3:
     v92 = add v102, 32
@@ -224,15 +224,15 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: memptr, arg3: i256, arg4: i256) [ma
     v120 = sub v119, 1
     jump bb6
   bb6:
-    v16 = phi [bb3: arg4], [bb13: v79]
+    v21 = phi [bb3: arg4], [bb13: v79]
     v116 = phi [bb3: v115], [bb13: v117]
     v121 = phi [bb3: v120], [bb13: v122]
-    v22 = gt v16, 0
+    v22 = gt v21, 0
     jumpi v22, bb7, bb5
   bb5:
     ret
   bb7:
-    v69 = add arg3, v16
+    v69 = add arg3, v21
     v70 = lt v69, arg3
     jumpi v70, bb16, bb17
   bb17:
@@ -246,7 +246,7 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: memptr, arg3: i256, arg4: i256) [ma
   bb12:
     v89 = mload v121
     v90 = byte 0, v89
-    v75 = add arg1, v16
+    v75 = add arg1, v21
     v76 = lt v75, arg1
     jumpi v76, bb16, bb19
   bb19:
@@ -255,7 +255,7 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: memptr, arg3: i256, arg4: i256) [ma
     jumpi v33, bb13, bb11
   bb13:
     mstore8 v116, v90
-    v79 = sub v16, 1
+    v79 = sub v21, 1
     v117 = sub v116, 1
     v122 = sub v121, 1
     jump bb6
@@ -290,21 +290,21 @@ fn @fill(arg0: memptr, arg1: i256, arg2: i256) [may_return_memory, pure] {
     v17 = add v19, 32
     jump bb1
   bb1:
-    v2 = phi [bb0: 0], [bb4: v14]
-    v5 = lt v2, arg1
+    v4 = phi [bb0: 0], [bb4: v14]
+    v5 = lt v4, arg1
     jumpi v5, bb5, bb2
   bb2:
     ret
   bb5:
     v7 = mload v19
-    v8 = lt v2, v7
+    v8 = lt v4, v7
     jumpi v8, bb4, bb3
   bb3:
     tail_call @revert_stub
   bb4:
-    v18 = add v17, v2
+    v18 = add v17, v4
     mstore8 v18, v10
-    v14 = add v2, 1
+    v14 = add v4, 1
     jump bb1
 }
 

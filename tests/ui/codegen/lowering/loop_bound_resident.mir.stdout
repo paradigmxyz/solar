@@ -4,27 +4,27 @@ fn @accumulate(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf39fb277,
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v0]
-    v1 = phi [bb0: arg0], [bb3: v8]
+    v0 = phi [bb0: arg0], [bb3: v8]
+    v1 = phi [bb0: arg1], [bb3: v9]
     v2 = phi [bb0: arg2], [bb3: v2]
-    v3 = phi [bb0: 0], [bb3: v10]
-    v4 = phi [bb0: arg1], [bb3: v9]
-    v5 = lt v3, v2
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v10]
+    v5 = lt v4, v2
     v6 = zext i1 v5 to i256
     v7 = ne v6, 0
     jumpi v7, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v1
+    ret v0
   bb4:
-    v8 = add v1, v4
-    v9 = add v4, v3
+    v8 = add v0, v1
+    v9 = add v1, v4
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v10 = add v3, 1
+    v10 = add v4, 1
     jump bb1
 }
 
@@ -40,8 +40,8 @@ fn @orderedSuffix(arg0: memoryarray) -> i256 [selector=0xf6f5f115, inline_assemb
     jump bb1
   bb1:
     v5 = phi [bb0: arg0], [bb5: v5]
-    v6 = phi [bb0: v4], [bb5: v6]
-    v7 = phi [bb0: 0], [bb5: v7]
+    v6 = phi [bb0: 0], [bb5: v6]
+    v7 = phi [bb0: v4], [bb5: v7]
     v8 = phi [bb0: v4], [bb5: v20]
     v9 = ptrtoint memoryarray v5 to i256
     v10 = add v9, 32
@@ -69,7 +69,7 @@ fn @orderedSuffix(arg0: memoryarray) -> i256 [selector=0xf6f5f115, inline_assemb
   bb6:
     jump bb2
   bb2:
-    v21 = sub v6, v8
+    v21 = sub v7, v8
     v22 = shr 5, v21
     ret v22
 }
