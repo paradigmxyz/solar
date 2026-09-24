@@ -42,6 +42,14 @@ library WordArrays {
         return false;
     }
 
+    /// @dev A new array holding the elements of `a`.
+    function copy(uint256[] memory a) internal pure returns (uint256[] memory c) {
+        c = new uint256[](a.length);
+        for (uint256 i; i < a.length; ++i) {
+            c[i] = a[i];
+        }
+    }
+
     /// @dev Removes adjacent duplicates from sorted `a` in place.
     function uniquifySorted(uint256[] memory a) internal pure {
         if (a.length < 2) return;
@@ -219,6 +227,14 @@ library WordArrays {
             seen[slot] = i + 1;
         }
         return false;
+    }
+
+    /// @dev A new array holding the elements of `a`.
+    function copy(int256[] memory a) internal pure returns (int256[] memory c) {
+        c = new int256[](a.length);
+        for (uint256 i; i < a.length; ++i) {
+            c[i] = a[i];
+        }
     }
 
     /// @dev Removes adjacent duplicates from sorted `a` in place.
@@ -400,6 +416,14 @@ library WordArrays {
         return false;
     }
 
+    /// @dev A new array holding the elements of `a`.
+    function copy(address[] memory a) internal pure returns (address[] memory c) {
+        c = new address[](a.length);
+        for (uint256 i; i < a.length; ++i) {
+            c[i] = a[i];
+        }
+    }
+
     /// @dev Removes adjacent duplicates from sorted `a` in place.
     function uniquifySorted(address[] memory a) internal pure {
         if (a.length < 2) return;
@@ -577,6 +601,14 @@ library WordArrays {
             seen[slot] = i + 1;
         }
         return false;
+    }
+
+    /// @dev A new array holding the elements of `a`.
+    function copy(bytes32[] memory a) internal pure returns (bytes32[] memory c) {
+        c = new bytes32[](a.length);
+        for (uint256 i; i < a.length; ++i) {
+            c[i] = a[i];
+        }
     }
 
     /// @dev Removes adjacent duplicates from sorted `a` in place.

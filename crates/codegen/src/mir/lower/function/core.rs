@@ -21,6 +21,9 @@
 //! cannot fail, because every committed element consumes an input element and
 //! the output holds as many as the inputs can supply, so the lowering leaves
 //! them out; the output allocation keeps the body's size and panics.
+//! `WordArrays.copy` allocates like the body's `new` and moves the length word
+//! and the elements with one `mcopy`, instead of zeroing the words it then
+//! overwrites one at a time.
 
 use super::*;
 use solar_sema::core::CoreIntrinsic;
@@ -111,6 +114,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::ArrayDifference => {
                 self.lower_core_array_set_call(&operands, &parameter_tys, SetOperation::Difference)
             }
+            CoreIntrinsic::ArrayCopy => self.lower_core_array_copy_call(&operands, &parameter_tys),
             CoreIntrinsic::StringReplace => self.lower_core_string_replace_call(&operands),
             CoreIntrinsic::StringIndicesOf => self.lower_core_string_indices_of_call(&operands),
             CoreIntrinsic::StringSplit => self.lower_core_string_split_call(&operands),
@@ -119,6 +123,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.lower_core_string_index_of_call(&operands, true)
             }
             CoreIntrinsic::StringRuneCount => self.lower_core_string_rune_count_call(&operands),
+            CoreIntrinsic::StringRepeat => self.lower_core_string_repeat_call(&operands),
             CoreIntrinsic::StringToString => {
                 self.lower_core_string_to_string_call(&operands, &parameter_tys)
             }
@@ -591,6 +596,59 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(())
         })?;
         Some(self.builder.icall(helper, vec![*a, *b], array))
+    }
+
+    /// Lowers every `copy` overload to one helper; addresses get their own, so
+    /// callers of the word helper cannot widen the proved width of their results.
+    fn lower_core_array_copy_call(
+        &mut self,
+        operands: &[ValueId],
+        parameter_tys: &[Ty<'gcx>],
+    ) -> Option<ValueId> {
+        let ([a], [array_ty]) = (operands, parameter_tys) else { return None };
+        let TyKind::DynArray(element) = array_ty.peel_refs().kind else { return None };
+        let address = matches!(element.kind, TyKind::Elementary(ElementaryType::Address(_)));
+        let name = if address { sym::core_array_copy_address } else { sym::core_array_copy };
+        let array = MirType::MemoryObject(MemoryObjectKind::DynamicArray);
+        let helper = self.lazy_helper(name, |this, function| {
+            function.attributes.no_inline = true;
+            function.attributes.preserves_array_elements = true;
+            function.attributes.returns_param_elements = true;
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            let a = lowerer.builder.add_param(array);
+            lowerer.builder.set_return_type(array);
+            let copy = lowerer.lower_core_array_copy(a);
+            lowerer.builder.ret([copy]);
+            Some(())
+        })?;
+        Some(self.builder.icall(helper, vec![*a], array))
+    }
+
+    /// Copies a word array as the body's `new` and element loop do: the same
+    /// allocation and panics, then the length word and elements in one move.
+    fn lower_core_array_copy(&mut self, a: ValueId) -> ValueId {
+        // length = len(a)
+        // panic 0x41 if length >> 64 != 0, as `new` checks its length
+        // size = (length + 1) << 5
+        // c = alloc size, uninitialized
+        // mcopy(c, a, size)
+        let length = self.builder.memory_object_len(a, MemoryObjectKind::DynamicArray);
+        let shifting = self.cx.gcx.sess.opts.evm_version.has_bitwise_shifting();
+        let too_long = self.builder.exceeds_bits(length, 64, shifting);
+        self.builder.panic_if(too_long, PanicCode::MemoryAllocationOverflow);
+        let one = self.builder.imm(1);
+        let words = self.builder.add(length, one);
+        let five = self.builder.imm(5);
+        let size = self.builder.shl(five, words);
+        let copy = self.builder.alloc_object(
+            size,
+            MemoryObjectLayout::WORD_ARRAY,
+            AllocationSemantics::SOLIDITY_UNINITIALIZED,
+        );
+        let destination = self.builder.cast_word(copy);
+        let source = self.builder.cast_word(a);
+        self.builder.mcopy_heap(destination, source, size);
+        copy
     }
 
     /// Merges two word arrays the way the module's bodies do, without their
