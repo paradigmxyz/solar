@@ -26,21 +26,21 @@
 -     ret v2
   }
   
-  fn @specialized_a(arg0: i256) -> i256 {
+  fn @specialized_a(arg0: i256) -> i256 [selector=0x00000003] {
     bb0:
 -     v0 = icall @mixed_helper, 0, arg0
 +     v0 = icall @mixed_helper.7, 0, arg0
       ret v0
   }
   
-  fn @specialized_b(arg0: i256) -> i256 {
+  fn @specialized_b(arg0: i256) -> i256 [selector=0x00000004] {
     bb0:
 -     v0 = icall @mixed_helper, 0, arg0
 +     v0 = icall @mixed_helper.7, 0, arg0
       ret v0
   }
   
-  fn @generic(arg0: i256, arg1: i256) -> i256 {
+  fn @generic(arg0: i256, arg1: i256) -> i256 [selector=0x00000005] {
     bb0:
 -     v0 = icall @mixed_helper, arg0, arg1
 +     v0 = icall @mixed_helper.6, arg0, arg1
@@ -92,21 +92,21 @@
       ret v3
   }
   
-  fn @specialized_a(arg0: i256) -> i256 {
+  fn @specialized_a(arg0: i256) -> i256 [selector=0x00000003] {
     bb0:
 -     v0 = icall @mixed_helper.7, 0, arg0
 +     v0 = icall @mixed_helper.7, arg0
       ret v0
   }
   
-  fn @specialized_b(arg0: i256) -> i256 {
+  fn @specialized_b(arg0: i256) -> i256 [selector=0x00000004] {
     bb0:
 -     v0 = icall @mixed_helper.7, 0, arg0
 +     v0 = icall @mixed_helper.7, arg0
       ret v0
   }
   
-  fn @generic(arg0: i256, arg1: i256) -> i256 {
+  fn @generic(arg0: i256, arg1: i256) -> i256 [selector=0x00000005] {
     bb0:
       v0 = icall @mixed_helper.6, arg0, arg1
       ret v0
