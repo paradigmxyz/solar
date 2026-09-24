@@ -19,14 +19,17 @@
 // PORTABLE-LABEL: fn @get
 // PORTABLE: icall @load
 
-// `Slots.storeBytes` hashes the root's slot once and stores each whole word
-// without a check of its own; the range and the count are checked up front.
+// `Slots.storeBytes` stores each whole word from a source cursor to a slot
+// stepping from the hash of the root's slot, without a check of its own; the
+// range and the count are checked up front. The hash starts the slot, and the
+// rest of the range goes to the slot where the loop stops.
 // INTRINSIC-LABEL: fn @put
-// INTRINSIC: keccak256 0, 32
-// INTRINSIC-NOT: keccak256
-// INTRINSIC: sstore
-// INTRINSIC-NOT: keccak256
+// INTRINSIC: [[HASH:v[0-9]+]] = keccak256 0, 32
+// INTRINSIC: [[SLOT:v[0-9]+]] = phi [{{bb[0-9]+}}: [[HASH]]]
+// INTRINSIC: sstore [[SLOT]], {{v[0-9]+}}
 // INTRINSIC: stop
+// INTRINSIC: sstore [[SLOT]], {{v[0-9]+}}
+// INTRINSIC-NOT: keccak256
 import {Slots} from "solar:core/v1/Slots.sol";
 
 contract Test {
