@@ -47,6 +47,8 @@ impl EvmMemoryLayout {
     pub(crate) const INTERNAL_FRAME_HEADER_SIZE: u64 = 2 * Self::WORD_SIZE;
     /// Maximum memory pointer accepted by Solidity-compatible allocation.
     pub(crate) const MAX_ALLOCATION_END: u64 = u64::MAX;
+    /// Bits of an accepted allocation end: `MAX_ALLOCATION_END` is `2^64 - 1`.
+    pub(crate) const ALLOCATION_END_BITS: u32 = u64::BITS;
     /// Returns whether an absolute address is in reserved low memory.
     #[must_use]
     pub(crate) const fn is_reserved(address: u64) -> bool {

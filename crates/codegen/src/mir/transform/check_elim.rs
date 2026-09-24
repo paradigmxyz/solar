@@ -27,7 +27,9 @@
 //! undecided drops any `or` operand proven false and `and` operand proven true,
 //! as the `x == 0` half of a checked product's `x == 0 || x * y / x == y` when
 //! `x` is a counter above zero, and the branch reads what remains. Anything
-//! that is not provable is left untouched. Explicit integer casts retain range facts only
+//! A width test spelled as a shift, `x >> k` being zero, bounds `x` below `2^k`, and a zero-extended test is zero
+//! exactly when the test is false, so failure words that `or` several tests
+//! still give each test's fact on the passing edge. Explicit integer casts retain range facts only
 //! when their width and sign semantics preserve the bounded values. Semantic checks use the same
 //! facts in instruction order: a passing check refines all later execution, and a proven passing
 //! check can be removed before expansion. Facts roll back on leaving each dominator subtree, so a
@@ -1371,6 +1373,23 @@ impl<'a> CheckEliminator<'a> {
                 self.assume(func, a, false, depth);
                 self.assume(func, b, false, depth);
             }
+            // `shr k, x` is nonzero exactly when `x >= 2^k`.
+            InstKind::Shr(shift, x) => {
+                if let Some(bits) = shift_amount(self, func, shift, depth) {
+                    if bits == 0 {
+                        self.assume(func, x, truth, depth);
+                    } else {
+                        let limit = U256::MAX >> (256 - bits);
+                        if truth {
+                            self.narrow(x, Range::new(limit + U256::from(1), U256::MAX));
+                        } else {
+                            self.narrow(x, Range::new(U256::ZERO, limit));
+                        }
+                    }
+                }
+            }
+            // A zero extension is zero exactly when its source is.
+            InstKind::Zext(source) => self.assume(func, source, truth, depth),
             _ => {}
         }
     }
