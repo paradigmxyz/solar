@@ -535,10 +535,10 @@ fn @encode_abi_array(arg0: i256, arg1: memptr) -> i256 [may_return_memory] {
     v6 = mul v2, v5
     mstore v0, v6
     v7 = add v0, 32
-    v8 = shl 5, v6
-    v9 = add v7, v8
     v37 = add arg0, 32
     v11 = inttoptr i256 v37 to memptr
+    v8 = shl 5, v6
+    v9 = add v7, v8
     jump bb1
   bb1:
     v12 = phi [bb0: v6], [bb2: v32]

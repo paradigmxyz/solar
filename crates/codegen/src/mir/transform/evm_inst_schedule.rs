@@ -11,7 +11,12 @@
 //! work across an observable mutation, gas observation, call-gas boundary, or phi definition.
 //! Within each barrier-delimited segment, a deterministic dependency-first traversal emits operand
 //! producers in EVM push order and places values consumed by the following barrier or terminator
-//! last. Shared-result producers stay at their original positions because moving one use changes
+//! last. A jump into a loop header from outside the loop counts the values it hands to the
+//! header's phis as its inputs, the first phi's value on top, so the loop is entered with its
+//! changing words where the header's layout keeps them instead of permuting them on entry. The
+//! jump pushes constant inputs last, so a value handed to a phi before a constant one is left
+//! where it is: it cannot end above that constant.
+//! Shared-result producers stay at their original positions because moving one use changes
 //! which physical copy should survive for later consumers. Single-use islands between those pinned
 //! producers are still scheduled independently; references left in the arena by eliminated
 //! instructions do not count as sharing. The pass also preserves the producer order of binary
@@ -36,7 +41,8 @@
 //! [solx's EVM single-use-expression pass]: https://github.com/NomicFoundation/solx-llvm/blob/a2a603232892c9824f8783b55b49d5655d77a62c/llvm/lib/Target/EVM/EVMSingleUseExpression.cpp
 
 use crate::mir::{
-    Function, InstId, InstKind, Instruction, Module, Terminator, Value, ValueId,
+    BlockId, Function, InstId, InstKind, Instruction, Module, Terminator, Value, ValueId,
+    analysis::CfgInfo,
     pass::{MirPass, ModuleAnalyses, run_function_pass},
 };
 use smallvec::SmallVec;
@@ -65,6 +71,7 @@ impl EvmInstSchedule {
         let block_ids = func.blocks.indices();
         let shared_results = Self::shared_results(func);
         let mut scratch = ScheduleScratch::new(func.num_insts());
+        let loop_entries = Self::loop_entries(func);
 
         for block_id in block_ids {
             let original = std::mem::take(&mut func.blocks[block_id].instructions);
@@ -94,11 +101,13 @@ impl EvmInstSchedule {
                 segment_start = index + 1;
             }
 
-            let terminator_inputs = func.blocks[block_id]
-                .terminator
-                .as_ref()
-                .map(Self::terminator_stack_input_order)
-                .unwrap_or_default();
+            let terminator_inputs = match &func.blocks[block_id].terminator {
+                Some(Terminator::Jump(target)) if loop_entries.contains(block_id) => {
+                    Self::phi_input_order(func, block_id, *target)
+                }
+                Some(term) => Self::terminator_stack_input_order(term),
+                None => SmallVec::new(),
+            };
             Self::schedule_segment(
                 func,
                 &original[segment_start..],
@@ -155,6 +164,49 @@ impl EvmInstSchedule {
         let mut operands = SmallVec::from_iter(term.operands());
         operands.reverse();
         operands
+    }
+
+    /// Blocks that jump into a loop header from outside the loop.
+    fn loop_entries(func: &Function) -> DenseBitSet<BlockId> {
+        let mut entries = DenseBitSet::new_empty(func.blocks.len());
+        let cfg = CfgInfo::new(func);
+        for block in func.blocks.indices() {
+            if let Some(Terminator::Jump(target)) = func.blocks[block].terminator
+                && !cfg.dominators().dominates(target, block)
+                && func.blocks[target]
+                    .predecessors
+                    .iter()
+                    .any(|&latch| cfg.dominators().dominates(target, latch))
+            {
+                entries.insert(block);
+            }
+        }
+        entries
+    }
+
+    /// Returns the values a jump from `block` hands to `target`'s phis that the block can leave
+    /// in place, deepest stack input first: a loop header's first phi enters above the phis
+    /// after it. The jump pushes constant inputs above everything the block leaves, so only
+    /// the inputs of the phis after the last constant one can already sit where they enter.
+    fn phi_input_order(func: &Function, block: BlockId, target: BlockId) -> SmallVec<[ValueId; 8]> {
+        let mut inputs = func.blocks[target]
+            .instructions
+            .iter()
+            .map_while(|&inst| match &func.inst(inst).kind {
+                InstKind::Phi(incoming) => {
+                    Some(incoming.iter().find(|&&(pred, _)| pred == block).map(|&(_, value)| value))
+                }
+                _ => None,
+            })
+            .flatten()
+            .collect::<SmallVec<[_; 8]>>();
+        if let Some(last_constant) =
+            inputs.iter().rposition(|&value| func.value(value).as_immediate().is_some())
+        {
+            inputs.drain(..=last_constant);
+        }
+        inputs.reverse();
+        inputs
     }
 
     fn schedule_segment(

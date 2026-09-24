@@ -549,8 +549,8 @@ fn @decode.8(arg0: memptr) -> memptr [may_return_memory, pure] {
     v430 = calldatasize
     calldatacopy v423, v430, v33
     mstore v423, v29
-    v431 = add v423, 32
     v436 = add v413, 32
+    v431 = add v423, 32
     jump bb30
   bb30:
     v162 = phi [bb64: 0], [bb37: v197]

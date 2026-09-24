@@ -279,9 +279,9 @@ fn @cleanup_return(arg0: memptr) -> memptr [may_return_memory] {
     mstore 64, v27 !metadata(memory=scratch)
     mstore v26, v0
     v17 = add v24, 32
-    v21 = add v26, 32
     v32 = shl 5, v0
     v33 = add v17, v32
+    v21 = add v26, 32
     jump bb4
   bb4:
     v28 = phi [bb3: v17], [bb5: v29]

@@ -223,8 +223,8 @@ fn @unpackTwo(arg0: i256) -> struct0 [may_return_memory, pure, return_abi=[mempt
     calldatacopy v106, v114, v42
     mstore v106, v90
     v95 = add v106, 32
-    v115 = add v86, 2
     v120 = add v95, v90
+    v115 = add v86, 2
     jump bb4
   bb4:
     v116 = phi [bb11: v115], [bb8: v117]

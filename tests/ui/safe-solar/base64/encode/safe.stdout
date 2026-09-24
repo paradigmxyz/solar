@@ -91,10 +91,10 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, pure] {
     v337 = calldatasize
     calldatacopy v321, v337, v15
     mstore v321, v11
-    v353 = add v321, 32
     v356 = add v321, v11
     v357 = add v356, 32
     v360 = add v309, v228
+    v353 = add v321, 32
     jump bb2
   bb2:
     v354 = phi [bb37: v353], [bb19: v355]
