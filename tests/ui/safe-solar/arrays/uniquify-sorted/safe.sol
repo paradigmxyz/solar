@@ -1,5 +1,6 @@
-//@ revisions: intrinsic portable
+//@ revisions: intrinsic size portable
 //@[intrinsic] compile-flags: -Ogas
+//@[size] compile-flags: -Osize
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
 //@ run-call: uniqueUint [1, 1, 2, 2, 3] => [1, 2, 3]
 //@ run-call: uniqueUint [1, 1, 2, 1] => [1, 2, 1]

@@ -1,5 +1,6 @@
-//@ revisions: intrinsic portable
+//@ revisions: intrinsic size portable
 //@[intrinsic] compile-flags: -Ogas
+//@[size] compile-flags: -Osize
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
 //@ run-call: sortUint [3, 1, 2] => [1, 2, 3]
 //@ run-call: sortInt [2, -3, 1] => [-3, 1, 2]
@@ -8,6 +9,11 @@
 //@ run-call: sortSignedGenerated 129, 11; gas=15000000 => true
 //@ run-call: sortAddressGenerated 65, 13; gas=15000000 => true
 //@ run-call: sortDuplicateHeavy 257; gas=15000000 => true
+//@ run-call: sortUint [] => []
+//@ run-call: sortUint [7] => [7]
+//@ run-call: sortUint [1, 2, 3] => [1, 2, 3]
+//@ run-call: sortUint [5, 4, 3, 2, 1] => [1, 2, 3, 4, 5]
+//@ run-call: sortInt [3, 2, -1, -5] => [-5, -1, 2, 3]
 
 import {WordArrays} from "solar:core/v1/WordArrays.sol";
 
