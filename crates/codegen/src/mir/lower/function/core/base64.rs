@@ -33,6 +33,15 @@
 //! mask as soon as it is known, so few lane masks are live and the loop keeps
 //! its state on the stack.
 //!
+//! Builds that do not optimize for gas take the smallest shapes instead, with
+//! the same results and failures. Encoding runs three input bytes at a time
+//! through the alphabet in scratch: each group's load ends at its last byte and
+//! clears the bytes past the input, four byte lookups write its characters, and
+//! one store writes the padding. Decoding takes one character at a time: its
+//! range gives its sextet or an invalid mark, the group so far is stored at the
+//! group's output after each character, and one test after the loop rejects an
+//! input with any invalid character.
+//!
 //! Each output owns an extra word of capacity, allowing whole-word stores at
 //! the final position without touching another object. Logical length excludes
 //! that capacity; stores initialize every returned byte and its ABI padding.
@@ -110,6 +119,11 @@ impl FunctionLowerer<'_, '_> {
         self.builder.ret([empty_out]);
 
         self.builder.switch_to_block(nonempty);
+        if !self.cx.gcx.sess.opts.optimization.is_gas() {
+            let out = encode_compact(&mut self.builder, input, n, file_safe, no_padding);
+            self.builder.ret([out]);
+            return Some(());
+        }
         for groups in 1..=2 {
             // if n <= 3 * groups: ret encode_lanes(input, n, groups)
             let block = self.builder.create_block();
@@ -242,6 +256,115 @@ impl FunctionLowerer<'_, '_> {
         self.builder.mstore(output, last);
         out
     }
+}
+
+/// Encodes a nonempty input three bytes at a time through the alphabet in
+/// scratch, the smallest shape, for builds that do not optimize for gas. Each
+/// group's load ends at its last byte, and the bytes past the input are cleared
+/// in the loaded word, so the last group reads zeros there. One final store
+/// writes the '=' padding, or zeros when it is omitted, and the ABI padding.
+fn encode_compact(
+    builder: &mut FunctionBuilder<'_>,
+    input: ValueId,
+    n: ValueId,
+    file_safe: ValueId,
+    no_padding: ValueId,
+) -> ValueId {
+    // groups = (n + 2) / 3; padded = 4 * groups (both checked, as the body)
+    // unpadded = n + groups; length = no_padding ? unpadded : padded
+    let two = builder.imm(2);
+    let three = builder.imm(3);
+    let four = builder.imm(4);
+    let rounded = builder.add(n, two);
+    let overflow = builder.lt(rounded, n);
+    builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
+    let groups = builder.div(rounded, three);
+    let padded = builder.mul(groups, four);
+    let recovered = builder.div(padded, four);
+    let overflow = builder.ne(recovered, groups);
+    builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
+    let unpadded = builder.add(n, groups);
+    let dropped = builder.sub(padded, unpadded);
+    let no_padding_word = builder.cast(no_padding, MirType::I256);
+    let omitted = builder.mul(no_padding_word, dropped);
+    let length = builder.sub(padded, omitted);
+    // out = alloc(header + length + 32); out.length = length
+    let extra = builder.imm(32);
+    let capacity = builder.checked_add(length, extra);
+    let out = builder.alloc_bytes_object(capacity, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+    builder.set_memory_object_len(out, length, MemoryObjectKind::Bytes);
+    let destination = builder.memory_object_data(out, MemoryObjectKind::Bytes);
+
+    // scratch[0..64] = "ABC...xyz0123456789" ++ ("+/" or "-_")
+    let zero = builder.imm(0);
+    let first = builder.imm(U256::from_be_slice(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef"));
+    builder.mstore(zero, first);
+    let second = builder.imm(U256::from_be_slice(b"ghijklmnopqrstuvwxyz0123456789+/"));
+    let url_safe = builder.imm(0x0670);
+    let file_safe = builder.cast(file_safe, MirType::I256);
+    let url_safe = builder.mul(file_safe, url_safe);
+    let second = builder.xor(second, url_safe);
+    let thirty_two = builder.imm(32);
+    builder.mstore(thirty_two, second);
+
+    // do:
+    //     x = mload(cursor - 29) & ~(MAX >> 8 * (end - cursor + 29))
+    //     output[k] = byte(0, mload(x >> (18 - 6k) & 63)) for k in 0..4
+    //     cursor += 3; output += 4
+    // while cursor < end
+    let source = builder.cast(input, MirType::MemPtr);
+    let data = builder.add(source, thirty_two);
+    let end = builder.add(data, n);
+    let entry = builder.current_block();
+    let body = builder.create_block();
+    let exit = builder.create_block();
+    builder.jump(body);
+
+    builder.switch_to_block(body);
+    let cursor = builder.phi(vec![(entry, data)]);
+    let output = builder.phi(vec![(entry, destination)]);
+    let back = builder.imm(29);
+    let window = builder.sub(cursor, back);
+    let word = builder.mload(window);
+    let remaining = builder.sub(end, cursor);
+    let kept = builder.add(remaining, back);
+    let kept_bits = builder.shl(three, kept);
+    let all = builder.imm(U256::MAX);
+    let past = builder.shr(kept_bits, all);
+    let keep = builder.not(past);
+    let word = builder.and(word, keep);
+    let sixty_three = builder.imm(63);
+    for lane in 0..4u64 {
+        let right = builder.imm(18 - 6 * lane);
+        let sextet = builder.shr(right, word);
+        let sextet = builder.and(sextet, sixty_three);
+        let entry = builder.mload(sextet);
+        let character = builder.byte(zero, entry);
+        let position = builder.add_u64_offset(output, lane);
+        builder.mstore8(position, character);
+    }
+    let next_cursor = builder.add(cursor, three);
+    let next_output = builder.add(output, four);
+    let more = builder.lt(next_cursor, end);
+    let latch = builder.current_block();
+    builder.branch(more, body, exit);
+    builder.add_phi_incoming(cursor, latch, next_cursor);
+    builder.add_phi_incoming(output, latch, next_output);
+
+    // The characters past the input's groups: '=' up to the padded length
+    // unless padding is omitted, then zero.
+    // pad = no_padding ? 0 : "==" << 240 & ~(MAX >> 8 * (padded - unpadded))
+    // data[unpadded..unpadded + 32] = pad
+    builder.switch_to_block(exit);
+    let dropped_bits = builder.shl(three, dropped);
+    let beyond = builder.shr(dropped_bits, all);
+    let within = builder.not(beyond);
+    let equals = builder.imm(U256::from(0x3d3d) << 240);
+    let padding = builder.and(equals, within);
+    let padding = flag_clear(builder, no_padding, padding);
+    let tail = builder.add(destination, unpadded);
+    builder.mstore(tail, padding);
+    out
 }
 
 /// Returns a fresh empty object. The terminal return encoder may then write
@@ -597,6 +720,14 @@ impl FunctionLowerer<'_, '_> {
         let n = self.builder.sub(raw_length, padding);
         let tail = self.builder.and(n, three);
         let mut exits = vec![(empty, empty_out)];
+        if !self.cx.gcx.sess.opts.optimization.is_gas() {
+            reject_invalid(&mut self.builder, lone);
+            let out = decode_compact(&mut self.builder, input, n, tail, imap);
+            exits.push((self.builder.current_block(), out));
+            self.builder.jump(done);
+            self.builder.switch_to_block(done);
+            return Some(self.builder.phi(exits));
+        }
         for lanes in [4, 8, 12, SHORT_DECODE_CHARS] {
             // if n <= lanes: result = decode_lanes(input, n, lanes)
             let block = self.builder.create_block();
@@ -702,6 +833,138 @@ fn decode_words(
     let end = builder.add(destination, length);
     let zero = builder.imm(0);
     builder.mstore(end, zero);
+    out
+}
+
+/// Decodes `n` characters after padding one at a time, the smallest shape, for
+/// builds that do not optimize for gas. Each character's sextet comes from its
+/// range, and one outside every range marks the accumulated value invalid.
+/// After each character the group so far is stored at the group's output, so
+/// the fourth character completes it; the last group keeps only its whole
+/// bytes, and the store past the output clears the rest and the ABI padding.
+/// The output is rejected after the loop if any character was invalid.
+fn decode_compact(
+    builder: &mut FunctionBuilder<'_>,
+    input: ValueId,
+    n: ValueId,
+    tail: ValueId,
+    imap: ValueId,
+) -> ValueId {
+    // length = n - n / 4 - (n % 4 != 0)
+    // out = alloc(header + align32(length + 32)); out.length = length
+    let length = decoded_length(builder, n, tail);
+    let slack = builder.imm(95);
+    let size = builder.add(length, slack);
+    let mask = builder.imm(U256::MAX << 5);
+    let size = builder.and(size, mask);
+    let out = builder.alloc_object(
+        size,
+        MemoryObjectLayout::Bytes,
+        AllocationSemantics::SOLIDITY_UNINITIALIZED,
+    );
+    builder.set_memory_object_len(out, length, MemoryObjectKind::Bytes);
+    let destination = builder.memory_object_data(out, MemoryObjectKind::Bytes);
+    let source = builder.cast(input, MirType::MemPtr);
+    let thirty_two = builder.imm(32);
+    let data = builder.add(source, thirty_two);
+    let end = builder.add(data, n);
+    let zero = builder.imm(0);
+    let entry = builder.current_block();
+    let body = builder.create_block();
+    let exit = builder.create_block();
+    builder.jump(body);
+
+    // do:
+    //     c = byte(0, mload(cursor))
+    //     v = c - 65 if 'A' <= c <= 'Z', c - 71 if 'a' <= c <= 'z', c + 4 if '0' <= c <= '9',
+    //         62 for '+' or '-', 63 for '/', '_' or (imap and ','), else 128
+    //     seen |= v; bits = bits << 6 | v; count = count + 1
+    //     output[0..32] = bits << 256 - 6 * count
+    //     output += 3 * (count == 4); count %= 4; cursor += 1
+    // while cursor < end
+    builder.switch_to_block(body);
+    let cursor = builder.phi(vec![(entry, data)]);
+    let output = builder.phi(vec![(entry, destination)]);
+    let bits = builder.phi(vec![(entry, zero)]);
+    let count = builder.phi(vec![(entry, zero)]);
+    let seen = builder.phi(vec![(entry, zero)]);
+    let word = builder.mload(cursor);
+    let character = builder.byte(zero, word);
+    let mut sextet = builder.imm(128);
+    let range = |builder: &mut FunctionBuilder<'_>, low: u64, span: u64, base: u64| {
+        // offset = c - low; inside = offset < span; value = offset + base
+        let low = builder.imm(low);
+        let offset = builder.sub(character, low);
+        let span = builder.imm(span);
+        let inside = builder.lt(offset, span);
+        let base = builder.imm(base);
+        let value = builder.add(offset, base);
+        (inside, value)
+    };
+    let singles = |builder: &mut FunctionBuilder<'_>, codes: &[u8]| {
+        // inside = c == codes[0] || c == codes[1] || ...
+        let mut inside = builder.imm_bool(false);
+        for &code in codes {
+            let code = builder.imm(code);
+            let hit = builder.eq(character, code);
+            inside = builder.or(inside, hit);
+        }
+        inside
+    };
+    for (inside, value) in [
+        range(builder, u64::from(b'A'), 26, 0),
+        range(builder, u64::from(b'a'), 26, 26),
+        range(builder, u64::from(b'0'), 10, 52),
+    ] {
+        sextet = builder.select(inside, value, sextet);
+    }
+    let plus = singles(builder, b"+-");
+    let sixty_two = builder.imm(62);
+    sextet = builder.select(plus, sixty_two, sextet);
+    let slash = singles(builder, b"/_");
+    let comma = builder.imm(u64::from(b','));
+    let comma = builder.eq(character, comma);
+    let comma = builder.and(comma, imap);
+    let slash = builder.or(slash, comma);
+    let sixty_three = builder.imm(63);
+    sextet = builder.select(slash, sixty_three, sextet);
+    let seen_next = builder.or(seen, sextet);
+    let six = builder.imm(6);
+    let shifted = builder.shl(six, bits);
+    let bits_next = builder.or(shifted, sextet);
+    let one = builder.imm(1);
+    let count_next = builder.add(count, one);
+    let count_bits = builder.mul(count_next, six);
+    let word_bits = builder.imm(256);
+    let unused = builder.sub(word_bits, count_bits);
+    let group = builder.shl(unused, bits_next);
+    builder.mstore(output, group);
+    let four = builder.imm(4);
+    let full = builder.eq(count_next, four);
+    let full = builder.cast(full, MirType::I256);
+    let three = builder.imm(3);
+    let step = builder.mul(full, three);
+    let output_next = builder.add(output, step);
+    let count_next = builder.and(count_next, three);
+    let cursor_next = builder.add(cursor, one);
+    let more = builder.lt(cursor_next, end);
+    let latch = builder.current_block();
+    builder.branch(more, body, exit);
+    builder.add_phi_incoming(cursor, latch, cursor_next);
+    builder.add_phi_incoming(output, latch, output_next);
+    builder.add_phi_incoming(bits, latch, bits_next);
+    builder.add_phi_incoming(count, latch, count_next);
+    builder.add_phi_incoming(seen, latch, seen_next);
+
+    // revert InvalidBase64() if seen & 128 != 0
+    // data[length..length + 32] = 0
+    builder.switch_to_block(exit);
+    let flag = builder.imm(128);
+    let invalid = builder.and(seen_next, flag);
+    let invalid = builder.ne_zero(invalid);
+    reject_invalid(builder, invalid);
+    let tail_address = builder.add(destination, length);
+    builder.mstore(tail_address, zero);
     out
 }
 
