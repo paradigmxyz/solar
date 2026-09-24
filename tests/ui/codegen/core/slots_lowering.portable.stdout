@@ -1,0 +1,106 @@
+// === <solar:core/v1/Slots.sol>:Slots ===
+@module Slots
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/slots_lowering.sol:Test ===
+@module Test
+@phase lowered
+fn @get() [selector=0x9507d39a, abi_wrapper, view] {
+  bb0:
+    v1 = calldatasize
+    v2 = lt v1, 36
+    jumpi v2, bb1, bb2
+  bb2:
+    v0 = icall @load, arg0
+    mstore 128, v0
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @set() [selector=0x64c4ef1a, abi_wrapper] {
+  bb0:
+    v0 = calldatasize
+    v1 = lt v0, 68
+    jumpi v1, bb1, bb2
+  bb2:
+    icall @store, arg0, arg1
+    stop
+  bb1:
+    revert 0, 0
+}
+
+fn @load(arg0: i256) -> i256 [inline_assembly, view] {
+  bb0:
+    v0 = shr 64, arg0
+    v1 = ne v0, 0
+    jumpi v1, bb1, bb2
+  bb2:
+    v3 = phi [bb0: arg0]
+    mstore 0, 0
+    v5 = add v3, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
+    v6 = sload v5 !metadata(storage=offset(v3, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
+    ret v6
+  bb1:
+    tail_call @_outOfBounds
+}
+
+fn @store(arg0: i256, arg1: i256) [inline_assembly] {
+  bb0:
+    v0 = shr 64, arg0
+    v1 = ne v0, 0
+    jumpi v1, bb1, bb2
+  bb2:
+    v3 = phi [bb0: arg0]
+    mstore 0, 0
+    v5 = add v3, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
+    sstore v5, arg1 !metadata(storage=offset(v3, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
+    ret
+  bb1:
+    tail_call @_outOfBounds
+}
+
+fn @_outOfBounds() -> i256 [pure] {
+  bb0:
+    v6 = mload 64 !metadata(memory=scratch)
+    v7 = add v6, 32
+    v8 = lt v7, v6
+    v9 = zext i1 v8 to i256
+    v10 = shr 64, v7
+    v11 = or v9, v10
+    v12 = ne v11, 0
+    jumpi v12, bb2, bb1
+  bb1:
+    mstore 64, v7 !metadata(memory=scratch)
+    mstore v6, 0
+    mstore v6, 0
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
+  bb2:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb4, [0x64c4ef1a => bb2, 0x9507d39a => bb3]
+  bb3:
+    tail_call @get
+  bb2:
+    tail_call @set
+  bb4:
+    revert 0, 0
+}

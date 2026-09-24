@@ -60,6 +60,8 @@ pub const MODULES: &[CoreModule] = &[
         source: include_str!("v1/codecs/Base64.sol"),
     },
     CoreModule { path: "solar:core/v1/codecs/Hex.sol", source: include_str!("v1/codecs/Hex.sol") },
+    CoreModule { path: "solar:core/v1/Slots.sol", source: include_str!("v1/Slots.sol") },
+    CoreModule { path: "solar:core/v1/Return.sol", source: include_str!("v1/Return.sol") },
 ];
 
 /// Whether `path` lies under the reserved prefix.
@@ -166,6 +168,12 @@ pub enum CoreIntrinsic {
     StringUnpackTwo,
     /// `Revert.raw(data)`: revert with exactly `data`.
     RevertRaw,
+    /// `Return.abiEncoded(s)`: end the call returning `s` ABI-encoded.
+    ReturnAbiEncoded,
+    /// `Slots.load(root, index)`: the word `index` slots past the root's hash.
+    SlotsLoad,
+    /// `Slots.store(root, index, value)`.
+    SlotsStore,
     /// `Hash.keccak256Range(b, offset, count)`: hash a range where it lies.
     Keccak256Range,
     /// `Create.deploy(initcode, value)`: create, reverting on failure.
@@ -251,6 +259,8 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
     static BASE64: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static STRINGS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static HEX: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static RETURN: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static SLOTS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     match path {
         "solar:core/v1/codecs/Hex.sol" => Some(HEX.get_or_init(|| {
             // `decode` is library code.
@@ -337,6 +347,15 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
         "solar:core/v1/Revert.sol" => Some(
             REVERT.get_or_init(|| FxHashMap::from_iter([(sym::raw, CoreIntrinsic::RevertRaw)])),
         ),
+        "solar:core/v1/Return.sol" => Some(RETURN.get_or_init(|| {
+            FxHashMap::from_iter([(sym::abiEncoded, CoreIntrinsic::ReturnAbiEncoded)])
+        })),
+        "solar:core/v1/Slots.sol" => Some(SLOTS.get_or_init(|| {
+            FxHashMap::from_iter([
+                (sym::load, CoreIntrinsic::SlotsLoad),
+                (sym::store, CoreIntrinsic::SlotsStore),
+            ])
+        })),
         "solar:core/v1/Hash.sol" => Some(HASH.get_or_init(|| {
             FxHashMap::from_iter([(sym::keccak256Range, CoreIntrinsic::Keccak256Range)])
         })),
