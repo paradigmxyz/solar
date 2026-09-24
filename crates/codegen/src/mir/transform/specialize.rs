@@ -16,11 +16,13 @@
 //! costs no more to materialize than duplicating the argument, and dead-argument
 //! elimination then drops the parameter. Calls from functions no entry reaches
 //! are ignored: they are dead, and function DCE deletes them before code is
-//! emitted. Tail calls, public entries, baked frame
-//! addresses and explicitly non-inlineable helpers are excluded. Cloning is bounded to one
-//! candidate per original body per pass; subsequent dead-argument elimination removes the
-//! specialized parameters. Run after function-pointer specialization and before dead-argument
-//! elimination.
+//! emitted. Tail calls, public entries and baked frame addresses are excluded,
+//! and so are explicitly non-inlineable helpers in gas builds. Size builds
+//! specialize those too: a literal every caller passes is substituted in
+//! place, which clones nothing, and a clone must still shrink the module.
+//! Cloning is bounded to one candidate per original body per pass; subsequent
+//! dead-argument elimination removes the specialized parameters. Run after
+//! function-pointer specialization and before dead-argument elimination.
 
 use crate::{
     mir::{
@@ -132,7 +134,7 @@ fn specialize_round(
             || body.attributes.is_constructor
             || body.attributes.is_fallback
             || body.attributes.is_receive
-            || body.attributes.no_inline
+            || (body.attributes.no_inline && gcx.sess.opts.optimization.is_gas())
             || module.dispatch_entry() == Some(callee)
         {
             continue;
