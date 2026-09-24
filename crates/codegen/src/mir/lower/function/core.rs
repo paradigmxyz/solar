@@ -1254,6 +1254,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         high: ValueId,
         pair: Option<ValueId>,
     ) {
+        // Other builds than gas sort every range, sorted or not, without the scans.
+        if !self.cx.gcx.sess.opts.optimization.is_gas() {
+            self.call_core_sort_inner(inner, order, low, high, pair);
+            return;
+        }
         let word = self.builder.imm(32);
         let last = self.builder.sub(high, word);
         let entry = self.builder.current_block();
@@ -1306,21 +1311,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.add_phi_incoming(descending, descending_next, previous);
 
         self.builder.switch_to_block(mixed);
-        let header = self.builder.sub(low, word);
-        let length = self.builder.mload(header);
-        // The smallest word in the order: zero, `2**255` when signed, or the flip.
-        let sentinel = match order {
-            WordOrder::Unsigned => self.builder.imm(U256::ZERO),
-            WordOrder::Signed => self.builder.imm(U256::ONE << 255),
-            WordOrder::Flipped(flip) => flip,
-        };
-        self.builder.mstore(header, sentinel);
-        let flip = match order {
-            WordOrder::Flipped(flip) => Some(flip),
-            WordOrder::Unsigned | WordOrder::Signed => None,
-        };
-        self.builder.icall_void(inner, [low, high].into_iter().chain(pair).chain(flip).collect());
-        self.builder.mstore(header, length);
+        self.call_core_sort_inner(inner, order, low, high, pair);
         self.builder.jump(done);
 
         self.builder.switch_to_block(reverse_header);
@@ -1340,6 +1331,36 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.add_phi_incoming(right, reverse_body, next_right);
 
         self.builder.switch_to_block(done);
+    }
+
+    /// Sorts the range through `inner` with the smallest word of the order in
+    /// the array's length word, restoring the length afterwards.
+    fn call_core_sort_inner(
+        &mut self,
+        inner: FunctionId,
+        order: WordOrder,
+        low: ValueId,
+        high: ValueId,
+        pair: Option<ValueId>,
+    ) {
+        // length = mload(low - 32); mstore(low - 32, sentinel)
+        // icall inner(low, high [, pair] [, flip]); mstore(low - 32, length)
+        let word = self.builder.imm(32);
+        let header = self.builder.sub(low, word);
+        let length = self.builder.mload(header);
+        // The smallest word in the order: zero, `2**255` when signed, or the flip.
+        let sentinel = match order {
+            WordOrder::Unsigned => self.builder.imm(U256::ZERO),
+            WordOrder::Signed => self.builder.imm(U256::ONE << 255),
+            WordOrder::Flipped(flip) => flip,
+        };
+        self.builder.mstore(header, sentinel);
+        let flip = match order {
+            WordOrder::Flipped(flip) => Some(flip),
+            WordOrder::Unsigned | WordOrder::Signed => None,
+        };
+        self.builder.icall_void(inner, [low, high].into_iter().chain(pair).chain(flip).collect());
+        self.builder.mstore(header, length);
     }
 
     /// Exchanges the keys at `left` and `right`, and with `pair` their values.
