@@ -42,10 +42,10 @@ bb0:
   push 4
   calldataload
   sstore
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3 [cold]:
   push 0
@@ -78,7 +78,7 @@ bb0:
   eq
   push bb3
   jumpi
-  push 160
+  push 128
   push 64
   mstore
   push 68
@@ -170,10 +170,10 @@ bb0:
   push bb3
   jumpi
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3 [cold]:
   push 0
@@ -181,10 +181,10 @@ bb3 [cold]:
   revert
 bb12:
   push 0
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb10 [cold]:
   returndatasize
@@ -219,7 +219,7 @@ bb0:
   sub
   push bb3
   jumpi
-  push 160
+  push 128
   push 64
   mstore
   push 36
@@ -305,10 +305,10 @@ bb0:
   push bb3
   jumpi
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3 [cold]:
   push 0

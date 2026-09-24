@@ -37,8 +37,8 @@ fn @plain() [selector=0xc2dcee6a, abi_wrapper, pure] {
     v11 = add v20, v4
     v14 = add v11, 96
     v15 = calldataload v14
-    mstore 128, v15
-    returndata 128, 32
+    mstore 0, v15 !metadata(memory=scratch)
+    returndata 0, 32
   bb3:
     tail_call @revert_stub.5
   bb5:
@@ -99,8 +99,8 @@ fn @member() [selector=0x49eb8b89, abi_wrapper, pure] {
     v32 = add v15, v25
     v35 = add v32, 96
     v36 = calldataload v35
-    mstore 128, v36
-    returndata 128, 32
+    mstore 0, v36 !metadata(memory=scratch)
+    returndata 0, 32
   bb8:
     tail_call @revert_stub.5
   bb1:
@@ -160,8 +160,8 @@ fn @word() [selector=0xd192e846, abi_wrapper, pure] {
   bb9:
     v32 = add v15, v25
     v33 = calldataload v32
-    mstore 128, v33
-    returndata 128, 32
+    mstore 0, v33 !metadata(memory=scratch)
+    returndata 0, 32
   bb8:
     tail_call @revert_stub.5
   bb1:

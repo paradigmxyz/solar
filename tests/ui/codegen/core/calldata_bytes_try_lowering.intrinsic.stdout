@@ -33,9 +33,9 @@ fn @try1() [selector=0x7c4fe00c, abi_wrapper, pure] {
     v10 = calldataload v9
     v11 = mul v20, v10
     v12 = and v11, 0xff00000000000000000000000000000000000000000000000000000000000000
-    mstore 128, v20
-    mstore 160, v12
-    returndata 128, 64
+    mstore 0, v20
+    mstore 32, v12 !metadata(memory=scratch)
+    returndata 0, 64
   bb1:
     revert 0, 0
 }
@@ -60,9 +60,9 @@ fn @try4() [selector=0x7f498037, abi_wrapper, pure] {
     v10 = calldataload v9
     v11 = mul v20, v10
     v12 = and v11, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, v20
-    mstore 160, v12
-    returndata 128, 64
+    mstore 0, v20
+    mstore 32, v12 !metadata(memory=scratch)
+    returndata 0, 64
   bb1:
     revert 0, 0
 }
@@ -86,9 +86,9 @@ fn @try32() [selector=0xf00ebb05, abi_wrapper, pure] {
     v9 = add v27, v7
     v10 = calldataload v9
     v11 = mul v19, v10
-    mstore 128, v19
-    mstore 160, v11
-    returndata 128, 64
+    mstore 0, v19
+    mstore 32, v11 !metadata(memory=scratch)
+    returndata 0, 64
   bb1:
     revert 0, 0
 }
@@ -112,9 +112,9 @@ fn @tryWord() [selector=0xdc133dec, abi_wrapper, pure] {
     v9 = add v27, v7
     v10 = calldataload v9
     v11 = mul v19, v10
-    mstore 128, v19
-    mstore 160, v11
-    returndata 128, 64
+    mstore 0, v19
+    mstore 32, v11 !metadata(memory=scratch)
+    returndata 0, 64
   bb1:
     revert 0, 0
 }
@@ -152,9 +152,9 @@ fn @tryTwo() [selector=0x2031ea5c, abi_wrapper, pure] {
     v10 = calldataload v9
     v11 = mul v20, v10
     v12 = and v11, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, v20
-    mstore 160, v12
-    returndata 128, 64
+    mstore 0, v20
+    mstore 32, v12 !metadata(memory=scratch)
+    returndata 0, 64
   bb1:
     revert 0, 0
 }

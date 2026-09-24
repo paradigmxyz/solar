@@ -423,10 +423,10 @@ bb42:
   eq
   push bb75
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb45:
   push 36
@@ -503,10 +503,10 @@ bb51:
   shr
   push 248
   shl
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb54:
   push 68

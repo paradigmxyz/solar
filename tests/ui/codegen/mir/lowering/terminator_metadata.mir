@@ -3,7 +3,7 @@
 @module TerminatorMetadata
 
 // CHECK-LABEL: {{^[ +].*}}fn @identity{{[( ]}}
-// CHECK: mstore {{.*}} !metadata(span=30..40)
+// CHECK: mstore {{.*}} !metadata(memory=scratch, span=30..40)
 // CHECK: returndata {{.*}} !metadata(span=30..40)
 fn @identity(arg0: i256) -> i256 [selector=0xac37eebb, abi_params=[u256], abi_returns=[word]] {
   bb0:

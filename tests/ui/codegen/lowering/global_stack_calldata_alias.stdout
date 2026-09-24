@@ -72,10 +72,10 @@ bb4:
   eq
   push bb12
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb12:
   push 5
@@ -86,10 +86,10 @@ bb12:
   lt
   push bb22
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb14:
   push 4
@@ -102,10 +102,10 @@ bb14:
   lt
   push bb22
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb16:
   push 3
@@ -118,10 +118,10 @@ bb16:
   lt
   push bb22
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb18:
   push 2
@@ -134,10 +134,10 @@ bb18:
   lt
   push bb22
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb20:
   swap 1
@@ -149,8 +149,8 @@ bb20:
   iszero
   push bb22
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return

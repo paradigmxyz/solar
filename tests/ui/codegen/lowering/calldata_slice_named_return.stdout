@@ -36,11 +36,11 @@ fn @use() [selector=0x01bd03f7, abi_wrapper, pure] {
     jumpi v17, bb1, bb3
   bb3:
     v0 = icall @unwrap, v6, v11
-    v23 = mload 32 !metadata(memory=scratch)
-    v24 = add v23, 32
-    v25 = mload v24
-    mstore 128, v25
-    returndata 128, 32
+    v22 = mload 32 !metadata(memory=scratch)
+    v23 = add v22, 32
+    v24 = mload v23
+    mstore 0, v24
+    returndata 0, 32
   bb1:
     revert 0, 0
 }

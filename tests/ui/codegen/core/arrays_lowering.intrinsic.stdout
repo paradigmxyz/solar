@@ -36,30 +36,30 @@ fn @shorten() [selector=0xf0187838, abi_wrapper, pure] {
   bb7:
     v20 = shl 5, v16
     v21 = add v20, 32
-    v36 = mload 64 !metadata(memory=scratch)
-    v37 = add v36, v21
-    v38 = lt v37, v36
-    v39 = zext i1 v38 to i256
-    v40 = shr 64, v37
-    v41 = or v39, v40
-    v42 = ne v41, 0
-    jumpi v42, bb6, bb9
+    v35 = mload 64 !metadata(memory=scratch)
+    v36 = add v35, v21
+    v37 = lt v36, v35
+    v38 = zext i1 v37 to i256
+    v39 = shr 64, v36
+    v40 = or v38, v39
+    v41 = ne v40, 0
+    jumpi v41, bb6, bb9
   bb9:
-    mstore 64, v37 !metadata(memory=scratch)
-    mstore v36, v16
+    mstore 64, v36 !metadata(memory=scratch)
+    mstore v35, v16
     v23 = add v10, v20
     v24 = gt v23, v6
     jumpi v24, bb3, bb8
   bb8:
-    v30 = add v36, 32
-    calldatacopy v30, v10, v20
+    v29 = add v35, 32
+    calldatacopy v29, v10, v20
     v2 = gt arg1, v16
     jumpi v2, bb1, bb2
   bb2:
-    mstore v36, arg1
-    mstore 128, v16
-    mstore 160, arg1
-    returndata 128, 64
+    mstore v35, arg1
+    mstore 0, v16
+    mstore 32, arg1 !metadata(memory=scratch)
+    returndata 0, 64
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)

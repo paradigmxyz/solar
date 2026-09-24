@@ -266,10 +266,10 @@ bb19 [continuation]:
   mload
   push 0
   byte
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb22:
   push 256

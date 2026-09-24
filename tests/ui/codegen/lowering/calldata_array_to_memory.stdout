@@ -54,13 +54,13 @@ bb45 [cold]:
 bb7:
   push 0
   sload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb8:
-  push 160
+  push 128
   push 64
   mstore
   push 36
@@ -189,13 +189,13 @@ bb15 [loop]:
   swap 2
   pop
   pop
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb24:
-  push 160
+  push 128
   push 64
   mstore
   push 36
@@ -278,13 +278,13 @@ bb24:
   pop
   swap 1
   pop
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb33:
-  push 256
+  push 224
   push 64
   mstore
   push 100
@@ -352,7 +352,7 @@ bb33:
   or
   push bb6
   jumpi
-  push 160
+  push 128
   dup 4
   push 5
   shl
@@ -481,10 +481,10 @@ bb33:
   lt
   push bb45
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb20 [cold]:
   push 0x4e487b71

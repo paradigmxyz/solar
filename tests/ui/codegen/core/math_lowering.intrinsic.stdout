@@ -34,9 +34,9 @@ fn @mul512.0() [selector=0x73d0b512, abi_wrapper, pure] {
     v4 = zext i1 v3 to i256
     v2 = sub v1, v0
     v5 = sub v2, v4
-    mstore 128, v5
-    mstore 160, v0
-    returndata 128, 64
+    mstore 0, v5 !metadata(memory=scratch)
+    mstore 32, v0 !metadata(memory=scratch)
+    returndata 0, 64
   bb1:
     revert 0, 0
 }
@@ -132,8 +132,8 @@ fn @mulDiv.1() [selector=0xfb9f4917, abi_wrapper, pure] {
     jumpi v63, bb10, bb3
   bb3:
     v6 = phi [bb2: v62], [bb1: v7], [bb4: v7]
-    mstore 128, v6
-    returndata 128, 32
+    mstore 0, v6 !metadata(memory=scratch)
+    returndata 0, 32
   bb10:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
@@ -149,8 +149,8 @@ fn @wrapAdd() [selector=0x85ec2dc1, abi_wrapper, pure] {
     jumpi v2, bb1, bb2
   bb2:
     v0 = add arg0, arg1
-    mstore 128, v0
-    returndata 128, 32
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
@@ -162,8 +162,8 @@ fn @wrapSub() [selector=0x928d9cf4, abi_wrapper, pure] {
     jumpi v2, bb1, bb2
   bb2:
     v0 = sub arg0, arg1
-    mstore 128, v0
-    returndata 128, 32
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
@@ -175,8 +175,8 @@ fn @wrapMul() [selector=0x6f486eee, abi_wrapper, pure] {
     jumpi v2, bb1, bb2
   bb2:
     v0 = mul arg0, arg1
-    mstore 128, v0
-    returndata 128, 32
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }

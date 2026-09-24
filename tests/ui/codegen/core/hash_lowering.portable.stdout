@@ -32,27 +32,27 @@ fn @hash() [selector=0x00d07523, abi_wrapper, pure] {
     jumpi v14, bb4, bb5
   bb5:
     v16 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v28 = mload 64 !metadata(memory=scratch)
-    v17 = inttoptr i256 v28 to memptr !metadata(memory=scratch)
-    v29 = add v28, v16
-    v30 = lt v29, v28
-    v31 = zext i1 v30 to i256
-    v32 = shr 64, v29
-    v33 = or v31, v32
-    v34 = ne v33, 0
-    jumpi v34, bb4, bb7
+    v27 = mload 64 !metadata(memory=scratch)
+    v17 = inttoptr i256 v27 to memptr !metadata(memory=scratch)
+    v28 = add v27, v16
+    v29 = lt v28, v27
+    v30 = zext i1 v29 to i256
+    v31 = shr 64, v28
+    v32 = or v30, v31
+    v33 = ne v32, 0
+    jumpi v33, bb4, bb7
   bb7:
-    mstore 64, v29 !metadata(memory=scratch)
-    mstore v28, v11
+    mstore 64, v28 !metadata(memory=scratch)
+    mstore v27, v11
     v18 = sub v1, v5
     v19 = gt v11, v18
     jumpi v19, bb1, bb6
   bb6:
-    v24 = add v28, 32
-    calldatacopy v24, v5, v11
+    v23 = add v27, 32
+    calldatacopy v23, v5, v11
     v0 = icall @keccak256Range, v17, arg1, arg2
-    mstore 128, v0
-    returndata 128, 32
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

@@ -35,7 +35,7 @@ contract ICallStackReturn {
     // GAS: push 11
     // GAS-NEXT: mul
     // GAS-NEXT: add
-    // GAS-NEXT: push 128
+    // GAS-NEXT: push 0
     // GAS-NEXT: mstore
     // The void helper is inlined, keeping the multiplication live across storage writes.
     // GAS: [[VOID_ENTRY]]:

@@ -13,22 +13,22 @@ fn @entry() [entry] {
 fn @fls.0() [selector=0x27be8b2d, abi_wrapper, pure] {
   bb0:
     v0 = icall @fls.3, arg0
-    mstore 128, v0
-    returndata 128, 32
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @clz.1() [selector=0x30244f7a, abi_wrapper, pure] {
   bb0:
     v0 = icall @clz.4, arg0
-    mstore 128, v0
-    returndata 128, 32
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @ffs.2() [selector=0x2297890a, abi_wrapper, pure] {
   bb0:
     v0 = icall @ffs.5, arg0
-    mstore 128, v0
-    returndata 128, 32
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @fls.3(arg0: i256) -> i256 [pure] {

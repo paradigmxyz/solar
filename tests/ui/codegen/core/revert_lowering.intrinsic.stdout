@@ -39,13 +39,13 @@ fn @maybe() [selector=0x5bab7980, abi_wrapper, pure] {
     v0 = ne arg1, 0
     jumpi v0, bb1, bb2
   bb2:
-    mstore 128, 7
-    returndata 128, 32
+    mstore 0, 7 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
-    v11 = ptrtoint memptr v8 to i256
-    v1 = mload v11
-    v13 = add v11, 32
-    revert v13, v1
+    v10 = ptrtoint memptr v8 to i256
+    v1 = mload v10
+    v12 = add v10, 32
+    revert v12, v1
   bb3:
     revert 0, 0
 }

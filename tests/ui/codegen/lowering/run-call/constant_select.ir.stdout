@@ -60,10 +60,10 @@ bb63:
   mul
   push 7
   add
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb43 [cold]:
   push 0x4e487b71
@@ -126,10 +126,10 @@ bb13:
   push 68
   calldataload
   add
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb16:
   push 416
@@ -643,10 +643,10 @@ bb47 [continuation]:
   swap 2
   or
   and
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb49:
   push 36
@@ -699,10 +699,10 @@ bb51 [continuation]:
   shr
   not
   and
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb53:
   push 160

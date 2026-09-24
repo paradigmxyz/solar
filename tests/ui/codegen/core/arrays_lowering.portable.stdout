@@ -36,47 +36,47 @@ fn @shorten() [selector=0xf0187838, abi_wrapper, inline_assembly, pure] {
   bb5:
     v18 = shl 5, v14
     v19 = add v18, 32
-    v34 = mload 64 !metadata(memory=scratch)
-    v20 = inttoptr i256 v34 to memptr !metadata(memory=scratch)
-    v35 = add v34, v19
-    v36 = lt v35, v34
-    v37 = zext i1 v36 to i256
-    v38 = shr 64, v35
-    v39 = or v37, v38
-    v40 = ne v39, 0
-    jumpi v40, bb4, bb7
+    v33 = mload 64 !metadata(memory=scratch)
+    v20 = inttoptr i256 v33 to memptr !metadata(memory=scratch)
+    v34 = add v33, v19
+    v35 = lt v34, v33
+    v36 = zext i1 v35 to i256
+    v37 = shr 64, v34
+    v38 = or v36, v37
+    v39 = ne v38, 0
+    jumpi v39, bb4, bb7
   bb7:
-    mstore 64, v35 !metadata(memory=scratch)
-    mstore v34, v14
+    mstore 64, v34 !metadata(memory=scratch)
+    mstore v33, v14
     v21 = add v8, v18
     v22 = gt v21, v4
     jumpi v22, bb1, bb6
   bb6:
-    v28 = add v34, 32
-    calldatacopy v28, v8, v18
-    v41 = ptrtoint memptr v20 to i256
-    v42 = mload v41
-    v43 = gt arg1, v42
-    jumpi v43, bb9, bb8
+    v27 = add v33, 32
+    calldatacopy v27, v8, v18
+    v40 = ptrtoint memptr v20 to i256
+    v41 = mload v40
+    v42 = gt arg1, v41
+    jumpi v42, bb9, bb8
   bb8:
-    mstore v41, arg1
-    v1 = mload v34
-    mstore 128, v14
-    mstore 160, v1
-    returndata 128, 64
+    mstore v40, arg1
+    v1 = mload v33
+    mstore 0, v14
+    mstore 32, v1 !metadata(memory=scratch)
+    returndata 0, 64
   bb9:
-    v44 = mload 64
-    v45 = add v44, 32
-    v46 = lt v45, v44
-    v47 = zext i1 v46 to i256
-    v48 = shr 64, v45
-    v49 = or v47, v48
-    v50 = ne v49, 0
-    jumpi v50, bb11, bb10
+    v43 = mload 64
+    v44 = add v43, 32
+    v45 = lt v44, v43
+    v46 = zext i1 v45 to i256
+    v47 = shr 64, v44
+    v48 = or v46, v47
+    v49 = ne v48, 0
+    jumpi v49, bb11, bb10
   bb10:
-    mstore 64, v45
-    mstore v44, 0
-    mstore v44, 0
+    mstore 64, v44
+    mstore v43, 0
+    mstore v43, 0
     mstore 0, 0x4e487b71
     mstore 32, 50
     revert 28, 36

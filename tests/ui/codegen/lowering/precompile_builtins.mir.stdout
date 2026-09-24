@@ -3,55 +3,6 @@
 @phase lowered
 fn @recover() [selector=0xce746024, abi_wrapper, pure] {
   bb0:
-    v35 = mload 64 !metadata(memory=scratch)
-    v36 = add v35, 192
-    v37 = lt v36, v35
-    v38 = zext i1 v37 to i256
-    v39 = shr 64, v36
-    v40 = or v38, v39
-    v41 = ne v40, 0
-    jumpi v41, bb2, bb1
-  bb1:
-    mstore 64, v36 !metadata(memory=scratch)
-    v49 = calldatasize
-    calldatacopy v35, v49, 192
-    mstore v35, 160
-    v31 = add v35, 32
-    mstore v31, 1
-    v21 = add v35, 64
-    mstore v21, 28
-    v24 = add v35, 96
-    mstore v24, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
-    v27 = add v35, 128
-    mstore v27, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
-    v42 = mload 64 !metadata(memory=scratch)
-    v43 = add v42, 64
-    v44 = lt v43, v42
-    v45 = zext i1 v44 to i256
-    v46 = shr 64, v43
-    v47 = or v45, v46
-    v48 = ne v47, 0
-    jumpi v48, bb2, bb3
-  bb3:
-    mstore 64, v43 !metadata(memory=scratch)
-    v50 = calldatasize
-    calldatacopy v42, v50, 64
-    mstore v42, 32
-    v34 = add v42, 32
-    v6 = gas
-    v9 = staticcall v6, 1, v31, 128, v34, 32
-    v12 = mload v34
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 128, v13
-    returndata 128, 32
-  bb2:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    mstore 32, 65 !metadata(memory=scratch)
-    revert 28, 36
-}
-
-fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
-  bb0:
     v34 = mload 64 !metadata(memory=scratch)
     v35 = add v34, 192
     v36 = lt v35, v34
@@ -66,13 +17,13 @@ fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
     calldatacopy v34, v48, 192
     mstore v34, 160
     v30 = add v34, 32
-    mstore v30, 0
+    mstore v30, 1
     v20 = add v34, 64
-    mstore v20, 0
+    mstore v20, 28
     v23 = add v34, 96
-    mstore v23, 0
+    mstore v23, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
     v26 = add v34, 128
-    mstore v26, 0
+    mstore v26, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
     v41 = mload 64 !metadata(memory=scratch)
     v42 = add v41, 64
     v43 = lt v42, v41
@@ -87,12 +38,61 @@ fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
     calldatacopy v41, v49, 64
     mstore v41, 32
     v33 = add v41, 32
+    v6 = gas
+    v9 = staticcall v6, 1, v30, 128, v33, 32
+    v12 = mload v33
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 0, v13 !metadata(memory=scratch)
+    returndata 0, 32
+  bb2:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
+  bb0:
+    v33 = mload 64 !metadata(memory=scratch)
+    v34 = add v33, 192
+    v35 = lt v34, v33
+    v36 = zext i1 v35 to i256
+    v37 = shr 64, v34
+    v38 = or v36, v37
+    v39 = ne v38, 0
+    jumpi v39, bb2, bb1
+  bb1:
+    mstore 64, v34 !metadata(memory=scratch)
+    v47 = calldatasize
+    calldatacopy v33, v47, 192
+    mstore v33, 160
+    v29 = add v33, 32
+    mstore v29, 0
+    v19 = add v33, 64
+    mstore v19, 0
+    v22 = add v33, 96
+    mstore v22, 0
+    v25 = add v33, 128
+    mstore v25, 0
+    v40 = mload 64 !metadata(memory=scratch)
+    v41 = add v40, 64
+    v42 = lt v41, v40
+    v43 = zext i1 v42 to i256
+    v44 = shr 64, v41
+    v45 = or v43, v44
+    v46 = ne v45, 0
+    jumpi v46, bb2, bb3
+  bb3:
+    mstore 64, v41 !metadata(memory=scratch)
+    v48 = calldatasize
+    calldatacopy v40, v48, 64
+    mstore v40, 32
+    v32 = add v40, 32
     v5 = gas
-    v8 = staticcall v5, 1, v30, 128, v33, 32
-    v11 = mload v33
+    v8 = staticcall v5, 1, v29, 128, v32, 32
+    v11 = mload v32
     v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 128, v12
-    returndata 128, 32
+    mstore 0, v12 !metadata(memory=scratch)
+    returndata 0, 32
   bb2:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
@@ -102,28 +102,28 @@ fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
 fn @sha() [selector=0x65707d6f, abi_wrapper, pure] {
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
-    v16 = ptrtoint memptr v0 to i256
-    v17 = add v16, 32
-    v3 = mload v16
-    v22 = mload 64 !metadata(memory=scratch)
-    v23 = add v22, 64
-    v24 = lt v23, v22
-    v25 = zext i1 v24 to i256
-    v26 = shr 64, v23
-    v27 = or v25, v26
-    v28 = ne v27, 0
-    jumpi v28, bb2, bb1
+    v15 = ptrtoint memptr v0 to i256
+    v16 = add v15, 32
+    v3 = mload v15
+    v21 = mload 64 !metadata(memory=scratch)
+    v22 = add v21, 64
+    v23 = lt v22, v21
+    v24 = zext i1 v23 to i256
+    v25 = shr 64, v22
+    v26 = or v24, v25
+    v27 = ne v26, 0
+    jumpi v27, bb2, bb1
   bb1:
-    mstore 64, v23 !metadata(memory=scratch)
-    v29 = calldatasize
-    calldatacopy v22, v29, 64
-    mstore v22, 32
-    v21 = add v22, 32
+    mstore 64, v22 !metadata(memory=scratch)
+    v28 = calldatasize
+    calldatacopy v21, v28, 64
+    mstore v21, 32
+    v20 = add v21, 32
     v6 = gas
-    v9 = staticcall v6, 2, v17, v3, v21, 32
-    v12 = mload v21
-    mstore 128, v12
-    returndata 128, 32
+    v9 = staticcall v6, 2, v16, v3, v20, 32
+    v12 = mload v20
+    mstore 0, v12 !metadata(memory=scratch)
+    returndata 0, 32
   bb2:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
@@ -133,29 +133,29 @@ fn @sha() [selector=0x65707d6f, abi_wrapper, pure] {
 fn @ripemd() [selector=0xa1e754ea, abi_wrapper, pure] {
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
-    v17 = ptrtoint memptr v0 to i256
-    v18 = add v17, 32
-    v3 = mload v17
-    v23 = mload 64 !metadata(memory=scratch)
-    v24 = add v23, 64
-    v25 = lt v24, v23
-    v26 = zext i1 v25 to i256
-    v27 = shr 64, v24
-    v28 = or v26, v27
-    v29 = ne v28, 0
-    jumpi v29, bb2, bb1
+    v16 = ptrtoint memptr v0 to i256
+    v17 = add v16, 32
+    v3 = mload v16
+    v22 = mload 64 !metadata(memory=scratch)
+    v23 = add v22, 64
+    v24 = lt v23, v22
+    v25 = zext i1 v24 to i256
+    v26 = shr 64, v23
+    v27 = or v25, v26
+    v28 = ne v27, 0
+    jumpi v28, bb2, bb1
   bb1:
-    mstore 64, v24 !metadata(memory=scratch)
-    v30 = calldatasize
-    calldatacopy v23, v30, 64
-    mstore v23, 32
-    v22 = add v23, 32
+    mstore 64, v23 !metadata(memory=scratch)
+    v29 = calldatasize
+    calldatacopy v22, v29, 64
+    mstore v22, 32
+    v21 = add v22, 32
     v6 = gas
-    v9 = staticcall v6, 3, v18, v3, v22, 32
-    v12 = mload v22
+    v9 = staticcall v6, 3, v17, v3, v21, 32
+    v12 = mload v21
     v13 = shl 96, v12
-    mstore 128, v13
-    returndata 128, 32
+    mstore 0, v13 !metadata(memory=scratch)
+    returndata 0, 32
   bb2:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
@@ -163,6 +163,37 @@ fn @ripemd() [selector=0xa1e754ea, abi_wrapper, pure] {
 }
 
 fn @shaLiteral() [selector=0x4aa7a4c7, abi_wrapper, pure] {
+  bb0:
+    v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
+    v15 = ptrtoint memptr v0 to i256
+    v16 = add v15, 32
+    v3 = mload v15
+    v21 = mload 64 !metadata(memory=scratch)
+    v22 = add v21, 64
+    v23 = lt v22, v21
+    v24 = zext i1 v23 to i256
+    v25 = shr 64, v22
+    v26 = or v24, v25
+    v27 = ne v26, 0
+    jumpi v27, bb2, bb1
+  bb1:
+    mstore 64, v22 !metadata(memory=scratch)
+    v28 = calldatasize
+    calldatacopy v21, v28, 64
+    mstore v21, 32
+    v20 = add v21, 32
+    v6 = gas
+    v9 = staticcall v6, 2, v16, v3, v20, 32
+    v12 = mload v20
+    mstore 0, v12 !metadata(memory=scratch)
+    returndata 0, 32
+  bb2:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @ripemdLiteral() [selector=0x062c5650, abi_wrapper, pure] {
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v16 = ptrtoint memptr v0 to i256
@@ -183,42 +214,11 @@ fn @shaLiteral() [selector=0x4aa7a4c7, abi_wrapper, pure] {
     mstore v22, 32
     v21 = add v22, 32
     v6 = gas
-    v9 = staticcall v6, 2, v17, v3, v21, 32
+    v9 = staticcall v6, 3, v17, v3, v21, 32
     v12 = mload v21
-    mstore 128, v12
-    returndata 128, 32
-  bb2:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    mstore 32, 65 !metadata(memory=scratch)
-    revert 28, 36
-}
-
-fn @ripemdLiteral() [selector=0x062c5650, abi_wrapper, pure] {
-  bb0:
-    v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
-    v17 = ptrtoint memptr v0 to i256
-    v18 = add v17, 32
-    v3 = mload v17
-    v23 = mload 64 !metadata(memory=scratch)
-    v24 = add v23, 64
-    v25 = lt v24, v23
-    v26 = zext i1 v25 to i256
-    v27 = shr 64, v24
-    v28 = or v26, v27
-    v29 = ne v28, 0
-    jumpi v29, bb2, bb1
-  bb1:
-    mstore 64, v24 !metadata(memory=scratch)
-    v30 = calldatasize
-    calldatacopy v23, v30, 64
-    mstore v23, 32
-    v22 = add v23, 32
-    v6 = gas
-    v9 = staticcall v6, 3, v18, v3, v22, 32
-    v12 = mload v22
     v13 = shl 96, v12
-    mstore 128, v13
-    returndata 128, 32
+    mstore 0, v13 !metadata(memory=scratch)
+    returndata 0, 32
   bb2:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
@@ -226,6 +226,37 @@ fn @ripemdLiteral() [selector=0x062c5650, abi_wrapper, pure] {
 }
 
 fn @shaEmpty() [selector=0xf1609893, abi_wrapper, pure] {
+  bb0:
+    v29 = mload 64 !metadata(memory=scratch)
+    v30 = add v29, 32
+    mstore 64, v30 !metadata(memory=scratch)
+    mstore v29, 0
+    v22 = mload 64 !metadata(memory=scratch)
+    v23 = add v22, 64
+    v24 = lt v23, v22
+    v25 = zext i1 v24 to i256
+    v26 = shr 64, v23
+    v27 = or v25, v26
+    v28 = ne v27, 0
+    jumpi v28, bb2, bb1
+  bb1:
+    mstore 64, v23 !metadata(memory=scratch)
+    v31 = calldatasize
+    calldatacopy v22, v31, 64
+    mstore v22, 32
+    v21 = add v22, 32
+    v7 = gas
+    v10 = staticcall v7, 2, v30, 0, v21, 32
+    v13 = mload v21
+    mstore 0, v13 !metadata(memory=scratch)
+    returndata 0, 32
+  bb2:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @ripemdEmpty() [selector=0x0c4b170a, abi_wrapper, pure] {
   bb0:
     v30 = mload 64 !metadata(memory=scratch)
     v31 = add v30, 32
@@ -246,42 +277,11 @@ fn @shaEmpty() [selector=0xf1609893, abi_wrapper, pure] {
     mstore v23, 32
     v22 = add v23, 32
     v7 = gas
-    v10 = staticcall v7, 2, v31, 0, v22, 32
+    v10 = staticcall v7, 3, v31, 0, v22, 32
     v13 = mload v22
-    mstore 128, v13
-    returndata 128, 32
-  bb2:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    mstore 32, 65 !metadata(memory=scratch)
-    revert 28, 36
-}
-
-fn @ripemdEmpty() [selector=0x0c4b170a, abi_wrapper, pure] {
-  bb0:
-    v31 = mload 64 !metadata(memory=scratch)
-    v32 = add v31, 32
-    mstore 64, v32 !metadata(memory=scratch)
-    mstore v31, 0
-    v24 = mload 64 !metadata(memory=scratch)
-    v25 = add v24, 64
-    v26 = lt v25, v24
-    v27 = zext i1 v26 to i256
-    v28 = shr 64, v25
-    v29 = or v27, v28
-    v30 = ne v29, 0
-    jumpi v30, bb2, bb1
-  bb1:
-    mstore 64, v25 !metadata(memory=scratch)
-    v33 = calldatasize
-    calldatacopy v24, v33, 64
-    mstore v24, 32
-    v23 = add v24, 32
-    v7 = gas
-    v10 = staticcall v7, 3, v32, 0, v23, 32
-    v13 = mload v23
     v14 = shl 96, v13
-    mstore 128, v14
-    returndata 128, 32
+    mstore 0, v14 !metadata(memory=scratch)
+    returndata 0, 32
   bb2:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

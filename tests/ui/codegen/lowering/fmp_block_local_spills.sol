@@ -29,7 +29,7 @@
 // NONE-NEXT: mstore
 //
 // GAS-LABEL: @module FmpBlockLocalSpills_runtime
-// GAS: push 160
+// GAS: push 128
 // GAS-NEXT: push 64
 // GAS-NEXT: mstore
 // GAS: mload
