@@ -1,7 +1,10 @@
-//@ codegen-matrix: standard portable
+//@ codegen-matrix: standard portable gasmir
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
+//@[gasmir] compile-flags: -Ogas -Zdump=mir
 //@[mir] normalize-stdout-test: "(?s).+" -> ""
+//@[gasmir] normalize-stdout-test: "(?s).+" -> ""
 //@[mir] filecheck:
+//@[gasmir] filecheck: --check-prefix=GAS
 //@ run-call: encode 0x => ""
 //@ run-call: encode 0x66 => "Zg=="
 //@ run-call: encode 0x666f => "Zm8="
@@ -88,18 +91,23 @@ contract Test {
         return Base64.decode(data, true);
     }
 
-    // The decoder is one shared body per IMAP mode. Up to sixteen characters
-    // decode as one block of four, eight, twelve or sixteen table lookups,
-    // with the table copied from code; longer inputs run the word kernel.
+    // The decoder is one shared body per IMAP mode. Gas builds decode up to
+    // sixteen characters as one block of four, eight, twelve or sixteen table
+    // lookups, with the table copied from code, and run the word kernel on
+    // longer inputs. Other builds decode one character at a time.
     // CHECK-LABEL: fn @decode.
     // CHECK: icall @core_base64_decode,
     // CHECK-LABEL: fn @core_base64_decode(
     // CHECK: memory_object_len memorybytes
-    // CHECK: lt {{.*}}, 5
-    // CHECK: lt {{.*}}, 9
-    // CHECK: lt {{.*}}, 13
-    // CHECK: lt {{.*}}, 17
-    // CHECK: data_copy
+    // CHECK: byte 0,
+    // CHECK: select
+    // CHECK-NOT: data_copy
+    // GAS-LABEL: fn @core_base64_decode(
+    // GAS: lt {{.*}}, 5
+    // GAS: lt {{.*}}, 9
+    // GAS: lt {{.*}}, 13
+    // GAS: lt {{.*}}, 17
+    // GAS: data_copy
     function decode(string memory data) public pure returns (bytes memory) {
         return Base64.decode(data);
     }
