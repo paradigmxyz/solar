@@ -1,0 +1,60 @@
+//@compile-flags: -Zmir-pipeline=check-elim
+//@filecheck:
+@module ScratchWriteLength
+
+// Without inline assembly every object's length word lies at or above the
+// zero slot. A slot hash writes only the scratch word below it, so a reread of
+// the parameter's length after the hash still equals its first read, and the
+// check that the index is below the reread folds.
+// CHECK-LABEL: {{^[ +].*}}fn @hash_between_reads{{[( ]}}
+// CHECK: - jumpi {{v[0-9]+}}, bb3, bb4
+// CHECK: + jump bb4
+fn @hash_between_reads(arg0: memorybytes, arg1: i256) -> i256 {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb4: v9]
+    v2 = lt v1, v0
+    jumpi v2, bb2, bb5
+  bb2:
+    v3 = storage_array_data_slot arg1
+    v4 = memory_object_len memorybytes, arg0
+    v5 = lt v1, v4
+    v6 = eq v5, false
+    jumpi v6, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    sstore v3, v1
+    v9 = add v1, 1
+    jump bb1
+  bb5:
+    ret v1
+}
+
+// A word stored at 0x80 may be a length word, so the reread stays apart.
+// CHECK-LABEL: {{^[ +].*}}fn @store_between_reads{{[( ]}}
+// CHECK: {{^ +}}jumpi {{v[0-9]+}}, bb3, bb4
+fn @store_between_reads(arg0: memorybytes, arg1: i256) -> i256 {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb4: v9]
+    v2 = lt v1, v0
+    jumpi v2, bb2, bb5
+  bb2:
+    mstore 128, arg1
+    v4 = memory_object_len memorybytes, arg0
+    v5 = lt v1, v4
+    v6 = eq v5, false
+    jumpi v6, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v9 = add v1, 1
+    jump bb1
+  bb5:
+    ret v1
+}
