@@ -1,5 +1,6 @@
-//@ revisions: intrinsic portable
+//@ revisions: intrinsic size portable
 //@[intrinsic] compile-flags: -Ogas
+//@[size] compile-flags: -Osize
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
 //@ run-call: indicesOf "banana", "an" => [1, 3]
 //@ run-call: indicesOf "aaaaa", "aa" => [0, 2]
@@ -12,6 +13,8 @@
 //@ run-call: indicesOf "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefgABCDEFGHIJKLMNOPQRSTUVWXYZabcdefgtail", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefg" => [0, 33]
 //@ run-call: indicesOf "same", "same" => [0]
 //@ run-call: indicesOf "xxxxab", "ab" => [4]
+//@ run-call: indicesOf "", "" => [0]
+//@ run-call: indicesOf "", "a" => []
 
 import {Strings} from "solar:core/v1/Strings.sol";
 

@@ -1,5 +1,6 @@
-//@ revisions: intrinsic portable
+//@ revisions: intrinsic size portable
 //@[intrinsic] compile-flags: -Ogas
+//@[size] compile-flags: -Osize
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
 //@ run-call: replace "banana", "an", "xyz" => "bxyzxyza"
 //@ run-call: replace "aaaa", "aa", "x" => "xx"
@@ -18,6 +19,9 @@
 //@ run-call: replace "a-b", "-", "0123456789012345678901234567890123456789" => "a0123456789012345678901234567890123456789b"
 //@ run-call: replace "", "a", "b" => ""
 //@ run-call: replace "a", "a", "" => ""
+//@ run-call: replace "", "", "xy" => "xy"
+//@ run-call: replace "ab", "", "" => "ab"
+//@ run-call: replace "abc", "", "0123456789012345678901234567890123456789" => "0123456789012345678901234567890123456789a0123456789012345678901234567890123456789b0123456789012345678901234567890123456789c0123456789012345678901234567890123456789"
 
 import {Strings} from "solar:core/v1/Strings.sol";
 
