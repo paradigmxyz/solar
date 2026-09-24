@@ -106,14 +106,19 @@
 //! such as the scratch words a slot hash writes, a write in a block that leaves
 //! the function reaches only later reads in that block, and calls count
 //! through their memory summaries. The rereads themselves stay in place for the scheduler to
-//! price.
+//! price. A comparison of two sums with constant offsets also reads a reread
+//! length as the checked sum stored at allocation, which cannot wrap, so
+//! `31 + (n & ~31)` stays within a buffer of `(n & 255) + 32` bytes.
 //!
 //! Transitive relational queries lazily index candidate edges once per function,
 //! when a query needs to combine facts. An edge is followed only
 //! when its fact is present in the current scope; the index itself proves
 //! nothing. Derived values that never exceed their source (right shifts, masks,
 //! remainders, divisions by a nonzero constant) contribute universal `<=` edges
-//! that hold in every scope, so `i < length / 2` reaches `i < length`. So does
+//! that hold in every scope, so `i < length / 2` reaches `i < length`. Two
+//! masks of one word are ordered the same way when one mask's bits are a
+//! subset of the other's, as `x & ~31 <= x & 255` after folding merged the
+//! masks that separated a rounded length from the word it came from. So does
 //! an if-converted minimum `b + (a < b) * (a - b)`, below both `a` and `b`,
 //! which lets `i < min(x.length, y.length)` reach both lengths. A value
 //! with a strict path below it in the current scope is at least one, which
@@ -1554,9 +1559,11 @@ impl<'a> CheckEliminator<'a> {
     /// `Some(true)` when the sum is strictly below, `Some(false)` when it is
     /// only at most equal. Needs `d <= c1 <= d + c2`, so `x + c1` is
     /// `(x + d) + (c1 - d)` with `c1 - d <= c2`, and `y + c2` not wrapping,
-    /// which its own passing check or its range establishes; then neither
-    /// side wraps and the order carries over. A side without an offset has
-    /// an offset of zero.
+    /// which its own passing check, its range or a checked sum establishes;
+    /// then neither side wraps and the order carries over. A side without an
+    /// offset has an offset of zero. A limit equal in scope to a sum, such as
+    /// a reread length equal to the checked sum stored at allocation, is also
+    /// tried as that sum.
     fn shifted_below(
         &mut self,
         func: &Function,
@@ -1564,12 +1571,46 @@ impl<'a> CheckEliminator<'a> {
         b: ValueId,
         depth: usize,
     ) -> Option<bool> {
-        let (x, c1) = shifted_operand(func, a);
-        let (y, c2) = shifted_operand(func, b);
+        self.ensure_reverse_index(func);
+        let reverse = self.reverse_index.as_ref().expect("relation index was just built");
+        let mut limits = SmallVec::<[_; 2]>::new();
+        limits.push(shifted_operand(func, b));
+        for &fact in reverse.get(&b).into_iter().flatten() {
+            if let Relation::Eq(p, q) = fact
+                && (self.relations.contains(&fact) || self.universal_relations.contains(&fact))
+            {
+                let sum = if p == b { q } else { p };
+                let limit = shifted_operand(func, sum);
+                if !limit.1.is_zero() && !limits.contains(&limit) {
+                    limits.push(limit);
+                }
+            }
+        }
+        let mut result = None;
+        for (y, c2, exact) in limits {
+            match self.shifted_below_limit(func, a, b, (y, c2, exact), depth) {
+                Some(true) => return Some(true),
+                Some(false) => result = Some(false),
+                None => {}
+            }
+        }
+        result
+    }
+
+    /// [`Self::shifted_below`] against one form `y + c2` of the limit `b`,
+    /// `exact` when that sum is checked and so cannot wrap.
+    fn shifted_below_limit(
+        &mut self,
+        func: &Function,
+        a: ValueId,
+        b: ValueId,
+        (y, c2, exact): (ValueId, U256, bool),
+        depth: usize,
+    ) -> Option<bool> {
+        let (x, c1, _) = shifted_operand(func, a);
         if x == y || (c1.is_zero() && c2.is_zero()) {
             return None;
         }
-        self.ensure_relation_index(func);
         let reverse = self.reverse_index.as_ref().expect("relation index was just built");
         let mut best = None::<(U256, bool)>;
         for &fact in reverse.get(&y).into_iter().flatten() {
@@ -1581,7 +1622,7 @@ impl<'a> CheckEliminator<'a> {
             if !self.relations.contains(&fact) && !self.universal_relations.contains(&fact) {
                 continue;
             }
-            let (base, d) = shifted_operand(func, index);
+            let (base, d, _) = shifted_operand(func, index);
             if base != x || d > c1 {
                 continue;
             }
@@ -1595,6 +1636,7 @@ impl<'a> CheckEliminator<'a> {
             return None;
         }
         let sum_sound = c2.is_zero()
+            || exact
             || self.has_relation(func, Relation::Le(y, b))
             || self.range_of(func, y, depth).hi.checked_add(c2).is_some();
         if !sum_sound {
@@ -2500,6 +2542,7 @@ fn branch_inputs(func: &Function, cfg: &CfgInfo) -> DenseBitSet<ValueId> {
 /// derives from. Only values feeding branches are indexed.
 fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHashSet<Relation> {
     let mut relations = FxHashSet::default();
+    let mut masks = FxHashMap::<ValueId, SmallVec<[(ValueId, U256); 2]>>::default();
     for inst_id in func.instructions() {
         let Some(value) = func.inst_result_value(inst_id) else { continue };
         if !relevant.contains(value) {
@@ -2515,6 +2558,11 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
             InstKind::And(x, y) => {
                 relations.insert(Relation::Le(value, x));
                 relations.insert(Relation::Le(value, y));
+                for (x, mask) in [(x, y), (y, x)] {
+                    if let Some(mask) = const_of(func, mask) {
+                        masks.entry(x).or_default().push((value, mask));
+                    }
+                }
             }
             // If conversion rewrites `if (x > limit) x = limit`, and so the
             // minimum of two values, to `x + (x > limit) * (limit - x)`, which
@@ -2529,6 +2577,18 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
                 }
             }
             _ => {}
+        }
+    }
+    // Two masks of one word: the one whose bits the other's include never
+    // exceeds it, as `x & ~31 <= x & 0xff` once folding has merged the masks
+    // that separated the rounded value from the word it rounds.
+    for masked in masks.values() {
+        for &(small, small_mask) in masked {
+            for &(large, large_mask) in masked {
+                if small != large && small_mask & !large_mask == U256::ZERO {
+                    relations.insert(Relation::Le(small, large));
+                }
+            }
         }
     }
     relations
@@ -3315,16 +3375,23 @@ fn trip_count_bound(func: &Function, phi: &MonotonePhi) -> Option<Range> {
 }
 
 /// Splits `x + c` with a literal `c` into `(x, c)`; any other value has an
-/// offset of zero.
-fn shifted_operand(func: &Function, value: ValueId) -> (ValueId, U256) {
-    match inst_kind(func, value) {
-        Some(&InstKind::Add(x, c)) if const_of(func, c).is_some() => {
-            (x, const_of(func, c).unwrap_or_default())
-        }
-        Some(&InstKind::Add(c, x)) if const_of(func, c).is_some() => {
-            (x, const_of(func, c).unwrap_or_default())
-        }
-        _ => (value, U256::ZERO),
+/// offset of zero. The flag is set for a checked `u256` sum, which is defined
+/// only where it does not wrap.
+fn shifted_operand(func: &Function, value: ValueId) -> (ValueId, U256, bool) {
+    let (x, c, exact) = match inst_kind(func, value) {
+        Some(&InstKind::Add(x, c)) => (x, c, false),
+        Some(&InstKind::CheckedBinary {
+            op: CheckedOp::Add,
+            arithmetic: ArithmeticKind::Unsigned(256),
+            lhs,
+            rhs,
+        }) => (lhs, rhs, true),
+        _ => return (value, U256::ZERO, false),
+    };
+    match (const_of(func, x), const_of(func, c)) {
+        (_, Some(offset)) => (x, offset, exact),
+        (Some(offset), None) => (c, offset, exact),
+        (None, None) => (value, U256::ZERO, false),
     }
 }
 

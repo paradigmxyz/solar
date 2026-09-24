@@ -1,0 +1,64 @@
+//@compile-flags: -Zmir-pipeline=check-elim
+//@filecheck:
+@module WholeWords
+
+// Whole words from byte 31 of a buffer with a spare word: a mask that keeps
+// a subset of another mask's bits never exceeds it, so `31 + (x & ~31)`
+// stays within `(x & 255) + 32` and the range check folds.
+// CHECK-LABEL: {{^[ +].*}}fn @masks{{[( ]}}
+// CHECK: - jumpi {{v[0-9]+}}, bb2, bb1
+// CHECK: + jump bb1
+fn @masks(arg0: i256) -> i256 {
+  bb0:
+    v1 = and arg0, 255
+    v2 = and arg0, 224
+    v3 = add v2, 31
+    v4 = add v1, 32
+    v5 = gt v3, v4
+    jumpi v5, bb2, bb1
+  bb1:
+    ret v2
+  bb2:
+    revert 0, 0
+}
+
+// A mask with a bit the other lacks can exceed it.
+// CHECK-LABEL: {{^[ +].*}}fn @wider_mask{{[( ]}}
+// CHECK-NOT: {{^[+-]}}
+fn @wider_mask(arg0: i256) -> i256 {
+  bb0:
+    v1 = and arg0, 255
+    v2 = and arg0, 480
+    v3 = add v2, 31
+    v4 = add v1, 32
+    v5 = gt v3, v4
+    jumpi v5, bb2, bb1
+  bb1:
+    ret v2
+  bb2:
+    revert 0, 0
+}
+
+// The reread length of a fresh buffer equals the checked sum stored at its
+// allocation, so a range checked against the reread is one against the sum.
+// CHECK-LABEL: {{^[ +].*}}fn @reread{{[( ]}}
+// CHECK: - jumpi {{v[0-9]+}}, bb2, bb1
+// CHECK: + jump bb1
+fn @reread(arg0: i256) -> memorybytes {
+  bb0:
+    v1 = and arg0, 255
+    v2 = checked_add u256, v1, 32
+    v3 = add v2, 63
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v5 = alloc memorybytes, exact, zeroed, panic, v4
+    set_memory_object_len memorybytes, v5, v2
+    v6 = and arg0, 224
+    v7 = add v6, 31
+    v8 = memory_object_len memorybytes, v5
+    v9 = gt v7, v8
+    jumpi v9, bb2, bb1
+  bb1:
+    ret v5
+  bb2:
+    revert 0, 0
+}
