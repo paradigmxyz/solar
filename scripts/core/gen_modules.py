@@ -270,6 +270,15 @@ library WordArrays {
     }}
 
 ''')
+        out.append(f'''    /// @dev A new array holding the elements of `a`.
+    function copy({ty}[] memory a) internal pure returns ({ty}[] memory c) {{
+        c = new {ty}[](a.length);
+        for (uint256 i; i < a.length; ++i) {{
+            c[i] = a[i];
+        }}
+    }}
+
+''')
         out.append(f'''    /// @dev Removes adjacent duplicates from sorted `a` in place.
     function uniquifySorted({ty}[] memory a) internal pure {{
         if (a.length < 2) return;
