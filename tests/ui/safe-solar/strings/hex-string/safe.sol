@@ -10,6 +10,10 @@
 //@ run-call: prefixedFixed 0x12, 1 => "0x12"
 //@ run-call: plainFixed 0x1234, 2 => "1234"
 //@ run-call: prefixedFixed 0x1234, 2 => "0x1234"
+//@ run-call: plainFixed 0xffff, 2 => "ffff"
+//@ run-call: prefixedFixed 0xffff, 2 => "0xffff"
+//@ run-call: plainFixed 0xabcdef, 3 => "abcdef"
+//@ run-call: prefixedFixed 0xabcdef, 3 => "0xabcdef"
 //@ run-call: plainFixed 0x1, 15 => "000000000000000000000000000001"
 //@ run-call: prefixedFixed 0x1, 15 => "0x000000000000000000000000000001"
 //@ run-call: plainFixed 0x1, 16 => "00000000000000000000000000000001"
@@ -34,6 +38,8 @@
 //@ run-call-fail: prefixedFixed 0x100, 1 => 0x2194895a
 //@ run-call-fail: plainFixed 0x10000, 2 => 0x2194895a
 //@ run-call-fail: prefixedFixed 0x10000, 2 => 0x2194895a
+//@ run-call-fail: plainFixed 0x1000000, 3 => 0x2194895a
+//@ run-call-fail: prefixedFixed 0x1000000, 3 => 0x2194895a
 //@ run-call-fail: plainFixed 0x100000000000000000000000000000000, 16 => 0x2194895a
 //@ run-call-fail: prefixedFixed 0x100000000000000000000000000000000, 16 => 0x2194895a
 //@ run-call-fail: plainFixed 0x100000000000000000000000000000000000000000000000000000000000000, 31 => 0x2194895a
