@@ -360,6 +360,29 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // Generate each block.
         let store_cfg = CfgInfo::new(func);
+        // Loops entered from a single block outside them, by header. Their carried invariants
+        // may still be reordered to the stack that enters them before any of them is emitted.
+        let loop_bodies = if self.gcx.sess.opts.optimization.is_gas()
+            && !stack_phi_plan.entries.is_empty()
+            && !store_cfg.cyclic_blocks().is_empty()
+        {
+            let mut loop_analyzer = LoopAnalyzer::new();
+            let loop_info = loop_analyzer.analyze_structure(func);
+            loop_info
+                .all_loops()
+                .filter(|loop_data| {
+                    func.blocks[loop_data.header]
+                        .predecessors
+                        .iter()
+                        .filter(|&&pred| !loop_data.blocks.contains(pred))
+                        .count()
+                        == 1
+                })
+                .map(|loop_data| (loop_data.header, loop_data.blocks.clone()))
+                .collect::<FxHashMap<_, _>>()
+        } else {
+            FxHashMap::default()
+        };
         let block_order = self.block_layout_order(func, &store_cfg);
         let block_pos: FxHashMap<BlockId, usize> =
             block_order.iter().enumerate().map(|(pos, &b)| (b, pos)).collect();
@@ -723,6 +746,20 @@ impl<'gcx> EvmCodegen<'gcx> {
                 return;
             }
 
+            // loop entry: invariants take the order this block's stack holds them in
+            if let Some(Terminator::Jump(header)) = block.terminator
+                && let Some(body) = loop_bodies.get(&header)
+                && body.iter().all(|member| block_pos.get(&member).is_some_and(|&at| at > pos))
+            {
+                self.rebind_loop_invariants(
+                    func,
+                    &mut stack_phi_plan,
+                    &global_stack_plan,
+                    block_id,
+                    header,
+                    body,
+                );
+            }
             let stack_phi_preserved = stack_phi_plan.edges.get(&block_id).is_some_and(|edge| {
                 if !self.can_prepare_stack_phi_edge(func, edge) {
                     return false;
