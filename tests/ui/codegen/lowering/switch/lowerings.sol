@@ -45,13 +45,12 @@ contract SwitchLowerings {
     // BUCKETSGAS-NEXT: indexed_jump
 
     // BUCKETSSIZE-LABEL: @module SwitchLowerings_runtime
-    // BUCKETSSIZE: push 8
-    // BUCKETSSIZE-NEXT: dup 2
-    // BUCKETSSIZE-NEXT: mod
+    // BUCKETSSIZE: push 3
+    // BUCKETSSIZE-NEXT: and
     // BUCKETSSIZE-NEXT: indexed_jump
-    // BUCKETSSIZE: PUSH1 0x18
+    // BUCKETSSIZE: PUSH1 0x1c
     // BUCKETSSIZE-NEXT: ADD
-    // BUCKETSSIZE-NEXT: PUSH8
+    // BUCKETSSIZE-NEXT: PUSH4
     // BUCKETSSIZE-NEXT: SWAP1
     // BUCKETSSIZE-NEXT: BYTE
     // BUCKETSSIZE-NEXT: JUMP ; unknown

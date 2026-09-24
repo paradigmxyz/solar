@@ -3,7 +3,10 @@
 //! Constant switches start as MIR `switch` terminators. This module compares
 //! several EVM shapes for the same sorted case values: a source-ordered linear
 //! scan, a balanced binary tree, modulo buckets, a bounds-checked dense table,
-//! and collision-free bit-slice or affine hashes. Each candidate models both
+//! and collision-free bit-slice or affine hashes. Bucket counts range from
+//! short tables of four to sixty-four slots, whose chains replace the top
+//! levels of a tree in one indexed jump, up to about one case per slot; a
+//! power-of-two count hashes with a mask. Each candidate models both
 //! hit and miss paths, including the default cleanup sequence and the later
 //! block-layout effects that change label widths.
 //!
@@ -927,15 +930,20 @@ fn binary_leaf_sizes(len: usize) -> Vec<usize> {
 fn bucket_count_candidates(len: usize) -> Vec<usize> {
     let first = (len.saturating_mul(3) / 4).max(2);
     let last = len.saturating_mul(5) / 4;
+    // Fewer buckets scan longer chains through a smaller table, between a
+    // balanced tree's leaves and one case per slot. Powers of two up to 64
+    // keep the table packable and the search bounded.
+    let short_tables = (2..=6).map(|shift| 1usize << shift).filter(|&count| count < first);
     let count = last - first + 1;
     if count <= MAX_BUCKET_CANDIDATES {
-        return (first..=last).collect();
+        return short_tables.chain(first..=last).collect();
     }
 
     let span = last - first;
     let denominator = MAX_BUCKET_CANDIDATES - 1;
     let mut candidates = (0..MAX_BUCKET_CANDIDATES)
         .map(|index| first + span.saturating_mul(index) / denominator)
+        .chain(short_tables)
         .collect::<Vec<_>>();
     candidates.push(len);
     candidates.sort_unstable();
@@ -979,8 +987,12 @@ fn bucket_lowering_cost_with_tests(
 ) -> LoweringCost {
     debug_assert!(!default.can_fallthrough());
     debug_assert_eq!(values.len(), equality_costs.len());
-    let hash_len = 1 + push_len(evm_version, U256::from(bucket_count)) + 1 + 1;
-    let hash_gas = VERY_LOW_GAS * 3 + MOD_GAS;
+    // bucket = and value, count - 1 (a power of two), or mod value, count
+    let (hash_len, hash_gas) = if bucket_count.is_power_of_two() {
+        (1 + push_len(evm_version, U256::from(bucket_count - 1)) + 1, VERY_LOW_GAS * 3)
+    } else {
+        (1 + push_len(evm_version, U256::from(bucket_count)) + 1 + 1, VERY_LOW_GAS * 3 + MOD_GAS)
+    };
     let (mut cost, dispatch_gas) = indexed_jump_dispatch_cost(
         values.len(),
         bucket_count,
@@ -1701,10 +1713,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             .collect();
 
         self.emit_stack_op(StackOp::Dup(1));
-        self.asm.emit_push(U256::from(bucket_count));
-        self.scheduler.stack.push_unknown();
-        self.emit_stack_op(StackOp::Swap(1));
-        self.asm.emit_op(op::MOD);
+        if bucket_count.is_power_of_two() {
+            // bucket = and value, count - 1
+            self.asm.emit_push(U256::from(bucket_count - 1));
+            self.scheduler.stack.push_unknown();
+            self.asm.emit_op(op::AND);
+        } else {
+            // bucket = mod value, count
+            self.asm.emit_push(U256::from(bucket_count));
+            self.scheduler.stack.push_unknown();
+            self.emit_stack_op(StackOp::Swap(1));
+            self.asm.emit_op(op::MOD);
+        }
         self.scheduler.instruction_executed_untracked(2);
         self.asm.emit_indexed_jump(bucket_labels.clone());
         self.scheduler.stack.pop();
@@ -2709,7 +2729,7 @@ mod tests {
     #[test]
     fn bounds_bucket_search_for_large_switches() {
         let candidates = bucket_count_candidates(10_000);
-        assert!(candidates.len() <= MAX_BUCKET_CANDIDATES + 1);
+        assert!(candidates.len() <= MAX_BUCKET_CANDIDATES + 6);
         assert!(candidates.contains(&10_000));
         assert!(bucket_count_candidates(97).contains(&97));
     }
