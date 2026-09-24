@@ -205,8 +205,8 @@ fn @rawBase() [selector=0xcc1fc46b, abi_wrapper, inline_assembly, pure] {
     jumpi v3, bb3, bb2
   bb2:
     v9 = mload 0 !metadata(memory=scratch)
-    mstore 128, v9
-    returndata 128, 32
+    mstore 0, v9 !metadata(memory=scratch)
+    returndata 0, 32
   bb3:
     mstore v10, 7
     v11 = add v10, 32

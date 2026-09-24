@@ -27,10 +27,10 @@ bb0:
   push 0x123456789abcde
   dup 1
   addmod
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3 [cold]:
   push 0
@@ -73,10 +73,10 @@ JUMPI
 PUSH7 0x123456789abcde
 DUP1
 ADDMOD
-PUSH1 0x80
+PUSH0
 MSTORE
 PUSH1 0x20
-PUSH1 0x80
+PUSH0
 RETURN
 ; bb0
 JUMPDEST

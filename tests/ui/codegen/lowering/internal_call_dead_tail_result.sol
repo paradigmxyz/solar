@@ -33,7 +33,7 @@ contract DeadTailResult {
 
     // CHECK-LABEL: @module DeadTailResult_runtime
     // CHECK: revert
-    // CHECK: push 224
+    // CHECK: push 160
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // CHECK: [continuation]:

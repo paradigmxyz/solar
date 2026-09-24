@@ -60,10 +60,10 @@ bb62:
   mul
   push 7
   add
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb40 [cold]:
   push 65
@@ -122,10 +122,10 @@ bb13:
   iszero
   mul
   add
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb16:
   push 128
@@ -607,10 +607,10 @@ bb46 [continuation]:
   sub
   or
   and
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb48:
   push 36
@@ -662,10 +662,10 @@ bb50 [continuation]:
   shr
   not
   and
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb52:
   push 128

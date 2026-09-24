@@ -28,8 +28,8 @@ fn @read1() [selector=0xe2ddc805, abi_wrapper, pure] {
     v7 = add v14, arg1
     v8 = calldataload v7
     v9 = and v8, 0xff00000000000000000000000000000000000000000000000000000000000000
-    mstore 128, v9
-    returndata 128, 32
+    mstore 0, v9 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     tail_call @revert_stub
   bb3:
@@ -54,8 +54,8 @@ fn @read4() [selector=0x114a0c94, abi_wrapper, pure] {
     v7 = add v14, arg1
     v8 = calldataload v7
     v9 = and v8, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, v9
-    returndata 128, 32
+    mstore 0, v9 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     tail_call @revert_stub
   bb3:
@@ -79,8 +79,8 @@ fn @read32() [selector=0x7292b714, abi_wrapper, pure] {
   bb2:
     v7 = add v13, arg1
     v8 = calldataload v7
-    mstore 128, v8
-    returndata 128, 32
+    mstore 0, v8 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     tail_call @revert_stub
   bb3:
@@ -104,8 +104,8 @@ fn @readWord() [selector=0x21a70e43, abi_wrapper, pure] {
   bb2:
     v7 = add v13, arg1
     v8 = calldataload v7
-    mstore 128, v8
-    returndata 128, 32
+    mstore 0, v8 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     tail_call @revert_stub
   bb3:

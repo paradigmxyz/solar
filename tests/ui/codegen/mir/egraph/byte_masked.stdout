@@ -13,13 +13,13 @@ fn @entry() [entry] {
 fn @cleared() [selector=0xc23ff01c, abi_wrapper, pure] {
   bb0:
     v18 = icall @decode_calldata_type, 4
-    v21 = ptrtoint memptr v18 to i256
-    v0 = mload v21
+    v20 = ptrtoint memptr v18 to i256
+    v0 = mload v20
     v3 = lt v0, 4
     jumpi v3, bb1, bb2
   bb2:
-    mstore 128, 0
-    returndata 128, 32
+    mstore 0, 0 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     tail_call @revert_stub
 }
@@ -27,16 +27,16 @@ fn @cleared() [selector=0xc23ff01c, abi_wrapper, pure] {
 fn @kept() [selector=0xc57c8563, abi_wrapper, pure] {
   bb0:
     v18 = icall @decode_calldata_type, 4
-    v22 = ptrtoint memptr v18 to i256
-    v0 = mload v22
+    v21 = ptrtoint memptr v18 to i256
+    v0 = mload v21
     v3 = lt v0, 4
     jumpi v3, bb1, bb2
   bb2:
-    v24 = add v22, 32
-    v9 = mload v24
+    v23 = add v21, 32
+    v9 = mload v23
     v13 = byte 3, v9
-    mstore 128, v13
-    returndata 128, 32
+    mstore 0, v13
+    returndata 0, 32
   bb1:
     tail_call @revert_stub
 }

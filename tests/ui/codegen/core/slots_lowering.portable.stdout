@@ -17,8 +17,8 @@ fn @get() [selector=0x9507d39a, abi_wrapper, view] {
     jumpi v2, bb1, bb2
   bb2:
     v0 = icall @load, arg0
-    mstore 128, v0
-    returndata 128, 32
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }

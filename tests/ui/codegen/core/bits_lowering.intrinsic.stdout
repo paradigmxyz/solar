@@ -13,8 +13,8 @@ fn @entry() [entry] {
 fn @leading() [selector=0x3ce23483, abi_wrapper, pure] {
   bb0:
     v0 = clz arg0
-    mstore 128, v0
-    returndata 128, 32
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @highest() [selector=0xe076913c, abi_wrapper, pure] {
@@ -25,8 +25,8 @@ fn @highest() [selector=0xe076913c, abi_wrapper, pure] {
     v3 = zext i1 v2 to i256
     v4 = mul v3, 255
     v5 = xor v1, v4
-    mstore 128, v5
-    returndata 128, 32
+    mstore 0, v5 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @trailing() [selector=0x5b348c5a, abi_wrapper, pure] {
@@ -39,8 +39,8 @@ fn @trailing() [selector=0x5b348c5a, abi_wrapper, pure] {
     v5 = zext i1 v4 to i256
     v6 = mul v5, 255
     v7 = xor v3, v6
-    mstore 128, v7
-    returndata 128, 32
+    mstore 0, v7 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @ones() [selector=0xb2f925a4, abi_wrapper, pure] {
@@ -60,8 +60,8 @@ fn @ones() [selector=0xb2f925a4, abi_wrapper, pure] {
     v13 = mul v12, 0x101010101010101010101010101010101010101010101010101010101010101
     v14 = shr 248, v13
     v15 = add v14, v1
-    mstore 128, v15
-    returndata 128, 32
+    mstore 0, v15 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @entry() [entry] {

@@ -1,0 +1,51 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_scratch_return.mir (before lower-abi) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_scratch_return.mir (after lower-abi) ===
+  @module LowerAbiScratchReturn
+  types:
+    struct0: {i256, i256}
+    struct1: {i256, i256, i256}
+  
+- fn @pair(arg0: i256) -> struct0 [selector=0x1f6a26ff, return_abi=[i256, i256], abi_returns=[word, word]] {
++ fn @pair() [selector=0x1f6a26ff, abi_wrapper] {
+    bb0:
++     v1 = calldatasize
++     v2 = lt v1, 36
++     jumpi v2, bb2, bb3
++   bb3:
++     jump bb1
++   bb1:
+      v0 = add arg0, 1
+-     ret arg0, v0
++     mstore 0, arg0 !metadata(memory=scratch)
++     mstore 32, v0 !metadata(memory=scratch)
++     v3 = add 32, 32
++     v4 = sub v3, 0
++     returndata 0, v4
++   bb2:
++     revert 0, 0
+  }
+  
+- fn @triple(arg0: i256) -> struct1 [selector=0x01020304, return_abi=[i256, i256, i256], abi_returns=[word, word, word]] {
++ fn @triple() [selector=0x01020304, abi_wrapper] {
+    bb0:
++     v2 = calldatasize
++     v3 = lt v2, 36
++     jumpi v3, bb2, bb3
++   bb3:
++     jump bb1
++   bb1:
+      v0 = add arg0, 1
+      v1 = add arg0, 2
+-     ret arg0, v0, v1
++     mstore 128, arg0
++     v4 = add 128, 32
++     mstore v4, v0
++     v5 = add v4, 32
++     mstore v5, v1
++     v6 = add v5, 32
++     v7 = sub v6, 128
++     returndata 128, v7
++   bb2:
++     revert 0, 0
+  }
+  
