@@ -24,6 +24,12 @@
 //! `WordArrays.copy` allocates like the body's `new` and moves the length word
 //! and the elements with one `mcopy`, instead of zeroing the words it then
 //! overwrites one at a time.
+//!
+//! A storage reference argument is passed as its slot, as to any internal
+//! call. `Slots` hashes a root's slot the way a dynamic array's data slot is
+//! hashed and checks the index after the hash, so a loop over one region can
+//! hoist the hash. `Return.abiEncoded` encodes the string where it lies, since
+//! the call ends before memory is read again.
 
 use super::*;
 use solar_sema::core::CoreIntrinsic;
@@ -77,8 +83,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for (index, argument) in exprs.enumerate() {
             let parameter = *function.parameters.get(index)?;
             let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
-            let value = self.lower_typed_expr(argument, parameter_ty)?;
-            let value = self.materialize_call_argument(parameter_ty, value, argument.span)?;
+            // A storage reference is passed as its slot, as to any internal call.
+            let value = if Self::is_storage_parameter(parameter_ty) {
+                let Some(access) = self.storage_access(argument) else {
+                    return self.cx.report_unsupported(argument.span, "storage access");
+                };
+                access.slot
+            } else {
+                let value = self.lower_typed_expr(argument, parameter_ty)?;
+                self.materialize_call_argument(parameter_ty, value, argument.span)?
+            };
             operands.push(value);
             parameter_tys.push(parameter_ty);
         }
@@ -159,6 +173,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.pack_return_values(values, &return_tys))
             }
             CoreIntrinsic::RevertRaw => self.lower_core_revert_raw(&operands),
+            CoreIntrinsic::ReturnAbiEncoded => self.lower_core_return_abi_encoded(&operands),
+            CoreIntrinsic::SlotsLoad => self.lower_core_slots_load(&operands),
+            CoreIntrinsic::SlotsStore => self.lower_core_slots_store(&operands),
             CoreIntrinsic::Keccak256Range => self.lower_core_keccak256_range(&operands),
             CoreIntrinsic::Deploy | CoreIntrinsic::Deploy2 => {
                 self.lower_core_deploy(intrinsic, &operands)
@@ -1560,6 +1577,67 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
         let pointer = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
         self.builder.revert(pointer, length);
+        Some(self.builder.imm(U256::ZERO))
+    }
+
+    /// `Return.abiEncoded(s)` returns `s` encoded where it lies, as the tail of
+    /// a one-word head: the offset goes in the word below the string and a
+    /// zero word pads its end. The call ends at the return, so nothing reads
+    /// the words written over afterwards.
+    fn lower_core_return_abi_encoded(&mut self, operands: &[ValueId]) -> Option<ValueId> {
+        let [s] = *operands else { return None };
+        let kind = MemoryObjectKind::Bytes;
+        // head = s - 32
+        // mstore(head, 32)
+        // mstore(data(s) + len(s), 0)
+        // return(head, ((len(s) + 31) & ~31) + 64)
+        let object = self.builder.cast_word(s);
+        let word = self.builder.imm(32);
+        let head = self.builder.sub(object, word);
+        self.builder.mstore(head, word);
+        let length = self.builder.memory_object_len(s, kind);
+        let data = self.builder.memory_object_data(s, kind);
+        let data = self.builder.cast_word(data);
+        let end = self.builder.add(data, length);
+        let zero = self.builder.imm(0);
+        self.builder.mstore(end, zero);
+        let rounded = self.builder.add_u64_offset(length, 31);
+        let mask = self.builder.imm(U256::MAX << 5);
+        let padded = self.builder.and(rounded, mask);
+        let size = self.builder.add_u64_offset(padded, 64);
+        self.builder.ret_data(head, size);
+        Some(self.builder.imm(U256::ZERO))
+    }
+
+    /// The slot of word `index` in the region `root` roots: past the hash of
+    /// the root's slot, where a dynamic array there keeps its elements. An
+    /// index of `2**64` or more panics as the body's range check does. The
+    /// hash comes first, so a loop over one region can hoist it.
+    fn core_slots_word(&mut self, root: ValueId, index: ValueId) -> ValueId {
+        // data = keccak256(root)
+        // panic 0x32 if index >> 64 != 0
+        // slot = data + index
+        let data = self.builder.storage_array_data_slot(root);
+        let shifting = self.cx.gcx.sess.opts.evm_version.has_bitwise_shifting();
+        let out_of_range = self.builder.exceeds_bits(index, 64, shifting);
+        self.builder.panic_if(out_of_range, PanicCode::ArrayOutOfBounds);
+        self.builder.add(data, index)
+    }
+
+    /// `Slots.load(root, index)`.
+    fn lower_core_slots_load(&mut self, operands: &[ValueId]) -> Option<ValueId> {
+        let [root, index] = *operands else { return None };
+        let slot = self.core_slots_word(root, index);
+        // value = sload(slot)
+        Some(self.builder.sload(slot))
+    }
+
+    /// `Slots.store(root, index, value)`.
+    fn lower_core_slots_store(&mut self, operands: &[ValueId]) -> Option<ValueId> {
+        let [root, index, value] = *operands else { return None };
+        let slot = self.core_slots_word(root, index);
+        // sstore(slot, value)
+        self.builder.sstore(slot, value);
         Some(self.builder.imm(U256::ZERO))
     }
 
