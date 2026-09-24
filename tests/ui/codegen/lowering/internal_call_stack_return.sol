@@ -4,11 +4,13 @@
 //@[size] compile-flags: -O size -Zdump=evm-ir-runtime
 //@[size] filecheck: --check-prefix=SIZE
 //@[runtime] compile-flags: -O gas
-//@ run-call: stackAcross 2 => 215
-//@ run-call: memoryAcross 2 => 215
-//@ run-call: voidAcross 2 => 8
-//@ run-call: nestedAcross 2 => 218
-//@ run-call: multiAcross 2 => 0
+//@ run-call: ICallStackReturn::stackAcross 2 => 215
+//@ run-call: ICallStackReturn::memoryAcross 2 => 215
+//@ run-call: ICallStackReturn::voidAcross 2 => 8
+//@ run-call: ICallStackReturn::nestedAcross 2 => 218
+//@ run-call: ICallStackReturn::multiAcross 2 => 0
+//@ run-call: SharedHelperStackReturn::first 2 => 215
+//@ run-call: SharedHelperStackReturn::second 2 => 219
 
 contract ICallStackReturn {
     uint256 private state;
@@ -57,14 +59,15 @@ contract ICallStackReturn {
     // GAS-NOT: mload
     // GAS: addmod
 
-    // Size mode keeps a one-word helper result on the physical stack and removes its
-    // frame slot. Gas mode consumes the small helpers through single-use inlining.
+    // Both modes consume these loop-free single-use helpers, so no frame slot
+    // or call is left to hold the result.
     //
     // SIZE-LABEL: @module ICallStackReturn_runtime
+    // SIZE-NOT: mload
     // SIZE: push 11
     // SIZE-NEXT: mul
-    // SIZE-NEXT: swap 1
-    // SIZE-NEXT: jump
+    // SIZE-NOT: mload
+    // SIZE-LABEL: @module SharedHelperStackReturn_runtime
     function stackAcross(uint256 x) external pure returns (uint256) {
         unchecked {
             uint256 keep = x * 3;
@@ -154,6 +157,38 @@ contract ICallStackReturn {
     }
 
     function multiHelper(uint256 x) internal pure returns (uint256 y) {
+        unchecked {
+            y = x + 1;
+            y *= 3;
+            y ^= 5;
+            y += 7;
+            y *= 11;
+        }
+    }
+}
+
+// A helper with two callers stays a call in size mode, which keeps its one-word
+// result on the physical stack across the return instead of a frame slot.
+contract SharedHelperStackReturn {
+    // SIZE: push 11
+    // SIZE-NEXT: mul
+    // SIZE-NEXT: swap 1
+    // SIZE-NEXT: jump
+    function first(uint256 x) external pure returns (uint256) {
+        unchecked {
+            uint256 keep = x * 3;
+            return keep + helper(x);
+        }
+    }
+
+    function second(uint256 x) external pure returns (uint256) {
+        unchecked {
+            uint256 keep = x * 5;
+            return keep ^ helper(x);
+        }
+    }
+
+    function helper(uint256 x) internal pure returns (uint256 y) {
         unchecked {
             y = x + 1;
             y *= 3;
