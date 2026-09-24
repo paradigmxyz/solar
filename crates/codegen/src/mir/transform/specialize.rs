@@ -14,7 +14,9 @@
 //! that still calls other helpers is not priced, but a one-byte literal that every
 //! caller passes for one of its parameters is substituted in place: the literal
 //! costs no more to materialize than duplicating the argument, and dead-argument
-//! elimination then drops the parameter. Tail calls, public entries, baked frame
+//! elimination then drops the parameter. Calls from functions no entry reaches
+//! are ignored: they are dead, and function DCE deletes them before code is
+//! emitted. Tail calls, public entries, baked frame
 //! addresses and explicitly non-inlineable helpers are excluded. Cloning is bounded to one
 //! candidate per original body per pass; subsequent dead-argument elimination removes the
 //! specialized parameters. Run after function-pointer specialization and before dead-argument
@@ -86,7 +88,14 @@ fn specialize_round(
         index_vec![Vec::new(); module.functions.len()];
     let mut tail_called =
         solar_data_structures::bit_set::DenseBitSet::new_empty(module.functions.len());
+    // A caller that no entry reaches, such as a wrapper an inliner consumed,
+    // is deleted by the function-level DCE that follows and never runs, so
+    // its arguments constrain nothing.
+    let reachable = graph.reachable_from_entries();
     for (caller, func) in module.functions.iter_enumerated() {
+        if !reachable.is_empty() && !reachable.contains(caller) {
+            continue;
+        }
         for inst in func.instructions() {
             if let InstKind::ICall {
                 function: crate::mir::Callee::Function(function), args, ..

@@ -1,0 +1,44 @@
+//@compile-flags: -Zmir-pipeline=specialize,dead-arg-elim
+//@filecheck:
+@module DeadCaller
+
+// Every entry passes 0 for the helper's mode. `stale` passes its own
+// argument, but no entry reaches it, so the helper is still specialized in
+// place and loses its mode parameter.
+// CHECK: (after specialize)
+// CHECK: fn @helper(arg0: i256, arg1: i256) -> i256 {
+// CHECK: - jumpi {{v[0-9]+}}, bb1, bb2
+// CHECK: (after dead-arg-elim)
+// CHECK: fn @first
+// CHECK: + {{v[0-9]+}} = icall @helper, arg0
+// CHECK: + fn @helper(arg0: i256) -> i256 {
+fn @first(arg0: i256) -> i256 [selector=0x00000001] {
+  bb0:
+    v0 = icall @helper, 0, arg0
+    ret v0
+}
+
+fn @second(arg0: i256) -> i256 [selector=0x00000002] {
+  bb0:
+    v0 = icall @helper, 0, arg0
+    ret v0
+}
+
+fn @stale(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = icall @helper, arg0, arg1
+    ret v0
+}
+
+fn @helper(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v3 = ne arg0, 0
+    jumpi v3, bb1, bb2
+  bb1:
+    v0 = mul arg1, arg1
+    v1 = mul v0, v0
+    ret v1
+  bb2:
+    v2 = add arg1, 7
+    ret v2
+}
