@@ -11,8 +11,9 @@
 
 // A caller that never reads a stack-returned tuple's tail drops those words
 // after the call instead of staging them in the callee's return area. With
-// no call site staging there, the callee's frame keeps only the words it
-// uses, so both entries start their heap lower.
+// no call site staging there, and `needle`, which the search keeps across its
+// loop, read from calldata in the callee, the callee needs no frame words, so
+// both entries start their heap at 0x80.
 contract DeadTailResult {
     function search(uint256[] memory a, uint256 needle)
         internal
@@ -33,13 +34,12 @@ contract DeadTailResult {
 
     // CHECK-LABEL: @module DeadTailResult_runtime
     // CHECK: revert
-    // CHECK: push 160
+    // CHECK: push 128
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // CHECK: [continuation]:
     // CHECK-NEXT: push [[CONTAINS:bb[0-9]+]]
-    // CHECK-NEXT: push 36
-    // CHECK-NEXT: calldataload
+    // CHECK-NEXT: swap 1
     // CHECK: [[CONTAINS]] [continuation]:
     // CHECK-NEXT: pop
     // CHECK-NEXT: iszero
