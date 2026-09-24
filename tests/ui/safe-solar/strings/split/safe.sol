@@ -1,5 +1,6 @@
-//@ revisions: intrinsic portable
+//@ revisions: intrinsic size portable
 //@[intrinsic] compile-flags: -Ogas
+//@[size] compile-flags: -Osize
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
 //@ run-call: split "a,b,,c", "," => ["a", "b", "", "c"]
 //@ run-call: split "banana", "an" => ["b", "", "a"]
@@ -11,6 +12,8 @@
 //@ run-call: split "abcdXXXXabcdefghijklmnopqrstuvwxyz0123456789abcd", "abcdefghijklmnopqrstuvwxyz0123456789" => ["abcdXXXX", "abcd"]
 //@ run-call: split "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefgABCDEFGHIJKLMNOPQRSTUVWXYZabcdefgtail", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefg" => ["", "", "tail"]
 //@ run-call: split "same", "same" => ["", ""]
+//@ run-call: split "", "" => []
+//@ run-call: split "a", "" => ["a"]
 
 import {Strings} from "solar:core/v1/Strings.sol";
 
