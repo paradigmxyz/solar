@@ -7,9 +7,11 @@
 //! avoiding a new return label and the caller's return epilogue. MIR call and
 //! return semantics remain unchanged.
 //!
-//! This currently requires nonrecursive static frames and a complete stack
-//! argument convention. Dynamic frames retain their restoration protocol, and
-//! mixed memory/stack arguments retain ordinary call lowering. Constructors and
+//! This currently requires nonrecursive static frames, a complete stack
+//! argument convention and a callee that returns no words: a result the void
+//! caller discards would otherwise stay on the continuation's stack. Dynamic
+//! frames retain their restoration protocol, and mixed memory/stack arguments
+//! retain ordinary call lowering. Constructors and
 //! external entries do not have the inherited internal return address. Discard
 //! every tracked caller word except the callee's actuals before transferring;
 //! even a zero-argument call must expose the hidden return address directly.
@@ -120,8 +122,12 @@ impl EvmCodegen<'_> {
             return None;
         }
         let inst = func.inst(*block.instructions.last()?);
+        // A callee that returns words would leave them above the inherited return address, so
+        // only a void callee can return straight to the void caller's continuation, even when
+        // the caller discards the call's results.
         if let InstKind::ICall { function: crate::mir::Callee::Function(function), args } =
             &inst.kind
+            && self.function_return_counts[*function] == 0
             && self.static_frame_functions.contains(*function)
             && !self.recursive_frame_functions.contains(*function)
             && !self.recursive_stack_functions.contains(*function)
