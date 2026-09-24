@@ -27,6 +27,7 @@ time: <TIME>	MIR TimePasses adce changed=false
 time: <TIME>	MIR TimePasses dce changed=false
 time: <TIME>	MIR TimePasses jump-threading changed=false
 time: <TIME>	MIR TimePasses cfg-simplify changed=false
+time: <TIME>	MIR TimePasses inline-single-use changed=false
 time: <TIME>	MIR TimePasses specialize-function-pointers changed=false
 time: <TIME>	MIR TimePasses specialize changed=false
 time: <TIME>	MIR TimePasses dead-arg-elim changed=false
