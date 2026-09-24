@@ -634,7 +634,8 @@ pub mod sym {
     /// Get the symbol for an integer.
     ///
     /// The first few non-negative integers each have a static symbol and therefore are fast.
-    pub fn integer(n: u128) -> Symbol {
+    pub fn integer<N: Into<u128>>(n: N) -> Symbol {
+        let n = n.into();
         if n <= 9 {
             return Symbol::new(super::SYMBOL_DIGITS_BASE + n as u32);
         }
@@ -1343,12 +1344,16 @@ mod tests {
     #[test]
     fn integer_symbols() {
         crate::enter(|| {
-            for n in 0..=9 {
+            for n in 0_u8..=9 {
                 assert_eq!(sym::integer(n), Symbol::new(SYMBOL_DIGITS_BASE + n as u32));
             }
-            snapbox::assert_data_eq!(sym::integer(0).as_str(), snapbox::str!["0"]);
-            snapbox::assert_data_eq!(sym::integer(9).as_str(), snapbox::str!["9"]);
-            snapbox::assert_data_eq!(sym::integer(10).as_str(), snapbox::str!["10"]);
+            snapbox::assert_data_eq!(sym::integer(0_u8).as_str(), snapbox::str!["0"]);
+            snapbox::assert_data_eq!(sym::integer(9_u16).as_str(), snapbox::str!["9"]);
+            snapbox::assert_data_eq!(sym::integer(10_u32).as_str(), snapbox::str!["10"]);
+            snapbox::assert_data_eq!(
+                sym::integer(u64::MAX).as_str(),
+                snapbox::str!["18446744073709551615"]
+            );
             snapbox::assert_data_eq!(
                 sym::integer(u128::MAX).as_str(),
                 snapbox::str!["340282366920938463463374607431768211455"]
