@@ -1663,8 +1663,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// `Slots.storeBytes` and `Slots.storeCalldataBytes`: the range's whole
-    /// words one store each, from one hash, then the rest of the range in one
-    /// more word whose bytes past it are zero.
+    /// words one store each, then the rest of the range in one more word
+    /// whose bytes past it are zero. The loop steps a source cursor and a slot
+    /// and the rest follows from where they stop, so the hash has one use,
+    /// which a constant root can fold, and nothing the loop does not step
+    /// but the rest's width lives across it.
     fn lower_core_slots_store_bytes(
         &mut self,
         operands: &[ValueId],
@@ -1677,40 +1680,33 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             self.core_checked_range(buffer, offset, Width::Dynamic(count))
         };
-        // words = count >> 5
-        // for k < words: sstore(data + k, load(source + (k << 5)))
-        let five = self.builder.imm(5);
-        let words = self.builder.shr(five, count);
-        self.builder.counted_loop(words, |builder, k| {
-            let five = builder.imm(5);
-            let step = builder.shl(five, k);
-            let address = builder.add(source, step);
-            let word =
-                if calldata { builder.calldataload(address) } else { builder.mload(address) };
-            let slot = builder.add(data, k);
-            builder.sstore(slot, word);
-        });
         // rest = count & 31
-        // if rest != 0: sstore(data + words, load(source + (words << 5)) & ~(MAX >> (rest << 3)))
+        // end = source + (count - rest)
         let thirty_one = self.builder.imm(31);
         let rest = self.builder.and(count, thirty_one);
+        let whole = self.builder.sub(count, rest);
+        let end = self.builder.add(source, whole);
+        let (cursor, slot) =
+            self.core_slots_word_loop(source, end, data, |builder, cursor, slot| {
+                // sstore(slot, load(cursor))
+                let word =
+                    if calldata { builder.calldataload(cursor) } else { builder.mload(cursor) };
+                builder.sstore(slot, word);
+            });
+        // if rest != 0: sstore(slot, load(cursor) & ~(MAX >> (rest << 3)))
         let partial = self.builder.ne_zero(rest);
         let tail = self.builder.create_block();
         let done = self.builder.create_block();
         self.builder.branch(partial, tail, done);
         self.builder.switch_to_block(tail);
-        let five = self.builder.imm(5);
-        let step = self.builder.shl(five, words);
-        let address = self.builder.add(source, step);
         let word =
-            if calldata { self.builder.calldataload(address) } else { self.builder.mload(address) };
+            if calldata { self.builder.calldataload(cursor) } else { self.builder.mload(cursor) };
         let three = self.builder.imm(3);
         let bits = self.builder.shl(three, rest);
         let all = self.builder.imm(U256::MAX);
         let past = self.builder.shr(bits, all);
         let kept = self.builder.not(past);
         let word = self.builder.and(word, kept);
-        let slot = self.builder.add(data, words);
         self.builder.sstore(slot, word);
         self.builder.jump(done);
         self.builder.switch_to_block(done);
@@ -1718,37 +1714,32 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// `Slots.loadBytes`: the region's whole words one load and one word store
-    /// into the buffer each, from one hash, then the rest of the range merged
-    /// into the word that holds it, so the buffer's bytes past it stay.
+    /// into the buffer each, then the rest of the range merged into the word
+    /// that holds it, so the buffer's bytes past it stay. The loop steps the
+    /// buffer offset and a slot, as the stores do.
     fn lower_core_slots_load_bytes(&mut self, operands: &[ValueId]) -> Option<ValueId> {
         let [root, buffer, offset, count] = *operands else { return None };
         let data = self.core_slots_region(root, count);
-        let target = self.core_checked_range(buffer, offset, Width::Dynamic(count));
-        // words = count >> 5
-        // for k < words: buffer[offset + (k << 5)..] = sload(data + k)
-        let five = self.builder.imm(5);
-        let words = self.builder.shr(five, count);
-        self.builder.counted_loop(words, |builder, k| {
-            let slot = builder.add(data, k);
-            let word = builder.sload(slot);
-            let five = builder.imm(5);
-            let step = builder.shl(five, k);
-            let at = builder.add(offset, step);
-            builder.memory_object_store_word(buffer, at, word);
-        });
+        let _ = self.core_checked_range(buffer, offset, Width::Dynamic(count));
         // rest = count & 31
-        // if rest != 0:
-        //   keep = MAX >> (rest << 3)
-        //   buffer[offset + (words << 5)..] =
-        //     (sload(data + words) & ~keep) | (mload(target + (words << 5)) & keep)
+        // end = offset + (count - rest)
         let thirty_one = self.builder.imm(31);
         let rest = self.builder.and(count, thirty_one);
+        let whole = self.builder.sub(count, rest);
+        let end = self.builder.add(offset, whole);
+        let (at, slot) = self.core_slots_word_loop(offset, end, data, |builder, at, slot| {
+            // buffer[at..] = sload(slot)
+            let word = builder.sload(slot);
+            builder.memory_object_store_word(buffer, at, word);
+        });
+        // if rest != 0:
+        //   keep = MAX >> (rest << 3)
+        //   buffer[at..] = (sload(slot) & ~keep) | (mload(data(buffer) + at) & keep)
         let partial = self.builder.ne_zero(rest);
         let tail = self.builder.create_block();
         let done = self.builder.create_block();
         self.builder.branch(partial, tail, done);
         self.builder.switch_to_block(tail);
-        let slot = self.builder.add(data, words);
         let word = self.builder.sload(slot);
         let three = self.builder.imm(3);
         let bits = self.builder.shl(three, rest);
@@ -1756,17 +1747,56 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let keep = self.builder.shr(bits, all);
         let taken_mask = self.builder.not(keep);
         let taken = self.builder.and(word, taken_mask);
-        let five = self.builder.imm(5);
-        let step = self.builder.shl(five, words);
-        let address = self.builder.add(target, step);
+        let pointer = self.builder.memory_object_data(buffer, MemoryObjectKind::Bytes);
+        let pointer = self.builder.cast_word(pointer);
+        let address = self.builder.add(pointer, at);
         let old = self.builder.mload(address);
         let kept = self.builder.and(old, keep);
         let merged = self.builder.or(taken, kept);
-        let at = self.builder.add(offset, step);
         self.builder.memory_object_store_word(buffer, at, merged);
         self.builder.jump(done);
         self.builder.switch_to_block(done);
         Some(self.builder.imm(U256::ZERO))
+    }
+
+    /// A loop over whole words of a byte range and the slots they move to or
+    /// from: `cursor` steps 32 bytes from `start` to `end`, a multiple of 32
+    /// past it, and `slot` one word from `data`. Returns both where the loop
+    /// leaves them, at `end` and the slot after the last word it visited.
+    fn core_slots_word_loop(
+        &mut self,
+        start: ValueId,
+        end: ValueId,
+        data: ValueId,
+        body: impl FnOnce(&mut FunctionBuilder<'_>, ValueId, ValueId),
+    ) -> (ValueId, ValueId) {
+        // header:
+        //   cursor = phi [entry: start], [body: cursor + 32]
+        //   slot = phi [entry: data], [body: slot + 1]
+        //   jumpi cursor < end, body, exit
+        // body:
+        //   ...
+        //   jump header
+        let entry = self.builder.current_block();
+        let header = self.builder.create_block();
+        let step = self.builder.create_block();
+        let exit = self.builder.create_block();
+        self.builder.jump(header);
+        self.builder.switch_to_block(header);
+        let cursor = self.builder.phi(vec![(entry, start)]);
+        let slot = self.builder.phi(vec![(entry, data)]);
+        let more = self.builder.lt(cursor, end);
+        self.builder.branch(more, step, exit);
+        self.builder.switch_to_block(step);
+        body(&mut self.builder, cursor, slot);
+        let next_cursor = self.builder.add_u64_offset(cursor, 32);
+        let next_slot = self.builder.add_u64_offset(slot, 1);
+        let latch = self.builder.current_block();
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(cursor, latch, next_cursor);
+        self.builder.add_phi_incoming(slot, latch, next_slot);
+        self.builder.switch_to_block(exit);
+        (cursor, slot)
     }
 
     /// `Hash.keccak256Range(b, offset, count)`: the range is hashed where it
