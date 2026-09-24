@@ -10,112 +10,14 @@
 @module Test
 fn @encode.0(arg0: memorybytes) -> memorybytes [selector=0x12496a1b, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
-    v1 = shr 255, v0
-    v2 = ne v1, 0
-    icall panic_if<0x11>, v2
-    v3 = shl 1, v0
-    v4 = add v3, 0
-    v5 = lt v4, v3
-    icall panic_if<0x11>, v5
-    v6 = shr 64, v4
-    v7 = ne v6, 0
-    icall panic_if<0x41>, v7
-    v8 = add v4, 95
-    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v10 = alloc memorybytes, exact, uninitialized, panic, v9
-    set_memory_object_len memorybytes, v10, v4
-    v11 = memory_object_data memorybytes, v10
-    v12 = ptrtoint memptr v11 to i256
-    v13 = add v12, 0
-    v14 = memory_object_data memorybytes, arg0
-    mstore 15, 0x30313233343536373839616263646566 !metadata(memory=scratch)
-    jump bb1
-  bb1:
-    v15 = phi [bb0: 0], [bb2: v31]
-    v16 = lt v15, v0
-    jumpi v16, bb2, bb3
-  bb3:
-    v32 = add v13, v3
-    mstore v32, 0
-    ret v10
-  bb2:
-    v17 = ptrtoint memptr v14 to i256
-    v18 = add v17, v15
-    v19 = mload v18
-    v20 = byte 0, v19
-    v21 = shl 1, v15
-    v22 = add v13, v21
-    v23 = add v22, 2
-    v24 = and v20, 15
-    v25 = mload v24
-    v26 = sub v23, 1
-    mstore8 v26, v25
-    v27 = shr 4, v20
-    v28 = and v27, 15
-    v29 = mload v28
-    v30 = sub v23, 2
-    mstore8 v30, v29
-    v31 = add v15, 1
-    jump bb1
+    v0 = icall @core_hex_encode, arg0, 0
+    ret v0
 }
 
 fn @prefixed(arg0: memorybytes) -> memorybytes [selector=0x13e7d096, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
-    v1 = shr 255, v0
-    v2 = ne v1, 0
-    icall panic_if<0x11>, v2
-    v3 = shl 1, v0
-    v4 = add v3, 2
-    v5 = lt v4, v3
-    icall panic_if<0x11>, v5
-    v6 = shr 64, v4
-    v7 = ne v6, 0
-    icall panic_if<0x41>, v7
-    v8 = add v4, 95
-    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v10 = alloc memorybytes, exact, uninitialized, panic, v9
-    set_memory_object_len memorybytes, v10, v4
-    v11 = memory_object_data memorybytes, v10
-    v12 = ptrtoint memptr v11 to i256
-    v13 = add v12, 2
-    v14 = memory_object_data memorybytes, arg0
-    mstore 15, 0x30313233343536373839616263646566 !metadata(memory=scratch)
-    jump bb1
-  bb1:
-    v15 = phi [bb0: 0], [bb2: v31]
-    v16 = lt v15, v0
-    jumpi v16, bb2, bb3
-  bb3:
-    v32 = add v13, v3
-    mstore v32, 0
-    v33 = bitcast memorybytes v10 to memptr
-    v34 = ptrtoint memptr v33 to i256
-    v35 = add v34, 2
-    v36 = shl 16, v4
-    v37 = or v36, 0x3078
-    mstore v35, v37
-    ret v10
-  bb2:
-    v17 = ptrtoint memptr v14 to i256
-    v18 = add v17, v15
-    v19 = mload v18
-    v20 = byte 0, v19
-    v21 = shl 1, v15
-    v22 = add v13, v21
-    v23 = add v22, 2
-    v24 = and v20, 15
-    v25 = mload v24
-    v26 = sub v23, 1
-    mstore8 v26, v25
-    v27 = shr 4, v20
-    v28 = and v27, 15
-    v29 = mload v28
-    v30 = sub v23, 2
-    mstore8 v30, v29
-    v31 = add v15, 1
-    jump bb1
+    v0 = icall @core_hex_encode, arg0, 2
+    ret v0
 }
 
 fn @decode.2(arg0: memorybytes) -> memorybytes [selector=0x49145c91, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -624,4 +526,59 @@ fn @_digits(arg0: i256) -> i256 [pure] {
     v20 = checked_add u256, v18, v19
     v21 = shl 0, v20
     ret v21
+}
+
+fn @core_hex_encode(arg0: memorybytes, arg1: i256) -> memorybytes {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    v1 = shr 255, v0
+    v2 = ne v1, 0
+    icall panic_if<0x11>, v2
+    v3 = shl 1, v0
+    v4 = add v3, arg1
+    v5 = lt v4, v3
+    icall panic_if<0x11>, v5
+    v6 = shr 64, v4
+    v7 = ne v6, 0
+    icall panic_if<0x41>, v7
+    v8 = add v4, 95
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc memorybytes, exact, uninitialized, panic, v9
+    set_memory_object_len memorybytes, v10, v4
+    v11 = memory_object_data memorybytes, v10
+    v12 = ptrtoint memptr v11 to i256
+    v13 = add v12, arg1
+    v14 = memory_object_data memorybytes, arg0
+    v15 = memory_object_data memorybytes, v10
+    v16 = ptrtoint memptr v15 to i256
+    mstore v16, 0x3078000000000000000000000000000000000000000000000000000000000000
+    mstore 15, 0x30313233343536373839616263646566 !metadata(memory=scratch)
+    jump bb1
+  bb1:
+    v17 = phi [bb0: 0], [bb2: v33]
+    v18 = lt v17, v0
+    jumpi v18, bb2, bb3
+  bb3:
+    v34 = add v13, v3
+    mstore v34, 0
+    ret v10
+  bb2:
+    v19 = ptrtoint memptr v14 to i256
+    v20 = add v19, v17
+    v21 = mload v20
+    v22 = byte 0, v21
+    v23 = shl 1, v17
+    v24 = add v13, v23
+    v25 = add v24, 2
+    v26 = and v22, 15
+    v27 = mload v26
+    v28 = sub v25, 1
+    mstore8 v28, v27
+    v29 = shr 4, v22
+    v30 = and v29, 15
+    v31 = mload v30
+    v32 = sub v25, 2
+    mstore8 v32, v31
+    v33 = add v17, 1
+    jump bb1
 }

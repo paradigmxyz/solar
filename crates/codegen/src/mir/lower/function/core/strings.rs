@@ -55,8 +55,9 @@ impl FunctionLowerer<'_, '_> {
         ))
     }
 
-    /// Lower both minimal-hex spellings directly into the caller, avoiding an
-    /// internal-call round trip on every conversion.
+    /// Lower both minimal-hex spellings directly into the caller in gas
+    /// builds, avoiding an internal-call round trip on every conversion. Other
+    /// builds call the body every hex spelling of one word shares.
     pub(super) fn lower_core_string_minimal_hex_call(
         &mut self,
         operands: &[ValueId],
@@ -64,17 +65,22 @@ impl FunctionLowerer<'_, '_> {
     ) -> Option<ValueId> {
         let [value] = *operands else { return None };
         let prefix_length = self.builder.imm(if prefixed { 2 } else { 0 });
-        Some(self.lower_core_string_minimal_hex(value, prefix_length, false))
+        if !self.cx.gcx.sess.opts.optimization.is_gas() {
+            let minimal = self.builder.imm(1);
+            return self.call_core_hex_digits(value, prefix_length, minimal);
+        }
+        Some(self.lower_core_string_minimal_hex(value, prefix_length, HexLeadingZero::Drop))
     }
 
     /// Writes two digits per byte from the lowest byte up, stopping after the
-    /// highest nonzero byte. The minimal spelling then drops a leading zero
-    /// digit; `whole_bytes` keeps it, giving the fewest whole bytes instead.
+    /// highest nonzero byte. `leading` says whether the leading zero digit is
+    /// dropped, giving the minimal spelling, or kept, giving the fewest whole
+    /// bytes.
     pub(super) fn lower_core_string_minimal_hex(
         &mut self,
         value: ValueId,
         prefix_length: ValueId,
-        whole_bytes: bool,
+        leading: HexLeadingZero,
     ) -> ValueId {
         // Reserve one fixed region and fill it backwards two digits at a time.
         // The returned bytes header may start inside the region; the allocation
@@ -88,7 +94,7 @@ impl FunctionLowerer<'_, '_> {
 
         if !self.cx.gcx.sess.opts.optimization.is_gas() {
             let cursor = self.lower_core_hex_bytes(value, end);
-            let result = self.lower_core_hex_header(cursor, end, prefix_length, whole_bytes);
+            let result = self.lower_core_hex_header(cursor, end, prefix_length, leading);
             return self.builder.memory_object_in_allocation(result, MemoryObjectKind::Bytes);
         }
 
@@ -115,7 +121,7 @@ impl FunctionLowerer<'_, '_> {
         self.builder.branch(finished, one_byte, wider);
 
         self.builder.switch_to_block(one_byte);
-        let one_result = self.lower_core_hex_header(out1, end, prefix_length, whole_bytes);
+        let one_result = self.lower_core_hex_header(out1, end, prefix_length, leading);
         let one_exit = self.builder.current_block();
         self.builder.jump(finish);
 
@@ -126,13 +132,13 @@ impl FunctionLowerer<'_, '_> {
 
         self.builder.switch_to_block(two_bytes);
         let (_, out2) = self.lower_core_hex_byte(x1, out1);
-        let two_result = self.lower_core_hex_header(out2, end, prefix_length, whole_bytes);
+        let two_result = self.lower_core_hex_header(out2, end, prefix_length, leading);
         let two_exit = self.builder.current_block();
         self.builder.jump(finish);
 
         self.builder.switch_to_block(words);
         let cursor = self.lower_core_minimal_hex_words(value, end);
-        let words_result = self.lower_core_hex_header(cursor, end, prefix_length, whole_bytes);
+        let words_result = self.lower_core_hex_header(cursor, end, prefix_length, leading);
         let words_exit = self.builder.current_block();
         self.builder.jump(finish);
 
@@ -175,28 +181,34 @@ impl FunctionLowerer<'_, '_> {
     }
 
     /// Writes the header for the digits from `cursor` to `end`: the length
-    /// word, dropping a leading '0' digit unless `whole_bytes`, and the `0x`
+    /// word, dropping a leading '0' digit as `leading` says, and the `0x`
     /// prefix when `prefix_length` is two. Returns the header's address.
     fn lower_core_hex_header(
         &mut self,
         cursor: ValueId,
         end: ValueId,
         prefix_length: ValueId,
-        whole_bytes: bool,
+        leading: HexLeadingZero,
     ) -> ValueId {
-        // leading_zero = !whole_bytes && byte(0, mload(cursor)) == '0'
+        // leading_zero = dropped && byte(0, mload(cursor)) == '0'
         // mstore(cursor - 32 + leading_zero, "0x")
         // result = cursor - 32 + leading_zero - prefix_length
         // mstore(result, end - cursor - leading_zero + prefix_length)
         let zero = self.builder.imm(0);
-        let leading_zero = if whole_bytes {
-            zero
-        } else {
-            let first_word = self.builder.mload(cursor);
-            let first = self.builder.byte(zero, first_word);
-            let ascii_zero = self.builder.imm(48);
-            let leading_zero = self.builder.eq(first, ascii_zero);
-            self.builder.cast_word(leading_zero)
+        let leading_zero = match leading {
+            HexLeadingZero::Keep => zero,
+            HexLeadingZero::Drop | HexLeadingZero::DropIf(_) => {
+                let first_word = self.builder.mload(cursor);
+                let first = self.builder.byte(zero, first_word);
+                let ascii_zero = self.builder.imm(48);
+                let leading_zero = self.builder.eq(first, ascii_zero);
+                let leading_zero = self.builder.cast_word(leading_zero);
+                match leading {
+                    // leading_zero &= minimal
+                    HexLeadingZero::DropIf(minimal) => self.builder.and(leading_zero, minimal),
+                    _ => leading_zero,
+                }
+            }
         };
         let header_size = self.builder.imm(32);
         let result = self.builder.sub(cursor, header_size);
@@ -1977,6 +1989,18 @@ enum MatchConfirm {
     Prefix,
     /// The candidate's hash must equal this hash of the needle.
     Hash(ValueId),
+}
+
+/// Whether a hex spelling drops the leading zero digit of its highest byte.
+#[derive(Clone, Copy)]
+pub(super) enum HexLeadingZero {
+    /// The fewest whole bytes, two digits each.
+    Keep,
+    /// The minimal spelling.
+    Drop,
+    /// The minimal spelling when this word is one, whole bytes when it is
+    /// zero.
+    DropIf(ValueId),
 }
 
 /// Loop-invariant words of one replacement scan.
