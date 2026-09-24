@@ -307,6 +307,26 @@ library Strings {
         }
     }
 
+    /// @dev `subject` repeated `times` times, or the empty string when either
+    /// is zero. The length product panics when it does not fit in a word.
+    function repeat(string memory subject, uint256 times) internal pure returns (string memory) {
+        bytes memory s = bytes(subject);
+        if (times == 0 || s.length == 0) return "";
+        uint256 total = s.length * times;
+        // One copy of the subject, then the filled prefix doubled in place:
+        // each copy reads only bytes already written.
+        bytes memory out = new bytes(total);
+        Bytes.copyInto(out, 0, s, 0, s.length);
+        uint256 filled = s.length;
+        while (filled < total) {
+            uint256 rest = total - filled;
+            uint256 step = filled < rest ? filled : rest;
+            Bytes.copyInto(out, filled, out, 0, step);
+            filled += step;
+        }
+        return string(out);
+    }
+
     /// @dev Splits `subject` at each non-overlapping `delimiter` occurrence.
     function split(string memory subject, string memory delimiter)
         internal

@@ -16,9 +16,12 @@
 //! region backwards and return a header inside it, so neither counts digits
 //! first; a gas build spells a hex value wider than two bytes a word at a
 //! time instead, counting its significant bytes with one multiplication.
-//! Each spelling path writes its own header, so only the result joins. The
-//! checked Solidity bodies remain the reference under
-//! `-Zno-core-intrinsics`.
+//! Each spelling path writes its own header, so only the result joins.
+//! Repetition sizes its output like the body, moves the subject once and then
+//! doubles the filled prefix from the output itself, without the body's
+//! bounds checks or zero fill: every move stays inside the output, and only
+//! the padding past the payload keeps a zero word. The checked Solidity
+//! bodies remain the reference under `-Zno-core-intrinsics`.
 
 use super::*;
 
@@ -485,6 +488,97 @@ impl FunctionLowerer<'_, '_> {
     ) -> Option<ValueId> {
         let [subject] = *operands else { return None };
         Some(self.lower_core_string_rune_count(subject))
+    }
+
+    pub(super) fn lower_core_string_repeat_call(
+        &mut self,
+        operands: &[ValueId],
+    ) -> Option<ValueId> {
+        let [subject, times] = *operands else { return None };
+        Some(self.lower_core_string_repeat(subject, times))
+    }
+
+    /// `subject` repeated `times` times, with the body's sizing and failures:
+    /// an empty result is a fresh empty string, the length product panics with
+    /// `0x11` and the allocation with `0x41`. One move copies the subject and
+    /// each later move doubles the filled prefix, capped at the total, so
+    /// `times` copies take a logarithmic number of moves.
+    fn lower_core_string_repeat(&mut self, subject: ValueId, times: ValueId) -> ValueId {
+        let kind = MemoryObjectKind::Bytes;
+        let semantics = AllocationSemantics::SOLIDITY_UNINITIALIZED;
+        // length = len(subject)
+        // branch times == 0 | length == 0, empty, fill
+        let length = self.builder.memory_object_len(subject, kind);
+        let no_times = self.builder.eq_zero(times);
+        let no_length = self.builder.eq_zero(length);
+        let empty = self.builder.or(no_times, no_length);
+        let empty_block = self.builder.create_block();
+        let fill = self.builder.create_block();
+        let header = self.builder.create_block();
+        let step_block = self.builder.create_block();
+        let filled_block = self.builder.create_block();
+        let done = self.builder.create_block();
+        self.builder.branch(empty, empty_block, fill);
+
+        // empty: result = new bytes(0)
+        self.builder.switch_to_block(empty_block);
+        let zero = self.builder.imm(0);
+        let empty_result = self.builder.alloc_bytes_object(zero, semantics);
+        let empty_end = self.builder.current_block();
+        self.builder.jump(done);
+
+        // fill:
+        //   total = length * times; panic 0x11 if total / times != length
+        //   out = new bytes(total), uninitialized
+        //   mstore(data(out) + padded(total) - 32, 0)
+        //   mcopy(data(out), data(subject), length)
+        self.builder.switch_to_block(fill);
+        let total = self.builder.mul(length, times);
+        let quotient = self.builder.div(total, times);
+        let overflow = self.builder.ne(quotient, length);
+        self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
+        let out = self.builder.alloc_bytes_object(total, semantics);
+        let data = self.builder.memory_object_data(out, kind);
+        let data = self.builder.cast_word(data);
+        let source = self.builder.memory_object_data(subject, kind);
+        let source = self.builder.cast_word(source);
+        let last_word = self.builder.add_u64_offset(total, 31);
+        let mask = self.builder.imm(U256::MAX << 5);
+        let last_word = self.builder.and(last_word, mask);
+        let last_word = self.builder.add(data, last_word);
+        let word = self.builder.imm(32);
+        let last_word = self.builder.sub(last_word, word);
+        self.builder.mstore(last_word, zero);
+        self.builder.mcopy_heap(data, source, length);
+        let fill_end = self.builder.current_block();
+        self.builder.jump(header);
+
+        // header: filled = phi [fill: length], [step: filled + step]
+        //         branch filled < total, step, filled
+        self.builder.switch_to_block(header);
+        let filled = self.builder.phi(vec![(fill_end, length)]);
+        let more = self.builder.lt(filled, total);
+        self.builder.branch(more, step_block, filled_block);
+
+        // step: rest = total - filled; step = min(filled, rest)
+        //       mcopy(data + filled, data, step)
+        self.builder.switch_to_block(step_block);
+        let rest = self.builder.sub(total, filled);
+        let shorter = self.builder.lt(filled, rest);
+        let step = self.builder.select(shorter, filled, rest);
+        let destination = self.builder.add(data, filled);
+        self.builder.mcopy_heap(destination, data, step);
+        let next = self.builder.add(filled, step);
+        let step_end = self.builder.current_block();
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(filled, step_end, next);
+
+        self.builder.switch_to_block(filled_block);
+        self.builder.jump(done);
+
+        // done: result = phi [empty: new bytes(0)], [filled: out]
+        self.builder.switch_to_block(done);
+        self.builder.phi(vec![(empty_end, empty_result), (filled_block, out)])
     }
 
     /// Counts the runes of `subject` the way `Strings.runeCount` steps them:

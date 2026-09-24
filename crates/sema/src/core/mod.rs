@@ -119,6 +119,8 @@ pub enum CoreIntrinsic {
     ArrayIntersection,
     /// `WordArrays.difference(a, b)` for one-word dynamic arrays.
     ArrayDifference,
+    /// `WordArrays.copy(a)` for one-word dynamic arrays.
+    ArrayCopy,
     /// `Strings.replace(subject, needle, replacement)`.
     StringReplace,
     /// `Strings.indicesOf(subject, needle)`.
@@ -131,6 +133,8 @@ pub enum CoreIntrinsic {
     StringLastIndexOf,
     /// `Strings.runeCount(subject)`.
     StringRuneCount,
+    /// `Strings.repeat(subject, times)`.
+    StringRepeat,
     /// `Strings.toString(value)` for `uint256` and `int256` values.
     StringToString,
     /// `Strings.escapeHTML(subject)`.
@@ -301,6 +305,7 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (sym::union, CoreIntrinsic::ArrayUnion),
                 (sym::intersection, CoreIntrinsic::ArrayIntersection),
                 (sym::difference, CoreIntrinsic::ArrayDifference),
+                (sym::copy, CoreIntrinsic::ArrayCopy),
             ])
         })),
         "solar:core/v1/Strings.sol" => Some(STRINGS.get_or_init(|| {
@@ -311,6 +316,7 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (sym::indexOf, CoreIntrinsic::StringIndexOf),
                 (sym::lastIndexOf, CoreIntrinsic::StringLastIndexOf),
                 (sym::runeCount, CoreIntrinsic::StringRuneCount),
+                (sym::repeat, CoreIntrinsic::StringRepeat),
                 // Both overloads share a name; the lowering reads the parameter type.
                 (sym::toString, CoreIntrinsic::StringToString),
                 (sym::escapeHTML, CoreIntrinsic::StringEscapeHTML),
