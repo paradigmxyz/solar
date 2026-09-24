@@ -114,6 +114,9 @@ pub struct EvmCodegen<'gcx> {
     /// Heap floors, by the function that pushes each one. Each resolves to the highest initial
     /// free memory pointer of the entries reaching the function.
     fmp_floor_consts: Vec<(FunctionId, DeferredConst)>,
+    /// The free-memory-pointer constant a size build stores once before dispatch, for every
+    /// entry that needs one: the largest of their starts.
+    shared_free_memory_const: Option<DeferredConst>,
     /// Internal functions reachable from each entry that initializes the free-memory pointer.
     runtime_entry_reachability: FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
     /// Every external body emitted this pass, for sizing the heap floor.
@@ -181,6 +184,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             pending_static_allocs: FxHashMap::default(),
             runtime_free_memory_consts: FxHashMap::default(),
             fmp_floor_consts: Vec::new(),
+            shared_free_memory_const: None,
             runtime_entry_reachability: FxHashMap::default(),
             runtime_entry_funcs: Vec::new(),
             body: Body::External,
@@ -238,6 +242,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.packed_static_frame_sizes.clear();
         self.pending_static_allocs.clear();
         self.runtime_free_memory_consts.clear();
+        self.shared_free_memory_const = None;
         self.fmp_floor_consts.clear();
         self.runtime_entry_reachability.clear();
         self.runtime_entry_funcs.clear();
