@@ -27,7 +27,7 @@ fn @try1() [selector=0x7c4fe00c, abi_wrapper, pure] {
     v17 = or v6, v8
     jumpi v17, bb1, bb2
   bb2:
-    v11 = icall @readBytes1, v22, v21, arg1
+    v11 = icall @readBytes1, v22, v21
     jump bb1
   bb1:
     v30 = phi [bb4: 0], [bb2: 1]
@@ -79,7 +79,7 @@ fn @try32() [selector=0xf00ebb05, abi_wrapper, pure] {
     v8 = lt v15, 32
     jumpi v8, bb1, bb3
   bb3:
-    v11 = icall @readBytes32, v21, v20, arg1
+    v11 = icall @readBytes32, v21, v20
     jump bb1
   bb1:
     v28 = phi [bb5: 0], [bb2: 0], [bb3: 1]
@@ -107,7 +107,7 @@ fn @tryWord() [selector=0xdc133dec, abi_wrapper, pure] {
     v8 = lt v15, 32
     jumpi v8, bb1, bb3
   bb3:
-    v11 = icall @readUint256BE, v21, v20, arg1
+    v11 = icall @readUint256BE, v21, v20
     jump bb1
   bb1:
     v28 = phi [bb5: 0], [bb2: 0], [bb3: 1]
@@ -155,8 +155,9 @@ fn @tryTwo() [selector=0x2031ea5c, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @readBytes1(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
+fn @readBytes1(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
+    v30 = calldataload 36
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb5: v17]
@@ -166,14 +167,14 @@ fn @readBytes1(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
   bb2:
     ret v2
   bb3:
-    v19 = add arg2, v3
+    v19 = add v30, v3
     v7 = lt v19, arg1
     jumpi v7, bb5, bb4
   bb4:
     tail_call @revert_stub
   bb5:
-    v31 = add arg0, v19
-    v10 = calldataload v31
+    v32 = add arg0, v19
+    v10 = calldataload v32
     v11 = byte 0, v10
     v12 = shl 248, v11
     v21 = shl 3, v3
@@ -228,8 +229,9 @@ fn @readBytes4(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
     revert 28, 36
 }
 
-fn @readBytes32(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
+fn @readBytes32(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
+    v28 = calldataload 36
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb8: v15]
@@ -239,8 +241,8 @@ fn @readBytes32(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
   bb2:
     ret v2
   bb3:
-    v17 = add arg2, v3
-    v18 = lt v17, arg2
+    v17 = add v28, v3
+    v18 = lt v17, v28
     jumpi v18, bb6, bb7
   bb7:
     v7 = lt v17, arg1
@@ -248,8 +250,8 @@ fn @readBytes32(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
   bb4:
     tail_call @revert_stub
   bb5:
-    v29 = add arg0, v17
-    v10 = calldataload v29
+    v30 = add arg0, v17
+    v10 = calldataload v30
     v11 = byte 0, v10
     v12 = shl 248, v11
     v19 = shl 3, v3
@@ -286,8 +288,9 @@ fn @tryReadBytes4(arg0: i256, arg1: i256, arg2: i256) -> struct0 [pure, return_a
     ret 0, 0
 }
 
-fn @readUint256BE(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
+fn @readUint256BE(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
+    v21 = calldataload 36
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb5: v15]
@@ -298,8 +301,8 @@ fn @readUint256BE(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
     ret v2
   bb3:
     v5 = shl 8, v2
-    v17 = add arg2, v3
-    v18 = lt v17, arg2
+    v17 = add v21, v3
+    v18 = lt v17, v21
     jumpi v18, bb6, bb7
   bb7:
     v8 = lt v17, arg1
@@ -307,8 +310,8 @@ fn @readUint256BE(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
   bb4:
     tail_call @revert_stub
   bb5:
-    v22 = add arg0, v17
-    v11 = calldataload v22
+    v23 = add arg0, v17
+    v11 = calldataload v23
     v12 = byte 0, v11
     v15 = or v5, v12
     v19 = add v3, 1

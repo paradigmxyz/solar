@@ -50,7 +50,7 @@ fn @hash() [selector=0x00d07523, abi_wrapper, pure] {
   bb6:
     v23 = add v27, 32
     calldatacopy v23, v5, v11
-    v0 = icall @keccak256Range, v17, arg1, arg2
+    v0 = icall @keccak256Range, v17
     mstore 0, v0 !metadata(memory=scratch)
     returndata 0, 32
   bb4:
@@ -61,69 +61,73 @@ fn @hash() [selector=0x00d07523, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @keccak256Range(arg0: memptr, arg1: i256, arg2: i256) -> i256 [may_return_memory, pure] {
+fn @keccak256Range(arg0: memptr) -> i256 [may_return_memory, pure] {
   bb0:
-    v55 = ptrtoint memptr arg0 to i256
-    v0 = mload v55
-    v1 = gt arg2, v0
-    v36 = sub v0, arg2
-    v4 = gt arg1, v36
+    v43 = calldataload 36
+    v44 = calldataload 68
+    v57 = ptrtoint memptr arg0 to i256
+    v0 = mload v57
+    v1 = gt v44, v0
+    v36 = sub v0, v44
+    v4 = gt v43, v36
     v42 = or v1, v4
     jumpi v42, bb5, bb1
   bb1:
-    v8 = add arg2, 63
+    v8 = add v44, 63
     v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v59 = mload 64 !metadata(memory=scratch)
-    v60 = add v59, v11
-    v61 = lt v60, v59
-    v62 = zext i1 v61 to i256
-    v63 = shr 64, v60
-    v64 = or v62, v63
-    v65 = ne v64, 0
-    jumpi v65, bb9, bb8
+    v61 = mload 64 !metadata(memory=scratch)
+    v62 = add v61, v11
+    v63 = lt v62, v61
+    v64 = zext i1 v63 to i256
+    v65 = shr 64, v62
+    v66 = or v64, v65
+    v67 = ne v66, 0
+    jumpi v67, bb9, bb8
   bb8:
-    mstore 64, v60 !metadata(memory=scratch)
-    v73 = calldatasize
-    calldatacopy v59, v73, v11
-    mstore v59, arg2
-    v48 = add v55, 32
-    v53 = add v59, 32
+    mstore 64, v62 !metadata(memory=scratch)
+    v75 = calldatasize
+    calldatacopy v61, v75, v11
+    mstore v61, v44
+    v55 = add v61, 32
+    v76 = add v57, v43
+    v77 = add v76, 32
     jump bb2
   bb2:
     v18 = phi [bb8: 0], [bb7: v40]
-    v19 = lt v18, arg2
+    v78 = phi [bb8: v77], [bb7: v79]
+    v19 = lt v18, v44
     jumpi v19, bb4, bb3
   bb3:
-    v44 = mload v59
-    v46 = add v59, 32
-    v31 = keccak256 v46, v44
+    v46 = mload v61
+    v48 = add v61, 32
+    v31 = keccak256 v48, v46
     ret v31
   bb4:
-    v38 = add arg1, v18
-    v21 = mload v55
+    v38 = add v43, v18
+    v21 = mload v57
     v22 = lt v38, v21
     jumpi v22, bb7, bb6
   bb7:
-    v49 = add v48, v38
-    v50 = mload v49
-    v51 = byte 0, v50
-    v54 = add v53, v18
-    mstore8 v54, v51
+    v52 = mload v78
+    v53 = byte 0, v52
+    v56 = add v55, v18
+    mstore8 v56, v53
     v40 = add v18, 1
+    v79 = add v78, 1
     jump bb2
   bb5:
-    v66 = mload 64 !metadata(memory=scratch)
-    v67 = add v66, 32
-    v68 = lt v67, v66
-    v69 = zext i1 v68 to i256
-    v70 = shr 64, v67
-    v71 = or v69, v70
-    v72 = ne v71, 0
-    jumpi v72, bb9, bb10
+    v68 = mload 64 !metadata(memory=scratch)
+    v69 = add v68, 32
+    v70 = lt v69, v68
+    v71 = zext i1 v70 to i256
+    v72 = shr 64, v69
+    v73 = or v71, v72
+    v74 = ne v73, 0
+    jumpi v74, bb9, bb10
   bb10:
-    mstore 64, v67 !metadata(memory=scratch)
-    mstore v66, 0
-    mstore v66, 0
+    mstore 64, v69 !metadata(memory=scratch)
+    mstore v68, 0
+    mstore v68, 0
     jump bb6
   bb6:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

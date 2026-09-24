@@ -1,0 +1,74 @@
+- // === ROOT/tests/ui/codegen/mir/dead-arg-elim/calldata_args.mir (before dead-arg-elim) ===
++ // === ROOT/tests/ui/codegen/mir/dead-arg-elim/calldata_args.mir (after dead-arg-elim) ===
+  @module CalldataArgs
+- fn @scan(arg0: i256, arg1: i256) -> i256 {
++ fn @scan() -> i256 {
+    bb0:
++     v4 = calldataload 4
++     v5 = calldataload 36
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v2]
+-     v1 = lt v0, arg0
++     v1 = lt v0, v4
+      jumpi v1, bb2, bb3
+    bb3:
+-     v3 = add v0, arg1
++     v3 = add v0, v5
+      ret v3
+    bb2:
+      v2 = add v0, 1
+      jump bb1
+  }
+  
+- fn @scan_mixed(arg0: i256, arg1: i256) -> i256 {
++ fn @scan_mixed(arg0: i256) -> i256 {
+    bb0:
++     v4 = calldataload 36
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v2]
+      v1 = lt v0, arg0
+      jumpi v1, bb2, bb3
+    bb3:
+-     v3 = add v0, arg1
++     v3 = add v0, v4
+      ret v3
+    bb2:
+      v2 = add v0, 1
+      jump bb1
+  }
+  
+  fn @straight(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = add arg0, arg1
+      ret v0
+  }
+  
+  fn @first() [selector=0x01020304, abi_wrapper] {
+    bb0:
+      v0 = calldataload 4
+-     v1 = icall @scan, v0, arg1
+-     v2 = icall @scan_mixed, v0, arg1
++     v1 = icall @scan
++     v2 = icall @scan_mixed, v0
+      v3 = icall @straight, v0, arg1
+      v4 = add v1, v2
+      v5 = add v4, v3
+      mstore 0, v5
+      returndata 0, 32
+  }
+  
+  fn @second() [selector=0x05060708, abi_wrapper] {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 68
+-     v2 = icall @scan, v0, arg1
+-     v3 = icall @scan_mixed, v1, arg1
++     v2 = icall @scan
++     v3 = icall @scan_mixed, v1
+      v4 = add v2, v3
+      mstore 0, v4
+      returndata 0, 32
+  }
+  
