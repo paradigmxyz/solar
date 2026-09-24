@@ -692,15 +692,16 @@ impl SymbolTables {
     pub(crate) fn signature_help(
         &self,
         uri: &Url,
-        position: Position,
+        cursor: usize,
         positions: &proto::LspPositionIndex<crop::Rope>,
         source: &str,
         statement_boundary: Option<usize>,
         options: crate::config::SignatureHelpClientOptions,
     ) -> Option<lsp_types::SignatureHelp> {
+        let position = positions.position_at_byte(cursor)?;
         self.signature_help.signature_help(
             uri,
-            position,
+            cursor,
             positions,
             source,
             statement_boundary,

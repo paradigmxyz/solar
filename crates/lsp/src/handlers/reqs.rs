@@ -978,12 +978,12 @@ pub(crate) fn signature_help(
         let source = state.vfs.read().get_file_source(&path)?;
         let cursor = source
             .positions()
-            .text_range(lsp_types::Range::new(params.position, params.position))
+            .text_range(lsp_types::Range::new(params.position, params.position))?
             .start;
         let statement_boundary = Some(source.statement_boundary(cursor));
         state.symbol_tables.load().signature_help(
             &params.text_document.uri,
-            params.position,
+            cursor,
             source.positions(),
             &source.source(),
             statement_boundary,

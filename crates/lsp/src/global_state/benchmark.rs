@@ -422,6 +422,7 @@ impl BenchmarkProject {
         let source = &mut self.files[index].1;
         let updated =
             apply_document_changes(&Rope::from(source.as_str()), vec![edit.change.clone()])
+                .ok_or_else(|| BenchmarkError::new("invalid document change range"))?
                 .to_string();
         *source = updated.clone();
         self.loader.overlays.insert(edit.path.clone(), updated);
@@ -536,7 +537,10 @@ impl BenchmarkDocumentChange {
     #[inline(never)]
     pub fn apply(self) -> Self {
         let Self { contents, changes } = self;
-        Self { contents: apply_document_changes(&contents, changes), changes: Vec::new() }
+        Self {
+            contents: apply_document_changes(&contents, changes).expect("valid benchmark edits"),
+            changes: Vec::new(),
+        }
     }
 }
 
