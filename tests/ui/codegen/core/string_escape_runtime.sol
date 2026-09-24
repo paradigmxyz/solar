@@ -1,7 +1,10 @@
-//@ codegen-matrix: standard portable
+//@ codegen-matrix: standard portable gasmir
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
+//@[gasmir] compile-flags: -Ogas -Zdump=mir
 //@[mir] normalize-stdout-test: "(?s).+" -> ""
+//@[gasmir] normalize-stdout-test: "(?s).+" -> ""
 //@[mir] filecheck:
+//@[gasmir] filecheck: --check-prefix=GAS
 //@ run-call: html 0x => 0x
 //@ run-call: html 0x706c61696e => 0x706c61696e
 //@ run-call: html 0x3c6120687265663d2278223e546f6d2026204a6572727927733c2f613e => 0x266c743b6120687265663d2671756f743b782671756f743b2667743b546f6d2026616d703b204a65727279262333393b73266c743b2f612667743b
@@ -69,9 +72,12 @@ contract Test {
         return bytes(Strings.escapeJSON(string(s), quotes));
     }
 
-    // Without quotes the body leaves them out.
+    // Gas builds give the unquoted form its own body; other builds share the
+    // quoted one with a false flag.
     // CHECK-LABEL: fn @jsonBare{{[( ]}}
-    // CHECK: icall @core_string_escape_json,
+    // CHECK: icall @core_string_escape_json_quotable, arg0, 0
+    // GAS-LABEL: fn @jsonBare{{[( ]}}
+    // GAS: icall @core_string_escape_json,
     function jsonBare(bytes memory s) public pure returns (bytes memory) {
         return bytes(Strings.escapeJSON(string(s)));
     }
