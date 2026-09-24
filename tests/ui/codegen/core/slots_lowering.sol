@@ -4,17 +4,18 @@
 //@[portable] compile-flags: -Ogas -Zdump=mir -Zno-core-intrinsics
 //@[portable] filecheck: --check-prefix=PORTABLE
 
-// `Slots.load` and `Slots.store` hash the root's slot in scratch memory, test
-// the index against 2**64 and add it, where a dynamic array at that slot keeps
-// its elements. The hash comes first, so a loop over one region can hoist it.
-// The shipped bodies do the same in assembly and stay calls.
+// `Slots.load` and `Slots.store` test the index against 2**64 and add it to
+// the hash of the root's slot, where a dynamic array at that slot keeps its
+// elements. The hash comes first, so a loop over one region can hoist it; the
+// hash of this root's constant slot is itself a constant. The shipped bodies
+// do the same in assembly and stay calls.
 // INTRINSIC-LABEL: fn @get
-// INTRINSIC: keccak256 0, 32
 // INTRINSIC: shr 64,
+// INTRINSIC: add {{.*}}0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
 // INTRINSIC: sload
 // INTRINSIC-NOT: icall @load
 // INTRINSIC-LABEL: fn @set
-// INTRINSIC: keccak256 0, 32
+// INTRINSIC: add {{.*}}0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
 // INTRINSIC: sstore
 // PORTABLE-LABEL: fn @get
 // PORTABLE: icall @load
