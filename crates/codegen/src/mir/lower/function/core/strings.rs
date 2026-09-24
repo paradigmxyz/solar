@@ -591,11 +591,15 @@ impl FunctionLowerer<'_, '_> {
     /// may declare five or six bytes; then every other byte starts a rune, and
     /// the last rune runs past the word by what its lead declares beyond it.
     /// Summing the marks with one multiplication counts both. A word of bytes
-    /// below 0x80 is 32 runes, and so is a shorter tail of them, masked to the
-    /// subject, when its first byte is one. Anything else steps rune by rune
-    /// through a table of lengths written to scratch, a malformed word until
-    /// its end and a tail until the subject's. Loads may read past the
-    /// subject, but those bytes are masked or never stepped to.
+    /// below 0x80 is 32 runes, and a shorter tail of them, masked to the
+    /// subject, is as many runes as bytes. An empty subject is tested first,
+    /// on the branch that is not short, and a subject shorter than a word is
+    /// that masked tail alone. Anything else steps rune by rune, a malformed
+    /// word until its end, and a short subject or a tail through one loop
+    /// until the subject's end. A rune's length comes from a nibble table in
+    /// one constant, so the count writes no memory and a single call site can
+    /// take the whole count inline. Loads may read past the subject, but those
+    /// bytes are masked or never stepped to.
     fn lower_core_string_rune_count(&mut self, subject: ValueId) -> ValueId {
         let bytes = MemoryObjectKind::Bytes;
         let length = self.builder.memory_object_len(subject, bytes);
@@ -603,8 +607,11 @@ impl FunctionLowerer<'_, '_> {
         let end = self.builder.add(data, length);
         let zero = self.builder.imm(0);
         let word = self.builder.imm(32);
+        let three = self.builder.imm(3);
+        let all = self.builder.imm(U256::MAX);
         let high_bits = self.builder.imm((U256::MAX / U256::from(255)) << 7);
-        let entry = self.builder.current_block();
+        let short = self.builder.create_block();
+        let nonempty = self.builder.create_block();
         let words = self.builder.create_block();
         let load = self.builder.create_block();
         let ascii = self.builder.create_block();
@@ -612,20 +619,42 @@ impl FunctionLowerer<'_, '_> {
         let valid = self.builder.create_block();
         let word_steps = self.builder.create_block();
         let tail = self.builder.create_block();
-        let tail_load = self.builder.create_block();
         let tail_probe = self.builder.create_block();
-        let tail_ascii = self.builder.create_block();
-        let tail_steps = self.builder.create_block();
+        let steps = self.builder.create_block();
         let done = self.builder.create_block();
-        self.builder.jump(words);
+        // length - 1 < 31 holds from one byte to 31, since an empty length wraps
+        let one = self.builder.imm(1);
+        let before_last = self.builder.sub(length, one);
+        let thirty_one = self.builder.imm(31);
+        let is_short = self.builder.lt(before_last, thirty_one);
+        self.builder.branch(is_short, short, nonempty);
+
+        // An empty subject has no runes; a longer one goes word by word.
+        self.builder.switch_to_block(nonempty);
+        let empty = self.builder.eq_zero(length);
+        self.builder.branch(empty, done, words);
+
+        // A nonempty subject shorter than a word is one masked load: it counts
+        // at once when all of its bytes are below 0x80.
+        // high = mload(data) & ~(MAX >> 8 * length) & 0x8080..80
+        self.builder.switch_to_block(short);
+        let text = self.builder.mload(data);
+        let length_bits = self.builder.shl(three, length);
+        let beyond = self.builder.shr(length_bits, all);
+        let within = self.builder.not(beyond);
+        let short_text = self.builder.and(text, within);
+        let short_high = self.builder.and(short_text, high_bits);
+        let short_all_ascii = self.builder.eq_zero(short_high);
+        self.builder.branch(short_all_ascii, done, steps);
+        let short_exit = self.builder.current_block();
 
         // next = p + 32; a whole word remains when next <= end
         self.builder.switch_to_block(words);
-        let cursor = self.builder.phi(vec![(entry, data)]);
-        let count = self.builder.phi(vec![(entry, zero)]);
+        let cursor = self.builder.phi(vec![(nonempty, data)]);
+        let count = self.builder.phi(vec![(nonempty, zero)]);
         let next = self.builder.add(cursor, word);
-        let short = self.builder.gt(next, end);
-        self.builder.branch(short, tail, load);
+        let ends_early = self.builder.gt(next, end);
+        self.builder.branch(ends_early, tail, load);
 
         // high = mload(p) & 0x8080..80; a word below 0x80 is 32 runes
         self.builder.switch_to_block(load);
@@ -661,41 +690,36 @@ impl FunctionLowerer<'_, '_> {
         self.builder.add_phi_incoming(cursor, word_step, stepped_cursor);
         self.builder.add_phi_incoming(count, word_step, stepped_count);
 
-        // if p < end: a tail starting with a byte below 0x80 counts at once
-        // when all of its bytes are, and is stepped rune by rune otherwise
+        // if p < end: the tail counts at once when all of its bytes are below
+        // 0x80, and is stepped rune by rune otherwise
+        // rest = end - p; high = mload(p) & ~(MAX >> 8 * rest) & 0x8080..80
         self.builder.switch_to_block(tail);
         let more = self.builder.lt(cursor, end);
-        self.builder.branch(more, tail_load, done);
-        self.builder.switch_to_block(tail_load);
-        let text = self.builder.mload(cursor);
-        let top_bit = self.builder.imm(255);
-        let first_high = self.builder.shr(top_bit, text);
-        self.builder.branch(first_high, tail_steps, tail_probe);
-        // rest = end - p; mask = ~(MAX >> 8 * rest)
+        self.builder.branch(more, tail_probe, done);
         self.builder.switch_to_block(tail_probe);
+        let text = self.builder.mload(cursor);
         let rest = self.builder.sub(end, cursor);
-        let three = self.builder.imm(3);
         let rest_bits = self.builder.shl(three, rest);
-        let all = self.builder.imm(U256::MAX);
         let beyond = self.builder.shr(rest_bits, all);
         let within = self.builder.not(beyond);
         let tail_text = self.builder.and(text, within);
         let tail_high = self.builder.and(tail_text, high_bits);
         let tail_all_ascii = self.builder.eq_zero(tail_high);
-        self.builder.branch(tail_all_ascii, tail_ascii, tail_steps);
-        self.builder.switch_to_block(tail_ascii);
         let ascii_tail_count = self.builder.add(count, rest);
-        self.builder.jump(done);
+        self.builder.branch(tail_all_ascii, done, steps);
 
-        // The same stepping, until the subject's end.
-        self.builder.switch_to_block(tail_steps);
-        let (tail_step, _, stepped_tail_count) = self.rune_steps(cursor, count, end, done);
+        // The short subject and the tail step through one loop until the
+        // subject's end.
+        let entries = [(short_exit, data, zero), (tail_probe, cursor, count)];
+        let (step, _, stepped_count) = self.rune_step_loop(steps, &entries, end, done);
 
         self.builder.switch_to_block(done);
         self.builder.phi(vec![
+            (nonempty, zero),
+            (short_exit, length),
             (tail, count),
-            (tail_ascii, ascii_tail_count),
-            (tail_step, stepped_tail_count),
+            (tail_probe, ascii_tail_count),
+            (step, stepped_count),
         ])
     }
 
@@ -766,29 +790,39 @@ impl FunctionLowerer<'_, '_> {
         bound: ValueId,
         exit: BlockId,
     ) -> (BlockId, ValueId, ValueId) {
-        // mstore(0, 0x0101..01); mstore(32, lengths): byte(0, mload(k)) is the
-        // length of a rune whose lead has top six bits k
-        let zero = self.builder.imm(0);
-        let ones = self.builder.imm(U256::MAX / U256::from(255));
-        self.builder.mstore(zero, ones);
-        let word = self.builder.imm(32);
-        let lengths = self.builder.imm(U256::from_be_slice(&[
-            2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4,
-            4, 5, 6,
-        ]));
-        self.builder.mstore(word, lengths);
-        // do { q += byte(0, mload(mload(q) >> 250)); c += 1 } while (q < bound)
         let entry = self.builder.current_block();
         let step = self.builder.create_block();
         self.builder.jump(step);
+        self.rune_step_loop(step, &[(entry, start, count)], bound, exit)
+    }
+
+    /// Builds the stepping loop in `step`, entered from each `(block, start,
+    /// count)`, and returns the loop block with the cursor and the count it
+    /// leaves with.
+    fn rune_step_loop(
+        &mut self,
+        step: BlockId,
+        entries: &[(BlockId, ValueId, ValueId)],
+        bound: ValueId,
+        exit: BlockId,
+    ) -> (BlockId, ValueId, ValueId) {
+        // (lengths >> 4 k) & 15 is the length of a rune whose lead has top six
+        // bits k: one nibble per class, so stepping writes no table to memory
+        // do { q += (lengths >> 4 (mload(q) >> 250)) & 15; c += 1 } while (q < bound)
         self.builder.switch_to_block(step);
-        let rune = self.builder.phi(vec![(entry, start)]);
-        let stepped = self.builder.phi(vec![(entry, count)]);
+        let lengths = self.builder.imm(rune_length_nibbles());
+        let fifteen = self.builder.imm(15);
+        let two = self.builder.imm(2);
+        let stepped =
+            self.builder.phi(entries.iter().map(|&(block, _, count)| (block, count)).collect());
+        let rune =
+            self.builder.phi(entries.iter().map(|&(block, start, _)| (block, start)).collect());
         let lead_word = self.builder.mload(rune);
         let lead_shift = self.builder.imm(250);
         let class = self.builder.shr(lead_shift, lead_word);
-        let class_word = self.builder.mload(class);
-        let rune_length = self.builder.byte(zero, class_word);
+        let nibble = self.builder.shl(two, class);
+        let shifted = self.builder.shr(nibble, lengths);
+        let rune_length = self.builder.and(shifted, fifteen);
         let next_rune = self.builder.add(rune, rune_length);
         let one = self.builder.imm(1);
         let next_count = self.builder.add(stepped, one);
@@ -1704,4 +1738,23 @@ struct RuneMarks {
     lead3: ValueId,
     /// Leads of at least four bytes, `1111xxxx`.
     lead4: ValueId,
+}
+
+/// The length each rune lead class steps, one nibble per class `k` (the lead
+/// byte's top six bits) at bits `4 k`: one byte below `0x80`, two through the
+/// continuation bytes and two-byte leads, then three, four, five and six.
+fn rune_length_nibbles() -> U256 {
+    let mut table = U256::ZERO;
+    for class in 0..64usize {
+        let length: u64 = match class {
+            0..32 => 1,
+            32..56 => 2,
+            56..60 => 3,
+            60..62 => 4,
+            62 => 5,
+            _ => 6,
+        };
+        table |= U256::from(length) << (4 * class);
+    }
+    table
 }

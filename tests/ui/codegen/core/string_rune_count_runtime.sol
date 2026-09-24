@@ -42,8 +42,8 @@
 import {Strings} from "solar:core/v1/Strings.sol";
 
 contract Test {
-    // The count is lowered in place: a lead's top six bits index the table
-    // of lengths in scratch.
+    // The count is lowered in place: a lead's top six bits select a nibble of
+    // one constant table of lengths, so nothing is written to memory.
     // CHECK-LABEL: fn @count{{[( ]}}
     // CHECK-NOT: icall
     // CHECK: shr 250,
