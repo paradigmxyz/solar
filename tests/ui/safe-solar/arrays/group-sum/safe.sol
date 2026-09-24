@@ -1,5 +1,6 @@
-//@ revisions: intrinsic portable
+//@ revisions: intrinsic size portable
 //@[intrinsic] compile-flags: -Ogas
+//@[size] compile-flags: -Osize
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
 //@ run-call: groupUint [3, 1, 3, 2, 1], [10, 20, 30, 40, 50] => [1, 2, 3], [70, 40, 40]
 //@ run-call: groupUint [], [] => [], []
