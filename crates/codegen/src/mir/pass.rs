@@ -78,7 +78,8 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &cfg_simplify::SplitReturns,
     &frame_promotion::FrameSlotPromotion,
     &function_compaction::DeadArgElim,
-    &function_compaction::MergeEquivalentFunctions,
+    &function_compaction::MergeEquivalentFunctions::Semantic,
+    &function_compaction::MergeEquivalentFunctions::Lowered,
     &memory_dse::MemoryDse,
     &coalesce_allocs::CoalesceAllocs,
     &static_alloc::StaticAlloc,
@@ -232,7 +233,7 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &specialize::Specialize,
     &function_compaction::DeadArgElim,
     &cfg_simplify::FunctionDce,
-    &function_compaction::MergeEquivalentFunctions,
+    &function_compaction::MergeEquivalentFunctions::Semantic,
     &cfg_simplify::FunctionDce,
 ];
 
@@ -278,7 +279,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &cfg_simplify::FunctionDce,
     &function_compaction::DeadArgElim,
     &dce::Dce,
-    &function_compaction::MergeEquivalentFunctions,
+    &function_compaction::MergeEquivalentFunctions::Semantic,
     &cfg_simplify::FunctionDce,
     &static_alloc::DeferAlloc,
     &lower_abi_encode::LowerAbiEncode,
@@ -392,6 +393,11 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     // Late lowering can leave pure address and length calculations unused.
     // Remove their complete dependency chains before selecting physical stack order.
     &dce::Dce,
+    // Lowering and this cleanup can leave bodies that differed only in their
+    // semantic element types identical, such as an address overload whose
+    // element masks folded; call one of them from both sites.
+    &SizeOnly::new(function_compaction::MergeEquivalentFunctions::Lowered),
+    &SizeOnly::new(cfg_simplify::FunctionDce),
     &evm_inst_schedule::EvmInstSchedule,
 ];
 
