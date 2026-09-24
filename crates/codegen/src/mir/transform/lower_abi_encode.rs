@@ -29,14 +29,18 @@
 //! length. This removes a branch without touching memory beyond the encoded tail.
 //! Size mode retains the guarded padding store: its encoder tails share better
 //! in the machine outlining pipeline on large ABI-heavy contracts.
-//! A terminal external return of a freshly allocated full-word array or byte
-//! string is encoded in place. Moving its payload forward by one word makes
-//! room for the ABI tuple offset and reuses the object's length word, avoiding
-//! a second allocation. Two bounded byte strings backed by adjacent words use
-//! the same treatment: load both payloads before overwriting their source,
-//! then lay out both ABI tails over the original allocation. A module-wide plan
-//! selects those sites before shared tuple helpers are built, so locally
-//! cheaper terminal encodings do not leave an unused shared body.
+//! A terminal external return of a full-word array or byte string that is a
+//! real object, not the null default, is encoded in place: the ABI tuple offset
+//! goes in the word below the object, the length word and payload stay, and a
+//! byte string's padding is zeroed past its payload. Only the return reads
+//! memory afterwards, so the overwritten words may belong to anything, and the
+//! object need not have been allocated for the return: a string written into
+//! the end of a larger buffer returns without a copy. Two bounded byte strings
+//! backed by adjacent words use the same treatment: load both payloads before
+//! overwriting their source, then lay out both ABI tails over the original
+//! allocation. A module-wide plan selects those sites before shared tuple
+//! helpers are built, so locally cheaper terminal encodings do not leave an
+//! unused shared body.
 //! A zeroed aggregate slot stores null for its default memory object, so an
 //! encoded length is masked to zero unless the object is known to be real.
 //! Optimized builds prove that for allocations, encoded byte strings, nonzero
@@ -85,11 +89,11 @@ impl MirPass for LowerAbiEncode {
     ) -> bool {
         let revert_strings = gcx.sess.opts.revert_strings;
         let target = Target::new(gcx);
-        let (fresh_object_returns, mut destructive_returns) =
-            plan_destructive_terminal_returns(target, module);
         // Unoptimized lowering keeps the null mask on every memory object length.
         let optimize = target.optimization().is_gas() || target.optimization().is_size();
         let non_null_returns = optimize.then(|| non_null_returning_functions(module));
+        let mut destructive_returns =
+            plan_destructive_terminal_returns(module, non_null_returns.as_ref());
         let mut helpers = synthesize_array_helpers(target, module, revert_strings);
         synthesize_tuple_helpers(
             target,
@@ -113,6 +117,7 @@ impl MirPass for LowerAbiEncode {
         }
         let mut inline_helpers = EncodeHelpers {
             branchless_byte_tails: !target.optimization().is_size(),
+            has_bitwise_shifting: target.evm_version().has_bitwise_shifting(),
             ..EncodeHelpers::default()
         };
         let mut changed = !helpers.arrays.is_empty() || !helpers.tuples.is_empty();
@@ -126,7 +131,6 @@ impl MirPass for LowerAbiEncode {
                 func,
                 helpers,
                 revert_strings,
-                &fresh_object_returns,
                 non_null_returns.as_ref(),
                 &destructive_returns[func_id],
             );
@@ -190,6 +194,7 @@ struct EncodeHelpers {
     /// are read without the null mask. Proven on the original function.
     non_null_objects: FxHashSet<ValueId>,
     branchless_byte_tails: bool,
+    has_bitwise_shifting: bool,
 }
 
 /// Builds `encode_abi_tuple(args.., [selector]) -> encoded` for every encoding shape at least
@@ -326,6 +331,7 @@ fn synthesize_array_helpers(
 
     let mut helpers = EncodeHelpers {
         branchless_byte_tails: !target.optimization().is_size(),
+        has_bitwise_shifting: target.evm_version().has_bitwise_shifting(),
         ..EncodeHelpers::default()
     };
     for (_, key) in keys {
@@ -415,7 +421,6 @@ fn lower_function(
     func: &mut Function,
     helpers: &mut EncodeHelpers,
     revert_strings: RevertStrings,
-    fresh_object_returns: &DenseBitSet<FunctionId>,
     non_null_returns: Option<&DenseBitSet<FunctionId>>,
     destructive_returns: &FxHashSet<InstId>,
 ) -> bool {
@@ -459,12 +464,10 @@ fn lower_function(
             let result =
                 builder.func().inst_result_value(inst).expect("ABI encode must produce a value");
             let replacement = if destructive_returns.contains(&inst)
-                && let Some(encoded) = encode_dynamic_return_in_place(
-                    &mut builder,
-                    &layout,
-                    &args,
-                    fresh_object_returns,
-                ) {
+                && let Some(non_null_returns) = non_null_returns
+                && let Some(encoded) =
+                    encode_dynamic_return_in_place(&mut builder, &layout, &args, non_null_returns)
+            {
                 encoded
             } else {
                 match helpers.tuples.get(&key) {
@@ -495,22 +498,19 @@ fn lower_function(
 }
 
 /// Selects destructive terminal encodings before module-wide helper sharing is
-/// costed. Unoptimized lowering retains the direct semantic expansion.
+/// costed. Unoptimized lowering, which has no proofs of real objects, retains the
+/// direct semantic expansion.
 fn plan_destructive_terminal_returns(
-    target: Target,
     module: &Module,
-) -> (DenseBitSet<FunctionId>, IndexVec<FunctionId, FxHashSet<InstId>>) {
-    let mut fresh = DenseBitSet::new_empty(module.functions.len());
+    non_null_returns: Option<&DenseBitSet<FunctionId>>,
+) -> IndexVec<FunctionId, FxHashSet<InstId>> {
     let mut plan = IndexVec::from_vec(vec![FxHashSet::default(); module.functions.len()]);
-    if !(target.optimization().is_gas() || target.optimization().is_size()) {
-        return (fresh, plan);
-    }
+    let Some(non_null_returns) = non_null_returns else { return plan };
     let candidates = module.functions.iter().map(terminal_return_encodes).collect::<Vec<_>>();
-    if candidates.iter().all(FxHashSet::is_empty) {
-        return (fresh, plan);
-    }
-    fresh = fresh_object_returning_functions(module);
     for (func_id, candidates) in IndexVec::<FunctionId, _>::from_vec(candidates).iter_enumerated() {
+        if candidates.is_empty() {
+            continue;
+        }
         let func = &module.functions[func_id];
         let literal_objects = literal_objects_at_encodes(func);
         for &inst in candidates {
@@ -518,13 +518,13 @@ fn plan_destructive_terminal_returns(
                 unreachable!()
             };
             if args.iter().all(|arg| !literal_objects.contains(arg))
-                && can_encode_dynamic_return_in_place(func, layout, args, &fresh)
+                && can_encode_dynamic_return_in_place(func, layout, args, non_null_returns)
             {
                 plan[func_id].insert(inst);
             }
         }
     }
-    (fresh, plan)
+    plan
 }
 
 /// Finds encodes used only by the two projections of an immediate
@@ -688,8 +688,10 @@ fn non_null_memory_object(
                     func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
                         && func.inst(*inst).metadata.effect() == Some(EffectKind::MemoryWrite)
                 }
+                // Helpers synthesized after the proof have no entry and stay unproved.
                 InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
-                    non_null_returns.contains(*function)
+                    function.index() < non_null_returns.domain_size()
+                        && non_null_returns.contains(*function)
                 }
                 // A cast lowering marked as addressing its own allocation.
                 InstKind::IntToPtr(_) | InstKind::Bitcast(_) => func.inst(*inst).metadata.nonnull(),
@@ -752,11 +754,15 @@ fn returned_value_is_fresh(
 /// Bounds the phi nesting a freshness proof follows; loops fail it.
 const MAX_FRESH_PHI_DEPTH: usize = 4;
 
+/// A terminal return can encode a real memory object around its own storage:
+/// the words it overwrites below and past the object are never read again.
+/// Only the null default object has no word below it, so the proof it needs is
+/// that the object is real, not that it is fresh.
 fn can_encode_dynamic_return_in_place(
     func: &Function,
     layout: &AbiLayout,
     args: &[ValueId],
-    fresh_object_returns: &DenseBitSet<FunctionId>,
+    non_null_returns: &DenseBitSet<FunctionId>,
 ) -> bool {
     if matches!(
         &*layout.types,
@@ -776,7 +782,8 @@ fn can_encode_dynamic_return_in_place(
         _ => return false,
     };
     func.value_ty(*object) == Some(MirType::MemoryObject(kind))
-        && fresh_memory_object(func, *object, fresh_object_returns)
+        && non_null_memory_object(func, *object, non_null_returns)
+        && func.value_u256(*object).is_none_or(|address| address >= U256::from(32))
 }
 
 /// Encodes a one-element dynamic tuple around the returned object's storage:
@@ -787,9 +794,9 @@ fn encode_dynamic_return_in_place(
     builder: &mut FunctionBuilder<'_>,
     layout: &AbiLayout,
     args: &[ValueId],
-    fresh_object_returns: &DenseBitSet<FunctionId>,
+    non_null_returns: &DenseBitSet<FunctionId>,
 ) -> Option<ValueId> {
-    if !can_encode_dynamic_return_in_place(builder.func(), layout, args, fresh_object_returns) {
+    if !can_encode_dynamic_return_in_place(builder.func(), layout, args, non_null_returns) {
         return None;
     }
     if let Some(base) = adjacent_bounded_bytes_pair_base(builder.func(), args) {
@@ -998,37 +1005,6 @@ fn encode_bounded_bytes_pair_in_place(
     let end = builder.add(second_data, b_padded);
     let total = builder.sub(end, base);
     builder.make_slice(base, total, SliceLocation::Memory)
-}
-
-/// Proves that `value` is an object owned by this terminal return: a fresh
-/// object allocation, a fresh call result, or a phi selecting among them.
-fn fresh_memory_object(
-    func: &Function,
-    value: ValueId,
-    fresh_object_returns: &DenseBitSet<FunctionId>,
-) -> bool {
-    fresh_memory_object_at(func, value, fresh_object_returns, 0)
-}
-
-fn fresh_memory_object_at(
-    func: &Function,
-    value: ValueId,
-    fresh_object_returns: &DenseBitSet<FunctionId>,
-    depth: usize,
-) -> bool {
-    let Value::Inst(inst) = func.value(value) else { return false };
-    match &func.inst(*inst).kind {
-        InstKind::Alloc { kind: AllocationKind::Object(_), .. } => true,
-        InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
-            fresh_object_returns.contains(*function)
-        }
-        InstKind::Phi(incoming) if depth < MAX_FRESH_PHI_DEPTH => {
-            incoming.iter().all(|&(_, value)| {
-                fresh_memory_object_at(func, value, fresh_object_returns, depth + 1)
-            })
-        }
-        _ => false,
-    }
 }
 
 fn fold_slice_projections(func: &Function, replacements: &mut FxHashMap<ValueId, ValueId>) {
@@ -1782,8 +1758,7 @@ fn encode_calldata_bytes_array(
     builder.revert_if(invalid_offset, RevertReason::InvalidCalldataAccessOffset);
     let element_base = builder.add(source_base, offset);
     let length = builder.calldataload(element_base);
-    let max_length = builder.imm(u64::MAX);
-    let invalid_length = builder.gt(length, max_length);
+    let invalid_length = builder.exceeds_bits(length, 64, helpers.has_bitwise_shifting);
     builder.revert_if(invalid_length, RevertReason::InvalidCalldataAccessLength);
     let data = builder.add(element_base, word);
     let limit = builder.sub(calldata_size, length);

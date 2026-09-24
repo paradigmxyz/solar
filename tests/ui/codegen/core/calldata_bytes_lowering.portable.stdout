@@ -94,13 +94,15 @@ fn @copyOut() [selector=0xa6f9b6f1, abi_wrapper, pure] {
     v4 = inttoptr i256 v31 to memptr !metadata(memory=scratch)
     v32 = add v31, v3
     v33 = lt v32, v31
-    v34 = gt v32, 0xffffffffffffffff
-    v35 = or v33, v34
-    jumpi v35, bb1, bb5
+    v34 = zext i1 v33 to i256
+    v35 = shr 64, v32
+    v36 = or v34, v35
+    v37 = ne v36, 0
+    jumpi v37, bb1, bb5
   bb5:
     mstore 64, v32 !metadata(memory=scratch)
-    v37 = calldatasize
-    calldatacopy v31, v37, v3
+    v38 = calldatasize
+    calldatacopy v31, v38, v3
     mstore v31, arg2
     icall @copyInto, v4, 0, v9, v8, arg1, arg2
     v14 = mload v31
@@ -349,9 +351,11 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5:
     v59 = mload 64 !metadata(memory=scratch)
     v60 = add v59, 32
     v61 = lt v60, v59
-    v62 = gt v60, 0xffffffffffffffff
-    v63 = or v61, v62
-    jumpi v63, bb13, bb12
+    v62 = zext i1 v61 to i256
+    v63 = shr 64, v60
+    v64 = or v62, v63
+    v65 = ne v64, 0
+    jumpi v65, bb13, bb12
   bb12:
     mstore 64, v60 !metadata(memory=scratch)
     mstore v59, 0

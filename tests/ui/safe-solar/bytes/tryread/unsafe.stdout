@@ -13,43 +13,47 @@ fn @peek() [selector=0xa230438f, abi_wrapper, inline_assembly, pure] {
     v11 = calldataload 4
     v12 = add v11, 4
     v13 = add v12, 32
-    v14 = gt v11, 0xffffffffffffffff
+    v14 = shr 64, v11
     v15 = gt v13, v9
-    v16 = or v14, v15
-    jumpi v16, bb1, bb3
+    v16 = zext i1 v15 to i256
+    v17 = or v14, v16
+    v18 = ne v17, 0
+    jumpi v18, bb1, bb3
   bb3:
-    v18 = calldataload v12
-    v20 = add v18, 63
-    v21 = lt v20, v18
-    jumpi v21, bb4, bb5
+    v19 = calldataload v12
+    v21 = add v19, 63
+    v22 = lt v21, v19
+    jumpi v22, bb4, bb5
   bb5:
-    v23 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v43 = mload 64 !metadata(memory=scratch)
-    v44 = add v43, v23
-    v45 = lt v44, v43
-    v46 = gt v44, 0xffffffffffffffff
-    v47 = or v45, v46
-    jumpi v47, bb4, bb7
+    v24 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v44 = mload 64 !metadata(memory=scratch)
+    v45 = add v44, v24
+    v46 = lt v45, v44
+    v47 = zext i1 v46 to i256
+    v48 = shr 64, v45
+    v49 = or v47, v48
+    v50 = ne v49, 0
+    jumpi v50, bb4, bb7
   bb7:
-    mstore 64, v44 !metadata(memory=scratch)
-    mstore v43, v18
-    v25 = sub v9, v13
-    v26 = gt v18, v25
-    jumpi v26, bb1, bb6
+    mstore 64, v45 !metadata(memory=scratch)
+    mstore v44, v19
+    v26 = sub v9, v13
+    v27 = gt v19, v26
+    jumpi v27, bb1, bb6
   bb6:
-    v36 = add v43, 32
-    calldatacopy v36, v13, v18
-    v49 = mload 64 !metadata(memory=scratch)
-    v50 = add v49, 64
-    mstore 64, v50 !metadata(memory=scratch)
-    mstore v49, 4
-    v42 = add v49, 32
-    mstore v42, 0x1122334400000000000000000000000000000000000000000000000000000000
-    v5 = add v36, arg1
+    v37 = add v44, 32
+    calldatacopy v37, v13, v19
+    v51 = mload 64 !metadata(memory=scratch)
+    v52 = add v51, 64
+    mstore 64, v52 !metadata(memory=scratch)
+    mstore v51, 4
+    v43 = add v51, 32
+    mstore v43, 0x1122334400000000000000000000000000000000000000000000000000000000
+    v5 = add v37, arg1
     v6 = mload v5
-    v30 = and v6, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v31 = and v6, 0xffffffff00000000000000000000000000000000000000000000000000000000
     mstore 128, 1
-    mstore 160, v30
+    mstore 160, v31
     returndata 128, 64
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

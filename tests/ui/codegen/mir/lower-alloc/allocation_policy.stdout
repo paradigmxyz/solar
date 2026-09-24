@@ -11,9 +11,9 @@
 +     v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
 +     v5 = add v1, v4
 +     v6 = lt v5, v1
-+     v7 = gt v5, 0xffffffffffffffff
-+     v8 = or v6, v7
-+     v9 = zext i1 v8 to i256
++     v7 = zext i1 v6 to i256
++     v8 = shr 64, v5
++     v9 = or v7, v8
 +     v10 = zext i1 v3 to i256
 +     v11 = or v9, v10
 +     v12 = ne v11, 0

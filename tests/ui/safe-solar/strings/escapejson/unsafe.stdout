@@ -10,53 +10,57 @@ fn @escape() [selector=0xb00a0672, abi_wrapper, pure] {
     v4 = calldataload 4
     v5 = add v4, 4
     v6 = add v5, 32
-    v7 = gt v4, 0xffffffffffffffff
+    v7 = shr 64, v4
     v8 = gt v6, v2
-    v9 = or v7, v8
-    jumpi v9, bb1, bb3
+    v9 = zext i1 v8 to i256
+    v10 = or v7, v9
+    v11 = ne v10, 0
+    jumpi v11, bb1, bb3
   bb3:
-    v11 = calldataload v5
-    v13 = add v11, 63
-    v14 = lt v13, v11
-    jumpi v14, bb4, bb5
+    v12 = calldataload v5
+    v14 = add v12, 63
+    v15 = lt v14, v12
+    jumpi v15, bb4, bb5
   bb5:
-    v16 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v58 = mload 64 !metadata(memory=scratch)
-    v17 = inttoptr i256 v58 to memptr !metadata(memory=scratch)
-    v59 = add v58, v16
-    v60 = lt v59, v58
-    v61 = gt v59, 0xffffffffffffffff
-    v62 = or v60, v61
-    jumpi v62, bb4, bb7
+    v17 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v59 = mload 64 !metadata(memory=scratch)
+    v18 = inttoptr i256 v59 to memptr !metadata(memory=scratch)
+    v60 = add v59, v17
+    v61 = lt v60, v59
+    v62 = zext i1 v61 to i256
+    v63 = shr 64, v60
+    v64 = or v62, v63
+    v65 = ne v64, 0
+    jumpi v65, bb4, bb7
   bb7:
-    mstore 64, v59 !metadata(memory=scratch)
-    mstore v58, v11
-    v18 = sub v2, v6
-    v19 = gt v11, v18
-    jumpi v19, bb1, bb6
+    mstore 64, v60 !metadata(memory=scratch)
+    mstore v59, v12
+    v19 = sub v2, v6
+    v20 = gt v12, v19
+    jumpi v20, bb1, bb6
   bb6:
-    v51 = add v58, 32
-    calldatacopy v51, v6, v11
-    v1 = icall @_escapeJSON, v17
-    v64 = mload 64 !metadata(memory=scratch)
-    v26 = add v64, 32
-    mstore v64, 32
-    v55 = ptrtoint memptr v1 to i256
-    v34 = ne v55, 0
-    v35 = zext i1 v34 to i256
-    v30 = mload v55
-    v36 = mul v30, v35
-    v38 = add v36, 31
-    v39 = and v38, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v40 = add v26, 32
-    v41 = add v26, v39
-    mstore v41, 0
-    mstore v26, v36
-    v43 = add v40, v39
-    v57 = add v55, 32
-    mcopy v40, v57, v36
-    v46 = sub v43, v64
-    returndata v64, v46
+    v52 = add v59, 32
+    calldatacopy v52, v6, v12
+    v1 = icall @_escapeJSON, v18
+    v66 = mload 64 !metadata(memory=scratch)
+    v27 = add v66, 32
+    mstore v66, 32
+    v56 = ptrtoint memptr v1 to i256
+    v35 = ne v56, 0
+    v36 = zext i1 v35 to i256
+    v31 = mload v56
+    v37 = mul v31, v36
+    v39 = add v37, 31
+    v40 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v41 = add v27, 32
+    v42 = add v27, v40
+    mstore v42, 0
+    mstore v27, v37
+    v44 = add v41, v40
+    v58 = add v56, 32
+    mcopy v41, v58, v37
+    v47 = sub v44, v66
+    returndata v66, v47
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

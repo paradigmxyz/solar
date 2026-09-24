@@ -39,13 +39,15 @@ fn @part() [selector=0x107cd163, abi_wrapper, pure] {
     v57 = mload 64 !metadata(memory=scratch)
     v58 = add v57, v3
     v59 = lt v58, v57
-    v60 = gt v58, 0xffffffffffffffff
-    v61 = or v59, v60
-    jumpi v61, bb1, bb8
+    v60 = zext i1 v59 to i256
+    v61 = shr 64, v58
+    v62 = or v60, v61
+    v63 = ne v62, 0
+    jumpi v63, bb1, bb8
   bb8:
     mstore 64, v58 !metadata(memory=scratch)
-    v63 = calldatasize
-    calldatacopy v57, v63, v3
+    v64 = calldatasize
+    calldatacopy v57, v64, v3
     mstore v57, arg2
     v55 = add v57, 32
     v15 = add arg1, arg2

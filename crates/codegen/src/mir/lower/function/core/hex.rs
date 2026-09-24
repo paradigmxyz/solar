@@ -90,8 +90,8 @@ impl FunctionLowerer<'_, '_> {
         } else {
             digits
         };
-        let limit = self.builder.imm(u64::MAX);
-        let too_long = self.builder.gt(length, limit);
+        let shifting = self.cx.gcx.sess.opts.evm_version.has_bitwise_shifting();
+        let too_long = self.builder.exceeds_bits(length, 64, shifting);
         self.builder.panic_if(too_long, PanicCode::MemoryAllocationOverflow);
         let length = if checked_prefix { length } else { self.builder.add(digits, prefix) };
         let slack = self.builder.imm(95);

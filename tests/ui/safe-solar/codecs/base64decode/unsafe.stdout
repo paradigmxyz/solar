@@ -10,53 +10,57 @@ fn @decode() [selector=0x49145c91, abi_wrapper, pure] {
     v3 = calldataload 4
     v4 = add v3, 4
     v5 = add v4, 32
-    v6 = gt v3, 0xffffffffffffffff
+    v6 = shr 64, v3
     v7 = gt v5, v1
-    v8 = or v6, v7
-    jumpi v8, bb1, bb3
+    v8 = zext i1 v7 to i256
+    v9 = or v6, v8
+    v10 = ne v9, 0
+    jumpi v10, bb1, bb3
   bb3:
-    v10 = calldataload v4
-    v12 = add v10, 63
-    v13 = lt v12, v10
-    jumpi v13, bb4, bb5
+    v11 = calldataload v4
+    v13 = add v11, 63
+    v14 = lt v13, v11
+    jumpi v14, bb4, bb5
   bb5:
-    v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v57 = mload 64 !metadata(memory=scratch)
-    v16 = inttoptr i256 v57 to memptr !metadata(memory=scratch)
-    v58 = add v57, v15
-    v59 = lt v58, v57
-    v60 = gt v58, 0xffffffffffffffff
-    v61 = or v59, v60
-    jumpi v61, bb4, bb7
+    v16 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v58 = mload 64 !metadata(memory=scratch)
+    v17 = inttoptr i256 v58 to memptr !metadata(memory=scratch)
+    v59 = add v58, v16
+    v60 = lt v59, v58
+    v61 = zext i1 v60 to i256
+    v62 = shr 64, v59
+    v63 = or v61, v62
+    v64 = ne v63, 0
+    jumpi v64, bb4, bb7
   bb7:
-    mstore 64, v58 !metadata(memory=scratch)
-    mstore v57, v10
-    v17 = sub v1, v5
-    v18 = gt v10, v17
-    jumpi v18, bb1, bb6
+    mstore 64, v59 !metadata(memory=scratch)
+    mstore v58, v11
+    v18 = sub v1, v5
+    v19 = gt v11, v18
+    jumpi v19, bb1, bb6
   bb6:
-    v50 = add v57, 32
-    calldatacopy v50, v5, v10
-    v0 = icall @_decode, v16
-    v63 = mload 64 !metadata(memory=scratch)
-    v25 = add v63, 32
-    mstore v63, 32
-    v54 = ptrtoint memptr v0 to i256
-    v33 = ne v54, 0
-    v34 = zext i1 v33 to i256
-    v29 = mload v54
-    v35 = mul v29, v34
-    v37 = add v35, 31
-    v38 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v39 = add v25, 32
-    v40 = add v25, v38
-    mstore v40, 0
-    mstore v25, v35
-    v42 = add v39, v38
-    v56 = add v54, 32
-    mcopy v39, v56, v35
-    v45 = sub v42, v63
-    returndata v63, v45
+    v51 = add v58, 32
+    calldatacopy v51, v5, v11
+    v0 = icall @_decode, v17
+    v65 = mload 64 !metadata(memory=scratch)
+    v26 = add v65, 32
+    mstore v65, 32
+    v55 = ptrtoint memptr v0 to i256
+    v34 = ne v55, 0
+    v35 = zext i1 v34 to i256
+    v30 = mload v55
+    v36 = mul v30, v35
+    v38 = add v36, 31
+    v39 = and v38, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v40 = add v26, 32
+    v41 = add v26, v39
+    mstore v41, 0
+    mstore v26, v36
+    v43 = add v40, v39
+    v57 = add v55, 32
+    mcopy v40, v57, v36
+    v46 = sub v43, v65
+    returndata v65, v46
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

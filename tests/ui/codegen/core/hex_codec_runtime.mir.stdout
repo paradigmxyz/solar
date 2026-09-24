@@ -27,96 +27,97 @@ fn @encode.0(arg0: memorybytes) -> memorybytes [selector=0x12496a1b, pure, abi_p
     v81 = add v80, 0
     v82 = lt v81, v80
     icall panic_if<0x11>, v82
-    v83 = gt v81, 0xffffffffffffffff
-    icall panic_if<0x41>, v83
-    v84 = add v81, 95
-    v85 = and v84, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v86 = alloc memorybytes, exact, uninitialized, panic, v85
-    set_memory_object_len memorybytes, v86, v81
-    v87 = memory_object_data memorybytes, v86
-    v88 = ptrtoint memptr v87 to i256
-    v89 = add v88, 0
-    v90 = bitcast memorybytes arg0 to memptr
-    v91 = ptrtoint memptr v90 to i256
-    v92 = add v91, 16
-    v93 = not 15
-    v94 = and v0, v93
-    v95 = add v92, v94
+    v83 = shr 64, v81
+    v84 = ne v83, 0
+    icall panic_if<0x41>, v84
+    v85 = add v81, 95
+    v86 = and v85, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v87 = alloc memorybytes, exact, uninitialized, panic, v86
+    set_memory_object_len memorybytes, v87, v81
+    v88 = memory_object_data memorybytes, v87
+    v89 = ptrtoint memptr v88 to i256
+    v90 = add v89, 0
+    v91 = bitcast memorybytes arg0 to memptr
+    v92 = ptrtoint memptr v91 to i256
+    v93 = add v92, 16
+    v94 = not 15
+    v95 = and v0, v94
+    v96 = add v93, v95
     jump bb8
   bb8:
-    v96 = phi [bb6: v92], [bb9: v122]
-    v97 = phi [bb6: v89], [bb9: v123]
-    v98 = eq v96, v95
-    jumpi v98, bb10, bb9
+    v97 = phi [bb6: v93], [bb9: v123]
+    v98 = phi [bb6: v90], [bb9: v124]
+    v99 = eq v97, v96
+    jumpi v99, bb10, bb9
   bb9:
-    v99 = mload v96
-    v100 = and v99, 0xffffffffffffffffffffffffffffffff
-    v101 = shl 64, v100
-    v102 = or v100, v101
-    v103 = and v102, 0xffffffffffffffff0000000000000000ffffffffffffffff
-    v104 = shl 32, v103
-    v105 = or v103, v104
-    v106 = and v105, 0xffffffff00000000ffffffff00000000ffffffff00000000ffffffff
-    v107 = shl 16, v106
-    v108 = or v106, v107
-    v109 = and v108, 0xffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff
-    v110 = shl 8, v109
-    v111 = or v109, v110
-    v112 = and v111, 0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff
-    v113 = shl 4, v112
-    v114 = or v112, v113
-    v115 = and v114, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
-    v116 = add v115, 0x606060606060606060606060606060606060606060606060606060606060606
-    v117 = shr 4, v116
-    v118 = and v117, 0x101010101010101010101010101010101010101010101010101010101010101
-    v119 = add v115, 0x3030303030303030303030303030303030303030303030303030303030303030
-    v120 = mul v118, 39
-    v121 = add v119, v120
-    mstore v97, v121
-    v122 = add v96, 16
-    v123 = add v97, 32
+    v100 = mload v97
+    v101 = and v100, 0xffffffffffffffffffffffffffffffff
+    v102 = shl 64, v101
+    v103 = or v101, v102
+    v104 = and v103, 0xffffffffffffffff0000000000000000ffffffffffffffff
+    v105 = shl 32, v104
+    v106 = or v104, v105
+    v107 = and v106, 0xffffffff00000000ffffffff00000000ffffffff00000000ffffffff
+    v108 = shl 16, v107
+    v109 = or v107, v108
+    v110 = and v109, 0xffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff
+    v111 = shl 8, v110
+    v112 = or v110, v111
+    v113 = and v112, 0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff
+    v114 = shl 4, v113
+    v115 = or v113, v114
+    v116 = and v115, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+    v117 = add v116, 0x606060606060606060606060606060606060606060606060606060606060606
+    v118 = shr 4, v117
+    v119 = and v118, 0x101010101010101010101010101010101010101010101010101010101010101
+    v120 = add v116, 0x3030303030303030303030303030303030303030303030303030303030303030
+    v121 = mul v119, 39
+    v122 = add v120, v121
+    mstore v98, v122
+    v123 = add v97, 16
+    v124 = add v98, 32
     jump bb8
   bb10:
-    v124 = and v0, 15
-    v125 = ne v124, 0
-    jumpi v125, bb11, bb12
+    v125 = and v0, 15
+    v126 = ne v125, 0
+    jumpi v126, bb11, bb12
   bb11:
-    v126 = ptrtoint memptr v90 to i256
-    v127 = add v126, v0
-    v128 = mload v127
-    v129 = shl 3, v124
-    v130 = shl v129, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v131 = not v130
-    v132 = and v128, v131
-    v133 = sub 16, v124
-    v134 = shl 3, v133
-    v135 = shl v134, v132
-    v136 = shl 64, v135
-    v137 = or v135, v136
-    v138 = and v137, 0xffffffffffffffff0000000000000000ffffffffffffffff
-    v139 = shl 32, v138
-    v140 = or v138, v139
-    v141 = and v140, 0xffffffff00000000ffffffff00000000ffffffff00000000ffffffff
-    v142 = shl 16, v141
-    v143 = or v141, v142
-    v144 = and v143, 0xffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff
-    v145 = shl 8, v144
-    v146 = or v144, v145
-    v147 = and v146, 0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff
-    v148 = shl 4, v147
-    v149 = or v147, v148
-    v150 = and v149, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
-    v151 = add v150, 0x606060606060606060606060606060606060606060606060606060606060606
-    v152 = shr 4, v151
-    v153 = and v152, 0x101010101010101010101010101010101010101010101010101010101010101
-    v154 = add v150, 0x3030303030303030303030303030303030303030303030303030303030303030
-    v155 = mul v153, 39
-    v156 = add v154, v155
-    mstore v97, v156
+    v127 = ptrtoint memptr v91 to i256
+    v128 = add v127, v0
+    v129 = mload v128
+    v130 = shl 3, v125
+    v131 = shl v130, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v132 = not v131
+    v133 = and v129, v132
+    v134 = sub 16, v125
+    v135 = shl 3, v134
+    v136 = shl v135, v133
+    v137 = shl 64, v136
+    v138 = or v136, v137
+    v139 = and v138, 0xffffffffffffffff0000000000000000ffffffffffffffff
+    v140 = shl 32, v139
+    v141 = or v139, v140
+    v142 = and v141, 0xffffffff00000000ffffffff00000000ffffffff00000000ffffffff
+    v143 = shl 16, v142
+    v144 = or v142, v143
+    v145 = and v144, 0xffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff
+    v146 = shl 8, v145
+    v147 = or v145, v146
+    v148 = and v147, 0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff
+    v149 = shl 4, v148
+    v150 = or v148, v149
+    v151 = and v150, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+    v152 = add v151, 0x606060606060606060606060606060606060606060606060606060606060606
+    v153 = shr 4, v152
+    v154 = and v153, 0x101010101010101010101010101010101010101010101010101010101010101
+    v155 = add v151, 0x3030303030303030303030303030303030303030303030303030303030303030
+    v156 = mul v154, 39
+    v157 = add v155, v156
+    mstore v98, v157
     jump bb12
   bb12:
-    v157 = add v89, v80
-    mstore v157, 0
+    v158 = add v90, v80
+    mstore v158, 0
     jump bb7
   bb5:
     v36 = alloc memorybytes, exact, uninitialized, infallible, 96
@@ -204,8 +205,8 @@ fn @encode.0(arg0: memorybytes) -> memorybytes [selector=0x12496a1b, pure, abi_p
     set_memory_object_len memorybytes, v2, 0
     jump bb7
   bb7:
-    v158 = phi [bb1: v2], [bb3: v4], [bb5: v36], [bb12: v86]
-    ret v158
+    v159 = phi [bb1: v2], [bb3: v4], [bb5: v36], [bb12: v87]
+    ret v159
 }
 
 fn @prefixed(arg0: memorybytes) -> memorybytes [selector=0x13e7d096, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -227,102 +228,103 @@ fn @prefixed(arg0: memorybytes) -> memorybytes [selector=0x13e7d096, pure, abi_p
     v89 = add v88, 2
     v90 = lt v89, v88
     icall panic_if<0x11>, v90
-    v91 = gt v89, 0xffffffffffffffff
-    icall panic_if<0x41>, v91
-    v92 = add v89, 95
-    v93 = and v92, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v94 = alloc memorybytes, exact, uninitialized, panic, v93
-    set_memory_object_len memorybytes, v94, v89
-    v95 = memory_object_data memorybytes, v94
-    v96 = ptrtoint memptr v95 to i256
-    v97 = add v96, 2
-    v98 = bitcast memorybytes arg0 to memptr
-    v99 = ptrtoint memptr v98 to i256
-    v100 = add v99, 16
-    v101 = not 15
-    v102 = and v0, v101
-    v103 = add v100, v102
+    v91 = shr 64, v89
+    v92 = ne v91, 0
+    icall panic_if<0x41>, v92
+    v93 = add v89, 95
+    v94 = and v93, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v95 = alloc memorybytes, exact, uninitialized, panic, v94
+    set_memory_object_len memorybytes, v95, v89
+    v96 = memory_object_data memorybytes, v95
+    v97 = ptrtoint memptr v96 to i256
+    v98 = add v97, 2
+    v99 = bitcast memorybytes arg0 to memptr
+    v100 = ptrtoint memptr v99 to i256
+    v101 = add v100, 16
+    v102 = not 15
+    v103 = and v0, v102
+    v104 = add v101, v103
     jump bb8
   bb8:
-    v104 = phi [bb6: v100], [bb9: v130]
-    v105 = phi [bb6: v97], [bb9: v131]
-    v106 = eq v104, v103
-    jumpi v106, bb10, bb9
+    v105 = phi [bb6: v101], [bb9: v131]
+    v106 = phi [bb6: v98], [bb9: v132]
+    v107 = eq v105, v104
+    jumpi v107, bb10, bb9
   bb9:
-    v107 = mload v104
-    v108 = and v107, 0xffffffffffffffffffffffffffffffff
-    v109 = shl 64, v108
-    v110 = or v108, v109
-    v111 = and v110, 0xffffffffffffffff0000000000000000ffffffffffffffff
-    v112 = shl 32, v111
-    v113 = or v111, v112
-    v114 = and v113, 0xffffffff00000000ffffffff00000000ffffffff00000000ffffffff
-    v115 = shl 16, v114
-    v116 = or v114, v115
-    v117 = and v116, 0xffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff
-    v118 = shl 8, v117
-    v119 = or v117, v118
-    v120 = and v119, 0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff
-    v121 = shl 4, v120
-    v122 = or v120, v121
-    v123 = and v122, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
-    v124 = add v123, 0x606060606060606060606060606060606060606060606060606060606060606
-    v125 = shr 4, v124
-    v126 = and v125, 0x101010101010101010101010101010101010101010101010101010101010101
-    v127 = add v123, 0x3030303030303030303030303030303030303030303030303030303030303030
-    v128 = mul v126, 39
-    v129 = add v127, v128
-    mstore v105, v129
-    v130 = add v104, 16
-    v131 = add v105, 32
+    v108 = mload v105
+    v109 = and v108, 0xffffffffffffffffffffffffffffffff
+    v110 = shl 64, v109
+    v111 = or v109, v110
+    v112 = and v111, 0xffffffffffffffff0000000000000000ffffffffffffffff
+    v113 = shl 32, v112
+    v114 = or v112, v113
+    v115 = and v114, 0xffffffff00000000ffffffff00000000ffffffff00000000ffffffff
+    v116 = shl 16, v115
+    v117 = or v115, v116
+    v118 = and v117, 0xffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff
+    v119 = shl 8, v118
+    v120 = or v118, v119
+    v121 = and v120, 0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff
+    v122 = shl 4, v121
+    v123 = or v121, v122
+    v124 = and v123, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+    v125 = add v124, 0x606060606060606060606060606060606060606060606060606060606060606
+    v126 = shr 4, v125
+    v127 = and v126, 0x101010101010101010101010101010101010101010101010101010101010101
+    v128 = add v124, 0x3030303030303030303030303030303030303030303030303030303030303030
+    v129 = mul v127, 39
+    v130 = add v128, v129
+    mstore v106, v130
+    v131 = add v105, 16
+    v132 = add v106, 32
     jump bb8
   bb10:
-    v132 = and v0, 15
-    v133 = ne v132, 0
-    jumpi v133, bb11, bb12
+    v133 = and v0, 15
+    v134 = ne v133, 0
+    jumpi v134, bb11, bb12
   bb11:
-    v134 = ptrtoint memptr v98 to i256
-    v135 = add v134, v0
-    v136 = mload v135
-    v137 = shl 3, v132
-    v138 = shl v137, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v139 = not v138
-    v140 = and v136, v139
-    v141 = sub 16, v132
-    v142 = shl 3, v141
-    v143 = shl v142, v140
-    v144 = shl 64, v143
-    v145 = or v143, v144
-    v146 = and v145, 0xffffffffffffffff0000000000000000ffffffffffffffff
-    v147 = shl 32, v146
-    v148 = or v146, v147
-    v149 = and v148, 0xffffffff00000000ffffffff00000000ffffffff00000000ffffffff
-    v150 = shl 16, v149
-    v151 = or v149, v150
-    v152 = and v151, 0xffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff
-    v153 = shl 8, v152
-    v154 = or v152, v153
-    v155 = and v154, 0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff
-    v156 = shl 4, v155
-    v157 = or v155, v156
-    v158 = and v157, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
-    v159 = add v158, 0x606060606060606060606060606060606060606060606060606060606060606
-    v160 = shr 4, v159
-    v161 = and v160, 0x101010101010101010101010101010101010101010101010101010101010101
-    v162 = add v158, 0x3030303030303030303030303030303030303030303030303030303030303030
-    v163 = mul v161, 39
-    v164 = add v162, v163
-    mstore v105, v164
+    v135 = ptrtoint memptr v99 to i256
+    v136 = add v135, v0
+    v137 = mload v136
+    v138 = shl 3, v133
+    v139 = shl v138, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v140 = not v139
+    v141 = and v137, v140
+    v142 = sub 16, v133
+    v143 = shl 3, v142
+    v144 = shl v143, v141
+    v145 = shl 64, v144
+    v146 = or v144, v145
+    v147 = and v146, 0xffffffffffffffff0000000000000000ffffffffffffffff
+    v148 = shl 32, v147
+    v149 = or v147, v148
+    v150 = and v149, 0xffffffff00000000ffffffff00000000ffffffff00000000ffffffff
+    v151 = shl 16, v150
+    v152 = or v150, v151
+    v153 = and v152, 0xffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff
+    v154 = shl 8, v153
+    v155 = or v153, v154
+    v156 = and v155, 0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff
+    v157 = shl 4, v156
+    v158 = or v156, v157
+    v159 = and v158, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+    v160 = add v159, 0x606060606060606060606060606060606060606060606060606060606060606
+    v161 = shr 4, v160
+    v162 = and v161, 0x101010101010101010101010101010101010101010101010101010101010101
+    v163 = add v159, 0x3030303030303030303030303030303030303030303030303030303030303030
+    v164 = mul v162, 39
+    v165 = add v163, v164
+    mstore v106, v165
     jump bb12
   bb12:
-    v165 = add v97, v88
-    mstore v165, 0
-    v166 = bitcast memorybytes v94 to memptr
-    v167 = ptrtoint memptr v166 to i256
-    v168 = add v167, 2
-    v169 = shl 16, v89
-    v170 = or v169, 0x3078
-    mstore v168, v170
+    v166 = add v98, v88
+    mstore v166, 0
+    v167 = bitcast memorybytes v95 to memptr
+    v168 = ptrtoint memptr v167 to i256
+    v169 = add v168, 2
+    v170 = shl 16, v89
+    v171 = or v170, 0x3078
+    mstore v169, v171
     jump bb7
   bb5:
     v37 = alloc memorybytes, exact, uninitialized, infallible, 96
@@ -421,8 +423,8 @@ fn @prefixed(arg0: memorybytes) -> memorybytes [selector=0x13e7d096, pure, abi_p
     memory_object_store_word memorybytes, v2, 0, 0x3078000000000000000000000000000000000000000000000000000000000000
     jump bb7
   bb7:
-    v171 = phi [bb1: v2], [bb3: v4], [bb5: v37], [bb12: v94]
-    ret v171
+    v172 = phi [bb1: v2], [bb3: v4], [bb5: v37], [bb12: v95]
+    ret v172
 }
 
 fn @decode.2(arg0: memorybytes) -> memorybytes [selector=0x49145c91, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

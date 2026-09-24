@@ -129,13 +129,15 @@ fn @copyOut() [selector=0xa6f9b6f1, abi_wrapper, pure] {
     v46 = mload 64 !metadata(memory=scratch)
     v47 = add v46, v3
     v48 = lt v47, v46
-    v49 = gt v47, 0xffffffffffffffff
-    v50 = or v48, v49
-    jumpi v50, bb1, bb7
+    v49 = zext i1 v48 to i256
+    v50 = shr 64, v47
+    v51 = or v49, v50
+    v52 = ne v51, 0
+    jumpi v52, bb1, bb7
   bb7:
     mstore 64, v47 !metadata(memory=scratch)
-    v52 = calldatasize
-    calldatacopy v46, v52, v3
+    v53 = calldatasize
+    calldatacopy v46, v53, v3
     mstore v46, arg2
     v44 = add v46, 32
     v15 = add arg1, arg2

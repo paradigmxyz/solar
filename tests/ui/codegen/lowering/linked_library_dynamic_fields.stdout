@@ -83,11 +83,8 @@ bb1:
   dup 2
   add
   swap 2
-  push 0
-  not
-  push 192
+  push 64
   shr
-  lt
   calldatasize
   dup 4
   gt
@@ -95,12 +92,9 @@ bb1:
   push bb3
   jumpi
   calldataload
-  push 0
-  not
-  push 192
+  dup 1
+  push 64
   shr
-  dup 2
-  gt
   push bb25
   jumpi
   dup 1
@@ -117,28 +111,22 @@ bb1:
   dup 2
   dup 2
   lt
-  push 0
-  not
-  push 192
+  dup 2
+  push 64
   shr
-  dup 3
-  gt
   or
   push bb25
   jumpi
   push 64
   mstore
+  swap 2
   dup 3
-  dup 2
   mstore
+  dup 1
   dup 4
+  add
   calldatasize
-  sub
-  push 5
-  shr
-  swap 1
-  swap 3
-  gt
+  lt
   push bb3
   jumpi
   push 32
@@ -169,11 +157,8 @@ bb1:
   dup 2
   add
   swap 2
-  push 0
-  not
-  push 192
+  push 64
   shr
-  lt
   calldatasize
   dup 4
   gt
@@ -200,12 +185,9 @@ bb1:
   dup 2
   dup 2
   lt
-  push 0
-  not
-  push 192
+  dup 2
+  push 64
   shr
-  dup 3
-  gt
   or
   push bb25
   jumpi

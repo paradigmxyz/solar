@@ -32,13 +32,15 @@ fn @payload() [selector=0x63fd6252, abi_wrapper, pure] {
     v6 = inttoptr i256 v36 to memptr !metadata(memory=scratch)
     v37 = add v36, 128
     v38 = lt v37, v36
-    v39 = gt v37, 0xffffffffffffffff
-    v40 = or v38, v39
-    jumpi v40, bb4, bb3
+    v39 = zext i1 v38 to i256
+    v40 = shr 64, v37
+    v41 = or v39, v40
+    v42 = ne v41, 0
+    jumpi v42, bb4, bb3
   bb3:
     mstore 64, v37 !metadata(memory=scratch)
-    v42 = calldatasize
-    calldatacopy v36, v42, 128
+    v43 = calldatasize
+    calldatacopy v36, v43, 128
     mstore v36, 68
     v7 = icall @encodeSelectorInto, v6, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
     v8 = icall @encodeInto.4, v6, 4, arg0
@@ -72,13 +74,15 @@ fn @short() [selector=0xb2d29f33, abi_wrapper, pure] {
     v5 = inttoptr i256 v35 to memptr !metadata(memory=scratch)
     v36 = add v35, 96
     v37 = lt v36, v35
-    v38 = gt v36, 0xffffffffffffffff
-    v39 = or v37, v38
-    jumpi v39, bb4, bb3
+    v38 = zext i1 v37 to i256
+    v39 = shr 64, v36
+    v40 = or v38, v39
+    v41 = ne v40, 0
+    jumpi v41, bb4, bb3
   bb3:
     mstore 64, v36 !metadata(memory=scratch)
-    v41 = calldatasize
-    calldatacopy v35, v41, 96
+    v42 = calldatasize
+    calldatacopy v35, v42, 96
     mstore v35, 36
     v6 = icall @encodeSelectorInto, v5, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
     v7 = icall @encodeInto.4, v5, 4, arg0

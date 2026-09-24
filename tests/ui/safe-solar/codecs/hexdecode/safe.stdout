@@ -28,45 +28,49 @@ fn @decode.0() [selector=0x49145c91, abi_wrapper, pure] {
     v3 = calldataload 4
     v4 = add v3, 4
     v5 = add v4, 32
-    v6 = gt v3, 0xffffffffffffffff
+    v6 = shr 64, v3
     v7 = gt v5, v1
-    v8 = or v6, v7
-    jumpi v8, bb1, bb3
+    v8 = zext i1 v7 to i256
+    v9 = or v6, v8
+    v10 = ne v9, 0
+    jumpi v10, bb1, bb3
   bb3:
-    v10 = calldataload v4
-    v12 = add v10, 63
-    v13 = lt v12, v10
-    jumpi v13, bb4, bb5
+    v11 = calldataload v4
+    v13 = add v11, 63
+    v14 = lt v13, v11
+    jumpi v14, bb4, bb5
   bb5:
-    v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v42 = mload 64 !metadata(memory=scratch)
-    v16 = inttoptr i256 v42 to memptr !metadata(memory=scratch)
-    v43 = add v42, v15
-    v44 = lt v43, v42
-    v45 = gt v43, 0xffffffffffffffff
-    v46 = or v44, v45
-    jumpi v46, bb4, bb7
+    v16 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v43 = mload 64 !metadata(memory=scratch)
+    v17 = inttoptr i256 v43 to memptr !metadata(memory=scratch)
+    v44 = add v43, v16
+    v45 = lt v44, v43
+    v46 = zext i1 v45 to i256
+    v47 = shr 64, v44
+    v48 = or v46, v47
+    v49 = ne v48, 0
+    jumpi v49, bb4, bb7
   bb7:
-    mstore 64, v43 !metadata(memory=scratch)
-    mstore v42, v10
-    v17 = sub v1, v5
-    v18 = gt v10, v17
-    jumpi v18, bb1, bb6
+    mstore 64, v44 !metadata(memory=scratch)
+    mstore v43, v11
+    v18 = sub v1, v5
+    v19 = gt v11, v18
+    jumpi v19, bb1, bb6
   bb6:
-    v35 = add v42, 32
-    calldatacopy v35, v5, v10
-    v0 = icall @decode.1, v16
-    v39 = ptrtoint memptr v0 to i256
-    v23 = mload v39
-    v24 = add v23, 31
-    v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v41 = add v39, 32
-    v29 = add v41, v23
-    mstore v29, 0
-    v31 = sub v39, 32
-    mstore v31, 32
-    v32 = add v26, 64
-    returndata v31, v32
+    v36 = add v43, 32
+    calldatacopy v36, v5, v11
+    v0 = icall @decode.1, v17
+    v40 = ptrtoint memptr v0 to i256
+    v24 = mload v40
+    v25 = add v24, 31
+    v27 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v42 = add v40, 32
+    v30 = add v42, v24
+    mstore v30, 0
+    v32 = sub v40, 32
+    mstore v32, 32
+    v33 = add v27, 64
+    returndata v32, v33
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
@@ -93,8 +97,8 @@ fn @decode.1(arg0: memptr) -> memptr [may_return_memory, pure] {
     v124 = byte 0, v123
     v15 = eq v124, 120
     v21 = eq v124, 88
-    v169 = or v15, v21
-    jumpi v169, bb4, bb3
+    v170 = or v15, v21
+    jumpi v170, bb4, bb3
   bb3:
     jump bb4
   bb4:
@@ -114,33 +118,35 @@ fn @decode.1(arg0: memptr) -> memptr [may_return_memory, pure] {
     v34 = inttoptr i256 v160 to memptr !metadata(memory=scratch)
     v161 = add v160, v33
     v162 = lt v161, v160
-    v163 = gt v161, 0xffffffffffffffff
-    v164 = or v162, v163
-    jumpi v164, bb18, bb17
+    v163 = zext i1 v162 to i256
+    v164 = shr 64, v161
+    v165 = or v163, v164
+    v166 = ne v165, 0
+    jumpi v166, bb18, bb17
   bb17:
     mstore 64, v161 !metadata(memory=scratch)
-    v168 = calldatasize
-    calldatacopy v160, v168, v33
+    v169 = calldatasize
+    calldatacopy v160, v169, v33
     mstore v160, v108
-    v166 = mload 64 !metadata(memory=scratch)
-    v167 = add v166, 288
-    mstore 64, v167 !metadata(memory=scratch)
-    mstore v166, 256
-    v159 = add v166, 32
+    v167 = mload 64 !metadata(memory=scratch)
+    v168 = add v167, 288
+    mstore 64, v168 !metadata(memory=scratch)
+    mstore v167, 256
+    v159 = add v167, 32
     mstore v159, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v39 = add v166, 64
+    v39 = add v167, 64
     mstore v39, 0xffffffffffffffffffffffffffffffff00010203040506070809ffffffffffff
-    v41 = add v166, 96
+    v41 = add v167, 96
     mstore v41, 0xff0a0b0c0d0e0fffffffffffffffffffffffffffffffffffffffffffffffffff
-    v43 = add v166, 128
+    v43 = add v167, 128
     mstore v43, 0xff0a0b0c0d0e0fffffffffffffffffffffffffffffffffffffffffffffffffff
-    v45 = add v166, 160
+    v45 = add v167, 160
     mstore v45, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v47 = add v166, 192
+    v47 = add v167, 192
     mstore v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v49 = add v166, 224
+    v49 = add v167, 224
     mstore v49, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v51 = add v166, 256
+    v51 = add v167, 256
     mstore v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb5
   bb5:

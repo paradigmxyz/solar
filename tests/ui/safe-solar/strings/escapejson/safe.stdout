@@ -46,45 +46,49 @@ fn @escape() [selector=0xb00a0672, abi_wrapper, pure] {
     v3 = calldataload 4
     v4 = add v3, 4
     v5 = add v4, 32
-    v6 = gt v3, 0xffffffffffffffff
+    v6 = shr 64, v3
     v7 = gt v5, v1
-    v8 = or v6, v7
-    jumpi v8, bb1, bb3
+    v8 = zext i1 v7 to i256
+    v9 = or v6, v8
+    v10 = ne v9, 0
+    jumpi v10, bb1, bb3
   bb3:
-    v10 = calldataload v4
-    v12 = add v10, 63
-    v13 = lt v12, v10
-    jumpi v13, bb4, bb5
+    v11 = calldataload v4
+    v13 = add v11, 63
+    v14 = lt v13, v11
+    jumpi v14, bb4, bb5
   bb5:
-    v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v42 = mload 64 !metadata(memory=scratch)
-    v16 = inttoptr i256 v42 to memptr !metadata(memory=scratch)
-    v43 = add v42, v15
-    v44 = lt v43, v42
-    v45 = gt v43, 0xffffffffffffffff
-    v46 = or v44, v45
-    jumpi v46, bb4, bb7
+    v16 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v43 = mload 64 !metadata(memory=scratch)
+    v17 = inttoptr i256 v43 to memptr !metadata(memory=scratch)
+    v44 = add v43, v16
+    v45 = lt v44, v43
+    v46 = zext i1 v45 to i256
+    v47 = shr 64, v44
+    v48 = or v46, v47
+    v49 = ne v48, 0
+    jumpi v49, bb4, bb7
   bb7:
-    mstore 64, v43 !metadata(memory=scratch)
-    mstore v42, v10
-    v17 = sub v1, v5
-    v18 = gt v10, v17
-    jumpi v18, bb1, bb6
+    mstore 64, v44 !metadata(memory=scratch)
+    mstore v43, v11
+    v18 = sub v1, v5
+    v19 = gt v11, v18
+    jumpi v19, bb1, bb6
   bb6:
-    v35 = add v42, 32
-    calldatacopy v35, v5, v10
-    v0 = icall @core_string_escape_json, v16
-    v39 = ptrtoint memptr v0 to i256
-    v23 = mload v39
-    v24 = add v23, 31
-    v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v41 = add v39, 32
-    v29 = add v41, v23
-    mstore v29, 0
-    v31 = sub v39, 32
-    mstore v31, 32
-    v32 = add v26, 64
-    returndata v31, v32
+    v36 = add v43, 32
+    calldatacopy v36, v5, v11
+    v0 = icall @core_string_escape_json, v17
+    v40 = ptrtoint memptr v0 to i256
+    v24 = mload v40
+    v25 = add v24, 31
+    v27 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v42 = add v40, 32
+    v30 = add v42, v24
+    mstore v30, 0
+    v32 = sub v40, 32
+    mstore v32, 32
+    v33 = add v27, 64
+    returndata v32, v33
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

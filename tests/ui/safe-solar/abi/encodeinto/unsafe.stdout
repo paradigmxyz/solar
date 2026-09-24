@@ -13,13 +13,15 @@ fn @payload() [selector=0x63fd6252, abi_wrapper, inline_assembly, pure] {
     v33 = mload 64 !metadata(memory=scratch)
     v34 = add v33, 128
     v35 = lt v34, v33
-    v36 = gt v34, 0xffffffffffffffff
-    v37 = or v35, v36
-    jumpi v37, bb4, bb3
+    v36 = zext i1 v35 to i256
+    v37 = shr 64, v34
+    v38 = or v36, v37
+    v39 = ne v38, 0
+    jumpi v39, bb4, bb3
   bb3:
     mstore 64, v34 !metadata(memory=scratch)
-    v39 = calldatasize
-    calldatacopy v33, v39, 128
+    v40 = calldatasize
+    calldatacopy v33, v40, 128
     mstore v33, 68
     v7 = add v33, 32
     mstore v7, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
@@ -50,13 +52,15 @@ fn @short() [selector=0xb2d29f33, abi_wrapper, inline_assembly, pure] {
     v33 = mload 64 !metadata(memory=scratch)
     v34 = add v33, 96
     v35 = lt v34, v33
-    v36 = gt v34, 0xffffffffffffffff
-    v37 = or v35, v36
-    jumpi v37, bb4, bb3
+    v36 = zext i1 v35 to i256
+    v37 = shr 64, v34
+    v38 = or v36, v37
+    v39 = ne v38, 0
+    jumpi v39, bb4, bb3
   bb3:
     mstore 64, v34 !metadata(memory=scratch)
-    v39 = calldatasize
-    calldatacopy v33, v39, 96
+    v40 = calldatasize
+    calldatacopy v33, v40, 96
     mstore v33, 36
     v7 = add v33, 32
     mstore v7, 0xa9059cbb00000000000000000000000000000000000000000000000000000000

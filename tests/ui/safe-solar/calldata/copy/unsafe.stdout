@@ -30,13 +30,15 @@ fn @part() [selector=0x107cd163, abi_wrapper, inline_assembly, pure] {
     v44 = mload 64 !metadata(memory=scratch)
     v45 = add v44, v3
     v46 = lt v45, v44
-    v47 = gt v45, 0xffffffffffffffff
-    v48 = or v46, v47
-    jumpi v48, bb1, bb6
+    v47 = zext i1 v46 to i256
+    v48 = shr 64, v45
+    v49 = or v47, v48
+    v50 = ne v49, 0
+    jumpi v50, bb1, bb6
   bb6:
     mstore 64, v45 !metadata(memory=scratch)
-    v50 = calldatasize
-    calldatacopy v44, v50, v3
+    v51 = calldatasize
+    calldatacopy v44, v51, v3
     mstore v44, arg2
     v6 = add v13, arg1
     v8 = add v44, 32

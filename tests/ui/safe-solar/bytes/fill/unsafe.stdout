@@ -10,33 +10,37 @@ fn @blank() [selector=0xc89c9e3d, abi_wrapper, inline_assembly, pure] {
     v33 = calldataload 4
     v34 = add v33, 4
     v35 = add v34, 32
-    v36 = gt v33, 0xffffffffffffffff
+    v36 = shr 64, v33
     v37 = gt v35, v31
-    v38 = or v36, v37
-    jumpi v38, bb6, bb8
+    v38 = zext i1 v37 to i256
+    v39 = or v36, v38
+    v40 = ne v39, 0
+    jumpi v40, bb6, bb8
   bb8:
-    v40 = calldataload v34
-    v42 = add v40, 63
-    v43 = lt v42, v40
-    jumpi v43, bb9, bb10
+    v41 = calldataload v34
+    v43 = add v41, 63
+    v44 = lt v43, v41
+    jumpi v44, bb9, bb10
   bb10:
-    v45 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v72 = mload 64 !metadata(memory=scratch)
-    v73 = add v72, v45
-    v74 = lt v73, v72
-    v75 = gt v73, 0xffffffffffffffff
-    v76 = or v74, v75
-    jumpi v76, bb9, bb12
+    v46 = and v43, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v73 = mload 64 !metadata(memory=scratch)
+    v74 = add v73, v46
+    v75 = lt v74, v73
+    v76 = zext i1 v75 to i256
+    v77 = shr 64, v74
+    v78 = or v76, v77
+    v79 = ne v78, 0
+    jumpi v79, bb9, bb12
   bb12:
-    mstore 64, v73 !metadata(memory=scratch)
-    mstore v72, v40
-    v47 = sub v31, v35
-    v48 = gt v40, v47
-    jumpi v48, bb6, bb11
+    mstore 64, v74 !metadata(memory=scratch)
+    mstore v73, v41
+    v48 = sub v31, v35
+    v49 = gt v41, v48
+    jumpi v49, bb6, bb11
   bb11:
-    v65 = add v72, 32
-    calldatacopy v65, v35, v40
-    v2 = add v65, arg1
+    v66 = add v73, 32
+    calldatacopy v66, v35, v41
+    v2 = add v66, arg1
     v3 = add v2, arg2
     jump bb1
   bb1:
@@ -62,15 +66,15 @@ fn @blank() [selector=0xc89c9e3d, abi_wrapper, inline_assembly, pure] {
     mstore v11, v30
     jump bb5
   bb5:
-    v53 = mload v72
-    v54 = add v53, 31
-    v56 = and v54, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v59 = add v65, v53
-    mstore v59, 0
-    v61 = sub v72, 32
-    mstore v61, 32
-    v62 = add v56, 64
-    returndata v61, v62
+    v54 = mload v73
+    v55 = add v54, 31
+    v57 = and v55, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v60 = add v66, v54
+    mstore v60, 0
+    v62 = sub v73, 32
+    mstore v62, 32
+    v63 = add v57, 64
+    returndata v62, v63
   bb9:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
