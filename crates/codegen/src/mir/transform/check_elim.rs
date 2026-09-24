@@ -93,9 +93,10 @@
 //! without inline assembly, rereads of a parameter object's length agree, and
 //! a fresh object's rereads equal the length stored at its allocation, when
 //! nothing in the function can write that length: stores into other fresh
-//! objects cannot reach it, a write in a block that leaves the function
-//! reaches only later reads in that block, and calls count through their
-//! memory summaries. The rereads themselves stay in place for the scheduler to
+//! objects cannot reach it, nor can writes that end at or below the zero slot,
+//! such as the scratch words a slot hash writes, a write in a block that leaves
+//! the function reaches only later reads in that block, and calls count
+//! through their memory summaries. The rereads themselves stay in place for the scheduler to
 //! price.
 //!
 //! Transitive relational queries lazily index candidate edges once per function,
@@ -166,7 +167,10 @@ use crate::{
         ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, Function, FunctionId,
         ImmutableEncoding, ImmutableId, InstId, InstKind, Module, Terminator, TypeSize, Value,
         ValueId, ValueLayout,
-        analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, Location, MemoryCallSummaries},
+        analysis::{
+            Access, AddressSpace, AliasAnalysis, CallGraphInfo, CfgInfo, Location,
+            MemoryCallSummaries,
+        },
         immutable::immutable_push_type_size,
         memory::EvmMemoryLayout,
         pass::{
@@ -2545,6 +2549,7 @@ fn stable_object_lengths(
                     InstKind::SetMemoryObjectLen(set_object, ..) if set_object == object);
                 Some(inst) == anchor_set
                     || !aa.instruction_mod_ref(func, inst).may_write(&aa, location)
+                    || writes_below_objects(&aa, func, inst)
                     || (writes_only_fresh_object(func, inst_kind) && !sets_object)
                     || (exits
                         && block.instructions[position + 1..]
@@ -2562,6 +2567,27 @@ fn stable_object_lengths(
         }
     }
     relations
+}
+
+/// Whether every memory write of `inst` ends at or below the zero slot, as
+/// the scratch words a slot hash writes do.
+///
+/// Callers run this only for modules without inline assembly. There every
+/// memory object's length word lies at or above the zero slot: an empty
+/// object is the zero slot itself, and every other object lies above the
+/// free-memory pointer's initial value. Alias analysis cannot use that in
+/// general, because assembly can make a pointer to any address.
+fn writes_below_objects(aa: &AliasAnalysis, func: &Function, inst: InstId) -> bool {
+    aa.instruction_mod_ref(func, inst).writes().iter().all(|&access| match access {
+        Access::Location(Location::Memory(location)) => location
+            .address
+            .as_absolute()
+            .zip(location.size.as_const())
+            .and_then(|(start, size)| start.checked_add(size))
+            .is_some_and(|end| end <= EvmMemoryLayout::ZERO_SLOT),
+        Access::Location(_) => true,
+        Access::Any(space) => space != AddressSpace::Memory,
+    })
 }
 
 /// The upper limit of a clamp written as `x + (x > limit) * (limit - x)`.
