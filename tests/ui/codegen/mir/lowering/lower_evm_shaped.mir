@@ -158,9 +158,12 @@ fn @tail_return_helper() {
     tail_call @void_helper
 }
 
-// Removing the call result also removes its edge from a still-reachable phi.
+// Removing the call result also removes its edge from a still-reachable phi,
+// and the phi left with one incoming value becomes that value.
 // CHECK-LABEL: {{^[ +].*}}fn @scalar_caller{{[( ]}}
-// CHECK: + {{v[0-9]+}} = phi [bb0: 7]
+// CHECK: - {{v[0-9]+}} = phi [bb0: 7], [bb1: v1]
+// CHECK-NOT: phi
+// CHECK: + ret 7
 // CHECK: + tail_call @scalar_fail, 17 !metadata(span=50..60)
 fn @scalar_caller(arg0: i1) -> i256 {
   bb0:
