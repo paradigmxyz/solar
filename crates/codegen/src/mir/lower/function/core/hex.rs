@@ -21,7 +21,9 @@
 //! one-word output clears the bytes past its text in its single store. Failures
 //! follow the checked bodies: doubling a count panics on arithmetic overflow, a
 //! length above `2**64 - 1` panics as an allocation, and a fixed width too
-//! narrow for its value reverts with `HexLengthInsufficient()`. The body
+//! narrow for its value reverts with `HexLengthInsufficient()`. Builds that do
+//! not optimize for gas spell both through the scratch digit table two digits
+//! per byte instead, with the same allocation, checks and padding. The body
 //! allocates first; a width below sixteen bytes tests first instead, which no
 //! caller can observe, since the revert discards the allocation. A `0x` prefix
 //! is written by one word store that rewrites the length word's low 30 bytes
@@ -133,6 +135,9 @@ impl FunctionLowerer<'_, '_> {
         byte_count: ValueId,
         prefixed: bool,
     ) -> ValueId {
+        if !self.cx.gcx.sess.opts.optimization.is_gas() {
+            return self.lower_core_fixed_hex_compact(value, byte_count, prefixed);
+        }
         // byteCount < 16: the width test, then four-lane digits below three bytes and one-word
         // digits otherwise, each with its own store; else the long path
         let short = self.builder.create_block();
@@ -307,10 +312,82 @@ impl FunctionLowerer<'_, '_> {
         out
     }
 
+    /// The low `byteCount` bytes of `value`, two digits each from the lowest
+    /// byte up through the scratch digit table: the smallest shape, for builds
+    /// that do not optimize for gas.
+    fn lower_core_fixed_hex_compact(
+        &mut self,
+        value: ValueId,
+        byte_count: ValueId,
+        prefixed: bool,
+    ) -> ValueId {
+        let prefix = if prefixed { 2 } else { 0 };
+        let (out, length, start, digits) = self.alloc_core_hex_output(byte_count, prefix, false);
+        // revert HexLengthInsufficient() if value >> 8 * byteCount != 0
+        let three = self.builder.imm(3);
+        let bits = self.builder.shl(three, byte_count);
+        let lost = self.builder.shr(bits, value);
+        let insufficient = self.builder.ne_zero(lost);
+        revert_with_selector(&mut self.builder, insufficient, HEX_LENGTH_INSUFFICIENT);
+        // for i in 0..byteCount: spell (value >> 8i) & 0xff before end - 2i
+        let end = self.builder.add(start, digits);
+        store_core_hex_digit_table(&mut self.builder);
+        self.builder.counted_loop(byte_count, |builder, index| {
+            let three = builder.imm(3);
+            let bits = builder.shl(three, index);
+            let byte = builder.shr(bits, value);
+            let one = builder.imm(1);
+            let offset = builder.shl(one, index);
+            let after = builder.sub(end, offset);
+            spell_core_hex_byte(builder, byte, after);
+        });
+        // mstore(end, 0)
+        let zero = self.builder.imm(0);
+        self.builder.mstore(end, zero);
+        if prefixed {
+            self.store_core_hex_prefix(out, length);
+        }
+        out
+    }
+
+    /// The digits of `data`, two per byte through the scratch digit table: the
+    /// smallest shape, for builds that do not optimize for gas.
+    fn lower_core_hex_encode_compact(&mut self, data: ValueId, prefixed: bool) -> ValueId {
+        let n = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
+        let prefix = if prefixed { 2 } else { 0 };
+        let (out, length, start, digits) = self.alloc_core_hex_output(n, prefix, true);
+        // for i in 0..n: spell byte(0, mload(data + i)) at start + 2i
+        let source = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
+        store_core_hex_digit_table(&mut self.builder);
+        self.builder.counted_loop(n, |builder, index| {
+            let address = builder.add(source, index);
+            let word = builder.mload(address);
+            let zero = builder.imm(0);
+            let byte = builder.byte(zero, word);
+            let one = builder.imm(1);
+            let offset = builder.shl(one, index);
+            let at = builder.add(start, offset);
+            let two = builder.imm(2);
+            let after = builder.add(at, two);
+            spell_core_hex_byte(builder, byte, after);
+        });
+        // mstore(start + digits, 0)
+        let end = self.builder.add(start, digits);
+        let zero = self.builder.imm(0);
+        self.builder.mstore(end, zero);
+        if prefixed {
+            self.store_core_hex_prefix(out, length);
+        }
+        out
+    }
+
     /// The digits of `data`: nothing for an empty input, one or two bytes
     /// through a four-lane spread, up to sixteen bytes in one word without a
     /// loop, and longer inputs sixteen bytes per word.
     fn lower_core_hex_encode(&mut self, data: ValueId, prefixed: bool) -> ValueId {
+        if !self.cx.gcx.sess.opts.optimization.is_gas() {
+            return self.lower_core_hex_encode_compact(data, prefixed);
+        }
         let n = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
         let empty = self.builder.create_block();
         let nonempty = self.builder.create_block();
@@ -626,6 +703,34 @@ pub(super) fn hex_word(builder: &mut FunctionBuilder<'_>, x: ValueId) -> ValueId
     let thirty_nine = builder.imm(39);
     let letters = builder.mul(letters, thirty_nine);
     builder.add(digits, letters)
+}
+
+/// Writes "0123456789abcdef" to scratch so that `mload(nibble)` has the
+/// nibble's digit as its low byte.
+fn store_core_hex_digit_table(builder: &mut FunctionBuilder<'_>) {
+    // mstore(15, "0123456789abcdef")
+    let address = builder.imm(15);
+    let table = builder.imm(U256::from_be_slice(b"0123456789abcdef"));
+    builder.mstore(address, table);
+}
+
+/// Writes the two digits of the low byte of `x` just before `after`.
+fn spell_core_hex_byte(builder: &mut FunctionBuilder<'_>, x: ValueId, after: ValueId) {
+    // mstore8(after - 1, mload(x & 15))
+    // mstore8(after - 2, mload((x >> 4) & 15))
+    let fifteen = builder.imm(15);
+    let low = builder.and(x, fifteen);
+    let low = builder.mload(low);
+    let one = builder.imm(1);
+    let last = builder.sub(after, one);
+    builder.mstore8(last, low);
+    let four = builder.imm(4);
+    let high = builder.shr(four, x);
+    let high = builder.and(high, fifteen);
+    let high = builder.mload(high);
+    let two = builder.imm(2);
+    let first = builder.sub(after, two);
+    builder.mstore8(first, high);
 }
 
 /// Reverts with the four-byte custom error `selector` when `condition` holds.
