@@ -5,16 +5,18 @@
 //! selects with short sequences. The output is streamed at the free-memory
 //! pointer and reserved with its exact size at the end, so no pass counts the
 //! escapes first and no capacity is reserved for the longest possible result.
-//! HTML and JSON test a whole word for bytes to escape first and copy it with
-//! one store when it has none; a word that has one, and the tail shorter than
-//! a word, go byte by byte. The replacement sequences come from small tables
-//! written to scratch on entry: for HTML the entities and their lengths
-//! indexed by the escaped byte, which is below 0x40; for JSON the `\u00`
-//! template, the hexadecimal digits and the short forms of the control bytes;
-//! for URIs the uppercase digits. A replacement is written with whole-word or
-//! byte stores that may reach past it, and the next write or the zeroed word
-//! after the output covers what they leave. The checked Solidity bodies
-//! remain the reference under `-Zno-core-intrinsics`.
+//! Gas builds test a whole word of HTML or JSON for bytes to escape first and
+//! copy it with one store when it has none; a word that has one, and the tail
+//! shorter than a word, go byte by byte. Other builds copy byte by byte only,
+//! and share one JSON body between the quoted and unquoted forms. The
+//! replacement sequences come from small tables written to scratch on entry:
+//! for HTML the entities and their lengths indexed by the escaped byte, which
+//! is below 0x40; for JSON the `\u00` template, the hexadecimal digits and the
+//! short forms of the control bytes; for URIs the uppercase digits. A
+//! replacement is written with whole-word or byte stores that may reach past
+//! it, and the next write or the zeroed word after the output covers what they
+//! leave. The checked Solidity bodies remain the reference under
+//! `-Zno-core-intrinsics`.
 
 use super::*;
 
@@ -64,14 +66,19 @@ impl FunctionLowerer<'_, '_> {
         operands: &[ValueId],
         escape: Escape,
     ) -> Option<ValueId> {
+        // Size-first builds keep one JSON body: the unquoted form passes a false flag, which
+        // specialization folds when no other caller shares the body.
+        let size_first = !self.cx.gcx.sess.opts.optimization.is_gas();
         let (subject, quotes) = match (escape, operands) {
             (Escape::Json, &[subject, quotes]) => (subject, Some(quotes)),
+            (Escape::Json, &[subject]) if size_first => (subject, Some(self.builder.imm(0))),
             (_, &[subject]) => (subject, None),
             _ => return None,
         };
-        // A flag known to be false leaves the quotes out of the body entirely.
-        let quotes =
-            quotes.filter(|&quotes| self.builder.func().value_u256(quotes) != Some(U256::ZERO));
+        // Otherwise a flag known to be false leaves the quotes out of the body entirely.
+        let quotes = quotes.filter(|&quotes| {
+            size_first || self.builder.func().value_u256(quotes) != Some(U256::ZERO)
+        });
         let quotable = quotes.is_some();
         let name = if quotable { sym::core_string_escape_json_quotable } else { escape.helper() };
         let bytes = MirType::MemoryObject(MemoryObjectKind::Bytes);
@@ -125,7 +132,8 @@ impl FunctionLowerer<'_, '_> {
         let tail = self.builder.create_block();
         let tail_bytes = self.builder.create_block();
         let finish = self.builder.create_block();
-        let has_word_test = escape != Escape::Uri;
+        // Size-first builds copy byte by byte only.
+        let has_word_test = escape != Escape::Uri && self.cx.gcx.sess.opts.optimization.is_gas();
         // Every byte loop resumes at the word loop, or at the tail without one.
         let resume = if has_word_test { self.builder.create_block() } else { tail };
         let words = resume;
