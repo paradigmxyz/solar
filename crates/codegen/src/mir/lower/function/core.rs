@@ -377,15 +377,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.ret([false_]);
 
         // branch (lt length, 7), pairwise, allocate
+        // Other builds than gas take the table for every length.
         self.builder.switch_to_block(sized);
-        let seven = self.builder.imm(7);
-        let few = self.builder.lt(length, seven);
-        let pairwise = self.builder.create_block();
         let allocate = self.builder.create_block();
-        self.builder.branch(few, pairwise, allocate);
-
-        self.builder.switch_to_block(pairwise);
-        self.lower_core_array_pairwise_duplicate(input, length);
+        if self.cx.gcx.sess.opts.optimization.is_gas() {
+            let seven = self.builder.imm(7);
+            let few = self.builder.lt(length, seven);
+            let pairwise = self.builder.create_block();
+            self.builder.branch(few, pairwise, allocate);
+            self.builder.switch_to_block(pairwise);
+            self.lower_core_array_pairwise_duplicate(input, length);
+        } else {
+            self.builder.jump(allocate);
+        }
 
         self.builder.switch_to_block(allocate);
         // Round 48 * length up to a power-of-two byte extent, then clear the
