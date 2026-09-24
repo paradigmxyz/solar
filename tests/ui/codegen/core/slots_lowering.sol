@@ -18,6 +18,15 @@
 // INTRINSIC: sstore
 // PORTABLE-LABEL: fn @get
 // PORTABLE: icall @load
+
+// `Slots.storeBytes` hashes the root's slot once and stores each whole word
+// without a check of its own; the range and the count are checked up front.
+// INTRINSIC-LABEL: fn @put
+// INTRINSIC: keccak256 0, 32
+// INTRINSIC-NOT: keccak256
+// INTRINSIC: sstore
+// INTRINSIC-NOT: keccak256
+// INTRINSIC: stop
 import {Slots} from "solar:core/v1/Slots.sol";
 
 contract Test {
@@ -29,5 +38,9 @@ contract Test {
 
     function set(uint256 index, bytes32 value) public {
         Slots.store(root, index, value);
+    }
+
+    function put(bytes memory b) public {
+        Slots.storeBytes(root, b, 0, b.length);
     }
 }
