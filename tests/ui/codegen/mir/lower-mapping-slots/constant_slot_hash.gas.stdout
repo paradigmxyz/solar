@@ -1,0 +1,43 @@
+- // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/constant_slot_hash.mir (before lower-mapping-slots) ===
++ // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/constant_slot_hash.mir (after lower-mapping-slots) ===
+  @module ConstantSlotHash
+  fn @element(arg0: i256) -> i256 {
+    bb0:
+-     v0 = storage_array_element_slot 3, arg0, 1
+-     ret v0
++     v1 = add 0xc2575a0e9e593c00f959f8c92f12db2869c3395a3b0502d05e2516446f71f85b, arg0
++     ret v1
+  }
+  
+  fn @entry_at_constant_key() -> i256 {
+    bb0:
+-     v0 = mapping_slot 1, 2
+-     v1 = sload v0
++     v1 = sload 0xe90b7bceb6e7df5418fb78d8ee546e97c83a08bbccc01a0644d599ccd2a7c2e0
+      ret v1
+  }
+  
+  fn @two_uses() -> i256 {
+    bb0:
+-     v0 = storage_array_data_slot 5
+-     v1 = sload v0
+-     v2 = add v0, 1
++     mstore 0, 5 !metadata(memory=scratch)
++     v5 = keccak256 0, 32 !metadata(memory=scratch)
++     v1 = sload v5
++     v2 = add v5, 1
+      v3 = sload v2
+      v4 = add v1, v3
+      ret v4
+  }
+  
+  fn @runtime_slot(arg0: i256) -> i256 {
+    bb0:
+-     v0 = storage_array_data_slot arg0
+-     v1 = sload v0
++     mstore 0, arg0 !metadata(memory=scratch)
++     v2 = keccak256 0, 32 !metadata(memory=scratch)
++     v1 = sload v2
+      ret v1
+  }
+  

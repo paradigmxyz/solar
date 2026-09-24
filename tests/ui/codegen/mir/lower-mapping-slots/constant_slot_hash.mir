@@ -1,0 +1,66 @@
+//@ revisions: gas runs size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=lower-mapping-slots
+//@[runs] compile-flags: -Ogas --optimize-runs 1000000 -Zmir-pipeline=lower-mapping-slots
+//@[size] compile-flags: -Osize -Zmir-pipeline=lower-mapping-slots
+//@[gas] filecheck: --check-prefix=GAS
+//@[runs] filecheck: --check-prefix=RUNS
+//@[size] filecheck: --check-prefix=SIZE
+@module ConstantSlotHash
+
+// A hash of constant words is a constant. Pushing it once costs less gas over
+// the deployment's lifetime at 200 runs than storing the slot and hashing it;
+// size mode keeps the shorter run-time hash.
+// GAS-LABEL: fn @element{{[( ]}}
+// GAS: + {{v[0-9]+}} = add 0xc2575a0e9e593c00f959f8c92f12db2869c3395a3b0502d05e2516446f71f85b, arg0
+// GAS-NOT: keccak256
+// RUNS-LABEL: fn @element{{[( ]}}
+// RUNS-NOT: keccak256
+// SIZE-LABEL: fn @element{{[( ]}}
+// SIZE: + {{v[0-9]+}} = keccak256 0, 32
+fn @element(arg0: i256) -> i256 {
+  bb0:
+    v1 = storage_array_element_slot 3, arg0, 1
+    ret v1
+}
+
+// A mapping entry at a constant key hashes the key, then the slot.
+// GAS-LABEL: fn @entry_at_constant_key{{[( ]}}
+// GAS-NOT: keccak256
+// GAS: + {{v[0-9]+}} = sload 0xe90b7bceb6e7df5418fb78d8ee546e97c83a08bbccc01a0644d599ccd2a7c2e0
+// SIZE-LABEL: fn @entry_at_constant_key{{[( ]}}
+// SIZE: + {{v[0-9]+}} = keccak256 0, 64
+fn @entry_at_constant_key() -> i256 {
+  bb0:
+    v1 = mapping_slot 1, 2
+    v2 = sload v1
+    ret v2
+}
+
+// Each use pushes the 32-byte constant again. Two uses repay those bytes at a
+// million runs, but not at 200.
+// GAS-LABEL: fn @two_uses{{[( ]}}
+// GAS: + [[HASH:v[0-9]+]] = keccak256 0, 32
+// GAS: + {{v[0-9]+}} = sload [[HASH]]
+// RUNS-LABEL: fn @two_uses{{[( ]}}
+// RUNS-NOT: keccak256
+// RUNS: + {{v[0-9]+}} = add 0x36b6384b5eca791c62761152d0c79bb0604c104a5fb6f4eb0703f3154bb3db0, 1
+fn @two_uses() -> i256 {
+  bb0:
+    v1 = storage_array_data_slot 5
+    v2 = sload v1
+    v3 = add v1, 1
+    v4 = sload v3
+    v5 = add v2, v4
+    ret v5
+}
+
+// A slot known only at run time is still hashed through scratch.
+// GAS-LABEL: fn @runtime_slot{{[( ]}}
+// GAS: + mstore 0, arg0
+// GAS: + {{v[0-9]+}} = keccak256 0, 32
+fn @runtime_slot(arg0: i256) -> i256 {
+  bb0:
+    v1 = storage_array_data_slot arg0
+    v2 = sload v1
+    ret v2
+}
