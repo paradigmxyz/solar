@@ -39,6 +39,10 @@
 //! with a low mask `2^k - 1` of a value bounded by the mask, and a `signextend`
 //! of a value below its sign bit, give way to their operand. These are mostly
 //! the ABI cleanups of a narrowing cast's result behind its own range check.
+//! A branch condition that the code it guards uses again, such as a length
+//! test that also selects a mask, is replaced by its truth wherever the scope
+//! decides it, so `zext(n < 32) - 1` is zero behind `n < 32` and the condition
+//! need not stay live into the arm.
 //! A block that calls a function which never returns to its caller, because
 //! every path reverts, stops, returns from the external call, or tail-calls
 //! such a function, contributes no edge: a failing arm that calls a revert
@@ -194,7 +198,7 @@
 use super::{call_cleanup, cfg_simplify::simplify_function, egraph::max_bits_with_args};
 use crate::{
     mir::{
-        ArithmeticKind, CheckedOp, BlockId, Builtin, Callee, EffectKind, Function, FunctionBuilder, FunctionId,
+        ArithmeticKind, CheckedOp, BlockId, Builtin, Callee, EffectKind, Function, FunctionBuilder, FunctionId, Immediate,
         ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module, Terminator, TypeSize,
         Value, ValueId, ValueLayout,
         analysis::{
@@ -206,7 +210,7 @@ use crate::{
         pass::{
             MirPass, run_function_pass, run_function_pass_with_cfg, run_selected_function_pass,
         },
-        utils::{fold_terminator_to_jump, invalidate_unreachable_blocks},
+        utils::{self as mir_utils, fold_terminator_to_jump, invalidate_unreachable_blocks},
     },
     target::Target,
 };
@@ -598,6 +602,8 @@ struct CheckElimStats {
     conditions_reduced: usize,
     /// Number of masks and sign extensions proven to leave their operand unchanged.
     cleanups_removed: usize,
+    /// Number of branch-condition uses replaced by the truth their scope proves.
+    conditions_decided: usize,
 }
 
 /// An inclusive unsigned 256-bit interval.
@@ -646,7 +652,15 @@ impl Range {
 }
 
 /// What one dominator walk proves: branches to fold into jumps to the kept
-/// target, passing checks to remove, and cleanups whose result is their operand.
+/// target, passing checks to remove, cleanups whose result is their operand,
+/// and uses of a branch condition whose truth the use's scope decides.
+struct WalkProofs {
+    folds: Vec<(BlockId, BlockId)>,
+    checks: DenseBitSet<InstId>,
+    cleanups: Vec<(ValueId, ValueId)>,
+    reductions: Vec<(BlockId, ValueId)>,
+    decided: Vec<(InstId, ValueId, bool)>,
+}
 
 /// Differences indexed under their subtrahend, each entry a minuend and the
 /// value holding their difference.
@@ -744,11 +758,6 @@ impl MonotonePhi {
     }
 }
 
-/// Branches to fold to one target, passing checks to remove, and branch conditions to reduce to
-/// one operand, as a dominator walk decides them.
-type Folds = (
-Vec<(BlockId, BlockId)>, DenseBitSet<InstId>, Vec<(BlockId, ValueId)>, Vec<(InstId, ValueId)>
-);
 
 /// A loop header phi whose updates never move it away from its initial value,
 /// pending a proof of each update in the scope computing it.
@@ -915,7 +924,7 @@ impl<'a> CheckEliminator<'a> {
         }
         let mut proven = Vec::new();
         let mut bounded_proofs = vec![0; bounded.len()];
-        let (mut folds, mut checks, mut reductions, mut cleanups) = self.collect_folds(
+        let mut proofs = self.collect_folds(
             func,
             &cfg,
             &facts,
@@ -958,7 +967,7 @@ impl<'a> CheckEliminator<'a> {
             self.relation_index = None;
             self.reverse_index = None;
             self.strict_lower_bounds = None;
-            (folds, checks, reductions, cleanups) = self.collect_folds(
+            proofs = self.collect_folds(
                 func,
                 &cfg,
                     &facts,
@@ -967,13 +976,21 @@ impl<'a> CheckEliminator<'a> {
                 selected,
             );
         }
+        let WalkProofs { folds, checks, reductions, cleanups, decided } = proofs;
         self.ranges.clear();
         self.relations.clear();
         self.range_undo.clear();
         self.relation_undo.clear();
 
-        if folds.is_empty() && checks.is_empty() && reductions.is_empty() && cleanups.is_empty() {
+        let decided = if selected.is_some() { Vec::new() } else { decided };
+        if folds.is_empty() && checks.is_empty() && cleanups.is_empty() && reductions.is_empty() && decided.is_empty() {
             return removed;
+        }
+        // v = op c, ... where the use's scope decides c => v = op true|false, ...
+        for &(inst, condition, truth) in &decided {
+            let constant = func.alloc_value(Value::Immediate(Immediate::I1(truth)));
+            let replacements = FxHashMap::from_iter([(condition, constant)]);
+            mir_utils::replace_inst_uses(func.inst_mut(inst), &replacements);
         }
         if !cleanups.is_empty() {
             // v = and x, 2^k - 1 (x <= 2^k - 1) => x
@@ -1002,11 +1019,13 @@ impl<'a> CheckEliminator<'a> {
         self.stats.checks_removed = checks.count();
         self.stats.conditions_reduced = reductions.len();
         self.stats.cleanups_removed = cleanups.len();
+        self.stats.conditions_decided = decided.len();
         removed
             + self.stats.branches_folded
             + self.stats.checks_removed
             + self.stats.conditions_reduced
             + self.stats.cleanups_removed
+            + self.stats.conditions_decided
     }
 
     /// Walks the dominator tree, recording edge and check facts. Returns branch folds and
@@ -1025,7 +1044,7 @@ impl<'a> CheckEliminator<'a> {
         (candidates, proven): (&[MonotonePhi], &mut Vec<MonotonePhi>),
         (bounded, bounded_proofs): (&[BoundedPhi], &mut [usize]),
         selected: Option<(&DenseBitSet<BlockId>, &FxHashSet<FunctionId>)>,
-    ) -> Folds {
+    ) -> WalkProofs {
         enum Walk {
             Enter(BlockId),
             Exit { range_mark: usize, relation_mark: usize },
@@ -1035,6 +1054,23 @@ impl<'a> CheckEliminator<'a> {
         let mut checks = DenseBitSet::new_empty(func.num_insts());
         let mut reductions = Vec::new();
         let mut cleanups = Vec::new();
+        let mut decided = Vec::new();
+        // A branch condition reused by the code it guards, such as a length
+        // test that also selects a mask, is decided wherever the edge it
+        // took dominates the use.
+        let conditions = func
+            .blocks
+            .iter()
+            .filter_map(|block| match block.terminator {
+                Some(Terminator::Branch { condition, then_block, else_block })
+                    if then_block != else_block
+                        && !matches!(func.value(condition), Value::Immediate(_)) =>
+                {
+                    Some(condition)
+                }
+                _ => None,
+            })
+            .collect::<FxHashSet<_>>();
         let mut stack = Vec::new();
         stack.push(Walk::Enter(BlockId::ENTRY));
         while let Some(item) = stack.pop() {
@@ -1107,6 +1143,18 @@ impl<'a> CheckEliminator<'a> {
                         {
                             cleanups.push((result, operand));
                         }
+                        if fact.is_none() && !matches!(func.inst(id).kind, InstKind::Phi(_)) {
+                            for operand in func.inst(id).kind.operands() {
+                                if conditions.contains(&operand)
+                                    && !decided
+                                        .iter()
+                                        .any(|&(inst, value, _)| inst == id && value == operand)
+                                    && let Some(truth) = self.eval_truth(func, operand, MAX_DEPTH)
+                                {
+                                    decided.push((id, operand, truth));
+                                }
+                            }
+                        }
                     }
 
                     // Every path from an update to the latch leaves this block, so the
@@ -1157,7 +1205,7 @@ impl<'a> CheckEliminator<'a> {
                 }
             }
         }
-        (folds, checks, reductions, cleanups)
+        WalkProofs { folds, checks, reductions, cleanups, decided }
     }
 
     /// The operand an `or` or `and` condition reduces to when the other one is decided as the

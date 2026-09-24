@@ -1,0 +1,36 @@
+//@compile-flags: -Zmir-pipeline=check-elim
+//@filecheck:
+@module DecidedCondition
+
+// A branch condition reused by the code it guards is known there: the mask
+// `zext(n < 32) - 1` is zero where `n < 32` holds, and the flag is zero on
+// the other edge.
+// CHECK-LABEL: {{^[ +].*}}fn @mask{{[( ]}}
+// CHECK: + {{v[0-9]+}} = zext i1 0 to i256
+// CHECK: + {{v[0-9]+}} = zext i1 1 to i256
+fn @mask(arg0: i256) -> i256 {
+  bb0:
+    v1 = lt arg0, 32
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = zext i1 v1 to i256
+    v3 = sub v2, 1
+    ret v3
+  bb2:
+    v4 = zext i1 v1 to i256
+    ret v4
+}
+
+// A join that both edges reach does not know the condition.
+// CHECK-LABEL: {{^[ +].*}}fn @join{{[( ]}}
+// CHECK-NOT: {{^[+-]}}
+fn @join(arg0: i256) -> i256 {
+  bb0:
+    v1 = lt arg0, 32
+    jumpi v1, bb1, bb2
+  bb1:
+    jump bb2
+  bb2:
+    v2 = zext i1 v1 to i256
+    ret v2
+}
