@@ -4637,7 +4637,6 @@ dependencies = [
  "dunce",
  "inturn",
  "itertools 0.14.0",
- "itoa",
  "normalize-path",
  "once_map",
  "rayon",

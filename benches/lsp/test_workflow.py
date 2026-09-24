@@ -1147,7 +1147,7 @@ class ExecutionAndRemovalTests(unittest.TestCase):
         self.assertIn("needs.build_candidate.outputs.artifact_id != ''", compute)
 
         for job in (build_base, build_candidate):
-            self.assertIn('toolchain: "1.96"', job)
+            self.assertIn('toolchain: "1.98"', job)
             self.assertEqual(
                 job.count(
                     "cargo build --locked --release -p solar-compiler --bin solar"
@@ -1176,7 +1176,7 @@ class ExecutionAndRemovalTests(unittest.TestCase):
             ),
             1,
         )
-        self.assertIn('toolchain: "1.96"', compute)
+        self.assertIn('toolchain: "1.98"', compute)
         self.assertEqual(compute.count("name: Run LSP comparison"), 1)
         self.assertNotIn("releases/download/v0.3.3/", compute)
         self.assertIn(source_url, compute)

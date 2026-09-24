@@ -106,7 +106,7 @@ jobs:
         rust: ["stable"]
         include:
           - os: "ubuntu-latest"
-            rust: "1.96" # MSRV
+            rust: "1.98" # MSRV
           - os: "ubuntu-latest"
             rust: "nightly"
         exclude:

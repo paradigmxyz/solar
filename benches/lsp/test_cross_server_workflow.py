@@ -254,7 +254,7 @@ class CrossServerWorkflowTests(unittest.TestCase):
         self.assertEqual(text.count(f"uses: {CHECKOUT_ACTION}"), 2)
         self.assertEqual(text.count(f"uses: {RUST_ACTION}"), 2)
         self.assertEqual(text.count("persist-credentials: false"), 2)
-        self.assertEqual(text.count('toolchain: "1.96"'), 2)
+        self.assertEqual(text.count('toolchain: "1.98"'), 2)
         self.assertEqual(
             text.count("cargo build --locked --release -p solar-lsp-bench"), 2
         )
