@@ -34,6 +34,10 @@
 //! with a low mask `2^k - 1` of a value bounded by the mask, and a `signextend`
 //! of a value below its sign bit, give way to their operand. These are mostly
 //! the ABI cleanups of a narrowing cast's result behind its own range check.
+//! A branch condition that the code it guards uses again, such as a length
+//! test that also selects a mask, is replaced by its truth wherever the scope
+//! decides it, so `zext(n < 32) - 1` is zero behind `n < 32` and the condition
+//! need not stay live into the arm.
 //! A block that calls a function which never returns to its caller, because
 //! every path reverts, stops, returns from the external call, or tail-calls
 //! such a function, contributes no edge: a failing arm that calls a revert
@@ -178,7 +182,7 @@
 use super::{call_cleanup, cfg_simplify::simplify_function, egraph::max_bits_with_args};
 use crate::{
     mir::{
-        ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, Function, FunctionId,
+        ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, Function, FunctionId, Immediate,
         ImmutableEncoding, ImmutableId, InstId, InstKind, Module, Terminator, TypeSize, Value,
         ValueId, ValueLayout,
         analysis::{
@@ -190,7 +194,7 @@ use crate::{
         pass::{
             MirPass, run_function_pass, run_function_pass_with_cfg, run_selected_function_pass,
         },
-        utils::fold_terminator_to_jump,
+        utils::{self as mir_utils, fold_terminator_to_jump},
     },
     target::Target,
 };
@@ -457,6 +461,8 @@ struct CheckElimStats {
     checks_removed: usize,
     /// Number of masks and sign extensions proven to leave their operand unchanged.
     cleanups_removed: usize,
+    /// Number of branch-condition uses replaced by the truth their scope proves.
+    conditions_decided: usize,
 }
 
 /// An inclusive unsigned 256-bit interval.
@@ -505,8 +511,14 @@ impl Range {
 }
 
 /// What one dominator walk proves: branches to fold into jumps to the kept
-/// target, passing checks to remove, and cleanups whose result is their operand.
-type WalkProofs = (Vec<(BlockId, BlockId)>, DenseBitSet<InstId>, Vec<(ValueId, ValueId)>);
+/// target, passing checks to remove, cleanups whose result is their operand,
+/// and uses of a branch condition whose truth the use's scope decides.
+struct WalkProofs {
+    folds: Vec<(BlockId, BlockId)>,
+    checks: DenseBitSet<InstId>,
+    cleanups: Vec<(ValueId, ValueId)>,
+    decided: Vec<(InstId, ValueId, bool)>,
+}
 
 /// Differences indexed under their subtrahend, each entry a minuend and the
 /// value holding their difference.
@@ -774,7 +786,7 @@ impl<'a> CheckEliminator<'a> {
         }
         let mut proven = Vec::new();
         let mut bounded_proofs = vec![0; bounded.len()];
-        let (mut folds, mut checks, mut cleanups) = self.collect_folds(
+        let mut proofs = self.collect_folds(
             func,
             &cfg,
             &preds,
@@ -817,7 +829,7 @@ impl<'a> CheckEliminator<'a> {
             self.relation_index = None;
             self.reverse_index = None;
             self.strict_lower_bounds = None;
-            (folds, checks, cleanups) = self.collect_folds(
+            proofs = self.collect_folds(
                 func,
                 &cfg,
                 &preds,
@@ -826,6 +838,7 @@ impl<'a> CheckEliminator<'a> {
                 (&[], &mut []),
             );
         }
+        let WalkProofs { mut folds, checks, cleanups, decided } = proofs;
         if let Some((selected, reverting)) = selected {
             folds.retain(|&(block, keep)| {
                 if selected.contains(block)
@@ -844,8 +857,15 @@ impl<'a> CheckEliminator<'a> {
         self.range_undo.clear();
         self.relation_undo.clear();
 
-        if folds.is_empty() && checks.is_empty() && cleanups.is_empty() {
+        let decided = if selected.is_some() { Vec::new() } else { decided };
+        if folds.is_empty() && checks.is_empty() && cleanups.is_empty() && decided.is_empty() {
             return 0;
+        }
+        // v = op c, ... where the use's scope decides c => v = op true|false, ...
+        for &(inst, condition, truth) in &decided {
+            let constant = func.alloc_value(Value::Immediate(Immediate::I1(truth)));
+            let replacements = FxHashMap::from_iter([(condition, constant)]);
+            mir_utils::replace_inst_uses(func.inst_mut(inst), &replacements);
         }
         if !cleanups.is_empty() {
             // v = and x, 2^k - 1 (x <= 2^k - 1) => x
@@ -867,7 +887,11 @@ impl<'a> CheckEliminator<'a> {
         self.stats.branches_folded = folds.len();
         self.stats.checks_removed = checks.count();
         self.stats.cleanups_removed = cleanups.len();
-        self.stats.branches_folded + self.stats.checks_removed + self.stats.cleanups_removed
+        self.stats.conditions_decided = decided.len();
+        self.stats.branches_folded
+            + self.stats.checks_removed
+            + self.stats.cleanups_removed
+            + self.stats.conditions_decided
     }
 
     /// Walks the dominator tree, recording edge and check facts. Returns branch folds and
@@ -892,6 +916,23 @@ impl<'a> CheckEliminator<'a> {
         let mut folds = Vec::new();
         let mut checks = DenseBitSet::new_empty(func.num_insts());
         let mut cleanups = Vec::new();
+        let mut decided = Vec::new();
+        // A branch condition reused by the code it guards, such as a length
+        // test that also selects a mask, is decided wherever the edge it
+        // took dominates the use.
+        let conditions = func
+            .blocks
+            .iter()
+            .filter_map(|block| match block.terminator {
+                Some(Terminator::Branch { condition, then_block, else_block })
+                    if then_block != else_block
+                        && !matches!(func.value(condition), Value::Immediate(_)) =>
+                {
+                    Some(condition)
+                }
+                _ => None,
+            })
+            .collect::<FxHashSet<_>>();
         let mut stack = vec![Walk::Enter(BlockId::ENTRY)];
         while let Some(item) = stack.pop() {
             match item {
@@ -958,6 +999,18 @@ impl<'a> CheckEliminator<'a> {
                         {
                             cleanups.push((result, operand));
                         }
+                        if fact.is_none() && !matches!(func.inst(id).kind, InstKind::Phi(_)) {
+                            for operand in func.inst(id).kind.operands() {
+                                if conditions.contains(&operand)
+                                    && !decided
+                                        .iter()
+                                        .any(|&(inst, value, _)| inst == id && value == operand)
+                                    && let Some(truth) = self.eval_truth(func, operand, MAX_DEPTH)
+                                {
+                                    decided.push((id, operand, truth));
+                                }
+                            }
+                        }
                     }
 
                     // Every path from an update to the latch leaves this block, so the
@@ -984,7 +1037,7 @@ impl<'a> CheckEliminator<'a> {
                 }
             }
         }
-        (folds, checks, cleanups)
+        WalkProofs { folds, checks, cleanups, decided }
     }
 
     /// Whether `block` calls a function that never returns to its caller.

@@ -30,10 +30,7 @@ fn @root() [selector=0xe56bf027, abi_wrapper, pure] {
   bb2:
     v2 = clz arg0
     v3 = xor v2, 255
-    v4 = zext i1 v1 to i256
-    v5 = mul v4, 255
-    v6 = xor v3, v5
-    v7 = shr 1, v6
+    v7 = shr 1, v3
     v8 = add v7, 1
     v9 = shl v8, 1
     jump bb3

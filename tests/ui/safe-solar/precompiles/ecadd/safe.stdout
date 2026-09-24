@@ -60,10 +60,9 @@ fn @add() [selector=0xe022d77c, abi_wrapper, view] {
     v46 = mload v74
     v48 = add v85, 64
     v49 = mload v48
-    v19 = zext i1 v28 to i256
     jump bb1
   bb1:
-    v70 = phi [bb5: 0], [bb2: 0], [bb7: v19]
+    v70 = phi [bb5: 0], [bb2: 0], [bb7: 1]
     v71 = phi [bb5: 0], [bb2: 0], [bb7: v46]
     v72 = phi [bb5: 0], [bb2: 0], [bb7: v49]
     mstore 128, v70
