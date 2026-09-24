@@ -5,6 +5,7 @@ use super::{
     IndexVec, Liveness, MAX_STACK_DEPTH, MirPhase, Module, OptimizationMode, Terminator, index_vec,
     run_pipeline,
 };
+use crate::backend::evm::ir::SizeRescue;
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Runs the canonical MIR optimization pipeline on the module.
@@ -25,7 +26,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         );
         let runtime_code_size_limit = self.gcx.sess.opts.evm_version.runtime_code_size_limit();
         let may_need_code_size_rescue = self.gcx.sess.opts.optimization.is_gas();
-        let mut code_size_rescue = false;
+        let mut size_rescue = SizeRescue::None;
         let mut gas_first_result = None;
         loop {
             let mut preserve_caller_stack =
@@ -68,21 +69,35 @@ impl<'gcx> EvmCodegen<'gcx> {
                 break;
             }
 
-            self.asm.set_enable_size_outlining(code_size_rescue);
+            self.asm.set_size_rescue(size_rescue);
 
             let result =
                 self.asm.assemble_with_captures(self.capture_evm_ir, self.capture_debug_info);
+            // An oversized gas build first gives up the constants that cost the least gas for the
+            // bytes over the limit, then outlines repeated runs instead, and only if neither is
+            // enough does every constant also take its shortest recipe.
             if may_need_code_size_rescue
-                && !code_size_rescue
                 && let Some(limit) = runtime_code_size_limit
                 && result.bytecode.len() > limit
                 && result.bytecode.len() <= limit * 2
             {
-                gas_first_result = Some(result);
-                code_size_rescue = true;
-                continue;
+                let next = match size_rescue {
+                    SizeRescue::None => {
+                        Some(SizeRescue::Constants { bytes: result.bytecode.len() - limit })
+                    }
+                    SizeRescue::Constants { .. } => Some(SizeRescue::Outline),
+                    SizeRescue::Outline => Some(SizeRescue::Full),
+                    SizeRescue::Full => None,
+                };
+                if let Some(next) = next {
+                    if size_rescue == SizeRescue::None {
+                        gas_first_result = Some(result);
+                    }
+                    size_rescue = next;
+                    continue;
+                }
             }
-            let result = if code_size_rescue
+            let result = if size_rescue != SizeRescue::None
                 && result.bytecode.len()
                     > runtime_code_size_limit.expect("code-size rescue requires a size limit")
             {

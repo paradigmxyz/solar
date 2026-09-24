@@ -36,7 +36,9 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
+        ir::{
+            Block, BlockId, Instruction, Module, PushValue, SizeRescue, Terminator, TerminatorKind,
+        },
         op,
     },
     target::Target,
@@ -78,7 +80,8 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
     );
     let mut state = RunState::default();
     outline_machine_runs(gcx, module, &mut state)
-        | ((gcx.sess.opts.optimization.is_size() || module.enable_size_outlining)
+        | ((gcx.sess.opts.optimization.is_size()
+            || matches!(module.size_rescue, SizeRescue::Outline | SizeRescue::Full))
             && outline_parametric_machine_runs(gcx, module, &mut state))
         | outline_repeated_pushes(gcx, module, &mut state)
 }

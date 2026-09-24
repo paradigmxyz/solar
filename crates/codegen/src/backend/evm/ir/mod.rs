@@ -96,8 +96,8 @@ pub struct Module {
     pub(crate) blocks: IndexVec<BlockId, Block>,
     /// Constant byte strings addressable by `push_data`.
     pub(crate) data: IndexVec<DataId, Data>,
-    /// Whether gas mode is rescuing a runtime that exceeds EIP-170.
-    pub(crate) enable_size_outlining: bool,
+    /// How gas mode is rescuing a runtime that exceeds EIP-170.
+    pub(crate) size_rescue: SizeRescue,
     /// Whether bytes that execution must not fall into follow this code: the runtime
     /// artifact after creation code. A final `STOP` is then kept instead of being
     /// left implicit at the end of the bytecode.
@@ -138,7 +138,7 @@ impl Module {
             libraries: LibraryTable::default(),
             blocks: IndexVec::new(),
             data: IndexVec::new(),
-            enable_size_outlining: false,
+            size_rescue: SizeRescue::None,
             code_follows: false,
             debug_info_tracked: false,
         }
@@ -149,7 +149,7 @@ impl Module {
         self.blocks.clear();
         self.data.clear();
         self.libraries.clear();
-        self.enable_size_outlining = false;
+        self.size_rescue = SizeRescue::None;
         self.code_follows = false;
         self.debug_info_tracked = false;
     }
@@ -236,6 +236,21 @@ pub(crate) struct BlockMetadata {
     pub(crate) is_continuation: bool,
     /// Source function entered by this block's leading `JUMPDEST`.
     pub(crate) function_invoke: Option<DebugFunction>,
+}
+
+/// How gas mode rescues a runtime that exceeds EIP-170.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum SizeRescue {
+    /// The runtime is optimized for gas alone.
+    #[default]
+    None,
+    /// Constants take shorter recipes until they save at least this many bytes, those that give
+    /// up the least static gas per saved byte first.
+    Constants { bytes: usize },
+    /// Repeated instruction runs are outlined; constants keep their gas-first recipes.
+    Outline,
+    /// Every constant takes its shortest recipe and repeated instruction runs are outlined.
+    Full,
 }
 
 /// Block hotness metadata.

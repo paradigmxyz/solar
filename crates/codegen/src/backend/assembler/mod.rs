@@ -221,9 +221,9 @@ impl<'gcx> Assembler<'gcx> {
         self.program.set_name(Symbol::intern(&format!("{name}_{}", self.artifact_kind.name())));
     }
 
-    /// Enables size-oriented outlining for an oversized gas-mode runtime.
-    pub(crate) fn set_enable_size_outlining(&mut self, enable: bool) {
-        self.program.enable_size_outlining = enable;
+    /// Sets how an oversized gas-mode runtime is rescued.
+    pub(crate) fn set_size_rescue(&mut self, rescue: ir::SizeRescue) {
+        self.program.size_rescue = rescue;
     }
 
     /// Returns the conservative indexed-jump target width for this artifact.

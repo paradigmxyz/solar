@@ -337,6 +337,9 @@ impl Target {
     /// Expected executions per deployment when the optimizer runs are not set;
     /// solc's convention.
     pub(crate) const DEFAULT_EXPECTED_EXECUTIONS: u64 = 200;
+    /// How many times a loop without a computable trip count is assumed to run per invocation:
+    /// GCC's estimate for such loops. Counted loops use their real trip count instead.
+    pub(crate) const UNCOUNTED_LOOP_EXECUTIONS: u64 = 10;
     /// No loop runs more than `2^MAX_TRIP_COUNT_BITS` times: every execution
     /// client and block header keeps gas in 64 bits, and each iteration of a
     /// MIR loop executes at least one priced instruction (its counter update

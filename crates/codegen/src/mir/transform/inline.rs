@@ -394,10 +394,6 @@ impl Default for MirInliner {
 }
 
 impl MirInliner {
-    /// How many times a loop without a computable trip count is assumed to
-    /// run per invocation when a hot leaf is weighed: GCC's estimate for such
-    /// loops. Counted loops use their real trip count instead.
-    const UNCOUNTED_LOOP_EXECUTIONS: u64 = 10;
     /// A hot leaf shared by more call sites than this stays a call: every
     /// clone deposits the whole body again.
     const MAX_HOT_LEAF_CALL_SITES: usize = 8;
@@ -991,7 +987,7 @@ impl MirInliner {
         let loop_executions = if !self.target.optimization().is_gas() {
             1
         } else if self.mode == InlineMode::HotLeaves && site.loop_depth > 0 && !site.loop_counted {
-            Self::UNCOUNTED_LOOP_EXECUTIONS
+            Target::UNCOUNTED_LOOP_EXECUTIONS
         } else {
             site.loop_executions
         };

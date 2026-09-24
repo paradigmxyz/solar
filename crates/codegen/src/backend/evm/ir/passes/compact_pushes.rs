@@ -16,6 +16,12 @@
 //! the deposit. Only copies in hot blocks are counted. Cold blocks end in a revert, so their
 //! constants keep the fewest bytes.
 //!
+//! A gas build that exceeds EIP-170 is rescued in steps. First, constants take their shortest
+//! recipe until they cover the bytes over the limit, those giving up the least static gas per
+//! saved byte first; a constant with a copy in a loop is weighed over the iterations assumed for a
+//! loop of unknown trip count. If the runtime still does not fit, parametric outlining runs with
+//! gas-first constants instead, and only then does every constant take its shortest recipe too.
+//!
 //! Selection accounts for the active EVM version: `PUSH0` and shift opcodes are used only when the
 //! target supports them. The exported cost helpers take the same [`ImmediatePolicy`], so other EVM
 //! IR passes compare a prospective rewrite with the bytes and static gas that this pass emits for a
@@ -30,14 +36,14 @@
 use super::EvmPass;
 use crate::{
     backend::evm::{
-        ir::{Instruction, Metadata, Module},
+        ir::{Instruction, Metadata, Module, SizeRescue},
         op::{self, WORD_BYTES},
     },
     target::{Cost, GasTier, Target},
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::Gcx;
 
 pub(super) struct CompactPushes;
@@ -57,16 +63,31 @@ const BASE_GAS: usize = GasTier::Base.fixed_gas() as usize;
 const VERY_LOW_GAS: usize = GasTier::VeryLow.fixed_gas() as usize;
 
 fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
-    let policy = ImmediatePolicy::of(Target::new(gcx));
-    let cold_policy = ImmediatePolicy::Bytes(policy.evm_version());
+    let target = Target::new(gcx);
+    let bytes_policy = ImmediatePolicy::Bytes(target.evm_version());
+    let policy = match module.size_rescue {
+        SizeRescue::Full => bytes_policy,
+        SizeRescue::None | SizeRescue::Constants { .. } | SizeRescue::Outline => {
+            ImmediatePolicy::of(target)
+        }
+    };
     let copies = hot_copies(module, policy);
+    // The pass runs again after data packing, so the budget shrinks by what each run saves.
+    let rescued = match module.size_rescue {
+        SizeRescue::Constants { bytes } => {
+            let (rescued, saved) = rescued_constants(module, policy, &copies, bytes);
+            module.size_rescue = SizeRescue::Constants { bytes: bytes.saturating_sub(saved) };
+            rescued
+        }
+        SizeRescue::None | SizeRescue::Outline | SizeRescue::Full => FxHashSet::default(),
+    };
     let mut changed = false;
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
         let cold = block.metadata.hotness.is_cold();
         let policy_of = |value: U256| {
-            if cold {
-                cold_policy
+            if cold || rescued.contains(&value) {
+                bytes_policy
             } else {
                 policy.with_copies(copies.get(&value).copied().unwrap_or(1))
             }
@@ -114,6 +135,54 @@ fn hot_copies(module: &Module, policy: ImmediatePolicy) -> FxHashMap<U256, u32> 
         }
     }
     copies
+}
+
+/// Chooses the hot constants whose shortest recipes together save at least `bytes` bytes over
+/// what `policy` selects, those giving up the least static gas per saved byte first, and returns
+/// them with the bytes they save. A constant with a copy in a loop pays its extra gas on every
+/// iteration a loop without a known trip count is assumed to run.
+fn rescued_constants(
+    module: &Module,
+    policy: ImmediatePolicy,
+    copies: &FxHashMap<U256, u32>,
+    bytes: usize,
+) -> (FxHashSet<U256>, usize) {
+    let bytes_policy = ImmediatePolicy::Bytes(policy.evm_version());
+    let looped = module
+        .blocks
+        .iter()
+        .filter(|block| block.metadata.in_loop && !block.metadata.hotness.is_cold())
+        .flat_map(|block| block.instructions.iter().filter_map(Instruction::concrete_immediate))
+        .collect::<FxHashSet<_>>();
+    let mut candidates = copies
+        .iter()
+        .filter_map(|(&value, &count)| {
+            let ((kept_len, kept_gas), _) = select(policy.with_copies(count), value);
+            let ((short_len, short_gas), _) = select(bytes_policy, value);
+            let saved = kept_len.checked_sub(short_len)? * count as usize;
+            let executions =
+                if looped.contains(&value) { Target::UNCOUNTED_LOOP_EXECUTIONS } else { 1 };
+            let gas = short_gas.saturating_sub(kept_gas) as u128 * u128::from(executions);
+            (saved != 0).then_some((value, saved, gas))
+        })
+        .collect::<Vec<_>>();
+    // Least gas per saved byte first, then the larger saving, then the value itself.
+    candidates.sort_unstable_by(|&(a, a_saved, a_gas), &(b, b_saved, b_gas)| {
+        (a_gas * b_saved as u128)
+            .cmp(&(b_gas * a_saved as u128))
+            .then(b_saved.cmp(&a_saved))
+            .then(a.cmp(&b))
+    });
+    let mut rescued = FxHashSet::default();
+    let mut saved = 0;
+    for (value, value_saved, _) in candidates {
+        if saved >= bytes {
+            break;
+        }
+        rescued.insert(value);
+        saved += value_saved;
+    }
+    (rescued, saved)
 }
 
 fn push(value: U256) -> Instruction {
