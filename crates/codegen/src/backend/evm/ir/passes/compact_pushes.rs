@@ -61,15 +61,14 @@ const EVM_WORD_BITS: usize = WORD_BYTES * 8;
 const MIN_COMPACT_MASK_WIDTH: u8 = 5;
 const BASE_GAS: usize = GasTier::Base.fixed_gas() as usize;
 const VERY_LOW_GAS: usize = GasTier::VeryLow.fixed_gas() as usize;
+const LOW_GAS: usize = GasTier::Low.fixed_gas() as usize;
 
 fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let target = Target::new(gcx);
-    let bytes_policy = ImmediatePolicy::Bytes(target.evm_version());
-    let policy = match module.size_rescue {
-        SizeRescue::Full => bytes_policy,
-        SizeRescue::None | SizeRescue::Constants { .. } | SizeRescue::Outline => {
-            ImmediatePolicy::of(target)
-        }
+    let bytes_policy = ImmediatePolicy::Smallest(target.evm_version());
+    let policy = match (module.size_rescue, ImmediatePolicy::of(target)) {
+        (SizeRescue::Full, _) | (_, ImmediatePolicy::Bytes(_)) => bytes_policy,
+        (SizeRescue::None | SizeRescue::Constants { .. } | SizeRescue::Outline, policy) => policy,
     };
     let copies = hot_copies(module, policy);
     // The pass runs again after data packing, so the budget shrinks by what each run saves.
@@ -123,7 +122,7 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
 /// weighs gas against deposit.
 fn hot_copies(module: &Module, policy: ImmediatePolicy) -> FxHashMap<U256, u32> {
     let mut copies = FxHashMap::<U256, u32>::default();
-    if let ImmediatePolicy::Bytes(_) = policy {
+    if let ImmediatePolicy::Bytes(_) | ImmediatePolicy::Smallest(_) = policy {
         return copies;
     }
     let evm_version = policy.evm_version();
@@ -147,7 +146,7 @@ fn rescued_constants(
     copies: &FxHashMap<U256, u32>,
     bytes: usize,
 ) -> (FxHashSet<U256>, usize) {
-    let bytes_policy = ImmediatePolicy::Bytes(policy.evm_version());
+    let bytes_policy = ImmediatePolicy::Smallest(policy.evm_version());
     let looped = module
         .blocks
         .iter()
@@ -201,6 +200,10 @@ pub(in crate::backend) enum ImmediateMaterializationOp {
 pub(crate) enum ImmediatePolicy {
     /// Fewest encoded bytes, keeping the literal on ties.
     Bytes(EvmVersion),
+    /// Fewest encoded bytes, also dividing and multiplying the all-ones word for patterns that
+    /// repeat across it. Only this pass emits such recipes, for code where bytes come first; cost
+    /// estimates elsewhere keep [`Self::Bytes`], whose recipes gas builds also emit in hot code.
+    Smallest(EvmVersion),
     /// Least lifetime cost under the target: static gas over the value's expected executions
     /// plus the deposit of every encoded byte in each of its `copies`.
     Lifetime { target: Target, copies: u32 },
@@ -221,7 +224,7 @@ impl ImmediatePolicy {
     #[must_use]
     pub(crate) fn with_copies(self, copies: u32) -> Self {
         match self {
-            Self::Bytes(_) => self,
+            Self::Bytes(_) | Self::Smallest(_) => self,
             Self::Lifetime { target, .. } => Self::Lifetime { target, copies: copies.max(1) },
         }
     }
@@ -229,7 +232,7 @@ impl ImmediatePolicy {
     /// The EVM version whose opcodes the recipes may use.
     pub(crate) fn evm_version(self) -> EvmVersion {
         match self {
-            Self::Bytes(evm_version) => evm_version,
+            Self::Bytes(evm_version) | Self::Smallest(evm_version) => evm_version,
             Self::Lifetime { target, .. } => target.evm_version(),
         }
     }
@@ -237,7 +240,7 @@ impl ImmediatePolicy {
     /// The rank a recipe of `len` bytes and `gas` static gas takes; lower is better.
     fn rank(self, len: usize, gas: usize) -> u128 {
         match self {
-            Self::Bytes(_) => len as u128,
+            Self::Bytes(_) | Self::Smallest(_) => len as u128,
             Self::Lifetime { target, copies } => {
                 let bytes = (len as u32).saturating_mul(copies);
                 target.lifetime_gas(Cost::new(gas as u32, bytes))
@@ -300,6 +303,20 @@ impl ImmediateMaterialization {
                 child(U256::from(shift)).for_each_inner(f);
                 f(opcode(op::SHL));
             }
+            // divisor; MAX; DIV
+            CompactPush::AllOnesDiv { divisor } => {
+                child(divisor).for_each_inner(f);
+                child(U256::MAX).for_each_inner(f);
+                f(opcode(op::DIV));
+            }
+            // factor; divisor; MAX; DIV; MUL
+            CompactPush::Repeat { factor, divisor } => {
+                child(factor).for_each_inner(f);
+                child(divisor).for_each_inner(f);
+                child(U256::MAX).for_each_inner(f);
+                f(opcode(op::DIV));
+                f(opcode(op::MUL));
+            }
         }
     }
 
@@ -322,7 +339,10 @@ impl ImmediateMaterialization {
                 metrics.encoded_len += 1;
                 metrics.static_gas += match opcode {
                     op::NOT | op::SHL | op::SHR => VERY_LOW_GAS,
-                    _ => unreachable!("compact immediate recipes use very-low-gas opcodes"),
+                    op::DIV | op::MUL => LOW_GAS,
+                    _ => {
+                        unreachable!("compact immediate recipes use very-low- and low-gas opcodes")
+                    }
                 };
             }
         });
@@ -411,6 +431,46 @@ fn select(policy: ImmediatePolicy, value: U256) -> ((usize, usize), CompactPush)
         }
     }
 
+    // A pattern repeated across the word divides the all-ones word, or is a factor times the
+    // repetition of a one every few bytes. Their divisions and multiplications cost gas on every
+    // execution, which the lifetime objective would trade for deposit even where callers measure
+    // each call's gas, so only size-first emission takes them. The divisor and factor are
+    // narrower than the value, so selecting them terminates.
+    let narrower = |operand: U256| push_width(evm_version, operand) < width;
+    if let ImmediatePolicy::Smallest(_) = policy
+        && value < U256::MAX
+    {
+        let all_ones = select(policy, U256::MAX).0;
+        if (U256::MAX % value).is_zero() && narrower(U256::MAX / value) {
+            let divisor = U256::MAX / value;
+            let (divisor_cost, _) = select(policy, divisor);
+            consider(
+                (divisor_cost.0 + all_ones.0 + 1, divisor_cost.1 + all_ones.1 + LOW_GAS),
+                CompactPush::AllOnesDiv { divisor },
+            );
+        }
+        for period in [1usize, 2, 4, 8, 16] {
+            let divisor = (U256::ONE << (period * 8)) - U256::ONE;
+            let ones = U256::MAX / divisor;
+            if !(value % ones).is_zero() {
+                continue;
+            }
+            let factor = value / ones;
+            if factor <= U256::ONE || !narrower(factor) || !narrower(divisor) {
+                continue;
+            }
+            let (factor_cost, _) = select(policy, factor);
+            let (divisor_cost, _) = select(policy, divisor);
+            consider(
+                (
+                    factor_cost.0 + divisor_cost.0 + all_ones.0 + 2,
+                    factor_cost.1 + divisor_cost.1 + all_ones.1 + LOW_GAS * 2,
+                ),
+                CompactPush::Repeat { factor, divisor },
+            );
+        }
+    }
+
     let trailing_zero_bytes = value.trailing_zeros() / 8;
     if evm_version.has_bitwise_shifting()
         && trailing_zero_bytes > 0
@@ -477,9 +537,22 @@ fn push_width(evm_version: EvmVersion, value: U256) -> u8 {
 enum CompactPush {
     Literal,
     FullWord,
-    LowerAllOnesMask { shift: u8 },
+    LowerAllOnesMask {
+        shift: u8,
+    },
     Not,
-    Shl { shift: u8 },
+    Shl {
+        shift: u8,
+    },
+    /// `2**256 - 1` divided by `divisor`: a pattern that repeats across the whole word.
+    AllOnesDiv {
+        divisor: U256,
+    },
+    /// `factor` times `(2**256 - 1) / divisor`: the word-wide repetition of `factor`.
+    Repeat {
+        factor: U256,
+        divisor: U256,
+    },
 }
 
 #[cfg(test)]
@@ -514,6 +587,46 @@ mod tests {
                 ImmediateMaterializationOp::Opcode(op::NOT),
             ]
         );
+    }
+
+    #[test]
+    fn smallest_policy_divides_repeated_patterns() {
+        let smallest = ImmediatePolicy::Smallest(EvmVersion::Cancun);
+        let ones = U256::MAX / U256::from(255);
+        let ops = |value| {
+            let mut ops = Vec::new();
+            ImmediateMaterialization::with_policy(smallest, value).for_each(|op| ops.push(op));
+            ops
+        };
+        // 0x0101..01 = MAX / 255: PUSH1 255; PUSH0; NOT; DIV
+        assert_eq!(policy_materialization_cost(smallest, ones), (5, 13));
+        assert_eq!(
+            ops(ones),
+            [
+                ImmediateMaterializationOp::Push(U256::from(255)),
+                ImmediateMaterializationOp::Push(U256::ZERO),
+                ImmediateMaterializationOp::Opcode(op::NOT),
+                ImmediateMaterializationOp::Opcode(op::DIV),
+            ]
+        );
+        // 0x3030..30 = 0x30 * (MAX / 255): PUSH1 0x30; PUSH1 255; PUSH0; NOT; DIV; MUL
+        assert_eq!(policy_materialization_cost(smallest, ones * U256::from(0x30)), (8, 21));
+        assert_eq!(
+            ops(ones * U256::from(0x30)).last(),
+            Some(&ImmediateMaterializationOp::Opcode(op::MUL))
+        );
+        // 0x3f in the low byte of every four-byte lane: PUSH1 0x3f; PUSH4 0xffffffff; PUSH0; NOT;
+        // DIV; MUL
+        let lanes = U256::MAX / U256::from(u32::MAX) * U256::from(0x3f);
+        assert_eq!(policy_materialization_cost(smallest, lanes), (11, 21));
+        // Cost estimates and gas builds keep the literal.
+        assert_eq!(immediate_materialization_cost(EvmVersion::Cancun, ones), (33, 3));
+        let lifetime = ImmediatePolicy::of(Target::with(
+            EvmVersion::Cancun,
+            solar_config::OptimizationMode::Gas,
+            1,
+        ));
+        assert_eq!(policy_materialization_cost(lifetime, ones), (33, 3));
     }
 
     #[test]
