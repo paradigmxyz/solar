@@ -1,0 +1,14 @@
+error: expected identifier, found keyword `if`
+   ╭▸ ROOT/tests/ui/parser/recover_before_blocks.sol:LL:CC
+   │
+LL │         if (true) {
+   ╰╴        ━━
+
+error: expected one of `(`, `.`, `;`, `?`, or `[`, found `{`
+   ╭▸ ROOT/tests/ui/parser/recover_before_blocks.sol:LL:CC
+   │
+LL │         if (true) {
+   ╰╴                  ━ expected one of `(`, `.`, `;`, `?`, or `[`
+
+error: aborting due to 2 previous errors
+

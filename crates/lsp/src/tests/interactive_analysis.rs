@@ -532,6 +532,207 @@ async fn signature_help_waits_for_a_new_attached_call() {
     );
 }
 
+const FOLLOWING_BLOCKS: [&str; 5] = [
+    "if (true) { uint256 blockLocal; $2blockLocal; }",
+    "for (uint256 i; i < 1; ++i) { uint256 blockLocal; $2blockLocal; }",
+    "while (false) { uint256 blockLocal; $2blockLocal; }",
+    "unchecked { uint256 blockLocal; $2blockLocal; }",
+    "{ uint256 blockLocal; $2blockLocal; }",
+];
+
+#[tokio::test(flavor = "current_thread")]
+async fn incomplete_members_before_blocks_preserve_interactive_analysis() {
+    for following in FOLLOWING_BLOCKS {
+        for expression in ["x.", "x.tw", "(x + 1)."] {
+            let source = USING_SOURCE.replace(
+                "// completion",
+                &format!("{expression}$1\n        {following}\n        uint256 afterBlock;\n        $3afterBlock;"),
+            );
+            let opened = support::RequestFixture::new_allowing_diagnostics(
+                &format!("//- /Request.sol open\n{source}"),
+                "/Request.sol",
+            );
+            let (_, cursor) = opened.marker_location("$1");
+            let source = opened.project_contents("/Request.sol");
+            let (_project, mut state, uri) = using_fixture().await;
+            let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
+            change(&mut state, &uri, 2, &source);
+            let mut params = completion_params(&uri, cursor);
+            if expression.ends_with('.') {
+                params.context = Some(lsp_types::CompletionContext {
+                    trigger_kind: lsp_types::CompletionTriggerKind::TRIGGER_CHARACTER,
+                    trigger_character: Some(".".into()),
+                });
+            }
+            let request = start_request(crate::handlers::completion(&mut state, params));
+            assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
+            drop(gate);
+            let response =
+                tokio::time::timeout(ASYNC_TEST_TIMEOUT, request).await.unwrap().unwrap();
+            assert_eq!(completion_labels(response), ["twice"], "{expression} before {following}");
+            let ready = expect_ready(crate::handlers::completion(
+                &mut state,
+                completion_params(&uri, cursor),
+            ))
+            .unwrap();
+            assert_eq!(completion_labels(ready), ["twice"]);
+
+            // Recovery must leave the following block and its lexical scope intact.
+            for (marker, expected, excluded) in
+                [("$2", "blockLocal", "afterBlock"), ("$3", "afterBlock", "blockLocal")]
+            {
+                let (_, cursor) = opened.marker_location(marker);
+                let response = expect_ready(crate::handlers::completion(
+                    &mut state,
+                    completion_params(&uri, cursor),
+                ))
+                .unwrap();
+                let labels = completion_labels(response);
+                assert!(
+                    labels.iter().any(|label| label == expected),
+                    "{expression} before {following}: missing {expected}"
+                );
+                assert!(
+                    !labels.iter().any(|label| label == excluded),
+                    "{expression} before {following}: unexpected {excluded}"
+                );
+            }
+
+            // Initially opening this incomplete source has no last-good snapshot to reuse.
+            let (uri, cursor) = opened.marker_location("$1");
+            let response = expect_ready(crate::handlers::completion(
+                &mut opened.state(),
+                completion_params(&uri, cursor),
+            ))
+            .unwrap();
+            assert_eq!(completion_labels(response), ["twice"]);
+        }
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn incomplete_calls_before_blocks_preserve_interactive_analysis() {
+    for following in FOLLOWING_BLOCKS {
+        for expression in ["add($1", "add($1)", "add(1 $1", "add(1,$1", "add(add($1", "x.twice($1"]
+        {
+            let source = USING_SOURCE
+                .replace("uint256 x;", "uint256 x; uint256 addedLocal;")
+                .replace(
+                    "function f()",
+                    "function add(uint256 amount) internal pure returns (uint256) { return amount; }\n    function f()",
+                )
+                .replace(
+                    "// completion",
+                    &format!("{expression}\n        {following}\n        uint256 afterBlock;\n        $3afterBlock;"),
+                );
+            let opened = support::RequestFixture::new_allowing_diagnostics(
+                &format!("//- /Request.sol open\n{source}"),
+                "/Request.sol",
+            );
+            let (_, cursor) = opened.marker_location("$1");
+            let source = opened.project_contents("/Request.sol");
+            let (_project, mut state, uri) = using_fixture().await;
+            let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
+            change(&mut state, &uri, 2, &source);
+            let completion = start_request(crate::handlers::completion(
+                &mut state,
+                completion_params(&uri, cursor),
+            ));
+            let mut params = signature_params(&uri, cursor);
+            let trigger = expression.split_once("$1").unwrap().0.chars().last().unwrap();
+            if matches!(trigger, '(' | ',') {
+                params.context = Some(lsp_types::SignatureHelpContext {
+                    trigger_kind: lsp_types::SignatureHelpTriggerKind::TRIGGER_CHARACTER,
+                    trigger_character: Some(trigger.to_string()),
+                    is_retrigger: false,
+                    active_signature_help: None,
+                });
+            }
+            let signature = start_request(crate::handlers::signature_help(&mut state, params));
+            assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
+            drop(gate);
+            let response =
+                tokio::time::timeout(ASYNC_TEST_TIMEOUT, completion).await.unwrap().unwrap();
+            let labels = completion_labels(response);
+            let locals = labels
+                .iter()
+                .map(String::as_str)
+                .filter(|label| matches!(*label, "x" | "addedLocal" | "blockLocal" | "afterBlock"))
+                .collect::<Vec<_>>();
+            assert_eq!(locals, ["addedLocal", "x"], "{expression} before {following}");
+            let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, signature)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+            assert_eq!(response.signatures.len(), 1);
+            if expression.starts_with("x.") {
+                snapbox::assert_data_eq!(
+                    response.signatures[0].label.as_str(),
+                    snapbox::str!["function twice() internal pure returns (uint256)"]
+                );
+            } else {
+                snapbox::assert_data_eq!(
+                    response.signatures[0].label.as_str(),
+                    snapbox::str!["function add(uint256 amount) internal pure returns (uint256)"]
+                );
+            }
+            let ready = expect_ready(crate::handlers::signature_help(
+                &mut state,
+                signature_params(&uri, cursor),
+            ))
+            .unwrap()
+            .unwrap();
+            assert_eq!(response, ready);
+            let ready = expect_ready(crate::handlers::completion(
+                &mut state,
+                completion_params(&uri, cursor),
+            ))
+            .unwrap();
+            assert_eq!(labels, completion_labels(ready));
+
+            for (marker, expected, excluded) in
+                [("$2", "blockLocal", "afterBlock"), ("$3", "afterBlock", "blockLocal")]
+            {
+                let (_, cursor) = opened.marker_location(marker);
+                let response = expect_ready(crate::handlers::completion(
+                    &mut state,
+                    completion_params(&uri, cursor),
+                ))
+                .unwrap();
+                let labels = completion_labels(response);
+                assert!(
+                    labels.iter().any(|label| label == expected),
+                    "{expression} before {following}: missing {expected}"
+                );
+                assert!(
+                    !labels.iter().any(|label| label == excluded),
+                    "{expression} before {following}: unexpected {excluded}"
+                );
+            }
+
+            // The callee and addedLocal were introduced in this edit, so an old table cannot
+            // satisfy these requests. An initial open must provide the same semantic results.
+            let (uri, cursor) = opened.marker_location("$1");
+            let mut initial = opened.state();
+            let initial_signature = expect_ready(crate::handlers::signature_help(
+                &mut initial,
+                signature_params(&uri, cursor),
+            ))
+            .unwrap()
+            .unwrap();
+            // The fixtures negotiate different label-offset capabilities.
+            assert_eq!(response.signatures[0].label, initial_signature.signatures[0].label);
+            let initial_completion = expect_ready(crate::handlers::completion(
+                &mut initial,
+                completion_params(&uri, cursor),
+            ))
+            .unwrap();
+            assert_eq!(labels, completion_labels(initial_completion));
+        }
+    }
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn completion_and_signature_help_reject_failed_analysis() {
     let (_project, mut state, uri) = using_fixture().await;

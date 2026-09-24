@@ -71,7 +71,13 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             self.parse_simple_stmt_kind()
         };
         if semi && kind.is_ok() {
-            self.expect_semi()?;
+            if self.can_recover_statement_boundary() {
+                if self.last_unexpected_token_span != Some(self.token.span) {
+                    self.expect(TokenKind::Semi).unwrap_err().emit();
+                }
+            } else {
+                self.expect_semi()?;
+            }
         }
         kind
     }
@@ -404,7 +410,13 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         if self.check_nr_ident() {
             path.push(IapKind::Member(self.parse_ident()?));
             while self.eat(TokenKind::Dot) {
-                let id = match self.ident_or_err(true) {
+                // Leave the next statement intact after an unfinished member access.
+                let member = if self.can_recover_statement_boundary() {
+                    Err(self.expected_ident_found_err())
+                } else {
+                    self.ident_or_err(true)
+                };
+                let id = match member {
                     Ok(id) => id,
                     Err(err) => {
                         err.emit();
@@ -438,6 +450,14 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         }
 
         Ok(IndexAccessedPath { path, n_idents })
+    }
+
+    /// Whether incomplete input can end before an unambiguous statement starter.
+    pub(super) fn can_recover_statement_boundary(&self) -> bool {
+        self.recover_incomplete_input
+            && !self.in_yul
+            && (self.token.kind == TokenKind::OpenDelim(Delimiter::Brace)
+                || self.token.is_keyword_any(&[kw::If, kw::For, kw::While, kw::Unchecked]))
     }
 }
 
