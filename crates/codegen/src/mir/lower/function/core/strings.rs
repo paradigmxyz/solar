@@ -8,11 +8,15 @@
 //! that search for one spare word, appends the subject end, then replaces each
 //! offset in place with a bulk-copied string. Short needles use one masked word
 //! comparison; long needles use that comparison as a prefix filter before
-//! hashing. Growing replacements validate a checked upper bound. Streamed
+//! hashing. Builds that do not optimize for gas take one loop for every
+//! needle instead, confirming each prefix match by hash, and an empty needle
+//! matches at every offset in that loop rather than taking paths of its own.
+//! Growing replacements validate a checked upper bound. Streamed
 //! outputs reserve their exact objects only after the scan, so conservative
-//! bounds do not inflate later memory costs. Rune counting classifies whole
-//! words of well-formed UTF-8 at once and steps the rest through a scratch
-//! table of lead lengths. Decimal and minimal-hex spellings fill one fixed
+//! bounds do not inflate later memory costs. Rune counting in gas builds
+//! classifies whole words of well-formed UTF-8 at once and steps the rest by
+//! a table of lead lengths held in one constant; other builds step every rune
+//! by that table. Decimal and minimal-hex spellings fill one fixed
 //! region backwards and return a header inside it, so neither counts digits
 //! first; a gas build spells a hex value wider than two bytes a word at a
 //! time instead, counting its significant bytes with one multiplication.
@@ -601,6 +605,9 @@ impl FunctionLowerer<'_, '_> {
     /// take the whole count inline. Loads may read past the subject, but those
     /// bytes are masked or never stepped to.
     fn lower_core_string_rune_count(&mut self, subject: ValueId) -> ValueId {
+        if !self.cx.gcx.sess.opts.optimization.is_gas() {
+            return self.lower_core_string_rune_count_compact(subject);
+        }
         let bytes = MemoryObjectKind::Bytes;
         let length = self.builder.memory_object_len(subject, bytes);
         let data = self.builder.memory_object_data(subject, bytes);
@@ -721,6 +728,26 @@ impl FunctionLowerer<'_, '_> {
             (tail_probe, ascii_tail_count),
             (step, stepped_count),
         ])
+    }
+
+    /// Counts the runes of `subject` one at a time from its first byte: the
+    /// smallest shape, for builds that do not optimize for gas.
+    fn lower_core_string_rune_count_compact(&mut self, subject: ValueId) -> ValueId {
+        let bytes = MemoryObjectKind::Bytes;
+        let length = self.builder.memory_object_len(subject, bytes);
+        let data = self.builder.memory_object_data(subject, bytes);
+        let end = self.builder.add(data, length);
+        let zero = self.builder.imm(0);
+        let entry = self.builder.current_block();
+        let steps = self.builder.create_block();
+        let done = self.builder.create_block();
+        // branch len(subject) == 0, done, steps
+        let empty = self.builder.eq_zero(length);
+        self.builder.branch(empty, done, steps);
+        let (step, _, stepped_count) =
+            self.rune_step_loop(steps, &[(entry, data, zero)], end, done);
+        self.builder.switch_to_block(done);
+        self.builder.phi(vec![(entry, zero), (step, stepped_count)])
     }
 
     /// Marks each byte of `text` in its top bit by class: continuation bytes,
@@ -1064,6 +1091,9 @@ impl FunctionLowerer<'_, '_> {
         needle: ValueId,
         split_mode: ValueId,
     ) {
+        if !self.cx.gcx.sess.opts.optimization.is_gas() {
+            return self.lower_core_string_indices_of_compact(subject, needle, split_mode);
+        }
         let bytes = MemoryObjectKind::Bytes;
         let length = self.builder.memory_object_len(subject, bytes);
         let needle_length = self.builder.memory_object_len(needle, bytes);
@@ -1135,28 +1165,124 @@ impl FunctionLowerer<'_, '_> {
         let short = self.builder.lt(needle_length, word);
         self.builder.branch(short, short_scan, long_hash);
 
-        let scan =
-            SearchScan { source, destination, last, needle_word, prefix_mask, needle_length };
+        let scan = SearchScan {
+            source,
+            destination,
+            last,
+            needle_word,
+            prefix_mask,
+            needle_length,
+            step: needle_length,
+        };
         self.builder.switch_to_block(short_scan);
-        let (short_exit, short_output) = self.lower_core_string_indices_scan(&scan, None, finish);
+        let (short_exit, short_output) =
+            self.lower_core_string_indices_scan(&scan, MatchConfirm::Prefix, finish);
 
         // needle_hash = keccak256(data(needle), needle_length)
         self.builder.switch_to_block(long_hash);
         let needle_hash = self.builder.keccak256(needle_data, needle_length);
         let (long_exit, long_output) =
-            self.lower_core_string_indices_scan(&scan, Some(needle_hash), finish);
+            self.lower_core_string_indices_scan(&scan, MatchConfirm::Hash(needle_hash), finish);
 
         // output = phi [short: output], [long: output]
-        // count = (output - destination) / 32
-        // out = alloc word array at fmp for count + 1 + split_mode words; len(out) = count
         self.builder.switch_to_block(finish);
         let output = self.builder.phi(vec![(short_exit, short_output), (long_exit, long_output)]);
+        let out = self.alloc_core_search_offsets(output, destination, split_mode);
+        self.builder.jump(complete);
+
+        self.builder.switch_to_block(complete);
+        let out = self.builder.phi(vec![
+            (empty_result, empty_out),
+            (every_complete, every_out),
+            (finish, out),
+        ]);
+        self.lower_core_string_search_result(
+            out,
+            subject,
+            length,
+            needle_length,
+            split_mode,
+            false,
+        );
+    }
+
+    /// The search in one loop: the smallest shape, for builds that do not
+    /// optimize for gas. Every prefix match is confirmed by hash, and an empty
+    /// needle matches at every offset from zero through the subject's length;
+    /// splitting on it then drops the empty first and last pieces.
+    fn lower_core_string_indices_of_compact(
+        &mut self,
+        subject: ValueId,
+        needle: ValueId,
+        split_mode: ValueId,
+    ) {
+        // destination = fmp + 32
+        // source = data(subject)
+        // needle_word = mload data(needle)
+        // prefix_mask = ~0 << 8 * (32 - needle_length % 32)
+        // needle_hash = keccak256(data(needle), needle_length)
+        // step = needle_length + (needle_length == 0)
+        // jumpi needle_length > length, finish, fits
+        let bytes = MemoryObjectKind::Bytes;
+        let length = self.builder.memory_object_len(subject, bytes);
+        let needle_length = self.builder.memory_object_len(needle, bytes);
+        let allocation_base = self.builder.fmp();
+        let word = self.builder.imm(32);
+        let destination = self.builder.add(allocation_base, word);
+        let source = self.builder.memory_object_data(subject, bytes);
+        let source = self.builder.cast_word(source);
+        let needle_data = self.builder.memory_object_data(needle, bytes);
+        let needle_word = self.builder.mload(needle_data);
+        let low_five = self.builder.imm(31);
+        let remainder = self.builder.and(needle_length, low_five);
+        let missing = self.builder.sub(word, remainder);
+        let eight = self.builder.imm(8);
+        let masked_bits = self.builder.mul(missing, eight);
+        let all = self.builder.imm(U256::MAX);
+        let prefix_mask = self.builder.shl(masked_bits, all);
+        let needle_hash = self.builder.keccak256(needle_data, needle_length);
+        let needle_empty = self.builder.eq_zero(needle_length);
+        let empty_step = self.builder.cast_word(needle_empty);
+        let step = self.builder.add(needle_length, empty_step);
+        let entry = self.builder.current_block();
+        let fits = self.builder.create_block();
+        let finish = self.builder.create_block();
+        let too_long = self.builder.gt(needle_length, length);
+        self.builder.branch(too_long, finish, fits);
+
+        // last = source + (length - needle_length)
+        self.builder.switch_to_block(fits);
+        let search_end = self.builder.sub(length, needle_length);
+        let last = self.builder.add(source, search_end);
+        let scan =
+            SearchScan { source, destination, last, needle_word, prefix_mask, needle_length, step };
+        let (scan_exit, scan_output) =
+            self.lower_core_string_indices_scan(&scan, MatchConfirm::Hash(needle_hash), finish);
+
+        // output = phi [entry: destination], [scan: output]
+        self.builder.switch_to_block(finish);
+        let output = self.builder.phi(vec![(entry, destination), (scan_exit, scan_output)]);
+        let out = self.alloc_core_search_offsets(output, destination, split_mode);
+        self.lower_core_string_search_result(out, subject, length, needle_length, split_mode, true);
+    }
+
+    /// Reserves the offsets streamed from `destination` up to `output` as a
+    /// word array at the free-memory pointer, with `split_mode` spare words.
+    fn alloc_core_search_offsets(
+        &mut self,
+        output: ValueId,
+        destination: ValueId,
+        split_mode: ValueId,
+    ) -> ValueId {
+        // count = (output - destination) / 32
+        // out = alloc word array at fmp for count + 1 + split_mode words; len(out) = count
         let one = self.builder.imm(1);
         let output_bytes = self.builder.sub(output, destination);
         let five = self.builder.imm(5);
         let count = self.builder.shr(five, output_bytes);
         let words = self.builder.checked_add(count, one);
         let words = self.builder.checked_add(words, split_mode);
+        let word = self.builder.imm(32);
         let allocation_size = self.builder.checked_mul(words, word);
         let out = self.builder.alloc_object(
             allocation_size,
@@ -1168,15 +1294,7 @@ impl FunctionLowerer<'_, '_> {
         };
         self.builder.func_mut().inst_mut(allocation).metadata.set_preserves_fmp(true);
         self.builder.set_memory_object_len(out, count, MemoryObjectKind::DynamicArray);
-        self.builder.jump(complete);
-
-        self.builder.switch_to_block(complete);
-        let out = self.builder.phi(vec![
-            (empty_result, empty_out),
-            (every_complete, every_out),
-            (finish, out),
-        ]);
-        self.lower_core_string_search_result(out, subject, length, needle_length, split_mode);
+        out
     }
 
     /// Emits one match-offset scan from the current block with pointer cursors,
@@ -1186,7 +1304,7 @@ impl FunctionLowerer<'_, '_> {
     fn lower_core_string_indices_scan(
         &mut self,
         scan: &SearchScan,
-        needle_hash: Option<ValueId>,
+        confirm: MatchConfirm,
         finish: BlockId,
     ) -> (BlockId, ValueId) {
         let entry = self.builder.current_block();
@@ -1196,7 +1314,7 @@ impl FunctionLowerer<'_, '_> {
         let advance = self.builder.create_block();
         self.builder.jump(header);
 
-        // cursor = phi [entry: source], [matched: cursor + needle_length], [advance: cursor + 1]
+        // cursor = phi [entry: source], [matched: cursor + step], [advance: cursor + 1]
         // output = phi [entry: destination], [matched: output + 32], [advance: output]
         // jumpi cursor > last, finish, compare
         self.builder.switch_to_block(header);
@@ -1211,17 +1329,14 @@ impl FunctionLowerer<'_, '_> {
         let different = self.builder.xor(candidate_word, scan.needle_word);
         let different = self.builder.and(different, scan.prefix_mask);
         let prefix_equal = self.builder.eq_zero(different);
-        if let Some(needle_hash) = needle_hash {
-            // jumpi keccak256(cursor, needle_length) == needle_hash, matched, advance
-            let verify = self.builder.create_block();
-            self.builder.branch(prefix_equal, verify, advance);
-            self.builder.switch_to_block(verify);
-            let candidate_hash = self.builder.keccak256(cursor, scan.needle_length);
-            let equal = self.builder.eq(candidate_hash, needle_hash);
-            self.builder.branch(equal, matched, advance);
-        } else {
-            self.builder.branch(prefix_equal, matched, advance);
-        }
+        self.confirm_core_string_match(
+            prefix_equal,
+            cursor,
+            scan.needle_length,
+            confirm,
+            matched,
+            advance,
+        );
 
         // mstore output, cursor - source
         self.builder.switch_to_block(matched);
@@ -1229,7 +1344,7 @@ impl FunctionLowerer<'_, '_> {
         self.builder.mstore(output, at);
         let word = self.builder.imm(32);
         let next_output = self.builder.add(output, word);
-        let next_cursor = self.builder.add(cursor, scan.needle_length);
+        let next_cursor = self.builder.add(cursor, scan.step);
         self.builder.jump(header);
         self.builder.add_phi_incoming(cursor, matched, next_cursor);
         self.builder.add_phi_incoming(output, matched, next_output);
@@ -1271,6 +1386,10 @@ impl FunctionLowerer<'_, '_> {
         self.builder.ret([out]);
     }
 
+    /// Returns the offsets, or in split mode replaces each with the piece of
+    /// `subject` that ends there after appending the subject's end. With
+    /// `drops_empty_ends`, an empty delimiter's offsets start at zero and end
+    /// at the subject's end, so its empty first and last pieces are dropped.
     fn lower_core_string_search_result(
         &mut self,
         offsets: ValueId,
@@ -1278,6 +1397,7 @@ impl FunctionLowerer<'_, '_> {
         length: ValueId,
         delimiter_length: ValueId,
         split_mode: ValueId,
+        drops_empty_ends: bool,
     ) {
         let bytes = MemoryObjectKind::Bytes;
         let array = MemoryObjectKind::DynamicArray;
@@ -1349,7 +1469,23 @@ impl FunctionLowerer<'_, '_> {
         self.builder.add_phi_incoming(previous, store_piece, next_previous);
 
         self.builder.switch_to_block(done);
-        self.builder.ret([offsets]);
+        if drops_empty_ends {
+            // drop = delimiter_length == 0
+            // result = offsets + 32 * drop
+            // mstore result, result_count - 2 * drop
+            let dropped = self.builder.eq_zero(delimiter_length);
+            let dropped = self.builder.cast_word(dropped);
+            let base = self.builder.cast_word(offsets);
+            let shift = self.builder.shl(five, dropped);
+            let result = self.builder.add(base, shift);
+            let ends = self.builder.shl(one, dropped);
+            let pieces = self.builder.sub(result_count, ends);
+            self.builder.mstore(result, pieces);
+            let result = self.builder.cast(result, MirType::MemoryObject(array));
+            self.builder.ret([result]);
+        } else {
+            self.builder.ret([offsets]);
+        }
     }
 
     /// Spells `value` a word at a time: the digits of its low sixteen bytes
@@ -1428,6 +1564,16 @@ impl FunctionLowerer<'_, '_> {
         self.builder.ret([subject]);
 
         self.builder.switch_to_block(fits);
+        if !self.cx.gcx.sess.opts.optimization.is_gas() {
+            return self.lower_core_string_replace_compact(
+                subject,
+                needle,
+                replacement,
+                length,
+                needle_length,
+                replacement_length,
+            );
+        }
         let empty = self.builder.create_block();
         let nonempty = self.builder.create_block();
         let needle_empty = self.builder.eq_zero(needle_length);
@@ -1574,28 +1720,124 @@ impl FunctionLowerer<'_, '_> {
             needle_word,
             prefix_mask,
             needle_length,
+            step: needle_length,
             replacement_data,
             replacement_length,
         };
         self.builder.switch_to_block(short_scan);
         let (short_exit, short_copied, short_output) =
-            self.lower_core_string_replace_scan(&scan, None, finish);
+            self.lower_core_string_replace_scan(&scan, MatchConfirm::Prefix, finish);
 
         // needle_hash = keccak256(data(needle), needle_length)
         self.builder.switch_to_block(long_hash);
         let needle_hash = self.builder.keccak256(needle_data, needle_length);
         let (long_exit, long_copied, long_output) =
-            self.lower_core_string_replace_scan(&scan, Some(needle_hash), finish);
+            self.lower_core_string_replace_scan(&scan, MatchConfirm::Hash(needle_hash), finish);
 
         // copied = phi [short: copied], [long: copied]
         // output = phi [short: output], [long: output]
+        self.builder.switch_to_block(finish);
+        let copied = self.builder.phi(vec![(short_exit, short_copied), (long_exit, long_copied)]);
+        let output = self.builder.phi(vec![(short_exit, short_output), (long_exit, long_output)]);
+        self.finish_core_string_replace(last, needle_length, copied, output);
+    }
+
+    /// Replacement in one scan: the smallest shape, for builds that do not
+    /// optimize for gas. Every prefix match is confirmed by hash, and an empty
+    /// needle matches at every offset from zero through the subject's end,
+    /// stepping one byte past each match. A growing replacement checks the
+    /// same bound as the gas shapes, which for an empty needle is the body's
+    /// own size, `length + (length + 1) * replacement_length`.
+    #[allow(clippy::too_many_arguments)]
+    fn lower_core_string_replace_compact(
+        &mut self,
+        subject: ValueId,
+        needle: ValueId,
+        replacement: ValueId,
+        length: ValueId,
+        needle_length: ValueId,
+        replacement_length: ValueId,
+    ) {
+        // empty = needle_length == 0
+        // step = needle_length + empty
+        // jumpi replacement_length > needle_length, growing_capacity, allocate
+        let kind = MemoryObjectKind::Bytes;
+        let needle_empty = self.builder.eq_zero(needle_length);
+        let empty_step = self.builder.cast_word(needle_empty);
+        let step = self.builder.add(needle_length, empty_step);
+        let growing_capacity = self.builder.create_block();
+        let allocate = self.builder.create_block();
+        let grows = self.builder.gt(replacement_length, needle_length);
+        self.builder.branch(grows, growing_capacity, allocate);
+
+        // max_matches = length / step + empty
+        // checked length + max_matches * (replacement_length - needle_length)
+        self.builder.switch_to_block(growing_capacity);
+        let max_matches = self.builder.div(length, step);
+        let max_matches = self.builder.add(max_matches, empty_step);
+        let growth_per_match = self.builder.sub(replacement_length, needle_length);
+        let growth = self.builder.checked_mul(max_matches, growth_per_match);
+        let _grown_capacity = self.builder.checked_add(length, growth);
+        self.builder.jump(allocate);
+
+        // destination = fmp + 32
+        // source = data(subject)
+        // last = source + (length - needle_length)
+        // needle_word = mload data(needle)
+        // prefix_mask = ~0 << 8 * (32 - needle_length % 32)
+        // needle_hash = keccak256(data(needle), needle_length)
+        self.builder.switch_to_block(allocate);
+        let allocation_base = self.builder.fmp();
+        let header = self.builder.imm(32);
+        let destination = self.builder.add(allocation_base, header);
+        let source = self.builder.memory_object_data(subject, kind);
+        let source = self.builder.cast_word(source);
+        let search_end = self.builder.sub(length, needle_length);
+        let last = self.builder.add(source, search_end);
+        let needle_data = self.builder.memory_object_data(needle, kind);
+        let replacement_data = self.builder.memory_object_data(replacement, kind);
+        let needle_word = self.builder.mload(needle_data);
+        let low_five = self.builder.imm(31);
+        let remainder = self.builder.and(needle_length, low_five);
+        let word = self.builder.imm(32);
+        let missing = self.builder.sub(word, remainder);
+        let eight = self.builder.imm(8);
+        let masked_bits = self.builder.mul(missing, eight);
+        let all = self.builder.imm(U256::MAX);
+        let prefix_mask = self.builder.shl(masked_bits, all);
+        let needle_hash = self.builder.keccak256(needle_data, needle_length);
+        let finish = self.builder.create_block();
+        let scan = ReplaceScan {
+            source,
+            destination,
+            last,
+            needle_word,
+            prefix_mask,
+            needle_length,
+            step,
+            replacement_data,
+            replacement_length,
+        };
+        let (_, copied, output) =
+            self.lower_core_string_replace_scan(&scan, MatchConfirm::Hash(needle_hash), finish);
+        self.builder.switch_to_block(finish);
+        self.finish_core_string_replace(last, needle_length, copied, output);
+    }
+
+    /// Copies the subject's tail after the last match and reserves the
+    /// streamed output at the free-memory pointer.
+    fn finish_core_string_replace(
+        &mut self,
+        last: ValueId,
+        needle_length: ValueId,
+        copied: ValueId,
+        output: ValueId,
+    ) {
         // tail = last + needle_length - copied
         // mcopy output, copied, tail
         // output_length = output + tail - (fmp + 32)
         // out = alloc bytes at fmp, padded(output_length); len(out) = output_length
-        self.builder.switch_to_block(finish);
-        let copied = self.builder.phi(vec![(short_exit, short_copied), (long_exit, long_copied)]);
-        let output = self.builder.phi(vec![(short_exit, short_output), (long_exit, long_output)]);
+        let kind = MemoryObjectKind::Bytes;
         let end = self.builder.add(last, needle_length);
         let tail = self.builder.sub(end, copied);
         self.builder.mcopy_heap(output, copied, tail);
@@ -1621,6 +1863,38 @@ impl FunctionLowerer<'_, '_> {
         self.builder.ret([out]);
     }
 
+    /// Branches to `matched` when the needle's masked first word matched at
+    /// `cursor` and `confirm` accepts the candidate there, and to `advance`
+    /// otherwise.
+    fn confirm_core_string_match(
+        &mut self,
+        prefix_equal: ValueId,
+        cursor: ValueId,
+        needle_length: ValueId,
+        confirm: MatchConfirm,
+        matched: BlockId,
+        advance: BlockId,
+    ) {
+        let needle_hash = match confirm {
+            MatchConfirm::Prefix => {
+                // jumpi prefix_equal, matched, advance
+                self.builder.branch(prefix_equal, matched, advance);
+                return;
+            }
+            MatchConfirm::Hash(needle_hash) => {
+                // jumpi prefix_equal, verify, advance
+                let verify = self.builder.create_block();
+                self.builder.branch(prefix_equal, verify, advance);
+                self.builder.switch_to_block(verify);
+                needle_hash
+            }
+        };
+        // jumpi keccak256(cursor, needle_length) == needle_hash, matched, advance
+        let candidate_hash = self.builder.keccak256(cursor, needle_length);
+        let equal = self.builder.eq(candidate_hash, needle_hash);
+        self.builder.branch(equal, matched, advance);
+    }
+
     /// Emits one replacement scan from the current block, with pointer
     /// cursors so that neither the subject nor the output base stays live.
     /// Returns the header that exits to `finish` and the pending-run start and
@@ -1629,7 +1903,7 @@ impl FunctionLowerer<'_, '_> {
     fn lower_core_string_replace_scan(
         &mut self,
         scan: &ReplaceScan,
-        needle_hash: Option<ValueId>,
+        confirm: MatchConfirm,
         finish: BlockId,
     ) -> (BlockId, ValueId, ValueId) {
         let entry = self.builder.current_block();
@@ -1639,7 +1913,7 @@ impl FunctionLowerer<'_, '_> {
         let advance = self.builder.create_block();
         self.builder.jump(header);
 
-        // at = phi [entry: source], [matched: at + needle_length], [advance: at + 1]
+        // at = phi [entry: source], [matched: at + step], [advance: at + 1]
         // copied = phi [entry: source], [matched: at + needle_length], [advance: copied]
         // output = phi [entry: destination], [matched: next_output], [advance: output]
         // jumpi at > last, finish, compare
@@ -1656,17 +1930,14 @@ impl FunctionLowerer<'_, '_> {
         let different = self.builder.xor(candidate_word, scan.needle_word);
         let different = self.builder.and(different, scan.prefix_mask);
         let prefix_equal = self.builder.eq_zero(different);
-        if let Some(needle_hash) = needle_hash {
-            // jumpi keccak256(at, needle_length) == needle_hash, matched, advance
-            let verify = self.builder.create_block();
-            self.builder.branch(prefix_equal, verify, advance);
-            self.builder.switch_to_block(verify);
-            let candidate_hash = self.builder.keccak256(at, scan.needle_length);
-            let equal = self.builder.eq(candidate_hash, needle_hash);
-            self.builder.branch(equal, matched, advance);
-        } else {
-            self.builder.branch(prefix_equal, matched, advance);
-        }
+        self.confirm_core_string_match(
+            prefix_equal,
+            at,
+            scan.needle_length,
+            confirm,
+            matched,
+            advance,
+        );
 
         // mcopy output, copied, at - copied
         // mcopy output + (at - copied), data(replacement), replacement_length
@@ -1676,10 +1947,15 @@ impl FunctionLowerer<'_, '_> {
         let after_run = self.builder.add(output, run);
         self.builder.mcopy_heap(after_run, scan.replacement_data, scan.replacement_length);
         let next_output = self.builder.add(after_run, scan.replacement_length);
-        let next_at = self.builder.add(at, scan.needle_length);
+        let next_copied = self.builder.add(at, scan.needle_length);
+        let next_at = if scan.step == scan.needle_length {
+            next_copied
+        } else {
+            self.builder.add(at, scan.step)
+        };
         self.builder.jump(header);
         self.builder.add_phi_incoming(at, matched, next_at);
-        self.builder.add_phi_incoming(copied, matched, next_at);
+        self.builder.add_phi_incoming(copied, matched, next_copied);
         self.builder.add_phi_incoming(output, matched, next_output);
 
         self.builder.switch_to_block(advance);
@@ -1692,6 +1968,15 @@ impl FunctionLowerer<'_, '_> {
 
         (header, copied, output)
     }
+}
+
+/// How a scan confirms that the needle's masked first word matched.
+#[derive(Clone, Copy)]
+enum MatchConfirm {
+    /// The masked word is the whole needle.
+    Prefix,
+    /// The candidate's hash must equal this hash of the needle.
+    Hash(ValueId),
 }
 
 /// Loop-invariant words of one replacement scan.
@@ -1707,6 +1992,9 @@ struct ReplaceScan {
     /// Keeps the needle's first `length % 32` bytes of a word.
     prefix_mask: ValueId,
     needle_length: ValueId,
+    /// How far a match moves the cursor: the needle's length, or one for an
+    /// empty needle, which matches at every offset.
+    step: ValueId,
     replacement_data: ValueId,
     replacement_length: ValueId,
 }
@@ -1724,6 +2012,9 @@ struct SearchScan {
     /// Keeps the needle's first `length % 32` bytes of a word.
     prefix_mask: ValueId,
     needle_length: ValueId,
+    /// How far a match moves the cursor: the needle's length, or one for an
+    /// empty needle, which matches at every offset.
+    step: ValueId,
 }
 
 /// Top-bit marks of one word's byte classes, from which runes are counted.
