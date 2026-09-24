@@ -16,7 +16,7 @@
 //! two ranges need no disjointness proof; `truncate` is a store to the length
 //! word, which the alias and value-numbering analyses already model.
 //!
-//! The `WordArrays` set operations merge with branch-free steps and move the
+//! The `WordArrays` set operations merge with one branch per step and move the
 //! remaining tail with `mcopy`. Their bodies' index and truncation checks
 //! cannot fail, because every committed element consumes an input element and
 //! the output holds as many as the inputs can supply, so the lowering leaves
@@ -302,18 +302,32 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Implements an open-addressed set over the array's canonical words.
     /// Slots hold non-zero input addresses so zero remains the empty marker.
-    /// The temporary table is compiler-owned and does not escape.
+    /// The temporary table is compiler-owned and does not escape. Up to six
+    /// words compare every pair instead: without a duplicate that is at most
+    /// fifteen comparisons, which cost less than sizing, clearing and filling
+    /// a table, and nothing is allocated.
     fn lower_core_array_has_duplicate(&mut self, input: ValueId) {
         let two = self.builder.imm(2);
         let length = self.builder.memory_object_len(input, MemoryObjectKind::DynamicArray);
         let small = self.builder.lt(length, two);
         let no_duplicate = self.builder.create_block();
-        let allocate = self.builder.create_block();
-        self.builder.branch(small, no_duplicate, allocate);
+        let sized = self.builder.create_block();
+        self.builder.branch(small, no_duplicate, sized);
 
         self.builder.switch_to_block(no_duplicate);
         let false_ = self.builder.imm_bool(false);
         self.builder.ret([false_]);
+
+        // branch (lt length, 7), pairwise, allocate
+        self.builder.switch_to_block(sized);
+        let seven = self.builder.imm(7);
+        let few = self.builder.lt(length, seven);
+        let pairwise = self.builder.create_block();
+        let allocate = self.builder.create_block();
+        self.builder.branch(few, pairwise, allocate);
+
+        self.builder.switch_to_block(pairwise);
+        self.lower_core_array_pairwise_duplicate(input, length);
 
         self.builder.switch_to_block(allocate);
         // Round 48 * length up to a power-of-two byte extent, then clear the
@@ -388,6 +402,72 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let next_slot = self.builder.and(next_slot, mask);
         self.builder.jump(probe_header);
         self.builder.add_phi_incoming(slot, collision, next_slot);
+
+        self.builder.switch_to_block(found);
+        let true_ = self.builder.imm_bool(true);
+        self.builder.ret([true_]);
+    }
+
+    /// Compares each word of a short array with every word after it. The caller
+    /// established at least two words, so every word but the last has a
+    /// successor and both loops test at the bottom.
+    fn lower_core_array_pairwise_duplicate(&mut self, input: ValueId, length: ValueId) {
+        // data = array data
+        // end = data + (length << 5)
+        // last = end - 32
+        let data = self.builder.memory_object_data(input, MemoryObjectKind::DynamicArray);
+        let data = self.builder.cast(data, MirType::I256);
+        let five = self.builder.imm(5);
+        let byte_length = self.builder.shl(five, length);
+        let end = self.builder.add(data, byte_length);
+        let word_size = self.builder.imm(32);
+        let last = self.builder.sub(end, word_size);
+        let entry = self.builder.current_block();
+        let outer = self.builder.create_block();
+        let inner = self.builder.create_block();
+        let inner_next = self.builder.create_block();
+        let outer_next = self.builder.create_block();
+        let done = self.builder.create_block();
+        let found = self.builder.create_block();
+        self.builder.jump(outer);
+
+        // outer:
+        //   cursor = phi [entry: data], [outer_next: after]
+        //   value = mload cursor
+        //   after = cursor + 32
+        self.builder.switch_to_block(outer);
+        let cursor = self.builder.phi(vec![(entry, data)]);
+        let value = self.builder.mload(cursor);
+        let after = self.builder.add(cursor, word_size);
+        self.builder.jump(inner);
+
+        // inner:
+        //   other = phi [outer: after], [inner_next: next_other]
+        //   branch (eq (mload other), value), found, inner_next
+        self.builder.switch_to_block(inner);
+        let other = self.builder.phi(vec![(outer, after)]);
+        let other_value = self.builder.mload(other);
+        let equal = self.builder.eq(other_value, value);
+        self.builder.branch(equal, found, inner_next);
+
+        // inner_next:
+        //   next_other = other + 32
+        //   branch (lt next_other, end), inner, outer_next
+        self.builder.switch_to_block(inner_next);
+        let next_other = self.builder.add(other, word_size);
+        let more_others = self.builder.lt(next_other, end);
+        self.builder.branch(more_others, inner, outer_next);
+        self.builder.add_phi_incoming(other, inner_next, next_other);
+
+        // outer_next: branch (lt after, last), outer, done
+        self.builder.switch_to_block(outer_next);
+        let more_cursors = self.builder.lt(after, last);
+        self.builder.branch(more_cursors, outer, done);
+        self.builder.add_phi_incoming(cursor, outer_next, after);
+
+        self.builder.switch_to_block(done);
+        let false_ = self.builder.imm_bool(false);
+        self.builder.ret([false_]);
 
         self.builder.switch_to_block(found);
         let true_ = self.builder.imm_bool(true);
@@ -518,20 +598,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// the merge can store, and the cursors never pass their arrays' ends.
     ///
     /// The result is allocated as the body allocates it, with the same panics,
-    /// but uninitialized. One merge step compares the heads `u` and `v`:
+    /// but uninitialized. One merge step compares the heads `u` and `v` and
+    /// takes one of three branches:
     ///
-    ///   union:        store (u > v ? v : u) and commit it
-    ///   intersection: store u, commit when u == v
-    ///   difference:   store u, commit when u < v
-    ///   a advances unless u > v; b advances unless u < v
+    ///   u == v: union and intersection store u; both cursors advance
+    ///   u < v:  union and difference store u; a advances
+    ///   u > v:  union stores v; b advances
     ///
-    /// Storing before deciding keeps the step free of branches. An uncommitted
-    /// store lands in the slot the next commit overwrites, which is inside the
-    /// allocation: each commit consumes at least one input element, and the
-    /// allocation holds as many elements as the inputs the operation can commit
-    /// from. Union then moves the rest of both inputs, and difference the rest of
-    /// `a`, with `mcopy`; the other input is exhausted. The final length counts
-    /// the committed words.
+    /// Each branch updates only the cursors it moves, which costs less per step
+    /// than computing every cursor's increment from the comparisons. Every
+    /// store consumes at least one input element, so the allocation, which
+    /// holds as many elements as the inputs the operation can store from, is
+    /// never exceeded. Union then moves the rest of both inputs, and difference
+    /// the rest of `a`, with `mcopy`; the other input is exhausted. The final
+    /// length counts the stored words. An output without capacity, empty for
+    /// every operation, returns its header before the cursors are set up. Each
+    /// step tests the cursors it leaves and continues straight into the next:
+    /// a nonzero capacity already shows that intersection has work, so its
+    /// first step needs no test at all.
     fn lower_core_array_set(
         &mut self,
         operation: SetOperation,
@@ -545,7 +629,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // capacity = union: a.length + b.length (panic 0x11 on overflow)
         //            intersection: min(a.length, b.length)
         //            difference: a.length
-        // c = new word[](capacity), uninitialized
         let capacity = match operation {
             SetOperation::Union => {
                 let sum = self.builder.add(a_length, b_length);
@@ -559,9 +642,31 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             SetOperation::Difference => a_length,
         };
-        let (output, _) = self
-            .builder
-            .alloc_dynamic_word_array(capacity, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+        // The merge stores the output's length once, after it knows it, so
+        // the allocation leaves the header unwritten.
+        // c = alloc (capacity + 1) * 32, uninitialized
+        let one = self.builder.imm(1);
+        let words = self.builder.checked_add(capacity, one);
+        let word = self.builder.imm(32);
+        let size = self.builder.checked_mul(words, word);
+        let output = self.builder.alloc_object(
+            size,
+            MemoryObjectLayout::WORD_ARRAY,
+            AllocationSemantics::SOLIDITY_UNINITIALIZED,
+        );
+
+        // An output with no capacity is empty, so it needs no merge.
+        // branch capacity == 0, empty, merge
+        // empty: mstore(c, 0); ret c
+        let empty = self.builder.create_block();
+        let merge = self.builder.create_block();
+        let no_capacity = self.builder.eq_zero(capacity);
+        self.builder.branch(no_capacity, empty, merge);
+        self.builder.switch_to_block(empty);
+        let zero = self.builder.imm(0);
+        self.builder.set_memory_object_len(output, zero, kind);
+        self.builder.ret([output]);
+        self.builder.switch_to_block(merge);
 
         // a_cursor = data(a); a_end = a_cursor + 32 * a.length
         // b_cursor = data(b); b_end = b_cursor + 32 * b.length
@@ -578,64 +683,112 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let out_start = self.builder.memory_object_data(output, kind);
         let out_start = self.builder.cast_word(out_start);
         let entry = self.builder.current_block();
-        let header = self.builder.create_block();
         let body = self.builder.create_block();
         let done = self.builder.create_block();
-        self.builder.jump(header);
 
-        // jumpi (a_cursor < a_end) & (b_cursor < b_end), body, done
-        self.builder.switch_to_block(header);
+        // The merge runs while both inputs have elements, and each step tests
+        // the cursors it leaves. A nonzero capacity already gives intersection
+        // two nonempty inputs and difference a nonempty `a`, so only the rest
+        // is tested on entry.
+        // intersection: jump body
+        // difference:   branch b.length != 0, body, done
+        // union:        branch a.length != 0 & b.length != 0, body, done
+        match operation {
+            SetOperation::Intersection => self.builder.jump(body),
+            SetOperation::Difference => {
+                let b_more = self.builder.ne_zero(b_length);
+                self.builder.branch(b_more, body, done);
+            }
+            SetOperation::Union => {
+                let a_more = self.builder.ne_zero(a_length);
+                let b_more = self.builder.ne_zero(b_length);
+                let both = self.builder.and(a_more, b_more);
+                self.builder.branch(both, body, done);
+            }
+        }
+
+        // body: out, a, b = phi [entry: starts], [each step: its cursors]
+        //       u = mload a_cursor; v = mload b_cursor; branch u == v, equal, unequal
+        self.builder.switch_to_block(body);
         let out_cursor = self.builder.phi(vec![(entry, out_start)]);
         let a_cursor = self.builder.phi(vec![(entry, a_start)]);
         let b_cursor = self.builder.phi(vec![(entry, b_start)]);
-        let a_more = self.builder.lt(a_cursor, a_end);
-        let b_more = self.builder.lt(b_cursor, b_end);
-        let more = self.builder.and(a_more, b_more);
-        self.builder.branch(more, body, done);
-
-        // u = mload a_cursor; v = mload b_cursor
-        // mstore out_cursor, stored; out_cursor += 32 * committed
-        // a_cursor += 32 * !(u > v); b_cursor += 32 * !(u < v)
-        self.builder.switch_to_block(body);
         let u = self.builder.mload(a_cursor);
         let v = self.builder.mload(b_cursor);
-        let (greater, less) = if signed {
-            (self.builder.sgt(u, v), self.builder.slt(u, v))
+        let equal = self.builder.eq(u, v);
+        let equal_block = self.builder.create_block();
+        let unequal = self.builder.create_block();
+        let a_arm = self.builder.create_block();
+        let b_arm = self.builder.create_block();
+        self.builder.branch(equal, equal_block, unequal);
+
+        // equal: union, intersection: mstore out, u; out += 32
+        //        a += 32; b += 32
+        self.builder.switch_to_block(equal_block);
+        let equal_out = if matches!(operation, SetOperation::Difference) {
+            out_cursor
         } else {
-            (self.builder.gt(u, v), self.builder.lt(u, v))
+            self.builder.mstore(out_cursor, u);
+            self.builder.add_u64_offset(out_cursor, 32)
         };
-        let (stored, committed) = match operation {
-            SetOperation::Union => (self.builder.select(greater, v, u), None),
-            SetOperation::Intersection => (u, Some(self.builder.eq(u, v))),
-            SetOperation::Difference => (u, Some(less)),
+        let equal_a = self.builder.add_u64_offset(a_cursor, 32);
+        let equal_b = self.builder.add_u64_offset(b_cursor, 32);
+        let equal_end = self.set_merge_step(equal_a, a_end, equal_b, b_end, body, done);
+
+        // unequal: branch u < v (signed: slt), a_arm, b_arm
+        self.builder.switch_to_block(unequal);
+        let less = if signed { self.builder.slt(u, v) } else { self.builder.lt(u, v) };
+        self.builder.branch(less, a_arm, b_arm);
+
+        // a_arm: union, difference: mstore out, u; out += 32
+        //        a += 32
+        self.builder.switch_to_block(a_arm);
+        let a_out = if matches!(operation, SetOperation::Intersection) {
+            out_cursor
+        } else {
+            self.builder.mstore(out_cursor, u);
+            self.builder.add_u64_offset(out_cursor, 32)
         };
-        self.builder.mstore(out_cursor, stored);
-        let next_out = match committed {
-            Some(committed) => {
-                let committed = self.builder.cast_word(committed);
-                let advance = self.builder.shl(five, committed);
-                self.builder.add(out_cursor, advance)
-            }
-            None => self.builder.add_u64_offset(out_cursor, 32),
+        let a_next = self.builder.add_u64_offset(a_cursor, 32);
+        let a_end_block = self.set_merge_step(a_next, a_end, b_cursor, b_end, body, done);
+
+        // b_arm: union: mstore out, v; out += 32
+        //        b += 32
+        self.builder.switch_to_block(b_arm);
+        let b_out = if matches!(operation, SetOperation::Union) {
+            self.builder.mstore(out_cursor, v);
+            self.builder.add_u64_offset(out_cursor, 32)
+        } else {
+            out_cursor
         };
-        let a_stays = self.builder.cast_word(greater);
-        let a_advance = self.builder.eq_zero(a_stays);
-        let a_advance = self.builder.cast_word(a_advance);
-        let a_advance = self.builder.shl(five, a_advance);
-        let next_a = self.builder.add(a_cursor, a_advance);
-        let b_stays = self.builder.cast_word(less);
-        let b_advance = self.builder.eq_zero(b_stays);
-        let b_advance = self.builder.cast_word(b_advance);
-        let b_advance = self.builder.shl(five, b_advance);
-        let next_b = self.builder.add(b_cursor, b_advance);
-        self.builder.jump(header);
-        self.builder.add_phi_incoming(out_cursor, body, next_out);
-        self.builder.add_phi_incoming(a_cursor, body, next_a);
-        self.builder.add_phi_incoming(b_cursor, body, next_b);
+        let b_next = self.builder.add_u64_offset(b_cursor, 32);
+        let b_end_block = self.set_merge_step(a_cursor, a_end, b_next, b_end, body, done);
+
+        let steps = [
+            (equal_end, equal_out, equal_a, equal_b),
+            (a_end_block, a_out, a_next, b_cursor),
+            (b_end_block, b_out, a_cursor, b_next),
+        ];
+        for &(block, out, a_next, b_next) in &steps {
+            self.builder.add_phi_incoming(out_cursor, block, out);
+            self.builder.add_phi_incoming(a_cursor, block, a_next);
+            self.builder.add_phi_incoming(b_cursor, block, b_next);
+        }
+
+        // done: out, a, b = phi [entry: starts (not intersection)], [each step: its cursors]
+        self.builder.switch_to_block(done);
+        let mut exits = steps.to_vec();
+        if !matches!(operation, SetOperation::Intersection) {
+            exits.push((entry, out_start, a_start, b_start));
+        }
+        let out_cursor =
+            self.builder.phi(exits.iter().map(|&(block, out, _, _)| (block, out)).collect());
+        let a_cursor = self.builder.phi(exits.iter().map(|&(block, _, a, _)| (block, a)).collect());
+        let b_cursor = self.builder.phi(exits.iter().map(|&(block, _, _, b)| (block, b)).collect());
 
         // union: mcopy the rest of a, then of b; difference: the rest of a
-        // len(c) = (out_cursor - out_start) / 32
-        self.builder.switch_to_block(done);
+        // len(c) = (out_cursor - c) / 32 - 1
+        // Measuring from `c` keeps the start cursor out of the loop's state.
         let mut out_end = out_cursor;
         let tails = match operation {
             SetOperation::Union => vec![(a_cursor, a_end), (b_cursor, b_end)],
@@ -647,10 +800,34 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.mcopy_heap(out_end, cursor, rest);
             out_end = self.builder.add(out_end, rest);
         }
-        let out_bytes = self.builder.sub(out_end, out_start);
-        let length = self.builder.shr(five, out_bytes);
+        let base = self.builder.cast_word(output);
+        let out_bytes = self.builder.sub(out_end, base);
+        let words = self.builder.shr(five, out_bytes);
+        let one = self.builder.imm(1);
+        let length = self.builder.sub(words, one);
         self.builder.set_memory_object_len(output, length, kind);
         self.builder.ret([output]);
+    }
+
+    /// Ends a set-merge step: continues at `body` while both cursors are
+    /// inside their arrays and leaves for `done` otherwise. Returns the block
+    /// the step ends in, for the phis both targets take.
+    fn set_merge_step(
+        &mut self,
+        a_cursor: ValueId,
+        a_end: ValueId,
+        b_cursor: ValueId,
+        b_end: ValueId,
+        body: BlockId,
+        done: BlockId,
+    ) -> BlockId {
+        // branch a_cursor < a_end & b_cursor < b_end, body, done
+        let a_more = self.builder.lt(a_cursor, a_end);
+        let b_more = self.builder.lt(b_cursor, b_end);
+        let more = self.builder.and(a_more, b_more);
+        let block = self.builder.current_block();
+        self.builder.branch(more, body, done);
+        block
     }
 
     /// Lowers every `groupSum` overload to one helper: keys compare as words.
@@ -1643,6 +1820,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// inside `a`, and a word ending at most one word into an object's data
     /// starts no lower than the object's own length word. The differences
     /// accumulate without an early exit, so a mismatch costs no branch per word.
+    /// The whole-word loop steps one cursor over `a`, reads `b` at a fixed
+    /// displacement and tests at the bottom behind one guard, so a range shorter
+    /// than a word skips the loop entirely.
     fn lower_core_equals_at(&mut self, operands: &[ValueId]) -> Option<ValueId> {
         let [a, offset, b] = *operands else { return None };
         let kind = MemoryObjectKind::Bytes;
@@ -1651,45 +1831,51 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // right = data(b)
         let count = self.builder.memory_object_len(b, kind);
         let left = self.core_checked_range(a, offset, Width::Dynamic(count));
+        let left = self.builder.cast_word(left);
         let right = self.builder.memory_object_data(b, kind);
+        let right = self.builder.cast_word(right);
 
-        // words = count >> 5
-        // loop w in 0..words: diff |= mload(left + 32w) ^ mload(right + 32w)
-        let five = self.builder.imm(5);
-        let words = self.builder.shr(five, count);
+        // rest = count & 31; words_end = left + (count - rest)
+        // delta = right - left
+        // branch left < words_end, body, tail
+        let low = self.builder.imm(31);
+        let rest = self.builder.and(count, low);
+        let whole = self.builder.sub(count, rest);
+        let words_end = self.builder.add(left, whole);
+        let delta = self.builder.sub(right, left);
+        let zero = self.builder.imm(0);
         let entry = self.builder.current_block();
-        let header = self.builder.create_block();
         let body = self.builder.create_block();
         let tail = self.builder.create_block();
-        self.builder.jump(header);
+        let any_word = self.builder.lt(left, words_end);
+        self.builder.branch(any_word, body, tail);
 
-        self.builder.switch_to_block(header);
-        let zero = self.builder.imm(0);
-        let word = self.builder.phi(vec![(entry, zero)]);
-        let diff = self.builder.phi(vec![(entry, zero)]);
-        let more = self.builder.lt(word, words);
-        self.builder.branch(more, body, tail);
-
+        // body:
+        //   cursor = phi [entry: left], [body: cursor + 32]
+        //   diff = phi [entry: 0], [body: diff | mload(cursor) ^ mload(cursor + delta)]
+        //   branch cursor + 32 < words_end, body, tail
         self.builder.switch_to_block(body);
-        let five = self.builder.imm(5);
-        let stride = self.builder.shl(five, word);
-        let left_word = self.builder.add(left, stride);
-        let left_word = self.builder.mload(left_word);
-        let right_word = self.builder.add(right, stride);
-        let right_word = self.builder.mload(right_word);
+        let cursor = self.builder.phi(vec![(entry, left)]);
+        let diff = self.builder.phi(vec![(entry, zero)]);
+        let left_word = self.builder.mload(cursor);
+        let right_cursor = self.builder.add(cursor, delta);
+        let right_word = self.builder.mload(right_cursor);
         let different = self.builder.xor(left_word, right_word);
         let next_diff = self.builder.or(diff, different);
-        let one = self.builder.imm(1);
-        let next_word = self.builder.add(word, one);
-        self.builder.jump(header);
-        self.builder.add_phi_incoming(word, body, next_word);
+        let next = self.builder.add_u64_offset(cursor, 32);
+        let more = self.builder.lt(next, words_end);
+        self.builder.branch(more, body, tail);
+        self.builder.add_phi_incoming(cursor, body, next);
         self.builder.add_phi_incoming(diff, body, next_diff);
 
-        // back = count - 32 (below the data start when count < 32)
-        // rest_mask = (1 << (8 * (count & 31))) - 1
-        // diff |= (mload(left + back) ^ mload(right + back)) & rest_mask
-        // result = diff == 0
+        // tail:
+        //   diff = phi [entry: 0], [body: next_diff]
+        //   back = count - 32 (below the data start when count < 32)
+        //   rest_mask = (1 << (8 * rest)) - 1
+        //   diff |= (mload(left + back) ^ mload(right + back)) & rest_mask
+        //   result = diff == 0
         self.builder.switch_to_block(tail);
+        let diff = self.builder.phi(vec![(entry, zero), (body, next_diff)]);
         let thirty_two = self.builder.imm(32);
         let back = self.builder.sub(count, thirty_two);
         let left_end = self.builder.add(left, back);
@@ -1697,8 +1883,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let right_end = self.builder.add(right, back);
         let right_end = self.builder.mload(right_end);
         let different = self.builder.xor(left_end, right_end);
-        let low = self.builder.imm(31);
-        let rest = self.builder.and(count, low);
         let three = self.builder.imm(3);
         let bits = self.builder.shl(three, rest);
         let one = self.builder.imm(1);
