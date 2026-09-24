@@ -243,16 +243,11 @@ bb29:
   dup 3
   dup 2
   mstore
-  dup 4
+  dup 2
+  dup 5
+  add
   calldatasize
-  sub
-  push 5
-  push 2
-  exp
-  swap 1
-  div
-  dup 4
-  gt
+  lt
   push bb8
   jumpi
   push 32

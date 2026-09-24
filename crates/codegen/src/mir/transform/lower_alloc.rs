@@ -29,23 +29,23 @@ impl MirPass for LowerAlloc {
 
     fn run_pass(
         &self,
-        _gcx: Gcx<'_>,
+        gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        lower_alloc(module)
+        lower_alloc(module, gcx.sess.opts.evm_version.has_bitwise_shifting())
     }
 }
 
-fn lower_alloc(module: &mut Module) -> bool {
+fn lower_alloc(module: &mut Module, has_bitwise_shifting: bool) -> bool {
     let mut changed = false;
     for func in module.functions.iter_mut() {
-        changed |= lower_function(func);
+        changed |= lower_function(func, has_bitwise_shifting);
     }
     changed
 }
 
-fn lower_function(func: &mut Function) -> bool {
+fn lower_function(func: &mut Function, has_bitwise_shifting: bool) -> bool {
     let has_abstract_memory = func.instructions().any(|inst| {
         matches!(func.inst(inst).kind, InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. })
     });
@@ -69,7 +69,7 @@ fn lower_function(func: &mut Function) -> bool {
             });
         if let Some((position, inst)) = checked {
             let result = func.inst_result_value(inst).expect("allocation must produce a value");
-            lower_checked_alloc(func, block, position, inst, result);
+            lower_checked_alloc(func, block, position, inst, result, has_bitwise_shifting);
             changed = true;
         }
         block_index += 1;
@@ -125,6 +125,7 @@ fn lower_checked_alloc(
     position: usize,
     inst: InstId,
     ptr: ValueId,
+    has_bitwise_shifting: bool,
 ) {
     let InstKind::Alloc { size, semantics, .. } = func.inst(inst).kind else { unreachable!() };
     debug_assert_eq!(semantics.failure, AllocationFailure::Panic);
@@ -147,14 +148,20 @@ fn lower_checked_alloc(
     builder.switch_to_block(block);
     rewrite_as_fmp_load(&mut builder, inst);
     let (size, align_overflow) = aligned_size(&mut builder, size, semantics.alignment);
+    // next = ptr + size
+    // invalid = or (zext (lt next, ptr)), (shr 64, next) [, zext align_overflow]
+    // branch ne invalid, 0, panic, continuation
     let next = builder.add(ptr, size);
     let bump_overflow = builder.lt(next, ptr);
-    let limit = builder.imm(EvmMemoryLayout::MAX_ALLOCATION_END);
-    let over_limit = builder.gt(next, limit);
+    let bump_overflow = builder.cast(bump_overflow, MirType::I256);
+    let over_limit =
+        builder.exceeds_bits_word(next, EvmMemoryLayout::ALLOCATION_END_BITS, has_bitwise_shifting);
     let mut invalid = builder.or(bump_overflow, over_limit);
     if let Some(align_overflow) = align_overflow {
+        let align_overflow = builder.cast(align_overflow, MirType::I256);
         invalid = builder.or(invalid, align_overflow);
     }
+    let invalid = builder.ne_zero(invalid);
     builder.branch(invalid, panic, continuation);
 
     let tail = std::mem::take(&mut builder.func_mut().blocks[continuation].instructions);

@@ -69,12 +69,9 @@ bb7:
   dup 3
   dup 2
   lt
-  push 0
-  not
-  push 192
+  dup 2
+  push 64
   shr
-  dup 3
-  gt
   or
   push bb46
   jumpi
@@ -297,11 +294,8 @@ bb41:
   dup 2
   add
   swap 2
-  push 0
-  not
-  push 192
+  push 64
   shr
-  lt
   swap 3
   dup 3
   gt
@@ -332,12 +326,9 @@ bb41:
   dup 2
   dup 2
   lt
-  push 0
-  not
-  push 192
+  dup 2
+  push 64
   shr
-  dup 3
-  gt
   or
   push bb46
   jumpi

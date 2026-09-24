@@ -1477,6 +1477,7 @@ impl LowerAbiCx {
                                 input_end,
                                 constructor,
                                 &mut current,
+                                self.has_bitwise_shifting,
                             );
                         } else if location == AbiParamLocation::Memory {
                             if !constructor
@@ -1703,6 +1704,7 @@ impl LowerAbiCx {
 
     /// Validates the immediate ABI shape of a dynamic aggregate without
     /// materializing its memory representation.
+    #[allow(clippy::too_many_arguments)]
     fn validate_dynamic_aggregate_argument(
         builder: &mut FunctionBuilder<'_>,
         ty: &crate::mir::AbiParamType,
@@ -1711,6 +1713,7 @@ impl LowerAbiCx {
         input_end: ValueId,
         constructor: bool,
         current: &mut BlockId,
+        has_bitwise_shifting: bool,
     ) {
         builder.switch_to_block(*current);
         let offset = Self::load_input_word(builder, head, constructor);
@@ -1723,6 +1726,7 @@ impl LowerAbiCx {
             current,
             RevertReason::InvalidTupleOffset,
             !constructor,
+            has_bitwise_shifting,
         );
 
         match ty {
@@ -1834,6 +1838,7 @@ impl LowerAbiCx {
                 current,
                 options.offset_reason,
                 to_calldata,
+                has_bitwise_shifting,
             )
         } else {
             head
@@ -1965,10 +1970,12 @@ impl LowerAbiCx {
                 }
                 let (ptr, layout, bytes) = if let Some(object) = checked_object {
                     let bytes = Self::checked_mul(builder, len, word, current);
+                    Self::guard_input_dynamic_array(builder, len, data, input_end, current, 32);
                     (object.0, object.1, bytes)
                 } else {
                     // bytes = len * 32; total = bytes + 32
-                    let bytes = Self::checked_word_array_bytes(builder, len, current);
+                    let bytes =
+                        Self::checked_word_array_bytes(builder, len, current, has_bitwise_shifting);
                     let total = builder.add(bytes, word);
                     let layout = crate::mir::MemoryObjectLayout::WORD_ARRAY;
                     let ptr = builder.alloc_object(
@@ -1977,9 +1984,9 @@ impl LowerAbiCx {
                         crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED,
                     );
                     builder.set_memory_object_len(ptr, len, layout.kind());
+                    Self::guard_input_word_array_end(builder, len, data, bytes, input_end, current);
                     (ptr, layout, bytes)
                 };
-                Self::guard_input_dynamic_array(builder, len, data, input_end, current, 32);
                 let source = builder.make_slice(data, bytes, location);
                 builder.memory_object_copy_from_slice(ptr, layout.kind(), source);
                 ptr
@@ -2018,12 +2025,15 @@ impl LowerAbiCx {
 
                 let copy_validated =
                     !constructor && validate_array_elements && Self::is_scalar_or_enum(element);
+                let element_head_size =
+                    element.checked_head_size().expect("ABI head size exceeds u64 range");
                 let (ptr, layout, bytes) = if let Some(object) = checked_object {
                     let bytes = Self::checked_mul(builder, len, word, current);
                     (object.0, object.1, bytes)
                 } else {
                     // bytes = len * 32; total = bytes + 32
-                    let bytes = Self::checked_word_array_bytes(builder, len, current);
+                    let bytes =
+                        Self::checked_word_array_bytes(builder, len, current, has_bitwise_shifting);
                     let total = builder.add(bytes, word);
                     let layout = crate::mir::MemoryObjectLayout::WORD_ARRAY;
                     let ptr = builder.alloc_object(
@@ -2034,18 +2044,28 @@ impl LowerAbiCx {
                     builder.set_memory_object_len(ptr, len, layout.kind());
                     (ptr, layout, bytes)
                 };
-                Self::guard_input_dynamic_array(
-                    builder,
-                    len,
-                    data_base,
-                    input_end,
-                    current,
-                    element.checked_head_size().expect("ABI head size exceeds u64 range"),
-                );
+                // One-word heads span the memory array's byte size in the input.
+                if checked_object.is_none() && element_head_size == 32 {
+                    Self::guard_input_word_array_end(
+                        builder, len, data_base, bytes, input_end, current,
+                    );
+                } else {
+                    Self::guard_input_dynamic_array(
+                        builder,
+                        len,
+                        data_base,
+                        input_end,
+                        current,
+                        element_head_size,
+                    );
+                }
                 if copy_validated {
-                    Self::validate_scalar_array(builder, data_base, element, len, current, options);
+                    // Copying first leaves the validation loop only its cursor and end
+                    // live; a failed element still reverts before anything returns.
+                    builder.switch_to_block(*current);
                     let source = builder.make_slice(data_base, bytes, SliceLocation::Calldata);
                     builder.memory_object_copy_from_slice(ptr, layout.kind(), source);
+                    Self::validate_scalar_array(builder, data_base, element, len, current, options);
                     return ptr;
                 }
 
@@ -2243,7 +2263,8 @@ impl LowerAbiCx {
         options: DecodeOptions<'_>,
         fmp: &mut ValueId,
     ) -> ValueId {
-        let DecodeOptions { constructor, input_end, head_checked, .. } = options;
+        let DecodeOptions { constructor, input_end, head_checked, has_bitwise_shifting, .. } =
+            options;
         if ty.is_scalar_word() {
             return Self::decode_source_scalar(builder, ty, head, current, options);
         }
@@ -2274,6 +2295,7 @@ impl LowerAbiCx {
                 current,
                 options.offset_reason,
                 to_calldata,
+                has_bitwise_shifting,
             )
         } else {
             head
@@ -2303,14 +2325,21 @@ impl LowerAbiCx {
                 let len = Self::load_input_word(builder, base, constructor);
                 let data = builder.add_u64_offset(base, 32);
                 *fmp = Self::replay_copy_allocation(builder, *fmp, len, true, current);
-                Self::guard_input_dynamic_array(
-                    builder,
-                    len,
-                    data,
-                    input_end,
-                    current,
-                    element_head_size,
-                );
+                if !constructor && element_head_size == 32 {
+                    builder.switch_to_block(*current);
+                    let word = builder.imm(32);
+                    let bytes = builder.mul(len, word);
+                    Self::guard_input_word_array_end(builder, len, data, bytes, input_end, current);
+                } else {
+                    Self::guard_input_dynamic_array(
+                        builder,
+                        len,
+                        data,
+                        input_end,
+                        current,
+                        element_head_size,
+                    );
+                }
                 let nested = nested.nested(RevertReason::InvalidCalldataArrayOffset);
                 Self::decode_view_elements(builder, element, data, len, current, nested, fmp);
                 builder.switch_to_block(*current);
@@ -2451,22 +2480,46 @@ impl LowerAbiCx {
         current: &mut BlockId,
         options: DecodeOptions<'_>,
     ) {
-        let word = builder.imm(32);
         builder.switch_to_block(*current);
-        builder.counted_loop(len, |builder, index| {
-            let offset = builder.mul(index, word);
-            let position = builder.add(data, offset);
-            let mut element_current = builder.current_block();
-            let _ = Self::decode_source_scalar(
-                builder,
-                element,
-                position,
-                &mut element_current,
-                options.checked(),
-            );
-            builder.switch_to_block(element_current);
-        });
-        *current = builder.current_block();
+        // end = data + len * 32
+        // branch data < end, body, done
+        let word = builder.imm(32);
+        let bytes = builder.mul(len, word);
+        let end = builder.add(data, bytes);
+        let data_word = builder.cast_word(data);
+        let end_word = builder.cast_word(end);
+        let nonempty = builder.lt(data_word, end_word);
+        let preheader = builder.current_block();
+        let body = builder.create_block();
+        let done = builder.create_block();
+        builder.branch(nonempty, body, done);
+
+        // body:
+        //   position = phi [preheader: data], [body: next]
+        //   validate(load position)
+        //   next = position + 32
+        //   branch next < end, body, done
+        builder.switch_to_block(body);
+        let position = builder.phi(vec![(preheader, data)]);
+        let mut element_current = builder.current_block();
+        let _ = Self::decode_source_scalar(
+            builder,
+            element,
+            position,
+            &mut element_current,
+            options.checked(),
+        );
+        builder.switch_to_block(element_current);
+        let next = builder.add(position, word);
+        let next_word = builder.cast_word(next);
+        let end_word = builder.cast_word(end);
+        let more = builder.lt(next_word, end_word);
+        let backedge = builder.current_block();
+        builder.branch(more, body, done);
+        builder.add_phi_incoming(position, backedge, next);
+
+        builder.switch_to_block(done);
+        *current = done;
     }
 
     fn decode_static_aggregate(
@@ -2721,6 +2774,30 @@ impl LowerAbiCx {
         *current = builder.revert_if(invalid, RevertReason::InvalidCalldataArrayStride);
     }
 
+    /// Checks that a decoded word array's `bytes` of elements from `data` lie
+    /// inside the input. The caller has bounded the length by `2^64 - 1` and
+    /// the head check put `data` at most at the input end, so `data + bytes`
+    /// cannot wrap and passes the end exactly when the quotient check of
+    /// [`Self::guard_input_dynamic_array`] fails, without a second shift.
+    fn guard_input_word_array_end(
+        builder: &mut FunctionBuilder<'_>,
+        len: ValueId,
+        data: ValueId,
+        bytes: ValueId,
+        input_end: ValueId,
+        current: &mut BlockId,
+    ) {
+        if builder.encodes_revert_reasons() {
+            Self::guard_input_dynamic_array(builder, len, data, input_end, current, 32);
+            return;
+        }
+        builder.switch_to_block(*current);
+        // revert_if gt (add data, bytes), input_end
+        let end = builder.add(data, bytes);
+        let invalid = builder.gt(end, input_end);
+        *current = builder.revert_if(invalid, RevertReason::InvalidCalldataArrayStride);
+    }
+
     fn decode_source_scalar(
         builder: &mut FunctionBuilder<'_>,
         ty: &crate::mir::AbiParamType,
@@ -2763,6 +2840,7 @@ impl LowerAbiCx {
         current: &mut BlockId,
         offset_reason: RevertReason,
         to_calldata: bool,
+        has_bitwise_shifting: bool,
     ) -> ValueId {
         builder.switch_to_block(*current);
         let target = builder.add(base, offset);
@@ -2803,11 +2881,24 @@ impl LowerAbiCx {
         // Every dynamic ABI value starts with a word-sized head. Check that
         // word while forming the absolute address so nested offsets cannot
         // wrap or require a second range guard in the value-specific decoder.
+        // A value decoded to memory tests the offset's width with a shift; a
+        // calldata slice keeps the comparison, so its wrapper stays made of
+        // word operations the dispatcher can take in.
+        // target_end = target + 32
+        // memory:   invalid = ne (or (shr 64, offset), zext (gt target_end, input_end)), 0
+        // calldata: invalid = or (gt offset, 2^64 - 1), (gt target_end, input_end)
         let target_end = builder.add_u64_offset(target, 32);
-        let max_offset = builder.imm(u64::MAX);
-        let overflow = builder.gt(offset, max_offset);
-        let out_of_range = builder.gt(target_end, input_end);
-        let invalid = builder.or(overflow, out_of_range);
+        let invalid = if to_calldata {
+            let overflow = builder.exceeds_bits(offset, 64, false);
+            let out_of_range = builder.gt(target_end, input_end);
+            builder.or(overflow, out_of_range)
+        } else {
+            let overflow = builder.exceeds_bits_word(offset, 64, has_bitwise_shifting);
+            let out_of_range = builder.gt(target_end, input_end);
+            let out_of_range = builder.cast(out_of_range, MirType::I256);
+            let invalid = builder.or(overflow, out_of_range);
+            builder.ne_zero(invalid)
+        };
         *current = builder.revert_if(invalid, RevertReason::InvalidCalldataArrayOffset);
         target
     }
@@ -2905,12 +2996,12 @@ impl LowerAbiCx {
         builder: &mut FunctionBuilder<'_>,
         len: ValueId,
         current: &mut BlockId,
+        has_bitwise_shifting: bool,
     ) -> ValueId {
         builder.switch_to_block(*current);
-        // panic_if len > 0xffffffffffffffff
+        // panic_if ne (shr 64, len), 0
         // bytes = mul len, 32
-        let limit = builder.imm(u64::MAX);
-        let too_long = builder.gt(len, limit);
+        let too_long = builder.exceeds_bits(len, 64, has_bitwise_shifting);
         builder.panic_if(too_long, PanicCode::MemoryAllocationOverflow);
         *current = builder.current_block();
         let word = builder.imm(32);

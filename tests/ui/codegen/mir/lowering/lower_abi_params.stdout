@@ -41,33 +41,34 @@
 +     v18 = calldataload v12
 +     v19 = add v12, v18
 +     v20 = add v19, 32
-+     v21 = gt v18, 0xffffffffffffffff
++     v21 = shr 64, v18
 +     v22 = gt v20, v9
-+     v23 = or v21, v22
-+     v24 = zext i1 v23 to i256
-+     jumpi v23, bb4, bb7
++     v23 = zext i1 v22 to i256
++     v24 = or v21, v23
++     v25 = ne v24, 0
++     jumpi v25, bb4, bb7
 +   bb7:
-+     v25 = calldataload v19
-+     v26 = add v19, 32
-+     v27 = gt v25, 0xffffffffffffffff
-+     jumpi v27, bb8, bb9
++     v26 = calldataload v19
++     v27 = add v19, 32
++     v28 = shr 64, v26
++     v29 = ne v28, 0
++     jumpi v29, bb8, bb9
 +   bb9:
-+     v28 = mul v25, 32
-+     v29 = add v28, 32
-+     v30 = alloc memoryarray<1>, exact, uninitialized, panic, v29
-+     set_memory_object_len memoryarray, v30, v25
-+     v31 = sub v9, v26
-+     v32 = shr 5, v31
-+     v33 = gt v25, v32
-+     jumpi v33, bb4, bb10
++     v30 = mul v26, 32
++     v31 = add v30, 32
++     v32 = alloc memoryarray<1>, exact, uninitialized, panic, v31
++     set_memory_object_len memoryarray, v32, v26
++     v33 = add v27, v30
++     v34 = gt v33, v9
++     jumpi v34, bb4, bb10
 +   bb10:
-+     v34 = make_calldata_slice v26, v28
-+     memory_object_copy_from_slice memoryarray, v30, v34
-+     v35 = ptrtoint memoryarray v30 to i256
-+     memory_object_store_field memorystruct<3>, v17, 0, v35
-+     v36 = add v12, 32
-+     v37 = calldataload v36
-+     memory_object_store_field memorystruct<3>, v17, 1, v37
++     v35 = make_calldata_slice v27, v30
++     memory_object_copy_from_slice memoryarray, v32, v35
++     v36 = ptrtoint memoryarray v32 to i256
++     memory_object_store_field memorystruct<3>, v17, 0, v36
++     v37 = add v12, 32
++     v38 = calldataload v37
++     memory_object_store_field memorystruct<3>, v17, 1, v38
 +     memory_object_store_field memorystruct<3>, v17, 2, v12
 +     jump bb1
 +   bb1:
@@ -83,9 +84,9 @@
       v8 = add v4, v7
 -     ret v8
 +     mstore 128, v8
-+     v38 = add 128, 32
-+     v39 = sub v38, 128
-+     returndata 128, v39
++     v39 = add 128, 32
++     v40 = sub v39, 128
++     returndata 128, v40
 +   bb8:
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)

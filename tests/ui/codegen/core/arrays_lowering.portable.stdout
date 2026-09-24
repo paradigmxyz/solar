@@ -22,55 +22,61 @@ fn @shorten() [selector=0xf0187838, abi_wrapper, inline_assembly, pure] {
     v6 = calldataload 4
     v7 = add v6, 4
     v8 = add v7, 32
-    v9 = gt v6, 0xffffffffffffffff
+    v9 = shr 64, v6
     v10 = gt v8, v4
-    v11 = or v9, v10
-    jumpi v11, bb1, bb3
+    v11 = zext i1 v10 to i256
+    v12 = or v9, v11
+    v13 = ne v12, 0
+    jumpi v13, bb1, bb3
   bb3:
-    v13 = calldataload v7
-    v15 = gt v13, 0xffffffffffffffff
-    jumpi v15, bb4, bb5
+    v14 = calldataload v7
+    v16 = shr 64, v14
+    v17 = ne v16, 0
+    jumpi v17, bb4, bb5
   bb5:
-    v16 = shl 5, v13
-    v17 = add v16, 32
-    v33 = mload 64 !metadata(memory=scratch)
-    v18 = inttoptr i256 v33 to memptr !metadata(memory=scratch)
-    v34 = add v33, v17
-    v35 = lt v34, v33
-    v36 = gt v34, 0xffffffffffffffff
-    v37 = or v35, v36
-    jumpi v37, bb4, bb7
+    v18 = shl 5, v14
+    v19 = add v18, 32
+    v34 = mload 64 !metadata(memory=scratch)
+    v20 = inttoptr i256 v34 to memptr !metadata(memory=scratch)
+    v35 = add v34, v19
+    v36 = lt v35, v34
+    v37 = zext i1 v36 to i256
+    v38 = shr 64, v35
+    v39 = or v37, v38
+    v40 = ne v39, 0
+    jumpi v40, bb4, bb7
   bb7:
-    mstore 64, v34 !metadata(memory=scratch)
-    mstore v33, v13
-    v19 = sub v4, v8
-    v20 = shr 5, v19
-    v21 = gt v13, v20
-    jumpi v21, bb1, bb6
+    mstore 64, v35 !metadata(memory=scratch)
+    mstore v34, v14
+    v21 = add v8, v18
+    v22 = gt v21, v4
+    jumpi v22, bb1, bb6
   bb6:
-    v27 = add v33, 32
-    calldatacopy v27, v8, v16
-    v39 = ptrtoint memptr v18 to i256
-    v40 = mload v39
-    v41 = gt arg1, v40
-    jumpi v41, bb9, bb8
+    v28 = add v34, 32
+    calldatacopy v28, v8, v18
+    v41 = ptrtoint memptr v20 to i256
+    v42 = mload v41
+    v43 = gt arg1, v42
+    jumpi v43, bb9, bb8
   bb8:
-    mstore v39, arg1
-    v1 = mload v33
-    mstore 128, v13
+    mstore v41, arg1
+    v1 = mload v34
+    mstore 128, v14
     mstore 160, v1
     returndata 128, 64
   bb9:
-    v42 = mload 64
-    v43 = add v42, 32
-    v44 = lt v43, v42
-    v45 = gt v43, 0xffffffffffffffff
-    v46 = or v44, v45
-    jumpi v46, bb11, bb10
+    v44 = mload 64
+    v45 = add v44, 32
+    v46 = lt v45, v44
+    v47 = zext i1 v46 to i256
+    v48 = shr 64, v45
+    v49 = or v47, v48
+    v50 = ne v49, 0
+    jumpi v50, bb11, bb10
   bb10:
-    mstore 64, v43
-    mstore v42, 0
-    mstore v42, 0
+    mstore 64, v45
+    mstore v44, 0
+    mstore v44, 0
     mstore 0, 0x4e487b71
     mstore 32, 50
     revert 28, 36

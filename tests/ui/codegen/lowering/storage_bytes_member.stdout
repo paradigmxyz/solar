@@ -662,9 +662,9 @@ bb64:
   dup 2
   dup 2
   lt
-  push 0xffffffffffffffff
-  dup 3
-  gt
+  dup 2
+  push 64
+  shr
   or
   push bb72
   jumpi
