@@ -76,6 +76,10 @@ pub(crate) fn did_change_text_document(
             };
             apply_document_changes(contents, params.content_changes)
         };
+        let Some(new_contents) = new_contents else {
+            error!(?path, "invalid DidChangeTextDocument range");
+            return ControlFlow::Continue(());
+        };
 
         let changed = state.vfs.write().set_file_contents_with_version(
             path,

@@ -84,6 +84,11 @@ benchmarks](https://codspeed.io/paradigmxyz/solar), which bypass the LSP schedul
 and debounce. Those benchmarks use separate workloads; neither result is derived
 by subtracting a fixed delay from the other.
 
+For in-process edit-to-response latency while analysis is pending, use the separate
+[`lsp_pending` walltime benchmark](../../crates/lsp/README.md#pending-requests).
+It retains per-request samples and includes production analysis scheduling, but excludes
+JSON-RPC transport and does not use this adapter's session comparison or regression verdict.
+
 The renderer first computes nearest-rank p50 and p95 values inside each session.
 The displayed base and head values are means of those per-session percentiles;
 they are descriptive values, not percentiles from 100 pooled request samples.

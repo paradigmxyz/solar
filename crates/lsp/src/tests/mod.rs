@@ -51,6 +51,7 @@ mod import_definition;
 mod indexing;
 mod inlay_hint;
 mod interactive_analysis;
+mod point_queries;
 #[path = "protocol_trace.rs"]
 mod protocol_trace_tests;
 mod references;
@@ -1604,6 +1605,122 @@ fn did_change_tracks_the_request_source_until_analysis_publishes() {
         assert!(state.analysis_commit.lock().natspec_pending_source_changes.is_empty());
         assert!(state.natspec_semantics_are_usable(&other_uri));
     });
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn did_change_clamps_positions_before_analysis_and_rename() {
+    for (position, text, expected, rename_position) in [
+        (
+            Position::new(0, 5),
+            "\n// inserted",
+            "//😀\n// inserted\ncontract C {}",
+            Position::new(2, 9),
+        ),
+        (
+            Position::new(0, u32::MAX),
+            "\n// inserted",
+            "//😀\n// inserted\ncontract C {}",
+            Position::new(2, 9),
+        ),
+        (
+            Position::new(99, 0),
+            "\ncontract Added {}",
+            "//😀\ncontract C {}\ncontract Added {}",
+            Position::new(1, 9),
+        ),
+        (
+            Position::new(u32::MAX, u32::MAX),
+            "\ncontract Added {}",
+            "//😀\ncontract C {}\ncontract Added {}",
+            Position::new(1, 9),
+        ),
+    ] {
+        let fixture = support::RequestFixture::new(
+            "//- /Clamped.sol open\n//😀\ncontract $1C {}",
+            "/Clamped.sol",
+        );
+        let (mut state, mut rename_params) = fixture.rename_state_and_params("$1", "Renamed");
+        let uri = rename_params.text_document_position.text_document.uri.clone();
+        let path = VfsPath::from(fixture.project_path("/Clamped.sol"));
+        let result = crate::handlers::did_change_text_document(
+            &mut state,
+            DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier::new(uri.clone(), 2),
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: Some(Range::new(position, position)),
+                    range_length: None,
+                    text: text.into(),
+                }],
+            },
+        );
+        assert!(result.is_continue());
+        {
+            let vfs = state.vfs.read();
+            snapbox::assert_data_eq!(vfs.get_file_contents(&path).unwrap().to_string(), expected);
+            assert_eq!(vfs.get_file_version(&path), Some(2));
+        }
+
+        rename_params.text_document_position.position = rename_position;
+        let edit = tokio::time::timeout(
+            ASYNC_TEST_TIMEOUT,
+            crate::handlers::rename(&mut state, rename_params),
+        )
+        .await
+        .expect("rename should finish after the clamped change")
+        .unwrap()
+        .expect("the current contract should remain renamable");
+        assert_eq!(
+            edit.changes.unwrap()[&uri],
+            [lsp_types::TextEdit::new(
+                Range::new(
+                    rename_position,
+                    Position::new(rename_position.line, rename_position.character + 1),
+                ),
+                "Renamed".into(),
+            )]
+        );
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn did_change_rejects_invalid_ranges_without_applying_a_partial_batch() {
+    for invalid_range in [
+        Range::new(Position::new(0, 3), Position::new(0, 3)),
+        Range::new(Position::new(0, 4), Position::new(0, 2)),
+    ] {
+        let fixture = support::RequestFixture::new(
+            "//- /Invalid.sol open\n//😀\ncontract $1C {}",
+            "/Invalid.sol",
+        );
+        let mut state = fixture.state();
+        let (uri, _) = fixture.marker_location("$1");
+        let path = VfsPath::from(fixture.project_path("/Invalid.sol"));
+        let result = crate::handlers::did_change_text_document(
+            &mut state,
+            DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier::new(uri, 2),
+                content_changes: vec![
+                    TextDocumentContentChangeEvent {
+                        range: Some(Range::new(Position::new(1, 9), Position::new(1, 10))),
+                        range_length: None,
+                        text: "D".into(),
+                    },
+                    TextDocumentContentChangeEvent {
+                        range: Some(invalid_range),
+                        range_length: None,
+                        text: "invalid".into(),
+                    },
+                ],
+            },
+        );
+        assert!(result.is_continue());
+        let vfs = state.vfs.read();
+        snapbox::assert_data_eq!(
+            vfs.get_file_contents(&path).unwrap().to_string(),
+            "//😀\ncontract C {}"
+        );
+        assert_eq!(vfs.get_file_version(&path), Some(0));
+    }
 }
 
 #[test]
