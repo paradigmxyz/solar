@@ -837,7 +837,11 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         }
 
         let initializer = if flags.contains(VarFlags::INITIALIZER) && self.eat(TokenKind::Eq) {
-            Some(self.parse_expr()?)
+            Some(if flags.contains(VarFlags::RECOVER_INITIALIZER) {
+                self.parse_local_initializer()?
+            } else {
+                self.parse_expr()?
+            })
         } else {
             None
         };
@@ -1157,6 +1161,8 @@ bitflags::bitflags! {
 
         const INITIALIZER = 1 << 12;
         const SEMI        = 1 << 13;
+        /// Keep known local bindings after an initializer error in a standalone statement.
+        const RECOVER_INITIALIZER = 1 << 14;
 
         const STRUCT       = Self::NAME.bits();
         const ERROR        = 0;

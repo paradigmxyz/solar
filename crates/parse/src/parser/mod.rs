@@ -1343,12 +1343,31 @@ mod tests {
                     &sess,
                     &arena,
                     "test.sol".to_string().into(),
-                    "contract C { function f() external { uint x = * 2; } }",
+                    "contract C { function f() external { uint x = * 2; x = 3; } }",
                 )
                 .unwrap();
                 let result = parser.parse_file().map_err(|error| error.emit());
                 assert_eq!(result.is_ok(), recover);
                 assert!(sess.dcx.has_errors().is_err());
+                if let Ok(unit) = result {
+                    let ast::ItemKind::Contract(contract) = &unit.items[ast::ItemId::new(0)].kind
+                    else {
+                        panic!("expected contract");
+                    };
+                    let ast::ItemKind::Function(function) = &contract.body[0].kind else {
+                        panic!("expected function");
+                    };
+                    let stmts = &function.body.as_ref().unwrap().stmts;
+                    assert_eq!(stmts.len(), 2);
+                    let ast::StmtKind::DeclSingle(var) = &stmts[0].kind else {
+                        panic!("expected recovered local declaration");
+                    };
+                    assert!(matches!(
+                        var.initializer.as_ref().unwrap().kind,
+                        ast::ExprKind::Err(_)
+                    ));
+                    assert!(matches!(stmts[1].kind, ast::StmtKind::Expr(_)));
+                }
             });
         }
     }

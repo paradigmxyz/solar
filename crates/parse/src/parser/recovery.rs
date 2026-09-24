@@ -1,4 +1,8 @@
-//! Interactive recovery skips a failed statement or declaration as a whole.
+//! Interactive recovery skips failed constructs without changing their surrounding scope.
+//!
+//! Standalone local declarations with a parsed type and name keep their bindings when an
+//! initializer fails: the malformed initializer becomes an error expression. Other failed
+//! statements and declarations are skipped as a whole, including for-loop initializers.
 //!
 //! The normal parser only records a token cursor. After an error, a separate cursor scans the
 //! original tokens, including the consumed prefix, so semicolons in a `for` header cannot become
@@ -7,8 +11,12 @@
 //! rest of the enclosing block; losing annotations is preferable to assigning the wrong scope.
 
 use super::{PARSER_RECURSION_LIMIT, Parser};
+use crate::PResult;
 use smallvec::SmallVec;
-use solar_ast::token::{Delimiter, Token, TokenKind};
+use solar_ast::{
+    Box, Expr, ExprKind,
+    token::{Delimiter, Token, TokenKind},
+};
 use solar_interface::{kw, sym};
 
 /// The current token can be supplied by `bump_with`, so retain it separately from the token index.
@@ -69,6 +77,37 @@ impl Parser<'_, '_, '_> {
         self.finish_recovery();
         while self.recovery_point().position() < end && !self.token.is_eof() {
             self.bump();
+        }
+    }
+}
+
+impl<'sess, 'ast> Parser<'sess, 'ast, '_> {
+    /// Keep a parsed local declaration when only its initializer is malformed. Scan from the
+    /// initializer's start so delimiters already consumed by the expression parser still count.
+    /// For-loop initializers deliberately use the enclosing statement's recovery instead.
+    pub(super) fn parse_local_initializer(&mut self) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
+        let start = self.recovery_point();
+        match self.parse_expr() {
+            Ok(expr) => Ok(expr),
+            Err(err) if self.recover_incomplete_input => {
+                let mut scanner = Scanner { tokens: &self.tokens, point: start };
+                // An entirely missing initializer must not consume a following declaration.
+                if scanner.is_item_start()
+                    || !scanner.sequence(false, false)
+                    || scanner.point.position() < self.recovery_point().position()
+                {
+                    return Err(err);
+                }
+                let end = scanner.point.position();
+                let guar = err.emit();
+                self.finish_recovery();
+                while self.recovery_point().position() < end && !self.token.is_eof() {
+                    self.bump();
+                }
+                let span = start.token.span.shrink_to_lo().to(self.token.span.shrink_to_lo());
+                Ok(self.alloc(Expr { span, kind: ExprKind::Err(guar) }))
+            }
+            Err(err) => Err(err),
         }
     }
 }
@@ -178,11 +217,11 @@ impl Scanner<'_> {
                 self.bump();
                 self.delimited(Delimiter::Brace)
             }
-            TokenKind::Ident(kw::Assembly) => self.sequence(true),
+            TokenKind::Ident(kw::Assembly) => self.sequence(true, true),
             TokenKind::Ident(kw::Else | kw::Catch) | TokenKind::CloseDelim(_) | TokenKind::Eof => {
                 false
             }
-            _ => self.sequence(false),
+            _ => self.sequence(false, true),
         }
     }
 
@@ -208,12 +247,13 @@ impl Scanner<'_> {
             ) => true,
             _ => false,
         };
-        self.sequence(body)
+        self.sequence(body, true)
     }
 
     /// Only declarations and assembly end at a body brace. Expression call options, named
     /// arguments, imports, and using lists continue through their braces to a semicolon.
-    fn sequence(&mut self, body: bool) -> bool {
+    /// Initializer recovery leaves that semicolon for the enclosing statement parser.
+    fn sequence(&mut self, body: bool, consume_semi: bool) -> bool {
         let mut first = true;
         loop {
             if !first
@@ -225,7 +265,9 @@ impl Scanner<'_> {
             first = false;
             match self.point.token.kind {
                 TokenKind::Semi => {
-                    self.bump();
+                    if consume_semi {
+                        self.bump();
+                    }
                     return true;
                 }
                 TokenKind::CloseDelim(Delimiter::Brace) | TokenKind::Eof => return true,
