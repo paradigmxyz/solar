@@ -53,8 +53,8 @@ fn @root() [selector=0xe56bf027, abi_wrapper, pure] {
     jumpi v14, bb3, bb1
   bb1:
     v15 = phi [bb7: 0], [bb5: v10]
-    mstore 128, v15
-    returndata 128, 32
+    mstore 0, v15 !metadata(memory=scratch)
+    returndata 0, 32
   bb6:
     revert 0, 0
 }

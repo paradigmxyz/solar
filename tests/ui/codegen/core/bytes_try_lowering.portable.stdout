@@ -16,14 +16,14 @@ types:
 fn @try1() [selector=0x7c4fe00c, abi_wrapper, pure] {
   bb0:
     v46 = icall @decode_calldata_type, 4
-    v61 = ptrtoint memptr v46 to i256
-    v5 = mload v61
+    v60 = ptrtoint memptr v46 to i256
+    v5 = mload v60
     v6 = gt arg1, v5
     v8 = eq v5, arg1
     v43 = or v6, v8
     jumpi v43, bb1, bb2
   bb2:
-    v57 = add v61, 32
+    v56 = add v60, 32
     jump bb3
   bb3:
     v15 = phi [bb2: 0], [bb6: v27]
@@ -37,10 +37,10 @@ fn @try1() [selector=0x7c4fe00c, abi_wrapper, pure] {
   bb5:
     tail_call @revert_stub
   bb6:
-    v58 = add v57, v32
-    v59 = mload v58
-    v60 = byte 0, v59
-    v22 = shl 248, v60
+    v57 = add v56, v32
+    v58 = mload v57
+    v59 = byte 0, v58
+    v22 = shl 248, v59
     v34 = shl 3, v16
     v24 = shr v34, v22
     v25 = and v24, 0xff00000000000000000000000000000000000000000000000000000000000000
@@ -49,34 +49,34 @@ fn @try1() [selector=0x7c4fe00c, abi_wrapper, pure] {
     v41 = add v16, 1
     jump bb3
   bb1:
-    v54 = phi [bb0: 0], [bb3: 1]
-    v55 = phi [bb0: 0], [bb3: v15]
-    v49 = and v55, 0xff00000000000000000000000000000000000000000000000000000000000000
-    mstore 128, v54
-    mstore 160, v49
-    returndata 128, 64
+    v53 = phi [bb0: 0], [bb3: 1]
+    v54 = phi [bb0: 0], [bb3: v15]
+    v49 = and v54, 0xff00000000000000000000000000000000000000000000000000000000000000
+    mstore 0, v53
+    mstore 32, v49 !metadata(memory=scratch)
+    returndata 0, 64
 }
 
 fn @try4() [selector=0x7f498037, abi_wrapper, pure] {
   bb0:
     v7 = icall @decode_calldata_type, 4
-    v15 = icall @tryReadBytes4, v7, arg1
-    v19 = mload 32 !metadata(memory=scratch)
-    v17 = add v19, 32
-    v18 = mload v17
-    v10 = and v18, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v9 = ne v15, 0
+    v14 = icall @tryReadBytes4, v7, arg1
+    v18 = mload 32 !metadata(memory=scratch)
+    v16 = add v18, 32
+    v17 = mload v16
+    v10 = and v17, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v9 = ne v14, 0
     v11 = zext i1 v9 to i256
-    mstore 128, v11
-    mstore 160, v10
-    returndata 128, 64
+    mstore 0, v11 !metadata(memory=scratch)
+    mstore 32, v10 !metadata(memory=scratch)
+    returndata 0, 64
 }
 
 fn @try32() [selector=0xf00ebb05, abi_wrapper, pure] {
   bb0:
     v43 = icall @decode_calldata_type, 4
-    v57 = ptrtoint memptr v43 to i256
-    v5 = mload v57
+    v56 = ptrtoint memptr v43 to i256
+    v5 = mload v56
     v6 = gt arg1, v5
     jumpi v6, bb1, bb2
   bb2:
@@ -84,7 +84,7 @@ fn @try32() [selector=0xf00ebb05, abi_wrapper, pure] {
     v8 = lt v28, 32
     jumpi v8, bb1, bb3
   bb3:
-    v53 = add v57, 32
+    v52 = add v56, 32
     jump bb4
   bb4:
     v15 = phi [bb3: 0], [bb7: v25]
@@ -93,10 +93,10 @@ fn @try32() [selector=0xf00ebb05, abi_wrapper, pure] {
     jumpi v17, bb5, bb1
   bb5:
     v30 = add arg1, v16
-    v54 = add v53, v30
-    v55 = mload v54
-    v56 = byte 0, v55
-    v22 = shl 248, v56
+    v53 = add v52, v30
+    v54 = mload v53
+    v55 = byte 0, v54
+    v22 = shl 248, v55
     v32 = shl 3, v16
     v33 = eq v16, 0
     v34 = div v32, v16
@@ -113,18 +113,18 @@ fn @try32() [selector=0xf00ebb05, abi_wrapper, pure] {
     v39 = add v16, 1
     jump bb4
   bb1:
-    v50 = phi [bb0: 0], [bb2: 0], [bb4: 1]
-    v51 = phi [bb0: 0], [bb2: 0], [bb4: v15]
-    mstore 128, v50
-    mstore 160, v51
-    returndata 128, 64
+    v49 = phi [bb0: 0], [bb2: 0], [bb4: 1]
+    v50 = phi [bb0: 0], [bb2: 0], [bb4: v15]
+    mstore 0, v49
+    mstore 32, v50
+    returndata 0, 64
 }
 
 fn @tryWord() [selector=0xdc133dec, abi_wrapper, pure] {
   bb0:
     v36 = icall @decode_calldata_type, 4
-    v50 = ptrtoint memptr v36 to i256
-    v5 = mload v50
+    v49 = ptrtoint memptr v36 to i256
+    v5 = mload v49
     v6 = gt arg1, v5
     jumpi v6, bb1, bb2
   bb2:
@@ -132,7 +132,7 @@ fn @tryWord() [selector=0xdc133dec, abi_wrapper, pure] {
     v8 = lt v28, 32
     jumpi v8, bb1, bb3
   bb3:
-    v46 = add v50, 32
+    v45 = add v49, 32
     jump bb4
   bb4:
     v15 = phi [bb3: 0], [bb5: v25]
@@ -142,44 +142,44 @@ fn @tryWord() [selector=0xdc133dec, abi_wrapper, pure] {
   bb5:
     v18 = shl 8, v15
     v30 = add arg1, v16
-    v47 = add v46, v30
-    v48 = mload v47
-    v49 = byte 0, v48
-    v25 = or v18, v49
+    v46 = add v45, v30
+    v47 = mload v46
+    v48 = byte 0, v47
+    v25 = or v18, v48
     v32 = add v16, 1
     jump bb4
   bb1:
-    v43 = phi [bb0: 0], [bb2: 0], [bb4: 1]
-    v44 = phi [bb0: 0], [bb2: 0], [bb4: v15]
-    mstore 128, v43
-    mstore 160, v44
-    returndata 128, 64
+    v42 = phi [bb0: 0], [bb2: 0], [bb4: 1]
+    v43 = phi [bb0: 0], [bb2: 0], [bb4: v15]
+    mstore 0, v42
+    mstore 32, v43
+    returndata 0, 64
 }
 
 fn @guarded() [selector=0xd0dcc2fe, abi_wrapper, pure] {
   bb0:
     v11 = icall @decode_calldata_type, 4
-    v23 = mload 64 !metadata(memory=scratch)
-    v0 = inttoptr i256 v23 to memptr !metadata(memory=scratch)
-    v24 = add v23, 64
-    mstore 64, v24 !metadata(memory=scratch)
-    mstore v23, 4
-    v22 = add v23, 32
-    mstore v22, 0x1122334400000000000000000000000000000000000000000000000000000000
-    v15 = icall @tryReadBytes4, v11, arg1
-    v19 = mload 32 !metadata(memory=scratch)
-    v17 = add v19, 32
-    v18 = mload v17
-    v6 = ne v15, 0
+    v22 = mload 64 !metadata(memory=scratch)
+    v0 = inttoptr i256 v22 to memptr !metadata(memory=scratch)
+    v23 = add v22, 64
+    mstore 64, v23 !metadata(memory=scratch)
+    mstore v22, 4
+    v21 = add v22, 32
+    mstore v21, 0x1122334400000000000000000000000000000000000000000000000000000000
+    v14 = icall @tryReadBytes4, v11, arg1
+    v18 = mload 32 !metadata(memory=scratch)
+    v16 = add v18, 32
+    v17 = mload v16
+    v6 = ne v14, 0
     jumpi v6, bb2, bb1
   bb1:
     v7 = icall @readBytes4, v0, 0
     jump bb2
   bb2:
-    v8 = phi [bb0: v18], [bb1: v7]
+    v8 = phi [bb0: v17], [bb1: v7]
     v12 = and v8, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, v12
-    returndata 128, 32
+    mstore 0, v12 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @readBytes4(arg0: memptr, arg1: i256) -> i256 [may_return_memory, pure] {

@@ -20,8 +20,8 @@ fn @accumulate() [selector=0x4256913b, abi_wrapper, pure] {
     v7 = lt v6, arg0
     jumpi v7, bb3, bb2
   bb2:
-    mstore 128, v5
-    returndata 128, 32
+    mstore 0, v5 !metadata(memory=scratch)
+    returndata 0, 32
   bb3:
     v10 = add v5, v6
     v11 = lt v10, v5
@@ -37,12 +37,12 @@ fn @accumulate() [selector=0x4256913b, abi_wrapper, pure] {
 
 fn @add() [selector=0x771602f7, abi_wrapper, pure] {
   bb0:
-    v5 = add arg0, arg1
-    v6 = lt v5, arg0
-    jumpi v6, bb1, bb2
+    v4 = add arg0, arg1
+    v5 = lt v4, arg0
+    jumpi v5, bb1, bb2
   bb2:
-    mstore 128, v5
-    returndata 128, 32
+    mstore 0, v4
+    returndata 0, 32
   bb1:
     tail_call @panicArithmetic
 }

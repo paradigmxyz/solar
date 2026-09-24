@@ -36,13 +36,13 @@ bb25 [cold]:
 bb5:
   push 0
   sload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb6:
-  push 352
+  push 320
   push 64
   mstore
   push 36
@@ -160,10 +160,10 @@ bb6:
   dup 2
   mod
   dup 3
-  push 288
+  push 256
   mstore
   dup 4
-  push 224
+  push 192
   mstore
   push 64
   mload
@@ -222,14 +222,14 @@ bb27:
   jump bb38
 bb38:
   dup 1
-  push 320
+  push 288
   mstore
   dup 1
   add
   dup 1
   push 1
   shr
-  push 320
+  push 288
   mload
   sub
   push bb25
@@ -264,7 +264,7 @@ bb18 [continuation]:
   mload
   push 160
   mstore
-  push 256
+  push 224
   mstore
   push 4
   calldataload
@@ -314,13 +314,13 @@ bb41:
   push 96
   add
   mload
-  push 320
+  push 288
   mstore
   push bb43
   jump bb58
 bb58:
   push 3
-  push 320
+  push 288
   mload
   mod
   push 0
@@ -336,7 +336,7 @@ bb58:
   push 0
   sstore
   push 97
-  push 320
+  push 288
   mload
   mod
   swap 1
@@ -360,7 +360,7 @@ bb19 [continuation]:
   mstore
   push 0
   sload
-  push 224
+  push 192
   mload
   dup 2
   add
@@ -371,9 +371,9 @@ bb19 [continuation]:
   jumpi
   push 0
   sstore
-  push 224
+  push 192
   mload
-  push 288
+  push 256
   mload
   dup 2
   add
@@ -382,7 +382,7 @@ bb19 [continuation]:
   lt
   push bb25
   jumpi
-  push 256
+  push 224
   mload
   dup 2
   add
@@ -678,7 +678,7 @@ bb47:
   push 96
   add
   mload
-  push 320
+  push 288
   mstore
   push bb48
   jump bb58

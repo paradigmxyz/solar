@@ -1007,14 +1007,12 @@
       memory_zero v1, 64
 -     ret v0
 +     v2 = memory_object_load_field memorystruct<2>, v0, 0
-+     mstore 128, v2
-+     v3 = add 128, 32
-+     v4 = memory_object_load_field memorystruct<2>, v0, 1
-+     mstore v3, v4
-+     v5 = add v3, 32
-+     v6 = add 128, 64
-+     v7 = sub v6, 128
-+     returndata 128, v7
++     mstore 0, v2 !metadata(memory=scratch)
++     v3 = memory_object_load_field memorystruct<2>, v0, 1
++     mstore 32, v3 !metadata(memory=scratch)
++     v4 = add 32, 32
++     v5 = sub 64, 0
++     returndata 0, v5
   }
   
   fn @dirtyAddressAliases() -> memoryarray {
@@ -1137,11 +1135,9 @@
 -     ret v0
 +     v2 = icall @cleanup_return.38, v0
 +     v3 = memory_object_load_field memorystruct<1>, v2, 0
-+     mstore 128, v3
-+     v4 = add 128, 32
-+     v5 = add 128, 32
-+     v6 = sub v5, 128
-+     returndata 128, v6
++     mstore 0, v3 !metadata(memory=scratch)
++     v4 = sub 32, 0
++     returndata 0, v4
   }
   
 - fn @givesPartlyZeroedTuple() -> memorystruct [selector=0x0dead00d, abi_returns=[tuple<word, word>], abi_return_params=[tuple<u8, u8>]] {
@@ -1159,14 +1155,12 @@
 +     v6 = and v5, 255
 +     memory_object_store_field memorystruct<2>, v2, 1, v6
 +     v7 = memory_object_load_field memorystruct<2>, v2, 0
-+     mstore 128, v7
-+     v8 = add 128, 32
-+     v9 = memory_object_load_field memorystruct<2>, v2, 1
-+     mstore v8, v9
-+     v10 = add v8, 32
-+     v11 = add 128, 64
-+     v12 = sub v11, 128
-+     returndata 128, v12
++     mstore 0, v7 !metadata(memory=scratch)
++     v8 = memory_object_load_field memorystruct<2>, v2, 1
++     mstore 32, v8 !metadata(memory=scratch)
++     v9 = add 32, 32
++     v10 = sub 64, 0
++     returndata 0, v10
   }
   
 - fn @givesConditionallyZeroedTuple(arg0: i1) -> memorystruct [selector=0x0dead00e, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
@@ -1196,11 +1190,9 @@
 +   bb3:
 +     v6 = icall @cleanup_return.38, v0
 +     v7 = memory_object_load_field memorystruct<1>, v6, 0
-+     mstore 128, v7
-+     v8 = add 128, 32
-+     v9 = add 128, 32
-+     v10 = sub v9, 128
-+     returndata 128, v10
++     mstore 0, v7 !metadata(memory=scratch)
++     v8 = sub 32, 0
++     returndata 0, v8
 +   bb4:
 +     revert 0, 0
   }
@@ -1231,11 +1223,9 @@
 +   bb3:
 +     v5 = icall @cleanup_return.38, v0
 +     v6 = memory_object_load_field memorystruct<1>, v5, 0
-+     mstore 128, v6
-+     v7 = add 128, 32
-+     v8 = add 128, 32
-+     v9 = sub v8, 128
-+     returndata 128, v9
++     mstore 0, v6 !metadata(memory=scratch)
++     v7 = sub 32, 0
++     returndata 0, v7
 +   bb4:
 +     revert 0, 0
   }
@@ -1316,13 +1306,12 @@
 +     v12 = lt v11, 1
 +     jumpi v12, bb9, bb10
 +   bb10:
-+     v17 = add 128, 32
-+     v18 = sub v17, 128
-+     returndata 128, v18
++     v17 = sub 32, 0
++     returndata 0, v17
 +   bb9:
 +     v13 = memory_object_load_element memoryfixedarray<1, 1>, v5, v11
 +     v14 = mul v11, 32
-+     v15 = add 128, v14
++     v15 = add 0, v14
 +     mstore v15, v13
 +     v16 = add v11, 1
 +     jump bb8
@@ -1420,11 +1409,9 @@
 -     ret v1
 +     v2 = icall @cleanup_return.38, v1
 +     v3 = memory_object_load_field memorystruct<1>, v2, 0
-+     mstore 128, v3
-+     v4 = add 128, 32
-+     v5 = add 128, 32
-+     v6 = sub v5, 128
-+     returndata 128, v6
++     mstore 0, v3 !metadata(memory=scratch)
++     v4 = sub 32, 0
++     returndata 0, v4
   }
   
 - fn @givesMismatchedArrayStride() -> memoryfixedarray [selector=0x0dead016, abi_returns=[array<2, word>], abi_return_params=[array<2, u8>]] {
@@ -1447,13 +1434,12 @@
 +     v8 = lt v7, 2
 +     jumpi v8, bb5, bb6
 +   bb6:
-+     v13 = add 128, 64
-+     v14 = sub v13, 128
-+     returndata 128, v14
++     v13 = sub 64, 0
++     returndata 0, v13
 +   bb5:
 +     v9 = memory_object_load_element memoryfixedarray<2, 1>, v1, v7
 +     v10 = mul v7, 32
-+     v11 = add 128, v10
++     v11 = add 0, v10
 +     mstore v11, v9
 +     v12 = add v7, 1
 +     jump bb4

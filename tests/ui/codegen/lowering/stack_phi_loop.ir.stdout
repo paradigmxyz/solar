@@ -80,10 +80,10 @@ bb10 [loop]:
   lt
   push bb12
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb16:
   push 68
@@ -131,10 +131,10 @@ bb20 [loop]:
   lt
   push bb22
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb24 [loop]:
   swap 1
@@ -177,10 +177,10 @@ bb29 [loop]:
   lt
   push bb31
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb31 [loop]:
   push 0

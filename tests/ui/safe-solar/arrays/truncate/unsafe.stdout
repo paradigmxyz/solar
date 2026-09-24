@@ -18,8 +18,8 @@ fn @viaAlias() [selector=0xcc1cce1f, abi_wrapper, inline_assembly, pure] {
     v4 = icall @decode_calldata_type, 4
     v0 = ptrtoint memptr v4 to i256
     mstore v0, arg1
-    mstore 128, arg1
-    returndata 128, 32
+    mstore 0, arg1 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {

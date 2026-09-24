@@ -45,10 +45,10 @@ bb6 [loop]:
   lt
   push bb8
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3 [cold]:
   push 0
@@ -85,7 +85,7 @@ bb14 [cold]:
   push 28
   revert
 bb4:
-  push 192
+  push 160
   push 64
   mstore
   push 36
@@ -179,10 +179,10 @@ bb12:
   sub
   push 5
   shr
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb11 [loop]:
   dup 1

@@ -10,8 +10,8 @@ fn @pair() [selector=0x9280bddf, abi_wrapper, pure] {
     mstore 0, arg0
     mstore 32, arg1
     v1 = keccak256 0, 64 !metadata(memory=scratch)
-    mstore 128, v1
-    returndata 128, 32
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
@@ -37,8 +37,8 @@ fn @mixed() [selector=0x662ae64e, abi_wrapper, pure] {
     mstore 0, v0 !metadata(memory=scratch)
     mstore 32, v1 !metadata(memory=scratch)
     v3 = keccak256 0, 64 !metadata(memory=scratch)
-    mstore 128, v3
-    returndata 128, 32
+    mstore 0, v3 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
@@ -55,8 +55,8 @@ fn @single() [selector=0x6bd47c49, abi_wrapper, pure] {
   bb3:
     mstore 0, arg0
     v4 = keccak256 0, 32 !metadata(memory=scratch)
-    mstore 128, v4
-    returndata 128, 32
+    mstore 0, v4 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }

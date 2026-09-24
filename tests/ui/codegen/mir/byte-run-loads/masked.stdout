@@ -40,18 +40,18 @@ fn @quad() [selector=0x31dccb6d, abi_wrapper, pure] {
 fn @kept() [selector=0xc57c8563, abi_wrapper, pure] {
   bb0:
     v20 = icall @decode_calldata_type, 4
-    v25 = ptrtoint memptr v20 to i256
-    v0 = mload v25
+    v24 = ptrtoint memptr v20 to i256
+    v0 = mload v24
     v3 = lt v0, 4
     jumpi v3, bb1, bb2
   bb2:
-    v27 = add v25, 32
-    v9 = mload v27
+    v26 = add v24, 32
+    v9 = mload v26
     v10 = and v9, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v13 = byte 1, v10
-    mstore 128, v10
-    mstore 160, v13
-    returndata 128, 64
+    mstore 0, v10 !metadata(memory=scratch)
+    mstore 32, v13
+    returndata 0, 64
   bb1:
     tail_call @revert_stub
 }

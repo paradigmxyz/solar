@@ -29,7 +29,7 @@ bb5 [cold]:
   push 0
   revert
 bb6:
-  push 160
+  push 128
   push 64
   mstore
   push 68
@@ -120,10 +120,10 @@ bb6:
   pop
   pop
   pop
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb13:
   push 68
@@ -133,22 +133,22 @@ bb13:
   jumpi
   push 36
   calldataload
-  push 128
+  push 0
   mstore
   push 4
   calldataload
-  push 160
+  push 32
   mstore
   push 64
-  push 128
+  push 0
   return
 bb16:
   push 7
-  push 128
+  push 0
   mstore
   push 9
-  push 160
+  push 32
   mstore
   push 64
-  push 128
+  push 0
   return

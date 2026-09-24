@@ -53,10 +53,10 @@ bb9:
   calldataload
   push 2
   exp
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb37 [cold]:
   push 0x4e487b71
@@ -86,10 +86,10 @@ bb17 [loop]:
   dup 3
   push bb19
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb19 [loop]:
   push 1
@@ -166,10 +166,10 @@ bb23:
   push 4
   calldataload
   mul
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb26:
   push 36
@@ -181,13 +181,13 @@ bb26:
   push 4
   calldataload
   mul
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb29:
-  push 160
+  push 128
   push 64
   mstore
   push 68
@@ -271,10 +271,10 @@ bb29:
   mul
   add
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb36 [cold]:
   push 0x4e487b71

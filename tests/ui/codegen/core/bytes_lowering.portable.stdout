@@ -17,8 +17,8 @@ fn @selector() [selector=0xb3b5a8a9, abi_wrapper, pure] {
     jumpi v28, bb8, bb9
   bb9:
     v29 = icall @decode_calldata_type, 4
-    v38 = ptrtoint memptr v29 to i256
-    v34 = add v38, 32
+    v37 = ptrtoint memptr v29 to i256
+    v33 = add v37, 32
     jump bb2
   bb2:
     v1 = phi [bb9: 0], [bb7: v13]
@@ -27,19 +27,19 @@ fn @selector() [selector=0xb3b5a8a9, abi_wrapper, pure] {
     jumpi v3, bb5, bb1
   bb1:
     v30 = and v1, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, v30
-    returndata 128, 32
+    mstore 0, v30 !metadata(memory=scratch)
+    returndata 0, 32
   bb5:
-    v5 = mload v38
+    v5 = mload v37
     v6 = lt v2, v5
     jumpi v6, bb4, bb3
   bb3:
     tail_call @revert_stub
   bb4:
-    v35 = add v34, v2
-    v36 = mload v35
-    v37 = byte 0, v36
-    v8 = shl 248, v37
+    v34 = add v33, v2
+    v35 = mload v34
+    v36 = byte 0, v35
+    v8 = shl 248, v36
     v18 = shl 3, v2
     v19 = eq v2, 0
     v20 = div v18, v2

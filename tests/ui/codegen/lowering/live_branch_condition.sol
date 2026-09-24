@@ -18,7 +18,7 @@ contract LiveBranchCondition {
     // than sharing through a jump.
     // CHECK: jump [[RETURN:bb[0-9]+]]
     // CHECK-NEXT: [[RETURN]]:
-    // CHECK-NEXT: push 128
+    // CHECK-NEXT: push 0
     // CHECK-NEXT: mstore
     // CHECK: push 0xedd004e5
     // CHECK: add

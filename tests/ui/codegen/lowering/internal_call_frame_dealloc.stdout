@@ -29,7 +29,7 @@ bb10 [cold]:
   push 28
   revert
 bb4:
-  push 256
+  push 224
   push 64
   mstore
   push 36
@@ -125,7 +125,7 @@ bb6 [continuation]:
   push bb10
   jumpi
   dup 2
-  push 224
+  push 192
   mstore
   push 64
   mload
@@ -168,7 +168,7 @@ bb8 [continuation]:
   mload
   push 160
   mstore
-  push 224
+  push 192
   mload
   swap 1
   dup 2

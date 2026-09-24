@@ -35,29 +35,29 @@ fn @peek() [selector=0xa230438f, abi_wrapper, pure] {
     jumpi v41, bb4, bb5
   bb5:
     v43 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v64 = mload 64 !metadata(memory=scratch)
-    v65 = add v64, v43
-    v66 = lt v65, v64
-    v67 = zext i1 v66 to i256
-    v68 = shr 64, v65
-    v69 = or v67, v68
-    v70 = ne v69, 0
-    jumpi v70, bb4, bb7
+    v63 = mload 64 !metadata(memory=scratch)
+    v64 = add v63, v43
+    v65 = lt v64, v63
+    v66 = zext i1 v65 to i256
+    v67 = shr 64, v64
+    v68 = or v66, v67
+    v69 = ne v68, 0
+    jumpi v69, bb4, bb7
   bb7:
-    mstore 64, v65 !metadata(memory=scratch)
-    mstore v64, v38
+    mstore 64, v64 !metadata(memory=scratch)
+    mstore v63, v38
     v45 = sub v28, v32
     v46 = gt v38, v45
     jumpi v46, bb1, bb6
   bb6:
-    v55 = add v64, 32
-    calldatacopy v55, v32, v38
-    v71 = mload 64 !metadata(memory=scratch)
-    v72 = add v71, 64
-    mstore 64, v72 !metadata(memory=scratch)
-    mstore v71, 4
-    v61 = add v71, 32
-    mstore v61, 0x1122334400000000000000000000000000000000000000000000000000000000
+    v54 = add v63, 32
+    calldatacopy v54, v32, v38
+    v70 = mload 64 !metadata(memory=scratch)
+    v71 = add v70, 64
+    mstore 64, v71 !metadata(memory=scratch)
+    mstore v70, 4
+    v60 = add v70, 32
+    mstore v60, 0x1122334400000000000000000000000000000000000000000000000000000000
     v4 = add arg1, 4
     v5 = lt v4, arg1
     v6 = gt v4, v38
@@ -65,13 +65,13 @@ fn @peek() [selector=0xa230438f, abi_wrapper, pure] {
     v9 = eq v7, false
     v24 = zext i1 v9 to i256
     v10 = mul v24, arg1
-    v13 = add v55, v10
+    v13 = add v54, v10
     v14 = mload v13
     v15 = mul v24, v14
     v16 = and v15, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, v24
-    mstore 160, v16
-    returndata 128, 64
+    mstore 0, v24
+    mstore 32, v16 !metadata(memory=scratch)
+    returndata 0, 64
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

@@ -48,10 +48,10 @@ fn @packPair() [selector=0xa2352af0, abi_wrapper, pure] {
   bb13:
     v72 = icall @decode_calldata_type, 4
     v73 = icall @decode_calldata_type, 36
-    v86 = ptrtoint memptr v72 to i256
-    v1 = mload v86
-    v87 = ptrtoint memptr v73 to i256
-    v2 = mload v87
+    v85 = ptrtoint memptr v72 to i256
+    v1 = mload v85
+    v86 = ptrtoint memptr v73 to i256
+    v2 = mload v86
     v35 = add v1, v2
     v4 = eq v35, 0
     jumpi v4, bb1, bb2
@@ -60,7 +60,7 @@ fn @packPair() [selector=0xa2352af0, abi_wrapper, pure] {
     jumpi v5, bb1, bb3
   bb3:
     v6 = shl 248, v1
-    v77 = add v86, 32
+    v76 = add v85, 32
     jump bb4
   bb4:
     v7 = phi [bb3: v6], [bb6: v20]
@@ -72,7 +72,7 @@ fn @packPair() [selector=0xa2352af0, abi_wrapper, pure] {
     v39 = shl 3, v37
     v12 = shl v39, v2
     v13 = or v7, v12
-    v82 = add v87, 32
+    v81 = add v86, 32
     jump bb7
   bb7:
     v22 = phi [bb5: v13], [bb11: v32]
@@ -80,9 +80,9 @@ fn @packPair() [selector=0xa2352af0, abi_wrapper, pure] {
     v24 = lt v23, v2
     jumpi v24, bb8, bb1
   bb8:
-    v83 = add v82, v23
-    v84 = mload v83
-    v85 = byte 0, v84
+    v82 = add v81, v23
+    v83 = mload v82
+    v84 = byte 0, v83
     v57 = sub 29, v1
     v58 = gt v1, 29
     jumpi v58, bb9, bb10
@@ -92,7 +92,7 @@ fn @packPair() [selector=0xa2352af0, abi_wrapper, pure] {
     jumpi v60, bb9, bb11
   bb11:
     v61 = shl 3, v59
-    v31 = shl v61, v85
+    v31 = shl v61, v84
     v32 = or v22, v31
     v68 = add v23, 1
     jump bb7
@@ -101,19 +101,19 @@ fn @packPair() [selector=0xa2352af0, abi_wrapper, pure] {
     mstore 32, 17 !metadata(memory=scratch)
     revert 28, 36
   bb6:
-    v78 = add v77, v8
-    v79 = mload v78
-    v80 = byte 0, v79
+    v77 = add v76, v8
+    v78 = mload v77
+    v79 = byte 0, v78
     v46 = sub 30, v8
     v48 = shl 3, v46
-    v19 = shl v48, v80
+    v19 = shl v48, v79
     v20 = or v7, v19
     v55 = add v8, 1
     jump bb4
   bb1:
     v34 = phi [bb13: 0], [bb2: 0], [bb7: v22]
-    mstore 128, v34
-    returndata 128, 32
+    mstore 0, v34 !metadata(memory=scratch)
+    returndata 0, 32
   bb12:
     revert 0, 0
 }

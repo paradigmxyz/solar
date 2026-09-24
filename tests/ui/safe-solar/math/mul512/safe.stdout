@@ -34,9 +34,9 @@ fn @product() [selector=0xba88c3b7, abi_wrapper, pure] {
     v4 = zext i1 v3 to i256
     v2 = sub v1, v0
     v5 = sub v2, v4
-    mstore 128, v5
-    mstore 160, v0
-    returndata 128, 64
+    mstore 0, v5 !metadata(memory=scratch)
+    mstore 32, v0 !metadata(memory=scratch)
+    returndata 0, 64
   bb1:
     revert 0, 0
 }

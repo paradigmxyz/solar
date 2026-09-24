@@ -56,8 +56,8 @@ fn @root() [selector=0xe56bf027, abi_wrapper, inline_assembly, pure] {
     v46 = lt v45, v44
     v47 = zext i1 v46 to i256
     v48 = sub v44, v47
-    mstore 128, v48
-    returndata 128, 32
+    mstore 0, v48 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }

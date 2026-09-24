@@ -9,8 +9,8 @@ fn @quotient() [selector=0x211bc189, abi_wrapper, inline_assembly, pure] {
   bb2:
     v0 = mul arg0, arg1
     v1 = div v0, arg2
-    mstore 128, v1
-    returndata 128, 32
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }

@@ -28,9 +28,9 @@ fn @peek() [selector=0xa230438f, abi_wrapper, inline_assembly, pure] {
     v1 = add v9, arg1
     v2 = calldataload v1
     v24 = and v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, 1
-    mstore 160, v24
-    returndata 128, 64
+    mstore 0, 1
+    mstore 32, v24 !metadata(memory=scratch)
+    returndata 0, 64
   bb1:
     revert 0, 0
 }

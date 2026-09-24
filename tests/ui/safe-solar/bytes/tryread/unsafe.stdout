@@ -26,35 +26,35 @@ fn @peek() [selector=0xa230438f, abi_wrapper, inline_assembly, pure] {
     jumpi v22, bb4, bb5
   bb5:
     v24 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v44 = mload 64 !metadata(memory=scratch)
-    v45 = add v44, v24
-    v46 = lt v45, v44
-    v47 = zext i1 v46 to i256
-    v48 = shr 64, v45
-    v49 = or v47, v48
-    v50 = ne v49, 0
-    jumpi v50, bb4, bb7
+    v43 = mload 64 !metadata(memory=scratch)
+    v44 = add v43, v24
+    v45 = lt v44, v43
+    v46 = zext i1 v45 to i256
+    v47 = shr 64, v44
+    v48 = or v46, v47
+    v49 = ne v48, 0
+    jumpi v49, bb4, bb7
   bb7:
-    mstore 64, v45 !metadata(memory=scratch)
-    mstore v44, v19
+    mstore 64, v44 !metadata(memory=scratch)
+    mstore v43, v19
     v26 = sub v9, v13
     v27 = gt v19, v26
     jumpi v27, bb1, bb6
   bb6:
-    v37 = add v44, 32
-    calldatacopy v37, v13, v19
-    v51 = mload 64 !metadata(memory=scratch)
-    v52 = add v51, 64
-    mstore 64, v52 !metadata(memory=scratch)
-    mstore v51, 4
-    v43 = add v51, 32
-    mstore v43, 0x1122334400000000000000000000000000000000000000000000000000000000
-    v5 = add v37, arg1
+    v36 = add v43, 32
+    calldatacopy v36, v13, v19
+    v50 = mload 64 !metadata(memory=scratch)
+    v51 = add v50, 64
+    mstore 64, v51 !metadata(memory=scratch)
+    mstore v50, 4
+    v42 = add v50, 32
+    mstore v42, 0x1122334400000000000000000000000000000000000000000000000000000000
+    v5 = add v36, arg1
     v6 = mload v5
     v31 = and v6, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, 1
-    mstore 160, v31
-    returndata 128, 64
+    mstore 0, 1
+    mstore 32, v31 !metadata(memory=scratch)
+    returndata 0, 64
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

@@ -101,8 +101,8 @@ fn @quotient() [selector=0x211bc189, abi_wrapper, pure] {
     jump bb1
   bb1:
     v5 = phi [bb7: v63], [bb8: v53]
-    mstore 128, v5
-    returndata 128, 32
+    mstore 0, v5 !metadata(memory=scratch)
+    returndata 0, 32
   bb10:
     revert 0, 0
 }

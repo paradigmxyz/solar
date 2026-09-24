@@ -39,7 +39,7 @@ bb1:
   eq
   push bb3
   jumpi
-  push 320
+  push 288
   push 64
   mstore
   push 68
@@ -67,7 +67,7 @@ bb1:
   gt
   push bb3
   jumpi
-  push 160
+  push 128
   dup 2
   calldataload
   dup 2
@@ -225,7 +225,7 @@ bb1:
   add
   calldataload
   dup 1
-  dup 5
+  push 160
   shr
   push bb3
   jumpi
@@ -235,7 +235,7 @@ bb1:
   dup 2
   swap 1
   mstore
-  push 128
+  dup 4
   dup 5
   add
   exchange 1, 5
@@ -335,10 +335,10 @@ bb17 [loop]:
   dup 2
   swap 1
   sstore
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb23 [cold]:
   push 0x4e487b71
@@ -394,13 +394,13 @@ bb5:
   push 0
   keccak256
   sload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb9:
-  push 160
+  push 128
   push 64
   mstore
   push 132
@@ -552,7 +552,7 @@ bb9:
   pop
   push 64
   mload
-  push 128
+  dup 2
   dup 2
   add
   push 64
@@ -778,10 +778,10 @@ bb9:
   push bb4
   jumpi
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb21 [cold]:
   returndatasize

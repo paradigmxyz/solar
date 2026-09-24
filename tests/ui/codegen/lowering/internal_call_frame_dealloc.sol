@@ -35,7 +35,7 @@ contract ICallFrameDealloc {
     // CHECK: push 64
     // CHECK-NEXT: mstore
     // CHECK: push 1{{$}}
-    // CHECK: push 224
+    // CHECK: push 192
     // CHECK-NEXT: mstore
     // CHECK: push 192
     // CHECK-NEXT: add

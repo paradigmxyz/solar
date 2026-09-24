@@ -24,7 +24,7 @@ bb4 [cold]:
   push 0
   revert
 bb5:
-  push 160
+  push 128
   push 64
   mstore
   push 100
@@ -104,13 +104,13 @@ bb7 [continuation]:
   swap 1
   pop
   keccak256
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb10:
-  push 160
+  push 128
   push 64
   mstore
   push 68
@@ -168,8 +168,8 @@ bb12 [continuation]:
   sub
   swap 1
   keccak256
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return

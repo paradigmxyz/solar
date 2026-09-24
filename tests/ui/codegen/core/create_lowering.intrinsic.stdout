@@ -133,32 +133,32 @@ fn @predicted() [selector=0x1aab0aa1, abi_wrapper] {
     jumpi v33, bb3, bb4
   bb4:
     v34 = icall @decode_calldata_type, 4
-    v44 = ptrtoint memptr v34 to i256
-    v0 = mload v44
-    v46 = add v44, 32
-    v3 = create2 0, v46, v0, arg1
+    v43 = ptrtoint memptr v34 to i256
+    v0 = mload v43
+    v45 = add v43, 32
+    v3 = create2 0, v45, v0, arg1
     v4 = zext i160 v3 to i256
     v5 = eq v4, 0
     jumpi v5, bb1, bb2
   bb2:
     v6 = address
     v7 = zext i160 v6 to i256
-    v8 = keccak256 v46, v0
-    v47 = mload 64 !metadata(memory=scratch)
-    mstore v47, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v8 = keccak256 v45, v0
+    v46 = mload 64 !metadata(memory=scratch)
+    mstore v46, 0xff00000000000000000000000000000000000000000000000000000000000000
     v23 = shl 96, v7
-    v25 = add v47, 1
+    v25 = add v46, 1
     mstore v25, v23
-    v27 = add v47, 21
+    v27 = add v46, 21
     mstore v27, arg1
-    v29 = add v47, 53
+    v29 = add v46, 53
     mstore v29, v8
-    v31 = keccak256 v47, 85
+    v31 = keccak256 v46, 85
     v17 = and v31, 0xffffffffffffffffffffffffffffffffffffffff
     v12 = eq v4, v17
     v13 = zext i1 v12 to i256
-    mstore 128, v13
-    returndata 128, 32
+    mstore 0, v13
+    returndata 0, 32
   bb1:
     tail_call @revert_stub.6
   bb3:
@@ -294,20 +294,20 @@ fn @twice() [selector=0x8cf98279, abi_wrapper] {
     jumpi v25, bb1, bb2
   bb2:
     v26 = icall @decode_calldata_type, 4
-    v36 = ptrtoint memptr v26 to i256
-    v0 = mload v36
-    v38 = add v36, 32
-    v3 = create2 0, v38, v0, arg1
+    v35 = ptrtoint memptr v26 to i256
+    v0 = mload v35
+    v37 = add v35, 32
+    v3 = create2 0, v37, v0, arg1
     v4 = zext i160 v3 to i256
     v5 = ne v4, 0
     v6 = zext i1 v5 to i256
-    v14 = create2 0, v38, v0, arg1
+    v14 = create2 0, v37, v0, arg1
     v15 = zext i160 v14 to i256
     v16 = ne v15, 0
     v17 = zext i1 v16 to i256
-    mstore 128, v6
-    mstore 160, v17
-    returndata 128, 64
+    mstore 0, v6
+    mstore 32, v17
+    returndata 0, 64
   bb1:
     revert 0, 0
 }

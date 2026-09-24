@@ -12,8 +12,8 @@ fn @selector() [selector=0xb3b5a8a9, abi_wrapper, inline_assembly, pure] {
     v2 = add v1, 32
     v3 = mload v2
     v4 = and v3, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, v4
-    returndata 128, 32
+    mstore 0, v4 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
@@ -29,8 +29,8 @@ fn @word() [selector=0x8ce8a8b7, abi_wrapper, inline_assembly, pure] {
     v1 = add v0, 32
     v2 = add v1, arg1
     v3 = mload v2
-    mstore 128, v3
-    returndata 128, 32
+    mstore 0, v3 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }

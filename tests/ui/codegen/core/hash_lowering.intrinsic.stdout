@@ -32,33 +32,33 @@ fn @hash() [selector=0x00d07523, abi_wrapper, pure] {
     jumpi v23, bb6, bb7
   bb7:
     v25 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v39 = mload 64 !metadata(memory=scratch)
-    v40 = add v39, v25
-    v41 = lt v40, v39
-    v42 = zext i1 v41 to i256
-    v43 = shr 64, v40
-    v44 = or v42, v43
-    v45 = ne v44, 0
-    jumpi v45, bb6, bb9
+    v38 = mload 64 !metadata(memory=scratch)
+    v39 = add v38, v25
+    v40 = lt v39, v38
+    v41 = zext i1 v40 to i256
+    v42 = shr 64, v39
+    v43 = or v41, v42
+    v44 = ne v43, 0
+    jumpi v44, bb6, bb9
   bb9:
-    mstore 64, v40 !metadata(memory=scratch)
-    mstore v39, v20
+    mstore 64, v39 !metadata(memory=scratch)
+    mstore v38, v20
     v27 = sub v10, v14
     v28 = gt v20, v27
     jumpi v28, bb3, bb8
   bb8:
-    v33 = add v39, 32
-    calldatacopy v33, v14, v20
+    v32 = add v38, 32
+    calldatacopy v32, v14, v20
     v1 = add arg1, arg2
     v2 = lt v1, arg1
     v3 = gt v1, v20
     v4 = or v2, v3
     jumpi v4, bb1, bb2
   bb2:
-    v8 = add v33, arg1
+    v8 = add v32, arg1
     v9 = keccak256 v8, arg2
-    mstore 128, v9
-    returndata 128, 32
+    mstore 0, v9 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)

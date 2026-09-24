@@ -8,8 +8,8 @@ fn @leading() [selector=0x3ce23483, abi_wrapper, inline_assembly, pure] {
     jumpi v2, bb1, bb2
   bb2:
     v0 = clz arg0
-    mstore 128, v0
-    returndata 128, 32
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }

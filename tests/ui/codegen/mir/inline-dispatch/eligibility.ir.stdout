@@ -11,8 +11,8 @@ fn @a() [selector=0xf0fdf834, abi_wrapper, pure] {
     v2 = eq v1, 0
     jumpi v2, bb1, bb2
   bb2:
-    mstore 128, v1
-    returndata 128, 32
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
@@ -32,8 +32,8 @@ fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
     v7 = ne v3, arg0
     jumpi v7, bb1, bb2
   bb2:
-    mstore 128, v1
-    returndata 128, 32
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
@@ -76,8 +76,8 @@ fn @a() [selector=0xf0fdf834, abi_wrapper, view] {
     v3 = lt v2, arg0
     jumpi v3, bb1, bb2
   bb2:
-    mstore 128, v2
-    returndata 128, 32
+    mstore 0, v2 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
@@ -91,8 +91,8 @@ fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
     v7 = ne v3, arg0
     jumpi v7, bb1, bb2
   bb2:
-    mstore 128, v1
-    returndata 128, 32
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
@@ -168,8 +168,8 @@ fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
     v7 = ne v3, arg0
     jumpi v7, bb1, bb2
   bb2:
-    mstore 128, v1
-    returndata 128, 32
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
@@ -209,8 +209,8 @@ fn @a() [selector=0x2a500b7f, abi_wrapper, pure] {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, arg0
-    returndata 128, 32
+    mstore 0, arg0
+    returndata 0, 32
 }
 
 fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
@@ -220,8 +220,8 @@ fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
     v7 = ne v3, arg0
     jumpi v7, bb1, bb2
   bb2:
-    mstore 128, v1
-    returndata 128, 32
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)

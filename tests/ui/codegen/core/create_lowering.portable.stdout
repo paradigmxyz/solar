@@ -128,26 +128,26 @@ fn @predicted() [selector=0x1aab0aa1, abi_wrapper] {
     v1 = trunc i256 v0 to i160
     v2 = address
     v3 = zext i160 v2 to i256
-    v35 = ptrtoint memptr v29 to i256
-    v36 = mload v35
-    v38 = add v35, 32
-    v4 = keccak256 v38, v36
-    v39 = mload 64 !metadata(memory=scratch)
-    mstore v39, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v34 = ptrtoint memptr v29 to i256
+    v35 = mload v34
+    v37 = add v34, 32
+    v4 = keccak256 v37, v35
+    v38 = mload 64 !metadata(memory=scratch)
+    mstore v38, 0xff00000000000000000000000000000000000000000000000000000000000000
     v18 = shl 96, v3
-    v20 = add v39, 1
+    v20 = add v38, 1
     mstore v20, v18
-    v22 = add v39, 21
+    v22 = add v38, 21
     mstore v22, arg1
-    v24 = add v39, 53
+    v24 = add v38, 53
     mstore v24, v4
-    v26 = keccak256 v39, 85
+    v26 = keccak256 v38, 85
     v12 = and v26, 0xffffffffffffffffffffffffffffffffffffffff
     v13 = trunc i256 v12 to i160
     v7 = eq v1, v13
     v8 = zext i1 v7 to i256
-    mstore 128, v8
-    returndata 128, 32
+    mstore 0, v8
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
@@ -280,15 +280,15 @@ fn @twice() [selector=0x8cf98279, abi_wrapper] {
     jumpi v9, bb1, bb2
   bb2:
     v10 = icall @decode_calldata_type, 4
-    v20 = icall @tryDeploy2, v10, arg1, 0
-    v24 = icall @tryDeploy2, v10, arg1, 0
-    v14 = ne v24, 0
-    v12 = ne v20, 0
+    v19 = icall @tryDeploy2, v10, arg1, 0
+    v23 = icall @tryDeploy2, v10, arg1, 0
+    v14 = ne v23, 0
+    v12 = ne v19, 0
     v15 = zext i1 v12 to i256
-    mstore 128, v15
-    v17 = zext i1 v14 to i256
-    mstore 160, v17
-    returndata 128, 64
+    mstore 0, v15 !metadata(memory=scratch)
+    v16 = zext i1 v14 to i256
+    mstore 32, v16 !metadata(memory=scratch)
+    returndata 0, 64
   bb1:
     revert 0, 0
 }

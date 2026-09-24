@@ -24,10 +24,10 @@ bb0:
   push bb5
   jumpi
   push 1
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb5 [cold]:
   push 0
@@ -49,10 +49,10 @@ bb9 [loop]:
   lt
   push bb11
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb11 [loop]:
   dup 1
@@ -115,10 +115,10 @@ bb21 [loop]:
   lt
   push bb23
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb23 [loop]:
   dup 1

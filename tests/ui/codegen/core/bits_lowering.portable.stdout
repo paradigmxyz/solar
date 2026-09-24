@@ -43,15 +43,15 @@ fn @leading() [selector=0x3ce23483, abi_wrapper, pure] {
     v24 = eq arg0, 0
     v38 = zext i1 v24 to i256
     v26 = add v23, v38
-    mstore 128, v26
-    returndata 128, 32
+    mstore 0, v26 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @highest() [selector=0xe076913c, abi_wrapper, pure] {
   bb0:
     v0 = icall @highestSetBit, arg0
-    mstore 128, v0
-    returndata 128, 32
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @trailing() [selector=0x5b348c5a, abi_wrapper, pure] {
@@ -59,8 +59,8 @@ fn @trailing() [selector=0x5b348c5a, abi_wrapper, pure] {
     v1 = sub 0, arg0
     v2 = and arg0, v1
     v3 = icall @highestSetBit, v2
-    mstore 128, v3
-    returndata 128, 32
+    mstore 0, v3 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @ones() [selector=0xb2f925a4, abi_wrapper, pure] {
@@ -80,8 +80,8 @@ fn @ones() [selector=0xb2f925a4, abi_wrapper, pure] {
     v13 = mul v12, 0x101010101010101010101010101010101010101010101010101010101010101
     v14 = shr 248, v13
     v15 = add v14, v1
-    mstore 128, v15
-    returndata 128, 32
+    mstore 0, v15 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @highestSetBit(arg0: i256) -> i256 [pure] {

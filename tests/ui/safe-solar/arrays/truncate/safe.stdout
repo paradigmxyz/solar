@@ -31,14 +31,14 @@ fn @shorten() [selector=0xf0187838, abi_wrapper, pure] {
 fn @viaAlias() [selector=0xcc1cce1f, abi_wrapper, pure] {
   bb0:
     v5 = icall @decode_calldata_type, 4
-    v8 = ptrtoint memptr v5 to i256
-    v0 = mload v8
+    v7 = ptrtoint memptr v5 to i256
+    v0 = mload v7
     v1 = gt arg1, v0
     jumpi v1, bb1, bb2
   bb2:
-    mstore v8, arg1
-    mstore 128, arg1
-    returndata 128, 32
+    mstore v7, arg1
+    mstore 0, arg1 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     tail_call @revert_stub
 }

@@ -18,13 +18,13 @@ fn @indexOf() [selector=0x86e2d68c, abi_wrapper, pure] {
   bb9:
     v31 = icall @decode_calldata_type, 4
     v32 = icall @decode_calldata_type, 36
-    v43 = ptrtoint memptr v32 to i256
-    v0 = mload v43
+    v39 = ptrtoint memptr v32 to i256
+    v0 = mload v39
     v1 = eq v0, 0
     jumpi v1, bb1, bb2
   bb2:
-    v42 = ptrtoint memptr v31 to i256
-    v7 = mload v42
+    v38 = ptrtoint memptr v31 to i256
+    v7 = mload v38
     v8 = gt v0, v7
     jumpi v8, bb4, bb3
   bb3:
@@ -36,25 +36,25 @@ fn @indexOf() [selector=0x86e2d68c, abi_wrapper, pure] {
     jumpi v18, bb5, bb6
   bb6:
     v20 = icall @_scanWords, v31, v32, arg2, v21
-    mstore 128, v20
-    returndata 128, 32
+    mstore 0, v20 !metadata(memory=scratch)
+    returndata 0, 32
   bb5:
     v19 = icall @_scan, v31, v32, arg2, v21
-    mstore 128, v19
-    returndata 128, 32
+    mstore 0, v19 !metadata(memory=scratch)
+    returndata 0, 32
   bb4:
-    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    returndata 128, 32
+    mstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
-    v41 = ptrtoint memptr v31 to i256
-    v2 = mload v41
+    v37 = ptrtoint memptr v31 to i256
+    v2 = mload v37
     v25 = sub v2, arg2
     v3 = gt arg2, v2
     v26 = zext i1 v3 to i256
     v27 = mul v26, v25
     v28 = add arg2, v27
-    mstore 128, v28
-    returndata 128, 32
+    mstore 0, v28 !metadata(memory=scratch)
+    returndata 0, 32
   bb8:
     revert 0, 0
 }

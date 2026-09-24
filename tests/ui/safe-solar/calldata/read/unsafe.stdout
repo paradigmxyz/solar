@@ -25,8 +25,8 @@ fn @selector() [selector=0x9e36cc91, abi_wrapper, inline_assembly, pure] {
     v1 = add v7, arg1
     v2 = calldataload v1
     v20 = and v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, v20
-    returndata 128, 32
+    mstore 0, v20 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }

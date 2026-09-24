@@ -12,10 +12,9 @@
 +   bb1:
       v0 = add arg0, 1
 -     ret v0
-+     mstore 128, v0
-+     v3 = add 128, 32
-+     v4 = sub v3, 128
-+     returndata 128, v4
++     mstore 0, v0 !metadata(memory=scratch)
++     v3 = sub 32, 0
++     returndata 0, v3
 +   bb2:
 +     revert 0, 0
   }
@@ -33,10 +32,9 @@
 +     v0 = icall @pub.body, arg0
       v1 = bitcast i256 v0 to i256
 -     ret v1
-+     mstore 128, v1
-+     v4 = add 128, 32
-+     v5 = sub v4, 128
-+     returndata 128, v5
++     mstore 0, v1 !metadata(memory=scratch)
++     v4 = sub 32, 0
++     returndata 0, v4
 +   bb2:
 +     revert 0, 0
   }
@@ -147,19 +145,17 @@
 + fn @sliceBody() [selector=0x0a0a0a0b, abi_wrapper] {
 +   bb0:
 +     v2 = icall @sliceBody.body
-+     mstore 128, v2
-+     v3 = add 128, 32
-+     v4 = sub v3, 128
-+     returndata 128, v4
++     mstore 0, v2 !metadata(memory=scratch)
++     v3 = sub 32, 0
++     returndata 0, v3
 + }
 + 
 + fn @sliceCaller() [selector=0x0a0a0a0c, abi_wrapper] {
 +   bb0:
 +     v0 = icall @sliceBody.body
-+     mstore 128, v0
-+     v1 = add 128, 32
-+     v2 = sub v1, 128
-+     returndata 128, v2
++     mstore 0, v0 !metadata(memory=scratch)
++     v1 = sub 32, 0
++     returndata 0, v1
 + }
 + 
 + fn @pub.body(arg0: i256) -> i256 {

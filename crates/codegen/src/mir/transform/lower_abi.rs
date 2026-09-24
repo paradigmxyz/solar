@@ -77,12 +77,12 @@ impl MirPass for LowerAbi {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let changed =
-            LowerAbiCx { revert_strings: gcx.sess.opts.revert_strings, ..Default::default() }.run(
-                module,
-                gcx.sess.opts.evm_version,
-                gcx.sess.opts.optimization.is_gas(),
-            );
+        let changed = LowerAbiCx {
+            revert_strings: gcx.sess.opts.revert_strings,
+            scratch_returns: gcx.sess.opts.optimization.is_gas(),
+            ..Default::default()
+        }
+        .run(module, gcx.sess.opts.evm_version, gcx.sess.opts.optimization.is_gas());
         if !module.has_explicit_abi()
             || module.functions.iter().any(|func| {
                 func.instructions()
@@ -125,6 +125,11 @@ struct LowerAbiCx {
     has_bitwise_shifting: bool,
     /// How compiler-generated decoding reverts are encoded.
     revert_strings: RevertStrings,
+    /// Whether a short static return is staged in the scratch words. Gas
+    /// builds only: the other modes' stack planners keep a loop's literal
+    /// start out of a join layout when the same literal is used after the
+    /// loop, and a return at offset 0 would add such uses.
+    scratch_returns: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -481,7 +486,8 @@ impl LowerAbiCx {
                     .is_some_and(strip_array_element_cleanup)
             });
         }
-        if !layout.types.iter().any(crate::mir::AbiType::is_dynamic) {
+        let scratch_return = self.scratch_returns && static_return_fits_scratch(&layout);
+        if !layout.types.iter().any(crate::mir::AbiType::is_dynamic) && !scratch_return {
             // Static return data occupies the low-memory ABI buffer. Keep the
             // backend spill area above it so a cross-block value cannot be
             // overwritten while the return tuple is encoded.
@@ -568,7 +574,9 @@ impl LowerAbiCx {
                 let size = builder.slice_len(encoded);
                 builder.ret_data(offset, size);
             } else {
-                let offset = builder.imm(EvmMemoryLayout::HEAP_START);
+                // encode_static_tuple(values) at 0 when it fits the scratch words, else at 128
+                let base = if scratch_return { 0 } else { EvmMemoryLayout::HEAP_START };
+                let offset = builder.imm(base);
                 let size = super::lower_abi_encode::encode_static_tuple(
                     &mut builder,
                     &values,
@@ -3325,6 +3333,15 @@ fn is_bytes_fallback(func: &Function) -> bool {
     func.params.len() == 1
         && matches!(func.params[ArgIdx::new(0)], MirType::Slice(SliceLocation::Calldata))
         && matches!(func.return_components(), [MirType::MemoryObject(MemoryObjectKind::Bytes)])
+}
+
+/// Whether a static return tuple fits the scratch words below the free-memory
+/// pointer. Nothing reads memory once the call returns, and the encoder reads
+/// only stack values and heap objects, so the return can be staged there,
+/// where it expands memory the least.
+fn static_return_fits_scratch(layout: &AbiLayout) -> bool {
+    !layout.types.iter().any(crate::mir::AbiType::is_dynamic)
+        && layout.head_size() <= EvmMemoryLayout::FMP_SLOT
 }
 
 /// Whether every value-carrying fallback return can use raw bytes returndata.

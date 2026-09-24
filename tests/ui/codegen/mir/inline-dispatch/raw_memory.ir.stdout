@@ -22,8 +22,8 @@ fn @sum() [selector=0xcad0899b, abi_wrapper, pure] {
     v2 = lt v1, arg0
     jumpi v2, bb1, bb2
   bb2:
-    mstore 128, v1
-    returndata 128, 32
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
@@ -73,8 +73,8 @@ fn @sum() [selector=0xcad0899b, abi_wrapper, pure] {
     v2 = lt v1, arg0
     jumpi v2, bb1, bb2
   bb2:
-    mstore 128, v1
-    returndata 128, 32
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)

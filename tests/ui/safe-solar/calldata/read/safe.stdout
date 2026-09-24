@@ -40,8 +40,8 @@ fn @selector() [selector=0x9e36cc91, abi_wrapper, pure] {
     v7 = add v14, arg1
     v8 = calldataload v7
     v9 = and v8, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, v9
-    returndata 128, 32
+    mstore 0, v9 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)

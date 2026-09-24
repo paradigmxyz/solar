@@ -21,8 +21,8 @@ fn @read1() [selector=0xe2ddc805, abi_wrapper, pure] {
     v5 = add v3, 32
     v0 = icall @readBytes1, v5, v4, arg1
     v7 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
-    mstore 128, v7
-    returndata 128, 32
+    mstore 0, v7 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
@@ -38,8 +38,8 @@ fn @read4() [selector=0x114a0c94, abi_wrapper, pure] {
     v5 = add v3, 32
     v0 = icall @readBytes4, v5, v4, arg1
     v7 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, v7
-    returndata 128, 32
+    mstore 0, v7 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
@@ -54,8 +54,8 @@ fn @read32() [selector=0x7292b714, abi_wrapper, pure] {
     v4 = calldataload v3
     v5 = add v3, 32
     v0 = icall @readBytes32, v5, v4, arg1
-    mstore 128, v0
-    returndata 128, 32
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
@@ -70,8 +70,8 @@ fn @readWord() [selector=0x21a70e43, abi_wrapper, pure] {
     v4 = calldataload v3
     v5 = add v3, 32
     v0 = icall @readUint256BE, v5, v4, arg1
-    mstore 128, v0
-    returndata 128, 32
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
