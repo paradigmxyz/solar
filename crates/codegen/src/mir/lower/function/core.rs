@@ -258,6 +258,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.lower_core_call_into(intrinsic, function_id, &operands)
             }
             CoreIntrinsic::Mul512 => self.lower_core_mul512(function_id, &operands),
+            // A constant, so the path it guards folds away in the other builds.
+            CoreIntrinsic::GasFirst => {
+                Some(self.builder.imm_bool(self.cx.gcx.sess.opts.optimization.is_gas()))
+            }
             CoreIntrinsic::WrappingAdd
             | CoreIntrinsic::WrappingSub
             | CoreIntrinsic::WrappingMul => {
