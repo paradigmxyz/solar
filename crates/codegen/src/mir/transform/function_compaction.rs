@@ -330,11 +330,22 @@ fn returned_value(func: &Function) -> Option<ReturnedValue> {
 }
 
 /// Redirects calls to alpha-equivalent internal function bodies.
-pub(crate) struct MergeEquivalentFunctions;
+pub(crate) enum MergeEquivalentFunctions {
+    /// Keeps bodies apart whose proved array element widths differ, which
+    /// element cleanup and ABI lowering still read.
+    Semantic,
+    /// After ABI lowering, when no pass reads the proved widths any more:
+    /// bodies that differed only in them, such as an address overload whose
+    /// element masks folded, share one body without them.
+    Lowered,
+}
 
 impl MirPass for MergeEquivalentFunctions {
     fn name(&self) -> &'static str {
-        "merge-equivalent-functions"
+        match self {
+            Self::Semantic => "merge-equivalent-functions",
+            Self::Lowered => "merge-lowered-functions",
+        }
     }
 
     fn run_pass(
@@ -343,7 +354,7 @@ impl MirPass for MergeEquivalentFunctions {
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
-        merge_equivalent_functions(module) != 0
+        merge_equivalent_functions(module, matches!(self, Self::Lowered)) != 0
     }
 }
 
@@ -891,7 +902,7 @@ impl<'a> CanonValues<'a> {
 /// Redirects one wave of equivalent functions, then repeats because merging leaf callees can make
 /// their callers equivalent on the next wave. Dead-function elimination follows this pass in the
 /// canonical pipeline and removes redirected bodies.
-fn merge_equivalent_functions(module: &mut Module) -> usize {
+fn merge_equivalent_functions(module: &mut Module, lowered: bool) -> usize {
     let mut merged = DenseBitSet::new_empty(module.functions.len());
     let mut total = 0;
     let mut merged_instructions = 0usize;
@@ -914,6 +925,7 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
                         module.function(representative),
                         candidate,
                         module.function(candidate),
+                        lowered,
                     )
                 }) {
                     replacements.insert(candidate, representative);
@@ -933,6 +945,17 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
             .sum::<usize>();
         for (&duplicate, &representative) in &replacements {
             merge_function_debug_origins(module, duplicate, representative);
+            if lowered {
+                // Keep only the widths both bodies proved.
+                let duplicate = module.function(duplicate).attributes.clone();
+                let attributes = &mut module.function_mut(representative).attributes;
+                attributes.array_element_bits.retain(|index, bits| {
+                    duplicate.array_element_bits.get(index).is_some_and(|other| other == bits)
+                });
+                if attributes.array_return_element_bits != duplicate.array_return_element_bits {
+                    attributes.array_return_element_bits = None;
+                }
+            }
             merged.insert(duplicate);
         }
         redirect_calls(module, &replacements);
@@ -1019,6 +1042,7 @@ fn equivalent_functions(
     lhs: &Function,
     rhs_id: FunctionId,
     rhs: &Function,
+    lowered: bool,
 ) -> bool {
     if lhs.params != rhs.params
         || lhs.return_components() != rhs.return_components()
@@ -1026,7 +1050,7 @@ fn equivalent_functions(
         || lhs.internal_frame_size != rhs.internal_frame_size
         || lhs.external_static_return_size != rhs.external_static_return_size
         || lhs.blocks.len() != rhs.blocks.len()
-        || !equivalent_attributes(lhs, rhs)
+        || !equivalent_attributes(lhs, rhs, lowered)
         || !lhs
             .arg_indices()
             .map(|index| lhs.arg_ty(index))
@@ -1053,7 +1077,9 @@ fn equivalent_functions(
                 )
                 || !equivalent_inst_payload(lhs_id, &lhs_inst.kind, rhs_id, &rhs_inst.kind)
                 || lhs_inst.metadata.memory_region() != rhs_inst.metadata.memory_region()
-                || lhs_inst.metadata.effect() != rhs_inst.metadata.effect()
+                // An annotation that repeats the instruction's own effect says nothing more.
+                || lhs_inst.metadata.effect().unwrap_or(lhs_inst.kind.effect_kind())
+                    != rhs_inst.metadata.effect().unwrap_or(rhs_inst.kind.effect_kind())
                 || lhs_inst.metadata.unchecked() != rhs_inst.metadata.unchecked()
                 || lhs_inst.metadata.deferred_alloc() != rhs_inst.metadata.deferred_alloc()
                 || lhs_inst.metadata.preserves_fmp() != rhs_inst.metadata.preserves_fmp()
@@ -1116,7 +1142,7 @@ fn equivalent_storage_aliases(
     }
 }
 
-fn equivalent_attributes(lhs: &Function, rhs: &Function) -> bool {
+fn equivalent_attributes(lhs: &Function, rhs: &Function, lowered: bool) -> bool {
     lhs.attributes.visibility == rhs.attributes.visibility
         && lhs.attributes.state_mutability == rhs.attributes.state_mutability
         && lhs.attributes.is_constructor == rhs.attributes.is_constructor
@@ -1132,9 +1158,12 @@ fn equivalent_attributes(lhs: &Function, rhs: &Function) -> bool {
         && lhs.attributes.returns_param_elements == rhs.attributes.returns_param_elements
         // A proved element width is part of what callers rely on: merging a body
         // whose address array is proved canonical into one that is not would make
-        // its callers re-clean every returned element.
-        && lhs.attributes.array_element_bits == rhs.attributes.array_element_bits
-        && lhs.attributes.array_return_element_bits == rhs.attributes.array_return_element_bits
+        // its callers re-clean every returned element. Once lowered, no pass
+        // reads them any more.
+        && (lowered
+            || lhs.attributes.array_element_bits == rhs.attributes.array_element_bits
+                && lhs.attributes.array_return_element_bits
+                    == rhs.attributes.array_return_element_bits)
 }
 
 /// Compares the non-operand fields of two instructions. Operands are zeroed because their
