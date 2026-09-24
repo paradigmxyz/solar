@@ -954,21 +954,42 @@ impl SymbolTables {
         uri: &Url,
         position: Position,
     ) -> Option<GotoTypeDefinitionResponse> {
-        let symbol_ids = self.symbol_ids_at_position(uri, position)?;
-        let mut locations = Vec::new();
-        for symbol_id in symbol_ids {
-            if let Some(targets) = self.type_definitions.get(&symbol_id) {
-                for &target in targets {
-                    let location = self.selection_location(target);
-                    if !locations.contains(&location) {
-                        locations.push(location);
+        let (locations, _) = self.query_at_position(uri, position, |symbol_ids| {
+            // Overload sets have no batch-independent ID order. Visit their declarations in
+            // source order while preserving each function's own return-type order.
+            let mut ordered = ReferenceTargets::new();
+            let symbol_ids = if self.has_merged_batches && symbol_ids.len() > 1 {
+                ordered.extend_from_slice(symbol_ids);
+                ordered.sort_unstable_by_key(|&symbol_id| {
+                    let declaration = &self.declarations[symbol_id];
+                    (
+                        declaration.location.uri.as_str(),
+                        declaration.location.range.start,
+                        declaration.location.range.end,
+                        declaration.name_range.start,
+                        declaration.name_range.end,
+                    )
+                });
+                ordered.as_slice()
+            } else {
+                symbol_ids
+            };
+            let mut locations = Vec::new();
+            for symbol_id in symbol_ids {
+                if let Some(targets) = self.type_definitions.get(symbol_id) {
+                    for &target in targets {
+                        let location = self.selection_location(target);
+                        if self.rename.conflicting_contents().contains(&location.uri) {
+                            return None;
+                        }
+                        if !locations.contains(&location) {
+                            locations.push(location);
+                        }
                     }
                 }
             }
-        }
-        if locations.is_empty() {
-            return None;
-        }
+            (!locations.is_empty()).then_some(locations)
+        })?;
         Some(GotoTypeDefinitionResponse::Array(locations))
     }
 
@@ -1034,7 +1055,13 @@ impl SymbolTables {
         uri: &Url,
         position: Position,
     ) -> Option<Vec<DocumentHighlight>> {
-        let targets = self.symbol_ids_at_position(uri, position)?;
+        let (highlights, _) = self.query_at_position(uri, position, |targets| {
+            Some(self.highlights_for_targets(uri, targets))
+        })?;
+        Some(highlights)
+    }
+
+    fn highlights_for_targets(&self, uri: &Url, targets: &[SymbolId]) -> Vec<DocumentHighlight> {
         let mut highlights = targets
             .iter()
             .filter_map(|&symbol_id| {
@@ -1047,7 +1074,7 @@ impl SymbolTables {
             .collect::<Vec<_>>();
 
         if let Some(references) = self.file_references.get(uri) {
-            let target_references = match targets.as_slice() {
+            let target_references = match targets {
                 [target] => Some(self.symbol_references.get(target).map_or(&[][..], Vec::as_slice)),
                 _ => None,
             };
@@ -1078,19 +1105,15 @@ impl SymbolTables {
 
         highlights.sort_by_key(|highlight| (highlight.range.start, highlight.range.end));
         highlights.dedup_by(|a, b| a.range == b.range);
-        Some(highlights)
+        highlights
     }
 
     pub(crate) fn hover(&self, uri: &Url, position: Position) -> Option<Hover> {
-        let (symbol_id, range) = if let Some(reference) = self.reference_at_position(uri, position)
-        {
-            let &[symbol_id] = reference.targets.as_slice() else { return None };
-            (symbol_id, reference.location.range)
-        } else {
-            let symbol_id = self.declaration_at_position(uri, position)?;
-            (symbol_id, self.declarations[symbol_id].name_range)
-        };
-        let contents = self.declarations[symbol_id].documentation.as_ref()?.hover();
+        let (documentation, range) = self.query_at_position(uri, position, |targets| {
+            let &[symbol_id] = targets else { return None };
+            self.declarations[symbol_id].documentation.as_ref()
+        })?;
+        let contents = documentation.hover();
         Some(Hover { contents: HoverContents::Markup(contents), range: Some(range) })
     }
 
@@ -1649,18 +1672,98 @@ impl SymbolTables {
         position: Position,
         target: NavigationTarget,
     ) -> Option<Vec<Location>> {
-        let symbol_ids = self.symbol_ids_at_position(uri, position)?;
-        let mut locations = symbol_ids
-            .into_iter()
-            .filter(|&symbol_id| target.includes(self, symbol_id))
-            .map(|symbol_id| self.selection_location(symbol_id))
-            .collect::<Vec<_>>();
-        if locations.is_empty() {
+        let (locations, _) = self.query_at_position(uri, position, |symbol_ids| {
+            let mut locations = symbol_ids
+                .iter()
+                .copied()
+                .filter(|&symbol_id| target.includes(self, symbol_id))
+                .map(|symbol_id| self.selection_location(symbol_id))
+                .collect::<Vec<_>>();
+            if locations.is_empty() {
+                return None;
+            }
+            sort_locations(&mut locations);
+            locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
+            Some(locations)
+        })?;
+        Some(locations)
+    }
+
+    /// Answers a point query only when the indexed contexts at the smallest range agree.
+    ///
+    /// Compare physical declarations before the query result: identical signatures or highlight
+    /// ranges do not make different bindings compatible. Keep each entry's targets separate so
+    /// queries also detect different types, documentation, or occurrences for one declaration.
+    /// Unmerged tables retain their single-context behavior without scanning other entries.
+    fn query_at_position<T: PartialEq>(
+        &self,
+        uri: &Url,
+        position: Position,
+        query: impl Fn(&[SymbolId]) -> Option<T>,
+    ) -> Option<(T, Range)> {
+        let reference = self.reference_at_position(uri, position);
+        let declaration_target;
+        let (targets, range) = if let Some(reference) = reference {
+            (reference.targets.as_slice(), reference.location.range)
+        } else {
+            declaration_target = self.declaration_at_position(uri, position)?;
+            (
+                std::slice::from_ref(&declaration_target),
+                self.declarations[declaration_target].name_range,
+            )
+        };
+        if self.has_merged_batches
+            && (self.rename.conflicting_contents().contains(uri)
+                || targets.iter().any(|&target| {
+                    self.rename
+                        .conflicting_contents()
+                        .contains(&self.declarations[target].location.uri)
+                }))
+        {
             return None;
         }
-        sort_locations(&mut locations);
-        locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
-        Some(locations)
+        let result = query(targets)?;
+        if self.has_merged_batches {
+            let agrees = |other: &[SymbolId]| {
+                other == targets
+                    || (self.same_declaration_targets(targets, other)
+                        && query(other).as_ref() == Some(&result))
+            };
+            let compatible = if reference.is_some() {
+                self.file_references
+                    .get(uri)?
+                    .candidates_at(position, |index| self.references[index].location.range)
+                    .filter(|&index| self.references[index].location.range == range)
+                    .all(|index| agrees(&self.references[index].targets))
+            } else {
+                self.file_declaration_positions
+                    .get(uri)?
+                    .candidates_at(position, |symbol_id| self.declarations[symbol_id].name_range)
+                    .filter(|&symbol_id| self.declarations[symbol_id].name_range == range)
+                    .all(|symbol_id| agrees(std::slice::from_ref(&symbol_id)))
+            };
+            if !compatible {
+                return None;
+            }
+        }
+        Some((result, range))
+    }
+
+    /// Compares target sets without relying on batch-local IDs or target ordering.
+    fn same_declaration_targets(&self, left: &[SymbolId], right: &[SymbolId]) -> bool {
+        let same_declaration = |&left: &SymbolId, &right: &SymbolId| {
+            if left == right {
+                return true;
+            }
+            let left = &self.declarations[left];
+            let right = &self.declarations[right];
+            left.location == right.location
+                && left.name_range == right.name_range
+                && left.name == right.name
+                && left.kind == right.kind
+        };
+        left.iter().all(|left| right.iter().any(|right| same_declaration(left, right)))
+            && right.iter().all(|right| left.iter().any(|left| same_declaration(left, right)))
     }
 
     fn symbol_ids_at_position(&self, uri: &Url, position: Position) -> Option<ReferenceTargets> {
