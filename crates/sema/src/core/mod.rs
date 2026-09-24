@@ -62,6 +62,7 @@ pub const MODULES: &[CoreModule] = &[
     CoreModule { path: "solar:core/v1/codecs/Hex.sol", source: include_str!("v1/codecs/Hex.sol") },
     CoreModule { path: "solar:core/v1/Slots.sol", source: include_str!("v1/Slots.sol") },
     CoreModule { path: "solar:core/v1/Return.sol", source: include_str!("v1/Return.sol") },
+    CoreModule { path: "solar:core/v1/Build.sol", source: include_str!("v1/Build.sol") },
 ];
 
 /// Whether `path` lies under the reserved prefix.
@@ -234,6 +235,8 @@ pub enum CoreIntrinsic {
     WrappingSub,
     /// `Math.wrappingMul(x, y)`.
     WrappingMul,
+    /// `Build.gasFirst()`: whether the build optimizes for runtime gas.
+    GasFirst,
 }
 
 /// Returns the intrinsic `function` names, if it is one.
@@ -264,6 +267,7 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
     static CALLS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static CALLDATA_BYTES: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static MATH: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static BUILD: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static BASE64: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static STRINGS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static HEX: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
@@ -425,6 +429,9 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (sym::wrappingMul, CoreIntrinsic::WrappingMul),
             ])
         })),
+        "solar:core/v1/Build.sol" => Some(
+            BUILD.get_or_init(|| FxHashMap::from_iter([(sym::gasFirst, CoreIntrinsic::GasFirst)])),
+        ),
         // `Cast`, `Precompiles`, `Buffers` and the remaining codecs are library
         // code throughout.
         _ => None,

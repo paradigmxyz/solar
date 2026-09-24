@@ -1137,6 +1137,7 @@ symbols! {
         frame_store,
         from,
         function_pointer_dispatcher,
+        gasFirst,
         gasleft,
         global,
         groupSum,
