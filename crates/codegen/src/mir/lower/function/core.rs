@@ -25,6 +25,15 @@
 //! and the elements with one `mcopy`, instead of zeroing the words it then
 //! overwrites one at a time.
 //!
+//! Gas builds give signed, unsigned and address elements bodies of their own.
+//! Other builds share one body per operation between all of them: it compares
+//! words after flipping both by an argument, `2**255` for signed elements and
+//! zero otherwise, and address callers give up the proved width of its
+//! results. Their sorts, plain and `groupSum`'s alike, are one paired sort
+//! that also takes the byte distance from each key to its value; a plain sort
+//! passes zero, so each value move stores the same words as its key move.
+//! Small comparisons such as `equalsAt` share one body there as well.
+//!
 //! A storage reference argument is passed as its slot, as to any internal
 //! call. `Slots` hashes a root's slot the way a dynamic array's data slot is
 //! hashed and checks the index after the hash, so a loop over one region can
@@ -48,6 +57,16 @@ enum SetOperation {
     Union,
     Intersection,
     Difference,
+}
+
+/// How a set merge or a sort orders two words.
+#[derive(Clone, Copy)]
+enum WordOrder {
+    Unsigned,
+    Signed,
+    /// Unsigned after both are flipped by this word: zero for unsigned
+    /// elements, `2**255` for signed ones.
+    Flipped(ValueId),
 }
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
@@ -602,6 +621,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let TyKind::DynArray(element) = array_ty.peel_refs().kind else { return None };
         let signed = element.is_signed();
         let address = matches!(element.kind, TyKind::Elementary(ElementaryType::Address(_)));
+        if !self.cx.gcx.sess.opts.optimization.is_gas() {
+            return self.lower_core_array_set_shared_call(*a, *b, operation, signed);
+        }
         let name = match (operation, signed, address) {
             (SetOperation::Union, true, _) => sym::core_array_set_union_signed,
             (SetOperation::Union, false, true) => sym::core_array_set_union_address,
@@ -622,10 +644,44 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let a = lowerer.builder.add_param(array);
             let b = lowerer.builder.add_param(array);
             lowerer.builder.set_return_type(array);
-            lowerer.lower_core_array_set(operation, signed, a, b);
+            let less = if signed { WordOrder::Signed } else { WordOrder::Unsigned };
+            lowerer.lower_core_array_set(operation, less, a, b);
             Some(())
         })?;
         Some(self.builder.icall(helper, vec![*a, *b], array))
+    }
+
+    /// Other builds than gas give each operation one body for every element
+    /// type, which orders elements as unsigned words after flipping them by
+    /// `2**255` for signed ones. Addresses share the word body, so their
+    /// callers lose the proved width of its results.
+    fn lower_core_array_set_shared_call(
+        &mut self,
+        a: ValueId,
+        b: ValueId,
+        operation: SetOperation,
+        signed: bool,
+    ) -> Option<ValueId> {
+        let name = match operation {
+            SetOperation::Union => sym::core_array_set_union,
+            SetOperation::Intersection => sym::core_array_set_intersection,
+            SetOperation::Difference => sym::core_array_set_difference,
+        };
+        let array = MirType::MemoryObject(MemoryObjectKind::DynamicArray);
+        let helper = self.lazy_helper(name, |this, function| {
+            function.attributes.no_inline = true;
+            function.attributes.preserves_array_elements = true;
+            function.attributes.returns_param_elements = true;
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            let a = lowerer.builder.add_param(array);
+            let b = lowerer.builder.add_param(array);
+            let flip = lowerer.builder.add_param(MirType::I256);
+            lowerer.builder.set_return_type(array);
+            lowerer.lower_core_array_set(operation, WordOrder::Flipped(flip), a, b);
+            Some(())
+        })?;
+        let flip = self.builder.imm(if signed { U256::from(1) << 255 } else { U256::ZERO });
+        Some(self.builder.icall(helper, vec![a, b, flip], array))
     }
 
     /// Lowers every `copy` overload to one helper; addresses get their own, so
@@ -637,7 +693,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<ValueId> {
         let ([a], [array_ty]) = (operands, parameter_tys) else { return None };
         let TyKind::DynArray(element) = array_ty.peel_refs().kind else { return None };
-        let address = matches!(element.kind, TyKind::Elementary(ElementaryType::Address(_)));
+        // Other builds than gas share the word helper with addresses too.
+        let address = matches!(element.kind, TyKind::Elementary(ElementaryType::Address(_)))
+            && self.cx.gcx.sess.opts.optimization.is_gas();
         let name = if address { sym::core_array_copy_address } else { sym::core_array_copy };
         let array = MirType::MemoryObject(MemoryObjectKind::DynamicArray);
         let helper = self.lazy_helper(name, |this, function| {
@@ -707,7 +765,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn lower_core_array_set(
         &mut self,
         operation: SetOperation,
-        signed: bool,
+        order: WordOrder,
         a: ValueId,
         b: ValueId,
     ) {
@@ -823,9 +881,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let equal_b = self.builder.add_u64_offset(b_cursor, 32);
         let equal_end = self.set_merge_step(equal_a, a_end, equal_b, b_end, body, done);
 
-        // unequal: branch u < v (signed: slt), a_arm, b_arm
+        // unequal: branch u < v (signed: slt; flipped: u ^ flip < v ^ flip), a_arm, b_arm
         self.builder.switch_to_block(unequal);
-        let less = if signed { self.builder.slt(u, v) } else { self.builder.lt(u, v) };
+        let less = self.core_sort_lt(u, v, order);
         self.builder.branch(less, a_arm, b_arm);
 
         // a_arm: union, difference: mstore out, u; out += 32
@@ -921,27 +979,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Lowers every `groupSum` overload to one helper: keys compare as words.
     fn lower_core_array_group_sum_call(&mut self, operands: &[ValueId]) -> Option<ValueId> {
         let [keys, values] = *operands else { return None };
-        let inner = self.lazy_helper(sym::core_array_group_sort_inner, |this, function| {
-            function.attributes.no_inline = true;
-            function.attributes.preserves_array_elements = true;
-            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
-            let low = lowerer.builder.add_param(MirType::I256);
-            let high = lowerer.builder.add_param(MirType::I256);
-            let pair = lowerer.builder.add_param(MirType::I256);
-            lowerer.lower_core_array_sort(false, low, high, Some(pair));
-            Some(())
-        })?;
-        let sort = self.lazy_helper(sym::core_array_group_sort, |this, function| {
-            function.attributes.no_inline = true;
-            function.attributes.preserves_array_elements = true;
-            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
-            let low = lowerer.builder.add_param(MirType::I256);
-            let high = lowerer.builder.add_param(MirType::I256);
-            let pair = lowerer.builder.add_param(MirType::I256);
-            lowerer.lower_core_array_sort_entry(inner, false, low, high, Some(pair));
-            lowerer.builder.ret([]);
-            Some(())
-        })?;
+        let shared = !self.cx.gcx.sess.opts.optimization.is_gas();
+        let sort = if shared { self.core_shared_sort()? } else { self.core_group_sort()? };
         let helper = self.lazy_helper(sym::core_array_group_sum, |this, function| {
             function.attributes.no_inline = true;
             // Keys are only permuted; the sums land in `uint256[]` values.
@@ -950,16 +989,80 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let ty = MirType::MemoryObject(MemoryObjectKind::DynamicArray);
             let keys = lowerer.builder.add_param(ty);
             let values = lowerer.builder.add_param(ty);
-            lowerer.lower_core_array_group_sum(sort, keys, values);
+            lowerer.lower_core_array_group_sum(sort, keys, values, shared);
             Some(())
         })?;
         self.builder.icall_void(helper, vec![keys, values]);
         Some(self.builder.imm(U256::ZERO))
     }
 
+    /// The paired sort of gas builds' `groupSum`, whose keys compare as words.
+    fn core_group_sort(&mut self) -> Option<FunctionId> {
+        let inner = self.lazy_helper(sym::core_array_group_sort_inner, |this, function| {
+            function.attributes.no_inline = true;
+            function.attributes.preserves_array_elements = true;
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            let low = lowerer.builder.add_param(MirType::I256);
+            let high = lowerer.builder.add_param(MirType::I256);
+            let pair = lowerer.builder.add_param(MirType::I256);
+            lowerer.lower_core_array_sort(WordOrder::Unsigned, low, high, Some(pair));
+            Some(())
+        })?;
+        self.lazy_helper(sym::core_array_group_sort, |this, function| {
+            function.attributes.no_inline = true;
+            function.attributes.preserves_array_elements = true;
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            let low = lowerer.builder.add_param(MirType::I256);
+            let high = lowerer.builder.add_param(MirType::I256);
+            let pair = lowerer.builder.add_param(MirType::I256);
+            lowerer.lower_core_array_sort_entry(inner, WordOrder::Unsigned, low, high, Some(pair));
+            lowerer.builder.ret([]);
+            Some(())
+        })
+    }
+
+    /// The one sort of builds that do not optimize for gas, `sort(low, high,
+    /// pair, flip)`. `pair` is the byte distance from each key to its value,
+    /// zero for a plain sort, whose value moves then repeat its key moves;
+    /// `flip` flips both sides of each comparison, `2**255` for signed keys.
+    fn core_shared_sort(&mut self) -> Option<FunctionId> {
+        let inner = self.lazy_helper(sym::core_array_group_sort_inner, |this, function| {
+            function.attributes.no_inline = true;
+            function.attributes.preserves_array_elements = true;
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            let low = lowerer.builder.add_param(MirType::I256);
+            let high = lowerer.builder.add_param(MirType::I256);
+            let pair = lowerer.builder.add_param(MirType::I256);
+            let flip = lowerer.builder.add_param(MirType::I256);
+            lowerer.lower_core_array_sort(WordOrder::Flipped(flip), low, high, Some(pair));
+            Some(())
+        })?;
+        self.lazy_helper(sym::core_array_group_sort, |this, function| {
+            function.attributes.no_inline = true;
+            function.attributes.preserves_array_elements = true;
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            let low = lowerer.builder.add_param(MirType::I256);
+            let high = lowerer.builder.add_param(MirType::I256);
+            let pair = lowerer.builder.add_param(MirType::I256);
+            let flip = lowerer.builder.add_param(MirType::I256);
+            let order = WordOrder::Flipped(flip);
+            lowerer.lower_core_array_sort_entry(inner, order, low, high, Some(pair));
+            lowerer.builder.ret([]);
+            Some(())
+        })
+    }
+
     /// Sorts the pairs by key word, then keeps the first key of every run and
     /// gives it the checked sum of the run's values, shrinking both arrays.
-    fn lower_core_array_group_sum(&mut self, sort: FunctionId, keys: ValueId, values: ValueId) {
+    /// `shared` calls the sort of builds that do not optimize for gas, which
+    /// also takes a zero flip.
+    fn lower_core_array_group_sum(
+        &mut self,
+        sort: FunctionId,
+        keys: ValueId,
+        values: ValueId,
+        shared: bool,
+    ) {
         let kind = MemoryObjectKind::DynamicArray;
         // panic(0x32) if len(keys) != len(values)
         let length = self.builder.memory_object_len(keys, kind);
@@ -982,7 +1085,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let five = self.builder.imm(5);
         let bytes = self.builder.shl(five, length);
         let high = self.builder.add(low, bytes);
-        self.builder.icall_void(sort, vec![low, high, pair]);
+        let mut args = vec![low, high, pair];
+        if shared {
+            args.push(self.builder.imm(0));
+        }
+        self.builder.icall_void(sort, args);
 
         // first run: write = low, sum = mload(low + pair)
         let word = self.builder.imm(32);
@@ -1055,7 +1162,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.ret([]);
     }
 
-    /// Lowers every supported sort overload to one signed or unsigned helper.
+    /// Lowers every supported sort overload to one signed or unsigned helper,
+    /// or outside gas builds to one helper for both.
     fn lower_core_array_sort_call(
         &mut self,
         operands: &[ValueId],
@@ -1064,32 +1172,40 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let ([input], [array_ty]) = (operands, parameter_tys) else { return None };
         let TyKind::DynArray(element) = array_ty.peel_refs().kind else { return None };
         let signed = element.is_signed();
-        let inner_name = Symbol::intern(if signed {
-            "core_array_sort_inner_signed"
+        // Other builds than gas call the one paired sort that `groupSum` also
+        // uses, with a zero pair and a flip for signed elements.
+        let shared = !self.cx.gcx.sess.opts.optimization.is_gas();
+        let helper = if shared {
+            self.core_shared_sort()?
         } else {
-            "core_array_sort_inner"
-        });
-        let inner = self.lazy_helper(inner_name, |this, function| {
-            function.attributes.no_inline = true;
-            function.attributes.preserves_array_elements = true;
-            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
-            let low = lowerer.builder.add_param(MirType::I256);
-            let high = lowerer.builder.add_param(MirType::I256);
-            lowerer.lower_core_array_sort(signed, low, high, None);
-            Some(())
-        })?;
-        let entry_name =
-            Symbol::intern(if signed { "core_array_sort_signed" } else { "core_array_sort" });
-        let helper = self.lazy_helper(entry_name, |this, function| {
-            function.attributes.no_inline = true;
-            function.attributes.preserves_array_elements = true;
-            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
-            let low = lowerer.builder.add_param(MirType::I256);
-            let high = lowerer.builder.add_param(MirType::I256);
-            lowerer.lower_core_array_sort_entry(inner, signed, low, high, None);
-            lowerer.builder.ret([]);
-            Some(())
-        })?;
+            let order = if signed { WordOrder::Signed } else { WordOrder::Unsigned };
+            let inner_name = Symbol::intern(if signed {
+                "core_array_sort_inner_signed"
+            } else {
+                "core_array_sort_inner"
+            });
+            let inner = self.lazy_helper(inner_name, |this, function| {
+                function.attributes.no_inline = true;
+                function.attributes.preserves_array_elements = true;
+                let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+                let low = lowerer.builder.add_param(MirType::I256);
+                let high = lowerer.builder.add_param(MirType::I256);
+                lowerer.lower_core_array_sort(order, low, high, None);
+                Some(())
+            })?;
+            let entry_name =
+                Symbol::intern(if signed { "core_array_sort_signed" } else { "core_array_sort" });
+            self.lazy_helper(entry_name, |this, function| {
+                function.attributes.no_inline = true;
+                function.attributes.preserves_array_elements = true;
+                let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+                let low = lowerer.builder.add_param(MirType::I256);
+                let high = lowerer.builder.add_param(MirType::I256);
+                lowerer.lower_core_array_sort_entry(inner, order, low, high, None);
+                lowerer.builder.ret([]);
+                Some(())
+            })?
+        };
 
         let kind = MemoryObjectKind::DynamicArray;
         let length = self.builder.memory_object_len(*input, kind);
@@ -1105,7 +1221,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let five = self.builder.imm(5);
         let bytes = self.builder.shl(five, length);
         let high = self.builder.add(low, bytes);
-        self.builder.icall_void(helper, vec![low, high]);
+        let mut args = vec![low, high];
+        if shared {
+            // pair = 0; flip = signed ? 2**255 : 0
+            args.push(self.builder.imm(0));
+            args.push(self.builder.imm(if signed { U256::ONE << 255 } else { U256::ZERO }));
+        }
+        self.builder.icall_void(helper, args);
         self.builder.jump(done);
 
         self.builder.switch_to_block(done);
@@ -1119,7 +1241,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn lower_core_array_sort_entry(
         &mut self,
         inner: FunctionId,
-        signed: bool,
+        order: WordOrder,
         low: ValueId,
         high: ValueId,
         pair: Option<ValueId>,
@@ -1149,7 +1271,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let previous = self.builder.sub(ascending, word);
         let previous_value = self.builder.mload(previous);
         let value = self.builder.mload(ascending);
-        let out_of_order = self.core_sort_lt(value, previous_value, signed);
+        let out_of_order = self.core_sort_lt(value, previous_value, order);
         self.builder.branch(out_of_order, descending_start, ascending_next);
 
         self.builder.switch_to_block(ascending_next);
@@ -1168,7 +1290,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let previous = self.builder.sub(descending, word);
         let previous_value = self.builder.mload(previous);
         let value = self.builder.mload(descending);
-        let rises = self.core_sort_lt(previous_value, value, signed);
+        let rises = self.core_sort_lt(previous_value, value, order);
         self.builder.branch(rises, mixed, descending_next);
 
         self.builder.switch_to_block(descending_next);
@@ -1178,9 +1300,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(mixed);
         let header = self.builder.sub(low, word);
         let length = self.builder.mload(header);
-        let sentinel = self.builder.imm(if signed { U256::ONE << 255 } else { U256::ZERO });
+        // The smallest word in the order: zero, `2**255` when signed, or the flip.
+        let sentinel = match order {
+            WordOrder::Unsigned => self.builder.imm(U256::ZERO),
+            WordOrder::Signed => self.builder.imm(U256::ONE << 255),
+            WordOrder::Flipped(flip) => flip,
+        };
         self.builder.mstore(header, sentinel);
-        self.builder.icall_void(inner, [low, high].into_iter().chain(pair).collect());
+        let flip = match order {
+            WordOrder::Flipped(flip) => Some(flip),
+            WordOrder::Unsigned | WordOrder::Signed => None,
+        };
+        self.builder.icall_void(inner, [low, high].into_iter().chain(pair).chain(flip).collect());
         self.builder.mstore(header, length);
         self.builder.jump(done);
 
@@ -1237,7 +1368,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// With `pair`, each value moves with its key.
     fn lower_core_array_sort(
         &mut self,
-        signed: bool,
+        order: WordOrder,
         initial_low: ValueId,
         initial_high: ValueId,
         pair: Option<ValueId>,
@@ -1278,20 +1409,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         });
         let mut first_value = self.builder.mload(low);
         let mut middle_value = self.builder.mload(middle);
-        let swap = self.core_sort_lt(middle_value, first_value, signed);
+        let swap = self.core_sort_lt(middle_value, first_value, order);
         let new_first = self.builder.select(swap, middle_value, first_value);
         let new_middle = self.builder.select(swap, first_value, middle_value);
         first_value = new_first;
         middle_value = new_middle;
         self.core_sort_select_pair(&mut paired, swap, 0, 1);
         let mut last_value = self.builder.mload(last);
-        let swap = self.core_sort_lt(last_value, middle_value, signed);
+        let swap = self.core_sort_lt(last_value, middle_value, order);
         let new_middle = self.builder.select(swap, last_value, middle_value);
         let new_last = self.builder.select(swap, middle_value, last_value);
         middle_value = new_middle;
         last_value = new_last;
         self.core_sort_select_pair(&mut paired, swap, 1, 2);
-        let swap = self.core_sort_lt(middle_value, first_value, signed);
+        let swap = self.core_sort_lt(middle_value, first_value, order);
         let new_first = self.builder.select(swap, middle_value, first_value);
         let new_middle = self.builder.select(swap, first_value, middle_value);
         first_value = new_first;
@@ -1318,7 +1449,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let left = self.builder.phi(vec![(partition, initial_left)]);
         let right_start = self.builder.phi(vec![(partition, initial_right)]);
         let left_value = self.builder.mload(left);
-        let before_pivot = self.core_sort_lt(left_value, middle_value, signed);
+        let before_pivot = self.core_sort_lt(left_value, middle_value, order);
         self.builder.branch(before_pivot, advance_left, scan_right);
 
         self.builder.switch_to_block(advance_left);
@@ -1330,7 +1461,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(scan_right);
         let right = self.builder.phi(vec![(scan_left, right_start)]);
         let right_value = self.builder.mload(right);
-        let after_pivot = self.core_sort_lt(middle_value, right_value, signed);
+        let after_pivot = self.core_sort_lt(middle_value, right_value, order);
         self.builder.branch(after_pivot, advance_right, compare);
 
         self.builder.switch_to_block(advance_right);
@@ -1376,7 +1507,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.add_phi_incoming(pending, sort_right, stacked);
 
         self.builder.switch_to_block(insertion);
-        self.lower_core_array_insertion_sort(signed, low, high, pair);
+        self.lower_core_array_insertion_sort(order, low, high, pair);
         let pop = self.builder.create_block();
         let done = self.builder.create_block();
         let waiting = self.builder.ne_zero(pending);
@@ -1443,7 +1574,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// builder in the block reached once the leaf is sorted.
     fn lower_core_array_insertion_sort(
         &mut self,
-        signed: bool,
+        order: WordOrder,
         low: ValueId,
         high: ValueId,
         pair: Option<ValueId>,
@@ -1476,7 +1607,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let slot = self.builder.phi(vec![(outer_body, cursor)]);
         let previous = self.builder.sub(slot, word);
         let previous_value = self.builder.mload(previous);
-        let out_of_order = self.core_sort_lt(key, previous_value, signed);
+        let out_of_order = self.core_sort_lt(key, previous_value, order);
         self.builder.branch(out_of_order, shift, place);
 
         self.builder.switch_to_block(shift);
@@ -1505,8 +1636,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(done);
     }
 
-    fn core_sort_lt(&mut self, lhs: ValueId, rhs: ValueId, signed: bool) -> ValueId {
-        if signed { self.builder.slt(lhs, rhs) } else { self.builder.lt(lhs, rhs) }
+    fn core_sort_lt(&mut self, lhs: ValueId, rhs: ValueId, order: WordOrder) -> ValueId {
+        match order {
+            WordOrder::Unsigned => self.builder.lt(lhs, rhs),
+            WordOrder::Signed => self.builder.slt(lhs, rhs),
+            WordOrder::Flipped(flip) => {
+                // lt(lhs ^ flip, rhs ^ flip)
+                let lhs = self.builder.xor(lhs, flip);
+                let rhs = self.builder.xor(rhs, flip);
+                self.builder.lt(lhs, rhs)
+            }
+        }
     }
 
     /// Packs an intrinsic's results the way a call to `function_id` returns

@@ -1,5 +1,6 @@
-//@ revisions: intrinsic portable
+//@ revisions: intrinsic size portable
 //@[intrinsic] compile-flags: -Ogas
+//@[size] compile-flags: -Osize
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
 //@ run-call: unionUint [], [] => []
 //@ run-call: unionUint [], [1, 2] => [1, 2]
