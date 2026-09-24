@@ -30,6 +30,15 @@
 //! check can be removed before expansion. Facts roll back on leaving each dominator subtree, so a
 //! check on one conditional path cannot justify removing a check on another.
 //!
+//! The same facts retire cleanups that change nothing in their scope: an `and`
+//! with a low mask `2^k - 1` of a value bounded by the mask, and a `signextend`
+//! of a value below its sign bit, give way to their operand. These are mostly
+//! the ABI cleanups of a narrowing cast's result behind its own range check.
+//! A block that calls a function which never returns to its caller, because
+//! every path reverts, stops, returns from the external call, or tail-calls
+//! such a function, contributes no edge: a failing arm that calls a revert
+//! helper and falls into the join leaves the passing edge's facts intact.
+//!
 //! Before the dominator walk, a bounded forward analysis carries the intersection
 //! of relational facts and the union of ranges across predecessor edges. Phi
 //! ranges are evaluated in their incoming edge contexts. All states start at
@@ -205,9 +214,11 @@ impl MirPass for CheckElim {
     ) -> bool {
         let object_lengths = object_length_bound(module);
         let summaries = object_lengths.is_some().then(|| analyses.call_summaries(module));
+        let never_returning = Arc::new(never_returning(module));
         run_function_pass(module, analyses, |func, _| {
             let mut eliminator = CheckEliminator::new(None, object_lengths);
             eliminator.call_summaries.clone_from(&summaries);
+            eliminator.never_returning = Some(Arc::clone(&never_returning));
             eliminator.run(func) != 0
         })
     }
@@ -235,6 +246,7 @@ impl MirPass for LateCheckElim {
             })
             .collect::<FxHashSet<_>>();
         let object_lengths = object_length_bound(module);
+        let never_returning = Arc::new(never_returning(module));
         run_function_pass_with_cfg(module, analyses, |func, analyses| {
             let selected =
                 gcx.sess.opts.optimization.is_gas().then(|| analyses.cfg().cyclic_blocks());
@@ -243,6 +255,7 @@ impl MirPass for LateCheckElim {
             }
             let mut eliminator = CheckEliminator::new(None, object_lengths);
             eliminator.cfg = Some(Rc::clone(analyses.cfg()));
+            eliminator.never_returning = Some(Arc::clone(&never_returning));
             let changed =
                 eliminator.run_in_blocks(func, selected.map(|blocks| (blocks, &reverting))) != 0;
             if changed {
@@ -253,6 +266,35 @@ impl MirPass for LateCheckElim {
             changed
         })
     }
+}
+
+/// Functions that never return to their caller: no path reaches an internal
+/// `return`, and every tail call goes to another such function. Calling one
+/// ends the frame by reverting, stopping, returning from the external call or
+/// looping, so the caller's code after the call never runs.
+fn never_returning(module: &Module) -> FxHashSet<FunctionId> {
+    let mut returning = DenseBitSet::new_empty(module.functions.len());
+    loop {
+        let mut changed = false;
+        for (id, func) in module.functions.iter_enumerated() {
+            if returning.contains(id) {
+                continue;
+            }
+            let returns = func.blocks.iter().any(|block| match &block.terminator {
+                Some(Terminator::Return { .. }) => true,
+                Some(Terminator::TailCall { function, .. }) => returning.contains(*function),
+                _ => false,
+            });
+            if returns {
+                returning.insert(id);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    module.functions.indices().filter(|&id| !returning.contains(id)).collect()
 }
 
 /// Recognizes short unconditional failure paths, including outlined revert helpers.
@@ -408,6 +450,8 @@ struct CheckElimStats {
     /// Number of branches folded to unconditional jumps.
     branches_folded: usize,
     checks_removed: usize,
+    /// Number of masks and sign extensions proven to leave their operand unchanged.
+    cleanups_removed: usize,
 }
 
 /// An inclusive unsigned 256-bit interval.
@@ -454,6 +498,10 @@ impl Range {
         Self { lo: self.lo.min(other.lo), hi: self.hi.max(other.hi) }
     }
 }
+
+/// What one dominator walk proves: branches to fold into jumps to the kept
+/// target, passing checks to remove, and cleanups whose result is their operand.
+type WalkProofs = (Vec<(BlockId, BlockId)>, DenseBitSet<InstId>, Vec<(ValueId, ValueId)>);
 
 /// Differences indexed under their subtrahend, each entry a minuend and the
 /// value holding their difference.
@@ -598,6 +646,9 @@ struct CheckEliminator<'a> {
     call_summaries: Option<Arc<MemoryCallSummaries>>,
     /// Shared CFG snapshot taken at entry, matching the previous fresh build.
     cfg: Option<Rc<CfgInfo>>,
+    /// Functions that never return to their caller; a block that calls one
+    /// never reaches its terminator.
+    never_returning: Option<Arc<FxHashSet<FunctionId>>>,
     /// Statistics from the last run.
     stats: CheckElimStats,
     ranges: FxHashMap<ValueId, Range>,
@@ -683,9 +734,13 @@ impl<'a> CheckEliminator<'a> {
         }
 
         // Predecessors recomputed from reachable terminators: facts must only
-        // come from edges that can actually execute.
+        // come from edges that can actually execute. A block that calls a
+        // function that never returns ends the frame before its terminator.
         let mut preds = index_vec![Vec::new(); func.blocks.len()];
         for &block in cfg.rpo() {
+            if self.calls_never_returning(func, block) {
+                continue;
+            }
             for &succ in cfg.successors(block) {
                 preds[succ].push(block);
             }
@@ -714,7 +769,7 @@ impl<'a> CheckEliminator<'a> {
         }
         let mut proven = Vec::new();
         let mut bounded_proofs = vec![0; bounded.len()];
-        let (mut folds, mut checks) = self.collect_folds(
+        let (mut folds, mut checks, mut cleanups) = self.collect_folds(
             func,
             &cfg,
             &preds,
@@ -757,7 +812,7 @@ impl<'a> CheckEliminator<'a> {
             self.relation_index = None;
             self.reverse_index = None;
             self.strict_lower_bounds = None;
-            (folds, checks) = self.collect_folds(
+            (folds, checks, cleanups) = self.collect_folds(
                 func,
                 &cfg,
                 &preds,
@@ -784,8 +839,14 @@ impl<'a> CheckEliminator<'a> {
         self.range_undo.clear();
         self.relation_undo.clear();
 
-        if folds.is_empty() && checks.is_empty() {
+        if folds.is_empty() && checks.is_empty() && cleanups.is_empty() {
             return 0;
+        }
+        if !cleanups.is_empty() {
+            // v = and x, 2^k - 1 (x <= 2^k - 1) => x
+            // v = signextend b, x (x below the sign bit) => x
+            let replacements = cleanups.iter().copied().collect::<FxHashMap<_, _>>();
+            func.replace_uses_canonicalized(&replacements);
         }
         // branch proven_condition, keep, discard => jump keep
         for &(block, keep) in &folds {
@@ -800,7 +861,8 @@ impl<'a> CheckEliminator<'a> {
         }
         self.stats.branches_folded = folds.len();
         self.stats.checks_removed = checks.count();
-        self.stats.branches_folded + self.stats.checks_removed
+        self.stats.cleanups_removed = cleanups.len();
+        self.stats.branches_folded + self.stats.checks_removed + self.stats.cleanups_removed
     }
 
     /// Walks the dominator tree, recording edge and check facts. Returns branch folds and
@@ -816,7 +878,7 @@ impl<'a> CheckEliminator<'a> {
         facts: &IndexVec<BlockId, Facts>,
         (candidates, proven): (&[MonotonePhi], &mut Vec<MonotonePhi>),
         (bounded, bounded_proofs): (&[BoundedPhi], &mut [usize]),
-    ) -> (Vec<(BlockId, BlockId)>, DenseBitSet<InstId>) {
+    ) -> WalkProofs {
         enum Walk {
             Enter(BlockId),
             Exit { range_mark: usize, relation_mark: usize },
@@ -824,6 +886,7 @@ impl<'a> CheckEliminator<'a> {
 
         let mut folds = Vec::new();
         let mut checks = DenseBitSet::new_empty(func.num_insts());
+        let mut cleanups = Vec::new();
         let mut stack = vec![Walk::Enter(BlockId::ENTRY)];
         while let Some(item) = stack.pop() {
             match item {
@@ -885,6 +948,11 @@ impl<'a> CheckEliminator<'a> {
                         if let Some(average) = func.inst_result_value(id) {
                             self.assume_average(func, average);
                         }
+                        if let Some(result) = func.inst_result_value(id)
+                            && let Some(operand) = self.redundant_cleanup(func, id)
+                        {
+                            cleanups.push((result, operand));
+                        }
                     }
 
                     // Every path from an update to the latch leaves this block, so the
@@ -911,7 +979,44 @@ impl<'a> CheckEliminator<'a> {
                 }
             }
         }
-        (folds, checks)
+        (folds, checks, cleanups)
+    }
+
+    /// Whether `block` calls a function that never returns to its caller.
+    fn calls_never_returning(&self, func: &Function, block: BlockId) -> bool {
+        let Some(never_returning) = &self.never_returning else { return false };
+        func.blocks[block].instructions.iter().any(|&inst| {
+            matches!(
+                func.inst(inst).kind,
+                InstKind::ICall { function: Callee::Function(callee), .. }
+                    if never_returning.contains(&callee)
+            )
+        })
+    }
+
+    /// Returns the operand of a cleanup the scope already proves idle: an `and`
+    /// with a low mask `2^k - 1` of a value at most the mask, or a
+    /// `signextend` of a value whose sign bit and every bit above it are
+    /// clear.
+    fn redundant_cleanup(&mut self, func: &Function, inst: InstId) -> Option<ValueId> {
+        match func.inst(inst).kind {
+            InstKind::And(a, b) => {
+                let (value, mask) = match (const_of(func, a), const_of(func, b)) {
+                    (None, Some(mask)) => (a, mask),
+                    (Some(mask), None) => (b, mask),
+                    _ => return None,
+                };
+                let low_mask =
+                    mask.checked_add(U256::from(1)).is_some_and(|next| next & mask == U256::ZERO);
+                (low_mask && self.range_of(func, value, MAX_DEPTH).hi <= mask).then_some(value)
+            }
+            InstKind::SignExtend(byte, value) => {
+                let byte = const_of(func, byte).filter(|byte| *byte < U256::from(31))?;
+                let sign_bit = U256::from(1) << (8 * byte.to::<usize>() + 7);
+                (self.range_of(func, value, MAX_DEPTH).hi < sign_bit).then_some(value)
+            }
+            _ => None,
+        }
     }
 
     /// Decides in the current scope whether a bounded phi's update stays on the

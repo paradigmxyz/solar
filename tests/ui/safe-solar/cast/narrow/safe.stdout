@@ -19,8 +19,7 @@ fn @narrow() [selector=0x0ebb6188, abi_wrapper, pure] {
     v1 = gt arg0, 0xffffffffff
     jumpi v1, bb2, bb1
   bb1:
-    v2 = and arg0, 0xffffffffff
-    mstore 128, v2
+    mstore 128, arg0
     returndata 128, 32
   bb2:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
