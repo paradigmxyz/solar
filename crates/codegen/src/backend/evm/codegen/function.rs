@@ -558,14 +558,20 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // Only values still needed past the clobber are pinned: a phi
                 // source or an operand the copy itself consumes has its last
                 // recorded use in this block at or before it, and reloading it
-                // would only deepen the stack with a dead word.
+                // would only deepen the stack with a dead word. A value this
+                // block defines at or after the clobber has no word to hold
+                // yet: free-memory-pointer loads reserve a reloadable slot
+                // before their definition parks them, and reloading one here
+                // would read a slot nothing has stored.
                 if self.spill_hazard_insts.contains(&inst_id) {
+                    let pending = &block.instructions[inst_idx..];
                     let at_risk: Vec<ValueId> = self
                         .scheduler
                         .spills
                         .reloadable_values()
                         .filter(|&value| {
                             liveness.is_used_at_or_after(value, block_id, inst_idx + 1)
+                                && !matches!(func.value(value), Value::Inst(def) if pending.contains(def))
                         })
                         .collect();
                     for value in at_risk {
