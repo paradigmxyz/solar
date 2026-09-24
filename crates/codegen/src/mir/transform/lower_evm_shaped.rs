@@ -5,6 +5,9 @@
 //! every call to a bodied callee proven unable to return, including calls with
 //! results. It replaces eligible calls with [`Terminator::TailCall`]; other calls
 //! remain ordinary instructions followed by an unreachable `invalid` terminator.
+//! A phi the dropped edge leaves with one incoming value becomes that value, since
+//! no later pass folds it and the backend would otherwise give it a block-entry
+//! home of its own.
 //!
 //! The pass then verifies all lowered-representation requirements and advances the
 //! module from semantic to lowered MIR. A failed check leaves its phase semantic
@@ -28,7 +31,7 @@ use crate::mir::{
     Callee, Function, InstKind, MirPhase, Module, Terminator,
     analysis::{CallGraphInfo, Liveness},
     pass::MirPass,
-    transform::cfg_simplify::remove_unreachable_blocks,
+    transform::cfg_simplify::{fold_trivial_phis, remove_unreachable_blocks},
     utils::{replace_terminator, split_edge},
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::index_vec};
@@ -179,6 +182,8 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
             }
             if function_changed {
                 let _ = remove_unreachable_blocks(func);
+                // v = phi [pred: x], [cut: y] -> x
+                fold_trivial_phis(func);
             }
             if !nonreturning.contains(func_id)
                 && !func.blocks.is_empty()

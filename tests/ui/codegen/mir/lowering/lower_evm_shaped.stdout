@@ -142,8 +142,8 @@
 -     jump bb2
     bb2:
 -     v2 = phi [bb0: 7], [bb1: v1]
-+     v2 = phi [bb0: 7]
-      ret v2
+-     ret v2
++     ret 7
 +   bb1:
 +     tail_call @scalar_fail, 17 !metadata(span=50..60)
   }

@@ -157,21 +157,24 @@ impl MirPass for SimplifyTrivialPhis {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
-            let mut simplifier = CfgSimplifier::new();
-            let mut changed = false;
-            // Replacing one phi can make the phi it fed trivial in turn.
-            loop {
-                let before = simplifier.stats.trivial_phis_simplified;
-                simplifier.simplify_trivial_phis(func);
-                if simplifier.stats.trivial_phis_simplified == before {
-                    break;
-                }
-                changed = true;
-            }
-            changed
-        })
+        run_function_pass(module, analyses, |func, _| fold_trivial_phis(func))
     }
+}
+
+/// Replaces every trivial phi by its unique incoming value. Returns whether any phi changed.
+pub(crate) fn fold_trivial_phis(func: &mut Function) -> bool {
+    let mut simplifier = CfgSimplifier::new();
+    let mut changed = false;
+    // Replacing one phi can make the phi it fed trivial in turn.
+    loop {
+        let before = simplifier.stats.trivial_phis_simplified;
+        simplifier.simplify_trivial_phis(func);
+        if simplifier.stats.trivial_phis_simplified == before {
+            break;
+        }
+        changed = true;
+    }
+    changed
 }
 
 /// Module pass for dead internal function elimination.

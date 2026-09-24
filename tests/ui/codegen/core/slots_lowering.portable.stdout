@@ -91,9 +91,8 @@ fn @load(arg0: i256) -> i256 [inline_assembly, view] {
     v1 = ne v0, 0
     jumpi v1, bb1, bb2
   bb2:
-    v3 = phi [bb0: arg0]
     mstore 0, 0
-    v5 = add v3, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
+    v5 = add arg0, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
     v6 = sload v5 !metadata(storage=offset(v3, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
     ret v6
   bb1:
@@ -106,9 +105,8 @@ fn @store(arg0: i256, arg1: i256) [inline_assembly] {
     v1 = ne v0, 0
     jumpi v1, bb1, bb2
   bb2:
-    v3 = phi [bb0: arg0]
     mstore 0, 0
-    v5 = add v3, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
+    v5 = add arg0, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
     sstore v5, arg1 !metadata(storage=offset(v3, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
     ret
   bb1:
@@ -126,17 +124,16 @@ fn @storeBytes(arg0: memptr, arg1: i256) [may_return_memory, inline_assembly] {
     v7 = gt arg1, v5
     jumpi v7, bb2, bb3
   bb3:
-    v10 = phi [bb1: arg1]
     mstore 0, 0
     v12 = ptrtoint memptr arg0 to i256
     v13 = add v12, 32
-    v42 = shl 3, v10
+    v42 = shl 3, arg1
     jump bb4
   bb4:
     v20 = phi [bb3: 0], [bb6: v41]
     v43 = phi [bb3: v42], [bb6: v44]
     v22 = shl 5, v20
-    v23 = lt v22, v10
+    v23 = lt v22, arg1
     jumpi v23, bb6, bb5
   bb5:
     ret
@@ -147,7 +144,7 @@ fn @storeBytes(arg0: memptr, arg1: i256) [may_return_memory, inline_assembly] {
     v37 = not v36
     v38 = and v28, v37
     v47 = sub v38, v28
-    v30 = sub v10, v22
+    v30 = sub arg1, v22
     v31 = lt v30, 32
     v48 = zext i1 v31 to i256
     v49 = mul v48, v47
