@@ -20,12 +20,13 @@ fn @dirty() [selector=0x74016a59, abi_wrapper, inline_assembly, pure] {
     v2 = add v1, 32
     mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v6 = icall @cleanup_return, v5
-    v22 = mload 64 !metadata(memory=scratch)
-    v12 = add v22, 32
-    mstore v22, 32
-    v16 = icall @encode_abi_array, v6, v12
-    v18 = sub v16, v22
-    returndata v22, v18
+    v23 = mload 64 !metadata(memory=scratch)
+    v12 = add v23, 32
+    mstore v23, 32
+    v16 = inttoptr i256 v12 to memptr
+    v17 = icall @encode_abi_array, v6, v16
+    v19 = sub v17, v23
+    returndata v23, v19
 }
 
 fn @viaHelper() [selector=0x43a4968c, abi_wrapper, inline_assembly, pure] {
@@ -35,12 +36,13 @@ fn @viaHelper() [selector=0x43a4968c, abi_wrapper, inline_assembly, pure] {
     v1 = add v0, 32
     mstore v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v5 = icall @cleanup_return, v4
-    v21 = mload 64 !metadata(memory=scratch)
-    v11 = add v21, 32
-    mstore v21, 32
-    v15 = icall @encode_abi_array, v5, v11
-    v17 = sub v15, v21
-    returndata v21, v17
+    v22 = mload 64 !metadata(memory=scratch)
+    v11 = add v22, 32
+    mstore v22, 32
+    v15 = inttoptr i256 v11 to memptr
+    v16 = icall @encode_abi_array, v5, v15
+    v18 = sub v16, v22
+    returndata v22, v18
 }
 
 fn @aliasedStruct() [selector=0x8c175a3d, abi_wrapper, inline_assembly, pure] {
@@ -301,34 +303,35 @@ fn @cleanup_return(arg0: memptr) -> memptr [may_return_memory] {
     revert 28, 36
 }
 
-fn @encode_abi_array(arg0: memptr, arg1: i256) -> i256 [may_return_memory] {
+fn @encode_abi_array(arg0: memptr, arg1: memptr) -> i256 [may_return_memory] {
   bb0:
-    v23 = ptrtoint memptr arg0 to i256
-    v4 = ne v23, 0
-    v5 = zext i1 v4 to i256
-    v0 = mload v23
-    v6 = mul v0, v5
-    mstore arg1, v6
-    v8 = add arg1, 32
-    v25 = add v23, 32
-    v12 = sub v25, v8
-    v13 = ne v6, 0
-    jumpi v13, bb1, bb2
+    v0 = ptrtoint memptr arg1 to i256
+    v24 = ptrtoint memptr arg0 to i256
+    v5 = ne v24, 0
+    v6 = zext i1 v5 to i256
+    v1 = mload v24
+    v7 = mul v1, v6
+    mstore v0, v7
+    v9 = add v0, 32
+    v26 = add v24, 32
+    v13 = sub v26, v9
+    v14 = ne v7, 0
+    jumpi v14, bb1, bb2
   bb2:
-    ret v8
+    ret v9
   bb1:
-    v14 = phi [bb0: v6], [bb1: v19]
-    v15 = phi [bb0: v8], [bb1: v20]
-    v16 = add v15, v12
-    v17 = mload v16
-    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore v15, v18
-    v19 = sub v14, 1
-    v20 = add v15, 32
-    v21 = ne v19, 0
-    jumpi v21, bb1, bb3
+    v15 = phi [bb0: v7], [bb1: v20]
+    v16 = phi [bb0: v9], [bb1: v21]
+    v17 = add v16, v13
+    v18 = mload v17
+    v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore v16, v19
+    v20 = sub v15, 1
+    v21 = add v16, 32
+    v22 = ne v20, 0
+    jumpi v22, bb1, bb3
   bb3:
-    ret v20
+    ret v21
 }
 
 fn @entry() [entry] {
