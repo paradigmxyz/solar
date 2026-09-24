@@ -1,0 +1,46 @@
+//@ revisions: low high
+//@[low] compile-flags: -Ogas -Zevm-ir-pipeline=outline --optimize-runs 1
+//@[high] compile-flags: -Ogas -Zevm-ir-pipeline=outline --optimize-runs 1000000
+//@[low] filecheck: --check-prefix=LOW
+//@[high] filecheck: --check-prefix=HIGH
+@module GasOpenRuns
+
+// A repeated run that consumes a word from the stack is shared too when its
+// deposited bytes outweigh the transfers: the return address goes below the
+// argument. Once runtime gas dominates the deposit, every copy stays inline.
+// LOW-LABEL: bb0:
+// LOW-NEXT: push 0
+// LOW-NEXT: push [[RET:bb[0-9]+]]
+// LOW-NEXT: swap 1
+// LOW-NEXT: jump [[SHARED:bb[0-9]+]]
+// LOW-NEXT: [[SHARED]]:
+// LOW-NEXT: calldataload
+// HIGH-COUNT-3: push 0x3030303030303030303030303030303030303030303030303030303030303030
+bb0:
+  push 0
+  calldataload
+  push 0x0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+  and
+  push 0x3030303030303030303030303030303030303030303030303030303030303030
+  add
+  push 0
+  mstore
+  push 32
+  calldataload
+  push 0x0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+  and
+  push 0x3030303030303030303030303030303030303030303030303030303030303030
+  add
+  push 32
+  mstore
+  push 64
+  calldataload
+  push 0x0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+  and
+  push 0x3030303030303030303030303030303030303030303030303030303030303030
+  add
+  push 64
+  mstore
+  push 96
+  push 0
+  return

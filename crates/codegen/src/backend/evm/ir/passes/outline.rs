@@ -6,15 +6,16 @@
 //! stack parameters in size-oriented modes. A final specialized path shares repeated large pushes
 //! when the call and return sequence is smaller than spelling out each literal.
 //!
-//! Gas-mode candidates are closed stack computations: they leave the incoming stack untouched
-//! and produce up to sixteen outputs. The hidden return address remains below those outputs;
-//! `SWAP1` through `SWAPn` rotate it to the top for the return jump. Size mode also permits bounded
-//! input arguments. Candidates have known stack effects and contain no control flow or position
-//! or gas observations. Profitability includes the shared body,
-//! per-site call sequence, continuation labels, and target-dependent push widths. Constant
-//! recipes charge call/return gas against deposited bytes using the requested optimizer run count
-//! in gas mode. Gas mode never outlines a site inside a loop: static duplicate counts cannot
-//! justify adding two jumps to every dynamic iteration. Sites are selected without overlap, and
+//! Candidates are stack computations that consume up to sixteen words and produce up to sixteen
+//! outputs. Each site rotates the return address below the words the run consumes, and `SWAP1`
+//! through `SWAPn` rotate it back to the top for the return jump. Candidates have known stack
+//! effects and contain no control flow or position or gas observations. Profitability includes
+//! the shared body, per-site call sequence and input rotation, continuation labels, and
+//! target-dependent push widths. Gas mode charges the transfer gas at the requested optimizer run
+//! count against the deposited bytes, so a large body repeated across a module is shared at low run
+//! counts and every copy stays inline once runtime gas dominates. Gas mode never outlines a site
+//! inside a loop: static duplicate counts cannot justify adding two jumps to every dynamic
+//! iteration. Sites are selected without overlap, and
 //! new blocks and labels are installed through the normal EVM IR CFG representation.
 //!
 //! Gas mode keeps computations and immediate pushes in known loop blocks inline,
@@ -142,21 +143,15 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                 inputs = inputs.max(i32::from(reads) - delta);
                 delta = delta - i32::from(pops) + i32::from(pushes);
                 let outputs = inputs + delta;
-                if inputs != 0 && !gcx.sess.opts.optimization.is_size() {
-                    break;
-                }
                 let len = end + 1 - start;
-                let closed = inputs == 0 && (0..=16).contains(&outputs);
-                let open_size_run = gcx.sess.opts.optimization.is_size()
-                    && (0..=16).contains(&inputs)
-                    && (0..=16).contains(&outputs);
+                let bounded = (0..=16).contains(&inputs) && (0..=16).contains(&outputs);
                 // Price both address pushes at PUSH2, plus the jump, continuation label, and
                 // input shuffles. Runs no larger than this site cannot pass the shared stub's
                 // profitability check regardless of occurrence count, so do not intern them.
                 let can_amortize = run_size > transfer_size + inputs as usize * shuffle_size;
                 if len >= MIN_MACHINE_RUN
                     && can_amortize
-                    && (closed || open_size_run)
+                    && bounded
                     && is_split_point(&block.instructions, end + 1)
                 {
                     let key = MachineInstSlice {
