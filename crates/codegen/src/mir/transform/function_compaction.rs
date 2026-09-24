@@ -218,9 +218,10 @@ fn forward_calldata_args(module: &mut Module) -> usize {
         if offsets.is_empty() {
             continue;
         }
-        // Profitability: a parameter used on both sides of a loop but not carried by it stays in
-        // the callee's static frame, which every caller fills and the callee rereads; any other
-        // parameter already travels on the stack, where rereading calldata saves nothing.
+        // Profitability: a parameter live at a loop header cannot stay a resident stack argument,
+        // so it lives in the callee's static frame, which every caller fills and the callee
+        // rereads; any other parameter already travels on the stack, where rereading calldata
+        // saves nothing.
         let loop_carried = loop_carried_args(func);
         offsets.retain(|&(index, _)| loop_carried.contains(index));
         if offsets.is_empty() {
