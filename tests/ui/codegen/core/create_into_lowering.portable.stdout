@@ -82,7 +82,7 @@ fn @attempt() [selector=0xf1f9ae8f, abi_wrapper] {
     v132 = calldatasize
     calldatacopy v110, v132, v3
     mstore v110, arg1
-    icall @fill, v4, arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
+    icall @fill, v4, 0xff00000000000000000000000000000000000000000000000000000000000000
     v88 = icall @tryDeployInto, v39, 0, v4
     v96 = mload 32 !metadata(memory=scratch)
     v90 = add v96, 32
@@ -155,20 +155,21 @@ fn @attempt() [selector=0xf1f9ae8f, abi_wrapper] {
     revert 0, 0
 }
 
-fn @fill(arg0: memptr, arg1: i256, arg2: i256) [may_return_memory, pure] {
+fn @fill(arg0: memptr, arg1: i256) [may_return_memory, pure] {
   bb0:
-    v10 = byte 0, arg2
-    v19 = ptrtoint memptr arg0 to i256
-    v17 = add v19, 32
+    v16 = calldataload 36
+    v10 = byte 0, arg1
+    v20 = ptrtoint memptr arg0 to i256
+    v18 = add v20, 32
     jump bb1
   bb1:
     v4 = phi [bb0: 0], [bb4: v14]
-    v5 = lt v4, arg1
+    v5 = lt v4, v16
     jumpi v5, bb5, bb2
   bb2:
     ret
   bb5:
-    v7 = mload v19
+    v7 = mload v20
     v8 = lt v4, v7
     jumpi v8, bb4, bb3
   bb3:
@@ -176,8 +177,8 @@ fn @fill(arg0: memptr, arg1: i256, arg2: i256) [may_return_memory, pure] {
     mstore 32, 50 !metadata(memory=scratch)
     revert 28, 36
   bb4:
-    v18 = add v17, v4
-    mstore8 v18, v10
+    v19 = add v18, v4
+    mstore8 v19, v10
     v14 = add v4, 1
     jump bb1
 }
