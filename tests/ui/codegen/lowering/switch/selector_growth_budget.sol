@@ -3,14 +3,15 @@
 //@ filecheck:
 
 // The external selector switch weighs its code against the expected calls, so
-// forty routes still split into a search tree when the artifact-wide growth
-// budget that bounds other switches is exhausted.
+// forty routes still leave the linear scan for a bucket table when the
+// artifact-wide growth budget that bounds other switches is exhausted.
 contract SelectorGrowthBudget {
     // CHECK-LABEL: @module SelectorGrowthBudget_runtime
     // CHECK: shr
     // CHECK-NEXT: dup 1
     // CHECK-NEXT: push
-    // CHECK-NEXT: gt
+    // CHECK-NEXT: and
+    // CHECK-NEXT: indexed_jump
     function f00() external pure returns (uint256) {
         return 0;
     }
