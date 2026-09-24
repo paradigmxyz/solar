@@ -538,7 +538,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
         with:
-          toolchain: "1.96"
+          toolchain: "1.98"
 
       - name: Build main compiler (D)
         run: |
@@ -588,7 +588,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
         with:
-          toolchain: "1.96"
+          toolchain: "1.98"
 
       - name: Build test merge compiler (M)
         run: |
@@ -645,7 +645,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
         with:
-          toolchain: "1.96"
+          toolchain: "1.98"
 
       - name: Download main compiler
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
