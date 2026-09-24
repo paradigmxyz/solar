@@ -112,7 +112,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::WriteUint256Be => self.lower_core_write(&operands, 32),
             CoreIntrinsic::CopyInto => self.lower_core_copy(&operands),
             CoreIntrinsic::Fill => self.lower_core_fill(&operands),
-            CoreIntrinsic::EqualsAt => self.lower_core_equals_at(&operands),
+            CoreIntrinsic::EqualsAt => self.lower_core_shared(
+                sym::core_bytes_equals_at,
+                &operands,
+                MirType::I1,
+                |this, operands| this.lower_core_equals_at(operands),
+            ),
             CoreIntrinsic::Truncate => self.lower_core_truncate(expr, &operands, &parameter_tys),
             CoreIntrinsic::ArrayGroupSum => self.lower_core_array_group_sum_call(&operands),
             CoreIntrinsic::ArrayHasDuplicate => self.lower_core_array_has_duplicate_call(&operands),
@@ -2102,6 +2107,35 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.jump(done);
         self.builder.switch_to_block(done);
         Some(self.builder.imm(U256::ZERO))
+    }
+
+    /// Lowers a core operation of type `result` with `lower` in the caller in
+    /// gas builds. Other builds call one body `lower` builds from parameters
+    /// typed as the operands, shared by every call site, which the inliner
+    /// takes back into a single caller.
+    fn lower_core_shared(
+        &mut self,
+        name: Symbol,
+        operands: &[ValueId],
+        result: MirType,
+        lower: for<'a, 'b> fn(&mut FunctionLowerer<'a, 'b>, &[ValueId]) -> Option<ValueId>,
+    ) -> Option<ValueId> {
+        if self.cx.gcx.sess.opts.optimization.is_gas() {
+            return lower(self, operands);
+        }
+        let tys = operands
+            .iter()
+            .map(|&operand| self.builder.func().value_ty(operand))
+            .collect::<Option<Vec<_>>>()?;
+        let helper = self.lazy_helper(name, |this, function| {
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            let params = tys.iter().map(|&ty| lowerer.builder.add_param(ty)).collect::<Vec<_>>();
+            lowerer.builder.set_return_type(result);
+            let value = lower(&mut lowerer, &params)?;
+            lowerer.builder.ret([value]);
+            Some(())
+        })?;
+        Some(self.builder.icall(helper, operands.to_vec(), result))
     }
 
     /// `equalsAt(a, offset, b)`: whether the `b.length` bytes of `a` at

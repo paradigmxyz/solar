@@ -21,14 +21,21 @@
 //! one-word output clears the bytes past its text in its single store. Failures
 //! follow the checked bodies: doubling a count panics on arithmetic overflow, a
 //! length above `2**64 - 1` panics as an allocation, and a fixed width too
-//! narrow for its value reverts with `HexLengthInsufficient()`. Builds that do
-//! not optimize for gas spell both through the scratch digit table two digits
-//! per byte instead, with the same allocation, checks and padding. The body
+//! narrow for its value reverts with `HexLengthInsufficient()`. The body
 //! allocates first; a width below sixteen bytes tests first instead, which no
 //! caller can observe, since the revert discards the allocation. A `0x` prefix
 //! is written by one word store that rewrites the length word's low 30 bytes
-//! and ends in the first two data bytes, so no byte stores are needed. The
-//! checked Solidity bodies remain the reference under `-Zno-core-intrinsics`.
+//! and ends in the first two data bytes, so no byte stores are needed.
+//!
+//! Builds that do not optimize for gas spell every form through the scratch
+//! digit table two digits per byte instead, with the same allocation, checks
+//! and padding, and call one shared body per form: one for `Hex.encode`, one
+//! for the fixed widths and one for the spellings of a whole word, each taking
+//! the prefix length, and the last also whether a leading zero digit is
+//! dropped. Those bodies write `0x` before any digit, as the first word of the
+//! data, which an unprefixed spelling's digits and final padding store
+//! overwrite. The checked Solidity bodies remain the reference under
+//! `-Zno-core-intrinsics`.
 
 use super::*;
 
@@ -40,27 +47,102 @@ const ASCII_ZEROS: U256 = U256::from_be_bytes([b'0'; 32]);
 
 impl FunctionLowerer<'_, '_> {
     /// Lowers `Strings.toHexString` and `toHexStringNoPrefix` of either arity.
+    ///
+    /// Gas builds spell in the caller; other builds call one shared body per
+    /// arity, with the prefix length as an argument.
     pub(super) fn lower_core_string_hex_call(
         &mut self,
         operands: &[ValueId],
         prefixed: bool,
     ) -> Option<ValueId> {
         let prefix_length = self.builder.imm(if prefixed { 2 } else { 0 });
+        let gas = self.cx.gcx.sess.opts.optimization.is_gas();
         match *operands {
-            [value] => Some(self.lower_core_string_minimal_hex(value, prefix_length, true)),
-            [value, byte_count] => Some(self.lower_core_fixed_hex(value, byte_count, prefixed)),
+            [value] if gas => Some(self.lower_core_string_minimal_hex(
+                value,
+                prefix_length,
+                strings::HexLeadingZero::Keep,
+            )),
+            [value] => {
+                let keep = self.builder.imm(0);
+                self.call_core_hex_digits(value, prefix_length, keep)
+            }
+            [value, byte_count] if gas => {
+                Some(self.lower_core_fixed_hex(value, byte_count, prefixed))
+            }
+            [value, byte_count] => {
+                let helper = self.lazy_helper(sym::core_hex_fixed, |this, function| {
+                    let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+                    let value = lowerer.builder.add_param(MirType::I256);
+                    let byte_count = lowerer.builder.add_param(MirType::I256);
+                    let prefix_length = lowerer.builder.add_param(MirType::I256);
+                    let bytes = MirType::MemoryObject(MemoryObjectKind::Bytes);
+                    lowerer.builder.set_return_type(bytes);
+                    let out =
+                        lowerer.lower_core_fixed_hex_compact(value, byte_count, prefix_length);
+                    lowerer.builder.ret([out]);
+                    Some(())
+                })?;
+                let bytes = MirType::MemoryObject(MemoryObjectKind::Bytes);
+                Some(self.builder.icall(helper, vec![value, byte_count, prefix_length], bytes))
+            }
             _ => None,
         }
     }
 
-    /// Lowers `Hex.encode` and `Hex.encodePrefixed`.
+    /// Calls the shared body that spells `value` in the fewest whole bytes,
+    /// after `prefix_length` bytes of `0x`, dropping a leading zero digit when
+    /// `minimal` is one.
+    pub(super) fn call_core_hex_digits(
+        &mut self,
+        value: ValueId,
+        prefix_length: ValueId,
+        minimal: ValueId,
+    ) -> Option<ValueId> {
+        let helper = self.lazy_helper(sym::core_hex_digits, |this, function| {
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            let value = lowerer.builder.add_param(MirType::I256);
+            let prefix_length = lowerer.builder.add_param(MirType::I256);
+            let minimal = lowerer.builder.add_param(MirType::I256);
+            let bytes = MirType::MemoryObject(MemoryObjectKind::Bytes);
+            lowerer.builder.set_return_type(bytes);
+            let out = lowerer.lower_core_string_minimal_hex(
+                value,
+                prefix_length,
+                strings::HexLeadingZero::DropIf(minimal),
+            );
+            lowerer.builder.ret([out]);
+            Some(())
+        })?;
+        let bytes = MirType::MemoryObject(MemoryObjectKind::Bytes);
+        Some(self.builder.icall(helper, vec![value, prefix_length, minimal], bytes))
+    }
+
+    /// Lowers `Hex.encode` and `Hex.encodePrefixed`: in the caller in gas
+    /// builds, and otherwise through one shared body that takes the prefix
+    /// length.
     pub(super) fn lower_core_hex_encode_call(
         &mut self,
         operands: &[ValueId],
         prefixed: bool,
     ) -> Option<ValueId> {
         let [data] = *operands else { return None };
-        Some(self.lower_core_hex_encode(data, prefixed))
+        if self.cx.gcx.sess.opts.optimization.is_gas() {
+            return Some(self.lower_core_hex_encode(data, prefixed));
+        }
+        let helper = self.lazy_helper(sym::core_hex_encode, |this, function| {
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            let bytes = MirType::MemoryObject(MemoryObjectKind::Bytes);
+            let data = lowerer.builder.add_param(bytes);
+            let prefix_length = lowerer.builder.add_param(MirType::I256);
+            lowerer.builder.set_return_type(bytes);
+            let out = lowerer.lower_core_hex_encode_compact(data, prefix_length);
+            lowerer.builder.ret([out]);
+            Some(())
+        })?;
+        let prefix_length = self.builder.imm(if prefixed { 2 } else { 0 });
+        let bytes = MirType::MemoryObject(MemoryObjectKind::Bytes);
+        Some(self.builder.icall(helper, vec![data, prefix_length], bytes))
     }
 
     /// Allocates the output for `count` bytes of input: two digits each and
@@ -72,7 +154,7 @@ impl FunctionLowerer<'_, '_> {
     fn alloc_core_hex_output(
         &mut self,
         count: ValueId,
-        prefix: u64,
+        prefix: ValueId,
         checked_prefix: bool,
     ) -> (ValueId, ValueId, ValueId, ValueId) {
         // panic 0x11 if count >> 255 != 0
@@ -87,7 +169,6 @@ impl FunctionLowerer<'_, '_> {
         self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
         let one = self.builder.imm(1);
         let digits = self.builder.shl(one, count);
-        let prefix = self.builder.imm(prefix);
         let length = if checked_prefix {
             let length = self.builder.add(digits, prefix);
             let overflow = self.builder.lt(length, digits);
@@ -128,6 +209,16 @@ impl FunctionLowerer<'_, '_> {
         self.builder.mstore(address, word);
     }
 
+    /// Writes `0x` into the first two data bytes of `out` and clears the rest
+    /// of that word, before any digit: an unprefixed spelling overwrites it
+    /// with its digits and the zeroed word after them.
+    fn store_core_hex_prefix_first(&mut self, out: ValueId) {
+        // mstore(data(out), "0x")
+        let data = self.builder.memory_object_data(out, MemoryObjectKind::Bytes);
+        let prefix = self.builder.imm(U256::from(0x3078) << 240);
+        self.builder.mstore(data, prefix);
+    }
+
     /// The low `byteCount` bytes of `value`, two digits each.
     fn lower_core_fixed_hex(
         &mut self,
@@ -135,9 +226,6 @@ impl FunctionLowerer<'_, '_> {
         byte_count: ValueId,
         prefixed: bool,
     ) -> ValueId {
-        if !self.cx.gcx.sess.opts.optimization.is_gas() {
-            return self.lower_core_fixed_hex_compact(value, byte_count, prefixed);
-        }
         // byteCount < 16: the width test, then four-lane digits below three bytes and one-word
         // digits otherwise, each with its own store; else the long path
         let short = self.builder.create_block();
@@ -235,7 +323,7 @@ impl FunctionLowerer<'_, '_> {
         prefixed: bool,
     ) -> ValueId {
         // The prefixed body concatenates `0x` onto the checked digits.
-        let prefix = if prefixed { 2 } else { 0 };
+        let prefix = self.builder.imm(if prefixed { 2 } else { 0 });
         let (out, length, start, digits) = self.alloc_core_hex_output(byte_count, prefix, false);
 
         // A width below 32 bytes that loses set bits is too narrow. The width
@@ -312,17 +400,16 @@ impl FunctionLowerer<'_, '_> {
         out
     }
 
-    /// The low `byteCount` bytes of `value`, two digits each from the lowest
-    /// byte up through the scratch digit table: the smallest shape, for builds
-    /// that do not optimize for gas.
+    /// The low `byteCount` bytes of `value` after `prefix_length` bytes of
+    /// `0x`, two digits each from the lowest byte up through the scratch digit
+    /// table: the smallest shape, for builds that do not optimize for gas.
     fn lower_core_fixed_hex_compact(
         &mut self,
         value: ValueId,
         byte_count: ValueId,
-        prefixed: bool,
+        prefix_length: ValueId,
     ) -> ValueId {
-        let prefix = if prefixed { 2 } else { 0 };
-        let (out, length, start, digits) = self.alloc_core_hex_output(byte_count, prefix, false);
+        let (out, _, start, digits) = self.alloc_core_hex_output(byte_count, prefix_length, false);
         // revert HexLengthInsufficient() if value >> 8 * byteCount != 0
         let three = self.builder.imm(3);
         let bits = self.builder.shl(three, byte_count);
@@ -331,6 +418,7 @@ impl FunctionLowerer<'_, '_> {
         revert_with_selector(&mut self.builder, insufficient, HEX_LENGTH_INSUFFICIENT);
         // for i in 0..byteCount: spell (value >> 8i) & 0xff before end - 2i
         let end = self.builder.add(start, digits);
+        self.store_core_hex_prefix_first(out);
         store_core_hex_digit_table(&mut self.builder);
         self.builder.counted_loop(byte_count, |builder, index| {
             let three = builder.imm(3);
@@ -344,20 +432,18 @@ impl FunctionLowerer<'_, '_> {
         // mstore(end, 0)
         let zero = self.builder.imm(0);
         self.builder.mstore(end, zero);
-        if prefixed {
-            self.store_core_hex_prefix(out, length);
-        }
         out
     }
 
-    /// The digits of `data`, two per byte through the scratch digit table: the
-    /// smallest shape, for builds that do not optimize for gas.
-    fn lower_core_hex_encode_compact(&mut self, data: ValueId, prefixed: bool) -> ValueId {
+    /// The digits of `data` after `prefix_length` bytes of `0x`, two per byte
+    /// through the scratch digit table: the smallest shape, for builds that do
+    /// not optimize for gas.
+    fn lower_core_hex_encode_compact(&mut self, data: ValueId, prefix_length: ValueId) -> ValueId {
         let n = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
-        let prefix = if prefixed { 2 } else { 0 };
-        let (out, length, start, digits) = self.alloc_core_hex_output(n, prefix, true);
+        let (out, _, start, digits) = self.alloc_core_hex_output(n, prefix_length, true);
         // for i in 0..n: spell byte(0, mload(data + i)) at start + 2i
         let source = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
+        self.store_core_hex_prefix_first(out);
         store_core_hex_digit_table(&mut self.builder);
         self.builder.counted_loop(n, |builder, index| {
             let address = builder.add(source, index);
@@ -375,9 +461,6 @@ impl FunctionLowerer<'_, '_> {
         let end = self.builder.add(start, digits);
         let zero = self.builder.imm(0);
         self.builder.mstore(end, zero);
-        if prefixed {
-            self.store_core_hex_prefix(out, length);
-        }
         out
     }
 
@@ -385,9 +468,6 @@ impl FunctionLowerer<'_, '_> {
     /// through a four-lane spread, up to sixteen bytes in one word without a
     /// loop, and longer inputs sixteen bytes per word.
     fn lower_core_hex_encode(&mut self, data: ValueId, prefixed: bool) -> ValueId {
-        if !self.cx.gcx.sess.opts.optimization.is_gas() {
-            return self.lower_core_hex_encode_compact(data, prefixed);
-        }
         let n = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
         let empty = self.builder.create_block();
         let nonempty = self.builder.create_block();
@@ -565,7 +645,7 @@ impl FunctionLowerer<'_, '_> {
     /// Encodes more than sixteen bytes, sixteen bytes per word.
     fn lower_core_hex_encode_long(&mut self, data: ValueId, n: ValueId, prefixed: bool) -> ValueId {
         // The prefixed body allocates `n * 2 + 2` bytes at once.
-        let prefix = if prefixed { 2 } else { 0 };
+        let prefix = self.builder.imm(if prefixed { 2 } else { 0 });
         let (out, length, start, digits) = self.alloc_core_hex_output(n, prefix, true);
         let source = self.builder.cast(data, MirType::MemPtr);
         let sixteen = self.builder.imm(16);
