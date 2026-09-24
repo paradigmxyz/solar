@@ -148,18 +148,16 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
     v22 = or v1, v4
     jumpi v22, bb1, bb2
   bb2:
-    v7 = phi [bb0: arg4]
     v8 = extcodesize arg2
-    v9 = gt v7, v8
-    v20 = sub v8, v7
+    v9 = gt arg4, v8
+    v20 = sub v8, arg4
     v11 = gt arg3, v20
     v23 = or v9, v11
     jumpi v23, bb3, bb4
   bb4:
-    v14 = phi [bb2: v7]
     v16 = add v24, 32
     v17 = add v16, arg1
-    extcodecopy arg2, v17, arg3, v14
+    extcodecopy arg2, v17, arg3, arg4
     ret
   bb3:
     tail_call @_outOfBounds
