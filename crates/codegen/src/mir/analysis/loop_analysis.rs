@@ -333,7 +333,13 @@ impl LoopAnalyzer {
                     if loop_info.invariant_insts.contains(inst_id) {
                         continue;
                     }
-                    if inst.kind.has_side_effects() {
+                    // A slot hash writes only the scratch word it hashes, so its
+                    // result depends on its operands alone.
+                    let slot_hash = matches!(
+                        inst.kind,
+                        InstKind::StorageArrayDataSlot(_) | InstKind::MappingSlot(..)
+                    );
+                    if inst.kind.has_side_effects() && !slot_hash {
                         continue;
                     }
                     if matches!(inst.kind, InstKind::Phi(_)) {

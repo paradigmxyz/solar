@@ -36,6 +36,13 @@
 //! Hoisting loads requires both independence and an execution guarantee. Semantic checks
 //! and calls may exit before a load without an explicit CFG edge; their control effects
 //! therefore constrain the guarantee even when a constant loop bound is known.
+//!
+//! The slot hashes of a dynamic storage array's data and of a mapping entry with a word key
+//! hoist like pure computations of their operands. Their lowering writes only the scratch
+//! word it hashes, which nothing reads across them. They still need every normal exit of
+//! the loop to follow them, so a loop that exits at once does not pay for the hash, but a
+//! check before them that can only revert does not block the move: running the hash earlier
+//! changes only the gas of an execution that reverts anyway.
 
 use crate::mir::{
     BlockId, Callee, EffectKind, Function, ImmutableId, InstId, InstKind, Module, OpTraits,
@@ -435,6 +442,14 @@ impl LoopOptimizer {
     fn can_hoist_safely(&self, func: &Function, inst_id: InstId, ctx: LoopOptContext<'_>) -> bool {
         let inst = func.inst(inst_id);
 
+        // A slot hash writes only the scratch word it then hashes, which no
+        // instruction may read across it, so it moves like a hash of its word
+        // operands alone. It must still run whenever the loop exits normally,
+        // or a loop that exits at once would pay for it; a failed check before
+        // it reverts, so running it earlier costs only gas on a failing path.
+        if matches!(inst.kind, InstKind::StorageArrayDataSlot(_) | InstKind::MappingSlot(..)) {
+            return self.hoist_execution_guaranteed(func, inst_id, ctx, true);
+        }
         if inst.must_execute(false) {
             return false;
         }
@@ -448,7 +463,7 @@ impl LoopOptimizer {
             // from speculated memory expansion) or paying for work it never did.
             InstKind::MLoad(addr) => {
                 return !self.function_observes_msize(func)
-                    && self.hoist_execution_guaranteed(func, inst_id, ctx)
+                    && self.hoist_execution_guaranteed(func, inst_id, ctx, false)
                     && !self.loop_may_mutate_memory_range(func, ctx, addr, Some(32));
             }
             // A semantic length read lowers to one word load of the object's
@@ -459,7 +474,7 @@ impl LoopOptimizer {
             // As with raw loads, require execution on every path through the loop.
             InstKind::MemoryObjectLen(..) => {
                 return !self.function_observes_msize(func)
-                    && self.hoist_execution_guaranteed(func, inst_id, ctx)
+                    && self.hoist_execution_guaranteed(func, inst_id, ctx, false)
                     && !self.loop_may_write_read_locations(func, ctx, inst_id);
             }
             // These semantic memory reads lower to `mload` after LICM. Keep them in
@@ -473,7 +488,7 @@ impl LoopOptimizer {
             | InstKind::FrameLoad { .. } => return false,
             InstKind::Keccak256(offset, size) => {
                 return !self.function_observes_msize(func)
-                    && self.hoist_execution_guaranteed(func, inst_id, ctx)
+                    && self.hoist_execution_guaranteed(func, inst_id, ctx, false)
                     && !self.loop_may_mutate_memory_range(
                         func,
                         ctx,
@@ -481,13 +496,13 @@ impl LoopOptimizer {
                         self.const_addr(func, size),
                     );
             }
-            InstKind::MappingSlot(_, _)
-            | InstKind::MappingSlotMemory(_, _)
+            // A hash of a memory or calldata key reads bytes the loop may change,
+            // and an element slot folds in its index.
+            InstKind::MappingSlotMemory(_, _)
             | InstKind::MappingSlotCalldata(_, _)
-            | InstKind::StorageArrayDataSlot(_)
             | InstKind::StorageArrayElementSlot { .. } => return false,
             InstKind::SLoad(slot) => {
-                return self.hoist_execution_guaranteed(func, inst_id, ctx)
+                return self.hoist_execution_guaranteed(func, inst_id, ctx, false)
                     && !self.loop_may_mutate_storage_slot(
                         func,
                         ctx,
@@ -497,7 +512,7 @@ impl LoopOptimizer {
                     );
             }
             InstKind::TLoad(slot) => {
-                return self.hoist_execution_guaranteed(func, inst_id, ctx)
+                return self.hoist_execution_guaranteed(func, inst_id, ctx, false)
                     && !self.loop_may_mutate_storage_slot(
                         func,
                         ctx,
@@ -507,7 +522,7 @@ impl LoopOptimizer {
                     );
             }
             InstKind::LoadImmutable(id) => {
-                return self.hoist_execution_guaranteed(func, inst_id, ctx)
+                return self.hoist_execution_guaranteed(func, inst_id, ctx, false)
                     && !self.loop_may_assign_immutable(func, ctx.loop_data, id);
             }
             // MSIZE observes every memory expansion, including from other hoisted
@@ -524,7 +539,7 @@ impl LoopOptimizer {
                 // Also require guaranteed execution: speculating a cold
                 // BALANCE/EXTCODESIZE/EXTCODEHASH into the preheader of a
                 // zero-trip loop wastes 2600 gas.
-                return self.hoist_execution_guaranteed(func, inst_id, ctx)
+                return self.hoist_execution_guaranteed(func, inst_id, ctx, false)
                     && !self.loop_contains_call_or_create(func, ctx.loop_data);
             }
             _ => {}
@@ -539,11 +554,15 @@ impl LoopOptimizer {
     /// the loop is known to complete at least one iteration that executes the instruction:
     /// a verified trip count of at least one, a single exiting block (so the trip-count guard
     /// is the only way out), and the instruction dominating every backedge.
+    /// Whether `inst_id` runs whenever the loop is entered. With `reverts_allowed`, checks and
+    /// calls before it that can only revert do not count against it: moving it ahead of them
+    /// changes only the gas a reverting execution spends.
     fn hoist_execution_guaranteed(
         &self,
         func: &Function,
         inst_id: InstId,
         ctx: LoopOptContext<'_>,
+        reverts_allowed: bool,
     ) -> bool {
         let loop_data = ctx.loop_data;
         let Some(inst_block) = loop_data
@@ -556,16 +575,20 @@ impl LoopOptimizer {
 
         // Semantic checks and calls can exit without a CFG edge. The candidate must execute
         // before each such operation, including those earlier in its own block.
+        let may_leave = |&other: &InstId| {
+            let control = func.inst(other).kind.effects().control;
+            if reverts_allowed {
+                control.may_diverge || control.may_terminate
+            } else {
+                control.any()
+            }
+        };
         for block_id in &loop_data.blocks {
             if block_id != inst_block && ctx.analyzer.dominates(inst_block, block_id) {
                 continue;
             }
-            if func.blocks[block_id]
-                .instructions
-                .iter()
-                .take_while(|&&other| other != inst_id)
-                .any(|&other| func.inst(other).kind.effects().control.any())
-            {
+            let block = &func.blocks[block_id];
+            if block.instructions.iter().take_while(|&&other| other != inst_id).any(may_leave) {
                 return false;
             }
         }
