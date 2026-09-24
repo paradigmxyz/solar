@@ -28,8 +28,11 @@
 //! A storage reference argument is passed as its slot, as to any internal
 //! call. `Slots` hashes a root's slot the way a dynamic array's data slot is
 //! hashed and checks the index after the hash, so a loop over one region can
-//! hoist the hash. `Return.abiEncoded` encodes the string where it lies, since
-//! the call ends before memory is read again.
+//! hoist the hash. Its byte operations check the range and count once, hash
+//! once, and move whole words in a loop before the last partial word, which a
+//! store masks and a load merges into the bytes around it. `Return.abiEncoded`
+//! encodes the string where it lies, since the call ends before memory is read
+//! again.
 
 use super::*;
 use solar_sema::core::CoreIntrinsic;
@@ -176,6 +179,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::ReturnAbiEncoded => self.lower_core_return_abi_encoded(&operands),
             CoreIntrinsic::SlotsLoad => self.lower_core_slots_load(&operands),
             CoreIntrinsic::SlotsStore => self.lower_core_slots_store(&operands),
+            CoreIntrinsic::SlotsStoreBytes => self.lower_core_slots_store_bytes(&operands, false),
+            CoreIntrinsic::SlotsStoreCalldataBytes => {
+                self.lower_core_slots_store_bytes(&operands, true)
+            }
+            CoreIntrinsic::SlotsLoadBytes => self.lower_core_slots_load_bytes(&operands),
             CoreIntrinsic::Keccak256Range => self.lower_core_keccak256_range(&operands),
             CoreIntrinsic::Deploy | CoreIntrinsic::Deploy2 => {
                 self.lower_core_deploy(intrinsic, &operands)
@@ -1638,6 +1646,126 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let slot = self.core_slots_word(root, index);
         // sstore(slot, value)
         self.builder.sstore(slot, value);
+        Some(self.builder.imm(U256::ZERO))
+    }
+
+    /// The hash of the root's slot, where word 0 of its region lies, after the
+    /// byte operations' count check: below `2**69`, so every word they touch
+    /// has an index below `2**64`.
+    fn core_slots_region(&mut self, root: ValueId, count: ValueId) -> ValueId {
+        // data = keccak256(root)
+        // panic 0x32 if count >> 69 != 0
+        let data = self.builder.storage_array_data_slot(root);
+        let shifting = self.cx.gcx.sess.opts.evm_version.has_bitwise_shifting();
+        let too_many = self.builder.exceeds_bits(count, 69, shifting);
+        self.builder.panic_if(too_many, PanicCode::ArrayOutOfBounds);
+        data
+    }
+
+    /// `Slots.storeBytes` and `Slots.storeCalldataBytes`: the range's whole
+    /// words one store each, from one hash, then the rest of the range in one
+    /// more word whose bytes past it are zero.
+    fn lower_core_slots_store_bytes(
+        &mut self,
+        operands: &[ValueId],
+        calldata: bool,
+    ) -> Option<ValueId> {
+        let [root, buffer, offset, count] = *operands else { return None };
+        let data = self.core_slots_region(root, count);
+        let source = if calldata {
+            self.core_checked_calldata_range(buffer, offset, Width::Dynamic(count))
+        } else {
+            self.core_checked_range(buffer, offset, Width::Dynamic(count))
+        };
+        // words = count >> 5
+        // for k < words: sstore(data + k, load(source + (k << 5)))
+        let five = self.builder.imm(5);
+        let words = self.builder.shr(five, count);
+        self.builder.counted_loop(words, |builder, k| {
+            let five = builder.imm(5);
+            let step = builder.shl(five, k);
+            let address = builder.add(source, step);
+            let word =
+                if calldata { builder.calldataload(address) } else { builder.mload(address) };
+            let slot = builder.add(data, k);
+            builder.sstore(slot, word);
+        });
+        // rest = count & 31
+        // if rest != 0: sstore(data + words, load(source + (words << 5)) & ~(MAX >> (rest << 3)))
+        let thirty_one = self.builder.imm(31);
+        let rest = self.builder.and(count, thirty_one);
+        let partial = self.builder.ne_zero(rest);
+        let tail = self.builder.create_block();
+        let done = self.builder.create_block();
+        self.builder.branch(partial, tail, done);
+        self.builder.switch_to_block(tail);
+        let five = self.builder.imm(5);
+        let step = self.builder.shl(five, words);
+        let address = self.builder.add(source, step);
+        let word =
+            if calldata { self.builder.calldataload(address) } else { self.builder.mload(address) };
+        let three = self.builder.imm(3);
+        let bits = self.builder.shl(three, rest);
+        let all = self.builder.imm(U256::MAX);
+        let past = self.builder.shr(bits, all);
+        let kept = self.builder.not(past);
+        let word = self.builder.and(word, kept);
+        let slot = self.builder.add(data, words);
+        self.builder.sstore(slot, word);
+        self.builder.jump(done);
+        self.builder.switch_to_block(done);
+        Some(self.builder.imm(U256::ZERO))
+    }
+
+    /// `Slots.loadBytes`: the region's whole words one load and one word store
+    /// into the buffer each, from one hash, then the rest of the range merged
+    /// into the word that holds it, so the buffer's bytes past it stay.
+    fn lower_core_slots_load_bytes(&mut self, operands: &[ValueId]) -> Option<ValueId> {
+        let [root, buffer, offset, count] = *operands else { return None };
+        let data = self.core_slots_region(root, count);
+        let target = self.core_checked_range(buffer, offset, Width::Dynamic(count));
+        // words = count >> 5
+        // for k < words: buffer[offset + (k << 5)..] = sload(data + k)
+        let five = self.builder.imm(5);
+        let words = self.builder.shr(five, count);
+        self.builder.counted_loop(words, |builder, k| {
+            let slot = builder.add(data, k);
+            let word = builder.sload(slot);
+            let five = builder.imm(5);
+            let step = builder.shl(five, k);
+            let at = builder.add(offset, step);
+            builder.memory_object_store_word(buffer, at, word);
+        });
+        // rest = count & 31
+        // if rest != 0:
+        //   keep = MAX >> (rest << 3)
+        //   buffer[offset + (words << 5)..] =
+        //     (sload(data + words) & ~keep) | (mload(target + (words << 5)) & keep)
+        let thirty_one = self.builder.imm(31);
+        let rest = self.builder.and(count, thirty_one);
+        let partial = self.builder.ne_zero(rest);
+        let tail = self.builder.create_block();
+        let done = self.builder.create_block();
+        self.builder.branch(partial, tail, done);
+        self.builder.switch_to_block(tail);
+        let slot = self.builder.add(data, words);
+        let word = self.builder.sload(slot);
+        let three = self.builder.imm(3);
+        let bits = self.builder.shl(three, rest);
+        let all = self.builder.imm(U256::MAX);
+        let keep = self.builder.shr(bits, all);
+        let taken_mask = self.builder.not(keep);
+        let taken = self.builder.and(word, taken_mask);
+        let five = self.builder.imm(5);
+        let step = self.builder.shl(five, words);
+        let address = self.builder.add(target, step);
+        let old = self.builder.mload(address);
+        let kept = self.builder.and(old, keep);
+        let merged = self.builder.or(taken, kept);
+        let at = self.builder.add(offset, step);
+        self.builder.memory_object_store_word(buffer, at, merged);
+        self.builder.jump(done);
+        self.builder.switch_to_block(done);
         Some(self.builder.imm(U256::ZERO))
     }
 

@@ -35,6 +35,56 @@ fn @set() [selector=0x64c4ef1a, abi_wrapper] {
     revert 0, 0
 }
 
+fn @put() [selector=0x94f47146, abi_wrapper] {
+  bb0:
+    v1 = calldatasize
+    v2 = lt v1, 36
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = calldataload 4
+    v4 = add v3, 4
+    v5 = add v4, 32
+    v6 = shr 64, v3
+    v7 = gt v5, v1
+    v8 = zext i1 v7 to i256
+    v9 = or v6, v8
+    v10 = ne v9, 0
+    jumpi v10, bb1, bb3
+  bb3:
+    v11 = calldataload v4
+    v13 = add v11, 63
+    v14 = lt v13, v11
+    jumpi v14, bb4, bb5
+  bb5:
+    v16 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v26 = mload 64 !metadata(memory=scratch)
+    v17 = inttoptr i256 v26 to memptr !metadata(memory=scratch)
+    v27 = add v26, v16
+    v28 = lt v27, v26
+    v29 = zext i1 v28 to i256
+    v30 = shr 64, v27
+    v31 = or v29, v30
+    v32 = ne v31, 0
+    jumpi v32, bb4, bb7
+  bb7:
+    mstore 64, v27 !metadata(memory=scratch)
+    mstore v26, v11
+    v18 = sub v1, v5
+    v19 = gt v11, v18
+    jumpi v19, bb1, bb6
+  bb6:
+    v22 = add v26, 32
+    calldatacopy v22, v5, v11
+    icall @storeBytes, v17, v11
+    stop
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
 fn @load(arg0: i256) -> i256 [inline_assembly, view] {
   bb0:
     v0 = shr 64, arg0
@@ -65,6 +115,52 @@ fn @store(arg0: i256, arg1: i256) [inline_assembly] {
     tail_call @_outOfBounds
 }
 
+fn @storeBytes(arg0: memptr, arg1: i256) [may_return_memory, inline_assembly] {
+  bb0:
+    v0 = shr 69, arg1
+    v1 = ne v0, 0
+    jumpi v1, bb2, bb1
+  bb1:
+    v51 = ptrtoint memptr arg0 to i256
+    v5 = mload v51
+    v7 = gt arg1, v5
+    jumpi v7, bb2, bb3
+  bb3:
+    v10 = phi [bb1: arg1]
+    mstore 0, 0
+    v12 = ptrtoint memptr arg0 to i256
+    v13 = add v12, 32
+    v42 = shl 3, v10
+    jump bb4
+  bb4:
+    v20 = phi [bb3: 0], [bb6: v41]
+    v43 = phi [bb3: v42], [bb6: v44]
+    v22 = shl 5, v20
+    v23 = lt v22, v10
+    jumpi v23, bb6, bb5
+  bb5:
+    ret
+  bb6:
+    v27 = add v13, v22
+    v28 = mload v27
+    v36 = shr v43, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v37 = not v36
+    v38 = and v28, v37
+    v47 = sub v38, v28
+    v30 = sub v10, v22
+    v31 = lt v30, 32
+    v48 = zext i1 v31 to i256
+    v49 = mul v48, v47
+    v50 = add v28, v49
+    v40 = add v20, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
+    sstore v40, v50 !metadata(storage=offset(v20, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
+    v41 = add v20, 1
+    v44 = sub v43, 256
+    jump bb4
+  bb2:
+    tail_call @_outOfBounds
+}
+
 fn @_outOfBounds() -> i256 [pure] {
   bb0:
     v6 = mload 64 !metadata(memory=scratch)
@@ -92,15 +188,17 @@ fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
-    jumpi v1, bb4, bb1
+    jumpi v1, bb5, bb1
   bb1:
     v2 = calldataload 0
     v3 = shr 224, v2
-    switch v3, default bb4, [0x64c4ef1a => bb2, 0x9507d39a => bb3]
-  bb3:
+    switch v3, default bb5, [0x64c4ef1a => bb2, 0x94f47146 => bb3, 0x9507d39a => bb4]
+  bb4:
     tail_call @get
+  bb3:
+    tail_call @put
   bb2:
     tail_call @set
-  bb4:
+  bb5:
     revert 0, 0
 }

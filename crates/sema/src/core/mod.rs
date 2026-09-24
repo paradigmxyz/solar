@@ -174,6 +174,14 @@ pub enum CoreIntrinsic {
     SlotsLoad,
     /// `Slots.store(root, index, value)`.
     SlotsStore,
+    /// `Slots.storeBytes(root, b, offset, count)`: bytes of a memory buffer
+    /// into the region's words.
+    SlotsStoreBytes,
+    /// `Slots.storeCalldataBytes(root, b, offset, count)`.
+    SlotsStoreCalldataBytes,
+    /// `Slots.loadBytes(root, b, offset, count)`: the region's bytes into a
+    /// memory buffer.
+    SlotsLoadBytes,
     /// `Hash.keccak256Range(b, offset, count)`: hash a range where it lies.
     Keccak256Range,
     /// `Create.deploy(initcode, value)`: create, reverting on failure.
@@ -354,6 +362,9 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
             FxHashMap::from_iter([
                 (sym::load, CoreIntrinsic::SlotsLoad),
                 (sym::store, CoreIntrinsic::SlotsStore),
+                (sym::storeBytes, CoreIntrinsic::SlotsStoreBytes),
+                (sym::storeCalldataBytes, CoreIntrinsic::SlotsStoreCalldataBytes),
+                (sym::loadBytes, CoreIntrinsic::SlotsLoadBytes),
             ])
         })),
         "solar:core/v1/Hash.sol" => Some(HASH.get_or_init(|| {
