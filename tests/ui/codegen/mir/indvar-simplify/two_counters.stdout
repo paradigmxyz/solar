@@ -62,9 +62,9 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     calldatacopy v153, v167, v6
     mstore v153, v59
     v171 = add v146, v94
-    v172 = add v153, 32
     v176 = add v153, v59
     v177 = add v176, 32
+    v172 = add v153, 32
     jump bb1
   bb1:
     v168 = phi [bb13: v146], [bb4: v169]

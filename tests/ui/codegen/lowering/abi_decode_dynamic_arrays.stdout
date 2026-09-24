@@ -272,10 +272,10 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
     v80 = mload v135
     mstore v76, v80
     v81 = add v76, 32
-    v82 = shl 5, v80
-    v83 = add v81, v82
     v132 = add v135, 32
     v84 = inttoptr i256 v132 to memptr
+    v82 = shl 5, v80
+    v83 = add v81, v82
     jump bb15
   bb15:
     v85 = phi [bb11: v80], [bb16: v108]

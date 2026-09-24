@@ -208,14 +208,14 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: memptr, arg3: i256, arg4: i256) [ma
     v83 = add v42, 1
     jump bb8
   bb3:
-    v92 = add v102, 32
-    v114 = add v92, arg1
-    v115 = add v114, arg4
-    v116 = sub v115, 1
     v87 = add v103, 32
     v119 = add v87, arg3
     v120 = add v119, arg4
     v121 = sub v120, 1
+    v92 = add v102, 32
+    v114 = add v92, arg1
+    v115 = add v114, arg4
+    v116 = sub v115, 1
     jump bb6
   bb6:
     v21 = phi [bb3: arg4], [bb13: v79]
