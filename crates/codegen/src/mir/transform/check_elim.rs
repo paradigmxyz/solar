@@ -677,6 +677,9 @@ struct CheckEliminator<'a> {
     /// Orderings between a derived value and its source that hold wherever the
     /// value exists: shifts, masks, and constant divisions never grow.
     universal_relations: FxHashSet<Relation>,
+    /// The value each stable object-length read agrees with: the length stored
+    /// right after a fresh object's allocation, or a parameter's first read.
+    length_anchors: FxHashMap<ValueId, ValueId>,
     /// Relations indexed under their right operand, for lower-bound searches.
     reverse_index: Option<FxHashMap<ValueId, SmallVec<[Relation; 2]>>>,
     /// Differences indexed under their subtrahend: `b` maps to every `(a, a - b)`.
@@ -723,6 +726,7 @@ impl<'a> CheckEliminator<'a> {
         self.difference_index = None;
         self.monotone_relations.clear();
         self.universal_relations.clear();
+        self.length_anchors.clear();
         self.trip_bounds.clear();
         self.scaled_cursors.clear();
         if !func.blocks.iter().any(|block| {
@@ -746,8 +750,11 @@ impl<'a> CheckEliminator<'a> {
         self.universal_relations = universal_relations(func, &relevant);
         self.universal_relations.extend(checked_sum_twins(func));
         if self.object_lengths.is_some() {
-            self.universal_relations
-                .extend(stable_object_lengths(func, self.call_summaries.clone()));
+            for (read, anchor) in stable_object_lengths(func, self.call_summaries.clone()) {
+                self.length_anchors.insert(read, anchor);
+                let (a, b) = ordered(anchor, read);
+                self.universal_relations.insert(Relation::Eq(a, b));
+            }
         }
 
         // Predecessors recomputed from reachable terminators: facts must only
@@ -1170,6 +1177,7 @@ impl<'a> CheckEliminator<'a> {
         let mut edge_ranges = FxHashMap::<(ValueId, BlockId), Range>::default();
         let mut cx = Self::new(self.immutable_ranges, self.object_lengths);
         cx.universal_relations.clone_from(&self.universal_relations);
+        cx.length_anchors.clone_from(&self.length_anchors);
         let mut pending = cfg.reachable().clone();
         for _ in 0..MAX_ROUNDS {
             let mut changed = false;
@@ -1978,7 +1986,18 @@ impl<'a> CheckEliminator<'a> {
                 .and_then(|ranges| ranges.get(&id))
                 .copied()
                 .unwrap_or(Range::FULL),
-            InstKind::MemoryObjectLen(..) => self.object_lengths.unwrap_or(Range::FULL),
+            InstKind::MemoryObjectLen(..) => {
+                let lengths = self.object_lengths.unwrap_or(Range::FULL);
+                // A stable read is the length its object was given, under that
+                // value's bounds in this scope.
+                match self.length_anchors.get(&value).copied() {
+                    Some(anchor) => {
+                        let anchored = self.range_of(func, anchor, depth);
+                        lengths.intersect(anchored).unwrap_or(lengths)
+                    }
+                    None => lengths,
+                }
+            }
             InstKind::Add(a, b) => {
                 let ra = self.range_of(func, a, depth);
                 let rb = self.range_of(func, b, depth);
@@ -2687,9 +2706,9 @@ fn checked_sum_twins(func: &Function) -> Vec<Relation> {
     relations
 }
 
-/// Equates rereads of an object's length that nothing in the function can
-/// change: with each other for a parameter object, and with the length set at
-/// allocation for a fresh object whose length is set once.
+/// Pairs each reread of an object's length that nothing in the function can
+/// change with the value it agrees with: a parameter object's first read, or
+/// the length set at allocation for a fresh object whose length is set once.
 ///
 /// Callers run this only for modules without inline assembly. There a
 /// parameter object lies below the free-memory pointer at entry, while the
@@ -2703,7 +2722,7 @@ fn checked_sum_twins(func: &Function) -> Vec<Relation> {
 fn stable_object_lengths(
     func: &Function,
     summaries: Option<Arc<MemoryCallSummaries>>,
-) -> Vec<Relation> {
+) -> Vec<(ValueId, ValueId)> {
     let mut reads = FxHashMap::<_, SmallVec<[(InstId, ValueId); 2]>>::default();
     for inst_id in func.instructions() {
         if let InstKind::MemoryObjectLen(object, kind) = func.inst(inst_id).kind
@@ -2776,12 +2795,12 @@ fn stable_object_lengths(
             })
         });
         if stable {
-            relations.extend(group.iter().filter(|&&(_, value)| value != anchor).map(
-                |&(_, value)| {
-                    let (a, b) = ordered(anchor, value);
-                    Relation::Eq(a, b)
-                },
-            ));
+            relations.extend(
+                group
+                    .iter()
+                    .filter(|&&(_, value)| value != anchor)
+                    .map(|&(_, value)| (value, anchor)),
+            );
         }
     }
     relations
