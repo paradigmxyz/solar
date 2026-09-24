@@ -237,6 +237,9 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // Keep this separate from general inlining, whose larger candidates regress measured gas.
     &GasOnly::new(inline::InlineTinyLeaves),
     &GasOnly::new(inline::InlineSingleUse::Semantic),
+    // Size builds consume only loop-free helpers: looping bodies stay calls, where
+    // equivalent ones can still merge after lowering.
+    &SizeOnly::new(inline::InlineSingleUse::LoopFree),
     &inline::SpecializeFunctionPointers,
     &specialize::Specialize,
     &function_compaction::DeadArgElim,

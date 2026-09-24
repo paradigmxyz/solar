@@ -6,7 +6,9 @@
 //! original body disappears through function DCE, so this avoids duplicating shared bodies.
 //! Consuming a helper moves its calls into the caller, where each may have become the
 //! only call of its callee, so the single-use pass repeats for a few bounded rounds
-//! until one inlines nothing.
+//! until one inlines nothing. Size builds run it for loop-free callees only: a consumed
+//! body always drops the call protocol, but a looping body kept as a call can still
+//! merge with an equivalent one once lowering has made them identical.
 //! Recursive calls, explicit no-inline functions, large helpers, and aggregate allocation
 //! semantics stay with the existing call convention. It runs before late scalar cleanup.
 //! For gas-oriented lifetime decisions, statically counted loops weight call-protocol
@@ -225,6 +227,10 @@ pub(crate) enum InlineSingleUse {
     Semantic,
     /// Must not introduce semantic frame operations after memory lowering.
     Physical,
+    /// As `Semantic`, for size builds: helpers with a loop stay calls, since
+    /// a looping body is where two helpers that lower to the same code merge
+    /// after lowering, and a consumed body can no longer be shared.
+    LoopFree,
 }
 
 impl InlineSingleUse {
@@ -251,9 +257,10 @@ impl MirPass for InlineSingleUse {
             let stats = MirInliner {
                 mode: InlineMode::SingleUse,
                 max_single_call_sanity_instructions: 256,
-                frame_staging_allowed: matches!(self, Self::Semantic)
+                frame_staging_allowed: matches!(self, Self::Semantic | Self::LoopFree)
                     && module.phase < MirPhase::Lowered,
                 objects_lowered: matches!(self, Self::Physical),
+                loop_free_only: matches!(self, Self::LoopFree),
                 ..MirInliner::default()
             }
             .run(gcx, module);
@@ -351,6 +358,8 @@ struct MirInliner {
     /// Whether memory objects are already lowered to raw memory. Returned pointers then carry
     /// no object identity, so only slice returns count as reference returns.
     objects_lowered: bool,
+    /// Restricts single-use consumption to callees without a loop.
+    loop_free_only: bool,
     mode: InlineMode,
 }
 
@@ -394,6 +403,7 @@ impl Default for MirInliner {
             memory_wrappers_only: false,
             frame_staging_allowed: true,
             objects_lowered: false,
+            loop_free_only: false,
             mode: InlineMode::Normal,
         }
     }
@@ -495,7 +505,8 @@ struct MirInlineSummary {
     has_control_flow: bool,
     is_check_wrapper: bool,
     /// Whether the body contains a back edge; a loop cloned into a loop nests
-    /// its carried words inside the caller's. Only hot-leaf summaries compute it.
+    /// its carried words inside the caller's. Only the modes that read it compute it:
+    /// hot leaves, and single-use inlining restricted to loop-free callees.
     has_loop: bool,
     has_unsupported_terminator: bool,
     has_reference_return: bool,
@@ -671,6 +682,7 @@ impl MirInliner {
                         module.function(caller_id),
                         self.peak_analysis(),
                         self.objects_lowered,
+                        self.needs_loops(),
                     );
                     module_code_size = module_code_size
                         .saturating_sub(old_size)
@@ -719,6 +731,7 @@ impl MirInliner {
                         func,
                         self.peak_analysis(),
                         self.objects_lowered,
+                        self.needs_loops(),
                     ),
                 )
             })
@@ -734,6 +747,11 @@ impl MirInliner {
                 PeakAnalysis::None
             }
         }
+    }
+
+    /// Whether callee summaries need [`MirInlineSummary::has_loop`].
+    fn needs_loops(&self) -> bool {
+        self.mode == InlineMode::HotLeaves || self.loop_free_only
     }
 
     fn call_counts(&self, module: &Module) -> FxHashMap<MirFunctionId, usize> {
@@ -865,7 +883,8 @@ impl MirInliner {
                 || summary.internal_frame_size != 0
                 || summary.has_reference_return
                 || (summary.has_phi && !bounded_phi)
-                || (!self.frame_staging_allowed && summary.return_values > 1))
+                || (!self.frame_staging_allowed && summary.return_values > 1)
+                || (self.loop_free_only && summary.has_loop))
         {
             return false;
         }
@@ -1200,6 +1219,7 @@ fn summarize_function(
     func: &Function,
     peak: PeakAnalysis,
     objects_lowered: bool,
+    loops: bool,
 ) -> MirInlineSummary {
     let target = Target::new(gcx);
     let mut summary = MirInlineSummary {
@@ -1222,7 +1242,7 @@ fn summarize_function(
         is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
         has_function_selector: func.attributes.is_function_pointer_dispatcher,
         is_pure: func.attributes.state_mutability == StateMutability::Pure,
-        has_loop: peak == PeakAnalysis::Scalars && has_back_edge(func),
+        has_loop: loops && has_back_edge(func),
         ..MirInlineSummary::default()
     };
 
