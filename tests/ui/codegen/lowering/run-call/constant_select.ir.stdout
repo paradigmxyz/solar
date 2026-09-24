@@ -545,10 +545,6 @@ bb37:
   swap 3
   pop
   push 0
-  swap 1
-  swap 2
-  swap 3
-  swap 1
   jump bb38
 bb40 [loop]:
   push 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
@@ -558,21 +554,21 @@ bb40 [loop]:
   dup 2
   push 5
   shl
-  dup 4
+  dup 6
   add
   mstore
   push 1
   add
   jump bb38
 bb38 [loop]:
-  dup 4
+  dup 3
   dup 2
   lt
   push bb40
   jumpi
   pop
+  swap 2
   pop
-  swap 1
   pop
   jump bb39
 bb45:

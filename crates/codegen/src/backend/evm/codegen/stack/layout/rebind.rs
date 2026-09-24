@@ -10,20 +10,19 @@
 //! every branch union inside it reorders those words the same way, so each edge inside the
 //! loop keeps the shuffle it had; only the entry and the exits change. Each is priced the way
 //! the edge emitters shape it, popping the words the target does not take, duplicating the
-//! missing copies and shuffling the rest, and a new order is taken only when the entry and the
-//! planned exits cost less together. The candidates are the entering order, that order with the
-//! words an exit takes in the exit's own order, and whatever pairwise exchanges of the best of
-//! them lower the total further. Words a resident argument layout places, loops left by a
-//! planned jump, and layouts that already disagree about the invariants' order leave the plan
-//! as it was.
+//! missing copies, pushing the constants the stack does not hold and shuffling the rest, and a
+//! new order is taken only when the entry and the planned exits cost less together. The candidates
+//! are the entering order, that order with the words an exit takes in the exit's own order, and
+//! whatever pairwise exchanges of the best of them lower the total further. Words a resident
+//! argument layout places, loops left by a planned jump, and layouts that already disagree about
+//! the invariants' order leave the plan as it was.
 
 use super::super::super::{
     BlockId, DenseBitSet, EvmCodegen, Function, FxHashMap, FxHashSet, GlobalStackPlan, InstKind,
     StackModel, StackOp, StackPhiEdge, StackPhiPlan, TargetSlot, Terminator, ValueId,
     lowered_stack_cost,
 };
-use crate::backend::evm::codegen::stack::shuffler::StackShuffler;
-use solar_config::EvmVersion;
+use crate::{backend::evm::codegen::stack::shuffler::StackShuffler, target::Target};
 
 /// The loop's layouts under the new invariant order, with the gas of the loop's entry and
 /// exit shuffles before and after.
@@ -137,9 +136,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         held.sort_unstable();
         let held = held.into_iter().map(|(_, value)| value).collect::<Vec<_>>();
         let old_rank = rank(&old);
-        let evm_version = self.gcx.sess.opts.evm_version;
+        let target = Target::new(self.gcx);
         let price =
-            |source: &[Option<ValueId>], goal: &[ValueId]| edge_gas(source, goal, evm_version);
+            |source: &[Option<ValueId>], goal: &[ValueId]| edge_gas(func, source, goal, target);
 
         // The loop's branches, with the words each exit arm leaves with.
         let mut exits = Vec::new();
@@ -241,9 +240,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         old: &[ValueId],
         order: &[ValueId],
     ) -> Option<Rebinding> {
-        let evm_version = self.gcx.sess.opts.evm_version;
+        let target = Target::new(self.gcx);
         let price =
-            |source: &[Option<ValueId>], goal: &[ValueId]| edge_gas(source, goal, evm_version);
+            |source: &[Option<ValueId>], goal: &[ValueId]| edge_gas(func, source, goal, target);
         let (old_rank, new_rank) = (rank(old), rank(order));
         // layout: [..., a, ..., b, ...] with a before b in the old order
         //   => [..., b, ..., a, ...] where the new order puts b first
@@ -343,24 +342,35 @@ fn rank(order: &[ValueId]) -> FxHashMap<ValueId, usize> {
 
 /// The gas of the stack operations an edge emits to turn `source`, top first, into `goal`:
 /// the words it does not need are popped from the top down, missing copies are duplicated
-/// onto the top, and the shuffler arranges the rest, as the edge emitters do.
+/// onto the top, constants the stack does not hold are pushed, and the shuffler arranges the
+/// rest, as the edge emitters do.
 fn edge_gas(
+    func: &Function,
     source: &[Option<ValueId>],
     goal: &[ValueId],
-    evm_version: EvmVersion,
+    target: Target,
 ) -> Option<usize> {
+    let evm_version = target.evm_version();
     let mut stack = StackModel::from_top_to_bottom(source.iter().copied());
     let mut ops = Vec::new();
     pop_surplus(&mut stack, goal, &mut ops)?;
-    // dup(depth) for each missing copy, in goal order
+    // dup(depth) for each missing copy and push(value) for each missing constant, in goal order
     let mut present = FxHashMap::<ValueId, usize>::default();
     for value in stack.iter().flatten() {
         *present.entry(value).or_default() += 1;
     }
+    let mut pushed = 0;
     for &value in goal {
         let count = present.entry(value).or_default();
         if *count > 0 {
             *count -= 1;
+            continue;
+        }
+        if stack.find(value).is_none()
+            && let Some(constant) = func.value(value).as_immediate().and_then(|imm| imm.as_u256())
+        {
+            pushed += target.push(constant).gas as usize;
+            stack.push(value);
             continue;
         }
         let depth = u8::try_from(stack.find(value)? + 1).ok()?;
@@ -378,7 +388,7 @@ fn edge_gas(
     if ops.iter().any(|op| op.lowering(evm_version).is_none()) {
         return None;
     }
-    Some(lowered_stack_cost(&ops, evm_version).1)
+    Some(lowered_stack_cost(&ops, evm_version).1 + pushed)
 }
 
 /// Pops every word of `stack` that `goal` has no use for, shallowest first, swapping each up
@@ -411,5 +421,35 @@ fn pop_surplus(stack: &mut StackModel, goal: &[ValueId], ops: &mut Vec<StackOp>)
         }
         ops.push(StackOp::Pop);
         stack.apply(StackOp::Pop);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::{FunctionBuilder, MirType};
+    use alloy_primitives::U256;
+    use solar_config::{EvmVersion, OptimizationMode};
+    use solar_interface::Ident;
+
+    #[test]
+    fn edge_gas_pushes_missing_constants() {
+        let mut function = Function::new(Ident::DUMMY);
+        let mut builder = FunctionBuilder::new(&mut function);
+        let a = builder.add_param(MirType::I256);
+        let b = builder.add_param(MirType::I256);
+        let zero = builder.imm(0);
+        let target = Target::with(
+            EvmVersion::Cancun,
+            OptimizationMode::Gas,
+            Target::DEFAULT_EXPECTED_EXECUTIONS,
+        );
+        let push = target.push(U256::ZERO).gas as usize;
+        let swap = lowered_stack_cost(&[StackOp::Swap(1)], EvmVersion::Cancun).1;
+        let source = [Some(a), Some(b)];
+        // [a, b] => [0, a, b]: push 0
+        assert_eq!(edge_gas(&function, &source, &[zero, a, b], target), Some(push));
+        // [a, b] => [a, 0, b]: push 0, swap 1
+        assert_eq!(edge_gas(&function, &source, &[a, zero, b], target), Some(push + swap));
     }
 }
