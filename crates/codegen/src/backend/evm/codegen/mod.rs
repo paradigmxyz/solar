@@ -338,6 +338,9 @@ pub struct EvmCodegen<'gcx> {
     /// Per-external-entry free-memory-pointer constants, resolved after static-frame placement.
     /// Entries that never use dynamic memory omit the initialization entirely.
     runtime_free_memory_consts: FxHashMap<FunctionId, DeferredConst>,
+    /// The free-memory-pointer constant a size build stores once before dispatch, for every
+    /// entry that needs one: the largest of their starts.
+    shared_free_memory_const: Option<DeferredConst>,
     /// Internal functions reachable from each entry that initializes the free-memory pointer.
     runtime_entry_reachability: FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
     /// Every external body emitted this pass, for sizing the heap floor.
@@ -448,6 +451,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             packed_static_frame_sizes: FxHashMap::default(),
             pending_static_allocs: FxHashMap::default(),
             runtime_free_memory_consts: FxHashMap::default(),
+            shared_free_memory_const: None,
             runtime_entry_reachability: FxHashMap::default(),
             runtime_entry_funcs: Vec::new(),
             current_internal_function: None,
@@ -514,6 +518,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.packed_static_frame_sizes.clear();
         self.pending_static_allocs.clear();
         self.runtime_free_memory_consts.clear();
+        self.shared_free_memory_const = None;
         self.runtime_entry_reachability.clear();
         self.runtime_entry_funcs.clear();
         self.current_internal_function = None;

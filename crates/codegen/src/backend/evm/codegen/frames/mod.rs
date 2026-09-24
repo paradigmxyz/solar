@@ -926,9 +926,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 )
             })
             .collect();
+        // An entry-specific constant takes its own floor; the shared one the largest.
+        let mut starts = FxHashMap::<DeferredConst, u64>::default();
         for (entry, id) in self.runtime_free_memory_consts.drain() {
             let floor = free_memory_floors[&entry];
-            self.asm.set_deferred_const(id, U256::from(floor));
+            let start = starts.entry(id).or_insert(floor);
+            *start = (*start).max(floor);
+        }
+        for (id, start) in starts {
+            self.asm.set_deferred_const(id, U256::from(start));
         }
         self.runtime_entry_reachability.clear();
     }
@@ -1414,15 +1420,66 @@ impl<'gcx> EvmCodegen<'gcx> {
         func.instructions().any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::ICall { .. }))
     }
 
+    /// Initializes the free-memory pointer for the external `entry` when anything it reaches
+    /// uses dynamic memory. After a shared store before dispatch, the entry only records
+    /// that the shared start must cover its own.
     pub(in crate::backend::evm::codegen) fn emit_entry_free_memory_start(
         &mut self,
         module: &Module,
         call_graph: &CallGraphInfo,
         entry: FunctionId,
     ) {
+        if !self.entry_needs_free_memory(module, call_graph, entry) {
+            return;
+        }
+        if let Some(id) = self.shared_free_memory_const {
+            self.runtime_free_memory_consts.insert(entry, id);
+            return;
+        }
+
+        let id = self.asm.new_deferred_const();
+        self.emit_free_memory_start(id);
+        self.runtime_free_memory_consts.insert(entry, id);
+    }
+
+    /// Stores the free-memory pointer once before dispatch when at least two external entries
+    /// need it, instead of at each of them: size builds trade the memory the smaller entries
+    /// then leave unused for one store in place of one per entry.
+    pub(in crate::backend::evm::codegen) fn emit_shared_free_memory_start(
+        &mut self,
+        module: &Module,
+        call_graph: &CallGraphInfo,
+        entries: impl IntoIterator<Item = FunctionId>,
+    ) {
+        let mut needed = 0usize;
+        for entry in entries {
+            needed += usize::from(self.entry_needs_free_memory(module, call_graph, entry));
+        }
+        if needed < 2 {
+            return;
+        }
+        let id = self.asm.new_deferred_const();
+        self.emit_free_memory_start(id);
+        self.shared_free_memory_const = Some(id);
+    }
+
+    fn emit_free_memory_start(&mut self, id: DeferredConst) {
+        // mstore(FMP_SLOT, start)
+        self.asm.emit_push_deferred(id);
+        self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
+        self.asm.emit_op(op::MSTORE);
+    }
+
+    /// Whether anything the external `entry` reaches uses dynamic memory.
+    fn entry_needs_free_memory(
+        &mut self,
+        module: &Module,
+        call_graph: &CallGraphInfo,
+        entry: FunctionId,
+    ) -> bool {
         self.record_runtime_entry_reachability(call_graph, entry);
         let reachable = &self.runtime_entry_reachability[&entry];
-        let needs_free_memory = reachable.iter().any(|func_id| {
+        reachable.iter().any(|func_id| {
             call_graph.is_recursive(func_id)
                 || Self::function_may_observe_free_memory_slot(&module.functions[func_id])
                 || module.functions[func_id].instructions().any(|inst_id| {
@@ -1432,16 +1489,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                             if module.function(function).return_components().len() > 1 || !self.static_frame_functions.contains(function)
                     )
                 })
-        });
-        if !needs_free_memory {
-            return;
-        }
-
-        let id = self.asm.new_deferred_const();
-        self.asm.emit_push_deferred(id);
-        self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-        self.asm.emit_op(op::MSTORE);
-        self.runtime_free_memory_consts.insert(entry, id);
+        })
     }
 
     /// Records every function whose memory bounds contribute to one runtime entry.

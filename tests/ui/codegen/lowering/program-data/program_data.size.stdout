@@ -202,6 +202,9 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/lowering/program-data/program_data.sol:C (runtime) ===
 @module C_runtime
 bb0:
+  push 160
+  push 64
+  mstore
   callvalue
   push bb12
   jumpi
@@ -265,10 +268,8 @@ bb12 [cold]:
   push 0
   revert
 bb13:
-  push 160
-  dup 1
   push 64
-  mstore
+  mload
   push 320
   dup 2
   add
@@ -307,10 +308,8 @@ bb13:
   dup 2
   return
 bb14:
-  push 160
-  dup 1
   push 64
-  mstore
+  mload
   push 224
   dup 2
   add
@@ -361,9 +360,6 @@ bb16:
   push 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
   jump bb31
 bb17:
-  push 160
-  push 64
-  mstore
   push bb18
   jump bb28
 bb28:
@@ -432,9 +428,6 @@ bb19:
   push 128
   return
 bb20:
-  push 160
-  push 64
-  mstore
   push bb18
   jump bb30
 bb30:
@@ -470,9 +463,6 @@ bb32:
   swap 2
   jump
 bb22:
-  push 160
-  push 64
-  mstore
   push bb23
   jump bb28
 bb23 [continuation]:
@@ -484,9 +474,6 @@ bb23 [continuation]:
   keccak256
   jump bb31
 bb24:
-  push 160
-  push 64
-  mstore
   push bb23
   push 64
   mload
@@ -508,9 +495,6 @@ bb24:
   swap 1
   jump
 bb26:
-  push 160
-  push 64
-  mstore
   push bb23
   jump bb30
 bb33 [continuation]:

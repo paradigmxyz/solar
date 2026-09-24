@@ -134,6 +134,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.external_spill_addr_consts.clear();
         self.pending_static_allocs.clear();
         self.runtime_free_memory_consts.clear();
+        self.shared_free_memory_const = None;
         self.runtime_entry_reachability.clear();
         self.runtime_entry_funcs.clear();
         self.current_internal_function = None;
@@ -390,6 +391,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Compact dispatch can leave its selector below a separately scheduled wrapper.
         // An entry with inlined bodies uses ordinary intra-function switch cleanup instead.
         self.record_runtime_entry_reachability(call_graph, entry_id);
+        if self.gcx.sess.opts.optimization.is_size() {
+            let entries = module
+                .functions
+                .iter_enumerated()
+                .filter(|&(func_id, func)| {
+                    func_id != entry_id
+                        && Self::is_external_entry(func)
+                        && self.function_labels.contains_key(&func_id)
+                })
+                .map(|(func_id, _)| func_id)
+                .collect::<Vec<_>>();
+            self.emit_shared_free_memory_start(module, call_graph, entries);
+        }
         self.in_internal_function = false;
         self.emitting_entry =
             Liveness::compute_block_local_for_codegen(&module.functions[entry_id]).is_some();

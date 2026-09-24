@@ -26,6 +26,9 @@ bb3 [cold]:
 // === ROOT/tests/ui/codegen/lowering/call_reserve_block.sol:ReserveBlock (runtime) ===
 @module ReserveBlock_runtime
 bb0:
+  push 160
+  push 64
+  mstore
   callvalue
   push bb4
   jumpi
@@ -43,9 +46,6 @@ bb0:
   sub
   push bb4
   jumpi
-  push 160
-  push 64
-  mstore
   push bb12
   push 0
   sload
@@ -72,9 +72,6 @@ bb4 [cold]:
   dup 1
   invalid
 bb9:
-  push 160
-  push 64
-  mstore
   push 0
   sload
   push 0xffffffffffffffffffffffffffffffffffffffff

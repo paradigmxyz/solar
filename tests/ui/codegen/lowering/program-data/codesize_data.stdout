@@ -71,6 +71,9 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/lowering/program-data/codesize_data.sol:CodeSizeData (runtime) ===
 @module CodeSizeData_runtime
 bb0:
+  push 160
+  push 64
+  mstore
   callvalue
   push bb5
   jumpi
@@ -99,10 +102,8 @@ bb5 [cold]:
   push 0
   revert
 bb6:
-  push 160
-  dup 1
   push 64
-  mstore
+  mload
   push 288
   dup 2
   add
@@ -141,10 +142,8 @@ bb6:
   dup 2
   return
 bb7:
-  push 160
-  dup 1
   push 64
-  mstore
+  mload
   push 224
   dup 2
   add

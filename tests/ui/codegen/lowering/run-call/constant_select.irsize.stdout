@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constant_select.sol:ConstantSelect (runtime) ===
 @module ConstantSelect_runtime
 bb0:
+  push 512
+  push 64
+  mstore
   callvalue
   push bb11
   jumpi
@@ -87,9 +90,6 @@ bb80:
   push 128
   return
 bb15:
-  push 512
-  push 64
-  mstore
   push 36
   calldatasize
   lt
@@ -570,9 +570,6 @@ bb38 [continuation]:
   and
   jump bb80
 bb40:
-  push 160
-  push 64
-  mstore
   push 36
   calldatasize
   lt
@@ -634,16 +631,10 @@ bb82:
   dup 2
   return
 bb44:
-  push 160
-  push 64
-  mstore
   push 36
   calldatasize
   jump bb83
 bb47:
-  push 160
-  push 64
-  mstore
   push 36
   calldatasize
   lt

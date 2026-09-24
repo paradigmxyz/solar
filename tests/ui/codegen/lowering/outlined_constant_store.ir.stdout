@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/outlined_constant_store.sol:OutlinedConstantStore (runtime) ===
 @module OutlinedConstantStore_runtime
 bb0:
+  push 160
+  push 64
+  mstore
   push 36
   calldatasize
   lt
@@ -42,9 +45,6 @@ bb6:
   push bb9
   jump bb7
 bb7:
-  push 160
-  push 64
-  mstore
   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
   push 128
   mstore
