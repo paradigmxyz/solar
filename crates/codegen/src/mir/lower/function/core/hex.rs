@@ -2,27 +2,31 @@
 //!
 //! `Strings.toHexString(value)` and its unprefixed form spell the fewest whole
 //! bytes of a value, two digits per byte from the low end, through the
-//! minimal-hex digit loop. Gas builds spell the first two bytes that way and
-//! a wider value a word at a time like the fixed widths, placing the header by
-//! a count of the value's significant bytes. The fixed-width forms and
-//! `Hex.encode` convert
-//! sixteen bytes at a time: nibble spreading puts each of 32 nibbles in its
-//! own byte, and one carry marks the nibbles that become letters. A value of
-//! up to sixteen bytes is one word; up to 32 is two, and a wider width first
-//! fills leading '0' words. A bytes input loads sixteen bytes per word,
-//! end-aligned so that no load reads past the input; a partial last chunk is
-//! shifted up and its artificial digits are cleared by the final padding
-//! store.
+//! minimal-hex digit loop. Gas builds spell the first two bytes that way and a
+//! wider value a word at a time like the fixed widths, placing the header by a
+//! count of the value's significant bytes. The fixed-width forms and
+//! `Hex.encode` convert sixteen bytes at a time: nibble spreading puts each of
+//! 32 nibbles in its own byte, and one carry marks the nibbles that become
+//! letters. A value of up to sixteen bytes is one word; up to 32 is two, and a
+//! wider width first fills leading '0' words. A fixed width below sixteen bytes
+//! fits the prefix and its digits in one data word: it takes a fixed allocation
+//! without size checks and one store for the text, and below three bytes
+//! spreads its digits over the four lanes `Hex.encode` uses for one or two
+//! bytes. A bytes input loads sixteen bytes per word, end-aligned so that no
+//! load reads past the input; a partial last chunk is shifted up and its
+//! artificial digits are cleared by the final padding store.
 //!
-//! Each output owns an extra word of capacity, so whole-word stores at the
-//! end stay inside it, and the padding store initializes the ABI padding.
-//! Failures follow the checked bodies: doubling a count panics on arithmetic
-//! overflow, a length above `2**64 - 1` panics as an allocation, and a fixed width too
-//! narrow for its value reverts with `HexLengthInsufficient()` after the
-//! allocation, as the body does. A `0x` prefix is written by one word store
-//! that rewrites the length word's low 30 bytes and ends in the first two data
-//! bytes, so no byte stores are needed. The checked Solidity bodies remain the
-//! reference under `-Zno-core-intrinsics`.
+//! A longer output owns an extra word of capacity, so whole-word stores at the
+//! end stay inside it, and a padding store initializes the ABI padding; a
+//! one-word output clears the bytes past its text in its single store. Failures
+//! follow the checked bodies: doubling a count panics on arithmetic overflow, a
+//! length above `2**64 - 1` panics as an allocation, and a fixed width too
+//! narrow for its value reverts with `HexLengthInsufficient()`. The body
+//! allocates first; a width below sixteen bytes tests first instead, which no
+//! caller can observe, since the revert discards the allocation. A `0x` prefix
+//! is written by one word store that rewrites the length word's low 30 bytes
+//! and ends in the first two data bytes, so no byte stores are needed. The
+//! checked Solidity bodies remain the reference under `-Zno-core-intrinsics`.
 
 use super::*;
 
@@ -124,6 +128,102 @@ impl FunctionLowerer<'_, '_> {
 
     /// The low `byteCount` bytes of `value`, two digits each.
     fn lower_core_fixed_hex(
+        &mut self,
+        value: ValueId,
+        byte_count: ValueId,
+        prefixed: bool,
+    ) -> ValueId {
+        // byteCount < 16: the width test, then four-lane digits below three bytes and one-word
+        // digits otherwise, each with its own store; else the long path
+        let short = self.builder.create_block();
+        let lane = self.builder.create_block();
+        let word = self.builder.create_block();
+        let long = self.builder.create_block();
+        let done = self.builder.create_block();
+        let sixteen = self.builder.imm(16);
+        let fits_word = self.builder.lt(byte_count, sixteen);
+        self.builder.branch(fits_word, short, long);
+
+        self.builder.switch_to_block(short);
+        self.revert_if_core_hex_width_short(value, byte_count);
+        let three = self.builder.imm(3);
+        let fits_lane = self.builder.lt(byte_count, three);
+        self.builder.branch(fits_lane, lane, word);
+
+        self.builder.switch_to_block(lane);
+        let lane_chars = hex_lane(&mut self.builder, value);
+        let lane_out = self.lower_core_fixed_hex_short(lane_chars, byte_count, prefixed);
+        let lane_exit = self.builder.current_block();
+        self.builder.jump(done);
+
+        self.builder.switch_to_block(word);
+        let word_chars = hex_word(&mut self.builder, value);
+        let word_out = self.lower_core_fixed_hex_short(word_chars, byte_count, prefixed);
+        let word_exit = self.builder.current_block();
+        self.builder.jump(done);
+
+        self.builder.switch_to_block(long);
+        let long_out = self.lower_core_fixed_hex_long(value, byte_count, prefixed);
+        let long_exit = self.builder.current_block();
+        self.builder.jump(done);
+
+        self.builder.switch_to_block(done);
+        self.builder.phi(vec![(lane_exit, lane_out), (word_exit, word_out), (long_exit, long_out)])
+    }
+
+    /// A width below `2^(8 * byteCount)` or the `HexLengthInsufficient()`
+    /// revert. Short widths test first: nothing observable precedes the revert.
+    fn revert_if_core_hex_width_short(&mut self, value: ValueId, byte_count: ValueId) {
+        // revert HexLengthInsufficient() if value >> 8 * byteCount != 0
+        let three = self.builder.imm(3);
+        let bits = self.builder.shl(three, byte_count);
+        let lost = self.builder.shr(bits, value);
+        let insufficient = self.builder.ne_zero(lost);
+        revert_with_selector(&mut self.builder, insufficient, HEX_LENGTH_INSUFFICIENT);
+    }
+
+    /// At most fifteen bytes, spelled in `chars`, whose last digits are the
+    /// value's: the digits and the prefix fit one data word, so a fixed
+    /// allocation needs no size checks and one store writes both. Neither the
+    /// count's doubling nor the length can fail at this width.
+    fn lower_core_fixed_hex_short(
+        &mut self,
+        chars: ValueId,
+        byte_count: ValueId,
+        prefixed: bool,
+    ) -> ValueId {
+        // digits = 2 * byteCount
+        // text = chars << 256 - 8 * digits, then "0x" << 240 | text >> 16 when prefixed
+        // out = alloc(64); out.length = digits + prefix; out[0..32] = text
+        let one = self.builder.imm(1);
+        let digits = self.builder.shl(one, byte_count);
+        let three = self.builder.imm(3);
+        let digit_bits = self.builder.shl(three, digits);
+        let word_bits = self.builder.imm(256);
+        let unused_bits = self.builder.sub(word_bits, digit_bits);
+        let mut text = self.builder.shl(unused_bits, chars);
+        if prefixed {
+            let sixteen = self.builder.imm(16);
+            let shifted = self.builder.shr(sixteen, text);
+            let prefix = self.builder.imm(U256::from(0x3078) << 240);
+            text = self.builder.or(shifted, prefix);
+        }
+        let size = self.builder.imm(64);
+        let out = self.builder.alloc_object(
+            size,
+            MemoryObjectLayout::Bytes,
+            AllocationSemantics::INTERNAL,
+        );
+        let prefix = self.builder.imm(if prefixed { 2 } else { 0 });
+        let length = self.builder.add(digits, prefix);
+        self.builder.set_memory_object_len(out, length, MemoryObjectKind::Bytes);
+        let zero = self.builder.imm(0);
+        self.builder.memory_object_store_word(out, zero, text);
+        out
+    }
+
+    /// Sixteen bytes or more, sized by the checked arithmetic of the body.
+    fn lower_core_fixed_hex_long(
         &mut self,
         value: ValueId,
         byte_count: ValueId,
@@ -305,27 +405,7 @@ impl FunctionLowerer<'_, '_> {
         let missing_bits = self.builder.shl(three, missing);
         let x = self.builder.shl(missing_bits, word);
 
-        // x = (x | x << 8) & 0x00ff00ff; x = (x | x << 4) & 0x0f0f0f0f
-        // digits = x + 0x30303030 + 39 * (((x + 0x06060606) >> 4) & 0x01010101)
-        let mut x = x;
-        for (shift, mask) in [(8u64, 0x00ff_00ff_u64), (4, 0x0f0f_0f0f)] {
-            let shift = self.builder.imm(shift);
-            let shifted = self.builder.shl(shift, x);
-            let combined = self.builder.or(x, shifted);
-            let mask = self.builder.imm(mask);
-            x = self.builder.and(combined, mask);
-        }
-        let six = self.builder.imm(0x0606_0606_u64);
-        let marked = self.builder.add(x, six);
-        let four = self.builder.imm(4);
-        let marked = self.builder.shr(four, marked);
-        let spread = self.builder.imm(0x0101_0101_u64);
-        let letters = self.builder.and(marked, spread);
-        let ascii = self.builder.imm(0x3030_3030_u64);
-        let chars = self.builder.add(x, ascii);
-        let thirty_nine = self.builder.imm(39);
-        let letters = self.builder.mul(letters, thirty_nine);
-        let chars = self.builder.add(chars, letters);
+        let chars = hex_lane(&mut self.builder, x);
 
         // word = (prefix ? "0x" << 240 : 0) | chars << (224 - 8 prefix), first 2n digits kept
         let shift = self.builder.imm(if prefixed { 208 } else { 224 });
@@ -483,6 +563,32 @@ impl FunctionLowerer<'_, '_> {
         }
         out
     }
+}
+
+/// The four lowercase digits of the two bytes in `x`, which must be below
+/// `2**16`, most significant first, in the low four bytes of the result.
+pub(super) fn hex_lane(builder: &mut FunctionBuilder<'_>, x: ValueId) -> ValueId {
+    // x = (x | x << 8) & 0x00ff00ff; x = (x | x << 4) & 0x0f0f0f0f
+    // digits = x + 0x30303030 + 39 * (((x + 0x06060606) >> 4) & 0x01010101)
+    let mut x = x;
+    for (shift, mask) in [(8u64, 0x00ff_00ff_u64), (4, 0x0f0f_0f0f)] {
+        let shift = builder.imm(shift);
+        let shifted = builder.shl(shift, x);
+        let combined = builder.or(x, shifted);
+        let mask = builder.imm(mask);
+        x = builder.and(combined, mask);
+    }
+    let six = builder.imm(0x0606_0606_u64);
+    let marked = builder.add(x, six);
+    let four = builder.imm(4);
+    let marked = builder.shr(four, marked);
+    let spread = builder.imm(0x0101_0101_u64);
+    let letters = builder.and(marked, spread);
+    let ascii = builder.imm(0x3030_3030_u64);
+    let chars = builder.add(x, ascii);
+    let thirty_nine = builder.imm(39);
+    let letters = builder.mul(letters, thirty_nine);
+    builder.add(chars, letters)
 }
 
 /// The 32 lowercase digits of the sixteen bytes in `x`, which must be below
