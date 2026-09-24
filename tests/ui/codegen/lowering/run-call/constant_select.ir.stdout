@@ -349,29 +349,29 @@ bb26 [continuation]:
   add
   swap 3
   pop
-  dup 2
   push 160
   mload
-  swap 1
+  dup 3
   swap 4
   swap 2
   swap 3
+  swap 1
   jump bb28
 bb31 [loop]:
-  dup 2
+  dup 1
   mload
-  dup 2
+  dup 3
   sstore
-  push 1
+  push 32
   add
   swap 1
-  push 32
+  push 1
   add
   swap 1
   jump bb28
 bb28 [loop]:
   dup 3
-  dup 3
+  dup 2
   lt
   push bb31
   jumpi
@@ -539,44 +539,40 @@ bb32:
   sstore
   jump bb33
 bb37:
-  push 0
-  push 0
-  mstore
-  swap 2
+  push 32
+  dup 2
+  add
+  swap 3
   pop
-  push 32
   push 0
-  keccak256
-  push 32
-  dup 4
-  add
+  swap 1
   swap 2
-  push 5
-  shl
-  dup 3
-  add
-  swap 2
+  swap 3
+  swap 1
   jump bb38
 bb40 [loop]:
+  push 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
   dup 2
+  add
   sload
   dup 2
-  mstore
-  push 32
+  push 5
+  shl
+  dup 4
   add
-  swap 1
+  mstore
   push 1
   add
-  swap 1
   jump bb38
 bb38 [loop]:
-  dup 3
+  dup 4
   dup 2
   lt
   push bb40
   jumpi
   pop
   pop
+  swap 1
   pop
   jump bb39
 bb45:
