@@ -1,0 +1,41 @@
+error: this returns from the external call and skips the rest of modifier `lock`
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_terminates_modifiers.sol:LL:CC
+   │
+LL │         Return.abiEncoded("x");
+   │         ━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: this modifier code would not run
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_terminates_modifiers.sol:LL:CC
+   │
+LL │         locked = 0;
+   │         ━━━━━━━━━━━
+   ╰ help: revert instead, or return from the external call outside the modifier's `_`
+
+error: this call can return from the external call and skip the rest of modifier `lock`
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_terminates_modifiers.sol:LL:CC
+   │
+LL │         finish("x");
+   │         ━━━━━━━━━━━
+   ╰╴
+note: this modifier code would not run
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_terminates_modifiers.sol:LL:CC
+   │
+LL │         locked = 0;
+   │         ━━━━━━━━━━━
+   ╰ help: revert instead, or return from the external call outside the modifier's `_`
+
+error: this call can return from the external call and skip the rest of modifier `lock`
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_terminates_modifiers.sol:LL:CC
+   │
+LL │         forward("x");
+   │         ━━━━━━━━━━━━
+   ╰╴
+note: this modifier code would not run
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_terminates_modifiers.sol:LL:CC
+   │
+LL │         locked = 0;
+   │         ━━━━━━━━━━━
+   ╰ help: revert instead, or return from the external call outside the modifier's `_`
+
+error: aborting due to 3 previous errors
+
