@@ -111,6 +111,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return self.cx.report_unsupported(argument.span, "storage access");
                 };
                 access.slot
+            } else if Self::core_reads_in_place(intrinsic, index)
+                && let Some(view) = self.view_operand(argument)
+            {
+                view
             } else {
                 let value = self.lower_typed_expr(argument, parameter_ty)?;
                 self.materialize_call_argument(parameter_ty, value, argument.span)?
@@ -131,12 +135,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::WriteUint256Be => self.lower_core_write(&operands, 32),
             CoreIntrinsic::CopyInto => self.lower_core_copy(&operands),
             CoreIntrinsic::Fill => self.lower_core_fill(&operands),
+            // A shared body takes objects; a view's slice is compared in place.
+            CoreIntrinsic::EqualsAt
+                if operands.iter().any(|&operand| {
+                    self.builder.func().value_slice_location(operand).is_some()
+                }) =>
+            {
+                self.lower_core_equals_at(&operands)
+            }
             CoreIntrinsic::EqualsAt => self.lower_core_shared(
                 sym::core_bytes_equals_at,
                 &operands,
                 MirType::I1,
                 |this, operands| this.lower_core_equals_at(operands),
             ),
+            CoreIntrinsic::Slice => self.lower_core_slice(expr, &operands),
             CoreIntrinsic::Truncate => self.lower_core_truncate(expr, &operands, &parameter_tys),
             CoreIntrinsic::ArrayGroupSum => self.lower_core_array_group_sum_call(&operands),
             CoreIntrinsic::ArrayHasDuplicate => self.lower_core_array_has_duplicate_call(&operands),
@@ -2094,7 +2107,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         width: u8,
     ) -> Option<ValueId> {
         let [object, offset] = *operands else { return None };
-        let length = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
+        let length = self.core_bytes_len(object);
         let misses = self.core_range_misses(length, offset, Width::Const(u64::from(width)));
         // ok = !misses
         // word = mload(data(object) + (ok ? offset : 0))
@@ -2102,7 +2115,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let ok = self.builder.eq_zero(misses);
         let zero = self.builder.imm(U256::ZERO);
         let aimed = self.builder.select(ok, offset, zero);
-        let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
+        let data = self.core_bytes_data(object);
         let address = self.builder.add(data, aimed);
         let word = self.builder.mload(address);
         let gated = self.builder.select(ok, word, zero);
@@ -2322,14 +2335,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// than a word skips the loop entirely.
     fn lower_core_equals_at(&mut self, operands: &[ValueId]) -> Option<ValueId> {
         let [a, offset, b] = *operands else { return None };
-        let kind = MemoryObjectKind::Bytes;
         // count = len(b)
         // left = data(a) + offset, after panic(0x32) unless offset + count <= len(a)
         // right = data(b)
-        let count = self.builder.memory_object_len(b, kind);
+        let count = self.core_bytes_len(b);
         let left = self.core_checked_range(a, offset, Width::Dynamic(count));
         let left = self.builder.cast_word(left);
-        let right = self.builder.memory_object_data(b, kind);
+        let right = self.core_bytes_data(b);
         let right = self.builder.cast_word(right);
 
         // rest = count & 31; words_end = left + (count - rest)
@@ -2390,6 +2402,45 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(self.builder.eq_zero(total))
     }
 
+    /// `slice(b, offset, count)`: a copy of the range, after the range check
+    /// the portable body makes first. As the initializer of a
+    /// `@custom:solar-view` declaration, the result is the memory slice of the
+    /// range itself, which the borrow check keeps equal to that copy.
+    fn lower_core_slice(&mut self, expr: &hir::Expr<'_>, operands: &[ValueId]) -> Option<ValueId> {
+        let [bytes, offset, count] = *operands else { return None };
+        // start = data(b) + offset, after panic(0x32) unless offset + count <= len(b)
+        // range = make_memory_slice(start, count)
+        let start = self.core_checked_range(bytes, offset, Width::Dynamic(count));
+        let range = self.builder.make_slice(start, count, SliceLocation::Memory);
+        if let Some((call, id)) = self.forming_view
+            && call == expr.id
+        {
+            self.record_view_borrow(id, range, bytes);
+            return Some(range);
+        }
+        // result = new bytes(count)
+        // copy(range, data(result))
+        let result = self.builder.alloc_bytes_object(count, AllocationSemantics::SOLIDITY_ZEROED);
+        self.builder.memory_object_copy_from_slice(result, MemoryObjectKind::Bytes, range);
+        Some(result)
+    }
+
+    /// Whether operand `index` of `intrinsic` is a `bytes` range the operation
+    /// only reads, so a `@custom:solar-view` variable can stand for it.
+    fn core_reads_in_place(intrinsic: CoreIntrinsic, index: usize) -> bool {
+        match intrinsic {
+            CoreIntrinsic::ReadBytes(_)
+            | CoreIntrinsic::ReadUint256Be
+            | CoreIntrinsic::TryReadBytes(_)
+            | CoreIntrinsic::TryReadUint256Be
+            | CoreIntrinsic::Keccak256Range
+            | CoreIntrinsic::Slice => index == 0,
+            CoreIntrinsic::CopyInto => index == 2,
+            CoreIntrinsic::EqualsAt => index == 0 || index == 2,
+            _ => false,
+        }
+    }
+
     /// `truncate(a, n)`: shortens a dynamic memory array in place.
     fn lower_core_truncate(
         &mut self,
@@ -2411,19 +2462,43 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(self.builder.imm(U256::ZERO))
     }
 
-    /// Checks that `[offset, offset + width)` lies inside the `bytes` object
+    /// Checks that `[offset, offset + width)` lies inside the `bytes` operand
     /// and returns the address of its first byte.
     ///
     /// The sum is tested for wrapping as well as for fit, so an offset near
     /// the top of the word cannot wrap into a range that looks valid.
     fn core_checked_range(&mut self, object: ValueId, offset: ValueId, width: Width) -> ValueId {
-        let length = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
+        let length = self.core_bytes_len(object);
         // panic(0x32) if misses(length, offset, width)
         let misses = self.core_range_misses(length, offset, width);
         self.builder.panic_if(misses, PanicCode::ArrayOutOfBounds);
         // address = data(object) + offset
-        let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
+        let data = self.core_bytes_data(object);
         self.builder.add(data, offset)
+    }
+
+    /// The length of a `bytes` operand: a memory object, or the memory slice
+    /// a `@custom:solar-view` variable reads.
+    fn core_bytes_len(&mut self, bytes: ValueId) -> ValueId {
+        if self.builder.func().value_slice_location(bytes) == Some(SliceLocation::Memory) {
+            // length = slice.len
+            self.builder.slice_len(bytes)
+        } else {
+            // length = object.len
+            self.builder.memory_object_len(bytes, MemoryObjectKind::Bytes)
+        }
+    }
+
+    /// The address of the first byte of a `bytes` operand.
+    fn core_bytes_data(&mut self, bytes: ValueId) -> ValueId {
+        if self.builder.func().value_slice_location(bytes) == Some(SliceLocation::Memory) {
+            // data = inttoptr slice.ptr
+            let pointer = self.builder.slice_ptr(bytes);
+            self.builder.cast(pointer, MirType::MemPtr)
+        } else {
+            // data = object.data
+            self.builder.memory_object_data(bytes, MemoryObjectKind::Bytes)
+        }
     }
 
     /// The calldata counterpart of [`Self::core_checked_range`]: the range is

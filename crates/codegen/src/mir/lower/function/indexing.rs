@@ -59,7 +59,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let index = self.lower_typed_expr(index, self.cx.gcx.types.uint(256))?;
         let receiver_ty = self.cx.gcx.type_of_expr(receiver.id)?;
-        let object = self.lower_expr(receiver)?;
+        let object = self.lower_view_or_expr(receiver)?;
         if let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
             receiver_ty.peel_refs().kind
         {

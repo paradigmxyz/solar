@@ -207,7 +207,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 _ => self.cx.report_unsupported(span, what),
             };
         }
-        let object = self.lower_expr(receiver)?;
+        let object = self.lower_view_or_expr(receiver)?;
         if matches!(self.builder.func().value_ty(object), Some(MirType::Slice(_))) {
             // length = slice.len
             return Some(self.builder.slice_len(object));
