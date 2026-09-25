@@ -44,11 +44,13 @@
 //!
 //! `@custom:solar-view data` on an internal function makes its `bytes memory` or `string memory`
 //! parameter `data` a view parameter. Other compilers pass the caller's object, and every
-//! internal call does the same with any memory reference; this compiler passes a memory slice
-//! instead: a view as it is, the bytes of any other `bytes` object without a copy, and a copy of a
-//! calldata view. The function reads the parameter as a view, borrowed from its entry on, so none
-//! of its writes may reach memory that existed when it was entered while it still reads the
-//! parameter, and it cannot be used as a function pointer, whose calls pass objects.
+//! internal call does the same with any memory reference; this compiler passes a slice instead,
+//! without a copy: a view as it is, in memory or in calldata, and the bytes of any other `bytes`
+//! object. A call that passes calldata views reaches a copy of the function that takes those
+//! parameters as calldata slices and reads them there. The function reads a memory parameter as
+//! a view, borrowed from its entry on, so none of its writes may reach memory that existed when it
+//! was entered while it still reads the parameter, and it cannot be used as a function pointer,
+//! whose calls pass objects.
 //!
 //! Once the contract is lowered, and before any optimization, [`check_view_borrows`] rejects
 //! every instruction that may write the source's payload between the view's creation and a later
@@ -454,37 +456,77 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Binds the `@custom:solar-view` parameter `id` to `value`, the slice of its bytes. The
     /// function reads the bytes where the caller keeps them, so none of its writes may reach
-    /// memory that existed when it was entered while it still reads them.
+    /// memory that existed when it was entered while it still reads them; bytes in calldata need
+    /// no borrow.
     pub(super) fn bind_view_parameter(&mut self, id: VariableId, value: ValueId) {
         self.views.insert(id, value);
         self.view_roots.insert(value, None);
-        self.push_view_borrow(id, value, value);
+        if self.builder.func().value_slice_location(value) == Some(SliceLocation::Memory) {
+            self.push_view_borrow(id, value, value);
+        }
     }
 
     /// Lowers `argument` for a `@custom:solar-view` parameter of type `ty`: a view passes its
-    /// slice, a view of calldata a copy of its bytes, and any other `bytes` or `string` the slice
-    /// of the object's bytes, without a copy.
+    /// slice, in memory or in calldata, and any other `bytes` or `string` the slice of the
+    /// object's bytes, without a copy. [`Self::view_callee`] picks the function that takes them.
     pub(super) fn lower_view_argument(
         &mut self,
         argument: &hir::Expr<'_>,
         ty: Ty<'gcx>,
     ) -> Option<ValueId> {
-        let object = if self.is_view_expr(argument) {
-            let view = self.lower_view_expr(argument)?;
-            if self.builder.func().value_slice_location(view) == Some(SliceLocation::Memory) {
-                return Some(view);
-            }
-            // object = bytes(view) in memory
-            self.materialize_memory_slice(view)
-        } else {
-            let value = self.lower_typed_expr(argument, ty)?;
-            self.materialize_call_argument(ty, value, argument.span)?
-        };
+        if self.is_view_expr(argument) {
+            return self.lower_view_expr(argument);
+        }
+        let value = self.lower_typed_expr(argument, ty)?;
+        let object = self.materialize_call_argument(ty, value, argument.span)?;
         // slice = make_memory_slice(object.data, object.len)
         let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
         let data = self.builder.cast(data, MirType::I256);
         let length = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
         Some(self.builder.make_slice(data, length, SliceLocation::Memory))
+    }
+
+    /// The function a call reaches that passes `values` to the function `id`, lowered as
+    /// `mir_id`: that function, or the copy of it that takes the view parameters receiving
+    /// calldata views as calldata slices, which reads the bytes where they are, like the caller.
+    pub(super) fn view_callee(
+        &mut self,
+        id: hir::FunctionId,
+        mir_id: FunctionId,
+        values: &mut [ValueId],
+    ) -> FunctionId {
+        let mut calldata_views = 0_u64;
+        for (index, value) in values.iter_mut().enumerate() {
+            if !is_view_parameter(self.cx.gcx, id, index)
+                || self.builder.func().value_slice_location(*value) != Some(SliceLocation::Calldata)
+            {
+                continue;
+            }
+            if index < 64 {
+                calldata_views |= 1 << index;
+            } else {
+                // object = bytes(view) in memory
+                // slice = make_memory_slice(object.data, object.len)
+                let object = self.materialize_memory_slice(*value);
+                let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
+                let data = self.builder.cast(data, MirType::I256);
+                let length = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
+                *value = self.builder.make_slice(data, length, SliceLocation::Memory);
+            }
+        }
+        if calldata_views == 0 {
+            return mir_id;
+        }
+        if let Some(&clone) = self.cx.state.view_clones.get(&(id, calldata_views)) {
+            return clone;
+        }
+        // The contract driver lowers the copy once the functions it knows are lowered.
+        let mut declaration = contract::declaration(self.cx.gcx, id, self.cx.gcx.hir.function(id));
+        declaration.selector = None;
+        let clone = self.cx.module.add_function(declaration);
+        self.cx.state.view_clones.insert((id, calldata_views), clone);
+        self.cx.state.pending_view_clones.push((id, calldata_views, clone));
+        clone
     }
 
     /// Reports a use of a `@custom:solar-view` variable that could keep it or write through it.
@@ -539,15 +581,23 @@ pub(in crate::mir::lower) fn is_view_parameter(
     !gcx.sess.opts.unstable.no_core_intrinsics && gcx.hir.is_solar_view_parameter(id, index)
 }
 
-/// The MIR type parameter `index` of the function `id` takes: the memory slice of its bytes for a
-/// view, or otherwise `carrier`, the type that carries the parameter's value.
+/// The MIR type parameter `index` of the function `id` takes, in the copy of the function that
+/// takes the view parameters in the `calldata_views` mask as calldata slices: the slice of its
+/// bytes for a view, or otherwise `carrier`, the type that carries the parameter's value.
 pub(in crate::mir::lower) fn parameter_type(
     gcx: Gcx<'_>,
     id: hir::FunctionId,
     index: usize,
     carrier: MirType,
+    calldata_views: u64,
 ) -> MirType {
-    if is_view_parameter(gcx, id, index) { MirType::Slice(SliceLocation::Memory) } else { carrier }
+    if !is_view_parameter(gcx, id, index) {
+        carrier
+    } else if index < 64 && calldata_views & (1 << index) != 0 {
+        MirType::Slice(SliceLocation::Calldata)
+    } else {
+        MirType::Slice(SliceLocation::Memory)
+    }
 }
 
 /// Rejects every write that may change bytes a `@custom:solar-view` variable still reads.

@@ -124,13 +124,22 @@ pub(super) struct LoweringState {
     pub(super) returns_from_call: bool,
     /// The `@custom:solar-scratch` blocks of the function being lowered.
     pub(super) scratch_regions: Vec<ScratchRegion>,
+    /// The copies of functions with `@custom:solar-view` parameters that take some of them as
+    /// calldata slices, keyed by the function and the mask of those parameters.
+    pub(super) view_clones: FxHashMap<(hir::FunctionId, u64), FunctionId>,
+    /// The copies in `view_clones` that are not lowered yet.
+    pub(super) pending_view_clones: Vec<(hir::FunctionId, u64, FunctionId)>,
 }
 
 /// Lowers one HIR function into a typed MIR function.
+///
+/// The parameters in the `calldata_views` mask are `@custom:solar-view` parameters the function
+/// takes as calldata slices, for the copy of it that the calls passing calldata views reach.
 pub(super) fn lower(
     mut context: LoweringContext<'_, '_>,
     id: hir::FunctionId,
     expose_selector: bool,
+    calldata_views: u64,
 ) -> Option<Function> {
     let gcx = context.gcx;
     let hir_function = gcx.hir.function(id);
@@ -187,7 +196,7 @@ pub(super) fn lower(
 
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
     lowerer.is_getter = hir_function.is_getter();
-    lowerer.bind_signature(id, hir_function);
+    lowerer.bind_signature(id, hir_function, calldata_views);
     if hir_function.kind == hir::FunctionKind::Constructor {
         let Some(contract_id) = hir_function.contract else {
             return context.report_unsupported(hir_function.span, "free constructor");
