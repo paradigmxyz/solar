@@ -133,9 +133,6 @@ bb19 [loop]:
   iszero
   push bb17
   jumpi
-  pop
-  pop
-  pop
   jump bb21
 bb21 [cold]:
   push 0x4e487b71

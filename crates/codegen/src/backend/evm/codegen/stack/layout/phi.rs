@@ -404,10 +404,11 @@ impl<'a> StackPhiPlanner<'a> {
             // Two kinds of source keep the join out of the plan. A resident argument has one
             // physical word with no frame fallback, so it cannot be both the phi input and the
             // invariant prefix the argument layout merges below the phis. A literal that is
-            // also live past the join is admitted only in gas mode, where the branch emitter
-            // materializes an edge-exclusive immediate on its own edge; the other modes keep
-            // the established exclusion outside self-loops, since two loops seeded from one
-            // literal and allocating inside their bodies mislaid the counter at `-O none`.
+            // also live past the join is admitted in gas and size modes. In gas mode the branch
+            // emitter materializes an edge-exclusive immediate on its own edge, and size mode
+            // carries the literal in the branch's union layout. Unoptimized builds keep the
+            // established exclusion outside self-loops, since two loops seeded from one literal
+            // and allocating inside their bodies mislaid the counter at `-O none`.
             let phi_source_is_live_in = block.predecessors.iter().any(|&pred| {
                 self.phi_sources_for_pred(&phis, pred).is_some_and(|sources| {
                     sources.iter().any(|&source| {
@@ -415,7 +416,8 @@ impl<'a> StackPhiPlanner<'a> {
                             && match self.func.value(source) {
                                 crate::mir::Value::Arg(_) => true,
                                 crate::mir::Value::Immediate(_) => {
-                                    !self.target.optimization().is_gas()
+                                    !(self.target.optimization().is_gas()
+                                        || self.target.optimization().is_size())
                                         && !block.predecessors.contains(&block_id)
                                 }
                                 _ => false,
