@@ -89,5 +89,18 @@ LL │         out = w.finish();
    │               ━━━━━━━━━━
    ╰ help: finish a builder once, after its last append, and start another with `Buffers.create`
 
-error: aborting due to 7 previous errors
+error: this uses a builder after `finish` emptied it
+   ╭▸ ROOT/tests/ui/codegen/core/buffers_finish.sol:LL:CC
+   │
+LL │         if (again) b.appendByte(0x02);
+   │                    ━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the builder is emptied here
+   ╭▸ ROOT/tests/ui/codegen/core/buffers_finish.sol:LL:CC
+   │
+LL │         if (done) out = b.finish();
+   │                         ━━━━━━━━━━
+   ╰ help: finish a builder once, after its last append, and start another with `Buffers.create`
+
+error: aborting due to 8 previous errors
 

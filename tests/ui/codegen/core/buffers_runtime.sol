@@ -6,6 +6,8 @@
 //@ run-call: counted 0 => 0x, 0
 //@ run-call: counted 5 => 0x0001020304, 5
 //@ run-call: counted 40 => 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324252627, 40
+//@ run-call: lastIteration 3 => 0x000102
+//@ run-call: lastIteration 0 => 0x
 //@ run-call: neighbour 0xaaaaaaaa, 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb0000000000000000000000000000000000000000000000000000000000000004deadbeef => 0xaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb0000000000000000000000000000000000000000000000000000000000000004deadbeef, 0x11223344
 
 // `Buffers` builds output whose length is not known up front. The capacity is
@@ -32,6 +34,15 @@ contract Test {
         }
         length = builder.length();
         out = builder.finish();
+    }
+
+    // The last iteration finishes the builder.
+    function lastIteration(uint256 n) public pure returns (bytes memory out) {
+        ByteBuilder memory builder = Buffers.create(1);
+        for (uint256 i; i < n; ++i) {
+            builder.appendByte(bytes1(uint8(i)));
+            if (i + 1 == n) out = builder.finish();
+        }
     }
 
     function neighbour(bytes memory a, bytes memory b)
