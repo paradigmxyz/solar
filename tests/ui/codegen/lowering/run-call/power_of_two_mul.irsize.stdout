@@ -73,10 +73,10 @@ bb17 [loop]:
   jumpi
   jump bb42
 bb42 [loop]:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb19 [loop]:
   push 1
@@ -164,7 +164,7 @@ bb26:
   push 255
   jump bb39
 bb29:
-  push 160
+  push 128
   push 64
   mstore
   push 68

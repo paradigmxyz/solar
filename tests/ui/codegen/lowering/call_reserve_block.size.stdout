@@ -14,10 +14,10 @@ bb0:
   push bb3
   jumpi
   push 42
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3 [cold]:
   push 0
@@ -26,7 +26,7 @@ bb3 [cold]:
 // === ROOT/tests/ui/codegen/lowering/call_reserve_block.sol:ReserveBlock (runtime) ===
 @module ReserveBlock_runtime
 bb0:
-  push 160
+  push 128
   push 64
   mstore
   callvalue
@@ -107,10 +107,10 @@ bb10:
   push bb4
   jumpi
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb13 [continuation]:
   extcodesize

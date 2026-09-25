@@ -16,11 +16,12 @@
 +   bb1:
       v0 = add arg0, 1
 -     ret arg0, v0
-+     mstore 0, arg0 !metadata(memory=scratch)
-+     mstore 32, v0 !metadata(memory=scratch)
-+     v3 = add 32, 32
-+     v4 = sub v3, 0
-+     returndata 0, v4
++     mstore 128, arg0
++     v3 = add 128, 32
++     mstore v3, v0
++     v4 = add v3, 32
++     v5 = sub v4, 128
++     returndata 128, v5
 +   bb2:
 +     revert 0, 0
   }

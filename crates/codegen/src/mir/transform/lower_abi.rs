@@ -79,7 +79,8 @@ impl MirPass for LowerAbi {
     ) -> bool {
         let changed = LowerAbiCx {
             revert_strings: gcx.sess.opts.revert_strings,
-            scratch_returns: gcx.sess.opts.optimization.is_gas(),
+            scratch_returns: gcx.sess.opts.optimization.is_gas()
+                || gcx.sess.opts.optimization.is_size(),
             ..Default::default()
         }
         .run(module, gcx.sess.opts.evm_version, gcx.sess.opts.optimization.is_gas());
@@ -125,10 +126,10 @@ struct LowerAbiCx {
     has_bitwise_shifting: bool,
     /// How compiler-generated decoding reverts are encoded.
     revert_strings: RevertStrings,
-    /// Whether a short static return is staged in the scratch words. Gas
-    /// builds only: the other modes' stack planners keep a loop's literal
-    /// start out of a join layout when the same literal is used after the
-    /// loop, and a return at offset 0 would add such uses.
+    /// Whether a short static return is staged in the scratch words. Gas and
+    /// size builds only: the unoptimized stack planner keeps a loop's
+    /// literal start out of a join layout when the same literal is used
+    /// after the loop, and a return at offset 0 would add such uses.
     scratch_returns: bool,
 }
 
