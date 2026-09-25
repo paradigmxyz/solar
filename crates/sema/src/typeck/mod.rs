@@ -12,6 +12,7 @@ use std::ops::ControlFlow;
 
 mod builders;
 mod checker;
+mod erc7201;
 pub(crate) mod override_checker;
 mod solar_tags;
 mod udvt;
@@ -37,6 +38,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
     view_pure_checker::check(gcx);
     solar_tags::check(gcx);
     builders::check(gcx);
+    erc7201::check(gcx);
 }
 
 fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {

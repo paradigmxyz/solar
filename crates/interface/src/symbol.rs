@@ -1321,6 +1321,7 @@ symbols! {
         staticCallInto,
         storage_array_data_slot,
         storage_array_element_slot,
+        storage_dash_location: "storage-location",
         storage_read,
         storage_to_memory,
         storage_write,
