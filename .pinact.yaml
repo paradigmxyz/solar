@@ -1,0 +1,6 @@
+version: 3
+rules:
+  # Keep the reviewed immutable deny pin; tempoxyz/gh-actions has no release tags.
+  - ignore: true
+    conditions:
+      - expr: ActionName == "tempoxyz/gh-actions/.github/workflows/rust-deny.yml" && ActionVersion == "5840979a7c849cbe541c67431ec7315cd6396e3b"

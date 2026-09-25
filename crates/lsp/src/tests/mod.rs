@@ -52,6 +52,7 @@ mod import_definition;
 mod indexing;
 mod inlay_hint;
 mod interactive_analysis;
+mod point_queries;
 #[path = "protocol_trace.rs"]
 mod protocol_trace_tests;
 mod references;
@@ -462,41 +463,43 @@ fn document_diagnostic_waits_for_committed_analysis_diagnostics() {
 
 #[test]
 fn document_diagnostic_canonicalizes_file_uris() {
-    let canonical_uri = diagnostic_uri();
-    let encoded_uri =
-        Url::parse(&canonical_uri.as_str().replacen("Diagnostics.sol", "%44iagnostics.sol", 1))
-            .expect("encoded URI should be valid");
-    assert_ne!(canonical_uri, encoded_uri);
-    assert_eq!(canonical_uri.to_file_path(), encoded_uri.to_file_path());
+    for spelling in ["%44iagnostics.sol", "nested%2F..%2FDiagnostics.sol"] {
+        let canonical_uri = diagnostic_uri();
+        let encoded_uri =
+            Url::parse(&canonical_uri.as_str().replacen("Diagnostics.sol", spelling, 1))
+                .expect("encoded URI should be valid");
+        assert_ne!(canonical_uri, encoded_uri);
+        assert_eq!(crate::proto::vfs_path(&canonical_uri), crate::proto::vfs_path(&encoded_uri));
 
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.snapshot().publish_diagnostics(
-        DiagnosticOwner::Compiler,
-        DiagnosticMap::from_iter([(canonical_uri.clone(), vec![diagnostic("compiler")])]),
-    );
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.snapshot().publish_diagnostics(
+            DiagnosticOwner::Compiler,
+            DiagnosticMap::from_iter([(canonical_uri.clone(), vec![diagnostic("compiler")])]),
+        );
 
-    let response = expect_ready(crate::handlers::document_diagnostic(
-        &mut state,
-        document_diagnostic_params(encoded_uri, None),
-    ));
-    let DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(report)) =
-        response.unwrap()
-    else {
-        panic!("first diagnostic pull should return a full report");
-    };
-    assert_eq!(report.full_document_diagnostic_report.items, vec![diagnostic("compiler")]);
-    let result_id = report.full_document_diagnostic_report.result_id.unwrap();
+        let response = expect_ready(crate::handlers::document_diagnostic(
+            &mut state,
+            document_diagnostic_params(encoded_uri, None),
+        ));
+        let DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(report)) =
+            response.unwrap()
+        else {
+            panic!("first diagnostic pull should return a full report");
+        };
+        assert_eq!(report.full_document_diagnostic_report.items, vec![diagnostic("compiler")]);
+        let result_id = report.full_document_diagnostic_report.result_id.unwrap();
 
-    let response = expect_ready(crate::handlers::document_diagnostic(
-        &mut state,
-        document_diagnostic_params(canonical_uri, Some(result_id.clone())),
-    ));
-    let DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Unchanged(report)) =
-        response.unwrap()
-    else {
-        panic!("equivalent URI should share the cached result ID");
-    };
-    assert_eq!(report.unchanged_document_diagnostic_report.result_id, result_id);
+        let response = expect_ready(crate::handlers::document_diagnostic(
+            &mut state,
+            document_diagnostic_params(canonical_uri, Some(result_id.clone())),
+        ));
+        let DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Unchanged(report)) =
+            response.unwrap()
+        else {
+            panic!("equivalent URI should share the cached result ID");
+        };
+        assert_eq!(report.unchanged_document_diagnostic_report.result_id, result_id);
+    }
 }
 
 fn pause_blocking_pool() -> (std_mpsc::Sender<()>, tokio::task::JoinHandle<()>) {
@@ -1615,6 +1618,122 @@ fn did_change_tracks_the_request_source_until_analysis_publishes() {
     });
 }
 
+#[tokio::test(flavor = "current_thread")]
+async fn did_change_clamps_positions_before_analysis_and_rename() {
+    for (position, text, expected, rename_position) in [
+        (
+            Position::new(0, 5),
+            "\n// inserted",
+            "//😀\n// inserted\ncontract C {}",
+            Position::new(2, 9),
+        ),
+        (
+            Position::new(0, u32::MAX),
+            "\n// inserted",
+            "//😀\n// inserted\ncontract C {}",
+            Position::new(2, 9),
+        ),
+        (
+            Position::new(99, 0),
+            "\ncontract Added {}",
+            "//😀\ncontract C {}\ncontract Added {}",
+            Position::new(1, 9),
+        ),
+        (
+            Position::new(u32::MAX, u32::MAX),
+            "\ncontract Added {}",
+            "//😀\ncontract C {}\ncontract Added {}",
+            Position::new(1, 9),
+        ),
+    ] {
+        let fixture = support::RequestFixture::new(
+            "//- /Clamped.sol open\n//😀\ncontract $1C {}",
+            "/Clamped.sol",
+        );
+        let (mut state, mut rename_params) = fixture.rename_state_and_params("$1", "Renamed");
+        let uri = rename_params.text_document_position.text_document.uri.clone();
+        let path = VfsPath::from(fixture.project_path("/Clamped.sol"));
+        let result = crate::handlers::did_change_text_document(
+            &mut state,
+            DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier::new(uri.clone(), 2),
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: Some(Range::new(position, position)),
+                    range_length: None,
+                    text: text.into(),
+                }],
+            },
+        );
+        assert!(result.is_continue());
+        {
+            let vfs = state.vfs.read();
+            snapbox::assert_data_eq!(vfs.get_file_contents(&path).unwrap().to_string(), expected);
+            assert_eq!(vfs.get_file_version(&path), Some(2));
+        }
+
+        rename_params.text_document_position.position = rename_position;
+        let edit = tokio::time::timeout(
+            ASYNC_TEST_TIMEOUT,
+            crate::handlers::rename(&mut state, rename_params),
+        )
+        .await
+        .expect("rename should finish after the clamped change")
+        .unwrap()
+        .expect("the current contract should remain renamable");
+        assert_eq!(
+            edit.changes.unwrap()[&uri],
+            [lsp_types::TextEdit::new(
+                Range::new(
+                    rename_position,
+                    Position::new(rename_position.line, rename_position.character + 1),
+                ),
+                "Renamed".into(),
+            )]
+        );
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn did_change_rejects_invalid_ranges_without_applying_a_partial_batch() {
+    for invalid_range in [
+        Range::new(Position::new(0, 3), Position::new(0, 3)),
+        Range::new(Position::new(0, 4), Position::new(0, 2)),
+    ] {
+        let fixture = support::RequestFixture::new(
+            "//- /Invalid.sol open\n//😀\ncontract $1C {}",
+            "/Invalid.sol",
+        );
+        let mut state = fixture.state();
+        let (uri, _) = fixture.marker_location("$1");
+        let path = VfsPath::from(fixture.project_path("/Invalid.sol"));
+        let result = crate::handlers::did_change_text_document(
+            &mut state,
+            DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier::new(uri, 2),
+                content_changes: vec![
+                    TextDocumentContentChangeEvent {
+                        range: Some(Range::new(Position::new(1, 9), Position::new(1, 10))),
+                        range_length: None,
+                        text: "D".into(),
+                    },
+                    TextDocumentContentChangeEvent {
+                        range: Some(invalid_range),
+                        range_length: None,
+                        text: "invalid".into(),
+                    },
+                ],
+            },
+        );
+        assert!(result.is_continue());
+        let vfs = state.vfs.read();
+        snapbox::assert_data_eq!(
+            vfs.get_file_contents(&path).unwrap().to_string(),
+            "//😀\ncontract C {}"
+        );
+        assert_eq!(vfs.get_file_version(&path), Some(0));
+    }
+}
+
 #[test]
 fn configuration_change_invalidates_natspec_context_until_analysis_publishes() {
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -1923,6 +2042,46 @@ fn saving_without_matching_flychecks_keeps_previous_flycheck_results_current() {
     state.run_flychecks_on_save(PathBuf::from("/workspace/Untracked.sol"));
 
     assert!(snapshot.is_current_flycheck(&owner, 0));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn saving_equivalent_file_uri_selects_workspace_flycheck() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /workspace/foundry.toml
+        [profile.default]
+        src = "src"
+        //- /workspace/src/Test.sol
+        contract Test {}
+        "#,
+    );
+    let mut params = project.initialize_params_with_roots(&["/workspace"]);
+    params.initialization_options = Some(serde_json::json!({
+        "flychecks": [{
+            "id": "save",
+            "command": std::env::current_exe().unwrap(),
+            "args": ["--list"]
+        }]
+    }));
+    let (_, mut config) = negotiate_capabilities(params);
+    config.rediscover_workspaces();
+    let [owner] = config.flycheck_owners().collect::<Vec<_>>().try_into().unwrap();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+    let snapshot = state.snapshot();
+    let uri = Url::parse(&format!(
+        "{}/missing%2F..%2Fworkspace/src/Test.sol",
+        Url::from_file_path(project.root()).unwrap()
+    ))
+    .unwrap();
+
+    let result = crate::handlers::did_save_text_document(
+        &mut state,
+        DidSaveTextDocumentParams { text_document: TextDocumentIdentifier::new(uri), text: None },
+    );
+
+    assert!(matches!(result, ControlFlow::Continue(())));
+    assert!(!snapshot.is_current_flycheck(&owner, 0));
 }
 
 #[test]

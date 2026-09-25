@@ -2,7 +2,7 @@ name: bench-comment
 
 permissions: {}
 
-on:
+on: # zizmor: ignore[dangerous-triggers] Report artifacts are read as data, never executed; the PR is resolved from the run SHA.
   workflow_run:
     workflows: [Benchmark]
     types: [completed]

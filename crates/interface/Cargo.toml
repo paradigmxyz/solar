@@ -35,7 +35,6 @@ thiserror.workspace = true
 dunce = "1"
 inturn.workspace = true
 itertools.workspace = true
-itoa.workspace = true
 normalize-path.workspace = true
 once_map.workspace = true
 rayon.workspace = true

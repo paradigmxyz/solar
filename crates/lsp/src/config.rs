@@ -4,6 +4,7 @@ use crate::{
     file_operations::FileMoveBatch,
     flycheck::{FlycheckConfig, FlycheckInitializationOptions},
     import_resolution::ImportResolutionContext,
+    proto,
     workspace::{
         FoundryConfigContext, SourceWatchRoot, Workspace, WorkspaceError, WorkspaceKind,
         WorkspacePathIndex,
@@ -1022,14 +1023,21 @@ fn workspace_roots_from_initialize(
 ) -> Vec<PathBuf> {
     let workspace_roots = workspace_folders
         .map(|workspaces| {
-            workspaces.into_iter().filter_map(|it| it.uri.to_file_path().ok()).collect::<Vec<_>>()
+            workspaces
+                .into_iter()
+                .filter_map(|it| proto::normalize_file_uri(it.uri).to_file_path().ok())
+                .collect::<Vec<_>>()
         })
         .unwrap_or_default();
     if !workspace_roots.is_empty() {
         return workspace_roots;
     }
 
-    root_uri.and_then(|uri| uri.to_file_path().ok()).or_else(fallback_root).into_iter().collect()
+    root_uri
+        .and_then(|uri| proto::normalize_file_uri(uri).to_file_path().ok())
+        .or_else(fallback_root)
+        .into_iter()
+        .collect()
 }
 
 #[cfg(any(test, feature = "bench"))]
@@ -1356,6 +1364,27 @@ mod tests {
         });
 
         assert_eq!(roots, [workspace_root]);
+    }
+
+    #[test]
+    fn initialize_normalizes_equivalent_workspace_uris() {
+        let workspace_root = env::temp_dir().join("solar-lsp-workspace");
+        let uri = Url::from_file_path(&workspace_root).unwrap();
+        let equivalent = Url::parse(&uri.as_str().replacen(
+            "solar-lsp-workspace",
+            "missing%2F..%2Fsolar-lsp-workspace",
+            1,
+        ))
+        .unwrap();
+        let folder = WorkspaceFolder { uri: equivalent.clone(), name: "workspace".into() };
+
+        for (folders, root_uri) in [(Some(vec![folder]), None), (None, Some(equivalent))] {
+            let roots = workspace_roots_from_initialize(folders, root_uri, || {
+                panic!("valid workspace URI should not use the fallback")
+            });
+
+            assert_eq!(roots, std::slice::from_ref(&workspace_root));
+        }
     }
 
     #[test]

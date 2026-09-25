@@ -18,10 +18,11 @@ jobs:
         github.event.label.name == 'agentic-audit'
       )
     permissions:
+      id-token: write
       contents: read
       pull-requests: read
       statuses: write
-    uses: tempoxyz/gh-actions/.github/workflows/pr-audit.yml@dd1014bf8244fded7a501e701cafab240a4f9f0e
+    uses: tempoxyz/gh-actions/.github/workflows/pr-audit.yml@117919c943b804057be733b0c4034c5542e58959 # 2026-09-23T05-09-41Z-117919c9
     with:
       required-labels: |
         cyclops
@@ -46,7 +47,7 @@ jobs:
       issues: write
       pull-requests: read
     steps:
-      - uses: tempoxyz/gh-actions/actions/pr-audit-comment@dd1014bf8244fded7a501e701cafab240a4f9f0e
+      - uses: tempoxyz/gh-actions/actions/pr-audit-comment@117919c943b804057be733b0c4034c5542e58959 # 2026-09-23T05-09-41Z-117919c9
         with:
           command-regex: '^(?:@decofe\s+)?(?:cyclops\s+audit|derek\s+audit)\b'
           permission-check-mode: association
