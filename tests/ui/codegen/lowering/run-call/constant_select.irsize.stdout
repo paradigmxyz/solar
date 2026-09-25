@@ -102,10 +102,10 @@ bb76:
   add
   jump bb75
 bb75:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb15:
   push 36

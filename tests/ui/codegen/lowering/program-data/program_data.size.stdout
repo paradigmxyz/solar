@@ -41,14 +41,14 @@ fn @subslice() [selector=0xb9ad073e, abi_wrapper, pure] {
 
 fn @dataHash() [selector=0x1b3012a3, abi_wrapper, pure] {
   bb0:
-    mstore 128, 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
-    returndata 128, 32
+    mstore 0, 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @subsliceHash() [selector=0xe5a3e763, abi_wrapper, pure] {
   bb0:
-    mstore 128, 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
-    returndata 128, 32
+    mstore 0, 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @zeroData() [selector=0x6ec059cd, abi_wrapper, pure] {
@@ -94,34 +94,34 @@ fn @splatData() [selector=0xe1910fda, abi_wrapper, pure] {
 fn @zeroHash() [selector=0x672c8259, abi_wrapper, pure] {
   bb0:
     v0 = icall @zeroData.body
-    v4 = ptrtoint memptr v0 to i256
-    v5 = mload v4
-    v7 = add v4, 32
-    v1 = keccak256 v7, v5
-    mstore 128, v1
-    returndata 128, 32
+    v3 = ptrtoint memptr v0 to i256
+    v4 = mload v3
+    v6 = add v3, 32
+    v1 = keccak256 v6, v4
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @zeroWordHash() [selector=0x0d00d797, abi_wrapper, pure] {
   bb0:
     v0 = icall @zeroWord.body
-    v4 = ptrtoint memptr v0 to i256
-    v5 = mload v4
-    v7 = add v4, 32
-    v1 = keccak256 v7, v5
-    mstore 128, v1
-    returndata 128, 32
+    v3 = ptrtoint memptr v0 to i256
+    v4 = mload v3
+    v6 = add v3, 32
+    v1 = keccak256 v6, v4
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @splatHash() [selector=0x38f844b9, abi_wrapper, pure] {
   bb0:
     v0 = icall @splatData.body
-    v4 = ptrtoint memptr v0 to i256
-    v5 = mload v4
-    v7 = add v4, 32
-    v1 = keccak256 v7, v5
-    mstore 128, v1
-    returndata 128, 32
+    v3 = ptrtoint memptr v0 to i256
+    v4 = mload v3
+    v6 = add v3, 32
+    v1 = keccak256 v6, v4
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @zeroData.body() -> memptr [may_return_memory, pure] {
@@ -351,10 +351,10 @@ bb15:
   push 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
   jump bb31
 bb31:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb16:
   push 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8

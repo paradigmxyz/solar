@@ -24,10 +24,10 @@ bb4 [cold]:
   push 0
   revert
 bb8 [continuation]:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb19 [cold]:
   push 0x4e487b71
