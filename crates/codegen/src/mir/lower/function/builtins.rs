@@ -657,10 +657,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some(self.builder.keccak256(pointer, length));
                 }
                 if let Some(view) = self.view_operand(value) {
-                    // hash = keccak256(view.ptr, view.len)
+                    // hash = keccak256(view.ptr, view.len), from scratch for calldata
                     let pointer = self.builder.slice_ptr(view);
                     let length = self.builder.slice_len(view);
-                    return Some(self.builder.keccak256(pointer, length));
+                    return Some(self.core_hash_range(view, pointer, length));
                 }
                 let value_ty = self.cx.gcx.type_of_expr(value.id)?;
                 let memory_ty = value_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);

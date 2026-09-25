@@ -432,7 +432,7 @@ impl PointerWrites {
                             writes.params.sort_unstable();
                         }
                     }
-                    _ if function.fresh_allocation(value).is_some() => {}
+                    _ if function.fresh_start(value).is_some() => {}
                     _ => writes.other = true,
                 },
             }

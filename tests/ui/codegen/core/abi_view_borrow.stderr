@@ -1,0 +1,55 @@
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/abi_view_borrow.sol:LL:CC
+   │
+LL │         return length(v);
+   │                       ━
+   │
+   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, `abi.decode`, and the `Bytes` and `Hash` reads of a range
+   ╰ help: remove the tag to work with a copy of the bytes
+
+error: the view `s` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/abi_view_borrow.sol:LL:CC
+   │
+LL │         return n == 0 ? "" : s;
+   │                              ━
+   │
+   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, `abi.decode`, and the `Bytes` and `Hash` reads of a range
+   ╰ help: remove the tag to work with a copy of the bytes
+
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/abi_view_borrow.sol:LL:CC
+   │
+LL │         v[0] = 0x01;
+   │         ━
+   │
+   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, `abi.decode`, and the `Bytes` and `Hash` reads of a range
+   ╰ help: remove the tag to work with a copy of the bytes
+
+error: this may change bytes that the view `v` still reads
+   ╭▸ ROOT/tests/ui/codegen/core/abi_view_borrow.sol:LL:CC
+   │
+LL │         data[at] = 0x01;
+   │         ━━━━━━━━━━━━━━━
+   ╰╴
+note: `v` reads the bytes in place and is read after this
+   ╭▸ ROOT/tests/ui/codegen/core/abi_view_borrow.sol:LL:CC
+   │
+LL │         (uint256 at, bytes memory v) = abi.decode(data, (uint256, bytes));
+   │                      ━━━━━━━━━━━━━━
+   ╰ help: finish reading the view first, or remove `@custom:solar-view` to read a copy
+
+error: this may change bytes that the view `v` still reads
+   ╭▸ ROOT/tests/ui/codegen/core/abi_view_borrow.sol:LL:CC
+   │
+LL │         packet.writeBytes1(100, 0x01);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: `v` reads the bytes in place and is read after this
+   ╭▸ ROOT/tests/ui/codegen/core/abi_view_borrow.sol:LL:CC
+   │
+LL │         (bytes memory v) = abi.decode(body, (bytes));
+   │          ━━━━━━━━━━━━━━
+   ╰ help: finish reading the view first, or remove `@custom:solar-view` to read a copy
+
+error: aborting due to 5 previous errors
+

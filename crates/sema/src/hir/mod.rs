@@ -101,7 +101,7 @@ pub struct Hir<'hir> {
     pub(crate) events: IndexVec<EventId, Event<'hir>>,
     /// Statements documented by `@custom:solar-*` tags, in source order, with each tag's span.
     /// The tags are rare, so lookups scan.
-    pub(crate) solar_tags: Vec<(SolarStmtTag, Span)>,
+    pub(crate) solar_tags: Vec<(SolarStmtTag<'hir>, Span)>,
 }
 
 macro_rules! indexvec_methods {
@@ -338,17 +338,17 @@ impl<'hir> Hir<'hir> {
     pub fn solar_view(&self, id: VariableId) -> Option<Span> {
         self.solar_tags
             .iter()
-            .find(|&&(tag, _)| matches!(tag, SolarStmtTag::View(view) if view == id))
+            .find(|&&(tag, _)| match tag {
+                SolarStmtTag::View(view) => view == id,
+                SolarStmtTag::DecodeView(vars, _) => vars.contains(&Some(id)),
+                SolarStmtTag::Scratch(_) => false,
+            })
             .map(|&(_, span)| span)
     }
 
-    /// Returns every local variable declared under `@custom:solar-view`, in source order, with
-    /// the tag's span.
-    pub fn solar_views(&self) -> impl Iterator<Item = (VariableId, Span)> + '_ {
-        self.solar_tags.iter().filter_map(|&(tag, span)| match tag {
-            SolarStmtTag::View(id) => Some((id, span)),
-            SolarStmtTag::Scratch(_) => None,
-        })
+    /// Returns every statement tagged `@custom:solar-view`, in source order, with the tag's span.
+    pub fn solar_views(&self) -> impl Iterator<Item = (SolarStmtTag<'hir>, Span)> + '_ {
+        self.solar_tags.iter().copied().filter(|(tag, _)| !matches!(tag, SolarStmtTag::Scratch(_)))
     }
 
     /// Returns the span of the `@custom:solar-scratch` tag on the block that spans `block`.
@@ -373,10 +373,12 @@ impl<'hir> Hir<'hir> {
 }
 
 /// A statement documented by a `@custom:solar-*` tag.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SolarStmtTag {
+#[derive(Clone, Copy, Debug)]
+pub enum SolarStmtTag<'hir> {
     /// `@custom:solar-view` on the declaration of this local variable.
     View(VariableId),
+    /// `@custom:solar-view` on a tuple declaration: its variables and its initializer.
+    DecodeView(&'hir [Option<VariableId>], &'hir Expr<'hir>),
     /// `@custom:solar-scratch` on the block with this span.
     Scratch(Span),
 }

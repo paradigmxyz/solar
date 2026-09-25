@@ -5,6 +5,7 @@ use crate::mir::{
     InstId,
     analysis::{AliasAnalysis, MemoryBase, MemoryCallSummaries, MemoryLocation},
 };
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 
 /// A function prepared for a tag check: a copy whose trivial phis are resolved, with its alias
 /// analysis.
@@ -17,6 +18,8 @@ pub(super) struct Analyzed {
     /// The value each trivial phi merges, by the phi's result.
     replacements: FxHashMap<ValueId, ValueId>,
     pub(super) aa: AliasAnalysis,
+    /// The reads of the free memory pointer that no reset of it may precede.
+    fresh_fmps: FxHashSet<InstId>,
 }
 
 impl Analyzed {
@@ -52,7 +55,8 @@ impl Analyzed {
         let mut func = func.clone();
         func.replace_uses(&replacements);
         let aa = AliasAnalysis::with_call_summaries(&func, Arc::clone(calls));
-        Self { func, replacements, aa }
+        let fresh_fmps = fresh_fmps(&func, &aa);
+        Self { func, replacements, aa, fresh_fmps }
     }
 
     /// The value `value` stands for once trivial phis are resolved.
@@ -60,13 +64,18 @@ impl Analyzed {
         self.replacements.get(&value).copied().unwrap_or(value)
     }
 
-    /// The allocation `value` is the result of, when the allocation is fresh.
+    /// The instruction `value` is the result of, when no object that exists before it runs lies
+    /// at or past `value`: a fresh allocation, or a read of the free memory pointer that no reset
+    /// of it may precede.
     ///
-    /// The alias analysis bases a write past a fresh allocation's known extent on the
-    /// allocation's result. Such a write may reach objects allocated after the allocation, but
-    /// none that existed before it.
-    pub(super) fn fresh_allocation(&self, value: ValueId) -> Option<InstId> {
+    /// The alias analysis bases a write past a fresh allocation's known extent, or anywhere past
+    /// the free memory pointer, on that value. Such a write may reach objects allocated after the
+    /// instruction, but none that existed before it.
+    pub(super) fn fresh_start(&self, value: ValueId) -> Option<InstId> {
         let Value::Inst(inst) = *self.func.value(value) else { return None };
+        if self.fresh_fmps.contains(&inst) {
+            return Some(inst);
+        }
         match self.aa.memory_address(&self.func, value)?.base {
             MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site) if site == inst => {
                 Some(site)
@@ -74,6 +83,53 @@ impl Analyzed {
             _ => None,
         }
     }
+}
+
+/// The reads of the free memory pointer in `func` that no instruction that may reset it precedes
+/// on any path.
+fn fresh_fmps(func: &Function, aa: &AliasAnalysis) -> FxHashSet<InstId> {
+    let mut fresh = FxHashSet::default();
+    if !func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::Fmp)) {
+        return fresh;
+    }
+    let resets = func
+        .blocks
+        .iter()
+        .map(|block| {
+            block.instructions.iter().any(|&inst| aa.instruction_may_reset_fmp(func, inst))
+        })
+        .collect::<IndexVec<BlockId, _>>();
+    // Blocks some path into which may reset the free memory pointer.
+    let mut reached = DenseBitSet::new_empty(func.blocks.len());
+    let mut poisoned = DenseBitSet::new_empty(func.blocks.len());
+    let mut worklist = vec![BlockId::ENTRY];
+    reached.insert(BlockId::ENTRY);
+    while let Some(block) = worklist.pop() {
+        let out = poisoned.contains(block) || resets[block];
+        let Some(terminator) = &func.blocks[block].terminator else { continue };
+        for successor in terminator.successors() {
+            let mut changed = reached.insert(successor);
+            if out {
+                changed |= poisoned.insert(successor);
+            }
+            if changed {
+                worklist.push(successor);
+            }
+        }
+    }
+    for (block, data) in func.blocks.iter_enumerated() {
+        if !reached.contains(block) {
+            continue;
+        }
+        let mut reset = poisoned.contains(block);
+        for &inst in &data.instructions {
+            if !reset && matches!(func.inst(inst).kind, InstKind::Fmp) {
+                fresh.insert(inst);
+            }
+            reset |= aa.instruction_may_reset_fmp(func, inst);
+        }
+    }
+    fresh
 }
 
 /// Whether `location` lies in the reserved words below the heap, which hold no object's payload.

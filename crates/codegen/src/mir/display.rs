@@ -719,7 +719,22 @@ fn display_inst_kind<'a>(
             Ok(())
         }
         InstKind::AbiDecode { data, layout } => {
-            write!(f, "abi_decode {layout}, {}", display_val(*data, func))
+            write!(f, "abi_decode {layout}, {}", display_val(*data, func))?;
+            // Every `bytes` value of the decode is a view of the data.
+            let views = match result_ty {
+                Some(MirType::Slice(_)) => true,
+                Some(MirType::Struct(id)) => module.is_some_and(|module| {
+                    module.struct_types[id]
+                        .fields
+                        .iter()
+                        .any(|field| matches!(field, MirType::Slice(_)))
+                }),
+                _ => false,
+            };
+            if views {
+                write!(f, ", views")?;
+            }
+            Ok(())
         }
         InstKind::StorageToMemory { storage, memory, layout } => write!(
             f,

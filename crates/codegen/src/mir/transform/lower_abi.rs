@@ -155,6 +155,10 @@ struct DecodeOptions<'a> {
     /// The debug message for an out-of-range head offset, which depends on whether the value is
     /// a tuple element, a struct member, or an array element.
     offset_reason: RevertReason,
+    /// The free memory pointer at which a copying decode would allocate this `bytes` value, when
+    /// it is decoded as a view instead: the view replays the copy's allocation checks, so it
+    /// fails wherever the copy would.
+    copy_fmp: Option<ValueId>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -186,6 +190,7 @@ impl DecodeOptions<'_> {
             helpers: None,
             has_bitwise_shifting,
             offset_reason: RevertReason::InvalidTupleOffset,
+            copy_fmp: None,
         }
     }
 
@@ -608,14 +613,29 @@ impl LowerAbiCx {
         let mut decode_counts = FxHashMap::default();
         let mut memory_type_counts = FxHashMap::default();
         let mut decode_functions = DenseBitSet::new_empty(module.functions.len());
+        // Every decode's field representations. Only a plain copy out of a bytes object shares
+        // the decode helpers; a decode of a slice, or one with view fields, is decoded in place.
+        let mut fields = FxHashMap::default();
         for (func_id, func) in module.functions.iter_enumerated() {
             for inst_id in func.instructions() {
-                let InstKind::AbiDecode { data: _, layout } = &func.inst(inst_id).kind else {
+                let InstKind::AbiDecode { data, layout } = &func.inst(inst_id).kind else {
                     continue;
                 };
                 decode_functions.insert(func_id);
                 if layout.types.is_empty() || layout.checked_head_size().is_none() {
                     return false;
+                }
+                let result_ty = func.inst(inst_id).result_ty;
+                let decoded = match result_ty {
+                    Some(MirType::Struct(id)) => module.struct_types[id].fields.to_vec(),
+                    Some(ty) => vec![ty],
+                    None => return false,
+                };
+                let plain = matches!(func.value_ty(*data), Some(MirType::MemoryObject(_)))
+                    && decoded.iter().zip(&layout.types).all(|(&field, ty)| field == ty.mir_type());
+                if !plain {
+                    fields.insert((func_id, inst_id), decoded);
+                    continue;
                 }
                 let count = decode_counts.entry(layout.clone()).or_insert(0);
                 if *count == 0 {
@@ -697,6 +717,61 @@ impl LowerAbiCx {
                         data
                     };
                     let result_ty = builder.func().value_ty(result).expect("typed ABI decode");
+                    if let Some(decoded) = fields.get(&(func_id, inst)) {
+                        // base, length = the data's bytes, in memory or in calldata
+                        let (base, length, constructor) = match builder.func().value_ty(data) {
+                            Some(MirType::Slice(location)) => (
+                                builder.slice_ptr(data),
+                                builder.slice_len(data),
+                                location == SliceLocation::Memory,
+                            ),
+                            _ => (
+                                builder.memory_object_data(data, MemoryObjectKind::Bytes),
+                                builder.memory_object_len(data, MemoryObjectKind::Bytes),
+                                true,
+                            ),
+                        };
+                        let copies = decoded
+                            .iter()
+                            .zip(&layout.types)
+                            .all(|(&field, ty)| field == ty.mir_type());
+                        let values = if constructor && copies {
+                            // A decode of a memory view's bytes is any memory decode.
+                            decode_memory_tuple(
+                                &mut builder,
+                                base,
+                                length,
+                                layout.as_ref(),
+                                None,
+                                self.has_bitwise_shifting,
+                            )
+                        } else {
+                            decode_view_tuple(
+                                &mut builder,
+                                base,
+                                length,
+                                constructor,
+                                layout.as_ref(),
+                                decoded,
+                                self.has_bitwise_shifting,
+                            )
+                        };
+                        let Some(values) = values else { return false };
+                        // field = cast decoded value to the declared field type
+                        // result = insert_value(undef, field0), ...
+                        let values = values
+                            .into_iter()
+                            .zip(decoded)
+                            .map(|(value, &field)| builder.cast(value, field))
+                            .collect::<Vec<_>>();
+                        let value = if let MirType::Struct(id) = result_ty {
+                            builder.make_struct(id, values)
+                        } else {
+                            values[0]
+                        };
+                        replacements.insert(result, value);
+                        continue;
+                    }
                     if let Some(&helper) = decode_helpers.get(layout.as_ref()) {
                         // result = icall decode_helper(data)
                         let value = builder.icall(helper, vec![data], result_ty);
@@ -1729,6 +1804,7 @@ impl LowerAbiCx {
             helpers,
             has_bitwise_shifting,
             offset_reason,
+            copy_fmp,
         } = options;
         builder.switch_to_block(*current);
         let is_dynamic = ty.is_dynamic();
@@ -1752,6 +1828,7 @@ impl LowerAbiCx {
             return builder.icall(helper, args, ty.mir_type());
         }
         if !constructor
+            && copy_fmp.is_none()
             && matches!(ty, crate::mir::AbiParamType::Bytes)
             && matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
         {
@@ -2074,6 +2151,12 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::Bytes if matches!(arg_type, MirType::Slice(_)) => {
                 let len = Self::load_input_word(builder, base, constructor);
                 let data = builder.add_u64_offset(base, 32);
+                if let Some(fmp) = copy_fmp {
+                    // The copy this view stands for is allocated before its range is checked.
+                    Self::replay_copy_allocation(builder, fmp, len, current);
+                    Self::guard_bytes_data(builder, data, len, input_end, current, true);
+                    return builder.make_slice(data, len, location);
+                }
                 Self::guard_bytes_data(builder, data, len, input_end, current, false);
                 builder.make_slice(data, len, location)
             }
@@ -2752,6 +2835,30 @@ impl LowerAbiCx {
         builder.and(rounded, mask)
     }
 
+    /// Fails with `Panic(0x41)` where copying `len` bytes to a new object at `fmp` would, as
+    /// solc's decoder does: the length must fit 64 bits, and the object's end must too.
+    fn replay_copy_allocation(
+        builder: &mut FunctionBuilder<'_>,
+        fmp: ValueId,
+        len: ValueId,
+        current: &mut BlockId,
+    ) {
+        builder.switch_to_block(*current);
+        // too_long = len >> 64 != 0
+        // next = fmp + ((len + 63) & ~31)
+        // panic(0x41) if too_long || next < fmp || next >> 64 != 0
+        let too_long = builder.exceeds_bits(len, 64, false);
+        let size = builder.padded_size(len);
+        let fmp = builder.cast(fmp, MirType::I256);
+        let next = builder.add(fmp, size);
+        let wrapped = builder.lt(next, fmp);
+        let over_limit = builder.exceeds_bits(next, 64, false);
+        let invalid = builder.or(too_long, wrapped);
+        let invalid = builder.or(invalid, over_limit);
+        builder.panic_if(invalid, PanicCode::MemoryAllocationOverflow);
+        *current = builder.current_block();
+    }
+
     fn checked_mul(
         builder: &mut FunctionBuilder<'_>,
         lhs: ValueId,
@@ -3254,6 +3361,59 @@ fn decode_memory_tuple(
         values.push(value);
         head_offset = head_offset
             .checked_add(ty.checked_head_size().expect("ABI head size exceeds u64 range"))?;
+    }
+    Some(values)
+}
+
+/// Decodes an ABI tuple held in memory or calldata whose `fields` give each value's MIR
+/// representation: a `bytes` field typed as a slice is a view of its bytes in the input.
+///
+/// A view allocates nothing, but the copying decode it stands for allocates each copy before
+/// checking its range, and fails with `Panic(0x41)` where the allocation cannot fit. The views
+/// replay those checks against a virtual free memory pointer that each view advances by the
+/// copy's size, so every input fails exactly where the copy would.
+fn decode_view_tuple(
+    builder: &mut FunctionBuilder<'_>,
+    base: ValueId,
+    length: ValueId,
+    constructor: bool,
+    layout: &AbiParamLayout,
+    fields: &[MirType],
+    has_bitwise_shifting: bool,
+) -> Option<Vec<ValueId>> {
+    let head_size = layout.checked_head_size()?;
+    let mut current = builder.current_block();
+    let input_end =
+        LowerAbiCx::validate_memory_tuple_input(builder, base, length, head_size, &mut current);
+    // copy_fmp = fmp
+    builder.switch_to_block(current);
+    let mut copy_fmp = builder.fmp();
+    let mut values = Vec::with_capacity(layout.types.len());
+    let mut head_offset = 0_u64;
+    for (ty, &field) in layout.types.iter().zip(fields) {
+        builder.switch_to_block(current);
+        let head = builder.add_u64_offset(base, head_offset);
+        let view = matches!(ty, AbiParamType::Bytes) && matches!(field, MirType::Slice(_));
+        let options = DecodeOptions::new(constructor, input_end, has_bitwise_shifting).checked();
+        let value = LowerAbiCx::decode_aggregate_argument(
+            builder,
+            ty,
+            field,
+            head,
+            base,
+            &mut current,
+            DecodeOptions { copy_fmp: view.then_some(copy_fmp), ..options },
+        );
+        if view {
+            // copy_fmp = copy_fmp + ((len(value) + 63) & ~31)
+            builder.switch_to_block(current);
+            let len = builder.slice_len(value);
+            let size = builder.padded_size(len);
+            let word = builder.cast(copy_fmp, MirType::I256);
+            copy_fmp = builder.add(word, size);
+        }
+        values.push(value);
+        head_offset = head_offset.checked_add(ty.checked_head_size()?)?;
     }
     Some(values)
 }

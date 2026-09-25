@@ -7,7 +7,7 @@
 use crate::{
     builtins::Builtin,
     core::{CoreIntrinsic, intrinsic_of},
-    hir::{self, ExprKind, StmtKind},
+    hir::{self, ExprKind, SolarStmtTag, StmtKind},
     natspec::terminates_applies,
     ty::{Gcx, TyKind},
 };
@@ -19,32 +19,105 @@ pub(super) fn check(gcx: Gcx<'_>) {
     check_terminates(gcx);
 }
 
-/// Checks that every `@custom:solar-view` declaration has the one shape a view has: a
-/// `bytes memory` variable initialized by `Bytes.slice` from `solar:core/v1/Bytes.sol`.
+/// Checks that every `@custom:solar-view` declaration has a shape a view has: a `bytes memory`
+/// variable initialized by `Bytes.slice` from `solar:core/v1/Bytes.sol`, or a declaration
+/// initialized by `abi.decode` of `bytes` in memory or calldata into value types, `bytes`, and
+/// `string`, whose `bytes memory` and `string memory` variables are the views.
 ///
-/// Other compilers run the same declaration as the copy `Bytes.slice` makes, so any other shape
-/// would give the tag nothing to borrow.
+/// Other compilers run the same declaration as the copy it names, so any other shape would give
+/// the tag nothing to borrow.
 fn check_views(gcx: Gcx<'_>) {
-    for (id, tag) in gcx.hir.solar_views() {
-        let variable = gcx.hir.variable(id);
-        let ty = gcx.type_of_item(id.into());
-        let is_bytes = ty.is_ref_at(DataLocation::Memory)
-            && matches!(ty.peel_refs().kind, TyKind::Elementary(hir::ElementaryType::Bytes));
-        let slices = variable.initializer.is_some_and(|initializer| {
-            if let ExprKind::Call(callee, ..) = initializer.peel_parens().kind
-                && let Some(function) = gcx.resolved_function(callee)
-            {
-                intrinsic_of(gcx, function) == Some(CoreIntrinsic::Slice)
-            } else {
-                false
+    for (tag, span) in gcx.hir.solar_views() {
+        let (declaration, initializer) = match tag {
+            SolarStmtTag::View(id) => {
+                let variable = gcx.hir.variable(id);
+                (variable.span, variable.initializer)
             }
+            SolarStmtTag::DecodeView(_, expr) => (expr.span, Some(expr)),
+            SolarStmtTag::Scratch(_) => continue,
+        };
+        let call = initializer.and_then(|initializer| match initializer.peel_parens().kind {
+            ExprKind::Call(callee, args, _) => Some((callee, args)),
+            _ => None,
         });
-        if !is_bytes || !slices {
+        let slice = call.is_some_and(|(callee, _)| {
+            gcx.resolved_function(callee)
+                .is_some_and(|function| intrinsic_of(gcx, function) == Some(CoreIntrinsic::Slice))
+        });
+        let decode =
+            call.filter(|(callee, _)| gcx.resolved_builtin(callee) == Some(Builtin::AbiDecode));
+        // A `bytes memory` variable, or a `string memory` one that only a decode makes.
+        let viewable = |id: hir::VariableId| {
+            let ty = gcx.type_of_item(id.into());
+            ty.is_ref_at(DataLocation::Memory)
+                && match ty.peel_refs().kind {
+                    TyKind::Elementary(hir::ElementaryType::Bytes) => slice || decode.is_some(),
+                    TyKind::Elementary(hir::ElementaryType::String) => decode.is_some(),
+                    _ => false,
+                }
+        };
+        let valid = match tag {
+            SolarStmtTag::View(id) => viewable(id),
+            SolarStmtTag::DecodeView(ids, _) => {
+                decode.is_some() && ids.iter().flatten().any(|&id| viewable(id))
+            }
+            SolarStmtTag::Scratch(_) => false,
+        };
+        if !valid {
             gcx.dcx()
-                .err("`@custom:solar-view` requires a `bytes memory` variable initialized by `Bytes.slice`")
-                .span(variable.span)
+                .err(
+                    "`@custom:solar-view` requires a `bytes memory` variable initialized by \
+                     `Bytes.slice`, or `bytes` or `string` variables initialized by `abi.decode`",
+                )
+                .span(declaration)
+                .span_note(span, "the tag is here")
+                .help(
+                    "declare the view as `bytes memory v = Bytes.slice(source, offset, count);` \
+                     or `(bytes memory v) = abi.decode(data, (bytes));`",
+                )
+                .emit();
+            continue;
+        }
+        if let Some((_, args)) = decode {
+            check_decode_view(gcx, args, span);
+        }
+    }
+}
+
+/// Checks the arguments of an `abi.decode` a `@custom:solar-view` tag documents: the data is
+/// `bytes` in memory or calldata, and every decoded type is a value type, `bytes`, or `string`.
+fn check_decode_view(gcx: Gcx<'_>, args: hir::CallArgs<'_>, tag: Span) {
+    let mut exprs = args.exprs();
+    let (Some(data), Some(types)) = (exprs.next(), exprs.next()) else { return };
+    if let Some(ty) = gcx.type_of_expr(data.id)
+        && !((ty.is_ref_at(DataLocation::Memory) || ty.is_ref_at(DataLocation::Calldata))
+            && matches!(ty.peel_refs().kind, TyKind::Elementary(hir::ElementaryType::Bytes)))
+    {
+        gcx.dcx()
+            .err("`@custom:solar-view` decodes only `bytes` held in memory or calldata")
+            .span(data.span)
+            .span_note(tag, "the tag is here")
+            .emit();
+    }
+    let types = match types.peel_parens().kind {
+        ExprKind::Tuple(types) => types.iter().flatten().copied().collect::<Vec<_>>(),
+        _ => vec![types],
+    };
+    for ty_expr in types {
+        let Some(TyKind::Type(ty)) = gcx.type_of_expr(ty_expr.id).map(|ty| ty.kind) else {
+            continue;
+        };
+        let supported = ty.is_value_type()
+            || matches!(
+                ty.peel_refs().kind,
+                TyKind::Elementary(hir::ElementaryType::Bytes | hir::ElementaryType::String)
+            );
+        if !supported {
+            gcx.dcx()
+                .err(format!("`@custom:solar-view` cannot decode `{}` in place", ty.display(gcx)))
+                .span(ty_expr.span)
                 .span_note(tag, "the tag is here")
-                .help("declare the view as `bytes memory v = Bytes.slice(source, offset, count);`")
+                .note("a view decode supports value types, `bytes`, and `string`")
                 .emit();
         }
     }

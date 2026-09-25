@@ -78,7 +78,7 @@ LL │     /// @custom:solar-terminates
    │
    ╰ help: put it on a function with a body that ends the call on every path
 
-error: `@custom:solar-view` requires a `bytes memory` variable initialized by `Bytes.slice`
+error: `@custom:solar-view` requires a `bytes memory` variable initialized by `Bytes.slice`, or `bytes` or `string` variables initialized by `abi.decode`
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
    │
 LL │         uint256 z = 3;
@@ -89,9 +89,9 @@ note: the tag is here
    │
 LL │         /// @custom:solar-view
    │              ━━━━━━━━━━━━━━━━━
-   ╰ help: declare the view as `bytes memory v = Bytes.slice(source, offset, count);`
+   ╰ help: declare the view as `bytes memory v = Bytes.slice(source, offset, count);` or `(bytes memory v) = abi.decode(data, (bytes));`
 
-error: `@custom:solar-view` requires a `bytes memory` variable initialized by `Bytes.slice`
+error: `@custom:solar-view` requires a `bytes memory` variable initialized by `Bytes.slice`, or `bytes` or `string` variables initialized by `abi.decode`
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
    │
 LL │         bytes memory c = new bytes(3);
@@ -102,9 +102,9 @@ note: the tag is here
    │
 LL │         /// @custom:solar-view
    │              ━━━━━━━━━━━━━━━━━
-   ╰ help: declare the view as `bytes memory v = Bytes.slice(source, offset, count);`
+   ╰ help: declare the view as `bytes memory v = Bytes.slice(source, offset, count);` or `(bytes memory v) = abi.decode(data, (bytes));`
 
-error: `@custom:solar-view` requires a `bytes memory` variable initialized by `Bytes.slice`
+error: `@custom:solar-view` requires a `bytes memory` variable initialized by `Bytes.slice`, or `bytes` or `string` variables initialized by `abi.decode`
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
    │
 LL │         bytes memory d;
@@ -115,7 +115,7 @@ note: the tag is here
    │
 LL │         /// @custom:solar-view
    │              ━━━━━━━━━━━━━━━━━
-   ╰ help: declare the view as `bytes memory v = Bytes.slice(source, offset, count);`
+   ╰ help: declare the view as `bytes memory v = Bytes.slice(source, offset, count);` or `(bytes memory v) = abi.decode(data, (bytes));`
 
 error: aborting due to 12 previous errors
 

@@ -19,6 +19,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if self.cx.gcx.hir.solar_view(*id).is_some()
                     && let Some(initializer) = initializer
                 {
+                    if self.is_view_decode(initializer) {
+                        return self.lower_view_decode(&[Some(*id)], initializer);
+                    }
                     return self.lower_view_declaration(*id, initializer);
                 }
                 let ty = self.cx.gcx.type_of_item((*id).into());
@@ -66,6 +69,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.values.insert(*id, value);
             }
             StmtKind::DeclMulti(ids, expr) => {
+                if ids.iter().flatten().any(|&id| self.cx.gcx.hir.solar_view(id).is_some())
+                    && self.is_view_decode(expr)
+                {
+                    return self.lower_view_decode(ids, expr);
+                }
                 if ids.iter().flatten().any(|&id| {
                     // Memory declarations must also route through the copy
                     // path: the generic path would bind the callee's raw

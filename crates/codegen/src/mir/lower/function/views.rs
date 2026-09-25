@@ -1,25 +1,33 @@
-//! `@custom:solar-view` declarations: `Bytes.slice` ranges read in place.
+//! `@custom:solar-view` declarations: `Bytes.slice` ranges and decoded bytes read in place.
 //!
-//! The declaration
+//! The declarations
 //!
 //! ```solidity
 //! /// @custom:solar-view
 //! bytes memory v = Bytes.slice(source, offset, count);
+//! /// @custom:solar-view
+//! (uint256 id, bytes memory payload) = abi.decode(data, (uint256, bytes));
 //! ```
 //!
-//! means what it means to every compiler: `v` holds a copy of the range, after the range check
-//! the copy makes. Other compilers read the tag as documentation and make the copy. This
-//! compiler instead binds `v` to the memory slice of the range and never copies, which is only
-//! equivalent while the source's bytes cannot change between the declaration and a read of `v`,
-//! and while nothing can tell `v` from a copy. Both conditions are checked, and a program that
-//! breaks either is rejected rather than compiled with different behavior.
+//! mean what they mean to every compiler: `v` and `payload` hold copies, made after the checks
+//! the copies make. Other compilers read the tag as documentation and make the copies. This
+//! compiler instead binds each view to the slice of its bytes where they are and never copies,
+//! which is only equivalent while those bytes cannot change between the declaration and a read
+//! of the view, and while nothing can tell the view from a copy. Both conditions are checked, and
+//! a program that breaks either is rejected rather than compiled with different behavior.
 //!
-//! `v` itself can only be read in place: `.length`, indexing, `keccak256(v)`, and the reads of
-//! `solar:core/v1/Bytes.sol` and `Hash.sol` that take a range (a view of `v` included). Any other
-//! use, such as an assignment, a write through `v`, passing `v` to a function or returning it, is
-//! an error at the use, because it could keep `v` or write the source through it. A view of a
-//! view narrows the same bytes, so it extends the enclosing view's borrow instead of starting
-//! one.
+//! A decode declaration may decode value types, `bytes`, and `string`, from `bytes` in memory or
+//! calldata or from another view; its `bytes` and `string` values are the views, and a view of
+//! calldata needs no borrow, since nothing can change calldata. The decode validates its input
+//! exactly as the copying decode does, including the allocation checks each copy would make
+//! (`Panic(0x41)` for a length that cannot be allocated), so every input fails where it would.
+//!
+//! A view itself can only be read in place: `.length`, indexing, `keccak256`, `abi.decode`, and
+//! the reads of `solar:core/v1/Bytes.sol` and `Hash.sol` that take a range (a view of a view
+//! included). Any other use, such as an assignment, a write through the view, passing it to a
+//! function or returning it, is an error at the use, because it could keep the view or write the
+//! source through it. A view of a view narrows the same bytes, so it extends the enclosing view's
+//! borrow instead of starting one.
 //!
 //! Once the contract is lowered, and before any optimization, [`check_view_borrows`] rejects
 //! every instruction that may write the source's payload between the view's creation and a later
@@ -31,11 +39,11 @@
 //! summarized over the call graph to a fixed point.
 //!
 //! A write cannot reach the source's payload when it lands in the reserved words below the heap,
-//! in an internal-call frame, or in an allocation made after the source existed: any fresh
-//! allocation of the function when the source is a parameter's object, and otherwise one the
-//! view's creation dominates. A write into a parameter's object cannot reach a source allocated
-//! by the function either, as long as it is a semantic object store, which stays inside its
-//! object; a raw store may run past the object's end.
+//! in an internal-call frame, or in memory allocated after the source existed: past any fresh
+//! allocation of the function, or past the free memory pointer, when the source is a parameter's
+//! object, and otherwise past one the view's creation dominates. A write into a parameter's object
+//! cannot reach a source allocated by the function either, as long as it is a semantic object
+//! store, which stays inside its object; a raw store may run past the object's end.
 //!
 //! NOTE: the check relies on the Solidity memory model: objects a variable can reach lie in
 //! allocated memory, so an allocation that no free-memory-pointer reset precedes cannot overlap
@@ -86,7 +94,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let value = self.lower_expr(initializer);
         self.forming_view = previous;
         let value = value?;
-        if self.builder.func().value_slice_location(value) == Some(SliceLocation::Memory) {
+        if self.builder.func().value_slice_location(value).is_some() {
             self.views.insert(id, value);
         } else {
             // Without intrinsic lowering the call returned the copy the portable body makes.
@@ -101,24 +109,141 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ///
     /// A view of a view narrows bytes the enclosing view already borrows, and its reads derive
     /// from that view's slice, so only a view of an object starts a borrow.
-    pub(super) fn record_view_borrow(&mut self, id: VariableId, range: ValueId, bytes: ValueId) {
-        if self.builder.func().value_slice_location(bytes) == Some(SliceLocation::Memory) {
+    pub(super) fn form_slice_view(&mut self, id: VariableId, range: ValueId, bytes: ValueId) {
+        if self.builder.func().value_slice_location(bytes).is_some() {
+            let root = self.view_roots.get(&bytes).copied().flatten();
+            self.view_roots.insert(range, root);
             return;
         }
+        self.view_roots.insert(range, Some(bytes));
+        self.push_view_borrow(id, range, bytes);
+    }
+
+    /// Records that `view`, the slice of the view variable `id`, reads the object `source`.
+    fn push_view_borrow(&mut self, id: VariableId, view: ValueId, source: ValueId) {
         let variable = self.cx.gcx.hir.variable(id);
         self.cx.state.view_borrows.push(ViewBorrow {
-            view: range,
-            source: bytes,
+            view,
+            source,
             span: variable.span,
             name: variable.name.map_or(kw::Empty, |name| name.name),
         });
     }
 
-    /// The memory slice `expr` reads when it names a `@custom:solar-view` variable.
+    /// Lowers a `@custom:solar-view` declaration of `ids` initialized by `abi.decode(data,
+    /// (T...))`: value types decode as usual, and every `bytes` or `string` value is a view of
+    /// its bytes in `data`, validated as the copying decode validates it.
+    ///
+    /// The data is decoded where it is: a calldata argument stays in calldata, where nothing can
+    /// change it, and memory data, or a view's slice, is borrowed like any view's source.
+    pub(super) fn lower_view_decode(
+        &mut self,
+        ids: &[Option<VariableId>],
+        call: &hir::Expr<'_>,
+    ) -> Option<()> {
+        let ExprKind::Call(_, args, _) = &call.peel_parens().kind else {
+            return self.cx.report_unsupported(call.span, "view decode");
+        };
+        let args = self.builtin_args::<2>(Builtin::AbiDecode, args)?;
+        let types = match args[1].kind {
+            ExprKind::Tuple(types) => types.iter().flatten().copied().collect::<Vec<_>>(),
+            _ => return self.cx.report_unsupported(args[1].span, "abi.decode target type"),
+        };
+        let mut decoded = Vec::with_capacity(types.len());
+        for ty_expr in &types {
+            let Some(TyKind::Type(ty)) = self.cx.gcx.type_of_expr(ty_expr.id).map(|ty| ty.kind)
+            else {
+                return self.cx.report_unsupported(ty_expr.span, "abi.decode target type");
+            };
+            decoded.push(ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory));
+        }
+        if decoded.len() != ids.len() {
+            return self.cx.report_unsupported(call.span, "view decode");
+        }
+
+        let data_expr = &args[0];
+        let (data, root) = match self.view_operand(data_expr) {
+            Some(view) => (view, self.view_roots.get(&view).copied().flatten()),
+            None => {
+                let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;
+                if data_ty.is_ref_at(DataLocation::Calldata) {
+                    let value = self.lower_expr(data_expr)?;
+                    if self.builder.func().value_slice_location(value)
+                        != Some(SliceLocation::Calldata)
+                    {
+                        return self.cx.report_unsupported(data_expr.span, "view decode data");
+                    }
+                    (value, None)
+                } else {
+                    let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+                    let value = self.lower_typed_expr(data_expr, memory_ty)?;
+                    let value =
+                        self.materialize_memory_argument(memory_ty, value, data_expr.span)?;
+                    (value, Some(value))
+                }
+            }
+        };
+        let location = match self.builder.func().value_slice_location(data) {
+            Some(SliceLocation::Calldata) => SliceLocation::Calldata,
+            _ => SliceLocation::Memory,
+        };
+        let layout = self.abi_decode_layout(&decoded, call.span)?;
+        let fields = decoded
+            .iter()
+            .zip(&layout.types)
+            .map(|(&ty, abi_type)| match abi_type {
+                crate::mir::AbiParamType::Bytes => MirType::Slice(location),
+                _ => types::TypeLowerer::mir_type(ty),
+            })
+            .collect::<Vec<_>>();
+        let layout = self.cx.module.intern_abi_param_layout(layout);
+        let result_ty = self.cx.module.intern_return_type(fields.clone())?;
+        // result = abi_decode layout, data
+        let result = self.builder.abi_decode(layout, data, result_ty);
+        let values = match result_ty {
+            MirType::Struct(id) => fields
+                .iter()
+                .enumerate()
+                // value = extract_value result, index
+                .map(|(index, &field)| self.builder.extract_value(id, result, index as u32, field))
+                .collect::<Vec<_>>(),
+            _ => vec![result],
+        };
+        for ((&id, value), field) in ids.iter().zip(values).zip(fields) {
+            let Some(id) = id else { continue };
+            if !matches!(field, MirType::Slice(_)) {
+                self.values.insert(id, value);
+                continue;
+            }
+            // Decoding ends what derives from the data, so each view borrows the data itself.
+            self.views.insert(id, value);
+            self.view_roots.insert(value, root);
+            if let Some(root) = root {
+                self.push_view_borrow(id, value, root);
+            }
+        }
+        Some(())
+    }
+
+    /// Whether `initializer` of a `@custom:solar-view` declaration is an `abi.decode` whose
+    /// `bytes` and `string` values become views. Without intrinsic lowering, the declaration
+    /// decodes copies, like every view.
+    pub(super) fn is_view_decode(&self, initializer: &hir::Expr<'_>) -> bool {
+        !self.cx.gcx.sess.opts.unstable.no_core_intrinsics
+            && matches!(
+                initializer.peel_parens().kind,
+                ExprKind::Call(callee, ..)
+                    if self.cx.gcx.resolved_builtin(callee) == Some(Builtin::AbiDecode)
+            )
+    }
+
+    /// The slice `expr` reads when it names a `@custom:solar-view` variable, directly or through
+    /// a conversion between `bytes` and `string`.
     pub(super) fn view_operand(&self, expr: &hir::Expr<'_>) -> Option<ValueId> {
         if self.views.is_empty() {
             return None;
         }
+        let expr = self.peel_bytes_conversion(expr);
         self.views.get(&self.cx.gcx.resolved_variable(expr)?).copied()
     }
 
@@ -140,7 +265,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .span(span)
             .note(
                 "a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, \
-                 and the `Bytes` and `Hash` reads of a range",
+                 `abi.decode`, and the `Bytes` and `Hash` reads of a range",
             )
             .help("remove the tag to work with a copy of the bytes")
             .emit();
@@ -273,8 +398,9 @@ impl EntryWrites {
                             writes.params.sort_unstable();
                         }
                     }
-                    // Past a fresh allocation lies only memory allocated after it.
-                    _ if function.fresh_allocation(value).is_some() => {}
+                    // Past a fresh allocation or the free memory pointer lies only memory
+                    // allocated after it.
+                    _ if function.fresh_start(value).is_some() => {}
                     _ => writes.other = true,
                 },
             }
@@ -575,8 +701,9 @@ impl FunctionFacts {
             // A parameter's object lies below every allocation of this function, so only a
             // write that may run past its end reaches one.
             MemoryBase::Param(_) => !(contained && matches!(origin, Origin::Site(_))),
-            MemoryBase::Value(value) => match self.function.fresh_allocation(value) {
-                // Past a fresh allocation lies only memory allocated after it.
+            MemoryBase::Value(value) => match self.function.fresh_start(value) {
+                // Past a fresh allocation or the free memory pointer lies only memory allocated
+                // after it.
                 Some(site) => match origin {
                     Origin::Entry => false,
                     Origin::Site(_) | Origin::Unknown => !self.strictly_dominates(def, site),
