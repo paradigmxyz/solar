@@ -20,13 +20,16 @@
 //! and so are explicitly non-inlineable helpers in gas builds. Size builds
 //! specialize those too: a literal every caller passes is substituted in
 //! place, which clones nothing, and a clone must still shrink the module.
+//! When pricing rejects a leaf's constants, size builds retry with its
+//! one-byte literals alone, so a wide literal that costs more at every use
+//! than the argument it replaces does not keep a zero beside it from folding.
 //! Cloning is bounded to one candidate per original body per pass; subsequent
 //! dead-argument elimination removes the specialized parameters. Run after
 //! function-pointer specialization and before dead-argument elimination.
 
 use crate::{
     mir::{
-        ArgIdx, FunctionId, Immediate, InstId, InstKind, Module, Terminator, Value,
+        ArgIdx, Function, FunctionId, Immediate, InstId, InstKind, Module, Terminator, Value,
         analysis::CallGraphInfo,
         pass::{MirPass, ModuleAnalyses},
         transform::{cfg_simplify, check_elim, dce, egraph, sccp},
@@ -38,6 +41,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
+use solar_interface::Ident;
 
 /// Module pass for sharing constant-argument specializations.
 pub(crate) struct Specialize;
@@ -194,55 +198,35 @@ fn specialize_round(
             constants = key;
             selected = indices;
         }
-        // Leaf bodies cannot change through specialization of another callee. Retry only
-        // when their constants or the number of sites entering the cost estimate changes.
-        if !tried.insert((callee, constants.clone(), selected.len(), selected.len() == calls.len()))
-        {
-            continue;
-        }
-        let mut candidate = body.clone();
-        let uses = candidate.arg_uses();
-        let mut replacements = FxHashMap::default();
-        for (index, immediate) in &constants {
-            let value = candidate.alloc_value(Value::Immediate(immediate.clone()));
-            for &arg in &uses[*index] {
-                replacements.insert(arg, value);
+        // Size builds retry a rejected set with its one-byte literals alone: a wide literal
+        // such as a sign flip can cost more at every use than the argument it replaces, while
+        // a zero beside it, such as a plain sort's pair distance, still folds away.
+        let mut attempts = vec![constants];
+        if gcx.sess.opts.optimization.is_size() {
+            let narrow = attempts[0]
+                .iter()
+                .filter(|(_, immediate)| {
+                    immediate.as_u256().is_some_and(|value| value <= U256::from(u8::MAX))
+                })
+                .cloned()
+                .collect::<Constants>();
+            if !narrow.is_empty() && narrow.len() < attempts[0].len() {
+                attempts.push(narrow);
             }
         }
-        // helper(argK, ...) => shared_helper(constantK, ...)
-        candidate.replace_uses_canonicalized(&replacements);
-        let mut trial = Module::new(module.name);
-        let trial_id = trial.add_function(candidate);
-        for pass in [
-            &sccp::Sccp as &dyn MirPass,
-            &egraph::Egraph,
-            &check_elim::CheckElim,
-            &cfg_simplify::CfgSimplify,
-            &dce::Dce,
-        ] {
-            // Use fresh analyses after each speculative rewrite.
-            let _ = pass.run_pass(gcx, &mut trial, &mut ModuleAnalyses::default());
-        }
-        let candidate = trial.function(trial_id);
-        let old = target.code_estimate(body);
-        let new = target.code_estimate(candidate);
-        let removed_args = candidate.arg_uses().iter().filter(|uses| uses.is_empty()).count();
-        let old_call = target.icall(body.params.len(), body.return_components().len(), 0);
-        let new_call =
-            target.icall(body.params.len() - removed_args, body.return_components().len(), 0);
         let count = selected.len() as u32;
         let all_calls = selected.len() == calls.len();
-        let before = old.plus(old_call.times(count));
-        let after = new.plus(new_call.times(count)).plus(if all_calls {
-            crate::target::Cost::ZERO
-        } else {
-            old
-        });
-        if after.bytes >= before.bytes || new.gas > old.gas || after.gas > before.gas {
+        let Some(mut candidate) = attempts.into_iter().find_map(|constants| {
+            // Leaf bodies cannot change through specialization of another callee. Retry
+            // only when their constants or the number of sites entering the estimate changes.
+            if !tried.insert((callee, constants.clone(), selected.len(), all_calls)) {
+                return None;
+            }
+            price_leaf(gcx, target, module.name, body, &constants, count, all_calls)
+        }) else {
             continue;
-        }
+        };
 
-        let mut candidate = candidate.clone();
         // Keep one shared body through subsequent inlining passes.
         candidate.attributes.no_inline = true;
         let specialized = if all_calls {
@@ -267,4 +251,58 @@ fn specialize_round(
         changed = true;
     }
     changed
+}
+
+/// Specializes the leaf `body` for `constants` in a trial module and returns the simplified body
+/// when, called from `count` sites, it shrinks the module without costing more gas. Unless the
+/// sites are `all_calls`, the generic body stays and is charged in full.
+fn price_leaf(
+    gcx: solar_sema::Gcx<'_>,
+    target: Target,
+    name: Ident,
+    body: &Function,
+    constants: &Constants,
+    count: u32,
+    all_calls: bool,
+) -> Option<Function> {
+    let mut candidate = body.clone();
+    let uses = candidate.arg_uses();
+    let mut replacements = FxHashMap::default();
+    for (index, immediate) in constants {
+        let value = candidate.alloc_value(Value::Immediate(immediate.clone()));
+        for &arg in &uses[*index] {
+            replacements.insert(arg, value);
+        }
+    }
+    // helper(argK, ...) => shared_helper(constantK, ...)
+    candidate.replace_uses_canonicalized(&replacements);
+    let mut trial = Module::new(name);
+    let trial_id = trial.add_function(candidate);
+    for pass in [
+        &sccp::Sccp as &dyn MirPass,
+        &egraph::Egraph,
+        &check_elim::CheckElim,
+        &cfg_simplify::CfgSimplify,
+        &dce::Dce,
+    ] {
+        // Use fresh analyses after each speculative rewrite.
+        let _ = pass.run_pass(gcx, &mut trial, &mut ModuleAnalyses::default());
+    }
+    let candidate = trial.function(trial_id);
+    let old = target.code_estimate(body);
+    let new = target.code_estimate(candidate);
+    let removed_args = candidate.arg_uses().iter().filter(|uses| uses.is_empty()).count();
+    let old_call = target.icall(body.params.len(), body.return_components().len(), 0);
+    let new_call =
+        target.icall(body.params.len() - removed_args, body.return_components().len(), 0);
+    let before = old.plus(old_call.times(count));
+    let after = new.plus(new_call.times(count)).plus(if all_calls {
+        crate::target::Cost::ZERO
+    } else {
+        old
+    });
+    if after.bytes >= before.bytes || new.gas > old.gas || after.gas > before.gas {
+        return None;
+    }
+    Some(candidate.clone())
 }
