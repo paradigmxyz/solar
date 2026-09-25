@@ -95,5 +95,18 @@ LL │             /// @custom:solar-scratch
    │                  ━━━━━━━━━━━━━━━━━━━━
    ╰ help: keep only values past the block, or remove the tag
 
-error: aborting due to 7 previous errors
+error: this call may store a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │ …     setFirst(outer, t);
+   │       ━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: aborting due to 8 previous errors
 

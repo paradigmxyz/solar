@@ -79,6 +79,32 @@ contract Test {
         }
     }
 
+    function setFirst(bytes[] memory into, bytes memory item) internal pure {
+        into[0] = item;
+    }
+
+    // A callee storing older memory into an older object, or the block's memory
+    // into the block's object, leaves nothing behind.
+    function olderIntoOlder(bytes[] memory outer, bytes memory older) external pure returns (uint256) {
+        /// @custom:solar-scratch
+        {
+            bytes memory t = abi.encode(outer.length);
+            setFirst(outer, older);
+            bytes[] memory local = new bytes[](1);
+            setFirst(local, t);
+        }
+        return outer[0].length;
+    }
+
+    function blockIntoOlder(bytes[] memory outer, uint256 x) external pure returns (uint256) {
+        /// @custom:solar-scratch
+        {
+            bytes memory t = abi.encode(x);
+            setFirst(outer, t); //~ ERROR: this call may store a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+        }
+        return outer.length;
+    }
+
     function valuesLeave(uint256 x, bytes[] memory outer) external returns (bytes32 h, uint256 n) {
         /// @custom:solar-scratch
         {

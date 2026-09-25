@@ -8,6 +8,7 @@
 //@ run-call: viewed 0x010203 => 0xfc5bd8809067105864e1fab7f4264472c15e2490664e901d6bbec46c3ce8efda, 5
 //@ run-call: helpers 4 => 0x5f9558e31acc2d39ff1a197b3213f2b399243cdf016dcbec66aecbd9c2bf4622
 //@ run-call: returnVariable 7 => [7, 32]
+//@ run-call: relink 0xaabb => 0xaabb, 64
 
 // Every function returns what it returns without `@custom:solar-scratch`:
 // memory a tagged block allocates is reused after it, while objects allocated
@@ -92,6 +93,25 @@ contract Test {
         }
         bytes memory after_ = make(x + 1);
         h ^= keccak256(after_);
+    }
+
+    function setFirst(bytes[] memory into, bytes memory item) internal pure {
+        into[0] = item;
+    }
+
+    // A helper that stores older memory into an older object keeps both valid
+    // after the block reuses its own memory.
+    function relink(bytes memory older) public pure returns (bytes memory first, uint256 length) {
+        bytes[] memory outer = new bytes[](1);
+        /// @custom:solar-scratch
+        {
+            bytes memory t = abi.encode(older.length, older.length);
+            setFirst(outer, older);
+            length = t.length;
+        }
+        bytes memory after_ = abi.encode(uint256(0), uint256(0), uint256(0));
+        first = outer[0];
+        length += after_.length - 96;
     }
 
     // A return variable's default array is made before the block, so it
