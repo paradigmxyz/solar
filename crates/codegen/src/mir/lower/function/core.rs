@@ -1121,7 +1121,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let sifting = self.builder.current_block();
         self.builder.branch(has_child, sift_body, outer_header);
 
-        // right = child + 32; larger = right < end & key(child) < key(right) ? right : child
+        // right = child + 32; step = right < end & key(child) < key(right)
+        // larger = child + (step << 5); key(larger) = mload(low + larger)
         // branch key(node) < key(larger), sift_swap, outer_header
         self.builder.switch_to_block(sift_body);
         let child_address = self.builder.add(low, child);
@@ -1132,8 +1133,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let has_right = self.builder.lt(right, end);
         let right_larger = self.core_sort_lt(child_key, right_key, order);
         let take_right = self.builder.and(has_right, right_larger);
-        let larger = self.builder.select(take_right, right, child);
-        let larger_key = self.builder.select(take_right, right_key, child_key);
+        let step = self.builder.cast(take_right, MirType::I256);
+        let five = self.builder.imm(5);
+        let offset = self.builder.shl(five, step);
+        let larger = self.builder.add(child, offset);
+        let larger_address = self.builder.add(low, larger);
+        let larger_key = self.builder.mload(larger_address);
         let node_address = self.builder.add(low, node);
         let node_key = self.builder.mload(node_address);
         let below = self.core_sort_lt(node_key, larger_key, order);
@@ -1142,7 +1147,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         // exchange(low + node, low + larger); node = larger
         self.builder.switch_to_block(sift_swap);
-        let larger_address = self.builder.add(low, larger);
         self.core_sort_exchange(node_address, larger_address, node_key, larger_key, Some(pair));
         let swapped = self.builder.current_block();
         self.builder.jump(sift_header);
