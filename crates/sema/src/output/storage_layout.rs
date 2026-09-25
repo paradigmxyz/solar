@@ -5,7 +5,7 @@ use crate::{
 use alloy_primitives::U256;
 use serde::Serialize;
 use solar_ast::{DataLocation, ElementaryType};
-use solar_data_structures::map::FxIndexMap;
+use solar_data_structures::map::{FxIndexMap, IndexEntry};
 
 /// Storage layout in solc's Standard JSON `storageLayout` and `transientStorageLayout` output
 /// fields.
@@ -17,6 +17,12 @@ pub struct StorageLayoutOutput {
     pub storage: Vec<StorageLayoutEntry>,
     /// `solc` emits `null` rather than an empty object when no storage types are present.
     pub types: Option<FxIndexMap<String, StorageLayoutType>>,
+    /// The ERC-7201 namespaces the contract declares or inherits, from each struct documented
+    /// `@custom:storage-location erc7201:<id>`, keyed `erc7201:<id>` as OpenZeppelin's upgrade
+    /// tooling keys them. Each member's slot is relative to the namespace's location, as a struct
+    /// member's is to the struct. `solc` has no such field, so it is left out when empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub namespaces: Option<FxIndexMap<String, Vec<StorageLayoutEntry>>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -96,7 +102,7 @@ impl<'gcx> Gcx<'gcx> {
         let mut builder = StorageLayoutBuilder::new(self, contract_name, DataLocation::Storage);
         let storage = builder.layout_fields(strukt.fields, &mut StorageCursor::new(base_slot));
         let types = (!builder.types.is_empty()).then_some(builder.types);
-        StorageLayoutOutput { storage, types }
+        StorageLayoutOutput { storage, types, namespaces: None }
     }
 }
 
@@ -137,7 +143,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
         let mut cursor = StorageCursor::new(base_slot);
         let mut storage = Vec::new();
 
-        for base in bases {
+        for &base in &bases {
             for variable_id in self.gcx.hir.contract(base).variables() {
                 let variable = self.gcx.hir.variable(variable_id);
                 let is_transient = variable.data_location == Some(DataLocation::Transient);
@@ -155,8 +161,28 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
             }
         }
 
+        let mut namespaces = FxIndexMap::default();
+        if matches!(self.location, DataLocation::Storage) {
+            for &base in &bases {
+                let structs =
+                    self.gcx.hir.contract(base).items.iter().filter_map(hir::ItemId::as_struct);
+                for id in structs {
+                    if let Some((namespace, _)) = self.gcx.hir.erc7201_namespace(id)
+                        && let IndexEntry::Vacant(entry) =
+                            namespaces.entry(format!("erc7201:{namespace}"))
+                    {
+                        let fields = self.gcx.hir.strukt(id).fields;
+                        entry.insert(
+                            self.layout_fields(fields, &mut StorageCursor::new(U256::ZERO)),
+                        );
+                    }
+                }
+            }
+        }
+
         let types = (!self.types.is_empty()).then_some(self.types);
-        StorageLayoutOutput { storage, types }
+        let namespaces = (!namespaces.is_empty()).then_some(namespaces);
+        StorageLayoutOutput { storage, types, namespaces }
     }
 
     fn layout_members(&mut self, fields: &[hir::VariableId]) -> (Vec<StorageLayoutEntry>, U256) {

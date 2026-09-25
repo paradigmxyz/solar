@@ -15,7 +15,7 @@ use crate::{
     ty::Gcx,
 };
 use alloy_primitives::U256;
-use solar_ast::{DataLocation, NatSpecKind};
+use solar_ast::DataLocation;
 use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet},
@@ -34,7 +34,10 @@ pub(super) fn check(gcx: Gcx<'_>) {
     let namespaces = gcx
         .hir
         .strukt_ids()
-        .filter_map(|id| namespace(gcx, id).map(|namespace| (id, namespace)))
+        .filter_map(|id| {
+            let (namespace, tag) = gcx.hir.erc7201_namespace(id)?;
+            Some((id, Namespace { id: namespace, tag }))
+        })
         .collect::<FxHashMap<_, _>>();
     if namespaces.is_empty() {
         return;
@@ -44,19 +47,6 @@ pub(super) fn check(gcx: Gcx<'_>) {
     for id in gcx.hir.function_ids() {
         let _ = accessors.visit_nested_function(id);
     }
-}
-
-/// The namespace `@custom:storage-location erc7201:<id>` on the struct `id` declares.
-fn namespace(gcx: Gcx<'_>, id: hir::StructId) -> Option<Namespace> {
-    let doc = gcx.hir.doc(gcx.hir.strukt(id).doc);
-    doc.ast_comments.iter().flat_map(|comment| comment.natspec.iter()).find_map(|natspec| {
-        let NatSpecKind::Custom { name } = natspec.kind else { return None };
-        if name.name != sym::storage_dash_location {
-            return None;
-        }
-        let id = natspec.content().trim().strip_prefix("erc7201:")?.trim();
-        (!id.is_empty()).then(|| Namespace { id: Symbol::intern(id), tag: natspec.span })
-    })
 }
 
 /// Rejects two structs in one namespace that a contract declares or inherits.
