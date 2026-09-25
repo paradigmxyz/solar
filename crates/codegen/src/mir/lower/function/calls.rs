@@ -904,6 +904,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // icall_void(function, call_args)
             // result = 0
             self.builder.icall_void(mir_id, values);
+            self.record_postlude_call(mir_id, expr.span);
             return Some(self.builder.imm(U256::ZERO));
         }
         let return_types = function
@@ -915,6 +916,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // result = icall(function, call_args)
         let result = self.builder.icall(mir_id, values, result_ty);
         self.dirty_values.insert(result);
+        self.record_postlude_call(mir_id, expr.span);
         Some(result)
     }
 

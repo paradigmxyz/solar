@@ -35,14 +35,19 @@ mod entry;
 mod expressions;
 mod indexing;
 mod lvalues;
+mod memory_facts;
 mod memory_values;
 mod modifiers;
 mod operators;
+mod scratch;
 mod statements;
 mod storage_values;
+mod terminates;
 mod values;
 mod views;
 
+pub(super) use scratch::{ScratchRegion, check_scratch_regions};
+pub(super) use terminates::{PostludeCall, check_postlude_calls};
 pub(super) use views::{ViewBorrow, check_view_borrows};
 
 /// Shared inputs for one contract's function lowering.
@@ -115,6 +120,12 @@ pub(super) struct LoweringState {
     /// The `@custom:solar-view` borrows of the function being lowered, which the contract
     /// driver claims for its MIR function.
     pub(super) view_borrows: Vec<ViewBorrow>,
+    /// The calls the function being lowered makes while a modifier's code after `_` is pending.
+    pub(super) postlude_calls: Vec<PostludeCall>,
+    /// Whether the function being lowered calls `Return.abiEncoded`.
+    pub(super) returns_from_call: bool,
+    /// The `@custom:solar-scratch` blocks of the function being lowered.
+    pub(super) scratch_regions: Vec<ScratchRegion>,
 }
 
 /// Lowers one HIR function into a typed MIR function.
@@ -257,6 +268,9 @@ struct FunctionLowerer<'gcx, 'ctx> {
     views: FxHashMap<VariableId, ValueId>,
     /// The `Bytes.slice` call initializing the `@custom:solar-view` variable being declared.
     forming_view: Option<(hir::ExprId, VariableId)>,
+    /// The modifiers whose code after `_` runs once the code being lowered finishes, innermost
+    /// last: the first statement of that code and the modifier's name.
+    pending_postludes: Vec<(Span, Symbol)>,
 }
 
 /// The lowered `{gas: ..., value: ...}` options of an external call.
@@ -321,6 +335,8 @@ struct ModifierContext<'gcx> {
     modifiers: &'gcx [hir::Modifier<'gcx>],
     body: hir::Block<'gcx>,
     next: usize,
+    /// The first statement this modifier runs after `_`, and the modifier's name.
+    postlude: Option<(Span, Symbol)>,
     parameters: BindingSnapshot,
     returns: BindingSnapshot,
     incoming_returns: BindingSnapshot,
@@ -458,6 +474,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             discarded_exprs: Vec::new(),
             views: FxHashMap::default(),
             forming_view: None,
+            pending_postludes: Vec::new(),
         }
     }
 

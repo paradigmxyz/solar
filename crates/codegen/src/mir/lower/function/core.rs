@@ -125,6 +125,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if operands.len() != function.parameters.len() {
             return self.cx.report_unsupported(expr.span, "compiler module argument list");
         }
+        if intrinsic == CoreIntrinsic::ReturnAbiEncoded {
+            self.before_core_return(expr.span)?;
+        }
 
         match intrinsic {
             CoreIntrinsic::Base64Encode => self.lower_core_base64_encode_call(&operands),

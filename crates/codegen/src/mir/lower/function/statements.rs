@@ -194,11 +194,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                 })?;
             }
-            StmtKind::Block(block) => self.lower_block(*block)?,
+            StmtKind::Block(block) => match self.cx.gcx.hir.solar_scratch(block.span) {
+                Some(tag) => self.lower_scratch_block(*block, tag)?,
+                None => self.lower_block(*block)?,
+            },
             StmtKind::UncheckedBlock(block) => {
                 let previous = self.unchecked;
                 self.unchecked = true;
-                let result = self.lower_block(*block);
+                let result = match self.cx.gcx.hir.solar_scratch(block.span) {
+                    Some(tag) => self.lower_scratch_block(*block, tag),
+                    None => self.lower_block(*block),
+                };
                 self.unchecked = previous;
                 result?;
             }

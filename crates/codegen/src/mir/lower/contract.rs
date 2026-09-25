@@ -200,6 +200,9 @@ pub(super) fn lower(
         contract.linearized_bases.iter().skip(1).any(|&base| gcx.hir.contract(base).ctor.is_some())
             || contract.linearized_bases_args.iter().any(Option::is_some);
     let mut view_borrows = Vec::new();
+    let mut postlude_calls = Vec::new();
+    let mut returning = FxHashSet::default();
+    let mut scratch_regions = Vec::new();
     let synthetic_ok = (|| {
         let mut context = function::LoweringContext {
             gcx,
@@ -221,6 +224,11 @@ pub(super) fn lower(
             let errors_before = gcx.dcx().err_count();
             let lowered = function::lower(context.reborrow(), function_id, expose_selector);
             let borrows = std::mem::take(&mut context.state.view_borrows);
+            let regions = std::mem::take(&mut context.state.scratch_regions);
+            postlude_calls.append(&mut context.state.postlude_calls);
+            if std::mem::take(&mut context.state.returns_from_call) {
+                returning.insert(mir_id);
+            }
             let Some(mut mir) = lowered else {
                 let function = gcx.hir.function(function_id);
                 // The trapping body below only stands in for a reported
@@ -255,6 +263,7 @@ pub(super) fn lower(
             mir.name = name;
             *context.module.function_mut(mir_id) = mir;
             view_borrows.extend(borrows.into_iter().map(|borrow| (mir_id, borrow)));
+            scratch_regions.extend(regions.into_iter().map(|region| (mir_id, region)));
         }
 
         if contract.ctor.is_none() && (has_state_initializers || has_implicit_base_constructors) {
@@ -264,6 +273,11 @@ pub(super) fn lower(
             let errors_before = gcx.dcx().err_count();
             let lowered = function::lower_synthetic_constructor(context.reborrow(), contract_id);
             let borrows = std::mem::take(&mut context.state.view_borrows);
+            let regions = std::mem::take(&mut context.state.scratch_regions);
+            postlude_calls.append(&mut context.state.postlude_calls);
+            if std::mem::take(&mut context.state.returns_from_call) {
+                returning.insert(mir_id);
+            }
             let Some(mut mir) = lowered else {
                 if gcx.dcx().err_count() == errors_before {
                     let _: Option<()> = context.report_unsupported(contract.name.span, "contract");
@@ -274,6 +288,7 @@ pub(super) fn lower(
             mir.name = context.module.function(mir_id).name;
             *context.module.function_mut(mir_id) = mir;
             view_borrows.extend(borrows.into_iter().map(|borrow| (mir_id, borrow)));
+            scratch_regions.extend(regions.into_iter().map(|region| (mir_id, region)));
         }
         true
     })();
@@ -301,6 +316,13 @@ pub(super) fn lower(
     // Calls through internal function pointers reach the dispatchers generated above, so the
     // borrows are checked only once every body a call may run exists.
     function::check_view_borrows(gcx, &module, &view_borrows);
+    let tagged = mir_ids
+        .iter()
+        .filter(|&(&id, _)| gcx.hir.solar_terminates(id).is_some())
+        .map(|(_, &mir_id)| mir_id)
+        .collect();
+    function::check_postlude_calls(gcx, &module, &tagged, &returning, &postlude_calls);
+    function::check_scratch_regions(gcx, &module, &scratch_regions);
 
     if contract.kind == hir::ContractKind::Interface {
         module.is_interface = true;

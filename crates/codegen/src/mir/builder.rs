@@ -732,7 +732,6 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Sets the free-memory pointer.
-    #[cfg(test)]
     pub(crate) fn set_fmp(&mut self, value: ValueId) {
         self.emit_void_inst(InstKind::SetFmp(value))
     }

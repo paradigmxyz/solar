@@ -1310,6 +1310,8 @@ symbols! {
         slice_ptr,
         slice_starts_after_end,
         slot,
+        solar_dash_scratch: "solar-scratch",
+        solar_dash_terminates: "solar-terminates",
         solar_dash_view: "solar-view",
         solidity,
         span,

@@ -1080,7 +1080,24 @@ impl<'gcx> ResolveContext<'gcx> {
                 (None, _) | (Some(SolarTag::View), hir::StmtKind::Err(_)) => {}
                 (Some(SolarTag::View), &hir::StmtKind::DeclSingle(id)) => {
                     if self.hir.solar_view(id).is_none() {
-                        self.hir.solar_views.push((id, natspec.span));
+                        self.hir.solar_tags.push((hir::SolarStmtTag::View(id), natspec.span));
+                    }
+                }
+                (
+                    Some(SolarTag::Scratch),
+                    hir::StmtKind::Block(block) | hir::StmtKind::UncheckedBlock(block),
+                ) => {
+                    // Assembly can keep a pointer into the block's memory where no
+                    // analysis follows it.
+                    if let Some(assembly) = find_assembly(block.stmts) {
+                        self.dcx()
+                            .err("a `@custom:solar-scratch` block cannot contain inline assembly")
+                            .span(assembly)
+                            .span_note(natspec.span, "the tag is here")
+                            .emit();
+                    } else if self.hir.solar_scratch(block.span).is_none() {
+                        let tag = hir::SolarStmtTag::Scratch(block.span);
+                        self.hir.solar_tags.push((tag, natspec.span));
                     }
                 }
                 (Some(tag), _) => {
@@ -2607,6 +2624,23 @@ pub(super) fn report_conflict(
     }
 
     err.emit()
+}
+
+/// Returns the span of the first inline assembly block among `stmts` and the statements nested
+/// in them.
+fn find_assembly(stmts: &[hir::Stmt<'_>]) -> Option<Span> {
+    stmts.iter().find_map(|stmt| match &stmt.kind {
+        hir::StmtKind::AssemblyBlock(_) => Some(stmt.span),
+        hir::StmtKind::Block(block)
+        | hir::StmtKind::UncheckedBlock(block)
+        | hir::StmtKind::Loop(block, _) => find_assembly(block.stmts),
+        hir::StmtKind::If(_, then, else_) => find_assembly(std::slice::from_ref(*then))
+            .or_else(|| else_.and_then(|else_| find_assembly(std::slice::from_ref(else_)))),
+        hir::StmtKind::Try(stmt) => {
+            stmt.clauses.iter().find_map(|clause| find_assembly(clause.block.stmts))
+        }
+        _ => None,
+    })
 }
 
 #[cfg(test)]
