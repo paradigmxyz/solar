@@ -1,0 +1,75 @@
+error: `@custom:solar-view` must document a variable declaration statement
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         /// @custom:solar-view
+   │              ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on the statement `bytes memory v = Bytes.slice(source, offset, count);`
+
+error: unknown Solar tag `@custom:solar-veiw`
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         /// @custom:solar-veiw
+   │              ━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-` tags are requirements this compiler checks
+   ╰ help: the supported tag is `@custom:solar-view`
+
+error: `@custom:solar-view` must document a variable declaration statement
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │ /// @custom:solar-view
+   │      ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on the statement `bytes memory v = Bytes.slice(source, offset, count);`
+
+error: unknown Solar tag `@custom:solar-scratch`
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │     /// @custom:solar-scratch
+   │          ━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-` tags are requirements this compiler checks
+   ╰ help: the supported tag is `@custom:solar-view`
+
+error: `@custom:solar-view` requires a `bytes memory` variable initialized by `Bytes.slice`
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         uint256 z = 3;
+   │         ━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         /// @custom:solar-view
+   │              ━━━━━━━━━━━━━━━━━
+   ╰ help: declare the view as `bytes memory v = Bytes.slice(source, offset, count);`
+
+error: `@custom:solar-view` requires a `bytes memory` variable initialized by `Bytes.slice`
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         bytes memory c = new bytes(3);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         /// @custom:solar-view
+   │              ━━━━━━━━━━━━━━━━━
+   ╰ help: declare the view as `bytes memory v = Bytes.slice(source, offset, count);`
+
+error: `@custom:solar-view` requires a `bytes memory` variable initialized by `Bytes.slice`
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         bytes memory d;
+   │         ━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         /// @custom:solar-view
+   │              ━━━━━━━━━━━━━━━━━
+   ╰ help: declare the view as `bytes memory v = Bytes.slice(source, offset, count);`
+
+error: aborting due to 7 previous errors
+

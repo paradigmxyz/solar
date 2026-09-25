@@ -33,6 +33,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
     },);
     gcx.set_typeck_results(typeck_results);
     view_pure_checker::check(gcx);
+    check_solar_views(gcx);
 }
 
 fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
@@ -826,6 +827,37 @@ impl<'gcx> Visit<'gcx> for BreakContinueChecker<'gcx> {
     #[inline]
     fn visit_expr(&mut self, _expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
         ControlFlow::Continue(())
+    }
+}
+
+/// Checks that every `@custom:solar-view` declaration has the one shape a view has: a
+/// `bytes memory` variable initialized by `Bytes.slice` from `solar:core/v1/Bytes.sol`.
+///
+/// Other compilers run the same declaration as the copy `Bytes.slice` makes, so any other shape
+/// would give the tag nothing to borrow.
+fn check_solar_views(gcx: Gcx<'_>) {
+    for (id, tag) in gcx.hir.solar_views() {
+        let variable = gcx.hir.variable(id);
+        let ty = gcx.type_of_item(id.into());
+        let is_bytes = ty.is_ref_at(DataLocation::Memory)
+            && matches!(ty.peel_refs().kind, TyKind::Elementary(hir::ElementaryType::Bytes));
+        let slices = variable.initializer.is_some_and(|initializer| {
+            if let hir::ExprKind::Call(callee, ..) = initializer.peel_parens().kind
+                && let Some(function) = gcx.resolved_function(callee)
+            {
+                crate::core::intrinsic_of(gcx, function) == Some(crate::core::CoreIntrinsic::Slice)
+            } else {
+                false
+            }
+        });
+        if !is_bytes || !slices {
+            gcx.dcx()
+                .err("`@custom:solar-view` requires a `bytes memory` variable initialized by `Bytes.slice`")
+                .span(variable.span)
+                .span_note(tag, "the tag is here")
+                .help("declare the view as `bytes memory v = Bytes.slice(source, offset, count);`")
+                .emit();
+        }
     }
 }
 

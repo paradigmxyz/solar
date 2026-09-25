@@ -16,6 +16,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match &stmt.kind {
             StmtKind::DeclSingle(id) => {
                 let initializer = self.cx.gcx.hir.variable(*id).initializer;
+                if self.cx.gcx.hir.solar_view(*id).is_some()
+                    && let Some(initializer) = initializer
+                {
+                    return self.lower_view_declaration(*id, initializer);
+                }
                 let ty = self.cx.gcx.type_of_item((*id).into());
                 if ty.is_ref_at(DataLocation::Storage) {
                     let Some(initializer) = initializer else { return Some(()) };

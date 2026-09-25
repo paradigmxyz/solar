@@ -1,0 +1,678 @@
+//! `@custom:solar-view` declarations: `Bytes.slice` ranges read in place.
+//!
+//! The declaration
+//!
+//! ```solidity
+//! /// @custom:solar-view
+//! bytes memory v = Bytes.slice(source, offset, count);
+//! ```
+//!
+//! means what it means to every compiler: `v` holds a copy of the range, after the range check
+//! the copy makes. Other compilers read the tag as documentation and make the copy. This
+//! compiler instead binds `v` to the memory slice of the range and never copies, which is only
+//! equivalent while the source's bytes cannot change between the declaration and a read of `v`,
+//! and while nothing can tell `v` from a copy. Both conditions are checked, and a program that
+//! breaks either is rejected rather than compiled with different behavior.
+//!
+//! `v` itself can only be read in place: `.length`, indexing, `keccak256(v)`, and the reads of
+//! `solar:core/v1/Bytes.sol` and `Hash.sol` that take a range (a view of `v` included). Any other
+//! use, such as an assignment, a write through `v`, passing `v` to a function or returning it, is
+//! an error at the use, because it could keep `v` or write the source through it. A view of a
+//! view narrows the same bytes, so it extends the enclosing view's borrow instead of starting
+//! one.
+//!
+//! Once the contract is lowered, and before any optimization, [`check_view_borrows`] rejects
+//! every instruction that may write the source's payload between the view's creation and a later
+//! read through it, on some path that does not create the view again. The reads are the uses of
+//! every value the view's slice derives through pure operations, other than its length, which the
+//! view fixed when it was made. Writes come from the MIR ModRef analysis, run on a copy of the
+//! function whose trivial loop phis are resolved. A call writes whatever its callee may write of
+//! the memory that exists when it is entered: the objects of some parameters, or anything,
+//! summarized over the call graph to a fixed point.
+//!
+//! A write cannot reach the source's payload when it lands in the reserved words below the heap,
+//! in an internal-call frame, or in an allocation made after the source existed: any fresh
+//! allocation of the function when the source is a parameter's object, and otherwise one the
+//! view's creation dominates. A write into a parameter's object cannot reach a source allocated
+//! by the function either, as long as it is a semantic object store, which stays inside its
+//! object; a raw store may run past the object's end.
+//!
+//! NOTE: the check relies on the Solidity memory model: objects a variable can reach lie in
+//! allocated memory, so an allocation that no free-memory-pointer reset precedes cannot overlap
+//! one that already exists. It is conservative wherever the analysis loses a write's target, such
+//! as a raw store at a computed offset, and then reports the write. Without intrinsic lowering
+//! (`-Zno-core-intrinsics`) the declaration lowers as the copy and nothing is checked.
+
+use super::*;
+use crate::mir::{
+    ArgIdx, Callee, EffectKind, InstId,
+    analysis::{
+        Access, AddressSpace, AliasAnalysis, AliasResult, CfgInfo, Location, LocationSize,
+        MemoryBase, MemoryCallSummaries, MemoryLocation,
+    },
+    memory::MemoryLayoutPolicy,
+};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+    smallvec::SmallVec,
+};
+
+/// A view whose source's bytes must not change while the view is still read.
+pub(in crate::mir::lower) struct ViewBorrow {
+    /// The view's memory slice.
+    view: ValueId,
+    /// The `bytes memory` object the view reads.
+    source: ValueId,
+    /// The view variable's declaration.
+    span: Span,
+    /// The view variable's name.
+    name: Symbol,
+}
+
+impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
+    /// Lowers the declaration of the `@custom:solar-view` variable `id`: the `Bytes.slice` call
+    /// initializing it yields the memory slice of its range instead of a copy.
+    pub(super) fn lower_view_declaration(
+        &mut self,
+        id: VariableId,
+        initializer: &hir::Expr<'_>,
+    ) -> Option<()> {
+        let call = initializer.peel_parens().id;
+        let previous = self.forming_view.replace((call, id));
+        let value = self.lower_expr(initializer);
+        self.forming_view = previous;
+        let value = value?;
+        if self.builder.func().value_slice_location(value) == Some(SliceLocation::Memory) {
+            self.views.insert(id, value);
+        } else {
+            // Without intrinsic lowering the call returned the copy the portable body makes.
+            let ty = self.cx.gcx.type_of_item(id.into());
+            let value = self.materialize_call_argument(ty, value, initializer.span)?;
+            self.values.insert(id, value);
+        }
+        Some(())
+    }
+
+    /// Records that the `@custom:solar-view` variable `id` reads `range` of `bytes` in place.
+    ///
+    /// A view of a view narrows bytes the enclosing view already borrows, and its reads derive
+    /// from that view's slice, so only a view of an object starts a borrow.
+    pub(super) fn record_view_borrow(&mut self, id: VariableId, range: ValueId, bytes: ValueId) {
+        if self.builder.func().value_slice_location(bytes) == Some(SliceLocation::Memory) {
+            return;
+        }
+        let variable = self.cx.gcx.hir.variable(id);
+        self.cx.state.view_borrows.push(ViewBorrow {
+            view: range,
+            source: bytes,
+            span: variable.span,
+            name: variable.name.map_or(kw::Empty, |name| name.name),
+        });
+    }
+
+    /// The memory slice `expr` reads when it names a `@custom:solar-view` variable.
+    pub(super) fn view_operand(&self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        if self.views.is_empty() {
+            return None;
+        }
+        self.views.get(&self.cx.gcx.resolved_variable(expr)?).copied()
+    }
+
+    /// Lowers `expr`, or yields the slice of the `@custom:solar-view` variable it names.
+    pub(super) fn lower_view_or_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        match self.view_operand(expr) {
+            Some(view) => Some(view),
+            None => self.lower_expr(expr),
+        }
+    }
+
+    /// Reports a use of a `@custom:solar-view` variable that could keep it or write through it.
+    pub(super) fn report_view_use<T>(&self, id: VariableId, span: Span) -> Option<T> {
+        let name = self.cx.gcx.hir.variable(id).name.map_or(kw::Empty, |name| name.name);
+        self.cx
+            .gcx
+            .dcx()
+            .err(format!("the view `{name}` can only be read in place"))
+            .span(span)
+            .note(
+                "a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, \
+                 and the `Bytes` and `Hash` reads of a range",
+            )
+            .help("remove the tag to work with a copy of the bytes")
+            .emit();
+        None
+    }
+}
+
+/// Rejects every write that may change bytes a `@custom:solar-view` variable still reads.
+pub(in crate::mir::lower) fn check_view_borrows(
+    gcx: Gcx<'_>,
+    module: &Module,
+    borrows: &[(FunctionId, ViewBorrow)],
+) {
+    if borrows.is_empty() {
+        return;
+    }
+    // Which callees may reset the free memory pointer, and so end the freshness of the
+    // allocations after a call to them.
+    let calls = Arc::new(MemoryCallSummaries::new(module));
+    let summaries =
+        EntryWrites::compute(module, &calls, borrows.iter().map(|&(function, _)| function));
+    // The driver claims each function's borrows together.
+    for group in borrows.chunk_by(|a, b| a.0 == b.0) {
+        let facts = FunctionFacts::new(module.function(group[0].0), &calls, &summaries);
+        for (_, borrow) in group {
+            facts.check(gcx, borrow);
+        }
+    }
+}
+
+/// Memory an instruction may write.
+#[derive(Clone, Copy)]
+enum Target {
+    /// Anything, including memory that existed before the function was entered.
+    Anything,
+    /// A range whose base the alias analysis knows.
+    Range {
+        location: MemoryLocation,
+        /// Whether the write stays inside the object its base names, rather than possibly
+        /// running past its end.
+        contained: bool,
+    },
+}
+
+/// Where the bytes a view reads came from.
+#[derive(Clone, Copy)]
+enum Origin {
+    /// A parameter: memory that exists before the function is entered.
+    Entry,
+    /// An allocation site of the function.
+    Site(InstId),
+    /// Anything else.
+    Unknown,
+}
+
+/// The memory that exists when a function is entered and that the function may write.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct EntryWrites {
+    /// Parameters whose memory the function may write, anywhere in the objects they point to.
+    params: SmallVec<[ArgIdx; 2]>,
+    /// Whether the function may write other memory that exists when it is entered.
+    other: bool,
+}
+
+impl EntryWrites {
+    /// Summarizes every function the `roots` may call, to a fixed point over the call graph.
+    fn compute(
+        module: &Module,
+        calls: &Arc<MemoryCallSummaries>,
+        roots: impl Iterator<Item = FunctionId>,
+    ) -> FxHashMap<FunctionId, Self> {
+        let mut order = Vec::new();
+        let mut seen = FxHashSet::default();
+        let mut stack = roots.collect::<Vec<_>>();
+        while let Some(id) = stack.pop() {
+            if !seen.insert(id) {
+                continue;
+            }
+            order.push(id);
+            let func = module.function(id);
+            for inst in func.instructions() {
+                if let InstKind::ICall { function: Callee::Function(callee), .. } =
+                    func.inst(inst).kind
+                {
+                    stack.push(callee);
+                }
+            }
+        }
+        let analyzed = order
+            .iter()
+            .map(|&id| (id, Analyzed::new(module.function(id), calls)))
+            .collect::<FxHashMap<_, _>>();
+        let mut summaries =
+            order.iter().map(|&id| (id, Self::default())).collect::<FxHashMap<_, _>>();
+        // Summaries only grow, so the iteration ends.
+        loop {
+            let mut changed = false;
+            for &id in &order {
+                let summary = Self::of(&analyzed[&id], &summaries);
+                if summaries[&id] != summary {
+                    summaries.insert(id, summary);
+                    changed = true;
+                }
+            }
+            if !changed {
+                return summaries;
+            }
+        }
+    }
+
+    /// Summarizes a function given the summaries of its callees.
+    fn of(function: &Analyzed, summaries: &FxHashMap<FunctionId, Self>) -> Self {
+        let func = &function.func;
+        let mut writes = Self::default();
+        let mut record = |target| {
+            let Target::Range { location, .. } = target else {
+                writes.other = true;
+                return;
+            };
+            match location.address.base {
+                MemoryBase::Absolute => writes.other |= !below_heap(location),
+                // Frames and fresh allocations belong to this call.
+                MemoryBase::InternalFrame
+                | MemoryBase::Allocation(_)
+                | MemoryBase::DynamicAllocation(_) => {}
+                MemoryBase::Param(value) | MemoryBase::Value(value) => match *func.value(value) {
+                    Value::Arg(index) => {
+                        if !writes.params.contains(&index) {
+                            writes.params.push(index);
+                            writes.params.sort_unstable();
+                        }
+                    }
+                    // Past a fresh allocation lies only memory allocated after it.
+                    _ if function.fresh_allocation(value).is_some() => {}
+                    _ => writes.other = true,
+                },
+            }
+        };
+        for inst in func.instructions() {
+            for target in write_targets(func, &function.aa, inst, summaries) {
+                record(target);
+            }
+        }
+        for block in &func.blocks {
+            let Some(terminator) = &block.terminator else { continue };
+            for &access in function.aa.terminator_mod_ref(func, terminator).writes() {
+                match access {
+                    Access::Any(AddressSpace::Memory) => record(Target::Anything),
+                    Access::Location(Location::Memory(location)) => {
+                        record(Target::Range { location, contained: false })
+                    }
+                    _ => {}
+                }
+            }
+        }
+        writes
+    }
+}
+
+/// A function prepared for the check: a copy whose trivial phis are resolved, with its alias
+/// analysis.
+///
+/// Lowering gives a loop header a phi for every variable in scope, including the ones the loop
+/// never assigns. The alias analysis cannot see through a phi that merges a pointer with
+/// itself, so every write through such a variable would reach anything.
+struct Analyzed {
+    func: Function,
+    /// The value each trivial phi merges, by the phi's result.
+    replacements: FxHashMap<ValueId, ValueId>,
+    aa: AliasAnalysis,
+}
+
+impl Analyzed {
+    fn new(func: &Function, calls: &Arc<MemoryCallSummaries>) -> Self {
+        let mut replacements = FxHashMap::default();
+        // A phi is trivial when every incoming value other than the phi itself is one value.
+        loop {
+            let mut changed = false;
+            for inst in func.instructions() {
+                let InstKind::Phi(incoming) = &func.inst(inst).kind else { continue };
+                let Some(result) = func.inst_result_value(inst) else { continue };
+                if replacements.contains_key(&result) {
+                    continue;
+                }
+                let mut merged = None;
+                let trivial = incoming.iter().all(|&(_, value)| {
+                    let value = crate::mir::utils::resolve_replacement(value, &replacements);
+                    value == result || *merged.get_or_insert(value) == value
+                });
+                if trivial && let Some(value) = merged {
+                    replacements.insert(result, value);
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        let replacements = replacements
+            .keys()
+            .map(|&value| (value, crate::mir::utils::resolve_replacement(value, &replacements)))
+            .collect::<FxHashMap<_, _>>();
+        let mut func = func.clone();
+        func.replace_uses(&replacements);
+        let aa = AliasAnalysis::with_call_summaries(&func, Arc::clone(calls));
+        Self { func, replacements, aa }
+    }
+
+    /// The value `value` stands for once trivial phis are resolved.
+    fn resolve(&self, value: ValueId) -> ValueId {
+        self.replacements.get(&value).copied().unwrap_or(value)
+    }
+
+    /// The allocation `value` is the result of, when the allocation is fresh.
+    ///
+    /// The alias analysis bases a write past a fresh allocation's known extent on the
+    /// allocation's result. Such a write may reach objects allocated after the allocation, but
+    /// none that existed before it.
+    fn fresh_allocation(&self, value: ValueId) -> Option<InstId> {
+        let Value::Inst(inst) = *self.func.value(value) else { return None };
+        match self.aa.memory_address(&self.func, value)?.base {
+            MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site) if site == inst => {
+                Some(site)
+            }
+            _ => None,
+        }
+    }
+}
+
+/// The memory `inst` may write.
+fn write_targets(
+    func: &Function,
+    aa: &AliasAnalysis,
+    inst: InstId,
+    summaries: &FxHashMap<FunctionId, EntryWrites>,
+) -> SmallVec<[Target; 2]> {
+    let mut targets = SmallVec::new();
+    match &func.inst(inst).kind {
+        InstKind::ICall { function: Callee::Function(callee), args } => {
+            let Some(callee) = summaries.get(callee) else {
+                targets.push(Target::Anything);
+                return targets;
+            };
+            if callee.other {
+                targets.push(Target::Anything);
+            }
+            for &param in &callee.params {
+                let Some(mut address) =
+                    args.get(param.index()).and_then(|&arg| aa.memory_address(func, arg))
+                else {
+                    targets.push(Target::Anything);
+                    continue;
+                };
+                // The callee may write anywhere in the object it is passed, and perhaps past its
+                // end: for a fresh allocation, into the memory allocated after it.
+                if let MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site) =
+                    address.base
+                    && let Some(result) = func.inst_result_value(site)
+                {
+                    address.base = MemoryBase::Value(result);
+                }
+                let location = MemoryLocation::new(address, LocationSize::Unknown);
+                targets.push(Target::Range { location, contained: false });
+            }
+        }
+        // Each of these writes only memory it allocates, or memory past the free memory pointer
+        // that it leaves unallocated.
+        InstKind::AbiEncode { .. }
+        | InstKind::AbiEncodePacked { .. }
+        | InstKind::AbiDecode { .. }
+        | InstKind::StorageBytesLoad(..)
+        | InstKind::StorageArrayLoad { .. }
+        | InstKind::ICall {
+            function:
+                Callee::Builtin(crate::mir::Builtin::Concat(_) | crate::mir::Builtin::ReturndataBytes),
+            ..
+        } => {}
+        kind => {
+            // Lowering emits a semantic object store only inside the object's allocation, after
+            // any bounds check it needs; a raw store may run past the object it starts in.
+            let contained = matches!(
+                kind,
+                InstKind::Alloc { .. }
+                    | InstKind::SetMemoryObjectLen(..)
+                    | InstKind::MemoryObjectStoreField { .. }
+                    | InstKind::MemoryObjectStoreElement { .. }
+                    | InstKind::MemoryObjectStoreByte { .. }
+                    | InstKind::MemoryObjectStoreWord { .. }
+                    | InstKind::MemoryObjectCopyFromSlice { .. }
+                    | InstKind::MemoryObjectCopyFromSliceAt { .. }
+            );
+            for &access in aa.instruction_mod_ref(func, inst).writes() {
+                match access {
+                    Access::Any(AddressSpace::Memory) => targets.push(Target::Anything),
+                    Access::Location(Location::Memory(location)) => {
+                        targets.push(Target::Range { location, contained })
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    targets
+}
+
+/// Whether `location` lies in the reserved words below the heap, which hold no object's payload.
+fn below_heap(location: MemoryLocation) -> bool {
+    location
+        .size
+        .as_const()
+        .and_then(|size| location.address.offset.checked_add(size))
+        .is_some_and(|end| end <= EvmMemoryLayout::HEAP_START)
+}
+
+/// Where one use of a value happens.
+#[derive(Clone, Copy)]
+enum User {
+    Inst(InstId),
+    Terminator(BlockId),
+}
+
+/// The per-function facts every borrow in a function shares.
+struct FunctionFacts {
+    function: Analyzed,
+    cfg: CfgInfo,
+    predecessors: IndexVec<BlockId, Vec<BlockId>>,
+    /// Each instruction's block and index in it.
+    positions: FxHashMap<InstId, (BlockId, usize)>,
+    users: FxHashMap<ValueId, Vec<User>>,
+    /// Every instruction that may write memory, with what it may write.
+    writes: Vec<(InstId, SmallVec<[Target; 2]>)>,
+}
+
+impl FunctionFacts {
+    fn new(
+        func: &Function,
+        calls: &Arc<MemoryCallSummaries>,
+        summaries: &FxHashMap<FunctionId, EntryWrites>,
+    ) -> Self {
+        let function = Analyzed::new(func, calls);
+        let func = &function.func;
+        let aa = &function.aa;
+        let cfg = CfgInfo::new(func);
+        let mut predecessors = index_vec![Vec::new(); func.blocks.len()];
+        let mut positions = FxHashMap::default();
+        let mut users = FxHashMap::<_, Vec<_>>::default();
+        let mut writes = Vec::new();
+        for (block, data) in func.blocks.iter_enumerated() {
+            for &successor in cfg.successors(block) {
+                predecessors[successor].push(block);
+            }
+            for (index, &inst) in data.instructions.iter().enumerate() {
+                positions.insert(inst, (block, index));
+                for operand in func.inst(inst).operands() {
+                    users.entry(operand).or_default().push(User::Inst(inst));
+                }
+                let targets = write_targets(func, aa, inst, summaries);
+                if !targets.is_empty() {
+                    writes.push((inst, targets));
+                }
+            }
+            if let Some(terminator) = &data.terminator {
+                terminator.for_each_operand(|operand| {
+                    users.entry(operand).or_default().push(User::Terminator(block));
+                });
+            }
+        }
+        Self { function, cfg, predecessors, positions, users, writes }
+    }
+
+    /// Reports each write that may change the bytes `borrow` reads before a read through it.
+    fn check(&self, gcx: Gcx<'_>, borrow: &ViewBorrow) {
+        let func = &self.function.func;
+        let view = self.function.resolve(borrow.view);
+        let Value::Inst(def) = *func.value(view) else { return };
+        let Some(&(def_block, def_index)) = self.positions.get(&def) else { return };
+        let source = self.function.resolve(borrow.source);
+        let Some(start) = self.function.aa.memory_address(func, source).and_then(|address| {
+            address.checked_add(EvmMemoryLayout::object_data_offset(MemoryObjectKind::Bytes))
+        }) else {
+            return;
+        };
+        let payload = MemoryLocation::new(start, LocationSize::Unknown);
+        let origin = match start.base {
+            MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site) => {
+                Origin::Site(site)
+            }
+            MemoryBase::Param(_) => Origin::Entry,
+            MemoryBase::Value(value) if matches!(func.value(value), Value::Arg(_)) => Origin::Entry,
+            _ => Origin::Unknown,
+        };
+
+        // The last read through the view in each block that has one.
+        let reads = self.reads(view);
+        // Blocks from whose start a read is reachable without creating the view again.
+        let mut live = DenseBitSet::new_empty(func.blocks.len());
+        let mut worklist =
+            reads.keys().copied().filter(|&block| block != def_block).collect::<Vec<_>>();
+        for &block in &worklist {
+            live.insert(block);
+        }
+        while let Some(block) = worklist.pop() {
+            for &predecessor in &self.predecessors[block] {
+                if predecessor != def_block && live.insert(predecessor) {
+                    worklist.push(predecessor);
+                }
+            }
+        }
+        // Blocks reachable from the view without creating it again.
+        let mut after = DenseBitSet::new_empty(func.blocks.len());
+        let mut worklist = vec![def_block];
+        while let Some(block) = worklist.pop() {
+            for &successor in self.cfg.successors(block) {
+                if successor != def_block && after.insert(successor) {
+                    worklist.push(successor);
+                }
+            }
+        }
+
+        let mut reported = FxHashSet::default();
+        for (inst, targets) in &self.writes {
+            let (block, index) = self.positions[inst];
+            let started =
+                if block == def_block { index > def_index } else { after.contains(block) };
+            let read_later = reads.get(&block).is_some_and(|&last| last > index)
+                || self
+                    .cfg
+                    .successors(block)
+                    .iter()
+                    .any(|&successor| successor != def_block && live.contains(successor));
+            if !started
+                || !read_later
+                || !targets.iter().any(|&target| self.may_hit(target, payload, origin, def))
+            {
+                continue;
+            }
+            let span = func.inst(*inst).metadata.source_span().unwrap_or(borrow.span);
+            if reported.insert(span) {
+                gcx.dcx()
+                    .err(format!("this may change bytes that the view `{}` still reads", borrow.name))
+                    .span(span)
+                    .span_note(
+                        borrow.span,
+                        format!("`{}` reads the bytes in place and is read after this", borrow.name),
+                    )
+                    .help("finish reading the view first, or remove `@custom:solar-view` to read a copy")
+                    .emit();
+            }
+        }
+    }
+
+    /// The last read through `view` in each block that has one; a terminator reads after every
+    /// instruction of its block.
+    ///
+    /// The reads are the uses of every value `view` derives through pure operations, other than
+    /// its length, which is fixed once the view exists.
+    fn reads(&self, view: ValueId) -> FxHashMap<BlockId, usize> {
+        let func = &self.function.func;
+        let mut last = FxHashMap::<BlockId, usize>::default();
+        let mut derived = FxHashSet::from_iter([view]);
+        let mut stack = vec![view];
+        while let Some(value) = stack.pop() {
+            for &user in self.users.get(&value).into_iter().flatten() {
+                let (block, index) = match user {
+                    User::Terminator(block) => (block, func.blocks[block].instructions.len()),
+                    User::Inst(inst) => {
+                        let kind = &func.inst(inst).kind;
+                        if kind.effect_kind() == EffectKind::Pure
+                            && !matches!(kind, InstKind::SliceLen(_))
+                        {
+                            if let Some(result) = func.inst_result_value(inst)
+                                && derived.insert(result)
+                            {
+                                stack.push(result);
+                            }
+                            continue;
+                        }
+                        self.positions[&inst]
+                    }
+                };
+                let entry = last.entry(block).or_insert(index);
+                *entry = (*entry).max(index);
+            }
+        }
+        last
+    }
+
+    /// Whether a write of `target` may change the view's `payload`, which came from `origin` and
+    /// was borrowed at `def`.
+    fn may_hit(
+        &self,
+        target: Target,
+        payload: MemoryLocation,
+        origin: Origin,
+        def: InstId,
+    ) -> bool {
+        let Target::Range { location, contained } = target else { return true };
+        if AliasAnalysis::memory_alias_locations(location, payload) == AliasResult::NoAlias {
+            return false;
+        }
+        match location.address.base {
+            MemoryBase::Absolute => !below_heap(location),
+            MemoryBase::InternalFrame => false,
+            // The alias analysis keeps an allocation as the base only of an access inside it,
+            // and an allocation made after the source existed cannot overlap it.
+            MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site) => match origin {
+                Origin::Entry => false,
+                Origin::Site(source) => site == source,
+                Origin::Unknown => !self.strictly_dominates(def, site),
+            },
+            // A parameter's object lies below every allocation of this function, so only a
+            // write that may run past its end reaches one.
+            MemoryBase::Param(_) => !(contained && matches!(origin, Origin::Site(_))),
+            MemoryBase::Value(value) => match self.function.fresh_allocation(value) {
+                // Past a fresh allocation lies only memory allocated after it.
+                Some(site) => match origin {
+                    Origin::Entry => false,
+                    Origin::Site(_) | Origin::Unknown => !self.strictly_dominates(def, site),
+                },
+                None => true,
+            },
+        }
+    }
+
+    /// Whether every path to `inst` passes `def` first.
+    fn strictly_dominates(&self, def: InstId, inst: InstId) -> bool {
+        let (Some(&(def_block, def_index)), Some(&(block, index))) =
+            (self.positions.get(&def), self.positions.get(&inst))
+        else {
+            return false;
+        };
+        if def_block == block {
+            index > def_index
+        } else {
+            self.cfg.dominators().dominates(def_block, block)
+        }
+    }
+}

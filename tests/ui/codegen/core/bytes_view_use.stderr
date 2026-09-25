@@ -1,0 +1,65 @@
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_use.sol:LL:CC
+   │
+LL │         v[0] = 0x01;
+   │         ━
+   │
+   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, and the `Bytes` and `Hash` reads of a range
+   ╰ help: remove the tag to work with a copy of the bytes
+
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_use.sol:LL:CC
+   │
+LL │         v.writeBytes1(0, 0x01);
+   │         ━
+   │
+   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, and the `Bytes` and `Hash` reads of a range
+   ╰ help: remove the tag to work with a copy of the bytes
+
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_use.sol:LL:CC
+   │
+LL │         w = v;
+   │             ━
+   │
+   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, and the `Bytes` and `Hash` reads of a range
+   ╰ help: remove the tag to work with a copy of the bytes
+
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_use.sol:LL:CC
+   │
+LL │         v = b;
+   │         ━
+   │
+   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, and the `Bytes` and `Hash` reads of a range
+   ╰ help: remove the tag to work with a copy of the bytes
+
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_use.sol:LL:CC
+   │
+LL │         return length(v);
+   │                       ━
+   │
+   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, and the `Bytes` and `Hash` reads of a range
+   ╰ help: remove the tag to work with a copy of the bytes
+
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_use.sol:LL:CC
+   │
+LL │         return abi.encode(v);
+   │                           ━
+   │
+   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, and the `Bytes` and `Hash` reads of a range
+   ╰ help: remove the tag to work with a copy of the bytes
+
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_use.sol:LL:CC
+   │
+LL │         return v;
+   │                ━
+   │
+   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, and the `Bytes` and `Hash` reads of a range
+   ╰ help: remove the tag to work with a copy of the bytes
+
+error: aborting due to 7 previous errors
+

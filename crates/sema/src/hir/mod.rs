@@ -99,6 +99,9 @@ pub struct Hir<'hir> {
     pub(crate) errors: IndexVec<ErrorId, Error<'hir>>,
     /// All events.
     pub(crate) events: IndexVec<EventId, Event<'hir>>,
+    /// Local variables declared under `@custom:solar-view`, in source order, with the tag's
+    /// span. Views are rare, so lookups scan.
+    pub(crate) solar_views: Vec<(VariableId, Span)>,
 }
 
 macro_rules! indexvec_methods {
@@ -189,6 +192,7 @@ impl<'hir> Hir<'hir> {
             udvts: IndexVec::new(),
             errors: IndexVec::new(),
             events: IndexVec::new(),
+            solar_views: Vec::new(),
         }
     }
 
@@ -328,6 +332,17 @@ impl<'hir> Hir<'hir> {
         next_id: &'id IdCounter,
     ) -> HirBuilder<'hir, 'id> {
         HirBuilder::new(arena, next_id)
+    }
+
+    /// Returns the span of the `@custom:solar-view` tag on a local variable's declaration.
+    pub fn solar_view(&self, id: VariableId) -> Option<Span> {
+        self.solar_views.iter().find(|&&(view, _)| view == id).map(|&(_, span)| span)
+    }
+
+    /// Returns every local variable declared under `@custom:solar-view`, in source order, with
+    /// the tag's span.
+    pub fn solar_views(&self) -> impl Iterator<Item = (VariableId, Span)> + '_ {
+        self.solar_views.iter().copied()
     }
 }
 
@@ -2193,7 +2208,7 @@ mod tests {
             assert_data_eq!(actual.to_string(), expected);
         }
 
-        assert_size::<Hir<'_>>(str!["240"]);
+        assert_size::<Hir<'_>>(str!["264"]);
 
         assert_size::<Item<'_, '_>>(str!["16"]);
         assert_size::<Contract<'_>>(str!["152"]);
