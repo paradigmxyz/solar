@@ -7,6 +7,7 @@
 types:
   struct0: {i256, memorybytes}
   struct1: {i256, i256}
+  struct2: {memorybytes, i256}
 
 fn @digests(arg0: i256, arg1: i256) -> i256 [selector=0xcf8609a5, pure, abi_params=[u256, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
@@ -189,6 +190,64 @@ fn @helpers(arg0: i256) -> i256 [selector=0x8e7d36dc, pure, abi_params=[u256], a
     v4 = ptrtoint memorybytes 96 to i256
     memory_object_store_element memoryarray<1>, v1, v2, v4
     v5 = add v2, 1
+    jump bb1
+}
+
+fn @setFirst(arg0: memoryarray, arg1: memorybytes) [pure] {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    v1 = lt 0, v0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = ptrtoint memorybytes arg1 to i256
+    memory_object_store_element memoryarray<1>, arg0, 0, v3
+    ret
+}
+
+fn @relink(arg0: memorybytes) -> struct2 [selector=0x300c4e17, pure, abi_params=[bytes], abi_returns=[memory_bytes, word], abi_return_params=[bytes, u256]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v0, 1
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v4]
+    v2 = lt v1, 1
+    jumpi v2, bb2, bb3
+  bb3:
+    v5 = fmp
+    v6 = memory_object_len memorybytes, arg0
+    v7 = memory_object_len memorybytes, arg0
+    v8 = abi_encode [word, word], object, args v6, v7
+    icall @setFirst, v0, arg0
+    v9 = memory_object_len memorybytes, v8
+    set_fmp v5
+    v10 = abi_encode [word, word, word], object, args 0, 0, 0
+    v11 = memory_object_len memoryarray, v0
+    v12 = lt 0, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = memory_object_load_element memoryarray<1>, v0, 0
+    v15 = inttoptr i256 v14 to memorybytes
+    v16 = eq v14, 0
+    jumpi v16, bb4, bb5
+  bb4:
+    v17 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v17, 0
+    v18 = ptrtoint memorybytes v17 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v18
+    jump bb5
+  bb5:
+    v19 = phi [bb3: v15], [bb4: v17]
+    v20 = memory_object_len memorybytes, v10
+    v21 = checked_sub u256, v20, 96
+    v22 = checked_add u256, v9, v21
+    v23 = insert_value struct2, undef struct2, 0, v19
+    v24 = insert_value struct2, v23, 1, v22
+    ret v24
+  bb2:
+    v3 = ptrtoint memorybytes 96 to i256
+    memory_object_store_element memoryarray<1>, v0, v1, v3
+    v4 = add v1, 1
     jump bb1
 }
 

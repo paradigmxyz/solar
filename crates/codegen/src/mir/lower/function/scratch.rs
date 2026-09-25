@@ -20,15 +20,19 @@
 //! encodings and storage reads that allocate, of its calls that return memory, the pointers
 //! loaded from that memory, and every value derived from those by pure operations. The check
 //! rejects a use of one after the block, a `return` of one, a store of one into memory the block
-//! did not allocate or into storage, and a call in the block whose callee may store a reference
-//! into a parameter's object the block did not allocate, or anywhere else that outlives the call.
-//! Callees are summarized over the call graph to a fixed point, and a callee with inline
-//! assembly may store anything. Type checking already rejected inline assembly in the block.
-//! Scalars, such as hashes, lengths, and loaded words, leave the block freely.
+//! did not allocate or into storage, and a call in the block whose callee may store a reference to
+//! the block's memory where code after the block can reach it. A callee's summary says, for the
+//! object of each parameter and for any other memory that exists when it is entered, which
+//! pointers it may store there: ones derived from which of its parameters, or any other, such as
+//! memory it allocates, which in the block is the block's memory, or a pointer it loads. A call
+//! escapes when it may store a pointer to the block's memory into an object the block did not
+//! allocate, or into older memory. Callees are summarized over the call graph to a fixed point,
+//! and a callee with inline assembly may store anything anywhere. Type checking already rejected
+//! inline assembly in the block. Scalars, such as hashes, lengths, and loaded words, leave the
+//! block freely.
 //!
-//! NOTE: a callee that stores a pointer into a parameter's object is rejected even when the
-//! pointer it stores refers to memory older than the block. Reading `msize` after the block sees
-//! the memory the block used, as it would without reuse.
+//! NOTE: reading `msize` after the block sees the memory the block used, as it would without
+//! reuse.
 
 use super::{memory_facts::Analyzed, *};
 use crate::mir::{
@@ -226,18 +230,26 @@ fn check_region(
         }
     }
 
-    // A call in the block may store a reference to memory it or the block allocated.
+    // A call in the block may store a reference to memory it or the block allocated where code
+    // after the block can reach it.
     for inst in func.instructions().filter(|&inst| inside(inst)) {
         let InstKind::ICall { function: Callee::Function(callee), args } = &func.inst(inst).kind
         else {
             continue;
         };
         let Some(writes) = summaries.get(callee) else { continue };
-        let reaches_outside = writes.other
-            || writes
-                .params
-                .iter()
-                .any(|param| args.get(param.index()).is_none_or(|arg| !references.contains(arg)));
+        let block_memory = |stored: &Stored| {
+            stored.any
+                || stored
+                    .params
+                    .iter()
+                    .any(|param| args.get(param.index()).is_none_or(|arg| references.contains(arg)))
+        };
+        let reaches_outside = block_memory(&writes.other)
+            || writes.params.iter().any(|(param, stored)| {
+                args.get(param.index()).is_none_or(|arg| !references.contains(arg))
+                    && block_memory(stored)
+            });
         if reaches_outside {
             escapes.push((func.inst(inst).metadata.source_span(), Escape::Call(*callee)));
         }
@@ -344,12 +356,44 @@ fn store_operands(kind: &InstKind) -> Option<(Option<ValueId>, ValueId)> {
     }
 }
 
-/// The parameters into whose objects a function may store a memory pointer, and whether it may
-/// store one anywhere else that exists when it is entered.
+/// The memory pointers a function may store somewhere: ones derived from which of its parameters,
+/// and whether any other, such as memory it allocates or a pointer it loads.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct Stored {
+    params: SmallVec<[ArgIdx; 2]>,
+    any: bool,
+}
+
+impl Stored {
+    fn add(&mut self, other: &Self) {
+        self.any |= other.any;
+        for &param in &other.params {
+            if !self.params.contains(&param) {
+                self.params.push(param);
+                self.params.sort_unstable();
+            }
+        }
+    }
+}
+
+/// The pointers a function may store into the objects of its parameters, and into any other
+/// memory that exists when it is entered.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct PointerWrites {
-    params: SmallVec<[ArgIdx; 2]>,
-    other: bool,
+    params: SmallVec<[(ArgIdx, Stored); 2]>,
+    other: Stored,
+}
+
+impl PointerWrites {
+    fn store_into_param(&mut self, param: ArgIdx, stored: &Stored) {
+        match self.params.iter_mut().find(|(index, _)| *index == param) {
+            Some((_, existing)) => existing.add(stored),
+            None => {
+                self.params.push((param, stored.clone()));
+                self.params.sort_unstable_by_key(|&(index, _)| index);
+            }
+        }
+    }
 }
 
 impl PointerWrites {
@@ -401,12 +445,13 @@ impl PointerWrites {
     /// Summarizes a function given the summaries of its callees.
     fn of(function: &Analyzed, summaries: &FxHashMap<FunctionId, Self>) -> Self {
         let func = &function.func;
-        let mut writes = Self { other: func.attributes.inline_assembly, ..Self::default() };
-        // Where a store through `address` lands: this call's own memory, a parameter's object, or
-        // memory older than the call.
-        let record = |writes: &mut Self, address: ValueId| {
+        let mut writes = Self::default();
+        writes.other.any = func.attributes.inline_assembly;
+        // Where a store of `stored` through `address` lands: this call's own memory, a
+        // parameter's object, or memory older than the call.
+        let record = |writes: &mut Self, address: ValueId, stored: &Stored| {
             let Some(address) = function.aa.memory_address(func, address) else {
-                writes.other = true;
+                writes.other.add(stored);
                 return;
             };
             match address.base {
@@ -414,17 +459,14 @@ impl PointerWrites {
                 | MemoryBase::Allocation(_)
                 | MemoryBase::DynamicAllocation(_) => {}
                 MemoryBase::Absolute => {
-                    writes.other |= address.offset >= EvmMemoryLayout::HEAP_START;
+                    if address.offset >= EvmMemoryLayout::HEAP_START {
+                        writes.other.add(stored);
+                    }
                 }
                 MemoryBase::Value(value) => match *func.value(value) {
-                    Value::Arg(index) => {
-                        if !writes.params.contains(&index) {
-                            writes.params.push(index);
-                            writes.params.sort_unstable();
-                        }
-                    }
+                    Value::Arg(index) => writes.store_into_param(index, stored),
                     _ if function.fresh_start(value).is_some() => {}
-                    _ => writes.other = true,
+                    _ => writes.other.add(stored),
                 },
             }
         };
@@ -453,24 +495,68 @@ impl PointerWrites {
                 break;
             }
         }
+        // The pointers a value in `pointers` may be: parameters, or anything else.
+        let sources = |value: ValueId| {
+            let mut stored = Stored::default();
+            let mut seen = FxHashSet::default();
+            let mut stack = vec![value];
+            while let Some(value) = stack.pop() {
+                if !seen.insert(value) {
+                    continue;
+                }
+                match *func.value(value) {
+                    Value::Arg(index) => {
+                        stored.add(&Stored { params: SmallVec::from_slice(&[index]), any: false })
+                    }
+                    Value::Inst(inst) => {
+                        let kind = &func.inst(inst).kind;
+                        if kind.effect_kind() == EffectKind::Pure {
+                            stack.extend(
+                                kind.operands()
+                                    .into_iter()
+                                    .filter(|operand| pointers.contains(operand)),
+                            );
+                        } else {
+                            // An allocation, a loaded pointer, or a call's result.
+                            stored.any = true;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            stored
+        };
+        // What a callee's `stored` is in this function, given the call's `args`.
+        let translate = |stored: &Stored, args: &[ValueId]| {
+            let mut translated = Stored { params: SmallVec::new(), any: stored.any };
+            for param in &stored.params {
+                match args.get(param.index()) {
+                    Some(&arg) => translated.add(&sources(arg)),
+                    None => translated.any = true,
+                }
+            }
+            translated
+        };
         for inst in func.instructions() {
             let kind = &func.inst(inst).kind;
             if let Some((destination, value)) = store_operands(kind)
                 && pointers.contains(&value)
             {
+                let stored = sources(value);
                 match destination {
-                    Some(destination) => record(&mut writes, destination),
-                    None => writes.other = true,
+                    Some(destination) => record(&mut writes, destination, &stored),
+                    None => writes.other.add(&stored),
                 }
             }
             if let InstKind::ICall { function: Callee::Function(callee), args } = kind
                 && let Some(callee) = summaries.get(callee)
             {
-                writes.other |= callee.other;
-                for param in &callee.params {
+                writes.other.add(&translate(&callee.other, args));
+                for (param, stored) in &callee.params {
+                    let stored = translate(stored, args);
                     match args.get(param.index()) {
-                        Some(&arg) => record(&mut writes, arg),
-                        None => writes.other = true,
+                        Some(&arg) => record(&mut writes, arg, &stored),
+                        None => writes.other.add(&stored),
                     }
                 }
             }
