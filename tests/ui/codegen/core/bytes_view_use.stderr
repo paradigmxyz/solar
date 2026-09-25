@@ -4,7 +4,7 @@ error: the view `v` can only be read in place
 LL │         v[0] = 0x01;
    │         ━
    │
-   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, and the `Bytes` and `Hash` reads of a range
+   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, `abi.decode`, and the `Bytes` and `Hash` reads of a range
    ╰ help: remove the tag to work with a copy of the bytes
 
 error: the view `v` can only be read in place
@@ -13,7 +13,7 @@ error: the view `v` can only be read in place
 LL │         v.writeBytes1(0, 0x01);
    │         ━
    │
-   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, and the `Bytes` and `Hash` reads of a range
+   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, `abi.decode`, and the `Bytes` and `Hash` reads of a range
    ╰ help: remove the tag to work with a copy of the bytes
 
 error: the view `v` can only be read in place
@@ -22,7 +22,7 @@ error: the view `v` can only be read in place
 LL │         w = v;
    │             ━
    │
-   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, and the `Bytes` and `Hash` reads of a range
+   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, `abi.decode`, and the `Bytes` and `Hash` reads of a range
    ╰ help: remove the tag to work with a copy of the bytes
 
 error: the view `v` can only be read in place
@@ -31,7 +31,7 @@ error: the view `v` can only be read in place
 LL │         v = b;
    │         ━
    │
-   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, and the `Bytes` and `Hash` reads of a range
+   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, `abi.decode`, and the `Bytes` and `Hash` reads of a range
    ╰ help: remove the tag to work with a copy of the bytes
 
 error: the view `v` can only be read in place
@@ -40,7 +40,7 @@ error: the view `v` can only be read in place
 LL │         return length(v);
    │                       ━
    │
-   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, and the `Bytes` and `Hash` reads of a range
+   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, `abi.decode`, and the `Bytes` and `Hash` reads of a range
    ╰ help: remove the tag to work with a copy of the bytes
 
 error: the view `v` can only be read in place
@@ -49,7 +49,7 @@ error: the view `v` can only be read in place
 LL │         return abi.encode(v);
    │                           ━
    │
-   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, and the `Bytes` and `Hash` reads of a range
+   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, `abi.decode`, and the `Bytes` and `Hash` reads of a range
    ╰ help: remove the tag to work with a copy of the bytes
 
 error: the view `v` can only be read in place
@@ -58,7 +58,7 @@ error: the view `v` can only be read in place
 LL │         return v;
    │                ━
    │
-   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, and the `Bytes` and `Hash` reads of a range
+   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, `abi.decode`, and the `Bytes` and `Hash` reads of a range
    ╰ help: remove the tag to work with a copy of the bytes
 
 error: aborting due to 7 previous errors

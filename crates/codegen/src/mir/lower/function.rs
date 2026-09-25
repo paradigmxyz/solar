@@ -252,8 +252,10 @@ struct FunctionLowerer<'gcx, 'ctx> {
     is_getter: bool,
     unchecked: bool,
     in_inline_assembly: bool,
-    /// `@custom:solar-view` variables and the memory slices they read.
+    /// `@custom:solar-view` variables and the slices they read.
     views: FxHashMap<VariableId, ValueId>,
+    /// The memory object each view slice reads, or `None` for calldata.
+    view_roots: FxHashMap<ValueId, Option<ValueId>>,
     /// The `Bytes.slice` call initializing the `@custom:solar-view` variable being declared.
     forming_view: Option<(hir::ExprId, VariableId)>,
     /// The modifiers whose code after `_` runs once the code being lowered finishes, innermost
@@ -474,6 +476,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             unchecked: false,
             in_inline_assembly: false,
             views: FxHashMap::default(),
+            view_roots: FxHashMap::default(),
             forming_view: None,
             pending_postludes: Vec::new(),
         }
