@@ -45,6 +45,9 @@ mod raw_scalars;
 mod statements;
 mod storage_values;
 mod values;
+mod views;
+
+pub(super) use views::{ViewBorrow, check_view_borrows};
 
 /// Shared inputs for one contract's function lowering.
 pub(super) struct LoweringContext<'gcx, 'ctx> {
@@ -105,6 +108,9 @@ pub(super) struct LoweringState {
     pub(super) helpers: FxHashMap<Symbol, FunctionId>,
     raw_scalars: FxHashSet<VariableId>,
     raw_pointer_types: FxHashSet<MirType>,
+    /// The `@custom:solar-view` borrows of the function being lowered, which the contract
+    /// driver claims for its MIR function.
+    pub(super) view_borrows: Vec<ViewBorrow>,
 }
 
 /// Lowers one HIR function into a typed MIR function.
@@ -235,6 +241,10 @@ struct FunctionLowerer<'gcx, 'ctx> {
     is_getter: bool,
     unchecked: bool,
     in_inline_assembly: bool,
+    /// `@custom:solar-view` variables and the memory slices they read.
+    views: FxHashMap<VariableId, ValueId>,
+    /// The `Bytes.slice` call initializing the `@custom:solar-view` variable being declared.
+    forming_view: Option<(hir::ExprId, VariableId)>,
 }
 
 /// The lowered `{gas: ..., value: ...}` options of an external call.
@@ -293,7 +303,7 @@ struct TernaryBranch<T> {
     terminated: bool,
 }
 
-type BindingSnapshot = Vec<(VariableId, Option<ValueId>, Option<StorageAccess>)>;
+type BindingSnapshot = Vec<(VariableId, Option<ValueId>, Option<StorageAccess>, Option<ValueId>)>;
 
 struct ModifierContext<'gcx> {
     modifiers: &'gcx [hir::Modifier<'gcx>],
@@ -447,6 +457,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             is_getter: false,
             unchecked: false,
             in_inline_assembly: false,
+            views: FxHashMap::default(),
+            forming_view: None,
         }
     }
 

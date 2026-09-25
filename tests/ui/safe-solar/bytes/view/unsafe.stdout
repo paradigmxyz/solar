@@ -1,0 +1,75 @@
+// === ROOT/tests/ui/safe-solar/bytes/view/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase lowered
+types:
+  struct0: {i256, i256}
+
+fn @header() [selector=0x801fdbfc, abi_wrapper, inline_assembly, pure] {
+  bb0:
+    v13 = calldatasize
+    v14 = lt v13, 36
+    jumpi v14, bb1, bb2
+  bb2:
+    v15 = calldataload 4
+    v16 = add v15, 4
+    v17 = add v16, 32
+    v18 = shr 64, v15
+    v19 = gt v17, v13
+    v20 = zext i1 v19 to i256
+    v21 = or v18, v20
+    v22 = ne v21, 0
+    jumpi v22, bb1, bb3
+  bb3:
+    v23 = calldataload v16
+    v25 = add v23, 63
+    v26 = lt v25, v23
+    jumpi v26, bb4, bb5
+  bb5:
+    v28 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v40 = mload 64 !metadata(memory=scratch)
+    v41 = add v40, v28
+    v42 = lt v41, v40
+    v43 = zext i1 v42 to i256
+    v44 = shr 64, v41
+    v45 = or v43, v44
+    v46 = ne v45, 0
+    jumpi v46, bb4, bb7
+  bb7:
+    mstore 64, v41 !metadata(memory=scratch)
+    mstore v40, v23
+    v30 = sub v13, v17
+    v31 = gt v23, v30
+    jumpi v31, bb1, bb6
+  bb6:
+    v36 = add v40, 32
+    calldatacopy v36, v17, v23
+    v7 = sub v23, 4
+    v9 = add v40, 36
+    v10 = keccak256 v9, v7
+    v3 = mload v36
+    v4 = and v3, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 0, v4 !metadata(memory=scratch)
+    mstore 32, v10 !metadata(memory=scratch)
+    returndata 0, 64
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0x801fdbfc => bb2]
+  bb2:
+    tail_call @header
+  bb3:
+    revert 0, 0
+}

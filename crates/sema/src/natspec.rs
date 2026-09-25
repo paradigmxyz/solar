@@ -4,7 +4,7 @@ use crate::{
 };
 use solar_ast as ast;
 use solar_data_structures::{BumpExt, map::FxHashSet, smallvec::SmallVec};
-use solar_interface::{Ident, Span, Symbol, error_code, kw};
+use solar_interface::{Ident, Span, Symbol, diagnostics::DiagCtxt, error_code, kw, sym};
 use std::ops::Range;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -327,6 +327,12 @@ impl<'gcx> Resolver<'gcx> {
                     | NatSpecKind::Dev
                     | NatSpecKind::Custom { .. }
                     | NatSpecKind::Internal { .. } => {
+                        // Every Solar tag documents a statement, never a declaration.
+                        if let NatSpecKind::Custom { name } = natspec.kind
+                            && let Some(tag) = SolarTag::from_custom(name.name)
+                        {
+                            report_misplaced_solar_tag(self.gcx.dcx(), tag, name.name, tag_span);
+                        }
                         local_tags.push(*natspec);
                     }
                     NatSpecKind::Title => {
@@ -815,4 +821,44 @@ impl<'gcx> Resolver<'gcx> {
         let ty = ty.as_externally_callable_function(false, self.gcx);
         if let TyKind::Fn(fn_ty) = ty.kind { Some(fn_ty.parameters) } else { None }
     }
+}
+
+/// A `@custom:solar-*` tag: a requirement this compiler checks and relies on, which other
+/// compilers read as documentation.
+///
+/// The whole `solar-` namespace is reserved, so a misspelled tag is an error rather than a
+/// requirement that silently goes unchecked.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SolarTag {
+    /// `@custom:solar-view`: the declared `bytes memory` variable reads its source in place.
+    View,
+    /// A `solar-` tag this compiler does not define.
+    Unknown,
+}
+
+impl SolarTag {
+    /// Classifies a custom tag by its name, or returns `None` outside the `solar-` namespace.
+    pub(crate) fn from_custom(name: Symbol) -> Option<Self> {
+        if name == sym::solar_dash_view {
+            return Some(Self::View);
+        }
+        name.as_str().starts_with("solar-").then_some(Self::Unknown)
+    }
+}
+
+/// Reports a Solar tag that documents something it does not apply to, or that is unknown.
+pub(crate) fn report_misplaced_solar_tag(dcx: &DiagCtxt, tag: SolarTag, name: Symbol, span: Span) {
+    match tag {
+        SolarTag::View => dcx
+            .err("`@custom:solar-view` must document a variable declaration statement")
+            .span(span)
+            .help("put it on the statement `bytes memory v = Bytes.slice(source, offset, count);`")
+            .emit(),
+        SolarTag::Unknown => dcx
+            .err(format!("unknown Solar tag `@custom:{name}`"))
+            .span(span)
+            .note("`@custom:solar-` tags are requirements this compiler checks")
+            .help("the supported tag is `@custom:solar-view`")
+            .emit(),
+    };
 }

@@ -1,0 +1,91 @@
+// === <solar:core/v1/Bytes.sol>:Bytes ===
+@module Bytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/safe-solar/bytes/view/safe.sol:Safe ===
+@module Safe
+@phase lowered
+types:
+  struct0: {i256, i256}
+
+fn @header() [selector=0x801fdbfc, abi_wrapper, pure] {
+  bb0:
+    v40 = calldatasize
+    v41 = lt v40, 36
+    jumpi v41, bb3, bb4
+  bb4:
+    v42 = calldataload 4
+    v43 = add v42, 4
+    v44 = add v43, 32
+    v45 = shr 64, v42
+    v46 = gt v44, v40
+    v47 = zext i1 v46 to i256
+    v48 = or v45, v47
+    v49 = ne v48, 0
+    jumpi v49, bb3, bb5
+  bb5:
+    v50 = calldataload v43
+    v52 = add v50, 63
+    v53 = lt v52, v50
+    jumpi v53, bb6, bb7
+  bb7:
+    v55 = and v52, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v69 = mload 64 !metadata(memory=scratch)
+    v70 = add v69, v55
+    v71 = lt v70, v69
+    v72 = zext i1 v71 to i256
+    v73 = shr 64, v70
+    v74 = or v72, v73
+    v75 = ne v74, 0
+    jumpi v75, bb6, bb9
+  bb9:
+    mstore 64, v70 !metadata(memory=scratch)
+    mstore v69, v50
+    v57 = sub v40, v44
+    v58 = gt v50, v57
+    jumpi v58, bb3, bb8
+  bb8:
+    v63 = add v69, 32
+    calldatacopy v63, v44, v50
+    v3 = lt v50, 4
+    jumpi v3, bb1, bb2
+  bb2:
+    v38 = sub v50, 4
+    v31 = add v69, 36
+    v35 = keccak256 v31, v38
+    v19 = mload v63
+    v20 = and v19, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 0, v20 !metadata(memory=scratch)
+    mstore 32, v35 !metadata(memory=scratch)
+    returndata 0, 64
+  bb1:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
+  bb6:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0x801fdbfc => bb2]
+  bb2:
+    tail_call @header
+  bb3:
+    revert 0, 0
+}
