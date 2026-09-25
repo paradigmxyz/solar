@@ -323,6 +323,7 @@ pub(super) fn lower(
         .collect();
     function::check_postlude_calls(gcx, &module, &tagged, &returning, &postlude_calls);
     function::check_scratch_regions(gcx, &module, &scratch_regions);
+    function::check_builder_finishes(gcx, &module, &function::finish_functions(gcx, &mir_ids));
 
     if contract.kind == hir::ContractKind::Interface {
         module.is_interface = true;

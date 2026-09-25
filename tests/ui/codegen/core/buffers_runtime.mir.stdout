@@ -14,8 +14,7 @@
 @module Test
 types:
   struct0: {memorybytes, i256}
-  struct1: {memorybytes, memorybytes, i256}
-  struct2: {memorybytes, memorybytes}
+  struct1: {memorybytes, memorybytes}
 
 fn @concat(arg0: memorybytes, arg1: memorybytes, arg2: i256) -> memorybytes [selector=0x2f018e19, pure, abi_params=[bytes, bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
@@ -58,21 +57,7 @@ fn @counted(arg0: i256) -> struct0 [selector=0xe4b83521, pure, abi_params=[u256]
     jump bb1
 }
 
-fn @spent(arg0: memorybytes, arg1: memorybytes) -> struct1 [selector=0x68f75a92, pure, abi_params=[bytes, bytes], abi_returns=[memory_bytes, memory_bytes, word], abi_return_params=[bytes, bytes, u256]] {
-  bb0:
-    v0 = icall @create, 16
-    icall @append, v0, arg0
-    v1 = icall @finish, v0
-    icall @append, v0, arg1
-    v2 = icall @finish, v0
-    v3 = icall @length, v0
-    v4 = insert_value struct1, undef struct1, 0, v1
-    v5 = insert_value struct1, v4, 1, v2
-    v6 = insert_value struct1, v5, 2, v3
-    ret v6
-}
-
-fn @neighbour(arg0: memorybytes, arg1: memorybytes) -> struct2 [selector=0x5409b789, pure, abi_params=[bytes, bytes], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
+fn @neighbour(arg0: memorybytes, arg1: memorybytes) -> struct1 [selector=0x5409b789, pure, abi_params=[bytes, bytes], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
     v0 = icall @create, 4
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
@@ -83,8 +68,8 @@ fn @neighbour(arg0: memorybytes, arg1: memorybytes) -> struct2 [selector=0x5409b
     icall @append, v0, arg0
     icall @append, v0, arg1
     v4 = icall @finish, v0
-    v5 = insert_value struct2, undef struct2, 0, v4
-    v6 = insert_value struct2, v5, 1, v1
+    v5 = insert_value struct1, undef struct1, 0, v4
+    v6 = insert_value struct1, v5, 1, v1
     ret v6
 }
 
@@ -96,7 +81,7 @@ fn @truncate(arg0: memorybytes, arg1: i256) [inline_assembly, pure] {
   bb2:
     jump bb3
   bb1:
-    v2 = icall @_outOfBounds.5
+    v2 = icall @_outOfBounds.4
     jump bb3
   bb3:
     v3 = phi [bb1: v2], [bb2: arg1]
@@ -105,7 +90,7 @@ fn @truncate(arg0: memorybytes, arg1: i256) [inline_assembly, pure] {
     ret
 }
 
-fn @_outOfBounds.5() -> i256 [pure] {
+fn @_outOfBounds.4() -> i256 [pure] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 32
     set_memory_object_len memoryarray, v0, 0
@@ -189,7 +174,7 @@ fn @copyInto(arg0: memorybytes, arg1: i256, arg2: memorybytes, arg3: i256, arg4:
   bb11:
     jump bb12
   bb10:
-    v13 = icall @_outOfBounds.8
+    v13 = icall @_outOfBounds.7
     jump bb12
   bb12:
     v14 = phi [bb10: v13], [bb11: arg4]
@@ -278,7 +263,7 @@ fn @copyInto(arg0: memorybytes, arg1: i256, arg2: memorybytes, arg3: i256, arg4:
     jump bb16
 }
 
-fn @_outOfBounds.8() -> i256 [pure] {
+fn @_outOfBounds.7() -> i256 [pure] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 32
     set_memory_object_len memoryarray, v0, 0

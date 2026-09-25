@@ -1135,6 +1135,7 @@ symbols! {
         external_call,
         extract_value,
         fill,
+        finish,
         fmp,
         fn_: "fn",
         frame_load,

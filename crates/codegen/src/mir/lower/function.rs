@@ -27,6 +27,7 @@ use std::{fmt::Display, sync::Arc};
 
 mod abi_calls;
 mod abi_values;
+mod builders;
 mod builtins;
 mod calls;
 mod control_flow;
@@ -46,6 +47,7 @@ mod terminates;
 mod values;
 mod views;
 
+pub(super) use builders::{check_builder_finishes, finish_functions};
 pub(super) use scratch::{ScratchRegion, check_scratch_regions};
 pub(super) use terminates::{PostludeCall, check_postlude_calls};
 pub(super) use views::{ViewBorrow, check_view_borrows};

@@ -1,0 +1,93 @@
+error: this uses a builder after `finish` emptied it
+   ╭▸ ROOT/tests/ui/codegen/core/buffers_finish.sol:LL:CC
+   │
+LL │         b.append("cd");
+   │         ━━━━━━━━━━━━━━
+   ╰╴
+note: the builder is emptied here
+   ╭▸ ROOT/tests/ui/codegen/core/buffers_finish.sol:LL:CC
+   │
+LL │         out = b.finish();
+   │               ━━━━━━━━━━
+   ╰ help: finish a builder once, after its last append, and start another with `Buffers.create`
+
+error: this uses a builder after `finish` emptied it
+   ╭▸ ROOT/tests/ui/codegen/core/buffers_finish.sol:LL:CC
+   │
+LL │         return (first, b.finish());
+   │                        ━━━━━━━━━━
+   ╰╴
+note: the builder is emptied here
+   ╭▸ ROOT/tests/ui/codegen/core/buffers_finish.sol:LL:CC
+   │
+LL │         bytes memory first = b.finish();
+   │                              ━━━━━━━━━━
+   ╰ help: finish a builder once, after its last append, and start another with `Buffers.create`
+
+error: this uses a builder after `finish` emptied it
+   ╭▸ ROOT/tests/ui/codegen/core/buffers_finish.sol:LL:CC
+   │
+LL │         return c.length();
+   │                ━━━━━━━━━━
+   ╰╴
+note: the builder is emptied here
+   ╭▸ ROOT/tests/ui/codegen/core/buffers_finish.sol:LL:CC
+   │
+LL │         b.finish();
+   │         ━━━━━━━━━━
+   ╰ help: finish a builder once, after its last append, and start another with `Buffers.create`
+
+error: this uses a builder after `finish` emptied it
+   ╭▸ ROOT/tests/ui/codegen/core/buffers_finish.sol:LL:CC
+   │
+LL │             b.appendByte(0x01);
+   │             ━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the builder is emptied here
+   ╭▸ ROOT/tests/ui/codegen/core/buffers_finish.sol:LL:CC
+   │
+LL │             if (i == 2) out = b.finish();
+   │                               ━━━━━━━━━━
+   ╰ help: finish a builder once, after its last append, and start another with `Buffers.create`
+
+error: this uses a builder after `finish` emptied it
+   ╭▸ ROOT/tests/ui/codegen/core/buffers_finish.sol:LL:CC
+   │
+LL │             if (i == 2) out = b.finish();
+   │                               ━━━━━━━━━━
+   ╰╴
+note: an earlier iteration empties the builder here
+   ╭▸ ROOT/tests/ui/codegen/core/buffers_finish.sol:LL:CC
+   │
+LL │             if (i == 2) out = b.finish();
+   │                               ━━━━━━━━━━
+   ╰ help: finish a builder once, after its last append, and start another with `Buffers.create`
+
+error: this uses a builder after `finish` emptied it
+   ╭▸ ROOT/tests/ui/codegen/core/buffers_finish.sol:LL:CC
+   │
+LL │         n = b.length();
+   │             ━━━━━━━━━━
+   ╰╴
+note: the builder is emptied here
+   ╭▸ ROOT/tests/ui/codegen/core/buffers_finish.sol:LL:CC
+   │
+LL │         out = done(b);
+   │               ━━━━━━━
+   ╰ help: finish a builder once, after its last append, and start another with `Buffers.create`
+
+error: this uses a builder after `finish` emptied it
+   ╭▸ ROOT/tests/ui/codegen/core/buffers_finish.sol:LL:CC
+   │
+LL │         w.append(2);
+   │         ━━━━━━━━━━━
+   ╰╴
+note: the builder is emptied here
+   ╭▸ ROOT/tests/ui/codegen/core/buffers_finish.sol:LL:CC
+   │
+LL │         out = w.finish();
+   │               ━━━━━━━━━━
+   ╰ help: finish a builder once, after its last append, and start another with `Buffers.create`
+
+error: aborting due to 7 previous errors
+
