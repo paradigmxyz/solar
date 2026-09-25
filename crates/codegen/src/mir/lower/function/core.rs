@@ -29,12 +29,9 @@
 //! Other builds share one body per operation between all of them: it compares
 //! words after flipping both by an argument, `2**255` for signed elements and
 //! zero otherwise, and address callers give up the proved width of its
-//! results. Their sorts, plain and `groupSum`'s alike, are one paired
-//! heapsort that also takes the byte distance from each key to its value; a
-//! plain sort passes zero, so each value move stores the same words as its key
-//! move. Heapsort's one sift-down loop is far shorter than gas builds'
-//! quicksort with its insertion-sort leaves and range stack, and it keeps an
-//! `O(n log n)` bound on every input.
+//! results. Their sorts, plain and `groupSum`'s alike, are one paired sort
+//! that also takes the byte distance from each key to its value; a plain sort
+//! passes zero, so each value move stores the same words as its key move.
 //! Small comparisons such as `equalsAt` share one body there as well.
 //!
 //! A storage reference argument is passed as its slot, as to any internal
@@ -1032,12 +1029,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         })
     }
 
-    /// The one sort of builds that do not optimize for gas, a heapsort
-    /// `sort(low, high, pair, flip)`. `pair` is the byte distance from each
-    /// key to its value, zero for a plain sort, whose value moves then repeat
-    /// its key moves; `flip` flips both sides of each comparison, `2**255`
-    /// for signed keys.
+    /// The one sort of builds that do not optimize for gas, `sort(low, high,
+    /// pair, flip)`. `pair` is the byte distance from each key to its value,
+    /// zero for a plain sort, whose value moves then repeat its key moves;
+    /// `flip` flips both sides of each comparison, `2**255` for signed keys.
     fn core_shared_sort(&mut self) -> Option<FunctionId> {
+        let inner = self.lazy_helper(sym::core_array_group_sort_inner, |this, function| {
+            function.attributes.no_inline = true;
+            function.attributes.preserves_array_elements = true;
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            let low = lowerer.builder.add_param(MirType::I256);
+            let high = lowerer.builder.add_param(MirType::I256);
+            let pair = lowerer.builder.add_param(MirType::I256);
+            let flip = lowerer.builder.add_param(MirType::I256);
+            lowerer.lower_core_array_sort(WordOrder::Flipped(flip), low, high, Some(pair));
+            Some(())
+        })?;
         self.lazy_helper(sym::core_array_group_sort, |this, function| {
             function.attributes.no_inline = true;
             function.attributes.preserves_array_elements = true;
@@ -1046,116 +1053,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let high = lowerer.builder.add_param(MirType::I256);
             let pair = lowerer.builder.add_param(MirType::I256);
             let flip = lowerer.builder.add_param(MirType::I256);
-            lowerer.lower_core_array_heap_sort(WordOrder::Flipped(flip), low, high, pair);
+            let order = WordOrder::Flipped(flip);
+            lowerer.lower_core_array_sort_entry(inner, order, low, high, Some(pair));
+            lowerer.builder.ret([]);
             Some(())
         })
-    }
-
-    /// Emits heapsort over `[low, high)`, each value `pair` bytes past its key
-    /// moving with it. One loop first sifts every parent down, which leaves
-    /// the greatest key at `low`, then swaps that root behind the shrinking
-    /// heap and sifts the new root down, so one sift-down serves both phases.
-    /// The sort never recurses, needs no memory outside the range, and stays
-    /// `O(n log n)` on every input.
-    fn lower_core_array_heap_sort(
-        &mut self,
-        order: WordOrder,
-        low: ValueId,
-        high: ValueId,
-        pair: ValueId,
-    ) {
-        // size = high - low; cursor = size + (size >> 6 << 5)
-        let size = self.builder.sub(high, low);
-        let six = self.builder.imm(6);
-        let parents = self.builder.shr(six, size);
-        let five = self.builder.imm(5);
-        let parent_bytes = self.builder.shl(five, parents);
-        let initial = self.builder.add(size, parent_bytes);
-        let entry = self.builder.current_block();
-        let outer_header = self.builder.create_block();
-        let outer_body = self.builder.create_block();
-        let build = self.builder.create_block();
-        let extract = self.builder.create_block();
-        let sift_header = self.builder.create_block();
-        let sift_body = self.builder.create_block();
-        let sift_swap = self.builder.create_block();
-        let done = self.builder.create_block();
-        self.builder.jump(outer_header);
-
-        self.builder.switch_to_block(outer_header);
-        let cursor = self.builder.phi(vec![(entry, initial)]);
-        let more = self.builder.ne_zero(cursor);
-        self.builder.branch(more, outer_body, done);
-
-        // next = cursor - 32; next < size ? extract : build
-        self.builder.switch_to_block(outer_body);
-        let word = self.builder.imm(32);
-        let next = self.builder.sub(cursor, word);
-        let extracting = self.builder.lt(next, size);
-        self.builder.branch(extracting, extract, build);
-
-        // node = next - size; end = size
-        self.builder.switch_to_block(build);
-        let parent = self.builder.sub(next, size);
-        self.builder.jump(sift_header);
-
-        // exchange(low, low + next); node = 0; end = next
-        self.builder.switch_to_block(extract);
-        let last = self.builder.add(low, next);
-        let root_key = self.builder.mload(low);
-        let last_key = self.builder.mload(last);
-        self.core_sort_exchange(low, last, root_key, last_key, Some(pair));
-        let zero = self.builder.imm(0);
-        let extracted = self.builder.current_block();
-        self.builder.jump(sift_header);
-
-        // end = min(next, size); child = 2 * node + 32
-        // branch child < end, sift_body, outer_header
-        self.builder.switch_to_block(sift_header);
-        let node = self.builder.phi(vec![(build, parent), (extracted, zero)]);
-        let end = self.builder.select(extracting, next, size);
-        let one = self.builder.imm(1);
-        let doubled = self.builder.shl(one, node);
-        let child = self.builder.add(doubled, word);
-        let has_child = self.builder.lt(child, end);
-        let sifting = self.builder.current_block();
-        self.builder.branch(has_child, sift_body, outer_header);
-
-        // right = child + 32; step = right < end & key(child) < key(right)
-        // larger = child + (step << 5); key(larger) = mload(low + larger)
-        // branch key(node) < key(larger), sift_swap, outer_header
-        self.builder.switch_to_block(sift_body);
-        let child_address = self.builder.add(low, child);
-        let child_key = self.builder.mload(child_address);
-        let right = self.builder.add(child, word);
-        let right_address = self.builder.add(child_address, word);
-        let right_key = self.builder.mload(right_address);
-        let has_right = self.builder.lt(right, end);
-        let right_larger = self.core_sort_lt(child_key, right_key, order);
-        let take_right = self.builder.and(has_right, right_larger);
-        let step = self.builder.cast(take_right, MirType::I256);
-        let five = self.builder.imm(5);
-        let offset = self.builder.shl(five, step);
-        let larger = self.builder.add(child, offset);
-        let larger_address = self.builder.add(low, larger);
-        let larger_key = self.builder.mload(larger_address);
-        let node_address = self.builder.add(low, node);
-        let node_key = self.builder.mload(node_address);
-        let below = self.core_sort_lt(node_key, larger_key, order);
-        let settled = self.builder.current_block();
-        self.builder.branch(below, sift_swap, outer_header);
-
-        // exchange(low + node, low + larger); node = larger
-        self.builder.switch_to_block(sift_swap);
-        self.core_sort_exchange(node_address, larger_address, node_key, larger_key, Some(pair));
-        let swapped = self.builder.current_block();
-        self.builder.jump(sift_header);
-        self.builder.add_phi_incoming(node, swapped, larger);
-        self.builder.add_phi_incoming(cursor, sifting, next);
-        self.builder.add_phi_incoming(cursor, settled, next);
-
-        self.builder.switch_to_block(done);
-        self.builder.ret([]);
     }
 
     /// Sorts the pairs by key word, then keeps the first key of every run and
@@ -1352,6 +1254,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         high: ValueId,
         pair: Option<ValueId>,
     ) {
+        // Other builds than gas sort every range, sorted or not, without the scans.
+        if !self.cx.gcx.sess.opts.optimization.is_gas() {
+            self.call_core_sort_inner(inner, order, low, high, pair);
+            return;
+        }
         let word = self.builder.imm(32);
         let last = self.builder.sub(high, word);
         let entry = self.builder.current_block();
