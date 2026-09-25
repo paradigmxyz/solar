@@ -74,6 +74,42 @@ contract Test {
         }
     }
 
+    // The iteration that finishes the builder is the last one: its `i + 1 == n`
+    // makes the loop condition false next, however the test is written.
+    function lastIteration(uint256 n) public pure returns (bytes memory out) {
+        ByteBuilder memory b = Buffers.create(4);
+        for (uint256 i; i < n; ++i) {
+            b.appendByte(bytes1(uint8(i)));
+            if (i + 1 == n) out = b.finish();
+        }
+    }
+
+    function lastIterationSub(uint256 n) public pure returns (bytes memory out) {
+        ByteBuilder memory b = Buffers.create(4);
+        for (uint256 i; i < n; ++i) {
+            b.appendByte(bytes1(uint8(i)));
+            if (i == n - 1) out = b.finish();
+        }
+    }
+
+    // One condition decides both branches.
+    function correlated(bool done) public pure returns (bytes memory out) {
+        ByteBuilder memory b = Buffers.create(4);
+        b.appendByte(0x01);
+        if (done) out = b.finish();
+        if (!done) {
+            b.appendByte(0x02);
+            out = b.finish();
+        }
+    }
+
+    // A different condition decides nothing about the first.
+    function uncorrelated(bool done, bool again) public pure returns (bytes memory out) {
+        ByteBuilder memory b = Buffers.create(4);
+        if (done) out = b.finish();
+        if (again) b.appendByte(0x02); //~ ERROR: this uses a builder after `finish` emptied it
+    }
+
     // Each iteration builds and finishes its own builder.
     function perIteration(uint256 n) public pure returns (bytes memory out) {
         for (uint256 i; i < n; ++i) {

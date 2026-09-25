@@ -57,6 +57,43 @@ fn @counted(arg0: i256) -> struct0 [selector=0xe4b83521, pure, abi_params=[u256]
     jump bb1
 }
 
+fn @lastIteration(arg0: i256) -> memorybytes [selector=0x5eab2782, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = icall @create, 1
+    jump bb1
+  bb1:
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: memorybytes 96], [bb3: v11]
+    v3 = phi [bb0: v0], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v12]
+    v5 = lt v4, v1
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v2
+  bb4:
+    v6 = and v4, 255
+    v7 = shl 248, v6
+    icall @appendByte, v3, v7
+    v8 = checked_add u256, v4, 1
+    v9 = eq v8, v1
+    jumpi v9, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v10 = icall @finish, v3
+    jump bb9
+  bb9:
+    v11 = phi [bb7: v10], [bb8: v2]
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v12 = checked_add u256, v4, 1
+    jump bb1
+}
+
 fn @neighbour(arg0: memorybytes, arg1: memorybytes) -> struct1 [selector=0x5409b789, pure, abi_params=[bytes, bytes], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
     v0 = icall @create, 4
@@ -81,7 +118,7 @@ fn @truncate(arg0: memorybytes, arg1: i256) [pure] {
   bb2:
     jump bb3
   bb1:
-    v2 = icall @_outOfBounds.4
+    v2 = icall @_outOfBounds.5
     jump bb3
   bb3:
     v3 = phi [bb1: v2], [bb2: arg1]
@@ -90,7 +127,7 @@ fn @truncate(arg0: memorybytes, arg1: i256) [pure] {
     ret
 }
 
-fn @_outOfBounds.4() -> i256 [pure] {
+fn @_outOfBounds.5() -> i256 [pure] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 32
     set_memory_object_len memoryarray, v0, 0
@@ -174,7 +211,7 @@ fn @copyInto(arg0: memorybytes, arg1: i256, arg2: memorybytes, arg3: i256, arg4:
   bb11:
     jump bb12
   bb10:
-    v13 = icall @_outOfBounds.7
+    v13 = icall @_outOfBounds.8
     jump bb12
   bb12:
     v14 = phi [bb10: v13], [bb11: arg4]
@@ -263,7 +300,7 @@ fn @copyInto(arg0: memorybytes, arg1: i256, arg2: memorybytes, arg3: i256, arg4:
     jump bb16
 }
 
-fn @_outOfBounds.7() -> i256 [pure] {
+fn @_outOfBounds.8() -> i256 [pure] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 32
     set_memory_object_len memoryarray, v0, 0
