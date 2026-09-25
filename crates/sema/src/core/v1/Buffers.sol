@@ -28,6 +28,11 @@ struct WordBuilder {
 /// the bytes that were returned. A `WordBuilder` is the same over a
 /// `uint256[]`. This is library code over `Bytes.copyInto` and
 /// `Arrays.truncate`.
+///
+/// A builder is finished once, after its last append. This compiler rejects
+/// any use of a builder after `finish` emptied it, and any read or write of a
+/// builder's fields outside this module, which could expose bytes that were
+/// never written; other compilers run such code as described above.
 library Buffers {
     /// @dev A builder with room for `capacity` bytes before it first grows.
     function create(uint256 capacity) internal pure returns (ByteBuilder memory builder) {

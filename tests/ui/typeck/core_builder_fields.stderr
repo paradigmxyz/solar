@@ -1,0 +1,47 @@
+error: the fields of `ByteBuilder` belong to `Buffers`
+   ╭▸ ROOT/tests/ui/typeck/core_builder_fields.sol:LL:CC
+   │
+LL │         return b.data;
+   │                  ━━━━
+   │
+   ├ note: a builder keeps what was written apart from its capacity, which a field read could expose and a field write could break
+   ╰ help: use `Buffers.length` and `Buffers.finish`
+
+error: the fields of `ByteBuilder` belong to `Buffers`
+   ╭▸ ROOT/tests/ui/typeck/core_builder_fields.sol:LL:CC
+   │
+LL │         b.used = 100;
+   │           ━━━━
+   │
+   ├ note: a builder keeps what was written apart from its capacity, which a field read could expose and a field write could break
+   ╰ help: use `Buffers.length` and `Buffers.finish`
+
+error: the fields of `WordBuilder` belong to `Buffers`
+   ╭▸ ROOT/tests/ui/typeck/core_builder_fields.sol:LL:CC
+   │
+LL │         return w.used;
+   │                  ━━━━
+   │
+   ├ note: a builder keeps what was written apart from its capacity, which a field read could expose and a field write could break
+   ╰ help: use `Buffers.length` and `Buffers.finish`
+
+error: a `ByteBuilder` can only be made by `Buffers`
+   ╭▸ ROOT/tests/ui/typeck/core_builder_fields.sol:LL:CC
+   │
+LL │         return ByteBuilder(new bytes(10), 10);
+   │                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: a builder made from parts could claim bytes that were never written
+   ╰ help: use `Buffers.create` or `Buffers.createWords`
+
+error: a `WordBuilder` can only be made by `Buffers`
+   ╭▸ ROOT/tests/ui/typeck/core_builder_fields.sol:LL:CC
+   │
+LL │         return WordBuilder({data: new uint256[](1), used: 1});
+   │                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: a builder made from parts could claim bytes that were never written
+   ╰ help: use `Buffers.create` or `Buffers.createWords`
+
+error: aborting due to 5 previous errors
+
