@@ -27,6 +27,11 @@
 //! of up to two constant words uses the same path while the encoding is still opaque. Other
 //! instructions, allocation policies, and literals longer than two words keep the general encoder.
 //!
+//! Optimized builds skip the per-element cleanup of a returned array that a call proved to hold
+//! only words of the element type, as element cleanup records them. A function that returns a
+//! call's result from its last instruction is proved through that call, since none of its
+//! writes can reach the result.
+//!
 //! The `fallback(bytes calldata) returns (bytes memory)` form is a separate
 //! raw-data boundary: it gets an argument-free dispatch wrapper and an
 //! internal body that terminates with unencoded returndata.
@@ -37,10 +42,10 @@
 
 use crate::mir::{
     AbiEncodeMode, AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
-    AbiType, AbiWordValidator, AllocationKind, AllocationSemantics, ArgIdx, BlockId, Callee,
-    EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstId, InstKind,
-    MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PanicCode,
-    RevertReason, SliceLocation, Terminator, Value, ValueId,
+    AbiType, AbiWordValidator, AllocationKind, AllocationSemantics, ArgIdx, BasicBlock, BlockId,
+    Callee, EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstId,
+    InstKind, MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module,
+    PanicCode, RevertReason, SliceLocation, Terminator, Value, ValueId,
     analysis::{AliasAnalysis, MemoryBase},
     memory::EvmMemoryLayout,
     pass::MirPass,
@@ -80,6 +85,8 @@ impl MirPass for LowerAbi {
         let changed = LowerAbiCx {
             revert_strings: gcx.sess.opts.revert_strings,
             scratch_returns: gcx.sess.opts.optimization.is_gas()
+                || gcx.sess.opts.optimization.is_size(),
+            prove_returned_calls: gcx.sess.opts.optimization.is_gas()
                 || gcx.sess.opts.optimization.is_size(),
             ..Default::default()
         }
@@ -131,6 +138,9 @@ struct LowerAbiCx {
     /// literal start out of a join layout when the same literal is used
     /// after the loop, and a return at offset 0 would add such uses.
     scratch_returns: bool,
+    /// Whether a returned array that a call proved clean skips its per-element
+    /// cleanup. Gas and size builds only; unoptimized builds clean every element.
+    prove_returned_calls: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -265,7 +275,7 @@ impl LowerAbiCx {
         if gas_mode {
             self.synthesize_shared_return_cleanup_helpers(module, &targets);
         }
-        let canonical_return_calls = if gas_mode {
+        let canonical_return_calls = if self.prove_returned_calls {
             find_canonical_return_calls(module, &targets)
         } else {
             FxHashSet::default()
@@ -3595,18 +3605,40 @@ fn is_canonical_return_function(
             let Some(Terminator::Return { values }) = &block.terminator else { return true };
             let mut value_visiting = FxHashSet::default();
             values.len() == 1
-                && is_canonical_return_value_inner(
-                    func,
-                    ty,
-                    values[0],
-                    None,
-                    ReturnValueSource::Memory,
-                    &mut value_visiting,
-                    calls,
-                )
+                && (returns_final_call(module, func, block, ty, values[0], calls)
+                    || is_canonical_return_value_inner(
+                        func,
+                        ty,
+                        values[0],
+                        None,
+                        ReturnValueSource::Memory,
+                        &mut value_visiting,
+                        calls,
+                    ))
         });
     calls.visiting.remove(&key);
     result
+}
+
+/// Whether `block` returns `value` straight from its last instruction, a call proved canonical for
+/// `ty`. Nothing runs between that call and the return, so no write of this function can reach
+/// the result, and the callee's proof covers everything before.
+fn returns_final_call(
+    module: &Module,
+    func: &Function,
+    block: &BasicBlock,
+    ty: &AbiParamType,
+    value: ValueId,
+    calls: &mut CanonicalCallProof<'_>,
+) -> bool {
+    let Value::Inst(inst) = func.value(value) else { return false };
+    let InstKind::ICall { function: Callee::Function(function), .. } = func.inst(*inst).kind else {
+        return false;
+    };
+    block.instructions.last() == Some(inst)
+        && module.function(function).return_components().len() == 1
+        && func.value_ty(value) == Some(ty.mir_type())
+        && is_canonical_return_function(calls, function, ty)
 }
 
 /// Follows only conversions that preserve every pointer bit.

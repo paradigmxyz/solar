@@ -117,11 +117,13 @@ impl MirPass for ElementCleanup {
             // with. Several return blocks must all stay within the bound.
             if func.return_components().len() == 1 {
                 // A helper that returns words of its array parameters holds no wider
-                // words than the widest array any call site passes it.
+                // words than the widest array any call site passes it. Its scalar
+                // parameters, such as a comparison flip, contribute no words.
                 let from_params = func.attributes.returns_param_elements.then(|| {
                     func.params
-                        .indices()
-                        .map(|index| params.get(&(id, index)).copied().unwrap_or(FULL_WIDTH))
+                        .iter_enumerated()
+                        .filter(|&(_, &ty)| is_array(ty))
+                        .map(|(index, _)| params.get(&(id, index)).copied().unwrap_or(FULL_WIDTH))
                         .fold(reading, u32::max)
                 });
                 let returned = from_params.or_else(|| {
