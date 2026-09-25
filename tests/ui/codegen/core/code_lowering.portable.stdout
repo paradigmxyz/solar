@@ -207,7 +207,6 @@ fn @_outOfBounds() -> i256 [pure] {
   bb1:
     mstore 64, v7 !metadata(memory=scratch)
     mstore v6, 0
-    mstore v6, 0
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
     revert 28, 36

@@ -127,7 +127,6 @@ fn @keccak256Range(arg0: memptr) -> i256 [may_return_memory, pure] {
   bb10:
     mstore 64, v69 !metadata(memory=scratch)
     mstore v68, 0
-    mstore v68, 0
     jump bb6
   bb6:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

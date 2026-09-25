@@ -232,8 +232,6 @@ fn @dirtied() [selector=0x0f372961, abi_wrapper, inline_assembly, pure] {
     jumpi v79, bb3, bb11
   bb11:
     mstore 64, v74
-    v90 = calldatasize
-    calldatacopy v73, v90, 64
     mstore v73, 1
     v2 = or arg0, 0xff0000000000000000000000000000000000000000
     v4 = add v73, 32
@@ -249,7 +247,6 @@ fn @dirtied() [selector=0x0f372961, abi_wrapper, inline_assembly, pure] {
     jumpi v86, bb3, bb12
   bb12:
     mstore 64, v81
-    mstore v80, 0
     mstore v80, 0
     v28 = icall @core_array_set_union, v0, v5
     v68 = ptrtoint memptr v28 to i256
