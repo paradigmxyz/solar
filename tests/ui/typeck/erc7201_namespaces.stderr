@@ -1,0 +1,41 @@
+error: ERC-7201 namespace `example.main` is declared twice
+   ╭▸ ROOT/tests/ui/typeck/erc7201_namespaces.sol:LL:CC
+   │
+LL │     /// @custom:storage-location erc7201:example.main
+   │          ━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: `MainStorage` declares it here
+   ╭▸ ROOT/tests/ui/typeck/erc7201_namespaces.sol:LL:CC
+   │
+LL │     /// @custom:storage-location erc7201:example.main
+   │          ━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ note: both structs would live at the same storage location
+
+error: this is not the storage location of ERC-7201 namespace `openzeppelin.storage.ERC20`
+   ╭▸ ROOT/tests/ui/typeck/erc7201_namespaces.sol:LL:CC
+   │
+LL │             $.slot := WRONG_LOCATION
+   │                       ━━━━━━━━━━━━━━
+   ╰╴
+note: `ERC20Storage` is declared in the namespace here
+   ╭▸ ROOT/tests/ui/typeck/erc7201_namespaces.sol:LL:CC
+   │
+LL │     /// @custom:storage-location erc7201:openzeppelin.storage.ERC20
+   │          ━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: the namespace's location is `0x52c63247e1f47db19d5ce0460030c497f067ca4cebf71ba98eeadabe20bace00`
+
+error: this is not the storage location of ERC-7201 namespace `openzeppelin.storage.ERC20`
+   ╭▸ ROOT/tests/ui/typeck/erc7201_namespaces.sol:LL:CC
+   │
+LL │             $.slot := 0
+   │                       ━
+   ╰╴
+note: `ERC20Storage` is declared in the namespace here
+   ╭▸ ROOT/tests/ui/typeck/erc7201_namespaces.sol:LL:CC
+   │
+LL │     /// @custom:storage-location erc7201:openzeppelin.storage.ERC20
+   │          ━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: the namespace's location is `0x52c63247e1f47db19d5ce0460030c497f067ca4cebf71ba98eeadabe20bace00`
+
+error: aborting due to 3 previous errors
+
