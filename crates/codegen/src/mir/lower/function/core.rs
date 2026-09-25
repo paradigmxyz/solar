@@ -1994,8 +1994,28 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn lower_core_keccak256_range(&mut self, operands: &[ValueId]) -> Option<ValueId> {
         let [object, offset, count] = *operands else { return None };
         let start = self.core_checked_range(object, offset, Width::Dynamic(count));
+        Some(self.core_hash_range(object, start, count))
+    }
+
+    /// The hash of the `count` bytes at `start` in the location of the `bytes` operand
+    /// `object`. Calldata is copied past the free memory pointer to hash it, without
+    /// allocating.
+    pub(super) fn core_hash_range(
+        &mut self,
+        object: ValueId,
+        start: ValueId,
+        count: ValueId,
+    ) -> ValueId {
+        if self.builder.func().value_slice_location(object) == Some(SliceLocation::Calldata) {
+            // scratch = fmp
+            // calldatacopy(scratch, start, count)
+            // hash = keccak256(scratch, count)
+            let scratch = self.builder.fmp();
+            self.builder.calldatacopy_heap(scratch, start, count);
+            return self.builder.keccak256(scratch, count);
+        }
         // hash = keccak256(start, count)
-        Some(self.builder.keccak256(start, count))
+        self.builder.keccak256(start, count)
     }
 
     /// The `create` or `create2` both deployment families share.
@@ -2113,14 +2133,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let length = self.core_bytes_len(object);
         let misses = self.core_range_misses(length, offset, Width::Const(u64::from(width)));
         // ok = !misses
-        // word = mload(data(object) + (ok ? offset : 0))
+        // word = mload | calldataload(data(object) + (ok ? offset : 0))
         // value = (ok ? word : 0) & leading(width)
         let ok = self.builder.eq_zero(misses);
         let zero = self.builder.imm(U256::ZERO);
         let aimed = self.builder.select(ok, offset, zero);
         let data = self.core_bytes_data(object);
         let address = self.builder.add(data, aimed);
-        let word = self.builder.mload(address);
+        let word = self.core_load_word(object, address);
         let gated = self.builder.select(ok, word, zero);
         // The mask comes last so that a cleanup of the typed result folds
         // into it.
@@ -2197,9 +2217,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn lower_core_read(&mut self, operands: &[ValueId], width: u8) -> Option<ValueId> {
         let [object, offset] = *operands else { return None };
         let data = self.core_checked_range(object, offset, Width::Const(u64::from(width)));
-        // word = mload(data + offset)
+        // word = mload | calldataload(data + offset)
         // result = width < 32 ? word & leading(width) : word
-        let word = self.builder.mload(data);
+        let word = self.core_load_word(object, data);
         Some(match leading_mask(width) {
             Some(mask) => {
                 let mask = self.builder.imm(mask);
@@ -2241,8 +2261,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let [dst, dst_offset, src, src_offset, count] = *operands else { return None };
         let destination = self.core_checked_range(dst, dst_offset, Width::Dynamic(count));
         let source = self.core_checked_range(src, src_offset, Width::Dynamic(count));
-        // mcopy(destination, source, count)
-        self.builder.mcopy_heap(destination, source, count);
+        if self.builder.func().value_slice_location(src) == Some(SliceLocation::Calldata) {
+            // calldatacopy(destination, source, count)
+            self.builder.calldatacopy_heap(destination, source, count);
+        } else {
+            // mcopy(destination, source, count)
+            self.builder.mcopy_heap(destination, source, count);
+        }
         Some(self.builder.imm(U256::ZERO))
     }
 
@@ -2364,14 +2389,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         // body:
         //   cursor = phi [entry: left], [body: cursor + 32]
-        //   diff = phi [entry: 0], [body: diff | mload(cursor) ^ mload(cursor + delta)]
+        //   diff = phi [entry: 0], [body: diff | load(cursor) ^ load(cursor + delta)]
         //   branch cursor + 32 < words_end, body, tail
+        // A load reads calldata for a view of calldata.
         self.builder.switch_to_block(body);
         let cursor = self.builder.phi(vec![(entry, left)]);
         let diff = self.builder.phi(vec![(entry, zero)]);
-        let left_word = self.builder.mload(cursor);
+        let left_word = self.core_load_word(a, cursor);
         let right_cursor = self.builder.add(cursor, delta);
-        let right_word = self.builder.mload(right_cursor);
+        let right_word = self.core_load_word(b, right_cursor);
         let different = self.builder.xor(left_word, right_word);
         let next_diff = self.builder.or(diff, different);
         let next = self.builder.add_u64_offset(cursor, 32);
@@ -2382,18 +2408,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         // tail:
         //   diff = phi [entry: 0], [body: next_diff]
-        //   back = count - 32 (below the data start when count < 32)
+        //   back = count - 32 (below the data start when count < 32, still after the length
+        //   word that precedes every operand's bytes)
         //   rest_mask = (1 << (8 * rest)) - 1
-        //   diff |= (mload(left + back) ^ mload(right + back)) & rest_mask
+        //   diff |= (load(left + back) ^ load(right + back)) & rest_mask
         //   result = diff == 0
         self.builder.switch_to_block(tail);
         let diff = self.builder.phi(vec![(entry, zero), (body, next_diff)]);
         let thirty_two = self.builder.imm(32);
         let back = self.builder.sub(count, thirty_two);
         let left_end = self.builder.add(left, back);
-        let left_end = self.builder.mload(left_end);
+        let left_end = self.core_load_word(a, left_end);
         let right_end = self.builder.add(right, back);
-        let right_end = self.builder.mload(right_end);
+        let right_end = self.core_load_word(b, right_end);
         let different = self.builder.xor(left_end, right_end);
         let three = self.builder.imm(3);
         let bits = self.builder.shl(three, rest);
@@ -2407,18 +2434,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// `slice(b, offset, count)`: a copy of the range, after the range check
     /// the portable body makes first. As the initializer of a
-    /// `@custom:solar-view` declaration, the result is the memory slice of the
-    /// range itself, which the borrow check keeps equal to that copy.
+    /// `@custom:solar-view` declaration, the result is the slice of the range
+    /// itself, in memory or in the calldata of a calldata view, which the
+    /// borrow check keeps equal to that copy.
     fn lower_core_slice(&mut self, expr: &hir::Expr<'_>, operands: &[ValueId]) -> Option<ValueId> {
         let [bytes, offset, count] = *operands else { return None };
         // start = data(b) + offset, after panic(0x32) unless offset + count <= len(b)
-        // range = make_memory_slice(start, count)
+        // range = make_slice(start, count) in the location of b
         let start = self.core_checked_range(bytes, offset, Width::Dynamic(count));
-        let range = self.builder.make_slice(start, count, SliceLocation::Memory);
+        let location = match self.builder.func().value_slice_location(bytes) {
+            Some(SliceLocation::Calldata) => SliceLocation::Calldata,
+            _ => SliceLocation::Memory,
+        };
+        let range = self.builder.make_slice(start, count, location);
         if let Some((call, id)) = self.forming_view
             && call == expr.id
         {
-            self.record_view_borrow(id, range, bytes);
+            self.form_slice_view(id, range, bytes);
             return Some(range);
         }
         // result = new bytes(count)
@@ -2480,10 +2512,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.add(data, offset)
     }
 
-    /// The length of a `bytes` operand: a memory object, or the memory slice
-    /// a `@custom:solar-view` variable reads.
+    /// The length of a `bytes` operand: a memory object, or the slice a
+    /// `@custom:solar-view` variable reads in memory or calldata.
     fn core_bytes_len(&mut self, bytes: ValueId) -> ValueId {
-        if self.builder.func().value_slice_location(bytes) == Some(SliceLocation::Memory) {
+        if self.builder.func().value_slice_location(bytes).is_some() {
             // length = slice.len
             self.builder.slice_len(bytes)
         } else {
@@ -2492,15 +2524,30 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    /// The address of the first byte of a `bytes` operand.
+    /// The address of the first byte of a `bytes` operand: a memory address, or a calldata
+    /// offset for the calldata slice of a view.
     fn core_bytes_data(&mut self, bytes: ValueId) -> ValueId {
-        if self.builder.func().value_slice_location(bytes) == Some(SliceLocation::Memory) {
-            // data = inttoptr slice.ptr
-            let pointer = self.builder.slice_ptr(bytes);
-            self.builder.cast(pointer, MirType::MemPtr)
-        } else {
+        match self.builder.func().value_slice_location(bytes) {
+            Some(SliceLocation::Memory) => {
+                // data = inttoptr slice.ptr
+                let pointer = self.builder.slice_ptr(bytes);
+                self.builder.cast(pointer, MirType::MemPtr)
+            }
+            // data = slice.ptr
+            Some(_) => self.builder.slice_ptr(bytes),
             // data = object.data
-            self.builder.memory_object_data(bytes, MemoryObjectKind::Bytes)
+            None => self.builder.memory_object_data(bytes, MemoryObjectKind::Bytes),
+        }
+    }
+
+    /// Loads the word at `address` in the location of the `bytes` operand `bytes`.
+    fn core_load_word(&mut self, bytes: ValueId, address: ValueId) -> ValueId {
+        if self.builder.func().value_slice_location(bytes) == Some(SliceLocation::Calldata) {
+            // word = calldataload(address)
+            self.builder.calldataload(address)
+        } else {
+            // word = mload(address)
+            self.builder.mload(address)
         }
     }
 

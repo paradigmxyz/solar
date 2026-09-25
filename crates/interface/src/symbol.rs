@@ -1368,6 +1368,7 @@ symbols! {
         validate_abi,
         validate_storage_bytes,
         value,
+        views,
         void,
         word,
         wrap,

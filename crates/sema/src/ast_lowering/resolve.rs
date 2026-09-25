@@ -1083,6 +1083,12 @@ impl<'gcx> ResolveContext<'gcx> {
                         self.hir.solar_tags.push((hir::SolarStmtTag::View(id), natspec.span));
                     }
                 }
+                (Some(SolarTag::View), &hir::StmtKind::DeclMulti(vars, expr)) => {
+                    if !vars.iter().flatten().any(|&id| self.hir.solar_view(id).is_some()) {
+                        let tag = hir::SolarStmtTag::DecodeView(vars, expr);
+                        self.hir.solar_tags.push((tag, natspec.span));
+                    }
+                }
                 (
                     Some(SolarTag::Scratch),
                     hir::StmtKind::Block(block) | hir::StmtKind::UncheckedBlock(block),

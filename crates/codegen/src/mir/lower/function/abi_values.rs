@@ -231,11 +231,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         let data_expr = &args[0];
-        let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;
-        let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-        let data = self.lower_typed_expr(data_expr, memory_ty)?;
-        let data = self.materialize_memory_argument(memory_ty, data, data_expr.span)?;
-        let (data, layout) = self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?;
+        let (data, layout) = if let Some(view) = self.view_operand(data_expr) {
+            // A view's bytes are decoded where they are, in memory or in calldata.
+            (view, self.abi_decode_layout(&decoded_types, args[1].span)?)
+        } else {
+            let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;
+            let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+            let data = self.lower_typed_expr(data_expr, memory_ty)?;
+            let data = self.materialize_memory_argument(memory_ty, data, data_expr.span)?;
+            self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?
+        };
         let layout = self.cx.module.intern_abi_param_layout(layout);
         let fields = decoded_types.iter().map(|&ty| types::TypeLowerer::mir_type(ty)).collect();
         let result_ty = self.cx.module.intern_return_type(fields)?;
@@ -252,6 +257,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(MirType::Slice(_)) => self.materialize_memory_slice(data),
             _ => data,
         };
+        Some((data, self.abi_decode_layout(types, span)?))
+    }
+
+    /// The ABI layout of a decode of `types`.
+    pub(super) fn abi_decode_layout(
+        &mut self,
+        types: &[Ty<'gcx>],
+        span: Span,
+    ) -> Option<AbiParamLayout> {
         let mut abi_types = Vec::with_capacity(types.len());
         for &ty in types {
             let Some(abi_type) = self.types.abi_param_type(ty) else {
@@ -259,7 +273,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             abi_types.push(abi_type);
         }
-        Some((data, AbiParamLayout::new(abi_types.into_boxed_slice())))
+        Some(AbiParamLayout::new(abi_types.into_boxed_slice()))
     }
 
     pub(super) fn lower_abi_decode_values(
