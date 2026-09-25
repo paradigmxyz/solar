@@ -1,0 +1,124 @@
+// === <solar:core/v1/Return.sol>:Return ===
+@module Return
+@library
+
+// === ROOT/tests/ui/codegen/lowering/solar_terminates_runtime.sol:Test ===
+@module Test
+fn @fail(arg0: i256) [pure] {
+  bb0:
+    icall require<custom_error [word]>, false, 0xa2f4313000000000000000000000000000000000000000000000000000000000, arg0
+    invalid
+}
+
+fn @failWith(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    v1 = eq arg0, 1
+    jumpi v1, bb4, bb5
+  bb5:
+    icall @fail, arg0
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    ret 0
+  bb4:
+    icall require<short_string>, false, 3, 0x6f6e650000000000000000000000000000000000000000000000000000000000
+    invalid
+  bb1:
+    icall require<custom_error [word]>, false, 0xa2f4313000000000000000000000000000000000000000000000000000000000, 0
+    invalid
+}
+
+fn @finish(arg0: memorybytes) [pure] {
+  bb0:
+    v0 = ptrtoint memorybytes arg0 to i256
+    v1 = sub v0, 32
+    mstore v1, 32
+    v2 = memory_object_len memorybytes, arg0
+    v3 = memory_object_data memorybytes, arg0
+    v4 = ptrtoint memptr v3 to i256
+    v5 = add v4, v2
+    mstore v5, 0
+    v6 = add v2, 31
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v8 = add v7, 64
+    returndata v1, v8
+}
+
+fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = gt arg0, 10
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    icall @fail, arg0
+    jump bb3
+  bb3:
+    v1 = checked_add u256, arg0, 1
+    ret v1
+}
+
+fn @early(arg0: i256) -> memorybytes [selector=0x0e87c305, pure, abi_params=[bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v1, 5
+    v2 = memory_object_data memorybytes, v1
+    v3 = ptrtoint memptr v2 to i256
+    mstore v3, 0x6561726c79000000000000000000000000000000000000000000000000000000
+    icall @finish, v1
+    jump bb3
+  bb3:
+    v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v4, 4
+    v5 = memory_object_data memorybytes, v4
+    v6 = ptrtoint memptr v5 to i256
+    mstore v6, 0x6c61746500000000000000000000000000000000000000000000000000000000
+    ret v4
+}
+
+fn @pick(arg0: i256) -> i256 [selector=0x7701ea4a, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @failWith, arg0
+    v1 = checked_add u256, v0, 1
+    ret v1
+}
+
+fn @guarded(arg0: i256) -> i256 [selector=0x5e284975, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    sstore 0, 1 !metadata(storage=slot(0))
+    v0 = gt arg0, 5
+    jumpi v0, bb3, bb4
+  bb4:
+    jump bb5
+  bb3:
+    icall @fail, arg0
+    jump bb5
+  bb5:
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = checked_add u256, arg0, v1
+    jump bb2
+  bb2:
+    sstore 0, 0 !metadata(storage=slot(0))
+    jump bb1
+  bb1:
+    ret v2
+}
+
+fn @abiEncoded(arg0: memorybytes) [inline_assembly, pure] {
+  bb0:
+    v0 = abi_encode [memory_bytes], object, args arg0
+    v1 = ptrtoint memorybytes v0 to i256
+    v2 = mload v1
+    v3 = ptrtoint memorybytes v0 to i256
+    v4 = add v3, 32
+    returndata v4, v2
+}

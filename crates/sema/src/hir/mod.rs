@@ -11,7 +11,7 @@ use solar_data_structures::{
     newtype_index,
 };
 use solar_interface::{
-    Ident, Span, Symbol, diagnostics::ErrorGuaranteed, kw, source_map::SourceFile,
+    Ident, Span, Symbol, diagnostics::ErrorGuaranteed, kw, source_map::SourceFile, sym,
 };
 use std::{cell::Cell, fmt, ops::ControlFlow, sync::Arc};
 use strum::EnumIs;
@@ -99,9 +99,9 @@ pub struct Hir<'hir> {
     pub(crate) errors: IndexVec<ErrorId, Error<'hir>>,
     /// All events.
     pub(crate) events: IndexVec<EventId, Event<'hir>>,
-    /// Local variables declared under `@custom:solar-view`, in source order, with the tag's
-    /// span. Views are rare, so lookups scan.
-    pub(crate) solar_views: Vec<(VariableId, Span)>,
+    /// Statements documented by `@custom:solar-*` tags, in source order, with each tag's span.
+    /// The tags are rare, so lookups scan.
+    pub(crate) solar_tags: Vec<(SolarStmtTag, Span)>,
 }
 
 macro_rules! indexvec_methods {
@@ -192,7 +192,7 @@ impl<'hir> Hir<'hir> {
             udvts: IndexVec::new(),
             errors: IndexVec::new(),
             events: IndexVec::new(),
-            solar_views: Vec::new(),
+            solar_tags: Vec::new(),
         }
     }
 
@@ -336,14 +336,49 @@ impl<'hir> Hir<'hir> {
 
     /// Returns the span of the `@custom:solar-view` tag on a local variable's declaration.
     pub fn solar_view(&self, id: VariableId) -> Option<Span> {
-        self.solar_views.iter().find(|&&(view, _)| view == id).map(|&(_, span)| span)
+        self.solar_tags
+            .iter()
+            .find(|&&(tag, _)| matches!(tag, SolarStmtTag::View(view) if view == id))
+            .map(|&(_, span)| span)
     }
 
     /// Returns every local variable declared under `@custom:solar-view`, in source order, with
     /// the tag's span.
     pub fn solar_views(&self) -> impl Iterator<Item = (VariableId, Span)> + '_ {
-        self.solar_views.iter().copied()
+        self.solar_tags.iter().filter_map(|&(tag, span)| match tag {
+            SolarStmtTag::View(id) => Some((id, span)),
+            SolarStmtTag::Scratch(_) => None,
+        })
     }
+
+    /// Returns the span of the `@custom:solar-scratch` tag on the block that spans `block`.
+    pub fn solar_scratch(&self, block: Span) -> Option<Span> {
+        self.solar_tags
+            .iter()
+            .find(|&&(tag, _)| matches!(tag, SolarStmtTag::Scratch(scratch) if scratch == block))
+            .map(|&(_, span)| span)
+    }
+
+    /// Returns the span of the `@custom:solar-terminates` tag on a function's declaration.
+    pub fn solar_terminates(&self, id: FunctionId) -> Option<Span> {
+        let doc = self.doc(self.function(id).doc);
+        doc.ast_comments.iter().flat_map(|comment| comment.natspec.iter()).find_map(|natspec| {
+            matches!(
+                natspec.kind,
+                ast::NatSpecKind::Custom { name } if name.name == sym::solar_dash_terminates
+            )
+            .then_some(natspec.span)
+        })
+    }
+}
+
+/// A statement documented by a `@custom:solar-*` tag.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SolarStmtTag {
+    /// `@custom:solar-view` on the declaration of this local variable.
+    View(VariableId),
+    /// `@custom:solar-scratch` on the block with this span.
+    Scratch(Span),
 }
 
 /// A counter for generating unique IDs.
