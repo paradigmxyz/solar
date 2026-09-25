@@ -13,7 +13,7 @@ use solar_sema::{
 };
 use std::ops::ControlFlow;
 
-use crate::mir::{Function, FunctionAttributes, FunctionBuilder, Module};
+use crate::mir::{Function, FunctionAttributes, FunctionBuilder, FunctionId, Module};
 
 /// Builds a typed MIR module from one HIR contract.
 #[tracing::instrument(name = "mir_lowering", level = "debug", skip_all)]
@@ -209,11 +209,15 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
             shared_word_literals: &shared_word_literals,
             share_storage_bytes,
         };
-        for (function_id, expose_selector) in function_ids {
-            let mir_id = context.function_ids[&function_id];
+        let mut lower_function = |context: &mut function::LoweringContext<'_, '_>,
+                                  function_id: hir::FunctionId,
+                                  mir_id: FunctionId,
+                                  expose_selector: bool,
+                                  calldata_views: u64| {
             let name = context.module.function(mir_id).name;
             let errors_before = gcx.dcx().err_count();
-            let lowered = function::lower(context.reborrow(), function_id, expose_selector);
+            let lowered =
+                function::lower(context.reborrow(), function_id, expose_selector, calldata_views);
             let borrows = std::mem::take(&mut context.state.view_borrows);
             let regions = std::mem::take(&mut context.state.scratch_regions);
             postlude_calls.append(&mut context.state.postlude_calls);
@@ -243,18 +247,35 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
                     FunctionBuilder::new_semantic(context.module.function_mut(mir_id));
                 for (index, &param) in function.parameters.iter().enumerate() {
                     let ty = gcx.type_of_item(param.into());
-                    builder.add_param(function::parameter_type(gcx, function_id, index, ty));
+                    builder.add_param(function::parameter_type(
+                        gcx,
+                        function_id,
+                        index,
+                        ty,
+                        calldata_views,
+                    ));
                 }
                 if let Some(ty) = return_type {
                     builder.set_return_type(ty);
                 }
                 builder.invalid();
-                continue;
+                return;
             };
             mir.name = name;
             *context.module.function_mut(mir_id) = mir;
             view_borrows.extend(borrows.into_iter().map(|borrow| (mir_id, borrow)));
             scratch_regions.extend(regions.into_iter().map(|region| (mir_id, region)));
+        };
+        for (function_id, expose_selector) in function_ids {
+            let mir_id = context.function_ids[&function_id];
+            lower_function(&mut context, function_id, mir_id, expose_selector, 0);
+        }
+        // The calls that pass calldata views to view parameters reach copies of their callees,
+        // which the lowering above creates, and which may create more.
+        while let Some((function_id, calldata_views, mir_id)) =
+            context.state.pending_view_clones.pop()
+        {
+            lower_function(&mut context, function_id, mir_id, false, calldata_views);
         }
 
         if contract.ctor.is_none() && (has_state_initializers || has_implicit_base_constructors) {
@@ -307,8 +328,10 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     // Calls through internal function pointers reach the dispatchers generated above, so the
     // borrows are checked only once every body a call may run exists.
     function::check_view_borrows(gcx, &module, &view_borrows);
+    // The copies taking calldata views end the call like their functions.
     let tagged = mir_ids
         .iter()
+        .chain(state.view_clones.iter().map(|((id, _), mir_id)| (id, mir_id)))
         .filter(|&(&id, _)| gcx.hir.solar_terminates(id).is_some())
         .map(|(_, &mir_id)| mir_id)
         .collect();
