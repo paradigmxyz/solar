@@ -14,8 +14,11 @@
 //! by their conditions, so a builder a loop finishes in its last iteration is still emptied on
 //! the back edge.
 //!
-//! NOTE: builders are followed as values, not through memory: a builder stored in memory and
-//! loaded again, or one a function empties and then returns, is not followed.
+//! Builders are followed as values, never through memory: type checking keeps a builder out of
+//! struct fields, array elements, and mapping values, so none is stored and loaded again, and
+//! returning an emptied builder is itself a use.
+//!
+//! NOTE: inline assembly can still move a builder's pointer through memory unseen.
 
 use super::*;
 use crate::mir::{BlockId, InstId, Module, analysis::CfgInfo};
