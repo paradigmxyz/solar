@@ -1,15 +1,24 @@
 //! Indexed jump table planning and assembly lowering.
+//!
+//! One-byte tables can be left-aligned in a full word to avoid adjusting BYTE's
+//! index. The target prices that padding against the removed runtime work before
+//! layout. Exact relaxation retries compact tables before widening entries when
+//! padding moves a label out of range. Wider entries keep their shift-and-mask
+//! encoding.
 
 use super::{Program, lower};
-use crate::backend::{
-    assembler::{Assembler, Label},
-    evm::{
-        ir::{
-            self, BlockId, ImmediateMaterialization, ImmediateMaterializationOp,
-            immediate_materialization_len,
+use crate::{
+    backend::{
+        assembler::{Assembler, Label},
+        evm::{
+            ir::{
+                self, BlockId, ImmediateMaterialization, ImmediateMaterializationOp,
+                immediate_materialization_len,
+            },
+            op::{self, WORD_BYTES, push_len},
         },
-        op::{self, WORD_BYTES, push_len},
     },
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
@@ -45,6 +54,7 @@ enum PackedTableChunks {
 #[derive(Clone, Copy, Default)]
 pub(super) struct IndexedJumpLowering {
     table: Option<IndexedJumpEncoding>,
+    left_aligned_byte_table: bool,
     /// Width of the target push in outlined entry blocks; on the source block,
     /// this also determines the entry stride.
     pub(super) outlined_entry_width: Option<u8>,
@@ -86,14 +96,16 @@ pub(super) fn materialize_tables(
     evm_version: EvmVersion,
     pack_two_word_tables: bool,
 ) -> IndexVec<BlockId, IndexedJumpLowering> {
-    materialize_tables_with_metadata(module, evm_version, pack_two_word_tables).0
+    let target = Target::with(evm_version, solar_config::OptimizationMode::None, 0);
+    materialize_tables_with_metadata(module, target, pack_two_word_tables).0
 }
 
 pub(super) fn materialize_tables_with_metadata(
     module: &mut ir::Module,
-    evm_version: EvmVersion,
+    target: Target,
     pack_two_word_tables: bool,
 ) -> (IndexVec<BlockId, IndexedJumpLowering>, Vec<IndexedJumpTable>) {
+    let evm_version = target.evm_version();
     let tables = module
         .blocks
         .iter_enumerated()
@@ -138,7 +150,12 @@ pub(super) fn materialize_tables_with_metadata(
         for (table, encoding) in tables.iter().zip(&encodings) {
             if encoding.packed_chunks != PackedTableChunks::None {
                 packed_estimates[table.source] = Some(PackedTableEstimate {
-                    len: table.targets.len(),
+                    len: if encoding.width == 1 && target.left_align_byte_table(table.targets.len())
+                    {
+                        WORD_BYTES
+                    } else {
+                        table.targets.len()
+                    },
                     width: encoding.width,
                     chunks: encoding.packed_chunks,
                     base_width: encoding.base.map_or(0, |(_, width)| width),
@@ -188,6 +205,8 @@ pub(super) fn materialize_tables_with_metadata(
     let mut lowerings = index_vec![IndexedJumpLowering::default(); module.blocks.len()];
     for (table, encoding) in tables.iter().zip(encodings) {
         lowerings[table.source].table = Some(encoding);
+        lowerings[table.source].left_aligned_byte_table =
+            target.left_align_byte_table(table.targets.len());
         if encoding.packed_chunks == PackedTableChunks::None {
             lowerings[table.source].outlined_entry_width = Some(encoding.width);
             for &entry in &table.entries {
@@ -268,6 +287,17 @@ pub(super) fn refine_indexed_jump_widths(
     let mut changed = false;
     for table in tables.iter_mut() {
         let current = lowerings[table.source].table.expect("indexed jump table lowering");
+        if lowerings[table.source].left_aligned_byte_table
+            && current.width == 1
+            && table.targets.iter().any(|&block| block_offsets[block] > usize::from(u8::MAX))
+        {
+            // Retry compact BYTE encoding before widening an entry. Padding can
+            // itself push a target past 0xff; disabling it is monotonic, so this
+            // cannot oscillate with later label relaxation.
+            lowerings[table.source].left_aligned_byte_table = false;
+            changed = true;
+            continue;
+        }
         let next = if current.packed_chunks == PackedTableChunks::None {
             IndexedJumpEncoding {
                 width: current.width.max(indexed_jump_target_width(
@@ -672,9 +702,10 @@ fn supports_indexed_jump_packing(table_len: usize, evm_version: EvmVersion) -> b
 pub(in crate::backend) fn estimated_indexed_jump_terminator_size(
     table_len: usize,
     max_target_width: u8,
-    evm_version: EvmVersion,
+    target: Target,
     pack_two_word_tables: bool,
 ) -> usize {
+    let evm_version = target.evm_version();
     (1..=max_target_width)
         .map(|target_width| {
             let outlined_len = outlined_indexed_jump_len(table_len, target_width);
@@ -690,7 +721,11 @@ pub(in crate::backend) fn estimated_indexed_jump_terminator_size(
             } else {
                 packed_indexed_jump_len(
                     PackedTableEstimate {
-                        len: table_len,
+                        len: if target_width == 1 && target.left_align_byte_table(table_len) {
+                            WORD_BYTES
+                        } else {
+                            table_len
+                        },
                         width: target_width,
                         chunks: packed_chunks,
                         base_width: if pack_two_word_tables { max_target_width } else { 0 },
@@ -921,13 +956,16 @@ pub(super) fn lower(
         }
         if table_encoding.packed_chunks == PackedTableChunks::One && target_width == 1 {
             let byte_offset = WORD_BYTES - labels.len();
-            if byte_offset != 0 {
+            let padding = if indexed_jump.left_aligned_byte_table { byte_offset as u8 } else { 0 };
+            // index; PUSH padding; ADD; PUSH table; SWAP1; BYTE
+            //   -> index; PUSH32 (table << (padding * 8)); SWAP1; BYTE
+            if byte_offset != 0 && padding == 0 {
                 push_immediate(assembler, program, evm_version, U256::from(byte_offset));
                 program.push_op(op::ADD);
             }
             let mut labels = labels.into_boxed_slice();
             labels.reverse();
-            program.push_packed_labels(labels, base, target_width);
+            program.push_padded_labels(labels, base, target_width, padding);
             program.push_op(op::SWAP1);
             program.push_op(op::BYTE);
         } else {
@@ -1337,12 +1375,17 @@ mod tests {
 
     #[test]
     fn indexed_jump_terminator_estimate_includes_packed_tables() {
-        assert_eq!(estimated_indexed_jump_terminator_size(2, 2, EvmVersion::Osaka, false), 15);
-        assert!(estimated_indexed_jump_terminator_size(32, 2, EvmVersion::Osaka, true) > 32);
-        assert_eq!(estimated_indexed_jump_terminator_size(33, 2, EvmVersion::Osaka, true), 61);
-        assert_eq!(estimated_indexed_jump_terminator_size(65, 2, EvmVersion::Osaka, true), 8);
-        assert_eq!(estimated_indexed_jump_terminator_size(10, 3, EvmVersion::Osaka, false), 42);
-        assert_eq!(estimated_indexed_jump_terminator_size(10, 3, EvmVersion::Byzantium, true), 9);
+        let target = Target::with(EvmVersion::Osaka, solar_config::OptimizationMode::Size, 1);
+        assert_eq!(estimated_indexed_jump_terminator_size(2, 2, target, false), 15);
+        assert!(estimated_indexed_jump_terminator_size(32, 2, target, true) > 32);
+        assert_eq!(estimated_indexed_jump_terminator_size(33, 2, target, true), 61);
+        assert_eq!(estimated_indexed_jump_terminator_size(65, 2, target, true), 8);
+        assert_eq!(estimated_indexed_jump_terminator_size(10, 3, target, false), 42);
+        let legacy = Target::with(EvmVersion::Byzantium, solar_config::OptimizationMode::Size, 1);
+        assert_eq!(estimated_indexed_jump_terminator_size(10, 3, legacy, true), 9);
+        let gas = Target::with(EvmVersion::Osaka, solar_config::OptimizationMode::Gas, 1_000_000);
+        assert_eq!(estimated_indexed_jump_terminator_size(16, 1, gas, false), 36);
+        assert_eq!(estimated_indexed_jump_terminator_size(16, 1, target, false), 23);
     }
 
     #[test]

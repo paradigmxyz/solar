@@ -427,7 +427,8 @@ impl<'gcx> Assembler<'gcx> {
                 }
                 AsmInstKind::PushPackedLabels(labels) => {
                     let labels = &program.packed_labels[labels];
-                    let width = usize::from(labels.label_width) * labels.labels.len();
+                    let width = usize::from(labels.label_width) * labels.labels.len()
+                        + usize::from(labels.trailing_zeros);
                     offset += out.fixed_push_len(width as u8);
                 }
                 AsmInstKind::PushDeferred(id) => {
@@ -547,7 +548,9 @@ impl<'gcx> Assembler<'gcx> {
                         );
                         value |= target << (index * usize::from(labels.label_width) * 8);
                     }
-                    let width = labels.labels.len() * usize::from(labels.label_width);
+                    value <<= usize::from(labels.trailing_zeros) * 8;
+                    let width = labels.labels.len() * usize::from(labels.label_width)
+                        + usize::from(labels.trailing_zeros);
                     out.emit_push_fixed_width(value, width as u8, source_spans);
                 }
                 AsmInstKind::PushData(data) => {

@@ -1,0 +1,33 @@
+//@ revisions: gas low size legacy
+//@ compile-flags: -Zdump=disasm-deploy -Zevm-ir-pipeline=none
+//@[gas] compile-flags: -Ogas --optimize-runs=1000000 --evm-version=cancun
+//@[low] compile-flags: -Ogas --optimize-runs=200 --evm-version=cancun
+//@[size] compile-flags: -Osize --optimize-runs=1000000 --evm-version=cancun
+//@[legacy] compile-flags: -Ogas --optimize-runs=1000000 --evm-version=byzantium
+
+@module ByteTableAlignment
+
+bb0:
+  push 0
+  calldataload
+  push 3
+  and
+  indexed_jump bb1, bb2, bb3, bb4
+bb1:
+  push 11
+  jump bb5
+bb2:
+  push 22
+  jump bb5
+bb3:
+  push 33
+  jump bb5
+bb4:
+  push 44
+  jump bb5
+bb5:
+  push 0
+  mstore
+  push 32
+  push 0
+  return
