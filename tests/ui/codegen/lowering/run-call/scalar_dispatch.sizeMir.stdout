@@ -26,8 +26,8 @@ fn @entry() [entry, inline_assembly] {
     v36 = lt v35, v10
     jumpi v36, bb17, bb18
   bb18:
-    mstore 128, v33
-    returndata 128, 32
+    mstore 0, v33
+    returndata 0, 32
   bb17:
     v37 = and v33, v34
     v38 = add v34, v35
@@ -42,8 +42,8 @@ fn @entry() [entry, inline_assembly] {
     v29 = lt v28, v10
     jumpi v29, bb14, bb15
   bb15:
-    mstore 128, v26
-    returndata 128, 32
+    mstore 0, v26
+    returndata 0, 32
   bb14:
     v30 = sub v27, v26
     v31 = add v27, v28
@@ -58,8 +58,8 @@ fn @entry() [entry, inline_assembly] {
     v22 = lt v21, v10
     jumpi v22, bb11, bb12
   bb12:
-    mstore 128, v19
-    returndata 128, 32
+    mstore 0, v19
+    returndata 0, 32
   bb11:
     v23 = xor v19, v20
     v24 = add v20, v21
@@ -74,8 +74,8 @@ fn @entry() [entry, inline_assembly] {
     v14 = lt v13, v10
     jumpi v14, bb8, bb9
   bb9:
-    mstore 128, v11
-    returndata 128, 32
+    mstore 0, v11
+    returndata 0, 32
   bb8:
     v15 = not v12
     v16 = and v15, v11
