@@ -4,8 +4,8 @@ error: the view `data` can only be read in place
 LL │         data[0] = 0x01;
    │         ━━━━
    │
-   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, `abi.decode`, and the `Bytes` and `Hash` reads of a range
-   ╰ help: remove the tag to work with a copy of the bytes
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: remove the tag to work with a copy
 
 error: the view `data` can only be read in place
    ╭▸ ROOT/tests/ui/codegen/core/view_parameter_borrow.sol:LL:CC
@@ -13,8 +13,8 @@ error: the view `data` can only be read in place
 LL │         return data;
    │                ━━━━
    │
-   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, `abi.decode`, and the `Bytes` and `Hash` reads of a range
-   ╰ help: remove the tag to work with a copy of the bytes
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: remove the tag to work with a copy
 
 error: a function with `@custom:solar-view` parameters cannot be used as a value
    ╭▸ ROOT/tests/ui/codegen/core/view_parameter_borrow.sol:LL:CC

@@ -21,12 +21,13 @@ pub(super) fn check(gcx: Gcx<'_>) {
 }
 
 /// Checks that every `@custom:solar-view` declaration has a shape a view has: a `bytes memory`
-/// variable initialized by `Bytes.slice` from `solar:core/v1/Bytes.sol`, or a declaration
-/// initialized by `abi.decode` of `bytes` in memory or calldata into value types, `bytes`, and
-/// `string`, whose `bytes memory` and `string memory` variables are the views.
+/// variable initialized by `Bytes.slice` from `solar:core/v1/Bytes.sol`, a declaration initialized
+/// by `abi.decode` of `bytes` in memory or calldata, whose variables of memory reference types are
+/// the views, or a memory reference variable initialized by a view or by an element or a field of
+/// one.
 ///
-/// Other compilers run the same declaration as the copy it names, so any other shape would give
-/// the tag nothing to borrow.
+/// Other compilers run the same declaration as the copy it names, or as another reference to the
+/// object a view stands for, so any other shape would give the tag nothing to borrow.
 fn check_views(gcx: Gcx<'_>) {
     for (tag, span) in gcx.hir.solar_views() {
         let (declaration, initializer) = match tag {
@@ -46,15 +47,18 @@ fn check_views(gcx: Gcx<'_>) {
         });
         let decode =
             call.filter(|(callee, _)| gcx.resolved_builtin(callee) == Some(Builtin::AbiDecode));
-        // A `bytes memory` variable, or a `string memory` one that only a decode makes.
+        let read = initializer.is_some_and(|initializer| is_view_expr(gcx, initializer));
+        // A memory reference a decode makes or a view holds, or the `bytes` of a range.
         let viewable = |id: hir::VariableId| {
             let ty = gcx.type_of_item(id.into());
             ty.is_ref_at(DataLocation::Memory)
-                && match ty.peel_refs().kind {
-                    TyKind::Elementary(hir::ElementaryType::Bytes) => slice || decode.is_some(),
-                    TyKind::Elementary(hir::ElementaryType::String) => decode.is_some(),
-                    _ => false,
-                }
+                && (decode.is_some()
+                    || read
+                    || (slice
+                        && matches!(
+                            ty.peel_refs().kind,
+                            TyKind::Elementary(hir::ElementaryType::Bytes)
+                        )))
         };
         let valid = match tag {
             SolarStmtTag::View(id) => viewable(id),
@@ -67,7 +71,8 @@ fn check_views(gcx: Gcx<'_>) {
             gcx.dcx()
                 .err(
                     "`@custom:solar-view` requires a `bytes memory` variable initialized by \
-                     `Bytes.slice`, or `bytes` or `string` variables initialized by `abi.decode`",
+                     `Bytes.slice`, memory references initialized by `abi.decode`, or a memory \
+                     reference read from a view",
                 )
                 .span(declaration)
                 .span_note(span, "the tag is here")
@@ -84,11 +89,10 @@ fn check_views(gcx: Gcx<'_>) {
     }
 }
 
-/// Checks the arguments of an `abi.decode` a `@custom:solar-view` tag documents: the data is
-/// `bytes` in memory or calldata, and every decoded type is a value type, `bytes`, or `string`.
+/// Checks the data of an `abi.decode` a `@custom:solar-view` tag documents: `bytes` in memory or
+/// calldata. Every type a decode can make has a view.
 fn check_decode_view(gcx: Gcx<'_>, args: hir::CallArgs<'_>, tag: Span) {
-    let mut exprs = args.exprs();
-    let (Some(data), Some(types)) = (exprs.next(), exprs.next()) else { return };
+    let Some(data) = args.exprs().next() else { return };
     if let Some(ty) = gcx.type_of_expr(data.id)
         && !((ty.is_ref_at(DataLocation::Memory) || ty.is_ref_at(DataLocation::Calldata))
             && matches!(ty.peel_refs().kind, TyKind::Elementary(hir::ElementaryType::Bytes)))
@@ -99,26 +103,56 @@ fn check_decode_view(gcx: Gcx<'_>, args: hir::CallArgs<'_>, tag: Span) {
             .span_note(tag, "the tag is here")
             .emit();
     }
-    let types = match types.peel_parens().kind {
-        ExprKind::Tuple(types) => types.iter().flatten().copied().collect::<Vec<_>>(),
-        _ => vec![types.peel_parens()],
-    };
-    for ty_expr in types {
-        let Some(TyKind::Type(ty)) = gcx.type_of_expr(ty_expr.id).map(|ty| ty.kind) else {
-            continue;
-        };
-        let supported = ty.is_value_type()
-            || matches!(
-                ty.peel_refs().kind,
-                TyKind::Elementary(hir::ElementaryType::Bytes | hir::ElementaryType::String)
-            );
-        if !supported {
-            gcx.dcx()
-                .err(format!("`@custom:solar-view` cannot decode `{}` in place", ty.display(gcx)))
-                .span(ty_expr.span)
-                .span_note(tag, "the tag is here")
-                .note("a view decode supports value types, `bytes`, and `string`")
-                .emit();
+}
+
+/// Whether `expr` reads a view in place: a view variable, or an element or a field of a view that
+/// is itself a memory reference, as in `items[i]` or `order.payload`, through any conversion
+/// between `bytes` and `string`.
+fn is_view_expr(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> bool {
+    let expr = peel_bytes_conversion(expr);
+    let reference =
+        || gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_ref_at(DataLocation::Memory));
+    match expr.kind {
+        ExprKind::Index(receiver, Some(_)) | ExprKind::Member(receiver, _) => {
+            reference() && is_view_expr(gcx, receiver)
+        }
+        _ => gcx.resolved_variable(expr).is_some_and(|id| is_view_variable(gcx, id)),
+    }
+}
+
+/// Whether the variable `id` is a view: a memory reference a `@custom:solar-view` statement
+/// declares, or a `@custom:solar-view` parameter.
+fn is_view_variable(gcx: Gcx<'_>, id: hir::VariableId) -> bool {
+    if !gcx.type_of_item(id.into()).is_ref_at(DataLocation::Memory) {
+        return false;
+    }
+    if gcx.hir.solar_view(id).is_some() {
+        return true;
+    }
+    let Some(hir::ItemId::Function(function)) = gcx.hir.variable(id).parent else { return false };
+    gcx.hir
+        .function(function)
+        .parameters
+        .iter()
+        .position(|&param| param == id)
+        .is_some_and(|index| gcx.hir.is_solar_view_parameter(function, index))
+}
+
+/// Peels the conversions between `bytes` and `string`, which read the same bytes.
+fn peel_bytes_conversion<'a>(mut expr: &'a hir::Expr<'a>) -> &'a hir::Expr<'a> {
+    loop {
+        expr = expr.peel_parens();
+        if let Some((callee, args, _)) = expr.as_call()
+            && let ExprKind::Type(ty) = &callee.kind
+            && matches!(
+                ty.kind,
+                hir::TypeKind::Elementary(hir::ElementaryType::Bytes | hir::ElementaryType::String)
+            )
+            && let hir::CallArgsKind::Unnamed([inner]) = args.kind
+        {
+            expr = inner;
+        } else {
+            return expr;
         }
     }
 }

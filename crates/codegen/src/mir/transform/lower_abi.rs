@@ -139,10 +139,6 @@ struct DecodeOptions<'a> {
     /// The debug message for an out-of-range head offset, which depends on whether the value is
     /// a tuple element, a struct member, or an array element.
     offset_reason: RevertReason,
-    /// The free memory pointer at which a copying decode would allocate this `bytes` value, when
-    /// it is decoded as a view instead: the view replays the copy's allocation checks, so it
-    /// fails wherever the copy would.
-    copy_fmp: Option<ValueId>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -174,7 +170,6 @@ impl DecodeOptions<'_> {
             helpers: None,
             has_bitwise_shifting,
             offset_reason: RevertReason::InvalidTupleOffset,
-            copy_fmp: None,
         }
     }
 
@@ -1778,7 +1773,6 @@ impl LowerAbiCx {
             helpers,
             has_bitwise_shifting,
             offset_reason,
-            copy_fmp,
         } = options;
         builder.switch_to_block(*current);
         let is_dynamic = ty.is_dynamic();
@@ -1802,7 +1796,6 @@ impl LowerAbiCx {
             return builder.icall(helper, args, ty.mir_type());
         }
         if !constructor
-            && copy_fmp.is_none()
             && matches!(ty, crate::mir::AbiParamType::Bytes)
             && matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
         {
@@ -2105,12 +2098,6 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::Bytes if matches!(arg_type, MirType::Slice(_)) => {
                 let len = Self::load_input_word(builder, base, constructor);
                 let data = builder.add_u64_offset(base, 32);
-                if let Some(fmp) = copy_fmp {
-                    // The copy this view stands for is allocated before its range is checked.
-                    Self::replay_copy_allocation(builder, fmp, len, current);
-                    Self::guard_bytes_data(builder, data, len, input_end, current, true);
-                    return builder.make_slice(data, len, location);
-                }
                 Self::guard_bytes_data(builder, data, len, input_end, current, false);
                 builder.make_slice(data, len, location)
             }
@@ -2230,6 +2217,225 @@ impl LowerAbiCx {
         }
     }
 
+    /// Validates the ABI value of type `ty` whose head is at `head`, as the copying decode into
+    /// memory validates it, and returns its view in the input: the slice of a `bytes` value's
+    /// bytes, of an array's element heads with the element count as its length, or of a struct's
+    /// head. A value type decodes to its value.
+    ///
+    /// The checks are the copying decode's, in its order, so every input fails where the copy
+    /// fails and with the same error. The copy allocates each dynamically sized object before it
+    /// checks the object's range, and fails with `Panic(0x41)` where the allocation cannot fit:
+    /// `fmp` is the free memory pointer the copy would have reached, which every copy advances,
+    /// including the statically sized ones the copy allocates without a check.
+    fn decode_view_value(
+        builder: &mut FunctionBuilder<'_>,
+        ty: &AbiParamType,
+        head: ValueId,
+        tuple_base: ValueId,
+        current: &mut BlockId,
+        options: DecodeOptions<'_>,
+        fmp: &mut ValueId,
+    ) -> ValueId {
+        let DecodeOptions { constructor, input_end, head_checked, .. } = options;
+        if ty.is_scalar_word() {
+            return Self::decode_source_scalar(builder, ty, head, current, options);
+        }
+        builder.switch_to_block(*current);
+        let location = if constructor { SliceLocation::Memory } else { SliceLocation::Calldata };
+        let base = if ty.is_dynamic() {
+            if !head_checked {
+                Self::guard_input_range(
+                    builder,
+                    head,
+                    32,
+                    input_end,
+                    current,
+                    RevertReason::TupleDataTooShort,
+                );
+            }
+            // The check of a `bytes` or array value in calldata keeps its comparison form; the
+            // messages of every other value are those of the copy's memory decoder.
+            let to_calldata =
+                !constructor && matches!(ty, AbiParamType::Bytes | AbiParamType::DynamicArray(_));
+            let offset = Self::load_input_word(builder, head, constructor);
+            Self::guard_input_offset(
+                builder,
+                tuple_base,
+                offset,
+                input_end,
+                ty,
+                current,
+                options.offset_reason,
+                to_calldata,
+            )
+        } else {
+            head
+        };
+        let nested = options.checked();
+        match ty {
+            AbiParamType::Bytes => {
+                // The copy is allocated before its range is checked.
+                // len = load base
+                // fmp = replay_allocation(fmp, len bytes)
+                // revert_if len > input_end - (base + 32)
+                // view = slice(base + 32, len)
+                let len = Self::load_input_word(builder, base, constructor);
+                let data = builder.add_u64_offset(base, 32);
+                *fmp = Self::replay_copy_allocation(builder, *fmp, len, false, current);
+                Self::guard_bytes_data(builder, data, len, input_end, current, true);
+                builder.make_slice(data, len, location)
+            }
+            AbiParamType::DynamicArray(element) => {
+                // len = load base
+                // fmp = replay_allocation(fmp, len words)
+                // revert_if len heads do not fit the input
+                // validate each element
+                // view = slice(base + 32, len)
+                let element_head_size =
+                    element.checked_head_size().expect("ABI head size exceeds u64 range");
+                let len = Self::load_input_word(builder, base, constructor);
+                let data = builder.add_u64_offset(base, 32);
+                *fmp = Self::replay_copy_allocation(builder, *fmp, len, true, current);
+                Self::guard_input_dynamic_array(
+                    builder,
+                    len,
+                    data,
+                    input_end,
+                    current,
+                    element_head_size,
+                );
+                let nested = nested.nested(RevertReason::InvalidCalldataArrayOffset);
+                Self::decode_view_elements(builder, element, data, len, current, nested, fmp);
+                builder.switch_to_block(*current);
+                builder.make_slice(data, len, location)
+            }
+            AbiParamType::FixedArray { element, len } => {
+                // revert_if the heads do not fit the input
+                // fmp = fmp + len * 32
+                // validate each element
+                // view = slice(base, len)
+                if !head_checked || ty.is_dynamic() {
+                    let reason = Self::aggregate_short_reason(ty, false);
+                    let head_size = ty.data_head_size();
+                    Self::guard_input_range(builder, base, head_size, input_end, current, reason);
+                }
+                builder.switch_to_block(*current);
+                *fmp = builder.add_u64_offset(*fmp, len.saturating_mul(32));
+                let count = builder.imm(*len);
+                let nested = nested.nested(RevertReason::InvalidCalldataArrayOffset);
+                Self::decode_view_elements(builder, element, base, count, current, nested, fmp);
+                builder.switch_to_block(*current);
+                let count = builder.imm(*len);
+                builder.make_slice(base, count, location)
+            }
+            AbiParamType::Tuple(fields) => {
+                // revert_if the head does not fit the input
+                // fmp = fmp + words * 32
+                // validate each field
+                // view = slice(base, head_size)
+                if !head_checked || ty.is_dynamic() {
+                    let reason = Self::aggregate_short_reason(ty, false);
+                    let head_size = ty.data_head_size();
+                    Self::guard_input_range(builder, base, head_size, input_end, current, reason);
+                }
+                // A struct copied from calldata keeps its source base in one more word.
+                let words = fields.len() as u64 + u64::from(!constructor && ty.has_dynamic_child());
+                builder.switch_to_block(*current);
+                *fmp = builder.add_u64_offset(*fmp, words * 32);
+                let nested = nested.nested(RevertReason::InvalidStructOffset);
+                let mut offset = 0;
+                for field in fields.iter() {
+                    builder.switch_to_block(*current);
+                    let field_head = builder.add_u64_offset(base, offset);
+                    Self::decode_view_value(builder, field, field_head, base, current, nested, fmp);
+                    offset += field.checked_head_size().expect("ABI head size exceeds u64 range");
+                }
+                builder.switch_to_block(*current);
+                let head_size = builder.imm(ty.data_head_size());
+                builder.make_slice(base, head_size, location)
+            }
+            AbiParamType::Scalar(_) | AbiParamType::Enum { .. } => unreachable!("decoded above"),
+        }
+    }
+
+    /// Validates the `count` elements of type `element` whose heads start at `data`, in order,
+    /// for [`Self::decode_view_value`].
+    fn decode_view_elements(
+        builder: &mut FunctionBuilder<'_>,
+        element: &AbiParamType,
+        data: ValueId,
+        count: ValueId,
+        current: &mut BlockId,
+        options: DecodeOptions<'_>,
+        fmp: &mut ValueId,
+    ) {
+        if element.is_scalar_word() {
+            // Every word of a full-width type is valid.
+            if element.word_validator().is_some() {
+                Self::validate_scalar_array(builder, data, element, count, current, options);
+            }
+            return;
+        }
+        // Each element's copy moves the free memory pointer, so the loop carries it.
+        // loop:
+        //   remaining = phi [count, remaining - 1]
+        //   cursor = phi [data, cursor + head_size]
+        //   copy_fmp = phi [fmp, next_fmp]
+        //   branch remaining > 0, body, done
+        // body:
+        //   next_fmp = decode_view_value(element at cursor)
+        builder.switch_to_block(*current);
+        let zero = builder.imm(0);
+        let preheader = builder.current_block();
+        let cond = builder.create_block();
+        let body = builder.create_block();
+        let done = builder.create_block();
+        builder.jump(cond);
+
+        builder.switch_to_block(cond);
+        let remaining = builder.phi(vec![(preheader, count)]);
+        let cursor = builder.phi(vec![(preheader, data)]);
+        let copy_fmp = builder.phi(vec![(preheader, *fmp)]);
+        let has_next = builder.gt(remaining, zero);
+        builder.branch(has_next, body, done);
+
+        builder.switch_to_block(body);
+        let mut element_current = body;
+        let mut next_fmp = copy_fmp;
+        Self::decode_view_value(
+            builder,
+            element,
+            cursor,
+            data,
+            &mut element_current,
+            options,
+            &mut next_fmp,
+        );
+        builder.switch_to_block(element_current);
+        let one = builder.imm(1);
+        let next_remaining = builder.sub(remaining, one);
+        let next_cursor = builder.add_u64_offset(
+            cursor,
+            element.checked_head_size().expect("ABI head size exceeds u64 range"),
+        );
+        builder.jump(cond);
+        builder.add_phi_incoming(remaining, element_current, next_remaining);
+        builder.add_phi_incoming(cursor, element_current, next_cursor);
+        builder.add_phi_incoming(copy_fmp, element_current, next_fmp);
+
+        builder.switch_to_block(done);
+        *current = done;
+        *fmp = copy_fmp;
+    }
+
+    /// Validates every element word of a scalar array whose `len` words from
+    /// `data` the caller has already bounded by the input end.
+    ///
+    /// The loop steps an element cursor to the end of the words and tests at the
+    /// bottom, behind one guard for the empty array: the empty case skips the
+    /// loop setup, and each element pays one comparison instead of an index
+    /// update, an address computation and a top test. The guard compares the
+    /// same two words as the loop, so the length need not stay live for it.
     fn validate_scalar_array(
         builder: &mut FunctionBuilder<'_>,
         data: ValueId,
@@ -2698,20 +2904,29 @@ impl LowerAbiCx {
         builder.and(rounded, mask)
     }
 
-    /// Fails with `Panic(0x41)` where copying `len` bytes to a new object at `fmp` would, as
-    /// solc's decoder does: the length must fit 64 bits, and the object's end must too.
+    /// Fails with `Panic(0x41)` where copying `len` bytes, or `len` words when `words`, to a new
+    /// object at `fmp` would, as solc's decoder does: the length must fit 64 bits, and the
+    /// object's end must too. Returns the free memory pointer after the copy.
     fn replay_copy_allocation(
         builder: &mut FunctionBuilder<'_>,
         fmp: ValueId,
         len: ValueId,
+        words: bool,
         current: &mut BlockId,
-    ) {
+    ) -> ValueId {
         builder.switch_to_block(*current);
         // too_long = len >> 64 != 0
-        // next = fmp + ((len + 63) & ~31)
+        // size = (len + 63) & ~31, or len * 32 + 32 for words
+        // next = fmp + size
         // panic(0x41) if too_long || next < fmp || next >> 64 != 0
         let too_long = builder.exceeds_bits(len, 64, false);
-        let size = builder.padded_size(len);
+        let size = if words {
+            let word = builder.imm(32);
+            let payload = builder.mul(len, word);
+            builder.add(payload, word)
+        } else {
+            builder.padded_size(len)
+        };
         let fmp = builder.cast(fmp, MirType::I256);
         let next = builder.add(fmp, size);
         let wrapped = builder.lt(next, fmp);
@@ -2720,6 +2935,7 @@ impl LowerAbiCx {
         let invalid = builder.or(invalid, over_limit);
         builder.panic_if(invalid, PanicCode::MemoryAllocationOverflow);
         *current = builder.current_block();
+        next
     }
 
     fn checked_mul(
@@ -3223,12 +3439,13 @@ fn decode_memory_tuple(
 }
 
 /// Decodes an ABI tuple held in memory or calldata whose `fields` give each value's MIR
-/// representation: a `bytes` field typed as a slice is a view of its bytes in the input.
+/// representation: a `bytes`, array, or struct field typed as a slice is a view of the value in
+/// the input, validated by [`LowerAbiCx::decode_view_value`].
 ///
 /// A view allocates nothing, but the copying decode it stands for allocates each copy before
 /// checking its range, and fails with `Panic(0x41)` where the allocation cannot fit. The views
-/// replay those checks against a virtual free memory pointer that each view advances by the
-/// copy's size, so every input fails exactly where the copy would.
+/// replay those checks against a virtual free memory pointer that each copy advances by its size,
+/// so every input fails exactly where the copy would.
 fn decode_view_tuple(
     builder: &mut FunctionBuilder<'_>,
     base: ValueId,
@@ -3244,31 +3461,40 @@ fn decode_view_tuple(
         LowerAbiCx::validate_memory_tuple_input(builder, base, length, head_size, &mut current);
     // copy_fmp = fmp
     builder.switch_to_block(current);
-    let mut copy_fmp = builder.fmp();
+    let fmp = builder.fmp();
+    let mut copy_fmp = builder.cast(fmp, MirType::I256);
     let mut values = Vec::with_capacity(layout.types.len());
     let mut head_offset = 0_u64;
     for (ty, &field) in layout.types.iter().zip(fields) {
         builder.switch_to_block(current);
         let head = builder.add_u64_offset(base, head_offset);
-        let view = matches!(ty, AbiParamType::Bytes) && matches!(field, MirType::Slice(_));
         let options = DecodeOptions::new(constructor, input_end, has_bitwise_shifting).checked();
-        let value = LowerAbiCx::decode_aggregate_argument(
-            builder,
-            ty,
-            field,
-            head,
-            base,
-            &mut current,
-            DecodeOptions { copy_fmp: view.then_some(copy_fmp), ..options },
-        );
-        if view {
-            // copy_fmp = copy_fmp + ((len(value) + 63) & ~31)
-            builder.switch_to_block(current);
-            let len = builder.slice_len(value);
-            let size = builder.padded_size(len);
-            let word = builder.cast(copy_fmp, MirType::I256);
-            copy_fmp = builder.add(word, size);
-        }
+        let value = if !ty.is_scalar_word() && matches!(field, MirType::Slice(_)) {
+            LowerAbiCx::decode_view_value(
+                builder,
+                ty,
+                head,
+                base,
+                &mut current,
+                options,
+                &mut copy_fmp,
+            )
+        } else {
+            // A decode with views copies nothing, so no copy moves the pointer.
+            debug_assert!(
+                ty.is_scalar_word()
+                    || !fields.iter().any(|field| matches!(field, MirType::Slice(_)))
+            );
+            LowerAbiCx::decode_aggregate_argument(
+                builder,
+                ty,
+                field,
+                head,
+                base,
+                &mut current,
+                options,
+            )
+        };
         values.push(value);
         head_offset = head_offset.checked_add(ty.checked_head_size()?)?;
     }

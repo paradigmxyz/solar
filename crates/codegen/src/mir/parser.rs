@@ -1976,7 +1976,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         .parser
                         .error("ABI decode requires bytes or a static memory pointer"));
                 }
-                // `views`: every `bytes` value is a view of the data, in its location.
+                // `views`: every `bytes`, array, and struct value is a view of the data, in its
+                // location.
                 let views = if self.parser.eat(TokenKind::Comma) {
                     let group = self.parser.parse_ident()?;
                     if group != sym::views {
@@ -1991,8 +1992,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let fields = layout
                     .types
                     .iter()
-                    .map(|ty| match (ty, views) {
-                        (AbiParamType::Bytes, Some(view)) => view,
+                    .map(|ty| match views {
+                        Some(view) if !ty.is_scalar_word() => view,
                         _ => ty.mir_type(),
                     })
                     .collect::<Vec<_>>();

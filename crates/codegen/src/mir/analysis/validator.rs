@@ -867,7 +867,8 @@ impl<'a> Validator<'a> {
                                 id,
                             );
                         }
-                        // A `bytes` field may be a view: a slice of the data's location.
+                        // A `bytes`, array, or struct field may be a view: a slice of the data's
+                        // location.
                         let view = MirType::Slice(match data_ty {
                             Some(MirType::Slice(SliceLocation::Calldata)) => {
                                 SliceLocation::Calldata
@@ -875,8 +876,7 @@ impl<'a> Validator<'a> {
                             _ => SliceLocation::Memory,
                         });
                         let field_ok = |field: MirType, abi: &crate::mir::AbiParamType| {
-                            field == abi.mir_type()
-                                || (matches!(abi, crate::mir::AbiParamType::Bytes) && field == view)
+                            field == abi.mir_type() || (!abi.is_scalar_word() && field == view)
                         };
                         let valid = match inst.result_ty {
                             Some(MirType::Struct(ty)) => {

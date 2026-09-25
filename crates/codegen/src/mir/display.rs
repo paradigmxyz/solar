@@ -725,7 +725,7 @@ fn display_inst_kind<'a>(
         }
         InstKind::AbiDecode { data, layout } => {
             write!(f, "abi_decode {layout}, {}", display_val(*data, func))?;
-            // Every `bytes` value of the decode is a view of the data.
+            // Every `bytes`, array, and struct value of the decode is a view of the data.
             let views = match result_ty {
                 Some(MirType::Slice(_)) => true,
                 Some(MirType::Struct(id)) => module.is_some_and(|module| {

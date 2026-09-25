@@ -32,6 +32,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(LValuePlace::Variable { id, span: expr.span });
         }
 
+        // Nothing writes through a view, or through an element or a field of one.
+        if let ExprKind::Member(receiver, _) | ExprKind::Index(receiver, _) = &expr.kind
+            && self.is_view_expr(receiver)
+        {
+            return self.report_view_use(self.view_root(receiver)?, receiver.span);
+        }
         match &expr.kind {
             ExprKind::Member(receiver, name) => {
                 if self.cx.gcx.resolved_builtin(expr) == Some(Builtin::ArrayLength)
