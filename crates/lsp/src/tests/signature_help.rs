@@ -1,8 +1,30 @@
-use super::{GlobalState, support::RequestFixture};
-use crate::vfs::VfsPath;
+use super::{GlobalState, expect_ready, support::RequestFixture};
+use crate::{handlers, vfs::VfsPath};
 use crop::Rope;
-use lsp_types::{Documentation, Position, SignatureHelp, Url};
+use lsp_types::{
+    Documentation, Position, SignatureHelp, SignatureHelpParams, TextDocumentIdentifier,
+    TextDocumentPositionParams, Url,
+};
 use snapbox::str;
+
+fn request_signature_help(
+    state: &mut GlobalState,
+    uri: Url,
+    position: Position,
+) -> Option<SignatureHelp> {
+    expect_ready(handlers::signature_help(
+        state,
+        SignatureHelpParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
+            work_done_progress_params: Default::default(),
+            context: None,
+        },
+    ))
+    .unwrap()
+}
 
 fn signature_help_from_snapshot(
     state: &mut GlobalState,
@@ -12,15 +34,136 @@ fn signature_help_from_snapshot(
     // Exercise lexical fallback independently of the handler's current-analysis requirement.
     let path = crate::proto::vfs_path(&uri)?;
     let source = state.vfs.read().get_file_source(&path)?;
-    let cursor = source.positions().text_range(lsp_types::Range::new(position, position)).start;
+    let cursor = source.positions().text_range(lsp_types::Range::new(position, position))?.start;
     state.symbol_tables.load().signature_help(
         &uri,
-        position,
+        cursor,
         source.positions(),
         &source.source(),
         Some(source.statement_boundary(cursor)),
         state.config.signature_help_options(),
     )
+}
+
+#[test]
+fn clamps_signature_help_columns_to_the_line_end() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Signature.sol open
+        contract C {
+            function add(uint256 lhs, uint256 rhs) public pure returns (uint256) {
+                return lhs + rhs;
+            }
+
+            function use() public pure {
+                add(1,$1
+                    2);
+            }
+        }
+        "#,
+        "/Signature.sol",
+    );
+    let mut state = fixture.state();
+    let (uri, position) = fixture.marker_location("$1");
+    let expected = request_signature_help(&mut state, uri.clone(), position).unwrap();
+    assert_eq!(expected.active_parameter, Some(1));
+
+    assert_eq!(
+        request_signature_help(&mut state, uri, Position::new(position.line, u32::MAX)),
+        Some(expected)
+    );
+}
+
+#[test]
+fn clamps_signature_help_lines_to_the_document_end() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Signature.sol open
+        contract C {
+            function add(uint256 lhs, uint256 rhs) public pure returns (uint256) {
+                return lhs + rhs;
+            }
+
+            function use() public pure {
+                add(1,$1
+        "#,
+        "/Signature.sol",
+    );
+    let mut state = fixture.state();
+    let (uri, position) = fixture.marker_location("$1");
+    let expected = request_signature_help(&mut state, uri.clone(), position).unwrap();
+    assert_eq!(expected.active_parameter, Some(1));
+
+    for position in [Position::new(99, 0), Position::new(u32::MAX, u32::MAX)] {
+        assert_eq!(
+            request_signature_help(&mut state, uri.clone(), position),
+            Some(expected.clone())
+        );
+    }
+}
+
+#[test]
+fn clamps_signature_help_before_resolving_an_unindexed_call() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Signature.sol open
+        contract C {
+            function foo(uint256 lhs, uint256 rhs) public pure {}
+            function bar(uint256 first, uint256 second) public pure {}
+
+            function use() public pure {
+                foo(1,$1 2);
+            }
+        }
+        "#,
+        "/Signature.sol",
+    );
+    let mut state = fixture.state();
+    let (uri, position) = fixture.marker_location("$1");
+    let original = fixture.project_contents("/Signature.sol");
+    let call_start = original.find("foo(1,").unwrap();
+    let changed = format!("{}bar(1,", &original[..call_start]);
+    let path = VfsPath::from(fixture.project_path("/Signature.sol"));
+    state.vfs.write().set_file_contents(path, Some(Rope::from(changed)));
+
+    // This newly typed callee has no indexed callsite, so signature help resolves its declaration
+    // from the cursor's scope in the previous analysis.
+    let expected = signature_help_from_snapshot(&mut state, uri.clone(), position).unwrap();
+    assert_eq!(expected.active_parameter, Some(1));
+    for position in [Position::new(position.line, u32::MAX), Position::new(u32::MAX, 0)] {
+        assert_eq!(
+            signature_help_from_snapshot(&mut state, uri.clone(), position),
+            Some(expected.clone())
+        );
+    }
+}
+
+#[test]
+fn rejects_signature_help_positions_inside_surrogate_pairs() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Signature.sol open
+        contract C {
+            function set(string memory text) public pure {}
+
+            function use() public pure {
+                set(unicode"$1😀");
+            }
+        }
+        "#,
+        "/Signature.sol",
+    );
+    let mut state = fixture.state();
+    let (uri, position) = fixture.marker_location("$1");
+    assert!(request_signature_help(&mut state, uri.clone(), position).is_some());
+    assert_eq!(
+        request_signature_help(
+            &mut state,
+            uri,
+            Position::new(position.line, position.character + 1),
+        ),
+        None
+    );
 }
 
 #[test]

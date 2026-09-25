@@ -961,8 +961,15 @@ async fn completion_syntax_and_invalid_positions_do_not_wait_for_analysis() {
         assert!(completion_labels(response).is_empty());
         assert!(state.analysis_scheduler.tasks.lock().debounce.is_some());
     }
+    let response = expect_ready(crate::handlers::completion(
+        &mut state,
+        completion_params(&uri, Position::new(u32::MAX, u32::MAX)),
+    ))
+    .unwrap();
+    assert!(completion_labels(response).is_empty());
+    change(&mut state, &uri, 5, &format!("//😀\n{USING_SOURCE}"));
     for (request_uri, position) in [
-        (uri.clone(), Position::new(u32::MAX, u32::MAX)),
+        (uri.clone(), Position::new(0, 3)),
         (uri.join("Missing.sol").unwrap(), Position::new(0, 0)),
     ] {
         let response = expect_ready(crate::handlers::completion(
@@ -977,6 +984,57 @@ async fn completion_syntax_and_invalid_positions_do_not_wait_for_analysis() {
         ))
         .unwrap();
         assert!(response.is_none());
+        assert!(state.analysis_scheduler.tasks.lock().debounce.is_some());
     }
     drop(gate);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn aliased_interactive_requests_refresh_analysis_and_clamp_signature_positions() {
+    for spelling in ["%52equest.sol", "/Request.sol", "nested%2F..%2FRequest.sol"] {
+        let (_project, mut state, uri) = using_fixture().await;
+        let alias = Url::parse(&uri.as_str().replacen("Request.sol", spelling, 1)).unwrap();
+        let source = USING_SOURCE
+            .replace("{Math.twice}", "{Math.triple}")
+            .replace("// completion\n    }\n}", "x.triple(");
+        let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
+        change(&mut state, &uri, 2, &source);
+        let mut completion = std::pin::pin!(crate::handlers::completion(
+            &mut state,
+            completion_params(&alias, Position::new(8, 10)),
+        ));
+        let mut signature = std::pin::pin!(crate::handlers::signature_help(
+            &mut state,
+            signature_params(&alias, Position::new(8, u32::MAX)),
+        ));
+        let mut eof_signature = std::pin::pin!(crate::handlers::signature_help(
+            &mut state,
+            signature_params(&alias, Position::new(u32::MAX, u32::MAX)),
+        ));
+        let mut context = Context::from_waker(Waker::noop());
+        assert!(completion.as_mut().poll(&mut context).is_pending());
+        assert!(signature.as_mut().poll(&mut context).is_pending());
+        assert!(eof_signature.as_mut().poll(&mut context).is_pending());
+        assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
+        drop(gate);
+
+        let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, completion).await.unwrap().unwrap();
+        assert_eq!(completion_labels(response), ["triple"]);
+        let response =
+            tokio::time::timeout(ASYNC_TEST_TIMEOUT, signature).await.unwrap().unwrap().unwrap();
+        snapbox::assert_data_eq!(
+            response.signatures[0].label.as_str(),
+            snapbox::str!["function triple() internal pure returns (uint256)"]
+        );
+        assert_eq!(
+            tokio::time::timeout(ASYNC_TEST_TIMEOUT, eof_signature).await.unwrap().unwrap(),
+            Some(response.clone())
+        );
+        let ready = expect_ready(crate::handlers::signature_help(
+            &mut state,
+            signature_params(&alias, Position::new(8, u32::MAX)),
+        ))
+        .unwrap();
+        assert_eq!(ready, Some(response));
+    }
 }
