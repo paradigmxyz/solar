@@ -5,12 +5,16 @@ use super::{
     OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, SmallVec, StackOp, StackScheduler,
     U256, Value, ValueId, WORD_BYTES, index_vec, op, rematerializable_nullary_value,
 };
+use crate::target::Target;
 use std::cmp::Ordering;
 
 /// Straight-line instructions within which an argument's next use keeps a stack copy.
 const ARG_REUSE_WINDOW: usize = 16;
 /// Stack depth below which a copy of a reused argument stays resident.
 const ARG_REUSE_DEPTH: usize = 8;
+/// Straight-line instructions within which an expensive immediate's next use keeps a stack copy
+/// in size builds.
+const IMMEDIATE_REUSE_WINDOW: usize = 4;
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Emits a value to the stack.
@@ -116,11 +120,32 @@ impl<'gcx> EvmCodegen<'gcx> {
                         .map(|&inst| func.inst(inst).kind.operands().contains(&value));
                     uses.next() == Some(true) || uses.filter(|&used| used).count() >= 2
                 };
+            // Size builds keep a copy of an immediate whose shortest push costs more than a
+            // `DUP` and a `SWAP` when it is used again within the next few instructions, as
+            // repeated masks are, instead of pushing it again.
+            let immediate_reused_soon = optimization.is_size()
+                && scheduler.stack.depth() < ARG_REUSE_DEPTH
+                && func
+                    .value(value)
+                    .as_immediate()
+                    .and_then(|immediate| immediate.as_u256())
+                    .is_some_and(|word| {
+                        let target = Target::new(self.gcx);
+                        target.push(word).bytes
+                            > 2 * (target.dup().bytes + target.opcode(op::SWAP1).bytes)
+                    })
+                && func.blocks[block].instructions[inst_idx + 1..]
+                    .iter()
+                    .take(IMMEDIATE_REUSE_WINDOW)
+                    .any(|&inst| func.inst(inst).kind.operands().contains(&value));
             let rematerializable = Self::is_rematerializable_value(func, value)
                 || Self::is_always_rematerializable_value(func, value);
             if !preserved.contains(&value)
                 && (!liveness.is_dead_after(value, block, inst_idx) || alias_is_live)
-                && (!rematerializable || carried_arg_is_live || arg_reused_soon)
+                && (!rematerializable
+                    || carried_arg_is_live
+                    || arg_reused_soon
+                    || immediate_reused_soon)
                 && (scheduler.reloadable_spill(value).is_none()
                     || scheduler.stack.contains(value)
                     || used_by_next_instruction)
