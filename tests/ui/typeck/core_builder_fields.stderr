@@ -43,5 +43,37 @@ LL │         return WordBuilder({data: new uint256[](1), used: 1});
    ├ note: a builder made from parts could claim bytes that were never written
    ╰ help: use `Buffers.create` or `Buffers.createWords`
 
-error: aborting due to 5 previous errors
+error: a `ByteBuilder` can only be made by `Buffers`
+   ╭▸ ROOT/tests/ui/typeck/core_builder_fields.sol:LL:CC
+   │
+LL │         (ByteBuilder memory b) = abi.decode(data, (ByteBuilder));
+   │                                                    ━━━━━━━━━━━
+   │
+   ╰ note: a decoded builder could claim bytes that were never written
+
+error: a `WordBuilder` cannot be a struct field, an array element, or a mapping value
+   ╭▸ ROOT/tests/ui/typeck/core_builder_fields.sol:LL:CC
+   │
+LL │     mapping(uint256 => WordBuilder) byId;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ note: builders are followed as values to reject a use after `finish`, which memory would hide
+
+error: a `ByteBuilder` cannot be a struct field, an array element, or a mapping value
+   ╭▸ ROOT/tests/ui/typeck/core_builder_fields.sol:LL:CC
+   │
+LL │         ByteBuilder inner;
+   │         ━━━━━━━━━━━
+   │
+   ╰ note: builders are followed as values to reject a use after `finish`, which memory would hide
+
+error: a `ByteBuilder` cannot be a struct field, an array element, or a mapping value
+   ╭▸ ROOT/tests/ui/typeck/core_builder_fields.sol:LL:CC
+   │
+LL │     function many(ByteBuilder[] memory list) internal pure returns (uint256) {
+   │                   ━━━━━━━━━━━━━
+   │
+   ╰ note: builders are followed as values to reject a use after `finish`, which memory would hide
+
+error: aborting due to 9 previous errors
 

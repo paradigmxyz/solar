@@ -32,4 +32,21 @@ contract Test {
         b.append("x");
         return b.length();
     }
+
+    // A builder is a value of its own, never part of another type.
+    struct Holder {
+        ByteBuilder inner; //~ ERROR: a `ByteBuilder` cannot be a struct field, an array element, or a mapping value
+        uint256 count;
+    }
+
+    mapping(uint256 => WordBuilder) byId; //~ ERROR: a `WordBuilder` cannot be a struct field, an array element, or a mapping value
+
+    function many(ByteBuilder[] memory list) internal pure returns (uint256) { //~ ERROR: a `ByteBuilder` cannot be a struct field, an array element, or a mapping value
+        return list.length;
+    }
+
+    function decoded(bytes memory data) internal pure returns (uint256) {
+        (ByteBuilder memory b) = abi.decode(data, (ByteBuilder)); //~ ERROR: a `ByteBuilder` can only be made by `Buffers`
+        return b.length();
+    }
 }

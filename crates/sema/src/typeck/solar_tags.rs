@@ -101,7 +101,7 @@ fn check_decode_view(gcx: Gcx<'_>, args: hir::CallArgs<'_>, tag: Span) {
     }
     let types = match types.peel_parens().kind {
         ExprKind::Tuple(types) => types.iter().flatten().copied().collect::<Vec<_>>(),
-        _ => vec![types],
+        _ => vec![types.peel_parens()],
     };
     for ty_expr in types {
         let Some(TyKind::Type(ty)) = gcx.type_of_expr(ty_expr.id).map(|ty| ty.kind) else {

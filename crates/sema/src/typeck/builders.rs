@@ -2,16 +2,21 @@
 //!
 //! A `ByteBuilder` or `WordBuilder` keeps what was written apart from the capacity behind it:
 //! `append` writes below `used`, and `finish` returns exactly the written part. Code outside the
-//! module that reads or writes a field, or makes a builder from parts, could see bytes that were
-//! never written or break that length, so this compiler rejects it. Other compilers read the
-//! fields' documentation instead, which says the same.
+//! module that reads or writes a field, or makes a builder from parts, directly or with
+//! `abi.decode`, could see bytes that were never written or break that length, so this compiler
+//! rejects it. Other compilers read the fields' documentation instead, which says the same.
+//!
+//! A builder is also a value of its own, never part of another type: code generation follows
+//! builders as values to reject a use after `finish`, which it could not do through a struct
+//! field, an array element, or a mapping value.
 
 use crate::{
+    builtins::Builtin,
     hir::{self, ExprKind, Visit},
     ty::{Gcx, TyKind},
 };
 use solar_data_structures::Never;
-use solar_interface::source_map::FileName;
+use solar_interface::{Span, source_map::FileName};
 use std::ops::ControlFlow;
 
 /// The module that owns the builders.
@@ -21,6 +26,38 @@ pub(super) fn check(gcx: Gcx<'_>) {
     for source in gcx.hir.source_ids() {
         if !is_buffers(gcx, source) {
             let _ = BuilderFields { gcx }.visit_nested_source(source);
+        }
+    }
+    check_nesting(gcx);
+}
+
+/// Rejects every declaration outside `Buffers` whose type holds a builder inside another type.
+fn check_nesting(gcx: Gcx<'_>) {
+    let fields = BuilderFields { gcx };
+    for id in gcx.hir.variable_ids() {
+        let variable = gcx.hir.variable(id);
+        if is_buffers(gcx, variable.source) {
+            continue;
+        }
+        let ty = gcx.type_of_item(id.into());
+        // A field holds its type inside the struct; any other variable holds only what its type
+        // nests.
+        let nested = match variable.kind {
+            hir::VarKind::Struct => fields.holds_builder(ty),
+            _ => fields.nests_builder(ty),
+        };
+        if let Some(id) = nested {
+            gcx.dcx()
+                .err(format!(
+                    "a `{}` cannot be a struct field, an array element, or a mapping value",
+                    gcx.hir.strukt(id).name
+                ))
+                .span(variable.ty.span)
+                .note(
+                    "builders are followed as values to reject a use after `finish`, which \
+                     memory would hide",
+                )
+                .emit();
         }
     }
 }
@@ -39,6 +76,36 @@ impl<'gcx> BuilderFields<'gcx> {
     fn builder(&self, ty: crate::ty::Ty<'gcx>) -> Option<hir::StructId> {
         let TyKind::Struct(id) = ty.peel_refs().kind else { return None };
         is_buffers(self.gcx, self.gcx.hir.strukt(id).source).then_some(id)
+    }
+
+    /// The builder `ty` is or holds as array elements or mapping values, when there is one.
+    fn holds_builder(&self, ty: crate::ty::Ty<'gcx>) -> Option<hir::StructId> {
+        self.builder(ty).or_else(|| self.nests_builder(ty))
+    }
+
+    /// The builder `ty` holds as array elements or mapping values, when there is one.
+    fn nests_builder(&self, ty: crate::ty::Ty<'gcx>) -> Option<hir::StructId> {
+        match ty.peel_refs().kind {
+            TyKind::Array(element, _) | TyKind::DynArray(element) | TyKind::Slice(element) => {
+                self.holds_builder(element)
+            }
+            TyKind::Mapping(_, value) => self.holds_builder(value),
+            _ => None,
+        }
+    }
+
+    /// The first type among the `abi.decode` target `types` that holds a builder, with its span.
+    fn decoded_builder(&self, types: &hir::Expr<'_>) -> Option<(Span, hir::StructId)> {
+        let types = match types.peel_parens().kind {
+            ExprKind::Tuple(types) => types.iter().flatten().copied().collect::<Vec<_>>(),
+            _ => vec![types.peel_parens()],
+        };
+        types.into_iter().find_map(|ty_expr| {
+            let Some(TyKind::Type(ty)) = self.gcx.type_of_expr(ty_expr.id).map(|ty| ty.kind) else {
+                return None;
+            };
+            self.holds_builder(ty).map(|id| (ty_expr.span, id))
+        })
     }
 }
 
@@ -70,6 +137,20 @@ impl<'gcx> Visit<'gcx> for BuilderFields<'gcx> {
                          field read could expose and a field write could break",
                     )
                     .help("use `Buffers.length` and `Buffers.finish`")
+                    .emit();
+            }
+            ExprKind::Call(..)
+                if let Some((callee, args, _)) = expr.as_call()
+                    && self.gcx.resolved_builtin(callee) == Some(Builtin::AbiDecode)
+                    && let Some(types) = args.exprs().nth(1)
+                    && let Some((span, id)) = self.decoded_builder(types) =>
+            {
+                let name = self.gcx.hir.strukt(id).name;
+                self.gcx
+                    .dcx()
+                    .err(format!("a `{name}` can only be made by `Buffers`"))
+                    .span(span)
+                    .note("a decoded builder could claim bytes that were never written")
                     .emit();
             }
             ExprKind::Call(..)
