@@ -444,11 +444,6 @@ bb30:
   mstore
   push 32
   dup 3
-  push bb34
-  swap 2
-  swap 1
-  jump bb32
-bb32:
   add
   push 0x112233445566778899aabbccddeeff00
   push 0
@@ -459,8 +454,32 @@ bb32:
   not
   div
   mul
-  swap 1
+  dup 1
+  dup 3
+  mstore
+  push 64
+  dup 5
+  add
+  mstore
+  push 96
+  dup 4
+  add
+  push 64
+  dup 3
+  dup 3
+  mcopy
+  pop
   swap 2
+  push 160
+  add
+  push 32
+  dup 4
+  dup 3
+  mcopy
+  pop
+  swap 1
+  pop
+  swap 1
   jump
 bb22:
   push bb23
@@ -497,37 +516,5 @@ bb24:
 bb26:
   push bb23
   jump bb30
-bb33 [continuation]:
-  swap 1
-  mstore
-  push 96
-  dup 4
-  add
-  push 64
-  dup 3
-  dup 3
-  mcopy
-  pop
-  swap 2
-  push 160
-  add
-  push 32
-  dup 4
-  dup 3
-  mcopy
-  pop
-  swap 1
-  pop
-  swap 1
-  jump
-bb34 [continuation]:
-  dup 2
-  mstore
-  push 64
-  dup 4
-  push bb33
-  swap 2
-  swap 1
-  jump bb32
 
 @data literal_0 hex"41414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465665a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a21"
