@@ -398,6 +398,20 @@ impl<'hir> Hir<'hir> {
         names
     }
 
+    /// Returns the ERC-7201 namespace a struct's `@custom:storage-location erc7201:<id>` tag
+    /// declares, with the tag's span.
+    pub fn erc7201_namespace(&self, id: StructId) -> Option<(Symbol, Span)> {
+        let doc = self.doc(self.strukt(id).doc);
+        doc.ast_comments.iter().flat_map(|comment| comment.natspec.iter()).find_map(|natspec| {
+            let ast::NatSpecKind::Custom { name } = natspec.kind else { return None };
+            if name.name != sym::storage_dash_location {
+                return None;
+            }
+            let id = natspec.content().trim().strip_prefix("erc7201:")?.trim();
+            (!id.is_empty()).then(|| (Symbol::intern(id), natspec.span))
+        })
+    }
+
     /// Returns whether a `@custom:solar-view` tag on the function `id` names its parameter
     /// `index`.
     pub fn is_solar_view_parameter(&self, id: FunctionId, index: usize) -> bool {

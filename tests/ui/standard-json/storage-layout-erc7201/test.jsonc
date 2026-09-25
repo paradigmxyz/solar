@@ -1,0 +1,40 @@
+// CHECK: "Token": {
+// CHECK: "storageLayout": {
+// CHECK: "label": "plain"
+// CHECK: "types": {
+// CHECK: "t_bool"
+// CHECK: "namespaces": {
+// CHECK: "erc7201:example.main": [
+// CHECK: "label": "x"
+// CHECK: "slot": "0"
+// CHECK: "label": "y"
+// CHECK: "slot": "1"
+// CHECK: "label": "z"
+// CHECK: "offset": 16
+// CHECK: "slot": "1"
+// CHECK: "label": "balances"
+// CHECK: "slot": "2"
+// CHECK: "erc7201:example.token": [
+// CHECK: "label": "name"
+// CHECK: "slot": "0"
+// CHECK: "label": "owner"
+// CHECK: "slot": "1"
+// CHECK: "label": "paused"
+// CHECK: "offset": 20
+// CHECK: "slot": "1"
+// CHECK: "transientStorageLayout": {
+// CHECK-NOT: "namespaces"
+// CHECK: "Empty": {
+// CHECK-NOT: "namespaces"
+// CHECK: "types": null
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "namespaces.sol": {
+        "Token": ["storageLayout", "transientStorageLayout"],
+        "Empty": ["storageLayout"]
+      }
+    }
+  }
+}

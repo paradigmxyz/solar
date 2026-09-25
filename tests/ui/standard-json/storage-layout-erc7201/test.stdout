@@ -1,0 +1,131 @@
+{
+  "sources": {
+    "namespaces.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "namespaces.sol": {
+      "Token": {
+        "storageLayout": {
+          "storage": [
+            {
+              "astId": 3,
+              "contract": "namespaces.sol:Token",
+              "label": "plain",
+              "offset": 0,
+              "slot": "0",
+              "type": "t_uint256"
+            }
+          ],
+          "types": {
+            "t_uint256": {
+              "encoding": "inplace",
+              "label": "uint256",
+              "numberOfBytes": "32"
+            },
+            "t_uint128": {
+              "encoding": "inplace",
+              "label": "uint128",
+              "numberOfBytes": "16"
+            },
+            "t_mapping(t_address,t_uint256)": {
+              "encoding": "mapping",
+              "label": "mapping(address => uint256)",
+              "numberOfBytes": "32",
+              "key": "t_address",
+              "value": "t_uint256"
+            },
+            "t_address": {
+              "encoding": "inplace",
+              "label": "address",
+              "numberOfBytes": "20"
+            },
+            "t_string_storage": {
+              "encoding": "bytes",
+              "label": "string",
+              "numberOfBytes": "32"
+            },
+            "t_bool": {
+              "encoding": "inplace",
+              "label": "bool",
+              "numberOfBytes": "1"
+            }
+          },
+          "namespaces": {
+            "erc7201:example.main": [
+              {
+                "astId": 4,
+                "contract": "namespaces.sol:Token",
+                "label": "x",
+                "offset": 0,
+                "slot": "0",
+                "type": "t_uint256"
+              },
+              {
+                "astId": 5,
+                "contract": "namespaces.sol:Token",
+                "label": "y",
+                "offset": 0,
+                "slot": "1",
+                "type": "t_uint128"
+              },
+              {
+                "astId": 6,
+                "contract": "namespaces.sol:Token",
+                "label": "z",
+                "offset": 16,
+                "slot": "1",
+                "type": "t_uint128"
+              },
+              {
+                "astId": 7,
+                "contract": "namespaces.sol:Token",
+                "label": "balances",
+                "offset": 0,
+                "slot": "2",
+                "type": "t_mapping(t_address,t_uint256)"
+              }
+            ],
+            "erc7201:example.token": [
+              {
+                "astId": 8,
+                "contract": "namespaces.sol:Token",
+                "label": "name",
+                "offset": 0,
+                "slot": "0",
+                "type": "t_string_storage"
+              },
+              {
+                "astId": 9,
+                "contract": "namespaces.sol:Token",
+                "label": "owner",
+                "offset": 0,
+                "slot": "1",
+                "type": "t_address"
+              },
+              {
+                "astId": 10,
+                "contract": "namespaces.sol:Token",
+                "label": "paused",
+                "offset": 20,
+                "slot": "1",
+                "type": "t_bool"
+              }
+            ]
+          }
+        },
+        "transientStorageLayout": {
+          "storage": [],
+          "types": null
+        }
+      },
+      "Empty": {
+        "storageLayout": {
+          "storage": [],
+          "types": null
+        }
+      }
+    }
+  }
+}
