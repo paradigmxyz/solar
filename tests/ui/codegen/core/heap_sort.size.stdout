@@ -1,0 +1,330 @@
+// === <solar:core/v1/Arrays.sol>:Arrays ===
+@module Arrays
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/v1/WordArrays.sol>:WordArrays ===
+@module WordArrays
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/heap_sort.sol:Test ===
+@module Test
+@phase lowered
+types:
+  struct0: {memptr, memptr}
+
+fn @sortInts() [selector=0xf42afd9e, abi_wrapper, pure] {
+  bb0:
+    v6 = calldatasize
+    v7 = lt v6, 36
+    jumpi v7, bb3, bb4
+  bb4:
+    v8 = calldataload 4
+    v9 = add v8, 4
+    v10 = add v9, 32
+    v11 = shr 64, v8
+    v12 = gt v10, v6
+    v13 = zext i1 v12 to i256
+    v14 = or v11, v13
+    v15 = ne v14, 0
+    jumpi v15, bb3, bb5
+  bb5:
+    v16 = calldataload v9
+    v18 = shr 64, v16
+    v19 = ne v18, 0
+    jumpi v19, bb6, bb7
+  bb7:
+    v20 = shl 5, v16
+    v21 = add v20, 32
+    v44 = mload 64
+    v45 = add v44, v21
+    v46 = lt v45, v44
+    v47 = zext i1 v46 to i256
+    v48 = shr 64, v45
+    v49 = or v47, v48
+    v50 = ne v49, 0
+    jumpi v50, bb6, bb9
+  bb9:
+    mstore 64, v45
+    mstore v44, v16
+    v23 = add v10, v20
+    v24 = gt v23, v6
+    jumpi v24, bb3, bb8
+  bb8:
+    v36 = add v44, 32
+    calldatacopy v36, v10, v20
+    v1 = lt v16, 2
+    jumpi v1, bb2, bb1
+  bb1:
+    v5 = add v36, v20
+    icall @core_array_group_sort, v36, v5, 0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    jump bb2
+  bb2:
+    v29 = mload v44
+    v30 = shl 5, v29
+    v32 = sub v44, 32
+    mstore v32, 32
+    v33 = add v30, 64
+    returndata v32, v33
+  bb6:
+    mstore 0, 0x4e487b71
+    mstore 32, 65
+    revert 28, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @groupSums() [selector=0x955dbb74, abi_wrapper, pure] {
+  bb0:
+    v2 = calldatasize
+    v3 = lt v2, 68
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = icall @decode_calldata_type, 4
+    v5 = icall @decode_calldata_type, 36
+    icall @core_array_group_sum, v4, v5
+    v42 = mload 64 !metadata(memory=scratch)
+    v11 = add v42, 64
+    mstore v42, 64
+    v36 = ptrtoint memptr v4 to i256
+    v15 = mload v36
+    mstore v11, v15
+    v16 = shl 5, v15
+    v17 = add v11, 32
+    v38 = add v36, 32
+    v19 = add v17, v16
+    mcopy v17, v38, v16
+    v24 = sub v19, v42
+    v22 = add v42, 32
+    mstore v22, v24
+    v39 = ptrtoint memptr v5 to i256
+    v25 = mload v39
+    mstore v19, v25
+    v26 = shl 5, v25
+    v27 = add v19, 32
+    v29 = add v27, v26
+    v41 = add v39, 32
+    mcopy v27, v41, v26
+    v32 = sub v29, v42
+    returndata v42, v32
+  bb1:
+    revert 0, 0
+}
+
+fn @core_array_group_sort(arg0: i256, arg1: i256, arg2: i256, arg3: i256) {
+  bb0:
+    v0 = sub arg1, arg0
+    v1 = shr 6, v0
+    v2 = shl 5, v1
+    v3 = add v0, v2
+    jump bb1
+  bb1:
+    v4 = phi [bb0: v3], [bb5: v6], [bb6: v6]
+    v5 = ne v4, 0
+    jumpi v5, bb2, bb8
+  bb8:
+    ret
+  bb2:
+    v6 = sub v4, 32
+    v7 = lt v6, v0
+    jumpi v7, bb4, bb3
+  bb3:
+    v8 = sub v6, v0
+    jump bb9
+  bb4:
+    v9 = add arg0, v6
+    v10 = mload arg0
+    v11 = mload v9
+    v12 = add arg0, arg2
+    v13 = add v9, arg2
+    v14 = mload v12
+    v15 = mload v13
+    mstore v12, v15
+    mstore v13, v14
+    mstore arg0, v11
+    mstore v9, v10
+    jump bb9
+  bb9:
+    v44 = phi [bb3: v8], [bb4: 0]
+    jump bb5
+  bb5:
+    v16 = phi [bb7: v32], [bb9: v44]
+    v17 = select v7, v6, v0
+    v18 = add v16, v16
+    v19 = add v18, 32
+    v20 = lt v19, v17
+    jumpi v20, bb6, bb1
+  bb6:
+    v21 = add arg0, v19
+    v22 = mload v21
+    v23 = add v19, 32
+    v24 = add v21, 32
+    v25 = mload v24
+    v26 = lt v23, v17
+    v27 = xor v22, arg3
+    v28 = xor v25, arg3
+    v29 = lt v27, v28
+    v30 = and v26, v29
+    v32 = select v30, v23, v19
+    v33 = select v30, v25, v22
+    v34 = add arg0, v16
+    v35 = mload v34
+    v36 = xor v35, arg3
+    v37 = xor v33, arg3
+    v38 = lt v36, v37
+    jumpi v38, bb7, bb1
+  bb7:
+    v39 = add arg0, v32
+    v40 = add v34, arg2
+    v41 = add v39, arg2
+    v42 = mload v40
+    v43 = mload v41
+    mstore v40, v43
+    mstore v41, v42
+    mstore v34, v33
+    mstore v39, v35
+    jump bb5
+}
+
+fn @core_array_group_sum(arg0: memptr, arg1: memptr) [may_return_memory] {
+  bb0:
+    v33 = ptrtoint memptr arg0 to i256
+    v0 = mload v33
+    v34 = ptrtoint memptr arg1 to i256
+    v1 = mload v34
+    v2 = ne v0, v1
+    jumpi v2, bb9, bb10
+  bb10:
+    v3 = lt v0, 2
+    jumpi v3, bb1, bb2
+  bb2:
+    v36 = add v33, 32
+    v38 = add v34, 32
+    v8 = sub v38, v36
+    v9 = shl 5, v0
+    v10 = add v36, v9
+    icall @core_array_group_sort, v36, v10, v8, 0
+    v12 = mload v38
+    v11 = add v33, 64
+    jump bb3
+  bb3:
+    v13 = phi [bb2: v11], [bb7: v28]
+    v14 = phi [bb2: v36], [bb7: v26]
+    v15 = phi [bb2: v12], [bb7: v27]
+    v16 = lt v13, v10
+    jumpi v16, bb4, bb8
+  bb8:
+    v29 = add v14, v8
+    mstore v29, v15
+    v30 = sub v14, v36
+    v31 = shr 5, v30
+    v32 = add v31, 1
+    mstore v33, v32
+    mstore v34, v32
+    ret
+  bb4:
+    v17 = mload v13
+    v18 = mload v14
+    v19 = add v13, v8
+    v20 = mload v19
+    v21 = eq v17, v18
+    jumpi v21, bb5, bb6
+  bb6:
+    v24 = add v14, v8
+    mstore v24, v15
+    v25 = add v14, 32
+    mstore v25, v17
+    jump bb7
+  bb5:
+    v22 = add v15, v20
+    v23 = lt v22, v20
+    jumpi v23, bb11, bb7
+  bb7:
+    v26 = phi [bb5: v14], [bb6: v25]
+    v27 = phi [bb5: v22], [bb6: v20]
+    v28 = add v13, 32
+    jump bb3
+  bb11:
+    mstore 0, 0x4e487b71
+    mstore 32, 17
+    revert 28, 36
+  bb1:
+    ret
+  bb9:
+    mstore 0, 0x4e487b71
+    mstore 32, 50
+    revert 28, 36
+}
+
+fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload arg0
+    v2 = add v1, 4
+    v3 = add v2, 32
+    v4 = shr 64, v1
+    v5 = gt v3, v0
+    v6 = zext i1 v5 to i256
+    v7 = or v4, v6
+    v8 = ne v7, 0
+    jumpi v8, bb1, bb2
+  bb2:
+    v9 = calldataload v2
+    v11 = shr 64, v9
+    v12 = ne v11, 0
+    jumpi v12, bb3, bb4
+  bb4:
+    v13 = shl 5, v9
+    v14 = add v13, 32
+    v24 = mload 64
+    v15 = inttoptr i256 v24 to memptr !metadata(memory=scratch)
+    v25 = add v24, v14
+    v26 = lt v25, v24
+    v27 = zext i1 v26 to i256
+    v28 = shr 64, v25
+    v29 = or v27, v28
+    v30 = ne v29, 0
+    jumpi v30, bb3, bb6
+  bb6:
+    mstore 64, v25
+    mstore v24, v9
+    v16 = add v3, v13
+    v17 = gt v16, v0
+    jumpi v17, bb1, bb5
+  bb5:
+    v20 = add v24, 32
+    calldatacopy v20, v3, v13
+    ret v15
+  bb3:
+    mstore 0, 0x4e487b71
+    mstore 32, 65
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb4, [0x955dbb74 => bb2, 0xf42afd9e => bb3]
+  bb3:
+    tail_call @sortInts
+  bb2:
+    tail_call @groupSums
+  bb4:
+    revert 0, 0
+}
