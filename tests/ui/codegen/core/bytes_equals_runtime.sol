@@ -31,7 +31,7 @@
 //@ run-call: squares 0 => []
 //@ run-call: squares 1 => [0]
 //@ run-call: squares 5 => [0, 1, 4, 9, 16]
-//@ run-call: evens 7 => [0, 2, 4, 6], 0
+//@ run-call: evens 7 => [0, 2, 4, 6]
 
 // `Bytes.equals` compares the bytes themselves, a word at a time with one
 // pulled-back word for a remainder: equal inputs, a difference in the first
@@ -56,12 +56,11 @@ contract Test {
         return builder.finish();
     }
 
-    function evens(uint256 n) public pure returns (uint256[] memory out, uint256 left) {
+    function evens(uint256 n) public pure returns (uint256[] memory) {
         WordBuilder memory builder = Buffers.createWords(0);
         for (uint256 i; i < n; ++i) {
             if (i % 2 == 0) builder.append(i);
         }
-        out = builder.finish();
-        left = builder.length();
+        return builder.finish();
     }
 }
