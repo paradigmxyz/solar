@@ -115,6 +115,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 && let Some(view) = self.view_operand(argument)
             {
                 view
+            } else if matches!(
+                intrinsic,
+                CoreIntrinsic::WriteEncoding | CoreIntrinsic::TryWriteEncoding
+            ) && index == 2
+                && let Some((builtin, encode_args)) = self.encoding_call(argument)
+            {
+                // The encoding is staged past the free memory pointer. It is the last operand,
+                // so nothing allocates before the intrinsic copies it.
+                self.lower_abi_encode_call_scratch(builtin, encode_args)?
             } else {
                 let value = self.lower_typed_expr(argument, parameter_ty)?;
                 self.materialize_call_argument(parameter_ty, value, argument.span)?
@@ -137,6 +146,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::WriteBytes(width) => self.lower_core_write(&operands, width),
             CoreIntrinsic::WriteUint256Be => self.lower_core_write(&operands, 32),
             CoreIntrinsic::CopyInto => self.lower_core_copy(&operands),
+            CoreIntrinsic::WriteEncoding => self.lower_core_write_encoding(&operands),
+            CoreIntrinsic::TryWriteEncoding => {
+                self.lower_core_try_write_encoding(function_id, &operands)
+            }
             CoreIntrinsic::Fill => self.lower_core_fill(&operands),
             // A shared body takes objects; a view's slice is compared in place.
             CoreIntrinsic::EqualsAt
@@ -2261,6 +2274,59 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let [dst, dst_offset, src, src_offset, count] = *operands else { return None };
         let destination = self.core_checked_range(dst, dst_offset, Width::Dynamic(count));
         let source = self.core_checked_range(src, src_offset, Width::Dynamic(count));
+        self.core_copy_bytes(src, destination, source, count);
+        Some(self.builder.imm(U256::ZERO))
+    }
+
+    /// `writeEncoding(out, offset, encoding)`: `copyInto(out, offset, encoding, 0,
+    /// encoding.length)`. An encoding call written as the argument arrives as the slice it was
+    /// staged in past the free memory pointer.
+    fn lower_core_write_encoding(&mut self, operands: &[ValueId]) -> Option<ValueId> {
+        let [out, offset, encoding] = *operands else { return None };
+        // count = len(encoding)
+        // destination = data(out) + offset, after panic(0x32) unless offset + count <= len(out)
+        let count = self.core_bytes_len(encoding);
+        let destination = self.core_checked_range(out, offset, Width::Dynamic(count));
+        let source = self.core_bytes_data(encoding);
+        self.core_copy_bytes(encoding, destination, source, count);
+        Some(count)
+    }
+
+    /// `tryWriteEncoding(out, offset, encoding)`: `writeEncoding` when the encoding fits, and
+    /// `(false, 0)` with nothing written otherwise.
+    fn lower_core_try_write_encoding(
+        &mut self,
+        function_id: hir::FunctionId,
+        operands: &[ValueId],
+    ) -> Option<ValueId> {
+        let [out, offset, encoding] = *operands else { return None };
+        // count = len(encoding)
+        // ok = !misses(len(out), offset, count)
+        // written = ok ? count : 0
+        // copy(data(out) + (ok ? offset : 0), data(encoding), written)
+        let count = self.core_bytes_len(encoding);
+        let length = self.core_bytes_len(out);
+        let misses = self.core_range_misses(length, offset, Width::Dynamic(count));
+        let ok = self.builder.eq_zero(misses);
+        let zero = self.builder.imm(U256::ZERO);
+        let aimed = self.builder.select(ok, offset, zero);
+        let written = self.builder.select(ok, count, zero);
+        let data = self.core_bytes_data(out);
+        let destination = self.builder.add(data, aimed);
+        let source = self.core_bytes_data(encoding);
+        self.core_copy_bytes(encoding, destination, source, written);
+        Some(self.core_results(function_id, vec![ok, written]))
+    }
+
+    /// Copies `count` bytes from `source`, in the location of the `bytes` operand `src`, to the
+    /// memory at `destination`.
+    fn core_copy_bytes(
+        &mut self,
+        src: ValueId,
+        destination: ValueId,
+        source: ValueId,
+        count: ValueId,
+    ) {
         if self.builder.func().value_slice_location(src) == Some(SliceLocation::Calldata) {
             // calldatacopy(destination, source, count)
             self.builder.calldatacopy_heap(destination, source, count);
@@ -2268,7 +2334,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // mcopy(destination, source, count)
             self.builder.mcopy_heap(destination, source, count);
         }
-        Some(self.builder.imm(U256::ZERO))
     }
 
     /// `fill(dst, offset, count, value)`.
@@ -2470,7 +2535,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             | CoreIntrinsic::TryReadUint256Be
             | CoreIntrinsic::Keccak256Range
             | CoreIntrinsic::Slice => index == 0,
-            CoreIntrinsic::CopyInto => index == 2,
+            CoreIntrinsic::CopyInto
+            | CoreIntrinsic::WriteEncoding
+            | CoreIntrinsic::TryWriteEncoding => index == 2,
             CoreIntrinsic::EqualsAt => index == 0 || index == 2,
             _ => false,
         }
