@@ -4,8 +4,8 @@ pragma solidity ^0.8.20;
 import {Bytes} from "solar:core/v1/Bytes.sol";
 
 /// @notice ABI encoding into memory a caller already owns.
-/// @dev Compiler-owned module, imported as `solar:core/v1/Abi.sol`. This is an
-/// ordinary source library over `Bytes`; nothing here is lowered specially.
+/// @dev Compiler-owned module, imported as `solar:core/v1/Abi.sol`. This is a
+/// source library over `Bytes`, and other compilers run it as written.
 ///
 /// Every function writes at an offset measured from the start of the encoding,
 /// not from the backing allocation, and touches only the bytes it encodes:
@@ -13,11 +13,14 @@ import {Bytes} from "solar:core/v1/Bytes.sol";
 /// written as its cleaned word, so the padding an ABI reader expects is
 /// initialized rather than inherited from the buffer.
 ///
-/// The value types below are the supported set. A dynamic value's head is an
-/// offset to a tail whose position depends on the whole tuple, so encoding one
-/// needs the tuple form this module does not have; build such an encoding with
-/// `abi.encode` instead. Because every argument here is a value type, no input
-/// can alias `out`.
+/// `encodeInto` writes the value types below. A dynamic value's head is an
+/// offset to a tail whose position depends on the whole tuple, so a tuple goes
+/// through `writeEncoding`, with the `abi.encode` call written as its argument:
+/// `Abi.writeEncoding(out, offset, abi.encode(a, b))`. The body copies the
+/// encoding `abi.encode` allocates; this compiler stages that encoding past the
+/// free memory pointer without allocating it, and copies it from there. Either
+/// way the encoding is complete before `out` changes, so an argument that
+/// aliases `out` is encoded as it was.
 ///
 /// A write that does not fit fails with `Panic(0x32)` before modifying `out`;
 /// the `try` forms report that instead, and write nothing. Neither form undoes
@@ -148,6 +151,29 @@ library Abi {
     {
         if (!fits(out, offset, SELECTOR)) return (false, 0);
         return (true, encodeSelectorInto(out, offset, selector));
+    }
+
+    /// @dev Writes the bytes of `encoding` at `offset`. Returns the bytes
+    /// written. Pass an `abi.encode`, `abi.encodeWithSelector`,
+    /// `abi.encodeWithSignature`, or `abi.encodeCall` call to skip allocating it.
+    function writeEncoding(bytes memory out, uint256 offset, bytes memory encoding)
+        internal
+        pure
+        returns (uint256 written)
+    {
+        written = encoding.length;
+        Bytes.copyInto(out, offset, encoding, 0, written);
+    }
+
+    /// @dev `writeEncoding`, reporting a write that does not fit instead of
+    /// failing.
+    function tryWriteEncoding(bytes memory out, uint256 offset, bytes memory encoding)
+        internal
+        pure
+        returns (bool ok, uint256 written)
+    {
+        if (!fits(out, offset, encoding.length)) return (false, 0);
+        return (true, writeEncoding(out, offset, encoding));
     }
 
     /// @dev Whether `count` bytes at `offset` lie inside `out`. The sum is

@@ -240,6 +240,12 @@ pub enum CoreIntrinsic {
     WrappingMul,
     /// `Build.gasFirst()`: whether the build optimizes for runtime gas.
     GasFirst,
+    /// `Abi.writeEncoding(out, offset, encoding)`: an encoding written in
+    /// place as the argument is staged past the free memory pointer instead
+    /// of allocated, then copied into `out`.
+    WriteEncoding,
+    /// `Abi.tryWriteEncoding(out, offset, encoding)`.
+    TryWriteEncoding,
 }
 
 /// Returns the intrinsic `function` names, if it is one.
@@ -276,6 +282,7 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
     static HEX: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static RETURN: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static SLOTS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static ABI: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     match path {
         "solar:core/v1/codecs/Hex.sol" => Some(HEX.get_or_init(|| {
             // `decode` is library code.
@@ -436,6 +443,13 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
         "solar:core/v1/Build.sol" => Some(
             BUILD.get_or_init(|| FxHashMap::from_iter([(sym::gasFirst, CoreIntrinsic::GasFirst)])),
         ),
+        "solar:core/v1/Abi.sol" => Some(ABI.get_or_init(|| {
+            // The word writers are library code over `Bytes`.
+            FxHashMap::from_iter([
+                (sym::writeEncoding, CoreIntrinsic::WriteEncoding),
+                (sym::tryWriteEncoding, CoreIntrinsic::TryWriteEncoding),
+            ])
+        })),
         // `Cast`, `Precompiles`, `Buffers` and the remaining codecs are library
         // code throughout.
         _ => None,

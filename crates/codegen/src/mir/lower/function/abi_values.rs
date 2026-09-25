@@ -30,6 +30,52 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(self.builder.abi_encode_scratch(layout, selector, values))
     }
 
+    /// The builtin and arguments of `expr` when it is an `abi.encode`, `abi.encodeWithSelector`,
+    /// `abi.encodeWithSignature`, or `abi.encodeCall` call.
+    pub(super) fn encoding_call<'a>(
+        &self,
+        expr: &'a hir::Expr<'a>,
+    ) -> Option<(Builtin, hir::CallArgs<'a>)> {
+        let ExprKind::Call(callee, args, _) = &expr.peel_parens().kind else { return None };
+        let builtin = self.cx.gcx.resolved_builtin(callee)?;
+        matches!(
+            builtin,
+            Builtin::AbiEncode
+                | Builtin::AbiEncodeWithSelector
+                | Builtin::AbiEncodeWithSignature
+                | Builtin::AbiEncodeCall
+        )
+        .then_some((builtin, *args))
+    }
+
+    /// Lowers the call [`Self::encoding_call`] found to its encoding, staged past the free
+    /// memory pointer without reserving it. The encoding must be consumed before anything
+    /// allocates.
+    pub(super) fn lower_abi_encode_call_scratch(
+        &mut self,
+        builtin: Builtin,
+        args: hir::CallArgs<'_>,
+    ) -> Option<ValueId> {
+        match builtin {
+            Builtin::AbiEncode => {
+                let exprs = self.variadic_builtin_args(builtin, &args)?;
+                self.lower_abi_encode_scratch(exprs, None)
+            }
+            Builtin::AbiEncodeWithSelector => {
+                let (selector, rest) = self.builtin_args_with_rest::<1>(builtin, &args)?;
+                let selector = self.lower_selector_word(&selector[0])?;
+                self.lower_abi_encode_scratch(rest, Some(selector))
+            }
+            Builtin::AbiEncodeWithSignature => {
+                let (signature, rest) = self.builtin_args_with_rest::<1>(builtin, &args)?;
+                let selector = self.lower_signature_selector(&signature[0])?;
+                self.lower_abi_encode_scratch(rest, Some(selector))
+            }
+            Builtin::AbiEncodeCall => self.lower_abi_encode_call_in(args, true),
+            _ => None,
+        }
+    }
+
     fn lower_abi_encode_arguments(
         &mut self,
         exprs: &[hir::Expr<'_>],
@@ -137,7 +183,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_abi_encode_call(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
-        // data = abi_encode_bytes(parameter_layout, function.selector, values)
+        self.lower_abi_encode_call_in(args, false)
+    }
+
+    /// `abi.encodeCall(f, (args))`, into a fresh bytes object, or staged past the free memory
+    /// pointer when `scratch`.
+    fn lower_abi_encode_call_in(
+        &mut self,
+        args: hir::CallArgs<'_>,
+        scratch: bool,
+    ) -> Option<ValueId> {
+        // data = abi_encode_bytes | abi_encode_scratch(parameter_layout, function.selector, values)
         let args = self.builtin_args::<2>(Builtin::AbiEncodeCall, &args)?;
         let function = &args[0];
         let tuple = &args[1];
@@ -189,7 +245,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         )?;
         let (values, types): (Vec<_>, Vec<_>) = values_and_types.into_iter().unzip();
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-        Some(self.builder.abi_encode_bytes(layout, Some(selector), values.into_boxed_slice()))
+        let values = values.into_boxed_slice();
+        Some(if scratch {
+            self.builder.abi_encode_scratch(layout, Some(selector), values)
+        } else {
+            self.builder.abi_encode_bytes(layout, Some(selector), values)
+        })
     }
 
     pub(super) fn canonicalize_abi_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
