@@ -14,20 +14,14 @@
 
 import {WordArrays} from "solar:core/v1/WordArrays.sol";
 
-// Builds that do not optimize for gas share one heapsort between plain sorts
-// and `groupSum`: a single loop builds the heap and then extracts its root,
-// with one sift-down for both phases. It needs no range stack above the
-// free-memory pointer, and a plain sort passes a zero pair distance.
+// Builds that do not optimize for gas share one paired quicksort between
+// plain sorts and `groupSum`. A plain sort passes a zero pair distance and
+// flips signed keys by `2**255`; `groupSum` passes the distance from its keys
+// to its values and no flip.
 // CHECK-LABEL: fn @sortInts
 // CHECK: icall @core_array_group_sort, {{v[0-9]+}}, {{v[0-9]+}}, 0, 0x8000000000000000000000000000000000000000000000000000000000000000
-// CHECK-LABEL: fn @core_array_group_sort(arg0: i256, arg1: i256, arg2: i256, arg3: i256)
-// CHECK-NOT: {{mload 64|icall}}
-// CHECK: [[CHILD:v[0-9]+]] = add {{v[0-9]+}}, 32
-// CHECK-NEXT: lt [[CHILD]],
-// CHECK-NOT: {{mload 64|icall}}
-// CHECK: xor {{v[0-9]+}}, arg3
-// CHECK-NOT: {{mload 64|icall}}
-// CHECK: {{^}}}
+// CHECK-LABEL: fn @core_array_group_sum
+// CHECK: icall @core_array_group_sort, {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}, 0
 contract Test {
     function sortInts(int256[] memory a) public pure returns (int256[] memory) {
         WordArrays.sort(a);
