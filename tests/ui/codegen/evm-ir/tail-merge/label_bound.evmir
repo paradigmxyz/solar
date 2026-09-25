@@ -1,0 +1,41 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=tail-merge
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=tail-merge
+@module LabelBound
+
+bb0:
+  push 0
+  calldataload
+  dup 1
+  jumpi bb1, bb2
+
+// Both arms leave on their own branch, store the word, and jump to one return. Only the entry
+// block can start at offset 0, so the label of bb5 pushes as at least PUSH1 and sharing the arms'
+// suffix from JUMPI saves a byte even though the store offset is PUSH0. Gas mode keeps the
+// one-byte label bound and both copies.
+bb1:
+  push 1
+  push bb3
+  jumpi
+  push 0
+  mstore
+  jump bb5
+
+bb2:
+  push 2
+  push bb4
+  jumpi
+  push 0
+  mstore
+  jump bb5
+
+bb3:
+  stop
+
+bb4:
+  invalid
+
+bb5:
+  push 32
+  push 0
+  return

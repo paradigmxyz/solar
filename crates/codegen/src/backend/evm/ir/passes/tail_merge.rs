@@ -17,6 +17,8 @@
 //! Replacement jumps retain the suffix's entry location before its origins are merged, so
 //! single-origin source maps do not lose both callers' locations on a shared body.
 //! In gas mode, hot sharing must repay its transfer over the optimizer run count.
+//! Size mode prices the jump that a shared suffix removes with at least a `PUSH1` label unless it
+//! targets the entry block, the only block that can start at offset 0.
 //!
 //! A shared tail starts at a block boundary, so both the merged block and the representative may
 //! only be cut where `keep_with_next` allows a split. That keeps sequences whose intervening gas
@@ -544,11 +546,18 @@ fn terminator_lower_bound(
         .checked_add(1)
         .filter(|&index| index < module.blocks.len())
         .map(BlockId::from_usize);
-    if Some(*target) == next {
-        0
-    } else {
-        push_len(gcx.sess.opts.evm_version, alloy_primitives::U256::ZERO) + 1
-    }
+    if Some(*target) == next { 0 } else { label_push_lower_bound(gcx, module, *target) + 1 }
+}
+
+/// Lower bound on the bytes of a push of `target`'s label. Layout keeps the entry block first, so
+/// once it holds an instruction every other block starts past offset 0 and needs `PUSH1`. Gas mode
+/// keeps the one-byte bound, leaving its lifetime pricing of hot tails unchanged.
+fn label_push_lower_bound(gcx: Gcx<'_>, module: &Module, target: BlockId) -> usize {
+    let entry = BlockId::from_usize(0);
+    let past_entry = !gcx.sess.opts.optimization.is_gas()
+        && target != entry
+        && !module.blocks[entry].instructions.is_empty();
+    push_len(gcx.sess.opts.evm_version, alloy_primitives::U256::from(u8::from(past_entry)))
 }
 
 #[derive(Clone, Copy)]
