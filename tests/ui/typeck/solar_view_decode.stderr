@@ -1,21 +1,8 @@
-error: `@custom:solar-view` cannot decode `uint256[]` in place
+error: `@custom:solar-view` requires a `bytes memory` variable initialized by `Bytes.slice`, memory references initialized by `abi.decode`, or a memory reference read from a view
    ╭▸ ROOT/tests/ui/typeck/solar_view_decode.sol:LL:CC
    │
-LL │         (uint256[] memory list, bytes memory c) = abi.decode(data, (uint256[], bytes));
-   │                                                                     ━━━━━━━━━
-   ╰╴
-note: the tag is here
-   ╭▸ ROOT/tests/ui/typeck/solar_view_decode.sol:LL:CC
-   │
-LL │         /// @custom:solar-view
-   │              ━━━━━━━━━━━━━━━━━
-   ╰ note: a view decode supports value types, `bytes`, and `string`
-
-error: `@custom:solar-view` requires a `bytes memory` variable initialized by `Bytes.slice`, or `bytes` or `string` variables initialized by `abi.decode`
-   ╭▸ ROOT/tests/ui/typeck/solar_view_decode.sol:LL:CC
-   │
-LL │         (Pair memory pair) = abi.decode(data, (Pair));
-   │                              ━━━━━━━━━━━━━━━━━━━━━━━━
+LL │         uint256 first = list[0];
+   │         ━━━━━━━━━━━━━━━━━━━━━━━
    ╰╴
 note: the tag is here
    ╭▸ ROOT/tests/ui/typeck/solar_view_decode.sol:LL:CC
@@ -24,7 +11,20 @@ LL │         /// @custom:solar-view
    │              ━━━━━━━━━━━━━━━━━
    ╰ help: declare the view as `bytes memory v = Bytes.slice(source, offset, count);` or `(bytes memory v) = abi.decode(data, (bytes));`
 
-error: `@custom:solar-view` requires a `bytes memory` variable initialized by `Bytes.slice`, or `bytes` or `string` variables initialized by `abi.decode`
+error: `@custom:solar-view` requires a `bytes memory` variable initialized by `Bytes.slice`, memory references initialized by `abi.decode`, or a memory reference read from a view
+   ╭▸ ROOT/tests/ui/typeck/solar_view_decode.sol:LL:CC
+   │
+LL │         bytes memory element = copies[0];
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_view_decode.sol:LL:CC
+   │
+LL │         /// @custom:solar-view
+   │              ━━━━━━━━━━━━━━━━━
+   ╰ help: declare the view as `bytes memory v = Bytes.slice(source, offset, count);` or `(bytes memory v) = abi.decode(data, (bytes));`
+
+error: `@custom:solar-view` requires a `bytes memory` variable initialized by `Bytes.slice`, memory references initialized by `abi.decode`, or a memory reference read from a view
    ╭▸ ROOT/tests/ui/typeck/solar_view_decode.sol:LL:CC
    │
 LL │         (uint256 x, uint256 y) = abi.decode(data, (uint256, uint256));

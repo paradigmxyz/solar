@@ -4,8 +4,8 @@ error: the view `v` can only be read in place
 LL │         v[0] = 0x01;
    │         ━
    │
-   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, `abi.decode`, and the `Bytes` and `Hash` reads of a range
-   ╰ help: remove the tag to work with a copy of the bytes
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: remove the tag to work with a copy
 
 error: the view `v` can only be read in place
    ╭▸ ROOT/tests/ui/codegen/core/bytes_view_use.sol:LL:CC
@@ -13,8 +13,8 @@ error: the view `v` can only be read in place
 LL │         v.writeBytes1(0, 0x01);
    │         ━
    │
-   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, `abi.decode`, and the `Bytes` and `Hash` reads of a range
-   ╰ help: remove the tag to work with a copy of the bytes
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: remove the tag to work with a copy
 
 error: the view `v` can only be read in place
    ╭▸ ROOT/tests/ui/codegen/core/bytes_view_use.sol:LL:CC
@@ -22,8 +22,8 @@ error: the view `v` can only be read in place
 LL │         w = v;
    │             ━
    │
-   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, `abi.decode`, and the `Bytes` and `Hash` reads of a range
-   ╰ help: remove the tag to work with a copy of the bytes
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: remove the tag to work with a copy
 
 error: the view `v` can only be read in place
    ╭▸ ROOT/tests/ui/codegen/core/bytes_view_use.sol:LL:CC
@@ -31,8 +31,8 @@ error: the view `v` can only be read in place
 LL │         v = b;
    │         ━
    │
-   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, `abi.decode`, and the `Bytes` and `Hash` reads of a range
-   ╰ help: remove the tag to work with a copy of the bytes
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: remove the tag to work with a copy
 
 error: the view `v` can only be read in place
    ╭▸ ROOT/tests/ui/codegen/core/bytes_view_use.sol:LL:CC
@@ -40,8 +40,8 @@ error: the view `v` can only be read in place
 LL │         return length(v);
    │                       ━
    │
-   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, `abi.decode`, and the `Bytes` and `Hash` reads of a range
-   ╰ help: remove the tag to work with a copy of the bytes
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: remove the tag to work with a copy
 
 error: the view `v` can only be read in place
    ╭▸ ROOT/tests/ui/codegen/core/bytes_view_use.sol:LL:CC
@@ -49,8 +49,8 @@ error: the view `v` can only be read in place
 LL │         return abi.encode(v);
    │                           ━
    │
-   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, `abi.decode`, and the `Bytes` and `Hash` reads of a range
-   ╰ help: remove the tag to work with a copy of the bytes
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: remove the tag to work with a copy
 
 error: the view `v` can only be read in place
    ╭▸ ROOT/tests/ui/codegen/core/bytes_view_use.sol:LL:CC
@@ -58,8 +58,8 @@ error: the view `v` can only be read in place
 LL │         return v;
    │                ━
    │
-   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, `abi.decode`, and the `Bytes` and `Hash` reads of a range
-   ╰ help: remove the tag to work with a copy of the bytes
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: remove the tag to work with a copy
 
 error: aborting due to 7 previous errors
 

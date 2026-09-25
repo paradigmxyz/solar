@@ -115,6 +115,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(field) = resolved.struct_field_index(&self.cx.gcx.hir) else {
             return self.cx.report_unsupported(expr.span, "struct field");
         };
+        if self.is_view_aggregate(receiver) {
+            // value = field of the view, read in place
+            return self.lower_view_read(expr);
+        }
         let receiver_ty = self.type_of_expr_or_variable(receiver)?;
         let object = self.lower_expr(receiver)?;
         if receiver_ty.is_ref_at(DataLocation::Calldata)
@@ -173,7 +177,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<ValueId> {
         if let TyKind::Array(_, len) = receiver_ty.peel_refs().kind {
             // length = static_len
-            self.lower_discarded_expr(receiver)?;
+            if self.is_view_expr(receiver) {
+                self.lower_view_expr(receiver)?;
+            } else {
+                self.lower_discarded_expr(receiver)?;
+            }
             return Some(self.builder.imm(len));
         }
         if receiver_ty.is_ref_at(DataLocation::Storage) {

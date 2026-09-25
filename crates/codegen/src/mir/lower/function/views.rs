@@ -1,4 +1,4 @@
-//! `@custom:solar-view` declarations: `Bytes.slice` ranges and decoded bytes read in place.
+//! `@custom:solar-view` declarations: `Bytes.slice` ranges and decoded values read in place.
 //!
 //! The declarations
 //!
@@ -16,18 +16,31 @@
 //! of the view, and while nothing can tell the view from a copy. Both conditions are checked, and
 //! a program that breaks either is rejected rather than compiled with different behavior.
 //!
-//! A decode declaration may decode value types, `bytes`, and `string`, from `bytes` in memory or
-//! calldata or from another view; its `bytes` and `string` values are the views, and a view of
-//! calldata needs no borrow, since nothing can change calldata. The decode validates its input
-//! exactly as the copying decode does, including the allocation checks each copy would make
-//! (`Panic(0x41)` for a length that cannot be allocated), so every input fails where it would.
+//! A decode declaration may decode any type from `bytes` in memory or calldata or from another
+//! view; its values of memory reference types, `bytes`, `string`, arrays, and structs, are the
+//! views, and a view of calldata needs no borrow, since nothing can change calldata. The decode
+//! validates its input exactly as the copying decode does, including the allocation checks each
+//! copy would make (`Panic(0x41)` for a length that cannot be allocated), so every input fails
+//! where it would.
 //!
-//! A view itself can only be read in place: `.length`, indexing, `keccak256`, `abi.decode`, the
-//! reads of `solar:core/v1/Bytes.sol` and `Hash.sol` that take a range (a view of a view
-//! included), and passing it as a view parameter. Any other use, such as an assignment, a write
-//! through the view, passing it to another function or returning it, is an error at the use,
-//! because it could keep the view or write the source through it. A view of a view narrows the
-//! same bytes, so it extends the enclosing view's borrow instead of starting one.
+//! A view holds its value in the value's ABI encoding. An element or a field of a value type reads
+//! its word, which the decode validated, and one of a memory reference type is itself a view of
+//! the same bytes, which a tagged declaration can name:
+//!
+//! ```solidity
+//! /// @custom:solar-view
+//! (bytes[] memory items, Order memory order) = abi.decode(data, (bytes[], Order));
+//! /// @custom:solar-view
+//! bytes memory first = items[0];
+//! ```
+//!
+//! A view itself can only be read in place: `.length`, indexing, field reads, `keccak256`,
+//! `abi.decode`, the reads of `solar:core/v1/Bytes.sol` and `Hash.sol` that take a range (a view
+//! of a view included), and passing it as a view parameter. Any other use, such as an assignment,
+//! a write through the view, passing it to another function or returning it, is an error at the
+//! use, because it could keep the view or write the source through it. A view of a view, and an
+//! element or a field of one, reads the same bytes, so it extends the enclosing view's borrow
+//! instead of starting one.
 //!
 //! `@custom:solar-view data` on an internal function makes its `bytes memory` or `string memory`
 //! parameter `data` a view parameter. Other compilers pass the caller's object, and every
@@ -76,6 +89,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     smallvec::SmallVec,
 };
+use solar_interface::diagnostics::{DiagBuilder, ErrorGuaranteed};
 
 /// A view whose source's bytes must not change while the view is still read.
 pub(in crate::mir::lower) struct ViewBorrow {
@@ -97,6 +111,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         id: VariableId,
         initializer: &hir::Expr<'_>,
     ) -> Option<()> {
+        if self.is_view_expr(initializer) {
+            // A view, or an element or a field of one, reads the bytes its view borrows.
+            let view = self.lower_view_expr(initializer)?;
+            self.views.insert(id, view);
+            return Some(());
+        }
         let call = initializer.peel_parens().id;
         let previous = self.forming_view.replace((call, id));
         let value = self.lower_expr(initializer);
@@ -170,9 +190,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         let data_expr = &args[0];
-        let (data, root) = match self.view_operand(data_expr) {
-            Some(view) => (view, self.view_roots.get(&view).copied().flatten()),
-            None => {
+        let (data, root) = match self.is_view_expr(data_expr) {
+            true => {
+                let view = self.lower_view_expr(data_expr)?;
+                (view, self.view_roots.get(&view).copied().flatten())
+            }
+            false => {
                 let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;
                 if data_ty.is_ref_at(DataLocation::Calldata) {
                     let value = self.lower_expr(data_expr)?;
@@ -199,9 +222,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let fields = decoded
             .iter()
             .zip(&layout.types)
-            .map(|(&ty, abi_type)| match abi_type {
-                crate::mir::AbiParamType::Bytes => MirType::Slice(location),
-                _ => types::TypeLowerer::mir_type(ty),
+            .map(|(&ty, abi_type)| {
+                if abi_type.is_scalar_word() {
+                    types::TypeLowerer::mir_type(ty)
+                } else {
+                    MirType::Slice(location)
+                }
             })
             .collect::<Vec<_>>();
         let layout = self.cx.module.intern_abi_param_layout(layout);
@@ -243,21 +269,186 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             })
     }
 
-    /// The slice `expr` reads when it names a `@custom:solar-view` variable, directly or through
-    /// a conversion between `bytes` and `string`.
-    pub(super) fn view_operand(&self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+    /// Whether `expr` reads a view in place: a `@custom:solar-view` variable, or an element or a
+    /// field of a view that is itself a memory reference, as in `items[i]` or `order.payload`,
+    /// through any conversion between `bytes` and `string`.
+    pub(super) fn is_view_expr(&self, expr: &hir::Expr<'_>) -> bool {
         if self.views.is_empty() {
-            return None;
+            return false;
         }
         let expr = self.peel_bytes_conversion(expr);
+        match expr.kind {
+            ExprKind::Index(receiver, Some(_)) | ExprKind::Member(receiver, _) => {
+                self.cx
+                    .gcx
+                    .type_of_expr(expr.id)
+                    .is_some_and(|ty| ty.is_ref_at(DataLocation::Memory))
+                    && self.is_view_aggregate(receiver)
+            }
+            _ => self.cx.gcx.resolved_variable(expr).is_some_and(|id| self.views.contains_key(&id)),
+        }
+    }
+
+    /// Whether `expr` reads an array or a struct view in place, whose elements or fields are read
+    /// through the view.
+    pub(super) fn is_view_aggregate(&self, expr: &hir::Expr<'_>) -> bool {
+        self.is_view_expr(expr)
+            && self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| {
+                matches!(
+                    ty.peel_refs().kind,
+                    TyKind::Array(..) | TyKind::DynArray(_) | TyKind::Struct(_)
+                )
+            })
+    }
+
+    /// Lowers `expr`, which [`Self::is_view_expr`] accepts, to the slice of the view it reads.
+    pub(super) fn lower_view_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        let expr = self.peel_bytes_conversion(expr);
+        if let ExprKind::Index(..) | ExprKind::Member(..) = expr.kind {
+            return self.lower_view_item(expr);
+        }
         self.views.get(&self.cx.gcx.resolved_variable(expr)?).copied()
     }
 
-    /// Lowers `expr`, or yields the slice of the `@custom:solar-view` variable it names.
+    /// Lowers `expr`, or yields the slice of the view it reads.
     pub(super) fn lower_view_or_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
-        match self.view_operand(expr) {
-            Some(view) => Some(view),
-            None => self.lower_expr(expr),
+        if self.is_view_expr(expr) { self.lower_view_expr(expr) } else { self.lower_expr(expr) }
+    }
+
+    /// Lowers `expr`, an element or a field of a view whose type is a value type, to its value.
+    /// A memory reference element is a view, which only the reads of a view can use.
+    pub(super) fn lower_view_read(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        if self.cx.gcx.type_of_expr(expr.id)?.is_ref_at(DataLocation::Memory) {
+            return self.report_view_expr_use(expr);
+        }
+        self.lower_view_item(expr)
+    }
+
+    /// Lowers the element or the field `expr` of a view: the value of a value type, or the view
+    /// of a memory reference, which reads the same bytes as the view it is part of.
+    ///
+    /// A view holds a value where the decode found it, in its ABI encoding, which the decode
+    /// validated: a `bytes` or `string` view is the slice of the bytes, an array view the slice of
+    /// its element heads with the element count as its length, and a struct view the slice of its
+    /// head. A value type is its head's word, and any other item lies at the offset its head holds
+    /// when it is dynamic, relative to the start of the heads, and at the head otherwise.
+    fn lower_view_item(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        let (receiver, head) = match expr.kind {
+            ExprKind::Index(receiver, Some(index)) => {
+                // Like solc, the array is evaluated before the index.
+                let view = self.lower_view_expr(receiver)?;
+                let index = self.lower_typed_expr(index, self.cx.gcx.types.uint(256))?;
+                let element = self.array_element_type(self.cx.gcx.type_of_expr(receiver.id)?)?;
+                // bounds_check(index, view.len)
+                // head = index * element_head_size
+                let length = self.builder.slice_len(view);
+                self.builder.bounds_check(index, length);
+                let size = self.builder.imm(self.types.abi_type(element)?.head_size());
+                (view, self.builder.mul(index, size))
+            }
+            ExprKind::Member(receiver, _) => {
+                let field = self
+                    .cx
+                    .gcx
+                    .resolved_expr(expr)
+                    .and_then(|resolved| resolved.struct_field_index(&self.cx.gcx.hir))
+                    .or_else(|| self.cx.report_unsupported(expr.span, "view member"))?;
+                let view = self.lower_view_expr(receiver)?;
+                let AbiType::Tuple(fields) =
+                    self.types.abi_type(self.cx.gcx.type_of_expr(receiver.id)?)?
+                else {
+                    return self.cx.report_unsupported(expr.span, "view member");
+                };
+                // head = field_offset
+                let offset = fields[..field].iter().map(AbiType::head_size).sum::<u64>();
+                (view, self.builder.imm(offset))
+            }
+            _ => return self.cx.report_unsupported(expr.span, "view item"),
+        };
+        let ty = self.cx.gcx.type_of_expr(expr.id)?;
+        let item = self.view_item(receiver, head, ty, expr.span)?;
+        if ty.is_ref_at(DataLocation::Memory) {
+            let root = self.view_roots.get(&receiver).copied().flatten();
+            self.view_roots.insert(item, root);
+        }
+        Some(item)
+    }
+
+    /// Reads the item of type `ty` whose head lies at offset `head` of `view`, for
+    /// [`Self::lower_view_item`].
+    fn view_item(
+        &mut self,
+        view: ValueId,
+        head: ValueId,
+        ty: Ty<'gcx>,
+        span: Span,
+    ) -> Option<ValueId> {
+        let Some(location @ (SliceLocation::Memory | SliceLocation::Calldata)) =
+            self.builder.func().value_slice_location(view)
+        else {
+            return self.cx.report_unsupported(span, "view item");
+        };
+        let abi = self.types.abi_type(ty)?;
+        if !ty.is_ref_at(DataLocation::Memory) {
+            // value = load_word(view, head)
+            let word = self.load_view_word(view, location, head);
+            return Some(self.view_scalar(ty, word));
+        }
+        // position = load_word(view, head) when dynamic, else head
+        // start = view.ptr + position
+        let position =
+            if abi.is_dynamic() { self.load_view_word(view, location, head) } else { head };
+        let pointer = self.builder.slice_ptr(view);
+        let start = self.builder.add(pointer, position);
+        Some(match ty.peel_refs().kind {
+            TyKind::Array(_, len) => {
+                // item = slice(start, len)
+                let len = self.builder.imm(u64::try_from(len).ok()?);
+                self.builder.make_slice(start, len, location)
+            }
+            TyKind::Struct(_) => {
+                // item = slice(start, head_size)
+                let AbiType::Tuple(fields) = abi else {
+                    return self.cx.report_unsupported(span, "view item");
+                };
+                let size = self.builder.imm(fields.iter().map(AbiType::head_size).sum::<u64>());
+                self.builder.make_slice(start, size, location)
+            }
+            _ => {
+                // bytes, string, and dynamic arrays:
+                // item = slice(start + 32, load_word(view, position))
+                let length = self.load_view_word(view, location, position);
+                let data = self.builder.add_u64_offset(start, 32);
+                self.builder.make_slice(data, length, location)
+            }
+        })
+    }
+
+    /// Loads the word at byte `offset` of `view`, which lies in `location`.
+    fn load_view_word(
+        &mut self,
+        view: ValueId,
+        location: SliceLocation,
+        offset: ValueId,
+    ) -> ValueId {
+        match location {
+            SliceLocation::Calldata => self.builder.calldata_slice_load_word(view, offset),
+            _ => self.builder.memory_slice_load_word(view, offset),
+        }
+    }
+
+    /// The value of type `ty` a view's word holds. The decode validated the word, and nothing
+    /// can change it while the view is read, so it needs no cleanup.
+    fn view_scalar(&mut self, ty: Ty<'gcx>, word: ValueId) -> ValueId {
+        match ty.peel_refs().kind {
+            TyKind::Udvt(inner, _) => self.view_scalar(inner, word),
+            TyKind::Fn(function) if function.is_external() => {
+                // function = word >> 64
+                let shift = self.builder.imm(64);
+                self.builder.shr(shift, word)
+            }
+            // value = cast word to the type's representation
+            _ => self.builder.cast(word, types::TypeLowerer::mir_type(ty)),
         }
     }
 
@@ -278,19 +469,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         argument: &hir::Expr<'_>,
         ty: Ty<'gcx>,
     ) -> Option<ValueId> {
-        let object = match self.view_operand(argument) {
-            Some(view)
-                if self.builder.func().value_slice_location(view)
-                    == Some(SliceLocation::Memory) =>
-            {
+        let object = if self.is_view_expr(argument) {
+            let view = self.lower_view_expr(argument)?;
+            if self.builder.func().value_slice_location(view) == Some(SliceLocation::Memory) {
                 return Some(view);
             }
             // object = bytes(view) in memory
-            Some(view) => self.materialize_memory_slice(view),
-            None => {
-                let value = self.lower_typed_expr(argument, ty)?;
-                self.materialize_call_argument(ty, value, argument.span)?
-            }
+            self.materialize_memory_slice(view)
+        } else {
+            let value = self.lower_typed_expr(argument, ty)?;
+            self.materialize_call_argument(ty, value, argument.span)?
         };
         // slice = make_memory_slice(object.data, object.len)
         let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
@@ -301,6 +489,32 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Reports a use of a `@custom:solar-view` variable that could keep it or write through it.
     pub(super) fn report_view_use<T>(&self, id: VariableId, span: Span) -> Option<T> {
+        self.view_use_error(id, span).help("remove the tag to work with a copy").emit();
+        None
+    }
+
+    /// Reports a use of `expr`, an element or a field of a view that is itself a view, that could
+    /// keep it or write through it.
+    fn report_view_expr_use<T>(&self, expr: &hir::Expr<'_>) -> Option<T> {
+        self.view_use_error(self.view_root(expr)?, expr.span)
+            .help(
+                "declare a variable for it with `@custom:solar-view` to read it in place, or \
+                 remove the tag of the view to work with a copy",
+            )
+            .emit();
+        None
+    }
+
+    /// The view variable whose view `expr`, which [`Self::is_view_expr`] accepts, is part of.
+    pub(super) fn view_root(&self, expr: &hir::Expr<'_>) -> Option<VariableId> {
+        let mut root = self.peel_bytes_conversion(expr);
+        while let ExprKind::Index(receiver, _) | ExprKind::Member(receiver, _) = root.kind {
+            root = self.peel_bytes_conversion(receiver);
+        }
+        self.cx.gcx.resolved_variable(root)
+    }
+
+    fn view_use_error(&self, id: VariableId, span: Span) -> DiagBuilder<'gcx, ErrorGuaranteed> {
         let name = self.cx.gcx.hir.variable(id).name.map_or(kw::Empty, |name| name.name);
         self.cx
             .gcx
@@ -308,12 +522,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .err(format!("the view `{name}` can only be read in place"))
             .span(span)
             .note(
-                "a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, \
-                 `abi.decode`, and the `Bytes` and `Hash` reads of a range",
+                "a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, the \
+                 `Bytes` and `Hash` reads of a range, and view parameters",
             )
-            .help("remove the tag to work with a copy of the bytes")
-            .emit();
-        None
     }
 }
 

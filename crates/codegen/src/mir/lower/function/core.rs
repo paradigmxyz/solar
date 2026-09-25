@@ -111,10 +111,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return self.cx.report_unsupported(argument.span, "storage access");
                 };
                 access.slot
-            } else if Self::core_reads_in_place(intrinsic, index)
-                && let Some(view) = self.view_operand(argument)
-            {
-                view
+            } else if Self::core_reads_in_place(intrinsic, index) && self.is_view_expr(argument) {
+                self.lower_view_expr(argument)?
             } else if matches!(
                 intrinsic,
                 CoreIntrinsic::WriteEncoding | CoreIntrinsic::TryWriteEncoding

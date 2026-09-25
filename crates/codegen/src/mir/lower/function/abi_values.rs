@@ -299,8 +299,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         let data_expr = &args[0];
-        let (data, layout) = if let Some(view) = self.view_operand(data_expr) {
+        let (data, layout) = if self.is_view_expr(data_expr) {
             // A view's bytes are decoded where they are, in memory or in calldata.
+            let view = self.lower_view_expr(data_expr)?;
             (view, self.abi_decode_layout(&decoded_types, args[1].span)?)
         } else {
             let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;

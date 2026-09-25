@@ -592,8 +592,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let length = self.builder.slice_len(encoded);
                     return Some(self.builder.keccak256(pointer, length));
                 }
-                if let Some(view) = self.view_operand(value) {
+                if self.is_view_expr(value) {
                     // hash = keccak256(view.ptr, view.len), from scratch for calldata
+                    let view = self.lower_view_expr(value)?;
                     let pointer = self.builder.slice_ptr(view);
                     let length = self.builder.slice_len(view);
                     return Some(self.core_hash_range(view, pointer, length));

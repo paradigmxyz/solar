@@ -833,8 +833,8 @@ impl<'gcx> Resolver<'gcx> {
 /// requirement that silently goes unchecked.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SolarTag {
-    /// `@custom:solar-view`: the declared `bytes memory` variables, or the named parameters of an
-    /// internal function, read their bytes in place.
+    /// `@custom:solar-view`: the declared memory reference variables, or the named parameters of
+    /// an internal function, read their bytes in place.
     View,
     /// `@custom:solar-scratch`: the memory the block allocates is reused after it.
     Scratch,
