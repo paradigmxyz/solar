@@ -15,7 +15,8 @@
 //!
 //! A contiguous low-bit mask disappears only when the proved bound fits inside
 //! it. A truncation followed by a zero extension disappears under the same
-//! proof when the original and extended values have the same type. Zero tests
+//! proof when the original and extended values have the same type, and a right
+//! shift by a constant at least the bound folds to zero. Zero tests
 //! of proved-clean truncations compare the original value in its wider type.
 //! Instructions stay in place until their uses are redirected; no code is
 //! moved or cloned; comparisons may insert a zero-cost extension to keep operand
@@ -92,6 +93,7 @@ pub(super) fn cleanup(
     let mut zero_tests = Vec::new();
     let mut boolean_comparisons = Vec::new();
     let mut replacement_inputs = FxHashMap::default();
+    let mut shifted_out = Vec::new();
     for inst in func.instructions() {
         if let Some(inner) = func.inst(inst).kind.zero_test_operand(func)
             && native_effect(func, inst)
@@ -145,6 +147,14 @@ pub(super) fn cleanup(
                 boolean_comparisons.push((inst, [(a, left), (b, right)]));
             }
         }
+        if let InstKind::Shr(shift, value) = func.inst(inst).kind
+            && native_effect(func, inst)
+            && let Some(shift) = func.value_u64(shift)
+            && u64::from(max_bits_with_args(func, value, MAX_VALUE_DEPTH, &argument_bits)) <= shift
+            && let Some(result) = func.inst_result_value(inst)
+        {
+            shifted_out.push(result);
+        }
         if let InstKind::Eq(a, b) | InstKind::Ne(a, b) = func.inst(inst).kind
             && let Some(narrowed) = [(a, b), (b, a)]
                 .into_iter()
@@ -167,6 +177,12 @@ pub(super) fn cleanup(
             !protected.contains(*result)
                 && replacement_inputs.get(result).is_none_or(|value| !protected.contains(*value))
         });
+    }
+    // A zero replaces no live word, so it needs no protection across calls.
+    for result in shifted_out {
+        let ty = func.value_ty(result);
+        let zero = func.alloc_value(Value::Immediate(Immediate::for_type(ty, U256::ZERO)));
+        replacements.insert(result, zero);
     }
     for (inst, _, value) in zero_tests {
         let zero = func
@@ -220,6 +236,7 @@ pub(super) fn cleanup(
         }
         // result = and value, low_mask; use result -> use value
         // result = zext (trunc value, bits); use result -> use value
+        // result = shr k, value; use result -> use 0
         // result = eq (eq boolean, false), false; use result -> use boolean
         // NOTE: Removed cleanup instructions lose their debug checkpoints;
         // their source locations must not be assigned to the replacement value.

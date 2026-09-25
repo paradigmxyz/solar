@@ -1,0 +1,31 @@
+- // === ROOT/tests/ui/codegen/mir/call-cleanup/shifted_out.mir (before call-cleanup) ===
++ // === ROOT/tests/ui/codegen/mir/call-cleanup/shifted_out.mir (after call-cleanup) ===
+  @module ShiftedOut
+  fn @root() -> i256 {
+    bb0:
+      v0 = caller
+      v1 = zext i160 v0 to i256
+      v2 = icall @fits, v1
+      v3 = icall @partial, v1
+      v4 = add v2, v3
+      ret v4
+  }
+  
+  fn @fits(arg0: i256) -> i256 {
+    bb0:
+-     v0 = shr 160, arg0
+-     v1 = ne v0, 0
++     v1 = ne 0, 0
+      jumpi v1, bb1, bb2
+    bb2:
+      ret arg0
+    bb1:
+      revert 0, 0
+  }
+  
+  fn @partial(arg0: i256) -> i256 {
+    bb0:
+      v0 = shr 159, arg0
+      ret v0
+  }
+  
