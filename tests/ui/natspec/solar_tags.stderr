@@ -1,10 +1,10 @@
-error: `@custom:solar-view` must document a variable declaration statement
+error: `@custom:solar-view` must document a variable declaration statement or an internal function
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
    │
 LL │         /// @custom:solar-view
    │              ━━━━━━━━━━━━━━━━━
    │
-   ╰ help: put it on the statement `bytes memory v = Bytes.slice(source, offset, count);`
+   ╰ help: put it on the statement `bytes memory v = Bytes.slice(source, offset, count);`, or on an internal function to name its view parameters
 
 error: unknown Solar tag `@custom:solar-veiw`
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
@@ -46,13 +46,13 @@ note: the tag is here
 LL │         /// @custom:solar-scratch
    ╰╴             ━━━━━━━━━━━━━━━━━━━━
 
-error: `@custom:solar-view` must document a variable declaration statement
+error: `@custom:solar-view` must document a variable declaration statement or an internal function
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
    │
 LL │ /// @custom:solar-view
    │      ━━━━━━━━━━━━━━━━━
    │
-   ╰ help: put it on the statement `bytes memory v = Bytes.slice(source, offset, count);`
+   ╰ help: put it on the statement `bytes memory v = Bytes.slice(source, offset, count);`, or on an internal function to name its view parameters
 
 error: `@custom:solar-scratch` must document a block statement
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC

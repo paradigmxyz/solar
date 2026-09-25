@@ -1,0 +1,41 @@
+error: the view `data` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/view_parameter_borrow.sol:LL:CC
+   │
+LL │         data[0] = 0x01;
+   │         ━━━━
+   │
+   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, `abi.decode`, and the `Bytes` and `Hash` reads of a range
+   ╰ help: remove the tag to work with a copy of the bytes
+
+error: the view `data` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/view_parameter_borrow.sol:LL:CC
+   │
+LL │         return data;
+   │                ━━━━
+   │
+   ├ note: a `@custom:solar-view` variable supports `.length`, indexing, `keccak256`, `abi.decode`, and the `Bytes` and `Hash` reads of a range
+   ╰ help: remove the tag to work with a copy of the bytes
+
+error: a function with `@custom:solar-view` parameters cannot be used as a value
+   ╭▸ ROOT/tests/ui/codegen/core/view_parameter_borrow.sol:LL:CC
+   │
+LL │ …     function(bytes memory) internal pure f = write;
+   │                                                ━━━━━
+   │
+   ╰ help: call it directly, or remove the tag
+
+error: this may change bytes that the view `data` still reads
+   ╭▸ ROOT/tests/ui/codegen/core/view_parameter_borrow.sol:LL:CC
+   │
+LL │         other[0] = 0x01;
+   │         ━━━━━━━━━━━━━━━
+   ╰╴
+note: `data` reads the bytes in place and is read after this
+   ╭▸ ROOT/tests/ui/codegen/core/view_parameter_borrow.sol:LL:CC
+   │
+LL │     function throughOther(bytes memory data, bytes memory other) internal pure returns (bytes1) {
+   │                           ━━━━━━━━━━━━━━━━━
+   ╰ help: finish reading the view first, or remove `@custom:solar-view` to read a copy
+
+error: aborting due to 4 previous errors
+

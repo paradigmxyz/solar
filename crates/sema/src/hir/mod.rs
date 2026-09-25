@@ -9,6 +9,7 @@ use solar_data_structures::{
     BumpExt,
     index::{Idx, IndexVec},
     newtype_index,
+    smallvec::SmallVec,
 };
 use solar_interface::{
     Ident, Span, Symbol, diagnostics::ErrorGuaranteed, kw, source_map::SourceFile, sym,
@@ -369,6 +370,43 @@ impl<'hir> Hir<'hir> {
             )
             .then_some(natspec.span)
         })
+    }
+
+    /// Returns the parameter names the `@custom:solar-view` tags on a function's declaration list,
+    /// each with its tag's span. A tag that lists none yields an empty name.
+    pub fn solar_view_names(&self, id: FunctionId) -> SmallVec<[(Symbol, Span); 1]> {
+        let doc = self.doc(self.function(id).doc);
+        let mut names = SmallVec::new();
+        for natspec in doc.ast_comments.iter().flat_map(|comment| comment.natspec.iter()) {
+            if !matches!(
+                natspec.kind,
+                ast::NatSpecKind::Custom { name } if name.name == sym::solar_dash_view
+            ) {
+                continue;
+            }
+            let before = names.len();
+            names.extend(
+                natspec
+                    .content()
+                    .split_whitespace()
+                    .map(|name| (Symbol::intern(name), natspec.span)),
+            );
+            if names.len() == before {
+                names.push((kw::Empty, natspec.span));
+            }
+        }
+        names
+    }
+
+    /// Returns whether a `@custom:solar-view` tag on the function `id` names its parameter
+    /// `index`.
+    pub fn is_solar_view_parameter(&self, id: FunctionId, index: usize) -> bool {
+        let Some(name) =
+            self.function(id).parameters.get(index).and_then(|&param| self.variable(param).name)
+        else {
+            return false;
+        };
+        self.solar_view_names(id).iter().any(|&(view, _)| view == name.name)
     }
 }
 

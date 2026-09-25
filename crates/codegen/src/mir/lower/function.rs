@@ -50,7 +50,7 @@ mod views;
 pub(super) use builders::{check_builder_finishes, finish_functions};
 pub(super) use scratch::{ScratchRegion, check_scratch_regions};
 pub(super) use terminates::{PostludeCall, check_postlude_calls};
-pub(super) use views::{ViewBorrow, check_view_borrows};
+pub(super) use views::{ViewBorrow, check_view_borrows, is_view_parameter, parameter_type};
 
 /// Shared inputs for one contract's function lowering.
 pub(super) struct LoweringContext<'gcx, 'ctx> {
@@ -191,7 +191,7 @@ pub(super) fn lower(
 
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
     lowerer.is_getter = hir_function.is_getter();
-    lowerer.bind_signature(hir_function);
+    lowerer.bind_signature(id, hir_function);
     if hir_function.kind == hir::FunctionKind::Constructor {
         let Some(contract_id) = hir_function.contract else {
             return context.report_unsupported(hir_function.span, "free constructor");

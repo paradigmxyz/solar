@@ -8,14 +8,15 @@ use crate::{
     builtins::Builtin,
     core::{CoreIntrinsic, intrinsic_of},
     hir::{self, ExprKind, SolarStmtTag, StmtKind},
-    natspec::terminates_applies,
+    natspec::declaration_tag_applies,
     ty::{Gcx, TyKind},
 };
 use solar_ast::DataLocation;
-use solar_interface::Span;
+use solar_interface::{Span, kw};
 
 pub(super) fn check(gcx: Gcx<'_>) {
     check_views(gcx);
+    check_view_parameters(gcx);
     check_terminates(gcx);
 }
 
@@ -123,6 +124,56 @@ fn check_decode_view(gcx: Gcx<'_>, args: hir::CallArgs<'_>, tag: Span) {
     }
 }
 
+/// Checks that every `@custom:solar-view` tag on a function names `bytes memory` or `string memory`
+/// parameters of it.
+fn check_view_parameters(gcx: Gcx<'_>) {
+    for id in gcx.hir.function_ids() {
+        // A misplaced tag is reported with the documentation.
+        if !declaration_tag_applies(gcx, id.into()) {
+            continue;
+        }
+        let function = gcx.hir.function(id);
+        for (name, tag) in gcx.hir.solar_view_names(id) {
+            if name == kw::Empty {
+                gcx.dcx()
+                    .err("`@custom:solar-view` on a function must name its view parameters")
+                    .span(tag)
+                    .help("list the names, as in `@custom:solar-view data`")
+                    .emit();
+                continue;
+            }
+            let parameter = function.parameters.iter().copied().find(|&param| {
+                gcx.hir.variable(param).name.is_some_and(|param| param.name == name)
+            });
+            let Some(parameter) = parameter else {
+                gcx.dcx()
+                    .err(format!(
+                        "`@custom:solar-view` names `{name}`, which is not a parameter of `{}`",
+                        gcx.item_name(id)
+                    ))
+                    .span(tag)
+                    .emit();
+                continue;
+            };
+            let ty = gcx.type_of_item(parameter.into());
+            if !(ty.is_ref_at(DataLocation::Memory)
+                && matches!(
+                    ty.peel_refs().kind,
+                    TyKind::Elementary(hir::ElementaryType::Bytes | hir::ElementaryType::String)
+                ))
+            {
+                gcx.dcx()
+                    .err(format!(
+                        "the view parameter `{name}` must be `bytes memory` or `string memory`"
+                    ))
+                    .span(gcx.hir.variable(parameter).span)
+                    .span_note(tag, "the tag is here")
+                    .emit();
+            }
+        }
+    }
+}
+
 /// Checks that every function tagged `@custom:solar-terminates` ends the call on every path: it
 /// reverts, returns from the external call, or calls a function that does, and never returns to
 /// its caller.
@@ -135,7 +186,7 @@ fn check_terminates(gcx: Gcx<'_>) {
     for id in gcx.hir.function_ids() {
         let Some(tag) = gcx.hir.solar_terminates(id) else { continue };
         // A misplaced tag is reported with the documentation.
-        if !terminates_applies(gcx, id.into()) {
+        if !declaration_tag_applies(gcx, id.into()) {
             continue;
         }
         let function = gcx.hir.function(id);
@@ -248,7 +299,7 @@ fn expr_ends_call(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> bool {
         intrinsic_of(gcx, function),
         Some(CoreIntrinsic::RevertRaw | CoreIntrinsic::ReturnAbiEncoded)
     ) || (gcx.hir.solar_terminates(function).is_some()
-        && terminates_applies(gcx, function.into())
+        && declaration_tag_applies(gcx, function.into())
         && !gcx.hir.function(function).virtual_)
 }
 

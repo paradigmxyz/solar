@@ -22,12 +22,20 @@
 //! exactly as the copying decode does, including the allocation checks each copy would make
 //! (`Panic(0x41)` for a length that cannot be allocated), so every input fails where it would.
 //!
-//! A view itself can only be read in place: `.length`, indexing, `keccak256`, `abi.decode`, and
-//! the reads of `solar:core/v1/Bytes.sol` and `Hash.sol` that take a range (a view of a view
-//! included). Any other use, such as an assignment, a write through the view, passing it to a
-//! function or returning it, is an error at the use, because it could keep the view or write the
-//! source through it. A view of a view narrows the same bytes, so it extends the enclosing view's
-//! borrow instead of starting one.
+//! A view itself can only be read in place: `.length`, indexing, `keccak256`, `abi.decode`, the
+//! reads of `solar:core/v1/Bytes.sol` and `Hash.sol` that take a range (a view of a view
+//! included), and passing it as a view parameter. Any other use, such as an assignment, a write
+//! through the view, passing it to another function or returning it, is an error at the use,
+//! because it could keep the view or write the source through it. A view of a view narrows the
+//! same bytes, so it extends the enclosing view's borrow instead of starting one.
+//!
+//! `@custom:solar-view data` on an internal function makes its `bytes memory` or `string memory`
+//! parameter `data` a view parameter. Other compilers pass the caller's object, and every
+//! internal call does the same with any memory reference; this compiler passes a memory slice
+//! instead: a view as it is, the bytes of any other `bytes` object without a copy, and a copy of a
+//! calldata view. The function reads the parameter as a view, borrowed from its entry on, so none
+//! of its writes may reach memory that existed when it was entered while it still reads the
+//! parameter, and it cannot be used as a function pointer, whose calls pass objects.
 //!
 //! Once the contract is lowered, and before any optimization, [`check_view_borrows`] rejects
 //! every instruction that may write the source's payload between the view's creation and a later
@@ -56,10 +64,10 @@ use super::{
     *,
 };
 use crate::mir::{
-    ArgIdx, Callee, EffectKind, InstId,
+    ArgIdx, Callee, EffectKind, InstId, MemoryRegion,
     analysis::{
         Access, AddressSpace, AliasAnalysis, AliasResult, CfgInfo, Location, LocationSize,
-        MemoryBase, MemoryCallSummaries, MemoryLocation,
+        MemoryAddress, MemoryBase, MemoryCallSummaries, MemoryLocation,
     },
     memory::MemoryLayoutPolicy,
 };
@@ -255,6 +263,44 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
+    /// Binds the `@custom:solar-view` parameter `id` to `value`, the slice of its bytes. The
+    /// function reads the bytes where the caller keeps them, so none of its writes may reach
+    /// memory that existed when it was entered while it still reads them.
+    pub(super) fn bind_view_parameter(&mut self, id: VariableId, value: ValueId) {
+        self.views.insert(id, value);
+        self.view_roots.insert(value, None);
+        self.push_view_borrow(id, value, value);
+    }
+
+    /// Lowers `argument` for a `@custom:solar-view` parameter of type `ty`: a view passes its
+    /// slice, a view of calldata a copy of its bytes, and any other `bytes` or `string` the slice
+    /// of the object's bytes, without a copy.
+    pub(super) fn lower_view_argument(
+        &mut self,
+        argument: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+    ) -> Option<ValueId> {
+        let object = match self.view_operand(argument) {
+            Some(view)
+                if self.builder.func().value_slice_location(view)
+                    == Some(SliceLocation::Memory) =>
+            {
+                return Some(view);
+            }
+            // object = bytes(view) in memory
+            Some(view) => self.materialize_memory_slice(view),
+            None => {
+                let value = self.lower_typed_expr(argument, ty)?;
+                self.materialize_call_argument(ty, value, argument.span)?
+            }
+        };
+        // slice = make_memory_slice(object.data, object.len)
+        let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
+        let data = self.builder.cast(data, MirType::I256);
+        let length = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
+        Some(self.builder.make_slice(data, length, SliceLocation::Memory))
+    }
+
     /// Reports a use of a `@custom:solar-view` variable that could keep it or write through it.
     pub(super) fn report_view_use<T>(&self, id: VariableId, span: Span) -> Option<T> {
         let name = self.cx.gcx.hir.variable(id).name.map_or(kw::Empty, |name| name.name);
@@ -270,6 +316,31 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .help("remove the tag to work with a copy of the bytes")
             .emit();
         None
+    }
+}
+
+/// Whether parameter `index` of the function `id` is a `@custom:solar-view` parameter, which the
+/// function takes as the memory slice of its bytes. Without intrinsic lowering it takes the object,
+/// like every view.
+pub(in crate::mir::lower) fn is_view_parameter(
+    gcx: Gcx<'_>,
+    id: hir::FunctionId,
+    index: usize,
+) -> bool {
+    !gcx.sess.opts.unstable.no_core_intrinsics && gcx.hir.is_solar_view_parameter(id, index)
+}
+
+/// The MIR type parameter `index` of type `ty` of the function `id` takes.
+pub(in crate::mir::lower) fn parameter_type(
+    gcx: Gcx<'_>,
+    id: hir::FunctionId,
+    index: usize,
+    ty: Ty<'_>,
+) -> MirType {
+    if is_view_parameter(gcx, id, index) {
+        MirType::Slice(SliceLocation::Memory)
+    } else {
+        types::TypeLowerer::mir_signature_type(ty)
     }
 }
 
@@ -562,47 +633,66 @@ impl FunctionFacts {
     fn check(&self, gcx: Gcx<'_>, borrow: &ViewBorrow) {
         let func = &self.function.func;
         let view = self.function.resolve(borrow.view);
-        let Value::Inst(def) = *func.value(view) else { return };
-        let Some(&(def_block, def_index)) = self.positions.get(&def) else { return };
-        let source = self.function.resolve(borrow.source);
-        let Some(start) = self.function.aa.memory_address(func, source).and_then(|address| {
-            address.checked_add(EvmMemoryLayout::object_data_offset(MemoryObjectKind::Bytes))
-        }) else {
-            return;
-        };
-        let payload = MemoryLocation::new(start, LocationSize::Unknown);
-        let origin = match start.base {
-            MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site) => {
-                Origin::Site(site)
+        // Where the view is made: an instruction, or the entry for a view parameter, which reads
+        // memory that exists when the function is entered.
+        let (def, payload, origin) = match *func.value(view) {
+            Value::Inst(def) => {
+                let Some(&position) = self.positions.get(&def) else { return };
+                let source = self.function.resolve(borrow.source);
+                let Some(start) =
+                    self.function.aa.memory_address(func, source).and_then(|address| {
+                        address.checked_add(EvmMemoryLayout::object_data_offset(
+                            MemoryObjectKind::Bytes,
+                        ))
+                    })
+                else {
+                    return;
+                };
+                let origin = match start.base {
+                    MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site) => {
+                        Origin::Site(site)
+                    }
+                    MemoryBase::Param(_) => Origin::Entry,
+                    MemoryBase::Value(value) if matches!(func.value(value), Value::Arg(_)) => {
+                        Origin::Entry
+                    }
+                    _ => Origin::Unknown,
+                };
+                (Some((def, position)), MemoryLocation::new(start, LocationSize::Unknown), origin)
             }
-            MemoryBase::Param(_) => Origin::Entry,
-            MemoryBase::Value(value) if matches!(func.value(value), Value::Arg(_)) => Origin::Entry,
-            _ => Origin::Unknown,
+            Value::Arg(_) => {
+                let start = MemoryAddress::symbolic(view, MemoryRegion::Heap);
+                (None, MemoryLocation::new(start, LocationSize::Unknown), Origin::Entry)
+            }
+            _ => return,
         };
+        let def_block = def.map(|(_, (block, _))| block);
 
         // The last read through the view in each block that has one.
         let reads = self.reads(view);
         // Blocks from whose start a read is reachable without creating the view again.
         let mut live = DenseBitSet::new_empty(func.blocks.len());
         let mut worklist =
-            reads.keys().copied().filter(|&block| block != def_block).collect::<Vec<_>>();
+            reads.keys().copied().filter(|&block| Some(block) != def_block).collect::<Vec<_>>();
         for &block in &worklist {
             live.insert(block);
         }
         while let Some(block) = worklist.pop() {
             for &predecessor in &self.predecessors[block] {
-                if predecessor != def_block && live.insert(predecessor) {
+                if Some(predecessor) != def_block && live.insert(predecessor) {
                     worklist.push(predecessor);
                 }
             }
         }
         // Blocks reachable from the view without creating it again.
         let mut after = DenseBitSet::new_empty(func.blocks.len());
-        let mut worklist = vec![def_block];
-        while let Some(block) = worklist.pop() {
-            for &successor in self.cfg.successors(block) {
-                if successor != def_block && after.insert(successor) {
-                    worklist.push(successor);
+        if let Some(def_block) = def_block {
+            let mut worklist = vec![def_block];
+            while let Some(block) = worklist.pop() {
+                for &successor in self.cfg.successors(block) {
+                    if successor != def_block && after.insert(successor) {
+                        worklist.push(successor);
+                    }
                 }
             }
         }
@@ -610,17 +700,23 @@ impl FunctionFacts {
         let mut reported = FxHashSet::default();
         for (inst, targets) in &self.writes {
             let (block, index) = self.positions[inst];
-            let started =
-                if block == def_block { index > def_index } else { after.contains(block) };
+            let started = match def {
+                Some((_, (def_block, def_index))) if block == def_block => index > def_index,
+                Some(_) => after.contains(block),
+                // A parameter is a view from the entry on.
+                None => true,
+            };
             let read_later = reads.get(&block).is_some_and(|&last| last > index)
                 || self
                     .cfg
                     .successors(block)
                     .iter()
-                    .any(|&successor| successor != def_block && live.contains(successor));
+                    .any(|&successor| Some(successor) != def_block && live.contains(successor));
             if !started
                 || !read_later
-                || !targets.iter().any(|&target| self.may_hit(target, payload, origin, def))
+                || !targets
+                    .iter()
+                    .any(|&target| self.may_hit(target, payload, origin, def.map(|(def, _)| def)))
             {
                 continue;
             }
@@ -682,7 +778,7 @@ impl FunctionFacts {
         target: Target,
         payload: MemoryLocation,
         origin: Origin,
-        def: InstId,
+        def: Option<InstId>,
     ) -> bool {
         let Target::Range { location, contained } = target else { return true };
         if AliasAnalysis::memory_alias_locations(location, payload) == AliasResult::NoAlias {
@@ -714,9 +810,9 @@ impl FunctionFacts {
     }
 
     /// Whether every path to `inst` passes `def` first.
-    fn strictly_dominates(&self, def: InstId, inst: InstId) -> bool {
+    fn strictly_dominates(&self, def: Option<InstId>, inst: InstId) -> bool {
         let (Some(&(def_block, def_index)), Some(&(block, index))) =
-            (self.positions.get(&def), self.positions.get(&inst))
+            (def.and_then(|def| self.positions.get(&def)), self.positions.get(&inst))
         else {
             return false;
         };

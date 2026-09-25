@@ -327,11 +327,12 @@ impl<'gcx> Resolver<'gcx> {
                     | NatSpecKind::Dev
                     | NatSpecKind::Custom { .. }
                     | NatSpecKind::Internal { .. } => {
-                        // `solar-terminates` is the only Solar tag of a declaration.
+                        // `solar-terminates` and `solar-view`, naming parameters, are the Solar
+                        // tags of a declaration.
                         if let NatSpecKind::Custom { name } = natspec.kind
                             && let Some(tag) = SolarTag::from_custom(name.name)
-                            && !(tag == SolarTag::Terminates
-                                && terminates_applies(self.gcx, item_id))
+                            && !(matches!(tag, SolarTag::Terminates | SolarTag::View)
+                                && declaration_tag_applies(self.gcx, item_id))
                         {
                             report_misplaced_solar_tag(self.gcx.dcx(), tag, name.name, tag_span);
                         }
@@ -832,7 +833,8 @@ impl<'gcx> Resolver<'gcx> {
 /// requirement that silently goes unchecked.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SolarTag {
-    /// `@custom:solar-view`: the declared `bytes memory` variable reads its source in place.
+    /// `@custom:solar-view`: the declared `bytes memory` variables, or the named parameters of an
+    /// internal function, read their bytes in place.
     View,
     /// `@custom:solar-scratch`: the memory the block allocates is reused after it.
     Scratch,
@@ -854,9 +856,10 @@ impl SolarTag {
     }
 }
 
-/// Whether `@custom:solar-terminates` can document `item`: an internal or private function with a
-/// body, which a caller reaches only through an internal call.
-pub(crate) fn terminates_applies(gcx: Gcx<'_>, item: hir::ItemId) -> bool {
+/// Whether `@custom:solar-terminates`, or `@custom:solar-view` naming parameters, can document
+/// `item`: an internal or private function with a body, which a caller reaches only through an
+/// internal call.
+pub(crate) fn declaration_tag_applies(gcx: Gcx<'_>, item: hir::ItemId) -> bool {
     let hir::ItemId::Function(id) = item else { return false };
     let function = gcx.hir.function(id);
     function.kind == hir::FunctionKind::Function
@@ -868,9 +871,15 @@ pub(crate) fn terminates_applies(gcx: Gcx<'_>, item: hir::ItemId) -> bool {
 pub(crate) fn report_misplaced_solar_tag(dcx: &DiagCtxt, tag: SolarTag, name: Symbol, span: Span) {
     match tag {
         SolarTag::View => dcx
-            .err("`@custom:solar-view` must document a variable declaration statement")
+            .err(
+                "`@custom:solar-view` must document a variable declaration statement or an \
+                 internal function",
+            )
             .span(span)
-            .help("put it on the statement `bytes memory v = Bytes.slice(source, offset, count);`")
+            .help(
+                "put it on the statement `bytes memory v = Bytes.slice(source, offset, count);`, \
+                 or on an internal function to name its view parameters",
+            )
             .emit(),
         SolarTag::Scratch => dcx
             .err("`@custom:solar-scratch` must document a block statement")
