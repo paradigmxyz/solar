@@ -242,8 +242,9 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
                 let return_type = context.module.intern_return_type(return_types);
                 let mut builder =
                     FunctionBuilder::new_semantic(context.module.function_mut(mir_id));
-                for &param in function.parameters {
-                    builder.add_param(context.state.scalar_carrier(gcx, param));
+                for (index, &param) in function.parameters.iter().enumerate() {
+                    let carrier = context.state.scalar_carrier(gcx, param);
+                    builder.add_param(function::parameter_type(gcx, function_id, index, carrier));
                 }
                 if let Some(ty) = return_type {
                     builder.set_return_type(ty);
