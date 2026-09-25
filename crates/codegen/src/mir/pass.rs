@@ -62,6 +62,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &readonly_eval::ReadonlyEval,
     &cse::Cse,
     &cse::FmpCse,
+    &fmp_dse::FmpDse,
     &pre::Pre,
     &element_cleanup::ElementCleanup,
     &egraph::Egraph,
@@ -397,6 +398,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
 /// Optimizes lowered word SSA before physical stack scheduling.
 static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     &GasOnly::new(cse::FmpCse),
+    // Scratch blocks leave a dead pointer bump before the restore that follows their last
+    // allocation, and the restore then stores the pointer the slot already holds.
+    &fmp_dse::FmpDse,
     &const_fold::ConstFold,
     &cfg_simplify::BranchSimplify,
     // Reconstruct old induction values on exits before selecting physical stack order.

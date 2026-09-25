@@ -76,7 +76,6 @@ fn @shorten() [selector=0xf0187838, abi_wrapper, inline_assembly, pure] {
   bb10:
     mstore 64, v44
     mstore v43, 0
-    mstore v43, 0
     mstore 0, 0x4e487b71
     mstore 32, 50
     revert 28, 36

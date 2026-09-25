@@ -265,7 +265,6 @@ fn @copyInto(arg0: memptr, arg1: memptr) [may_return_memory, pure] {
   bb20:
     mstore 64, v111 !metadata(memory=scratch)
     mstore v110, 0
-    mstore v110, 0
     jump bb11
   bb11:
     tail_call @revert_stub

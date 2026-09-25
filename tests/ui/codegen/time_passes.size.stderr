@@ -96,6 +96,7 @@ time: <TIME>	MIR TimePasses merge-conditions changed=false
 time: <TIME>	MIR TimePasses cfg-simplify changed=false
 time: <TIME>	MIR TimePasses split-returns changed=false
 time: <TIME>	MIR TimePasses lower-evm-shaped changed=true
+time: <TIME>	MIR TimePasses fmp-dse changed=false
 time: <TIME>	MIR TimePasses const-fold changed=false
 time: <TIME>	MIR TimePasses branch-simplify changed=false
 time: <TIME>	MIR TimePasses dce changed=false

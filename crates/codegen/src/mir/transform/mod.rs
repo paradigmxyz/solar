@@ -13,6 +13,7 @@ pub(crate) mod dce;
 pub(crate) mod egraph;
 pub(crate) mod element_cleanup;
 pub(crate) mod evm_inst_schedule;
+pub(crate) mod fmp_dse;
 pub(crate) mod frame_promotion;
 pub(crate) mod function_compaction;
 pub(crate) mod if_convert;

@@ -14,8 +14,6 @@ fn @digests() [selector=0xcf8609a5, abi_wrapper, pure] {
     returndata 0, 32
   bb3:
     v28 = mload 64 !metadata(memory=scratch)
-    v30 = add v28, 128
-    mstore 64, v30 !metadata(memory=scratch)
     mstore v28, 96
     v27 = add v28, 32
     mstore v27, v3
@@ -24,7 +22,6 @@ fn @digests() [selector=0xcf8609a5, abi_wrapper, pure] {
     v20 = add v28, 96
     mstore v20, v2
     v7 = keccak256 v27, 96
-    mstore 64, v28 !metadata(memory=scratch)
     v9 = add v3, 1
     jump bb1
 }

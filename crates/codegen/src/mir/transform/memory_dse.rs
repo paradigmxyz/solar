@@ -8,15 +8,23 @@
 //! edge, equal constant stores can be removed only while no overlapping
 //! 32-byte write has invalidated the remembered word. Gas and memory-size
 //! observations act as barriers to memory elimination.
+//!
+//! The zero initialization of a constant-size allocation is dropped when the
+//! rest of its block writes every byte of the allocation, with unconditional
+//! writes of constant ranges, before anything may read a byte not yet written:
+//! a `new bytes(64)` whose length and both data words are stored right away
+//! needs no zeroing. An allocation that runs in a loop qualifies only when no
+//! phi or select can hand one instance's pointer to the next, so every access
+//! based on its site in the block is to the new instance.
 
 use crate::mir::{
-    BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryObjectKind, MemoryRegion, Module,
-    Terminator, Value, ValueId,
+    AllocationInitialization, BlockId, Callee, Function, Immediate, InstId, InstKind,
+    MemoryObjectKind, MemoryRegion, Module, Terminator, Value, ValueId,
     analysis::{
-        Access, AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, MemoryAddress,
-        MemoryBase, MemoryLocation,
+        Access, AddressSpace, AliasAnalysis, AliasResult, CfgInfo, Location, LocationSize,
+        MemoryAddress, MemoryBase, MemoryLocation,
     },
-    memory::EvmMemoryLayout,
+    memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
 };
@@ -435,6 +443,7 @@ impl MemoryStoreEliminator {
         self.remove_cross_block_equal_const_stores(func);
         self.remove_cross_block_overwrites(func);
         self.remove_dead_memory_stores(func);
+        self.drop_overwritten_zeroing(func);
 
         self.eliminated_count
     }
@@ -1691,5 +1700,197 @@ impl MemoryStoreEliminator {
 
     fn cross_block_memory_barrier(&self, func: &Function, inst_id: InstId) -> bool {
         self.is_memory_or_gas_observer(func, inst_id)
+    }
+
+    /// Drops the zero initialization of each constant-size allocation that the rest of its block
+    /// overwrites entirely before anything may read a byte not yet written.
+    ///
+    /// ```text
+    /// p = alloc memorybytes, exact, zeroed, panic, 96
+    /// set_memory_object_len memorybytes, p, 64
+    /// memory_object_store_word memorybytes, p, 0, a
+    /// memory_object_store_word memorybytes, p, 32, b
+    /// => p = alloc memorybytes, exact, uninitialized, panic, 96
+    /// ```
+    fn drop_overwritten_zeroing(&mut self, func: &mut Function) {
+        let mut dropped = Vec::new();
+        for block in &func.blocks {
+            for (index, &inst) in block.instructions.iter().enumerate() {
+                let InstKind::Alloc { size, semantics, .. } = func.inst(inst).kind else {
+                    continue;
+                };
+                if semantics.initialization != AllocationInitialization::Zeroed {
+                    continue;
+                }
+                let Some(size) = func.value_u64(size).filter(|&size| size > 0) else { continue };
+                let Some(result) = func.inst_result_value(inst) else { continue };
+                let Some(address) = self.alias().memory_address(func, result) else { continue };
+                let own = match address.base {
+                    MemoryBase::Allocation(site) => site == inst,
+                    MemoryBase::DynamicAllocation(site) => {
+                        site == inst && !self.instances_meet(func, site)
+                    }
+                    _ => false,
+                };
+                if own
+                    && address.offset == 0
+                    && self.overwritten_before_read(
+                        func,
+                        &block.instructions[index + 1..],
+                        MemoryLocation::new(address, LocationSize::Const(size)),
+                    )
+                {
+                    dropped.push(inst);
+                }
+            }
+        }
+        for inst in dropped {
+            if let InstKind::Alloc { semantics, .. } = &mut func.inst_mut(inst).kind {
+                semantics.initialization = AllocationInitialization::Uninitialized;
+                self.eliminated_count += 1;
+            }
+        }
+    }
+
+    /// Whether a phi or select may merge a pointer into an instance of the allocation `site`
+    /// with another pointer, which could carry one loop iteration's instance into the next.
+    fn instances_meet(&self, func: &Function, site: InstId) -> bool {
+        func.instructions().any(|inst| {
+            let operands: SmallVec<[ValueId; 2]> = match &func.inst(inst).kind {
+                InstKind::Phi(incoming) => incoming.iter().map(|&(_, value)| value).collect(),
+                &InstKind::Select(_, first, second) => SmallVec::from_buf([first, second]),
+                _ => return false,
+            };
+            operands.into_iter().any(|value| {
+                self.alias().memory_address(func, value).is_none_or(|address| {
+                    matches!(
+                        address.base,
+                        MemoryBase::Allocation(base) | MemoryBase::DynamicAllocation(base)
+                            if base == site
+                    )
+                })
+            })
+        })
+    }
+
+    /// Whether `insts` write every byte of `object` before any of them may read one not yet
+    /// written. Only unconditional writes of constant ranges count; gas and memory-size
+    /// observations stop the scan.
+    fn overwritten_before_read(
+        &self,
+        func: &Function,
+        insts: &[InstId],
+        object: MemoryLocation,
+    ) -> bool {
+        let Some(size) = object.size.as_const() else { return false };
+        // Written ranges relative to the object's start, disjoint and in order.
+        let mut written = Vec::<(u64, u64)>::new();
+        for &inst in insts {
+            let effects = self.alias().instruction_mod_ref(func, inst);
+            if effects.observes_gas() || effects.observes_memory_size() {
+                return false;
+            }
+            for &access in effects.reads() {
+                match access {
+                    Access::Any(AddressSpace::Memory) => return false,
+                    Access::Location(Location::Memory(location))
+                        if self.alias().memory_alias(location, object) != AliasResult::NoAlias =>
+                    {
+                        let read = Self::object_range(location, object);
+                        if !read.is_some_and(|read| Self::range_covered(&written, read)) {
+                            return false;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            if let Some(range) =
+                self.definite_write(func, inst).and_then(|write| Self::object_range(write, object))
+            {
+                Self::insert_range(&mut written, range);
+            }
+            if Self::range_covered(&written, (0, size)) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// The bytes `inst` writes whenever it completes, when they are a constant range.
+    fn definite_write(&self, func: &Function, inst: InstId) -> Option<MemoryLocation> {
+        let at = |address: ValueId, offset: u64, size: u64| {
+            let address = self.alias().memory_address(func, address)?.checked_add(offset)?;
+            Some(MemoryLocation::new(address, LocationSize::Const(size)))
+        };
+        match func.inst(inst).kind {
+            InstKind::MStore(address, _) => at(address, 0, 32),
+            InstKind::MStore8(address, _) => at(address, 0, 1),
+            InstKind::SetMemoryObjectLen(object, _, _) => at(object, 0, 32),
+            InstKind::MemoryObjectStoreWord { object, offset, .. } => at(
+                object,
+                EvmMemoryLayout::object_data_offset(MemoryObjectKind::Bytes)
+                    .checked_add(func.value_u64(offset)?)?,
+                32,
+            ),
+            InstKind::MemoryObjectStoreByte { object, index, .. } => at(
+                object,
+                EvmMemoryLayout::object_data_offset(MemoryObjectKind::Bytes)
+                    .checked_add(func.value_u64(index)?)?,
+                1,
+            ),
+            InstKind::MemoryObjectStoreField { object, layout, field, .. } => {
+                at(object, EvmMemoryLayout::field_offset(layout, field)?, 32)
+            }
+            InstKind::MemoryObjectStoreElement { object, layout, index, .. } => {
+                let stride = EvmMemoryLayout::element_stride(layout)?;
+                let offset = func.value_u64(index)?.checked_mul(stride)?;
+                at(
+                    object,
+                    EvmMemoryLayout::object_data_offset(layout.kind()).checked_add(offset)?,
+                    stride,
+                )
+            }
+            InstKind::MemoryZero(destination, size)
+            | InstKind::MCopy(destination, _, size)
+            | InstKind::CalldataCopy(destination, _, size)
+            | InstKind::CodeCopy(destination, _, size)
+            | InstKind::DataCopy(_, destination, size) => at(destination, 0, func.value_u64(size)?),
+            _ => None,
+        }
+    }
+
+    /// The bytes `location` spans relative to the start of `object`, when both share a base and
+    /// `location` has a constant size.
+    fn object_range(location: MemoryLocation, object: MemoryLocation) -> Option<(u64, u64)> {
+        if location.address.base != object.address.base {
+            return None;
+        }
+        let start = location.address.offset.checked_sub(object.address.offset)?;
+        Some((start, start.checked_add(location.size.as_const()?)?))
+    }
+
+    /// Adds `range` to the disjoint, ordered `ranges`, merging what it touches.
+    fn insert_range(ranges: &mut Vec<(u64, u64)>, (mut start, mut end): (u64, u64)) {
+        if start >= end {
+            return;
+        }
+        ranges.retain(|&(other_start, other_end)| {
+            if other_end < start || other_start > end {
+                return true;
+            }
+            start = start.min(other_start);
+            end = end.max(other_end);
+            false
+        });
+        let at = ranges.partition_point(|&(other_start, _)| other_start < start);
+        ranges.insert(at, (start, end));
+    }
+
+    /// Whether the disjoint, ordered `ranges` cover all of `range`.
+    fn range_covered(ranges: &[(u64, u64)], (start, end): (u64, u64)) -> bool {
+        start >= end
+            || ranges
+                .iter()
+                .any(|&(other_start, other_end)| other_start <= start && end <= other_end)
     }
 }

@@ -283,7 +283,8 @@ fn allocates(func: &Function, inst: InstId) -> bool {
         InstKind::Alloc { .. }
         | InstKind::Fmp
         | InstKind::AbiEncode { .. }
-        | InstKind::AbiEncodePacked { .. }
+        // A hashing packed encode yields the hash, not the encoding.
+        | InstKind::AbiEncodePacked { hash: false, .. }
         | InstKind::AbiDecode { .. }
         | InstKind::StorageBytesLoad(..)
         | InstKind::StorageArrayLoad { .. }

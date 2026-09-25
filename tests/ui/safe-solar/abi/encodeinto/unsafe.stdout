@@ -20,8 +20,6 @@ fn @payload() [selector=0x63fd6252, abi_wrapper, inline_assembly, pure] {
     jumpi v39, bb4, bb3
   bb3:
     mstore 64, v34 !metadata(memory=scratch)
-    v40 = calldatasize
-    calldatacopy v33, v40, 128
     mstore v33, 68
     v7 = add v33, 32
     mstore v7, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
@@ -59,8 +57,6 @@ fn @short() [selector=0xb2d29f33, abi_wrapper, inline_assembly, pure] {
     jumpi v39, bb4, bb3
   bb3:
     mstore 64, v34 !metadata(memory=scratch)
-    v40 = calldatasize
-    calldatacopy v33, v40, 96
     mstore v33, 36
     v7 = add v33, 32
     mstore v7, 0xa9059cbb00000000000000000000000000000000000000000000000000000000

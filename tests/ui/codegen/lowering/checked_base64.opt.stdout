@@ -866,7 +866,6 @@ fn @decode.8(arg0: memptr) -> memptr [may_return_memory, pure] {
   bb62:
     mstore 64, v417 !metadata(memory=scratch)
     mstore v416, 0
-    mstore v416, 0
     ret v4
   bb63:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
