@@ -154,10 +154,10 @@ fn @core_array_group_sort(arg0: i256, arg1: i256, arg2: i256, arg3: i256) {
     mstore v9, v10
     jump bb9
   bb9:
-    v44 = phi [bb3: v8], [bb4: 0]
+    v45 = phi [bb3: v8], [bb4: 0]
     jump bb5
   bb5:
-    v16 = phi [bb7: v32], [bb9: v44]
+    v16 = phi [bb7: v33], [bb9: v45]
     v17 = select v7, v6, v0
     v18 = add v16, v16
     v19 = add v18, 32
@@ -174,24 +174,26 @@ fn @core_array_group_sort(arg0: i256, arg1: i256, arg2: i256, arg3: i256) {
     v28 = xor v25, arg3
     v29 = lt v27, v28
     v30 = and v26, v29
-    v32 = select v30, v23, v19
-    v33 = select v30, v25, v22
-    v34 = add arg0, v16
+    v31 = zext i1 v30 to i256
+    v32 = shl 5, v31
+    v33 = add v19, v32
+    v34 = add arg0, v33
     v35 = mload v34
-    v36 = xor v35, arg3
-    v37 = xor v33, arg3
-    v38 = lt v36, v37
-    jumpi v38, bb7, bb1
+    v36 = add arg0, v16
+    v37 = mload v36
+    v38 = xor v37, arg3
+    v39 = xor v35, arg3
+    v40 = lt v38, v39
+    jumpi v40, bb7, bb1
   bb7:
-    v39 = add arg0, v32
-    v40 = add v34, arg2
-    v41 = add v39, arg2
-    v42 = mload v40
+    v41 = add v36, arg2
+    v42 = add v34, arg2
     v43 = mload v41
-    mstore v40, v43
-    mstore v41, v42
-    mstore v34, v33
-    mstore v39, v35
+    v44 = mload v42
+    mstore v41, v44
+    mstore v42, v43
+    mstore v36, v35
+    mstore v34, v37
     jump bb5
 }
 
