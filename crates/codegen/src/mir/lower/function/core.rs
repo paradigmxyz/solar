@@ -2104,7 +2104,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let shorter = self.builder.lt(total, max_copy);
         let copied = self.builder.select(shorter, total, max_copy);
-        let output = self.builder.alloc_bytes_object(copied, AllocationSemantics::INTERNAL);
+        let output = self.builder.alloc_bounded_bytes_object(copied, AllocationSemantics::INTERNAL);
         let data = self.builder.memory_object_data(output, MemoryObjectKind::Bytes);
         self.builder.returndatacopy_heap(data, zero, copied);
         Some(self.core_results(function_id, vec![success, output, total]))

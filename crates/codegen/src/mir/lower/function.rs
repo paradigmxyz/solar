@@ -245,6 +245,10 @@ struct FunctionLowerer<'gcx, 'ctx> {
     builder: FunctionBuilder<'ctx>,
     values: FxHashMap<VariableId, ValueId>,
     dirty_values: FxHashSet<ValueId>,
+    /// Calldata slices known to lie inside the calldata: `msg.data`, validated ABI tails, and
+    /// ranges sliced out of them. A check that one of these lies inside the calldata can never
+    /// fail, so it is left out.
+    calldata_in_bounds: FxHashSet<ValueId>,
     default_bindings: FxHashSet<VariableId>,
     deferred_bindings: FxHashSet<VariableId>,
     storage_refs: FxHashMap<VariableId, StorageAccess>,
@@ -467,6 +471,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
             dirty_values: FxHashSet::default(),
+            calldata_in_bounds: FxHashSet::default(),
             default_bindings: FxHashSet::default(),
             deferred_bindings: FxHashSet::default(),
             storage_refs: FxHashMap::default(),

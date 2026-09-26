@@ -141,7 +141,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
         abi_type: &AbiType,
     ) {
-        if self.is_decoded_external_argument(value) {
+        if self.calldata_in_bounds(value) {
             return;
         }
         if self.builder.func().value_slice_location(value) != Some(SliceLocation::Calldata)
@@ -159,7 +159,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn validate_calldata_bytes_argument(&mut self, value: ValueId, abi_type: &AbiType) {
-        if self.is_decoded_external_argument(value) {
+        if self.calldata_in_bounds(value) {
             return;
         }
         if self.builder.func().value_slice_location(value) == Some(SliceLocation::Calldata)
@@ -180,6 +180,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn is_decoded_external_argument(&self, value: ValueId) -> bool {
         self.is_external_abi_argument(value)
             && self.builder.func().attributes.visibility == solar_ast::Visibility::External
+    }
+
+    /// Whether the calldata slice `value` is known to lie inside the calldata.
+    pub(super) fn calldata_in_bounds(&self, value: ValueId) -> bool {
+        self.is_decoded_external_argument(value) || self.calldata_in_bounds.contains(&value)
     }
 
     pub(super) fn calldata_aggregate_requires_validation(&self, ty: Ty<'gcx>) -> bool {
@@ -431,11 +436,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 //     validate_calldata_bytes(data)
                 //     object = materialize_calldata_bytes(data)
                 // }
+                // The validation is left out when the data is known to lie inside the calldata.
+                let validate = !self.calldata_in_bounds(value);
                 if self.dirty_values.contains(&value) {
                     let length = self.builder.slice_len(value);
                     let object =
                         self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
-                    self.validate_calldata_bytes_slice(value);
+                    if validate {
+                        self.validate_calldata_bytes_slice(value);
+                    }
                     self.builder.memory_object_copy_from_slice(
                         object,
                         MemoryObjectKind::Bytes,
@@ -443,7 +452,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     );
                     Some(object)
                 } else {
-                    self.validate_calldata_bytes_slice(value);
+                    if validate {
+                        self.validate_calldata_bytes_slice(value);
+                    }
                     Some(self.materialize_memory_slice(value))
                 }
             }
@@ -455,15 +466,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let element_type = self.types.abi_type(element)?;
                 let length = self.builder.slice_len(value);
                 let data = self.builder.slice_ptr(value);
-                let element_head_size = self.builder.imm(element_type.head_size());
-                let head_size = self.builder.checked_mul(length, element_head_size);
-                self.check_calldata_range(data, head_size);
+                let in_bounds = self.calldata_in_bounds(value);
+                if !in_bounds {
+                    // check_range(data, checked(length * element_head_size))
+                    let element_head_size = self.builder.imm(element_type.head_size());
+                    let head_size = self.builder.checked_mul(length, element_head_size);
+                    self.check_calldata_range(data, head_size);
+                }
                 if matches!(element_type, AbiType::Word(_))
                     && Self::calldata_word_is_full_width(element)
                 {
-                    return Some(self.copy_calldata_word_array(data, length));
+                    return Some(self.copy_calldata_word_array(data, length, in_bounds));
                 }
-                self.materialize_calldata_nested_array(element, data, length, span, true)
+                self.materialize_calldata_nested_array(element, data, length, span, true, in_bounds)
             }
             TyKind::Array(element, length) => {
                 // object = materialize_calldata_fixed_array(data)
@@ -483,12 +498,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    fn copy_calldata_word_array(&mut self, data: ValueId, length: ValueId) -> ValueId {
+    /// Copies the `length` calldata words at `data` into a new memory array. `in_bounds` says the
+    /// words are known to lie inside the calldata, so their size cannot overflow.
+    fn copy_calldata_word_array(
+        &mut self,
+        data: ValueId,
+        length: ValueId,
+        in_bounds: bool,
+    ) -> ValueId {
         // object = word_array(length)
         // copy(data, object.data, length * 32)
         let word = self.builder.imm(32);
-        let byte_length = self.builder.checked_mul(length, word);
-        let size = self.builder.checked_add(word, byte_length);
+        let (byte_length, size) = if in_bounds {
+            let byte_length = self.builder.mul(length, word);
+            (byte_length, self.builder.add(word, byte_length))
+        } else {
+            let byte_length = self.builder.checked_mul(length, word);
+            (byte_length, self.builder.checked_add(word, byte_length))
+        };
         let layout = MemoryObjectLayout::WORD_ARRAY;
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         self.builder.set_memory_object_len(object, length, layout.kind());
@@ -504,20 +531,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         length: ValueId,
         span: Span,
         validate_bounds: bool,
+        in_bounds: bool,
     ) -> Option<ValueId> {
         // for i in 0..length { object[i] = decode(data + i * head_size) }
         let word = self.builder.imm(32);
         let element_abi = self.types.abi_type(element)?;
         let element_is_dynamic = element_abi.is_dynamic();
         let element_head_size = self.builder.imm(element_abi.head_size());
-        let payload_size = self.builder.checked_mul(length, word);
-        let size = self.builder.checked_add(word, payload_size);
+        // The heads of an array known to lie inside the calldata are too short for its memory
+        // size to overflow.
+        let size = if in_bounds {
+            let payload_size = self.builder.mul(length, word);
+            self.builder.add(word, payload_size)
+        } else {
+            let payload_size = self.builder.checked_mul(length, word);
+            self.builder.checked_add(word, payload_size)
+        };
         let layout = MemoryObjectLayout::WORD_ARRAY;
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         self.builder.set_memory_object_len(object, length, layout.kind());
 
         self.counted_loop(length, |this, index| {
-            // The checked payload size bounds offsets for one-word ABI heads.
+            // The payload size, checked or known to lie inside the calldata, bounds offsets for
+            // one-word ABI heads.
             // offset = index * element_head_size
             let offset = if element_abi.head_size() == 32 {
                 this.builder.mul(index, element_head_size)
@@ -603,7 +639,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.validate_calldata_dynamic_tail(value_pos, length, byte_stride);
                 }
                 let data = self.builder.add(value_pos, word);
-                Some(self.builder.make_slice(data, length, SliceLocation::Calldata))
+                let slice = self.builder.make_slice(data, length, SliceLocation::Calldata);
+                if validate_bounds {
+                    self.calldata_in_bounds.insert(slice);
+                }
+                Some(slice)
             }
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 // value = materialize_calldata_bytes(position)
@@ -619,7 +659,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         self.validate_calldata_dynamic_tail(value_pos, length, element_head_size);
                     }
                     let data = self.builder.add(value_pos, word);
-                    return Some(self.builder.make_slice(data, length, SliceLocation::Calldata));
+                    let slice = self.builder.make_slice(data, length, SliceLocation::Calldata);
+                    if validate_bounds {
+                        self.calldata_in_bounds.insert(slice);
+                    }
+                    return Some(slice);
                 }
                 // value = materialize_calldata_array(position)
                 let length = self.builder.calldataload(value_pos);
@@ -632,7 +676,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if matches!(element_type, AbiType::Word(_))
                     && Self::calldata_word_is_full_width(element)
                 {
-                    Some(self.copy_calldata_word_array(data, length))
+                    Some(self.copy_calldata_word_array(data, length, false))
                 } else {
                     self.materialize_calldata_nested_array(
                         element,
@@ -640,6 +684,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         length,
                         span,
                         validate_bounds,
+                        false,
                     )
                 }
             }
@@ -825,6 +870,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let data = self.builder.add(position, word);
         let slice = self.builder.make_slice(data, length, SliceLocation::Calldata);
+        if validate_bounds {
+            self.calldata_in_bounds.insert(slice);
+        }
         self.materialize_memory_slice(slice)
     }
 

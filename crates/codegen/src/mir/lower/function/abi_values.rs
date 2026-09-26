@@ -477,7 +477,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // copy(slice, object.data)
         // return object
         let length = self.builder.slice_len(slice);
-        let object = self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
+        // A range inside the calldata is too short for its padded size to overflow.
+        let object = if self.calldata_in_bounds(slice) {
+            self.builder.alloc_bounded_bytes_object(length, AllocationSemantics::INTERNAL)
+        } else {
+            self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL)
+        };
         self.builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, slice);
         object
     }

@@ -52,28 +52,18 @@ fn @calldataBytes(arg0: calldataslice) -> memorybytes [selector=0x7965815f, pure
   bb0:
     v0 = lt 0, 10
     icall require<short_string>, v0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
-    v1 = slice_ptr arg0
-    v2 = slice_len arg0
-    v3 = gt v2, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v3
-    v4 = calldatasize
-    v5 = sub v4, v2
-    v6 = sgt v1, v5
-    icall revert_if<calldata_tail_too_short>, v6
-    v7 = slice_len arg0
-    v8 = add v7, 63
-    v9 = lt v8, v7
-    icall panic_if<0x41>, v9
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    set_memory_object_len memorybytes, v12, v7
-    memory_object_copy_from_slice memorybytes, v12, arg0
+    v1 = slice_len arg0
+    v2 = add v1, 63
+    v3 = not 31
+    v4 = and v2, v3
+    v5 = alloc memorybytes, exact, uninitialized, infallible, v4
+    set_memory_object_len memorybytes, v5, v1
+    memory_object_copy_from_slice memorybytes, v5, arg0
     jump bb2
   bb2:
     jump bb1
   bb1:
-    ret v12
+    ret v5
 }
 
 fn @inner(arg0: i256) {

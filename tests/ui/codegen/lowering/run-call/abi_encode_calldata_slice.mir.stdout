@@ -183,48 +183,27 @@ fn @encPackedUint8(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [
     v16 = slice_len v15
     v17 = slice_ptr v15
     v18 = mul v16, 32
-    v19 = eq 32, 0
-    v20 = div v18, 32
-    v21 = eq v20, v16
-    v22 = or v19, v21
-    v23 = zext i1 v22 to i256
-    v24 = eq v23, 0
-    icall panic_if<0x41>, v24
-    v25 = calldatasize
-    v26 = sub v25, v17
-    v27 = slt v26, v18
-    icall revert_if<calldata_tail_too_short>, v27
-    v28 = mul v16, 32
-    v29 = eq 32, 0
-    v30 = div v28, 32
-    v31 = eq v30, v16
-    v32 = or v29, v31
-    v33 = zext i1 v32 to i256
-    v34 = eq v33, 0
-    icall panic_if<0x41>, v34
-    v35 = add 32, v28
-    v36 = lt v35, 32
-    icall panic_if<0x41>, v36
-    v37 = alloc memoryarray<1>, exact, uninitialized, infallible, v35
-    set_memory_object_len memoryarray, v37, v16
+    v19 = add 32, v18
+    v20 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
+    set_memory_object_len memoryarray, v20, v16
     jump bb1
   bb1:
-    v38 = phi [bb0: 0], [bb2: v46]
-    v39 = lt v38, v16
-    jumpi v39, bb2, bb3
+    v21 = phi [bb0: 0], [bb2: v29]
+    v22 = lt v21, v16
+    jumpi v22, bb2, bb3
   bb3:
-    v47 = abi_encode_packed (array<word<u8>> memoryarray<1> v37)
-    ret v47
+    v30 = abi_encode_packed (array<word<u8>> memoryarray<1> v20)
+    ret v30
   bb2:
-    v40 = mul v38, 32
-    v41 = add v17, v40
-    v42 = calldataload v41
-    v43 = and v42, 255
-    v44 = eq v42, v43
-    v45 = eq v44, false
-    icall revert_if<empty>, v45
-    memory_object_store_element memoryarray<1>, v37, v38, v42
-    v46 = add v38, 1
+    v23 = mul v21, 32
+    v24 = add v17, v23
+    v25 = calldataload v24
+    v26 = and v25, 255
+    v27 = eq v25, v26
+    v28 = eq v27, false
+    icall revert_if<empty>, v28
+    memory_object_store_element memoryarray<1>, v20, v21, v25
+    v29 = add v21, 1
     jump bb1
 }
 

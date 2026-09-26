@@ -15,31 +15,10 @@ fn @word(arg0: calldataslice) -> memoryarray [selector=0x37948b05, pure, abi_par
     v9 = slice_len v8
     v10 = slice_ptr v8
     v11 = mul v9, 32
-    v12 = eq 32, 0
-    v13 = div v11, 32
-    v14 = eq v13, v9
-    v15 = or v12, v14
-    v16 = zext i1 v15 to i256
-    v17 = eq v16, 0
-    icall panic_if<0x41>, v17
-    v18 = calldatasize
-    v19 = sub v18, v10
-    v20 = slt v19, v11
-    icall revert_if<calldata_tail_too_short>, v20
-    v21 = mul v9, 32
-    v22 = eq 32, 0
-    v23 = div v21, 32
-    v24 = eq v23, v9
-    v25 = or v22, v24
-    v26 = zext i1 v25 to i256
-    v27 = eq v26, 0
-    icall panic_if<0x41>, v27
-    v28 = add 32, v21
-    v29 = lt v28, 32
-    icall panic_if<0x41>, v29
-    v30 = alloc memoryarray<1>, exact, uninitialized, infallible, v28
-    set_memory_object_len memoryarray, v30, v9
-    v31 = make_calldata_slice v10, v21
-    memory_object_copy_from_slice memoryarray, v30, v31
-    ret v30
+    v12 = add 32, v11
+    v13 = alloc memoryarray<1>, exact, uninitialized, infallible, v12
+    set_memory_object_len memoryarray, v13, v9
+    v14 = make_calldata_slice v10, v11
+    memory_object_copy_from_slice memoryarray, v13, v14
+    ret v13
 }

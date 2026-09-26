@@ -451,9 +451,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.builder.and(value, mask))
             }
             Builtin::MsgData => {
+                // data = calldata_slice(0, calldatasize())
                 let offset = self.builder.imm(0);
                 let length = self.builder.calldatasize();
-                Some(self.builder.make_slice(offset, length, SliceLocation::Calldata))
+                let data = self.builder.make_slice(offset, length, SliceLocation::Calldata);
+                self.calldata_in_bounds.insert(data);
+                Some(data)
             }
             Builtin::TxOrigin => Some(self.builder.origin()),
             Builtin::TxGasPrice => Some(self.builder.gasprice()),

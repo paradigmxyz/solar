@@ -125,38 +125,33 @@ fn @entry() [entry] {
 @phase lowered
 fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
   bb0:
-    v23 = calldatasize
-    v25 = calldataload 4
-    v26 = add v25, 4
-    v27 = add v26, 32
-    v28 = gt v25, 0xffffffffffffffff
-    v29 = gt v27, v23
-    v30 = or v28, v29
-    jumpi v30, bb1, bb3
-  bb3:
-    v32 = calldataload v26
-    v34 = sub v23, v27
-    v35 = shr 5, v34
-    v36 = gt v32, v35
-    jumpi v36, bb1, bb4
-  bb4:
-    v2 = shl 5, v32
-    v9 = calldatasize
-    v10 = sub v9, v27
-    v11 = slt v10, v2
-    jumpi v11, bb1, bb2
+    v6 = calldatasize
+    v8 = calldataload 4
+    v9 = add v8, 4
+    v10 = add v9, 32
+    v11 = gt v8, 0xffffffffffffffff
+    v12 = gt v10, v6
+    v13 = or v11, v12
+    jumpi v13, bb1, bb2
   bb2:
-    v19 = add v2, 32
-    v52 = mload 64 !metadata(memory=scratch)
-    v53 = add v52, v19
-    mstore 64, v53 !metadata(memory=scratch)
-    mstore v52, v32
-    v48 = add v52, 32
-    calldatacopy v48, v27, v2
-    v44 = sub v52, 32
-    mstore v44, 32
-    v45 = add v2, 64
-    returndata v44, v45
+    v15 = calldataload v9
+    v17 = sub v6, v10
+    v18 = shr 5, v17
+    v19 = gt v15, v18
+    jumpi v19, bb1, bb3
+  bb3:
+    v2 = shl 5, v15
+    v3 = add v2, 32
+    v35 = mload 64 !metadata(memory=scratch)
+    v36 = add v35, v3
+    mstore 64, v36 !metadata(memory=scratch)
+    mstore v35, v15
+    v31 = add v35, 32
+    calldatacopy v31, v10, v2
+    v27 = sub v35, 32
+    mstore v27, 32
+    v28 = add v2, 64
+    returndata v27, v28
   bb1:
     revert 0, 0
 }

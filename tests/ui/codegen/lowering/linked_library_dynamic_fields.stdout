@@ -423,10 +423,7 @@ bb9:
   dup 2
   add
   swap 2
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   lt
   calldatasize
   dup 4
@@ -453,10 +450,7 @@ bb9:
   dup 2
   add
   swap 2
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   lt
   calldatasize
   dup 4
@@ -477,13 +471,6 @@ bb9:
   dup 3
   push 5
   shl
-  dup 5
-  calldatasize
-  sub
-  dup 2
-  sgt
-  push bb4
-  jumpi
   push 32
   dup 2
   add
@@ -508,21 +495,6 @@ bb9:
   pop
   swap 3
   pop
-  push 0
-  not
-  push 192
-  shr
-  dup 4
-  gt
-  push bb4
-  jumpi
-  dup 3
-  calldatasize
-  sub
-  dup 2
-  sgt
-  push bb4
-  jumpi
   push 63
   dup 4
   add
@@ -734,7 +706,7 @@ bb9:
   pop
   pop
   iszero
-  push bb21
+  push bb18
   jumpi
   returndatasize
   push 63
@@ -743,7 +715,7 @@ bb9:
   dup 2
   dup 2
   lt
-  push bb24
+  push bb19
   jumpi
   push 31
   not
@@ -783,7 +755,7 @@ bb9:
   push 32
   push 0
   return
-bb21 [cold]:
+bb18 [cold]:
   returndatasize
   push 0
   push 0
@@ -791,7 +763,7 @@ bb21 [cold]:
   returndatasize
   push 0
   revert
-bb24 [cold]:
+bb19 [cold]:
   push 0x4e487b71
   push 0
   mstore

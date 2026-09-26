@@ -770,6 +770,19 @@ impl<'a> FunctionBuilder<'a> {
         object
     }
 
+    /// Allocates a bytes object for a length known to fit in 64 bits, such as the length of a
+    /// range inside the calldata, whose padded size therefore cannot overflow.
+    pub(crate) fn alloc_bounded_bytes_object(
+        &mut self,
+        length: ValueId,
+        semantics: AllocationSemantics,
+    ) -> ValueId {
+        let size = self.padded_size(length);
+        let object = self.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
+        self.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
+        object
+    }
+
     /// Allocates a fixed array whose elements each occupy one memory word.
     pub(crate) fn alloc_word_array(
         &mut self,

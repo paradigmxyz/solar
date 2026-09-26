@@ -38,24 +38,14 @@ fn @segment(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [selecto
     v6 = sub arg2, arg1
     v7 = add v0, arg1
     v8 = make_calldata_slice v7, v6
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = gt v10, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v11
-    v12 = calldatasize
-    v13 = sub v12, v10
-    v14 = sgt v9, v13
-    icall revert_if<calldata_tail_too_short>, v14
-    v15 = slice_len v8
-    v16 = add v15, 63
-    v17 = lt v16, v15
-    icall panic_if<0x41>, v17
-    v18 = not 31
-    v19 = and v16, v18
-    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
-    set_memory_object_len memorybytes, v20, v15
-    memory_object_copy_from_slice memorybytes, v20, v8
-    ret v20
+    v9 = slice_len v8
+    v10 = add v9, 63
+    v11 = not 31
+    v12 = and v10, v11
+    v13 = alloc memorybytes, exact, uninitialized, infallible, v12
+    set_memory_object_len memorybytes, v13, v9
+    memory_object_copy_from_slice memorybytes, v13, v8
+    ret v13
 }
 
 fn @nested(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> memorybytes [selector=0xe1463c2d, pure, abi_params=[bytes, u256, u256, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -80,22 +70,12 @@ fn @nested(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256, arg4: i256) 
     v15 = sub arg4, arg3
     v16 = add v9, arg3
     v17 = make_calldata_slice v16, v15
-    v18 = slice_ptr v17
-    v19 = slice_len v17
-    v20 = gt v19, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v20
-    v21 = calldatasize
-    v22 = sub v21, v19
-    v23 = sgt v18, v22
-    icall revert_if<calldata_tail_too_short>, v23
-    v24 = slice_len v17
-    v25 = add v24, 63
-    v26 = lt v25, v24
-    icall panic_if<0x41>, v26
-    v27 = not 31
-    v28 = and v25, v27
-    v29 = alloc memorybytes, exact, uninitialized, infallible, v28
-    set_memory_object_len memorybytes, v29, v24
-    memory_object_copy_from_slice memorybytes, v29, v17
-    ret v29
+    v18 = slice_len v17
+    v19 = add v18, 63
+    v20 = not 31
+    v21 = and v19, v20
+    v22 = alloc memorybytes, exact, uninitialized, infallible, v21
+    set_memory_object_len memorybytes, v22, v18
+    memory_object_copy_from_slice memorybytes, v22, v17
+    ret v22
 }
