@@ -4,8 +4,9 @@
 //! transforms live in their own modules so their implementation and invariants
 //! remain local, matching the organization of the MIR transforms.
 //! Within a pipeline run, a pass that reported no change need not repeat until
-//! another pass changes the module. The cache uses the pass type, name, and an
-//! explicit configuration key so differently configured adapters stay distinct.
+//! another pass changes the module. The cache uses the transform identity, name, and an
+//! explicit configuration key. Gating-only adapters share the underlying identity;
+//! adapters that add rewrites stay distinct.
 //! A changing pass clears the cache; no pass is assumed to reach a fixed point.
 
 mod block_cse;
@@ -61,6 +62,11 @@ pub trait EvmPass: Any + Sync {
         false
     }
 
+    /// Pass identity for caching unchanged runs. Gating-only adapters may forward this.
+    fn cache_type_id(&self) -> TypeId {
+        self.type_id()
+    }
+
     /// Stable discriminator for configured instances of the same pass type and name.
     fn cache_config(&self) -> u64 {
         0
@@ -80,7 +86,7 @@ struct PassCacheKey {
 
 impl PassCacheKey {
     fn new(pass: &dyn EvmPass) -> Self {
-        Self { type_id: pass.type_id(), name: pass.name(), config: pass.cache_config() }
+        Self { type_id: pass.cache_type_id(), name: pass.name(), config: pass.cache_config() }
     }
 }
 
@@ -109,6 +115,37 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,
 ];
+
+/// Schedule size layout only when gas loop placement is disabled.
+struct SizeOnly<P>(P);
+
+impl<P: EvmPass> EvmPass for SizeOnly<P> {
+    fn name(&self) -> &'static str {
+        self.0.name()
+    }
+
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
+        gcx.sess.opts.optimization.is_size()
+            && !loop_layout::LoopLayout.is_enabled(gcx, module)
+            && self.0.is_enabled(gcx, module)
+    }
+
+    fn is_required(&self) -> bool {
+        self.0.is_required()
+    }
+
+    fn cache_type_id(&self) -> TypeId {
+        self.0.cache_type_id()
+    }
+
+    fn cache_config(&self) -> u64 {
+        self.0.cache_config()
+    }
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        self.0.run_pass(gcx, module)
+    }
+}
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
 static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
@@ -164,8 +201,13 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Cleanup(stack_normalize::StackNormalize),
     &block_layout::BlockLayout,
     &share_reverts::ShareReverts,
-    &cfg_simplify::CfgSimplify::FINAL,
+    &cfg_simplify::CfgSimplify::EARLY,
     &block_layout::BlockLayout,
+    // Share tails exposed by outlining and revert cleanup before packing constants.
+    &terminal_dedup::TerminalDedup,
+    &cfg_simplify::CfgSimplify::EARLY,
+    &tail_merge::TailMerge,
+    &cfg_simplify::CfgSimplify::EARLY,
     // Materialize constants and pack the referenced data pool before final sharing and cleanup.
     &constant_data::ConstantData,
     &data::PackData,
@@ -182,6 +224,12 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &terminal_layout::TerminalLayout,
     &reorder_pushes::REORDER_EXPRESSIONS,
     &peephole::LateWord,
+    // Reuse values exposed by late CFG rewrites, then fold their consumers.
+    &peephole::Cleanup(block_cse::BlockCse),
+    &peephole::Peephole::FINAL,
+    // Refresh size layout without undoing gas-mode loop fallthrough choices.
+    &SizeOnly(block_layout::BlockLayout),
+    &SizeOnly(terminal_layout::TerminalLayout),
 ];
 
 /// Finds an EVM IR pass by command-line name.
@@ -346,6 +394,34 @@ mod tests {
     use super::*;
 
     #[test]
+    fn final_cfg_cleanup_follows_sharing() {
+        let last_sharing = DEFAULT_PIPELINE
+            .iter()
+            .rposition(|pass| {
+                matches!(
+                    pass.name(),
+                    "terminal-dedup"
+                        | "tail-merge"
+                        | "outline"
+                        | "share-reverts"
+                        | "late-structural"
+                )
+            })
+            .unwrap();
+        let final_cfg = PassCacheKey::new(&cfg_simplify::CfgSimplify::FINAL);
+        assert!(
+            DEFAULT_PIPELINE[..=last_sharing]
+                .iter()
+                .all(|pass| PassCacheKey::new(*pass) != final_cfg)
+        );
+        assert!(
+            DEFAULT_PIPELINE[last_sharing + 1..]
+                .iter()
+                .any(|pass| PassCacheKey::new(*pass) == final_cfg)
+        );
+    }
+
+    #[test]
     fn pass_cache_keys_include_configuration() {
         let ordinary = PassCacheKey::new(&reorder_pushes::REORDER_PUSHES);
         let final_pushes = PassCacheKey::new(&reorder_pushes::FINAL_REORDER_PUSHES);
@@ -355,6 +431,11 @@ mod tests {
         assert_ne!(final_pushes, expressions);
         assert_ne!(ordinary, expressions);
         assert_eq!(ordinary, PassCacheKey::new(&reorder_pushes::REORDER_PUSHES));
+
+        assert_eq!(
+            PassCacheKey::new(&block_layout::BlockLayout),
+            PassCacheKey::new(&SizeOnly(block_layout::BlockLayout)),
+        );
 
         let dce_with_cleanup = peephole::Cleanup(dce::Dce);
         assert_ne!(PassCacheKey::new(&dce::Dce), PassCacheKey::new(&dce_with_cleanup));

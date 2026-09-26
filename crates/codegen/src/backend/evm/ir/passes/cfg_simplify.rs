@@ -14,24 +14,25 @@
 //!
 //! Final cleanup exposes acyclic branch triangles as structural conditional terminators so
 //! layout can place their taken arm before the join. It preserves source origins and excludes
-//! glued instructions and custom stack effects. Keeping this after
-//! sharing avoids changing which physical instruction sequences earlier passes can merge.
+//! glued instructions and custom stack effects. Run this after the main sharing sweeps to avoid
+//! changing which physical instruction sequences those sweeps can merge.
 //! Final cleanup also recognizes labels passed straight to a shared `JUMPI` head as direct
-//! jump targets. Deferring this until sharing is complete avoids exposing larger tails whose
-//! merger would add jumps back to the paths being shortened.
+//! jump targets. Run final cleanup after all sharing sweeps so those sweeps cannot merge the
+//! exposed tails and add jumps back to shortened paths.
 //! Size cleanup turns a constant label passed to a shared one-instruction `JUMPI` body into
 //! a direct conditional terminator. This lets layout remove the intermediate jump; glued
 //! sequences and custom stack effects remain intact.
 //! Gas cleanup duplicates a word-return body of at most eight bytes into an empty stub
 //! reached by at least two other empty stubs. It amortizes the copy across those paths while
-//! preserving every address-taken label. The copy stays after structural sharing so it cannot
-//! be merged back into the jump it removes. Debug events move to retained operations where
-//! representable; they do not affect rewrite eligibility.
-//! Other address-taken blocks remain distinct, and block merging requires one reference so changing
-//! a predecessor cannot affect another edge. The pass preserves the condition's stack effect with a
-//! `POP`; later dead-code elimination may remove the pure condition computation. Replacing the
-//! physical form's `PUSH target; JUMPI` with that `POP` changes what runs after the condition, so
-//! it only applies where `keep_with_next` allows that boundary to be disturbed.
+//! preserving every address-taken label. The default pipeline runs final cleanup after its
+//! last sharing sweep so sharing cannot fold these copies back into jumps.
+//! Debug events move to retained operations where representable; they do not affect rewrite
+//! eligibility. Other address-taken blocks remain distinct, and block merging requires one
+//! reference so changing a predecessor cannot affect another edge. The pass preserves the
+//! condition's stack effect with a `POP`; later dead-code elimination may remove the pure condition
+//! computation. Replacing the physical form's `PUSH target; JUMPI` with that `POP` changes what
+//! runs after the condition, so it only applies where `keep_with_next` allows that boundary to be
+//! disturbed.
 //!
 //! Compiler-generated return continuations explicitly declare that their label's numeric identity
 //! is unobservable. Empty continuation thunks can therefore be bypassed even through a pushed

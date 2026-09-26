@@ -106,6 +106,26 @@ bb4:
   pop
   revert
 
+// Keep distinct stack contracts while sharing the canonical suffix after them.
+// CHECK-LABEL: {{^[ +].*}}bb5:
+// CHECK: {{^[ +].*}}callf !metadata(stack=0->2)
+// CHECK: + jump [[STACK_TAIL:bb[0-9]+]]
+bb5:
+  push 7
+  callf !metadata(stack=0->2)
+  push 10000
+  push 20000
+  return
+// CHECK-LABEL: {{^[ +].*}}bb6:
+// CHECK: {{^[ +].*}}callf !metadata(stack=0->3)
+// CHECK: + jump [[STACK_TAIL]]
+bb6:
+  push 8
+  callf !metadata(stack=0->3)
+  push 10000
+  push 20000
+  return
+
 // CHECK: + [[SHORT]]:
 // CHECK: {{^[ +].*}}push 11
 // CHECK: + [[WHOLE]]:

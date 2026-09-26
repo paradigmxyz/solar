@@ -114,6 +114,14 @@ pub(super) fn instruction_size_lower_bound(gcx: Gcx<'_>, inst: &Instruction) -> 
     1
 }
 
+/// Returns whether the module observes individual instruction positions.
+pub(super) fn observes_instruction_position(module: &Module) -> bool {
+    module
+        .blocks
+        .iter()
+        .any(|block| block.instructions.iter().any(|inst| inst.as_evm_opcode() == Some(op::PC)))
+}
+
 /// Returns whether a terminator ends the current physical fallthrough trace.
 pub(super) fn is_terminal_boundary(kind: &TerminatorKind) -> bool {
     matches!(kind, TerminatorKind::IndexedJump(_))
