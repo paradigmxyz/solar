@@ -68,8 +68,6 @@ fn @sha() [selector=0x65707d6f, abi_wrapper, pure] {
     v9 = returndatasize
     revert 0, v9
   bb1:
-    v7 = mload 0 !metadata(memory=scratch)
-    mstore 0, v7 !metadata(memory=scratch)
     returndata 0, 32
 }
 
@@ -109,8 +107,6 @@ fn @shaLiteral() [selector=0x4aa7a4c7, abi_wrapper, pure] {
     v9 = returndatasize
     revert 0, v9
   bb1:
-    v7 = mload 0 !metadata(memory=scratch)
-    mstore 0, v7 !metadata(memory=scratch)
     returndata 0, 32
 }
 
@@ -150,8 +146,6 @@ fn @shaEmpty() [selector=0xf1609893, abi_wrapper, pure] {
     v10 = returndatasize
     revert 0, v10
   bb1:
-    v8 = mload 0 !metadata(memory=scratch)
-    mstore 0, v8 !metadata(memory=scratch)
     returndata 0, 32
 }
 

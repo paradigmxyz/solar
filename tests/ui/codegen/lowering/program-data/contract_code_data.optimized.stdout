@@ -147,10 +147,6 @@ bb0:
   gt
   push bb4
   jumpi
-  push 0
-  mload
-  push 0
-  mstore
   push 32
   push 0
   return

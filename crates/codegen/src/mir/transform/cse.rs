@@ -70,6 +70,10 @@
 //! costs the scheduler more stack traffic than the load it removes. Acyclic
 //! reuse is unchanged. Loop and liveness facts are built only when a candidate reuse needs them.
 //!
+//! A word store of the value the cache already holds for its word is removed:
+//! memory keeps its contents, and the load or store that established the value
+//! already expanded memory over the word.
+//!
 //! Unchanged functions without internal calls can skip later runs until their
 //! body changes; callers must still observe any improved callee summaries.
 
@@ -696,6 +700,11 @@ impl CommonSubexprEliminator {
                     self.eliminated_count += 1;
                     continue;
                 }
+                if self.is_redundant_store(func, inst_id, kind, ctx.replacements, &cache) {
+                    ctx.dead.insert(inst_id);
+                    self.eliminated_count += 1;
+                    continue;
+                }
                 if kind.has_side_effects() {
                     // Without a replaced operand, the summary already holds this instruction's
                     // clobbers, and recomputing them would only read the address memo.
@@ -1008,6 +1017,11 @@ impl CommonSubexprEliminator {
                 self.eliminated_count += 1;
                 continue;
             }
+            if self.is_redundant_store(func, inst_id, kind, &replacements, &expr_cache) {
+                to_remove.insert(inst_id);
+                self.eliminated_count += 1;
+                continue;
+            }
             if kind.has_side_effects() {
                 self.update_for_side_effect(func, inst_id, kind, &replacements, &mut expr_cache);
             }
@@ -1055,6 +1069,24 @@ impl CommonSubexprEliminator {
             }
             _ => None,
         }
+    }
+
+    /// Whether a word store writes the value the word already holds. Memory is left as it was,
+    /// and the access that established the value already expanded memory over the word.
+    ///
+    /// v = mload p; ...; mstore p, v => v = mload p; ...
+    fn is_redundant_store(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        kind: &InstKind,
+        replacements: &FxHashMap<ValueId, ValueId>,
+        cache: &ExprCache,
+    ) -> bool {
+        matches!(kind, InstKind::MStore(..))
+            && self
+                .forwarded_store(func, inst_id, kind, replacements)
+                .is_some_and(|(key, stored)| cache.get(&key) == Some(&stored))
     }
 
     /// Creates a normalized expression key for an instruction.
