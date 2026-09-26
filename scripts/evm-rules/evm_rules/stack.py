@@ -204,7 +204,7 @@ def verify_stack_file(path, timeout_ms=5000, artifacts=None):
         "rules": rules,
         "contracts": [
             "canonical physical stack facets and legal depth encodings",
-            "unprotected_last5 rejects noncanonical effects and protected boundaries",
+            "unprotected_last5 rejects protected boundaries",
             "Edit.Keep truncates; Edit.OverwriteOne replaces the matched window",
             "Edit.RemoveFirstKeepTwo retains window instructions one and two",
             "sufficient input stack and gas; untouched deeper stack prefix",

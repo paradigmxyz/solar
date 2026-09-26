@@ -243,7 +243,7 @@ impl<'a> PeepContext<'a> {
     }
 
     /// Target-only cleanup deferred until structural sharing has finished.
-    fn final_rewrite(&self) -> Option<Rewrite> {
+    pub(super) fn final_rewrite(&self) -> Option<Rewrite> {
         if !self.final_cleanup {
             return None;
         }
@@ -274,11 +274,6 @@ impl<'a> PeepContext<'a> {
             return Some(Rewrite { skip: 5, edit: Edit::ConsumeStoredValue { depth: depth - 1 } });
         }
         None
-    }
-
-    /// Returns the edit of a final-only rule, for tails the early rules are known to leave alone.
-    pub(super) fn select_final(&self) -> Option<Rewrite> {
-        self.final_rewrite()
     }
 
     /// Tries the rules whose last instruction has the class of the block's last instruction.
@@ -330,7 +325,7 @@ impl<'a> PeepContext<'a> {
             .find_map(|start| generated::constructor_late_peep(self, start))
     }
 
-    /// A canonical instruction suffix whose boundaries permit replacement.
+    /// An instruction suffix whose boundaries permit replacement.
     fn unprotected_tail<const N: usize>(&self) -> Option<[Inst; N]> {
         let start = self.instructions.len().checked_sub(N)?;
         if self.instructions[start..].iter().any(Instruction::keeps_with_next)
@@ -516,9 +511,8 @@ impl generated::Context for PeepContext<'_> {
 
     /// A `DUPn` whose duplicated word this block just pushed as a literal zero.
     ///
-    /// The simulation starts after the last operation it cannot follow, keeps only
-    /// "is this word a known zero", and gives up on any operation with an overridden
-    /// stack effect.
+    /// The simulation follows only pushes and stack operations, starting after the last other
+    /// operation, and keeps only "is this word a known zero".
     fn duplicates_known_zero(&mut self, _: Window) -> Option<()> {
         if !self.evm_version.has_push0() {
             return None;

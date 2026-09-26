@@ -60,12 +60,12 @@
 (extern extractor last3 last3)
 (decl last4 (Inst Inst Inst Inst) Window)
 (extern extractor last4 last4)
-;; A four-instruction window with canonical effects and no protected boundaries.
+;; A four-instruction window with no protected boundaries.
 (decl unprotected_last4 (Inst Inst Inst Inst) Window)
 (extern extractor unprotected_last4 unprotected_last4)
 (decl last5 (Inst Inst Inst Inst Inst) Window)
 (extern extractor last5 last5)
-;; A five-instruction window with canonical effects and no protected boundaries.
+;; A five-instruction window with no protected boundaries.
 (decl unprotected_last5 (Inst Inst Inst Inst Inst) Window)
 (extern extractor unprotected_last5 unprotected_last5)
 (decl last6 (Inst Inst Inst Inst Inst Inst) Window)

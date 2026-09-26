@@ -1,6 +1,10 @@
 //~? ERROR: EVM IR verification failed: block 0: `push` has a known stack effect and cannot declare 0->0
+//~? ERROR: EVM IR verification failed: block 0: `add` has a known stack effect and cannot declare 2->1
 @module module
 
+// Known instructions cannot declare a stack effect, even one equal to their own.
 bb0:
   push 1 !metadata(stack=0->0)
+  push 2
+  add !metadata(stack=2->1)
   stop

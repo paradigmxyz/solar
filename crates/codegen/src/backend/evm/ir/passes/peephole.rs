@@ -14,13 +14,12 @@
 //! Comparison inversion tracks a constant through up to 24 instructions that cannot observe
 //! or copy it. Adjusting that bound and flipping LT/GT or SLT/SGT removes ISZERO after branch
 //! layout chooses the taken edge. Operand computations stay in place; wrapping bounds,
-//! protected boundaries, custom stack effects, and materializations that grow in size or stack
-//! peak are rejected.
+//! protected boundaries, and materializations that grow in size or stack peak are rejected.
 //! Literal unary expressions use the same evaluator as MIR and require a Pareto
 //! improvement under the target's immediate materialization costs. A known-false
 //! inline conditional jump then disappears with its two pushes. These rules
-//! preserve custom stack effects and protected instruction boundaries, and never
-//! treat symbolic label addresses or deferred values as literal constants.
+//! preserve protected instruction boundaries, and never treat symbolic label
+//! addresses or deferred values as literal constants.
 //!
 //! The separate `late-word` entry point runs only after structural cleanup. It
 //! replaces a low-mask construction with a shorter complement/shift form. A closed
@@ -124,12 +123,15 @@ const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 
 /// Block contents on which a peephole run found no rewrite, so the same contents can be skipped.
 ///
-/// Matching reads only each instruction's opcode, encoding, value, stack operation, stack effect,
-/// and `keep_with_next` flag, never debug metadata, so equal keys produce the same result. The
-/// final rules extend the early ones, so contents clean under them are clean under both.
-/// Records hold a hash of the keys rather than a copy, which would retain every clean block's
-/// contents a second time for the module's lifetime.
+/// Matching reads only each instruction's opcode, encoding, value, stack operation, and
+/// `keep_with_next` flag, never metadata, so equal keys produce the same result. The final rules
+/// extend the early ones, so contents clean under them are clean under both.
 /// Module clones start without the cache, and it never affects module equality.
+///
+/// NOTE: Records hold a hash of the keys rather than a copy, which would retain every clean
+/// block's contents a second time for the module's lifetime. A collision between the recorded
+/// and the current contents of one block at equal length would skip a rewrite; the result stays
+/// deterministic.
 #[derive(Default)]
 pub(crate) struct CleanBlocks(IndexVec<BlockId, Option<CleanBlock>>);
 
@@ -142,7 +144,7 @@ struct CleanBlock {
 fn clean_hash(instructions: &[Instruction]) -> u64 {
     let mut hasher = FxHasher::default();
     for inst in instructions {
-        (MachineInstKey::new(inst), inst.metadata.stack).hash(&mut hasher);
+        MachineInstKey::new(inst).hash(&mut hasher);
     }
     hasher.finish()
 }
@@ -185,7 +187,7 @@ fn optimize_module<const LATE: bool>(
     let evm_version = gcx.sess.opts.evm_version;
     let mut changed = false;
     let mut scratch = Vec::new();
-    let mut clean = std::mem::take(&mut module.peephole_clean);
+    let clean = &mut module.peephole_clean;
     clean.0.resize_with(module.blocks.len(), || None);
     for (block_id, block) in module.blocks.iter_mut_enumerated() {
         // The late rules are separate from the cached early and final ones.
@@ -238,9 +240,9 @@ fn optimize_module<const LATE: bool>(
         if !LATE && !skip {
             if rewrites != 0 || returned_zero {
                 clean.0[block_id] = None;
-            } else if recorded.is_some() {
+            } else if early_clean {
                 // The same contents are now clean under the final rules as well.
-                clean.0[block_id].as_mut().unwrap().final_cleanup |= final_cleanup;
+                clean.0[block_id].as_mut().unwrap().final_cleanup = true;
             } else {
                 clean.0[block_id] = Some(CleanBlock {
                     final_cleanup,
@@ -250,7 +252,6 @@ fn optimize_module<const LATE: bool>(
             }
         }
     }
-    module.peephole_clean = clean;
     changed
 }
 
@@ -269,7 +270,7 @@ fn optimize<const LATE: bool>(
     let first = (1..=instructions.len()).find_map(|end| {
         let mut context = isle::PeepContext::new(&instructions[..end], evm_version)
             .with_final_cleanup(final_cleanup);
-        if early_clean { context.select_final() } else { context.select::<LATE>() }
+        if early_clean { context.final_rewrite() } else { context.select::<LATE>() }
             .map(|rewrite| (end, rewrite))
     });
     let Some((end, isle::Rewrite { skip, edit })) = first else { return 0 };
