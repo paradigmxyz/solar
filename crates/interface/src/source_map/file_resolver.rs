@@ -48,10 +48,10 @@ pub struct FileResolver<'a> {
     /// Import remappings.
     remappings: Vec<ImportRemapping>,
     /// Base path for source unit names.
-    base_path: Option<PathBuf>,
+    base_path: Option<Arc<PathBuf>>,
 
     /// Custom current directory.
-    custom_current_dir: Option<PathBuf>,
+    custom_current_dir: Option<Arc<PathBuf>>,
     /// [`std::env::current_dir`] cache. Unused if the current directory is set manually.
     env_current_dir: OnceLock<Option<PathBuf>>,
 }
@@ -59,12 +59,13 @@ pub struct FileResolver<'a> {
 impl<'a> FileResolver<'a> {
     /// Creates a new file resolver.
     pub fn new(source_map: &'a SourceMap) -> Self {
+        let base_path = arc_swap::Guard::into_inner(source_map.base_path());
         Self {
             source_map,
             include_paths: Vec::new(),
             remappings: Vec::new(),
-            base_path: source_map.base_path(),
-            custom_current_dir: source_map.base_path(),
+            base_path: base_path.clone(),
+            custom_current_dir: base_path,
             env_current_dir: OnceLock::new(),
         }
     }
@@ -94,7 +95,7 @@ impl<'a> FileResolver<'a> {
                 };
                 self.set_base_path(base_path);
                 // Source unit names are relative to the base path after parent paths are stripped.
-                self.set_current_dir(base_path);
+                self.custom_current_dir = self.base_path.clone();
             }
         }
     }
@@ -119,7 +120,7 @@ impl<'a> FileResolver<'a> {
         if !current_dir.is_absolute() {
             panic!("current_dir must be an absolute path");
         }
-        self.custom_current_dir = Some(current_dir.to_path_buf());
+        self.custom_current_dir = Some(Arc::new(current_dir.to_path_buf()));
     }
 
     /// Sets the base path.
@@ -132,7 +133,7 @@ impl<'a> FileResolver<'a> {
         if !base_path.is_absolute() {
             panic!("base_path must be an absolute path");
         }
-        self.base_path = Some(base_path.to_path_buf());
+        self.base_path = Some(Arc::new(base_path.to_path_buf()));
     }
 
     /// Adds include paths.
@@ -169,12 +170,12 @@ impl<'a> FileResolver<'a> {
     /// Returns the current directory, if resolved successfully.
     #[doc(alias = "try_base_path")]
     pub fn try_current_dir(&self) -> Option<&Path> {
-        self.custom_current_dir.as_deref().or_else(|| self.env_current_dir())
+        self.custom_current_dir.as_deref().map(PathBuf::as_path).or_else(|| self.env_current_dir())
     }
 
     /// Returns the base path for import resolution.
     pub fn try_base_path(&self) -> Option<&Path> {
-        self.base_path.as_deref().or_else(|| self.try_current_dir())
+        self.base_path.as_deref().map(PathBuf::as_path).or_else(|| self.try_current_dir())
     }
 
     fn env_current_dir(&self) -> Option<&Path> {
@@ -1156,5 +1157,18 @@ mod solang_import_resolution {
                 },
             ],
         );
+    }
+
+    #[test]
+    fn shares_base_path_snapshot() {
+        let sm = SourceMap::empty();
+        sm.set_base_path(Some(PathBuf::from("base")));
+        let base_path = arc_swap::Guard::into_inner(sm.base_path()).unwrap();
+        let resolver = FileResolver::new(&sm);
+        assert!(Arc::ptr_eq(resolver.base_path.as_ref().unwrap(), &base_path));
+        assert!(Arc::ptr_eq(resolver.custom_current_dir.as_ref().unwrap(), &base_path));
+        sm.set_base_path(None);
+        assert_eq!(resolver.try_base_path(), Some(Path::new("base")));
+        assert_eq!(resolver.try_current_dir(), Some(Path::new("base")));
     }
 }

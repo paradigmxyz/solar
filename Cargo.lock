@@ -4633,6 +4633,7 @@ dependencies = [
  "annotate-snippets 0.12.16",
  "anstream",
  "anstyle",
+ "arc-swap",
  "derive_more",
  "dunce",
  "inturn",

@@ -678,38 +678,37 @@ fn collect_annotations(
 ) -> Vec<(Arc<SourceFile>, Vec<Annotation>)> {
     let mut output: Vec<(Arc<SourceFile>, Vec<Annotation>)> = vec![];
 
-    for SpanLabel { span, is_primary, label } in msp.span_labels() {
+    let labels = msp.span_labels();
+    let files = sm.files();
+    for SpanLabel { span, is_primary, label } in labels {
         // If we don't have a useful span, pick the primary span if that exists.
         // Worst case we'll just print an error at the top of the main file.
         let span = match (span.is_dummy(), msp.primary_span()) {
             (_, None) | (false, _) => span,
             (true, Some(span)) => span,
         };
-        let file = sm.lookup_source_file(span.lo());
-
         let kind = if is_primary { AnnotationKind::Primary } else { AnnotationKind::Context };
 
         let label = label.as_ref().map(|m| normalize_whitespace(m));
 
         let ann = Annotation { kind, span, label };
-        if sm.is_valid_span(ann.span).is_ok() {
+        if let Ok(location) = files.is_valid_span(ann.span) {
+            let file = location.file;
             // Look through each of our files for the one we're adding to.
             if let Some((_, annotations)) =
                 output.iter_mut().find(|(f, _)| f.start_pos == file.start_pos)
             {
                 annotations.push(ann);
             } else {
-                output.push((file, vec![ann]));
+                output.push((file.clone(), vec![ann]));
             }
         }
     }
+    drop(files);
 
     // Sort annotations within each file by line number.
-    for (_, ann) in output.iter_mut() {
-        ann.sort_by_key(|a| {
-            let lo = sm.lookup_char_pos(a.span.lo());
-            lo.line
-        });
+    for (file, ann) in output.iter_mut() {
+        ann.sort_by_key(|a| file.lookup_line(file.relative_position(a.span.lo())));
     }
 
     output
