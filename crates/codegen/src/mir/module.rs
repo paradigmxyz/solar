@@ -3,11 +3,9 @@
 use super::{
     AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, DataId, DataRef, Disambiguator,
     Function, FunctionId, ImmutableId, MangledSymbol, MirType, StructId, StructType, Terminator,
-    ValueId,
 };
 use crate::link::{LibraryRelocation, LibraryTable};
 use alloy_primitives::Bytes;
-use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     fmt::{self, FmtIteratorExt},
@@ -248,32 +246,10 @@ impl Module {
     }
 
     fn has_value_type(&self, predicate: impl Fn(MirType) -> bool) -> bool {
-        let mut operands = SmallVec::<[ValueId; 8]>::new();
         self.functions.iter().any(|func| {
-            let matches = |value| func.value_ty(value).is_some_and(&predicate);
-            if func.arg_indices().any(|index| predicate(func.arg_ty(index)))
+            func.arg_indices().any(|index| predicate(func.arg_ty(index)))
                 || func.return_components().iter().any(|&ty| predicate(ty))
-            {
-                return true;
-            }
-            for block in &func.blocks {
-                for &inst_id in &block.instructions {
-                    let inst = func.inst(inst_id);
-                    operands.clear();
-                    inst.kind.collect_operands(&mut operands);
-                    if operands.iter().copied().chain(inst.result()).any(matches) {
-                        return true;
-                    }
-                }
-                let mut found = false;
-                if let Some(term) = &block.terminator {
-                    term.for_each_operand(|value| found |= matches(value));
-                }
-                if found {
-                    return true;
-                }
-            }
-            false
+                || func.live_values().any(|value| func.value_ty(value).is_some_and(&predicate))
         })
     }
 

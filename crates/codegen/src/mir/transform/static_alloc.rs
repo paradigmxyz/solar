@@ -138,7 +138,7 @@ fn fmp_write_has_future_observer(func: &Function, cfg: &CfgInfo, inst_id: InstId
     {
         return true;
     }
-    if cfg.transitive_reachability().get(&block).into_iter().flat_map(|blocks| blocks.iter()).any(
+    if cfg.transitive_reachability().get(block).into_iter().flat_map(|blocks| blocks.iter()).any(
         |block| {
             func.blocks[block]
                 .instructions

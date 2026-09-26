@@ -1000,7 +1000,7 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> 
         }
     }
 
-    let users = IndexLists::new(func.num_values(), || edges.iter().copied());
+    let users = IndexLists::new(func.num_values(), edges.iter().copied());
 
     while let Some(value) = worklist.pop_front() {
         queued.remove(value);

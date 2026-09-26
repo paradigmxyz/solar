@@ -103,20 +103,21 @@ impl LoopAnalyzer {
 
     /// Analyzes loops using a CFG snapshot of the current function.
     pub(crate) fn analyze_with_cfg(&mut self, func: &Function, cfg: Rc<CfgInfo>) -> LoopInfo {
-        let mut info = self.analyze_structure_with_cfg(func, cfg);
-        for loop_info in info.loops.values_mut() {
-            self.analyze_induction_vars(func, loop_info);
-            self.find_invariant_instructions(func, loop_info);
-            self.analyze_trip_count(func, loop_info);
-        }
-        info
+        self.analyze_facts(func, cfg, true)
     }
 
     /// Analyzes loops without their invariant instructions.
     pub(crate) fn analyze_trip_counts(&mut self, func: &Function) -> LoopInfo {
-        let mut info = self.analyze_structure_with_cfg(func, Rc::new(CfgInfo::new(func)));
+        self.analyze_facts(func, Rc::new(CfgInfo::new(func)), false)
+    }
+
+    fn analyze_facts(&mut self, func: &Function, cfg: Rc<CfgInfo>, invariants: bool) -> LoopInfo {
+        let mut info = self.analyze_structure_with_cfg(func, cfg);
         for loop_info in info.loops.values_mut() {
             self.analyze_induction_vars(func, loop_info);
+            if invariants {
+                self.find_invariant_instructions(func, loop_info);
+            }
             self.analyze_trip_count(func, loop_info);
         }
         info
@@ -156,13 +157,7 @@ impl LoopAnalyzer {
             positions[block_id] = position as u32;
         }
         let has_retreating_edge = cfg.rpo().iter().any(|&block_id| {
-            func.blocks[block_id].terminator.as_ref().is_some_and(|term| {
-                term.successors().into_iter().any(|succ| {
-                    positions
-                        .get(succ)
-                        .is_some_and(|&succ_position| succ_position <= positions[block_id])
-                })
-            })
+            cfg.successors(block_id).iter().any(|&succ| positions[succ] <= positions[block_id])
         });
         if !has_retreating_edge {
             return Vec::new();

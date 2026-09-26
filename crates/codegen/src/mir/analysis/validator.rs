@@ -747,42 +747,26 @@ impl<'a> Validator<'a> {
     }
 
     /// Checks constant widths and aggregate operands against their declared types.
-    fn validate_live_value_type(&mut self, func: &Function, value: ValueId) {
-        if func.value_ty(value).is_none_or(|ty| ty == MirType::Void) {
-            self.emit(format_args!("live value v{} has no value type", value.index()));
-        }
-        if let Value::Immediate(crate::mir::Immediate::Pointer(_, ty)) = func.value(value)
-            && !ty.is_pointer()
-        {
-            self.emit("pointer constant must have a pointer type");
-        }
-        if let Value::Immediate(immediate) = func.value(value)
-            && let MirType::Int(bits) = immediate.ty()
-            && immediate.as_u256().is_some_and(|word| word.bit_len() > bits.get() as usize)
-        {
-            self.emit(format_args!(
-                "constant v{} does not fit its type `{}`",
-                value.index(),
-                immediate.ty()
-            ));
-        }
-    }
-
     fn validate_value_types(&mut self, module: &Module, func: &Function) {
         self.validate_return_abi(module, func);
-        let mut values = SmallVec::<[ValueId; 8]>::new();
-        for block in &func.blocks {
-            for &inst_id in &block.instructions {
-                let inst = func.inst(inst_id);
-                values.clear();
-                inst.kind.collect_operands(&mut values);
-                values.extend(inst.result());
-                for &value in &values {
-                    self.validate_live_value_type(func, value);
-                }
+        for value in func.live_values() {
+            if func.value_ty(value).is_none_or(|ty| ty == MirType::Void) {
+                self.emit(format_args!("live value v{} has no value type", value.index()));
             }
-            if let Some(term) = &block.terminator {
-                term.for_each_operand(|value| self.validate_live_value_type(func, value));
+            if let Value::Immediate(crate::mir::Immediate::Pointer(_, ty)) = func.value(value)
+                && !ty.is_pointer()
+            {
+                self.emit("pointer constant must have a pointer type");
+            }
+            if let Value::Immediate(immediate) = func.value(value)
+                && let MirType::Int(bits) = immediate.ty()
+                && immediate.as_u256().is_some_and(|word| word.bit_len() > bits.get() as usize)
+            {
+                self.emit(format_args!(
+                    "constant v{} does not fit its type `{}`",
+                    value.index(),
+                    immediate.ty()
+                ));
             }
         }
         for ty in func
@@ -1335,7 +1319,15 @@ impl<'a> Validator<'a> {
             ));
         }
         if phase == MirPhase::Lowered {
-            if let Some(ty) = first_non_word_type(func) {
+            let types = func
+                .arg_indices()
+                .map(|index| func.arg_ty(index))
+                .chain(func.return_components().iter().copied())
+                .chain(func.live_values().filter_map(|value| func.value_ty(value)))
+                .chain(func.instructions().filter_map(|id| func.inst(id).result_ty));
+            if let Some(ty) =
+                types.into_iter().find(|ty| !ty.is_word() || matches!(ty, MirType::MemoryObject(_)))
+            {
                 self.emit(format_args!(
                     "non-word type `{ty}` survives the `lowered` phase boundary"
                 ));
@@ -1457,41 +1449,6 @@ fn return_abi_matches(
 // =============================================================================
 // Tests
 // =============================================================================
-
-/// Returns the first type, in signature and then block order, that is not a scalar word.
-fn first_non_word_type(func: &Function) -> Option<MirType> {
-    let non_word = |ty: MirType| !ty.is_word() || matches!(ty, MirType::MemoryObject(_));
-    let signature = func.arg_indices().map(|index| func.arg_ty(index));
-    if let Some(ty) =
-        signature.chain(func.return_components().iter().copied()).find(|&ty| non_word(ty))
-    {
-        return Some(ty);
-    }
-    let mut operands = SmallVec::<[ValueId; 8]>::new();
-    let value_type = |value| func.value_ty(value).filter(|&ty| non_word(ty));
-    for block in &func.blocks {
-        for &inst_id in &block.instructions {
-            let inst = func.inst(inst_id);
-            operands.clear();
-            inst.kind.collect_operands(&mut operands);
-            if let Some(ty) = operands.iter().copied().chain(inst.result()).find_map(value_type) {
-                return Some(ty);
-            }
-        }
-        let mut found = None;
-        if let Some(term) = &block.terminator {
-            term.for_each_operand(|value| {
-                if found.is_none() {
-                    found = value_type(value);
-                }
-            });
-        }
-        if found.is_some() {
-            return found;
-        }
-    }
-    func.instructions().filter_map(|id| func.inst(id).result_ty).find(|&ty| non_word(ty))
-}
 
 #[cfg(test)]
 mod tests {
