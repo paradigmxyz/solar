@@ -46,8 +46,9 @@
     bb0:
       v0 = mapping_slot arg0, 7
       mstore 0, arg1
-      v1 = mapping_slot arg0, 7
-      v2 = add v0, v1
+-     v1 = mapping_slot arg0, 7
+-     v2 = add v0, v1
++     v2 = add v0, v0
       ret v2
   }
   
@@ -164,12 +165,8 @@
 +     mstore 32, 7 !metadata(memory=scratch)
 +     v3 = keccak256 0, 64 !metadata(memory=scratch)
       mstore 0, arg1
--     v1 = mapping_slot arg0, 7
--     v2 = add v0, v1
-+     mstore 0, arg0 !metadata(memory=scratch)
-+     mstore 32, 7 !metadata(memory=scratch)
-+     v4 = keccak256 0, 64 !metadata(memory=scratch)
-+     v2 = add v3, v4
+-     v2 = add v0, v0
++     v2 = add v3, v3
       ret v2
   }
   
@@ -283,10 +280,7 @@
       mstore 32, 7 !metadata(memory=scratch)
       v3 = keccak256 0, 64 !metadata(memory=scratch)
       mstore 0, arg1
-      mstore 0, arg0 !metadata(memory=scratch)
-      mstore 32, 7 !metadata(memory=scratch)
-      v4 = keccak256 0, 64 !metadata(memory=scratch)
-      v2 = add v3, v4
+      v2 = add v3, v3
       ret v2
   }
   
