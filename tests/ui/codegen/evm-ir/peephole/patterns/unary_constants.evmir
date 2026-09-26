@@ -63,10 +63,10 @@ bb11:
   jumpi
   stop
 
-// Canonical explicit stack metadata still permits folding.
+// A literal operand of a unary operation folds.
 bb12:
-  push 7 !metadata(stack=0->1)
-  iszero !metadata(stack=1->1)
+  push 7
+  iszero
   stop
 
 // Symbolic and deferred values are not literal words.

@@ -63,8 +63,6 @@
 ;; A four-instruction window with canonical effects and no protected boundaries.
 (decl unprotected_last4 (Inst Inst Inst Inst) Window)
 (extern extractor unprotected_last4 unprotected_last4)
-(decl pure canonical_stack_effects4 (Inst Inst Inst Inst) bool)
-(extern constructor canonical_stack_effects4 canonical_stack_effects4)
 (decl last5 (Inst Inst Inst Inst Inst) Window)
 (extern extractor last5 last5)
 ;; A five-instruction window with canonical effects and no protected boundaries.
@@ -240,9 +238,7 @@
          (rewrite 6 (Edit.Keep 3)))
 
 ;; `PUSH x MSTORE PUSH x MLOAD -> DUP1 PUSH x MSTORE`.
-(rule 130 (peep_op (last4 (and first (push a)) (and store (opcode $MSTORE))
-                                  (and second (push a)) (and load (opcode $MLOAD))))
-        (if-let true (canonical_stack_effects4 first store second load))
+(rule 130 (peep_op (last4 (push a) (opcode $MSTORE) (push a) (opcode $MLOAD)))
         (rewrite 4 (Edit.ReloadStoredValue)))
 
 ;; `DUP1 PUSH x MSTORE POP -> PUSH x MSTORE`.

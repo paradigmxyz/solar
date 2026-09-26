@@ -364,16 +364,14 @@ impl<'a> Verifier<'a> {
         }
 
         match (inst.metadata.stack, default_instruction_stack_effect(inst)) {
-            (Some(effect), Some(expected)) if effect != expected => {
+            (Some(effect), Some(_)) => {
                 self.error_in_block(
                     block_id,
                     format_args!(
-                        "`{}` has stack effect {}->{}, expected {}->{}",
+                        "`{}` has a known stack effect and cannot declare {}->{}",
                         inst.mnemonic(),
                         effect.inputs,
-                        effect.outputs,
-                        expected.inputs,
-                        expected.outputs
+                        effect.outputs
                     ),
                 );
             }

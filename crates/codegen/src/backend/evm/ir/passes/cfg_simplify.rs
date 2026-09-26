@@ -144,13 +144,10 @@ fn rotate_loop_exits(module: &mut Module, references: &mut IndexVec<BlockId, usi
         {
             let insts = &block.instructions;
             if insts[index].as_evm_opcode() == Some(op::ISZERO)
-                && insts[index].has_canonical_stack_effect()
                 && insts[index + 1].is_encoded_push()
-                && insts[index + 1].has_canonical_stack_effect()
                 && let Some(body) = insts[index + 1].pushed_block()
                 && body != header
                 && insts[index + 2].as_evm_opcode() == Some(op::JUMPI)
-                && insts[index + 2].has_canonical_stack_effect()
                 && (index..=index + 3).all(|i| is_split_point(insts, i))
                 && module.blocks[body].instructions.windows(2).any(|pair| {
                     pair[0].pushed_block() == Some(header)
@@ -214,13 +211,11 @@ fn expose_shared_branches(module: &mut Module) -> bool {
             && let Some(pushed) = block.instructions.last()
             && let Some(PushValue::Block(then_block)) = pushed.value
             && pushed.is_encoded_push()
-            && pushed.has_canonical_stack_effect()
             && is_split_point(&block.instructions, block.instructions.len() - 1)
             && !pushed.keeps_with_next()
             && let body = &module.blocks[target]
             && let [jumpi] = body.instructions.as_slice()
             && jumpi.as_evm_opcode() == Some(op::JUMPI)
-            && jumpi.has_canonical_stack_effect()
             && !jumpi.keeps_with_next()
             && let Some(continuation) = &body.terminator
             && let TerminatorKind::Jump(else_block) = continuation.kind
@@ -275,8 +270,7 @@ fn inline_shared_return_thunks(
         let TerminatorKind::Jump(target) = jump.kind else { continue };
         let body = &module.blocks[target];
         let [offset, store, size, returned] = body.instructions.as_slice() else { continue };
-        if !body.instructions.iter().all(|inst| inst.has_canonical_stack_effect())
-            || store.as_evm_opcode() != Some(op::MSTORE)
+        if store.as_evm_opcode() != Some(op::MSTORE)
             || size.concrete_immediate() != Some(alloy_primitives::U256::from(32))
             || body
                 .instructions
@@ -353,9 +347,7 @@ fn normalize_triangle_branches(module: &mut Module) -> bool {
             && let Some(PushValue::Block(then_block)) = pushed.value
             && !block.metadata.in_loop
             && pushed.is_encoded_push()
-            && pushed.has_canonical_stack_effect()
             && jumpi.as_evm_opcode() == Some(op::JUMPI)
-            && jumpi.has_canonical_stack_effect()
             && is_split_point(&block.instructions, block.instructions.len() - 2)
             && !pushed.keeps_with_next()
             && !jumpi.keeps_with_next()
@@ -426,10 +418,8 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
 
         if let Some(TerminatorKind::Jump(target)) = block.terminator.as_ref().map(|term| &term.kind)
             && let [.., pushed, jumpi] = block.instructions.as_slice()
-            && pushed.has_canonical_stack_effect()
             && pushed.is_encoded_push()
             && pushed.value == Some(PushValue::Block(*target))
-            && jumpi.has_canonical_stack_effect()
             && jumpi.as_evm_opcode() == Some(op::JUMPI)
             && is_split_point(&block.instructions, block.instructions.len() - 2)
         {
@@ -457,9 +447,11 @@ fn redirect_jump_thunks(
     jump_heads.clear_to(module.blocks.len());
     if thread_shared_jumps {
         for (block_id, block) in module.blocks.iter_enumerated() {
-            if block.instructions.first().is_some_and(|inst| {
-                inst.has_canonical_stack_effect() && inst.as_evm_opcode() == Some(op::JUMPI)
-            }) {
+            if block
+                .instructions
+                .first()
+                .is_some_and(|inst| inst.as_evm_opcode() == Some(op::JUMPI))
+            {
                 jump_heads.insert(block_id);
             }
         }
@@ -711,7 +703,6 @@ fn simplify_known_jumps(module: &mut Module) -> bool {
             && term.kind == TerminatorKind::Op(op::JUMP)
             && let Some(last) = block.instructions.last()
             && last.is_encoded_push()
-            && last.has_canonical_stack_effect()
             && !last.keeps_with_next()
             && let Some(target) = last.pushed_block()
             && is_split_point(&block.instructions, block.instructions.len() - 1)

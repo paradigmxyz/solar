@@ -207,9 +207,6 @@ fn optimize_module<const LATE: bool>(
                 Some(TerminatorKind::Op(op::RETURN))
             )
             && let [prefix @ .., offset, store, size, returned] = block.instructions.as_mut_slice()
-            && [&*offset, &*store, &*size, &*returned]
-                .iter()
-                .all(|inst| inst.has_canonical_stack_effect())
             && store.as_evm_opcode() == Some(op::MSTORE)
             && size.concrete_immediate() == Some(U256::from(32))
             && let Some(address) = offset.concrete_immediate()
@@ -220,9 +217,7 @@ fn optimize_module<const LATE: bool>(
                 .rev()
                 .take_while(|pair| pair[1].as_evm_opcode() != Some(op::JUMPDEST))
                 .any(|pair| {
-                    pair[0].has_canonical_stack_effect()
-                        && pair[1].has_canonical_stack_effect()
-                        && pair[1].as_evm_opcode() == Some(op::MSTORE)
+                    pair[1].as_evm_opcode() == Some(op::MSTORE)
                         && pair[0].concrete_immediate().is_some_and(|previous| previous >= address)
                 })
         {

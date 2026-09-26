@@ -269,9 +269,6 @@ fn find_run(
 ) -> Option<(Bytes, Rewrite)> {
     let (data, end) = literal_store_run(instructions, start)?;
     let instructions = &instructions[start..end];
-    if !instructions.iter().all(Instruction::has_canonical_stack_effect) {
-        return None;
-    }
     let old_size = instructions.iter().map(|inst| instruction_size_lower_bound(gcx, inst)).sum();
     let old_gas = instructions.iter().map(|inst| static_gas(gcx, inst)).sum();
     Some((data, Rewrite { block, start, end, old_size, old_gas }))

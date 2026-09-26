@@ -78,9 +78,7 @@ fn block_ignores_entry_stack(block: &Block) -> bool {
     let Some((inputs, _)) = halting_stack_io(kind) else { return false };
     let mut depth = 0usize;
     for inst in &block.instructions {
-        if !inst.has_canonical_stack_effect()
-            || inst.as_evm_opcode().is_some_and(is_analysis_boundary)
-        {
+        if inst.as_evm_opcode().is_some_and(is_analysis_boundary) {
             return false;
         }
         let (inputs, outputs) = if let Some(stack_op) = inst.as_stack_op() {
@@ -109,10 +107,7 @@ fn halting_terminal_tail_range(
     }
     let (inputs, _) = halting_stack_io(&terminator.kind)?;
     let operands = instructions.len().checked_sub(usize::from(inputs))?;
-    if !instructions[operands..]
-        .iter()
-        .all(|inst| inst.is_encoded_push() && inst.has_canonical_stack_effect())
-    {
+    if !instructions[operands..].iter().all(Instruction::is_encoded_push) {
         return None;
     }
     let start = discardable_tail_start(&instructions[..operands])?;
@@ -138,10 +133,9 @@ fn discardable_tail_start(instructions: &[Instruction]) -> Option<usize> {
 }
 
 fn is_discardable_tail_instruction(inst: &Instruction) -> bool {
-    inst.has_canonical_stack_effect()
-        && (inst.is_encoded_push()
-            || inst.as_stack_op().is_some()
-            || inst.as_evm_opcode().is_some_and(op::is_pure))
+    inst.is_encoded_push()
+        || inst.as_stack_op().is_some()
+        || inst.as_evm_opcode().is_some_and(op::is_pure)
 }
 
 /// Removes stack copies that are eventually discarded without being consumed.
@@ -412,9 +406,7 @@ fn find_candidate(
                 candidate.replace(index, StackOp::Exchange(n, m), replacement, evm_version);
             }
             None => {
-                if !inst.has_canonical_stack_effect()
-                    || inst.as_evm_opcode().is_some_and(is_analysis_boundary)
-                {
+                if inst.as_evm_opcode().is_some_and(is_analysis_boundary) {
                     return None;
                 }
                 let effect = inst.effective_stack_effect()?;

@@ -1,4 +1,4 @@
-//~? ERROR: EVM IR verification failed: block 0: `push` has stack effect 0->0, expected 0->1
+//~? ERROR: EVM IR verification failed: block 0: `push` has a known stack effect and cannot declare 0->0
 @module module
 
 bb0:

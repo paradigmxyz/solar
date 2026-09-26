@@ -224,7 +224,6 @@ fn compute_normalization(input: &StackRun, evm_version: EvmVersion) -> Option<St
 }
 
 fn stack_op(inst: &Instruction) -> Option<StackOp> {
-    inst.has_canonical_stack_effect().then_some(())?;
     inst.as_stack_op()
 }
 
@@ -309,9 +308,6 @@ enum SymbolicStackOp {
 }
 
 fn symbolic_stack_op(inst: &Instruction) -> Option<SymbolicStackOp> {
-    if !inst.has_canonical_stack_effect() {
-        return None;
-    }
     if inst.is_encoded_push() {
         return Some(SymbolicStackOp::Push);
     }

@@ -93,9 +93,7 @@ impl ReorderState {
         reorder_expressions: bool,
         reorder_closed_expressions: bool,
     ) -> bool {
-        if !instructions.iter().any(|inst| {
-            inst.has_canonical_stack_effect() && inst.as_stack_op() == Some(StackOp::Swap(1))
-        }) {
+        if !instructions.iter().any(|inst| inst.as_stack_op() == Some(StackOp::Swap(1))) {
             return false;
         }
 
@@ -106,8 +104,7 @@ impl ReorderState {
         let mut changed = false;
         for index in 0..self.sequence.instructions.len() {
             let inst = &self.sequence.instructions[index];
-            let swap1 =
-                inst.as_stack_op() == Some(StackOp::Swap(1)) && inst.has_canonical_stack_effect();
+            let swap1 = inst.as_stack_op() == Some(StackOp::Swap(1));
             if swap1
                 && let Some(pushed) = self.expressions.last()
                 && pushed.immediate_recipe
@@ -165,14 +162,10 @@ fn rebasable_dup_before(
     loop {
         let inst = sequence.instruction(node);
         if let Some(StackOp::Dup(depth)) = inst.as_stack_op() {
-            if !inst.has_canonical_stack_effect() {
-                return None;
-            }
             return Some((node, rebase_dup(evm_version, depth)?));
         }
         let effect = inst.effective_stack_effect()?;
-        if !inst.has_canonical_stack_effect()
-            || inst.is_physical_stack_op()
+        if inst.is_physical_stack_op()
             || !inst.as_evm_opcode().is_some_and(op::is_unaffected_by_preceding_push)
             || effect.inputs != 1
             || effect.outputs != 1
@@ -197,7 +190,6 @@ fn update_expressions(
 ) {
     let inst = sequence.instruction(node);
     let effect = if let Some(effect) = inst.effective_stack_effect()
-        && inst.has_canonical_stack_effect()
         && !inst.is_physical_stack_op()
         && inst.as_evm_opcode().is_none_or(op::is_unaffected_by_preceding_push)
         && effect.outputs == 1

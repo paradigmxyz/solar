@@ -31,15 +31,12 @@ pub(crate) fn invert_comparison(
     let comparison = &instructions[end];
     let opcode = comparison.as_evm_opcode()?;
     let opposite = flipped_comparison(opcode)?;
-    if !comparison.has_canonical_stack_effect() || comparison.keeps_with_next() {
+    if comparison.keeps_with_next() {
         return None;
     }
     for start in (end.saturating_sub(MAX_STACK_WINDOW - 2)..end).rev() {
         let pushed = &instructions[start];
-        if !pushed.has_canonical_stack_effect()
-            || pushed.keeps_with_next()
-            || start > 0 && instructions[start - 1].keeps_with_next()
-        {
+        if pushed.keeps_with_next() || start > 0 && instructions[start - 1].keeps_with_next() {
             break;
         }
         if let Some(value) = pushed.concrete_immediate()
@@ -163,7 +160,7 @@ fn protected_word_depth(instructions: &[Instruction]) -> Option<usize> {
     // must be independent of it; only permutations may move the protected word.
     let mut above = 0usize;
     for inst in instructions {
-        if !inst.has_canonical_stack_effect() || inst.keeps_with_next() {
+        if inst.keeps_with_next() {
             return None;
         }
         if inst.is_encoded_push() {
@@ -253,9 +250,7 @@ impl<'a> PeepContext<'a> {
         // PUSH slot; SSTORE/TSTORE; PUSH slot; SLOAD/TLOAD
         // => DUP1; PUSH slot; SSTORE/TSTORE
         if let [.., address, store, loaded, load] = self.instructions
-            && [address, store, loaded, load]
-                .iter()
-                .all(|inst| inst.has_canonical_stack_effect() && !inst.metadata.keep_with_next)
+            && [address, store, loaded, load].iter().all(|inst| !inst.metadata.keep_with_next)
             && matches!(
                 (store.as_evm_opcode(), load.as_evm_opcode()),
                 (Some(SSTORE), Some(SLOAD)) | (Some(TSTORE), Some(TLOAD))
@@ -274,9 +269,7 @@ impl<'a> PeepContext<'a> {
             && store.as_evm_opcode() == Some(MSTORE)
             && swap.as_stack_op() == Some(StackOp::Swap(depth - 1))
             && pop.as_evm_opcode() == Some(POP)
-            && [dup, address, store, swap, pop]
-                .iter()
-                .all(|inst| inst.has_canonical_stack_effect() && !inst.metadata.keep_with_next)
+            && [dup, address, store, swap, pop].iter().all(|inst| !inst.metadata.keep_with_next)
         {
             return Some(Rewrite { skip: 5, edit: Edit::ConsumeStoredValue { depth: depth - 1 } });
         }
@@ -340,9 +333,7 @@ impl<'a> PeepContext<'a> {
     /// A canonical instruction suffix whose boundaries permit replacement.
     fn unprotected_tail<const N: usize>(&self) -> Option<[Inst; N]> {
         let start = self.instructions.len().checked_sub(N)?;
-        if self.instructions[start..]
-            .iter()
-            .any(|inst| inst.keeps_with_next() || !inst.has_canonical_stack_effect())
+        if self.instructions[start..].iter().any(Instruction::keeps_with_next)
             || start > 0 && self.instructions[start - 1].keeps_with_next()
         {
             return None;
@@ -380,17 +371,17 @@ impl generated::Context for PeepContext<'_> {
     fn closed_count(&mut self, start: LateWindow) -> bool {
         let end = self.instructions.len();
         // These edits change only the two prefix instructions and final SUB.
-        // Keep constrained instruction boundaries and custom stack effects intact.
-        if [start, start + 1, end - 2, end - 1].iter().any(|&i| {
-            self.instructions[i].keeps_with_next()
-                || !self.instructions[i].has_canonical_stack_effect()
-        }) || start > 0 && self.instructions[start - 1].keeps_with_next()
+        // Keep constrained instruction boundaries intact.
+        if [start, start + 1, end - 2, end - 1]
+            .iter()
+            .any(|&i| self.instructions[i].keeps_with_next())
+            || start > 0 && self.instructions[start - 1].keeps_with_next()
         {
             return false;
         }
         let mut depth = 0usize;
         for inst in &self.instructions[start + 2..end - 2] {
-            if !inst.has_canonical_stack_effect() || inst.keeps_with_next() {
+            if inst.keeps_with_next() {
                 return false;
             }
             if inst.is_encoded_push() {
@@ -436,9 +427,7 @@ impl generated::Context for PeepContext<'_> {
 
     fn protected_count(&mut self, start: LateWindow) -> bool {
         let end = self.instructions.len();
-        if self.instructions[start..]
-            .iter()
-            .any(|inst| inst.keeps_with_next() || !inst.has_canonical_stack_effect())
+        if self.instructions[start..].iter().any(Instruction::keeps_with_next)
             || start > 0 && self.instructions[start - 1].keeps_with_next()
         {
             return false;
@@ -460,10 +449,6 @@ impl generated::Context for PeepContext<'_> {
 
     fn unprotected_last4(&mut self, _: Window) -> Option<(Inst, Inst, Inst, Inst)> {
         self.unprotected_tail().map(|[a, b, c, d]| (a, b, c, d))
-    }
-
-    fn canonical_stack_effects4(&mut self, a: Inst, b: Inst, c: Inst, d: Inst) -> bool {
-        [a, b, c, d].into_iter().all(|inst| self.instructions[inst].has_canonical_stack_effect())
     }
 
     fn last5(&mut self, _: Window) -> Option<(Inst, Inst, Inst, Inst, Inst)> {
@@ -554,9 +539,6 @@ impl generated::Context for PeepContext<'_> {
             usize::from(depth),
         );
         for inst in &instructions[start..end] {
-            if !inst.has_canonical_stack_effect() {
-                return None;
-            }
             if inst.is_encoded_push() {
                 stack.push(if push_value(inst) == Some(U256::ZERO) {
                     KnownStackWord::Zero
@@ -587,12 +569,6 @@ impl generated::Context for PeepContext<'_> {
     /// evaluated result is no worse in both bytes and gas and better in one.
     fn fold_constants(&mut self, _: Window) -> Option<U256> {
         let [.., lhs, rhs, instruction] = self.instructions else { return None };
-        if !lhs.has_canonical_stack_effect()
-            || !rhs.has_canonical_stack_effect()
-            || !instruction.has_canonical_stack_effect()
-        {
-            return None;
-        }
         let lhs_value = push_value(lhs)?;
         let rhs_value = push_value(rhs)?;
         let opcode = raw_opcode(instruction)?;
@@ -781,10 +757,7 @@ impl generated::Context for PeepContext<'_> {
 
     fn invert_comparison(&mut self, _: Window) -> Option<(u8, U256, u8)> {
         let (iszero, comparison) = self.instructions.split_last()?;
-        if iszero.as_evm_opcode() != Some(ISZERO)
-            || !iszero.has_canonical_stack_effect()
-            || iszero.keeps_with_next()
-        {
+        if iszero.as_evm_opcode() != Some(ISZERO) || iszero.keeps_with_next() {
             return None;
         }
         let (start, bound, opposite) = invert_comparison(comparison, self.evm_version)?;
@@ -802,7 +775,7 @@ mod tests {
     use crate::backend::evm::ir::StackEffect;
 
     #[test]
-    fn protected_word_rejects_observation_and_custom_effects() {
+    fn protected_word_rejects_observation_and_unknown_instructions() {
         let mut instructions =
             [Instruction::push_value(U256::from(288)), Instruction::opcode(MLOAD)];
         assert_eq!(protected_word_depth(&instructions), Some(1));
@@ -811,7 +784,8 @@ mod tests {
             assert_eq!(protected_word_depth(&instructions), None);
             instructions[index].metadata.keep_with_next = false;
         }
-        instructions[1].metadata.stack = Some(StackEffect::new(2, 1));
+        instructions[1] = Instruction::opcode(0x0c);
+        instructions[1].metadata.stack = Some(StackEffect::new(1, 1));
         assert_eq!(protected_word_depth(&instructions), None);
         instructions[1] = Instruction::stack_op(StackOp::Dup(2));
         assert_eq!(protected_word_depth(&instructions), None);
@@ -841,21 +815,7 @@ mod tests {
     }
 
     #[test]
-    fn suffix_requires_canonical_stack_effects() {
-        let mut instructions = [Instruction::push_value(U256::ONE), Instruction::opcode(ISZERO)];
-        instructions[0].metadata.stack = Some(StackEffect::new(0, 1));
-        instructions[1].metadata.stack = Some(StackEffect::new(1, 1));
-        assert!(
-            PeepContext::new(&instructions, EvmVersion::Osaka).unprotected_tail::<2>().is_some()
-        );
-        instructions[0].metadata.stack = Some(StackEffect::new(0, 2));
-        assert!(
-            PeepContext::new(&instructions, EvmVersion::Osaka).unprotected_tail::<2>().is_none()
-        );
-    }
-
-    #[test]
-    fn equality_shuffle_requires_unprotected_canonical_window() {
+    fn equality_shuffle_requires_unprotected_window() {
         let mut instructions = [GAS, DUP2, EQ, ISZERO, SWAP1, POP].map(Instruction::opcode);
         assert!(
             PeepContext::new(&instructions, EvmVersion::Osaka).unprotected_tail::<5>().is_some()
@@ -869,27 +829,5 @@ mod tests {
             );
             instructions[boundary].metadata.keep_with_next = false;
         }
-        for instruction in 1..instructions.len() {
-            instructions[instruction].metadata.stack = Some(StackEffect::new(0, 7));
-            assert!(
-                PeepContext::new(&instructions, EvmVersion::Osaka)
-                    .unprotected_tail::<5>()
-                    .is_none()
-            );
-            instructions[instruction].metadata.stack = None;
-        }
-    }
-
-    #[test]
-    fn reload_stored_value_requires_canonical_stack_effects() {
-        let mut instructions = [
-            Instruction::push_value(U256::from(128)),
-            Instruction::opcode(MSTORE),
-            Instruction::push_value(U256::from(128)),
-            Instruction::opcode(MLOAD),
-        ];
-        assert!(PeepContext::new(&instructions, EvmVersion::Osaka).select::<false>().is_some());
-        instructions[1].metadata.stack = Some(StackEffect::new(1, 0));
-        assert!(PeepContext::new(&instructions, EvmVersion::Osaka).select::<false>().is_none());
     }
 }

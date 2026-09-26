@@ -525,9 +525,6 @@ fn word_loop_input_width(instructions: &[Instruction]) -> Option<isize> {
     let mut required = 0;
     let mut computes_word = false;
     for inst in instructions {
-        if !inst.has_canonical_stack_effect() {
-            return None;
-        }
         let (inputs, growth) = if let Some(stack) = inst.as_stack_op() {
             (stack.required_depth() as isize, stack.net_growth())
         } else if inst.is_encoded_push() {
