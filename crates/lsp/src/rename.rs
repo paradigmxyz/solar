@@ -64,6 +64,8 @@ pub(crate) struct RenameCandidate {
     pub(crate) analyzed_contents: FxHashMap<Url, Arc<String>>,
     pub(crate) conflicting_contents: bool,
     pub(crate) requires_yul_validation: bool,
+    /// Whether unknown callers could make this candidate's edits incomplete.
+    pub(crate) requires_complete_workspace: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -532,6 +534,11 @@ impl RenameIndex {
             requires_yul_validation: targets.iter().any(|target| match *target {
                 RenameTarget::Symbol(symbol_id) => self.yul_symbol_targets.contains(&symbol_id),
                 RenameTarget::ImportAlias(_) | RenameTarget::MappingName(_) => false,
+            }),
+            requires_complete_workspace: targets.iter().any(|target| match *target {
+                RenameTarget::Symbol(symbol_id) => !declarations[symbol_id].rename_is_local,
+                // Aliases can be re-exported, and mapping names can appear in getter calls.
+                RenameTarget::ImportAlias(_) | RenameTarget::MappingName(_) => true,
             }),
         })
     }

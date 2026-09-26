@@ -14,6 +14,8 @@ use std::{
     time::Duration,
 };
 
+mod coverage;
+
 #[test]
 fn prepares_and_renames_a_state_variable() {
     let fixture = RequestFixture::new(
