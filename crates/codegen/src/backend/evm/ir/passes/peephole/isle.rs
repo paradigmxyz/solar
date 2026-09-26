@@ -214,6 +214,20 @@ fn protected_word_depth(instructions: &[Instruction]) -> Option<usize> {
     Some(above)
 }
 
+/// The class of a block's last instruction; only rules ending in that class can match.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TailClass {
+    Dup,
+    Swap,
+    Exchange,
+    Pop,
+    Op,
+}
+
+impl TailClass {
+    const ALL: [Self; 5] = [Self::Dup, Self::Swap, Self::Exchange, Self::Pop, Self::Op];
+}
+
 /// Context the rules run against: the instructions of one block so far.
 pub(super) struct PeepContext<'a> {
     instructions: &'a [Instruction],
@@ -274,10 +288,46 @@ impl<'a> PeepContext<'a> {
         self.final_rewrite()
     }
 
+    /// Tries the rules whose last instruction has the class of the block's last instruction.
+    fn select_by_tail(&mut self) -> Option<Rewrite> {
+        let last = self.instructions.last()?;
+        // No rule ends at a push.
+        if last.is_encoded_push() {
+            return None;
+        }
+        let class = match (last.as_stack_op(), last.as_evm_opcode()) {
+            (Some(StackOp::Dup(_)), _) | (None, Some(DUP1..=DUP16)) => TailClass::Dup,
+            (Some(StackOp::Swap(_)), _) | (None, Some(SWAP1..=SWAP16)) => TailClass::Swap,
+            (Some(StackOp::Exchange(..)), _) => TailClass::Exchange,
+            (Some(StackOp::Pop), _) | (None, Some(POP)) => TailClass::Pop,
+            (None, _) => TailClass::Op,
+        };
+        let rewrite = self.select_class(class);
+        if cfg!(debug_assertions) {
+            for other in TailClass::ALL {
+                debug_assert!(
+                    other == class || self.select_class(other).is_none(),
+                    "a {other:?} peephole rule matched a {class:?} tail",
+                );
+            }
+        }
+        rewrite
+    }
+
+    fn select_class(&mut self, class: TailClass) -> Option<Rewrite> {
+        match class {
+            TailClass::Dup => generated::constructor_peep_dup(self, Window),
+            TailClass::Swap => generated::constructor_peep_swap(self, Window),
+            TailClass::Exchange => generated::constructor_peep_exchange(self, Window),
+            TailClass::Pop => generated::constructor_peep_pop(self, Window),
+            TailClass::Op => generated::constructor_peep_op(self, Window),
+        }
+    }
+
     /// Returns the edit to apply to the tail of the block, when a rule matches.
     pub(super) fn select<const LATE: bool>(&mut self) -> Option<Rewrite> {
         if !LATE {
-            return self.final_rewrite().or_else(|| generated::constructor_peep(self, Window));
+            return self.final_rewrite().or_else(|| self.select_by_tail());
         }
         if self.instructions.len() < 5 || raw_opcode(self.instructions.last()?) != Some(SUB) {
             return None;
@@ -394,10 +444,6 @@ impl generated::Context for PeepContext<'_> {
             return false;
         }
         protected_word_depth(&self.instructions[start + 1..end - 4]) == Some(1)
-    }
-
-    fn nonpush_tail(&mut self, _: Window) -> Option<()> {
-        (!self.instructions.last()?.is_encoded_push()).then_some(())
     }
 
     fn last2(&mut self, _: Window) -> Option<(Inst, Inst)> {

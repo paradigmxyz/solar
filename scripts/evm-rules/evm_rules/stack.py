@@ -77,6 +77,21 @@ def execute(sequence, inputs):
     return stack
 
 
+def tail_class_root(pattern):
+    """Returns the peephole term for rules whose last instruction matches `pattern`."""
+    head, *args = pattern
+    if head in ("dup", "swap", "exchange", "pop"):
+        return f"peep_{head}"
+    if head == "opcode" and len(args) == 1:
+        opcode = args[0].removeprefix("$")
+        if opcode == "POP":
+            return "peep_pop"
+        for name in ("DUP", "SWAP"):
+            if opcode.startswith(name) and opcode[len(name) :].isdecimal():
+                return f"peep_{name.lower()}"
+    return "peep_op"
+
+
 def verify_stack_file(path, timeout_ms=5000, artifacts=None):
     source = path.read_text()
     rules = []
@@ -109,7 +124,7 @@ def verify_stack_file(path, timeout_ms=5000, artifacts=None):
                 for i, pattern in enumerate(patterns)
             ]
             if (
-                root != "peep_nonpush"
+                root != tail_class_root(patterns[-1])
                 or name not in (f"last{len(patterns)}", "unprotected_last5")
                 or (name == "unprotected_last5" and len(patterns) != 5)
                 or rewrite != "rewrite"
