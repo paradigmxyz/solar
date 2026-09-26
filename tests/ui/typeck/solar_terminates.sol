@@ -93,7 +93,10 @@ contract Test {
         guarded();
         inAssembly();
         failRaw("");
-        finish("done");
         return code;
+    }
+
+    function done() external pure returns (string memory) {
+        finish("done");
     }
 }

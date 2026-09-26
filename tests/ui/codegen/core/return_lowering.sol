@@ -12,11 +12,30 @@
 // INTRINSIC: mstore [[HEAD]], 32
 // INTRINSIC: returndata [[HEAD]],
 // PORTABLE-LABEL: fn @echo
-// PORTABLE: returndata
+// PORTABLE: tail_call @abiEncoded
 import {Return} from "solar:core/v1/Return.sol";
 
 contract Test {
     function echo(string memory s) public pure returns (string memory) {
         Return.abiEncoded(s);
+    }
+
+    // A value is one word, returned from scratch space.
+    // INTRINSIC-LABEL: fn @word
+    // INTRINSIC: mstore 0, arg0
+    // INTRINSIC-NEXT: returndata 0, 32
+    // PORTABLE-LABEL: fn @word
+    // PORTABLE: tail_call @abiEncoded
+    function word(uint256 value) public pure returns (uint256) {
+        Return.abiEncoded(value);
+    }
+
+    // `Return.raw` returns the buffer's bytes as they are.
+    // INTRINSIC-LABEL: fn @fallback
+    // INTRINSIC: returndata {{v[0-9]+}}, {{v[0-9]+}}
+    // PORTABLE-LABEL: fn @fallback
+    // PORTABLE: tail_call @raw
+    fallback() external {
+        Return.raw(msg.data);
     }
 }

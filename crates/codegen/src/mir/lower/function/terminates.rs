@@ -8,12 +8,14 @@
 //!
 //! Returning from the external call skips the code after `_` in every modifier still running,
 //! and a skipped cleanup, such as a reentrancy lock's release, commits state no reverting exit
-//! would. `Return.abiEncoded`, or a call that can reach it or a tagged function's successful
-//! exit, is therefore rejected while a modifier's cleanup is pending. The check runs once the
-//! contract is lowered: a call's callee can end the call successfully when it returns from the
-//! external call itself, calls `Return.abiEncoded`, or calls another callee that can, and a tagged
-//! function's own exits through untagged callees count too. Untagged functions that return
-//! through inline assembly are left alone, as before these tags.
+//! would. A compiler-owned operation that returns from the external call (`Return.abiEncoded`,
+//! `Return.raw`, `Calls.forward` and `Calls.forwardDelegate`), or a call that can reach one or a
+//! tagged function's successful exit, is therefore rejected while a modifier's cleanup is
+//! pending. The check runs once the contract is lowered: a call's callee can end the call
+//! successfully when it returns from the external call itself, calls one of those operations, or
+//! calls another callee that can, and a tagged function's own exits through untagged callees
+//! count too. Untagged functions that return through inline assembly are left alone, as before
+//! these tags.
 //!
 //! NOTE: the modifier check follows calls, not internal function pointers: a pointer call from a
 //! modifier's `_` to a function that returns from the external call is not reported.
@@ -42,8 +44,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    /// Rejects `Return.abiEncoded` at `span` while a modifier's code after `_` is pending, and
-    /// records that this function returns from the external call.
+    /// Rejects an operation at `span` that returns from the external call while a modifier's code
+    /// after `_` is pending, and records that this function returns from the external call.
     pub(super) fn before_core_return(&mut self, span: Span) -> Option<()> {
         self.cx.state.returns_from_call = true;
         let Some(&(postlude, modifier)) = self.pending_postludes.last() else { return Some(()) };
@@ -92,10 +94,10 @@ fn contains_placeholder(stmt: &hir::Stmt<'_>) -> bool {
 }
 
 /// Rejects every recorded call made under a pending modifier cleanup whose callee can return from
-/// the external call through `Return.abiEncoded` or a `@custom:solar-terminates` function.
+/// the external call through a compiler-owned operation or a `@custom:solar-terminates` function.
 ///
-/// `tagged` holds the functions carrying the tag, and `returning` those that lowered
-/// `Return.abiEncoded` themselves.
+/// `tagged` holds the functions carrying the tag, and `returning` those that lowered such an
+/// operation themselves.
 pub(in crate::mir::lower) fn check_postlude_calls(
     gcx: Gcx<'_>,
     module: &Module,
@@ -139,7 +141,7 @@ pub(in crate::mir::lower) fn check_postlude_calls(
         .map(|(id, _)| id)
         .collect::<FxHashSet<_>>();
     grow_to_callers(module, &mut exits, callees);
-    // The exits this check is about: `Return.abiEncoded` and tagged functions' exits.
+    // The exits this check is about: the compiler-owned operations and tagged functions' exits.
     let mut finishing = returning
         .iter()
         .copied()

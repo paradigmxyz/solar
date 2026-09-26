@@ -2,9 +2,10 @@
 
 // Returning from the external call skips the code after `_` in every modifier
 // still running, such as a lock's release, and commits state no revert would.
-// A successful exit through `Return.abiEncoded` or a
+// A successful exit through `Return.abiEncoded`, `Return.raw`, a forward or a
 // `@custom:solar-terminates` function is rejected while such code is pending;
 // a reverting exit rolls everything back and is fine.
+import {Calls} from "solar:core/v1/Calls.sol";
 import {Return} from "solar:core/v1/Return.sol";
 
 contract Test {
@@ -35,15 +36,15 @@ contract Test {
         finish(s);
     }
 
-    function direct() external lock {
-        Return.abiEncoded("x"); //~ ERROR: this returns from the external call and skips the rest of modifier `lock`
+    function direct() external lock returns (string memory) {
+        Return.abiEncoded(string("x")); //~ ERROR: this returns from the external call and skips the rest of modifier `lock`
     }
 
-    function tagged() external lock {
+    function tagged() external lock returns (string memory) {
         finish("x"); //~ ERROR: this call can return from the external call and skip the rest of modifier `lock`
     }
 
-    function transitive() external lock {
+    function transitive() external lock returns (string memory) {
         forward("x"); //~ ERROR: this call can return from the external call and skip the rest of modifier `lock`
     }
 
@@ -52,7 +53,25 @@ contract Test {
     }
 
     // Nothing runs after `_` in `enter`.
-    function unguarded() external enter {
+    function unguarded() external enter returns (string memory) {
         finish("x");
+    }
+
+    fallback() external lock {
+        Return.raw(msg.data); //~ ERROR: this returns from the external call and skips the rest of modifier `lock`
+    }
+}
+
+contract Forwarder {
+    uint256 locked;
+
+    modifier lock() {
+        locked = 1;
+        _;
+        locked = 0;
+    }
+
+    fallback() external payable lock {
+        Calls.forward(address(0), msg.value, msg.data); //~ ERROR: this returns from the external call and skips the rest of modifier `lock`
     }
 }

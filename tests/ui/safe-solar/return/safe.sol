@@ -34,13 +34,13 @@ contract Safe {
 
     // Nothing after the return runs: the counter stays unchanged.
     function stopsHere(uint256 n) public returns (string memory) {
-        Return.abiEncoded("early");
+        Return.abiEncoded(string("early"));
         counter = n;
         return "late";
     }
 
     // A literal that was never allocated returns its bytes.
     function literal() public pure returns (string memory) {
-        Return.abiEncoded("hello");
+        Return.abiEncoded(string("hello"));
     }
 }

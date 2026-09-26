@@ -40,8 +40,10 @@
 //! hoist the hash. Its byte operations check the range and count once, hash
 //! once, and move whole words in a loop before the last partial word, which a
 //! store masks and a load merges into the bytes around it. `Return.abiEncoded`
-//! encodes the string where it lies, since the call ends before memory is read
-//! again.
+//! encodes a string where it lies, since the call ends before memory is read
+//! again, and a value in scratch space. The forwards stage the calldata and
+//! the response at the start of memory, as proxies do in assembly, since the
+//! call ends before memory is read again.
 
 use super::*;
 use solar_sema::core::CoreIntrinsic;
@@ -132,7 +134,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if operands.len() != function.parameters.len() {
             return self.cx.report_unsupported(expr.span, "compiler module argument list");
         }
-        if intrinsic == CoreIntrinsic::ReturnAbiEncoded {
+        if intrinsic.returns_from_call() {
             self.before_core_return(expr.span)?;
         }
 
@@ -227,7 +229,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.pack_return_values(values, &return_tys))
             }
             CoreIntrinsic::RevertRaw => self.lower_core_revert_raw(&operands),
-            CoreIntrinsic::ReturnAbiEncoded => self.lower_core_return_abi_encoded(&operands),
+            CoreIntrinsic::ReturnAbiEncoded => {
+                self.lower_core_return_abi_encoded(&operands, &parameter_tys)
+            }
+            CoreIntrinsic::ReturnRaw => {
+                let [data] = *operands.as_slice() else { return None };
+                // returndata data(object), len(object)
+                let length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
+                let pointer = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
+                self.builder.ret_data(pointer, length);
+                Some(self.builder.imm(U256::ZERO))
+            }
+            CoreIntrinsic::Forward | CoreIntrinsic::ForwardDelegate => {
+                self.lower_core_forward(intrinsic, &operands)
+            }
             CoreIntrinsic::SlotsLoad => self.lower_core_slots_load(&operands),
             CoreIntrinsic::SlotsStore => self.lower_core_slots_store(&operands),
             CoreIntrinsic::SlotsStoreBytes => self.lower_core_slots_store_bytes(&operands, false),
@@ -1789,12 +1804,28 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(self.builder.imm(U256::ZERO))
     }
 
-    /// `Return.abiEncoded(s)` returns `s` encoded where it lies, as the tail of
-    /// a one-word head: the offset goes in the word below the string and a
-    /// zero word pads its end. The call ends at the return, so nothing reads
-    /// the words written over afterwards.
-    fn lower_core_return_abi_encoded(&mut self, operands: &[ValueId]) -> Option<ValueId> {
-        let [s] = *operands else { return None };
+    /// `Return.abiEncoded(s)` returns a string or bytes `s` encoded where it
+    /// lies, as the tail of a one-word head: the offset goes in the word below
+    /// the string and a zero word pads its end. The call ends at the return,
+    /// so nothing reads the words written over afterwards. A value type is
+    /// one word, returned from scratch space.
+    fn lower_core_return_abi_encoded(
+        &mut self,
+        operands: &[ValueId],
+        parameter_tys: &[Ty<'gcx>],
+    ) -> Option<ValueId> {
+        let ([s], [ty]) = (operands, parameter_tys) else { return None };
+        let s = *s;
+        if !matches!(ty.kind, TyKind::Ref(..)) {
+            // mstore(0, word(s))
+            // return(0, 32)
+            let zero = self.builder.imm(U256::ZERO);
+            let word = self.builder.cast_word(s);
+            self.builder.mstore(zero, word);
+            let size = self.builder.imm(32);
+            self.builder.ret_data(zero, size);
+            return Some(self.builder.imm(U256::ZERO));
+        }
         let kind = MemoryObjectKind::Bytes;
         // head = s - 32
         // mstore(head, 32)
@@ -1815,6 +1846,51 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let padded = self.builder.and(rounded, mask);
         let size = self.builder.add_u64_offset(padded, 64);
         self.builder.ret_data(head, size);
+        Some(self.builder.imm(U256::ZERO))
+    }
+
+    /// `Calls.forward(target, value, data)` and `Calls.forwardDelegate(target, data)`: the call
+    /// ends here, so memory is never read again and the calldata is staged at its start, as
+    /// proxies do in assembly; the backend keeps its spill slots out of such a variable-length
+    /// write. The response is copied there too once nothing but its size is read again, as a
+    /// failed call's revert data is bubbled.
+    fn lower_core_forward(
+        &mut self,
+        intrinsic: CoreIntrinsic,
+        operands: &[ValueId],
+    ) -> Option<ValueId> {
+        let (target, value, data) = match (intrinsic, operands) {
+            (CoreIntrinsic::Forward, &[target, value, data]) => (target, Some(value), data),
+            (CoreIntrinsic::ForwardDelegate, &[target, data]) => (target, None, data),
+            _ => return None,
+        };
+        // calldatacopy(0, ptr(data), len(data))
+        // success = call|delegatecall(gas(), target[, value], 0, len(data), 0, 0)
+        // branch success, returned, failed
+        let length = self.builder.slice_len(data);
+        let source = self.builder.slice_ptr(data);
+        let zero = self.builder.imm(U256::ZERO);
+        self.builder.calldatacopy(zero, source, length);
+        let gas = self.builder.gas();
+        let success = match value {
+            Some(value) => self.builder.call(gas, target, value, zero, length, zero, zero),
+            None => self.builder.delegatecall(gas, target, zero, length, zero, zero),
+        };
+        let returned = self.builder.create_block();
+        let failed = self.builder.create_block();
+        self.builder.branch(success, returned, failed);
+        // failed:
+        //   revert_returndata
+        self.builder.switch_to_block(failed);
+        self.builder.revert_returndata();
+        // returned:
+        //   returndatacopy(0, 0, returndatasize())
+        //   returndata 0, returndatasize()
+        self.builder.switch_to_block(returned);
+        let size = self.builder.returndatasize();
+        self.builder.returndatacopy_abi_return(zero, zero, size);
+        let size = self.builder.returndatasize();
+        self.builder.ret_data(zero, size);
         Some(self.builder.imm(U256::ZERO))
     }
 
