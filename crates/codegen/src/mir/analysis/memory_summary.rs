@@ -15,7 +15,7 @@ use super::{
 };
 use crate::mir::{
     ArgIdx, BlockId, Callee, ControlEffects, Function, FunctionId, InstId, InstKind, MemoryRegion,
-    Module, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    Module, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout, utils::IndexLists,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashSet};
@@ -975,13 +975,14 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> 
         return sources;
     }
 
-    let mut users = IndexVec::from_vec(vec![Vec::new(); func.num_values()]);
+    // (operand, user) edges through which parameter sources propagate.
+    let mut edges = Vec::new();
     let mut queued = DenseBitSet::new_empty(func.num_values());
     let mut worklist = VecDeque::new();
     for inst_id in func.instructions() {
         let Some(result) = func.inst_result_value(inst_id) else { continue };
         let mut add_user = |operand: ValueId| {
-            users[operand].push(result);
+            edges.push((operand, result));
             if let Value::Arg(index) = func.value(operand)
                 && index.index() < params
                 && sources[operand].insert(*index)
@@ -999,10 +1000,12 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> 
         }
     }
 
+    let users = IndexLists::new(func.num_values(), || edges.iter().copied());
+
     while let Some(value) = worklist.pop_front() {
         queued.remove(value);
         let propagated = sources[value].clone();
-        for &user in &users[value] {
+        for &user in users.get(value) {
             if sources[user].union(&propagated) && queued.insert(user) {
                 worklist.push_back(user);
             }
