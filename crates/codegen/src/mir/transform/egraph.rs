@@ -752,10 +752,11 @@ impl<'a> Builder<'a> {
         let mut alternatives = Vec::new();
         for _ in 0..self.max_nodes {
             alternatives.clear();
+            let canonical = canonical_operands(self.func, current);
             isle::RuleContext::new(self.func, self.target.evm_version())
                 .with_block(block)
                 .with_uses(&self.uses)
-                .rewrite(&current, &mut alternatives);
+                .rewrite(&canonical, &mut alternatives);
             let Some(next) = alternatives.iter().find_map(|next| {
                 let next = next.map_values(|value| self.resolve(value));
                 next.into_kind()
@@ -1315,7 +1316,8 @@ pub(super) fn fold_constant(
     }
     let value = const_fold(func, kind, ty).or_else(|| {
         if is_node(kind) && kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
-            isle::RuleContext::new(func, evm).simplify(&kind.op())
+            let op = canonical_operands(func, kind.op());
+            isle::RuleContext::new(func, evm).simplify(&op)
         } else {
             None
         }
