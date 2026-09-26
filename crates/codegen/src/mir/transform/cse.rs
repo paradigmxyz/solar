@@ -532,7 +532,6 @@ impl CommonSubexprEliminator {
         }
 
         let inst_blocks = func.inst_blocks();
-        let use_counts = Self::value_use_counts(func);
         let replacements = FxHashMap::default();
         let ctx = PhiSinkContext {
             dominators: cfg.dominators(),
@@ -561,6 +560,7 @@ impl CommonSubexprEliminator {
             return;
         }
 
+        let use_counts = Self::value_use_counts(func);
         let mut dead = GrowableBitSet::with_capacity(func.num_insts());
         let mut replacements = FxHashMap::default();
         let mut inserted_by_block: FxHashMap<BlockId, usize> = FxHashMap::default();
