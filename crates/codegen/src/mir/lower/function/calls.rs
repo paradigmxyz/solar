@@ -327,8 +327,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.cx.gcx.is_test_linked(ty.span) {
             // args = abi_encode_bytes(constructor_args)
             // address = vm.deployCode(artifact, args, value[, salt])
-            let encoded = self.builder.abi_encode_bytes(layout, None, values.into_boxed_slice());
-            return self.lower_test_deployment(ty.span, contract_id, encoded, call_value, salt);
+            let encoded = (!values.is_empty())
+                .then(|| self.builder.abi_encode_bytes(layout, None, values.into_boxed_slice()));
+            let value = call_opts
+                .is_some_and(|options| options.args.iter().any(|arg| arg.name.name == sym::value))
+                .then_some(call_value);
+            return self.lower_test_deployment(ty.span, contract_id, encoded, value, salt);
         }
         let bytecode = self
             .cx

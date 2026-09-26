@@ -29,3 +29,11 @@ contract Parent {
         child = child_;
     }
 }
+
+contract NoArguments {
+    uint256 public paid;
+
+    constructor() payable {
+        paid = msg.value;
+    }
+}

@@ -13,24 +13,37 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         span: Span,
         contract: hir::ContractId,
-        args: ValueId,
-        value: ValueId,
+        args: Option<ValueId>,
+        value: Option<ValueId>,
         salt: Option<ValueId>,
     ) -> Option<ValueId> {
-        // input = abi_encode(selector, artifact, args, value[, salt])
+        // input = abi_encode(selector, artifact[, args][, value][, salt])
         let artifact = self.test_artifact_name(contract)?;
-        let mut values = vec![artifact, args, value];
-        let mut types = vec![
-            AbiType::Bytes(SliceLocation::Memory),
-            AbiType::Bytes(SliceLocation::Memory),
-            AbiType::Word(None),
-        ];
-        let signature = if let Some(salt) = salt {
+        let mut values = vec![artifact];
+        let mut types = vec![AbiType::Bytes(SliceLocation::Memory)];
+        if let Some(args) = args {
+            values.push(args);
+            types.push(AbiType::Bytes(SliceLocation::Memory));
+        }
+        if let Some(value) = value {
+            values.push(value);
+            types.push(AbiType::Word(None));
+        }
+        if let Some(salt) = salt {
             values.push(salt);
             types.push(AbiType::Word(None));
-            "deployCode(string,bytes,uint256,bytes32)"
-        } else {
-            "deployCode(string,bytes,uint256)"
+        }
+        // Pick the shortest existing overload, avoiding an empty bytes allocation for no-arg
+        // constructors and an extra ABI word when no value was supplied.
+        let signature = match (args.is_some(), value.is_some(), salt.is_some()) {
+            (false, false, false) => "deployCode(string)",
+            (true, false, false) => "deployCode(string,bytes)",
+            (false, true, false) => "deployCode(string,uint256)",
+            (true, true, false) => "deployCode(string,bytes,uint256)",
+            (false, false, true) => "deployCode(string,bytes32)",
+            (true, false, true) => "deployCode(string,bytes,bytes32)",
+            (false, true, true) => "deployCode(string,uint256,bytes32)",
+            (true, true, true) => "deployCode(string,bytes,uint256,bytes32)",
         };
         self.call_test_cheatcode(span, signature, values, types, self.cx.gcx.types.address, false)
     }

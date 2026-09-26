@@ -32,7 +32,7 @@ fn native_test_linking_cache() {
         String::from_utf8_lossy(&output.stderr)
     );
     let tests = parse_test_results(&String::from_utf8_lossy(&output.stdout));
-    assert_eq!(tests.len(), 8);
+    assert_eq!(tests.len(), 9);
     assert!(tests.iter().all(|test| test.passed));
 
     let dynamic = project.path().join("out/Reuse.t.sol/ReuseTest.json");

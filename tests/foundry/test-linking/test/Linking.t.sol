@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Child, Parent} from "../src/Child.sol";
+import {Child, Parent, NoArguments} from "../src/Child.sol";
 
 interface Vm {
     function deal(address, uint256) external;
@@ -28,14 +28,19 @@ contract LinkingTest {
     }
 
     function testCreate2Address() public {
+        vm.deal(address(this), 1);
         bytes32 salt = keccak256("salt");
         Child.Config memory config = Child.Config(13, "salted");
         bytes memory init = bytes.concat(vm.getCode("Child.sol:Child"), abi.encode(config));
         address expected =
             address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, keccak256(init))))));
-        Child child = new Child{salt: salt}(config);
+        Child child = new Child{salt: salt, value: 1}(config);
         require(address(child) == expected);
         require(child.number() == 13);
+        require(child.paid() == 1);
+        Child other = new Child{salt: keccak256("other")}(config);
+        require(other.number() == 13);
+        require(other.paid() == 0);
     }
 
     function testPrankedConstructorCaller() public {
@@ -59,5 +64,13 @@ contract LinkingTest {
 
     function testCreationCode() public view {
         require(keccak256(type(Child).creationCode) == keccak256(vm.getCode("Child.sol:Child")));
+    }
+
+    function testNoArgumentOverloads() public {
+        vm.deal(address(this), 2);
+        require((new NoArguments()).paid() == 0);
+        require((new NoArguments{value: 1}()).paid() == 1);
+        require((new NoArguments{salt: keccak256("salt")}()).paid() == 0);
+        require((new NoArguments{salt: keccak256("other"), value: 1}()).paid() == 1);
     }
 }

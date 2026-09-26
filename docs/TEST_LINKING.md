@@ -35,10 +35,14 @@ Selected references are lowered as follows:
 
 | Reference | Generated operation |
 | --- | --- |
-| `new C(args)` | `vm.deployCode("source:C", abi.encode(args), 0)` |
+| `new C()` | `vm.deployCode("source:C")` |
+| `new C(args)` | `vm.deployCode("source:C", abi.encode(args))` |
 | `new C{value: v}(args)` | `vm.deployCode("source:C", abi.encode(args), v)` |
 | `new C{salt: s, value: v}(args)` | `vm.deployCode("source:C", abi.encode(args), v, s)` |
 | `type(C).creationCode` | `vm.getCode("source:C")` |
+
+Absent constructor arguments and value options use the corresponding shorter
+cheatcode overload rather than allocating an empty argument buffer.
 
 Solar does not add a static bytecode dependency for a selected reference. Other
 references to the same contract remain native, and explicitly requested child
