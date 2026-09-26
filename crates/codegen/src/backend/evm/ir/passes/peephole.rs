@@ -138,12 +138,13 @@ fn clean_key(inst: &Instruction) -> (MachineInstKey, Option<StackEffect>) {
 }
 
 impl CleanBlocks {
-    fn is_clean(&self, block: BlockId, instructions: &[Instruction], final_cleanup: bool) -> bool {
-        self.0.get(block).and_then(Option::as_ref).is_some_and(|clean| {
-            (clean.final_cleanup || !final_cleanup)
-                && clean.keys.len() == instructions.len()
-                && clean.keys.iter().zip(instructions).all(|(&key, inst)| key == clean_key(inst))
-        })
+    /// Returns whether the block was recorded clean with exactly these contents, and if so,
+    /// whether the final rules were included.
+    fn recorded(&self, block: BlockId, instructions: &[Instruction]) -> Option<bool> {
+        let clean = self.0.get(block)?.as_ref()?;
+        (clean.keys.len() == instructions.len()
+            && clean.keys.iter().zip(instructions).all(|(&key, inst)| key == clean_key(inst)))
+        .then_some(clean.final_cleanup)
     }
 }
 
@@ -179,9 +180,9 @@ fn optimize_module<const LATE: bool>(
     clean.0.resize_with(module.blocks.len(), || None);
     for (block_id, block) in module.blocks.iter_mut_enumerated() {
         // The late rules are separate from the cached early and final ones.
-        let skip = !LATE && clean.is_clean(block_id, &block.instructions, final_cleanup);
-        let early_clean =
-            !LATE && final_cleanup && !skip && clean.is_clean(block_id, &block.instructions, false);
+        let recorded = if LATE { None } else { clean.recorded(block_id, &block.instructions) };
+        let skip = recorded.is_some_and(|recorded_final| recorded_final || !final_cleanup);
+        let early_clean = final_cleanup && recorded == Some(false);
         // Dead stack traffic before a terminator that cannot observe it is dead-code
         // elimination's to remove; this pass only rewrites what it can see locally.
         let rewrites = if skip {
@@ -231,10 +232,17 @@ fn optimize_module<const LATE: bool>(
             returned_zero = true;
         }
         if !LATE && !skip {
-            clean.0[block_id] = (rewrites == 0 && !returned_zero).then(|| CleanBlock {
-                final_cleanup,
-                keys: block.instructions.iter().map(clean_key).collect(),
-            });
+            if rewrites != 0 || returned_zero {
+                clean.0[block_id] = None;
+            } else if recorded.is_some() {
+                // The same contents are now clean under the final rules as well.
+                clean.0[block_id].as_mut().unwrap().final_cleanup |= final_cleanup;
+            } else {
+                clean.0[block_id] = Some(CleanBlock {
+                    final_cleanup,
+                    keys: block.instructions.iter().map(clean_key).collect(),
+                });
+            }
         }
     }
     module.peephole_clean = clean;
