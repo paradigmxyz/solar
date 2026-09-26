@@ -213,11 +213,9 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
             continue;
         }
         let first = free[0];
-        let mut body =
-            module.blocks[first.block].instructions[first.start..first.start + first.len].to_vec();
-        merge_site_source_spans(module, &mut body, &free);
-        clear_function_invokes(&mut body);
-        let run_size = lower_bound(gcx, &body);
+        // Profitability reads only opcodes and values, so copy the body once it is chosen.
+        let run = &module.blocks[first.block].instructions[first.start..first.start + first.len];
+        let run_size = lower_bound(gcx, run);
         let stub_size = run_size
             + (target.opcode(op::JUMPDEST).bytes
                 + target.opcode(op::SWAP1).bytes * u32::from(first.outputs)
@@ -246,16 +244,19 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                 transfer_gas,
                 target.expected_executions(),
             ) {
-                if matches!(body.get(..3), Some([value, address, store])
+                if matches!(run.get(..3), Some([value, address, store])
                     if value.is_encoded_push() && address.is_encoded_push()
                         && matches!(store.opcode, op::MSTORE | op::MSTORE8))
-                    && let Some(PushValue::Immediate(value)) = body[0].value
+                    && let Some(PushValue::Immediate(value)) = run[0].value
                 {
                     state.inline_store_literals.insert(value);
                 }
                 continue;
             }
         }
+        let mut body = run.to_vec();
+        merge_site_source_spans(module, &mut body, &free);
+        clear_function_invokes(&mut body);
         for site in &free {
             claimed
                 .get_mut(&site.block)
@@ -621,7 +622,7 @@ fn split_parametric_outline_site(
     module.blocks[block].instructions.truncate(edit.start);
     continuation.terminator = module.blocks[block].terminator.take();
     let continuation = module.add_block(continuation);
-    module.blocks[block].instructions.extend(edit.prefix.iter().cloned());
+    module.blocks[block].instructions.extend_from_slice(&edit.prefix);
     module.blocks[block]
         .instructions
         .push(Instruction::push_block(continuation).with_debug_info_dropped());
@@ -935,30 +936,47 @@ impl InstHashes {
     const BASE: u64 = 0x100_0000_01b3;
 
     fn new(module: &Module) -> Self {
-        let mut counts = FxHashMap::<MachineInstKey, u32>::default();
-        for block in module.blocks.iter() {
-            for inst in &block.instructions {
-                *counts.entry(MachineInstKey::new(inst)).or_default() += 1;
-            }
-        }
+        // Number each distinct instruction once, with its occurrence count and hash.
+        let mut interned = FxHashMap::<MachineInstKey, u32>::default();
+        let mut counts = Vec::<u32>::new();
+        let mut hashes = Vec::new();
+        let ids = module
+            .blocks
+            .iter()
+            .map(|block| {
+                block
+                    .instructions
+                    .iter()
+                    .map(|inst| {
+                        let key = MachineInstKey::new(inst);
+                        let id = *interned.entry(key).or_insert_with(|| {
+                            let mut hasher = FxHasher::default();
+                            key.hash(&mut hasher);
+                            hashes.push(hasher.finish());
+                            counts.push(0);
+                            (counts.len() - 1) as u32
+                        });
+                        counts[id as usize] += 1;
+                        id
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
 
         let mut longest = 0;
         let mut prefixes = IndexVec::with_capacity(module.blocks.len());
         let mut repeats = IndexVec::with_capacity(module.blocks.len());
-        for block in module.blocks.iter() {
-            longest = longest.max(block.instructions.len());
-            let mut prefix = Vec::with_capacity(block.instructions.len() + 1);
-            let mut repeated = DenseBitSet::new_empty(block.instructions.len());
+        for ids in &ids {
+            longest = longest.max(ids.len());
+            let mut prefix = Vec::with_capacity(ids.len() + 1);
+            let mut repeated = DenseBitSet::new_empty(ids.len());
             prefix.push(0u64);
-            for (index, inst) in block.instructions.iter().enumerate() {
-                let key = MachineInstKey::new(inst);
-                if counts.get(&key).copied().unwrap_or(0) >= 2 {
+            for (index, &id) in ids.iter().enumerate() {
+                if counts[id as usize] >= 2 {
                     repeated.insert(index);
                 }
-                let mut hasher = FxHasher::default();
-                key.hash(&mut hasher);
                 let last = *prefix.last().expect("prefix starts with the empty run");
-                prefix.push(last.wrapping_mul(Self::BASE).wrapping_add(hasher.finish()));
+                prefix.push(last.wrapping_mul(Self::BASE).wrapping_add(hashes[id as usize]));
             }
             prefixes.push(prefix);
             repeats.push(repeated);

@@ -279,7 +279,7 @@ impl<'gcx> Assembler<'gcx> {
         capture_debug_info: bool,
     ) -> AssembledCode {
         let prepared = self.prepare(capture_evm_ir, capture_debug_info);
-        let result = self.assemble_prepared(&prepared, &[]);
+        let result = self.assemble_owned(prepared, &[]);
         self.clear();
         result
     }
@@ -289,13 +289,28 @@ impl<'gcx> Assembler<'gcx> {
         prepared: &PreparedAssembly,
         deferred_values: &[(DeferredConst, U256)],
     ) -> AssembledCode {
-        self.push_values = prepared.push_values.clone();
-        self.immutable_pushes = prepared.immutable_pushes.clone();
-        self.next_label = prepared.next_label.clone();
-        self.deferred_values.clone_from(&prepared.deferred_values);
+        self.assemble_owned(prepared.clone(), deferred_values)
+    }
+
+    fn assemble_owned(
+        &mut self,
+        prepared: PreparedAssembly,
+        deferred_values: &[(DeferredConst, U256)],
+    ) -> AssembledCode {
+        let PreparedAssembly {
+            mut program,
+            evm_ir,
+            push_values,
+            immutable_pushes,
+            next_label,
+            deferred_values: prepared_deferred_values,
+        } = prepared;
+        self.push_values = push_values;
+        self.immutable_pushes = immutable_pushes;
+        self.next_label = next_label;
+        self.deferred_values = prepared_deferred_values;
         self.deferred_values.extend(deferred_values.iter().copied());
 
-        let mut program = prepared.program.clone();
         for inst in &mut program.instructions {
             if let AsmInstKind::PushDeferred(id) = inst.kind() {
                 let value = self
@@ -307,8 +322,7 @@ impl<'gcx> Assembler<'gcx> {
             }
         }
 
-        let evm_ir = prepared.evm_ir.as_ref().map(|module| {
-            let mut module = module.clone();
+        let evm_ir = evm_ir.map(|mut module| {
             for block in &mut module.blocks {
                 for inst in &mut block.instructions {
                     if let Some(id) = inst.deferred_push() {

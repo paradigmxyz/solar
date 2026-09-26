@@ -269,9 +269,6 @@ fn find_run(
 ) -> Option<(Bytes, Rewrite)> {
     let (data, end) = literal_store_run(instructions, start)?;
     let instructions = &instructions[start..end];
-    if !instructions.iter().all(Instruction::has_canonical_stack_effect) {
-        return None;
-    }
     let old_size = instructions.iter().map(|inst| instruction_size_lower_bound(gcx, inst)).sum();
     let old_gas = instructions.iter().map(|inst| static_gas(gcx, inst)).sum();
     Some((data, Rewrite { block, start, end, old_size, old_gas }))
@@ -525,12 +522,20 @@ fn scan_data_references(
     let mut references = DataReferences::new(module);
     let mut stack = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
+        // The stack starts empty, so without a data push no slot can hold a data address.
+        let has_data = block.instructions.iter().any(|inst| inst.pushed_data().is_some());
         for (index, inst) in block.instructions.iter().enumerate() {
             visit(block_id, index, &block.instructions);
-            track_data_reference(module, inst, &mut stack, &mut references);
+            if has_data {
+                track_data_reference(module, inst, &mut stack, &mut references);
+            } else if inst.opcode == op::CODESIZE {
+                references.layout_observable = true;
+            }
         }
-        mark_stack_data_unsafe(&stack, &mut references.subslice_safe);
-        stack.clear();
+        if has_data {
+            mark_stack_data_unsafe(&stack, &mut references.subslice_safe);
+            stack.clear();
+        }
     }
     references
 }

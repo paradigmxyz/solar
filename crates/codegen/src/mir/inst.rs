@@ -941,14 +941,8 @@ impl InstKind {
     /// Checks scalar operation contracts without applying implicit conversions.
     pub(crate) fn scalar_types_match(&self, func: &Function, result: Option<MirType>) -> bool {
         let ty = |value| func.value_ty(value);
-        let expected = self.operand_types(func);
-        if let Some(expected) = expected
-            && (expected.len() != self.operands().len()
-                || self
-                    .operands()
-                    .iter()
-                    .zip(expected)
-                    .any(|(&value, expected)| ty(value) != Some(expected)))
+        if let Some(expected) = self.operand_types(func)
+            && !self.operands().iter().map(|&value| ty(value)).eq(expected.into_iter().map(Some))
         {
             return false;
         }

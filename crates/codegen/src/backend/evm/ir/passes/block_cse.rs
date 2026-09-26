@@ -89,8 +89,7 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
     let mut const_exprs = FxHashMap::<usize, u64>::default();
 
     for inst in original {
-        let canonical_stack_effect = inst.has_canonical_stack_effect();
-        if canonical_stack_effect && inst.is_encoded_push() {
+        if inst.is_encoded_push() {
             let Some(value) = inst.value else {
                 append_unknown(inst, instructions, &mut stack, &mut next_expr);
                 continue;
@@ -112,7 +111,6 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
             {
                 let mut duplicate = Instruction::stack_op(op::StackOp::Dup((depth + 1) as u8));
                 duplicate.metadata = inst.metadata;
-                duplicate.metadata.stack = None;
                 let origin = instructions.len();
                 instructions.push(duplicate);
                 stack.push(StackValue { expr, span: None, origin: Some(origin) });
@@ -126,7 +124,7 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
         }
 
         let opcode = inst.opcode;
-        if canonical_stack_effect && let Some(stack_op) = inst.as_stack_op() {
+        if let Some(stack_op) = inst.as_stack_op() {
             match stack_op {
                 op::StackOp::Dup(depth) => {
                     let depth = usize::from(depth);
@@ -157,13 +155,13 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
             }
             continue;
         }
-        if canonical_stack_effect && matches!(opcode, op::SWAPN | op::EXCHANGE) {
+        if matches!(opcode, op::SWAPN | op::EXCHANGE) {
             instructions.push(inst);
             stack.clear();
             continue;
         }
 
-        if canonical_stack_effect && (opcode == op::MSTORE || opcode == op::MSTORE8) {
+        if opcode == op::MSTORE || opcode == op::MSTORE8 {
             ensure_depth(&mut stack, 2, &mut next_expr);
             let addr = stack[stack.len() - 1];
             let value = stack[stack.len() - 2];
@@ -204,7 +202,7 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
             continue;
         }
 
-        if canonical_stack_effect && opcode == op::MLOAD {
+        if opcode == op::MLOAD {
             ensure_depth(&mut stack, 1, &mut next_expr);
             let addr = stack[stack.len() - 1];
             if let Some(address) = const_exprs.get(&addr.expr).copied()
@@ -223,7 +221,6 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
                     instructions.truncate(instructions.len() - 1);
                     let mut duplicate = Instruction::stack_op(op::StackOp::Dup((depth + 1) as u8));
                     duplicate.metadata = inst.metadata;
-                    duplicate.metadata.stack = None;
                     let origin = instructions.len();
                     instructions.push(duplicate);
                     stack.push(StackValue { expr: known, span: None, origin: Some(origin) });
@@ -237,10 +234,7 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
             }
         }
 
-        if canonical_stack_effect
-            && let Some((inputs, read_epoch)) =
-                expression_inputs(opcode, memory_epoch, storage_epoch)
-        {
+        if let Some((inputs, read_epoch)) = expression_inputs(opcode, memory_epoch, storage_epoch) {
             ensure_depth(&mut stack, inputs, &mut next_expr);
             let mut operands = SmallVec::<[StackValue; 3]>::new();
             for _ in 0..inputs {
@@ -271,7 +265,6 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
                 instructions.truncate(start);
                 let mut duplicate = Instruction::stack_op(op::StackOp::Dup((depth + 1) as u8));
                 duplicate.metadata = inst.metadata;
-                duplicate.metadata.stack = None;
                 let origin = instructions.len();
                 instructions.push(duplicate);
                 stack.push(StackValue { expr, span: None, origin: Some(origin) });
@@ -289,8 +282,7 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
             continue;
         }
 
-        let stack_effect =
-            canonical_stack_effect.then(|| default_instruction_stack_effect(&inst)).flatten();
+        let stack_effect = default_instruction_stack_effect(&inst);
         let origin = instructions.len();
         instructions.push(inst);
         if op::writes_memory(opcode) {
@@ -300,11 +292,7 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
         if op::writes_storage(opcode) {
             storage_epoch = storage_epoch.wrapping_add(1);
         }
-        if !canonical_stack_effect {
-            // An explicit override describes only net inputs and outputs, not how a future
-            // instruction may permute surviving words. Forget every symbolic identity across it.
-            stack.clear();
-        } else if let Some(effect) = stack_effect {
+        if let Some(effect) = stack_effect {
             let inputs = usize::from(effect.inputs);
             ensure_depth(&mut stack, inputs, &mut next_expr);
             stack.truncate(stack.len() - inputs);
@@ -316,9 +304,9 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
                 });
             }
         } else {
-            // An unknown stack effect is a hard analysis boundary. Values
-            // below it may still exist physically, but cannot safely satisfy
-            // a later expression lookup.
+            // An unknown instruction is a hard analysis boundary. Its declared stack effect
+            // gives only net inputs and outputs, and it may touch memory: values below it may
+            // still exist physically, but cannot safely satisfy a later expression lookup.
             stack.clear();
             known_stores.clear();
         }
@@ -341,8 +329,7 @@ fn may_regenerate(instructions: &[Instruction], stack_access_limit: usize) -> bo
     let mut storage_epoch = 0u64;
 
     for (inst_idx, inst) in instructions.iter().enumerate() {
-        let canonical_stack_effect = inst.has_canonical_stack_effect();
-        if canonical_stack_effect && inst.is_encoded_push() {
+        if inst.is_encoded_push() {
             let Some(value) = inst.value else {
                 stack.push(FingerprintValue { expr: fresh_hash(&mut next_fresh), span: None });
                 continue;
@@ -359,7 +346,7 @@ fn may_regenerate(instructions: &[Instruction], stack_access_limit: usize) -> bo
         }
 
         let opcode = inst.opcode;
-        if canonical_stack_effect && let Some(stack_op) = inst.as_stack_op() {
+        if let Some(stack_op) = inst.as_stack_op() {
             match stack_op {
                 op::StackOp::Dup(depth) => {
                     let depth = usize::from(depth);
@@ -385,15 +372,12 @@ fn may_regenerate(instructions: &[Instruction], stack_access_limit: usize) -> bo
             }
             continue;
         }
-        if canonical_stack_effect && matches!(opcode, op::SWAPN | op::EXCHANGE) {
+        if matches!(opcode, op::SWAPN | op::EXCHANGE) {
             stack.clear();
             continue;
         }
 
-        if canonical_stack_effect
-            && let Some((inputs, read_epoch)) =
-                expression_inputs(opcode, memory_epoch, storage_epoch)
-        {
+        if let Some((inputs, read_epoch)) = expression_inputs(opcode, memory_epoch, storage_epoch) {
             ensure_hash_depth(&mut stack, inputs, &mut next_fresh);
             let mut operands = SmallVec::<[FingerprintValue; 3]>::new();
             for _ in 0..inputs {
@@ -424,9 +408,7 @@ fn may_regenerate(instructions: &[Instruction], stack_access_limit: usize) -> bo
         if op::writes_storage(opcode) {
             storage_epoch = storage_epoch.wrapping_add(1);
         }
-        if !canonical_stack_effect {
-            stack.clear();
-        } else if let Some(effect) = default_instruction_stack_effect(inst) {
+        if let Some(effect) = default_instruction_stack_effect(inst) {
             let inputs = usize::from(effect.inputs);
             ensure_hash_depth(&mut stack, inputs, &mut next_fresh);
             stack.truncate(stack.len() - inputs);
@@ -447,10 +429,7 @@ fn has_repeated_candidate_opcode(instructions: &[Instruction]) -> bool {
     // An inline 256-bit set over the opcode domain, keeping the screen allocation-free.
     let mut seen = [0u64; 4];
     for inst in instructions {
-        let canonical_stack_effect = inst.has_canonical_stack_effect();
-        let candidate = if !canonical_stack_effect {
-            false
-        } else if inst.is_encoded_push() {
+        let candidate = if inst.is_encoded_push() {
             inst.deferred_push().is_none()
                 && inst.pushed_value().is_some_and(|value| !value.is_zero())
         } else {
@@ -621,14 +600,14 @@ mod tests {
     use alloy_primitives::U256;
 
     #[test]
-    fn explicit_stack_effect_is_an_analysis_boundary() {
-        let mut overridden_dup = Instruction::stack_op(op::StackOp::Dup(1));
-        overridden_dup.metadata.stack = Some(StackEffect::new(0, 0));
+    fn unknown_instruction_is_an_analysis_boundary() {
+        let mut unknown = Instruction::opcode(0x0c);
+        unknown.metadata.stack = Some(StackEffect::new(0, 0));
         let mut instructions = vec![
             Instruction::push_value(U256::from(1)),
             Instruction::push_value(U256::from(2)),
             Instruction::opcode(op::ADD),
-            overridden_dup,
+            unknown,
             Instruction::push_value(U256::from(1)),
             Instruction::push_value(U256::from(2)),
             Instruction::opcode(op::ADD),

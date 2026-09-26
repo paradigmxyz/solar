@@ -1245,9 +1245,8 @@ fn unifies_shared_declarations_across_analysis_batches() {
     // Validation groups adjacent locations by file, so preserve unique URI/range order.
     assert_eq!(candidate.locations.len(), 3);
     assert_eq!(candidate.analyzed_contents.len(), 3);
-    assert!(candidate.locations.windows(2).all(|pair| {
-        (&pair[0].uri, crate::proto::range_key(pair[0].range))
-            < (&pair[1].uri, crate::proto::range_key(pair[1].range))
+    assert!(candidate.locations.is_sorted_by(|a, b| {
+        (&a.uri, crate::proto::range_key(a.range)) < (&b.uri, crate::proto::range_key(b.range))
     }));
 }
 

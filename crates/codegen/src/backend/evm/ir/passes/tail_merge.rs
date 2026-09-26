@@ -52,7 +52,11 @@ use crate::{
     },
     target::Target,
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+    newtype_index,
+};
 use solar_sema::Gcx;
 
 pub(super) struct TailMerge;
@@ -95,9 +99,27 @@ struct RunState {
     groups: Vec<MergeGroup>,
     commons: Vec<usize>,
     tails: Vec<(usize, BlockId)>,
-    tail_roots: FxHashMap<TerminatorKind, usize>,
-    tail_edges: FxHashMap<(usize, MachineInstKey), usize>,
-    tail_representatives: Vec<Option<BlockId>>,
+    tail_roots: FxHashMap<TerminatorKind, TailNode>,
+    tail_edges: FxHashMap<(TailNode, MachineInstKey), TailNode>,
+    tail_representatives: IndexVec<TailNode, Option<BlockId>>,
+    /// The single inserted block continuing below a node whose chain is not built yet.
+    tail_lazy: IndexVec<TailNode, Option<LazyTail>>,
+}
+
+newtype_index! {
+    /// A node of the reversed-suffix trie.
+    struct TailNode;
+}
+
+/// An unmaterialized trie chain: only `block` continues below the node, down to depth `limit`.
+///
+/// The chain's nodes are built only when another block shares a suffix with it; until then,
+/// queries compare against `block` directly. Every node on the chain has `block` as its
+/// representative exactly where `block` can be split, as if it had been inserted eagerly.
+#[derive(Clone, Copy)]
+struct LazyTail {
+    block: BlockId,
+    limit: u32,
 }
 
 impl RunState {
@@ -107,17 +129,7 @@ impl RunState {
         self.tail_roots.clear();
         self.tail_edges.clear();
         self.tail_representatives.clear();
-        let instruction_count = module
-            .blocks
-            .iter()
-            .filter(|block| {
-                is_candidate(block)
-                    && !(gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop)
-            })
-            .map(|block| block.instructions.len())
-            .sum::<usize>();
-        self.tail_edges.reserve(instruction_count);
-        self.tail_representatives.reserve(instruction_count + module.blocks.len());
+        self.tail_lazy.clear();
         let in_gas_loop =
             |block: &Block| gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop;
         let blocks = module.blocks.iter_enumerated();
@@ -133,7 +145,7 @@ impl RunState {
             // from a non-loop path to preserve common loop entries.
             let keep_branches =
                 gcx.sess.opts.optimization.is_gas() && has_short_word_backedge(module, block_id);
-            let matched = self.longest_common_tail(block, keep_branches);
+            let matched = self.longest_common_tail(module, block, keep_branches);
             let in_gas_loop = gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop;
 
             let target = Target::new(gcx);
@@ -162,7 +174,7 @@ impl RunState {
             {
                 self.merges.push(Merge { representative, block: block_id, common });
             } else if !in_gas_loop {
-                self.insert_tail(block_id, block, keep_branches);
+                self.insert_tail(module, block_id, block, keep_branches);
             }
         }
         if !self.merges.is_empty() {
@@ -179,54 +191,111 @@ impl RunState {
         }
     }
 
-    fn longest_common_tail(&self, block: &Block, keep_branches: bool) -> Option<(BlockId, usize)> {
+    fn longest_common_tail(
+        &self,
+        module: &Module,
+        block: &Block,
+        keep_branches: bool,
+    ) -> Option<(BlockId, usize)> {
         let terminator = &block.terminator.as_ref()?.kind;
         let mut node = *self.tail_roots.get(terminator)?;
+        let mut lazy = None;
         let mut matched = None;
         let len = block.instructions.len();
         for (common, inst) in block.instructions.iter().rev().enumerate() {
             if keep_branches && inst.as_evm_opcode() == Some(op::JUMPI) {
                 break;
             }
-            let Some(&child) = self.tail_edges.get(&(node, MachineInstKey::new(inst))) else {
+            let representative = if lazy.is_none()
+                && let Some(&child) = self.tail_edges.get(&(node, MachineInstKey::new(inst)))
+            {
+                node = child;
+                self.tail_representatives[node]
+            } else if let Some(tail) = lazy.or(self.tail_lazy[node]) {
+                // Below a lazy node, only its owner's own instructions continue the chain.
+                lazy = Some(tail);
+                if common >= tail.limit as usize {
+                    break;
+                }
+                let owner = &module.blocks[tail.block].instructions;
+                let at = owner.len() - common - 1;
+                if MachineInstKey::new(&owner[at]) != MachineInstKey::new(inst) {
+                    break;
+                }
+                is_split_point(owner, at).then_some(tail.block)
+            } else {
                 break;
             };
-            node = child;
             // Splitting the tail off leaves a jump at this boundary, so only offer tails that
             // start at a legal split point. A longer tail may still start at one.
             if !is_split_point(&block.instructions, len - common - 1) {
                 continue;
             }
-            if let Some(representative) = self.tail_representatives[node] {
+            if let Some(representative) = representative {
                 matched = Some((representative, common + 1));
             }
         }
         matched
     }
 
-    fn insert_tail(&mut self, block_id: BlockId, block: &Block, keep_branches: bool) {
+    fn insert_tail(
+        &mut self,
+        module: &Module,
+        block_id: BlockId,
+        block: &Block,
+        keep_branches: bool,
+    ) {
         let terminator = &block.terminator.as_ref().expect("candidate must have a terminator").kind;
         let mut node = self.tail_root(terminator);
         let len = block.instructions.len();
+        let limit = if keep_branches {
+            block
+                .instructions
+                .iter()
+                .rev()
+                .position(|inst| inst.as_evm_opcode() == Some(op::JUMPI))
+                .unwrap_or(len)
+        } else {
+            len
+        };
         // The representative is truncated at the shared tail too, so it only represents tails
         // whose start is a legal split point in its own instruction list.
-        for common in 0..=len {
-            if common > 0 {
-                if keep_branches
-                    && block.instructions[len - common].as_evm_opcode() == Some(op::JUMPI)
-                {
-                    break;
+        if is_split_point(&block.instructions, len) {
+            self.tail_representatives[node].get_or_insert(block_id);
+        }
+        for common in 0..limit {
+            self.expand_lazy_tail(module, node, common);
+            let key = MachineInstKey::new(&block.instructions[len - common - 1]);
+            let split = is_split_point(&block.instructions, len - common - 1);
+            if let Some(&child) = self.tail_edges.get(&(node, key)) {
+                node = child;
+                if split {
+                    self.tail_representatives[node].get_or_insert(block_id);
                 }
-                node =
-                    self.tail_child(node, MachineInstKey::new(&block.instructions[len - common]));
+                continue;
             }
-            if is_split_point(&block.instructions, len - common) {
-                self.tail_representatives[node].get_or_insert(block_id);
-            }
+            // No other block shares this suffix: leave the rest of the chain lazy.
+            let child = self.new_tail_node();
+            self.tail_edges.insert((node, key), child);
+            self.tail_representatives[child] = split.then_some(block_id);
+            self.tail_lazy[child] =
+                (common + 1 < limit).then_some(LazyTail { block: block_id, limit: limit as u32 });
+            return;
         }
     }
 
-    fn tail_root(&mut self, terminator: &TerminatorKind) -> usize {
+    /// Builds the next node of a lazy chain at `node`, which is at depth `depth`.
+    fn expand_lazy_tail(&mut self, module: &Module, node: TailNode, depth: usize) {
+        let Some(tail) = self.tail_lazy[node].take() else { return };
+        let owner = &module.blocks[tail.block].instructions;
+        let at = owner.len() - depth - 1;
+        let child = self.new_tail_node();
+        self.tail_edges.insert((node, MachineInstKey::new(&owner[at])), child);
+        self.tail_representatives[child] = is_split_point(owner, at).then_some(tail.block);
+        self.tail_lazy[child] = (depth + 1 < tail.limit as usize).then_some(tail);
+    }
+
+    fn tail_root(&mut self, terminator: &TerminatorKind) -> TailNode {
         if let Some(&root) = self.tail_roots.get(terminator) {
             return root;
         }
@@ -235,18 +304,9 @@ impl RunState {
         root
     }
 
-    fn tail_child(&mut self, node: usize, key: MachineInstKey) -> usize {
-        *self.tail_edges.entry((node, key)).or_insert_with(|| {
-            let child = self.tail_representatives.len();
-            self.tail_representatives.push(None);
-            child
-        })
-    }
-
-    fn new_tail_node(&mut self) -> usize {
-        let node = self.tail_representatives.len();
-        self.tail_representatives.push(None);
-        node
+    fn new_tail_node(&mut self) -> TailNode {
+        self.tail_lazy.push(None);
+        self.tail_representatives.push(None)
     }
 
     fn apply_merges(&mut self, module: &mut Module, labels: &mut FreshLabels) -> bool {
@@ -466,9 +526,6 @@ fn word_loop_input_width(instructions: &[Instruction]) -> Option<isize> {
     let mut required = 0;
     let mut computes_word = false;
     for inst in instructions {
-        if !inst.has_canonical_stack_effect() {
-            return None;
-        }
         let (inputs, growth) = if let Some(stack) = inst.as_stack_op() {
             (stack.required_depth() as isize, stack.net_growth())
         } else if inst.is_encoded_push() {

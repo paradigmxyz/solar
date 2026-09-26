@@ -513,7 +513,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn spill_hazard_is_repeated_low_phi(&self, func: &Function) -> bool {
         let inst_blocks = func.inst_blocks();
         let mut loop_analyzer = LoopAnalyzer::new();
-        let loop_info = loop_analyzer.analyze(func);
+        let loop_info = loop_analyzer.analyze_structure(func);
         loop_info.all_loops().any(|loop_info| {
             self.spill_hazard_insts.iter().any(|inst| {
                 inst_blocks.get(inst).is_some_and(|block| loop_info.blocks.contains(*block))

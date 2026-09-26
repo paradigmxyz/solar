@@ -31,6 +31,7 @@ mod terminal_layout;
 pub(super) mod utils;
 
 pub(in crate::backend) use legalize_shifts::legalize_shifts;
+pub(super) use peephole::CleanBlocks;
 
 use super::Module;
 use crate::{

@@ -7,7 +7,7 @@ bb0:
   push 1
   jumpi bb1, bb2
 bb1:
-  push bb5 !metadata(stack=0->1)
+  push bb5
   jump bb4
 bb2:
   push bb5

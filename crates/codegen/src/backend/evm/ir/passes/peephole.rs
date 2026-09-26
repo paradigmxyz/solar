@@ -14,13 +14,12 @@
 //! Comparison inversion tracks a constant through up to 24 instructions that cannot observe
 //! or copy it. Adjusting that bound and flipping LT/GT or SLT/SGT removes ISZERO after branch
 //! layout chooses the taken edge. Operand computations stay in place; wrapping bounds,
-//! protected boundaries, custom stack effects, and materializations that grow in size or stack
-//! peak are rejected.
+//! protected boundaries, and materializations that grow in size or stack peak are rejected.
 //! Literal unary expressions use the same evaluator as MIR and require a Pareto
 //! improvement under the target's immediate materialization costs. A known-false
 //! inline conditional jump then disappears with its two pushes. These rules
-//! preserve custom stack effects and protected instruction boundaries, and never
-//! treat symbolic label addresses or deferred values as literal constants.
+//! preserve protected instruction boundaries, and never treat symbolic label
+//! addresses or deferred values as literal constants.
 //!
 //! The separate `late-word` entry point runs only after structural cleanup. It
 //! replaces a low-mask construction with a shorter complement/shift form. A closed
@@ -35,15 +34,20 @@
 use super::{
     EvmPass,
     compact_pushes::{immediate_materialization_cost, materialize_immediate},
+    utils::MachineInstKey,
 };
 use crate::backend::evm::{
-    ir::{Instruction, Module, PushValue, TerminatorKind},
+    ir::{BlockId, Instruction, Module, PushValue, TerminatorKind},
     op,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
+use solar_data_structures::{index::IndexVec, map::FxHasher};
 use solar_sema::Gcx;
-use std::fmt;
+use std::{
+    fmt,
+    hash::{Hash, Hasher},
+};
 use tracing::trace;
 
 mod isle;
@@ -117,6 +121,64 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 
+/// Block contents on which a peephole run found no rewrite, so the same contents can be skipped.
+///
+/// Matching reads only each instruction's opcode, encoding, value, stack operation, and
+/// `keep_with_next` flag, and no other metadata, so equal keys produce the same result. The final
+/// rules extend the early ones, so contents clean under them are clean under both.
+/// Module clones start without the cache, and it never affects module equality.
+///
+/// NOTE: Records hold a hash of the keys rather than a copy, which would retain every clean
+/// block's contents a second time for the module's lifetime. A collision between the recorded
+/// and the current contents of one block at equal length would skip a rewrite; the result stays
+/// deterministic.
+#[derive(Default)]
+pub(crate) struct CleanBlocks(IndexVec<BlockId, Option<CleanBlock>>);
+
+struct CleanBlock {
+    final_cleanup: bool,
+    len: u32,
+    hash: u64,
+}
+
+fn clean_hash(instructions: &[Instruction]) -> u64 {
+    let mut hasher = FxHasher::default();
+    for inst in instructions {
+        MachineInstKey::new(inst).hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
+impl CleanBlocks {
+    /// Returns whether the block was recorded clean with exactly these contents, and if so,
+    /// whether the final rules were included.
+    fn recorded(&self, block: BlockId, instructions: &[Instruction]) -> Option<bool> {
+        let clean = self.0.get(block)?.as_ref()?;
+        (clean.len as usize == instructions.len() && clean.hash == clean_hash(instructions))
+            .then_some(clean.final_cleanup)
+    }
+}
+
+impl Clone for CleanBlocks {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl PartialEq for CleanBlocks {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for CleanBlocks {}
+
+impl fmt::Debug for CleanBlocks {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("CleanBlocks")
+    }
+}
+
 fn optimize_module<const LATE: bool>(
     gcx: Gcx<'_>,
     module: &mut Module,
@@ -125,17 +187,29 @@ fn optimize_module<const LATE: bool>(
     let evm_version = gcx.sess.opts.evm_version;
     let mut changed = false;
     let mut scratch = Vec::new();
-    for block in &mut module.blocks {
+    let clean = &mut module.peephole_clean;
+    clean.0.resize_with(module.blocks.len(), || None);
+    for (block_id, block) in module.blocks.iter_mut_enumerated() {
+        // The late rules are separate from the cached early and final ones.
+        let recorded = if LATE { None } else { clean.recorded(block_id, &block.instructions) };
+        let skip = recorded.is_some_and(|recorded_final| recorded_final || !final_cleanup);
+        let early_clean = final_cleanup && recorded == Some(false);
         // Dead stack traffic before a terminator that cannot observe it is dead-code
         // elimination's to remove; this pass only rewrites what it can see locally.
-        let rewrites = optimize::<LATE>(
-            evm_version,
-            &mut block.instructions,
-            &mut scratch,
-            block.label,
-            final_cleanup,
-        );
+        let rewrites = if skip {
+            0
+        } else {
+            optimize::<LATE>(
+                evm_version,
+                &mut block.instructions,
+                &mut scratch,
+                block.label,
+                final_cleanup,
+                early_clean,
+            )
+        };
         changed |= rewrites != 0;
+        let mut returned_zero = false;
         // mstore(offset, value); return(offset, 32)
         // -> mstore(0, value); return(0, 32)
         if final_cleanup
@@ -144,9 +218,6 @@ fn optimize_module<const LATE: bool>(
                 Some(TerminatorKind::Op(op::RETURN))
             )
             && let [prefix @ .., offset, store, size, returned] = block.instructions.as_mut_slice()
-            && [&*offset, &*store, &*size, &*returned]
-                .iter()
-                .all(|inst| inst.has_canonical_stack_effect())
             && store.as_evm_opcode() == Some(op::MSTORE)
             && size.concrete_immediate() == Some(U256::from(32))
             && let Some(address) = offset.concrete_immediate()
@@ -157,15 +228,28 @@ fn optimize_module<const LATE: bool>(
                 .rev()
                 .take_while(|pair| pair[1].as_evm_opcode() != Some(op::JUMPDEST))
                 .any(|pair| {
-                    pair[0].has_canonical_stack_effect()
-                        && pair[1].has_canonical_stack_effect()
-                        && pair[1].as_evm_opcode() == Some(op::MSTORE)
+                    pair[1].as_evm_opcode() == Some(op::MSTORE)
                         && pair[0].concrete_immediate().is_some_and(|previous| previous >= address)
                 })
         {
             offset.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
             returned.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
             changed = true;
+            returned_zero = true;
+        }
+        if !LATE && !skip {
+            if rewrites != 0 || returned_zero {
+                clean.0[block_id] = None;
+            } else if early_clean {
+                // The same contents are now clean under the final rules as well.
+                clean.0[block_id].as_mut().unwrap().final_cleanup = true;
+            } else {
+                clean.0[block_id] = Some(CleanBlock {
+                    final_cleanup,
+                    len: block.instructions.len() as u32,
+                    hash: clean_hash(&block.instructions),
+                });
+            }
         }
     }
     changed
@@ -177,13 +261,16 @@ fn optimize<const LATE: bool>(
     scratch: &mut Vec<Instruction>,
     block: u32,
     final_cleanup: bool,
+    early_clean: bool,
 ) -> usize {
     // Inspect the original prefix without copying instructions. Until the first
     // rewrite, this is exactly the optimized prefix the streaming matcher sees.
+    // The early rules match no prefix of an early-clean block, so only the final
+    // rules can supply its first rewrite.
     let first = (1..=instructions.len()).find_map(|end| {
-        isle::PeepContext::new(&instructions[..end], evm_version)
-            .with_final_cleanup(final_cleanup)
-            .select::<LATE>()
+        let mut context = isle::PeepContext::new(&instructions[..end], evm_version)
+            .with_final_cleanup(final_cleanup);
+        if early_clean { context.final_rewrite() } else { context.select::<LATE>() }
             .map(|rewrite| (end, rewrite))
     });
     let Some((end, isle::Rewrite { skip, edit })) = first else { return 0 };
@@ -418,14 +505,12 @@ fn overwrite_raw(inst: &mut Instruction, opcode: u8) {
     let metadata = std::mem::take(&mut inst.metadata);
     *inst = Instruction::opcode(opcode);
     inst.metadata = metadata;
-    inst.metadata.stack = None;
 }
 
 fn overwrite_stack_op(inst: &mut Instruction, stack_op: op::StackOp) {
     let metadata = std::mem::take(&mut inst.metadata);
     *inst = Instruction::stack_op(stack_op);
     inst.metadata = metadata;
-    inst.metadata.stack = None;
 }
 
 /// Returns the byte length and static gas of the selected materialization of `value`.

@@ -115,7 +115,7 @@ impl StorageScalarPromoter {
         // stores and only inserts new storage stores outside that loop.
         loop {
             let mut analyzer = LoopAnalyzer::new();
-            let loop_info = analyzer.analyze(func);
+            let loop_info = analyzer.analyze_structure(func);
             let loops: Vec<Loop> = loop_info.all_loops().cloned().collect();
 
             let mut promoted = false;

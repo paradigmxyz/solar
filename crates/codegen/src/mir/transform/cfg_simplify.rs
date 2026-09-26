@@ -31,7 +31,7 @@ use crate::{
         Terminator, Value, ValueId,
         analysis::{CallGraphInfo, CfgInfo},
         pass::{MirPass, run_function_pass},
-        utils::{replace_terminator, retain_blocks},
+        utils::{link_successors, replace_terminator, retain_blocks},
     },
     target::GasTier,
 };
@@ -398,7 +398,7 @@ impl CfgSimplifier {
         let mut raw = FxHashMap::default();
 
         for block_id in func.blocks.indices() {
-            let same_block_phi_results = func.block_phi_results(block_id);
+            let mut same_block_phi_results = None;
             for &inst_id in &func.blocks[block_id].instructions {
                 let InstKind::Phi(incoming) = &func.inst(inst_id).kind else {
                     continue;
@@ -406,8 +406,10 @@ impl CfgSimplifier {
                 let Some(phi_value) = func.inst_result_value(inst_id) else {
                     continue;
                 };
+                let same_block_phi_results =
+                    same_block_phi_results.get_or_insert_with(|| func.block_phi_results(block_id));
                 let Some(replacement) =
-                    Self::trivial_phi_replacement(incoming, phi_value, &same_block_phi_results)
+                    Self::trivial_phi_replacement(incoming, phi_value, same_block_phi_results)
                 else {
                     continue;
                 };
@@ -471,14 +473,22 @@ impl CfgSimplifier {
 
     fn simplify_degenerate_terminators(&mut self, func: &mut Function) {
         for block_id in func.blocks.indices() {
-            if !matches!(
-                func.blocks[block_id].terminator,
-                Some(Terminator::Branch { .. } | Terminator::Switch { .. })
-            ) {
+            let Some(term) = &func.blocks[block_id].terminator else { continue };
+            let distinct = match term {
+                Terminator::Branch { then_block, else_block, .. } => then_block != else_block,
+                Terminator::Switch { default, cases, .. } => {
+                    cases.last().is_some_and(|(_, target)| target != default)
+                }
+                _ => continue,
+            };
+            let mut replacement = Self::known_branch_target(func, block_id);
+            if replacement.is_none() && distinct {
+                // An unchanged terminator still needs deduplicated predecessor links.
+                let successors = term.successors();
+                link_successors(func, block_id, &successors);
                 continue;
             }
             let mut terminator = func.blocks[block_id].terminator.clone();
-            let mut replacement = Self::known_branch_target(func, block_id);
             if replacement.is_none() {
                 replacement = match terminator.as_mut() {
                     Some(Terminator::Branch { then_block, else_block, .. })

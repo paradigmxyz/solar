@@ -2,16 +2,12 @@
 //!
 //! Transformation pipelines follow rustc MIR's pass-manager shape: passes
 //! implement [`MirPass`] and pipelines are slices of trait-object references.
-//! Analyses retain their LLVM/MLIR-style cache: read-only `AnalysisPass`es
-//! produce results cached in an `AnalysisManager`.
+//! [`ModuleAnalyses`] caches per-function CFG and alias analyses and module
+//! call summaries between the passes of one pipeline run.
 //!
 //! # Usage
 //!
 //! ```ignore
-//! // Read-only analysis pipeline (codegen):
-//! let mut am = AnalysisManager::new();
-//! let liveness = am.get_or_compute(&LivenessAnalysis, &func);
-//!
 //! let changed = run_passes(
 //!     gcx,
 //!     &mut module,
@@ -29,11 +25,7 @@ use crate::mir::{
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::diagnostics::ErrorGuaranteed;
-use std::{
-    any::{Any, TypeId},
-    rc::Rc,
-    sync::Arc,
-};
+use std::{any::TypeId, rc::Rc, sync::Arc};
 
 pub use crate::mir::pass_manager::{MirPass, pipeline_label, run_passes, run_passes_no_validate};
 
@@ -456,29 +448,6 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
     changed
 }
 
-/// A key identifying a particular analysis, derived from its result type.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-struct AnalysisKey(TypeId);
-
-impl AnalysisKey {
-    /// Creates a key from a type.
-    pub(crate) fn of<T: 'static>() -> Self {
-        Self(TypeId::of::<T>())
-    }
-}
-
-/// A read-only analysis pass.
-///
-/// Analysis passes inspect a function without modifying it and produce a
-/// cacheable result that downstream passes can query via [`AnalysisManager`].
-pub(crate) trait AnalysisPass {
-    /// The result type produced by this analysis.
-    type Result: 'static;
-
-    /// Computes the analysis result for the given function.
-    fn run(&self, func: &Function) -> Self::Result;
-}
-
 /// Runs a function-local transform over every bodied function in a module.
 #[must_use]
 pub(crate) fn run_function_pass(
@@ -878,49 +847,6 @@ fn run_function_pass_cached(
     }
     analyses.record_function_result(func_id, module.functions.len(), cache_key, changed);
     changed
-}
-
-/// Manages cached analysis results for a function.
-///
-/// Analyses are keyed by their result type via [`AnalysisKey`].
-#[derive(Default)]
-pub(crate) struct AnalysisManager {
-    results: FxHashMap<AnalysisKey, Box<dyn Any>>,
-}
-
-impl AnalysisManager {
-    /// Creates a new, empty analysis manager.
-    pub(crate) fn new() -> Self {
-        Self::default()
-    }
-
-    /// Returns the result of the analysis, computing and caching it if not already present.
-    ///
-    /// This is the recommended way to obtain analysis results, matching
-    /// LLVM's `AnalysisManager::getResult<AnalysisT>(F)` pattern.
-    pub(crate) fn get_or_compute<A: AnalysisPass>(
-        &mut self,
-        analysis: &A,
-        func: &Function,
-    ) -> &A::Result {
-        let key = AnalysisKey::of::<A::Result>();
-        self.results.entry(key).or_insert_with(|| {
-            let result = analysis.run(func);
-            Box::new(result)
-        });
-        self.results[&key].downcast_ref::<A::Result>().unwrap()
-    }
-}
-
-/// Liveness analysis pass.
-pub(crate) struct LivenessAnalysis;
-
-impl AnalysisPass for LivenessAnalysis {
-    type Result = crate::mir::analysis::Liveness;
-
-    fn run(&self, func: &Function) -> Self::Result {
-        crate::mir::analysis::Liveness::compute(func)
-    }
 }
 
 #[cfg(test)]

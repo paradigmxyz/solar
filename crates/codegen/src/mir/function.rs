@@ -6,6 +6,7 @@ use super::{
     utils,
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     fmt::{self, FmtIteratorExt},
@@ -286,14 +287,7 @@ impl Function {
     /// Each instruction yields its operands followed by its result, if any. Terminator operands
     /// follow the instructions in their block. A value is yielded once for every occurrence.
     pub(crate) fn live_values(&self) -> impl Iterator<Item = ValueId> + '_ {
-        self.blocks.iter().flat_map(|block| {
-            let instructions = block.instructions.iter().flat_map(|&inst_id| {
-                let inst = self.inst(inst_id);
-                inst.operands().into_iter().chain(inst.result())
-            });
-            let terminator = block.terminator.iter().flat_map(|term| term.operands());
-            instructions.chain(terminator)
-        })
+        LiveValues { func: self, block: BlockId::ENTRY, inst: 0, values: SmallVec::new(), next: 0 }
     }
 
     /// Reuses one value identity for active uses of each exactly equal immediate.
@@ -648,6 +642,43 @@ impl Function {
     #[must_use]
     pub(crate) fn is_public(&self) -> bool {
         matches!(self.attributes.visibility, Visibility::Public | Visibility::External)
+    }
+}
+
+/// Iterator for [`Function::live_values`], refilling one buffer per instruction or terminator.
+struct LiveValues<'a> {
+    func: &'a Function,
+    block: BlockId,
+    inst: u32,
+    values: SmallVec<[ValueId; 8]>,
+    next: u32,
+}
+
+impl Iterator for LiveValues<'_> {
+    type Item = ValueId;
+
+    fn next(&mut self) -> Option<ValueId> {
+        loop {
+            if let Some(&value) = self.values.get(self.next as usize) {
+                self.next += 1;
+                return Some(value);
+            }
+            let block = self.func.blocks.get(self.block)?;
+            self.values.clear();
+            self.next = 0;
+            if let Some(&inst_id) = block.instructions.get(self.inst as usize) {
+                let inst = self.func.inst(inst_id);
+                inst.kind.collect_operands(&mut self.values);
+                self.values.extend(inst.result());
+                self.inst += 1;
+            } else {
+                if let Some(term) = &block.terminator {
+                    term.for_each_operand(|value| self.values.push(value));
+                }
+                self.block += 1;
+                self.inst = 0;
+            }
+        }
     }
 }
 

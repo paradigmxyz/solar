@@ -246,7 +246,7 @@ impl Operands for Box<[ValueId]> {
 
     #[inline]
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
-        out.extend(self.iter().copied());
+        out.extend_from_slice(self);
     }
 
     #[inline]

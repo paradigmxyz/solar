@@ -27,7 +27,7 @@ use crate::{
     },
     target::Target,
 };
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
 pub(super) struct LoopLayout;
@@ -51,12 +51,13 @@ fn backedge_weights(module: &Module, header: BlockId) -> FxHashMap<BlockId, u64>
     let mut frontier = FxHashMap::from_iter([(header, 1u64 << 32)]);
     let mut result = FxHashMap::default();
     let mut seen = DenseBitSet::new_empty(module.blocks.len());
+    let mut seen_count = 0;
     for _ in 0..32 {
         let mut current = frontier.drain().collect::<Vec<_>>();
         current.sort_unstable_by_key(|&(block, _)| block);
         for (id, mut weight) in current {
-            seen.insert(id);
-            if seen.count() > 256 {
+            seen_count += usize::from(seen.insert(id));
+            if seen_count > 256 {
                 return result;
             }
             let mut send = |to, weight| {
@@ -101,6 +102,8 @@ fn backedge_weights(module: &Module, header: BlockId) -> FxHashMap<BlockId, u64>
 /// terminator leaves no fallthrough into the latch.
 fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut order = module.blocks.indices().collect::<Vec<_>>();
+    // Position of each block in `order`.
+    let mut positions = (0..order.len() as u32).collect::<IndexVec<BlockId, _>>();
     let mut moved = DenseBitSet::new_empty(module.blocks.len());
     let mut reachable = DenseBitSet::new_empty(module.blocks.len());
     let mut pending = Vec::new();
@@ -111,8 +114,7 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
             && !moved.contains(*header)
             && !module.blocks[latch].metadata.hotness.is_cold()
         {
-            let h = order.iter().position(|block| block == header).unwrap();
-            let l = order.iter().position(|&block| block == latch).unwrap();
+            let (h, l) = (positions[*header] as usize, positions[latch] as usize);
             if h == 0 || l <= h {
                 continue;
             }
@@ -162,8 +164,10 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
             if visited <= 256 && reachable.contains(latch) && hotter {
                 // preheader; header ... latch; jump header
                 // -> preheader; jump header; latch; header ...
-                order.remove(l);
-                order.insert(h, latch);
+                order[h..=l].rotate_right(1);
+                for (offset, &block) in order[h..=l].iter().enumerate() {
+                    positions[block] = (h + offset) as u32;
+                }
                 moved.insert(*header);
             }
         }

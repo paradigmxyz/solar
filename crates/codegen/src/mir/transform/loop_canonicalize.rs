@@ -77,7 +77,7 @@ impl LoopCanonicalizer {
 
         loop {
             let mut analyzer = LoopAnalyzer::new();
-            let loop_info = analyzer.analyze(func);
+            let loop_info = analyzer.analyze_structure(func);
             let Some(header) = loop_info.loops.iter().find_map(|(&header, loop_data)| {
                 let outside_preds = self.outside_predecessors(func, loop_data);
                 (loop_data.preheader.is_none()

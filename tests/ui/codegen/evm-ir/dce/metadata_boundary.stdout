@@ -6,4 +6,12 @@
     op_0c !metadata(stack=1->1)
 -   pop
     stop
+  bb1:
+    push 2
+    push 1
+    dup 1
+    op_0c !metadata(stack=0->0)
+    pop
+    sstore
+    stop
   

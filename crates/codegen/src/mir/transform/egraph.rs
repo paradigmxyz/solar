@@ -83,11 +83,7 @@ use crate::{
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
-use solar_data_structures::{
-    bit_set::DenseBitSet,
-    index::IndexVec,
-    map::{FxHashMap, StdEntry},
-};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use std::rc::Rc;
 
 mod isle;
@@ -393,7 +389,8 @@ struct Builder<'a> {
 impl<'a> Builder<'a> {
     fn new(func: &'a mut Function, target: Target, cfg: Option<Rc<CfgInfo>>) -> Self {
         let dead = DenseBitSet::new_empty(func.num_insts());
-        let (max_nodes, max_operand_views) = search_limits(func.instructions().count());
+        let num_insts = func.instructions().count();
+        let (max_nodes, max_operand_views) = search_limits(num_insts);
         let (immediates, leaves, uses) = value_info(func);
         let optimistic = cfg
             .as_deref()
@@ -409,8 +406,9 @@ impl<'a> Builder<'a> {
             optimistic,
             merged: IndexVec::from_vec(vec![None; values]),
             classes: IndexVec::from_vec(std::iter::repeat_with(|| None).take(values).collect()),
-            memo: FxHashMap::default(),
-            undo: Vec::new(),
+            // The scoped memo peaks near 40% of the instruction count.
+            memo: FxHashMap::with_capacity_and_hasher(num_insts / 2, Default::default()),
+            undo: Vec::with_capacity(num_insts / 2),
             phis: FxHashMap::default(),
             uses,
             liveness: None,
@@ -449,10 +447,8 @@ impl<'a> Builder<'a> {
         // Immediates created by rules while the pass runs join the canonical set.
         if let Value::Immediate(immediate) = self.func.value(value) {
             let leaf = *self.immediates.entry(immediate.clone()).or_insert(value);
-            if leaf != value {
-                self.leaves.resize(self.func.num_values(), None);
-                self.leaves[value] = Some(leaf);
-            }
+            self.leaves.resize(self.func.num_values(), None);
+            self.leaves[value] = Some(leaf);
             return leaf;
         }
         value
@@ -545,11 +541,15 @@ impl<'a> Builder<'a> {
                 frontier += 1;
                 alternatives.clear();
                 let kind = current.into_kind().expect("nodes are complete instructions");
-                let folded = const_fold(self.func, &kind, ty);
+                let folded = if may_const_fold(self.func, &current) {
+                    const_fold(self.func, &kind, ty)
+                } else {
+                    None
+                };
                 if kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
-                    let (views, truncated) = self.matching_views(&current, view_limit);
+                    let (operands, truncated) = self.operand_views(&current, view_limit);
                     views_truncated |= truncated;
-                    for &view in &views {
+                    for view in matching_views(&current, &operands) {
                         isle::RuleContext::new(self.func, self.target.evm_version())
                             .with_block(block)
                             .with_uses(&self.uses)
@@ -557,7 +557,7 @@ impl<'a> Builder<'a> {
                             .rewrite(&current, &mut alternatives);
                     }
                     simplified[current_index] = Simplified::from_value(folded.or_else(|| {
-                        views.into_iter().find_map(|view| {
+                        matching_views(&current, &operands).find_map(|view| {
                             isle::RuleContext::new(self.func, self.target.evm_version())
                                 .with_views(view)
                                 .simplify(&current)
@@ -602,7 +602,11 @@ impl<'a> Builder<'a> {
         // to the same dominator subtree as the original expression.
         let mut leader = None;
         for (node_index, node) in nodes.as_slice().iter().enumerate() {
-            if let Some(equal) = self.memo_leader((canonical(*node), ty), key, block, index) {
+            // The search leaves the memo unchanged, so the original node's failed
+            // probe still holds.
+            if node_index > 0
+                && let Some(equal) = self.memo_leader((canonical(*node), ty), key, block, index)
+            {
                 leader = Some(equal);
                 break;
             }
@@ -611,11 +615,15 @@ impl<'a> Builder<'a> {
                 Simplified::Unchanged => None,
                 Simplified::Pending => {
                     let kind = node.into_kind().expect("nodes are complete instructions");
-                    let folded = const_fold(self.func, &kind, ty);
+                    let folded = if may_const_fold(self.func, node) {
+                        const_fold(self.func, &kind, ty)
+                    } else {
+                        None
+                    };
                     if kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
-                        let (views, _) = self.matching_views(node, view_limit);
+                        let (operands, _) = self.operand_views(node, view_limit);
                         folded.or_else(|| {
-                            views.into_iter().find_map(|view| {
+                            matching_views(node, &operands).find_map(|view| {
                                 isle::RuleContext::new(self.func, self.target.evm_version())
                                     .with_views(view)
                                     .simplify(node)
@@ -646,23 +654,6 @@ impl<'a> Builder<'a> {
         } else {
             self.classes[result] = Some(Class { nodes, home: inst_id });
         }
-    }
-
-    /// Match paired complement rules without multiplying unrestricted child classes.
-    fn matching_views(&self, node: &Op, limit: usize) -> (SmallVec<[OperandViews; 11]>, bool) {
-        let (operands, truncated) = self.operand_views(node, limit);
-        let mut views = smallvec::smallvec![[None, None]];
-        views.extend(operands.iter().map(|&view| [Some(view), None]));
-        if matches!(node, Op::Eq { .. } | Op::Xor { .. }) {
-            for (index, &first) in operands.iter().enumerate() {
-                for &second in &operands[index + 1..] {
-                    if first.0 != second.0 {
-                        views.push([Some(first), Some(second)]);
-                    }
-                }
-            }
-        }
-        (views, truncated)
     }
 
     /// Only existing equivalent nodes are exposed; no new SSA values or code
@@ -762,10 +753,11 @@ impl<'a> Builder<'a> {
         let mut alternatives = Vec::new();
         for _ in 0..self.max_nodes {
             alternatives.clear();
+            let canonical_op = canonical_operands(self.func, current);
             isle::RuleContext::new(self.func, self.target.evm_version())
                 .with_block(block)
                 .with_uses(&self.uses)
-                .rewrite(&current, &mut alternatives);
+                .rewrite(&canonical_op, &mut alternatives);
             let Some(next) = alternatives.iter().find_map(|next| {
                 let next = next.map_values(|value| self.resolve(value));
                 next.into_kind()
@@ -1078,7 +1070,8 @@ fn optimistic_phi_leaders(
     let mut numbering = OptimisticNumbering {
         func,
         leaves,
-        table: FxHashMap::default(),
+        // Numbering keys fewer than half of all values.
+        table: FxHashMap::with_capacity_and_hasher(func.num_values() / 2, Default::default()),
         fresh: IndexVec::from_vec(vec![TOP; func.num_values()]),
         numbers: IndexVec::from_vec(vec![TOP; func.num_values()]),
         next: TOP,
@@ -1131,30 +1124,27 @@ fn optimistic_phi_leaders(
     // The first value of each class in reverse postorder leads it; a phi
     // merges into its leader when the leader is a leaf, an earlier phi or
     // instruction of the same block, or defined in a dominating block.
-    let mut first = FxHashMap::<u32, (ValueId, Option<BlockId>)>::default();
+    let mut first = vec![None::<(ValueId, Option<BlockId>)>; numbering.next as usize + 1];
     for (value, &number) in numbering.numbers.iter_enumerated() {
         if number != TOP && !matches!(func.value(value), Value::Inst(_)) {
-            first.insert(number, (value, None));
+            first[number as usize] = Some((value, None));
         }
     }
     for &block in cfg.rpo() {
         for &inst_id in &func.blocks[block].instructions {
             let Some(result) = func.inst_result_value(inst_id) else { continue };
             let number = numbering.numbers[result];
-            match first.entry(number) {
-                StdEntry::Occupied(entry) => {
-                    let (leader, leader_block) = *entry.get();
+            match &mut first[number as usize] {
+                Some((leader, leader_block)) => {
                     if matches!(func.inst(inst_id).kind, InstKind::Phi(_))
                         && leader_block.is_none_or(|leader_block| {
                             leader_block == block || cfg.dominators().dominates(leader_block, block)
                         })
                     {
-                        leaders.insert(result, leader);
+                        leaders.insert(result, *leader);
                     }
                 }
-                StdEntry::Vacant(entry) => {
-                    entry.insert((result, Some(block)));
-                }
+                entry @ None => *entry = Some((result, Some(block))),
             }
         }
     }
@@ -1182,9 +1172,8 @@ fn value_info(func: &Function) -> ValueInfo {
             Value::Arg(index) => *args[*index].get_or_insert(value),
             _ => return,
         };
-        if canonical != value {
-            leaves[value] = Some(canonical);
-        }
+        // Map canonical leaves to themselves too, so resolving them skips the lookup.
+        leaves[value] = Some(canonical);
     };
     for inst_id in func.instructions() {
         for operand in func.inst(inst_id).operands() {
@@ -1282,6 +1271,37 @@ fn const_fold(func: &mut Function, kind: &InstKind, ty: Option<MirType>) -> Opti
     Some(func.alloc_value(Value::Immediate(immediate)))
 }
 
+/// Match paired complement rules without multiplying unrestricted child classes.
+fn matching_views<'a>(
+    node: &Op,
+    operands: &'a [(ValueId, Op)],
+) -> impl Iterator<Item = OperandViews> + 'a {
+    let paired: &[_] = if matches!(node, Op::Eq { .. } | Op::Xor { .. }) { operands } else { &[] };
+    let singles = operands.iter().map(|&view| [Some(view), None]);
+    let pairs = paired.iter().enumerate().flat_map(|(index, &first)| {
+        paired[index + 1..]
+            .iter()
+            .filter(move |second| first.0 != second.0)
+            .map(move |&second| [Some(first), Some(second)])
+    });
+    std::iter::once([None, None]).chain(singles).chain(pairs)
+}
+
+/// Returns whether [`const_fold`] can succeed on a node: it folds a select on an
+/// immediate condition, and otherwise evaluates only when every operand is immediate.
+fn may_const_fold(func: &Function, node: &Op) -> bool {
+    if let Op::Select { cond, .. } = *node {
+        return func.value(cond).as_immediate().is_some();
+    }
+    let (mut any, mut all) = (false, true);
+    let _ = node.map_values(|value| {
+        any = true;
+        all &= func.value(value).as_immediate().is_some();
+        value
+    });
+    any && all
+}
+
 /// Folds only immediate results using the same identities as full extraction.
 pub(super) fn fold_constant(
     func: &mut Function,
@@ -1298,7 +1318,8 @@ pub(super) fn fold_constant(
     }
     let value = const_fold(func, kind, ty).or_else(|| {
         if is_node(kind) && kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
-            isle::RuleContext::new(func, evm).simplify(&kind.op())
+            let op = canonical_operands(func, kind.op());
+            isle::RuleContext::new(func, evm).simplify(&op)
         } else {
             None
         }

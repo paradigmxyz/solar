@@ -43,14 +43,14 @@ bb1:
   swap 2
   stop
 
-// Canonical stack metadata carries the same semantics as the opcode default.
+// Adjacent equal swaps cancel.
 // CHECK-LABEL: {{^[ +].*}}bb2:
 // CHECK-NOT: {{^[ +].*}}swap 1
 // CHECK: {{^[ +].*}}stop
 bb2:
   push 7
   push 8
-  swap 1 !metadata(stack=0->0)
+  swap 1
   swap 1
   stop
 

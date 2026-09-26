@@ -2786,7 +2786,7 @@ mod tests {
                     next.push(sequence);
                 }
             }
-            all.extend(next.iter().cloned());
+            all.extend_from_slice(&next);
             level = next;
         }
         all

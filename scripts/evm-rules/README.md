@@ -335,8 +335,9 @@ word, the final height, required input depth and peak growth; an arbitrary deepe
 prefix stays unchanged.
 Malformed input bytecode and out-of-gas behavior are excluded. The Rust window
 facets, edits and target lowering remain trusted and are recorded by hash.
-The guarded five-op window rejects overridden stack effects and protected
-instruction boundaries; focused window-helper tests check these Rust-side guards.
+The guarded five-op window rejects protected instruction boundaries, and the
+verifier forbids stack effect overrides on known opcodes; focused window-helper
+tests check the boundary guard.
 Other peepholes, especially memory and branch rewrites, are not covered by this
 lane. Unknown syntax, guards, edits or operations fail verification.
 

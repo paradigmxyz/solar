@@ -102,6 +102,8 @@ pub struct Module {
     pub(crate) code_follows: bool,
     /// Whether passes must account for every operation's source debug information.
     debug_info_tracked: bool,
+    /// Block contents in which an earlier peephole run found nothing to rewrite.
+    pub(super) peephole_clean: passes::CleanBlocks,
 }
 
 impl Module {
@@ -139,6 +141,7 @@ impl Module {
             enable_size_outlining: false,
             code_follows: false,
             debug_info_tracked: false,
+            peephole_clean: passes::CleanBlocks::default(),
         }
     }
 
@@ -366,7 +369,7 @@ impl Instruction {
             encoding: Self::ENCODED_PUSH,
             value: None,
             stack_op: None,
-            metadata: Metadata { stack: Some(StackEffect::new(0, 1)), ..Metadata::default() },
+            metadata: Metadata::default(),
         }
     }
 
@@ -400,7 +403,7 @@ impl Instruction {
             encoding,
             value: Some(value),
             stack_op: None,
-            metadata: Metadata { stack: Some(StackEffect::new(0, 1)), ..Metadata::default() },
+            metadata: Metadata::default(),
         }
     }
 
@@ -510,14 +513,6 @@ impl Instruction {
     #[must_use]
     pub(crate) fn effective_stack_effect(&self) -> Option<StackEffect> {
         self.metadata.stack.or_else(|| default_instruction_stack_effect(self))
-    }
-
-    /// Returns whether metadata preserves the opcode's default stack effect.
-    #[must_use]
-    pub(crate) fn has_canonical_stack_effect(&self) -> bool {
-        self.metadata
-            .stack
-            .is_none_or(|effect| Some(effect) == default_instruction_stack_effect(self))
     }
 
     /// Returns the deferred constant referenced by this push instruction, if any.
@@ -734,7 +729,8 @@ enum PushValue {
 /// Metadata carried by instructions and terminators.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Metadata {
-    /// Optional stack effect.
+    /// Stack effect of an instruction without a known default one, which it must declare.
+    /// Known instructions never override theirs; terminators may restate it.
     pub(crate) stack: Option<StackEffect>,
     /// Whether this instruction must stay immediately before the next instruction of its block.
     ///

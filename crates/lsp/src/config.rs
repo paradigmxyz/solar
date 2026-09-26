@@ -2712,7 +2712,7 @@ mod tests {
         let config = project.config_with_roots(&["/repo", "/shared"]);
 
         let specs = config.watched_file_specs();
-        assert!(specs.windows(2).all(|specs| specs[0] < specs[1]));
+        assert!(specs.is_sorted());
         assert_eq!(
             specs
                 .iter()

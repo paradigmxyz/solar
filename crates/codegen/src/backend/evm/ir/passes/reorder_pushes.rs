@@ -32,6 +32,7 @@ use crate::backend::evm::{
     op::{self, StackOp},
 };
 use solar_config::{EvmVersion, OptimizationMode};
+use solar_data_structures::{index::IndexVec, newtype_index};
 use solar_sema::Gcx;
 
 pub(super) const REORDER_PUSHES: ReorderPushes =
@@ -81,7 +82,6 @@ impl EvmPass for ReorderPushes {
 
 #[derive(Default)]
 struct ReorderState {
-    source: Vec<Instruction>,
     sequence: InstructionSequence,
     expressions: Vec<Expression>,
 }
@@ -94,20 +94,19 @@ impl ReorderState {
         reorder_expressions: bool,
         reorder_closed_expressions: bool,
     ) -> bool {
-        if !instructions.iter().any(|inst| {
-            inst.has_canonical_stack_effect() && inst.as_stack_op() == Some(StackOp::Swap(1))
-        }) {
+        if !instructions.iter().any(|inst| inst.as_stack_op() == Some(StackOp::Swap(1))) {
             return false;
         }
 
-        std::mem::swap(instructions, &mut self.source);
         self.sequence.clear();
-        self.sequence.reserve(self.source.len());
+        std::mem::swap(instructions, &mut self.sequence.instructions);
+        self.sequence.reserve(self.sequence.instructions.len());
         self.expressions.clear();
         let mut changed = false;
-        for inst in self.source.drain(..) {
-            if inst.as_stack_op() == Some(StackOp::Swap(1))
-                && inst.has_canonical_stack_effect()
+        for index in 0..self.sequence.instructions.len() {
+            let inst = &self.sequence.instructions[index];
+            let swap1 = inst.as_stack_op() == Some(StackOp::Swap(1));
+            if swap1
                 && let Some(pushed) = self.expressions.last()
                 && pushed.immediate_recipe
                 && let Some(pushed_end) = self.sequence.last
@@ -123,8 +122,7 @@ impl ReorderState {
 
             // producer; closed expression; swap1 -> closed expression; producer
             if reorder_expressions
-                && inst.as_stack_op() == Some(StackOp::Swap(1))
-                && inst.has_canonical_stack_effect()
+                && swap1
                 && let [.., producer, pushed] = self.expressions.as_slice()
                 && (pushed.immediate_recipe || (reorder_closed_expressions && pushed.movable))
                 && let Some(pushed_end) = self.sequence.last
@@ -137,10 +135,10 @@ impl ReorderState {
                 continue;
             }
 
-            let node = self.sequence.push(inst);
+            let node = self.sequence.push(index as u32);
             update_expressions(&mut self.expressions, &self.sequence, node);
         }
-        self.sequence.finish_into(instructions);
+        self.sequence.finish_into(instructions, changed);
         changed
     }
 }
@@ -158,21 +156,17 @@ fn rebase_dup(evm_version: EvmVersion, depth: u8) -> Option<StackOp> {
 
 fn rebasable_dup_before(
     sequence: &InstructionSequence,
-    before: usize,
+    before: NodeId,
     evm_version: EvmVersion,
-) -> Option<(usize, StackOp)> {
+) -> Option<(NodeId, StackOp)> {
     let mut node = sequence.previous(before)?;
     loop {
         let inst = sequence.instruction(node);
         if let Some(StackOp::Dup(depth)) = inst.as_stack_op() {
-            if !inst.has_canonical_stack_effect() {
-                return None;
-            }
             return Some((node, rebase_dup(evm_version, depth)?));
         }
         let effect = inst.effective_stack_effect()?;
-        if !inst.has_canonical_stack_effect()
-            || inst.is_physical_stack_op()
+        if inst.is_physical_stack_op()
             || !inst.as_evm_opcode().is_some_and(op::is_unaffected_by_preceding_push)
             || effect.inputs != 1
             || effect.outputs != 1
@@ -185,7 +179,7 @@ fn rebasable_dup_before(
 
 #[derive(Clone, Copy)]
 struct Expression {
-    start: usize,
+    start: NodeId,
     immediate_recipe: bool,
     movable: bool,
 }
@@ -193,11 +187,10 @@ struct Expression {
 fn update_expressions(
     expressions: &mut Vec<Expression>,
     sequence: &InstructionSequence,
-    node: usize,
+    node: NodeId,
 ) {
     let inst = sequence.instruction(node);
     let effect = if let Some(effect) = inst.effective_stack_effect()
-        && inst.has_canonical_stack_effect()
         && !inst.is_physical_stack_op()
         && inst.as_evm_opcode().is_none_or(op::is_unaffected_by_preceding_push)
         && effect.outputs == 1
@@ -230,21 +223,30 @@ fn update_expressions(
     expressions.push(Expression { start: first, immediate_recipe, movable });
 }
 
-struct InstructionNode {
-    instruction: Option<Instruction>,
-    previous: Option<usize>,
-    next: Option<usize>,
+newtype_index! {
+    /// A node of an [`InstructionSequence`].
+    struct NodeId;
 }
 
+struct InstructionNode {
+    /// Index of the instruction in the block being reordered.
+    instruction: u32,
+    previous: Option<NodeId>,
+    next: Option<NodeId>,
+}
+
+/// A linked order over the block's instructions, which stay in place until it is finished.
 #[derive(Default)]
 struct InstructionSequence {
-    nodes: Vec<InstructionNode>,
-    first: Option<usize>,
-    last: Option<usize>,
+    instructions: Vec<Instruction>,
+    nodes: IndexVec<NodeId, InstructionNode>,
+    first: Option<NodeId>,
+    last: Option<NodeId>,
 }
 
 impl InstructionSequence {
     fn clear(&mut self) {
+        self.instructions.clear();
         self.nodes.clear();
         self.first = None;
         self.last = None;
@@ -254,13 +256,9 @@ impl InstructionSequence {
         self.nodes.reserve(additional);
     }
 
-    fn push(&mut self, instruction: Instruction) -> usize {
-        let index = self.nodes.len();
-        self.nodes.push(InstructionNode {
-            instruction: Some(instruction),
-            previous: self.last,
-            next: None,
-        });
+    fn push(&mut self, instruction: u32) -> NodeId {
+        let index =
+            self.nodes.push(InstructionNode { instruction, previous: self.last, next: None });
         if let Some(last) = self.last {
             self.nodes[last].next = Some(index);
         } else {
@@ -270,24 +268,23 @@ impl InstructionSequence {
         index
     }
 
-    fn instruction(&self, index: usize) -> &Instruction {
-        self.nodes[index].instruction.as_ref().unwrap()
+    fn instruction(&self, index: NodeId) -> &Instruction {
+        &self.instructions[self.nodes[index].instruction as usize]
     }
 
-    fn previous(&self, index: usize) -> Option<usize> {
+    fn previous(&self, index: NodeId) -> Option<NodeId> {
         self.nodes[index].previous
     }
 
-    fn replace_stack_op(&mut self, index: usize, stack_op: StackOp) {
-        let metadata =
-            std::mem::take(&mut self.nodes[index].instruction.as_mut().unwrap().metadata);
+    fn replace_stack_op(&mut self, index: NodeId, stack_op: StackOp) {
+        let instruction = &mut self.instructions[self.nodes[index].instruction as usize];
+        let metadata = std::mem::take(&mut instruction.metadata);
         let mut replacement = Instruction::stack_op(stack_op);
         replacement.metadata = metadata;
-        replacement.metadata.stack = None;
-        self.nodes[index].instruction = Some(replacement);
+        *instruction = replacement;
     }
 
-    fn move_range_before(&mut self, start: usize, end: usize, before: usize) {
+    fn move_range_before(&mut self, start: NodeId, end: NodeId, before: NodeId) {
         let previous = self.nodes[start].previous;
         let next = self.nodes[end].next;
         if let Some(previous) = previous {
@@ -312,12 +309,19 @@ impl InstructionSequence {
         }
     }
 
-    fn finish_into(&mut self, instructions: &mut Vec<Instruction>) {
+    /// Writes the linked order into the empty `instructions`. Without a rewrite, the order is
+    /// the original one and every instruction is linked, so the block is returned as it was.
+    fn finish_into(&mut self, instructions: &mut Vec<Instruction>, changed: bool) {
+        if !changed {
+            std::mem::swap(instructions, &mut self.instructions);
+            return;
+        }
+        let mut slots = self.instructions.drain(..).map(Some).collect::<Vec<_>>();
         instructions.reserve(self.nodes.len());
         let mut current = self.first;
         while let Some(index) = current {
-            let node = &mut self.nodes[index];
-            instructions.push(node.instruction.take().unwrap());
+            let node = &self.nodes[index];
+            instructions.push(slots[node.instruction as usize].take().unwrap());
             current = node.next;
         }
     }

@@ -83,16 +83,16 @@ impl<'a> RuleContext<'a> {
         self
     }
 
-    /// Appends every equivalent instruction the rules can build for `op`.
+    /// Appends every equivalent instruction the rules can build for `op`,
+    /// whose operands must be in [`canonical_operands`] order.
     pub(super) fn rewrite(&mut self, op: &Op, alternatives: &mut Vec<Op>) {
-        let op = canonical_operands(self.func, *op);
-        generated::constructor_rewrite(self, &op, alternatives);
+        generated::constructor_rewrite(self, op, alternatives);
     }
 
-    /// Returns the value `op` is equal to, when a rule applies.
+    /// Returns the value `op` is equal to, when a rule applies. The operands
+    /// of `op` must be in [`canonical_operands`] order.
     pub(super) fn simplify(&mut self, op: &Op) -> Option<ValueId> {
-        let op = canonical_operands(self.func, *op);
-        generated::constructor_simplify(self, &op)
+        generated::constructor_simplify(self, op)
     }
 
     fn has_const(&self, value: ValueId, expected: U256) -> bool {
