@@ -17,7 +17,7 @@ bb2:
 bb3:
   jump bb4
 bb4:
-  jump !metadata(stack=1->0)
+  jump
 bb5:
   stop
 

@@ -165,7 +165,7 @@ fn rebasable_dup_before(
         if let Some(StackOp::Dup(depth)) = inst.as_stack_op() {
             return Some((node, rebase_dup(evm_version, depth)?));
         }
-        let effect = inst.effective_stack_effect()?;
+        let effect = inst.stack_effect()?;
         if inst.is_physical_stack_op()
             || !inst.as_evm_opcode().is_some_and(op::is_unaffected_by_preceding_push)
             || effect.inputs != 1
@@ -190,7 +190,7 @@ fn update_expressions(
     node: NodeId,
 ) {
     let inst = sequence.instruction(node);
-    let effect = if let Some(effect) = inst.effective_stack_effect()
+    let effect = if let Some(effect) = inst.stack_effect()
         && !inst.is_physical_stack_op()
         && inst.as_evm_opcode().is_none_or(op::is_unaffected_by_preceding_push)
         && effect.outputs == 1

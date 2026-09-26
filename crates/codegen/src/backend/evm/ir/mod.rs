@@ -237,6 +237,11 @@ pub(crate) struct BlockMetadata {
     pub(crate) is_continuation: bool,
     /// Source function entered by this block's leading `JUMPDEST`.
     pub(crate) function_invoke: Option<DebugFunction>,
+    /// Stack depth at which verification enters this block, in addition to its modeled edges.
+    ///
+    /// Only textual EVM IR declares it, so that a test can start a block with a deep stack; the
+    /// entry block is otherwise entered at depth zero.
+    pub(crate) entry_depth: Option<u16>,
 }
 
 /// Block hotness metadata.
@@ -509,10 +514,15 @@ impl Instruction {
         self.stack_op
     }
 
-    /// Returns metadata's stack effect override or the opcode's default effect.
+    /// Returns the instruction's stack effect, or `None` for an opcode without a known one,
+    /// which verification rejects.
     #[must_use]
-    pub(crate) fn effective_stack_effect(&self) -> Option<StackEffect> {
-        self.metadata.stack.or_else(|| default_instruction_stack_effect(self))
+    pub(crate) fn stack_effect(&self) -> Option<StackEffect> {
+        if self.is_encoded_push() {
+            return Some(StackEffect::new(0, 1));
+        }
+        let (inputs, outputs) = self.definition()?.stack_io?;
+        Some(StackEffect::new(inputs, outputs))
     }
 
     /// Returns the deferred constant referenced by this push instruction, if any.
@@ -729,9 +739,6 @@ enum PushValue {
 /// Metadata carried by instructions and terminators.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Metadata {
-    /// Stack effect of an instruction without a known default one, which it must declare.
-    /// Known instructions never override theirs; terminators may restate it.
-    pub(crate) stack: Option<StackEffect>,
     /// Whether this instruction must stay immediately before the next instruction of its block.
     ///
     /// Only meaningful on instructions. It forbids every transform both from turning the boundary
@@ -815,7 +822,7 @@ impl Metadata {
         self.modifier_depth = other.modifier_depth;
     }
 
-    /// Copies debug information without copying machine properties such as stack effects.
+    /// Copies debug information without copying machine properties such as `keep_with_next`.
     pub(crate) fn copy_debug_info_from(&mut self, other: &Self) {
         self.copy_source_debug_from(other);
         self.function_invoke = other.function_invoke;
@@ -934,16 +941,6 @@ impl StackEffect {
     }
 }
 
-pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> Option<StackEffect> {
-    if inst.is_encoded_push() {
-        Some(StackEffect::new(0, 1))
-    } else if let Some((inputs, outputs)) = inst.definition().and_then(|def| def.stack_io) {
-        Some(StackEffect::new(inputs, outputs))
-    } else {
-        None
-    }
-}
-
 pub(super) fn default_terminator_stack_effect(kind: &TerminatorKind) -> Option<StackEffect> {
     let (inputs, outputs) = kind.stack_io()?;
     Some(StackEffect::new(inputs, outputs))
@@ -957,7 +954,7 @@ mod tests {
     fn terminators_describe_control_flow() {
         let add = Instruction::opcode(op::ADD);
         assert_eq!(add.definition().map(|def| def.mnemonic), Some("add"));
-        assert_eq!(default_instruction_stack_effect(&add), Some(StackEffect::new(2, 1)));
+        assert_eq!(add.stack_effect(), Some(StackEffect::new(2, 1)));
 
         let jump = TerminatorKind::Jump(BlockId::ENTRY);
         assert_eq!(jump.stack_io(), Some((0, 0)));

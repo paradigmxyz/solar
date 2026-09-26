@@ -14,14 +14,14 @@
 //!
 //! Final cleanup exposes acyclic branch triangles as structural conditional terminators so
 //! layout can place their taken arm before the join. It preserves source origins and excludes
-//! glued instructions and custom stack effects. Keeping this after
+//! glued instructions. Keeping this after
 //! sharing avoids changing which physical instruction sequences earlier passes can merge.
 //! Final cleanup also recognizes labels passed straight to a shared `JUMPI` head as direct
 //! jump targets. Deferring this until sharing is complete avoids exposing larger tails whose
 //! merger would add jumps back to the paths being shortened.
 //! Size cleanup turns a constant label passed to a shared one-instruction `JUMPI` body into
 //! a direct conditional terminator. This lets layout remove the intermediate jump; glued
-//! sequences and custom stack effects remain intact.
+//! sequences remain intact.
 //! Gas cleanup duplicates a word-return body of at most eight bytes into an empty stub
 //! reached by at least two other empty stubs. It amortizes the copy across those paths while
 //! preserving every address-taken label. The copy stays after structural sharing so it cannot
@@ -203,8 +203,6 @@ fn expose_shared_branches(module: &mut Module) -> bool {
             && !jumpi.keeps_with_next()
             && let Some(continuation) = &body.terminator
             && let TerminatorKind::Jump(else_block) = continuation.kind
-            && jump.metadata.stack.is_none()
-            && continuation.metadata.stack.is_none()
         {
             // push taken; jump head; head: jumpi; jump other -> jumpi taken, other
             let mut branch = Terminator::new(TerminatorKind::JumpI { then_block, else_block });
@@ -335,7 +333,6 @@ fn normalize_triangle_branches(module: &mut Module) -> bool {
             && is_split_point(&block.instructions, block.instructions.len() - 2)
             && !pushed.keeps_with_next()
             && !jumpi.keeps_with_next()
-            && terminator.metadata.stack.is_none()
             && triangle_arm(module, then_block, else_block)
         {
             // push arm; jumpi; jump join -> jumpi arm, join
@@ -693,7 +690,6 @@ fn simplify_known_jumps(module: &mut Module) -> bool {
         {
             // push target; jump -> jump target
             term.metadata.absorb_debug_info(&last.metadata);
-            term.metadata.stack = None;
             term.kind = TerminatorKind::Jump(target);
             block.instructions.pop();
             changed = true;

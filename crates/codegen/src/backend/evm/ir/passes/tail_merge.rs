@@ -532,7 +532,7 @@ fn word_loop_input_width(instructions: &[Instruction]) -> Option<isize> {
             (0, 1)
         } else if inst.as_evm_opcode().is_some_and(op::is_pure) {
             computes_word = true;
-            let effect = inst.effective_stack_effect()?;
+            let effect = inst.stack_effect()?;
             (isize::from(effect.inputs), isize::from(effect.outputs) - isize::from(effect.inputs))
         } else {
             return None;

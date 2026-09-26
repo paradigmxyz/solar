@@ -19,7 +19,7 @@
 
 use super::EvmPass;
 use crate::backend::evm::{
-    ir::{Instruction, Module, PushValue, default_instruction_stack_effect},
+    ir::{Instruction, Module, PushValue},
     op,
 };
 use smallvec::SmallVec;
@@ -282,7 +282,7 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
             continue;
         }
 
-        let stack_effect = default_instruction_stack_effect(&inst);
+        let stack_effect = inst.stack_effect();
         let origin = instructions.len();
         instructions.push(inst);
         if op::writes_memory(opcode) {
@@ -304,9 +304,8 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
                 });
             }
         } else {
-            // An unknown instruction is a hard analysis boundary. Its declared stack effect
-            // gives only net inputs and outputs, and it may touch memory: values below it may
-            // still exist physically, but cannot safely satisfy a later expression lookup.
+            // Verified IR has no instruction without a known stack effect; should one appear,
+            // forget every tracked value and store rather than guess its effect.
             stack.clear();
             known_stores.clear();
         }
@@ -408,7 +407,7 @@ fn may_regenerate(instructions: &[Instruction], stack_access_limit: usize) -> bo
         if op::writes_storage(opcode) {
             storage_epoch = storage_epoch.wrapping_add(1);
         }
-        if let Some(effect) = default_instruction_stack_effect(inst) {
+        if let Some(effect) = inst.stack_effect() {
             let inputs = usize::from(effect.inputs);
             ensure_hash_depth(&mut stack, inputs, &mut next_fresh);
             stack.truncate(stack.len() - inputs);
@@ -590,31 +589,5 @@ const fn expression_inputs(
     match op::stack_io(opcode) {
         Some((inputs, _)) => Some((inputs as usize, epoch)),
         None => None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::backend::evm::ir::StackEffect;
-    use alloy_primitives::U256;
-
-    #[test]
-    fn unknown_instruction_is_an_analysis_boundary() {
-        let mut unknown = Instruction::opcode(0x0c);
-        unknown.metadata.stack = Some(StackEffect::new(0, 0));
-        let mut instructions = vec![
-            Instruction::push_value(U256::from(1)),
-            Instruction::push_value(U256::from(2)),
-            Instruction::opcode(op::ADD),
-            unknown,
-            Instruction::push_value(U256::from(1)),
-            Instruction::push_value(U256::from(2)),
-            Instruction::opcode(op::ADD),
-        ];
-        let original = instructions.clone();
-
-        assert!(!regenerate_block(&mut instructions, 16));
-        assert_eq!(instructions, original);
     }
 }

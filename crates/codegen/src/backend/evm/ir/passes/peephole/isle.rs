@@ -767,7 +767,6 @@ impl generated::Context for PeepContext<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::evm::ir::StackEffect;
 
     #[test]
     fn protected_word_rejects_observation_and_unknown_instructions() {
@@ -780,7 +779,6 @@ mod tests {
             instructions[index].metadata.keep_with_next = false;
         }
         instructions[1] = Instruction::opcode(0x0c);
-        instructions[1].metadata.stack = Some(StackEffect::new(1, 1));
         assert_eq!(protected_word_depth(&instructions), None);
         instructions[1] = Instruction::stack_op(StackOp::Dup(2));
         assert_eq!(protected_word_depth(&instructions), None);

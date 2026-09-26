@@ -170,8 +170,7 @@ bb10:
   add
   stop
 
-// An EOF internal function may mutate both the caller's memory and storage. Its explicit stack
-// effect lets block CSE continue tracking physical values, but cached reads must be invalidated.
+// An external call may mutate both memory and storage, so cached reads must be invalidated.
 // CHECK-LABEL: {{^[ +].*}}bb11:
 // CHECK: mload
 // CHECK: sload
@@ -182,7 +181,15 @@ bb11:
   mload
   push 0
   sload
-  callf !metadata(stack=0->0)
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  gas
+  call
+  pop
   push 32
   mload
   add

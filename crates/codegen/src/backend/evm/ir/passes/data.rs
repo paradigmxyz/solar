@@ -14,7 +14,7 @@ use crate::{
         data_copy_cost, data_copy_gas, data_copy_is_profitable,
         ir::{
             BlockId, Data, DataId, DataRef, Instruction, Module, PushValue,
-            default_instruction_stack_effect, immediate_materialization_cost,
+            immediate_materialization_cost,
         },
         op::{self, WORD_BYTES},
     },
@@ -601,8 +601,7 @@ fn track_data_reference(
         mark_stack_data_unsafe(stack, &mut references.subslice_safe);
     }
 
-    let Some(effect) = inst.metadata.stack.or_else(|| default_instruction_stack_effect(inst))
-    else {
+    let Some(effect) = inst.stack_effect() else {
         mark_stack_data_unsafe(stack, &mut references.subslice_safe);
         stack.clear();
         return;

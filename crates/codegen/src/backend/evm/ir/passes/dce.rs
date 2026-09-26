@@ -21,10 +21,7 @@
 
 use super::EvmPass;
 use crate::backend::evm::{
-    ir::{
-        Block, BlockId, Instruction, Module, Terminator, TerminatorKind,
-        default_instruction_stack_effect,
-    },
+    ir::{Block, BlockId, Instruction, Module, Terminator, TerminatorKind},
     op::{self, StackOp},
 };
 use solar_config::EvmVersion;
@@ -88,10 +85,10 @@ fn block_ignores_entry_stack(block: &Block) -> bool {
             let inputs = stack_op.required_depth();
             let outputs = inputs.checked_add_signed(stack_op.net_growth()).unwrap();
             (inputs, outputs)
-        } else if let Some(effect) = default_instruction_stack_effect(inst) {
+        } else if let Some(effect) = inst.stack_effect() {
             (usize::from(effect.inputs), usize::from(effect.outputs))
         } else {
-            // An unknown instruction stays opaque, whatever stack effect it declares.
+            // Verified IR has no instruction without a known stack effect.
             return false;
         };
         if depth < inputs {
@@ -409,8 +406,8 @@ fn find_candidate(
                 if inst.as_evm_opcode().is_some_and(is_analysis_boundary) {
                     return None;
                 }
-                // An unknown instruction stays opaque, whatever stack effect it declares.
-                let effect = default_instruction_stack_effect(inst)?;
+                // Verified IR has no instruction without a known stack effect.
+                let effect = inst.stack_effect()?;
                 let inputs = usize::from(effect.inputs);
                 if inputs > slots.len()
                     || slots[slots.len() - inputs..].iter().any(|slot| slot.is_ghost)

@@ -46,13 +46,11 @@ bb4:
   jump bb9
 
 // CHECK-LABEL: {{^[ +].*}}bb5:
-// CHECK: {{^[ +].*}}push bb7
-// CHECK: {{^[ +] *}}jumpi{{$}}
-// CHECK-NEXT: {{^[ +].*}}jump bb8
+// CHECK: + jumpi bb7, bb8{{$}}
 bb5:
   push 1
   push bb7
-  jump bb6 !metadata(stack=0->0)
+  jump bb6
 
 bb6:
   jumpi
