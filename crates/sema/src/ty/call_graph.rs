@@ -1,6 +1,6 @@
 use super::{Gcx, TyKind};
 use crate::hir::{self, Visit};
-use solar_data_structures::{Never, bit_set::DenseBitSet};
+use solar_data_structures::{Never, bit_set::DenseBitSet, map::FxIndexMap};
 use std::{collections::VecDeque, ops::ControlFlow};
 
 pub(super) struct ReferencedItems {
@@ -28,17 +28,27 @@ impl ReferencedItems {
     }
 }
 
-struct CallGraphBuilder<'gcx> {
+struct CallGraphBuilder<'gcx, 's> {
     gcx: Gcx<'gcx>,
     contract: hir::ContractId,
     graph: ReferencedItems,
     worklist: VecDeque<hir::FunctionId>,
     visited_constants: DenseBitSet<hir::VariableId>,
     direct_callee: Option<hir::ExprId>,
+    /// Whether the traversal reaches a function without entering its body.
+    stop: &'s dyn Fn(hir::FunctionId) -> bool,
+    /// The function whose body is being visited, if any.
+    current: Option<hir::FunctionId>,
+    /// The function that first reached each function, or `None` for a root.
+    parents: FxIndexMap<hir::FunctionId, Option<hir::FunctionId>>,
 }
 
-impl<'gcx> CallGraphBuilder<'gcx> {
-    fn new(gcx: Gcx<'gcx>, contract: hir::ContractId) -> Self {
+impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
+    fn new(
+        gcx: Gcx<'gcx>,
+        contract: hir::ContractId,
+        stop: &'s dyn Fn(hir::FunctionId) -> bool,
+    ) -> Self {
         Self {
             gcx,
             contract,
@@ -46,11 +56,25 @@ impl<'gcx> CallGraphBuilder<'gcx> {
             worklist: VecDeque::new(),
             visited_constants: DenseBitSet::new_empty(gcx.hir.variable_ids().count()),
             direct_callee: None,
+            stop,
+            current: None,
+            parents: FxIndexMap::default(),
         }
     }
 
     fn build_creation(gcx: Gcx<'gcx>, contract: hir::ContractId) -> ReferencedItems {
-        let mut this = Self::new(gcx, contract);
+        Self::new(gcx, contract, &|_| false).creation()
+    }
+
+    fn creation(mut self) -> ReferencedItems {
+        self.enter_creation();
+        self.finish()
+    }
+
+    fn enter_creation(&mut self) {
+        let gcx = self.gcx;
+        let contract = self.contract;
+        let this = self;
         for &base in gcx.hir.contract(contract).linearized_bases.iter().rev() {
             let base = gcx.hir.contract(base);
             for variable in base.variables() {
@@ -69,7 +93,6 @@ impl<'gcx> CallGraphBuilder<'gcx> {
                 let _ = this.visit_modifier(inheritance);
             }
         }
-        this.finish()
     }
 
     fn build_deployed(
@@ -77,26 +100,38 @@ impl<'gcx> CallGraphBuilder<'gcx> {
         contract: hir::ContractId,
         creation: &ReferencedItems,
     ) -> ReferencedItems {
-        let mut this = Self::new(gcx, contract);
-        for function in gcx.interface_functions(contract) {
-            this.enqueue(function.id);
-        }
-        let contract = gcx.hir.contract(contract);
-        if let Some(fallback) = contract.fallback {
-            this.enqueue(fallback);
-        }
-        if let Some(receive) = contract.receive {
-            this.enqueue(receive);
-        }
-        for function in &creation.internal_dispatch_targets {
-            this.add_internal_dispatch_target(function);
-        }
+        let mut this = Self::new(gcx, contract, &|_| false);
+        this.enter_deployed(creation);
         this.finish()
     }
 
+    fn enter_deployed(&mut self, creation: &ReferencedItems) {
+        let gcx = self.gcx;
+        for function in gcx.interface_functions(self.contract) {
+            self.enqueue(function.id);
+        }
+        let contract = gcx.hir.contract(self.contract);
+        if let Some(fallback) = contract.fallback {
+            self.enqueue(fallback);
+        }
+        if let Some(receive) = contract.receive {
+            self.enqueue(receive);
+        }
+        for function in &creation.internal_dispatch_targets {
+            self.add_internal_dispatch_target(function);
+        }
+    }
+
     fn build_all(gcx: Gcx<'gcx>, contract: hir::ContractId) -> ReferencedItems {
-        let mut this = Self::new(gcx, contract);
-        let contract = gcx.hir.contract(contract);
+        let mut this = Self::new(gcx, contract, &|_| false);
+        this.enter_all();
+        this.finish()
+    }
+
+    fn enter_all(&mut self) {
+        let gcx = self.gcx;
+        let this = self;
+        let contract = gcx.hir.contract(this.contract);
         for modifier in contract.linearized_bases_args.iter().flatten() {
             let _ = this.visit_modifier(modifier);
         }
@@ -115,18 +150,27 @@ impl<'gcx> CallGraphBuilder<'gcx> {
                 this.enqueue(function);
             }
         }
-        this.finish()
     }
 
     fn finish(mut self) -> ReferencedItems {
-        while let Some(function) = self.worklist.pop_front() {
-            let _ = self.visit_nested_function(function);
-        }
+        self.drain();
         self.graph
+    }
+
+    fn drain(&mut self) {
+        while let Some(function) = self.worklist.pop_front() {
+            if (self.stop)(function) {
+                continue;
+            }
+            self.current = Some(function);
+            let _ = self.visit_nested_function(function);
+            self.current = None;
+        }
     }
 
     fn enqueue(&mut self, function: hir::FunctionId) {
         if self.graph.functions.insert(function) {
+            self.parents.entry(function).or_insert(self.current);
             self.worklist.push_back(function);
         }
     }
@@ -231,7 +275,7 @@ impl<'gcx> CallGraphBuilder<'gcx> {
     }
 }
 
-impl<'gcx> Visit<'gcx> for CallGraphBuilder<'gcx> {
+impl<'gcx> Visit<'gcx> for CallGraphBuilder<'gcx, '_> {
     type BreakValue = Never;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {
@@ -296,4 +340,32 @@ pub(super) fn interface_items(gcx: Gcx<'_>, id: hir::ContractId) -> InterfaceIte
 
 pub(super) fn all_items(gcx: Gcx<'_>, id: hir::ContractId) -> ReferencedItems {
     CallGraphBuilder::build_all(gcx, id)
+}
+
+/// The functions the contract `id` runs, found as [`interface_items`] finds them, from its
+/// creation and its interface, or from every function of its bases when `all`, with the function
+/// that first reached each, or `None` for a root. A function `stop` accepts is reached but not
+/// entered, so what only it reaches is not.
+pub(crate) fn traced_functions(
+    gcx: Gcx<'_>,
+    id: hir::ContractId,
+    all: bool,
+    stop: &dyn Fn(hir::FunctionId) -> bool,
+) -> FxIndexMap<hir::FunctionId, Option<hir::FunctionId>> {
+    let mut builder = CallGraphBuilder::new(gcx, id, stop);
+    if all {
+        builder.enter_all();
+        builder.drain();
+        return builder.parents;
+    }
+    builder.enter_creation();
+    builder.drain();
+    let mut deployed = CallGraphBuilder::new(gcx, id, stop);
+    deployed.enter_deployed(&builder.graph);
+    deployed.drain();
+    let mut parents = builder.parents;
+    for (function, parent) in deployed.parents {
+        parents.entry(function).or_insert(parent);
+    }
+    parents
 }

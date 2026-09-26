@@ -1,0 +1,33 @@
+// CHECK: "Reviewed": {
+// CHECK: "trusted": [
+// CHECK-NEXT: "Reviewed.word(bytes)"
+// CHECK: "Clean": {
+// CHECK: "solarSafety": {
+// CHECK-NEXT: "memory": true,
+// CHECK-NEXT: "arithmetic": true,
+// CHECK-NEXT: "trusted": []
+// CHECK: "Assembly": {
+// CHECK: "solarSafety": {
+// CHECK-NEXT: "memory": false,
+// CHECK-NEXT: "arithmetic": false,
+// CHECK-NEXT: "trusted": []
+// CHECK: "Wrapping": {
+// CHECK: "solarSafety": {
+// CHECK-NEXT: "memory": true,
+// CHECK-NEXT: "arithmetic": false,
+// CHECK: "Trusting": {
+// CHECK: "solarSafety": {
+// CHECK-NEXT: "memory": true,
+// CHECK-NEXT: "arithmetic": true,
+// CHECK-NEXT: "trusted": [
+// CHECK-NEXT: "Reviewed.word(bytes)"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "safety.sol": {
+        "*": ["solarSafety"]
+      }
+    }
+  }
+}

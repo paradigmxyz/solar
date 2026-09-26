@@ -1,0 +1,50 @@
+{
+  "sources": {
+    "safety.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "safety.sol": {
+      "Reviewed": {
+        "solarSafety": {
+          "memory": true,
+          "arithmetic": true,
+          "trusted": [
+            "Reviewed.word(bytes)"
+          ]
+        }
+      },
+      "Clean": {
+        "solarSafety": {
+          "memory": true,
+          "arithmetic": true,
+          "trusted": []
+        }
+      },
+      "Assembly": {
+        "solarSafety": {
+          "memory": false,
+          "arithmetic": false,
+          "trusted": []
+        }
+      },
+      "Wrapping": {
+        "solarSafety": {
+          "memory": true,
+          "arithmetic": false,
+          "trusted": []
+        }
+      },
+      "Trusting": {
+        "solarSafety": {
+          "memory": true,
+          "arithmetic": true,
+          "trusted": [
+            "Reviewed.word(bytes)"
+          ]
+        }
+      }
+    }
+  }
+}

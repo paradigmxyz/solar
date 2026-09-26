@@ -327,12 +327,11 @@ impl<'gcx> Resolver<'gcx> {
                     | NatSpecKind::Dev
                     | NatSpecKind::Custom { .. }
                     | NatSpecKind::Internal { .. } => {
-                        // `solar-terminates` and `solar-view`, naming parameters, are the Solar
-                        // tags of a declaration.
+                        // `solar-terminates`, `solar-view` naming parameters, `solar-safe` and
+                        // `solar-trusted` are the Solar tags of a declaration.
                         if let NatSpecKind::Custom { name } = natspec.kind
                             && let Some(tag) = SolarTag::from_custom(name.name)
-                            && !(matches!(tag, SolarTag::Terminates | SolarTag::View)
-                                && declaration_tag_applies(self.gcx, item_id))
+                            && !item_tag_applies(self.gcx, tag, item_id)
                         {
                             report_misplaced_solar_tag(self.gcx.dcx(), tag, name.name, tag_span);
                         }
@@ -840,6 +839,11 @@ pub(crate) enum SolarTag {
     Scratch,
     /// `@custom:solar-terminates`: the function ends the call on every path.
     Terminates,
+    /// `@custom:solar-safe`: the code the contract runs has no inline assembly, or no unchecked
+    /// arithmetic.
+    Safe,
+    /// `@custom:solar-trusted`: reviewed code a `@custom:solar-safe` contract may run.
+    Trusted,
     /// A `solar-` tag this compiler does not define.
     Unknown,
 }
@@ -851,8 +855,23 @@ impl SolarTag {
             sym::solar_dash_view => Some(Self::View),
             sym::solar_dash_scratch => Some(Self::Scratch),
             sym::solar_dash_terminates => Some(Self::Terminates),
+            sym::solar_dash_safe => Some(Self::Safe),
+            sym::solar_dash_trusted => Some(Self::Trusted),
             _ => name.as_str().starts_with("solar-").then_some(Self::Unknown),
         }
+    }
+}
+
+/// Whether the Solar tag `tag` can document the item `item`: `@custom:solar-safe` a contract or a
+/// library, `@custom:solar-trusted` one of those or a function or modifier with a body, and the
+/// other declaration tags what [`declaration_tag_applies`] accepts.
+fn item_tag_applies(gcx: Gcx<'_>, tag: SolarTag, item: hir::ItemId) -> bool {
+    let code_contract = |id| gcx.hir.contract(id).kind != hir::ContractKind::Interface;
+    match (tag, item) {
+        (SolarTag::Terminates | SolarTag::View, item) => declaration_tag_applies(gcx, item),
+        (SolarTag::Safe | SolarTag::Trusted, hir::ItemId::Contract(id)) => code_contract(id),
+        (SolarTag::Trusted, hir::ItemId::Function(id)) => gcx.hir.function(id).body.is_some(),
+        _ => false,
     }
 }
 
@@ -891,13 +910,26 @@ pub(crate) fn report_misplaced_solar_tag(dcx: &DiagCtxt, tag: SolarTag, name: Sy
             .span(span)
             .help("put it on a function with a body that ends the call on every path")
             .emit(),
+        SolarTag::Safe => dcx
+            .err("`@custom:solar-safe` must document a contract or a library")
+            .span(span)
+            .help("put it on the contract whose code must be free of assembly and unchecked arithmetic")
+            .emit(),
+        SolarTag::Trusted => dcx
+            .err(
+                "`@custom:solar-trusted` must document a function, a modifier, a contract, or a \
+                 library",
+            )
+            .span(span)
+            .help("put it on the reviewed code a `@custom:solar-safe` contract runs")
+            .emit(),
         SolarTag::Unknown => dcx
             .err(format!("unknown Solar tag `@custom:{name}`"))
             .span(span)
             .note("`@custom:solar-` tags are requirements this compiler checks")
             .help(
-                "the supported tags are `@custom:solar-view`, `@custom:solar-scratch`, and \
-                 `@custom:solar-terminates`",
+                "the supported tags are `@custom:solar-view`, `@custom:solar-scratch`, \
+                 `@custom:solar-terminates`, `@custom:solar-safe`, and `@custom:solar-trusted`",
             )
             .emit(),
     };
