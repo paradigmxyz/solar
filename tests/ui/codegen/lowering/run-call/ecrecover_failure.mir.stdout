@@ -1,0 +1,68 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/ecrecover_failure.sol:EcrecoverFailure ===
+@module EcrecoverFailure
+fn @recover() -> i256 [selector=0xce746024, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
+  bb0:
+    v0 = shl 0, 1
+    v1 = icall ecrecover<>, v0, 28, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
+    ret v1
+}
+
+fn @recoverInvalidDirtyScratch() -> i256 [selector=0x5721fb2d, inline_assembly, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
+  bb0:
+    v0 = not 0
+    mstore 0, v0 !metadata(memory=scratch)
+    v1 = icall ecrecover<>, 0, 0, 0, 0
+    ret v1
+}
+
+fn @recoverUnderGasPressure() -> i256 [selector=0x8ea61220, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v16]
+    v1 = phi [bb0: 0x7d0], [bb3: v17]
+    v2 = lt v1, 0x1b58
+    jumpi v2, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v0
+  bb4:
+    v3 = address
+    v4 = gas
+    v5 = abi_encode [], selector 0xce74602400000000000000000000000000000000000000000000000000000000
+    v6 = slice_ptr v5
+    v7 = slice_len v5
+    v8 = zext i160 v3 to i256
+    v9 = staticcall v1, v8, v6, v7, 0, 0
+    jumpi v9, bb7, bb8
+  bb8:
+    jumpi true, bb13, bb14
+  bb14:
+    icall revert_if<empty>, true
+    invalid
+  bb13:
+    jump bb9
+  bb7:
+    v10 = icall returndata_bytes<>
+    v11 = abi_decode [address], v10
+    v12 = zext i160 v11 to i256
+    v13 = ne v12, 0x7e5f4552091a69125d5dfcb7b8c2659029395bdf
+    jumpi v13, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    v14 = checked_add u256, v0, 1
+    jump bb12
+  bb12:
+    v15 = phi [bb10: v14], [bb11: v0]
+    jump bb9
+  bb9:
+    v16 = phi [bb12: v15], [bb13: v0]
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v17 = checked_add u256, v1, 11
+    jump bb1
+}
