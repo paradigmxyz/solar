@@ -11,7 +11,7 @@
 
 use crate::{
     eval::erc7201_slot,
-    hir::{self, ExprKind, ItemId, Visit},
+    hir::{self, ExprKind, ItemId, StmtKind, Visit},
     ty::Gcx,
 };
 use alloy_primitives::U256;
@@ -85,16 +85,46 @@ struct Accessors<'gcx, 'a> {
 impl<'gcx> Accessors<'gcx, '_> {
     /// The namespace of the struct `expr` refers to in storage, when it has one.
     fn namespace_of(&self, expr: &hir::Expr<'_>) -> Option<(hir::StructId, Namespace)> {
-        let ty = match self.gcx.type_of_expr(expr.id) {
-            Some(ty) => ty,
-            None => self.gcx.type_of_item(self.gcx.resolved_variable(expr)?.into()),
-        };
-        if !ty.is_ref_at(DataLocation::Storage) {
-            return None;
-        }
-        let crate::ty::TyKind::Struct(id) = ty.peel_refs().kind else { return None };
+        let id = storage_struct(self.gcx, expr)?;
         Some((id, *self.namespaces.get(&id)?))
     }
+}
+
+/// The struct `expr` refers to in storage, if it is a storage reference to a struct.
+fn storage_struct(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> Option<hir::StructId> {
+    let ty = match gcx.type_of_expr(expr.id) {
+        Some(ty) => ty,
+        None => gcx.type_of_item(gcx.resolved_variable(expr)?.into()),
+    };
+    if !ty.is_ref_at(DataLocation::Storage) {
+        return None;
+    }
+    let crate::ty::TyKind::Struct(id) = ty.peel_refs().kind else { return None };
+    Some(id)
+}
+
+/// Whether the inline assembly block `block` only points storage references at the ERC-7201
+/// namespaces of their structs: each statement assigns a namespace's location, as a constant, to
+/// the `.slot` of a reference to a struct in it, which is what this check proves, and nothing else
+/// in the block reads or writes memory or storage.
+pub(super) fn is_namespace_accessor(gcx: Gcx<'_>, block: &hir::Block<'_>) -> bool {
+    !block.stmts.is_empty()
+        && block.stmts.iter().all(|stmt| {
+            let StmtKind::Expr(expr) = stmt.kind else { return false };
+            let ExprKind::Assign(lhs, None, rhs) = expr.kind else { return false };
+            let ExprKind::YulMember(base, member) = lhs.peel_parens().kind else { return false };
+            if member.name != sym::slot {
+                return false;
+            }
+            let Some((namespace, _)) =
+                storage_struct(gcx, base).and_then(|id| gcx.hir.erc7201_namespace(id))
+            else {
+                return false;
+            };
+            let location = erc7201_slot(namespace.as_str().as_bytes());
+            gcx.try_eval_const(rhs)
+                .is_ok_and(|value| value.as_u256() == Some(U256::from_be_bytes(location.0)))
+        })
 }
 
 impl<'gcx> Visit<'gcx> for Accessors<'gcx, '_> {

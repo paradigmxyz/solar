@@ -596,6 +596,9 @@ fn make_contract_output<'gcx>(
     if output_selection.contains(OutputSelectionFlags::TRANSIENT_STORAGE_LAYOUT) {
         output.transient_storage_layout = Some(gcx.transient_storage_layout(contract_id));
     }
+    if output_selection.contains(OutputSelectionFlags::SOLAR_SAFETY) {
+        output.solar_safety = Some(gcx.safety(contract_id));
+    }
 
     let mut evm = EvmOutput::default();
     if output_selection.contains(OutputSelectionFlags::METHOD_IDENTIFIERS) {
