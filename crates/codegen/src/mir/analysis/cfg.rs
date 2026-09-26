@@ -8,7 +8,7 @@
 
 use std::cell::OnceCell;
 
-use crate::mir::{BlockId, Function};
+use crate::mir::{BlockId, Function, utils::IndexLists};
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -62,7 +62,7 @@ impl CfgInfo {
     }
 
     fn predecessors(&self) -> &BlockLists {
-        self.predecessors.get_or_init(|| BlockLists::predecessors(&self.successors))
+        self.predecessors.get_or_init(|| predecessor_lists(&self.successors))
     }
 
     /// Returns the blocks reachable from the entry.
@@ -335,55 +335,15 @@ impl DominatorTree {
     }
 }
 
-/// Per-block lists of blocks, stored contiguously in block order.
-#[derive(Clone, Debug)]
-struct BlockLists {
-    /// The list of block `b` is `blocks[starts[b]..starts[b + 1]]`.
-    starts: Vec<u32>,
-    blocks: Vec<BlockId>,
-}
+/// Per-block lists of blocks.
+type BlockLists = IndexLists<BlockId, BlockId>;
 
-impl BlockLists {
-    /// Groups `(block, item)` pairs by block, keeping each block's items in pair order.
-    fn new<I: Iterator<Item = (BlockId, BlockId)>>(count: usize, pairs: impl Fn() -> I) -> Self {
-        let mut starts = vec![0u32; count + 1];
-        for (block, _) in pairs() {
-            starts[block.index() + 1] += 1;
-        }
-        for index in 1..=count {
-            starts[index] += starts[index - 1];
-        }
-        // Each start advances to the next block's start while filling, then shifts back.
-        let mut blocks = vec![BlockId::ENTRY; starts[count] as usize];
-        for (block, item) in pairs() {
-            let slot = &mut starts[block.index()];
-            blocks[*slot as usize] = item;
-            *slot += 1;
-        }
-        starts.copy_within(..count, 1);
-        starts[0] = 0;
-        Self { starts, blocks }
-    }
-
-    fn predecessors(successors: &IndexVec<BlockId, SmallVec<[BlockId; 2]>>) -> Self {
-        Self::new(successors.len(), || {
-            successors.iter_enumerated().flat_map(|(block, successors)| {
-                successors.iter().map(move |&successor| (successor, block))
-            })
+fn predecessor_lists(successors: &IndexVec<BlockId, SmallVec<[BlockId; 2]>>) -> BlockLists {
+    BlockLists::new(successors.len(), || {
+        successors.iter_enumerated().flat_map(|(block, successors)| {
+            successors.iter().map(move |&successor| (successor, block))
         })
-    }
-
-    fn len(&self) -> usize {
-        self.starts.len() - 1
-    }
-
-    /// Returns the list of `block`, or an empty list outside the domain.
-    fn get(&self, block: BlockId) -> &[BlockId] {
-        match self.starts.get(block.index()..block.index() + 2) {
-            Some(&[start, end]) => &self.blocks[start as usize..end as usize],
-            _ => &[],
-        }
-    }
+    })
 }
 
 #[cfg(test)]
@@ -400,7 +360,7 @@ mod tests {
             .map(|edges| edges.iter().map(|&block| BlockId::from_usize(block)).collect())
             .collect();
         let rpo = (0..7).map(BlockId::from_usize).collect::<Vec<_>>();
-        let tree = DominatorTree::compute(&BlockLists::predecessors(&successors), &rpo);
+        let tree = DominatorTree::compute(&predecessor_lists(&successors), &rpo);
         assert!(tree.intervals.get().is_none());
         for a in 0..=edges.len() {
             for b in 0..=edges.len() {
