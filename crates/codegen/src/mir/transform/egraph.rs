@@ -83,11 +83,7 @@ use crate::{
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
-use solar_data_structures::{
-    bit_set::DenseBitSet,
-    index::IndexVec,
-    map::{FxHashMap, StdEntry},
-};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use std::rc::Rc;
 
 mod isle;
@@ -393,7 +389,8 @@ struct Builder<'a> {
 impl<'a> Builder<'a> {
     fn new(func: &'a mut Function, target: Target, cfg: Option<Rc<CfgInfo>>) -> Self {
         let dead = DenseBitSet::new_empty(func.num_insts());
-        let (max_nodes, max_operand_views) = search_limits(func.instructions().count());
+        let num_insts = func.instructions().count();
+        let (max_nodes, max_operand_views) = search_limits(num_insts);
         let (immediates, leaves, uses) = value_info(func);
         let optimistic = cfg
             .as_deref()
@@ -409,8 +406,8 @@ impl<'a> Builder<'a> {
             optimistic,
             merged: IndexVec::from_vec(vec![None; values]),
             classes: IndexVec::from_vec(std::iter::repeat_with(|| None).take(values).collect()),
-            memo: FxHashMap::default(),
-            undo: Vec::new(),
+            memo: FxHashMap::with_capacity_and_hasher(num_insts, Default::default()),
+            undo: Vec::with_capacity(num_insts),
             phis: FxHashMap::default(),
             uses,
             liveness: None,
@@ -1073,7 +1070,7 @@ fn optimistic_phi_leaders(
     let mut numbering = OptimisticNumbering {
         func,
         leaves,
-        table: FxHashMap::default(),
+        table: FxHashMap::with_capacity_and_hasher(func.num_values(), Default::default()),
         fresh: IndexVec::from_vec(vec![TOP; func.num_values()]),
         numbers: IndexVec::from_vec(vec![TOP; func.num_values()]),
         next: TOP,
@@ -1126,30 +1123,27 @@ fn optimistic_phi_leaders(
     // The first value of each class in reverse postorder leads it; a phi
     // merges into its leader when the leader is a leaf, an earlier phi or
     // instruction of the same block, or defined in a dominating block.
-    let mut first = FxHashMap::<u32, (ValueId, Option<BlockId>)>::default();
+    let mut first = vec![None::<(ValueId, Option<BlockId>)>; numbering.next as usize + 1];
     for (value, &number) in numbering.numbers.iter_enumerated() {
         if number != TOP && !matches!(func.value(value), Value::Inst(_)) {
-            first.insert(number, (value, None));
+            first[number as usize] = Some((value, None));
         }
     }
     for &block in cfg.rpo() {
         for &inst_id in &func.blocks[block].instructions {
             let Some(result) = func.inst_result_value(inst_id) else { continue };
             let number = numbering.numbers[result];
-            match first.entry(number) {
-                StdEntry::Occupied(entry) => {
-                    let (leader, leader_block) = *entry.get();
+            match &mut first[number as usize] {
+                Some((leader, leader_block)) => {
                     if matches!(func.inst(inst_id).kind, InstKind::Phi(_))
                         && leader_block.is_none_or(|leader_block| {
                             leader_block == block || cfg.dominators().dominates(leader_block, block)
                         })
                     {
-                        leaders.insert(result, leader);
+                        leaders.insert(result, *leader);
                     }
                 }
-                StdEntry::Vacant(entry) => {
-                    entry.insert((result, Some(block)));
-                }
+                entry @ None => *entry = Some((result, Some(block))),
             }
         }
     }
