@@ -1,6 +1,6 @@
 //! ISLE rewrite rules for the e-graph pass.
 //!
-//! The rules live in `isle/mir/egraph.isle` and `isle/mir/word.isle`. The instruction vocabulary
+//! The rules live in `isle/mir/egraph` and `isle/mir/word`. The instruction vocabulary
 //! they match on is generated from the MIR operation schema into `isle/mir/prelude.isle`, and
 //! `build.rs` compiles both into Rust. This module implements the extractors
 //! and constructors the rules call. Root operations and nested definitions expose
@@ -16,6 +16,7 @@ use crate::{
         memory::{EvmMemoryLayout, MemoryLayoutPolicy},
         utils::eval::eval_opcode,
     },
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
@@ -51,6 +52,7 @@ mod generated {
 pub(super) struct RuleContext<'a> {
     func: &'a mut Function,
     evm_version: EvmVersion,
+    target: Option<Target>,
     /// Original block of the root, for rules that must not extend cross-block dependencies.
     block: Option<BlockId>,
     /// Pre-pass use counts for profitability guards, when available.
@@ -62,7 +64,13 @@ pub(super) struct RuleContext<'a> {
 impl<'a> RuleContext<'a> {
     /// Creates a context over `func`.
     pub(super) fn new(func: &'a mut Function, evm_version: EvmVersion) -> Self {
-        Self { func, evm_version, block: None, uses: None, views: [None; 2] }
+        Self { func, evm_version, target: None, block: None, uses: None, views: [None; 2] }
+    }
+
+    /// Supplies the session cost model for conservative materialization guards.
+    pub(super) fn with_target(mut self, target: Target) -> Self {
+        self.target = Some(target);
+        self
     }
 
     /// Restricts placement-sensitive matching to producers in this block.
@@ -238,6 +246,27 @@ impl generated::Context for RuleContext<'_> {
         self.uses.and_then(|uses| uses.get(value)) == Some(&1)
     }
 
+    fn u256_mul(&mut self, a: U256, b: U256) -> U256 {
+        a.wrapping_mul(b)
+    }
+    fn u256_or(&mut self, a: U256, b: U256) -> U256 {
+        a | b
+    }
+    fn u256_xor(&mut self, a: U256, b: U256) -> U256 {
+        a ^ b
+    }
+    fn u256_div(&mut self, a: U256, b: U256) -> U256 {
+        if b.is_zero() { U256::ZERO } else { a / b }
+    }
+
+    fn push_not_larger(&mut self, replacement: U256, original: U256) -> bool {
+        self.target.is_some_and(|target| {
+            let after = target.push(replacement);
+            let before = target.push(original);
+            after.gas <= before.gas && after.bytes <= before.bytes
+        })
+    }
+
     fn inst_data(&mut self, value: Value) -> Option<Op> {
         self.views
             .iter()
@@ -339,6 +368,11 @@ impl generated::Context for RuleContext<'_> {
 
     fn imm(&mut self, value: U256) -> Value {
         self.func.alloc_value(MirValue::Immediate(Immediate::I256(value)))
+    }
+
+    fn imm_i160_zero(&mut self) -> Value {
+        self.func
+            .alloc_value(MirValue::Immediate(Immediate::for_type(Some(MirType::I160), U256::ZERO)))
     }
 
     fn imm_bool(&mut self, value: bool) -> Value {

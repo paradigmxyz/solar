@@ -1,0 +1,65 @@
+;; Conditional selection identities.
+
+;; select(c, a, select(c, _, d)) => select(c, a, d).
+(rule (rewrite (Op.Select c a (select c _ d))) (Op.Select c a d))
+
+;; select(c, select(c, a, _), d) => select(c, a, d).
+(rule (rewrite (Op.Select c (select c a _) d)) (Op.Select c a d))
+
+;; select(cond, 0, 1) => cond == false.
+;; Requires: cond is boolean.
+(rule (rewrite (Op.Select (and cond (bool_value)) (zero) (one))) (Op.Eq cond (imm_bool false)))
+
+;; select((x == y), x, y) => y.
+(rule 10 (simplify (Op.Select (eq x y) x y)) y)
+
+;; select((y == x), x, y) => y.
+(rule 9 (simplify (Op.Select (eq y x) x y)) y)
+
+;; select(((x & mask) == 0), (x & clear), x) => x.
+;; Requires: mask, clear are constants.
+(rule 8 (simplify (Op.Select (eq (band x (iconst mask)) (zero)) (band x (iconst clear)) x))
+      (if-let clear (u256_not mask)) x)
+
+;; select(((x & mask) != 0), (x & clear), x) => x & clear.
+;; Requires: mask, clear are constants.
+(rule 7 (simplify (Op.Select (ne (band x (iconst mask)) (zero)) (and cleared (band x (iconst clear))) x))
+      (if-let clear (u256_not mask)) cleared)
+
+;; select(((x & mask) == 0), x, (x & clear)) => x & clear.
+;; Requires: mask, clear are constants.
+(rule 6 (simplify (Op.Select (eq (band x (iconst mask)) (zero)) x (and cleared (band x (iconst clear)))))
+      (if-let clear (u256_not mask)) cleared)
+
+;; select(((x & mask) != 0), x, (x & clear)) => x.
+;; Requires: mask, clear are constants.
+(rule 5 (simplify (Op.Select (ne (band x (iconst mask)) (zero)) x (band x (iconst clear))))
+      (if-let clear (u256_not mask)) x)
+
+;; select(1, then_value, _) => then_value.
+(rule 4 (simplify (Op.Select (one) then_value _)) then_value)
+
+;; select(0, _, else_value) => else_value.
+(rule 3 (simplify (Op.Select (zero) _ else_value)) else_value)
+
+;; select(_, then_value, else_value) => then_value.
+;; Requires: then_value == else_value.
+(rule 2 (simplify (Op.Select _ then_value else_value))
+        (if-let true (same_value then_value else_value))
+        then_value)
+
+;; select(cond, 1, 0) => cond.
+;; Requires: cond is boolean.
+(rule 1 (simplify (Op.Select (and cond (bool_value)) (one) (zero))) cond)
+
+;; select((x != y), x, y) => x.
+(rule 1044 (simplify (Op.Select (ne x y) x y))  x)
+
+;; select((y != x), x, y) => x.
+(rule 1045 (simplify (Op.Select (ne y x) x y))  x)
+
+;; select((x == y), 0, (x - y)) => x - y.
+(rule 1046 (simplify (Op.Select (eq x y) (zero) (and difference (sub x y))))  difference)
+
+;; select((y == x), 0, (x - y)) => x - y.
+(rule 1047 (simplify (Op.Select (eq y x) (zero) (and difference (sub x y))))  difference)

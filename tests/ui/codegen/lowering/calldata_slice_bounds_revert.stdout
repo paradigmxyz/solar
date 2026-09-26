@@ -113,13 +113,10 @@ fn @decode_calldata_slice(arg0: i256) -> i256 {
     v4 = gt v1, 0xffffffffffffffff
     v5 = gt v3, v0
     v6 = or v4, v5
-    v7 = zext i1 v6 to i256
     v8 = calldataload v2
     v10 = sub v0, v3
     v11 = gt v8, v10
-    v12 = zext i1 v11 to i256
-    v13 = or v7, v12
-    v14 = ne v13, 0
+    v14 = or v6, v11
     jumpi v14, bb1, bb2
   bb2:
     ret v2

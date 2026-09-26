@@ -1,0 +1,1466 @@
+- // === ROOT/tests/ui/codegen/mir/egraph/audit_rules.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/audit_rules.mir (after egraph) ===
+  @module AuditRules
+  fn @boolean_select(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+-     v0 = select arg0, arg1, false
++     v0 = and arg0, arg1
+      ret v0
+  }
+  
+  fn @boolean_select_true(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+-     v0 = select arg0, true, arg1
++     v0 = or arg0, arg1
+      ret v0
+  }
+  
+  fn @boolean_select_inverse(arg0: i1) -> i1 {
+    bb0:
+-     v0 = select arg0, false, true
++     v0 = eq arg0, false
+      ret v0
+  }
+  
+  fn @boolean_extension(arg0: i1) -> i1 {
+    bb0:
+      v0 = zext i1 arg0 to i256
+-     v1 = eq v0, 1
+-     ret v1
++     ret arg0
+  }
+  
+  fn @boolean_extension_ne(arg0: i1) -> i1 {
+    bb0:
+      v0 = zext i1 arg0 to i256
+-     v1 = ne v0, 1
++     v1 = eq arg0, false
+      ret v1
+  }
+  
+  fn @select_tag(arg0: i1) -> i1 {
+    bb0:
+      v0 = select arg0, 7, 11
+-     v1 = eq v0, 7
+-     ret v1
++     ret arg0
+  }
+  
+  fn @constant_select(arg0: i1) -> i256 {
+    bb0:
+      v0 = select arg0, 5, 8
+-     v1 = add v0, 3
++     v1 = select arg0, 8, 11
+      ret v1
+  }
+  
+  fn @factored_select(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = not arg1
+      v1 = not arg2
+      v2 = select arg0, v0, v1
+      ret v2
+  }
+  
+  fn @widened_and(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+      v0 = zext i1 arg0 to i256
+      v1 = zext i1 arg1 to i256
+      v2 = and v0, v1
+-     v3 = ne v2, 0
++     v3 = and arg0, arg1
+      ret v3
+  }
+  
+  fn @odd_scale(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = mul arg0, 3
+      v1 = mul arg1, 3
+-     v2 = eq v0, v1
++     v2 = eq arg0, arg1
+      ret v2
+  }
+  
+  fn @even_scale(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+-     v0 = mul arg0, 2
+-     v1 = mul arg1, 2
++     v0 = add arg0, arg0
++     v1 = add arg1, arg1
+      v2 = eq v0, v1
+      ret v2
+  }
+  
+  fn @dynamic_power_divisor(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = shl arg1, 1
+-     v1 = div arg0, v0
++     v1 = shr arg1, arg0
+      ret v1
+  }
+  
+  fn @signed_min_divisor(arg0: i256) -> i256 {
+    bb0:
+      v0 = sdiv arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+      ret v0
+  }
+  
+  fn @zero_power(arg0: i256) -> i256 {
+    bb0:
+      v0 = exp 0, arg0
+      ret v0
+  }
+  
+  fn @alternating_power(arg0: i256) -> i256 {
+    bb0:
+      v0 = exp 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
+      ret v0
+  }
+  
+  fn @ring_add(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = addmod arg0, arg1, 256
+      ret v0
+  }
+  
+  fn @ring_mul(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = mulmod arg0, arg1, 256
+      ret v0
+  }
+  
+  fn @factored_mul(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = mul arg2, arg0
+      v1 = mul arg1, arg2
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @factored_shared(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = mul arg2, arg0
+      mstore 0, v0
+      v1 = mul arg1, arg2
+      mstore 32, v1
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @narrow_product(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 0xffff
+      v1 = mul v0, 3
+-     v2 = div v1, 3
+-     ret v2
++     ret v0
+  }
+  
+  fn @wrapping_product(arg0: i256) -> i256 {
+    bb0:
+      v0 = mul arg0, 3
+      v1 = div v0, 3
+      ret v1
+  }
+  
+  fn @exact_signed(arg0: i256) -> i256 {
+    bb0:
+      v0 = shl 3, arg0
+-     v1 = sdiv v0, 8
++     v1 = sar 3, v0
+      ret v1
+  }
+  
+  fn @inexact_signed(arg0: i256) -> i256 {
+    bb0:
+      v0 = sdiv arg0, 8
+      ret v0
+  }
+  
+  fn @overflowing_divisors(arg0: i256) -> i256 {
+    bb0:
+      v0 = div arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     v1 = div v0, 2
+-     ret v1
++     ret 0
+  }
+  
+  fn @empty_log(arg0: i256) {
+    bb0:
+-     log1 arg0, 0, 17
++     log1 0, 0, 17
+      ret
+  }
+  
+  fn @nonempty_log(arg0: i256) {
+    bb0:
+      log1 arg0, 1, 17
+      ret
+  }
+  
+  fn @empty_call(arg0: i256) -> i1 {
+    bb0:
+-     v0 = staticcall 0x2710, 4, arg0, 0, arg0, 0
++     v0 = staticcall 0x2710, 4, 0, 0, 0, 0
+      ret v0
+  }
+  
+  fn @empty_revert(arg0: i256) {
+    bb0:
+      revert arg0, 0
+  }
+  
+  fn @nonempty_revert(arg0: i256) {
+    bb0:
+      revert arg0, 1
+  }
+  
+  fn @select_extensions(arg0: i1, arg1: i1, arg2: i1) -> i256 {
+    bb0:
+      v0 = zext i1 arg1 to i256
+      v1 = zext i1 arg2 to i256
+      v2 = select arg0, v0, v1
+      ret v2
+  }
+  
+  fn @select_mixed_extensions(arg0: i1, arg1: i1, arg2: i160) -> i256 {
+    bb0:
+      v0 = zext i1 arg1 to i256
+      v1 = zext i160 arg2 to i256
+      v2 = select arg0, v0, v1
+      ret v2
+  }
+  
+  fn @compact_inclusive_bound(arg0: i256) -> i1 {
+    bb0:
+      v0 = gt arg0, 255
+      v1 = eq v0, false
+      ret v1
+  }
+  
+  fn @shifted_inclusive_bound(arg0: i256) -> i1 {
+    bb0:
+      v0 = and arg0, 255
+-     v1 = shl 248, v0
+-     v2 = lt v1, 0x3000000000000000000000000000000000000000000000000000000000000000
+-     v3 = eq v2, false
++     v1 = shl 248, arg0
++     v2 = lt v0, 48
++     v3 = gt v0, 47
+      ret v3
+  }
+  
+  fn @neutral_left_constants(arg0: i256) -> i256 {
+    bb0:
+-     v0 = addmod 0, 5, arg0
+-     v1 = mulmod 1, 5, arg0
+-     v2 = add v0, v1
++     v0 = mod 5, arg0
++     v2 = add v0, v0
+      ret v2
+  }
+  
+  fn @xor_intersection(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = not arg0
+      v1 = xor v0, arg1
+-     v2 = and arg0, v1
++     v2 = and arg0, arg1
+      ret v2
+  }
+  
+  fn @compact_decrement(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret v0
+  }
+  
+  fn @unit_remainder(arg0: i256) -> i256 {
+    bb0:
+      v0 = mod 1, arg0
+      ret v0
+  }
+  
+  fn @self_division(arg0: i256) -> i256 {
+    bb0:
+      v0 = div arg0, arg0
+      ret v0
+  }
+  
+  fn @widened_and_zero(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+      v0 = zext i1 arg0 to i256
+      v1 = zext i1 arg1 to i256
+      v2 = and v0, v1
+      v3 = eq v2, 0
+      ret v3
+  }
+  
+  fn @widened_or_zero(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+      v0 = zext i1 arg0 to i256
+      v1 = zext i1 arg1 to i256
+      v2 = or v0, v1
+      v3 = eq v2, 0
+      ret v3
+  }
+  
+  fn @widened_xor_zero(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+      v0 = zext i1 arg0 to i256
+      v1 = zext i1 arg1 to i256
+      v2 = xor v0, v1
+-     v3 = eq v2, 0
++     v3 = eq arg0, arg1
+      ret v3
+  }
+  
+  fn @address_zext_eq_zero(arg0: i160) -> i1 {
+    bb0:
+      v0 = zext i160 arg0 to i256
+-     v1 = eq v0, 0
++     v1 = eq arg0, i160 0
+      ret v1
+  }
+  
+  fn @address_zext_ne_zero(arg0: i160) -> i1 {
+    bb0:
+      v0 = zext i160 arg0 to i256
+-     v1 = ne v0, 0
++     v1 = ne arg0, i160 0
+      ret v1
+  }
+  
+  fn @address_sext_eq_zero(arg0: i160) -> i1 {
+    bb0:
+      v0 = sext i160 arg0 to i256
+-     v1 = eq v0, 0
++     v1 = eq arg0, i160 0
+      ret v1
+  }
+  
+  fn @address_sext_ne_zero(arg0: i160) -> i1 {
+    bb0:
+      v0 = sext i160 arg0 to i256
+-     v1 = ne v0, 0
++     v1 = ne arg0, i160 0
+      ret v1
+  }
+  
+  fn @boolean_sext_zero(arg0: i1) -> i1 {
+    bb0:
+      v0 = sext i1 arg0 to i256
+-     v1 = eq v0, 0
++     v1 = eq arg0, false
+      ret v1
+  }
+  
+  fn @narrow_zero_keeps_legal_word_compare(arg0: i8) -> i1 {
+    bb0:
+      v0 = zext i8 arg0 to i256
+      v1 = eq v0, 0
+      ret v1
+  }
+  
+  fn @and_inequality(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = lt arg0, arg1
+      v1 = ne arg1, arg0
+-     v2 = and v1, v0
+-     ret v2
++     ret v0
+  }
+  
+  fn @or_inequality(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = sgt arg0, arg1
+      v1 = ne arg1, arg0
+-     v2 = or v1, v0
+-     ret v2
++     ret v1
+  }
+  
+  fn @xor_inequality(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = gt arg0, arg1
+      v1 = ne arg1, arg0
+-     v2 = xor v1, v0
++     v2 = lt arg0, arg1
+      ret v2
+  }
+  
+  fn @signed_xor_inequality(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = slt arg0, arg1
+      v1 = ne arg0, arg1
+-     v2 = xor v1, v0
++     v2 = sgt arg0, arg1
+      ret v2
+  }
+  
+  fn @inclusive_gt(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = gt arg0, arg1
+      v1 = eq arg1, arg0
+      v2 = or v1, v0
+      ret v2
+  }
+  
+  fn @signed_inclusive_gt(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = sgt arg0, arg1
+      v1 = eq arg0, arg1
+      v2 = xor v1, v0
+      ret v2
+  }
+  
+  fn @reverse_equality_conflict(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = slt arg0, arg1
+      v1 = eq arg1, arg0
+-     v2 = and v1, v0
+-     ret v2
++     ret false
+  }
+  
+  fn @opposite_same_compare(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = lt arg0, arg1
+      v1 = lt arg1, arg0
+-     v2 = or v1, v0
++     v2 = ne arg1, arg0
+      ret v2
+  }
+  
+  fn @opposite_signed_conflict(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = sgt arg0, arg1
+      v1 = sgt arg1, arg0
+-     v2 = and v1, v0
+-     ret v2
++     ret false
+  }
+  
+  fn @mixed_signs_must_not_fold(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = lt arg0, arg1
+      v1 = slt arg1, arg0
+      v2 = and v1, v0
+      ret v2
+  }
+  
+  fn @capacity_add(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = sub 100, arg0
+      v1 = sub v0, arg1
+      v2 = add v1, 7
+      ret v2
+  }
+  
+  fn @capacity_sub(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = sub 100, arg0
+      v1 = sub v0, arg1
+      v2 = sub v1, 7
+      ret v2
+  }
+  
+  fn @span_header(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = add arg1, 32
+      v1 = sub arg0, v0
+      v2 = add v1, 64
+      ret v2
+  }
+  
+  fn @undo_header(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = sub 32, arg1
+      v1 = sub arg0, v0
+      v2 = add v1, 64
+      ret v2
+  }
+  
+  fn @complementary_and(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = eq arg0, arg1
+      v1 = ne arg1, arg0
+-     v2 = and v0, v1
+-     ret v2
++     ret false
+  }
+  
+  fn @complementary_or(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = eq arg0, arg1
+      v1 = ne arg1, arg0
+-     v2 = or v0, v1
+-     ret v2
++     ret true
+  }
+  
+  fn @complementary_xor(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = eq arg0, arg1
+      v1 = ne arg1, arg0
+-     v2 = xor v0, v1
+-     ret v2
++     ret true
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/egraph/audit_rules.mir (before word-sequence) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/audit_rules.mir (after word-sequence) ===
+  @module AuditRules
+  fn @boolean_select(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+      v0 = and arg0, arg1
+      ret v0
+  }
+  
+  fn @boolean_select_true(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+      v0 = or arg0, arg1
+      ret v0
+  }
+  
+  fn @boolean_select_inverse(arg0: i1) -> i1 {
+    bb0:
+      v0 = eq arg0, false
+      ret v0
+  }
+  
+  fn @boolean_extension(arg0: i1) -> i1 {
+    bb0:
+      v0 = zext i1 arg0 to i256
+      ret arg0
+  }
+  
+  fn @boolean_extension_ne(arg0: i1) -> i1 {
+    bb0:
+      v0 = zext i1 arg0 to i256
+      v1 = eq arg0, false
+      ret v1
+  }
+  
+  fn @select_tag(arg0: i1) -> i1 {
+    bb0:
+      v0 = select arg0, 7, 11
+      ret arg0
+  }
+  
+  fn @constant_select(arg0: i1) -> i256 {
+    bb0:
+      v0 = select arg0, 5, 8
+      v1 = select arg0, 8, 11
+      ret v1
+  }
+  
+  fn @factored_select(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+-     v0 = not arg1
+-     v1 = not arg2
+-     v2 = select arg0, v0, v1
++     v3 = select arg0, arg1, arg2
++     v2 = not v3
+      ret v2
+  }
+  
+  fn @widened_and(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+      v0 = zext i1 arg0 to i256
+      v1 = zext i1 arg1 to i256
+      v2 = and v0, v1
+      v3 = and arg0, arg1
+      ret v3
+  }
+  
+  fn @odd_scale(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = mul arg0, 3
+      v1 = mul arg1, 3
+      v2 = eq arg0, arg1
+      ret v2
+  }
+  
+  fn @even_scale(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = add arg0, arg0
+      v1 = add arg1, arg1
+      v2 = eq v0, v1
+      ret v2
+  }
+  
+  fn @dynamic_power_divisor(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = shl arg1, 1
+      v1 = shr arg1, arg0
+      ret v1
+  }
+  
+  fn @signed_min_divisor(arg0: i256) -> i256 {
+    bb0:
+-     v0 = sdiv arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
++     v1 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
++     v0 = zext i1 v1 to i256
+      ret v0
+  }
+  
+  fn @zero_power(arg0: i256) -> i256 {
+    bb0:
+-     v0 = exp 0, arg0
++     v1 = eq arg0, 0
++     v0 = zext i1 v1 to i256
+      ret v0
+  }
+  
+  fn @alternating_power(arg0: i256) -> i256 {
+    bb0:
+-     v0 = exp 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
++     v1 = and arg0, 1
++     v2 = add v1, v1
++     v0 = sub 1, v2
+      ret v0
+  }
+  
+  fn @ring_add(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = addmod arg0, arg1, 256
+      ret v0
+  }
+  
+  fn @ring_mul(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = mulmod arg0, arg1, 256
+      ret v0
+  }
+  
+  fn @factored_mul(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+-     v0 = mul arg2, arg0
+-     v1 = mul arg1, arg2
+-     v2 = add v0, v1
++     v3 = add arg0, arg1
++     v2 = mul arg2, v3
+      ret v2
+  }
+  
+  fn @factored_shared(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = mul arg2, arg0
+      mstore 0, v0
+      v1 = mul arg1, arg2
+      mstore 32, v1
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @narrow_product(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 0xffff
+      v1 = mul v0, 3
+      ret v0
+  }
+  
+  fn @wrapping_product(arg0: i256) -> i256 {
+    bb0:
+      v0 = mul arg0, 3
+      v1 = div v0, 3
+      ret v1
+  }
+  
+  fn @exact_signed(arg0: i256) -> i256 {
+    bb0:
+      v0 = shl 3, arg0
+      v1 = sar 3, v0
+      ret v1
+  }
+  
+  fn @inexact_signed(arg0: i256) -> i256 {
+    bb0:
+      v0 = sdiv arg0, 8
+      ret v0
+  }
+  
+  fn @overflowing_divisors(arg0: i256) -> i256 {
+    bb0:
+      v0 = div arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret 0
+  }
+  
+  fn @empty_log(arg0: i256) {
+    bb0:
+      log1 0, 0, 17
+      ret
+  }
+  
+  fn @nonempty_log(arg0: i256) {
+    bb0:
+      log1 arg0, 1, 17
+      ret
+  }
+  
+  fn @empty_call(arg0: i256) -> i1 {
+    bb0:
+      v0 = staticcall 0x2710, 4, 0, 0, 0, 0
+      ret v0
+  }
+  
+  fn @empty_revert(arg0: i256) {
+    bb0:
+      revert arg0, 0
+  }
+  
+  fn @nonempty_revert(arg0: i256) {
+    bb0:
+      revert arg0, 1
+  }
+  
+  fn @select_extensions(arg0: i1, arg1: i1, arg2: i1) -> i256 {
+    bb0:
+-     v0 = zext i1 arg1 to i256
+-     v1 = zext i1 arg2 to i256
+-     v2 = select arg0, v0, v1
++     v3 = select arg0, arg1, arg2
++     v2 = zext i1 v3 to i256
+      ret v2
+  }
+  
+  fn @select_mixed_extensions(arg0: i1, arg1: i1, arg2: i160) -> i256 {
+    bb0:
+      v0 = zext i1 arg1 to i256
+      v1 = zext i160 arg2 to i256
+      v2 = select arg0, v0, v1
+      ret v2
+  }
+  
+  fn @compact_inclusive_bound(arg0: i256) -> i1 {
+    bb0:
+      v0 = gt arg0, 255
+      v1 = eq v0, false
+      ret v1
+  }
+  
+  fn @shifted_inclusive_bound(arg0: i256) -> i1 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = shl 248, arg0
+      v2 = lt v0, 48
+      v3 = gt v0, 47
+      ret v3
+  }
+  
+  fn @neutral_left_constants(arg0: i256) -> i256 {
+    bb0:
+      v0 = mod 5, arg0
+      v2 = add v0, v0
+      ret v2
+  }
+  
+  fn @xor_intersection(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = not arg0
+      v1 = xor v0, arg1
+      v2 = and arg0, arg1
+      ret v2
+  }
+  
+  fn @compact_decrement(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret v0
+  }
+  
+  fn @unit_remainder(arg0: i256) -> i256 {
+    bb0:
+-     v0 = mod 1, arg0
++     v1 = gt arg0, 1
++     v0 = zext i1 v1 to i256
+      ret v0
+  }
+  
+  fn @self_division(arg0: i256) -> i256 {
+    bb0:
+-     v0 = div arg0, arg0
++     v1 = ne arg0, 0
++     v0 = zext i1 v1 to i256
+      ret v0
+  }
+  
+  fn @widened_and_zero(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+-     v0 = zext i1 arg0 to i256
+-     v1 = zext i1 arg1 to i256
+-     v2 = and v0, v1
+-     v3 = eq v2, 0
++     v4 = and arg0, arg1
++     v5 = zext i1 v4 to i256
++     v3 = eq v5, 0
+      ret v3
+  }
+  
+  fn @widened_or_zero(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+-     v0 = zext i1 arg0 to i256
+-     v1 = zext i1 arg1 to i256
+-     v2 = or v0, v1
+-     v3 = eq v2, 0
++     v4 = or arg0, arg1
++     v5 = zext i1 v4 to i256
++     v3 = eq v5, 0
+      ret v3
+  }
+  
+  fn @widened_xor_zero(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+      v0 = zext i1 arg0 to i256
+      v1 = zext i1 arg1 to i256
+      v2 = xor v0, v1
+      v3 = eq arg0, arg1
+      ret v3
+  }
+  
+  fn @address_zext_eq_zero(arg0: i160) -> i1 {
+    bb0:
+      v0 = zext i160 arg0 to i256
+      v1 = eq arg0, i160 0
+      ret v1
+  }
+  
+  fn @address_zext_ne_zero(arg0: i160) -> i1 {
+    bb0:
+      v0 = zext i160 arg0 to i256
+      v1 = ne arg0, i160 0
+      ret v1
+  }
+  
+  fn @address_sext_eq_zero(arg0: i160) -> i1 {
+    bb0:
+      v0 = sext i160 arg0 to i256
+      v1 = eq arg0, i160 0
+      ret v1
+  }
+  
+  fn @address_sext_ne_zero(arg0: i160) -> i1 {
+    bb0:
+      v0 = sext i160 arg0 to i256
+      v1 = ne arg0, i160 0
+      ret v1
+  }
+  
+  fn @boolean_sext_zero(arg0: i1) -> i1 {
+    bb0:
+      v0 = sext i1 arg0 to i256
+      v1 = eq arg0, false
+      ret v1
+  }
+  
+  fn @narrow_zero_keeps_legal_word_compare(arg0: i8) -> i1 {
+    bb0:
+      v0 = zext i8 arg0 to i256
+      v1 = eq v0, 0
+      ret v1
+  }
+  
+  fn @and_inequality(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = lt arg0, arg1
+      v1 = ne arg1, arg0
+      ret v0
+  }
+  
+  fn @or_inequality(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = sgt arg0, arg1
+      v1 = ne arg1, arg0
+      ret v1
+  }
+  
+  fn @xor_inequality(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = gt arg0, arg1
+      v1 = ne arg1, arg0
+      v2 = lt arg0, arg1
+      ret v2
+  }
+  
+  fn @signed_xor_inequality(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = slt arg0, arg1
+      v1 = ne arg0, arg1
+      v2 = sgt arg0, arg1
+      ret v2
+  }
+  
+  fn @inclusive_gt(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+-     v0 = gt arg0, arg1
+-     v1 = eq arg1, arg0
+-     v2 = or v1, v0
++     v3 = lt arg0, arg1
++     v4 = zext i1 v3 to i256
++     v2 = eq v4, 0
+      ret v2
+  }
+  
+  fn @signed_inclusive_gt(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+-     v0 = sgt arg0, arg1
+-     v1 = eq arg0, arg1
+-     v2 = xor v1, v0
++     v3 = slt arg0, arg1
++     v4 = zext i1 v3 to i256
++     v2 = eq v4, 0
+      ret v2
+  }
+  
+  fn @reverse_equality_conflict(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = slt arg0, arg1
+      v1 = eq arg1, arg0
+      ret false
+  }
+  
+  fn @opposite_same_compare(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = lt arg0, arg1
+      v1 = lt arg1, arg0
+      v2 = ne arg1, arg0
+      ret v2
+  }
+  
+  fn @opposite_signed_conflict(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = sgt arg0, arg1
+      v1 = sgt arg1, arg0
+      ret false
+  }
+  
+  fn @mixed_signs_must_not_fold(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = lt arg0, arg1
+      v1 = slt arg1, arg0
+      v2 = and v1, v0
+      ret v2
+  }
+  
+  fn @capacity_add(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = sub 100, arg0
+-     v1 = sub v0, arg1
+-     v2 = add v1, 7
++     v3 = add arg0, arg1
++     v2 = sub 107, v3
+      ret v2
+  }
+  
+  fn @capacity_sub(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = sub 100, arg0
+-     v1 = sub v0, arg1
+-     v2 = sub v1, 7
++     v3 = add arg0, arg1
++     v2 = sub 93, v3
+      ret v2
+  }
+  
+  fn @span_header(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = add arg1, 32
+-     v1 = sub arg0, v0
+-     v2 = add v1, 64
++     v3 = sub arg0, arg1
++     v2 = add v3, 32
+      ret v2
+  }
+  
+  fn @undo_header(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = sub 32, arg1
+-     v1 = sub arg0, v0
+-     v2 = add v1, 64
++     v3 = add arg0, arg1
++     v2 = add v3, 32
+      ret v2
+  }
+  
+  fn @complementary_and(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = eq arg0, arg1
+      v1 = ne arg1, arg0
+      ret false
+  }
+  
+  fn @complementary_or(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = eq arg0, arg1
+      v1 = ne arg1, arg0
+      ret true
+  }
+  
+  fn @complementary_xor(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = eq arg0, arg1
+      v1 = ne arg1, arg0
+      ret true
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/egraph/audit_rules.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/audit_rules.mir (after egraph) ===
+  @module AuditRules
+  fn @boolean_select(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+      v0 = and arg0, arg1
+      ret v0
+  }
+  
+  fn @boolean_select_true(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+      v0 = or arg0, arg1
+      ret v0
+  }
+  
+  fn @boolean_select_inverse(arg0: i1) -> i1 {
+    bb0:
+      v0 = eq arg0, false
+      ret v0
+  }
+  
+  fn @boolean_extension(arg0: i1) -> i1 {
+    bb0:
+      v0 = zext i1 arg0 to i256
+      ret arg0
+  }
+  
+  fn @boolean_extension_ne(arg0: i1) -> i1 {
+    bb0:
+      v0 = zext i1 arg0 to i256
+      v1 = eq arg0, false
+      ret v1
+  }
+  
+  fn @select_tag(arg0: i1) -> i1 {
+    bb0:
+      v0 = select arg0, 7, 11
+      ret arg0
+  }
+  
+  fn @constant_select(arg0: i1) -> i256 {
+    bb0:
+      v0 = select arg0, 5, 8
+      v1 = select arg0, 8, 11
+      ret v1
+  }
+  
+  fn @factored_select(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v3 = select arg0, arg1, arg2
+      v2 = not v3
+      ret v2
+  }
+  
+  fn @widened_and(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+      v0 = zext i1 arg0 to i256
+      v1 = zext i1 arg1 to i256
+      v2 = and v0, v1
+      v3 = and arg0, arg1
+      ret v3
+  }
+  
+  fn @odd_scale(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = mul arg0, 3
+      v1 = mul arg1, 3
+      v2 = eq arg0, arg1
+      ret v2
+  }
+  
+  fn @even_scale(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = add arg0, arg0
+      v1 = add arg1, arg1
+      v2 = eq v0, v1
+      ret v2
+  }
+  
+  fn @dynamic_power_divisor(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = shl arg1, 1
+      v1 = shr arg1, arg0
+      ret v1
+  }
+  
+  fn @signed_min_divisor(arg0: i256) -> i256 {
+    bb0:
+      v1 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+      v0 = zext i1 v1 to i256
+      ret v0
+  }
+  
+  fn @zero_power(arg0: i256) -> i256 {
+    bb0:
+      v1 = eq arg0, 0
+      v0 = zext i1 v1 to i256
+      ret v0
+  }
+  
+  fn @alternating_power(arg0: i256) -> i256 {
+    bb0:
+      v1 = and arg0, 1
+      v2 = add v1, v1
+      v0 = sub 1, v2
+      ret v0
+  }
+  
+  fn @ring_add(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = addmod arg0, arg1, 256
+      ret v0
+  }
+  
+  fn @ring_mul(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = mulmod arg0, arg1, 256
+      ret v0
+  }
+  
+  fn @factored_mul(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v3 = add arg0, arg1
+      v2 = mul arg2, v3
+      ret v2
+  }
+  
+  fn @factored_shared(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = mul arg2, arg0
+      mstore 0, v0
+      v1 = mul arg1, arg2
+      mstore 32, v1
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @narrow_product(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 0xffff
+      v1 = mul v0, 3
+      ret v0
+  }
+  
+  fn @wrapping_product(arg0: i256) -> i256 {
+    bb0:
+      v0 = mul arg0, 3
+      v1 = div v0, 3
+      ret v1
+  }
+  
+  fn @exact_signed(arg0: i256) -> i256 {
+    bb0:
+      v0 = shl 3, arg0
+      v1 = sar 3, v0
+      ret v1
+  }
+  
+  fn @inexact_signed(arg0: i256) -> i256 {
+    bb0:
+      v0 = sdiv arg0, 8
+      ret v0
+  }
+  
+  fn @overflowing_divisors(arg0: i256) -> i256 {
+    bb0:
+      v0 = div arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret 0
+  }
+  
+  fn @empty_log(arg0: i256) {
+    bb0:
+      log1 0, 0, 17
+      ret
+  }
+  
+  fn @nonempty_log(arg0: i256) {
+    bb0:
+      log1 arg0, 1, 17
+      ret
+  }
+  
+  fn @empty_call(arg0: i256) -> i1 {
+    bb0:
+      v0 = staticcall 0x2710, 4, 0, 0, 0, 0
+      ret v0
+  }
+  
+  fn @empty_revert(arg0: i256) {
+    bb0:
+      revert arg0, 0
+  }
+  
+  fn @nonempty_revert(arg0: i256) {
+    bb0:
+      revert arg0, 1
+  }
+  
+  fn @select_extensions(arg0: i1, arg1: i1, arg2: i1) -> i256 {
+    bb0:
+      v3 = select arg0, arg1, arg2
+      v2 = zext i1 v3 to i256
+      ret v2
+  }
+  
+  fn @select_mixed_extensions(arg0: i1, arg1: i1, arg2: i160) -> i256 {
+    bb0:
+      v0 = zext i1 arg1 to i256
+      v1 = zext i160 arg2 to i256
+      v2 = select arg0, v0, v1
+      ret v2
+  }
+  
+  fn @compact_inclusive_bound(arg0: i256) -> i1 {
+    bb0:
+      v0 = gt arg0, 255
+      v1 = eq v0, false
+      ret v1
+  }
+  
+  fn @shifted_inclusive_bound(arg0: i256) -> i1 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = shl 248, arg0
+      v2 = lt v0, 48
+      v3 = gt v0, 47
+      ret v3
+  }
+  
+  fn @neutral_left_constants(arg0: i256) -> i256 {
+    bb0:
+      v0 = mod 5, arg0
+      v2 = add v0, v0
+      ret v2
+  }
+  
+  fn @xor_intersection(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = not arg0
+      v1 = xor v0, arg1
+      v2 = and arg0, arg1
+      ret v2
+  }
+  
+  fn @compact_decrement(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret v0
+  }
+  
+  fn @unit_remainder(arg0: i256) -> i256 {
+    bb0:
+      v1 = gt arg0, 1
+      v0 = zext i1 v1 to i256
+      ret v0
+  }
+  
+  fn @self_division(arg0: i256) -> i256 {
+    bb0:
+      v1 = ne arg0, 0
+      v0 = zext i1 v1 to i256
+      ret v0
+  }
+  
+  fn @widened_and_zero(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+      v4 = and arg0, arg1
+      v5 = zext i1 v4 to i256
+-     v3 = eq v5, 0
++     v3 = eq v4, false
+      ret v3
+  }
+  
+  fn @widened_or_zero(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+      v4 = or arg0, arg1
+      v5 = zext i1 v4 to i256
+-     v3 = eq v5, 0
++     v3 = eq v4, false
+      ret v3
+  }
+  
+  fn @widened_xor_zero(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+      v0 = zext i1 arg0 to i256
+      v1 = zext i1 arg1 to i256
+      v2 = xor v0, v1
+      v3 = eq arg0, arg1
+      ret v3
+  }
+  
+  fn @address_zext_eq_zero(arg0: i160) -> i1 {
+    bb0:
+      v0 = zext i160 arg0 to i256
+      v1 = eq arg0, i160 0
+      ret v1
+  }
+  
+  fn @address_zext_ne_zero(arg0: i160) -> i1 {
+    bb0:
+      v0 = zext i160 arg0 to i256
+      v1 = ne arg0, i160 0
+      ret v1
+  }
+  
+  fn @address_sext_eq_zero(arg0: i160) -> i1 {
+    bb0:
+      v0 = sext i160 arg0 to i256
+      v1 = eq arg0, i160 0
+      ret v1
+  }
+  
+  fn @address_sext_ne_zero(arg0: i160) -> i1 {
+    bb0:
+      v0 = sext i160 arg0 to i256
+      v1 = ne arg0, i160 0
+      ret v1
+  }
+  
+  fn @boolean_sext_zero(arg0: i1) -> i1 {
+    bb0:
+      v0 = sext i1 arg0 to i256
+      v1 = eq arg0, false
+      ret v1
+  }
+  
+  fn @narrow_zero_keeps_legal_word_compare(arg0: i8) -> i1 {
+    bb0:
+      v0 = zext i8 arg0 to i256
+      v1 = eq v0, 0
+      ret v1
+  }
+  
+  fn @and_inequality(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = lt arg0, arg1
+      v1 = ne arg1, arg0
+      ret v0
+  }
+  
+  fn @or_inequality(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = sgt arg0, arg1
+      v1 = ne arg1, arg0
+      ret v1
+  }
+  
+  fn @xor_inequality(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = gt arg0, arg1
+      v1 = ne arg1, arg0
+      v2 = lt arg0, arg1
+      ret v2
+  }
+  
+  fn @signed_xor_inequality(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = slt arg0, arg1
+      v1 = ne arg0, arg1
+      v2 = sgt arg0, arg1
+      ret v2
+  }
+  
+  fn @inclusive_gt(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v3 = lt arg0, arg1
+      v4 = zext i1 v3 to i256
+-     v2 = eq v4, 0
++     v2 = eq v3, false
+      ret v2
+  }
+  
+  fn @signed_inclusive_gt(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v3 = slt arg0, arg1
+      v4 = zext i1 v3 to i256
+-     v2 = eq v4, 0
++     v2 = eq v3, false
+      ret v2
+  }
+  
+  fn @reverse_equality_conflict(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = slt arg0, arg1
+      v1 = eq arg1, arg0
+      ret false
+  }
+  
+  fn @opposite_same_compare(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = lt arg0, arg1
+      v1 = lt arg1, arg0
+      v2 = ne arg1, arg0
+      ret v2
+  }
+  
+  fn @opposite_signed_conflict(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = sgt arg0, arg1
+      v1 = sgt arg1, arg0
+      ret false
+  }
+  
+  fn @mixed_signs_must_not_fold(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = lt arg0, arg1
+      v1 = slt arg1, arg0
+      v2 = and v1, v0
+      ret v2
+  }
+  
+  fn @capacity_add(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v3 = add arg0, arg1
+      v2 = sub 107, v3
+      ret v2
+  }
+  
+  fn @capacity_sub(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v3 = add arg0, arg1
+      v2 = sub 93, v3
+      ret v2
+  }
+  
+  fn @span_header(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v3 = sub arg0, arg1
+      v2 = add v3, 32
+      ret v2
+  }
+  
+  fn @undo_header(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v3 = add arg0, arg1
+      v2 = add v3, 32
+      ret v2
+  }
+  
+  fn @complementary_and(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = eq arg0, arg1
+      v1 = ne arg1, arg0
+      ret false
+  }
+  
+  fn @complementary_or(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = eq arg0, arg1
+      v1 = ne arg1, arg0
+      ret true
+  }
+  
+  fn @complementary_xor(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = eq arg0, arg1
+      v1 = ne arg1, arg0
+      ret true
+  }
+  

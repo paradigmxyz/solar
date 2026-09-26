@@ -1,0 +1,108 @@
+;; Equality and ordered comparison identities.
+
+;; (x & m) == (m & y) => ((x ^ y) & m) == 0.
+(rule (sequence_rewrite (Op.Eq (band x m) (band m y)))
+      (if-let difference (make (Op.Xor x y)))
+      (if-let masked (make (Op.And difference m)))
+      (if-let zero (imm (u256 0))) (sequence (Op.Eq masked zero)))
+
+;; (x & m) == (y & m) => ((x ^ y) & m) == 0.
+(rule (sequence_rewrite (Op.Eq (band x m) (band y m)))
+      (if-let difference (make (Op.Xor x y)))
+      (if-let masked (make (Op.And difference m)))
+      (if-let zero (imm (u256 0))) (sequence (Op.Eq masked zero)))
+
+;; (m & x) == (m & y) => ((x ^ y) & m) == 0.
+(rule (sequence_rewrite (Op.Eq (band m x) (band m y)))
+      (if-let difference (make (Op.Xor x y)))
+      (if-let masked (make (Op.And difference m)))
+      (if-let zero (imm (u256 0))) (sequence (Op.Eq masked zero)))
+
+;; (m & x) == (y & m) => ((x ^ y) & m) == 0.
+(rule (sequence_rewrite (Op.Eq (band m x) (band y m)))
+      (if-let difference (make (Op.Xor x y)))
+      (if-let masked (make (Op.And difference m)))
+      (if-let zero (imm (u256 0))) (sequence (Op.Eq masked zero)))
+
+;; (x & m) != (m & y) => ((x ^ y) & m) != 0.
+(rule (sequence_rewrite (Op.Ne (band x m) (band m y)))
+      (if-let difference (make (Op.Xor x y)))
+      (if-let masked (make (Op.And difference m)))
+      (if-let zero (imm (u256 0))) (sequence (Op.Ne masked zero)))
+
+;; (x & m) != (y & m) => ((x ^ y) & m) != 0.
+(rule (sequence_rewrite (Op.Ne (band x m) (band y m)))
+      (if-let difference (make (Op.Xor x y)))
+      (if-let masked (make (Op.And difference m)))
+      (if-let zero (imm (u256 0))) (sequence (Op.Ne masked zero)))
+
+;; (m & x) != (m & y) => ((x ^ y) & m) != 0.
+(rule (sequence_rewrite (Op.Ne (band m x) (band m y)))
+      (if-let difference (make (Op.Xor x y)))
+      (if-let masked (make (Op.And difference m)))
+      (if-let zero (imm (u256 0))) (sequence (Op.Ne masked zero)))
+
+;; (m & x) != (y & m) => ((x ^ y) & m) != 0.
+(rule (sequence_rewrite (Op.Ne (band m x) (band y m)))
+      (if-let difference (make (Op.Xor x y)))
+      (if-let masked (make (Op.And difference m)))
+      (if-let zero (imm (u256 0))) (sequence (Op.Ne masked zero)))
+
+;; x < c0 => (x >> 8) == 0.
+;; Requires: c0 is constant, c0 == 256.
+(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256 256))) (if-let r0 (imm (u256 8))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Eq r1 zero)))
+
+;; x < c0 => (x >> 16) == 0.
+;; Requires: c0 is constant, c0 == 65536.
+(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256 65536))) (if-let r0 (imm (u256 16))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Eq r1 zero)))
+
+;; x < c0 => (x >> 32) == 0.
+;; Requires: c0 is constant, c0 == 4294967296.
+(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256 4294967296))) (if-let r0 (imm (u256 32))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Eq r1 zero)))
+
+;; x < c0 => (x >> 64) == 0.
+;; Requires: c0 is constant, c0 == 0x10000000000000000.
+(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 0 1 0 0))) (if-let r0 (imm (u256 64))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Eq r1 zero)))
+
+;; x < c0 => (x >> 128) == 0.
+;; Requires: c0 is constant, c0 == (2 ** 128).
+(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 0 0 1 0))) (if-let r0 (imm (u256 128))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Eq r1 zero)))
+
+;; x < c0 => (x >> 160) == 0.
+;; Requires: c0 is constant, c0 == (2 ** 160).
+(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 0 0 4294967296 0))) (if-let r0 (imm (u256 160))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Eq r1 zero)))
+
+;; x < c0 => (x >> 224) == 0.
+;; Requires: c0 is constant, c0 == (2 ** 224).
+(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 0 0 0 4294967296))) (if-let r0 (imm (u256 224))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Eq r1 zero)))
+
+;; x < c0 => (x >> 248) == 0.
+;; Requires: c0 is constant, c0 ==
+;; (2 ** 248).
+(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 0 0 0 72057594037927936))) (if-let r0 (imm (u256 248))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Eq r1 zero)))
+
+;; smod(x, m) == 0 => (x & (m - 1)) == 0.
+;; Requires: m is constant, m == 2 ** shift and 1 <= shift <= 255, shift < 255.
+(rule (sequence_rewrite (Op.Eq (smod x (iconst m)) (zero)))
+      (if-let shift (power_of_two_shift m)) (if-let false (u256_ge shift (u256 255))) (if-let mask (imm (u256_sub m (u256 1)))) (if-let masked (make (Op.And x mask))) (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq masked zero)))
+
+;; smod(x, m) != 0 => (x & (m - 1)) != 0.
+;; Requires: m is constant, m == 2 ** shift and 1 <= shift <= 255, shift < 255.
+(rule (sequence_rewrite (Op.Ne (smod x (iconst m)) (zero)))
+      (if-let shift (power_of_two_shift m)) (if-let false (u256_ge shift (u256 255))) (if-let mask (imm (u256_sub m (u256 1)))) (if-let masked (make (Op.And x mask))) (if-let zero (imm (u256 0)))
+      (sequence (Op.Ne masked zero)))
+
+;; (zext(a) & zext(b)) == 0 => (a & b) == 0.
+;; Requires: a is boolean, b is boolean.
+(rule (sequence_rewrite (Op.Eq (band (zext (and a (bool_value))) (zext (and b (bool_value)))) (zero)))
+      (if-let combined (make (Op.And a b)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq combined zero)))
+
+;; (zext(a) | zext(b)) == 0 => (a | b) == 0.
+;; Requires: a is boolean, b is boolean.
+(rule (sequence_rewrite (Op.Eq (bor (zext (and a (bool_value))) (zext (and b (bool_value)))) (zero)))
+      (if-let combined (make (Op.Or a b)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq combined zero)))

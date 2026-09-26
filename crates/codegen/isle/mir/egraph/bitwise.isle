@@ -1,0 +1,398 @@
+;; Bitwise identities and boolean combinations.
+
+;; ~a ^ ~b => a ^ b.
+(rule (rewrite (Op.Xor (bnot a) (bnot b))) (Op.Xor a b))
+
+;; (base & existing) & mask => base & (mask & existing).
+;; Requires: existing, mask are constants, mask != 0, mask != MAX.
+(rule (rewrite (Op.And (band base (iconst existing)) (iconst mask)))
+        (if-let false (u256_is_zero mask))
+        (if-let false (u256_is_all_ones mask))
+        (Op.And base (imm (u256_and mask existing))))
+
+;; a ^ MAX => ~a.
+(rule (rewrite (Op.Xor a (all_ones))) (Op.Not a))
+
+;; Every selected bit outside constant is shifted out of the word.
+;; ((value >> shift) | constant) & mask => constant & mask.
+;; Requires: shift, constant, mask are constants, ((mask & ~constant) << shift) == 0.
+(rule 43 (simplify (Op.And (bor (shr (iconst shift) value) (iconst constant)) (iconst mask)))
+      (if-let true (u256_is_zero (u256_shl shift (u256_and mask (u256_not constant)))))
+      (imm (u256_and constant mask)))
+
+;; Every selected bit outside constant is shifted out of the word.
+;; ((value << shift) | constant) & mask => constant & mask.
+;; Requires: shift, constant, mask are constants, ((mask & ~constant) >> shift) == 0.
+(rule 39 (simplify (Op.And (bor (shl (iconst shift) value) (iconst constant)) (iconst mask)))
+      (if-let true (u256_is_zero (u256_shr shift (u256_and mask (u256_not constant)))))
+      (imm (u256_and constant mask)))
+
+;; a & (a | _) => a.
+(rule 18 (simplify (Op.And a (bor a _))) a)
+
+;; a & (_ | a) => a.
+(rule 17 (simplify (Op.And a (bor _ a))) a)
+
+;; (b | _) & b => b.
+(rule 16 (simplify (Op.And (bor b _) b)) b)
+
+;; (_ | b) & b => b.
+(rule 15 (simplify (Op.And (bor _ b) b)) b)
+
+;; a & mask => a.
+;; Requires: mask is constant, mask is a low-bit mask covering all possible set bits of a.
+(rule 14 (simplify (Op.And a (iconst mask))) (if-let true (mask_covers mask a)) a)
+
+;; clz(_) & mask => clz(_).
+;; Requires: mask is constant, (mask & 511) == 511.
+(rule 12 (simplify (Op.And (and a (clz _)) (iconst mask))) (if-let true (u256_has_bits mask 511)) a)
+
+;; a & a => a.
+(rule 10 (simplify (Op.And a a)) a)
+
+;; _ & 0 => 0.
+(rule 6 (simplify (Op.And _ (and b (zero)))) b)
+
+;; ~b & b => 0.
+(rule 3 (simplify (Op.And (bnot b) b)) (imm (u256 0)))
+
+;; a & ~a => 0.
+(rule 2 (simplify (Op.And a (bnot a))) (imm (u256 0)))
+
+;; b | 1 => 1.
+;; Requires: b is boolean.
+(rule 12 (simplify (Op.Or (bool_value) (and b (one)))) b)
+
+;; a | (a & _) => a.
+(rule 11 (simplify (Op.Or a (band a _))) a)
+
+;; a | (_ & a) => a.
+(rule 10 (simplify (Op.Or a (band _ a))) a)
+
+;; (b & _) | b => b.
+(rule 9 (simplify (Op.Or (band b _) b)) b)
+
+;; (_ & b) | b => b.
+(rule 8 (simplify (Op.Or (band _ b) b)) b)
+
+;; a | a => a.
+(rule 7 (simplify (Op.Or a a)) a)
+
+;; a | 0 => a.
+(rule 5 (simplify (Op.Or a (zero))) a)
+
+;; _ | MAX => MAX.
+(rule 4 (simplify (Op.Or _ (and b (all_ones)))) b)
+
+;; ~b | b => MAX.
+(rule 2 (simplify (Op.Or (bnot b) b)) (imm (u256_max)))
+
+;; a | ~a => MAX.
+(rule 1 (simplify (Op.Or a (bnot a))) (imm (u256_max)))
+
+;; a ^ (a ^ b) => b.
+(rule 9 (simplify (Op.Xor a (bxor a b))) b)
+
+;; a ^ (b ^ a) => b.
+(rule 8 (simplify (Op.Xor a (bxor b a))) b)
+
+;; (a ^ b) ^ a => b.
+(rule 7 (simplify (Op.Xor (bxor a b) a)) b)
+
+;; (b ^ a) ^ a => b.
+(rule 6 (simplify (Op.Xor (bxor b a) a)) b)
+
+;; a ^ a => 0.
+(rule 5 (simplify (Op.Xor a a)) (imm (u256 0)))
+
+;; a ^ 0 => a.
+(rule 3 (simplify (Op.Xor a (zero))) a)
+
+;; ~b ^ b => MAX.
+(rule 2 (simplify (Op.Xor (bnot b) b)) (imm (u256_max)))
+
+;; a ^ ~a => MAX.
+(rule 1 (simplify (Op.Xor a (bnot a))) (imm (u256_max)))
+
+;; ~~x => x.
+(rule 2 (simplify (Op.Not (bnot x))) x)
+
+;; ~c => ~c.
+;; Requires: c is constant.
+(rule 1 (simplify (Op.Not (iconst c))) (imm (u256_not c)))
+
+;; (x & y) & x => x & y.
+(rule 1007 (simplify (Op.And (and value (band x y)) x))  value)
+
+;; x & (x & y) => x & y.
+(rule 1008 (simplify (Op.And x (and value (band x y))))  value)
+
+;; (y & x) & x => y & x.
+(rule 1009 (simplify (Op.And (and value (band y x)) x))  value)
+
+;; x & (y & x) => y & x.
+(rule 1010 (simplify (Op.And x (and value (band y x))))  value)
+
+;; (x | y) | x => x | y.
+(rule 1011 (simplify (Op.Or (and value (bor x y)) x))  value)
+
+;; x | (x | y) => x | y.
+(rule 1012 (simplify (Op.Or x (and value (bor x y))))  value)
+
+;; (y | x) | x => y | x.
+(rule 1013 (simplify (Op.Or (and value (bor y x)) x))  value)
+
+;; x | (y | x) => y | x.
+(rule 1014 (simplify (Op.Or x (and value (bor y x))))  value)
+
+;; (x & y) & (x | z) => x & y.
+(rule 1027 (simplify (Op.And (and value (band x y)) (bor x z)))  value)
+
+;; (x | z) & (x & y) => x & y.
+(rule 1028 (simplify (Op.And (bor x z) (and value (band x y))))  value)
+
+;; (x & y) & (z | x) => x & y.
+(rule 1029 (simplify (Op.And (and value (band x y)) (bor z x)))  value)
+
+;; (z | x) & (x & y) => x & y.
+(rule 1030 (simplify (Op.And (bor z x) (and value (band x y))))  value)
+
+;; (y & x) & (x | z) => y & x.
+(rule 1031 (simplify (Op.And (and value (band y x)) (bor x z)))  value)
+
+;; (x | z) & (y & x) => y & x.
+(rule 1032 (simplify (Op.And (bor x z) (and value (band y x))))  value)
+
+;; (y & x) & (z | x) => y & x.
+(rule 1033 (simplify (Op.And (and value (band y x)) (bor z x)))  value)
+
+;; (z | x) & (y & x) => y & x.
+(rule 1034 (simplify (Op.And (bor z x) (and value (band y x))))  value)
+
+;; (x | y) | (x & z) => x | y.
+(rule 1035 (simplify (Op.Or (and value (bor x y)) (band x z)))  value)
+
+;; (x & z) | (x | y) => x | y.
+(rule 1036 (simplify (Op.Or (band x z) (and value (bor x y))))  value)
+
+;; (x | y) | (z & x) => x | y.
+(rule 1037 (simplify (Op.Or (and value (bor x y)) (band z x)))  value)
+
+;; (z & x) | (x | y) => x | y.
+(rule 1038 (simplify (Op.Or (band z x) (and value (bor x y))))  value)
+
+;; (y | x) | (x & z) => y | x.
+(rule 1039 (simplify (Op.Or (and value (bor y x)) (band x z)))  value)
+
+;; (x & z) | (y | x) => y | x.
+(rule 1040 (simplify (Op.Or (band x z) (and value (bor y x))))  value)
+
+;; (y | x) | (z & x) => y | x.
+(rule 1041 (simplify (Op.Or (and value (bor y x)) (band z x)))  value)
+
+;; (z & x) | (y | x) => y | x.
+(rule 1042 (simplify (Op.Or (band z x) (and value (bor y x))))  value)
+
+;; (a < b) & (a == b) => false.
+(rule 1105 (simplify (Op.And (lt a b) (eq a b)))  (imm_bool false))
+
+;; (a == b) & (a < b) => false.
+(rule 1106 (simplify (Op.And (eq a b) (lt a b)))  (imm_bool false))
+
+;; (a < b) & (a > b) => false.
+(rule 1107 (simplify (Op.And (lt a b) (gt a b)))  (imm_bool false))
+
+;; (a > b) & (a < b) => false.
+(rule 1108 (simplify (Op.And (gt a b) (lt a b)))  (imm_bool false))
+
+;; (a == b) & (a > b) => false.
+(rule 1109 (simplify (Op.And (eq a b) (gt a b)))  (imm_bool false))
+
+;; (a > b) & (a == b) => false.
+(rule 1110 (simplify (Op.And (gt a b) (eq a b)))  (imm_bool false))
+
+;; (signed(a) < signed(b)) & (a == b) => false.
+(rule 1111 (simplify (Op.And (slt a b) (eq a b)))  (imm_bool false))
+
+;; (a == b) & (signed(a) < signed(b)) => false.
+(rule 1112 (simplify (Op.And (eq a b) (slt a b)))  (imm_bool false))
+
+;; (signed(a) < signed(b)) & (signed(a) > signed(b)) => false.
+(rule 1113 (simplify (Op.And (slt a b) (sgt a b)))  (imm_bool false))
+
+;; (signed(a) > signed(b)) & (signed(a) < signed(b)) => false.
+(rule 1114 (simplify (Op.And (sgt a b) (slt a b)))  (imm_bool false))
+
+;; (a == b) & (signed(a) > signed(b)) => false.
+(rule 1115 (simplify (Op.And (eq a b) (sgt a b)))  (imm_bool false))
+
+;; (signed(a) > signed(b)) & (a == b) => false.
+(rule 1116 (simplify (Op.And (sgt a b) (eq a b)))  (imm_bool false))
+
+;; (x < y) & (y == x) => false.
+(rule 1200 (simplify (Op.And (lt x y) (eq y x))) (imm_bool false))
+
+;; (y == x) & (x < y) => false.
+(rule 1201 (simplify (Op.And (eq y x) (lt x y))) (imm_bool false))
+
+;; (x < y) & (x != y) => x < y.
+(rule 1202 (simplify (Op.And (and value (lt x y)) (ne x y))) value)
+
+;; (x < y) | (x != y) => x != y.
+(rule 1203 (simplify (Op.Or (lt x y) (and value (ne x y)))) value)
+
+;; (x != y) & (x < y) => x < y.
+(rule 1204 (simplify (Op.And (ne x y) (and value (lt x y)))) value)
+
+;; (x != y) | (x < y) => x != y.
+(rule 1205 (simplify (Op.Or (and value (ne x y)) (lt x y))) value)
+
+;; (x < y) & (y != x) => x < y.
+(rule 1206 (simplify (Op.And (and value (lt x y)) (ne y x))) value)
+
+;; (x < y) | (y != x) => y != x.
+(rule 1207 (simplify (Op.Or (lt x y) (and value (ne y x)))) value)
+
+;; (y != x) & (x < y) => x < y.
+(rule 1208 (simplify (Op.And (ne y x) (and value (lt x y)))) value)
+
+;; (y != x) | (x < y) => y != x.
+(rule 1209 (simplify (Op.Or (and value (ne y x)) (lt x y))) value)
+
+;; (x > y) & (y == x) => false.
+(rule 1210 (simplify (Op.And (gt x y) (eq y x))) (imm_bool false))
+
+;; (y == x) & (x > y) => false.
+(rule 1211 (simplify (Op.And (eq y x) (gt x y))) (imm_bool false))
+
+;; (x > y) & (x != y) => x > y.
+(rule 1212 (simplify (Op.And (and value (gt x y)) (ne x y))) value)
+
+;; (x > y) | (x != y) => x != y.
+(rule 1213 (simplify (Op.Or (gt x y) (and value (ne x y)))) value)
+
+;; (x != y) & (x > y) => x > y.
+(rule 1214 (simplify (Op.And (ne x y) (and value (gt x y)))) value)
+
+;; (x != y) | (x > y) => x != y.
+(rule 1215 (simplify (Op.Or (and value (ne x y)) (gt x y))) value)
+
+;; (x > y) & (y != x) => x > y.
+(rule 1216 (simplify (Op.And (and value (gt x y)) (ne y x))) value)
+
+;; (x > y) | (y != x) => y != x.
+(rule 1217 (simplify (Op.Or (gt x y) (and value (ne y x)))) value)
+
+;; (y != x) & (x > y) => x > y.
+(rule 1218 (simplify (Op.And (ne y x) (and value (gt x y)))) value)
+
+;; (y != x) | (x > y) => y != x.
+(rule 1219 (simplify (Op.Or (and value (ne y x)) (gt x y))) value)
+
+;; (x < y) & (y < x) => false.
+(rule 1220 (simplify (Op.And (lt x y) (lt y x))) (imm_bool false))
+
+;; (x > y) & (y > x) => false.
+(rule 1221 (simplify (Op.And (gt x y) (gt y x))) (imm_bool false))
+
+;; (signed(x) < signed(y)) & (y == x) => false.
+(rule 1222 (simplify (Op.And (slt x y) (eq y x))) (imm_bool false))
+
+;; (y == x) & (signed(x) < signed(y)) => false.
+(rule 1223 (simplify (Op.And (eq y x) (slt x y))) (imm_bool false))
+
+;; (signed(x) < signed(y)) & (x != y) => signed(x) < signed(y).
+(rule 1224 (simplify (Op.And (and value (slt x y)) (ne x y))) value)
+
+;; (signed(x) < signed(y)) | (x != y) => x != y.
+(rule 1225 (simplify (Op.Or (slt x y) (and value (ne x y)))) value)
+
+;; (x != y) & (signed(x) < signed(y)) => signed(x) < signed(y).
+(rule 1226 (simplify (Op.And (ne x y) (and value (slt x y)))) value)
+
+;; (x != y) | (signed(x) < signed(y)) => x != y.
+(rule 1227 (simplify (Op.Or (and value (ne x y)) (slt x y))) value)
+
+;; (signed(x) < signed(y)) & (y != x) => signed(x) < signed(y).
+(rule 1228 (simplify (Op.And (and value (slt x y)) (ne y x))) value)
+
+;; (signed(x) < signed(y)) | (y != x) => y != x.
+(rule 1229 (simplify (Op.Or (slt x y) (and value (ne y x)))) value)
+
+;; (y != x) & (signed(x) < signed(y)) => signed(x) < signed(y).
+(rule 1230 (simplify (Op.And (ne y x) (and value (slt x y)))) value)
+
+;; (y != x) | (signed(x) < signed(y)) => y != x.
+(rule 1231 (simplify (Op.Or (and value (ne y x)) (slt x y))) value)
+
+;; (signed(x) > signed(y)) & (y == x) => false.
+(rule 1232 (simplify (Op.And (sgt x y) (eq y x))) (imm_bool false))
+
+;; (y == x) & (signed(x) > signed(y)) => false.
+(rule 1233 (simplify (Op.And (eq y x) (sgt x y))) (imm_bool false))
+
+;; (signed(x) > signed(y)) & (x != y) => signed(x) > signed(y).
+(rule 1234 (simplify (Op.And (and value (sgt x y)) (ne x y))) value)
+
+;; (signed(x) > signed(y)) | (x != y) => x != y.
+(rule 1235 (simplify (Op.Or (sgt x y) (and value (ne x y)))) value)
+
+;; (x != y) & (signed(x) > signed(y)) => signed(x) > signed(y).
+(rule 1236 (simplify (Op.And (ne x y) (and value (sgt x y)))) value)
+
+;; (x != y) | (signed(x) > signed(y)) => x != y.
+(rule 1237 (simplify (Op.Or (and value (ne x y)) (sgt x y))) value)
+
+;; (signed(x) > signed(y)) & (y != x) => signed(x) > signed(y).
+(rule 1238 (simplify (Op.And (and value (sgt x y)) (ne y x))) value)
+
+;; (signed(x) > signed(y)) | (y != x) => y != x.
+(rule 1239 (simplify (Op.Or (sgt x y) (and value (ne y x)))) value)
+
+;; (y != x) & (signed(x) > signed(y)) => signed(x) > signed(y).
+(rule 1240 (simplify (Op.And (ne y x) (and value (sgt x y)))) value)
+
+;; (y != x) | (signed(x) > signed(y)) => y != x.
+(rule 1241 (simplify (Op.Or (and value (ne y x)) (sgt x y))) value)
+
+;; (signed(x) < signed(y)) & (signed(y) < signed(x)) => false.
+(rule 1242 (simplify (Op.And (slt x y) (slt y x))) (imm_bool false))
+
+;; (signed(x) > signed(y)) & (signed(y) > signed(x)) => false.
+(rule 1243 (simplify (Op.And (sgt x y) (sgt y x))) (imm_bool false))
+
+;; (x == y) & (x != y) => false.
+(rule 1300 (simplify (Op.And (eq x y) (ne x y))) (imm_bool false))
+
+;; (x != y) & (x == y) => false.
+(rule 1301 (simplify (Op.And (ne x y) (eq x y))) (imm_bool false))
+
+;; (x == y) & (y != x) => false.
+(rule 1302 (simplify (Op.And (eq x y) (ne y x))) (imm_bool false))
+
+;; (y != x) & (x == y) => false.
+(rule 1303 (simplify (Op.And (ne y x) (eq x y))) (imm_bool false))
+
+;; (x == y) | (x != y) => true.
+(rule 1304 (simplify (Op.Or (eq x y) (ne x y))) (imm_bool true))
+
+;; (x != y) | (x == y) => true.
+(rule 1305 (simplify (Op.Or (ne x y) (eq x y))) (imm_bool true))
+
+;; (x == y) | (y != x) => true.
+(rule 1306 (simplify (Op.Or (eq x y) (ne y x))) (imm_bool true))
+
+;; (y != x) | (x == y) => true.
+(rule 1307 (simplify (Op.Or (ne y x) (eq x y))) (imm_bool true))
+
+;; (x == y) ^ (x != y) => true.
+(rule 1308 (simplify (Op.Xor (eq x y) (ne x y))) (imm_bool true))
+
+;; (x != y) ^ (x == y) => true.
+(rule 1309 (simplify (Op.Xor (ne x y) (eq x y))) (imm_bool true))
+
+;; (x == y) ^ (y != x) => true.
+(rule 1310 (simplify (Op.Xor (eq x y) (ne y x))) (imm_bool true))
+
+;; (y != x) ^ (x == y) => true.
+(rule 1311 (simplify (Op.Xor (ne y x) (eq x y))) (imm_bool true))

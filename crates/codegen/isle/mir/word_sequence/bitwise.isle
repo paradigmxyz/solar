@@ -1,0 +1,412 @@
+;; Bitwise identities and boolean combinations.
+
+;; (x << 1) | 1 => x - ~x.
+(rule (sequence_rewrite (Op.Or (shl (one) x) (one)))
+      (if-let complement (make (Op.Not x))) (sequence (Op.Sub x complement)))
+
+;; 1 | (x << 1) => x - ~x.
+(rule (sequence_rewrite (Op.Or (one) (shl (one) x)))
+      (if-let complement (make (Op.Not x))) (sequence (Op.Sub x complement)))
+
+;; (x + x) | 1 => x - ~x.
+(rule (sequence_rewrite (Op.Or (add x x) (one)))
+      (if-let complement (make (Op.Not x))) (sequence (Op.Sub x complement)))
+
+;; 1 | (x + x) => x - ~x.
+(rule (sequence_rewrite (Op.Or (one) (add x x)))
+      (if-let complement (make (Op.Not x))) (sequence (Op.Sub x complement)))
+
+;; ~x & ~y => ~(x | y).
+(rule (sequence_rewrite (Op.And (bnot v0) (bnot v1))) (if-let r0 (make (Op.Or v0 v1))) (sequence (Op.Not r0)))
+
+;; ~x | ~y => ~(x & y).
+(rule (sequence_rewrite (Op.Or (bnot v0) (bnot v1))) (if-let r0 (make (Op.And v0 v1))) (sequence (Op.Not r0)))
+
+;; (x == 0) & (y == 0) => (x | y) == 0.
+(rule (sequence_rewrite (Op.And (eq v0 (zero)) (eq v1 (zero)))) (if-let r0 (make (Op.Or v0 v1))) (if-let zero (imm (u256 0))) (sequence (Op.Eq r0 zero)))
+
+;; (x & y) | (x & z) => (y | z) & x.
+(rule (sequence_rewrite (Op.Or (band v0 v1) (band v0 v2))) (if-let r0 (make (Op.Or v1 v2))) (sequence (Op.And r0 v0)))
+
+;; (x & y) | (y & z) => (x | z) & y.
+(rule (sequence_rewrite (Op.Or (band v0 v1) (band v1 v2))) (if-let r0 (make (Op.Or v0 v2))) (sequence (Op.And r0 v1)))
+
+;; (x & y) | (z & x) => (y | z) & x.
+(rule (sequence_rewrite (Op.Or (band v0 v1) (band v2 v0))) (if-let r0 (make (Op.Or v1 v2))) (sequence (Op.And r0 v0)))
+
+;; (x & y) | (z & y) => (x | z) & y.
+(rule (sequence_rewrite (Op.Or (band v0 v1) (band v2 v1))) (if-let r0 (make (Op.Or v0 v2))) (sequence (Op.And r0 v1)))
+
+;; (x & y) ^ (x & z) => (y ^ z) & x.
+(rule (sequence_rewrite (Op.Xor (band v0 v1) (band v0 v2))) (if-let r0 (make (Op.Xor v1 v2))) (sequence (Op.And r0 v0)))
+
+;; (x & y) ^ (y & z) => (x ^ z) & y.
+(rule (sequence_rewrite (Op.Xor (band v0 v1) (band v1 v2))) (if-let r0 (make (Op.Xor v0 v2))) (sequence (Op.And r0 v1)))
+
+;; (x & y) ^ (z & x) => (y ^ z) & x.
+(rule (sequence_rewrite (Op.Xor (band v0 v1) (band v2 v0))) (if-let r0 (make (Op.Xor v1 v2))) (sequence (Op.And r0 v0)))
+
+;; (x & y) ^ (z & y) => (x ^ z) & y.
+(rule (sequence_rewrite (Op.Xor (band v0 v1) (band v2 v1))) (if-let r0 (make (Op.Xor v0 v2))) (sequence (Op.And r0 v1)))
+
+;; (x | y) & (x | z) => (y & z) | x.
+(rule (sequence_rewrite (Op.And (bor v0 v1) (bor v0 v2))) (if-let r0 (make (Op.And v1 v2))) (sequence (Op.Or r0 v0)))
+
+;; (x | y) & (y | z) => (x & z) | y.
+(rule (sequence_rewrite (Op.And (bor v0 v1) (bor v1 v2))) (if-let r0 (make (Op.And v0 v2))) (sequence (Op.Or r0 v1)))
+
+;; (x | y) & (z | x) => (y & z) | x.
+(rule (sequence_rewrite (Op.And (bor v0 v1) (bor v2 v0))) (if-let r0 (make (Op.And v1 v2))) (sequence (Op.Or r0 v0)))
+
+;; (x | y) & (z | y) => (x & z) | y.
+(rule (sequence_rewrite (Op.And (bor v0 v1) (bor v2 v1))) (if-let r0 (make (Op.And v0 v2))) (sequence (Op.Or r0 v1)))
+
+;; (y << x) & (z << x) => (y & z) << x.
+(rule (sequence_rewrite (Op.And (shl v0 v1) (shl v0 v2))) (if-let r0 (make (Op.And v1 v2))) (sequence (Op.Shl v0 r0)))
+
+;; (y << x) | (z << x) => (y | z) << x.
+(rule (sequence_rewrite (Op.Or (shl v0 v1) (shl v0 v2))) (if-let r0 (make (Op.Or v1 v2))) (sequence (Op.Shl v0 r0)))
+
+;; (y << x) ^ (z << x) => (y ^ z) << x.
+(rule (sequence_rewrite (Op.Xor (shl v0 v1) (shl v0 v2))) (if-let r0 (make (Op.Xor v1 v2))) (sequence (Op.Shl v0 r0)))
+
+;; (y >> x) & (z >> x) => (y & z) >> x.
+(rule (sequence_rewrite (Op.And (shr v0 v1) (shr v0 v2))) (if-let r0 (make (Op.And v1 v2))) (sequence (Op.Shr v0 r0)))
+
+;; (y >> x) | (z >> x) => (y | z) >> x.
+(rule (sequence_rewrite (Op.Or (shr v0 v1) (shr v0 v2))) (if-let r0 (make (Op.Or v1 v2))) (sequence (Op.Shr v0 r0)))
+
+;; (y >> x) ^ (z >> x) => (y ^ z) >> x.
+(rule (sequence_rewrite (Op.Xor (shr v0 v1) (shr v0 v2))) (if-let r0 (make (Op.Xor v1 v2))) (sequence (Op.Shr v0 r0)))
+
+;; sar(x, y) & sar(x, z) => sar(x, (y & z)).
+(rule (sequence_rewrite (Op.And (sar v0 v1) (sar v0 v2))) (if-let r0 (make (Op.And v1 v2))) (sequence (Op.Sar v0 r0)))
+
+;; sar(x, y) | sar(x, z) => sar(x, (y | z)).
+(rule (sequence_rewrite (Op.Or (sar v0 v1) (sar v0 v2))) (if-let r0 (make (Op.Or v1 v2))) (sequence (Op.Sar v0 r0)))
+
+;; sar(x, y) ^ sar(x, z) => sar(x, (y ^ z)).
+(rule (sequence_rewrite (Op.Xor (sar v0 v1) (sar v0 v2))) (if-let r0 (make (Op.Xor v1 v2))) (sequence (Op.Sar v0 r0)))
+
+;; ~(x & y) & x => ~y & x.
+(rule (sequence_rewrite (Op.And (bnot (band v0 v1)) v0)) (if-let r0 (make (Op.Not v1))) (sequence (Op.And r0 v0)))
+
+;; ~(x & y) & y => ~x & y.
+(rule (sequence_rewrite (Op.And (bnot (band v0 v1)) v1)) (if-let r0 (make (Op.Not v0))) (sequence (Op.And r0 v1)))
+
+;; x & ~(x & y) => ~y & x.
+(rule (sequence_rewrite (Op.And v0 (bnot (band v0 v1)))) (if-let r0 (make (Op.Not v1))) (sequence (Op.And r0 v0)))
+
+;; x & ~(y & x) => ~y & x.
+(rule (sequence_rewrite (Op.And v0 (bnot (band v1 v0)))) (if-let r0 (make (Op.Not v1))) (sequence (Op.And r0 v0)))
+
+;; ~(x | y) | x => ~y | x.
+(rule (sequence_rewrite (Op.Or (bnot (bor v0 v1)) v0)) (if-let r0 (make (Op.Not v1))) (sequence (Op.Or r0 v0)))
+
+;; ~(x | y) | y => ~x | y.
+(rule (sequence_rewrite (Op.Or (bnot (bor v0 v1)) v1)) (if-let r0 (make (Op.Not v0))) (sequence (Op.Or r0 v1)))
+
+;; x | ~(x | y) => ~y | x.
+(rule (sequence_rewrite (Op.Or v0 (bnot (bor v0 v1)))) (if-let r0 (make (Op.Not v1))) (sequence (Op.Or r0 v0)))
+
+;; x | ~(y | x) => ~y | x.
+(rule (sequence_rewrite (Op.Or v0 (bnot (bor v1 v0)))) (if-let r0 (make (Op.Not v1))) (sequence (Op.Or r0 v0)))
+
+;; (x != 0) | (y != 0) => (x | y) != 0.
+(rule (sequence_rewrite (Op.Or (ne x (zero)) (ne y (zero))))
+      (if-let combined (make (Op.Or x y))) (if-let zero (imm (u256 0)))
+      (sequence (Op.Ne combined zero)))
+
+;; (x & ~a) & ~b => x & ~(a | b).
+(rule (sequence_rewrite (Op.And (band x (bnot a)) (bnot b)))
+      (if-let both (make (Op.Or a b))) (if-let complement (make (Op.Not both)))
+      (sequence (Op.And x complement)))
+
+;; (~a & x) & ~b => x & ~(a | b).
+(rule (sequence_rewrite (Op.And (band (bnot a) x) (bnot b)))
+      (if-let both (make (Op.Or a b))) (if-let complement (make (Op.Not both)))
+      (sequence (Op.And x complement)))
+
+;; (x | ~a) | ~b => x | ~(a & b).
+(rule (sequence_rewrite (Op.Or (bor x (bnot a)) (bnot b)))
+      (if-let both (make (Op.And a b))) (if-let complement (make (Op.Not both)))
+      (sequence (Op.Or x complement)))
+
+;; (~a | x) | ~b => x | ~(a & b).
+(rule (sequence_rewrite (Op.Or (bor (bnot a) x) (bnot b)))
+      (if-let both (make (Op.And a b))) (if-let complement (make (Op.Not both)))
+      (sequence (Op.Or x complement)))
+
+;; (x < y) | (x > y) => x != y.
+(rule (sequence_rewrite (Op.Or (lt x y) (gt x y)))
+
+      (sequence (Op.Ne x y)))
+
+;; (x > y) | (x < y) => x != y.
+(rule (sequence_rewrite (Op.Or (gt x y) (lt x y)))
+
+      (sequence (Op.Ne x y)))
+
+;; (x < y) | (x == y) => (x > y) == 0.
+(rule (sequence_rewrite (Op.Or (lt x y) (eq x y)))
+      (if-let compared (make (Op.Gt x y))) (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (x == y) | (x < y) => (x > y) == 0.
+(rule (sequence_rewrite (Op.Or (eq x y) (lt x y)))
+      (if-let compared (make (Op.Gt x y))) (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (x < y) ^ (x > y) => x != y.
+(rule (sequence_rewrite (Op.Xor (lt x y) (gt x y)))
+
+      (sequence (Op.Ne x y)))
+
+;; (x > y) ^ (x < y) => x != y.
+(rule (sequence_rewrite (Op.Xor (gt x y) (lt x y)))
+
+      (sequence (Op.Ne x y)))
+
+;; (x < y) ^ (x == y) => (x > y) == 0.
+(rule (sequence_rewrite (Op.Xor (lt x y) (eq x y)))
+      (if-let compared (make (Op.Gt x y))) (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (x == y) ^ (x < y) => (x > y) == 0.
+(rule (sequence_rewrite (Op.Xor (eq x y) (lt x y)))
+      (if-let compared (make (Op.Gt x y))) (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (signed(x) < signed(y)) | (signed(x) > signed(y)) => x != y.
+(rule (sequence_rewrite (Op.Or (slt x y) (sgt x y)))
+
+      (sequence (Op.Ne x y)))
+
+;; (signed(x) > signed(y)) | (signed(x) < signed(y)) => x != y.
+(rule (sequence_rewrite (Op.Or (sgt x y) (slt x y)))
+
+      (sequence (Op.Ne x y)))
+
+;; (signed(x) < signed(y)) | (x == y) => (signed(x) > signed(y)) == 0.
+(rule (sequence_rewrite (Op.Or (slt x y) (eq x y)))
+      (if-let compared (make (Op.SGt x y))) (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (x == y) | (signed(x) < signed(y)) => (signed(x) > signed(y)) == 0.
+(rule (sequence_rewrite (Op.Or (eq x y) (slt x y)))
+      (if-let compared (make (Op.SGt x y))) (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (signed(x) < signed(y)) ^ (signed(x) > signed(y)) => x != y.
+(rule (sequence_rewrite (Op.Xor (slt x y) (sgt x y)))
+
+      (sequence (Op.Ne x y)))
+
+;; (signed(x) > signed(y)) ^ (signed(x) < signed(y)) => x != y.
+(rule (sequence_rewrite (Op.Xor (sgt x y) (slt x y)))
+
+      (sequence (Op.Ne x y)))
+
+;; (signed(x) < signed(y)) ^ (x == y) => (signed(x) > signed(y)) == 0.
+(rule (sequence_rewrite (Op.Xor (slt x y) (eq x y)))
+      (if-let compared (make (Op.SGt x y))) (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (x == y) ^ (signed(x) < signed(y)) => (signed(x) > signed(y)) == 0.
+(rule (sequence_rewrite (Op.Xor (eq x y) (slt x y)))
+      (if-let compared (make (Op.SGt x y))) (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (x & a) & (y & b) => (x & y) & (a & b).
+;; Requires: a, b are constants.
+(rule (sequence_rewrite (Op.And (band x (iconst a)) (band y (iconst b))))
+      (if-let combined (make (Op.And x y))) (if-let constant (imm (u256_and a b)))
+      (sequence (Op.And combined constant)))
+
+;; (x | a) | (y | b) => (x | y) | (a | b).
+;; Requires: a, b are constants.
+(rule (sequence_rewrite (Op.Or (bor x (iconst a)) (bor y (iconst b))))
+      (if-let combined (make (Op.Or x y))) (if-let constant (imm (u256_or a b)))
+      (sequence (Op.Or combined constant)))
+
+;; (x ^ a) ^ (y ^ b) => (x ^ y) ^ (a ^ b).
+;; Requires: a, b are constants.
+(rule (sequence_rewrite (Op.Xor (bxor x (iconst a)) (bxor y (iconst b))))
+      (if-let combined (make (Op.Xor x y))) (if-let constant (imm (u256_xor a b)))
+      (sequence (Op.Xor combined constant)))
+
+;; ((x & a) >> count) & b => (x >> count) & ((a >> count) & b).
+;; Requires: count, a, b are constants.
+(rule (sequence_rewrite (Op.And (shr (iconst count) (band x (iconst a))) (iconst b)))
+      (if-let shift (imm count)) (if-let shifted (make (Op.Shr shift x))) (if-let mask (imm (u256_and (u256_shr count a) b)))
+      (sequence (Op.And shifted mask)))
+
+;; ((x & a) << count) & b => (x << count) & ((a << count) & b).
+;; Requires: count, a, b are constants.
+(rule (sequence_rewrite (Op.And (shl (iconst count) (band x (iconst a))) (iconst b)))
+      (if-let shift (imm count)) (if-let shifted (make (Op.Shl shift x))) (if-let mask (imm (u256_and (u256_shl count a) b)))
+      (sequence (Op.And shifted mask)))
+
+;; ~b & (x & ~a) => x & ~(a | b).
+(rule (sequence_rewrite (Op.And (bnot b) (band x (bnot a))))
+      (if-let both (make (Op.Or a b))) (if-let complement (make (Op.Not both)))
+      (sequence (Op.And x complement)))
+
+;; ~b & (~a & x) => x & ~(a | b).
+(rule (sequence_rewrite (Op.And (bnot b) (band (bnot a) x)))
+      (if-let both (make (Op.Or a b))) (if-let complement (make (Op.Not both)))
+      (sequence (Op.And x complement)))
+
+;; ~b | (x | ~a) => x | ~(a & b).
+(rule (sequence_rewrite (Op.Or (bnot b) (bor x (bnot a))))
+      (if-let both (make (Op.And a b))) (if-let complement (make (Op.Not both)))
+      (sequence (Op.Or x complement)))
+
+;; ~b | (~a | x) => x | ~(a & b).
+(rule (sequence_rewrite (Op.Or (bnot b) (bor (bnot a) x)))
+      (if-let both (make (Op.And a b))) (if-let complement (make (Op.Not both)))
+      (sequence (Op.Or x complement)))
+
+;; (x < y) | (y == x) => (x > y) == 0.
+(rule (sequence_rewrite (Op.Or (lt x y) (eq y x)))
+      (if-let compared (make (Op.Gt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (x < y) ^ (y == x) => (x > y) == 0.
+(rule (sequence_rewrite (Op.Xor (lt x y) (eq y x)))
+      (if-let compared (make (Op.Gt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (y == x) | (x < y) => (x > y) == 0.
+(rule (sequence_rewrite (Op.Or (eq y x) (lt x y)))
+      (if-let compared (make (Op.Gt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (y == x) ^ (x < y) => (x > y) == 0.
+(rule (sequence_rewrite (Op.Xor (eq y x) (lt x y)))
+      (if-let compared (make (Op.Gt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (x > y) | (x == y) => (x < y) == 0.
+(rule (sequence_rewrite (Op.Or (gt x y) (eq x y)))
+      (if-let compared (make (Op.Lt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (x > y) ^ (x == y) => (x < y) == 0.
+(rule (sequence_rewrite (Op.Xor (gt x y) (eq x y)))
+      (if-let compared (make (Op.Lt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (x == y) | (x > y) => (x < y) == 0.
+(rule (sequence_rewrite (Op.Or (eq x y) (gt x y)))
+      (if-let compared (make (Op.Lt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (x == y) ^ (x > y) => (x < y) == 0.
+(rule (sequence_rewrite (Op.Xor (eq x y) (gt x y)))
+      (if-let compared (make (Op.Lt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (x > y) | (y == x) => (x < y) == 0.
+(rule (sequence_rewrite (Op.Or (gt x y) (eq y x)))
+      (if-let compared (make (Op.Lt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (x > y) ^ (y == x) => (x < y) == 0.
+(rule (sequence_rewrite (Op.Xor (gt x y) (eq y x)))
+      (if-let compared (make (Op.Lt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (y == x) | (x > y) => (x < y) == 0.
+(rule (sequence_rewrite (Op.Or (eq y x) (gt x y)))
+      (if-let compared (make (Op.Lt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (y == x) ^ (x > y) => (x < y) == 0.
+(rule (sequence_rewrite (Op.Xor (eq y x) (gt x y)))
+      (if-let compared (make (Op.Lt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (signed(x) < signed(y)) | (y == x) => (signed(x) > signed(y)) == 0.
+(rule (sequence_rewrite (Op.Or (slt x y) (eq y x)))
+      (if-let compared (make (Op.SGt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (signed(x) < signed(y)) ^ (y == x) => (signed(x) > signed(y)) == 0.
+(rule (sequence_rewrite (Op.Xor (slt x y) (eq y x)))
+      (if-let compared (make (Op.SGt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (y == x) | (signed(x) < signed(y)) => (signed(x) > signed(y)) == 0.
+(rule (sequence_rewrite (Op.Or (eq y x) (slt x y)))
+      (if-let compared (make (Op.SGt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (y == x) ^ (signed(x) < signed(y)) => (signed(x) > signed(y)) == 0.
+(rule (sequence_rewrite (Op.Xor (eq y x) (slt x y)))
+      (if-let compared (make (Op.SGt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (signed(x) > signed(y)) | (x == y) => (signed(x) < signed(y)) == 0.
+(rule (sequence_rewrite (Op.Or (sgt x y) (eq x y)))
+      (if-let compared (make (Op.SLt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (signed(x) > signed(y)) ^ (x == y) => (signed(x) < signed(y)) == 0.
+(rule (sequence_rewrite (Op.Xor (sgt x y) (eq x y)))
+      (if-let compared (make (Op.SLt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (x == y) | (signed(x) > signed(y)) => (signed(x) < signed(y)) == 0.
+(rule (sequence_rewrite (Op.Or (eq x y) (sgt x y)))
+      (if-let compared (make (Op.SLt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (x == y) ^ (signed(x) > signed(y)) => (signed(x) < signed(y)) == 0.
+(rule (sequence_rewrite (Op.Xor (eq x y) (sgt x y)))
+      (if-let compared (make (Op.SLt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (signed(x) > signed(y)) | (y == x) => (signed(x) < signed(y)) == 0.
+(rule (sequence_rewrite (Op.Or (sgt x y) (eq y x)))
+      (if-let compared (make (Op.SLt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (signed(x) > signed(y)) ^ (y == x) => (signed(x) < signed(y)) == 0.
+(rule (sequence_rewrite (Op.Xor (sgt x y) (eq y x)))
+      (if-let compared (make (Op.SLt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (y == x) | (signed(x) > signed(y)) => (signed(x) < signed(y)) == 0.
+(rule (sequence_rewrite (Op.Or (eq y x) (sgt x y)))
+      (if-let compared (make (Op.SLt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))
+
+;; (y == x) ^ (signed(x) > signed(y)) => (signed(x) < signed(y)) == 0.
+(rule (sequence_rewrite (Op.Xor (eq y x) (sgt x y)))
+      (if-let compared (make (Op.SLt x y)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq compared zero)))

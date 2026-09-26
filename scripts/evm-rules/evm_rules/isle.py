@@ -21,6 +21,8 @@ from .semantics import (
     Unsupported,
     check,
     partition_bits,
+    partition_odd_factor,
+    partition_select,
     partition_shift,
     word,
 )
@@ -135,6 +137,15 @@ CALL_OPERANDS = {
 }
 
 
+EFFECT_OPERANDS = {
+    **CALL_OPERANDS,
+    **{
+        f"log{count}": ("offset", "size", *(f"topic{i + 1}" for i in range(count)))
+        for count in range(5)
+    },
+}
+
+
 class Context:
     def __init__(self, selection_source=None):
         self.values = {}
@@ -151,7 +162,7 @@ class Context:
         self.memory = MemoryAddresses(self)
 
     def operation(self, name, args):
-        if name.startswith("Op.") and name[3:].lower() in CALL_OPERANDS:
+        if name.startswith("Op.") and name[3:].lower() in EFFECT_OPERANDS:
             opcode = name[3:].lower()
             declarations = [
                 form[3][1:]
@@ -163,7 +174,7 @@ class Context:
                 for variants in declarations
                 for variant in variants
             }
-            expected = tuple((field, "Value") for field in CALL_OPERANDS[opcode])
+            expected = tuple((field, "Value") for field in EFFECT_OPERANDS[opcode])
             if shapes.get(name) != expected or len(args) != len(expected):
                 raise Unsupported(f"unmodeled or changed call operand schema: {name}")
             return Expr(opcode, tuple(args))
@@ -333,7 +344,7 @@ class Context:
                 self.model.eval(symbol) == z3.If(value, word(1), word(0))
             )
             return symbol
-        if name == "zero_value" and not values:
+        if name in ("zero_value", "imm_i160_zero") and not values:
             return Expr.const(0)
         if name == "u256_max" and not values:
             return Expr.const(MASK)
@@ -349,6 +360,10 @@ class Context:
             )
         binary = {
             "u256_add": "add",
+            "u256_mul": "mul",
+            "u256_or": "or",
+            "u256_xor": "xor",
+            "u256_div": "div",
             "u256_sub": "sub",
             "u256_and": "and",
             "u256_shl": "shl",
@@ -410,6 +425,7 @@ class Context:
             "has_self_balance",
             "in_current_block",
             "single_use",
+            "push_not_larger",
             "optimize_for_size",
         ):
             # In particular, different ValueIds must NOT imply different word values.
@@ -478,7 +494,7 @@ class Context:
             if expr.op in ("var", "const"):
                 return
             for child in expr.args:
-                if child.op in CALL_OPERANDS:
+                if child.op in EFFECT_OPERANDS:
                     raise Unsupported("calls are only modeled at instruction roots")
                 if child.op in ("balance", "selfbalance"):
                     raise Unsupported(
@@ -490,25 +506,46 @@ class Context:
         # not by arbitrary earlier producers reached through operand extractors.
         validate_snapshot_root(lhs)
         validate_snapshot_root(rhs)
-        if lhs.op in CALL_OPERANDS or rhs.op in CALL_OPERANDS:
+        if lhs.op in EFFECT_OPERANDS or rhs.op in EFFECT_OPERANDS:
             if lhs.op != rhs.op or len(lhs.args) != len(rhs.args):
                 raise Unsupported("a call rewrite must preserve its opcode and effect")
             self.contracts.add(
                 "classic CALL-family: preserve the instruction and every effective operand; "
-                "only address bits above 160 are ignored. No call result is modeled as a pure value; "
+                "address bits above 160 and memory starts for zero-length regions are ignored. "
+                "LOG topics and effects are preserved. No effectful result is modeled as a pure value; "
                 "the rewrite driver preserves effect order. Gas accounting is outside this model"
             )
             difference = Expr.const(0)
             for index, (before, after) in enumerate(
                 zip(lhs.args, rhs.args, strict=True)
             ):
-                if index == 1:
+                if lhs.op in CALL_OPERANDS and index == 1:
                     mask = Expr.const((1 << 160) - 1)
                     before = Expr("and", (before, mask))
                     after = Expr("and", (after, mask))
+                fields = EFFECT_OPERANDS[lhs.op]
+                size_field = {
+                    "args_offset": "args_size",
+                    "ret_offset": "ret_size",
+                    "offset": "size",
+                }.get(fields[index])
+                if size_field is not None:
+                    size_index = fields.index(size_field)
+                    before = Expr(
+                        "select", (lhs.args[size_index], before, Expr.const(0))
+                    )
+                    after = Expr("select", (rhs.args[size_index], after, Expr.const(0)))
                 difference = Expr("or", (difference, Expr("xor", (before, after))))
             return difference, Expr.const(0)
         return lhs, rhs
+
+
+def rule_sources(path):
+    """Read a rule file or every ISLE module in a rule-set directory."""
+    paths = sorted(path.glob("*.isle")) if path.is_dir() else [path]
+    if not paths:
+        raise ValueError(f"no ISLE modules in {path}")
+    return [(module, module.read_text()) for module in paths]
 
 
 def verify_file(
@@ -523,9 +560,13 @@ def verify_file(
     shard_index=0,
     shard_count=1,
 ):
-    source = path.read_text()
+    sources = rule_sources(path)
+    source = "".join(text for _, text in sources)
     rules = [
-        Rule(form, line, str(path)) for form, line in forms(source) if form[0] == "rule"
+        Rule(form, line, str(module))
+        for module, text in sources
+        for form, line in forms(text)
+        if form[0] == "rule"
     ]
     if not rules:
         raise ValueError(f"no rules in {path}")
@@ -548,6 +589,20 @@ def verify_file(
                 context.model = Model(
                     {name: int(value, 16) for name, value in constants.items()}
                 )
+            if query and result["status"] == "unknown":
+                for partitioner in (partition_select, partition_odd_factor):
+                    partitioned, proofs = partitioner(
+                        lhs,
+                        rhs,
+                        context.assumptions,
+                        index_partition_timeout_ms or timeout_ms,
+                        context.model,
+                    )
+                    if partitioned["status"] == "proved":
+                        result, partitions = partitioned, proofs
+                        if constants:
+                            result["constant_specializations"] = constants
+                        break
             if query and (
                 result["status"] == "unknown"
                 or partition_shifts
@@ -617,7 +672,10 @@ def verify_file(
         except Unsupported as error:
             result = {"status": "unsupported", "reason": str(error)}
         result.update(
-            line=rule.line, rule_sha256=rule.digest, contracts=sorted(context.contracts)
+            source=rule.source,
+            line=rule.line,
+            rule_sha256=rule.digest,
+            contracts=sorted(context.contracts),
         )
         if query and artifacts is not None:
             artifacts.mkdir(parents=True, exist_ok=True)
@@ -625,7 +683,7 @@ def verify_file(
             for suffix, text in partitions or [("word", query)]:
                 query_path = (
                     artifacts
-                    / f"{path.stem}-{rule.line}-{rule.digest[:12]}-{suffix}.smt2"
+                    / f"{path.stem}-{Path(rule.source).stem}-{rule.line}-{rule.digest[:12]}-{suffix}.smt2"
                 )
                 query_path.write_text(text)
                 paths.append(str(query_path))

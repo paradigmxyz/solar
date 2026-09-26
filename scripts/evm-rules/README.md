@@ -2,10 +2,10 @@
 
 This is an offline search and SMT verification lane for the **actual ISLE source
 compiled into the optimizer**. Under `crates/codegen/isle/`, it checks MIR
-rewrites in `mir/word.isle` and `mir/word_sequence.isle`, lowering rules in
+rewrites in `mir/word` and `mir/word_sequence`, lowering rules in
 `mir-to-evm/stack_select.isle`, and physical EVM IR rules in
 `evm-ir/stack_peephole.isle` and `evm-ir/late_word.isle`. CI also verifies
-`mir/egraph.isle` with the larger budgets described below. The compiler itself
+`mir/egraph` with the larger budgets described below. The compiler itself
 has no solver dependency.
 
 ```sh
@@ -34,6 +34,21 @@ equal or restrict them to sampled values. These cases can still time out;
 partitioning more source shapes does not make the legacy audit complete.
 The report lists every saved query; replay one with `z3 path/to/rule.smt2` or
 `cvc5 --lang smt2 path/to/rule.smt2`.
+
+
+Select obligations can split on the full zero/nonzero condition. Both cases
+retain the original guards; a nonzero condition is never narrowed to one.
+For odd-factor comparison cancellation, a separate partition parameterizes
+`x=y+delta` modulo the word width and exhausts all 256 least-set-bit positions
+of nonzero `delta`. It proves reconstruction, the zero case, the required
+zero product, coverage, each bit parameterization, and its contradictory
+product bit: 772 saved obligations in total. No modular-inverse axiom is
+assumed. This partition rejects constant-specialized input models. Incomplete
+partitions remain unknown, and artifact validation rejects missing cases.
+
+If the guard-satisfiability check times out, a concrete assignment may establish
+that the guards are satisfiable. This only establishes applicability; the
+subsequent equivalence obligation retains all symbolic inputs and guards.
 
 For complete replay with cvc5, export exhaustive index partitions even when Z3
 can prove the original query directly:
@@ -74,7 +89,7 @@ Python checks without solving the full rule set.
 
 The [proof runner](../../.github/scripts/run_evm_proofs.sh) launches independent
 workers within that machine. Normal runs verify every selected rule using Z3,
-with cvc5 as an explicit fallback for incomplete e-graph proofs. They split
+with cvc5 as an explicit fallback for incomplete word proofs. They split
 queries only when needed and do not replay successful proofs with another solver.
 Reports, logs, and SMT artifacts live under
 `target/evm-rules/<suite>-<shard>/`. Every worker must succeed.
@@ -87,7 +102,7 @@ bash .github/scripts/run_evm_proofs.sh
 PROOF_AUDIT=true bash .github/scripts/run_evm_proofs.sh target/evm-audit
 
 # Reuse the same cache for a selected file or shard.
-uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/word.isle \
+uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/word \
   --cache-dir target/evm-proof-cache --shard-index 0 --shard-count 4 \
   --output target/evm-rules/selected.json --artifacts target/evm-rules/selected
 ```
@@ -145,7 +160,7 @@ five-second limit per strategy per query and fails on every exhausted query.
 Word verification has an optional, explicit cvc5 fallback:
 
 ```sh
-uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/egraph.isle \
+uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/egraph \
   --fallback-solver cvc5 --output target/evm-rules/legacy.json \
   --artifacts target/evm-rules/legacy-smt
 ```
@@ -176,7 +191,7 @@ For word queries that remain incomplete, opt into an additional budget for
 proving every output bit separately:
 
 ```sh
-uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/egraph.isle \
+uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/egraph \
   --fallback-solver cvc5 --bit-partition-timeout-ms 120000 \
   --bit-partition-jobs 4 \
   --output target/evm-rules/legacy-bits.json \
@@ -366,7 +381,7 @@ decisions remain unchanged in both cases.
 An audit of the older rules is available explicitly:
 
 ```sh
-uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/egraph.isle \
+uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/egraph \
   --timeout-ms 1000 --output target/evm-rules/audit.json
 ```
 
@@ -581,3 +596,8 @@ The design draws on [Cranelift's acyclic e-graphs](https://bytecodealliance.org/
 and [Ruler](https://uwplse.org/ruler/). Word semantics follow the
 [Ethereum execution specifications](https://github.com/ethereum/execution-specs/tree/master/src/ethereum/forks/cancun/vm/instructions)
 and use [Z3 bitvectors](https://microsoft.github.io/z3guide/docs/theories/Bitvectors/).
+
+MIR rule directories contain modules grouped by root operation. Pass a directory
+to verify all its modules, or an individual `.isle` file for a focused check.
+Directory sharding covers the combined rule set; each result records the actual
+module path and line. See [the module layout](../../crates/codegen/isle/mir/README.md).

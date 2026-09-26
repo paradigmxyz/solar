@@ -1,0 +1,294 @@
+;; Arithmetic identities and constant contraction.
+
+;; (base + existing) + offset => base + (existing + offset).
+;; Requires: existing is constant, offset is a nonzero constant.
+(rule (rewrite (Op.Add (add base (iconst existing)) (nonzero_const offset)))
+        (Op.Add base (imm (u256_add existing offset))))
+
+;; (base - existing) + offset => base + ((0 - existing) + offset).
+;; Requires: existing is constant, offset is a nonzero constant.
+(rule (rewrite (Op.Add (sub base (iconst existing)) (nonzero_const offset)))
+        (Op.Add base (imm (u256_add (u256_neg existing) offset))))
+
+;; (base + existing) - offset => base + (existing - offset).
+;; Requires: existing, offset are constants.
+(rule (rewrite (Op.Sub (add base (iconst existing)) (iconst offset)))
+        (Op.Add base (imm (u256_sub existing offset))))
+
+;; (base - existing) - offset => base + ((0 - existing) - offset).
+;; Requires: existing, offset are constants.
+(rule (rewrite (Op.Sub (sub base (iconst existing)) (iconst offset)))
+        (Op.Add base (imm (u256_sub (u256_neg existing) offset))))
+
+;; Only cancel unshared producers in this block to avoid extending live ranges.
+;; (x + y) - (x + z) => y - z.
+;; Requires: the matched producers each have one use in this block.
+(rule (rewrite (Op.Sub (and lhs (add x y)) (and rhs (add x z))))
+      (if-let true (single_use lhs))
+      (if-let true (single_use rhs))
+      (if-let true (in_current_block lhs))
+      (if-let true (in_current_block rhs))
+      (Op.Sub y z))
+
+;; (x + y) - (z + x) => y - z.
+;; Requires: the matched producers each have one use in this block.
+(rule (rewrite (Op.Sub (and lhs (add x y)) (and rhs (add z x))))
+      (if-let true (single_use lhs))
+      (if-let true (single_use rhs))
+      (if-let true (in_current_block lhs))
+      (if-let true (in_current_block rhs))
+      (Op.Sub y z))
+
+;; (y + x) - (x + z) => y - z.
+;; Requires: the matched producers each have one use in this block.
+(rule (rewrite (Op.Sub (and lhs (add y x)) (and rhs (add x z))))
+      (if-let true (single_use lhs))
+      (if-let true (single_use rhs))
+      (if-let true (in_current_block lhs))
+      (if-let true (in_current_block rhs))
+      (Op.Sub y z))
+
+;; (y + x) - (z + x) => y - z.
+;; Requires: the matched producers each have one use in this block.
+(rule (rewrite (Op.Sub (and lhs (add y x)) (and rhs (add z x))))
+      (if-let true (single_use lhs))
+      (if-let true (single_use rhs))
+      (if-let true (in_current_block lhs))
+      (if-let true (in_current_block rhs))
+      (Op.Sub y z))
+
+;; (x - z) - (y - z) => x - y.
+;; Requires: the matched producers each have one use in this block.
+(rule (rewrite (Op.Sub (and lhs (sub x z)) (and rhs (sub y z))))
+      (if-let true (single_use lhs))
+      (if-let true (single_use rhs))
+      (if-let true (in_current_block lhs))
+      (if-let true (in_current_block rhs))
+      (Op.Sub x y))
+
+;; (x - y) - (x - z) => z - y.
+;; Requires: the matched producers each have one use in this block.
+(rule (rewrite (Op.Sub (and lhs (sub x y)) (and rhs (sub x z))))
+      (if-let true (single_use lhs))
+      (if-let true (single_use rhs))
+      (if-let true (in_current_block lhs))
+      (if-let true (in_current_block rhs))
+      (Op.Sub z y))
+
+;; (x ^ y) + ((x & y) << 1) => x + y.
+(rule (rewrite (Op.Add (bxor x y) (shl (one) (band x y)))) (Op.Add x y))
+
+;; (x ^ y) + ((y & x) << 1) => x + y.
+(rule (rewrite (Op.Add (bxor x y) (shl (one) (band y x)))) (Op.Add x y))
+
+;; ((x & y) << 1) + (x ^ y) => x + y.
+(rule (rewrite (Op.Add (shl (one) (band x y)) (bxor x y))) (Op.Add x y))
+
+;; ((y & x) << 1) + (x ^ y) => x + y.
+(rule (rewrite (Op.Add (shl (one) (band y x)) (bxor x y))) (Op.Add x y))
+
+;; The carry may already use the equivalent doubling form.
+;; (x ^ y) + ((x & y) + (x & y)) => x + y.
+(rule (rewrite (Op.Add (bxor x y) (add (and carry (band x y)) carry))) (Op.Add x y))
+
+;; (x ^ y) + ((y & x) + (y & x)) => x + y.
+(rule (rewrite (Op.Add (bxor x y) (add (and carry (band y x)) carry))) (Op.Add x y))
+
+;; ((x & y) + (x & y)) + (x ^ y) => x + y.
+(rule (rewrite (Op.Add (add (and carry (band x y)) carry) (bxor x y))) (Op.Add x y))
+
+;; ((y & x) + (y & x)) + (x ^ y) => x + y.
+(rule (rewrite (Op.Add (add (and carry (band y x)) carry) (bxor x y))) (Op.Add x y))
+
+;; x * (1 << y) => x << y.
+;; Requires: the target supports shifts.
+(rule (rewrite (Op.Mul x (shl y (one))))
+      (if-let true (has_bitwise_shifting)) (Op.Shl y x))
+
+;; (1 << y) * x => x << y.
+;; Requires: the target supports shifts.
+(rule (rewrite (Op.Mul (shl y (one)) x))
+      (if-let true (has_bitwise_shifting)) (Op.Shl y x))
+
+;; value * c => value << shift.
+;; Requires: c is constant, value is not the constant 0 or 1, c != 0, c != 1, the target supports
+;; shifts, c == 2 ** shift and 1 <= shift <= 255.
+(rule (rewrite (Op.Mul value (iconst c)))
+        (if-let false (is_zero_or_one value))
+        (if-let false (u256_is_zero c))
+        (if-let false (u256_is_one c))
+        (if-let true (has_bitwise_shifting))
+        (if-let shift (power_of_two_shift c))
+        (Op.Shl (imm shift) value))
+
+;; a / c => a >> shift.
+;; Requires: c is constant, the target supports shifts, c == 2 ** shift and 1 <= shift <= 255.
+(rule (rewrite (Op.Div a (iconst c)))
+      (if-let true (has_bitwise_shifting))
+      (if-let shift (power_of_two_shift c))
+      (Op.Shr (imm shift) a))
+
+;; a % c => a & (c - 1).
+;; Requires: c is constant, c == 2 ** _ and 1 <= _ <= 255.
+(rule (rewrite (Op.Mod a (iconst c)))
+      (if-let _ (power_of_two_shift c))
+      (Op.And a (imm (u256_sub c (u256 1)))))
+
+;; base ** exponent => 1 << exponent.
+;; Requires: base is constant, base == 2, the target supports shifts.
+(rule (rewrite (Op.Exp (iconst base) exponent))
+      (if-let true (u256_eq base 2))
+      (if-let true (has_bitwise_shifting))
+      (Op.Shl exponent (imm (u256 1))))
+
+;; a ** c => a * a.
+;; Requires: c is constant, c == 2.
+(rule (rewrite (Op.Exp a (iconst c))) (if-let true (u256_eq c 2)) (Op.Mul a a))
+
+;; (a - b) + b => a.
+(rule 6 (simplify (Op.Add (sub a b) b)) a)
+
+;; b + (a - b) => a.
+(rule 5 (simplify (Op.Add b (sub a b))) a)
+
+;; a + 0 => a.
+(rule 2 (simplify (Op.Add a (zero))) a)
+
+;; (base - a) - (base - b) => (0 - a) - (0 - b).
+;; Requires: a, b are constants.
+(rule 13 (simplify (Op.Sub (sub base (iconst a)) (sub base (iconst b))))
+      (imm (u256_sub (u256_neg a) (u256_neg b))))
+
+;; (base - a) - (base + b) => (0 - a) - b.
+;; Requires: a, b are constants.
+(rule 11 (simplify (Op.Sub (sub base (iconst a)) (add base (iconst b))))
+      (imm (u256_sub (u256_neg a) b)))
+
+;; (base + a) - (base - b) => a - (0 - b).
+;; Requires: a, b are constants.
+(rule 7 (simplify (Op.Sub (add base (iconst a)) (sub base (iconst b))))
+      (imm (u256_sub a (u256_neg b))))
+
+;; (base + a) - (base + b) => a - b.
+;; Requires: a, b are constants.
+(rule 5 (simplify (Op.Sub (add base (iconst a)) (add base (iconst b))))
+      (imm (u256_sub a b)))
+
+;; (a + b) - b => a.
+(rule 4 (simplify (Op.Sub (add a b) b)) a)
+
+;; (a + b) - a => b.
+(rule 3 (simplify (Op.Sub (add a b) a)) b)
+
+;; a - 0 => a.
+(rule 2 (simplify (Op.Sub a (zero))) a)
+
+;; a - a => 0.
+(rule 1 (simplify (Op.Sub a a)) (imm (u256 0)))
+
+;; a * 1 => a.
+(rule 3 (simplify (Op.Mul a (one))) a)
+
+;; _ * 0 => 0.
+(rule 2 (simplify (Op.Mul _ (and b (zero)))) b)
+
+;; a / d => 0.
+;; Requires: d is constant, a is known to be < d.
+(rule 5 (simplify (Op.Div a (iconst d))) (if-let true (below_const a d)) (imm (u256 0)))
+
+;; 0 / _ => 0.
+(rule 4 (simplify (Op.Div (and a (zero)) _)) a)
+
+;; a / 1 => a.
+(rule 3 (simplify (Op.Div a (one))) a)
+
+;; _ / 0 => 0.
+(rule 2 (simplify (Op.Div _ (zero))) (imm (u256 0)))
+
+;; clz(_) / b => 0.
+;; Requires: b is constant, b > 256.
+(rule 1 (simplify (Op.Div (clz _) (iconst b))) (if-let true (u256_gt b 256)) (imm (u256 0)))
+
+;; sdiv(0, _) => 0.
+(rule 3 (simplify (Op.SDiv (and a (zero)) _)) a)
+
+;; sdiv(a, 1) => a.
+(rule 2 (simplify (Op.SDiv a (one))) a)
+
+;; sdiv(_, 0) => 0.
+(rule 1 (simplify (Op.SDiv _ (zero))) (imm (u256 0)))
+
+;; a % m => a.
+;; Requires: m is constant, a is known to be < m.
+(rule 6 (simplify (Op.Mod a (iconst m))) (if-let true (below_const a m)) a)
+
+;; 0 % _ => 0.
+(rule 5 (simplify (Op.Mod (and a (zero)) _)) a)
+
+;; _ % 0 => 0.
+(rule 4 (simplify (Op.Mod _ (zero))) (imm (u256 0)))
+
+;; _ % 1 => 0.
+(rule 3 (simplify (Op.Mod _ (one))) (imm (u256 0)))
+
+;; a % a => 0.
+(rule 2 (simplify (Op.Mod a a)) (imm (u256 0)))
+
+;; clz(_) % b => clz(_).
+;; Requires: b is constant, b > 256.
+(rule 1 (simplify (Op.Mod (and a (clz _)) (iconst b))) (if-let true (u256_gt b 256)) a)
+
+;; smod(_, MAX) => 0.
+(rule 5 (simplify (Op.SMod _ (all_ones))) (imm (u256 0)))
+
+;; smod(0, _) => 0.
+(rule 4 (simplify (Op.SMod (and a (zero)) _)) a)
+
+;; smod(_, 0) => 0.
+(rule 3 (simplify (Op.SMod _ (zero))) (imm (u256 0)))
+
+;; smod(_, 1) => 0.
+(rule 2 (simplify (Op.SMod _ (one))) (imm (u256 0)))
+
+;; smod(a, a) => 0.
+(rule 1 (simplify (Op.SMod a a)) (imm (u256 0)))
+
+;; _ ** 0 => 1.
+(rule 3 (simplify (Op.Exp _ (zero))) (imm (u256 1)))
+
+;; 1 ** _ => 1.
+(rule 2 (simplify (Op.Exp (and a (one)) _)) a)
+
+;; a ** 1 => a.
+(rule 1 (simplify (Op.Exp a (one))) a)
+
+;; addmod(_, _, 0) => 0.
+(rule 3 (simplify (Op.AddMod _ _ (zero))) (imm (u256 0)))
+
+;; addmod(_, _, 1) => 0.
+(rule 2 (simplify (Op.AddMod _ _ (one))) (imm (u256 0)))
+
+;; addmod(0, 0, _) => 0.
+(rule 1 (simplify (Op.AddMod (zero) (zero) _)) (imm (u256 0)))
+
+;; mulmod(_, _, 0) => 0.
+(rule 4 (simplify (Op.MulMod _ _ (zero))) (imm (u256 0)))
+
+;; mulmod(_, _, 1) => 0.
+(rule 3 (simplify (Op.MulMod _ _ (one))) (imm (u256 0)))
+
+;; mulmod(0, _, _) => 0.
+(rule 2 (simplify (Op.MulMod (zero) _ _)) (imm (u256 0)))
+
+;; mulmod(_, 0, _) => 0.
+(rule 1 (simplify (Op.MulMod _ (zero) _)) (imm (u256 0)))
+
+;; x - (x - y) => y.
+(rule 1005 (simplify (Op.Sub x (sub x y)))  y)
+
+;; 0 - (0 - x) => x.
+(rule 1006 (simplify (Op.Sub (zero) (sub (zero) x)))  x)
+
+;; (x / a) / b => 0.
+;; Requires: a is a nonzero constant, b is a nonzero constant, a > MAX / b.
+(rule 1015 (simplify (Op.Div (div x (nonzero_const a)) (nonzero_const b))) (if-let false (u256_le a (u256_div (u256_max) b))) (imm (u256 0)))
