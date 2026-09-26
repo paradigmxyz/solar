@@ -652,25 +652,29 @@ impl MirInliner {
                         .saturating_sub(old_size)
                         .saturating_add(new_summary.estimated_code_size);
                     summaries.insert(caller_id, new_summary);
-                    if self.mode == InlineMode::TinyLeaves {
-                        // Remove this call site and count the forwarded calls cloned into its
-                        // caller. The original callee remains until function DCE runs.
-                        if let Some(count) = call_counts.get_mut(&site.callee) {
-                            *count = count.saturating_sub(1);
+                    // Remove this call site and count the calls cloned into its caller.
+                    // The original callee remains until function DCE runs, and a callee
+                    // with a tail call is never inlined.
+                    if let Some(count) = call_counts.get_mut(&site.callee) {
+                        *count = count.saturating_sub(1);
+                    }
+                    for inst in callee.instructions() {
+                        if let InstKind::ICall { function: Callee::Function(function), .. } =
+                            callee.inst(inst).kind
+                        {
+                            *call_counts.entry(function).or_default() += 1;
                         }
-                        for inst in callee.instructions() {
-                            if let InstKind::ICall {
-                                function: Callee::Function(function), ..
-                            } = callee.inst(inst).kind
-                            {
-                                *call_counts.entry(function).or_default() += 1;
-                            }
-                        }
-                        if let Some(calls) = &mut artifact_calls {
-                            calls.inline(caller_id, site.callee, &callee);
-                        }
-                    } else {
-                        call_counts = self.call_counts(module);
+                    }
+                    debug_assert_eq!(
+                        call_counts
+                            .iter()
+                            .filter(|&(_, &count)| count != 0)
+                            .map(|(&function, &count)| (function, count))
+                            .collect::<FxHashMap<_, _>>(),
+                        self.call_counts(module),
+                    );
+                    if let Some(calls) = &mut artifact_calls {
+                        calls.inline(caller_id, site.callee, &callee);
                     }
                     cursor = (site.block.index(), 0);
                 } else {
