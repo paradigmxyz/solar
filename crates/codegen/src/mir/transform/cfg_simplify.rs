@@ -31,7 +31,7 @@ use crate::{
         Terminator, Value, ValueId,
         analysis::{CallGraphInfo, CfgInfo},
         pass::{MirPass, run_function_pass},
-        utils::{replace_terminator, retain_blocks},
+        utils::{link_successors, replace_terminator, retain_blocks},
     },
     target::GasTier,
 };
@@ -477,6 +477,25 @@ impl CfgSimplifier {
                 func.blocks[block_id].terminator,
                 Some(Terminator::Branch { .. } | Terminator::Switch { .. })
             ) {
+                continue;
+            }
+            let unchanged = Self::known_branch_target(func, block_id).is_none()
+                && match &func.blocks[block_id].terminator {
+                    Some(Terminator::Branch { then_block, else_block, .. }) => {
+                        then_block != else_block
+                    }
+                    Some(Terminator::Switch { default, cases, .. }) => {
+                        cases.last().is_some_and(|(_, target)| target != default)
+                    }
+                    _ => unreachable!(),
+                };
+            if unchanged {
+                // Rewriting an equal terminator only normalizes predecessor links.
+                let mut successors =
+                    func.blocks[block_id].terminator.as_ref().unwrap().successors();
+                successors.sort_unstable();
+                successors.dedup();
+                link_successors(func, block_id, &successors);
                 continue;
             }
             let mut terminator = func.blocks[block_id].terminator.clone();
