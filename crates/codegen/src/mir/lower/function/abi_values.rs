@@ -748,11 +748,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
             let mut value = self.lower_typed_expr(expr, memory_ty)?;
-            if let Some(abi_type) = self.types.abi_type(ty) {
-                self.check_calldata_array_size(value, ty, &abi_type);
+            let abi_type = self.types.abi_type(ty);
+            if let Some(abi_type) = &abi_type {
+                self.check_calldata_array_size(value, ty, abi_type);
             }
             if self.needs_calldata_aggregate_validation(value, ty) {
-                value = self.materialize_calldata_argument(ty, value, expr.span)?;
+                // Packing takes no ABI argument's elements validated, so even those of an
+                // argument that only ABI decoding passes are validated here.
+                if abi_type.as_ref().is_some_and(Self::is_calldata_word_array) {
+                    self.validate_calldata_word_array(value, ty);
+                } else {
+                    value = self.materialize_calldata_argument(ty, value, expr.span)?;
+                }
             }
             if self.is_dynamic_bytes_type(ty) {
                 parts.push(PackedPart::Bytes(value));

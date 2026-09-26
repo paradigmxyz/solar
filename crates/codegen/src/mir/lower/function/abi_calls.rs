@@ -21,20 +21,38 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    fn can_defer_calldata_validation(&self, value: ValueId, abi_type: &AbiType) -> bool {
-        self.is_external_abi_argument(value)
-            && matches!(
-                abi_type,
-                AbiType::DynamicArray {
-                    element,
-                    location: SliceLocation::Calldata,
-                } if matches!(element.as_ref(), AbiType::Word(_) | AbiType::Bytes(_))
-            )
+    /// Whether `abi_type` is a calldata array of words, which an encoding copies from where it
+    /// lies once [`Self::validate_calldata_word_array`] validated its elements.
+    pub(super) fn is_calldata_word_array(abi_type: &AbiType) -> bool {
+        matches!(
+            abi_type,
+            AbiType::DynamicArray { element, location: SliceLocation::Calldata }
+                if matches!(element.as_ref(), AbiType::Word(_))
+        )
     }
 
+    /// Validates the elements of the calldata array of words `value` where they lie, before an
+    /// encoding copies them: solc's IR pipeline validates each element it encodes, reading past
+    /// the end of the calldata as zeros, and never checks the array's range.
+    pub(super) fn validate_calldata_word_array(&mut self, value: ValueId, ty: Ty<'gcx>) {
+        let Some(element) = self.array_element_type(ty) else { return };
+        // for index in 0..slice_len(value):
+        //   validate(element, slice_ptr(value) + index * 32)
+        let length = self.builder.slice_len(value);
+        let base = self.builder.slice_ptr(value);
+        let stride = self.builder.imm(32);
+        self.counted_loop(length, |this, index| {
+            let offset = this.builder.mul(index, stride);
+            let position = this.builder.add(base, offset);
+            this.validate_calldata_static_value(element, position);
+        });
+    }
+
+    /// Whether the calldata aggregate `value` has words to validate before an encoding reads
+    /// them. Assembly can set a calldata variable to any range, whose words are validated as
+    /// they are read like any others.
     pub(super) fn needs_calldata_aggregate_validation(&self, value: ValueId, ty: Ty<'gcx>) -> bool {
         self.builder.func().value_slice_location(value) == Some(SliceLocation::Calldata)
-            && !self.dirty_values.contains(&value)
             && self.calldata_aggregate_requires_validation(ty)
     }
 
@@ -56,10 +74,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         needs_validation: bool,
     ) -> bool {
         // base = slice_ptr(value)
-        // head = abi_head(ty)
-        // check_range(base, head)
         // validate_static(ty, base)
-        if self.is_external_abi_argument(value) || !needs_validation {
+        // The words are validated where they lie, as solc's IR pipeline encodes them, reading
+        // past the end of the calldata as zeros.
+        if self.is_decoded_external_argument(value) || !needs_validation {
             return false;
         }
         let Some(abi_type) = self.types.abi_type(ty) else { return false };
@@ -68,8 +86,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         let base = self.builder.slice_ptr(value);
-        let size = self.builder.imm(abi_type.head_size());
-        self.check_calldata_range(base, size);
         self.validate_calldata_static_value(ty, base);
         true
     }
@@ -330,8 +346,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let needs_validation = self.needs_calldata_aggregate_validation(value, ty);
         let validated_static =
             self.validate_calldata_static_argument_inner(value, ty, needs_validation);
+        let word_array = needs_validation && Self::is_calldata_word_array(&abi_type);
+        // The dispatcher validates the elements of an argument that only ABI decoding passes
+        // when an encoding takes it.
+        if word_array && !self.is_decoded_external_argument(value) {
+            self.validate_calldata_word_array(value, ty);
+        }
         let needs_materialization = self.needs_calldata_materialization(value, &abi_type)
-            || (needs_validation && !self.can_defer_calldata_validation(value, &abi_type));
+            || (needs_validation && !word_array);
         if needs_materialization && !validated_static {
             value = self.materialize_calldata_argument(ty, value, argument.span)?;
             abi_type = Self::memory_abi_type(abi_type);

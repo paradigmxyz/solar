@@ -70,29 +70,24 @@ fn @packCalldata(arg0: calldataslice) -> i256 [selector=0x38651f67, pure, abi_pa
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
-    v2 = mul v0, 32
-    v3 = add 32, v2
-    v4 = alloc memoryarray<1>, exact, uninitialized, infallible, v3
-    set_memory_object_len memoryarray, v4, v0
     jump bb1
   bb1:
-    v5 = phi [bb0: 0], [bb2: v13]
-    v6 = lt v5, v0
-    jumpi v6, bb2, bb3
+    v2 = phi [bb0: 0], [bb2: v10]
+    v3 = lt v2, v0
+    jumpi v3, bb2, bb3
   bb3:
-    v14 = abi_encode_packed (array<word<u8>> memoryarray<1> v4)
-    v15 = keccak256_bytes v14
-    ret v15
+    v11 = abi_encode_packed (array<word<u8>> calldata arg0)
+    v12 = keccak256_bytes v11
+    ret v12
   bb2:
-    v7 = mul v5, 32
-    v8 = add v1, v7
-    v9 = calldataload v8
-    v10 = and v9, 255
-    v11 = eq v9, v10
-    v12 = eq v11, false
-    icall revert_if<empty>, v12
-    memory_object_store_element memoryarray<1>, v4, v5, v9
-    v13 = add v5, 1
+    v4 = mul v2, 32
+    v5 = add v1, v4
+    v6 = calldataload v5
+    v7 = and v6, 255
+    v8 = eq v6, v7
+    v9 = eq v8, false
+    icall revert_if<empty>, v9
+    v10 = add v2, 1
     jump bb1
 }
 

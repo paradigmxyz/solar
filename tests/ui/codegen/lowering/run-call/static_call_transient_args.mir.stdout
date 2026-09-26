@@ -48,29 +48,47 @@ fn @hashOperationBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldatas
     v6 = zext i1 v5 to i256
     v7 = eq v6, 0
     icall panic_if<0x41>, v7
-    v8 = slice_len arg1
-    v9 = mul v8, 32
-    v10 = eq 32, 0
-    v11 = div v9, 32
-    v12 = eq v11, v8
-    v13 = or v10, v12
-    v14 = zext i1 v13 to i256
-    v15 = eq v14, 0
-    icall panic_if<0x41>, v15
-    v16 = slice_len arg2
-    v17 = mul v16, 32
-    v18 = eq 32, 0
-    v19 = div v17, 32
-    v20 = eq v19, v16
-    v21 = or v18, v20
-    v22 = zext i1 v21 to i256
-    v23 = eq v22, 0
-    icall panic_if<0x41>, v23
-    v24 = abi_encode [calldata_array<word<u160>>, calldata_array<word>, calldata_array<calldata_bytes>, word, word], scratch, args arg0, arg1, arg2, arg3, arg4
-    v25 = slice_ptr v24
-    v26 = slice_len v24
-    v27 = keccak256 v25, v26
-    ret v27
+    v8 = slice_len arg0
+    v9 = slice_ptr arg0
+    jump bb1
+  bb1:
+    v10 = phi [bb0: 0], [bb2: v18]
+    v11 = lt v10, v8
+    jumpi v11, bb2, bb3
+  bb3:
+    v19 = slice_len arg1
+    v20 = mul v19, 32
+    v21 = eq 32, 0
+    v22 = div v20, 32
+    v23 = eq v22, v19
+    v24 = or v21, v23
+    v25 = zext i1 v24 to i256
+    v26 = eq v25, 0
+    icall panic_if<0x41>, v26
+    v27 = slice_len arg2
+    v28 = mul v27, 32
+    v29 = eq 32, 0
+    v30 = div v28, 32
+    v31 = eq v30, v27
+    v32 = or v29, v31
+    v33 = zext i1 v32 to i256
+    v34 = eq v33, 0
+    icall panic_if<0x41>, v34
+    v35 = abi_encode [calldata_array<word<u160>>, calldata_array<word>, calldata_array<calldata_bytes>, word, word], scratch, args arg0, arg1, arg2, arg3, arg4
+    v36 = slice_ptr v35
+    v37 = slice_len v35
+    v38 = keccak256 v36, v37
+    ret v38
+  bb2:
+    v12 = mul v10, 32
+    v13 = add v9, v12
+    v14 = calldataload v13
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = eq v14, v15
+    v17 = eq v16, false
+    icall revert_if<empty>, v17
+    v18 = add v10, 1
+    jump bb1
 }
 
 fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice, arg3: i256, arg4: i256, arg5: i256) -> i256 [selector=0x8f2a0bb0, abi_params=[array<_, address>, array<_, u256>, array<_, bytes>, bytes32, bytes32, u256], abi_returns=[word], abi_return_params=[bytes32]] {

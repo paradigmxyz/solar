@@ -340,7 +340,9 @@ No intentional divergences documented yet.
   `solar` follows the IR pipeline: it reverts in those places and reads zeros
   in the others (the `abi.encode` family, `abi.encodePacked`, `bytes.concat`,
   `sha256` and `ripemd160`, event data, external call arguments, and
-  `abi.decode`). A length whose bytes do not fit in a word fails with
+  `abi.decode`). The same holds for a calldata array or struct: its words are
+  validated as they are read, reverting when one is dirty, and those past the
+  end read as zeros. A length whose bytes do not fit in a word fails with
   `Panic(0x41)` where solc runs out of gas.
 - Rationale: only inline assembly can build such a range; the ABI decoder
   validates every calldata argument. A public function also takes its
@@ -352,7 +354,8 @@ No intentional divergences documented yet.
   which the compiler does too. Failing with a panic instead of exhausting the
   gas is cheaper and no less final.
 - Coverage:
-  `tests/ui/codegen/lowering/run-call/assembly_calldata_pointer_unchecked.sol`
+  `tests/ui/codegen/lowering/run-call/assembly_calldata_pointer_unchecked.sol`,
+  `tests/ui/codegen/lowering/run-call/assembly_calldata_aggregate_validation.sol`
   and
   `tests/ui/codegen/lowering/run-call/public_calldata_argument_internal_call.sol`
   (expectations from solc 0.8.37 with `--via-ir`),
