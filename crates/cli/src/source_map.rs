@@ -1,10 +1,10 @@
 //! Legacy Solidity instruction source maps.
 
+use core::fmt::NumBuffer;
 use solar_codegen::backend::evm::{DebugFunctionExit, DebugInstruction, op};
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::BytePos;
 use solar_sema::{Gcx, hir::SourceId};
-use std::fmt::NumBuffer;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct SourceMapEntry {
