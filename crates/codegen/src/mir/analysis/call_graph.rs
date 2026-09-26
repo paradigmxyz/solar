@@ -199,7 +199,8 @@ impl CallGraphInfo {
             if visited.contains(root) {
                 continue;
             }
-            let mut stack = vec![(root, false)];
+            let mut stack = Vec::new();
+            stack.push((root, false));
             while let Some((func, expanded)) = stack.pop() {
                 if expanded {
                     finish_order.push(func);
@@ -228,7 +229,8 @@ impl CallGraphInfo {
                 continue;
             }
             let mut component = Vec::new();
-            let mut stack = vec![root];
+            let mut stack = Vec::new();
+            stack.push(root);
             while let Some(func) = stack.pop() {
                 component.push(func);
                 for &caller in &reverse[func] {

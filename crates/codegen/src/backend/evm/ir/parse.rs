@@ -360,7 +360,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 TerminatorKind::JumpI { then_block, else_block }
             }
             sym::indexed_jump => {
-                let mut targets = vec![self.parse_block_ref(module)?];
+                let mut targets = Vec::new();
+                targets.push(self.parse_block_ref(module)?);
                 while self.parser.eat(TokenKind::Comma) {
                     targets.push(self.parse_block_ref(module)?);
                 }

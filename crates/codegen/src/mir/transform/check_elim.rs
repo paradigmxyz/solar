@@ -656,7 +656,8 @@ impl<'a> CheckEliminator<'a> {
 
         let mut folds = Vec::new();
         let mut checks = DenseBitSet::new_empty(func.num_insts());
-        let mut stack = vec![Walk::Enter(BlockId::ENTRY)];
+        let mut stack = Vec::new();
+        stack.push(Walk::Enter(BlockId::ENTRY));
         while let Some(item) = stack.pop() {
             match item {
                 Walk::Exit { range_mark, relation_mark } => {

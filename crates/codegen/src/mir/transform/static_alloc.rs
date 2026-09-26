@@ -303,7 +303,8 @@ fn candidate_uses_are_safe(
     // definition order does not matter.
     let mut derived: FxHashMap<ValueId, u64> = FxHashMap::default();
     derived.insert(cand.ptr, 0);
-    let mut pending = vec![cand.ptr];
+    let mut pending = Vec::new();
+    pending.push(cand.ptr);
     while let Some(value) = pending.pop() {
         for &inst_id in &uses.instructions[value] {
             let Some(result) = func.inst_result_value(inst_id) else { continue };

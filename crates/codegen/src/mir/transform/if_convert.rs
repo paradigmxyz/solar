@@ -151,7 +151,8 @@ fn if_convert_function(func: &mut Function, target: Target) -> bool {
 fn predecessors(func: &Function) -> IndexVec<BlockId, Vec<BlockId>> {
     let mut preds = index_vec![Vec::new(); func.blocks.len()];
     let mut reachable = DenseBitSet::new_empty(func.blocks.len());
-    let mut worklist = vec![BlockId::ENTRY];
+    let mut worklist = Vec::new();
+    worklist.push(BlockId::ENTRY);
     reachable.insert(BlockId::ENTRY);
     while let Some(block) = worklist.pop() {
         let Some(terminator) = &func.blocks[block].terminator else { continue };

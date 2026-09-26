@@ -899,7 +899,8 @@ fn lowering_cost_with_tests(
 }
 
 fn binary_leaf_sizes(len: usize) -> Vec<usize> {
-    let mut pending = vec![len];
+    let mut pending = Vec::new();
+    pending.push(len);
     let mut sizes = Vec::new();
     while let Some(len) = pending.pop() {
         if len <= 1 {

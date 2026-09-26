@@ -704,7 +704,8 @@ fn can_change(func: &Function) -> bool {
     }
 
     let mut reachable = DenseBitSet::new_empty(func.blocks.len());
-    let mut pending = vec![BlockId::ENTRY];
+    let mut pending = Vec::new();
+    pending.push(BlockId::ENTRY);
     while let Some(block) = pending.pop() {
         if reachable.insert(block)
             && let Some(terminator) = &func.blocks[block].terminator

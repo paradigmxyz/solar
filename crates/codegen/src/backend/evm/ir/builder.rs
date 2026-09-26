@@ -192,7 +192,8 @@ impl<'gcx> Assembler<'gcx> {
             }
         }
 
-        let mut trace = vec![current];
+        let mut trace = Vec::new();
+        trace.push(current);
         while trace.last().copied() != Some(ir::BlockId::ENTRY) {
             let target = *trace.last()?;
             let mut predecessors = self

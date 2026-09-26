@@ -647,7 +647,8 @@ fn prune_unused_returns(module: &mut Module) -> usize {
 /// argument dependencies to a fixed point.
 fn value_dependencies_are_pure(func: &Function, value: ValueId) -> bool {
     let mut seen = DenseBitSet::new_empty(func.num_values());
-    let mut worklist = vec![value];
+    let mut worklist = Vec::new();
+    worklist.push(value);
     while let Some(value) = worklist.pop() {
         if !seen.insert(value) {
             continue;

@@ -1395,7 +1395,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
         let mut visited = DenseBitSet::new_empty(func.blocks.len());
         let mut postorder = Vec::with_capacity(func.blocks.len());
-        let mut search = vec![(BlockId::ENTRY, search_order(BlockId::ENTRY))];
+        let mut search = Vec::new();
+        search.push((BlockId::ENTRY, search_order(BlockId::ENTRY)));
         visited.insert(BlockId::ENTRY);
         while let Some((block, successors)) = search.last_mut() {
             if let Some(succ) = successors.pop() {

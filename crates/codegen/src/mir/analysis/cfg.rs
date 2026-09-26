@@ -147,7 +147,8 @@ impl CfgInfo {
         self.rpo.get_or_init(|| {
             let mut reachable = DenseBitSet::new_empty(self.successors.len());
             let mut rpo = Vec::with_capacity(self.successors.len());
-            let mut stack = vec![(BlockId::ENTRY, 0usize)];
+            let mut stack = Vec::new();
+            stack.push((BlockId::ENTRY, 0usize));
             reachable.insert(BlockId::ENTRY);
             while let Some((block, next)) = stack.last_mut() {
                 if let Some(&succ) = self.successors[*block].get(*next) {
@@ -298,7 +299,8 @@ impl DominatorTree {
     /// explicit traversal stack so deeply nested control flow cannot recurse.
     fn preorder_intervals(&self) -> IndexVec<BlockId, (u32, u32)> {
         let mut intervals = index_vec![(u32::MAX, u32::MAX); self.idoms.len()];
-        let mut pending = vec![(BlockId::ENTRY, 0)];
+        let mut pending = Vec::new();
+        pending.push((BlockId::ENTRY, 0));
         let mut position = 0;
         while let Some((block, child)) = pending.last_mut() {
             if *child == 0 {

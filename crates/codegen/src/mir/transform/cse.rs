@@ -657,7 +657,8 @@ impl CommonSubexprEliminator {
     }
 
     fn process_global_blocks(&mut self, func: &Function, ctx: &mut GlobalCseContext<'_>) {
-        let mut worklist = vec![(BlockId::ENTRY, ExprCache::default())];
+        let mut worklist = Vec::new();
+        worklist.push((BlockId::ENTRY, ExprCache::default()));
         while let Some((block_id, mut cache)) = worklist.pop() {
             let mut gas_observed = self.gas().at_entry(block_id);
             for &inst_id in &func.blocks[block_id].instructions {
@@ -835,7 +836,8 @@ impl CommonSubexprEliminator {
         // dominated by `parent`, so the walk stays within its dominator subtree
         // and every block it finds is reachable from `parent`.
         let mut reaching_child = DenseBitSet::new_empty(ctx.predecessors.len());
-        let mut pending = vec![child];
+        let mut pending = Vec::new();
+        pending.push(child);
         while let Some(block) = pending.pop() {
             for &pred in &ctx.predecessors[block] {
                 if pred != parent && reaching_child.insert(pred) {

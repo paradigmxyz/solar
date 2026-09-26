@@ -94,7 +94,8 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
 
     fn function_mutability(&self, id: hir::FunctionId) -> MutabilityAndLocation {
         let mut visited = DenseBitSet::new_empty(self.gcx.hir.function_ids().len());
-        let mut stack = vec![id];
+        let mut stack = Vec::new();
+        stack.push(id);
         let mut best = MutabilityAndLocation {
             mutability: StateMutability::Pure,
             location: self.gcx.hir.function(id).span,

@@ -1328,7 +1328,8 @@ fn summarize_function(
 fn has_back_edge(func: &Function) -> bool {
     let mut on_path = DenseBitSet::new_empty(func.blocks.len());
     let mut finished = DenseBitSet::new_empty(func.blocks.len());
-    let mut stack = vec![(BlockId::ENTRY, 0)];
+    let mut stack = Vec::new();
+    stack.push((BlockId::ENTRY, 0));
     on_path.insert(BlockId::ENTRY);
     while let Some(top) = stack.last_mut() {
         let (block, next) = *top;

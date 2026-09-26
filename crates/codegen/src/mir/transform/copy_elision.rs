@@ -219,7 +219,8 @@ impl CopyElisionCx {
         // instead of rescanning every instruction for each derived value.
         let mut derived = FxHashSet::default();
         derived.insert(object);
-        let mut worklist = vec![object];
+        let mut worklist = Vec::new();
+        worklist.push(object);
         let mut seen = FxHashSet::default();
         while let Some(value) = worklist.pop() {
             for &inst_id in self.uses.get(&value).into_iter().flatten() {
