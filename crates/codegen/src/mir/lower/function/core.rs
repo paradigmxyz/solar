@@ -123,6 +123,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 access.slot
             } else if Self::core_reads_in_place(intrinsic, index) && self.is_view_expr(argument) {
                 self.lower_view_expr(argument)?
+            } else if Self::core_input(intrinsic) == Some(index)
+                && self.is_empty_bytes_literal(argument)
+            {
+                // An empty input reads no memory, so an empty literal needs no buffer.
+                // input = memory_slice(0, 0)
+                let zero = self.builder.imm(U256::ZERO);
+                self.builder.make_slice(zero, zero, SliceLocation::Memory)
             } else if matches!(
                 intrinsic,
                 CoreIntrinsic::WriteEncoding | CoreIntrinsic::TryWriteEncoding
@@ -1833,6 +1840,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // output = bytes(copied), uninitialized
         // returndatacopy(output.data, 0, copied)
         let total = self.builder.returndatasize();
+        if self.builder.func().value_u256(max_copy).is_some_and(|max| max.is_zero()) {
+            // Nothing is copied, so the output is the empty bytes, which needs no buffer.
+            // output = ZERO_SLOT
+            let output = crate::mir::Immediate::for_type(
+                Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
+                U256::from(EvmMemoryLayout::ZERO_SLOT),
+            );
+            let output = self.builder.func_mut().alloc_value(Value::Immediate(output));
+            return Some(self.core_results(function_id, vec![success, output, total]));
+        }
         let shorter = self.builder.lt(total, max_copy);
         let copied = self.builder.select(shorter, total, max_copy);
         let output = self.builder.alloc_bytes_object(copied, AllocationSemantics::INTERNAL);
@@ -1850,6 +1867,28 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             | CoreIntrinsic::StaticCallBounded => Some(2),
             _ => None,
         }
+    }
+
+    /// The operand of a creation or call intrinsic that holds the bytes it creates from or sends,
+    /// which it only reads.
+    fn core_input(intrinsic: CoreIntrinsic) -> Option<usize> {
+        match intrinsic {
+            CoreIntrinsic::Deploy
+            | CoreIntrinsic::Deploy2
+            | CoreIntrinsic::TryDeploy
+            | CoreIntrinsic::TryDeploy2
+            | CoreIntrinsic::TryDeployInto => Some(0),
+            _ => Self::core_call_payload(intrinsic),
+        }
+    }
+
+    /// Whether `expr` is an empty string or hex literal, possibly converted to `bytes`.
+    fn is_empty_bytes_literal(&self, expr: &hir::Expr<'_>) -> bool {
+        matches!(
+            self.peel_bytes_conversion(expr).peel_parens().kind,
+            ExprKind::Lit(lit)
+                if matches!(&lit.kind, LitKind::Str(_, bytes, _) if bytes.as_byte_str().is_empty())
+        )
     }
 
     /// Whether evaluating the operand `expr` neither allocates nor writes memory: a number
