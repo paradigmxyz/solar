@@ -42,6 +42,7 @@ mod definition_fast_path;
 mod document_highlight;
 mod document_link;
 mod file_operations;
+mod flycheck_freshness;
 mod folding_range;
 mod goto_definition;
 mod hover;
@@ -713,8 +714,11 @@ async fn clearing_analysis_cache_publishes_an_empty_current_snapshot() {
         )
         .batches;
     assert_eq!(batches.len(), 1);
-    let mut messages =
-        batches[0].1.iter().map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>();
+    let mut messages = batches[0]
+        .diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
     messages.sort_unstable();
     assert_eq!(messages, ["flycheck", "probe"]);
 }
@@ -1034,7 +1038,11 @@ fn clearing_analysis_cache_rejects_older_analysis_results() {
         )
         .batches;
     assert_eq!(
-        batches[0].1.iter().map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>(),
+        batches[0]
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>(),
         ["probe"]
     );
 }
@@ -1140,8 +1148,11 @@ async fn failed_current_analysis_recovers_after_save() {
             DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("probe")])]),
         )
         .batches;
-    let mut messages =
-        batches[0].1.iter().map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>();
+    let mut messages = batches[0]
+        .diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
     messages.sort_unstable();
     assert_eq!(messages, ["old compiler", "probe"]);
 

@@ -3,4 +3,4 @@ mod parser;
 mod runner;
 
 pub(crate) use config::{FlycheckConfig, FlycheckInitializationOptions};
-pub(crate) use runner::run;
+pub(crate) use runner::{FlycheckResult, run};

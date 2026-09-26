@@ -85,8 +85,10 @@ async fn json_emitter_alternatives_become_separate_flycheck_code_actions() {
     let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
     let [flycheck] = state.config.flychecks_for_path(&path).try_into().unwrap();
     let (_cancel, cancelled) = oneshot::channel();
-    let diagnostics =
-        flycheck::run(flycheck, Duration::from_secs(30), cancelled, vec![path]).await.unwrap();
+    let diagnostics = flycheck::run(flycheck, Duration::from_secs(30), cancelled, vec![path])
+        .await
+        .unwrap()
+        .diagnostics;
     let [diagnostic] = diagnostics[&uri].as_slice() else {
         panic!("expected one flycheck diagnostic, got {diagnostics:#?}");
     };
