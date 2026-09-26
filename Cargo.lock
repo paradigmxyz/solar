@@ -4559,6 +4559,7 @@ dependencies = [
  "derive_more",
  "either",
  "memchr",
+ "serde_json",
  "smallvec",
  "snapbox",
  "solar-ast",

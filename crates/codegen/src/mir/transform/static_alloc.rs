@@ -157,6 +157,75 @@ fn fmp_write_has_future_observer(func: &Function, cfg: &CfgInfo, inst_id: InstId
     false
 }
 
+/// Whether a later operation can observe the elided free-memory-pointer bump.
+/// Calls need summary checks even when they do not receive the allocation:
+/// observing the global FMP or MSIZE does not require a pointer argument.
+/// Dead direct FMP loads have no observer and can be ignored.
+fn alloc_bump_has_future_observer(
+    func: &Function,
+    cfg: &CfgInfo,
+    inst_id: InstId,
+    summaries: &MemoryCallSummaries,
+) -> bool {
+    let Some((block, position)) = func.blocks.iter_enumerated().find_map(|(block, block_data)| {
+        block_data
+            .instructions
+            .iter()
+            .position(|&candidate| candidate == inst_id)
+            .map(|position| (block, position))
+    }) else {
+        return true;
+    };
+
+    let mut used = FxHashMap::with_capacity_and_hasher(func.num_values(), Default::default());
+    for inst in func.instructions() {
+        for operand in func.inst(inst).operands() {
+            used.insert(operand, ());
+        }
+    }
+    for block in &func.blocks {
+        if let Some(term) = &block.terminator {
+            for operand in term.operands() {
+                used.insert(operand, ());
+            }
+        }
+    }
+    let is_live_fmp_read = |inst: InstId| -> bool {
+        matches!(func.inst(inst).kind, InstKind::MLoad(address)
+            if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT))
+            && func.inst_result_value(inst).is_some_and(|value| used.contains_key(&value))
+    };
+
+    let call_observes = |callee| {
+        summaries.get(callee).is_none_or(|summary| {
+            summary.may_observe_fmp() || summary.may_reset_fmp() || summary.may_observe_msize()
+        })
+    };
+    let observes = |inst| match func.inst(inst).kind {
+        InstKind::Alloc { .. } | InstKind::Fmp | InstKind::SetFmp(_) => true,
+        InstKind::MLoad(..) => is_live_fmp_read(inst),
+        InstKind::ICall { function: Callee::Function(callee), .. } => call_observes(callee),
+        _ => false,
+    };
+    let tail_observes = |block: BlockId| {
+        matches!(
+            func.blocks[block].terminator,
+            Some(Terminator::TailCall { function, .. }) if call_observes(function)
+        )
+    };
+    func.blocks[block].instructions[position + 1..].iter().copied().any(observes)
+        || tail_observes(block)
+        || cfg
+            .transitive_reachability()
+            .get(&block)
+            .into_iter()
+            .flat_map(|blocks| blocks.iter())
+            .any(|block| {
+                func.blocks[block].instructions.iter().copied().any(observes)
+                    || tail_observes(block)
+            })
+}
+
 fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
         InstKind::Alloc { .. }
@@ -249,6 +318,13 @@ fn eligible_static_allocations(
                 || !size.is_multiple_of(32)
                 || !cfg.is_reachable(block)
                 || cfg.cyclic_blocks().contains(block)
+                // Static placement removes the allocation instruction, so the
+                // free-memory-pointer advance it performed disappears. Any
+                // later direct observation of the pointer (a read, another
+                // allocation, or an explicit pointer write) makes the deferral
+                // unsound; inlining can otherwise bring such allocations into
+                // an entry from a consumed reference-returning helper.
+                || alloc_bump_has_future_observer(func, &cfg, alloc, summaries)
             {
                 continue;
             }

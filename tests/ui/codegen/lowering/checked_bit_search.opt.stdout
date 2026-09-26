@@ -19,15 +19,36 @@ fn @fls.0() [selector=0x27be8b2d, abi_wrapper, pure] {
 
 fn @clz.1() [selector=0x30244f7a, abi_wrapper, pure] {
   bb0:
-    v0 = icall @clz.4, arg0
-    mstore 128, v0
+    v1 = eq arg0, 0
+    jumpi v1, bb2, bb1
+  bb1:
+    v2 = icall @fls.3, arg0
+    v6 = sub 255, v2
+    v7 = gt v2, 255
+    jumpi v7, bb3, bb2
+  bb3:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
+  bb2:
+    v4 = phi [bb0: 256], [bb1: v6]
+    mstore 128, v4
     returndata 128, 32
 }
 
 fn @ffs.2() [selector=0x2297890a, abi_wrapper, pure] {
   bb0:
-    v0 = icall @ffs.5, arg0
-    mstore 128, v0
+    v1 = eq arg0, 0
+    jumpi v1, bb2, bb1
+  bb1:
+    v2 = not arg0
+    v8 = add v2, 1
+    v4 = and arg0, v8
+    v5 = icall @fls.3, v4
+    jump bb2
+  bb2:
+    v6 = phi [bb0: 256], [bb1: v5]
+    mstore 128, v6
     returndata 128, 32
 }
 
@@ -82,39 +103,6 @@ fn @fls.3(arg0: i256) -> i256 [pure] {
     ret v43
   bb1:
     ret 256
-}
-
-fn @clz.4(arg0: i256) -> i256 [pure] {
-  bb0:
-    v0 = eq arg0, 0
-    jumpi v0, bb2, bb1
-  bb1:
-    v1 = icall @fls.3, arg0
-    v4 = sub 255, v1
-    v5 = gt v1, 255
-    jumpi v5, bb3, bb2
-  bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    mstore 32, 17 !metadata(memory=scratch)
-    revert 28, 36
-  bb2:
-    v3 = phi [bb0: 256], [bb1: v4]
-    ret v3
-}
-
-fn @ffs.5(arg0: i256) -> i256 [pure] {
-  bb0:
-    v0 = eq arg0, 0
-    jumpi v0, bb2, bb1
-  bb1:
-    v1 = not arg0
-    v6 = add v1, 1
-    v3 = and arg0, v6
-    v4 = icall @fls.3, v3
-    jump bb2
-  bb2:
-    v5 = phi [bb0: 256], [bb1: v4]
-    ret v5
 }
 
 fn @entry() [entry] {

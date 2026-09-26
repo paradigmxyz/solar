@@ -45,6 +45,9 @@ Options:
       -Zmir-pipeline=<PASS[,PASS...]>
           Comma-separated MIR pass pipeline. Use `default` for the compiler's canonical pipeline and `none` for no passes
 
+      -Zinline-profile=<FILE>
+          Path to a JSON file mapping function names to expected executions per deployment. Counts replace the optimizer-runs lifetime estimate; loop trip estimates multiply them. Zero marks a cold caller. Missing or malformed files are errors. Intended for profile-guided experimentation
+
       -Zevm-ir-pipeline=<PASS[,PASS...]>
           Comma-separated EVM IR pass pipeline. Use `default` for the compiler's canonical pipeline and `none` for no passes
 

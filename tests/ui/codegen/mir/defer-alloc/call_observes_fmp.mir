@@ -1,0 +1,56 @@
+//@ compile-flags: -Zmir-pipeline=defer-alloc
+@module Observer
+fn @entry() -> i256 [selector=0x01020304] {
+  bb0:
+    v10 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v10 to i256
+    mstore v0, 42
+    v1 = mload v0
+    v2 = icall @observe
+    v3 = add v1, v2
+    ret v3
+}
+fn @observe() -> i256 {
+  bb0:
+    v0 = mload 64
+    ret v0
+}
+
+// A callee can observe the global pointer without receiving our allocation.
+fn @forwarded() -> i256 [selector=0x01020305] {
+  bb0:
+    v11 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v11 to i256
+    mstore v0, 42
+    v1 = icall @forward
+    ret v1
+}
+
+fn @forward() -> i256 {
+  bb0:
+    tail_call @observe
+}
+
+fn @tail() -> i256 [selector=0x01020306] {
+  bb0:
+    v12 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v12 to i256
+    mstore v0, 42
+    tail_call @observe
+}
+
+// A scalar-only callee does not prevent deferring the allocation.
+fn @scalar() -> i256 [selector=0x01020307] {
+  bb0:
+    v13 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v13 to i256
+    mstore v0, 42
+    v1 = mload v0
+    v2 = icall @identity, v1
+    ret v2
+}
+
+fn @identity(arg0: i256) -> i256 {
+  bb0:
+    ret arg0
+}

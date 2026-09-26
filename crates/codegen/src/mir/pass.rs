@@ -231,7 +231,7 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
     // Trivial leaf helpers cost less to duplicate than even the static internal-call protocol.
-    // Keep this separate from general inlining, whose larger candidates regress measured gas.
+    // Broader scalar candidates are priced after check lowering below.
     &GasOnly::new(inline::InlineTinyLeaves),
     &GasOnly::new(inline::InlineSingleUse::Semantic),
     &inline::SpecializeFunctionPointers,
@@ -265,6 +265,8 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // bit searches lose their branches and lookup helpers arrive branch-free
     // at the hot-leaf cloner below.
     &if_convert::IfConvert,
+    // Price acyclic scalar leaves after checks have explicit control flow.
+    &GasOnly::new(inline::Inline),
     // Lookup helpers called from loops pay for their clones through the
     // protocol removed per iteration. They run after specialization so the
     // clones carry no mode flags that every caller fixed; the lowering-time
@@ -379,6 +381,10 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // the pass drops the consumed callee itself.
     &GasOnly::new(inline::InlineSingleUse::Physical),
     &cfg_simplify::CfgSimplify,
+    // Consumed bodies can expose redundant checks; the last check
+    // elimination ran before this late consumption, so fold the newly
+    // visible conditions once more before the physical shape is fixed.
+    &GasOnly::new(check_elim::LateCheckElim),
     &lower_evm_shaped::LowerEvmShaped,
 ];
 

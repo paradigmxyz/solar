@@ -1,0 +1,4 @@
+error: invalid inline profile `auxiliary/invalid.json`: invalid value: integer `-1`, expected u64 at line 1 column 12
+
+error: aborting due to 1 previous error
+

@@ -66,9 +66,11 @@ fn @multi_return_callee(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @tiny_stateful_caller{{[( ]}}
-// CHECK: - {{.*}}icall @tiny_stateful_callee
-// CHECK: + sstore 0, arg0
-// CHECK: + sstore 0, arg1
+// A shared stateful helper stays a call: the clone replaces only the scalar
+// call transfers, and measured clones of memory- and storage-writing helpers
+// at one-shot sites grew code without a gas benefit.
+// CHECK: {{^ +}}icall @tiny_stateful_callee, arg0
+// CHECK: {{^ +}}icall @tiny_stateful_callee, arg1
 fn @tiny_stateful_caller(arg0: i256, arg1: i256) {
   bb0:
     icall fn5, arg0
@@ -95,9 +97,7 @@ fn @large_shared_nontail(arg0: i256) -> i256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @large_shared_tail{{[( ]}}
-// CHECK: - {{.*}}icall @large_shared_callee
-// CHECK: + [[INLINED:v[0-9]+]] = add arg0, 1
-// CHECK: + {{v[0-9]+}} = phi [bb13: [[INLINED]]]
+// CHECK: {{^ +}}{{v[0-9]+}} = icall @large_shared_callee
 fn @large_shared_tail(arg0: i256) -> i256 {
   bb0:
     v1 = icall fn8, arg0

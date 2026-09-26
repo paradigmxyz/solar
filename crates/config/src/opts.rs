@@ -390,6 +390,13 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "PASS[,PASS...]"))]
     pub mir_pipeline: Option<String>,
 
+    /// Path to a JSON file mapping function names to expected executions per
+    /// deployment. Counts replace the optimizer-runs lifetime estimate;
+    /// loop trip estimates multiply them. Zero marks a cold caller. Missing
+    /// or malformed files are errors. Intended for profile-guided experimentation.
+    #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "FILE"))]
+    pub inline_profile: Option<String>,
+
     /// Comma-separated EVM IR pass pipeline. Use `default` for the compiler's canonical pipeline
     /// and `none` for no passes.
     #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "PASS[,PASS...]"))]

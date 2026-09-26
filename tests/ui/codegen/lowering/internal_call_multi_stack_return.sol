@@ -1,5 +1,5 @@
 //@ revisions: ir run size
-//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
+//@[ir] compile-flags: -Ogas --optimize-runs=1 -Zdump=evm-ir-runtime
 //@[ir] filecheck:
 //@[run] compile-flags: -Ogas
 //@[size] compile-flags: -Osize
@@ -11,6 +11,7 @@
 //@ run-call: sumSix 2 => 10599
 
 contract ICallMultiStackReturn {
+    // One optimizer run keeps the shared helpers as calls for the backend checks.
     // A two-word stack return rotates the hidden return label above both results.
     // CHECK-LABEL: @module ICallMultiStackReturn_runtime
     // CHECK: push 192

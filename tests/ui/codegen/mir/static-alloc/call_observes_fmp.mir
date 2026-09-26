@@ -5,7 +5,7 @@
 // A callee that reads the free-memory pointer and observes the pointer's
 // numeric value can derive aliases from where the object lies relative to the
 // heap, so the allocation it receives must stay dynamic.
-// CHECK-LABEL: + // === {{.*}} (after static-alloc) ===
+// CHECK-LABEL: + // === {{.*}} (after storage-promotion) ===
 // CHECK:   fn @observing_caller{{.*}}
 // CHECK-NEXT:     bb0:
 // CHECK-NEXT:       v0 = alloc raw, exact, uninitialized, infallible, 32
@@ -34,15 +34,11 @@ fn @forwarding_caller() -> i1 [selector=0x01020305] {
     ret v2
 }
 
-// Reading the free-memory pointer alone is placement-agnostic when the pointer
-// argument is only dereferenced, so the placement is kept.
+// Returning the free-memory pointer observes the removed bump even if the
+// pointer argument is only dereferenced.
 // CHECK:   fn @dereferencing_caller{{.*}}
 // CHECK-NEXT:     bb0:
-// CHECK-NEXT: -     v0 = alloc raw, exact, uninitialized, infallible, 32
-// CHECK-NEXT: -     v1 = ptrtoint memptr v0 to i256
-// CHECK-NEXT: +     v1 = ptrtoint memptr 128 to i256
-// CHECK-NEXT:       mstore v1, 7
-// CHECK-NEXT:       v2 = icall @dereferences, v1
+// CHECK-NEXT:       v0 = alloc raw, exact, uninitialized, infallible, 32
 fn @dereferencing_caller() -> i256 [selector=0x01020306] {
   bb0:
     v8 = alloc raw, exact, uninitialized, infallible, 32
@@ -114,16 +110,11 @@ fn @reserve_frame() [selector=0x01020308] {
     stop
 }
 
-// Comparing the pointer with its own derivations never involves the heap, so
-// a callee iterating over the object keeps the placement even though it reads
-// the free-memory pointer for scratch.
+// A callee that reads the free-memory pointer for scratch still observes the
+// removed bump through the memory it writes, so the placement is dropped.
 // CHECK:   fn @iterating_caller{{.*}}
 // CHECK-NEXT:     bb0:
-// CHECK-NEXT: -     v0 = alloc raw, exact, uninitialized, infallible, 32
-// CHECK-NEXT: -     v1 = ptrtoint memptr v0 to i256
-// CHECK-NEXT: +     v1 = ptrtoint memptr 128 to i256
-// CHECK-NEXT:       mstore v1, 7
-// CHECK-NEXT:       v2 = icall @iterates, v1
+// CHECK-NEXT:       v0 = alloc raw, exact, uninitialized, infallible, 32
 fn @iterating_caller() -> i256 [selector=0x01020309] {
   bb0:
     v10 = alloc raw, exact, uninitialized, infallible, 32

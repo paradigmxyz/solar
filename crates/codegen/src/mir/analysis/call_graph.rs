@@ -123,6 +123,39 @@ impl CallGraphInfo {
         reachable
     }
 
+    /// A caller processing order that visits callees before their callers.
+    ///
+    /// Both LLVM's inliner (post-order SCC walk) and GCC's IPA inliner process
+    /// the call graph bottom-up, so a shared wrapper's single-use inner helper
+    /// is consumed before the wrapper's body is duplicated at its call sites;
+    /// otherwise every clone deposits its own copy of the inner call. Recursive
+    /// components have no topological order; their members are rejected by the
+    /// recursion check anyway, so ties break by function index.
+    #[must_use]
+    pub(crate) fn bottom_up_order(&self, module: &Module) -> Vec<FunctionId> {
+        let mut visited = DenseBitSet::new_empty(module.functions.len());
+        let mut order = Vec::with_capacity(module.functions.len());
+        let mut stack = Vec::new();
+        for root in module.functions.indices() {
+            stack.push((root, false));
+            while let Some((func, expanded)) = stack.pop() {
+                if expanded {
+                    order.push(func);
+                } else if visited.insert(func) {
+                    stack.push((func, true));
+                    if let Some(callees) = self.callees.get(&func) {
+                        // Reverse the pending siblings to retain index-ordered DFS.
+                        // Mark on entry, not discovery: siblings may reach each other.
+                        let start = stack.len();
+                        stack.extend(callees.iter().map(|callee| (callee, false)));
+                        stack[start..].reverse();
+                    }
+                }
+            }
+        }
+        order
+    }
+
     /// Collects direct call targets, including tail calls, without building graph analyses.
     pub(crate) fn collect_internal_callees(
         func: &Function,
@@ -251,6 +284,43 @@ impl CallGraphInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bottom_up_order_handles_deep_chains_and_sibling_edges() {
+        use solar_interface::Ident;
+
+        // A small thread stack catches recursive DFS without relying on the
+        // machine's default stack size. The extra sibling edge checks postorder.
+        std::thread::Builder::new()
+            .stack_size(128 * 1024)
+            .spawn(|| {
+                let count = 2048;
+                let mut module = Module::new(Ident::DUMMY);
+                let mut callees = FxHashMap::default();
+                for i in 0..count {
+                    module.functions.push(Function::new(Ident::DUMMY));
+                    if i + 1 < count {
+                        let mut next = DenseBitSet::new_empty(count);
+                        next.insert(FunctionId::from_usize(i + 1));
+                        if i == 0 {
+                            next.insert(FunctionId::from_usize(2));
+                        }
+                        callees.insert(FunctionId::from_usize(i), next);
+                    }
+                }
+                let graph = CallGraphInfo {
+                    callees,
+                    reachable_from_entries: DenseBitSet::new_empty(count),
+                    recursive_functions: DenseBitSet::new_empty(count),
+                };
+                let order = graph.bottom_up_order(&module);
+                let expected: Vec<_> = (0..count).rev().map(FunctionId::from_usize).collect();
+                assert_eq!(order, expected);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
 
     #[test]
     fn recursion_excludes_callers_outside_the_cycle() {
