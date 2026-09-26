@@ -92,7 +92,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-use std::{cell::OnceCell, cmp::Ordering, rc::Rc, sync::Arc};
+use std::{cell::OnceCell, cmp::Ordering, ops::Range, rc::Rc, sync::Arc};
 
 /// Function pass for local common subexpression elimination.
 pub(crate) struct Cse;
@@ -309,6 +309,8 @@ struct GlobalCseContext<'a> {
     liveness: OnceCell<Liveness>,
     dom_tree: &'a DominatorTree,
     block_clobbers: &'a [(BlockId, Vec<Clobber>)],
+    /// Where each side effect's clobbers sit in `block_clobbers`.
+    side_effect_clobbers: &'a FxHashMap<InstId, (usize, Range<usize>)>,
     /// Reachable predecessors, present only when clobbering blocks exist.
     predecessors: &'a IndexVec<BlockId, Vec<BlockId>>,
     cfg: &'a CfgInfo,
@@ -483,8 +485,11 @@ impl CommonSubexprEliminator {
         let has_path_sensitive_expr = func
             .instructions()
             .any(|inst_id| Self::is_path_sensitive_kind(&func.inst(inst_id).kind));
-        let block_clobbers =
-            if has_path_sensitive_expr { self.block_clobber_summaries(func) } else { Vec::new() };
+        let (block_clobbers, side_effect_clobbers) = if has_path_sensitive_expr {
+            self.block_clobber_summaries(func)
+        } else {
+            Default::default()
+        };
         let mut predecessors = IndexVec::new();
         let reuse = (!block_clobbers.is_empty()).then(OnceCell::new);
         if !block_clobbers.is_empty() {
@@ -502,6 +507,7 @@ impl CommonSubexprEliminator {
             liveness: OnceCell::new(),
             dom_tree,
             block_clobbers: &block_clobbers,
+            side_effect_clobbers: &side_effect_clobbers,
             predecessors: &predecessors,
             cfg,
             reuse,
@@ -684,7 +690,33 @@ impl CommonSubexprEliminator {
                     continue;
                 }
                 if kind.has_side_effects() {
-                    self.update_for_side_effect(func, inst_id, kind, ctx.replacements, &mut cache);
+                    // Without a replaced operand, the effects are those the summaries computed
+                    // in this address epoch, and recomputing them would only read the memo.
+                    if let Some((summary, range)) = ctx.side_effect_clobbers.get(&inst_id)
+                        && (ctx.replacements.is_empty()
+                            || !kind
+                                .operands()
+                                .iter()
+                                .any(|operand| ctx.replacements.contains_key(operand)))
+                    {
+                        let clobbers = &ctx.block_clobbers[*summary].1[range.clone()];
+                        self.apply_side_effect(
+                            func,
+                            inst_id,
+                            kind,
+                            clobbers,
+                            ctx.replacements,
+                            &mut cache,
+                        );
+                    } else {
+                        self.update_for_side_effect(
+                            func,
+                            inst_id,
+                            kind,
+                            ctx.replacements,
+                            &mut cache,
+                        );
+                    }
                 }
                 if let Some((key, result)) = candidate {
                     cache.insert(key, result);
@@ -826,25 +858,36 @@ impl CommonSubexprEliminator {
     }
 
     /// Returns the per-block invalidation summaries for blocks with clobbering effects.
-    fn block_clobber_summaries(&self, func: &Function) -> Vec<(BlockId, Vec<Clobber>)> {
+    /// Collects each block's clobbers, and where each side effect's clobbers sit among them.
+    fn block_clobber_summaries(
+        &self,
+        func: &Function,
+    ) -> (Vec<(BlockId, Vec<Clobber>)>, FxHashMap<InstId, (usize, Range<usize>)>) {
         let no_replacements = FxHashMap::default();
         let mut summaries = Vec::new();
+        let mut side_effects = FxHashMap::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
             let mut clobbers = Vec::new();
+            let mut spans = Vec::new();
             for &inst_id in &block.instructions {
                 let kind = &func.inst(inst_id).kind;
                 if self.gas().observes(inst_id) {
                     clobbers.push(Clobber::GasObservation);
                 }
                 if kind.has_side_effects() {
+                    let start = clobbers.len();
                     self.side_effect_clobbers(func, inst_id, kind, &no_replacements, &mut clobbers);
+                    spans.push((inst_id, start..clobbers.len()));
                 }
             }
             if !clobbers.is_empty() {
+                side_effects.extend(
+                    spans.into_iter().map(|(inst_id, range)| (inst_id, (summaries.len(), range))),
+                );
                 summaries.push((block_id, clobbers));
             }
         }
-        summaries
+        (summaries, side_effects)
     }
 
     /// Whether a side effect can ever invalidate `key`.
@@ -1161,7 +1204,19 @@ impl CommonSubexprEliminator {
     ) {
         let mut clobbers = Vec::new();
         self.side_effect_clobbers(func, inst_id, kind, replacements, &mut clobbers);
-        for clobber in &clobbers {
+        self.apply_side_effect(func, inst_id, kind, &clobbers, replacements, expr_cache);
+    }
+
+    fn apply_side_effect(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        kind: &InstKind,
+        clobbers: &[Clobber],
+        replacements: &FxHashMap<ValueId, ValueId>,
+        expr_cache: &mut ExprCache,
+    ) {
+        for clobber in clobbers {
             self.apply_clobber(expr_cache, clobber);
             if !expr_cache.has_stateful() {
                 break;
