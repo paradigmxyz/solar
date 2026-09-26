@@ -200,16 +200,10 @@ fn @tailHash.4(arg0: i256, arg1: i256) -> i256 [pure] {
     v58 = sgt v51, v57
     jumpi v58, bb2, bb11
   bb11:
-    v60 = add v50, 63
-    v63 = and v60, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v76 = mload 64 !metadata(memory=scratch)
-    v77 = add v76, v63
-    mstore 64, v77 !metadata(memory=scratch)
-    mstore v76, v50
-    v68 = add v76, 32
-    calldatacopy v68, v51, v50
-    v65 = keccak256 v68, v50
-    ret v65
+    v66 = mload 64 !metadata(memory=scratch)
+    calldatacopy v66, v51, v50
+    v64 = keccak256 v66, v50
+    ret v64
   bb12:
     ret 0
   bb2:

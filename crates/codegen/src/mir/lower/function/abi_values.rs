@@ -1186,6 +1186,63 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input = &self.builtin_args::<1>(builtin, &args)?[0];
         let span = input.span;
         let memory_ty = self.cx.gcx.types.bytes_ref.memory;
+        let ripemd = builtin == Builtin::Ripemd160;
+        let evm = self.cx.gcx.sess.opts.evm_version;
+        // A view and a calldata range are hashed without a copy of their own: a memory view where
+        // it lies, and calldata from past the free memory pointer, without reserving the copy.
+        let calldata = self.cx.gcx.type_of_expr(input.id).is_some_and(lies_in_calldata);
+        if self.is_view_expr(input) || calldata {
+            let range =
+                if calldata { self.lower_expr(input)? } else { self.lower_view_expr(input)? };
+            match self.builder.func().value_slice_location(range) {
+                Some(SliceLocation::Calldata) => {
+                    // validate(range), unless a view's decode did
+                    // scratch = fmp
+                    // calldatacopy(scratch, range.ptr, range.len)
+                    // result = sha256 | ripemd160(scratch, range.len)
+                    if calldata {
+                        let bytes = AbiType::Bytes(SliceLocation::Calldata);
+                        self.validate_calldata_bytes_argument(range, &bytes);
+                    }
+                    let pointer = self.builder.slice_ptr(range);
+                    let length = self.builder.slice_len(range);
+                    let scratch = self.builder.fmp();
+                    self.builder.calldatacopy_heap(scratch, pointer, length);
+                    let scratch = self.builder.cast_word(scratch);
+                    return Some(crate::mir::transform::lower_builtins::hash_precompile(
+                        &mut self.builder,
+                        evm,
+                        scratch,
+                        length,
+                        ripemd,
+                    ));
+                }
+                Some(SliceLocation::Memory) => {
+                    // result = sha256 | ripemd160(range.ptr, range.len)
+                    let pointer = self.builder.slice_ptr(range);
+                    let length = self.builder.slice_len(range);
+                    return Some(crate::mir::transform::lower_builtins::hash_precompile(
+                        &mut self.builder,
+                        evm,
+                        pointer,
+                        length,
+                        ripemd,
+                    ));
+                }
+                _ => {
+                    // input = materialize(bytes)
+                    let input_ty = self.cx.gcx.type_of_expr(input.id)?;
+                    let range = self.coerce_value(range, input_ty, memory_ty);
+                    let range = self.materialize_memory_argument(memory_ty, range, span)?;
+                    let kind = if ripemd {
+                        InstKind::builtin(crate::mir::Builtin::Ripemd160, [range])
+                    } else {
+                        InstKind::builtin(crate::mir::Builtin::Sha256, [range])
+                    };
+                    return Some(self.builder.emit_inst(kind, Some(MirType::I256)));
+                }
+            }
+        }
         // input = materialize(bytes)
         let input = self.lower_typed_expr(input, memory_ty)?;
         let input = self.materialize_memory_argument(memory_ty, input, span)?;
@@ -1214,6 +1271,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             InstKind::builtin(crate::mir::Builtin::EcRecover, [hash, v, r, s]),
             Some(MirType::I256),
         ))
+    }
+}
+
+/// Whether a value of type `ty` lies in calldata: a calldata reference, or a slice of one.
+pub(super) fn lies_in_calldata(ty: Ty<'_>) -> bool {
+    match ty.kind {
+        TyKind::Slice(inner) => inner.is_ref_at(DataLocation::Calldata),
+        _ => ty.is_ref_at(DataLocation::Calldata),
     }
 }
 

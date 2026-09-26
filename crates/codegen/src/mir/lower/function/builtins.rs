@@ -638,6 +638,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value_ty = self.cx.gcx.type_of_expr(value.id)?;
                 let memory_ty = value_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
                 let span = value.span;
+                if abi_values::lies_in_calldata(value_ty) {
+                    // A calldata range is checked against the calldata, as its copy to memory
+                    // would be, and hashed from past the free memory pointer, without reserving
+                    // the copy.
+                    // validate(range)
+                    // hash = keccak256(calldatacopy(fmp, range))
+                    let range = self.lower_expr(value)?;
+                    if self.builder.func().value_slice_location(range)
+                        == Some(SliceLocation::Calldata)
+                    {
+                        let bytes = AbiType::Bytes(SliceLocation::Calldata);
+                        self.validate_calldata_bytes_argument(range, &bytes);
+                        return Some(self.hash_view(range));
+                    }
+                    let range = self.coerce_value(range, value_ty, memory_ty);
+                    let range = self.materialize_memory_argument(memory_ty, range, span)?;
+                    return Some(self.builder.keccak256_bytes(range));
+                }
                 let value = self.lower_typed_expr(value, memory_ty)?;
                 let value = self.materialize_memory_argument(memory_ty, value, span)?;
                 Some(self.builder.keccak256_bytes(value))
