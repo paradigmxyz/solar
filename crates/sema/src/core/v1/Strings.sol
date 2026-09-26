@@ -6,10 +6,10 @@ import {Bytes} from "solar:core/v1/Bytes.sol";
 
 /// @notice Text helpers over `string`.
 /// @dev Compiler-owned module, imported as `solar:core/v1/Strings.sol`. This
-/// is an ordinary source library over `Bytes` and `Buffers`; nothing here is
-/// lowered specially. Strings are treated as bytes: no function validates or
-/// depends on UTF-8, and `escapeJSON` escapes only what JSON requires, so a
-/// valid UTF-8 input stays valid.
+/// is an ordinary source library over `Bytes` and `Buffers`. Strings are
+/// treated as bytes: no function but `isValidUTF8` validates or depends on
+/// UTF-8, and `escapeJSON` escapes only what JSON requires, so a valid UTF-8
+/// input stays valid.
 library Strings {
     using Buffers for ByteBuilder;
 
@@ -17,6 +17,8 @@ library Strings {
     bytes16 private constant UPPER_DIGITS = "0123456789ABCDEF";
     /// @dev One bit per byte a URI component keeps: letters, digits and `-_.!~*'()`.
     uint256 private constant URI_UNRESERVED = 0x47fffffe87fffffe03ff678200000000;
+    /// @dev The top bit of every byte of a word, which only ASCII bytes clear.
+    bytes32 private constant NON_ASCII = 0x8080808080808080808080808080808080808080808080808080808080808080;
 
     /// @dev `value` in decimal.
     function toString(uint256 value) internal pure returns (string memory) {
@@ -305,6 +307,57 @@ library Strings {
         for (uint256 i; i < s.length; ++count) {
             i += (lengths >> (uint8(s[i]) & 0xfc)) & 15;
         }
+    }
+
+    /// @dev Whether `subject` is well-formed UTF-8 as RFC 3629 defines it: every
+    /// rune encoded in its shortest form, no surrogate halves (U+D800 to
+    /// U+DFFF), and nothing above U+10FFFF. Runs of ASCII are checked a word at
+    /// a time.
+    function isValidUTF8(string memory subject) internal pure returns (bool) {
+        bytes memory s = bytes(subject);
+        uint256 n = s.length;
+        uint256 i;
+        while (i < n) {
+            if (n - i >= 32 && Bytes.readBytes32(s, i) & NON_ASCII == 0) {
+                i += 32;
+                continue;
+            }
+            uint8 lead = uint8(s[i]);
+            if (lead < 0x80) {
+                ++i;
+                continue;
+            }
+            // The continuation bytes the lead declares, and the range its
+            // first one must lie in to rule out overlong forms, surrogates and
+            // runes past U+10FFFF.
+            uint256 extra;
+            uint8 low = 0x80;
+            uint8 high = 0xbf;
+            if (lead < 0xc2) {
+                return false;
+            } else if (lead < 0xe0) {
+                extra = 1;
+            } else if (lead < 0xf0) {
+                extra = 2;
+                if (lead == 0xe0) low = 0xa0;
+                else if (lead == 0xed) high = 0x9f;
+            } else if (lead < 0xf5) {
+                extra = 3;
+                if (lead == 0xf0) low = 0x90;
+                else if (lead == 0xf4) high = 0x8f;
+            } else {
+                return false;
+            }
+            if (n - i <= extra) return false;
+            uint8 first = uint8(s[i + 1]);
+            if (first < low || first > high) return false;
+            for (uint256 k = 2; k <= extra; ++k) {
+                uint8 next = uint8(s[i + k]);
+                if (next < 0x80 || next > 0xbf) return false;
+            }
+            i += extra + 1;
+        }
+        return true;
     }
 
     /// @dev `subject` repeated `times` times, or the empty string when either
