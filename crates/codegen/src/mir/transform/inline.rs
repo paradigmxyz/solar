@@ -1896,7 +1896,7 @@ struct LoopCost {
 
 fn block_loop_costs(func: &Function) -> FxHashMap<BlockId, LoopCost> {
     let mut analyzer = LoopAnalyzer::new();
-    let loop_info = analyzer.analyze(func);
+    let loop_info = analyzer.analyze_trip_counts(func);
     let mut costs = FxHashMap::default();
     for loop_data in loop_info.all_loops() {
         let counted = loop_data.trip_count.filter(|_| {

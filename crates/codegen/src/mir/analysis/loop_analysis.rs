@@ -96,6 +96,7 @@ impl LoopAnalyzer {
     }
 
     /// Analyzes loops in a function.
+    #[cfg(test)]
     pub(crate) fn analyze(&mut self, func: &Function) -> LoopInfo {
         self.analyze_with_cfg(func, Rc::new(CfgInfo::new(func)))
     }
@@ -106,6 +107,16 @@ impl LoopAnalyzer {
         for loop_info in info.loops.values_mut() {
             self.analyze_induction_vars(func, loop_info);
             self.find_invariant_instructions(func, loop_info);
+            self.analyze_trip_count(func, loop_info);
+        }
+        info
+    }
+
+    /// Analyzes loops without their invariant instructions.
+    pub(crate) fn analyze_trip_counts(&mut self, func: &Function) -> LoopInfo {
+        let mut info = self.analyze_structure_with_cfg(func, Rc::new(CfgInfo::new(func)));
+        for loop_info in info.loops.values_mut() {
+            self.analyze_induction_vars(func, loop_info);
             self.analyze_trip_count(func, loop_info);
         }
         info
