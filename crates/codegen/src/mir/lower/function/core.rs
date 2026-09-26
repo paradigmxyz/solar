@@ -111,8 +111,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // both spellings reach the same operand list and the same operation.
         let mut operands = Vec::with_capacity(function.parameters.len());
         let mut parameter_tys = Vec::with_capacity(function.parameters.len());
-        let exprs = receiver.into_iter().chain(args.exprs());
-        for (index, argument) in exprs.enumerate() {
+        let exprs = receiver.into_iter().chain(args.exprs()).collect::<Vec<_>>();
+        for (index, &argument) in exprs.iter().enumerate() {
             let parameter = *function.parameters.get(index)?;
             let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
             // A storage reference is passed as its slot, as to any internal call.
@@ -131,6 +131,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             {
                 // The encoding is staged past the free memory pointer. It is the last operand,
                 // so nothing allocates before the intrinsic copies it.
+                self.lower_abi_encode_call_scratch(builtin, encode_args)?
+            } else if Self::core_call_payload(intrinsic) == Some(index)
+                && exprs[index + 1..].iter().all(|later| self.core_argument_leaves_memory(later))
+                && let Some((builtin, encode_args)) = self.encoding_call(argument)
+            {
+                // The payload is staged past the free memory pointer. The operands after it
+                // only name buffers already in memory, so nothing allocates before the call
+                // reads it.
                 self.lower_abi_encode_call_scratch(builtin, encode_args)?
             } else {
                 let value = self.lower_typed_expr(argument, parameter_ty)?;
@@ -314,6 +322,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             | CoreIntrinsic::StaticCallInto
             | CoreIntrinsic::DelegateCallInto => {
                 self.lower_core_call_into(intrinsic, function_id, &operands)
+            }
+            CoreIntrinsic::CallBounded | CoreIntrinsic::StaticCallBounded => {
+                self.lower_core_call_bounded(intrinsic, function_id, &operands)
             }
             CoreIntrinsic::Mul512 => self.lower_core_mul512(function_id, &operands),
             // A constant, so the path it guards folds away in the other builds.
@@ -1766,8 +1777,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ) => (target, None, gas, payload, output),
             _ => return None,
         };
-        let input_size = self.builder.memory_object_len(payload, MemoryObjectKind::Bytes);
-        let input = self.builder.memory_object_data(payload, MemoryObjectKind::Bytes);
+        // The payload is a buffer, or an encoding staged past the free memory pointer.
+        let input_size = self.core_bytes_len(payload);
+        let input = self.core_bytes_data(payload);
         let capacity = self.builder.memory_object_len(output, MemoryObjectKind::Bytes);
         let destination = self.builder.memory_object_data(output, MemoryObjectKind::Bytes);
         // success = call|staticcall|delegatecall(gas, target[, value], input, input_size,
@@ -1787,6 +1799,78 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let shorter = self.builder.lt(total, capacity);
         let copied = self.builder.select(shorter, total, capacity);
         Some(self.core_results(function_id, vec![success, copied, total]))
+    }
+
+    /// `Calls.callBounded` and `staticCallBounded`: the response is copied, up to `maxCopy`
+    /// bytes of it, into a buffer allocated after the call and sized to what it holds. The copy
+    /// fills the buffer, whose length the response bounds, so it is neither zeroed nor checked.
+    fn lower_core_call_bounded(
+        &mut self,
+        intrinsic: CoreIntrinsic,
+        function_id: hir::FunctionId,
+        operands: &[ValueId],
+    ) -> Option<ValueId> {
+        let (target, value, gas, payload, max_copy) = match (intrinsic, operands) {
+            (CoreIntrinsic::CallBounded, &[target, value, gas, payload, max_copy]) => {
+                (target, Some(value), gas, payload, max_copy)
+            }
+            (CoreIntrinsic::StaticCallBounded, &[target, gas, payload, max_copy]) => {
+                (target, None, gas, payload, max_copy)
+            }
+            _ => return None,
+        };
+        // The payload is a buffer, or an encoding staged past the free memory pointer.
+        let input_size = self.core_bytes_len(payload);
+        let input = self.core_bytes_data(payload);
+        let zero = self.builder.imm(U256::ZERO);
+        // success = call|staticcall(gas, target[, value], input, input_size, 0, 0)
+        let success = match value {
+            Some(value) => self.builder.call(gas, target, value, input, input_size, zero, zero),
+            None => self.builder.staticcall(gas, target, input, input_size, zero, zero),
+        };
+        // total = returndatasize()
+        // copied = total < max_copy ? total : max_copy
+        // output = bytes(copied), uninitialized
+        // returndatacopy(output.data, 0, copied)
+        let total = self.builder.returndatasize();
+        let shorter = self.builder.lt(total, max_copy);
+        let copied = self.builder.select(shorter, total, max_copy);
+        let output = self.builder.alloc_bytes_object(copied, AllocationSemantics::INTERNAL);
+        let data = self.builder.memory_object_data(output, MemoryObjectKind::Bytes);
+        self.builder.returndatacopy_heap(data, zero, copied);
+        Some(self.core_results(function_id, vec![success, output, total]))
+    }
+
+    /// The operand of a call intrinsic that holds the call's payload.
+    fn core_call_payload(intrinsic: CoreIntrinsic) -> Option<usize> {
+        match intrinsic {
+            CoreIntrinsic::CallInto | CoreIntrinsic::CallBounded => Some(3),
+            CoreIntrinsic::StaticCallInto
+            | CoreIntrinsic::DelegateCallInto
+            | CoreIntrinsic::StaticCallBounded => Some(2),
+            _ => None,
+        }
+    }
+
+    /// Whether evaluating the operand `expr` neither allocates nor writes memory: a number
+    /// literal, or a local variable holding a value or a memory reference, neither of which
+    /// needs a conversion that copies.
+    fn core_argument_leaves_memory(&self, expr: &hir::Expr<'_>) -> bool {
+        let gcx = self.cx.gcx;
+        let expr = expr.peel_parens();
+        match expr.kind {
+            ExprKind::Lit(lit) => matches!(lit.kind, LitKind::Number(_)),
+            ExprKind::Ident(_) => {
+                !self.is_view_expr(expr)
+                    && gcx
+                        .resolved_variable(expr)
+                        .is_some_and(|id| gcx.hir.variable(id).is_local_variable())
+                    && gcx
+                        .type_of_expr(expr.id)
+                        .is_some_and(|ty| ty.is_value_type() || ty.is_ref_at(DataLocation::Memory))
+            }
+            _ => false,
+        }
     }
 
     /// `Math.mul512(x, y)`: the product modulo `2**256 - 1` is `high + low`
