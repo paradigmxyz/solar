@@ -218,6 +218,10 @@ pub enum CoreIntrinsic {
     StaticCallInto,
     /// `Calls.delegateCallInto(target, gasLimit, payload, output)`.
     DelegateCallInto,
+    /// `Calls.callBounded(target, value, gasLimit, payload, maxCopy)`.
+    CallBounded,
+    /// `Calls.staticCallBounded(target, gasLimit, payload, maxCopy)`.
+    StaticCallBounded,
     /// `Bytes.tryReadBytesN(b, offset)`: a read that answers instead of
     /// reverting. The payload is `N`.
     TryReadBytes(u8),
@@ -453,6 +457,8 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (sym::callInto, CoreIntrinsic::CallInto),
                 (sym::staticCallInto, CoreIntrinsic::StaticCallInto),
                 (sym::delegateCallInto, CoreIntrinsic::DelegateCallInto),
+                (sym::callBounded, CoreIntrinsic::CallBounded),
+                (sym::staticCallBounded, CoreIntrinsic::StaticCallBounded),
                 (sym::forward, CoreIntrinsic::Forward),
                 (sym::forwardDelegate, CoreIntrinsic::ForwardDelegate),
             ])
