@@ -55,25 +55,22 @@ fn @bytesHash() -> i256 [selector=0x05da852c, inline_assembly, pure, abi_params=
     v4 = slice_ptr v3
     v5 = slice_len v3
     v6 = make_calldata_slice v4, 64
-    v7 = slice_len v6
-    v8 = add v7, 63
-    v9 = lt v8, v7
-    icall panic_if<0x41>, v9
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    set_memory_object_len memorybytes, v12, v7
+    v7 = slice_ptr v6
+    v8 = slice_len v6
+    v9 = gt v8, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v9
+    v10 = calldatasize
+    v11 = sub v10, v8
+    v12 = sgt v7, v11
+    icall revert_if<calldata_tail_too_short>, v12
     v13 = slice_ptr v6
     v14 = slice_len v6
-    v15 = gt v14, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v15
-    v16 = calldatasize
-    v17 = sub v16, v14
-    v18 = sgt v13, v17
-    icall revert_if<calldata_tail_too_short>, v18
-    memory_object_copy_from_slice memorybytes, v12, v6
-    v19 = keccak256_bytes v12
-    ret v19
+    v15 = fmp
+    v16 = ptrtoint memptr v15 to i256
+    calldatacopy v16, v13, v14 !metadata(memory=heap)
+    v17 = ptrtoint memptr v15 to i256
+    v18 = keccak256 v17, v14
+    ret v18
 }
 
 fn @bytesLength() -> i256 [selector=0x46cab953, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
