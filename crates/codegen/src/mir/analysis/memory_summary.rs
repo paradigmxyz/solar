@@ -18,11 +18,7 @@ use crate::mir::{
     Module, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{
-    bit_set::DenseBitSet,
-    index::IndexVec,
-    map::{FxHashMap, FxHashSet},
-};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashSet};
 use std::collections::{BTreeSet, VecDeque};
 
 /// Includes observations in callees, conservatively retaining reads without a call summary.
@@ -395,7 +391,7 @@ impl FunctionMemorySummary {
 /// Cached module-level summaries for all internal-call targets.
 #[derive(Clone, Debug)]
 pub(crate) struct MemoryCallSummaries {
-    summaries: FxHashMap<FunctionId, FunctionMemorySummary>,
+    summaries: IndexVec<FunctionId, Option<FunctionMemorySummary>>,
 }
 
 impl MemoryCallSummaries {
@@ -421,45 +417,53 @@ impl MemoryCallSummaries {
             }
         }
         if targets.is_empty() {
-            return Self { summaries: FxHashMap::default() };
+            return Self { summaries: IndexVec::new() };
         }
 
-        let sources = targets
-            .iter()
-            .map(|id| (id, parameter_sources(&module.functions[id])))
-            .collect::<FxHashMap<_, _>>();
-        let aliases = targets
-            .iter()
-            .map(|id| (id, AliasAnalysis::new(&module.functions[id])))
-            .collect::<FxHashMap<_, _>>();
+        let sources = module
+            .functions
+            .iter_enumerated()
+            .map(|(id, func)| targets.contains(id).then(|| parameter_sources(func)))
+            .collect::<IndexVec<FunctionId, _>>();
+        let aliases = module
+            .functions
+            .iter_enumerated()
+            .map(|(id, func)| targets.contains(id).then(|| AliasAnalysis::new(func)))
+            .collect::<IndexVec<FunctionId, _>>();
         let calls = CallGraphInfo::new(module);
-        let mut local = FxHashMap::default();
+        let mut local = IndexVec::<FunctionId, _>::from_vec(vec![None; module.functions.len()]);
         for func_id in &targets {
             let func = &module.functions[func_id];
-            let mut summary = local_summary(module, func, &sources[&func_id], &aliases[&func_id]);
+            let (sources, alias) =
+                (sources[func_id].as_ref().unwrap(), aliases[func_id].as_ref().unwrap());
+            let mut summary = local_summary(module, func, sources, alias);
             summary.has_multiple_returns = func.return_components().len() > 1;
             summary.control.may_diverge |= calls.is_recursive(func_id);
-            local.insert(func_id, summary);
+            local[func_id] = Some(summary);
         }
         let mut summaries = local.clone();
 
-        let mut callers = FxHashMap::<_, Vec<_>>::default();
+        let mut callers =
+            IndexVec::<FunctionId, Vec<_>>::from_vec(vec![Vec::new(); module.functions.len()]);
         for caller in &targets {
             let func = &module.functions[caller];
             for inst_id in func.instructions() {
                 if let InstKind::ICall { function: Callee::Function(function), .. } =
                     func.inst(inst_id).kind
+                    && let Some(function_callers) = callers.get_mut(function)
                 {
-                    callers.entry(function).or_default().push(caller);
+                    function_callers.push(caller);
                 }
             }
             for block in &func.blocks {
-                if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
-                    callers.entry(*function).or_default().push(caller);
+                if let Some(Terminator::TailCall { function, .. }) = &block.terminator
+                    && let Some(function_callers) = callers.get_mut(*function)
+                {
+                    function_callers.push(caller);
                 }
             }
         }
-        for function_callers in callers.values_mut() {
+        for function_callers in &mut callers {
             function_callers.sort_unstable();
             function_callers.dedup();
         }
@@ -469,7 +473,9 @@ impl MemoryCallSummaries {
         while let Some(func_id) = worklist.pop_front() {
             queued.remove(func_id);
             let func = &module.functions[func_id];
-            let mut summary = local[&func_id].clone();
+            let (sources, alias) =
+                (sources[func_id].as_ref().unwrap(), aliases[func_id].as_ref().unwrap());
+            let mut summary = local[func_id].clone().unwrap();
             for block in &func.blocks {
                 for &inst_id in &block.instructions {
                     if let InstKind::ICall {
@@ -479,10 +485,10 @@ impl MemoryCallSummaries {
                         merge_call(
                             &mut summary,
                             func,
-                            summaries.get(&function),
+                            summaries.get(function).and_then(Option::as_ref),
                             args,
-                            &sources[&func_id],
-                            &aliases[&func_id],
+                            sources,
+                            alias,
                         );
                     }
                 }
@@ -490,17 +496,17 @@ impl MemoryCallSummaries {
                     merge_call(
                         &mut summary,
                         func,
-                        summaries.get(function),
+                        summaries.get(*function).and_then(Option::as_ref),
                         args,
-                        &sources[&func_id],
-                        &aliases[&func_id],
+                        sources,
+                        alias,
                     );
                 }
             }
 
-            if summary != summaries[&func_id] {
-                summaries.insert(func_id, summary);
-                for &caller in callers.get(&func_id).into_iter().flatten() {
+            if summaries[func_id].as_ref() != Some(&summary) {
+                summaries[func_id] = Some(summary);
+                for &caller in &callers[func_id] {
                     if queued.insert(caller) {
                         worklist.push_back(caller);
                     }
@@ -514,7 +520,7 @@ impl MemoryCallSummaries {
     /// Returns a summary for a called function that belongs to this module.
     #[must_use]
     pub(crate) fn get(&self, function: FunctionId) -> Option<&FunctionMemorySummary> {
-        self.summaries.get(&function)
+        self.summaries.get(function).and_then(Option::as_ref)
     }
 }
 
