@@ -79,8 +79,7 @@ impl SourceMapEncoder {
             _ => None,
         }
         .and_then(|span| {
-            let files = gcx.sess.source_map().files();
-            let source = files.span_to_source(span).ok()?;
+            let source = gcx.sess.source_map().span_to_source(span).ok()?;
             let source_id = *self.source_ids.get(&source.file.start_pos.0)?;
             Some((source.data.start as i64, source.data.len() as i64, source_id))
         });

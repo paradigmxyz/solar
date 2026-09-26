@@ -486,7 +486,9 @@ impl SourceMap {
 
 /// A read guard that supports source lookups without cloning file handles.
 ///
-/// Drop this guard before loading files into the source map.
+/// Use this guard for repeated lookups; use [`SourceMap`] methods for individual lookups.
+/// While holding the guard, query it directly instead of calling methods that acquire another
+/// source-file lock. Drop the guard before loading files into the source map.
 pub struct SourceMapFiles<'a>(MappedRwLockReadGuard<'a, [Arc<SourceFile>]>);
 
 impl std::ops::Deref for SourceMapFiles<'_> {
