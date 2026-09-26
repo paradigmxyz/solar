@@ -377,6 +377,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         let data_expr = &args[0];
+        if let Some((Builtin::AbiEncode, encode_args)) = self.encoding_call(data_expr)
+            && let Some(exprs) = self.variadic_builtin_args(Builtin::AbiEncode, &encode_args)
+            && exprs.len() == decoded_types.len()
+            && exprs.iter().zip(&decoded_types).all(|(expr, &ty)| {
+                self.is_view_expr(expr)
+                    && self.cx.gcx.type_of_expr(expr.id).is_some_and(|view_ty| {
+                        view_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory) == ty
+                    })
+            })
+        {
+            return self
+                .lower_view_materialization(exprs, &decoded_types, args[1].span)
+                .map(CallResult::Value);
+        }
         let (data, layout) = if self.is_view_expr(data_expr) {
             // A view's bytes are decoded where they are, in memory or in calldata.
             let view = self.lower_view_expr(data_expr)?;

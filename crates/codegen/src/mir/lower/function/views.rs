@@ -57,6 +57,12 @@
 //! reads the parameter; an object is the caller's own, and calldata cannot change. It cannot be
 //! used as a function pointer, whose calls pass objects.
 //!
+//! `abi.decode(abi.encode(v), (T))`, with `v` a view of type `T`, is the portable spelling of a
+//! copy of the view as an ordinary value: every compiler encodes a value and decodes it to an
+//! equal, independent one. This compiler copies each view into its value directly, without the
+//! encoding in between, since a validated view encodes and decodes to itself; a view that is the
+//! caller's object goes through the encoding like any object.
+//!
 //! Once the contract is lowered, and before any optimization, [`check_view_borrows`] rejects
 //! every instruction that may write the source's payload between the view's creation and a later
 //! read through it, on some path that does not create the view again. The reads are the uses of
@@ -404,6 +410,37 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             _ => self.cx.report_unsupported(span, "view copy"),
         }
+    }
+
+    /// Lowers `abi.decode(abi.encode(views...), (types...))`, where each view has the type it is
+    /// decoded as, to copies of the views: a validated view encodes and decodes to itself, so the
+    /// encoding in between is skipped. A view that is the caller's object, as an aggregate view
+    /// parameter's own form is, goes through the encoding like any object, which makes the copy.
+    pub(super) fn lower_view_materialization(
+        &mut self,
+        exprs: &[hir::Expr<'_>],
+        types: &[Ty<'gcx>],
+        span: Span,
+    ) -> Option<ValueId> {
+        let mut values = Vec::with_capacity(types.len());
+        for (expr, &ty) in exprs.iter().zip(types) {
+            let view = self.lower_view_expr(expr)?;
+            let value = if self.builder.func().value_slice_location(view).is_some() {
+                // value = copy(view)
+                self.materialize_view(ty, view, expr.span)?
+            } else {
+                // value = abi_decode(abi_encode(object), ty)
+                let abi_type = self.types.abi_type(ty)?;
+                let layout = Arc::new(AbiLayout::new([abi_type]));
+                let encoded = self.builder.abi_encode_bytes(layout, None, [view]);
+                let layout = self.abi_decode_layout(&[ty], span)?;
+                let layout = self.cx.module.intern_abi_param_layout(layout);
+                let result_ty = types::TypeLowerer::mir_type(ty);
+                self.builder.abi_decode(layout, encoded, result_ty)
+            };
+            values.push(value);
+        }
+        Some(self.pack_return_values(values, types))
     }
 
     /// Copies the `length` elements of type `element` of the array `view` into `object`, an
