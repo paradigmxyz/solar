@@ -1019,11 +1019,6 @@ fn counter_escapes(func: &Function, header: BlockId, body: BlockId, index: Value
 /// terms, so each range starts where its address stands at index zero and runs
 /// for the bound.
 fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> Option<CopyLoop> {
-    // A discarded read raises the memory high-water mark, and the copy this
-    // builds touches less of it than the reads it replaces.
-    if alias.may_observe_msize(func) {
-        return None;
-    }
     // header: index = phi [preheader: 0], [body: next]; jumpi lt(index, bound), body, exit
     let [phi_inst, less_inst] = func.blocks[header].instructions.as_slice() else { return None };
     let InstKind::Phi(incoming) = &func.inst(*phi_inst).kind else { return None };
@@ -1088,6 +1083,11 @@ fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> O
     }
     let ((source_address, _), byte, dest_address) = (load?, extract?, store?);
     if !step {
+        return None;
+    }
+    // A discarded read raises the memory high-water mark, and the copy this
+    // builds touches less of it than the reads it replaces.
+    if alias.may_observe_msize(func) {
         return None;
     }
     // The byte read must feed only the write.
