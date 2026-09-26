@@ -127,7 +127,7 @@ impl FileName {
 /// Created by [`FileName::display`].
 pub struct FileNameDisplay<'a> {
     pub(crate) inner: &'a FileName,
-    pub(crate) base_path: Option<Arc<Path>>,
+    pub(crate) base_path: Option<Arc<PathBuf>>,
 }
 
 impl fmt::Display for FileNameDisplay<'_> {
@@ -135,7 +135,7 @@ impl fmt::Display for FileNameDisplay<'_> {
         match self.inner {
             FileName::Real(path) => {
                 let path = if let Some(base_path) = &self.base_path
-                    && let Ok(rpath) = path.strip_prefix(base_path)
+                    && let Ok(rpath) = path.strip_prefix(base_path.as_path())
                 {
                     rpath
                 } else {

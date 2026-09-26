@@ -59,7 +59,7 @@ pub struct FileResolver<'a> {
 impl<'a> FileResolver<'a> {
     /// Creates a new file resolver.
     pub fn new(source_map: &'a SourceMap) -> Self {
-        let base_path = source_map.base_path().as_deref().map(Path::to_path_buf);
+        let base_path = source_map.base_path().as_deref().cloned();
         Self {
             source_map,
             include_paths: Vec::new(),

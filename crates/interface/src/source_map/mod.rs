@@ -1,6 +1,7 @@
 //! SourceMap related types and operations.
 
 use crate::{BytePos, CharPos, Span};
+use arc_swap::ArcSwapOption;
 use once_map::OnceMap;
 use solar_data_structures::{
     fmt,
@@ -194,7 +195,7 @@ pub struct SourceMap {
     #[debug(skip)]
     id_to_file: OnceMap<SourceFileId, Arc<SourceFile>, FxBuildHasher>,
 
-    base_path: RwLock<Option<Arc<Path>>>,
+    base_path: ArcSwapOption<PathBuf>,
     #[debug(skip)]
     file_loader: OnceLock<Box<dyn FileLoader>>,
 }
@@ -249,12 +250,11 @@ impl SourceMap {
     ///
     /// This is currently only used for trimming diagnostics' paths.
     pub(crate) fn set_base_path(&self, base_path: Option<PathBuf>) {
-        let base_path = base_path.map(Arc::from);
-        *self.base_path.write() = base_path;
+        self.base_path.store(base_path.map(Arc::new));
     }
 
-    pub(crate) fn base_path(&self) -> Option<Arc<Path>> {
-        self.base_path.read().as_ref().cloned()
+    pub(crate) fn base_path(&self) -> Option<Arc<PathBuf>> {
+        self.base_path.load_full()
     }
 
     /// Returns `true` if the source map is empty.
