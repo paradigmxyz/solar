@@ -137,6 +137,11 @@ impl ImmediateMaterialization {
     }
 
     fn metrics(self) -> ImmediateMaterializationMetrics {
+        // A literal is one push, which the visitor below would measure the same way.
+        if let CompactPush::Literal = self.recipe {
+            let (encoded_len, static_gas) = literal_cost(self.evm_version, self.value);
+            return ImmediateMaterializationMetrics { encoded_len, static_gas, stack_peak: 1 };
+        }
         let mut metrics = ImmediateMaterializationMetrics::default();
         let mut depth = 0usize;
         self.for_each(|materialized| match materialized {
