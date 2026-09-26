@@ -396,7 +396,8 @@ fn make_ethdebug_source_range(
     source_ids: &FxHashMap<u32, u32>,
     span: solar_interface::Span,
 ) -> Option<EthdebugSourceRange> {
-    let source = gcx.sess.source_map().span_to_source(span).ok()?;
+    let files = gcx.sess.source_map().files();
+    let source = files.span_to_source(span).ok()?;
     let source_id = *source_ids.get(&source.file.start_pos.0)?;
     Some(EthdebugSourceRange {
         source: EthdebugReference { id: EthdebugId::Number(source_id) },

@@ -703,3 +703,24 @@ fn diagnostic_base_path_snapshot() {
     snapbox::assert_data_eq!(display.to_string(), snapbox::str!["file.sol"]);
     assert!(sm.base_path().is_none());
 }
+
+#[test]
+fn borrowed_source_lookup_ownership() {
+    let mut sm = SourceMap::empty();
+    let file = sm.new_source_file(PathBuf::from("borrowed.sol"), "hello").unwrap();
+    let initial_refs = Arc::strong_count(&file);
+    let owned = {
+        let files = sm.files();
+        let source = files.span_to_source(Span::new(BytePos(1), BytePos(4))).unwrap();
+        let location = files.lookup_char_pos(BytePos(1));
+        assert!(Arc::ptr_eq(source.file, &file));
+        assert_eq!(location.col, CharPos(1));
+        assert_eq!(Arc::strong_count(&file), initial_refs);
+        let owned = source.to_owned();
+        assert_eq!(Arc::strong_count(&file), initial_refs + 1);
+        owned
+    };
+    sm.clear();
+    assert_eq!(owned.data, 1..4);
+    snapbox::assert_data_eq!(&owned.file.src[owned.data], snapbox::str!["ell"]);
+}

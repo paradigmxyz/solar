@@ -5,7 +5,7 @@ use once_map::OnceMap;
 use solar_data_structures::{
     fmt,
     map::FxBuildHasher,
-    sync::{RwLock, RwLockReadGuard},
+    sync::{MappedRwLockReadGuard, RwLock, RwLockReadGuard},
 };
 use std::{
     io::{self, Read},
@@ -58,12 +58,12 @@ pub struct MalformedSourceMapPositions {
 
 /// A value paired with a source file.
 #[derive(Clone, Debug)]
-pub struct WithSourceFile<T> {
-    pub file: Arc<SourceFile>,
+pub struct WithSourceFile<T, F = Arc<SourceFile>> {
+    pub file: F,
     pub data: T,
 }
 
-impl<T> std::ops::Deref for WithSourceFile<T> {
+impl<T, F> std::ops::Deref for WithSourceFile<T, F> {
     type Target = T;
 
     #[inline]
@@ -72,10 +72,17 @@ impl<T> std::ops::Deref for WithSourceFile<T> {
     }
 }
 
-impl<T> std::ops::DerefMut for WithSourceFile<T> {
+impl<T, F> std::ops::DerefMut for WithSourceFile<T, F> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.data
+    }
+}
+
+impl<T: Clone> WithSourceFile<T, &Arc<SourceFile>> {
+    /// Clones the data and shares ownership of the source file.
+    pub fn to_owned(&self) -> WithSourceFile<T> {
+        WithSourceFile { file: self.file.clone(), data: self.data.clone() }
     }
 }
 
@@ -358,8 +365,8 @@ impl SourceMap {
     }
 
     /// Returns a read guard to the source files in the source map.
-    pub fn files(&self) -> impl std::ops::Deref<Target = [Arc<SourceFile>]> + '_ {
-        RwLockReadGuard::map(self.source_files.read(), std::ops::Deref::deref)
+    pub fn files(&self) -> SourceMapFiles<'_> {
+        SourceMapFiles(RwLockReadGuard::map(self.source_files.read(), std::ops::Deref::deref))
     }
 
     /// Display the filename for diagnostics.
@@ -440,7 +447,7 @@ impl SourceMap {
     }
 
     pub fn is_valid_span(&self, sp: Span) -> Result<WithSourceFile<SpanLoc>, SpanLinesError> {
-        Self::span_to_location_in(&self.files(), sp)
+        self.files().is_valid_span(sp).map(|source| source.to_owned())
     }
 
     pub fn is_line_before_span_empty(&self, sp: Span) -> bool {
@@ -501,9 +508,7 @@ impl SourceMap {
         &self,
         sp: Span,
     ) -> Result<WithSourceFile<Range<usize>>, SpanSnippetError> {
-        let files = &*self.files();
-        let (file, data) = Self::span_to_source_in(files, sp)?;
-        Ok(WithSourceFile { file: file.clone(), data })
+        self.files().span_to_source(sp).map(|source| source.to_owned())
     }
 
     /// Format the span location to be printed in diagnostics.
@@ -538,7 +543,7 @@ impl SourceMap {
         let Ok(WithSourceFile { file, data }) = Self::span_to_location_in(files, sp) else {
             return Default::default();
         };
-        (Some(file), data)
+        (Some(file.clone()), data)
     }
 
     fn lookup_span_files(
@@ -557,7 +562,7 @@ impl SourceMap {
     fn span_to_location_in(
         files: &[Arc<SourceFile>],
         sp: Span,
-    ) -> Result<WithSourceFile<SpanLoc>, SpanLinesError> {
+    ) -> Result<WithSourceFile<SpanLoc, &Arc<SourceFile>>, SpanLinesError> {
         let (begin, end) = Self::lookup_span_files(files, sp);
         if begin.start_pos != end.start_pos {
             return Err(SpanLinesError::DistinctSources(Box::new(DistinctSources {
@@ -569,7 +574,7 @@ impl SourceMap {
         let lo = Loc { line, col, col_display };
         let (line, col, col_display) = begin.lookup_file_pos_with_col_display(sp.hi());
         let hi = Loc { line, col, col_display };
-        Ok(WithSourceFile { file: begin.clone(), data: SpanLoc { lo, hi } })
+        Ok(WithSourceFile { file: begin, data: SpanLoc { lo, hi } })
     }
 
     fn span_to_source_in(
@@ -600,5 +605,49 @@ impl SourceMap {
         }
 
         Ok((begin, start_index..end_index))
+    }
+}
+
+/// A read guard that supports source lookups without cloning file handles.
+///
+/// Drop this guard before loading files into the source map.
+pub struct SourceMapFiles<'a>(MappedRwLockReadGuard<'a, [Arc<SourceFile>]>);
+
+impl std::ops::Deref for SourceMapFiles<'_> {
+    type Target = [Arc<SourceFile>];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl SourceMapFiles<'_> {
+    /// Returns the file containing the given byte position.
+    pub fn lookup_source_file(&self, pos: BytePos) -> &Arc<SourceFile> {
+        &self[SourceMap::lookup_sf_idx(self, pos)]
+    }
+
+    /// Returns the source location for a byte position.
+    pub fn lookup_char_pos(&self, pos: BytePos) -> WithSourceFile<Loc, &Arc<SourceFile>> {
+        let file = self.lookup_source_file(pos);
+        let (line, col, col_display) = file.lookup_file_pos_with_col_display(pos);
+        WithSourceFile { file, data: Loc { line, col, col_display } }
+    }
+
+    /// Returns the source file and locations at both ends of a span.
+    pub fn is_valid_span(
+        &self,
+        sp: Span,
+    ) -> Result<WithSourceFile<SpanLoc, &Arc<SourceFile>>, SpanLinesError> {
+        SourceMap::span_to_location_in(self, sp)
+    }
+
+    /// Returns the source file and byte range for a span.
+    pub fn span_to_source(
+        &self,
+        sp: Span,
+    ) -> Result<WithSourceFile<Range<usize>, &Arc<SourceFile>>, SpanSnippetError> {
+        let (file, data) = SourceMap::span_to_source_in(self, sp)?;
+        Ok(WithSourceFile { file, data })
     }
 }
