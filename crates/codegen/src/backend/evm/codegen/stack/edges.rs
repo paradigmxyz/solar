@@ -7,7 +7,8 @@
 
 use super::super::{
     BlockId, EvmCodegen, Function, FxHashMap, GLOBAL_STACK_LAYOUT_LIMIT, GlobalStackPlan,
-    StackModel, StackPhiBranch, StackPhiEdge, TargetSlot, Terminator, ValueId, op,
+    MAX_STACK_ACCESS, StackModel, StackPhiBranch, StackPhiEdge, TargetSlot, Terminator, ValueId,
+    op,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -247,7 +248,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> bool {
         if edge.sources.len() != edge.results.len()
             || edge.sources.is_empty()
-            || edge.sources.len() > self.stack_access_limit()
+            || edge.sources.len() > MAX_STACK_ACCESS
         {
             return false;
         }
@@ -289,14 +290,14 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> bool {
         if edge.sources.len() != edge.results.len()
             || edge.sources.is_empty()
-            || edge.sources.len() > self.stack_access_limit()
+            || edge.sources.len() > MAX_STACK_ACCESS
         {
             return false;
         }
 
         let present =
             Self::stack_phi_source_counts_after_trim(&self.scheduler.stack, &edge.sources);
-        if present.len() > self.stack_access_limit() {
+        if present.len() > MAX_STACK_ACCESS {
             return false;
         }
 
@@ -328,7 +329,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         branch: &StackPhiBranch,
     ) -> bool {
         !branch.union.is_empty()
-            && branch.union.len() <= self.stack_access_limit()
+            && branch.union.len() <= MAX_STACK_ACCESS
             && self.can_emit_stack_phi_value(func, condition)
             && self.can_prepare_stack_phi_branch_edge(func, &branch.then_edge)
             && self.can_prepare_stack_phi_branch_edge(func, &branch.else_edge)

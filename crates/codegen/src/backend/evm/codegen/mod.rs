@@ -14,8 +14,9 @@
 
 use self::{
     stack::{
-        OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, SpillSlot, StackScheduler,
-        TargetSlot, cross_block_values, is_cross_block_recomputable_kind, is_rematerializable_leaf,
+        MAX_STACK_ACCESS, OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, SpillSlot,
+        StackScheduler, TargetSlot, cross_block_values, is_cross_block_recomputable_kind,
+        is_rematerializable_leaf,
         layout::{
             GlobalStackPlan, StackPhiBranch, StackPhiEdge, StackPhiPlan, planned_entry_carries,
         },
@@ -1095,10 +1096,10 @@ RETURN
             let function = &module.functions[function];
             let liveness = Liveness::compute(function);
             codegen.scheduler.stack.push(dest);
-            for _ in 0..16 - 2 {
+            for _ in 0..MAX_STACK_ACCESS - 2 {
                 codegen.scheduler.stack.push_unknown();
             }
-            assert_eq!(codegen.scheduler.stack.find(dest), Some(16 - 2));
+            assert_eq!(codegen.scheduler.stack.find(dest), Some(MAX_STACK_ACCESS - 2));
 
             codegen.emit_data_copy(
                 function,
@@ -1110,7 +1111,7 @@ RETURN
                 1,
             );
 
-            assert_eq!(codegen.scheduler.stack.find(dest), Some(16 - 2));
+            assert_eq!(codegen.scheduler.stack.find(dest), Some(MAX_STACK_ACCESS - 2));
         });
     }
 
@@ -1319,9 +1320,12 @@ RETURN
         let value = ValueId::from_usize(0);
         let call = InstKind::ICall {
             function: Callee::Function(FunctionId::from_usize(0)),
-            args: vec![value; 16].into(),
+            args: vec![value; MAX_STACK_ACCESS].into(),
         };
-        assert_eq!(EvmCodegen::instruction_transient_growth(&call, 16), 16);
+        assert_eq!(
+            EvmCodegen::instruction_transient_growth(&call, MAX_STACK_ACCESS),
+            MAX_STACK_ACCESS
+        );
 
         let add = InstKind::Add(value, value);
         assert_eq!(EvmCodegen::instruction_transient_growth(&add, 2), 1);
@@ -1347,19 +1351,15 @@ RETURN
         let mut function = Function::new(Ident::DUMMY);
         let join = function.alloc_block();
         let mut phi = StackPhiPlan::default();
-        phi.entries.insert(join, (0..16).map(ValueId::from_usize).collect());
+        phi.entries.insert(join, (0..MAX_STACK_ACCESS).map(ValueId::from_usize).collect());
         let resident = GlobalStackPlan {
-            entries: FxHashMap::from_iter([(join, vec![ValueId::from_usize(16)])]),
+            entries: FxHashMap::from_iter([(join, vec![ValueId::from_usize(MAX_STACK_ACCESS)])]),
             aliases: FxHashMap::default(),
             terminal_sensitive: true,
         };
 
-        assert!(!phi.merge_resident(
-            &function,
-            &resident,
-            EvmVersion::Osaka.reachable_stack_depth()
-        ));
-        assert_eq!(phi.entries[&join].len(), 16);
+        assert!(!phi.merge_resident(&function, &resident));
+        assert_eq!(phi.entries[&join].len(), MAX_STACK_ACCESS);
     }
 
     #[test]

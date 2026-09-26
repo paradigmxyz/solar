@@ -3,9 +3,9 @@
 use super::super::{
     ArgIdx, BlockId, CanonicalArgValues, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function,
     FunctionId, FxHashMap, GLOBAL_STACK_LAYOUT_LIMIT, GlobalStackPlan, InstKind, LazyStackArgPlan,
-    Liveness, Module, OptimizationMode, SpillSlot, StackArgRetentionPlan, StackArgUseInfo,
-    StackModel, StackOp, StackScheduler, StaticCallEntry, StaticCallStackWord, TargetSlot,
-    Terminator, U256, ValueId, WORD_BYTES, op, rematerializable_nullary_value,
+    Liveness, MAX_STACK_ACCESS, Module, OptimizationMode, SpillSlot, StackArgRetentionPlan,
+    StackArgUseInfo, StackModel, StackOp, StackScheduler, StaticCallEntry, StaticCallStackWord,
+    TargetSlot, Terminator, U256, ValueId, WORD_BYTES, op, rematerializable_nullary_value,
 };
 use crate::mir::Callee;
 
@@ -376,7 +376,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if self.disabled_stack_only_functions.contains(func_id) {
                 continue;
             }
-            if mask.count() > self.stack_access_limit() {
+            if mask.count() > MAX_STACK_ACCESS {
                 continue;
             }
             let func = &module.functions[func_id];
@@ -476,7 +476,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         if let Some(depth) = caller_stack.and_then(|stack| stack.find(val))
-            && depth + words_above < self.stack_access_limit()
+            && depth + words_above < MAX_STACK_ACCESS
         {
             self.asm.emit_stack_op(StackOp::Dup((depth + words_above + 1) as u8));
             return;
@@ -554,10 +554,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .find(value)
                     .expect("non-resident stack argument disappeared in the callee prologue");
                 if depth != 0 {
-                    assert!(
-                        depth <= self.stack_access_limit(),
-                        "stack argument exceeded SWAP reach"
-                    );
+                    assert!(depth <= MAX_STACK_ACCESS, "stack argument exceeded SWAP reach");
                     self.asm.emit_stack_op(StackOp::Swap(depth as u8));
                     incoming.swap(depth as u8);
                 }
@@ -674,7 +671,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         if transient_growth == 0 {
             return;
         }
-        let materialize_depth = self.stack_access_limit().saturating_sub(transient_growth);
+        let materialize_depth = MAX_STACK_ACCESS.saturating_sub(transient_growth);
         let mut disabled_residency = false;
         loop {
             let entry = self.scheduler.stack.iter().enumerate().find_map(|(depth, value)| {
