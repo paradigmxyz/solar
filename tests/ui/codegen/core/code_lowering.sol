@@ -6,7 +6,16 @@
 
 // `Code.copyInto` copies a range of another account's code into a buffer,
 // checked against the code's size and the buffer's, so nothing is padded and
-// nothing lands outside. `read` is library code over it.
+// nothing lands outside. `read` copies into a new buffer the same way, without
+// zeroing it first, and its check shares a size read of the same account.
+// INTRINSIC-LABEL: fn @whole
+// INTRINSIC: extcodesize
+// INTRINSIC-NOT: extcodesize
+// INTRINSIC-NOT: calldatacopy
+// INTRINSIC-NOT: icall @read
+// INTRINSIC: extcodecopy
+// PORTABLE-LABEL: fn @whole
+// PORTABLE: icall @read
 // INTRINSIC-LABEL: fn @patched
 // INTRINSIC: extcodesize
 // INTRINSIC: extcodecopy

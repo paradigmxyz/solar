@@ -15,7 +15,8 @@ type CodeView is uint256;
 /// against the code's size rather than zero-padded past it, which is what
 /// reading a data contract needs. The body is one memory-safe assembly copy,
 /// and the compiler lowers the call to the copy instruction with the same
-/// operands. A range outside the code or the buffer raises `Panic(0x32)`.
+/// operands; `read` it lowers to that copy into a buffer it does not zero
+/// first. A range outside the code or the buffer raises `Panic(0x32)`.
 library Code {
     /// @dev The bits a view gives each of its start and its length, far more
     /// than any code size needs.

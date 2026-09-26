@@ -1278,6 +1278,7 @@ symbols! {
         push_immutable,
         push_library,
         raw,
+        read,
         readUint256BE,
         repeat,
         require,

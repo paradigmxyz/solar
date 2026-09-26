@@ -289,6 +289,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.lower_core_calldata_try_read(function_id, &operands, 32)
             }
             CoreIntrinsic::CodeCopyInto => self.lower_core_code_copy(&operands),
+            CoreIntrinsic::CodeRead => self.lower_core_code_read(&operands),
             CoreIntrinsic::LeadingZeros => {
                 let [value] = *operands.as_slice() else { return None };
                 Some(self.builder.clz(value))
@@ -2240,25 +2241,57 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// `Code.copyInto(dst, dstOffset, target, start, count)`: checked against
     /// both the buffer and the code's size, so nothing is zero-padded.
     fn lower_core_code_copy(&mut self, operands: &[ValueId]) -> Option<ValueId> {
-        let (dst, dst_offset, target, start, count) = match *operands {
-            [dst, dst_offset, target, start, count] => (dst, dst_offset, target, start, count),
-            [dst, dst_offset, view] => {
-                // target = trunc(view >> 96 to i160)
-                // start = (view >> 48) & (2**48 - 1)
-                // count = view & (2**48 - 1)
-                let mask = self.builder.imm((U256::from(1) << 48) - U256::from(1));
-                let high = self.builder.imm(96);
-                let shifted = self.builder.shr(high, view);
-                let target = self.builder.cast(shifted, MirType::I160);
-                let middle = self.builder.imm(48);
-                let shifted = self.builder.shr(middle, view);
-                let start = self.builder.and(shifted, mask);
-                let count = self.builder.and(view, mask);
-                (dst, dst_offset, target, start, count)
-            }
+        let (dst, dst_offset, (target, start, count)) = match *operands {
+            [dst, dst_offset, target, start, count] => (dst, dst_offset, (target, start, count)),
+            [dst, dst_offset, view] => (dst, dst_offset, self.core_code_view(view)),
             _ => return None,
         };
         let destination = self.core_checked_range(dst, dst_offset, Width::Dynamic(count));
+        self.core_check_code_range(target, start, count);
+        // extcodecopy(target, destination, start, count)
+        self.builder.extcodecopy_heap(target, destination, start, count);
+        Some(self.builder.imm(U256::ZERO))
+    }
+
+    /// `Code.read(target, start, count)` and `Code.read(section)`: a new buffer
+    /// holding the range, checked as `copyInto` checks it. The copy fills the
+    /// buffer, so it is not zeroed first, and the bytes past its length are left
+    /// unspecified, as in any buffer copied from calldata.
+    fn lower_core_code_read(&mut self, operands: &[ValueId]) -> Option<ValueId> {
+        let (target, start, count) = match *operands {
+            [target, start, count] => (target, start, count),
+            [view] => self.core_code_view(view),
+            _ => return None,
+        };
+        // out = bytes(count), uninitialized, panicking as `new bytes(count)` does
+        let out =
+            self.builder.alloc_bytes_object(count, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+        self.core_check_code_range(target, start, count);
+        // extcodecopy(target, out.data, start, count)
+        let data = self.builder.memory_object_data(out, MemoryObjectKind::Bytes);
+        self.builder.extcodecopy_heap(target, data, start, count);
+        Some(out)
+    }
+
+    /// The account, start and length a `CodeView` packs.
+    fn core_code_view(&mut self, view: ValueId) -> (ValueId, ValueId, ValueId) {
+        // target = trunc(view >> 96 to i160)
+        // start = (view >> 48) & (2**48 - 1)
+        // count = view & (2**48 - 1)
+        let mask = self.builder.imm((U256::from(1) << 48) - U256::from(1));
+        let high = self.builder.imm(96);
+        let shifted = self.builder.shr(high, view);
+        let target = self.builder.cast(shifted, MirType::I160);
+        let middle = self.builder.imm(48);
+        let shifted = self.builder.shr(middle, view);
+        let start = self.builder.and(shifted, mask);
+        let count = self.builder.and(view, mask);
+        (target, start, count)
+    }
+
+    /// Panics with `Panic(0x32)` unless the `count` bytes from `start` lie inside `target`'s
+    /// code.
+    fn core_check_code_range(&mut self, target: ValueId, start: ValueId, count: ValueId) {
         // size = extcodesize(target)
         // end = start + count
         // panic(0x32) if end < start || end > size
@@ -2268,9 +2301,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let over = self.builder.gt(end, size);
         let bad = self.builder.or(wrapped, over);
         self.builder.panic_if(bad, PanicCode::ArrayOutOfBounds);
-        // extcodecopy(target, destination, start, count)
-        self.builder.extcodecopy_heap(target, destination, start, count);
-        Some(self.builder.imm(U256::ZERO))
     }
 
     /// `tryReadBytesN(b, offset)` and `tryReadUint256BE(b, offset)`: the range
