@@ -621,6 +621,23 @@ impl Target {
             byte_saving > 0
         }
     }
+
+    /// Whether a byte-indexed label table should occupy the high bytes of a word.
+    /// Padding removes the offset push and ADD before BYTE, at the cost of a
+    /// wider table immediate. Keep compact tables outside the gas objective.
+    pub(crate) fn left_align_byte_table(self, entries: usize) -> bool {
+        if !self.optimization.is_gas()
+            || !self.evm_version.has_bitwise_shifting()
+            || !(2..op::WORD_BYTES).contains(&entries)
+        {
+            return false;
+        }
+        let compact = Cost { gas: self.opcode_gas(op::PUSH1), bytes: entries as u32 + 1 }
+            + self.push(U256::from(op::WORD_BYTES - entries))
+            + self.opcode(op::ADD);
+        let padded = self.opcode(op::PUSH32);
+        self.lifetime_gas(padded) < self.lifetime_gas(compact)
+    }
 }
 
 #[cfg(test)]
@@ -807,5 +824,27 @@ mod tests {
         assert_eq!(target.data_copy_gas(64), 18);
         let legacy = Target::with(EvmVersion::Paris, OptimizationMode::Gas, 200);
         assert_eq!(legacy.push(U256::ZERO), Cost::new(3, 2));
+    }
+
+    #[test]
+    fn byte_table_alignment_prices_padding_over_its_lifetime() {
+        let gas = |runs| Target::with(EvmVersion::Cancun, OptimizationMode::Gas, runs);
+        assert!(!gas(433).left_align_byte_table(16));
+        assert!(gas(434).left_align_byte_table(16));
+        assert!(!gas(200).left_align_byte_table(16));
+        assert!(gas(200).left_align_byte_table(24));
+        for entries in [0, 1, 32, 33, usize::MAX] {
+            assert!(!gas(1_000_000).left_align_byte_table(entries));
+        }
+        for optimization in [OptimizationMode::None, OptimizationMode::Size] {
+            assert!(
+                !Target::with(EvmVersion::Cancun, optimization, 1_000_000)
+                    .left_align_byte_table(16)
+            );
+        }
+        assert!(
+            !Target::with(EvmVersion::Byzantium, OptimizationMode::Gas, 1_000_000)
+                .left_align_byte_table(16)
+        );
     }
 }

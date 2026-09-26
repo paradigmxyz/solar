@@ -1,0 +1,64 @@
+- // === ROOT/tests/ui/codegen/evm-ir/none/indexed_jump_alignment.evmir (before none) ===
++ // === ROOT/tests/ui/codegen/evm-ir/none/indexed_jump_alignment.evmir (after none) ===
+  @module ByteTableAlignment
+  bb0:
+    push 0
+    calldataload
+    push 3
+    and
+    indexed_jump bb1, bb2, bb3, bb4
+  bb1:
+    push 11
+    jump bb5
+  bb2:
+    push 22
+    jump bb5
+  bb3:
+    push 33
+    jump bb5
+  bb4:
+    push 44
+    jump bb5
+  bb5:
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  
+// === ByteTableAlignment (deployment) ===
+PUSH0
+CALLDATALOAD
+PUSH1 0x03
+AND
+PUSH1 0x1c
+ADD
+PUSH4 0x10161c22
+SWAP1
+BYTE
+JUMP ; unknown
+; bb0
+JUMPDEST
+PUSH1 0x0b
+PUSH1 0x25 ; bb4
+JUMP
+; bb1
+JUMPDEST
+PUSH1 0x16
+PUSH1 0x25 ; bb4
+JUMP
+; bb2
+JUMPDEST
+PUSH1 0x21
+PUSH1 0x25 ; bb4
+JUMP
+; bb3
+JUMPDEST
+PUSH1 0x2c
+; bb4
+JUMPDEST
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN

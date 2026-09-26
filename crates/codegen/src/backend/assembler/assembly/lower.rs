@@ -1,12 +1,15 @@
 //! Lowering from block EVM IR to its finalized layout-linear form.
 
 use super::{AsmInst, AsmInstKind, Program, indexed_jump};
-use crate::backend::{
-    assembler::{ArtifactKind, Assembler, Label, PreparedAssembly},
-    evm::{
-        ir::{self, BlockId},
-        op,
+use crate::{
+    backend::{
+        assembler::{ArtifactKind, Assembler, Label, PreparedAssembly},
+        evm::{
+            ir::{self, BlockId},
+            op,
+        },
     },
+    target::Target,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 
@@ -127,7 +130,7 @@ pub(in crate::backend) fn lower_evm_ir(
     reset_assembler_labels(labels);
     let (mut indexed_jump_lowerings, mut tables) = indexed_jump::materialize_tables_with_metadata(
         module,
-        assembler.gcx.sess.opts.evm_version,
+        Target::new(assembler.gcx),
         assembler.gcx.sess.opts.optimization.is_size(),
     );
     indexed_jump::initialize_indexed_jump_widths(
@@ -137,7 +140,8 @@ pub(in crate::backend) fn lower_evm_ir(
         assembler.gcx.sess.opts.optimization.is_size(),
     );
     let data_layout_is_observable = module.data_layout_is_observable();
-    for _ in 0..=32 {
+    // Each table may discard its padding once, in addition to entry widening.
+    for _ in 0..=32 + tables.len() {
         let program = lower_evm_ir_once(
             assembler,
             module,

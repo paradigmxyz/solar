@@ -32,6 +32,8 @@ pub(in crate::backend) struct PackedLabels {
     pub(in crate::backend) labels: Box<[Label]>,
     pub(in crate::backend) base: Option<Label>,
     pub(in crate::backend) label_width: u8,
+    /// Zero bytes following the packed entries in the encoded immediate.
+    pub(in crate::backend) trailing_zeros: u8,
 }
 
 /// A compact label-bearing opcode stream ready for relocation and byte encoding.
@@ -137,12 +139,23 @@ impl Program {
         base: Option<Label>,
         label_width: u8,
     ) {
+        self.push_padded_labels(labels, base, label_width, 0);
+    }
+
+    pub(in crate::backend) fn push_padded_labels(
+        &mut self,
+        labels: Box<[Label]>,
+        base: Option<Label>,
+        label_width: u8,
+        trailing_zeros: u8,
+    ) {
         assert!(!labels.is_empty(), "packed labels must not be empty");
         assert!(
-            labels.len() * usize::from(label_width) <= WORD_BYTES,
+            labels.len() * usize::from(label_width) + usize::from(trailing_zeros) <= WORD_BYTES,
             "packed labels must fit one EVM word"
         );
-        let labels = self.packed_labels.push(PackedLabels { labels, base, label_width });
+        let labels =
+            self.packed_labels.push(PackedLabels { labels, base, label_width, trailing_zeros });
         self.push(AsmInst::push_packed_labels(labels));
     }
 

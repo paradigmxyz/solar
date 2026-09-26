@@ -19,14 +19,17 @@ use super::{
     compact_pushes::selected_len,
     utils::{is_terminal_boundary, remap_block_order},
 };
-use crate::backend::{
-    assembler::assembly::{
-        estimated_indexed_jump_terminator_size, indexed_jump_target_width_bound,
+use crate::{
+    backend::{
+        assembler::assembly::{
+            estimated_indexed_jump_terminator_size, indexed_jump_target_width_bound,
+        },
+        evm::{
+            ir::{Block, BlockId, Instruction, Module, PushValue, TerminatorKind},
+            op,
+        },
     },
-    evm::{
-        ir::{Block, BlockId, Instruction, Module, PushValue, TerminatorKind},
-        op,
-    },
+    target::Target,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_sema::Gcx;
@@ -260,7 +263,7 @@ fn terminal_packing_budget(
                 offset += estimated_indexed_jump_terminator_size(
                     targets.len(),
                     1,
-                    gcx.sess.opts.evm_version,
+                    Target::new(gcx),
                     gcx.sess.opts.optimization.is_size(),
                 );
             }
@@ -361,7 +364,7 @@ fn estimated_terminator_size(
             estimated_indexed_jump_terminator_size(
                 targets.len(),
                 target_width as u8,
-                gcx.sess.opts.evm_version,
+                Target::new(gcx),
                 gcx.sess.opts.optimization.is_size(),
             )
         }
