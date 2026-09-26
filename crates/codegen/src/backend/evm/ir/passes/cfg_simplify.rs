@@ -80,8 +80,10 @@ fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) ->
     state.reserve(module.blocks.len());
     let mut changed =
         gcx.sess.opts.optimization.is_gas() && rotate_loop_exits(module, &mut state.references);
+    let mut first = true;
     loop {
-        let truncated = truncate_after_terminal(module);
+        // Later rounds only add `POP`s or move instructions of already truncated blocks.
+        let truncated = std::mem::take(&mut first) && truncate_after_terminal(module);
         let direct = simplify_known_jumps(module);
         let degenerate = simplify_degenerate_branches(module);
         let redirected = redirect_jump_thunks(
