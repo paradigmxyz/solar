@@ -398,7 +398,7 @@ impl CfgSimplifier {
         let mut raw = FxHashMap::default();
 
         for block_id in func.blocks.indices() {
-            let same_block_phi_results = func.block_phi_results(block_id);
+            let mut same_block_phi_results = None;
             for &inst_id in &func.blocks[block_id].instructions {
                 let InstKind::Phi(incoming) = &func.inst(inst_id).kind else {
                     continue;
@@ -406,8 +406,10 @@ impl CfgSimplifier {
                 let Some(phi_value) = func.inst_result_value(inst_id) else {
                     continue;
                 };
+                let same_block_phi_results =
+                    same_block_phi_results.get_or_insert_with(|| func.block_phi_results(block_id));
                 let Some(replacement) =
-                    Self::trivial_phi_replacement(incoming, phi_value, &same_block_phi_results)
+                    Self::trivial_phi_replacement(incoming, phi_value, same_block_phi_results)
                 else {
                     continue;
                 };
