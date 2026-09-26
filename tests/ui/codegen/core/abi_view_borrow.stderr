@@ -4,7 +4,7 @@ error: the view `v` can only be read in place
 LL │         return length(v);
    │                       ━
    │
-   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, the `Bytes` and `Hash` reads of a range, and view parameters
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
    ╰ help: remove the tag to work with a copy
 
 error: the view `s` can only be read in place
@@ -13,7 +13,7 @@ error: the view `s` can only be read in place
 LL │         return n == 0 ? "" : s;
    │                              ━
    │
-   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, the `Bytes` and `Hash` reads of a range, and view parameters
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
    ╰ help: remove the tag to work with a copy
 
 error: the view `v` can only be read in place
@@ -22,7 +22,7 @@ error: the view `v` can only be read in place
 LL │         v[0] = 0x01;
    │         ━
    │
-   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, the `Bytes` and `Hash` reads of a range, and view parameters
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
    ╰ help: remove the tag to work with a copy
 
 error: this may change bytes that the view `v` still reads

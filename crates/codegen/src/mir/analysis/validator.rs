@@ -1084,6 +1084,9 @@ impl<'a> Validator<'a> {
                                 matches!(
                                     ty,
                                     crate::mir::ValueLayout::MemoryObject(MemoryObjectKind::Bytes)
+                                        | crate::mir::ValueLayout::Slice(
+                                            SliceLocation::Memory | SliceLocation::Calldata
+                                        )
                                         | crate::mir::ValueLayout::FixedBytes(_)
                                 )
                             }),

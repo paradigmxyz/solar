@@ -518,11 +518,21 @@ impl LowerAbiCx {
                     else {
                         return value;
                     };
+                    // A returned calldata array is copied to memory, each element validated,
+                    // before it is encoded; only arrays of words or bytes are encoded from
+                    // calldata in place. The encoder also reads views of aggregates in place,
+                    // but a returned value is never a view, and its elements are not yet valid.
                     if return_types.get(index) == Some(&MirType::Slice(SliceLocation::Calldata))
                         && match &ty {
                             AbiParamType::Tuple(_) | AbiParamType::FixedArray { .. } => true,
-                            AbiParamType::DynamicArray(_) => !layout.types[index]
-                                .accepts_input_type(MirType::Slice(SliceLocation::Calldata)),
+                            AbiParamType::DynamicArray(_) => !matches!(
+                                &layout.types[index],
+                                AbiType::DynamicArray { element, .. }
+                                    if matches!(
+                                        element.as_ref(),
+                                        AbiType::Word(_) | AbiType::Function | AbiType::Bytes(_)
+                                    )
+                            ),
                             _ => false,
                         }
                     {

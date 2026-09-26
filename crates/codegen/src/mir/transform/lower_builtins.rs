@@ -241,6 +241,9 @@ impl MirPass for LowerBuiltins {
                                     crate::mir::ValueLayout::FixedBytes(size) => {
                                         ConcatPart::Fixed { value, size }
                                     }
+                                    crate::mir::ValueLayout::Slice(location) => {
+                                        ConcatPart::Slice { value, location }
+                                    }
                                     _ => ConcatPart::Bytes(value),
                                 })
                                 .collect(),
@@ -485,6 +488,7 @@ fn lower_concat(builder: &mut FunctionBuilder<'_>, parts: Vec<ConcatPart>) -> Va
                 ConcatPart::Bytes(value) => {
                     builder.memory_object_len(value, MemoryObjectKind::Bytes)
                 }
+                ConcatPart::Slice { value, .. } => builder.slice_len(value),
                 ConcatPart::Fixed { size, .. } => builder.imm(size.bytes()),
             };
             total = builder.add(total, length);
@@ -511,6 +515,15 @@ fn lower_concat(builder: &mut FunctionBuilder<'_>, parts: Vec<ConcatPart>) -> Va
                     MemoryObjectKind::Bytes,
                     offset,
                     source,
+                );
+            }
+            ConcatPart::Slice { value, .. } => {
+                // copy(output, offset, value)
+                builder.memory_object_copy_from_slice_at(
+                    output,
+                    MemoryObjectKind::Bytes,
+                    offset,
+                    value,
                 );
             }
             ConcatPart::Fixed { value, .. } => {
