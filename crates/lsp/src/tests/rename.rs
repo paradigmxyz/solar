@@ -4,7 +4,7 @@ use async_lsp::ErrorCode;
 use lsp_types::{
     DidChangeTextDocumentParams, DocumentChanges, InitializeParams, TextDocumentContentChangeEvent,
     Url, VersionedTextDocumentIdentifier, WorkspaceClientCapabilities,
-    WorkspaceEditClientCapabilities,
+    WorkspaceEditClientCapabilities, WorkspaceFolder,
 };
 use snapbox::str;
 use std::{
@@ -13,6 +13,8 @@ use std::{
     task::{Context, Poll, Wake, Waker},
     time::Duration,
 };
+
+mod dependencies;
 
 #[test]
 fn prepares_and_renames_a_state_variable() {
@@ -1025,7 +1027,13 @@ fn in_flight_rename_response_keeps_the_validated_version() {
     let uri = params.text_document_position.text_document.uri.clone();
     let path = crate::proto::vfs_path(&uri).unwrap();
 
-    let mut initialize = InitializeParams::default();
+    let mut initialize = InitializeParams {
+        workspace_folders: Some(vec![WorkspaceFolder {
+            uri: Url::from_file_path(fixture.project_path("/")).unwrap(),
+            name: "fixture".into(),
+        }]),
+        ..Default::default()
+    };
     initialize.capabilities.workspace = Some(WorkspaceClientCapabilities {
         workspace_edit: Some(WorkspaceEditClientCapabilities {
             document_changes: Some(true),

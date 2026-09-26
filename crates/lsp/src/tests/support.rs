@@ -417,7 +417,7 @@ impl RequestFixture {
     pub(super) fn check_prepare_rename(&self, marker: &str, expected: impl IntoData) {
         let mut state = self.state();
         let (uri, position) = self.marker_location(marker);
-        let response = expect_ready(crate::handlers::prepare_rename(
+        let response = block_on(crate::handlers::prepare_rename(
             &mut state,
             text_document_position(uri, position),
         ))

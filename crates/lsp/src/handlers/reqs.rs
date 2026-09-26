@@ -11,6 +11,7 @@ use crate::{
     natspec_completion::{self, NatSpecCompletionResult},
     progress::send_progress,
     proto::normalize_file_uri,
+    rename::validate_rename_scope,
     symbols::{CompletionContext, CompletionItemData, SymbolTables},
     vfs::{Vfs, VfsPath},
 };
@@ -912,15 +913,23 @@ pub(crate) fn prepare_rename(
     mut params: TextDocumentPositionParams,
 ) -> impl Future<Output = Result<Option<PrepareRenameResponse>, ResponseError>> + use<> {
     params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
+    let latest_analysis = crate::proto::vfs_path(&params.text_document.uri).map(|_| {
+        let analysis = state.latest_analysis_with_config();
+        state.prioritize_pending_analysis();
+        analysis
+    });
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables
-            .load()
-            .rename_candidate(&params.text_document.uri, params.position)
-            .map(|candidate| PrepareRenameResponse::Range(candidate.range));
-        Ok(response)
+        let (symbol_tables, config) = latest_analysis.await?;
+        let candidate =
+            symbol_tables.load().rename_candidate(&params.text_document.uri, params.position);
+        let Some(candidate) = candidate else { return Ok(None) };
+        tokio::task::spawn_blocking(move || {
+            validate_rename_scope(&candidate, &config)?;
+            Ok(Some(PrepareRenameResponse::Range(candidate.range)))
+        })
+        .await
+        .map_err(rename_task_failed)?
     }
 }
 
@@ -939,7 +948,11 @@ pub(crate) fn rename(
     let latest_analysis = if invalid_name {
         None
     } else {
-        latest_navigation_analysis_for_uri(state, &params_position.text_document.uri)
+        crate::proto::vfs_path(&params_position.text_document.uri).map(|_| {
+            let analysis = state.latest_analysis_with_config();
+            state.prioritize_pending_analysis();
+            analysis
+        })
     };
     let vfs = state.vfs.clone();
     let document_changes = state.config.supports_workspace_edit_document_changes();
@@ -949,7 +962,7 @@ pub(crate) fn rename(
         }
 
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
+        let (symbol_tables, config) = latest_analysis.await?;
         let candidate = symbol_tables
             .load()
             .rename_candidate(&params_position.text_document.uri, params_position.position);
@@ -962,14 +975,17 @@ pub(crate) fn rename(
         }
 
         tokio::task::spawn_blocking(move || {
+            validate_rename_scope(&candidate, &config)?;
             validated_rename_workspace_edit(candidate, new_name, vfs, document_changes)
         })
         .await
-        .map_err(|error| {
-            ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("rename task failed: {error}"))
-        })?
+        .map_err(rename_task_failed)?
         .map(Some)
     }
+}
+
+fn rename_task_failed(error: tokio::task::JoinError) -> ResponseError {
+    ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("rename task failed: {error}"))
 }
 
 pub(crate) fn inlay_hints(
