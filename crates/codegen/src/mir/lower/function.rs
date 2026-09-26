@@ -9,8 +9,9 @@ use crate::mir::{
     AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
     AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CheckedOp, ConcatPart, DataId,
     DataRef, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, MemoryObjectKind,
-    MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart, PanicCode, RevertPayload,
-    RevertReason, SliceLocation, Value, ValueId, memory::EvmMemoryLayout,
+    MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart, PanicCode, PrefixedBytes,
+    RevertPayload, RevertReason, SliceLocation, Value, ValueId, memory::EvmMemoryLayout,
+    prefix_over_length, restore_length, static_prefix_size,
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, StrKind, TypeSize, UnOpKind};
