@@ -78,7 +78,8 @@ fn block_ignores_entry_stack(block: &Block) -> bool {
     let Some((inputs, _)) = halting_stack_io(kind) else { return false };
     let mut depth = 0usize;
     for inst in &block.instructions {
-        if inst.as_evm_opcode().is_some_and(is_analysis_boundary) {
+        // Only unknown instructions declare a stack effect; treat them as opaque.
+        if inst.metadata.stack.is_some() || inst.as_evm_opcode().is_some_and(is_analysis_boundary) {
             return false;
         }
         let (inputs, outputs) = if let Some(stack_op) = inst.as_stack_op() {
@@ -177,7 +178,8 @@ fn eliminate_in_block(
     let mut rewrites = 0;
     loop {
         edits.clear();
-        // A candidate ends at a `POP`, so no candidate starts at or after the last one.
+        // A candidate ends at a `POP`, so no candidate starts at or after the last one, and
+        // the walk never needs to look past it.
         let Some(last_pop) =
             instructions.iter().rposition(|inst| inst.as_stack_op() == Some(StackOp::Pop))
         else {
@@ -198,8 +200,7 @@ fn eliminate_in_block(
             let candidate = if depth == 1 {
                 better_candidate(
                     find_candidate(
-                        instructions,
-                        last_pop,
+                        &instructions[..=last_pop],
                         start,
                         depth,
                         Ghost::Original,
@@ -207,8 +208,7 @@ fn eliminate_in_block(
                         evm_version,
                     ),
                     find_candidate(
-                        instructions,
-                        last_pop,
+                        &instructions[..=last_pop],
                         start,
                         depth,
                         Ghost::Duplicate,
@@ -218,8 +218,7 @@ fn eliminate_in_block(
                 )
             } else {
                 find_candidate(
-                    instructions,
-                    last_pop,
+                    &instructions[..=last_pop],
                     start,
                     depth,
                     Ghost::Duplicate,
@@ -342,7 +341,6 @@ struct Edit {
 
 fn find_candidate(
     instructions: &[Instruction],
-    last_pop: usize,
     start: usize,
     duplicate_depth: usize,
     ghost: Ghost,
@@ -360,10 +358,8 @@ fn find_candidate(
     let start_op = instructions[start].as_stack_op()?;
     let mut candidate = Candidate::new(start, start_op, evm_version);
 
-    // Past the last `POP` the walk can only fail.
     let mut index = start + 1;
-    while index <= last_pop {
-        let inst = &instructions[index];
+    while let Some(inst) = instructions.get(index) {
         let stack_op = inst.as_stack_op();
         match stack_op {
             Some(StackOp::Pop) if slots.last().is_some_and(|slot| slot.is_ghost) => {
@@ -406,7 +402,10 @@ fn find_candidate(
                 candidate.replace(index, StackOp::Exchange(n, m), replacement, evm_version);
             }
             None => {
-                if inst.as_evm_opcode().is_some_and(is_analysis_boundary) {
+                // Only unknown instructions declare a stack effect; treat them as opaque.
+                if inst.metadata.stack.is_some()
+                    || inst.as_evm_opcode().is_some_and(is_analysis_boundary)
+                {
                     return None;
                 }
                 let effect = inst.effective_stack_effect()?;
