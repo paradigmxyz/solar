@@ -5,6 +5,7 @@
 //@ run-call: part 0x63deadbeef6000526004601cf3, 1, 2 => 0xadbe
 //@ run-call: part 0x63deadbeef6000526004601cf3, 4, 0 => 0x
 //@ run-call: patched 0x63deadbeef6000526004601cf3 => 0xaadeadbeefaa
+//@ run-call: padded 0x63deadbeef6000526004601cf3 => 0xadbe000000000000000000000000000000000000000000000000000000000000
 //@ run-call-fail: part 0x63deadbeef6000526004601cf3, 2, 4 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call-fail: part 0x63deadbeef6000526004601cf3, 115792089237316195423570985008687907853269984665640564039457584007913129639935, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call-fail: overflow 0x63deadbeef6000526004601cf3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
@@ -13,7 +14,9 @@
 // `Code.copyInto` copies a range of another account's code into a buffer,
 // checked against the code's size and the buffer's, so nothing is padded and
 // nothing lands outside. `read` copies into a new buffer the same way, which
-// it allocates first: a length no buffer can hold raises `Panic(0x41)`.
+// it allocates first: a length no buffer can hold raises `Panic(0x41)`. The
+// new buffer's last word is zero past the bytes, as `new bytes` leaves it,
+// even where memory held other words.
 import {Code} from "solar:core/v1/Code.sol";
 import {Create} from "solar:core/v1/Create.sol";
 
@@ -30,6 +33,20 @@ contract Test {
     function patched(bytes memory initcode) public returns (bytes memory out) {
         out = hex"aaaaaaaaaaaa";
         Code.copyInto(out, 1, Create.deploy(initcode, 0), 0, 4);
+    }
+
+    function padded(bytes memory initcode) public returns (bytes32 word) {
+        address target = Create.deploy(initcode, 0);
+        assembly ("memory-safe") {
+            let free := mload(0x40)
+            mstore(free, not(0))
+            mstore(add(free, 0x20), not(0))
+            mstore(add(free, 0x40), not(0))
+        }
+        bytes memory out = Code.read(target, 1, 2);
+        assembly ("memory-safe") {
+            word := mload(add(out, 0x20))
+        }
     }
 
     function overflow(bytes memory initcode) public returns (bytes memory out) {

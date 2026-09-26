@@ -2352,8 +2352,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.alloc_bytes_object(count, AllocationSemantics::SOLIDITY_UNINITIALIZED);
         self.core_check_code_range(target, start, count);
         // extcodecopy(target, out.data, start, count)
+        // mstore(out.data + count, 0)
+        // The word after the bytes is zero, so the rest of their last word is, as in the buffer
+        // `new bytes(count)` makes. It can reach one word past the buffer, into free memory.
         let data = self.builder.memory_object_data(out, MemoryObjectKind::Bytes);
         self.builder.extcodecopy_heap(target, data, start, count);
+        let data = self.builder.cast_word(data);
+        let end = self.builder.add(data, count);
+        let zero = self.builder.imm(U256::ZERO);
+        self.builder.mstore(end, zero);
         Some(out)
     }
 

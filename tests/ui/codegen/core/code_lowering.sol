@@ -7,7 +7,8 @@
 // `Code.copyInto` copies a range of another account's code into a buffer,
 // checked against the code's size and the buffer's, so nothing is padded and
 // nothing lands outside. `read` copies into a new buffer the same way, without
-// zeroing it first, and its check shares a size read of the same account.
+// zeroing it first, and clears only the word after the bytes; its check shares
+// a size read of the same account.
 // INTRINSIC-LABEL: fn @whole
 // INTRINSIC: extcodesize
 // INTRINSIC-NOT: extcodesize
