@@ -2200,7 +2200,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// `Code.copyInto(dst, dstOffset, target, start, count)`: checked against
     /// both the buffer and the code's size, so nothing is zero-padded.
     fn lower_core_code_copy(&mut self, operands: &[ValueId]) -> Option<ValueId> {
-        let [dst, dst_offset, target, start, count] = *operands else { return None };
+        let (dst, dst_offset, target, start, count) = match *operands {
+            [dst, dst_offset, target, start, count] => (dst, dst_offset, target, start, count),
+            [dst, dst_offset, view] => {
+                // target = trunc(view >> 96 to i160)
+                // start = (view >> 48) & (2**48 - 1)
+                // count = view & (2**48 - 1)
+                let mask = self.builder.imm((U256::from(1) << 48) - U256::from(1));
+                let high = self.builder.imm(96);
+                let shifted = self.builder.shr(high, view);
+                let target = self.builder.cast(shifted, MirType::I160);
+                let middle = self.builder.imm(48);
+                let shifted = self.builder.shr(middle, view);
+                let start = self.builder.and(shifted, mask);
+                let count = self.builder.and(view, mask);
+                (dst, dst_offset, target, start, count)
+            }
+            _ => return None,
+        };
         let destination = self.core_checked_range(dst, dst_offset, Width::Dynamic(count));
         // size = extcodesize(target)
         // end = start + count
