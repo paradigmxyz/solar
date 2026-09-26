@@ -102,6 +102,8 @@ pub struct Module {
     pub(crate) code_follows: bool,
     /// Whether passes must account for every operation's source debug information.
     debug_info_tracked: bool,
+    /// Blocks on which the last peephole run found nothing to rewrite.
+    pub(crate) peephole_clean: passes::CleanBlocks,
 }
 
 impl Module {
@@ -139,6 +141,7 @@ impl Module {
             enable_size_outlining: false,
             code_follows: false,
             debug_info_tracked: false,
+            peephole_clean: passes::CleanBlocks::default(),
         }
     }
 

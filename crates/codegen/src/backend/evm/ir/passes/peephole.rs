@@ -35,13 +35,15 @@
 use super::{
     EvmPass,
     compact_pushes::{immediate_materialization_cost, materialize_immediate},
+    utils::MachineInstKey,
 };
 use crate::backend::evm::{
-    ir::{Instruction, Module, PushValue, TerminatorKind},
+    ir::{BlockId, Instruction, Module, PushValue, StackEffect, TerminatorKind},
     op,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
+use solar_data_structures::index::IndexVec;
 use solar_sema::Gcx;
 use std::fmt;
 use tracing::trace;
@@ -117,6 +119,54 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 
+/// Block contents on which a peephole run found no rewrite, so the same contents can be skipped.
+///
+/// Matching reads only each instruction's opcode, encoding, value, stack operation, stack effect,
+/// and `keep_with_next` flag, never debug metadata, so equal keys produce the same result. The
+/// final rules extend the early ones, so contents clean under them are clean under both.
+/// Module clones start without the cache, and it never affects module equality.
+#[derive(Default)]
+pub(crate) struct CleanBlocks(IndexVec<BlockId, Option<CleanBlock>>);
+
+struct CleanBlock {
+    final_cleanup: bool,
+    keys: Vec<(MachineInstKey, Option<StackEffect>)>,
+}
+
+fn clean_key(inst: &Instruction) -> (MachineInstKey, Option<StackEffect>) {
+    (MachineInstKey::new(inst), inst.metadata.stack)
+}
+
+impl CleanBlocks {
+    fn is_clean(&self, block: BlockId, instructions: &[Instruction], final_cleanup: bool) -> bool {
+        self.0.get(block).and_then(Option::as_ref).is_some_and(|clean| {
+            (clean.final_cleanup || !final_cleanup)
+                && clean.keys.len() == instructions.len()
+                && clean.keys.iter().zip(instructions).all(|(&key, inst)| key == clean_key(inst))
+        })
+    }
+}
+
+impl Clone for CleanBlocks {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl PartialEq for CleanBlocks {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for CleanBlocks {}
+
+impl fmt::Debug for CleanBlocks {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("CleanBlocks")
+    }
+}
+
 fn optimize_module<const LATE: bool>(
     gcx: Gcx<'_>,
     module: &mut Module,
@@ -125,17 +175,26 @@ fn optimize_module<const LATE: bool>(
     let evm_version = gcx.sess.opts.evm_version;
     let mut changed = false;
     let mut scratch = Vec::new();
-    for block in &mut module.blocks {
+    let mut clean = std::mem::take(&mut module.peephole_clean);
+    clean.0.resize_with(module.blocks.len(), || None);
+    for (block_id, block) in module.blocks.iter_mut_enumerated() {
+        // The late rules are separate from the cached early and final ones.
+        let skip = !LATE && clean.is_clean(block_id, &block.instructions, final_cleanup);
         // Dead stack traffic before a terminator that cannot observe it is dead-code
         // elimination's to remove; this pass only rewrites what it can see locally.
-        let rewrites = optimize::<LATE>(
-            evm_version,
-            &mut block.instructions,
-            &mut scratch,
-            block.label,
-            final_cleanup,
-        );
+        let rewrites = if skip {
+            0
+        } else {
+            optimize::<LATE>(
+                evm_version,
+                &mut block.instructions,
+                &mut scratch,
+                block.label,
+                final_cleanup,
+            )
+        };
         changed |= rewrites != 0;
+        let mut returned_zero = false;
         // mstore(offset, value); return(offset, 32)
         // -> mstore(0, value); return(0, 32)
         if final_cleanup
@@ -166,8 +225,16 @@ fn optimize_module<const LATE: bool>(
             offset.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
             returned.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
             changed = true;
+            returned_zero = true;
+        }
+        if !LATE && !skip {
+            clean.0[block_id] = (rewrites == 0 && !returned_zero).then(|| CleanBlock {
+                final_cleanup,
+                keys: block.instructions.iter().map(clean_key).collect(),
+            });
         }
     }
+    module.peephole_clean = clean;
     changed
 }
 
