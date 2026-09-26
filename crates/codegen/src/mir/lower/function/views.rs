@@ -44,15 +44,18 @@
 //! through it. A view of a view, and an element or a field of one, reads the same bytes, so it
 //! extends the enclosing view's borrow instead of starting one.
 //!
-//! `@custom:solar-view data` on an internal function makes its `bytes memory` or `string memory`
-//! parameter `data` a view parameter. Other compilers pass the caller's object, and every
-//! internal call does the same with any memory reference; this compiler passes a slice instead,
-//! without a copy: a view as it is, in memory or in calldata, and the bytes of any other `bytes`
-//! object. A call that passes calldata views reaches a copy of the function that takes those
-//! parameters as calldata slices and reads them there. The function reads a memory parameter as
-//! a view, borrowed from its entry on, so none of its writes may reach memory that existed when it
-//! was entered while it still reads the parameter, and it cannot be used as a function pointer,
-//! whose calls pass objects.
+//! `@custom:solar-view data` on an internal function makes its parameter `data`, of a memory
+//! reference type, a view parameter, which the function can only read in place. Other compilers
+//! pass the caller's object, and every internal call does the same with any memory reference;
+//! this compiler passes what the caller holds, without a copy. A `bytes` or `string` parameter
+//! takes the slice of the bytes of a view or of an object. An array or struct parameter takes the
+//! caller's object, which the function reads as any object is read, or a view of the encoding the
+//! value was decoded from. A call that passes views reaches the copy of the function that takes
+//! each view parameter the way the call passes it, one copy per combination, which reads them
+//! where they are. The function reads a view parameter in memory as a view, borrowed from its entry
+//! on, so none of its writes may reach memory that existed when it was entered while it still
+//! reads the parameter; an object is the caller's own, and calldata cannot change. It cannot be
+//! used as a function pointer, whose calls pass objects.
 //!
 //! Once the contract is lowered, and before any optimization, [`check_view_borrows`] rejects
 //! every instruction that may write the source's payload between the view's creation and a later
@@ -196,8 +199,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let data_expr = &args[0];
         let (data, root) = match self.is_view_expr(data_expr) {
             true => {
+                // A view of an object reads the object; any other view has its root.
                 let view = self.lower_view_expr(data_expr)?;
-                (view, self.view_roots.get(&view).copied().flatten())
+                let root = if self.builder.func().value_slice_location(view).is_none() {
+                    Some(view)
+                } else {
+                    self.view_roots.get(&view).copied().flatten()
+                };
+                (view, root)
             }
             false => {
                 let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;
@@ -341,6 +350,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         view: ValueId,
         span: Span,
     ) -> Option<ValueId> {
+        if self.builder.func().value_slice_location(view).is_none() {
+            // An aggregate view parameter's own form is the caller's object already.
+            return Some(view);
+        }
         let ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
@@ -454,6 +467,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // Like solc, the array is evaluated before the index.
                 let view = self.lower_view_expr(receiver)?;
                 let index = self.lower_typed_expr(index, self.cx.gcx.types.uint(256))?;
+                if self.builder.func().value_slice_location(view).is_none() {
+                    return self.object_view_element(expr, receiver, view, index);
+                }
                 let element = self.array_element_type(self.cx.gcx.type_of_expr(receiver.id)?)?;
                 // bounds_check(index, view.len)
                 // head = index * element_head_size
@@ -470,6 +486,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .and_then(|resolved| resolved.struct_field_index(&self.cx.gcx.hir))
                     .or_else(|| self.cx.report_unsupported(expr.span, "view member"))?;
                 let view = self.lower_view_expr(receiver)?;
+                if self.builder.func().value_slice_location(view).is_none() {
+                    return self.object_view_field(expr, receiver, view, field);
+                }
                 let AbiType::Tuple(fields) =
                     self.types.abi_type(self.cx.gcx.type_of_expr(receiver.id)?)?
                 else {
@@ -488,6 +507,80 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.view_roots.insert(item, root);
         }
         Some(item)
+    }
+
+    /// Reads the element `index` of `object`, the array object an array view parameter's own form
+    /// holds or an element or a field of one, as any read of an array object does, for
+    /// [`Self::lower_view_item`]. Such a view is the caller's object, read where it is.
+    fn object_view_element(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        receiver: &hir::Expr<'_>,
+        object: ValueId,
+        index: ValueId,
+    ) -> Option<ValueId> {
+        let receiver_ty = self
+            .cx
+            .gcx
+            .type_of_expr(receiver.id)?
+            .with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        let layout = self.types.memory_layout(receiver_ty)?;
+        let Some((element, length)) = self.array_element_and_length(receiver_ty, object, layout)
+        else {
+            return self.cx.report_unsupported(expr.span, "view item");
+        };
+        // bounds_check(index, object.length)
+        // value = load_element(object, index)
+        self.builder.bounds_check(index, length);
+        let value = self.builder.memory_object_load_element(object, layout, index);
+        if self.types.memory_layout(element).is_some() {
+            return self.materialize_array_element(object, layout, index, element, value);
+        }
+        Some(self.normalize_memory_scalar(element, value))
+    }
+
+    /// Reads the field `field` of `object`, the struct object a struct view parameter's own form
+    /// holds or an element or a field of one, as any read of a struct object does, for
+    /// [`Self::lower_view_item`].
+    fn object_view_field(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        receiver: &hir::Expr<'_>,
+        object: ValueId,
+        field: usize,
+    ) -> Option<ValueId> {
+        let receiver_ty = self
+            .cx
+            .gcx
+            .type_of_expr(receiver.id)?
+            .with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        let layout = self.types.memory_layout(receiver_ty)?;
+        let field_ty =
+            self.cx.gcx.type_of_expr(expr.id)?.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        // value = load_field(object, field)
+        if types::TypeLowerer::mir_type(field_ty) == MirType::MemPtr {
+            return Some(self.builder.memory_object_load_field_as(
+                object,
+                layout,
+                field as u64,
+                MirType::MemPtr,
+            ));
+        }
+        let value = self.builder.memory_object_load_field(object, layout, field as u64);
+        Some(self.normalize_memory_scalar(field_ty, value))
+    }
+
+    /// The hash of the bytes of the `bytes` or `string` view `view`: a range in memory or calldata,
+    /// or an object an aggregate view parameter's own form holds.
+    pub(super) fn hash_view(&mut self, view: ValueId) -> ValueId {
+        if self.builder.func().value_slice_location(view).is_none() {
+            // hash = keccak256_bytes(view)
+            return self.builder.keccak256_bytes(view);
+        }
+        // hash = keccak256(view.ptr, view.len), from scratch for calldata
+        let pointer = self.builder.slice_ptr(view);
+        let length = self.builder.slice_len(view);
+        self.core_hash_range(view, pointer, length)
     }
 
     /// Reads the item of type `ty` whose head lies at offset `head` of `view`, for
@@ -580,19 +673,30 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    /// Lowers `argument` for a `@custom:solar-view` parameter of type `ty`: a view passes its
-    /// slice, in memory or in calldata, and any other `bytes` or `string` the slice of the
-    /// object's bytes, without a copy. [`Self::view_callee`] picks the function that takes them.
+    /// Lowers `argument` for a `@custom:solar-view` parameter of type `ty`, without a copy: a
+    /// view passes itself, in memory or in calldata, any other `bytes` or `string` the slice of
+    /// its object's bytes, and any other array or struct its object. [`Self::view_callee`] picks
+    /// the function that takes them.
     pub(super) fn lower_view_argument(
         &mut self,
         argument: &hir::Expr<'_>,
         ty: Ty<'gcx>,
     ) -> Option<ValueId> {
-        if self.is_view_expr(argument) {
-            return self.lower_view_expr(argument);
-        }
-        let value = self.lower_typed_expr(argument, ty)?;
-        let object = self.materialize_call_argument(ty, value, argument.span)?;
+        let object = if self.is_view_expr(argument) {
+            // A `bytes` view held as an object passes the slice of its bytes.
+            let view = self.lower_view_expr(argument)?;
+            if self.builder.func().value_slice_location(view).is_some() || !is_bytes_view(ty) {
+                return Some(view);
+            }
+            view
+        } else {
+            let value = self.lower_typed_expr(argument, ty)?;
+            let object = self.materialize_call_argument(ty, value, argument.span)?;
+            if !is_bytes_view(ty) {
+                return Some(object);
+            }
+            object
+        };
         // slice = make_memory_slice(object.data, object.len)
         let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
         let data = self.builder.cast(data, MirType::I256);
@@ -601,45 +705,42 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// The function a call reaches that passes `values` to the function `id`, lowered as
-    /// `mir_id`: that function, or the copy of it that takes the view parameters receiving
-    /// calldata views as calldata slices, which reads the bytes where they are, like the caller.
+    /// `mir_id`: that function, or the copy of it that takes its view parameters as the views
+    /// passed to them, which reads them where they are, like the caller.
     pub(super) fn view_callee(
         &mut self,
         id: hir::FunctionId,
         mir_id: FunctionId,
-        values: &mut [ValueId],
+        values: &[ValueId],
     ) -> FunctionId {
-        let mut calldata_views = 0_u64;
-        for (index, value) in values.iter_mut().enumerate() {
-            if !is_view_parameter(self.cx.gcx, id, index)
-                || self.builder.func().value_slice_location(*value) != Some(SliceLocation::Calldata)
-            {
-                continue;
-            }
-            if index < 64 {
-                calldata_views |= 1 << index;
-            } else {
-                // object = bytes(view) in memory
-                // slice = make_memory_slice(object.data, object.len)
-                let object = self.materialize_memory_slice(*value);
-                let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
-                let data = self.builder.cast(data, MirType::I256);
-                let length = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
-                *value = self.builder.make_slice(data, length, SliceLocation::Memory);
-            }
-        }
-        if calldata_views == 0 {
+        let parameters = self.cx.gcx.hir.function(id).parameters;
+        let passes = values
+            .iter()
+            .enumerate()
+            .map(|(index, &value)| {
+                if !is_view_parameter(self.cx.gcx, id, index) {
+                    return ViewPass::Own;
+                }
+                let ty = self.cx.gcx.type_of_item(parameters[index].into());
+                match self.builder.func().value_slice_location(value) {
+                    Some(SliceLocation::Calldata) => ViewPass::Calldata,
+                    Some(SliceLocation::Memory) if !is_bytes_view(ty) => ViewPass::Memory,
+                    _ => ViewPass::Own,
+                }
+            })
+            .collect::<Box<[_]>>();
+        if passes.iter().all(|&pass| pass == ViewPass::Own) {
             return mir_id;
         }
-        if let Some(&clone) = self.cx.state.view_clones.get(&(id, calldata_views)) {
+        if let Some(&clone) = self.cx.state.view_clones.get(&(id, passes.clone())) {
             return clone;
         }
         // The contract driver lowers the copy once the functions it knows are lowered.
         let mut declaration = contract::declaration(self.cx.gcx, id, self.cx.gcx.hir.function(id));
         declaration.selector = None;
         let clone = self.cx.module.add_function(declaration);
-        self.cx.state.view_clones.insert((id, calldata_views), clone);
-        self.cx.state.pending_view_clones.push((id, calldata_views, clone));
+        self.cx.state.view_clones.insert((id, passes.clone()), clone);
+        self.cx.state.pending_view_clones.push((id, passes, clone));
         clone
     }
 
@@ -696,23 +797,50 @@ pub(in crate::mir::lower) fn is_view_parameter(
     !gcx.sess.opts.unstable.no_core_intrinsics && gcx.hir.is_solar_view_parameter(id, index)
 }
 
-/// The MIR type parameter `index` of the function `id` takes, in the copy of the function that
-/// takes the view parameters in the `calldata_views` mask as calldata slices: the slice of its
-/// bytes for a view, or otherwise `carrier`, the type that carries the parameter's value.
+/// How a call passes a `@custom:solar-view` parameter, which picks the copy of the function it
+/// reaches.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub(in crate::mir::lower) enum ViewPass {
+    /// The function's own form: the memory slice of the bytes of a `bytes` or `string` value, or
+    /// the memory object of an array or a struct.
+    #[default]
+    Own,
+    /// A view of an array or a struct in the ABI encoding it was decoded from, in memory.
+    Memory,
+    /// A view in calldata.
+    Calldata,
+}
+
+/// The MIR type parameter `index` of type `ty` of the function `id` takes, in the copy of the
+/// function that takes its view parameters as `passes` gives, one per parameter. A parameter that
+/// is not a view, and a view of an array or a struct in its own form, take `carrier`, the type that
+/// carries the parameter's value.
 pub(in crate::mir::lower) fn parameter_type(
     gcx: Gcx<'_>,
     id: hir::FunctionId,
     index: usize,
+    ty: Ty<'_>,
     carrier: MirType,
-    calldata_views: u64,
+    passes: &[ViewPass],
 ) -> MirType {
     if !is_view_parameter(gcx, id, index) {
-        carrier
-    } else if index < 64 && calldata_views & (1 << index) != 0 {
-        MirType::Slice(SliceLocation::Calldata)
-    } else {
-        MirType::Slice(SliceLocation::Memory)
+        return carrier;
     }
+    match passes.get(index).copied().unwrap_or_default() {
+        ViewPass::Calldata => MirType::Slice(SliceLocation::Calldata),
+        ViewPass::Memory => MirType::Slice(SliceLocation::Memory),
+        ViewPass::Own if is_bytes_view(ty) => MirType::Slice(SliceLocation::Memory),
+        ViewPass::Own => carrier,
+    }
+}
+
+/// Whether a view of type `ty` holds the bytes of a `bytes` or `string` value, which read the same
+/// in an object and in an encoding.
+fn is_bytes_view(ty: Ty<'_>) -> bool {
+    matches!(
+        ty.peel_refs().kind,
+        TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+    )
 }
 
 /// Rejects every write that may change bytes a `@custom:solar-view` variable still reads.

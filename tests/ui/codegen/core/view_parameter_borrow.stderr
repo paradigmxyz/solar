@@ -16,6 +16,24 @@ LL │         return data;
    ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
    ╰ help: remove the tag to work with a copy
 
+error: the view `values` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/view_parameter_borrow.sol:LL:CC
+   │
+LL │         values[0] = 1;
+   │         ━━━━━━
+   │
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: remove the tag to work with a copy
+
+error: the view `pair` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/view_parameter_borrow.sol:LL:CC
+   │
+LL │         return pair.b;
+   │                ━━━━━━
+   │
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: declare a variable for it with `@custom:solar-view` to read it in place, or remove the tag of the view to work with a copy
+
 error: a function with `@custom:solar-view` parameters cannot be used as a value
    ╭▸ ROOT/tests/ui/codegen/core/view_parameter_borrow.sol:LL:CC
    │
@@ -37,5 +55,18 @@ LL │     function throughOther(bytes memory data, bytes memory other) internal
    │                           ━━━━━━━━━━━━━━━━━
    ╰ help: finish reading the view first, or remove `@custom:solar-view` to read a copy
 
-error: aborting due to 4 previous errors
+error: this may change bytes that the view `values` still reads
+   ╭▸ ROOT/tests/ui/codegen/core/view_parameter_borrow.sol:LL:CC
+   │
+LL │         other[0] = 0x01;
+   │         ━━━━━━━━━━━━━━━
+   ╰╴
+note: `values` reads the bytes in place and is read after this
+   ╭▸ ROOT/tests/ui/codegen/core/view_parameter_borrow.sol:LL:CC
+   │
+LL │     function readAfterWrite(uint256[] memory values, bytes memory other) internal pure returns (uint256) {
+   │                             ━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: finish reading the view first, or remove `@custom:solar-view` to read a copy
+
+error: aborting due to 7 previous errors
 

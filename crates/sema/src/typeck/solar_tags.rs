@@ -157,8 +157,8 @@ fn peel_bytes_conversion<'a>(mut expr: &'a hir::Expr<'a>) -> &'a hir::Expr<'a> {
     }
 }
 
-/// Checks that every `@custom:solar-view` tag on a function names `bytes memory` or `string memory`
-/// parameters of it.
+/// Checks that every `@custom:solar-view` tag on a function names parameters of it of memory
+/// reference types.
 fn check_view_parameters(gcx: Gcx<'_>) {
     for id in gcx.hir.function_ids() {
         // A misplaced tag is reported with the documentation.
@@ -188,17 +188,9 @@ fn check_view_parameters(gcx: Gcx<'_>) {
                     .emit();
                 continue;
             };
-            let ty = gcx.type_of_item(parameter.into());
-            if !(ty.is_ref_at(DataLocation::Memory)
-                && matches!(
-                    ty.peel_refs().kind,
-                    TyKind::Elementary(hir::ElementaryType::Bytes | hir::ElementaryType::String)
-                ))
-            {
+            if !gcx.type_of_item(parameter.into()).is_ref_at(DataLocation::Memory) {
                 gcx.dcx()
-                    .err(format!(
-                        "the view parameter `{name}` must be `bytes memory` or `string memory`"
-                    ))
+                    .err(format!("the view parameter `{name}` must be a memory reference"))
                     .span(gcx.hir.variable(parameter).span)
                     .span_note(tag, "the tag is here")
                     .emit();

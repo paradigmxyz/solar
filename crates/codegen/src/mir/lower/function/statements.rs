@@ -480,7 +480,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.is_view_expr(expr) {
             // The message is a copy of the view's bytes, on the path that reverts.
             let view = self.lower_view_expr(expr)?;
-            return Some(RevertPayload::ErrorString(self.materialize_memory_slice(view)));
+            let message = if self.builder.func().value_slice_location(view).is_some() {
+                self.materialize_memory_slice(view)
+            } else {
+                view
+            };
+            return Some(RevertPayload::ErrorString(message));
         }
         let ty = self.cx.gcx.type_of_expr(expr.id)?;
         let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
@@ -628,10 +633,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // topics += encode_indexed(argument)
                 match parameter_ty.peel_refs().kind {
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) if view => {
-                        // topic = keccak256(view.ptr, view.len), from scratch for calldata
-                        let pointer = self.builder.slice_ptr(value);
-                        let length = self.builder.slice_len(value);
-                        topics.push(self.core_hash_range(value, pointer, length));
+                        // topic = keccak256(view)
+                        topics.push(self.hash_view(value));
                     }
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                         if matches!(self.builder.func().value_ty(value), Some(MirType::Slice(_))) {

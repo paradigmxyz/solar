@@ -20,16 +20,16 @@ error: `@custom:solar-view` names `missing`, which is not a parameter of `unknow
 LL │     /// @custom:solar-view missing
    ╰╴         ━━━━━━━━━━━━━━━━━
 
-error: the view parameter `values` must be `bytes memory` or `string memory`
+error: the view parameter `value` must be a memory reference
    ╭▸ ROOT/tests/ui/typeck/solar_view_parameters.sol:LL:CC
    │
-LL │     function words(uint256[] memory values) internal pure returns (uint256) {
-   │                    ━━━━━━━━━━━━━━━━━━━━━━━
+LL │     function word(uint256 value) internal pure returns (uint256) {
+   │                   ━━━━━━━━━━━━━
    ╰╴
 note: the tag is here
    ╭▸ ROOT/tests/ui/typeck/solar_view_parameters.sol:LL:CC
    │
-LL │     /// @custom:solar-view values
+LL │     /// @custom:solar-view value
    ╰╴         ━━━━━━━━━━━━━━━━━
 
 error: aborting due to 4 previous errors

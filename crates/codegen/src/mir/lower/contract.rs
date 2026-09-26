@@ -214,11 +214,10 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
                                   function_id: hir::FunctionId,
                                   mir_id: FunctionId,
                                   expose_selector: bool,
-                                  calldata_views: u64| {
+                                  passes: &[function::ViewPass]| {
             let name = context.module.function(mir_id).name;
             let errors_before = gcx.dcx().err_count();
-            let lowered =
-                function::lower(context.reborrow(), function_id, expose_selector, calldata_views);
+            let lowered = function::lower(context.reborrow(), function_id, expose_selector, passes);
             let borrows = std::mem::take(&mut context.state.view_borrows);
             let regions = std::mem::take(&mut context.state.scratch_regions);
             postlude_calls.append(&mut context.state.postlude_calls);
@@ -247,13 +246,15 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
                 let mut builder =
                     FunctionBuilder::new_semantic(context.module.function_mut(mir_id));
                 for (index, &param) in function.parameters.iter().enumerate() {
+                    let ty = gcx.type_of_item(param.into());
                     let carrier = context.state.scalar_carrier(gcx, param);
                     builder.add_param(function::parameter_type(
                         gcx,
                         function_id,
                         index,
+                        ty,
                         carrier,
-                        calldata_views,
+                        passes,
                     ));
                 }
                 if let Some(ty) = return_type {
@@ -269,14 +270,12 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
         };
         for (function_id, expose_selector) in function_ids {
             let mir_id = context.function_ids[&function_id];
-            lower_function(&mut context, function_id, mir_id, expose_selector, 0);
+            lower_function(&mut context, function_id, mir_id, expose_selector, &[]);
         }
         // The calls that pass calldata views to view parameters reach copies of their callees,
         // which the lowering above creates, and which may create more.
-        while let Some((function_id, calldata_views, mir_id)) =
-            context.state.pending_view_clones.pop()
-        {
-            lower_function(&mut context, function_id, mir_id, false, calldata_views);
+        while let Some((function_id, passes, mir_id)) = context.state.pending_view_clones.pop() {
+            lower_function(&mut context, function_id, mir_id, false, &passes);
         }
 
         if contract.ctor.is_none() && (has_state_initializers || has_implicit_base_constructors) {

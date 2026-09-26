@@ -1,10 +1,19 @@
 // `@custom:solar-view` on an internal function names parameters that are views
-// of the caller's bytes: each must be a `bytes memory` or `string memory`
-// parameter of the function.
+// of the caller's values: each must be a parameter of the function of a memory
+// reference type.
 contract Test {
-    /// @custom:solar-view data text
-    function fine(bytes memory data, string memory text) internal pure returns (uint256) {
-        return data.length + bytes(text).length;
+    struct Pair {
+        uint256 a;
+        bytes b;
+    }
+
+    /// @custom:solar-view data text values pair
+    function fine(bytes memory data, string memory text, uint256[] memory values, Pair memory pair)
+        internal
+        pure
+        returns (uint256)
+    {
+        return data.length + bytes(text).length + values.length + pair.b.length;
     }
 
     /// @custom:solar-view
@@ -19,9 +28,9 @@ contract Test {
         return data.length;
     }
 
-    /// @custom:solar-view values
-    function words(uint256[] memory values) internal pure returns (uint256) { //~ ERROR: the view parameter `values` must be `bytes memory` or `string memory`
-        return values.length;
+    /// @custom:solar-view value
+    function word(uint256 value) internal pure returns (uint256) { //~ ERROR: the view parameter `value` must be a memory reference
+        return value;
     }
 
     /// @custom:solar-view data

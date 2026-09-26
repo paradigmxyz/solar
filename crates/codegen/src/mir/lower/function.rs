@@ -54,7 +54,9 @@ mod views;
 pub(super) use builders::{check_builder_finishes, finish_functions};
 pub(super) use scratch::{ScratchRegion, check_scratch_regions};
 pub(super) use terminates::{PostludeCall, check_postlude_calls};
-pub(super) use views::{ViewBorrow, check_view_borrows, is_view_parameter, parameter_type};
+pub(super) use views::{
+    ViewBorrow, ViewPass, check_view_borrows, is_view_parameter, parameter_type,
+};
 
 /// Shared inputs for one contract's function lowering.
 pub(super) struct LoweringContext<'gcx, 'ctx> {
@@ -125,21 +127,21 @@ pub(super) struct LoweringState {
     /// The `@custom:solar-scratch` blocks of the function being lowered.
     pub(super) scratch_regions: Vec<ScratchRegion>,
     /// The copies of functions with `@custom:solar-view` parameters that take some of them as
-    /// calldata slices, keyed by the function and the mask of those parameters.
-    pub(super) view_clones: FxHashMap<(hir::FunctionId, u64), FunctionId>,
+    /// views, keyed by the function and how each parameter is passed.
+    pub(super) view_clones: FxHashMap<(hir::FunctionId, Box<[ViewPass]>), FunctionId>,
     /// The copies in `view_clones` that are not lowered yet.
-    pub(super) pending_view_clones: Vec<(hir::FunctionId, u64, FunctionId)>,
+    pub(super) pending_view_clones: Vec<(hir::FunctionId, Box<[ViewPass]>, FunctionId)>,
 }
 
 /// Lowers one HIR function into a typed MIR function.
 ///
-/// The parameters in the `calldata_views` mask are `@custom:solar-view` parameters the function
-/// takes as calldata slices, for the copy of it that the calls passing calldata views reach.
+/// `passes` gives how the copy being lowered takes each `@custom:solar-view` parameter, for the
+/// copy of the function that the calls passing views reach; it is empty for the function itself.
 pub(super) fn lower(
     mut context: LoweringContext<'_, '_>,
     id: hir::FunctionId,
     expose_selector: bool,
-    calldata_views: u64,
+    passes: &[ViewPass],
 ) -> Option<Function> {
     let gcx = context.gcx;
     let hir_function = gcx.hir.function(id);
@@ -196,7 +198,7 @@ pub(super) fn lower(
 
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
     lowerer.is_getter = hir_function.is_getter();
-    lowerer.bind_signature(id, hir_function, calldata_views);
+    lowerer.bind_signature(id, hir_function, passes);
     if hir_function.kind == hir::FunctionKind::Constructor {
         let Some(contract_id) = hir_function.contract else {
             return context.report_unsupported(hir_function.span, "free constructor");

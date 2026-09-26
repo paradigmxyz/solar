@@ -37,6 +37,29 @@ contract Test {
         other[0] = 0x01;
     }
 
+    struct Pair {
+        uint256 a;
+        bytes b;
+    }
+
+    /// @custom:solar-view values
+    function writeElement(uint256[] memory values) internal pure {
+        values[0] = 1; //~ ERROR: the view `values` can only be read in place
+    }
+
+    /// @custom:solar-view pair
+    function keepPair(Pair memory pair) internal pure returns (bytes memory) {
+        return pair.b; //~ ERROR: the view `pair` can only be read in place
+    }
+
+    // An array a caller passes as a view of the bytes it was decoded from is
+    // borrowed like any view parameter; an array object is the caller's own.
+    /// @custom:solar-view values
+    function readAfterWrite(uint256[] memory values, bytes memory other) internal pure returns (uint256) {
+        other[0] = 0x01; //~ ERROR: this may change bytes that the view `values` still reads
+        return values[0];
+    }
+
     function pointer() internal pure returns (uint256) {
         function(bytes memory) internal pure f = write; //~ ERROR: a function with `@custom:solar-view` parameters cannot be used as a value
         f("x");
@@ -48,5 +71,13 @@ contract Test {
         keep(b);
         (bytes1 first, ) = fresh(b);
         return (throughOther(b, c), first ^ afterLastRead(b, c), pointer());
+    }
+
+    function runAggregates(bytes memory b, uint256[] memory values) public pure returns (uint256) {
+        writeElement(values);
+        keepPair(Pair(1, b));
+        /// @custom:solar-view
+        (uint256[] memory decoded) = abi.decode(b, (uint256[]));
+        return readAfterWrite(decoded, b) + readAfterWrite(values, b);
     }
 }
