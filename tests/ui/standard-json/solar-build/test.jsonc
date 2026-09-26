@@ -1,0 +1,27 @@
+// `solarBuild` records what a contract's bytecode depends on besides its
+// sources: the compiler build, the target, the optimization settings, whether
+// module functions are lowered by the compiler, and the keccak256 of every
+// compiler-owned module its source reaches, however indirectly.
+// CHECK-LABEL: "UsesModules": {
+// CHECK: "solarBuild": {
+// CHECK-NEXT: "compiler": {
+// CHECK-NEXT: "version": "VERSION",
+// CHECK-NEXT: "commit": "COMMIT"
+// CHECK: "evmVersion": "cancun",
+// CHECK: "coreIntrinsics": true
+// CHECK: "coreModules": {
+// CHECK-DAG: "solar:core/v1/Arrays.sol": "0x{{[0-9a-f]+}}"
+// CHECK-DAG: "solar:core/v1/Buffers.sol": "0x{{[0-9a-f]+}}"
+// CHECK-DAG: "solar:core/v1/Bytes.sol": "0x{{[0-9a-f]+}}"
+// CHECK-DAG: "solar:core/v1/Strings.sol": "0x{{[0-9a-f]+}}"
+{
+  "language": "Solidity",
+  "settings": {
+    "evmVersion": "cancun",
+    "outputSelection": {
+      "build.sol": {
+        "*": ["solarBuild"]
+      }
+    }
+  }
+}

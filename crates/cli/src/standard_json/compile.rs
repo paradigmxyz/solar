@@ -310,13 +310,20 @@ fn compile(
                         for (name, source) in sources {
                             // The compiler provides these; a copy supplied so
                             // another compiler can resolve the same input is
-                            // set aside rather than allowed to stand in.
+                            // set aside rather than allowed to stand in. An
+                            // exact copy, as `solar export-core` writes, is
+                            // the module itself; any other content is reported.
                             if solar_sema::core::is_reserved_path(name.as_ref()) {
-                                pcx.dcx()
-                                    .warn(format!(
-                                        "source `{name}` is provided by the compiler; the supplied content is ignored"
-                                    ))
-                                    .emit();
+                                let exact = solar_sema::core::lookup(name.as_ref())
+                                    .zip(source.content.as_deref())
+                                    .is_some_and(|(module, content)| module.source == content);
+                                if !exact {
+                                    pcx.dcx()
+                                        .warn(format!(
+                                            "source `{name}` is provided by the compiler; the supplied content differs from it and is ignored"
+                                        ))
+                                        .emit();
+                                }
                                 continue;
                             }
                             let Some(content) = source.content else {
@@ -598,6 +605,9 @@ fn make_contract_output<'gcx>(
     }
     if output_selection.contains(OutputSelectionFlags::SOLAR_SAFETY) {
         output.solar_safety = Some(gcx.safety(contract_id));
+    }
+    if output_selection.contains(OutputSelectionFlags::SOLAR_BUILD) {
+        output.solar_build = Some(super::build_info::build_output(gcx, contract_id));
     }
 
     let mut evm = EvmOutput::default();

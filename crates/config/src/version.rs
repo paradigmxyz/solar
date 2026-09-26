@@ -26,6 +26,10 @@ pub const SOLC_VERSION: &str =
 /// The semver version information.
 pub const SEMVER_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// The commit the compiler was built from, with `-dirty` appended when the tree had changes.
+#[cfg(feature = "version")]
+pub const COMMIT_SHA: &str = env!("COMMIT_SHA");
+
 /// Returns the short version selected for the current environment.
 #[cfg(feature = "version")]
 pub fn short_version() -> &'static str {

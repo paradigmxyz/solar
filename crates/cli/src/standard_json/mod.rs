@@ -1,5 +1,6 @@
 //! Standard JSON compiler support.
 
+mod build_info;
 mod compile;
 mod data;
 mod metadata;
