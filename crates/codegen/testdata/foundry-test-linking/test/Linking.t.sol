@@ -73,4 +73,16 @@ contract LinkingTest {
         require((new NoArguments{salt: keccak256("salt")}()).paid() == 0);
         require((new NoArguments{salt: keccak256("other"), value: 1}()).paid() == 1);
     }
+
+    function testDeploymentInTryCallArgument() public {
+        try this.childNumber(new Child(Child.Config(19, "argument"))) returns (uint256 number) {
+            require(number == 19);
+        } catch {
+            revert("unexpected failure");
+        }
+    }
+
+    function childNumber(Child child) external view returns (uint256) {
+        return child.number();
+    }
 }

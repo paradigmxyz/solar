@@ -7,7 +7,7 @@ use super::*;
 fn native_test_linking_cache() {
     assert!(forge_available(), "forge is required");
     let project = tempfile::tempdir().unwrap();
-    let fixture = foundry_root().join("test-linking");
+    let fixture = workspace_root().join("crates/codegen/testdata/foundry-test-linking");
     for path in ["foundry.toml", "src/Child.sol", "test/Linking.t.sol", "test/Reuse.t.sol"] {
         let destination = project.path().join(path);
         fs::create_dir_all(destination.parent().unwrap()).unwrap();
@@ -32,7 +32,7 @@ fn native_test_linking_cache() {
         String::from_utf8_lossy(&output.stderr)
     );
     let tests = parse_test_results(&String::from_utf8_lossy(&output.stdout));
-    assert_eq!(tests.len(), 9);
+    assert_eq!(tests.len(), 10);
     assert!(tests.iter().all(|test| test.passed));
 
     let dynamic = project.path().join("out/Reuse.t.sol/ReuseTest.json");

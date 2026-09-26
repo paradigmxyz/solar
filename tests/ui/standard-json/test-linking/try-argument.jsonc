@@ -1,0 +1,14 @@
+//@ filecheck:
+// CHECK: "Parent"
+// CHECK: "object": "{{[0-9a-f]+}}"
+{
+  "language": "Solidity",
+  "sources": {
+    "input.sol": { "content": "contract Child { constructor(uint256 x) {} } contract Parent { function read(Child child) external pure returns (uint256) { return 1; } function deploy() external returns (uint256) { try this.read(new Child(1)) returns (uint256 value) { return value; } catch { return 0; } } }" }
+  },
+  "settings": {
+    "solarTestLinks": ["input.sol:206"],
+    "optimizer": { "enabled": true, "runs": 200 },
+    "outputSelection": { "input.sol": { "Parent": ["evm.bytecode.object"] } }
+  }
+}

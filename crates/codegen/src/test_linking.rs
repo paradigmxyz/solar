@@ -80,7 +80,10 @@ impl<'gcx> Visit<'gcx> for Validator<'gcx> {
     }
 
     fn visit_stmt(&mut self, statement: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
-        if let hir::StmtKind::Try(value) = &statement.kind {
+        if let hir::StmtKind::Try(value) = &statement.kind
+            && let hir::ExprKind::Call(callee, ..) = &value.expr.kind
+            && matches!(callee.peel_parens().kind, hir::ExprKind::New(_))
+        {
             let previous = self.in_try;
             self.in_try = true;
             self.visit_expr(&value.expr)?;
