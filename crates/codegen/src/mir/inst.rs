@@ -942,15 +942,16 @@ impl InstKind {
     pub(crate) fn scalar_types_match(&self, func: &Function, result: Option<MirType>) -> bool {
         let ty = |value| func.value_ty(value);
         let expected = self.operand_types(func);
-        if let Some(expected) = expected
-            && (expected.len() != self.operands().len()
-                || self
-                    .operands()
+        if let Some(expected) = expected {
+            let operands = self.operands();
+            if expected.len() != operands.len()
+                || operands
                     .iter()
                     .zip(expected)
-                    .any(|(&value, expected)| ty(value) != Some(expected)))
-        {
-            return false;
+                    .any(|(&value, expected)| ty(value) != Some(expected))
+            {
+                return false;
+            }
         }
         match *self {
             Self::Eq(a, b) | Self::Ne(a, b) => {
