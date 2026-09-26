@@ -15,6 +15,224 @@ use std::{
 };
 
 #[test]
+fn broken_local_initializer_preserves_rename_binding() {
+    for initializer in [
+        "1 + 3 * 2",
+        "1 + * 2",
+        "1 unexpected",
+        "* 2",
+        "",
+        "(1 + * 2)",
+        "[1, * 2]",
+        "identity({value: 1 + * 2})",
+    ] {
+        let fixture = RequestFixture::new_allowing_diagnostics(
+            &format!(
+                r#"
+                //- /Local.sol
+                contract C {{
+                    uint $1count;
+                    function f() public {{
+                        uint $2count = {initializer};
+                        $3count = 3;
+                    }}
+                    function g() public {{
+                        $4count = 4;
+                    }}
+                }}
+                "#
+            ),
+            "/Local.sol",
+        );
+        let outer = str![[r#"
+/Local.sol:1:9-1:14 -> outer
+/Local.sol:7:8-7:13 -> outer
+
+"#]];
+        fixture.check_rename("$1", "outer", outer.clone());
+        fixture.check_rename("$4", "outer", outer);
+        let local = str![[r#"
+/Local.sol:3:13-3:18 -> local
+/Local.sol:4:8-4:13 -> local
+
+"#]];
+        fixture.check_rename("$2", "local", local.clone());
+        fixture.check_rename("$3", "local", local);
+        fixture
+            .check_goto_definition("$3", format!("/Local.sol:3:13 uint count = {initializer};\n"));
+    }
+}
+
+#[test]
+fn broken_local_initializer_keeps_the_enclosing_scope() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Scope.sol
+        contract C {
+            function f(uint $1count) public {
+                {
+                    uint $2count = 1 + * 2;
+                    $3count = 3;
+                }
+                $4count = 4;
+            }
+        }
+        "#,
+        "/Scope.sol",
+    );
+    let outer = str![[r#"
+/Scope.sol:1:20-1:25 -> outer
+/Scope.sol:6:8-6:13 -> outer
+
+"#]];
+    fixture.check_rename("$1", "outer", outer.clone());
+    fixture.check_rename("$4", "outer", outer);
+    let local = str![[r#"
+/Scope.sol:3:17-3:22 -> local
+/Scope.sol:4:12-4:17 -> local
+
+"#]];
+    fixture.check_rename("$2", "local", local.clone());
+    fixture.check_rename("$3", "local", local);
+}
+
+#[test]
+fn broken_tuple_initializer_preserves_rename_bindings() {
+    for initializer in ["(1, 2, 3)", "(1, * 2, 3)"] {
+        let fixture = RequestFixture::new_allowing_diagnostics(
+            &format!(
+                r#"
+                //- /Tuple.sol
+                contract C {{
+                    uint $1count;
+                    uint $2other;
+                    function f() public {{
+                        (uint $3count, , uint $4other) = {initializer};
+                        $5count = $6other;
+                    }}
+                    function g() public {{
+                        count = other;
+                    }}
+                }}
+                "#
+            ),
+            "/Tuple.sol",
+        );
+        fixture.check_rename(
+            "$1",
+            "outer",
+            str![[r#"
+/Tuple.sol:1:9-1:14 -> outer
+/Tuple.sol:8:8-8:13 -> outer
+
+"#]],
+        );
+        fixture.check_rename(
+            "$2",
+            "outer",
+            str![[r#"
+/Tuple.sol:2:9-2:14 -> outer
+/Tuple.sol:8:16-8:21 -> outer
+
+"#]],
+        );
+        let local_count = str![[r#"
+/Tuple.sol:4:14-4:19 -> local
+/Tuple.sol:5:8-5:13 -> local
+
+"#]];
+        fixture.check_rename("$3", "local", local_count.clone());
+        fixture.check_rename("$5", "local", local_count);
+        let local_other = str![[r#"
+/Tuple.sol:4:28-4:33 -> local
+/Tuple.sol:5:16-5:21 -> local
+
+"#]];
+        fixture.check_rename("$4", "local", local_other.clone());
+        fixture.check_rename("$6", "local", local_other);
+    }
+}
+
+#[test]
+fn mismatched_local_initializers_do_not_rebind_discarded_references() {
+    for (initializer, keeps_outer_reference) in [
+        ("(1 + * 2", true),
+        ("[1, * 2", true),
+        // An unclosed call-options brace makes the enclosing block boundary uncertain too.
+        ("identity({value: * 2", false),
+    ] {
+        let fixture = RequestFixture::new_allowing_diagnostics(
+            &format!(
+                r#"
+                //- /Unmatched.sol
+                contract C {{
+                    uint $1count;
+                    function f() public {{
+                        {{
+                            uint count = {initializer};
+                            $2count = 3;
+                        }}
+                        $3count = 4;
+                    }}
+                }}
+                "#
+            ),
+            "/Unmatched.sol",
+        );
+        let outer = if keeps_outer_reference {
+            str![[r#"
+/Unmatched.sol:1:9-1:14 -> outer
+/Unmatched.sol:7:8-7:13 -> outer
+
+"#]]
+        } else {
+            str![[r#"
+/Unmatched.sol:1:9-1:14 -> outer
+
+"#]]
+        };
+        fixture.check_rename("$1", "outer", outer);
+        fixture.check_goto_definition("$2", "<none>\n");
+        if keeps_outer_reference {
+            fixture.check_goto_definition(
+                "$3",
+                str![[r#"
+/Unmatched.sol:1:9 uint count;
+
+"#]],
+            );
+        } else {
+            fixture.check_goto_definition("$3", "<none>\n");
+        }
+    }
+}
+
+#[test]
+fn missing_local_initializer_preserves_following_function() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Next.sol
+        contract C {
+            uint $1count;
+            function broken() public {
+                uint local =
+            function next() public {
+                $2count = 4;
+            }
+        }
+        "#,
+        "/Next.sol",
+    );
+    let outer = str![[r#"
+/Next.sol:1:9-1:14 -> outer
+/Next.sol:5:8-5:13 -> outer
+
+"#]];
+    fixture.check_rename("$1", "outer", outer.clone());
+    fixture.check_rename("$2", "outer", outer);
+}
+
+#[test]
 fn prepares_and_renames_a_state_variable() {
     let fixture = RequestFixture::new(
         r#"

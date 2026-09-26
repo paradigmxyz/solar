@@ -1,0 +1,20 @@
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `*`
+   ╭▸ ROOT/tests/ui/parser/recover_statement_and_declaration.sol:LL:CC
+   │
+LL │     uint brokenState = * 2;
+   ╰╴                       ━ expected one of 10 possible tokens
+
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `*`
+   ╭▸ ROOT/tests/ui/parser/recover_statement_and_declaration.sol:LL:CC
+   │
+LL │         uint local = * 2;
+   ╰╴                     ━ expected one of 10 possible tokens
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/parser/recover_statement_and_declaration.sol:LL:CC
+   │
+LL │         uint8 value = 300;
+   ╰╴                      ━━━ expected `uint8`, found `int_literal[9]`
+
+error: aborting due to 3 previous errors
+
