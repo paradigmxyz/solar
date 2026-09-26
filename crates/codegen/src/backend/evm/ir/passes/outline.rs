@@ -936,30 +936,47 @@ impl InstHashes {
     const BASE: u64 = 0x100_0000_01b3;
 
     fn new(module: &Module) -> Self {
-        let mut counts = FxHashMap::<MachineInstKey, u32>::default();
-        for block in module.blocks.iter() {
-            for inst in &block.instructions {
-                *counts.entry(MachineInstKey::new(inst)).or_default() += 1;
-            }
-        }
+        // Number each distinct instruction once, with its occurrence count and hash.
+        let mut interned = FxHashMap::<MachineInstKey, u32>::default();
+        let mut counts = Vec::<u32>::new();
+        let mut hashes = Vec::<u64>::new();
+        let ids = module
+            .blocks
+            .iter()
+            .map(|block| {
+                block
+                    .instructions
+                    .iter()
+                    .map(|inst| {
+                        let key = MachineInstKey::new(inst);
+                        let id = *interned.entry(key).or_insert_with(|| {
+                            let mut hasher = FxHasher::default();
+                            key.hash(&mut hasher);
+                            hashes.push(hasher.finish());
+                            counts.push(0);
+                            (counts.len() - 1) as u32
+                        }) as usize;
+                        counts[id] += 1;
+                        id
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
 
         let mut longest = 0;
         let mut prefixes = IndexVec::with_capacity(module.blocks.len());
         let mut repeats = IndexVec::with_capacity(module.blocks.len());
-        for block in module.blocks.iter() {
-            longest = longest.max(block.instructions.len());
-            let mut prefix = Vec::with_capacity(block.instructions.len() + 1);
-            let mut repeated = DenseBitSet::new_empty(block.instructions.len());
+        for ids in &ids {
+            longest = longest.max(ids.len());
+            let mut prefix = Vec::with_capacity(ids.len() + 1);
+            let mut repeated = DenseBitSet::new_empty(ids.len());
             prefix.push(0u64);
-            for (index, inst) in block.instructions.iter().enumerate() {
-                let key = MachineInstKey::new(inst);
-                if counts.get(&key).copied().unwrap_or(0) >= 2 {
+            for (index, &id) in ids.iter().enumerate() {
+                if counts[id] >= 2 {
                     repeated.insert(index);
                 }
-                let mut hasher = FxHasher::default();
-                key.hash(&mut hasher);
                 let last = *prefix.last().expect("prefix starts with the empty run");
-                prefix.push(last.wrapping_mul(Self::BASE).wrapping_add(hasher.finish()));
+                prefix.push(last.wrapping_mul(Self::BASE).wrapping_add(hashes[id]));
             }
             prefixes.push(prefix);
             repeats.push(repeated);
