@@ -551,7 +551,13 @@ impl MirInliner {
             if !summaries.get(&caller_id).is_some_and(|summary| summary.has_icall) {
                 continue;
             }
-            let mut loop_costs = block_loop_costs(module.function(caller_id));
+            // Single-use and constant-leaf candidates are decided without loop weights.
+            let mut loop_costs =
+                if matches!(self.mode, InlineMode::SingleUse | InlineMode::ConstantLeaves) {
+                    FxHashMap::default()
+                } else {
+                    block_loop_costs(module.function(caller_id))
+                };
             // Bound how much each caller may grow from inlining so a function
             // calling many internal helpers (e.g. a large verifier) cannot
             // balloon past the deployable code-size limit.
