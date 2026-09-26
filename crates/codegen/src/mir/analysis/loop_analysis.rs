@@ -13,6 +13,7 @@ use crate::mir::{
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
+    index::index_vec,
     map::{FxHashMap, FxIndexMap},
 };
 use std::rc::Rc;
@@ -135,6 +136,26 @@ impl LoopAnalyzer {
     fn find_natural_loops(&self, func: &Function) -> Vec<Loop> {
         let mut loops: FxHashMap<BlockId, Loop> = FxHashMap::default();
         let Some(cfg) = &self.cfg else { return Vec::new() };
+
+        // A back edge targets a dominator of its source, and a dominator precedes
+        // every block it dominates in reverse postorder. Without an edge to the
+        // same or an earlier position there are no loops, and no dominator tree to build.
+        let mut positions = index_vec![usize::MAX; cfg.num_blocks()];
+        for (position, &block_id) in cfg.rpo().iter().enumerate() {
+            positions[block_id] = position;
+        }
+        let has_retreating_edge = cfg.rpo().iter().any(|&block_id| {
+            func.blocks[block_id].terminator.as_ref().is_some_and(|term| {
+                term.successors().into_iter().any(|succ| {
+                    positions
+                        .get(succ)
+                        .is_some_and(|&succ_position| succ_position <= positions[block_id])
+                })
+            })
+        });
+        if !has_retreating_edge {
+            return Vec::new();
+        }
 
         for &block_id in cfg.rpo() {
             let block = &func.blocks[block_id];
