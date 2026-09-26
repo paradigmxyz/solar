@@ -637,9 +637,9 @@ impl Function {
 struct LiveValues<'a> {
     func: &'a Function,
     block: BlockId,
-    inst: u32,
+    inst: usize,
     values: SmallVec<[ValueId; 8]>,
-    next: u32,
+    next: usize,
 }
 
 impl Iterator for LiveValues<'_> {
@@ -647,14 +647,14 @@ impl Iterator for LiveValues<'_> {
 
     fn next(&mut self) -> Option<ValueId> {
         loop {
-            if let Some(&value) = self.values.get(self.next as usize) {
+            if let Some(&value) = self.values.get(self.next) {
                 self.next += 1;
                 return Some(value);
             }
             let block = self.func.blocks.get(self.block)?;
             self.values.clear();
             self.next = 0;
-            if let Some(&inst_id) = block.instructions.get(self.inst as usize) {
+            if let Some(&inst_id) = block.instructions.get(self.inst) {
                 let inst = self.func.inst(inst_id);
                 inst.kind.collect_operands(&mut self.values);
                 self.values.extend(inst.result());

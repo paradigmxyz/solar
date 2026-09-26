@@ -378,7 +378,7 @@ impl ExprCache {
 }
 
 /// The summary index and clobber range of each side-effecting instruction.
-type SideEffectClobbers = FxHashMap<InstId, (u32, Range<u32>)>;
+type SideEffectClobbers = FxHashMap<InstId, (usize, Range<usize>)>;
 
 /// A single effect that invalidates state-dependent cached expressions.
 #[derive(Clone, Copy, Debug)]
@@ -702,8 +702,7 @@ impl CommonSubexprEliminator {
                                 .iter()
                                 .any(|operand| ctx.replacements.contains_key(operand)))
                     {
-                        let clobbers = &ctx.block_clobbers[*summary as usize].1
-                            [range.start as usize..range.end as usize];
+                        let clobbers = &ctx.block_clobbers[*summary].1[range.clone()];
                         self.apply_side_effect(
                             func,
                             inst_id,
@@ -879,13 +878,13 @@ impl CommonSubexprEliminator {
                     clobbers.push(Clobber::GasObservation);
                 }
                 if kind.has_side_effects() {
-                    let start = clobbers.len() as u32;
+                    let start = clobbers.len();
                     self.side_effect_clobbers(func, inst_id, kind, &no_replacements, &mut clobbers);
-                    spans.push((inst_id, start..clobbers.len() as u32));
+                    spans.push((inst_id, start..clobbers.len()));
                 }
             }
             if !clobbers.is_empty() {
-                let summary = summaries.len() as u32;
+                let summary = summaries.len();
                 side_effects
                     .extend(spans.into_iter().map(|(inst_id, range)| (inst_id, (summary, range))));
                 summaries.push((block_id, clobbers));

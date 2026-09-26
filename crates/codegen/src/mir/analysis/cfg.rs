@@ -99,9 +99,9 @@ impl CfgInfo {
                 if !visited.insert(start) {
                     continue;
                 }
-                stack.push((start, 0u32));
+                stack.push((start, 0usize));
                 while let Some((block, next)) = stack.last_mut() {
-                    if let Some(&successor) = self.successors[*block].get(*next as usize) {
+                    if let Some(&successor) = self.successors[*block].get(*next) {
                         *next += 1;
                         if visited.insert(successor) {
                             stack.push((successor, 0));
@@ -147,10 +147,10 @@ impl CfgInfo {
         self.rpo.get_or_init(|| {
             let mut reachable = DenseBitSet::new_empty(self.successors.len());
             let mut rpo = Vec::with_capacity(self.successors.len());
-            let mut stack = vec![(BlockId::ENTRY, 0u32)];
+            let mut stack = vec![(BlockId::ENTRY, 0usize)];
             reachable.insert(BlockId::ENTRY);
             while let Some((block, next)) = stack.last_mut() {
-                if let Some(&succ) = self.successors[*block].get(*next as usize) {
+                if let Some(&succ) = self.successors[*block].get(*next) {
                     *next += 1;
                     if reachable.insert(succ) {
                         stack.push((succ, 0));
@@ -210,9 +210,9 @@ pub(crate) struct DominatorTree {
 impl DominatorTree {
     fn compute(predecessors: &BlockLists, rpo: &[BlockId]) -> Self {
         let block_count = predecessors.len();
-        let mut rpo_numbers = index_vec![u32::MAX; block_count];
+        let mut rpo_numbers = index_vec![usize::MAX; block_count];
         for (number, &block) in rpo.iter().enumerate() {
-            rpo_numbers[block] = number as u32;
+            rpo_numbers[block] = number;
         }
 
         let mut idoms = index_vec![None; block_count];
@@ -255,7 +255,7 @@ impl DominatorTree {
 
     fn intersect(
         idoms: &IndexVec<BlockId, Option<BlockId>>,
-        rpo_numbers: &IndexVec<BlockId, u32>,
+        rpo_numbers: &IndexVec<BlockId, usize>,
         a: BlockId,
         b: BlockId,
     ) -> BlockId {
@@ -298,14 +298,14 @@ impl DominatorTree {
     /// explicit traversal stack so deeply nested control flow cannot recurse.
     fn preorder_intervals(&self) -> IndexVec<BlockId, (u32, u32)> {
         let mut intervals = index_vec![(u32::MAX, u32::MAX); self.idoms.len()];
-        let mut pending = vec![(BlockId::ENTRY, 0u32)];
+        let mut pending = vec![(BlockId::ENTRY, 0)];
         let mut position = 0;
         while let Some((block, child)) = pending.last_mut() {
             if *child == 0 {
                 intervals[*block].0 = position;
                 position += 1;
             }
-            if let Some(&next) = self.children.get(*block).get(*child as usize) {
+            if let Some(&next) = self.children.get(*block).get(*child) {
                 *child += 1;
                 pending.push((next, 0));
             } else {

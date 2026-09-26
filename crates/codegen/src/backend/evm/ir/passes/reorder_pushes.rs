@@ -135,7 +135,7 @@ impl ReorderState {
                 continue;
             }
 
-            let node = self.sequence.push(index as u32);
+            let node = self.sequence.push(index);
             update_expressions(&mut self.expressions, &self.sequence, node);
         }
         self.sequence.finish_into(instructions, changed);
@@ -230,7 +230,7 @@ newtype_index! {
 
 struct InstructionNode {
     /// Index of the instruction in the block being reordered.
-    instruction: u32,
+    instruction: usize,
     previous: Option<NodeId>,
     next: Option<NodeId>,
 }
@@ -256,7 +256,7 @@ impl InstructionSequence {
         self.nodes.reserve(additional);
     }
 
-    fn push(&mut self, instruction: u32) -> NodeId {
+    fn push(&mut self, instruction: usize) -> NodeId {
         let index =
             self.nodes.push(InstructionNode { instruction, previous: self.last, next: None });
         if let Some(last) = self.last {
@@ -269,7 +269,7 @@ impl InstructionSequence {
     }
 
     fn instruction(&self, index: NodeId) -> &Instruction {
-        &self.instructions[self.nodes[index].instruction as usize]
+        &self.instructions[self.nodes[index].instruction]
     }
 
     fn previous(&self, index: NodeId) -> Option<NodeId> {
@@ -277,7 +277,7 @@ impl InstructionSequence {
     }
 
     fn replace_stack_op(&mut self, index: NodeId, stack_op: StackOp) {
-        let instruction = &mut self.instructions[self.nodes[index].instruction as usize];
+        let instruction = &mut self.instructions[self.nodes[index].instruction];
         let metadata = std::mem::take(&mut instruction.metadata);
         let mut replacement = Instruction::stack_op(stack_op);
         replacement.metadata = metadata;
@@ -321,7 +321,7 @@ impl InstructionSequence {
         let mut current = self.first;
         while let Some(index) = current {
             let node = &self.nodes[index];
-            instructions.push(slots[node.instruction as usize].take().unwrap());
+            instructions.push(slots[node.instruction].take().unwrap());
             current = node.next;
         }
     }
