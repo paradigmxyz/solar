@@ -20,6 +20,7 @@ use solar_data_structures::{
 #[derive(Clone, Debug)]
 pub(crate) struct CfgInfo {
     successors: IndexVec<BlockId, SmallVec<[BlockId; 2]>>,
+    predecessors: OnceCell<BlockLists>,
     reachable: OnceCell<DenseBitSet<BlockId>>,
     rpo: OnceCell<Vec<BlockId>>,
     cyclic_blocks: OnceCell<DenseBitSet<BlockId>>,
@@ -40,6 +41,7 @@ impl CfgInfo {
             .collect();
         Self {
             successors,
+            predecessors: OnceCell::new(),
             reachable: OnceCell::new(),
             rpo: OnceCell::new(),
             cyclic_blocks: OnceCell::new(),
@@ -57,6 +59,10 @@ impl CfgInfo {
     #[must_use]
     pub(crate) fn successors(&self, block: BlockId) -> &[BlockId] {
         &self.successors[block]
+    }
+
+    fn predecessors(&self) -> &BlockLists {
+        self.predecessors.get_or_init(|| BlockLists::predecessors(&self.successors))
     }
 
     /// Returns the blocks reachable from the entry.
@@ -86,20 +92,16 @@ impl CfgInfo {
     pub(crate) fn cyclic_blocks(&self) -> &DenseBitSet<BlockId> {
         self.cyclic_blocks.get_or_init(|| {
             let block_count = self.successors.len();
-            let mut predecessors = index_vec![Vec::new(); block_count];
-            for (block, successors) in self.successors.iter_enumerated() {
-                for &successor in successors {
-                    predecessors[successor].push(block);
-                }
-            }
+            let predecessors = self.predecessors();
 
             let mut visited = DenseBitSet::new_empty(block_count);
             let mut finish_order = Vec::with_capacity(block_count);
+            let mut stack = Vec::new();
             for start in self.successors.indices() {
                 if !visited.insert(start) {
                     continue;
                 }
-                let mut stack = vec![(start, 0usize)];
+                stack.push((start, 0usize));
                 while let Some((block, next)) = stack.last_mut() {
                     if let Some(&successor) = self.successors[*block].get(*next) {
                         *next += 1;
@@ -115,14 +117,16 @@ impl CfgInfo {
 
             let mut assigned = DenseBitSet::new_empty(block_count);
             let mut cyclic = DenseBitSet::new_empty(block_count);
+            let (mut component, mut stack) = (Vec::new(), Vec::new());
             for start in finish_order.into_iter().rev() {
                 if !assigned.insert(start) {
                     continue;
                 }
-                let mut component = vec![start];
-                let mut stack = vec![start];
+                component.clear();
+                component.push(start);
+                stack.push(start);
                 while let Some(block) = stack.pop() {
-                    for &predecessor in &predecessors[block] {
+                    for &predecessor in predecessors.get(block) {
                         if assigned.insert(predecessor) {
                             component.push(predecessor);
                             stack.push(predecessor);
@@ -130,7 +134,7 @@ impl CfgInfo {
                     }
                 }
                 if component.len() > 1 || self.successors[start].contains(&start) {
-                    for block in component {
+                    for &block in &component {
                         cyclic.insert(block);
                     }
                 }
@@ -167,7 +171,7 @@ impl CfgInfo {
     /// Returns immediate-dominator information.
     #[must_use]
     pub(crate) fn dominators(&self) -> &DominatorTree {
-        self.dominators.get_or_init(|| DominatorTree::compute(&self.successors, self.rpo()))
+        self.dominators.get_or_init(|| DominatorTree::compute(self.predecessors(), self.rpo()))
     }
 
     /// Returns block-to-block reachability through at least one CFG edge.
@@ -198,21 +202,15 @@ impl CfgInfo {
 #[derive(Clone, Debug)]
 pub(crate) struct DominatorTree {
     idoms: IndexVec<BlockId, Option<BlockId>>,
-    children: IndexVec<BlockId, Vec<BlockId>>,
+    children: BlockLists,
     /// Preorder intervals make repeated dominance queries independent of tree
     /// depth. Build them only when a consumer asks about dominance.
     intervals: OnceCell<IndexVec<BlockId, (usize, usize)>>,
 }
 
 impl DominatorTree {
-    fn compute(successors: &IndexVec<BlockId, SmallVec<[BlockId; 2]>>, rpo: &[BlockId]) -> Self {
-        let block_count = successors.len();
-        let mut predecessors = index_vec![Vec::new(); block_count];
-        for (block, block_successors) in successors.iter_enumerated() {
-            for &successor in block_successors {
-                predecessors[successor].push(block);
-            }
-        }
+    fn compute(predecessors: &BlockLists, rpo: &[BlockId]) -> Self {
+        let block_count = predecessors.len();
         let mut rpo_numbers = index_vec![usize::MAX; block_count];
         for (number, &block) in rpo.iter().enumerate() {
             rpo_numbers[block] = number;
@@ -224,7 +222,7 @@ impl DominatorTree {
         while changed {
             changed = false;
             for &block in rpo {
-                let block_predecessors = &predecessors[block];
+                let block_predecessors = predecessors.get(block);
                 if block_predecessors.is_empty() {
                     continue;
                 }
@@ -247,14 +245,11 @@ impl DominatorTree {
             }
         }
 
-        let mut children = index_vec![Vec::new(); block_count];
-        for (block, idom) in idoms.iter_enumerated() {
-            if let Some(idom) = *idom
-                && idom != block
-            {
-                children[idom].push(block);
-            }
-        }
+        let children = BlockLists::new(block_count, || {
+            idoms.iter_enumerated().filter_map(|(block, &idom)| {
+                idom.filter(|&idom| idom != block).map(|idom| (idom, block))
+            })
+        });
         Self { idoms, children, intervals: OnceCell::new() }
     }
 
@@ -310,7 +305,7 @@ impl DominatorTree {
                 intervals[*block].0 = position;
                 position += 1;
             }
-            if let Some(&next) = self.children[*block].get(*child) {
+            if let Some(&next) = self.children.get(*block).get(*child) {
                 *child += 1;
                 pending.push((next, 0));
             } else {
@@ -324,7 +319,7 @@ impl DominatorTree {
     /// Returns dominator-tree children of `block`.
     #[must_use]
     pub(crate) fn children(&self, block: BlockId) -> &[BlockId] {
-        self.children.get(block).map_or(&[], Vec::as_slice)
+        self.children.get(block)
     }
 
     /// Returns `block`, then its immediate dominators up to the entry.
@@ -337,6 +332,57 @@ impl DominatorTree {
             current = self.idom(block).filter(|&idom| idom != block);
         }
         out
+    }
+}
+
+/// Per-block lists of blocks, stored contiguously in block order.
+#[derive(Clone, Debug)]
+struct BlockLists {
+    /// The list of block `b` is `blocks[starts[b]..starts[b + 1]]`.
+    starts: Vec<u32>,
+    blocks: Vec<BlockId>,
+}
+
+impl BlockLists {
+    /// Groups `(block, item)` pairs by block, keeping each block's items in pair order.
+    fn new<I: Iterator<Item = (BlockId, BlockId)>>(count: usize, pairs: impl Fn() -> I) -> Self {
+        let mut starts = vec![0u32; count + 1];
+        for (block, _) in pairs() {
+            starts[block.index() + 1] += 1;
+        }
+        for index in 1..=count {
+            starts[index] += starts[index - 1];
+        }
+        // Each start advances to the next block's start while filling, then shifts back.
+        let mut blocks = vec![BlockId::ENTRY; starts[count] as usize];
+        for (block, item) in pairs() {
+            let slot = &mut starts[block.index()];
+            blocks[*slot as usize] = item;
+            *slot += 1;
+        }
+        starts.copy_within(..count, 1);
+        starts[0] = 0;
+        Self { starts, blocks }
+    }
+
+    fn predecessors(successors: &IndexVec<BlockId, SmallVec<[BlockId; 2]>>) -> Self {
+        Self::new(successors.len(), || {
+            successors.iter_enumerated().flat_map(|(block, successors)| {
+                successors.iter().map(move |&successor| (successor, block))
+            })
+        })
+    }
+
+    fn len(&self) -> usize {
+        self.starts.len() - 1
+    }
+
+    /// Returns the list of `block`, or an empty list outside the domain.
+    fn get(&self, block: BlockId) -> &[BlockId] {
+        match self.starts.get(block.index()..block.index() + 2) {
+            Some(&[start, end]) => &self.blocks[start as usize..end as usize],
+            _ => &[],
+        }
     }
 }
 
@@ -354,7 +400,7 @@ mod tests {
             .map(|edges| edges.iter().map(|&block| BlockId::from_usize(block)).collect())
             .collect();
         let rpo = (0..7).map(BlockId::from_usize).collect::<Vec<_>>();
-        let tree = DominatorTree::compute(&successors, &rpo);
+        let tree = DominatorTree::compute(&BlockLists::predecessors(&successors), &rpo);
         assert!(tree.intervals.get().is_none());
         for a in 0..=edges.len() {
             for b in 0..=edges.len() {
@@ -371,10 +417,9 @@ mod tests {
         let idoms = (0usize..count)
             .map(|block| Some(BlockId::from_usize(block.saturating_sub(1))))
             .collect();
-        let mut children = index_vec![Vec::new(); count];
-        for block in 1..count {
-            children[BlockId::from_usize(block - 1)].push(BlockId::from_usize(block));
-        }
+        let children = BlockLists::new(count, || {
+            (1..count).map(|block| (BlockId::from_usize(block - 1), BlockId::from_usize(block)))
+        });
         let tree = DominatorTree { idoms, children, intervals: OnceCell::new() };
         let last = BlockId::from_usize(count - 1);
         assert!(tree.dominates(BlockId::ENTRY, last));
