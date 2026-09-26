@@ -1,7 +1,11 @@
 //! Instruction simplification and value numbering in one e-graph pass.
 //!
 //! This is an acyclic e-graph in the style of Cranelift's mid-end. Pure
-//! instructions become nodes over the canonical values of their operands.
+//! instructions become nodes over the canonical values of their operands, and
+//! so do reads that cannot change within a call frame: calldata words and
+//! nullary environment reads such as `caller`, which the backend re-emits
+//! instead of carrying. Numbering those makes values derived from them, such as
+//! the slot of `balances[msg.sender]`, equal wherever they are spelled.
 //! Constants stay on the right of commutative operations and comparisons,
 //! reversing comparison predicates when needed. Matching, node insertion, and
 //! final materialization share this ordering; equal-rank operands retain theirs.
@@ -1221,10 +1225,18 @@ fn is_node(kind: &InstKind) -> bool {
     let pure = definition.effect == EffectKind::Pure
         && !definition.has_side_effects
         && !matches!(kind, InstKind::Phi(_));
-    pure || matches!(
-        kind,
-        InstKind::CalldataLoad(_) | InstKind::BlockHash(_) | InstKind::BlobHash(_)
-    )
+    // A rematerializable environment read has one value per call frame.
+    // NOTE: `calldatasize` stays one read per use. Bounds checks subtract offsets
+    // from it, and numbering it merges those differences across ABI decoding
+    // loops, where their longer live ranges spill in size builds.
+    let frame_invariant = definition.effect == EffectKind::EnvironmentRead
+        && definition.traits.contains(OpTraits::REMATERIALIZABLE)
+        && !matches!(kind, InstKind::CalldataSize);
+    pure || frame_invariant
+        || matches!(
+            kind,
+            InstKind::CalldataLoad(_) | InstKind::BlockHash(_) | InstKind::BlobHash(_)
+        )
 }
 
 /// Keeps constants on the right without reassociating or adding nodes.

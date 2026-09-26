@@ -23,12 +23,14 @@
 //! ```
 //!
 //! The pass performs dominator-tree CSE with path-local invalidation for
-//! alias-sensitive memory/storage reads, then runs a local cleanup pass. Slot hashes
-//! also write scratch memory; a repeated fixed-width hash can disappear only while
-//! its input and written ranges remain unchanged. Variable-width hashes can overwrite
-//! their source or the FMP itself, so they remain effectful until physical lowering. Check
-//! availability before applying the retained instruction's clobbers so an identical write does not
-//! invalidate itself.
+//! alias-sensitive memory/storage reads, then runs a local cleanup pass. A slot hash
+//! over word operands writes the scratch words it then hashes, which no instruction
+//! may read across it, as LICM also assumes: its result depends on its operands alone,
+//! so a repeated hash reuses the dominating one whatever memory was written between
+//! them, and its writes only invalidate cached reads of scratch memory. Variable-width
+//! hashes can overwrite their source or the FMP itself, so they remain effectful until
+//! physical lowering. Check availability before applying the retained instruction's
+//! clobbers so an identical write does not invalidate itself.
 //!
 //! Loads at allocation bases stay local unless the cached value already crosses the block edge
 //! or is still live at the end of every predecessor, where it is held on the way in anyway.
@@ -42,8 +44,8 @@
 //! across edges. A preceding load or store already expanded memory through the entire slot.
 //!
 //! Safety contract:
-//! - cache only pure expressions, classified reads, and idempotent slot hashes.
-//! - invalidate slot hashes when either their input or scratch memory may change.
+//! - cache only pure expressions, classified reads, and slot hashes over word operands.
+//! - never invalidate a slot hash over word operands: its scratch contents are unobservable.
 //! - invalidate memory reads by overlapping memory writes and unknown memory effects
 //! - invalidate storage reads by possibly-aliasing writes or calls that may re-enter and mutate the
 //!   current contract
@@ -83,8 +85,8 @@ use crate::mir::{
     Module, SliceLocation, StorageAlias, Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
-        Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryBase,
-        MemoryCallSummaries, MemoryLocation,
+        Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryBase, MemoryCallSummaries,
+        MemoryLocation,
     },
     memory::EvmMemoryLayout,
     pass::{
@@ -964,9 +966,6 @@ impl CommonSubexprEliminator {
                 | InstKind::MemoryObjectLen(_, _)
                 | InstKind::Keccak256(_, _)
                 | InstKind::Keccak256Bytes(_)
-                | InstKind::MappingSlot(..)
-                | InstKind::StorageArrayDataSlot(..)
-                | InstKind::StorageArrayElementSlot { .. }
                 | InstKind::SLoad(_)
                 | InstKind::TLoad(_)
                 | InstKind::ExtCodeSize(_)
@@ -1447,33 +1446,13 @@ impl CommonSubexprEliminator {
             ExprKey::Keccak256(read) => write.preserves(*read, |read, write| {
                 AliasAnalysis::memory_alias_locations(read, write).may_alias()
             }),
-            ExprKey::MappingSlot(..)
-            | ExprKey::StorageArrayDataSlot(..)
-            | ExprKey::StorageArrayElementSlot(..) => {
-                let words = if matches!(key, ExprKey::MappingSlot(..)) { 2 } else { 1 };
-                let scratch = MemoryLocation::new(
-                    MemoryAddress::absolute(0),
-                    LocationSize::Const(words * EvmMemoryLayout::WORD_SIZE),
-                );
-                write.preserves(scratch, |scratch, write| {
-                    AliasAnalysis::memory_alias_locations(scratch, write).may_alias()
-                })
-            }
             ExprKey::RestoringCall(..) => false,
             _ => true,
         });
     }
 
     fn is_memory_expr(key: &ExprKey) -> bool {
-        matches!(
-            key,
-            ExprKey::MLoad(_)
-                | ExprKey::Keccak256(_)
-                | ExprKey::MappingSlot(..)
-                | ExprKey::StorageArrayDataSlot(..)
-                | ExprKey::StorageArrayElementSlot(..)
-                | ExprKey::RestoringCall(..)
-        )
+        matches!(key, ExprKey::MLoad(_) | ExprKey::Keccak256(_) | ExprKey::RestoringCall(..))
     }
 
     fn is_restoring_call(&self, kind: &InstKind) -> bool {
