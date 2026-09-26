@@ -270,6 +270,8 @@ impl<'gcx> Assembler<'gcx> {
                 .windows(2)
                 .all(|pair| pair[0].0.index() <= pair[1].0.index())
         );
+        debug_assert!(self.deferred_relocations.windows(2).all(|pair| pair[0].0 <= pair[1].0));
+        debug_assert!(self.alloc_relocations.windows(2).all(|pair| pair[0].0 <= pair[1].0));
     }
 
     /// Control-flow edges among the blocks in `range` before EVM IR finalization.
@@ -556,7 +558,11 @@ impl<'gcx> Assembler<'gcx> {
         removals: &mut [(ir::BlockId, std::ops::Range<usize>)],
     ) {
         self.debug_assert_dataflow_relocations_sorted();
+        if removals.is_empty() {
+            return;
+        }
         removals.sort_unstable_by_key(|(block, range)| (*block, range.start));
+        let first = removals[0].0;
         let mut per_block =
             FxHashMap::<ir::BlockId, Vec<(std::ops::Range<usize>, usize)>>::default();
         for (block, range) in removals.iter() {
@@ -564,27 +570,33 @@ impl<'gcx> Assembler<'gcx> {
             let before = ranges.last().map_or(0, |(range, before)| before + range.len());
             ranges.push((range.clone(), before));
         }
+        // Relocations are sorted by block, so those before the first edited block stay as they are.
         fn shift<T>(
             relocations: &mut Vec<(ir::BlockId, usize, T)>,
+            first: ir::BlockId,
             ranges: &FxHashMap<ir::BlockId, Vec<(std::ops::Range<usize>, usize)>>,
         ) {
-            relocations.retain_mut(|(block, index, _)| {
-                let Some(ranges) = ranges.get(block) else { return true };
-                let position = ranges.partition_point(|(range, _)| range.start <= *index);
-                let Some((range, before)) = position.checked_sub(1).map(|index| &ranges[index])
-                else {
-                    return true;
-                };
-                if range.contains(index) {
-                    return false;
+            let start = relocations.partition_point(|&(block, _, _)| block < first);
+            let mut kept = start;
+            for read in start..relocations.len() {
+                let (block, index, _) = &mut relocations[read];
+                if let Some(ranges) = ranges.get(block) {
+                    let position = ranges.partition_point(|(range, _)| range.start <= *index);
+                    if let Some((range, before)) = position.checked_sub(1).map(|i| &ranges[i]) {
+                        if range.contains(index) {
+                            continue;
+                        }
+                        *index -= before + range.len();
+                    }
                 }
-                *index -= before + range.len();
-                true
-            });
+                relocations.swap(kept, read);
+                kept += 1;
+            }
+            relocations.truncate(kept);
         }
-        shift(&mut self.label_relocations, &per_block);
-        shift(&mut self.deferred_relocations, &per_block);
-        shift(&mut self.alloc_relocations, &per_block);
+        shift(&mut self.label_relocations, first, &per_block);
+        shift(&mut self.deferred_relocations, first, &per_block);
+        shift(&mut self.alloc_relocations, first, &per_block);
         for (block, ranges) in per_block {
             let instructions = &mut self.program.blocks[block].instructions;
             for (range, _) in ranges.into_iter().rev() {
