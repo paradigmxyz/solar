@@ -93,13 +93,11 @@ impl Liveness {
                     phi_edge_uses[block_id].extend(incoming.iter().copied());
                 } else {
                     // Collect uses (upward-exposed uses - used before defined in this block)
-                    operand_buf.clear();
-                    inst.kind.collect_operands(&mut operand_buf);
-                    for &operand in &operand_buf {
+                    inst.kind.visit_operands(|operand| {
                         if !block_defs[block_id].contains(operand) {
                             block_uses[block_id].insert(operand);
                         }
-                    }
+                    });
                 }
 
                 if let Some(val_id) = func.inst_result_value(inst_id) {
@@ -193,11 +191,9 @@ impl Liveness {
                 if matches!(inst.kind, InstKind::Phi(_)) {
                     continue;
                 }
-                operand_buf.clear();
-                inst.kind.collect_operands(&mut operand_buf);
-                for &operand in &operand_buf {
+                inst.kind.visit_operands(|operand| {
                     last_use_in_block.entry((operand, block_id)).or_insert(Some(inst_idx));
-                }
+                });
             }
         }
 

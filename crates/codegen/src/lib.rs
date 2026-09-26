@@ -27,6 +27,7 @@ pub use link::{Library, LibraryId, LibraryRelocation, LibraryTable, RelocatableB
 mod ir_parse;
 mod source_info;
 
+mod scheduling;
 pub(crate) mod target;
 mod timing;
 pub(crate) mod utils;

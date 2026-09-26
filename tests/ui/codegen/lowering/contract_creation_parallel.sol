@@ -1,4 +1,4 @@
-//@ revisions: sequential parallel2 parallel3 parallel4 parallel5 parallel6 parallel7 parallel8
+//@ revisions: sequential parallel2 parallel3 parallel4 parallel5 parallel6 parallel7 parallel8 parallel16 parallel32
 //@[sequential] compile-flags: -j1
 //@[parallel2]  compile-flags: -j2
 //@[parallel3]  compile-flags: -j3
@@ -7,6 +7,8 @@
 //@[parallel6]  compile-flags: -j6
 //@[parallel7]  compile-flags: -j7
 //@[parallel8]  compile-flags: -j8
+//@[parallel16] compile-flags: -j16
+//@[parallel32] compile-flags: -j32
 //@ run-call: Root::create => 14
 
 contract Leaf {

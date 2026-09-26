@@ -7,8 +7,8 @@
 //!
 //! Prefixes are inspected in place until the first rewrite. Only then is the
 //! unvisited suffix moved to a scratch buffer for streaming cleanup. Unchanged
-//! blocks require no instruction copies, which matters when later pipeline
-//! passes expose few new opportunities. Rules never cross a block boundary;
+//! prefixes require no instruction copies. The pipeline caches unchanged block inputs
+//! so later sweeps can skip blocks untouched by other passes. Rules never cross a block boundary;
 //! target legality, push removability, and symbolic stack bounds stay in the
 //! extractors, and edits preserve their existing metadata policy.
 //! Literal unary expressions use the same evaluator as MIR and require a Pareto
@@ -28,11 +28,11 @@
 //! occupy more bytes overall. Matching is bounded to 24 instructions per tail.
 
 use super::{
-    EvmPass,
+    EvmPass, PassCache,
     compact_pushes::{immediate_materialization_cost, materialize_immediate},
 };
 use crate::backend::evm::{
-    ir::{Instruction, Module, PushValue, TerminatorKind},
+    ir::{Block, Instruction, Module, PushValue, TerminatorKind},
     op,
 };
 use alloy_primitives::U256;
@@ -62,7 +62,16 @@ impl EvmPass for Peephole {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        optimize_module::<false>(gcx, module, self.final_cleanup)
+        optimize_module::<false>(gcx, module, self.final_cleanup, None)
+    }
+
+    fn run_pass_with_cache(
+        &self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        cache: &mut PassCache,
+    ) -> bool {
+        optimize_module::<false>(gcx, module, self.final_cleanup, Some((self, cache)))
     }
 }
 
@@ -75,7 +84,7 @@ impl EvmPass for LateWord {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        optimize_module::<true>(gcx, module, false)
+        optimize_module::<true>(gcx, module, false, None)
     }
 }
 
@@ -106,6 +115,19 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
         }
         changed
     }
+
+    fn run_pass_with_cache(
+        &self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        cache: &mut PassCache,
+    ) -> bool {
+        let changed = self.0.run_pass_with_cache(gcx, module, cache);
+        if changed {
+            let _ = Peephole::EARLY.run_pass_with_cache(gcx, module, cache);
+        }
+        changed
+    }
 }
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
@@ -114,54 +136,70 @@ fn optimize_module<const LATE: bool>(
     gcx: Gcx<'_>,
     module: &mut Module,
     final_cleanup: bool,
+    cache: Option<(&Peephole, &mut PassCache)>,
 ) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
-    let mut changed = false;
-    let mut scratch = Vec::new();
-    for block in &mut module.blocks {
-        // Dead stack traffic before a terminator that cannot observe it is dead-code
-        // elimination's to remove; this pass only rewrites what it can see locally.
-        let rewrites = optimize::<LATE>(
-            evm_version,
-            &mut block.instructions,
-            &mut scratch,
-            block.label,
-            final_cleanup,
-        );
-        changed |= rewrites != 0;
-        // mstore(offset, value); return(offset, 32)
-        // -> mstore(0, value); return(0, 32)
-        if final_cleanup
-            && matches!(
-                block.terminator.as_ref().map(|term| &term.kind),
-                Some(TerminatorKind::Op(op::RETURN))
-            )
-            && let [prefix @ .., offset, store, size, returned] = block.instructions.as_mut_slice()
-            && [&*offset, &*store, &*size, &*returned]
-                .iter()
-                .all(|inst| inst.has_canonical_stack_effect())
-            && store.as_evm_opcode() == Some(op::MSTORE)
-            && size.concrete_immediate() == Some(U256::from(32))
-            && let Some(address) = offset.concrete_immediate()
-            && !address.is_zero()
-            && returned.concrete_immediate() == Some(address)
-            && prefix
-                .windows(2)
-                .rev()
-                .take_while(|pair| pair[1].as_evm_opcode() != Some(op::JUMPDEST))
-                .any(|pair| {
-                    pair[0].has_canonical_stack_effect()
-                        && pair[1].has_canonical_stack_effect()
-                        && pair[1].as_evm_opcode() == Some(op::MSTORE)
-                        && pair[0].concrete_immediate().is_some_and(|previous| previous >= address)
-                })
-        {
-            offset.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
-            returned.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
-            changed = true;
+    let make_run = || {
+        let mut scratch = Vec::new();
+        move |block: &mut Block| {
+            let mut changed = false;
+            // Dead stack traffic before a terminator that cannot observe it is dead-code
+            // elimination's to remove; this pass only rewrites what it can see locally.
+            let rewrites = optimize::<LATE>(
+                evm_version,
+                &mut block.instructions,
+                &mut scratch,
+                block.label,
+                final_cleanup,
+            );
+            changed |= rewrites != 0;
+            // mstore(offset, value); return(offset, 32)
+            // -> mstore(0, value); return(0, 32)
+            if final_cleanup
+                && matches!(
+                    block.terminator.as_ref().map(|term| &term.kind),
+                    Some(TerminatorKind::Op(op::RETURN))
+                )
+                && let [prefix @ .., offset, store, size, returned] =
+                    block.instructions.as_mut_slice()
+                && [&*offset, &*store, &*size, &*returned]
+                    .iter()
+                    .all(|inst| inst.has_canonical_stack_effect())
+                && store.as_evm_opcode() == Some(op::MSTORE)
+                && size.concrete_immediate() == Some(U256::from(32))
+                && let Some(address) = offset.concrete_immediate()
+                && !address.is_zero()
+                && returned.concrete_immediate() == Some(address)
+                && prefix
+                    .windows(2)
+                    .rev()
+                    .take_while(|pair| pair[1].as_evm_opcode() != Some(op::JUMPDEST))
+                    .any(|pair| {
+                        pair[0].has_canonical_stack_effect()
+                            && pair[1].has_canonical_stack_effect()
+                            && pair[1].as_evm_opcode() == Some(op::MSTORE)
+                            && pair[0]
+                                .concrete_immediate()
+                                .is_some_and(|previous| previous >= address)
+                    })
+            {
+                offset.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
+                returned.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
+                changed = true;
+            }
+            changed
         }
+    };
+    if let Some((pass, cache)) = cache {
+        cache.run_blocks(pass, module, make_run)
+    } else {
+        let mut run = make_run();
+        let mut changed = false;
+        for block in &mut module.blocks {
+            changed |= run(block);
+        }
+        changed
     }
-    changed
 }
 
 fn optimize<const LATE: bool>(

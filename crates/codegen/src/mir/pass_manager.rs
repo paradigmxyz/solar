@@ -126,7 +126,7 @@ pub trait MirPass: Sync {
 /// Runs a sequence of MIR passes without validating after each pass.
 #[must_use]
 pub fn run_passes_no_validate(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn MirPass]) -> bool {
-    run_passes_inner(gcx, module, passes, false, None).0
+    run_passes_inner(gcx, module, passes, false, None, &crate::scheduling::Scheduling::default()).0
 }
 
 /// Runs a sequence of MIR passes, checking each changed result when verification is enabled.
@@ -137,7 +137,7 @@ pub fn run_passes(
     passes: &[&dyn MirPass],
     name: Option<&str>,
 ) -> bool {
-    run_passes_inner(gcx, module, passes, true, name).0
+    run_passes_inner(gcx, module, passes, true, name, &crate::scheduling::Scheduling::default()).0
 }
 
 #[must_use]
@@ -147,6 +147,7 @@ pub(crate) fn run_passes_inner(
     passes: &[&dyn MirPass],
     validate_each: bool,
     name: Option<&str>,
+    scheduling: &crate::scheduling::Scheduling,
 ) -> (bool, Option<ErrorGuaranteed>) {
     let output_name = if gcx.sess.opts.unstable.pass_diff || gcx.sess.opts.unstable.print_after_each
     {
@@ -156,7 +157,7 @@ pub(crate) fn run_passes_inner(
     };
     let explicit = name.is_some();
     let mut changed = false;
-    let mut analyses = ModuleAnalyses::default();
+    let mut analyses = ModuleAnalyses::new(gcx, scheduling);
     let mut unchanged = Vec::new();
     for pass in passes {
         let pass_name = pass.name();

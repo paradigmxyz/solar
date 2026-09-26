@@ -22,12 +22,12 @@
 
 use crate::mir::{
     Function, FunctionId, InstId, MirPhase, Module,
-    analysis::{AliasAnalysis, CfgInfo, MemoryCallSummaries},
+    analysis::{AliasAnalysis, CfgInfo, MemoryCallSummaries, MemorySummaryCache},
     pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff, run_passes_inner},
     transform::*,
 };
 use smallvec::SmallVec;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap, sync};
 use solar_interface::diagnostics::ErrorGuaranteed;
 use std::{
     any::{Any, TypeId},
@@ -395,6 +395,12 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     &evm_inst_schedule::EvmInstSchedule,
 ];
 
+/// Runs the configured MIR pipeline with the session's full thread budget.
+#[must_use]
+pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
+    run_pipeline_with_scheduling(gcx, module, name, &crate::scheduling::Scheduling::default())
+}
+
 /// Runs the configured MIR pipeline, substituting it for the canonical pipeline.
 ///
 /// `name` overrides the module name in pass output. The canonical pipeline advances the module
@@ -407,7 +413,12 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     fields(module = %module.name),
 )]
 #[must_use]
-pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
+pub(crate) fn run_pipeline_with_scheduling(
+    gcx: solar_sema::Gcx<'_>,
+    module: &mut Module,
+    name: Option<&str>,
+    scheduling: &crate::scheduling::Scheduling,
+) -> bool {
     if let Some(value) = gcx.sess.opts.unstable.mir_pipeline.as_deref() {
         let pipeline = match parse_pass_pipeline(gcx, value, "MIR", lookup_pass) {
             Ok(pipeline) => pipeline,
@@ -421,7 +432,7 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
                 let end = remaining.iter().position(Option::is_none).unwrap_or(remaining.len());
                 let batch = remaining[..end].iter().copied().flatten().collect::<Vec<_>>();
                 let (pass_changed, error) =
-                    run_passes_inner(gcx, module, &batch, true, Some(&name));
+                    run_passes_inner(gcx, module, &batch, true, Some(&name), scheduling);
                 changed |= pass_changed;
                 if error.is_some() || end == remaining.len() {
                     return changed;
@@ -441,18 +452,20 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
 
     let mut changed = false;
     if module.phase() == MirPhase::Semantic {
-        let (pass_changed, error) = run_passes_inner(gcx, module, SEMANTIC_PIPELINE, true, None);
+        let (pass_changed, error) =
+            run_passes_inner(gcx, module, SEMANTIC_PIPELINE, true, None, scheduling);
         changed |= pass_changed;
         if error.is_some() {
             return changed;
         }
-        let (pass_changed, error) = run_passes_inner(gcx, module, LOWERING_PIPELINE, true, None);
+        let (pass_changed, error) =
+            run_passes_inner(gcx, module, LOWERING_PIPELINE, true, None, scheduling);
         changed |= pass_changed;
         if error.is_some() {
             return changed;
         }
     }
-    changed |= run_passes_inner(gcx, module, LOWERED_PIPELINE, true, None).0;
+    changed |= run_passes_inner(gcx, module, LOWERED_PIPELINE, true, None, scheduling).0;
     changed
 }
 
@@ -535,6 +548,11 @@ fn run_function_pass_with_cache(
     cache_key: Option<TypeId>,
     run: &(impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync),
 ) -> bool {
+    if let Some(changed) =
+        run_parallel_function_pass(module, analyses, None, requirements, cache_key, run)
+    {
+        return changed;
+    }
     let mut changed = false;
     for func_id in module.functions.indices() {
         if module.functions[func_id].blocks.is_empty() {
@@ -629,6 +647,11 @@ fn run_selected_function_pass_with(
     cache_key: Option<TypeId>,
     run: &(impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync),
 ) -> bool {
+    if let Some(changed) =
+        run_parallel_function_pass(module, analyses, Some(selected), requirements, cache_key, run)
+    {
+        return changed;
+    }
     let mut changed = false;
     for func_id in selected.iter() {
         if module.functions[func_id].blocks.is_empty() {
@@ -693,9 +716,25 @@ pub struct ModuleAnalyses {
     call_summaries: Option<Arc<MemoryCallSummaries>>,
     preserved_by_pass: bool,
     call_summaries_preserved: bool,
+    parallel_threads: usize,
+    summary_inputs: MemorySummaryCache,
+    scheduling: crate::scheduling::Scheduling,
 }
 
 impl ModuleAnalyses {
+    pub(crate) fn new(
+        gcx: solar_sema::Gcx<'_>,
+        scheduling: &crate::scheduling::Scheduling,
+    ) -> Self {
+        let opts = &gcx.sess.opts.unstable;
+        let parallel_threads = if opts.time_passes || opts.print_after_each || opts.pass_diff {
+            1
+        } else {
+            gcx.sess.threads()
+        };
+        Self { parallel_threads, scheduling: scheduling.clone(), ..Self::default() }
+    }
+
     /// Stops this pipeline after a pass emits a diagnostic.
     pub fn fail(&mut self, error: ErrorGuaranteed) {
         self.error = Some(error);
@@ -756,9 +795,9 @@ impl ModuleAnalyses {
     /// Returns the module call summaries, computing them on first use. A pass that changes
     /// the module drops them unless it calls [`Self::preserve_call_summaries`].
     pub(crate) fn call_summaries(&mut self, module: &Module) -> Arc<MemoryCallSummaries> {
-        Arc::clone(
-            self.call_summaries.get_or_insert_with(|| Arc::new(MemoryCallSummaries::new(module))),
-        )
+        Arc::clone(self.call_summaries.get_or_insert_with(|| {
+            Arc::new(MemoryCallSummaries::with_cache(module, &mut self.summary_inputs))
+        }))
     }
 
     /// Declares that the running pass leaves the module call summaries valid.
@@ -796,6 +835,7 @@ impl ModuleAnalyses {
         changed: bool,
     ) {
         if changed {
+            self.summary_inputs.invalidate(func_id);
             for cached in self.local_no_change.values_mut() {
                 if func_id.index() < cached.domain_size() {
                     cached.remove(func_id);
@@ -814,6 +854,7 @@ impl ModuleAnalyses {
     }
 
     fn invalidate_all(&mut self) {
+        self.summary_inputs.clear();
         self.alias.clear();
         self.cfg.clear();
         self.local_no_change.clear();
@@ -875,6 +916,149 @@ fn run_function_pass_cached(
     }
     analyses.record_function_result(func_id, module.functions.len(), cache_key, changed);
     changed
+}
+
+/// Runs independent bodies against the same module-summary snapshot. Mutable analysis
+/// caches move into their owning tasks; only immutable call summaries cross task boundaries.
+fn run_parallel_function_pass(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    selected: Option<&DenseBitSet<FunctionId>>,
+    requirements: FunctionAnalysisRequirements,
+    cache_key: Option<TypeId>,
+    run: &(impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync),
+) -> Option<bool> {
+    let threads = analyses.scheduling.threads(analyses.parallel_threads);
+    if threads < 2 {
+        return None;
+    }
+    let functions = module.functions.len();
+    let mut work = 0;
+    let mut ids = Vec::new();
+    for (id, func) in module.functions.iter_enumerated() {
+        if func.blocks.is_empty()
+            || selected.is_some_and(|selected| !selected.contains(id))
+            || cache_key.is_some_and(|key| analyses.function_cached(key, id, functions))
+        {
+            continue;
+        }
+        work += func.num_insts();
+        ids.push(id);
+    }
+    // Amortize task setup across enough MIR, leaving small modules on the serial path.
+    if ids.len() < 2 || work < 8192 {
+        return None;
+    }
+    if ids.iter().any(|id| {
+        analyses.alias.get(id).is_some_and(|alias| Rc::strong_count(alias) != 1)
+            || analyses.cfg.get(id).is_some_and(|cfg| Rc::strong_count(cfg) != 1)
+    }) {
+        return None;
+    }
+    let summaries = requirements.alias().then(|| analyses.call_summaries(module));
+    let mut ids = ids.into_iter().peekable();
+    let mut tasks = module
+        .functions
+        .iter_mut_enumerated()
+        .filter_map(|(id, func)| {
+            if ids.peek() != Some(&id) {
+                return None;
+            }
+            ids.next();
+            Some(FunctionTask {
+                id,
+                func,
+                alias: analyses.alias.remove(&id).map(|alias| {
+                    Rc::try_unwrap(alias).expect("analysis cache is exclusively owned")
+                }),
+                cfg: analyses
+                    .cfg
+                    .remove(&id)
+                    .map(|cfg| Rc::try_unwrap(cfg).expect("analysis cache is exclusively owned")),
+                changed: false,
+            })
+        })
+        .collect::<Vec<_>>();
+    let chunk_size = tasks.len().div_ceil(threads * 4);
+    sync::scope(true, |scope| {
+        for chunk in tasks.chunks_mut(chunk_size) {
+            let summaries = &summaries;
+            scope.spawn(move |_| {
+                for task in chunk {
+                    task.run(requirements, summaries.as_ref(), run);
+                }
+            });
+        }
+    });
+    let mut changed = false;
+    for task in tasks {
+        if let Some(alias) = task.alias {
+            analyses.alias.insert(task.id, Rc::new(alias));
+        }
+        if let Some(cfg) = task.cfg {
+            analyses.cfg.insert(task.id, Rc::new(cfg));
+        }
+        analyses.record_function_result(task.id, functions, cache_key, task.changed);
+        changed |= task.changed;
+    }
+    analyses.preserved_by_pass = true;
+    Some(changed)
+}
+
+struct FunctionTask<'a> {
+    id: FunctionId,
+    func: &'a mut Function,
+    alias: Option<AliasAnalysis>,
+    cfg: Option<CfgInfo>,
+    changed: bool,
+}
+
+impl FunctionTask<'_> {
+    fn run(
+        &mut self,
+        requirements: FunctionAnalysisRequirements,
+        summaries: Option<&Arc<MemoryCallSummaries>>,
+        run: &impl Fn(&mut Function, &FunctionAnalyses) -> bool,
+    ) {
+        let bundle = FunctionAnalyses {
+            alias: requirements.alias().then(|| {
+                Rc::new(self.alias.take().unwrap_or_else(|| {
+                    AliasAnalysis::empty_with_summaries(Arc::clone(
+                        summaries.expect("alias summaries"),
+                    ))
+                }))
+            }),
+            cfg: requirements
+                .cfg()
+                .then(|| Rc::new(self.cfg.take().unwrap_or_else(|| CfgInfo::new(self.func)))),
+        };
+        let insts_before = self.func.num_insts();
+        self.changed = run(self.func, &bundle);
+        let (keep_alias, keep_cfg) = if self.changed {
+            bundle
+                .cfg
+                .as_ref()
+                .map_or((false, false), |cfg| verified_preservation(self.func, cfg, insts_before))
+        } else {
+            (true, true)
+        };
+        if let Some(alias) = bundle.alias {
+            self.alias = Some(Rc::try_unwrap(alias).expect("function pass releases its analyses"));
+        }
+        if let Some(cfg) = bundle.cfg {
+            self.cfg = Some(Rc::try_unwrap(cfg).expect("function pass releases its analyses"));
+        }
+        if !keep_alias {
+            self.alias = None;
+        } else if self.changed
+            && let Some(alias) = &self.alias
+        {
+            alias.clear_cached_addresses();
+        }
+        if !keep_cfg {
+            self.cfg = None;
+        }
+    }
 }
 
 /// Manages cached analysis results for a function.

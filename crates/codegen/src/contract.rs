@@ -4,7 +4,8 @@ use crate::{
     Backend, EvmCodegen,
     backend::evm::{DebugInstruction, ir},
     link::{Library, LibraryRelocation, LibraryTable, RelocatableBytecode},
-    mir::{Module, lower, pass::run_pipeline},
+    mir::{Module, lower, pass::run_pipeline_with_scheduling},
+    scheduling::Scheduling,
 };
 use alloy_primitives::Bytes;
 use either::Either;
@@ -19,8 +20,9 @@ use solar_data_structures::{
 use solar_interface::{Result, Symbol, error_code};
 use solar_sema::{
     Gcx,
-    hir::{ContractId, VariableId},
+    hir::{ContractId, ItemId, VariableId},
 };
+use std::cmp::Reverse;
 use std::sync::{
     OnceLock,
     atomic::{AtomicUsize, Ordering},
@@ -178,7 +180,7 @@ pub fn generate_contract_bytecodes(
     requested.union_with(capture_mir);
     requested.union_with(capture_evm_ir);
     requested.union_with(capture_debug_info);
-    let graph = ContractGraph::discover(gcx, &requested)?;
+    let mut graph = ContractGraph::discover(gcx, &requested)?;
     let contract_count = gcx.hir.contract_ids().len();
     let artifacts =
         IndexVec::<ContractId, _>::from_vec((0..contract_count).map(|_| OnceLock::new()).collect());
@@ -202,8 +204,14 @@ pub fn generate_contract_bytecodes(
         && !gcx.sess.opts.unstable.print_after_each
         && !gcx.sess.opts.unstable.pass_diff
         && !gcx.sess.opts.unstable.time_passes;
+    let mut ready = ready.iter().collect::<Vec<_>>();
+    if parallel {
+        let priorities = graph.scheduling_priorities(gcx);
+        ready.sort_unstable_by_key(|&id| (Reverse(priorities[id]), id));
+    }
+    graph.scheduling.add_contracts(ready.len());
     sync::scope(parallel, |scope| {
-        for contract_id in ready.iter() {
+        for &contract_id in &ready {
             spawn_contract_codegen(
                 &scope,
                 gcx,
@@ -244,6 +252,7 @@ struct ContractGraph {
     dependencies: IndexVec<ContractId, GrowableBitSet<ContractId>>,
     dependents: IndexVec<ContractId, Vec<ContractId>>,
     reachable: DenseBitSet<ContractId>,
+    scheduling: Scheduling,
 }
 
 impl ContractGraph {
@@ -255,6 +264,7 @@ impl ContractGraph {
             ),
             dependents: IndexVec::from_vec((0..contract_count).map(|_| Vec::new()).collect()),
             reachable: DenseBitSet::new_empty(contract_count),
+            scheduling: Scheduling::default(),
         };
         let mut visiting = DenseBitSet::new_empty(contract_count);
         for contract_id in contracts.into_iter(gcx) {
@@ -302,6 +312,44 @@ impl ContractGraph {
         visiting.remove(contract_id);
         Ok(())
     }
+
+    /// Starts the estimated longest dependency chains first. Source-body sizes are
+    /// a cheap scheduling estimate; they do not affect what gets compiled.
+    fn scheduling_priorities(&mut self, gcx: Gcx<'_>) -> IndexVec<ContractId, u64> {
+        let mut costs = IndexVec::from_vec(vec![0u64; self.dependencies.len()]);
+        for id in self.reachable.iter() {
+            costs[id] = gcx
+                .hir
+                .contract_item_ids(id)
+                .map(|item| {
+                    if let ItemId::Function(function) = item {
+                        let span = gcx.hir.function(function).body_span;
+                        u64::from(span.hi().to_u32() - span.lo().to_u32())
+                    } else {
+                        0
+                    }
+                })
+                .sum::<u64>()
+                .max(1);
+        }
+        let mut priorities = costs.clone();
+        let mut remaining = IndexVec::from_vec(self.dependents.iter().map(Vec::len).collect());
+        let mut ready = self.reachable.iter().filter(|&id| remaining[id] == 0).collect::<Vec<_>>();
+        while let Some(id) = ready.pop() {
+            for child in self.dependencies[id].iter() {
+                priorities[child] =
+                    priorities[child].max(costs[child].saturating_add(priorities[id]));
+                remaining[child] -= 1;
+                if remaining[child] == 0 {
+                    ready.push(child);
+                }
+            }
+        }
+        for dependents in &mut self.dependents {
+            dependents.sort_unstable_by_key(|&id| (Reverse(priorities[id]), id));
+        }
+        priorities
+    }
 }
 
 fn spawn_contract_codegen<'scope, 'gcx>(
@@ -318,6 +366,7 @@ fn spawn_contract_codegen<'scope, 'gcx>(
     scope.spawn(move |scope| {
         let Ok(artifact) = generate_contract_bytecode(gcx, contract_id, captures, graph, artifacts)
         else {
+            graph.scheduling.finish_contract();
             return;
         };
         artifacts[contract_id]
@@ -328,6 +377,7 @@ fn spawn_contract_codegen<'scope, 'gcx>(
             let previous = remaining_dependencies[dependent].fetch_sub(1, Ordering::AcqRel);
             assert!(previous > 0, "contract dependency count underflow");
             if previous == 1 {
+                graph.scheduling.add_contracts(1);
                 spawn_contract_codegen(
                     &scope,
                     gcx,
@@ -339,6 +389,7 @@ fn spawn_contract_codegen<'scope, 'gcx>(
                 );
             }
         }
+        graph.scheduling.finish_contract();
     });
 }
 
@@ -395,6 +446,7 @@ fn generate_contract_bytecode(
     let artifact = if needs_backend {
         module.set_debug_info_tracked(captures.debug_info.contains(contract_id));
         let mut codegen = EvmCodegen::new(gcx);
+        codegen.set_scheduling(graph.scheduling.clone());
         codegen.set_capture_mir(capture_mir && !capture_built);
         codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
         codegen.set_capture_debug_info(captures.debug_info.contains(contract_id));
@@ -403,7 +455,7 @@ fn generate_contract_bytecode(
         artifact
     } else {
         if capture_mir && !capture_built {
-            let _changed = run_pipeline(gcx, &mut module, None);
+            let _changed = run_pipeline_with_scheduling(gcx, &mut module, None, &graph.scheduling);
             gcx.dcx().has_errors()?;
         }
         Default::default()

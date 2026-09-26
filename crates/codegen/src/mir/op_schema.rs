@@ -144,6 +144,8 @@ pub(crate) trait Operands {
 
     /// Appends every value operand held by this field in canonical order.
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>);
+    /// Visits every value operand held by this field.
+    fn visit(&self, f: &mut impl FnMut(ValueId));
     /// Visits every value operand held by this field mutably.
     fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId));
     /// Projects the field for rewrite rules.
@@ -170,6 +172,11 @@ impl Operands for ValueId {
     #[inline]
     fn collect<A: Array<Item = Self>>(&self, out: &mut SmallVec<A>) {
         out.push(*self);
+    }
+
+    #[inline]
+    fn visit(&self, f: &mut impl FnMut(Self)) {
+        f(*self);
     }
 
     #[inline]
@@ -208,6 +215,11 @@ impl Operands for Option<ValueId> {
     #[inline]
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
         out.extend(*self);
+    }
+
+    #[inline]
+    fn visit(&self, f: &mut impl FnMut(ValueId)) {
+        self.iter().copied().for_each(f);
     }
 
     #[inline]
@@ -250,6 +262,11 @@ impl Operands for Box<[ValueId]> {
     }
 
     #[inline]
+    fn visit(&self, f: &mut impl FnMut(ValueId)) {
+        self.iter().copied().for_each(f);
+    }
+
+    #[inline]
     fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId)) {
         self.iter_mut().for_each(f);
     }
@@ -283,6 +300,11 @@ impl Operands for Vec<(BlockId, ValueId)> {
     }
 
     #[inline]
+    fn visit(&self, f: &mut impl FnMut(ValueId)) {
+        self.iter().map(|(_, value)| *value).for_each(f);
+    }
+
+    #[inline]
     fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId)) {
         self.iter_mut().for_each(|(_, value)| f(value));
     }
@@ -312,6 +334,11 @@ impl Operands for Box<[PackedPart]> {
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
         out.extend(self.iter().filter_map(PackedPart::value));
     }
+
+    #[inline]
+    fn visit(&self, f: &mut impl FnMut(ValueId)) {
+        self.iter().filter_map(PackedPart::value).for_each(f);
+    }
     fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId)) {
         self.iter_mut().filter_map(PackedPart::value_mut).for_each(f);
     }
@@ -337,6 +364,9 @@ macro_rules! attributes {
 
                 #[inline]
                 fn collect<A: Array<Item = ValueId>>(&self, _out: &mut SmallVec<A>) {}
+
+                #[inline]
+                fn visit(&self, _f: &mut impl FnMut(ValueId)) {}
 
                 #[inline]
                 fn visit_mut(&mut self, _f: &mut impl FnMut(&mut ValueId)) {}
@@ -377,6 +407,9 @@ macro_rules! opaque_attributes {
 
                 #[inline]
                 fn collect<A: Array<Item = ValueId>>(&self, _out: &mut SmallVec<A>) {}
+
+                #[inline]
+                fn visit(&self, _f: &mut impl FnMut(ValueId)) {}
 
                 #[inline]
                 fn visit_mut(&mut self, _f: &mut impl FnMut(&mut ValueId)) {}
@@ -614,6 +647,18 @@ macro_rules! define_mir_ops {
                         Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
                             $( $( Operands::collect($operand, out); )+ )?
                             $( $( Operands::collect($field, out); )+ )?
+                        }
+                    )+
+                }
+            }
+
+            /// Visits every value operand in canonical order without collecting them.
+            pub(crate) fn visit_operands(&self, mut f: impl FnMut(ValueId)) {
+                match self {
+                    $(
+                        Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
+                            $( $( Operands::visit($operand, &mut f); )+ )?
+                            $( $( Operands::visit($field, &mut f); )+ )?
                         }
                     )+
                 }
@@ -2895,6 +2940,44 @@ mod tests {
         assert_eq!(InstKind::MSize.op(), Op::MSize);
         assert_eq!(add.op().into_kind().as_ref(), Some(&add));
         assert_eq!(InstKind::Phi(Vec::new()).op().into_kind(), None);
+
+        let a = ValueId::new(0);
+        let b = ValueId::new(1);
+        for (kind, expected) in [
+            (InstKind::MSize, vec![]),
+            (InstKind::Add(a, b), vec![a, b]),
+            (
+                InstKind::AbiEncodePacked {
+                    parts: [PackedPart::Literal(Bytes::new()), PackedPart::Bytes(b)].into(),
+                    hash: false,
+                },
+                vec![b],
+            ),
+            (
+                InstKind::AbiEncode {
+                    mode: AbiEncodeMode::Bytes,
+                    selector: None,
+                    args: [].into(),
+                    layout: AbiLayout::new([]).into(),
+                },
+                vec![],
+            ),
+            (InstKind::Phi(vec![(BlockId::ENTRY, b), (BlockId::ENTRY, a)]), vec![b, a]),
+            (
+                InstKind::AbiEncode {
+                    mode: AbiEncodeMode::Bytes,
+                    selector: Some(a),
+                    args: [b, a].into(),
+                    layout: AbiLayout::new([]).into(),
+                },
+                vec![a, b, a],
+            ),
+        ] {
+            let mut visited = Vec::new();
+            kind.visit_operands(|operand| visited.push(operand));
+            assert_eq!(visited, expected);
+            assert_eq!(visited.as_slice(), kind.operands().as_slice());
+        }
     }
 
     #[test]
