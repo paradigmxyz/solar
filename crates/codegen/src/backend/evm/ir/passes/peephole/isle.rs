@@ -269,6 +269,11 @@ impl<'a> PeepContext<'a> {
         None
     }
 
+    /// Returns the edit of a final-only rule, for tails the early rules are known to leave alone.
+    pub(super) fn select_final(&self) -> Option<Rewrite> {
+        self.final_rewrite()
+    }
+
     /// Returns the edit to apply to the tail of the block, when a rule matches.
     pub(super) fn select<const LATE: bool>(&mut self) -> Option<Rewrite> {
         if !LATE {

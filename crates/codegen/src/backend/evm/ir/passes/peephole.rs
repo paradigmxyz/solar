@@ -180,6 +180,8 @@ fn optimize_module<const LATE: bool>(
     for (block_id, block) in module.blocks.iter_mut_enumerated() {
         // The late rules are separate from the cached early and final ones.
         let skip = !LATE && clean.is_clean(block_id, &block.instructions, final_cleanup);
+        let early_clean =
+            !LATE && final_cleanup && !skip && clean.is_clean(block_id, &block.instructions, false);
         // Dead stack traffic before a terminator that cannot observe it is dead-code
         // elimination's to remove; this pass only rewrites what it can see locally.
         let rewrites = if skip {
@@ -191,6 +193,7 @@ fn optimize_module<const LATE: bool>(
                 &mut scratch,
                 block.label,
                 final_cleanup,
+                early_clean,
             )
         };
         changed |= rewrites != 0;
@@ -244,13 +247,16 @@ fn optimize<const LATE: bool>(
     scratch: &mut Vec<Instruction>,
     block: u32,
     final_cleanup: bool,
+    early_clean: bool,
 ) -> usize {
     // Inspect the original prefix without copying instructions. Until the first
     // rewrite, this is exactly the optimized prefix the streaming matcher sees.
+    // The early rules match no prefix of an early-clean block, so only the final
+    // rules can supply its first rewrite.
     let first = (1..=instructions.len()).find_map(|end| {
-        isle::PeepContext::new(&instructions[..end], evm_version)
-            .with_final_cleanup(final_cleanup)
-            .select::<LATE>()
+        let mut context = isle::PeepContext::new(&instructions[..end], evm_version)
+            .with_final_cleanup(final_cleanup);
+        if early_clean { context.select_final() } else { context.select::<LATE>() }
             .map(|rewrite| (end, rewrite))
     });
     let Some((end, isle::Rewrite { skip, edit })) = first else { return 0 };
