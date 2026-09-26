@@ -213,7 +213,7 @@ fn split_clobbering_phi_edges(func: &mut Function) {
         return;
     }
 
-    let liveness = Liveness::compute(func);
+    let liveness = Liveness::compute_live_sets(func);
     let mut edges = Vec::new();
 
     for successor in phi_successors {

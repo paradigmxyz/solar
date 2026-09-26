@@ -48,6 +48,8 @@ pub(crate) struct Liveness {
     /// The key is (ValueId, BlockId), and value is the instruction index (None = terminator).
     /// This tracks the last use of a value *within* each block where it's used.
     last_use_in_block: FxHashMap<(ValueId, BlockId), Option<usize>>,
+    /// Whether `last_use_in_block` was computed.
+    tracks_last_uses: bool,
     /// Number of values in the function.
     #[allow(dead_code)]
     num_values: usize,
@@ -57,6 +59,17 @@ impl Liveness {
     /// Computes liveness for a function.
     #[must_use]
     pub(crate) fn compute(func: &Function) -> Self {
+        Self::compute_inner(func, true)
+    }
+
+    /// Computes only the block live-in and live-out sets, without the per-block
+    /// last uses that [`Self::is_used_at_or_after`] and [`Self::is_dead_after`] need.
+    #[must_use]
+    pub(crate) fn compute_live_sets(func: &Function) -> Self {
+        Self::compute_inner(func, false)
+    }
+
+    fn compute_inner(func: &Function, tracks_last_uses: bool) -> Self {
         let num_values = func.num_values();
         let num_blocks = func.blocks.len();
 
@@ -168,6 +181,9 @@ impl Liveness {
         // For each value, track the last instruction index where it's used within each block.
         let mut last_use_in_block: FxHashMap<(ValueId, BlockId), Option<usize>> =
             FxHashMap::default();
+        if !tracks_last_uses {
+            return Self { block_liveness, last_use_in_block, tracks_last_uses, num_values };
+        }
         // A phi operand is used when its predecessor transfers control, so it
         // must survive to that block's terminator.
         for edge_uses in &phi_edge_uses {
@@ -201,7 +217,7 @@ impl Liveness {
             }
         }
 
-        Self { block_liveness, last_use_in_block, num_values }
+        Self { block_liveness, last_use_in_block, tracks_last_uses, num_values }
     }
 
     /// Computes the subset of liveness needed by codegen when every computed
@@ -268,7 +284,7 @@ impl Liveness {
             }
         }
 
-        Some(Self { block_liveness, last_use_in_block, num_values })
+        Some(Self { block_liveness, last_use_in_block, tracks_last_uses: true, num_values })
     }
 
     /// Returns the values live at the entry of a block.
@@ -328,6 +344,7 @@ impl Liveness {
         block: BlockId,
         inst_idx: usize,
     ) -> bool {
+        debug_assert!(self.tracks_last_uses);
         if self.block_liveness[block].live_out.contains(val) {
             return true;
         }
@@ -346,6 +363,7 @@ impl Liveness {
     /// 2. The value is NOT in live_out (meaning no successor blocks use it)
     #[must_use]
     pub(crate) fn is_dead_after(&self, val: ValueId, block: BlockId, inst_idx: usize) -> bool {
+        debug_assert!(self.tracks_last_uses);
         // If the value is in live_out, it's used by successor blocks, so it's not dead
         if self.block_liveness[block].live_out.contains(val) {
             return false;

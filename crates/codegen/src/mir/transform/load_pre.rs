@@ -917,7 +917,7 @@ impl LoadRedundancyEliminator {
                 !matches!(func.value(value), Value::Immediate(_))
                     && !self
                         .liveness
-                        .get_or_init(|| Liveness::compute(func))
+                        .get_or_init(|| Liveness::compute_live_sets(func))
                         .live_in(target)
                         .contains(value)
             })
@@ -1048,7 +1048,7 @@ impl LoadRedundancyEliminator {
                     || matches!(func.value(value), Value::Immediate(_))
                     || self
                         .liveness
-                        .get_or_init(|| Liveness::compute(func))
+                        .get_or_init(|| Liveness::compute_live_sets(func))
                         .live_out(block)
                         .contains(value)
                 {

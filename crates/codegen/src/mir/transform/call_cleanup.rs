@@ -394,7 +394,7 @@ fn masks_live_across_calls(func: &Function) -> DenseBitSet<ValueId> {
     if !func.instructions().any(|inst| is_call(&func.inst(inst).kind)) {
         return protected;
     }
-    let liveness = Liveness::compute(func);
+    let liveness = Liveness::compute_live_sets(func);
     for (id, block) in func.blocks.iter_enumerated() {
         let mut live = liveness.live_out(id).clone();
         if let Some(term) = &block.terminator {

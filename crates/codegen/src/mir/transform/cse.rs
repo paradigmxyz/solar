@@ -729,7 +729,7 @@ impl CommonSubexprEliminator {
             return true;
         }
         let facts = reuse.get_or_init(|| MemoryReuseFacts {
-            liveness: Liveness::compute(func),
+            liveness: Liveness::compute_live_sets(func),
             definitions: func.inst_blocks(),
             loops: LoopAnalyzer::new().analyze_structure(func),
         });
@@ -785,7 +785,7 @@ impl CommonSubexprEliminator {
                 || func.value_u256(*value).is_some()
                 || ctx
                     .liveness
-                    .get_or_init(|| Liveness::compute(func))
+                    .get_or_init(|| Liveness::compute_live_sets(func))
                     .live_in(child)
                     .contains(*value)
         });

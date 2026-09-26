@@ -610,7 +610,8 @@ impl MirInliner {
                     summary.phi_stack_peak.or_else(|| memory_wrappers.get(&site.callee).copied())
                 {
                     let caller = module.function(caller_id);
-                    let liveness = caller_liveness.get_or_insert_with(|| Liveness::compute(caller));
+                    let liveness =
+                        caller_liveness.get_or_insert_with(|| Liveness::compute_live_sets(caller));
                     if surviving_call_words(caller, liveness, site).saturating_add(peak)
                         > self.stack_budget()
                     {
@@ -1353,7 +1354,7 @@ fn has_back_edge(func: &Function) -> bool {
 
 /// Peak SSA live words in a small scalar helper; immediates are rematerialized.
 fn scalar_stack_peak(func: &Function) -> usize {
-    let liveness = Liveness::compute(func);
+    let liveness = Liveness::compute_live_sets(func);
     let mut peak = 0;
     for (block, body) in func.blocks.iter_enumerated() {
         let mut live = liveness.live_out(block).clone();
