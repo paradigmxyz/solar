@@ -200,8 +200,8 @@ pub enum CoreIntrinsic {
     Deploy,
     /// `Create.deploy2(initcode, salt, value)`: create2, reverting on failure.
     Deploy2,
-    /// `Code.copyInto(dst, dstOffset, target, start, count)`: a checked
-    /// `extcodecopy`.
+    /// `Code.copyInto(dst, dstOffset, target, start, count)` and
+    /// `Code.copyInto(dst, dstOffset, section)`: a checked `extcodecopy`.
     CodeCopyInto,
     /// `Bits.leadingZeros(x)`: `clz`, on targets that have it.
     LeadingZeros,
