@@ -6,8 +6,8 @@ use crate::{
     import_resolution::ImportResolutionContext,
     proto,
     workspace::{
-        FoundryConfigContext, SourceWatchRoot, Workspace, WorkspaceError, WorkspaceKind,
-        WorkspacePathIndex,
+        FoundryConfigContext, SourceWatchRoot, Workspace, WorkspaceEditScope, WorkspaceError,
+        WorkspaceKind, WorkspacePathIndex,
         index_policy::{
             IndexingCancellation, IndexingOptions, WorkspaceIndexMetrics, WorkspaceIndexPolicy,
         },
@@ -56,6 +56,7 @@ pub(crate) struct Config {
     foundry_workspace_config_source: FoundryWorkspaceConfigSource,
     workspaces: Vec<Workspace>,
     workspace_path_cache: Arc<OnceLock<Arc<crate::workspace::WorkspacePathIndexCache>>>,
+    workspace_edit_scope: Arc<OnceLock<WorkspaceEditScope>>,
     manifest_watch_roots: Vec<SourceWatchRoot>,
     git_marker_watch_roots: Vec<PathBuf>,
     index_policy: WorkspaceIndexPolicy,
@@ -141,6 +142,7 @@ impl Default for Config {
             foundry_workspace_config_source: FoundryWorkspaceConfigSource::default(),
             workspaces: Vec::new(),
             workspace_path_cache: Arc::new(OnceLock::new()),
+            workspace_edit_scope: Arc::new(OnceLock::new()),
             manifest_watch_roots: Vec::new(),
             git_marker_watch_roots: Vec::new(),
             index_policy: WorkspaceIndexPolicy::default(),
@@ -351,6 +353,13 @@ impl Config {
 
     fn invalidate_workspace_path_cache(&mut self) {
         self.workspace_path_cache = Arc::new(OnceLock::new());
+        self.workspace_edit_scope = Arc::new(OnceLock::new());
+    }
+
+    /// Returns cached lexical ownership; filesystem resolution remains request-local.
+    pub(crate) fn workspace_edit_scope(&self) -> &WorkspaceEditScope {
+        self.workspace_edit_scope
+            .get_or_init(|| WorkspaceEditScope::new(&self.workspace_roots, &self.workspaces))
     }
 
     pub(crate) fn workspace_path_index(&self) -> WorkspacePathIndex<'_> {

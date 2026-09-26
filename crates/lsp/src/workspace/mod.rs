@@ -28,9 +28,12 @@ use std::{
     sync::Arc,
 };
 
+mod edit_scope;
 mod foundry;
 pub(crate) mod index_policy;
 pub(crate) mod manifest;
+
+pub(crate) use edit_scope::WorkspaceEditScope;
 
 #[derive(Debug)]
 pub(crate) struct FoundryConfigContext<'a> {
@@ -244,6 +247,17 @@ impl Workspace {
 
     pub(crate) fn import_only_roots(&self) -> &[PathBuf] {
         &self.compile_opts.include_paths
+    }
+
+    pub(crate) fn import_remapping_paths(&self) -> impl Iterator<Item = PathBuf> + '_ {
+        self.compile_opts.import_remappings.iter().filter_map(|remapping| {
+            let target = Path::new(&remapping.path);
+            if target.is_absolute() {
+                Some(target.normalize())
+            } else {
+                self.compile_opts.base_path.as_ref().map(|base| base.join(target).normalize())
+            }
+        })
     }
 
     /// Returns include roots admitted to eager indexing and topology watching.
@@ -950,15 +964,7 @@ impl WorkspaceImportPathIndexEntry {
                 .iter()
                 .map(|path| WorkspaceImportRoot::new(path.normalize(), IMPORT_ONLY)),
         );
-        for remapping in &workspace.compile_opts().import_remappings {
-            let target = Path::new(&remapping.path);
-            let path = if target.is_absolute() {
-                target.normalize()
-            } else if let Some(base_path) = &base_path {
-                base_path.join(target).normalize()
-            } else {
-                continue;
-            };
+        for path in workspace.import_remapping_paths() {
             roots.push(WorkspaceImportRoot::new(path, IMPORT_ONLY));
         }
         Self { idx, base_depth, roots }
@@ -1112,11 +1118,21 @@ pub(crate) fn is_import_only_path(
     path: &Path,
 ) -> bool {
     import_only_roots.iter().any(|import_root| {
-        path.starts_with(import_root)
-            && !source_roots.iter().any(|source_root| {
-                source_root.starts_with(import_root) && path.starts_with(source_root)
-            })
+        is_import_only_path_in_root(
+            path,
+            import_root,
+            source_roots.iter().filter(|source_root| source_root.starts_with(import_root)),
+        )
     })
+}
+
+/// Checks an import root against source exceptions selected before any filesystem resolution.
+fn is_import_only_path_in_root<'a>(
+    path: &Path,
+    import_root: &Path,
+    mut source_roots: impl Iterator<Item = &'a PathBuf>,
+) -> bool {
+    path.starts_with(import_root) && !source_roots.any(|source_root| path.starts_with(source_root))
 }
 
 fn is_solidity_file(path: &Path) -> bool {
