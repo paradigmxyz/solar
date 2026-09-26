@@ -214,13 +214,13 @@ bb10 [continuation]:
   push 34
   add
   mload
-  push 0
-  byte
   swap 2
   push 128
   mstore
   push 160
   mstore
+  push 0
+  byte
   push 192
   mstore
   push 96
@@ -231,17 +231,16 @@ bb17:
   dup 1
   push 64
   mstore
-  dup 1
   push 64
-  dup 3
+  dup 2
   add
   push 64
   mstore
   push 3
-  dup 3
+  dup 2
   mstore
-  swap 1
   push 32
+  dup 2
   add
   push 0x222233
   push 232

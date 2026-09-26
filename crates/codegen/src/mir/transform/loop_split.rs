@@ -250,9 +250,7 @@ fn apply(func: &mut Function, split: &Split) {
         let originals = func.blocks[block].instructions.clone();
         let mut instructions = Vec::with_capacity(originals.len());
         for inst in originals {
-            let original = func.inst(inst);
-            let mut instruction = Instruction::new(original.kind.clone(), original.result_ty);
-            instruction.metadata.copy_debug_context(&original.metadata);
+            let instruction = func.inst(inst).clone_unallocated();
             let cloned = if let Some(result) = func.inst_result_value(inst) {
                 let (cloned, cloned_result) = func.alloc_value_inst(instruction);
                 value_map.insert(result, cloned_result);
@@ -373,7 +371,7 @@ fn apply(func: &mut Function, split: &Split) {
 }
 
 /// Replaces every successor of a terminator through `map`.
-fn retarget(terminator: &mut Terminator, map: impl Fn(BlockId) -> BlockId) {
+pub(super) fn retarget(terminator: &mut Terminator, map: impl Fn(BlockId) -> BlockId) {
     match terminator {
         Terminator::Jump(target) => *target = map(*target),
         Terminator::Branch { then_block, else_block, .. } => {
@@ -391,7 +389,7 @@ fn retarget(terminator: &mut Terminator, map: impl Fn(BlockId) -> BlockId) {
 }
 
 /// Recomputes every block's predecessor list from the terminators.
-fn rebuild_predecessors(func: &mut Function) {
+pub(super) fn rebuild_predecessors(func: &mut Function) {
     let mut edges = Vec::new();
     for (block, body) in func.blocks.iter_enumerated() {
         if let Some(terminator) = &body.terminator {

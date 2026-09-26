@@ -1,0 +1,117 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=loop-closed-form,egraph,cfg-simplify,dce
+//@[size] compile-flags: -Osize -Zmir-pipeline=loop-closed-form
+@module Affine
+
+fn @mixed(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v4]
+    v1 = phi [bb0: arg0], [bb2: v5]
+    v2 = phi [bb0: arg1], [bb2: v6]
+    v3 = lt v0, arg2
+    jumpi v3, bb2, bb3
+  bb2:
+    v4 = add v0, 1
+    v5 = add v1, v2
+    v6 = add v2, arg3
+    jump bb1
+  bb3:
+    ret v1
+}
+
+// A nonzero initial counter does not establish the required trip count.
+fn @nonzero_start(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 1], [bb2: v2]
+    v1 = lt v0, arg0
+    jumpi v1, bb2, bb3
+  bb2:
+    v2 = add v0, 1
+    jump bb1
+  bb3:
+    ret v0
+}
+
+// A non-unit stride can wrap before reaching the bound.
+fn @nonunit_step(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v2]
+    v1 = lt v0, arg0
+    jumpi v1, bb2, bb3
+  bb2:
+    v2 = add v0, 2
+    jump bb1
+  bb3:
+    ret v0
+}
+
+// Observable loop operations must remain in place.
+fn @effect(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v2]
+    v1 = lt v0, arg0
+    jumpi v1, bb2, bb3
+  bb2:
+    mstore 0, v0
+    v2 = add v0, 1
+    jump bb1
+  bb3:
+    ret v0
+}
+
+// A geometric recurrence is not additive with an invariant increment.
+fn @geometric(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v3]
+    v1 = phi [bb0: arg1], [bb2: v4]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add v0, 1
+    v4 = add v1, v1
+    jump bb1
+  bb3:
+    ret v1
+}
+
+fn @assign(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v3]
+    v1 = phi [bb0: arg1], [bb2: arg2]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add v0, 1
+    jump bb1
+  bb3:
+    ret v1
+}
+
+fn @keep_dependent_assignment(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v4]
+    v1 = phi [bb0: arg1], [bb2: v5]
+    v2 = phi [bb0: arg2], [bb2: 7]
+    v3 = lt v0, arg0
+    jumpi v3, bb2, bb3
+  bb2:
+    v4 = add v0, 1
+    v5 = add v1, v2
+    jump bb1
+  bb3:
+    ret v1
+}

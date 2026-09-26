@@ -1,0 +1,63 @@
+//@ codegen-matrix: standard
+//@ run-call: mixed 19, 7, 0, 5 => 19
+//@ run-call: mixed 19, 7, 1, 5 => 26
+//@ run-call: mixed 19, 7, 2, 5 => 38
+//@ run-call: mixed 19, 7, 3, 5 => 55
+//@ run-call: mixed 32769, 65408, 64, 2654435769 => 5351346729185
+//@ run-call: mixed 115792089237316195423570985008687907853269984665640564039457584007913129639935, 115792089237316195423570985008687907853269984665640564039457584007913129639934, 4, 115792089237316195423570985008687907853269984665640564039457584007913129639933 => 115792089237316195423570985008687907853269984665640564039457584007913129639909
+//@[gas] run-call: mixed 19, 7, 115792089237316195423570985008687907853269984665640564039457584007913129639935, 5 => 57896044618658097711785492504343953926634992332820282019728792003956564819985
+//@[gas] run-call: mixed 19, 7, 115792089237316195423570985008687907853269984665640564039457584007913129639934, 5 => 57896044618658097711785492504343953926634992332820282019728792003956564819988
+//@[gas] run-call: mixed 19, 7, 340282366920938463463374607431768211456, 5 => 57896044618658097711785492504343953928166262983964505105313977737399521771539
+//@[gas] run-call: mixed 19, 7, 340282366920938463463374607431768211457, 5 => 57896044618658097711785492504343953929867674818569197422630850774558362828826
+//@ run-call: checked 0 => 0
+//@ run-call-fail: checked 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call: assign 7, 9, 0 => 7
+//@ run-call: assign 7, 9, 1 => 9
+//@ run-call: assign 7, 9, 20 => 9
+//@[none] run-call-fail: assign 7, 9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff; gas=100000
+//@[gas] run-call: assign 7, 9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff; gas=100000 => 9
+//@ run-call: sentry 2300, 0 => false, 2
+//@ run-call: sentry 100000, 0 => true, 19
+//@ run-call: sentry 2300, 3 => false, 2
+//@ run-call: sentry 100000, 3 => true, 55
+contract Affine {
+    function assign(uint256 a, uint256 b, uint256 n) external pure returns (uint256) {
+        unchecked { for (uint256 i; i < n; ++i) a = b; }
+        return a;
+    }
+
+    function mixed(uint256 x, uint256 y, uint256 n, uint256 c) external pure returns (uint256) {
+        unchecked {
+            for (uint256 i; i < n; ++i) {
+                x = (x & y) + (x | y);
+                y += c;
+            }
+        }
+        return x;
+    }
+
+    function checked(uint256 n) external pure returns (uint256 x) {
+        for (uint256 i; i < n; ++i) x += type(uint256).max;
+    }
+
+    function sentry(uint256 stipend, uint256 n) external returns (bool success, uint256 stored) {
+        assembly {
+            sstore(0, 1)
+            sstore(0, 2)
+        }
+        (success,) = address(this).call{gas: stipend}(abi.encodeCall(this.storeAfterLoop, (n)));
+        assembly { stored := sload(0) }
+    }
+
+    function storeAfterLoop(uint256 n) external {
+        uint256 x = 19;
+        uint256 y = 7;
+        unchecked {
+            for (uint256 i; i < n; ++i) {
+                x += y;
+                y += 5;
+            }
+        }
+        assembly { sstore(0, x) }
+    }
+}

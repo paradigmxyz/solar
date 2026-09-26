@@ -7,7 +7,9 @@
 //! no intervening operation can mutate memory. Across a unique predecessor
 //! edge, equal constant stores can be removed only while no overlapping
 //! 32-byte write has invalidated the remembered word. Gas and memory-size
-//! observations act as barriers to memory elimination.
+//! observations act as barriers to memory elimination. Free-memory-pointer
+//! stores are never dead solely because MIR has no reader: backend frame and
+//! deferred-allocation lowering can add reads after this pass.
 
 use crate::mir::{
     BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryObjectKind, MemoryRegion, Module,
@@ -611,7 +613,8 @@ impl MemoryStoreEliminator {
             match &func.inst(inst_id).kind {
                 InstKind::MStore(addr, _) => {
                     if let Some(slot) = self.word_aligned_const(func, *addr) {
-                        if !live.contains(slot)
+                        if slot != EvmMemoryLayout::FMP_SLOT
+                            && !live.contains(slot)
                             && let Some(dead) = dead.as_mut()
                         {
                             dead.insert(inst_id);

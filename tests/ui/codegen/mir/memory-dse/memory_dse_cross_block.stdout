@@ -37,3 +37,12 @@
 +     ret 2
   }
   
+  fn @keep_backend_fmp(arg0: i256) {
+    bb0:
+      mstore 64, arg0
+-     mstore 128, arg0
+      jump bb1
+    bb1:
+      returndata 0, 0
+  }
+  

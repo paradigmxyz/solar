@@ -852,6 +852,16 @@ impl Instruction {
         Self { kind, result_ty, result: None, metadata: InstructionMetadata::EMPTY }
     }
 
+    /// Clones an instruction for a fresh result, preserving semantic obligations and debug context.
+    /// Operand-dependent analysis facts must be recomputed at the new location.
+    pub(crate) fn clone_unallocated(&self) -> Self {
+        let mut cloned = self.clone();
+        cloned.result = None;
+        cloned.invalidate_operand_metadata();
+        cloned.metadata.flags.set_debug_info_handled();
+        cloned
+    }
+
     /// Marks this synthetic instruction as intentionally having no source location.
     #[must_use]
     pub(crate) fn with_debug_info_dropped(mut self) -> Self {
@@ -1202,6 +1212,40 @@ mod tests {
         inst.replace_kind(InstKind::Add(size, size));
         assert!(!inst.metadata.deferred_alloc());
         assert!(!inst.metadata.preserves_fmp());
+    }
+
+    #[test]
+    fn cloning_preserves_semantics_and_invalidates_facts() {
+        let size = ValueId::new(0);
+        let mut inst = Instruction::new(
+            InstKind::Alloc {
+                size,
+                kind: AllocationKind::Raw,
+                semantics: AllocationSemantics::INTERNAL,
+            },
+            Some(MirType::I256),
+        );
+        inst.set_result(Some(ValueId::new(1)));
+        inst.metadata.set_deferred_alloc();
+        inst.metadata.set_preserves_fmp(true);
+        inst.metadata.set_unchecked(true);
+        inst.metadata.set_modifier_depth(3);
+        inst.metadata.set_storage_alias(Some(StorageAlias::Slot(U256::from(7))));
+        inst.metadata.set_memory_region(Some(MemoryRegion::Scratch));
+        inst.metadata.set_effect(Some(EffectKind::MemoryRead));
+        let mut expected = inst.metadata.clone();
+        expected.set_storage_alias(None);
+        expected.set_memory_region(None);
+        expected.set_effect(None);
+        expected.flags.set_debug_info_handled();
+
+        let cloned = inst.clone_unallocated();
+        assert_eq!(cloned.result(), None);
+        assert_eq!(cloned.kind, inst.kind);
+        assert_eq!(cloned.result_ty, inst.result_ty);
+        assert_eq!(cloned.metadata, expected);
+        assert_eq!(inst.result(), Some(ValueId::new(1)));
+        assert_eq!(inst.metadata.memory_region(), Some(MemoryRegion::Scratch));
     }
 
     #[test]
