@@ -132,15 +132,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn validate_calldata_array_head(
+    /// Panics when the element bytes of the calldata array `value` do not fit in a word, before an
+    /// encoding copies them from where they lie. Only an array whose length assembly set can get
+    /// there; its range is not otherwise checked against the calldata, as solc does not check it.
+    pub(super) fn check_calldata_array_size(
         &mut self,
         value: ValueId,
         ty: Ty<'gcx>,
         abi_type: &AbiType,
     ) {
-        // bytes = length * element_head_size
-        // check_range(data, bytes)
-        if self.is_external_abi_argument(value) {
+        if self.is_decoded_external_argument(value) {
             return;
         }
         if self.builder.func().value_slice_location(value) != Some(SliceLocation::Calldata)
@@ -151,15 +152,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let AbiType::DynamicArray { element, location: SliceLocation::Calldata } = abi_type else {
             return;
         };
+        // bytes = checked(length * element_head_size)
         let word = self.builder.imm(element.head_size());
         let length = self.builder.slice_len(value);
-        let data = self.builder.slice_ptr(value);
-        let byte_length = self.builder.checked_mul(length, word);
-        self.check_calldata_range(data, byte_length);
+        self.builder.checked_mul(length, word);
     }
 
     pub(super) fn validate_calldata_bytes_argument(&mut self, value: ValueId, abi_type: &AbiType) {
-        if self.is_external_abi_argument(value) {
+        if self.is_decoded_external_argument(value) {
             return;
         }
         if self.builder.func().value_slice_location(value) == Some(SliceLocation::Calldata)
@@ -172,6 +172,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn is_external_abi_argument(&self, value: ValueId) -> bool {
         self.builder.func().selector.is_some()
             && matches!(self.builder.func().value(value), Value::Arg(_))
+    }
+
+    /// Whether `value` is an argument of an external function, which only ABI decoding passes. A
+    /// public function also takes its arguments from internal calls, which can pass a calldata
+    /// slice that assembly set.
+    pub(super) fn is_decoded_external_argument(&self, value: ValueId) -> bool {
+        self.is_external_abi_argument(value)
+            && self.builder.func().attributes.visibility == solar_ast::Visibility::External
     }
 
     pub(super) fn calldata_aggregate_requires_validation(&self, ty: Ty<'gcx>) -> bool {
@@ -292,7 +300,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             self.abi_type_for_value(value, abi_type)
         };
-        self.validate_calldata_bytes_argument(value, &abi_type);
         self.prepare_abi_argument(argument, parameter_ty, value, abi_type)
     }
 
@@ -304,8 +311,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         abi_type: AbiType,
     ) -> Option<(ValueId, AbiType)> {
         let abi_type = self.abi_type_for_value(value, abi_type);
-        self.validate_calldata_bytes_argument(value, &abi_type);
-        self.validate_calldata_array_head(value, ty, &abi_type);
         self.prepare_abi_argument(argument, ty, value, abi_type)
     }
 
@@ -316,6 +321,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut value: ValueId,
         mut abi_type: AbiType,
     ) -> Option<(ValueId, AbiType)> {
+        self.check_calldata_array_size(value, ty, &abi_type);
         let needs_validation = self.needs_calldata_aggregate_validation(value, ty);
         let validated_static =
             self.validate_calldata_static_argument_inner(value, ty, needs_validation);
