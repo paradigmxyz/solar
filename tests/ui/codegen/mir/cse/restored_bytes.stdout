@@ -34,7 +34,7 @@
       v1 = add arg0, 32
       mstore8 v1, 7
 -     v2 = mload arg0
-      mstore arg0, v0
+-     mstore arg0, v0
 -     ret v2
 +     ret v0
   }

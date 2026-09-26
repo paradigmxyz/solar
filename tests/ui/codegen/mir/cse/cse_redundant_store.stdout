@@ -1,0 +1,52 @@
+- // === ROOT/tests/ui/codegen/mir/cse/cse_redundant_store.mir (before cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/cse_redundant_store.mir (after cse) ===
+  @module CseRedundantStore
+  fn @loaded_word_written_back(arg0: i256) -> i256 {
+    bb0:
+      v0 = mload arg0
+-     mstore arg0, v0
+      ret v0
+  }
+  
+  fn @repeated_store(arg0: i256, arg1: i256) {
+    bb0:
+      mstore arg0, arg1
+-     mstore arg0, arg1
+      stop
+  }
+  
+  fn @dominated_store(arg0: i256, arg1: i1) -> i256 {
+    bb0:
+      v0 = mload arg0
+      jumpi arg1, bb1, bb2
+    bb2:
+      ret 0
+    bb1:
+-     mstore arg0, v0
+      ret v0
+  }
+  
+  fn @overlapping_byte_kept(arg0: i256) -> i256 {
+    bb0:
+      v0 = mload arg0
+      v1 = add arg0, 31
+      mstore8 v1, 1
+      mstore arg0, v0
+      ret v0
+  }
+  
+  fn @copy_kept(arg0: i256) -> i256 {
+    bb0:
+      v0 = mload arg0
+      calldatacopy arg0, 0, 32
+      mstore arg0, v0
+      ret v0
+  }
+  
+  fn @other_value_kept(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = mload arg0
+      mstore arg0, arg1
+      ret v0
+  }
+  
