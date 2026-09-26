@@ -724,3 +724,17 @@ fn borrowed_source_lookup_ownership() {
     assert_eq!(owned.data, 1..4);
     snapbox::assert_data_eq!(&owned.file.src[owned.data], snapbox::str!["ell"]);
 }
+
+#[test]
+fn borrowed_lines_into_owned_preserves_allocation() {
+    let sm = init_source_map();
+    let owned = {
+        let files = sm.files();
+        let lines = files.span_to_lines(Span::new(BytePos(1), BytePos(23))).unwrap();
+        let ptr = lines.data.as_ptr();
+        let owned = lines.into_owned();
+        assert_eq!(owned.data.as_ptr(), ptr);
+        owned
+    };
+    assert_eq!(owned.data.len(), 2);
+}
