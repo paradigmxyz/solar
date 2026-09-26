@@ -436,44 +436,41 @@ fn lower_ecrecover(
     r: ValueId,
     s: ValueId,
 ) -> ValueId {
-    // input = bytes(160)
-    // store(input, hash, 0)
-    // store(input, v, 32)
-    // store(input, r, 64)
-    // store(input, s, 96)
-    // precompile_call(1, input.data, 128, output.data, 32)
-    // result = load(output, 0)
-    let size = builder.imm(192);
-    let input =
-        builder.alloc_object(size, MemoryObjectLayout::Bytes, AllocationSemantics::SOLIDITY_ZEROED);
-    let length = builder.imm(160);
-    builder.set_memory_object_len(input, length, MemoryObjectKind::Bytes);
-    let pointer = builder.memory_object_data(input, MemoryObjectKind::Bytes);
+    // The input is staged past the free memory pointer without reserving it, and the address is
+    // returned in scratch space, as solc does. An invalid signature returns no data, so the
+    // output word is cleared first.
+    // input = fmp
+    // mstore(input, hash)
+    // mstore(input + 32, v)
+    // mstore(input + 64, r)
+    // mstore(input + 96, s)
+    // mstore(0, 0)
+    // success = precompile_call(1, input, 128, 0, 32)
+    // branch success, done, failed
+    // failed:
+    //   revert_returndata
+    // done:
+    //   result = mload(0)
+    let input = builder.fmp();
+    let input = builder.cast_word(input);
     for (offset, value) in [(0, hash), (32, v), (64, r), (96, s)] {
-        let offset = builder.imm(offset);
-        builder.memory_object_store_word(input, offset, value);
+        let address = builder.add_u64_offset(input, offset);
+        let value = builder.cast_word(value);
+        builder.mstore(address, value);
     }
-    let (output, output_len) = alloc_output(builder);
+    let zero = builder.imm(0);
+    builder.mstore(zero, zero);
     let address = builder.imm(1);
     let input_size = builder.imm(128);
     let output_size = builder.imm(32);
-    precompile_call(builder, evm, address, pointer, input_size, output, output_size);
-    let slice = builder.make_slice(output, output_len, SliceLocation::Memory);
-    let zero = builder.imm(0);
-    builder.memory_slice_load_word(slice, zero)
-}
-
-fn alloc_output(builder: &mut FunctionBuilder<'_>) -> (ValueId, ValueId) {
-    // output = alloc bytes(64), zeroed
-    // memory_object_len output = 32
-    // pointer = memory_object_data output
-    let size = builder.imm(64);
-    let output =
-        builder.alloc_object(size, MemoryObjectLayout::Bytes, AllocationSemantics::SOLIDITY_ZEROED);
-    let length = builder.imm(32);
-    builder.set_memory_object_len(output, length, MemoryObjectKind::Bytes);
-    let pointer = builder.memory_object_data(output, MemoryObjectKind::Bytes);
-    (pointer, length)
+    let success = precompile_call(builder, evm, address, input, input_size, zero, output_size);
+    let done = builder.create_block();
+    let failed = builder.create_block();
+    builder.branch(success, done, failed);
+    builder.switch_to_block(failed);
+    builder.revert_returndata();
+    builder.switch_to_block(done);
+    builder.mload(zero)
 }
 
 /// Calls a precompile with the gas left and returns whether the call succeeded.
