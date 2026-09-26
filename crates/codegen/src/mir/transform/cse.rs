@@ -310,7 +310,7 @@ struct GlobalCseContext<'a> {
     dom_tree: &'a DominatorTree,
     block_clobbers: &'a [(BlockId, Vec<Clobber>)],
     /// Where each side effect's clobbers sit in `block_clobbers`.
-    side_effect_clobbers: &'a FxHashMap<InstId, (usize, Range<usize>)>,
+    side_effect_clobbers: &'a SideEffectClobbers,
     /// Reachable predecessors, present only when clobbering blocks exist.
     predecessors: &'a IndexVec<BlockId, Vec<BlockId>>,
     cfg: &'a CfgInfo,
@@ -376,6 +376,9 @@ impl ExprCache {
         }
     }
 }
+
+/// The summary index and clobber range of each side-effecting instruction.
+type SideEffectClobbers = FxHashMap<InstId, (usize, Range<usize>)>;
 
 /// A single effect that invalidates state-dependent cached expressions.
 #[derive(Clone, Copy, Debug)]
@@ -862,7 +865,7 @@ impl CommonSubexprEliminator {
     fn block_clobber_summaries(
         &self,
         func: &Function,
-    ) -> (Vec<(BlockId, Vec<Clobber>)>, FxHashMap<InstId, (usize, Range<usize>)>) {
+    ) -> (Vec<(BlockId, Vec<Clobber>)>, SideEffectClobbers) {
         let no_replacements = FxHashMap::default();
         let mut summaries = Vec::new();
         let mut side_effects = FxHashMap::default();
