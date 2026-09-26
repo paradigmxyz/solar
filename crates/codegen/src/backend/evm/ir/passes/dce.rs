@@ -183,8 +183,14 @@ fn eliminate_in_block(
     let mut rewrites = 0;
     loop {
         edits.clear();
+        // A candidate ends at a `POP`, so no candidate starts at or after the last one.
+        let Some(last_pop) =
+            instructions.iter().rposition(|inst| inst.as_stack_op() == Some(StackOp::Pop))
+        else {
+            return rewrites;
+        };
         let mut start = 0;
-        while start < instructions.len() {
+        while start < last_pop {
             let Some(StackOp::Dup(depth)) = instructions[start].as_stack_op() else {
                 start += 1;
                 continue;
@@ -199,6 +205,7 @@ fn eliminate_in_block(
                 better_candidate(
                     find_candidate(
                         instructions,
+                        last_pop,
                         start,
                         depth,
                         Ghost::Original,
@@ -207,6 +214,7 @@ fn eliminate_in_block(
                     ),
                     find_candidate(
                         instructions,
+                        last_pop,
                         start,
                         depth,
                         Ghost::Duplicate,
@@ -217,6 +225,7 @@ fn eliminate_in_block(
             } else {
                 find_candidate(
                     instructions,
+                    last_pop,
                     start,
                     depth,
                     Ghost::Duplicate,
@@ -339,6 +348,7 @@ struct Edit {
 
 fn find_candidate(
     instructions: &[Instruction],
+    last_pop: usize,
     start: usize,
     duplicate_depth: usize,
     ghost: Ghost,
@@ -356,8 +366,10 @@ fn find_candidate(
     let start_op = instructions[start].as_stack_op()?;
     let mut candidate = Candidate::new(start, start_op, evm_version);
 
+    // Past the last `POP` the walk can only fail.
     let mut index = start + 1;
-    while let Some(inst) = instructions.get(index) {
+    while index <= last_pop {
+        let inst = &instructions[index];
         let stack_op = inst.as_stack_op();
         match stack_op {
             Some(StackOp::Pop) if slots.last().is_some_and(|slot| slot.is_ghost) => {
