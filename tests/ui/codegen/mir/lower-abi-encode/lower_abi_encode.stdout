@@ -105,59 +105,58 @@
 +     mstore v6, v5
 +     v7 = memory_object_len memoryarray, arg0
 +     v8 = ptrtoint memoryarray arg0 to i256
-+     v9 = ptrtoint memoryarray 0 to i256
-+     v10 = eq v8, v9
-+     v11 = eq v10, false
-+     v12 = zext i1 v11 to i256
-+     v13 = mul v7, v12
-+     mstore v3, v13
-+     v14 = add v3, 32
-+     v15 = mul v13, 32
-+     v16 = add v14, v15
-+     v17 = memory_object_data memoryarray, arg0
++     v9 = eq v8, 0
++     v10 = eq v9, false
++     v11 = zext i1 v10 to i256
++     v12 = mul v7, v11
++     mstore v3, v12
++     v13 = add v3, 32
++     v14 = mul v12, 32
++     v15 = add v13, v14
++     v16 = memory_object_data memoryarray, arg0
 +     jump bb1
 +   bb1:
-+     v18 = phi [bb0: v13], [bb2: v38]
-+     v19 = phi [bb0: v16], [bb2: v36]
-+     v20 = phi [bb0: v14], [bb2: v41]
-+     v21 = phi [bb0: v17], [bb2: v42]
-+     v22 = gt v18, 0
-+     jumpi v22, bb2, bb3
++     v17 = phi [bb0: v12], [bb2: v37]
++     v18 = phi [bb0: v15], [bb2: v35]
++     v19 = phi [bb0: v13], [bb2: v40]
++     v20 = phi [bb0: v16], [bb2: v41]
++     v21 = gt v17, 0
++     jumpi v21, bb2, bb3
 +   bb3:
-+     v43 = ptrtoint memptr v1 to i256
-+     v44 = sub v19, v43
-+     v45 = add v44, 0
-+     v46 = add v45, 31
-+     v47 = not 31
-+     v48 = and v46, v47
-+     v49 = alloc raw, exact, uninitialized, infallible, v48 !metadata(preserves_fmp)
-+     v50 = ptrtoint memptr v49 to i256
-+     v51 = make_memory_slice v50, v45
-+     ret v51
++     v42 = ptrtoint memptr v1 to i256
++     v43 = sub v18, v42
++     v44 = add v43, 0
++     v45 = add v44, 31
++     v46 = not 31
++     v47 = and v45, v46
++     v48 = alloc raw, exact, uninitialized, infallible, v47 !metadata(preserves_fmp)
++     v49 = ptrtoint memptr v48 to i256
++     v50 = make_memory_slice v49, v44
++     ret v50
 +   bb2:
-+     v23 = ptrtoint memptr v21 to i256
-+     v24 = mload v23
-+     v25 = sub v19, v14
-+     mstore v20, v25
-+     v26 = inttoptr i256 v24 to memoryarray
-+     v27 = memory_object_len memoryarray, v26
-+     v28 = eq v24, 0
-+     v29 = eq v28, false
-+     v30 = zext i1 v29 to i256
-+     v31 = mul v27, v30
-+     mstore v19, v31
-+     v32 = mul v31, 32
-+     v33 = add v19, 32
-+     v34 = inttoptr i256 v24 to memoryarray
-+     v35 = memory_object_data memoryarray, v34
-+     v36 = add v33, v32
-+     v37 = ptrtoint memptr v35 to i256
-+     mcopy v33, v37, v32 !metadata(memory=heap)
-+     v38 = sub v18, 1
-+     v39 = ptrtoint memptr v21 to i256
-+     v40 = add v39, 32
-+     v41 = add v20, 32
-+     v42 = inttoptr i256 v40 to memptr
++     v22 = ptrtoint memptr v20 to i256
++     v23 = mload v22
++     v24 = sub v18, v13
++     mstore v19, v24
++     v25 = inttoptr i256 v23 to memoryarray
++     v26 = memory_object_len memoryarray, v25
++     v27 = eq v23, 0
++     v28 = eq v27, false
++     v29 = zext i1 v28 to i256
++     v30 = mul v26, v29
++     mstore v18, v30
++     v31 = mul v30, 32
++     v32 = add v18, 32
++     v33 = inttoptr i256 v23 to memoryarray
++     v34 = memory_object_data memoryarray, v33
++     v35 = add v32, v31
++     v36 = ptrtoint memptr v34 to i256
++     mcopy v32, v36, v31 !metadata(memory=heap)
++     v37 = sub v17, 1
++     v38 = ptrtoint memptr v20 to i256
++     v39 = add v38, 32
++     v40 = add v19, 32
++     v41 = inttoptr i256 v39 to memptr
 +     jump bb1
   }
   

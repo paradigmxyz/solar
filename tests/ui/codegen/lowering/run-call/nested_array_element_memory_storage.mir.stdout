@@ -42,7 +42,7 @@ fn @test(arg0: memoryfixedarray) -> i256 [selector=0x55aeb383, abi_params=[array
     v82 = sload v79 !metadata(storage=symbolic(v79))
     v83 = mul v81, 8
     v84 = shr v83, v82
-    v85 = and v84, 255
+    v85 = trunc i256 v84 to i8
     v86 = lt 0, 2
     v87 = eq v86, false
     icall panic_if<0x32>, v87
@@ -57,7 +57,7 @@ fn @test(arg0: memoryfixedarray) -> i256 [selector=0x55aeb383, abi_params=[array
     v95 = sload v92 !metadata(storage=symbolic(v92))
     v96 = mul v94, 8
     v97 = shr v96, v95
-    v98 = and v97, 255
+    v98 = trunc i256 v97 to i8
     v99 = checked_add u8, v85, v98
     v100 = lt 1, 2
     v101 = eq v100, false
@@ -73,7 +73,7 @@ fn @test(arg0: memoryfixedarray) -> i256 [selector=0x55aeb383, abi_params=[array
     v109 = sload v106 !metadata(storage=symbolic(v106))
     v110 = mul v108, 8
     v111 = shr v110, v109
-    v112 = and v111, 255
+    v112 = trunc i256 v111 to i8
     v113 = checked_add u8, v99, v112
     v114 = lt 1, 2
     v115 = eq v114, false
@@ -89,9 +89,10 @@ fn @test(arg0: memoryfixedarray) -> i256 [selector=0x55aeb383, abi_params=[array
     v123 = sload v120 !metadata(storage=symbolic(v120))
     v124 = mul v122, 8
     v125 = shr v124, v123
-    v126 = and v125, 255
+    v126 = trunc i256 v125 to i8
     v127 = checked_add u8, v113, v126
-    ret v127
+    v128 = zext i8 v127 to i256
+    ret v128
   bb7:
     v16 = add 0, v14
     v17 = lt v14, 2
@@ -228,7 +229,7 @@ fn @test2(arg0: memoryfixedarray) -> i256 [selector=0x3fc8671b, abi_params=[arra
     v76 = sload v73 !metadata(storage=symbolic(v73))
     v77 = mul v75, 8
     v78 = shr v77, v76
-    v79 = and v78, 255
+    v79 = trunc i256 v78 to i8
     v80 = lt 0, 2
     v81 = eq v80, false
     icall panic_if<0x32>, v81
@@ -248,7 +249,7 @@ fn @test2(arg0: memoryfixedarray) -> i256 [selector=0x3fc8671b, abi_params=[arra
     v93 = sload v90 !metadata(storage=symbolic(v90))
     v94 = mul v92, 8
     v95 = shr v94, v93
-    v96 = and v95, 255
+    v96 = trunc i256 v95 to i8
     v97 = checked_add u8, v79, v96
     v98 = lt 0, 2
     v99 = eq v98, false
@@ -269,7 +270,7 @@ fn @test2(arg0: memoryfixedarray) -> i256 [selector=0x3fc8671b, abi_params=[arra
     v111 = sload v108 !metadata(storage=symbolic(v108))
     v112 = mul v110, 8
     v113 = shr v112, v111
-    v114 = and v113, 255
+    v114 = trunc i256 v113 to i8
     v115 = checked_add u8, v97, v114
     v116 = lt 0, 2
     v117 = eq v116, false
@@ -290,9 +291,10 @@ fn @test2(arg0: memoryfixedarray) -> i256 [selector=0x3fc8671b, abi_params=[arra
     v129 = sload v126 !metadata(storage=symbolic(v126))
     v130 = mul v128, 8
     v131 = shr v130, v129
-    v132 = and v131, 255
+    v132 = trunc i256 v131 to i8
     v133 = checked_add u8, v115, v132
-    ret v133
+    v134 = zext i8 v133 to i256
+    ret v134
   bb2:
     v6 = add v3, v4
     v7 = lt v4, 2

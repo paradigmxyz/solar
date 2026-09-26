@@ -1070,6 +1070,38 @@ class MemoryAddressTests(unittest.TestCase):
 
 
 class RuleTests(unittest.TestCase):
+    def test_stack_selection_rules(self):
+        report = verify_file(ISLE / "mir-to-evm/stack_select.isle", 5000)
+        self.assertEqual(len(report["rules"]), 15)
+        for result in report["rules"]:
+            with self.subTest(line=result["line"]):
+                self.assertEqual(result["status"], "proved", result)
+
+    def test_narrow_integer_rules(self):
+        path = ISLE / "mir/word.isle"
+        source = path.read_text().split(";; Extract one byte")[0]
+        rules = [
+            Rule(form, line, str(path))
+            for form, line in forms(source)
+            if form[0] == "rule"
+        ]
+        self.assertGreater(len(rules), 40)
+        for bits in (1, *range(8, 257, 8)):
+            for rule in rules:
+                with self.subTest(bits=bits, line=rule.line):
+                    cx = Context(integer_bits=bits)
+                    lhs, rhs = cx.obligation(rule)
+                    result, _ = check(lhs, rhs, cx.assumptions, 5000, cx.model)
+                    self.assertEqual(result["status"], "proved", result)
+
+    def test_narrow_integer_wrap_is_not_word_wrap(self):
+        form, line = forms("(rule (simplify (Op.Add x (one))) x)")[0]
+        cx = Context(integer_bits=8)
+        lhs, rhs = cx.obligation(Rule(form, line, "narrow.isle"))
+        result, _ = check(lhs, rhs, cx.assumptions, 5000, cx.model)
+        self.assertEqual(result["status"], "counterexample")
+        self.assertTrue(result["replayed"])
+
     def verify(self, source):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "rules.isle"
@@ -1180,6 +1212,11 @@ class RuleTests(unittest.TestCase):
             Rule(form, line, str(path))
             for form, line in forms(source[start:])
             if form[0] == "rule"
+            and not any(
+                isinstance(part, tuple)
+                and part[0] in ("integer_simplify", "integer_rewrite")
+                for part in form[1:]
+            )
         ]
         self.assertEqual(len(rules), 26)
         for rule in rules:
@@ -1229,6 +1266,7 @@ class RuleTests(unittest.TestCase):
             if form[0] == "rule"
             and contains(form, "Op.Mod")
             and contains(form, "power_of_two_shift")
+            and not contains(form, "integer_rewrite")
         ]
         self.assertEqual(len(rules), 1)
         context = Context()

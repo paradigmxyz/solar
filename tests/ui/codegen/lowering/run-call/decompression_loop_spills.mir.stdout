@@ -3,8 +3,8 @@
 fn @fallback() [fallback, payable] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 255
-    v2 = ne v1, 0
+    v1 = trunc i256 v0 to i8
+    v2 = ne v1, i8 0
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
@@ -12,10 +12,9 @@ fn @fallback() [fallback, payable] {
     v6 = sload 0 !metadata(storage=slot(0))
     v7 = not 255
     v8 = and v6, v7
-    v9 = zext i1 1 to i256
-    v10 = and v9, 255
-    v11 = or v8, v10
-    sstore 0, v11 !metadata(storage=slot(0))
+    v9 = and 1, 255
+    v10 = or v8, v9
+    sstore 0, v10 !metadata(storage=slot(0))
     icall @_decompress
     ret
   bb1:
@@ -124,45 +123,43 @@ fn @_decompress() {
 // === ROOT/tests/ui/codegen/lowering/run-call/decompression_loop_spills.sol:Harness ===
 @module Harness
 data:
-  Decompressor_initcode_0: hex"34600d5760fd8060115f395ff35b5f5ffd60c06040525f5460ff901615156028575f5460ff1981169050600160ff9016811790505f556036565b365f5f37365f205f5260205ff35b3615151560f9576003195f5f915b813681101515606b575f38855f305af493505050503d5f5f3e1515156067573d5ff35b3d5ffd5b35828281018290189150815f1a9150600181019050925080151515609b5783818153905060018101905092506044565b82359050828281018290189150815f1a915060018101905092505f1984818152905081607f811115151560d25791509350909160e0565b600181013683379150935090915b607f821691506001820191508184019150925091906044565b3636f3"
+  Decompressor_initcode_0: hex"34600d5760fc8060115f395ff35b5f5ffd60c06040525f5460ff901615156027575f5460ff198116905060ff600116811790505f556035565b365f5f37365f205f5260205ff35b3615151560f8576003195f5f915b813681101515606a575f38855f305af493505050503d5f5f3e1515156066573d5ff35b3d5ffd5b35828281018290189150815f1a9150600181019050925080151515609a5783818153905060018101905092506043565b82359050828281018290189150815f1a915060018101905092505f1984818152905081607f811115151560d15791509350909160df565b600181013683379150935090915b607f821691506001820191508184019150925091906043565b3636f3"
 
 fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 301, v1
+    v2 = and 300, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy Decompressor_initcode_0, v4, 270
+    data_copy Decompressor_initcode_0, v4, 269
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 270
+    v7 = add v6, 269
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 270
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v9 = create 0, v8, 269
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = gas
-    v14 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v14, 4
-    v15 = memory_object_data memorybytes, v14
-    v16 = ptrtoint memptr v15 to i256
-    mstore v16, 0xff80ff8000000000000000000000000000000000000000000000000000000000
-    v17 = address_call v9, v14, gas v13
-    v18 = icall returndata_bytes<>
-    icall require<short_string>, v17, 4, 0x63616c6c00000000000000000000000000000000000000000000000000000000
-    v19 = abi_decode [bytes32], v18
-    v20 = not 31
-    v21 = and 319, v20
-    v22 = alloc memorybytes, exact, zeroed, panic, v21
-    set_memory_object_len memorybytes, v22, 256
-    v23 = keccak256_bytes v22
-    v24 = eq v19, v23
-    icall require<short_string>, v24, 6, 0x6f75747075740000000000000000000000000000000000000000000000000000
+    v11 = gas
+    v12 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v12, 4
+    v13 = memory_object_data memorybytes, v12
+    v14 = ptrtoint memptr v13 to i256
+    mstore v14, 0xff80ff8000000000000000000000000000000000000000000000000000000000
+    v15 = address_call v9, v12, gas v11
+    v16 = icall returndata_bytes<>
+    icall require<short_string>, v15, 4, 0x63616c6c00000000000000000000000000000000000000000000000000000000
+    v17 = abi_decode [bytes32], v16
+    v18 = not 31
+    v19 = and 319, v18
+    v20 = alloc memorybytes, exact, zeroed, panic, v19
+    set_memory_object_len memorybytes, v20, 256
+    v21 = keccak256_bytes v20
+    v22 = eq v17, v21
+    icall require<short_string>, v22, 6, 0x6f75747075740000000000000000000000000000000000000000000000000000
     ret 1
 }

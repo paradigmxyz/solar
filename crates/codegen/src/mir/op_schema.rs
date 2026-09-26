@@ -99,6 +99,8 @@ pub(crate) enum ResultKind {
     None,
     /// A 256-bit integer.
     I256,
+    /// An integer with the same width as its operands.
+    Integer,
     /// A raw memory pointer.
     MemPtr,
     /// A 160-bit integer.
@@ -115,7 +117,7 @@ impl ResultKind {
     pub(crate) const fn default_type(self) -> Option<MirType> {
         match self {
             Self::None | Self::Custom => None,
-            Self::I256 => Some(MirType::I256),
+            Self::I256 | Self::Integer => Some(MirType::I256),
             Self::MemPtr => Some(MirType::MemPtr),
             Self::I160 => Some(MirType::I160),
             Self::I1 => Some(MirType::I1),
@@ -130,7 +132,13 @@ impl ResultKind {
 
     /// Checks the exact result type; scalar conversions require explicit instructions.
     pub(crate) fn admits_type(self, ty: MirType) -> bool {
-        self.default_type().is_none_or(|expected| expected == ty)
+        if self == Self::I160 && ty == MirType::I256 {
+            true
+        } else if self == Self::Integer {
+            matches!(ty, MirType::Int(bits) if MirType::valid_integer_width(bits.get()))
+        } else {
+            self.default_type().is_none_or(|expected| expected == ty)
+        }
     }
 }
 
@@ -747,6 +755,25 @@ macro_rules! define_mir_ops {
         }
 
         impl Op {
+            /// Returns the declared result kind without rebuilding an instruction.
+            pub(crate) const fn result_kind(self) -> ResultKind {
+                match self {
+                    $(
+                        Self::$variant $( { $( $operand: _ ),+ } )? $( { $( $field: _ ),+ } )? => ResultKind::$result,
+                    )+
+                }
+            }
+
+            /// Returns the first value operand retained by the rewrite view.
+            pub(crate) fn first_operand(self) -> Option<ValueId> {
+                let mut first = None;
+                let _ = self.map_values(|value| {
+                    first.get_or_insert(value);
+                    value
+                });
+                first
+            }
+
             /// Orders each declared commutative pair for value-numbering keys.
             /// Other operands, including a modular operation's modulus, stay in place.
             pub(crate) fn canonicalize_commutative(self) -> Self {
@@ -920,9 +947,9 @@ define_mir_ops! {
         effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
     #[operand_types(func => None)]
     Bitcast(operand0: ValueId),
-    #[mir_op(mnemonic = "checked_binary", result = I256, phases = PhaseSet::SEMANTIC,
+    #[mir_op(mnemonic = "checked_binary", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![arithmetic.ty().mir_type(), if *op == CheckedOp::Pow { MirType::I256 } else { arithmetic.ty().mir_type() }]))]
     CheckedBinary {
         op: CheckedOp,
         arithmetic: ArithmeticKind,
@@ -976,7 +1003,7 @@ define_mir_ops! {
     /// Addition: `a + b`
     #[mir_op(
         mnemonic = "add",
-        result = I256,
+        result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
@@ -985,12 +1012,12 @@ define_mir_ops! {
     )]
     #[commutative(a, b)]
     #[builder(add)]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
     Add(a: ValueId, b: ValueId),
     /// Subtraction: `a - b`
     #[mir_op(
         mnemonic = "sub",
-        result = I256,
+        result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
@@ -998,12 +1025,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(sub)]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
     Sub(a: ValueId, b: ValueId),
     /// Multiplication: `a * b`
     #[mir_op(
         mnemonic = "mul",
-        result = I256,
+        result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
@@ -1012,12 +1039,12 @@ define_mir_ops! {
     )]
     #[commutative(a, b)]
     #[builder(mul)]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
     Mul(a: ValueId, b: ValueId),
     /// Unsigned division: `a / b`
     #[mir_op(
         mnemonic = "div",
-        result = I256,
+        result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -1025,12 +1052,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(div)]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
     Div(a: ValueId, b: ValueId),
     /// Signed division: `a / b`
     #[mir_op(
         mnemonic = "sdiv",
-        result = I256,
+        result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -1038,12 +1065,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(sdiv)]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
     SDiv(a: ValueId, b: ValueId),
     /// Unsigned modulo: `a % b`
     #[mir_op(
         mnemonic = "mod",
-        result = I256,
+        result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -1051,12 +1078,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(mod_)]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
     Mod(a: ValueId, b: ValueId),
     /// Signed modulo: `a % b`
     #[mir_op(
         mnemonic = "smod",
-        result = I256,
+        result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -1064,12 +1091,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(smod)]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
     SMod(a: ValueId, b: ValueId),
     /// Exponentiation: `a ** b`
     #[mir_op(
         mnemonic = "exp",
-        result = I256,
+        result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -1077,7 +1104,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(exp)]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
     Exp(a: ValueId, b: ValueId),
     /// Add modulo: `(a + b) % n`
     #[mir_op(
@@ -1112,7 +1139,7 @@ define_mir_ops! {
     /// Bitwise AND: `a & b`
     #[mir_op(
         mnemonic = "and",
-        result = I256,
+        result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
@@ -1121,12 +1148,12 @@ define_mir_ops! {
     )]
     #[commutative(a, b)]
     #[builder(and)]
-    #[operand_types(func => None)]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
     And(a: ValueId, b: ValueId),
     /// Bitwise OR: `a | b`
     #[mir_op(
         mnemonic = "or",
-        result = I256,
+        result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
@@ -1135,12 +1162,12 @@ define_mir_ops! {
     )]
     #[commutative(a, b)]
     #[builder(or)]
-    #[operand_types(func => None)]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
     Or(a: ValueId, b: ValueId),
     /// Bitwise XOR: `a ^ b`
     #[mir_op(
         mnemonic = "xor",
-        result = I256,
+        result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
@@ -1149,12 +1176,12 @@ define_mir_ops! {
     )]
     #[commutative(a, b)]
     #[builder(xor)]
-    #[operand_types(func => None)]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
     Xor(a: ValueId, b: ValueId),
     /// Bitwise NOT: `~a`
     #[mir_op(
         mnemonic = "not",
-        result = I256,
+        result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -1162,12 +1189,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(not)]
-    #[operand_types(func => Some(smallvec![MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 1]))]
     Not(a: ValueId),
     /// Count leading zero bits.
     #[mir_op(
         mnemonic = "clz",
-        result = I256,
+        result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -1175,12 +1202,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(clz)]
-    #[operand_types(func => Some(smallvec![MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 1]))]
     Clz(a: ValueId),
     /// Left shift: `a << b`
     #[mir_op(
         mnemonic = "shl",
-        result = I256,
+        result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
@@ -1188,12 +1215,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(shl)]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *shift); 2]))]
     Shl(shift: ValueId, value: ValueId),
     /// Logical right shift: `a >> b`
     #[mir_op(
         mnemonic = "shr",
-        result = I256,
+        result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
@@ -1201,12 +1228,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(shr)]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *shift); 2]))]
     Shr(shift: ValueId, value: ValueId),
     /// Arithmetic right shift: `a >> b` (signed)
     #[mir_op(
         mnemonic = "sar",
-        result = I256,
+        result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
@@ -1214,7 +1241,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(sar)]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *shift); 2]))]
     Sar(shift: ValueId, value: ValueId),
     /// Extract a byte: `byte(i, x)`
     #[mir_op(
@@ -1242,7 +1269,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(lt)]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
     Lt(a: ValueId, b: ValueId),
     /// Greater than (unsigned): `a > b`
     #[mir_op(
@@ -1255,7 +1282,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(gt)]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
     Gt(a: ValueId, b: ValueId),
     /// Less than (signed): `a < b`
     #[mir_op(
@@ -1268,7 +1295,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(slt)]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
     SLt(a: ValueId, b: ValueId),
     /// Greater than (signed): `a > b`
     #[mir_op(
@@ -1281,7 +1308,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(sgt)]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
     SGt(a: ValueId, b: ValueId),
     /// Equality: `a == b`
     #[mir_op(
@@ -1295,7 +1322,7 @@ define_mir_ops! {
     )]
     #[commutative(a, b)]
     #[builder(eq)]
-    #[operand_types(func => None)]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
     Eq(a: ValueId, b: ValueId),
     /// Inequality: `a != b`.
     #[mir_op(
@@ -1309,7 +1336,7 @@ define_mir_ops! {
     )]
     #[commutative(a, b)]
     #[builder(ne)]
-    #[operand_types(func => None)]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
     Ne(a: ValueId, b: ValueId),
 
     // Memory operations

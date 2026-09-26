@@ -199,6 +199,8 @@ struct ResidentSearchContext {
     cfg: CfgInfo,
     /// Operand occurrences per candidate value across the whole function.
     value_uses: FxHashMap<ValueId, usize>,
+    /// Arguments live where computed values exhaust direct stack access.
+    frame_required: DenseBitSet<ValueId>,
 }
 
 /// Complete stack calling convention selected for one non-recursive static callee.
@@ -796,35 +798,22 @@ mod tests {
                     |mut codegen| {
                         let mut function = Function::new(Ident::DUMMY);
                         let mut builder = FunctionBuilder::new(&mut function);
-                        let argument = builder.add_param(source);
-                        let result = builder.emit_inst(cast.clone(), Some(destination));
-                        builder.set_return_type(destination);
-                        builder.ret([result]);
-                        let index = function.blocks[BlockId::ENTRY].instructions.len() - 1;
-                        let instruction = function.blocks[BlockId::ENTRY].instructions[index];
-                        let liveness = Liveness::compute(&function);
-                        // CALLVALUE; cast argument
-                        codegen.asm.emit_op(op::CALLVALUE);
-                        codegen.scheduler.stack.push(argument);
-                        codegen.generate_inst(
-                            FunctionId::from_usize(0),
-                            instruction,
-                            &function,
-                            &cast,
-                            &liveness,
-                            BlockId::ENTRY,
-                            index,
-                            Some(result),
-                        );
-                        // MSTORE 0, result; RETURN 0, 32
-                        codegen.asm.emit_push(U256::ZERO);
-                        codegen.asm.emit_op(op::MSTORE);
-                        codegen.asm.emit_push(U256::from(32));
-                        codegen.asm.emit_push(U256::ZERO);
-                        codegen.asm.emit_op(op::RETURN);
-                        let bytecode = codegen.asm.assemble().bytecode;
+                        let input = builder.callvalue();
+                        let argument = builder.cast(input, source);
+                        let mut cast = cast.clone();
+                        cast.visit_operands_mut(|operand| *operand = argument);
+                        let result = builder.emit_inst(cast, Some(destination));
+                        let result = builder.cast_word(result);
+                        let zero = builder.imm(0);
+                        builder.mstore(zero, result);
+                        let size = builder.imm(32);
+                        builder.ret_data(zero, size);
+                        let mut module = Module::new(Ident::DUMMY);
+                        let entry = module.add_function(function);
+                        module.set_dispatch_entry(entry);
+                        let artifact = codegen.lower_module(&mut module);
                         assert_eq!(codegen.gcx.dcx().err_count(), 0);
-                        disassemble(&bytecode, evm_version)
+                        disassemble(&artifact.runtime, evm_version)
                     },
                 ));
             }
@@ -835,6 +824,8 @@ mod tests {
 Byzantium
 sext_i1_i256
 CALLVALUE
+ISZERO
+ISZERO
 PUSH1 0x00
 SUB
 PUSH1 0x00
@@ -844,15 +835,21 @@ PUSH1 0x00
 RETURN
 sext_i1_i160
 CALLVALUE
+ISZERO
+ISZERO
+PUSH1 0x00
+SUB
 PUSH20 0xffffffffffffffffffffffffffffffffffffffff
-MUL
+AND
 PUSH1 0x00
 MSTORE
 PUSH1 0x20
 PUSH1 0x00
 RETURN
 sext_i160_i256
+PUSH20 0xffffffffffffffffffffffffffffffffffffffff
 CALLVALUE
+AND
 PUSH1 0x13
 SIGNEXTEND
 PUSH1 0x00
@@ -861,8 +858,8 @@ PUSH1 0x20
 PUSH1 0x00
 RETURN
 trunc_i256_i1
-CALLVALUE
 PUSH1 0x01
+CALLVALUE
 AND
 PUSH1 0x00
 MSTORE
@@ -870,8 +867,8 @@ PUSH1 0x20
 PUSH1 0x00
 RETURN
 trunc_i256_i160
-CALLVALUE
 PUSH20 0xffffffffffffffffffffffffffffffffffffffff
+CALLVALUE
 AND
 PUSH1 0x00
 MSTORE
@@ -879,15 +876,17 @@ PUSH1 0x20
 PUSH1 0x00
 RETURN
 zext_i160_i256
+PUSH20 0xffffffffffffffffffffffffffffffffffffffff
 CALLVALUE
+AND
 PUSH1 0x00
 MSTORE
 PUSH1 0x20
 PUSH1 0x00
 RETURN
 ptrtoint_i1
-CALLVALUE
 PUSH1 0x01
+CALLVALUE
 AND
 PUSH1 0x00
 MSTORE
@@ -895,8 +894,8 @@ PUSH1 0x20
 PUSH1 0x00
 RETURN
 ptrtoint_i160
-CALLVALUE
 PUSH20 0xffffffffffffffffffffffffffffffffffffffff
+CALLVALUE
 AND
 PUSH1 0x00
 MSTORE
@@ -927,6 +926,8 @@ RETURN
 Osaka
 sext_i1_i256
 CALLVALUE
+ISZERO
+ISZERO
 PUSH0
 SUB
 PUSH0
@@ -936,17 +937,27 @@ PUSH0
 RETURN
 sext_i1_i160
 CALLVALUE
+ISZERO
+ISZERO
 PUSH0
 SUB
+PUSH0
+NOT
 PUSH1 0x60
 SHR
+AND
 PUSH0
 MSTORE
 PUSH1 0x20
 PUSH0
 RETURN
 sext_i160_i256
+PUSH0
+NOT
+PUSH1 0x60
+SHR
 CALLVALUE
+AND
 PUSH1 0x13
 SIGNEXTEND
 PUSH0
@@ -955,8 +966,8 @@ PUSH1 0x20
 PUSH0
 RETURN
 trunc_i256_i1
-CALLVALUE
 PUSH1 0x01
+CALLVALUE
 AND
 PUSH0
 MSTORE
@@ -964,11 +975,11 @@ PUSH1 0x20
 PUSH0
 RETURN
 trunc_i256_i160
-CALLVALUE
 PUSH0
 NOT
 PUSH1 0x60
 SHR
+CALLVALUE
 AND
 PUSH0
 MSTORE
@@ -976,15 +987,20 @@ PUSH1 0x20
 PUSH0
 RETURN
 zext_i160_i256
+PUSH0
+NOT
+PUSH1 0x60
+SHR
 CALLVALUE
+AND
 PUSH0
 MSTORE
 PUSH1 0x20
 PUSH0
 RETURN
 ptrtoint_i1
-CALLVALUE
 PUSH1 0x01
+CALLVALUE
 AND
 PUSH0
 MSTORE
@@ -992,11 +1008,11 @@ PUSH1 0x20
 PUSH0
 RETURN
 ptrtoint_i160
-CALLVALUE
 PUSH0
 NOT
 PUSH1 0x60
 SHR
+CALLVALUE
 AND
 PUSH0
 MSTORE
@@ -1216,7 +1232,14 @@ RETURN
             let (block, start) = codegen.asm.next_instruction_position();
             codegen.asm.emit_op(op::ADD);
             codegen.emit_push_label(label);
-            codegen.asm.remove_instructions(&mut [(block, start..start + 1)]);
+            codegen.asm.emit_op(op::MUL);
+            codegen.emit_push_label(label);
+            codegen.asm.emit_op(op::SUB);
+            codegen.asm.remove_instructions(&mut [
+                (block, start + 4..start + 5),
+                (block, start..start + 1),
+                (block, start + 2..start + 3),
+            ]);
             codegen.asm.define_label(label);
 
             let (module, _) = codegen.asm.finish_evm_ir().unwrap();
@@ -1224,6 +1247,26 @@ RETURN
                 module.blocks[ir::BlockId::ENTRY].instructions[0].pushed_block(),
                 Some(ir::BlockId::from_usize(1))
             );
+            assert_eq!(module.blocks[ir::BlockId::ENTRY].instructions.len(), 2);
+            assert_eq!(
+                module.blocks[ir::BlockId::ENTRY].instructions[1].pushed_block(),
+                Some(ir::BlockId::from_usize(1))
+            );
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "instruction removal ranges overlap")]
+    fn removing_overlapping_instructions_is_rejected() {
+        with_codegen(CompileOpts::default(), |mut codegen| {
+            let (block, start) = codegen.asm.next_instruction_position();
+            for _ in 0..3 {
+                codegen.asm.emit_op(op::ADD);
+            }
+            codegen.asm.remove_instructions(&mut [
+                (block, start + 1..start + 3),
+                (block, start..start + 2),
+            ]);
         });
     }
 

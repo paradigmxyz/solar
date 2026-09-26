@@ -31,13 +31,12 @@ fn @same(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf708a77c, pure,
     ret v3
 }
 
-fn @different(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x21945970, pure, abi_params=[u256, u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @different(arg0: i256, arg1: i256, arg2: i256) -> i1 [selector=0x21945970, pure, abi_params=[u256, u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg0, arg2
     v1 = and arg1, arg2
     v2 = ne v0, v1
-    v3 = zext i1 v2 to i256
-    ret v3
+    ret v2
 }
 
 fn @checkedLow(arg0: i256) -> i256 [selector=0x58da7173, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {

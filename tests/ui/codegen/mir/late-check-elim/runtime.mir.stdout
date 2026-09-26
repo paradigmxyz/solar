@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/mir/late-check-elim/runtime.sol:LateMemoryRuntime ===
 @module LateMemoryRuntime
-fn @ascii(arg0: i256) -> i256 [selector=0x394abd12, pure, abi_params=[u8], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @ascii(arg0: i8) -> i1 [selector=0x394abd12, pure, abi_params=[u8], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = not 31
     v1 = and 64, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 1
-    v3 = and arg0, 255
+    v3 = zext i8 arg0 to i256
     v4 = shl 248, v3
     v5 = memory_object_len memorybytes, v2
     v6 = lt 0, v5
@@ -26,8 +26,7 @@ fn @ascii(arg0: i256) -> i256 [selector=0x394abd12, pure, abi_params=[u8], abi_r
   bb5:
     jump bb2
   bb2:
-    v24 = zext i1 1 to i256
-    ret v24
+    ret true
   bb4:
     v15 = memory_object_len memorybytes, v11
     v16 = lt v9, v15
@@ -36,8 +35,9 @@ fn @ascii(arg0: i256) -> i256 [selector=0x394abd12, pure, abi_params=[u8], abi_r
     v18 = memory_object_load_byte memorybytes, v11, v9
     v19 = shl 248, v18
     v20 = shr 248, v19
-    v21 = gt v20, 127
-    jumpi v21, bb7, bb8
+    v21 = trunc i256 v20 to i8
+    v22 = gt v21, i8 127
+    jumpi v22, bb7, bb8
   bb8:
     jump bb9
   bb9:
@@ -48,8 +48,7 @@ fn @ascii(arg0: i256) -> i256 [selector=0x394abd12, pure, abi_params=[u8], abi_r
     v23 = checked_add u256, v9, 1
     jump bb1
   bb7:
-    v22 = zext i1 0 to i256
-    ret v22
+    ret false
 }
 
 fn @sum(arg0: memoryarray) -> i256 [selector=0x0194db8e, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -89,9 +88,9 @@ fn @shrinkingLoop() -> i256 [selector=0x99f5cf3a, pure, abi_params=[], abi_retur
     set_memory_object_len memorybytes, v2, 1
     jump bb1
   bb1:
-    v3 = phi [bb0: 0], [bb3: v15]
+    v3 = phi [bb0: 0], [bb3: v17]
     v4 = phi [bb0: v2], [bb3: v4]
-    v5 = phi [bb0: 0], [bb3: v16]
+    v5 = phi [bb0: 0], [bb3: v18]
     v6 = memory_object_len memorybytes, v4
     v7 = lt v5, v6
     jumpi v7, bb4, bb5
@@ -109,12 +108,14 @@ fn @shrinkingLoop() -> i256 [selector=0x99f5cf3a, pure, abi_params=[], abi_retur
     v12 = memory_object_load_byte memorybytes, v4, v5
     v13 = shl 248, v12
     v14 = shr 248, v13
-    v15 = checked_add u256, v3, v14
+    v15 = trunc i256 v14 to i8
+    v16 = zext i8 v15 to i256
+    v17 = checked_add u256, v3, v16
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v16 = checked_add u256, v5, 1
+    v18 = checked_add u256, v5, 1
     jump bb1
 }
 

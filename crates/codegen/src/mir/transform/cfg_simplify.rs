@@ -10,11 +10,13 @@
 //! Remove blocks that contain no instructions and only an unconditional jump,
 //! redirecting predecessors to the target.
 //!
-//! A branch also folds when its sole incoming edge establishes the same SSA condition.
+//! A branch also folds when a chain of unique incoming edges establishes the same SSA condition.
 //! The block keeps its instructions; only its terminator changes. Entry blocks and
-//! predecessors whose two arms reach the block provide no such fact. `branch-simplify`
-//! runs just this terminator cleanup after lowering, followed by unreachable-block removal.
-//! It leaves block merging and terminal sharing to the backend to preserve stack lifetimes.
+//! predecessors whose two arms reach the block provide no such fact. The bounded walk stops
+//! at the condition definition so loop iterations cannot reuse a prior iteration’s condition.
+//! `branch-simplify` runs just this terminator cleanup after lowering, followed by
+//! unreachable-block removal. It leaves block merging and terminal sharing to the backend to
+//! preserve stack lifetimes.
 //!
 //! ## Dead Function Elimination
 //! Remove functions that are never called, starting from entry points
@@ -520,24 +522,33 @@ impl CfgSimplifier {
         let taken = if let Some(value) = func.value_u256(*condition) {
             !value.is_zero()
         } else {
-            if block == BlockId::ENTRY {
-                return None;
-            }
-            let [pred] = func.blocks[block].predecessors.as_slice() else {
-                return None;
+            let definition = match func.value(*condition) {
+                Value::Inst(id) => Some(*id),
+                _ => None,
             };
-            let Terminator::Branch {
-                condition: incoming,
-                then_block: incoming_then,
-                else_block: incoming_else,
-            } = func.blocks[*pred].terminator.as_ref()?
-            else {
-                return None;
-            };
-            if incoming != condition || incoming_then == incoming_else {
-                return None;
+            let mut cursor = block;
+            let mut known = None;
+            for _ in 0..16 {
+                if cursor == BlockId::ENTRY
+                    || definition.is_some_and(|id| func.blocks[cursor].instructions.contains(&id))
+                {
+                    break;
+                }
+                let [pred] = func.blocks[cursor].predecessors.as_slice() else { break };
+                if let Some(Terminator::Branch {
+                    condition: incoming,
+                    then_block: incoming_then,
+                    else_block: incoming_else,
+                }) = func.blocks[*pred].terminator.as_ref()
+                    && incoming == condition
+                    && incoming_then != incoming_else
+                {
+                    known = Some(*incoming_then == cursor);
+                    break;
+                }
+                cursor = *pred;
             }
-            *incoming_then == block
+            known?
         };
         Some(if taken { *then_block } else { *else_block })
     }

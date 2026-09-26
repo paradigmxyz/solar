@@ -108,49 +108,47 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
     v42 = sload v39 !metadata(storage=symbolic(v39))
     v43 = mul v41, 8
     v44 = shr v43, v42
-    v45 = and v44, 255
-    v46 = shl 248, v45
-    v47 = or v46, 0x800000000000000000000000000000000000000000000000000000000000000
-    v48 = and v47, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v49 = mul v41, 8
-    v50 = shl v49, 255
-    v51 = sload v39 !metadata(storage=symbolic(v39))
-    v52 = not v50
-    v53 = and v51, v52
-    v54 = shr 248, v48
-    v55 = and v54, 255
-    v56 = shl v49, v55
-    v57 = or v53, v56
-    sstore v39, v57 !metadata(storage=symbolic(v39))
-    v58 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v58
-    v59 = and v58, 1
-    v60 = eq v59, 1
-    v61 = sub 0, v59
-    v62 = or 127, v61
-    v63 = shr 1, v58
-    v64 = and v63, v62
-    v65 = lt 31, v64
-    v66 = eq v65, false
-    icall panic_if<0x32>, v66
-    jumpi v60, bb7, bb8
+    v45 = shl 248, v44
+    v46 = or v45, 0x800000000000000000000000000000000000000000000000000000000000000
+    v47 = and v46, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v48 = mul v41, 8
+    v49 = shl v48, 255
+    v50 = sload v39 !metadata(storage=symbolic(v39))
+    v51 = not v49
+    v52 = and v50, v51
+    v53 = shr 248, v47
+    v54 = and v53, 255
+    v55 = shl v48, v54
+    v56 = or v52, v55
+    sstore v39, v56 !metadata(storage=symbolic(v39))
+    v57 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v57
+    v58 = and v57, 1
+    v59 = eq v58, 1
+    v60 = sub 0, v58
+    v61 = or 127, v60
+    v62 = shr 1, v57
+    v63 = and v62, v61
+    v64 = lt 31, v63
+    v65 = eq v64, false
+    icall panic_if<0x32>, v65
+    jumpi v59, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v67 = storage_array_data_slot 0
-    v68 = shr 5, 31
-    v69 = add v67, v68
+    v66 = storage_array_data_slot 0
+    v67 = shr 5, 31
+    v68 = add v66, v67
     jump bb9
   bb9:
-    v70 = phi [bb7: v69], [bb8: 0]
-    v71 = and 31, 31
-    v72 = sub 31, v71
-    v73 = sload v70 !metadata(storage=symbolic(v70))
-    v74 = mul v72, 8
-    v75 = shr v74, v73
-    v76 = and v75, 255
-    v77 = shl 248, v76
-    ret v77
+    v69 = phi [bb7: v68], [bb8: 0]
+    v70 = and 31, 31
+    v71 = sub 31, v70
+    v72 = sload v69 !metadata(storage=symbolic(v69))
+    v73 = mul v71, 8
+    v74 = shr v73, v72
+    v75 = shl 248, v74
+    ret v75
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {

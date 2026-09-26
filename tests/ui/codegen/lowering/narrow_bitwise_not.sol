@@ -2,20 +2,16 @@
 //@ filecheck:
 
 contract NarrowBitwiseNot {
-    // CHECK-LABEL: fn @notUint8{{[( ]}}
-    // CHECK: [[VALUE:v[0-9]+]] = and arg0, 255
-    // CHECK: [[NOT:v[0-9]+]] = not [[VALUE]]
-    // CHECK-NEXT: [[CLEAN:v[0-9]+]] = and [[NOT]], 255
-    // CHECK-NEXT: ret [[CLEAN]]
+    // CHECK-LABEL: fn @notUint8(arg0: i8) -> i8
+    // CHECK: [[NOT:v[0-9]+]] = not arg0
+    // CHECK-NEXT: ret [[NOT]]
     function notUint8(uint8 value) external pure returns (uint8) {
         return ~value;
     }
 
-    // CHECK-LABEL: fn @notUint16{{[( ]}}
-    // CHECK: [[VALUE:v[0-9]+]] = and arg0, 0xffff
-    // CHECK: [[NOT:v[0-9]+]] = not [[VALUE]]
-    // CHECK-NEXT: [[CLEAN:v[0-9]+]] = and [[NOT]], 0xffff
-    // CHECK-NEXT: ret [[CLEAN]]
+    // CHECK-LABEL: fn @notUint16(arg0: i16) -> i16
+    // CHECK: [[NOT:v[0-9]+]] = not arg0
+    // CHECK-NEXT: ret [[NOT]]
     function notUint16(uint16 value) external pure returns (uint16) {
         return ~value;
     }
@@ -27,9 +23,8 @@ contract NarrowBitwiseNot {
         return ~value;
     }
 
-    // CHECK-LABEL: fn @notInt8{{[( ]}}
-    // CHECK: [[VALUE:v[0-9]+]] = signextend 0, arg0
-    // CHECK: [[NOT:v[0-9]+]] = not [[VALUE]]
+    // CHECK-LABEL: fn @notInt8(arg0: i8) -> i8
+    // CHECK: [[NOT:v[0-9]+]] = not arg0
     // CHECK-NEXT: ret [[NOT]]
     function notInt8(int8 value) external pure returns (int8) {
         return ~value;

@@ -1,15 +1,41 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/join_ranges_runtime.sol:JoinedRanges ===
 @module JoinedRanges
+fn @guardedDifference(arg0: i8, arg1: i8) -> i8 [selector=0xa113f032, pure, abi_params=[u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
+  bb0:
+    v0 = lt arg0, arg1
+    v1 = eq v0, false
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v3 = sub arg0, arg1
+    ret v3
+  bb1:
+    v2 = checked_sub u8, arg0, arg1
+    ret v2
+}
+
+fn @truncatedNonzero(arg0: i256) -> i256 [selector=0x40d5529f, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = trunc i256 arg0 to i8
+    v1 = gt v0, i8 0
+    v2 = eq v1, false
+    icall revert_if<empty>, v2
+    v3 = checked_sub u256, arg0, 1
+    ret v3
+}
+
 fn @castBound(arg0: i256) -> i256 [selector=0x5411803f, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = lt arg0, 128
     v1 = eq v0, false
     icall revert_if<empty>, v1
-    v2 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = lt v2, 128
-    v4 = eq v3, false
-    icall revert_if<empty>, v4
-    ret v2
+    v2 = trunc i256 arg0 to i160
+    v3 = zext i160 v2 to i256
+    v4 = lt v3, 128
+    v5 = eq v4, false
+    icall revert_if<empty>, v5
+    ret v3
 }
 
 fn @lossyCast(arg0: i256) -> i256 [selector=0x85cfc24a, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -17,8 +43,9 @@ fn @lossyCast(arg0: i256) -> i256 [selector=0x85cfc24a, pure, abi_params=[u256],
     v0 = gt arg0, 255
     v1 = eq v0, false
     icall revert_if<empty>, v1
-    v2 = and arg0, 255
-    ret v2
+    v2 = trunc i256 arg0 to i8
+    v3 = zext i8 v2 to i256
+    ret v3
 }
 
 fn @signedCast(arg0: i256) -> i256 [selector=0x6e846f20, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
@@ -26,8 +53,8 @@ fn @signedCast(arg0: i256) -> i256 [selector=0x6e846f20, pure, abi_params=[u256]
     v0 = lt arg0, 256
     v1 = eq v0, false
     icall revert_if<empty>, v1
-    v2 = and arg0, 255
-    v3 = signextend 0, v2
+    v2 = trunc i256 arg0 to i8
+    v3 = sext i8 v2 to i256
     ret v3
 }
 
@@ -58,26 +85,25 @@ fn @signedNegative(arg0: i256) -> i256 [selector=0x9338d1e7, pure, abi_params=[i
     ret arg0
 }
 
-fn @signedJoin(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xe55cb939, pure, abi_params=[bool, i256, i256], abi_returns=[word], abi_return_params=[i256]] {
+fn @signedJoin(arg0: i1, arg1: i256, arg2: i256) -> i256 [selector=0xe55cb939, pure, abi_params=[bool, i256, i256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
-    v0 = ne arg0, 0
-    jumpi v0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb2:
-    v3 = slt arg2, 0
-    v4 = eq v3, false
-    icall revert_if<empty>, v4
+    v2 = slt arg2, 0
+    v3 = eq v2, false
+    icall revert_if<empty>, v3
     jump bb3
   bb1:
-    v1 = slt arg1, 0
-    v2 = eq v1, false
-    icall revert_if<empty>, v2
+    v0 = slt arg1, 0
+    v1 = eq v0, false
+    icall revert_if<empty>, v1
     jump bb3
   bb3:
-    v5 = phi [bb1: arg1], [bb2: arg2]
-    v6 = slt v5, 1
-    v7 = eq v6, false
-    icall revert_if<empty>, v7
-    ret v5
+    v4 = phi [bb1: arg1], [bb2: arg2]
+    v5 = slt v4, 1
+    v6 = eq v5, false
+    icall revert_if<empty>, v6
+    ret v4
 }
 
 fn @signedPositive(arg0: i256) -> i256 [selector=0x416bff4f, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[u256]] {
@@ -111,27 +137,26 @@ fn @crossSign(arg0: i256) -> i256 [selector=0x6ff25a1c, pure, abi_params=[i256],
     ret arg0
 }
 
-fn @choose(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x28eac35d, pure, abi_params=[bool, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @choose(arg0: i1, arg1: i256, arg2: i256) -> i256 [selector=0x28eac35d, pure, abi_params=[bool, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = ne arg0, 0
-    jumpi v0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb2:
-    v3 = lt arg2, 80
-    v4 = eq v3, false
-    icall revert_if<empty>, v4
+    v2 = lt arg2, 80
+    v3 = eq v2, false
+    icall revert_if<empty>, v3
     jump bb3
   bb1:
-    v1 = lt arg1, 100
-    v2 = eq v1, false
-    icall revert_if<empty>, v2
+    v0 = lt arg1, 100
+    v1 = eq v0, false
+    icall revert_if<empty>, v1
     jump bb3
   bb3:
-    v5 = phi [bb1: arg1], [bb2: arg2]
-    v6 = lt v5, 100
-    v7 = eq v6, false
-    icall revert_if<empty>, v7
-    v8 = checked_add u256, v5, 1
-    ret v8
+    v4 = phi [bb1: arg1], [bb2: arg2]
+    v5 = lt v4, 100
+    v6 = eq v5, false
+    icall revert_if<empty>, v6
+    v7 = checked_add u256, v4, 1
+    ret v7
 }
 
 fn @boundedLoop(arg0: i256) -> i256 [selector=0x46b5a18f, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -142,68 +167,73 @@ fn @boundedLoop(arg0: i256) -> i256 [selector=0x46b5a18f, pure, abi_params=[u256
     icall revert_if<empty>, v2
     jump bb1
   bb1:
-    v3 = phi [bb0: 0], [bb5: v6]
-    v4 = phi [bb0: arg0], [bb5: v4]
-    v5 = lt v3, v4
+    v3 = phi [bb0: arg0], [bb5: v3]
+    v4 = phi [bb0: 0], [bb5: v6]
+    v5 = lt v4, v3
     jumpi v5, bb3, bb4
   bb4:
     jump bb2
   bb2:
-    v7 = gt v3, 100
+    v7 = gt v4, 100
     v8 = eq v7, false
     v9 = eq v8, false
     icall revert_if<empty>, v9
-    ret v3
+    ret v4
   bb3:
-    v6 = checked_add u256, v3, 1
+    v6 = checked_add u256, v4, 1
     jump bb5
   bb5:
     jump bb1
 }
 
-fn @wrapLoop(arg0: i256) -> i256 [selector=0xe58d2ef9, pure, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
-  bb0:
-    jump bb1
-  bb1:
-    v0 = phi [bb0: 0], [bb3: v6]
-    v1 = phi [bb0: 0], [bb3: v5]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = lt v0, v2
-    jumpi v3, bb4, bb5
-  bb5:
-    jump bb2
-  bb2:
-    ret v1
-  bb4:
-    v4 = add v1, 1
-    v5 = and v4, 255
-    jump bb6
-  bb6:
-    jump bb3
-  bb3:
-    v6 = checked_add u256, v0, 1
-    jump bb1
-}
-
-fn @checked(arg0: i256) -> i256 [selector=0x2e53fee2, pure, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @wrapLoop(arg0: i256) -> i8 [selector=0xe58d2ef9, pure, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v5]
-    v2 = phi [bb0: 0], [bb3: v4]
+    v1 = phi [bb0: 0], [bb3: v6]
+    v2 = phi [bb0: 0], [bb3: v7]
     v3 = lt v1, v0
     jumpi v3, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v2
+    v8 = trunc i256 v2 to i8
+    ret v8
   bb4:
-    v4 = checked_add u8, v2, 1
+    v4 = trunc i256 v2 to i8
+    v5 = add v4, i8 1
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v5 = checked_add u256, v1, 1
+    v6 = checked_add u256, v1, 1
+    v7 = zext i8 v5 to i256
+    jump bb1
+}
+
+fn @checked(arg0: i256) -> i8 [selector=0x2e53fee2, pure, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v7]
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v6]
+    v3 = lt v2, v1
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v8 = trunc i256 v0 to i8
+    ret v8
+  bb4:
+    v4 = trunc i256 v0 to i8
+    v5 = checked_add u8, v4, i8 1
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v6 = checked_add u256, v2, 1
+    v7 = zext i8 v5 to i256
     jump bb1
 }

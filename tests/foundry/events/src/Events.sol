@@ -1,7 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+type Signed16 is int16;
+
 contract Events {
+    struct SignedDynamic {
+        int8 value;
+        bytes data;
+    }
+
+    event IndexedSignedDynamic(SignedDynamic indexed value);
+
+    function emitSignedDynamic() external {
+        emit IndexedSignedDynamic(SignedDynamic(-1, ""));
+    }
+
+    event SignedScalar(int8 indexed value, Signed16 indexed wrapped, int248 data);
+
+    function emitSignedScalar() external {
+        emit SignedScalar(-1, Signed16.wrap(-1), -1);
+    }
+
     struct Triple {
         uint256 first;
         uint256 second;

@@ -87,20 +87,21 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v48 = sload v45 !metadata(storage=symbolic(v45))
     v49 = mul v47, 8
     v50 = shr v49, v48
-    v51 = and v50, 255
-    v52 = shl 248, v51
-    v53 = shr 248, v52
-    v54 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v54
-    v55 = and v54, 1
-    v56 = eq v55, 1
-    v57 = sub 0, v55
-    v58 = or 127, v57
-    v59 = shr 1, v54
-    v60 = and v59, v58
-    v61 = insert_value struct0, undef struct0, 0, v53
-    v62 = insert_value struct0, v61, 1, v60
-    ret v62
+    v51 = shl 248, v50
+    v52 = shr 248, v51
+    v53 = trunc i256 v52 to i8
+    v54 = zext i8 v53 to i256
+    v55 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v55
+    v56 = and v55, 1
+    v57 = eq v56, 1
+    v58 = sub 0, v56
+    v59 = or 127, v58
+    v60 = shr 1, v55
+    v61 = and v60, v59
+    v62 = insert_value struct0, undef struct0, 0, v54
+    v63 = insert_value struct0, v62, 1, v61
+    ret v63
 }
 
 fn @g() -> i256 [selector=0xe2179b8e, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -131,8 +132,9 @@ fn @g() -> i256 [selector=0xe2179b8e, view, abi_params=[], abi_returns=[word], a
     v15 = sload v12 !metadata(storage=symbolic(v12))
     v16 = mul v14, 8
     v17 = shr v16, v15
-    v18 = and v17, 255
-    v19 = shl 248, v18
-    v20 = shr 248, v19
-    ret v20
+    v18 = shl 248, v17
+    v19 = shr 248, v18
+    v20 = trunc i256 v19 to i8
+    v21 = zext i8 v20 to i256
+    ret v21
 }

@@ -1,28 +1,30 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return_named_init.sol:MultiReturnNamedInit ===
 @module MultiReturnNamedInit
 types:
-  struct0: {i256, i256}
+  struct0: {i64, i256}
+  struct1: {i64, i64}
 
 fn @readU64(arg0: calldataslice, arg1: i256) -> struct0 [pure] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb3: v17]
+    v0 = phi [bb0: arg1], [bb3: v19]
     v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v18]
-    v3 = phi [bb0: 0], [bb3: v16]
+    v2 = phi [bb0: 0], [bb3: v20]
+    v3 = phi [bb0: 0], [bb3: v21]
     v4 = phi [bb0: arg1], [bb3: v4]
     v5 = lt v2, 8
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v19 = insert_value struct0, undef struct0, 0, v3
-    v20 = insert_value struct0, v19, 1, v0
-    ret v20
+    v22 = trunc i256 v3 to i64
+    v23 = insert_value struct0, undef struct0, 0, v22
+    v24 = insert_value struct0, v23, 1, v0
+    ret v24
   bb4:
-    v6 = shl 8, v3
-    v7 = and v6, 0xffffffffffffffff
+    v6 = trunc i256 v3 to i64
+    v7 = shl i64 8, v6
     v8 = slice_len v1
     v9 = lt v0, v8
     v10 = eq v9, false
@@ -32,17 +34,20 @@ fn @readU64(arg0: calldataslice, arg1: i256) -> struct0 [pure] {
     v13 = byte 0, v12
     v14 = shl 248, v13
     v15 = shr 248, v14
-    v16 = or v7, v15
-    v17 = checked_add u256, v0, 1
+    v16 = trunc i256 v15 to i8
+    v17 = zext i8 v16 to i64
+    v18 = or v7, v17
+    v19 = checked_add u256, v0, 1
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v18 = checked_add u256, v2, 1
+    v20 = checked_add u256, v2, 1
+    v21 = zext i64 v18 to i256
     jump bb1
 }
 
-fn @readTwice(arg0: calldataslice) -> struct0 [selector=0xc62a8eb2, pure, abi_params=[bytes], abi_returns=[word<u64>, word<u64>], abi_return_params=[u64, u64]] {
+fn @readTwice(arg0: calldataslice) -> struct1 [selector=0xc62a8eb2, pure, abi_params=[bytes], abi_returns=[word<u64>, word<u64>], abi_return_params=[u64, u64]] {
   bb0:
     v0 = icall @readU64, arg0, 0
     v1 = extract_value struct0, v0, 0
@@ -50,7 +55,7 @@ fn @readTwice(arg0: calldataslice) -> struct0 [selector=0xc62a8eb2, pure, abi_pa
     v3 = icall @readU64, arg0, 8
     v4 = extract_value struct0, v3, 0
     v5 = extract_value struct0, v3, 1
-    v6 = insert_value struct0, undef struct0, 0, v1
-    v7 = insert_value struct0, v6, 1, v4
+    v6 = insert_value struct1, undef struct1, 0, v1
+    v7 = insert_value struct1, v6, 1, v4
     ret v7
 }

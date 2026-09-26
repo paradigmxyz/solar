@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/uninitialized_memory_references.sol:UninitializedMemoryReferences ===
 @module UninitializedMemoryReferences
 types:
-  struct0: {i256, i256, i256}
+  struct0: {i1, i256, i256}
 
 fn @sharedWordLiteral(arg0: i256) -> i256 [selector=0x55fe9b37, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -96,11 +96,33 @@ fn @sharedLongLiteral(arg0: i256) -> i256 [selector=0xd250d2b7, abi_params=[u256
     ret v18
 }
 
-fn @conditionalLiteral(arg0: i256) -> i256 [selector=0x288b909f, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @conditionalLiteral(arg0: i1) -> i256 [selector=0x288b909f, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
-    v1 = ne arg0, 0
-    jumpi v1, bb1, bb2
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v1, 2
+    v2 = memory_object_data memorybytes, v1
+    v3 = ptrtoint memptr v2 to i256
+    mstore v3, 0x1234000000000000000000000000000000000000000000000000000000000000
+    v4 = ptrtoint memorybytes v1 to i256
+    v5 = add v4, 32
+    log0 v5, 2
+    jump bb3
+  bb3:
+    v6 = mload 64 !metadata(memory=scratch)
+    v7 = sub v6, v0
+    ret v7
+}
+
+fn @overlappingLiteral(arg0: i1) -> i256 [selector=0x7d61a7f9, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = mload 65 !metadata(memory=scratch)
+    v1 = shr 8, v0
+    jumpi arg0, bb1, bb2
   bb2:
     jump bb3
   bb1:
@@ -108,40 +130,16 @@ fn @conditionalLiteral(arg0: i256) -> i256 [selector=0x288b909f, abi_params=[boo
     set_memory_object_len memorybytes, v2, 2
     v3 = memory_object_data memorybytes, v2
     v4 = ptrtoint memptr v3 to i256
-    mstore v4, 0x1234000000000000000000000000000000000000000000000000000000000000
+    mstore v4, 0xabcd000000000000000000000000000000000000000000000000000000000000
     v5 = ptrtoint memorybytes v2 to i256
     v6 = add v5, 32
     log0 v6, 2
     jump bb3
   bb3:
-    v7 = mload 64 !metadata(memory=scratch)
-    v8 = sub v7, v0
-    ret v8
-}
-
-fn @overlappingLiteral(arg0: i256) -> i256 [selector=0x7d61a7f9, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
-  bb0:
-    v0 = mload 65 !metadata(memory=scratch)
-    v1 = shr 8, v0
-    v2 = ne arg0, 0
-    jumpi v2, bb1, bb2
-  bb2:
-    jump bb3
-  bb1:
-    v3 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v3, 2
-    v4 = memory_object_data memorybytes, v3
-    v5 = ptrtoint memptr v4 to i256
-    mstore v5, 0xabcd000000000000000000000000000000000000000000000000000000000000
-    v6 = ptrtoint memorybytes v3 to i256
-    v7 = add v6, 32
-    log0 v7, 2
-    jump bb3
-  bb3:
-    v8 = mload 65 !metadata(memory=scratch)
-    v9 = shr 8, v8
-    v10 = sub v9, v1
-    ret v10
+    v7 = mload 65 !metadata(memory=scratch)
+    v8 = shr 8, v7
+    v9 = sub v8, v1
+    ret v9
 }
 
 fn @fmpIsStable() -> struct0 [selector=0x8543d886, pure, abi_params=[], abi_returns=[word<bool>, word, word], abi_return_params=[bool, u256, u256]] {
@@ -151,64 +149,60 @@ fn @fmpIsStable() -> struct0 [selector=0x8543d886, pure, abi_params=[], abi_retu
     v2 = eq v0, v1
     v3 = memory_object_len memorybytes, memorybytes 96
     v4 = memory_object_len memoryarray, memoryarray 96
-    v5 = zext i1 v2 to i256
-    v6 = insert_value struct0, undef struct0, 0, v5
-    v7 = insert_value struct0, v6, 1, v3
-    v8 = insert_value struct0, v7, 2, v4
-    ret v8
+    v5 = insert_value struct0, undef struct0, 0, v2
+    v6 = insert_value struct0, v5, 1, v3
+    v7 = insert_value struct0, v6, 2, v4
+    ret v7
 }
 
-fn @nullArrayElementsEncodeAsEmpty() -> i256 [selector=0x71417b4d, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @nullArrayElementsEncodeAsEmpty() -> i1 [selector=0x71417b4d, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb3:
-    v5 = abi_encode [memory_array<memory_bytes>], object, args v0
-    v6 = not 0
-    mstore 0, v6 !metadata(memory=scratch)
-    v7 = abi_encode [memory_array<memory_bytes>], object, args v0
+    v4 = abi_encode [memory_array<memory_bytes>], object, args v0
+    v5 = not 0
+    mstore 0, v5 !metadata(memory=scratch)
+    v6 = abi_encode [memory_array<memory_bytes>], object, args v0
     mstore 0, 0 !metadata(memory=scratch)
-    v8 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    set_memory_object_len memoryarray, v8, 2
+    v7 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    set_memory_object_len memoryarray, v7, 2
     jump bb4
   bb4:
-    v9 = phi [bb3: 0], [bb5: v12]
-    v10 = lt v9, 2
-    jumpi v10, bb5, bb6
+    v8 = phi [bb3: 0], [bb5: v10]
+    v9 = lt v8, 2
+    jumpi v9, bb5, bb6
   bb6:
-    v13 = abi_encode [memory_array<memory_array<word>>], object, args v8
-    v14 = not 0
-    mstore 0, v14 !metadata(memory=scratch)
-    v15 = abi_encode [memory_array<memory_array<word>>], object, args v8
-    v16 = keccak256_bytes v5
-    v17 = keccak256_bytes v7
-    v18 = eq v16, v17
-    jumpi v18, bb7, bb8
+    v11 = abi_encode [memory_array<memory_array<word>>], object, args v7
+    v12 = not 0
+    mstore 0, v12 !metadata(memory=scratch)
+    v13 = abi_encode [memory_array<memory_array<word>>], object, args v7
+    v14 = keccak256_bytes v4
+    v15 = keccak256_bytes v6
+    v16 = eq v14, v15
+    jumpi v16, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v19 = keccak256_bytes v13
-    v20 = keccak256_bytes v15
-    v21 = eq v19, v20
+    v17 = keccak256_bytes v11
+    v18 = keccak256_bytes v13
+    v19 = eq v17, v18
     jump bb9
   bb9:
-    v22 = phi [bb7: v21], [bb8: false]
-    v23 = zext i1 v22 to i256
-    ret v23
+    v20 = phi [bb7: v19], [bb8: false]
+    ret v20
   bb5:
-    v11 = ptrtoint memoryarray 96 to i256
-    memory_object_store_element memoryarray<1>, v8, v9, v11
-    v12 = add v9, 1
+    memory_object_store_element memoryarray<1>, v7, v8, 96
+    v10 = add v8, 1
     jump bb4
   bb2:
-    v3 = ptrtoint memorybytes 96 to i256
-    memory_object_store_element memoryarray<1>, v0, v1, v3
-    v4 = add v1, 1
+    memory_object_store_element memoryarray<1>, v0, v1, 96
+    v3 = add v1, 1
     jump bb1
 }
 

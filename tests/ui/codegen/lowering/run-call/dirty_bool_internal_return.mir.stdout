@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dirty_bool_internal_return.sol:DirtyBoolInternalReturn ===
 @module DirtyBoolInternalReturn
 types:
-  struct0: {i256, i256}
+  struct0: {i1, i256}
 
 fn @dirty(arg0: i256) -> i256 [pure] {
   bb0:
@@ -11,82 +11,72 @@ fn @dirty(arg0: i256) -> i256 [pure] {
 
 fn @readDirty() -> struct0 [selector=0xd1f2dbc1, pure, abi_params=[], abi_returns=[word<bool>, word], abi_return_params=[bool, u256]] {
   bb0:
-    v0 = zext i1 1 to i256
-    v1 = icall @dirty, v0
-    v2 = eq v1, 0
-    v3 = eq v2, false
-    v4 = eq v3, true
-    v5 = zext i1 v4 to i256
-    v6 = insert_value struct0, undef struct0, 0, v5
-    v7 = insert_value struct0, v6, 1, v1
-    ret v7
+    v0 = icall @dirty, 1
+    v1 = eq v0, 0
+    v2 = eq v1, false
+    v3 = eq v2, true
+    v4 = insert_value struct0, undef struct0, 0, v3
+    v5 = insert_value struct0, v4, 1, v0
+    ret v5
 }
 
-fn @join(arg0: i256) -> i256 [selector=0xe2c05593, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @join(arg0: i1) -> i256 [selector=0xe2c05593, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = ne arg0, 0
-    jumpi v0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb2:
-    jump bb3
-  bb1:
-    v1 = zext i1 1 to i256
-    jump bb3
-  bb3:
-    v2 = phi [bb1: v1], [bb2: 3]
-    ret v2
-}
-
-fn @reverseJoin(arg0: i256) -> i256 [selector=0x2022dd82, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
-  bb0:
-    v0 = ne arg0, 0
-    jumpi v0, bb1, bb2
-  bb2:
-    v1 = zext i1 1 to i256
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v2 = phi [bb1: 3], [bb2: v1]
-    ret v2
+    v0 = phi [bb1: 1], [bb2: 3]
+    ret v0
 }
 
-fn @chooseValue(arg0: i256) -> i256 [selector=0x204ac68b, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @reverseJoin(arg0: i1) -> i256 [selector=0x2022dd82, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = ne arg0, 0
-    jumpi v0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb2:
-    v1 = zext i1 1 to i256
-    v2 = icall @dirty, v1
     jump bb3
   bb1:
-    v3 = zext i1 1 to i256
     jump bb3
   bb3:
-    v4 = phi [bb1: v3], [bb2: v2]
-    ret v4
+    v0 = phi [bb1: 3], [bb2: 1]
+    ret v0
+}
+
+fn @chooseValue(arg0: i1) -> i256 [selector=0x204ac68b, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    v0 = icall @dirty, 1
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: 1], [bb2: v0]
+    ret v1
 }
 
 fn @loopValue(arg0: i256) -> i256 [selector=0x0f49c3a4, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = zext i1 1 to i256
     jump bb1
   bb1:
-    v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: v0], [bb3: v6]
-    v3 = phi [bb0: 0], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v7]
-    v5 = lt v4, v1
-    jumpi v5, bb4, bb5
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 1], [bb3: v5]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v6]
+    v4 = lt v3, v0
+    jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v2
+    ret v1
   bb4:
-    v6 = add v2, 1
+    v5 = add v1, 1
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u256, v4, 1
+    v6 = checked_add u256, v3, 1
     jump bb1
 }

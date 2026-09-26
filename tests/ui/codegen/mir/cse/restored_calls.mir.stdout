@@ -31,7 +31,7 @@ fn @same(arg0: i256, arg1: i256) -> struct0 [selector=0xc32c70b1, pure, abi_para
     ret v17
 }
 
-fn @repeated(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0xd6d01539, pure, abi_params=[u256, u256, bool], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @repeated(arg0: i256, arg1: i256, arg2: i1) -> struct1 [selector=0xd6d01539, pure, abi_params=[u256, u256, bool], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = gt arg1, 8
     v1 = eq v0, false
@@ -48,24 +48,23 @@ fn @repeated(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0xd6d01539
     v9 = add v8, 64
     mstore v9, 1
     v10 = icall @scan, v5, arg1
-    v11 = ne arg2, 0
-    jumpi v11, bb1, bb2
+    jumpi arg2, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v12 = ptrtoint memorybytes v5 to i256
-    v13 = add v12, 95
-    mstore8 v13, 0
+    v11 = ptrtoint memorybytes v5 to i256
+    v12 = add v11, 95
+    mstore8 v12, 0
     jump bb3
   bb3:
-    v14 = icall @scan, v5, arg1
-    v15 = ptrtoint memorybytes v5 to i256
-    v16 = add v15, 32
-    v17 = mload v16
-    v18 = insert_value struct1, undef struct1, 0, v10
-    v19 = insert_value struct1, v18, 1, v14
-    v20 = insert_value struct1, v19, 2, v17
-    ret v20
+    v13 = icall @scan, v5, arg1
+    v14 = ptrtoint memorybytes v5 to i256
+    v15 = add v14, 32
+    v16 = mload v15
+    v17 = insert_value struct1, undef struct1, 0, v10
+    v18 = insert_value struct1, v17, 1, v13
+    v19 = insert_value struct1, v18, 2, v16
+    ret v19
 }
 
 fn @scan(arg0: memorybytes, arg1: i256) -> i256 [pure] {

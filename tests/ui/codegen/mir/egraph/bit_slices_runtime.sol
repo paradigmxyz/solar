@@ -15,12 +15,19 @@
 //@ run-call: offsets 0 => 40
 //@ run-call: offsets 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 40
 //@ run-call: addressRoundtrip => true
+//@ run-call: narrowRoundtrip 255, 0xffffffffffffffffffffffffffffffffffffffff => 127, 0, 0x7fffffffffffffffffffffffffffffffffffffff
+//@ run-call: narrowRoundtrip 127, 0x7fffffffffffffffffffffffffffffffffffffff => 127, 0, 0x7fffffffffffffffffffffffffffffffffffffff
+//@ run-call: narrowRoundtrip 128, 0x8000000000000000000000000000000000000000 => 0, 0, 0
 //@ run-call: comparisons 0 => false, true, false, true
 //@ run-call: comparisons 13 => false, false, false, false
 //@ run-call: comparisons 14 => true, false, true, false
 //@ run-call: comparisons 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => true, false, false, true
 //@ run-call: comparisons 0x8000000000000000000000000000000000000000000000000000000000000000 => true, false, false, true
 contract BitSlices {
+    function narrowRoundtrip(uint8 x, uint160 y) external pure returns (uint8, uint8, uint160) {
+        return (((x << 1) | 1) >> 1, ((x << 8) | 1) >> 8, ((y << 1) | 1) >> 1);
+    }
+
     function comparisons(uint256 x) external pure returns (bool, bool, bool, bool) {
         return (13 < x, 13 > x, int256(13) < int256(x), int256(13) > int256(x));
     }

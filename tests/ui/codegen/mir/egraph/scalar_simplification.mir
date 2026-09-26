@@ -33,8 +33,7 @@ fn @strength_reduce_arithmetic(arg0: i256) -> i256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @simplify_booleans{{[( ]}}
 // CHECK: {{^[ +].*}}[[IS_FALSE:v[0-9]+]] = eq arg0, false
-// CHECK: {{^[ +].*}}[[SELECT_FALSE:v[0-9]+]] = select arg0, false, true
-// CHECK: {{^[ +].*}}ret arg0, [[IS_FALSE]], arg1, arg0, [[SELECT_FALSE]]
+// CHECK: {{^[ +].*}}ret arg0, [[IS_FALSE]], arg1, arg0, [[IS_FALSE]]
 fn @simplify_booleans(arg0: i1, arg1: i256, arg2: i256) -> struct5 [return_abi=[i1, i1, i256, i1, i1]] {
   bb0:
     v3 = eq arg0, true
@@ -201,24 +200,24 @@ fn @fold_clz_constants() -> struct0 [return_abi=[i256, i256, i256, i256, i256]] 
 }
 
 // CHECK-LABEL: fn @checked_constants
-// CHECK: {{^[ +].*}}checked_add u8, 255, 1
-// CHECK: {{^[ +].*}}checked_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// CHECK: {{^[ +].*}}checked_add u8, i8 255, i8 1
+// CHECK: {{^[ +].*}}checked_div i8, i8 128, i8 255
 // CHECK: {{^[ +].*}}checked_div u256, 1, 0
-// CHECK: {{^[ +].*}}ret 243
-fn @checked_constants() -> i256 {
+// CHECK: {{^[ +].*}}ret i8 243
+fn @checked_constants() -> i8 {
   bb0:
-    v0 = checked_add u8, 255, 1
-    v1 = checked_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v0 = checked_add u8, i8 255, i8 1
+    v1 = checked_div i8, i8 128, i8 255
     v2 = checked_div u256, 1, 0
-    v3 = checked_pow u8, 3, 5
+    v3 = checked_pow u8, i8 3, 5
     ret v3
 }
 
 // CHECK-LABEL: fn @wrapping_signed_division
-// CHECK: {{^[ +].*}}ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-fn @wrapping_signed_division() -> i256 {
+// CHECK: {{^[ +].*}}ret i8 128
+fn @wrapping_signed_division() -> i8 {
   bb0:
-    v0 = wrapping_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v0 = wrapping_div i8, i8 128, i8 255
     ret v0
 }
 
@@ -429,15 +428,6 @@ fn @ptr_narrow_preserved(arg0: memptr) -> memptr {
   bb0:
     v0 = ptrtoint memptr arg0 to i160
     v1 = inttoptr i160 v0 to memptr
-    ret v1
-}
-
-// CHECK-LABEL: fn @wide_ptr_roundtrip_preserved
-// CHECK: {{^[ +].*}}inttoptr i512 arg0 to memptr
-fn @wide_ptr_roundtrip_preserved(arg0: i512) -> i512 {
-  bb0:
-    v0 = inttoptr i512 arg0 to memptr
-    v1 = ptrtoint memptr v0 to i512
     ret v1
 }
 
@@ -725,4 +715,120 @@ fn @ne_sign_extensions(arg0: i160, arg1: i160) -> i1 {
     v1 = sext i160 arg1 to i256
     v2 = ne v0, v1
     ret v2
+}
+
+// CHECK-LABEL: fn @bool_mask
+// CHECK-NOT: {{^[ +].*}}= and
+// CHECK: {{^[ +].*}}ret arg0
+fn @bool_mask(arg0: i1) -> i1 {
+  bb0:
+    v0 = and arg0, true
+    ret v0
+}
+
+// CHECK-LABEL: fn @narrow_shift_roundtrip
+// CHECK: {{^[ +].*}}[[LEFT:v[0-9]+]] = add arg0, arg0
+// CHECK: {{^[ +].*}}[[TAGGED:v[0-9]+]] = or [[LEFT]], i{{[0-9]+}} 1
+// CHECK: {{^[ +].*}}[[RIGHT:v[0-9]+]] = shr i8 1, [[TAGGED]]
+// CHECK: {{^[ +].*}}ret [[RIGHT]]
+fn @narrow_shift_roundtrip(arg0: i8) -> i8 {
+  bb0:
+    v0 = shl i8 1, arg0
+    v1 = or v0, i8 1
+    v2 = shr i8 1, v1
+    ret v2
+}
+
+// CHECK-LABEL: fn @address_shift_roundtrip
+// CHECK: {{^[ +].*}}[[LEFT:v[0-9]+]] = add arg0, arg0
+// CHECK: {{^[ +].*}}[[TAGGED:v[0-9]+]] = or [[LEFT]], i{{[0-9]+}} 1
+// CHECK: {{^[ +].*}}[[RIGHT:v[0-9]+]] = shr i160 1, [[TAGGED]]
+// CHECK: {{^[ +].*}}ret [[RIGHT]]
+fn @address_shift_roundtrip(arg0: i160) -> i160 {
+  bb0:
+    v0 = shl i160 1, arg0
+    v1 = or v0, i160 1
+    v2 = shr i160 1, v1
+    ret v2
+}
+
+// CHECK-LABEL: fn @saturated_narrow_shift_roundtrip
+// CHECK: {{^[ +].*}}ret i8 0
+fn @saturated_narrow_shift_roundtrip(arg0: i8) -> i8 {
+  bb0:
+    v0 = shl i8 8, arg0
+    v1 = or v0, i8 1
+    v2 = shr i8 8, v1
+    ret v2
+}
+
+// CHECK-LABEL: fn @safe_shift_roundtrip
+// CHECK: {{^[ +].*}}[[BOUNDED:v[0-9]+]] = and arg0, 255
+// CHECK: {{^[ +].*}}ret [[BOUNDED]]
+fn @safe_shift_roundtrip(arg0: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 255
+    v1 = shl 248, v0
+    v2 = or v1, 1
+    v3 = shr 248, v2
+    ret v3
+}
+
+// CHECK-LABEL: fn @safe_narrow_shift_roundtrip
+// CHECK: {{^[ +].*}}[[BOUNDED:v[0-9]+]] = and arg0, i8 127
+// CHECK: {{^[ +].*}}ret [[BOUNDED]]
+fn @safe_narrow_shift_roundtrip(arg0: i8) -> i8 {
+  bb0:
+    v0 = and arg0, i8 127
+    v1 = shl i8 1, v0
+    v2 = or v1, i8 1
+    v3 = shr i8 1, v2
+    ret v3
+}
+
+// CHECK-LABEL: fn @narrow_clz_upper_bound
+// CHECK: {{^[ +].*}}ret true
+fn @narrow_clz_upper_bound(arg0: i8) -> i1 {
+  bb0:
+    v0 = clz arg0
+    v1 = lt v0, i8 9
+    ret v1
+}
+
+// CHECK-LABEL: fn @narrow_clz_zero
+// CHECK: {{^[ +].*}}[[ZERO:v[0-9]+]] = eq arg0, i8 0
+// CHECK: {{^[ +].*}}ret [[ZERO]]
+fn @narrow_clz_zero(arg0: i8) -> i1 {
+  bb0:
+    v0 = clz arg0
+    v1 = gt v0, i8 7
+    ret v1
+}
+
+// CHECK-LABEL: fn @narrow_clz_above_width
+// CHECK: {{^[ +].*}}ret false
+fn @narrow_clz_above_width(arg0: i8) -> i1 {
+  bb0:
+    v0 = clz arg0
+    v1 = gt v0, i8 8
+    ret v1
+}
+
+// CHECK-LABEL: fn @narrow_clz_divisor_above_width
+// CHECK: {{^[ +].*}}ret i8 0
+fn @narrow_clz_divisor_above_width(arg0: i8) -> i8 {
+  bb0:
+    v0 = clz arg0
+    v1 = div v0, i8 9
+    ret v1
+}
+
+// CHECK-LABEL: fn @narrow_clz_modulus_above_width
+// CHECK: {{^[ +].*}}[[COUNT:v[0-9]+]] = clz arg0
+// CHECK: {{^[ +].*}}ret [[COUNT]]
+fn @narrow_clz_modulus_above_width(arg0: i8) -> i8 {
+  bb0:
+    v0 = clz arg0
+    v1 = mod v0, i8 9
+    ret v1
 }

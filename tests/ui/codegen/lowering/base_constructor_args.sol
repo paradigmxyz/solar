@@ -11,6 +11,10 @@
 //@ run-call: VirtualFunctionUsageDerived::getA => 2
 //@ run-call: EmptyBaseArgumentMask::domain => "Token", "1"
 //@ run-call: WriterDerived::order => 12
+//@ run-call: RawCarrierMiddle::raw => 0x1234
+//@ run-call: RawCarrierMiddle::modified => 0x5678
+//@ run-call: RawCarrierDerived::raw => 0x1234
+//@ run-call: RawCarrierDerived::modified => 0x5678
 // ported-from: test/libsolidity/semanticTests/constructor/order_of_evaluation.sol
 // ported-from: test/libsolidity/semanticTests/inheritance/constructor_inheritance_init_order_3_viaIR.sol
 // ported-from: test/libsolidity/semanticTests/constructor/function_usage_in_constructor_arguments.sol
@@ -209,4 +213,36 @@ abstract contract WriterMiddle is WriterBaseA, WriterBaseB {
 
 contract WriterDerived is WriterMiddle {
     constructor() WriterBaseA(trace(1)) {}
+}
+
+contract RawCarrierBase {
+    uint256 public raw;
+    uint256 public modified;
+
+    modifier rawModifier() {
+        uint8 original;
+        assembly { original := 0x5678 }
+        uint8 copied = original;
+        assembly { sstore(modified.slot, copied) }
+        _;
+    }
+
+    constructor() rawModifier() {
+        uint8 original;
+        assembly { original := 0x1234 }
+        uint8 copied = forward(original);
+        function(uint8) internal pure returns (uint8) pointer = forward;
+        uint8 result = pointer(copied);
+        assembly { sstore(raw.slot, result) }
+    }
+
+    function forward(uint8 value) internal pure returns (uint8) {
+        return value;
+    }
+}
+
+contract RawCarrierMiddle is RawCarrierBase {}
+
+contract RawCarrierDerived is RawCarrierMiddle {
+    constructor() {}
 }

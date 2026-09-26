@@ -551,6 +551,8 @@ impl<'gcx> Assembler<'gcx> {
         self.deferred_relocations.iter().map(|&(_, _, constant)| constant)
     }
 
+    /// Removes disjoint instruction ranges and adjusts their relocation indices.
+    /// Ranges may be unsorted but must lie within their blocks.
     pub(crate) fn remove_instructions(
         &mut self,
         removals: &mut [(ir::BlockId, std::ops::Range<usize>)],
@@ -560,7 +562,16 @@ impl<'gcx> Assembler<'gcx> {
         let mut per_block =
             FxHashMap::<ir::BlockId, Vec<(std::ops::Range<usize>, usize)>>::default();
         for (block, range) in removals.iter() {
+            assert!(
+                range.start <= range.end
+                    && range.end <= self.program.blocks[*block].instructions.len(),
+                "instruction removal range is out of bounds"
+            );
             let ranges = per_block.entry(*block).or_default();
+            assert!(
+                ranges.last().is_none_or(|(previous, _)| previous.end <= range.start),
+                "instruction removal ranges overlap"
+            );
             let before = ranges.last().map_or(0, |(range, before)| before + range.len());
             ranges.push((range.clone(), before));
         }
@@ -587,9 +598,16 @@ impl<'gcx> Assembler<'gcx> {
         shift(&mut self.alloc_relocations, &per_block);
         for (block, ranges) in per_block {
             let instructions = &mut self.program.blocks[block].instructions;
-            for (range, _) in ranges.into_iter().rev() {
-                instructions.drain(range);
-            }
+            let mut ranges = ranges.into_iter().peekable();
+            let mut index = 0;
+            instructions.retain(|_| {
+                while ranges.peek().is_some_and(|(range, _)| range.end <= index) {
+                    ranges.next();
+                }
+                let keep = ranges.peek().is_none_or(|(range, _)| !range.contains(&index));
+                index += 1;
+                keep
+            });
         }
         self.debug_assert_dataflow_relocations_sorted();
     }

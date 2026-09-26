@@ -526,6 +526,45 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     fn cast_operands(&mut self, kind: &mut InstKind) {
+        if matches!(
+            kind,
+            InstKind::Eq(..)
+                | InstKind::Ne(..)
+                | InstKind::Lt(..)
+                | InstKind::Gt(..)
+                | InstKind::SLt(..)
+                | InstKind::SGt(..)
+        ) && kind
+            .operands()
+            .windows(2)
+            .any(|pair| self.func.value_ty(pair[0]) != self.func.value_ty(pair[1]))
+        {
+            let operands = kind.operands();
+            let ty = if matches!(
+                kind,
+                InstKind::Eq(..) | InstKind::Ne(..) | InstKind::Lt(..) | InstKind::Gt(..)
+            ) {
+                operands
+                    .iter()
+                    .find_map(|&value| {
+                        self.func
+                            .value_ty(value)
+                            .filter(|ty| ty.integer_bits().is_some_and(|bits| bits < 256))
+                    })
+                    .filter(|&ty| {
+                        operands.iter().all(|&value| {
+                            self.func.value_ty(value) == Some(ty)
+                                || self.func.value_u256(value).is_some_and(|word| {
+                                    word.bit_len() <= ty.integer_bits().unwrap() as usize
+                                })
+                        })
+                    })
+                    .unwrap_or(MirType::I256)
+            } else {
+                MirType::I256
+            };
+            kind.visit_operands_mut(|value| *value = self.cast(*value, ty));
+        }
         let Some(types) = kind.operand_types(self.func) else { return };
         let mut types = types.into_iter();
         // operand = cast operand to its declared parameter type
@@ -539,8 +578,34 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits a typed value-producing instruction with the current source and effect metadata.
     pub(crate) fn emit_inst(&mut self, mut kind: InstKind, result_ty: Option<MirType>) -> ValueId {
         debug_assert!(result_ty.is_some(), "value-producing instructions must have a result type");
-        self.cast_operands(&mut kind);
         let requested = result_ty.unwrap();
+        let produced = if kind.op_def().result == super::ResultKind::Integer {
+            let boolean_bitwise =
+                matches!(kind, InstKind::And(..) | InstKind::Or(..) | InstKind::Xor(..))
+                    && kind
+                        .operands()
+                        .iter()
+                        .all(|&value| self.func.value_ty(value) == Some(MirType::I1));
+            let ty = if boolean_bitwise {
+                MirType::I1
+            } else if requested.integer_bits().is_some() {
+                requested
+            } else {
+                MirType::I256
+            };
+            kind.visit_operands_mut(|value| {
+                *value = if ty == MirType::I1 && self.func.value_ty(*value) != Some(MirType::I1) {
+                    let word = self.cast_word(*value);
+                    self.emit_inst(InstKind::Trunc(word, 1), Some(MirType::I1))
+                } else {
+                    self.cast(*value, ty)
+                };
+            });
+            ty
+        } else {
+            self.cast_operands(&mut kind);
+            kind.inferred_result_type(self.func).unwrap_or(requested)
+        };
         if let InstKind::Phi(incoming) = &mut kind {
             let current = self.current_block;
             for (predecessor, value) in incoming {
@@ -551,35 +616,6 @@ impl<'a> FunctionBuilder<'a> {
             self.switch_to_block(current);
         }
 
-        let boolean_bitwise =
-            matches!(kind, InstKind::And(..) | InstKind::Or(..) | InstKind::Xor(..))
-                && kind
-                    .operands()
-                    .iter()
-                    .all(|&value| self.func.value_ty(value) == Some(MirType::I1));
-        let typed_equality = matches!(kind, InstKind::Eq(..) | InstKind::Ne(..))
-            && kind.operands().iter().all(|&value| {
-                self.func.value_ty(value) == self.func.value_ty(kind.operands()[0])
-                    && matches!(self.func.value_ty(value), Some(MirType::I1 | MirType::I160))
-            });
-        if matches!(
-            kind,
-            InstKind::Eq(..)
-                | InstKind::Ne(..)
-                | InstKind::And(..)
-                | InstKind::Or(..)
-                | InstKind::Xor(..)
-        ) && !boolean_bitwise
-            && !typed_equality
-        {
-            // operand = zext integer or ptrtoint pointer to i256
-            kind.visit_operands_mut(|value| *value = self.cast(*value, MirType::I256));
-        }
-        let produced = if boolean_bitwise {
-            MirType::I1
-        } else {
-            kind.op_def().result.default_type().unwrap_or(requested)
-        };
         // result = op operands
         // requested = cast result
         let inst = self.make_inst(kind, Some(produced));
@@ -587,7 +623,7 @@ impl<'a> FunctionBuilder<'a> {
             .append_instruction(inst)
             .1
             .expect("value-producing instruction must have a result");
-        self.cast(result, requested)
+        if produced == requested { result } else { self.cast(result, requested) }
     }
 
     /// Emits an explicit conversion between scalar carriers and memory references.
@@ -599,6 +635,21 @@ impl<'a> FunctionBuilder<'a> {
             assert!(matches!(self.func.value(value), Value::Error(_)), "cast operand has no type");
             return value;
         };
+        if let Some(word) = self.func.value_u256(value) {
+            let word = match ty {
+                MirType::I1 => Some(U256::from(!word.is_zero())),
+                MirType::Int(bits) if bits.get() <= 256 => {
+                    Some(word & (U256::MAX >> (256 - bits.get())))
+                }
+                ty if ty.is_pointer() => Some(word),
+                _ => None,
+            };
+            if let Some(word) = word {
+                return self
+                    .func
+                    .alloc_value(Value::Immediate(Immediate::for_type(Some(ty), word)));
+            }
+        }
         if let Value::Inst(id) = self.func.value(value) {
             let original = match self.func.inst(*id).kind {
                 InstKind::Zext(inner) | InstKind::Bitcast(inner) => Some(inner),
@@ -615,8 +666,15 @@ impl<'a> FunctionBuilder<'a> {
         let kind = match (from, ty) {
             // boolean = ne word, 0
             (_, MirType::I1) => {
-                let value = self.cast(value, MirType::I256);
-                let zero = self.imm(0);
+                let value = if from.integer_bits().is_some() {
+                    value
+                } else {
+                    self.cast(value, MirType::I256)
+                };
+                let zero = self.func.alloc_value(Value::Immediate(Immediate::for_type(
+                    self.func.value_ty(value),
+                    U256::ZERO,
+                )));
                 InstKind::Ne(value, zero)
             }
             // narrow = trunc integer to destination
@@ -1541,7 +1599,7 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         let cond = self.cast(cond, MirType::I1);
         let mut ty = self.func.value_ty(then_val).unwrap();
-        if matches!(ty, MirType::I1 | MirType::I160) && self.func.value_ty(else_val) != Some(ty) {
+        if matches!(ty, MirType::Int(_)) && self.func.value_ty(else_val) != Some(ty) {
             ty = MirType::I256;
         }
         // then_val = cast then_val to the select type
@@ -1560,7 +1618,7 @@ impl<'a> FunctionBuilder<'a> {
             .first()
             .and_then(|(_, value)| self.func.value_ty(*value))
             .unwrap_or(MirType::I256);
-        if matches!(ty, MirType::I1 | MirType::I160)
+        if matches!(ty, MirType::Int(_))
             && incoming.iter().any(|(_, value)| self.func.value_ty(*value) != Some(ty))
         {
             ty = MirType::I256;

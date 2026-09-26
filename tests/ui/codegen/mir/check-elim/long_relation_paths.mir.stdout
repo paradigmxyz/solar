@@ -1127,23 +1127,22 @@ fn @ordered(arg0: calldataslice) -> i256 [selector=0xd16c130b, pure, abi_params=
     ret 1
 }
 
-fn @sibling(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x9446c675, pure, abi_params=[bool, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @sibling(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x9446c675, pure, abi_params=[bool, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = ne arg0, 0
-    jumpi v0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb2:
-    v7 = lt arg1, arg3
-    v8 = eq v7, false
-    jumpi v8, bb5, bb4
+    v6 = lt arg1, arg3
+    v7 = eq v6, false
+    jumpi v7, bb5, bb4
   bb4:
-    v9 = lt arg2, arg3
-    v10 = eq v9, false
+    v8 = lt arg2, arg3
+    v9 = eq v8, false
     jump bb6
   bb5:
     jump bb6
   bb6:
-    v11 = phi [bb4: v10], [bb5: true]
-    jumpi v11, bb7, bb8
+    v10 = phi [bb4: v9], [bb5: true]
+    jumpi v10, bb7, bb8
   bb8:
     jump bb9
   bb9:
@@ -1151,24 +1150,25 @@ fn @sibling(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x
   bb7:
     ret 0
   bb1:
-    v1 = lt arg1, arg2
-    v2 = eq v1, false
-    icall revert_if<empty>, v2
-    v3 = lt arg2, arg3
-    v4 = eq v3, false
-    icall revert_if<empty>, v4
-    v5 = lt arg1, arg3
-    v6 = eq v5, false
-    icall revert_if<empty>, v6
+    v0 = lt arg1, arg2
+    v1 = eq v0, false
+    icall revert_if<empty>, v1
+    v2 = lt arg2, arg3
+    v3 = eq v2, false
+    icall revert_if<empty>, v3
+    v4 = lt arg1, arg3
+    v5 = eq v4, false
+    icall revert_if<empty>, v5
     jump bb3
   bb3:
-    v12 = lt arg1, arg2
-    jumpi v12, bb10, bb11
+    v11 = lt arg1, arg2
+    jumpi v11, bb10, bb11
   bb11:
     jump bb12
   bb10:
     jump bb12
   bb12:
-    v13 = phi [bb10: 1], [bb11: 0]
+    v12 = phi [bb10: i8 1], [bb11: i8 0]
+    v13 = zext i8 v12 to i256
     ret v13
 }

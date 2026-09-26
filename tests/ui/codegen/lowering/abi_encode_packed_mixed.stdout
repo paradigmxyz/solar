@@ -1,12 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_packed_mixed.sol:AbiEncodePackedMixed ===
 @module AbiEncodePackedMixed
-fn @fixedBytesArg(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x795867e4, pure, abi_params=[u256, address, bytes2], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @fixedBytesArg(arg0: i256, arg1: i160, arg2: i256) -> i256 [selector=0x795867e4, pure, abi_params=[u256, address, bytes2], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = trunc i256 arg1 to i160
-    v1 = and arg2, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v2 = zext i160 v0 to i256
-    v3 = keccak256_packed (u256 arg0, u160 v2, bytes2 v1)
-    ret v3
+    v0 = and arg2, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v1 = keccak256_packed (u256 arg0, u160 arg1, bytes2 v0)
+    ret v1
 }
 
 fn @dynamicArg(arg0: i256, arg1: memorybytes) -> i256 [selector=0xde52036d, pure, abi_params=[bytes32, bytes], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -15,14 +13,13 @@ fn @dynamicArg(arg0: i256, arg1: memorybytes) -> i256 [selector=0xde52036d, pure
     ret v0
 }
 
-fn @materialized(arg0: i256, arg1: memorybytes, arg2: i256) -> memorybytes [selector=0x16cbcf25, pure, abi_params=[u16, bytes, bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @materialized(arg0: i16, arg1: memorybytes, arg2: i1) -> memorybytes [selector=0x16cbcf25, pure, abi_params=[u16, bytes, bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = and arg0, 0xffff
-    v1 = eq arg2, 0
-    v2 = eq v1, false
-    v3 = zext i1 v2 to i256
-    v4 = abi_encode_packed (u16 v0, bytes arg1, u8 v3)
-    ret v4
+    v0 = eq arg2, false
+    v1 = eq v0, false
+    v2 = zext i1 v1 to i8
+    v3 = abi_encode_packed (u16 arg0, bytes arg1, u8 v2)
+    ret v3
 }
 
 fn @hashArray(arg0: memoryarray) -> i256 [selector=0x42233547, pure, abi_params=[array<_, bytes32>], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -32,11 +29,9 @@ fn @hashArray(arg0: memoryarray) -> i256 [selector=0x42233547, pure, abi_params=
     ret v1
 }
 
-fn @signedStaticRun(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xc570e197, pure, abi_params=[u8, i16, bytes3], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @signedStaticRun(arg0: i8, arg1: i16, arg2: i256) -> i256 [selector=0xc570e197, pure, abi_params=[u8, i16, bytes3], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = and arg0, 255
-    v1 = signextend 1, arg1
-    v2 = and arg2, 0xffffff0000000000000000000000000000000000000000000000000000000000
-    v3 = keccak256_packed (u8 v0, i16 v1, bytes3 v2)
-    ret v3
+    v0 = and arg2, 0xffffff0000000000000000000000000000000000000000000000000000000000
+    v1 = keccak256_packed (u8 arg0, i16 arg1, bytes3 v0)
+    ret v1
 }

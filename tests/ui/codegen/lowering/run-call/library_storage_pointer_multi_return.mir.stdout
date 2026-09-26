@@ -9,9 +9,10 @@ types:
   struct1: {i256, i256}
   struct2: {i256, memorybytes}
   struct3: {i256, memorystruct}
-  struct4: {memoryarray, i256}
-  struct5: {memoryarray, i256, memorybytes}
-  struct6: {i256, i256, i256}
+  struct4: {i8, i256}
+  struct5: {memoryarray, i256}
+  struct6: {memoryarray, i256, memorybytes}
+  struct7: {i256, i256, i256}
 
 fn @constructor() [constructor] {
   bb0:
@@ -71,57 +72,56 @@ fn @forwardStructPair() -> struct3 [selector=0x89663e35, view, abi_params=[], ab
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
-    v1 = ptrtoint memoryarray 96 to i256
-    memory_object_store_field memorystruct<2>, v0, 1, v1
-    v2 = icall @structPair, 2
-    v3 = extract_value struct1, v2, 0
-    v4 = extract_value struct1, v2, 1
-    v5 = alloc memorystruct<2>, exact, uninitialized, panic, 64
-    v6 = sload v4 !metadata(storage=symbolic(v4))
-    memory_object_store_field memorystruct<2>, v5, 0, v6
-    v7 = add v4, 1
-    v8 = icall @load_storage_word_array, v7
-    v9 = ptrtoint memoryarray v8 to i256
-    memory_object_store_field memorystruct<2>, v5, 1, v9
-    v10 = insert_value struct3, undef struct3, 0, v3
-    v11 = insert_value struct3, v10, 1, v5
-    ret v11
+    memory_object_store_field memorystruct<2>, v0, 1, 96
+    v1 = icall @structPair, 2
+    v2 = extract_value struct1, v1, 0
+    v3 = extract_value struct1, v1, 1
+    v4 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+    v5 = sload v3 !metadata(storage=symbolic(v3))
+    memory_object_store_field memorystruct<2>, v4, 0, v5
+    v6 = add v3, 1
+    v7 = icall @load_storage_word_array, v6
+    v8 = ptrtoint memoryarray v7 to i256
+    memory_object_store_field memorystruct<2>, v4, 1, v8
+    v9 = insert_value struct3, undef struct3, 0, v2
+    v10 = insert_value struct3, v9, 1, v4
+    ret v10
 }
 
 fn @forwardNarrowPair() -> struct0 [selector=0x1c173dc4, view, abi_params=[], abi_returns=[word, memory_array<word>], abi_return_params=[u256, array<_, u256>]] {
   bb0:
     v0 = icall @narrowPair, 0
-    v1 = extract_value struct1, v0, 0
-    v2 = extract_value struct1, v0, 1
-    v3 = and v1, 255
+    v1 = extract_value struct4, v0, 0
+    v2 = extract_value struct4, v0, 1
+    v3 = zext i8 v1 to i256
     v4 = icall @load_storage_word_array, v2
     v5 = insert_value struct0, undef struct0, 0, v3
     v6 = insert_value struct0, v5, 1, v4
     ret v6
 }
 
-fn @forwardLeadingPair() -> struct4 [selector=0x59d1f54e, view, abi_params=[], abi_returns=[memory_array<word>, word], abi_return_params=[array<_, u256>, u256]] {
+fn @forwardLeadingPair() -> struct5 [selector=0x59d1f54e, view, abi_params=[], abi_returns=[memory_array<word>, word], abi_return_params=[array<_, u256>, u256]] {
   bb0:
     v0 = icall @leadingPair, 0
     v1 = extract_value struct1, v0, 0
     v2 = extract_value struct1, v0, 1
     v3 = icall @load_storage_word_array, v1
-    v4 = insert_value struct4, undef struct4, 0, v3
-    v5 = insert_value struct4, v4, 1, v2
+    v4 = insert_value struct5, undef struct5, 0, v3
+    v5 = insert_value struct5, v4, 1, v2
     ret v5
 }
 
-fn @forwardTriple() -> struct5 [selector=0xd5d6b86b, view, abi_params=[], abi_returns=[memory_array<word>, word, memory_bytes], abi_return_params=[array<_, u256>, u256, bytes]] {
+fn @forwardTriple() -> struct6 [selector=0xd5d6b86b, view, abi_params=[], abi_returns=[memory_array<word>, word, memory_bytes], abi_return_params=[array<_, u256>, u256, bytes]] {
   bb0:
     v0 = icall @triple, 0, 1
-    v1 = extract_value struct6, v0, 0
-    v2 = extract_value struct6, v0, 1
-    v3 = extract_value struct6, v0, 2
+    v1 = extract_value struct7, v0, 0
+    v2 = extract_value struct7, v0, 1
+    v3 = extract_value struct7, v0, 2
     v4 = icall @load_storage_word_array, v1
     v5 = load_storage_bytes v3
-    v6 = insert_value struct5, undef struct5, 0, v4
-    v7 = insert_value struct5, v6, 1, v2
-    v8 = insert_value struct5, v7, 2, v5
+    v6 = insert_value struct6, undef struct6, 0, v4
+    v7 = insert_value struct6, v6, 1, v2
+    v8 = insert_value struct6, v7, 2, v5
     ret v8
 }
 
@@ -199,12 +199,12 @@ fn @structPair(arg0: i256) -> struct1 [view] {
     ret v2
 }
 
-fn @narrowPair(arg0: i256) -> struct1 [view] {
+fn @narrowPair(arg0: i256) -> struct4 [view] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
-    v1 = and v0, 255
-    v2 = insert_value struct1, undef struct1, 0, v1
-    v3 = insert_value struct1, v2, 1, arg0
+    v1 = trunc i256 v0 to i8
+    v2 = insert_value struct4, undef struct4, 0, v1
+    v3 = insert_value struct4, v2, 1, arg0
     ret v3
 }
 
@@ -216,12 +216,12 @@ fn @leadingPair(arg0: i256) -> struct1 [view] {
     ret v2
 }
 
-fn @triple(arg0: i256, arg1: i256) -> struct6 [view] {
+fn @triple(arg0: i256, arg1: i256) -> struct7 [view] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
-    v1 = insert_value struct6, undef struct6, 0, arg0
-    v2 = insert_value struct6, v1, 1, v0
-    v3 = insert_value struct6, v2, 2, arg1
+    v1 = insert_value struct7, undef struct7, 0, arg0
+    v2 = insert_value struct7, v1, 1, v0
+    v3 = insert_value struct7, v2, 2, arg1
     ret v3
 }
 

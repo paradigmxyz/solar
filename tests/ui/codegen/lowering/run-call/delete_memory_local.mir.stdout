@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/delete_memory_local.sol:DeleteMemoryLocal ===
 @module DeleteMemoryLocal
-fn @length(arg0: i256) -> i256 [selector=0x80328f7c, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @length(arg0: i1) -> i256 [selector=0x80328f7c, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -9,18 +9,17 @@ fn @length(arg0: i256) -> i256 [selector=0x80328f7c, pure, abi_params=[bool], ab
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     memory_object_store_element memoryarray<1>, v0, 0, 7
-    v4 = ne arg0, 0
-    jumpi v4, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v5 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v5, 0
+    v4 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v4, 0
     jump bb3
   bb3:
-    v6 = phi [bb1: v5], [bb2: v0]
-    v7 = memory_object_len memoryarray, v6
-    ret v7
+    v5 = phi [bb1: v4], [bb2: v0]
+    v6 = memory_object_len memoryarray, v5
+    ret v6
 }
 
 fn @lengthAfterDirtyScratch() -> i256 [selector=0x0b1ce329, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

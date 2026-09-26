@@ -61,39 +61,39 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     v64 = sload v61 !metadata(storage=symbolic(v60))
     v65 = mul v63, 8
     v66 = shr v65, v64
-    v67 = and v66, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v68 = and v67, 0xffffffff
-    v69 = shl 224, v68
-    v70 = shr 32, v67
-    v71 = gas
-    v72 = abi_encode [], selector v69
-    v73 = slice_ptr v72
-    v74 = slice_len v72
-    v75 = call v71, v70, 0, v73, v74, 0, 32
-    jumpi v75, bb14, bb13
+    v67 = trunc i256 v66 to i192
+    v68 = zext i192 v67 to i256
+    v69 = and v68, 0xffffffff
+    v70 = shl 224, v69
+    v71 = shr 32, v68
+    v72 = gas
+    v73 = abi_encode [], selector v70
+    v74 = slice_ptr v73
+    v75 = slice_len v73
+    v76 = call v72, v71, 0, v74, v75, 0, 32
+    jumpi v76, bb14, bb13
   bb13:
     revert_returndata
   bb14:
-    v76 = returndatasize
-    v77 = lt v76, 32
-    icall revert_if<tuple_data_too_short>, v77
-    v78 = add 0, 0
-    v79 = mload v78
-    v80 = add 0, 0
-    v81 = mload v80
-    v82 = lt 0, 1
-    v83 = eq v82, false
-    icall panic_if<0x32>, v83
-    v84 = div 0, 4
-    v85 = add 3, v84
-    v86 = mod 0, 4
-    v87 = mul v86, 8
-    v88 = sload v85 !metadata(storage=offset(v84, 3))
-    v89 = mul v87, 8
-    v90 = shr v89, v88
-    v91 = and v90, 0xffffffffffffffff
+    v77 = returndatasize
+    v78 = lt v77, 32
+    icall revert_if<tuple_data_too_short>, v78
+    v79 = add 0, 0
+    v80 = mload v79
+    v81 = lt 0, 1
+    v82 = eq v81, false
+    icall panic_if<0x32>, v82
+    v83 = div 0, 4
+    v84 = add 3, v83
+    v85 = mod 0, 4
+    v86 = mul v85, 8
+    v87 = sload v84 !metadata(storage=offset(v83, 3))
+    v88 = mul v86, 8
+    v89 = shr v88, v87
+    v90 = trunc i256 v89 to i64
+    v91 = zext i64 v90 to i256
     v92 = icall @internal_dispatcher_p_none_r_u256, v91
-    v93 = insert_value struct0, undef struct0, 0, v81
+    v93 = insert_value struct0, undef struct0, 0, v80
     v94 = insert_value struct0, v93, 1, v92
     ret v94
   bb8:
@@ -198,39 +198,39 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     v64 = sload v61 !metadata(storage=symbolic(v60))
     v65 = mul v63, 8
     v66 = shr v65, v64
-    v67 = and v66, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v68 = and v67, 0xffffffff
-    v69 = shl 224, v68
-    v70 = shr 32, v67
-    v71 = gas
-    v72 = abi_encode [], selector v69
-    v73 = slice_ptr v72
-    v74 = slice_len v72
-    v75 = call v71, v70, 0, v73, v74, 0, 32
-    jumpi v75, bb14, bb13
+    v67 = trunc i256 v66 to i192
+    v68 = zext i192 v67 to i256
+    v69 = and v68, 0xffffffff
+    v70 = shl 224, v69
+    v71 = shr 32, v68
+    v72 = gas
+    v73 = abi_encode [], selector v70
+    v74 = slice_ptr v73
+    v75 = slice_len v73
+    v76 = call v72, v71, 0, v74, v75, 0, 32
+    jumpi v76, bb14, bb13
   bb13:
     revert_returndata
   bb14:
-    v76 = returndatasize
-    v77 = lt v76, 32
-    icall revert_if<tuple_data_too_short>, v77
-    v78 = add 0, 0
-    v79 = mload v78
-    v80 = add 0, 0
-    v81 = mload v80
-    v82 = lt 0, 1
-    v83 = eq v82, false
-    icall panic_if<0x32>, v83
-    v84 = div 0, 4
-    v85 = add 3, v84
-    v86 = mod 0, 4
-    v87 = mul v86, 8
-    v88 = sload v85 !metadata(storage=offset(v84, 3))
-    v89 = mul v87, 8
-    v90 = shr v89, v88
-    v91 = and v90, 0xffffffffffffffff
+    v77 = returndatasize
+    v78 = lt v77, 32
+    icall revert_if<tuple_data_too_short>, v78
+    v79 = add 0, 0
+    v80 = mload v79
+    v81 = lt 0, 1
+    v82 = eq v81, false
+    icall panic_if<0x32>, v82
+    v83 = div 0, 4
+    v84 = add 3, v83
+    v85 = mod 0, 4
+    v86 = mul v85, 8
+    v87 = sload v84 !metadata(storage=offset(v83, 3))
+    v88 = mul v86, 8
+    v89 = shr v88, v87
+    v90 = trunc i256 v89 to i64
+    v91 = zext i64 v90 to i256
     v92 = icall @internal_dispatcher_p_none_r_u256, v91
-    v93 = insert_value struct0, undef struct0, 0, v81
+    v93 = insert_value struct0, undef struct0, 0, v80
     v94 = insert_value struct0, v93, 1, v92
     ret v94
   bb8:
@@ -335,39 +335,39 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     v64 = sload v61 !metadata(storage=offset(v60, 1))
     v65 = mul v63, 8
     v66 = shr v65, v64
-    v67 = and v66, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v68 = and v67, 0xffffffff
-    v69 = shl 224, v68
-    v70 = shr 32, v67
-    v71 = gas
-    v72 = abi_encode [], selector v69
-    v73 = slice_ptr v72
-    v74 = slice_len v72
-    v75 = staticcall v71, v70, v73, v74, 0, 32
-    jumpi v75, bb14, bb13
+    v67 = trunc i256 v66 to i192
+    v68 = zext i192 v67 to i256
+    v69 = and v68, 0xffffffff
+    v70 = shl 224, v69
+    v71 = shr 32, v68
+    v72 = gas
+    v73 = abi_encode [], selector v70
+    v74 = slice_ptr v73
+    v75 = slice_len v73
+    v76 = staticcall v72, v71, v74, v75, 0, 32
+    jumpi v76, bb14, bb13
   bb13:
     revert_returndata
   bb14:
-    v76 = returndatasize
-    v77 = lt v76, 32
-    icall revert_if<tuple_data_too_short>, v77
-    v78 = add 0, 0
-    v79 = mload v78
-    v80 = add 0, 0
-    v81 = mload v80
-    v82 = lt 0, 1
-    v83 = eq v82, false
-    icall panic_if<0x32>, v83
-    v84 = div 0, 4
-    v85 = add 4, v84
-    v86 = mod 0, 4
-    v87 = mul v86, 8
-    v88 = sload v85 !metadata(storage=offset(v84, 4))
-    v89 = mul v87, 8
-    v90 = shr v89, v88
-    v91 = and v90, 0xffffffffffffffff
+    v77 = returndatasize
+    v78 = lt v77, 32
+    icall revert_if<tuple_data_too_short>, v78
+    v79 = add 0, 0
+    v80 = mload v79
+    v81 = lt 0, 1
+    v82 = eq v81, false
+    icall panic_if<0x32>, v82
+    v83 = div 0, 4
+    v84 = add 4, v83
+    v85 = mod 0, 4
+    v86 = mul v85, 8
+    v87 = sload v84 !metadata(storage=offset(v83, 4))
+    v88 = mul v86, 8
+    v89 = shr v88, v87
+    v90 = trunc i256 v89 to i64
+    v91 = zext i64 v90 to i256
     v92 = icall @internal_dispatcher_p_none_r_u256, v91
-    v93 = insert_value struct0, undef struct0, 0, v81
+    v93 = insert_value struct0, undef struct0, 0, v80
     v94 = insert_value struct0, v93, 1, v92
     ret v94
   bb8:

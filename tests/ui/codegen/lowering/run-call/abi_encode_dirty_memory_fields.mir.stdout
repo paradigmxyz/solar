@@ -6,29 +6,31 @@ fn @dirty() -> memorystruct [pure] {
     v1 = ptrtoint memorystruct v0 to i256
     memory_zero v1, 192
     memory_object_store_field memorystruct<6>, v0, 0, 1
-    v2 = zext i1 1 to i256
-    memory_object_store_field memorystruct<6>, v0, 1, v2
+    memory_object_store_field memorystruct<6>, v0, 1, 1
+    v2 = lt i8 1, i8 2
+    v3 = eq v2, false
+    icall panic_if<0x21>, v3
     memory_object_store_field memorystruct<6>, v0, 2, 1
-    v3 = trunc i256 1 to i160
-    v4 = zext i160 v3 to i256
-    memory_object_store_field memorystruct<6>, v0, 3, v4
-    v5 = sub 0, 1
-    memory_object_store_field memorystruct<6>, v0, 4, v5
+    memory_object_store_field memorystruct<6>, v0, 3, 1
+    v4 = sub 0, 1
+    v5 = trunc i256 v4 to i8
+    v6 = sext i8 v5 to i256
+    memory_object_store_field memorystruct<6>, v0, 4, v6
     memory_object_store_field memorystruct<6>, v0, 5, 0x1234000000000000000000000000000000000000000000000000000000000000
-    v6 = ptrtoint memorystruct v0 to i256
-    mstore v6, 511
     v7 = ptrtoint memorystruct v0 to i256
-    v8 = add v7, 32
-    mstore v8, 258
-    v9 = ptrtoint memorystruct v0 to i256
-    v10 = add v9, 96
-    mstore v10, 0x1000000000000000000000000000000000000000000000000000000000000002
-    v11 = ptrtoint memorystruct v0 to i256
-    v12 = add v11, 128
-    mstore v12, 254
-    v13 = ptrtoint memorystruct v0 to i256
-    v14 = add v13, 160
-    mstore v14, 0x1234567800000000000000000000000000000000000000000000000000000000
+    mstore v7, 511
+    v8 = ptrtoint memorystruct v0 to i256
+    v9 = add v8, 32
+    mstore v9, 258
+    v10 = ptrtoint memorystruct v0 to i256
+    v11 = add v10, 96
+    mstore v11, 0x1000000000000000000000000000000000000000000000000000000000000002
+    v12 = ptrtoint memorystruct v0 to i256
+    v13 = add v12, 128
+    mstore v13, 254
+    v14 = ptrtoint memorystruct v0 to i256
+    v15 = add v14, 160
+    mstore v15, 0x1234567800000000000000000000000000000000000000000000000000000000
     ret v0
 }
 

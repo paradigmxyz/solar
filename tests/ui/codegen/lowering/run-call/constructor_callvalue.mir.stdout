@@ -41,7 +41,7 @@ fn @constructor() [constructor, payable] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ConstructorCallvalue ===
 @module ConstructorCallvalue
-fn @rejectsExplicit() -> i256 [selector=0x90887b1f, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @rejectsExplicit() -> i1 [selector=0x90887b1f, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 105
@@ -61,13 +61,11 @@ fn @rejectsExplicit() -> i256 [selector=0x90887b1f, payable, abi_params=[], abi_
     v10 = abi_encode_packed (bytes v0, bytes v9)
     v11 = icall @deploy, v10
     v12 = trunc i256 v11 to i160
-    v13 = trunc i256 0 to i160
-    v14 = eq v12, v13
-    v15 = zext i1 v14 to i256
-    ret v15
+    v13 = eq v12, i160 0
+    ret v13
 }
 
-fn @rejectsImplicit() -> i256 [selector=0x05da30eb, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @rejectsImplicit() -> i1 [selector=0x05da30eb, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 20
@@ -76,13 +74,11 @@ fn @rejectsImplicit() -> i256 [selector=0x05da30eb, payable, abi_params=[], abi_
     mstore v2, 0x34600d5760038060115f395ff35b5f5ffd5f5ffd000000000000000000000000
     v3 = icall @deploy, v0
     v4 = trunc i256 v3 to i160
-    v5 = trunc i256 0 to i160
-    v6 = eq v4, v5
-    v7 = zext i1 v6 to i256
-    ret v7
+    v5 = eq v4, i160 0
+    ret v5
 }
 
-fn @rejectsSynthetic() -> i256 [selector=0x28868c98, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @rejectsSynthetic() -> i1 [selector=0x28868c98, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 35
@@ -94,13 +90,11 @@ fn @rejectsSynthetic() -> i256 [selector=0x28868c98, payable, abi_params=[], abi
     mstore v4, 0x5f5ffd0000000000000000000000000000000000000000000000000000000000
     v5 = icall @deploy, v0
     v6 = trunc i256 v5 to i160
-    v7 = trunc i256 0 to i160
-    v8 = eq v6, v7
-    v9 = zext i1 v8 to i256
-    ret v9
+    v7 = eq v6, i160 0
+    ret v7
 }
 
-fn @rejectsInherited() -> i256 [selector=0xb3ba0b5d, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @rejectsInherited() -> i1 [selector=0xb3ba0b5d, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 31
@@ -109,13 +103,11 @@ fn @rejectsInherited() -> i256 [selector=0xb3ba0b5d, payable, abi_params=[], abi
     mstore v2, 0x60c0604052341515600e576012565b5f5ffd5b600380601c5f395ff35f5ffd00
     v3 = icall @deploy, v0
     v4 = trunc i256 v3 to i160
-    v5 = trunc i256 0 to i160
-    v6 = eq v4, v5
-    v7 = zext i1 v6 to i256
-    ret v7
+    v5 = eq v4, i160 0
+    ret v5
 }
 
-fn @acceptsPayable() -> i256 [selector=0xd6e5da6b, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @acceptsPayable() -> i1 [selector=0xd6e5da6b, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 17
@@ -124,20 +116,18 @@ fn @acceptsPayable() -> i256 [selector=0xd6e5da6b, payable, abi_params=[], abi_r
     mstore v2, 0x60c0604052600380600e5f395ff35f5ffd000000000000000000000000000000
     v3 = icall @deploy, v0
     v4 = trunc i256 v3 to i160
-    v5 = trunc i256 0 to i160
-    v6 = ne v4, v5
-    jumpi v6, bb1, bb2
+    v5 = ne v4, i160 0
+    jumpi v5, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v7 = balance v3
-    v8 = callvalue
-    v9 = eq v7, v8
+    v6 = balance v3
+    v7 = callvalue
+    v8 = eq v6, v7
     jump bb3
   bb3:
-    v10 = phi [bb1: v9], [bb2: false]
-    v11 = zext i1 v10 to i256
-    ret v11
+    v9 = phi [bb1: v8], [bb2: false]
+    ret v9
 }
 
 fn @deploy(arg0: memorybytes) -> i256 {

@@ -107,7 +107,7 @@ fn @compare(arg0: i256, arg1: i256) -> struct2 [selector=0xf360234c, pure, abi_p
     ret v7
 }
 
-fn @selects(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0x413c28d5, pure, abi_params=[bool, u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @selects(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0x413c28d5, pure, abi_params=[bool, u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = eq arg1, arg2
     jumpi v0, bb1, bb2
@@ -117,42 +117,38 @@ fn @selects(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector
     jump bb3
   bb3:
     v1 = phi [bb1: arg1], [bb2: arg2]
-    v2 = ne arg0, 0
-    jumpi v2, bb4, bb5
+    jumpi arg0, bb4, bb5
   bb5:
-    v3 = ne arg0, 0
-    jumpi v3, bb7, bb8
+    jumpi arg0, bb7, bb8
   bb8:
     jump bb9
   bb7:
     jump bb9
   bb9:
-    v4 = phi [bb7: arg2], [bb8: arg3]
+    v2 = phi [bb7: arg2], [bb8: arg3]
     jump bb6
   bb4:
     jump bb6
   bb6:
-    v5 = phi [bb4: arg1], [bb9: v4]
-    v6 = ne arg0, 0
-    jumpi v6, bb10, bb11
+    v3 = phi [bb4: arg1], [bb9: v2]
+    jumpi arg0, bb10, bb11
   bb11:
     jump bb12
   bb10:
-    v7 = ne arg0, 0
-    jumpi v7, bb13, bb14
+    jumpi arg0, bb13, bb14
   bb14:
     jump bb15
   bb13:
     jump bb15
   bb15:
-    v8 = phi [bb13: arg1], [bb14: arg2]
+    v4 = phi [bb13: arg1], [bb14: arg2]
     jump bb12
   bb12:
-    v9 = phi [bb15: v8], [bb11: arg3]
-    v10 = insert_value struct0, undef struct0, 0, v1
-    v11 = insert_value struct0, v10, 1, v5
-    v12 = insert_value struct0, v11, 2, v9
-    ret v12
+    v5 = phi [bb15: v4], [bb11: arg3]
+    v6 = insert_value struct0, undef struct0, 0, v1
+    v7 = insert_value struct0, v6, 1, v3
+    v8 = insert_value struct0, v7, 2, v5
+    ret v8
 }
 
 fn @bitTestSelect(arg0: i256) -> struct2 [selector=0xa23456db, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {

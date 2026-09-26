@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_delete_packed_struct.sol:StorageDeletePackedStruct ===
 @module StorageDeletePackedStruct
 types:
-  struct0: {i256, i256, i256, i256, i256, i256}
-  struct1: {i256, i256, i256}
-  struct2: {i256, i256, i256, i256}
+  struct0: {i8, i16, i8, i8, i16, i8}
+  struct1: {i8, i16, i8}
+  struct2: {i256, i8, i256, i256}
 
 fn @clearArray() -> struct0 [selector=0xe80b7ab6, abi_params=[], abi_returns=[word<u8>, word<u16>, word<u8>, word<u8>, word<u16>, word<u8>], abi_return_params=[u8, u16, u8, u8, u16, u8]] {
   bb0:
@@ -91,7 +91,7 @@ fn @clearArray() -> struct0 [selector=0xe80b7ab6, abi_params=[], abi_returns=[wo
     v66 = storage_array_data_slot 0
     v67 = add v66, 0
     v68 = sload v67 !metadata(storage=symbolic(v66))
-    v69 = and v68, 255
+    v69 = trunc i256 v68 to i8
     v70 = sload 0 !metadata(storage=slot(0))
     v71 = lt 0, v70
     v72 = eq v71, false
@@ -100,7 +100,7 @@ fn @clearArray() -> struct0 [selector=0xe80b7ab6, abi_params=[], abi_returns=[wo
     v74 = add v73, 0
     v75 = sload v74 !metadata(storage=symbolic(v73))
     v76 = shr 8, v75
-    v77 = and v76, 0xffff
+    v77 = trunc i256 v76 to i16
     v78 = sload 0 !metadata(storage=slot(0))
     v79 = lt 0, v78
     v80 = eq v79, false
@@ -109,7 +109,7 @@ fn @clearArray() -> struct0 [selector=0xe80b7ab6, abi_params=[], abi_returns=[wo
     v82 = add v81, 0
     v83 = sload v82 !metadata(storage=symbolic(v81))
     v84 = shr 24, v83
-    v85 = and v84, 255
+    v85 = trunc i256 v84 to i8
     v86 = sload 0 !metadata(storage=slot(0))
     v87 = lt 1, v86
     v88 = eq v87, false
@@ -117,7 +117,7 @@ fn @clearArray() -> struct0 [selector=0xe80b7ab6, abi_params=[], abi_returns=[wo
     v89 = storage_array_data_slot 0
     v90 = add v89, 1
     v91 = sload v90 !metadata(storage=offset(v89, 1))
-    v92 = and v91, 255
+    v92 = trunc i256 v91 to i8
     v93 = sload 0 !metadata(storage=slot(0))
     v94 = lt 1, v93
     v95 = eq v94, false
@@ -126,7 +126,7 @@ fn @clearArray() -> struct0 [selector=0xe80b7ab6, abi_params=[], abi_returns=[wo
     v97 = add v96, 1
     v98 = sload v97 !metadata(storage=offset(v96, 1))
     v99 = shr 8, v98
-    v100 = and v99, 0xffff
+    v100 = trunc i256 v99 to i16
     v101 = sload 0 !metadata(storage=slot(0))
     v102 = lt 1, v101
     v103 = eq v102, false
@@ -135,7 +135,7 @@ fn @clearArray() -> struct0 [selector=0xe80b7ab6, abi_params=[], abi_returns=[wo
     v105 = add v104, 1
     v106 = sload v105 !metadata(storage=offset(v104, 1))
     v107 = shr 24, v106
-    v108 = and v107, 255
+    v108 = trunc i256 v107 to i8
     v109 = insert_value struct0, undef struct0, 0, v69
     v110 = insert_value struct0, v109, 1, v77
     v111 = insert_value struct0, v110, 2, v85
@@ -231,7 +231,7 @@ fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns
     v66 = storage_array_data_slot 0
     v67 = add v66, 0
     v68 = sload v67 !metadata(storage=symbolic(v66))
-    v69 = and v68, 255
+    v69 = trunc i256 v68 to i8
     v70 = sload 0 !metadata(storage=slot(0))
     v71 = lt 0, v70
     v72 = eq v71, false
@@ -240,7 +240,7 @@ fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns
     v74 = add v73, 0
     v75 = sload v74 !metadata(storage=symbolic(v73))
     v76 = shr 8, v75
-    v77 = and v76, 0xffff
+    v77 = trunc i256 v76 to i16
     v78 = sload 0 !metadata(storage=slot(0))
     v79 = lt 0, v78
     v80 = eq v79, false
@@ -249,7 +249,7 @@ fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns
     v82 = add v81, 0
     v83 = sload v82 !metadata(storage=symbolic(v81))
     v84 = shr 24, v83
-    v85 = and v84, 255
+    v85 = trunc i256 v84 to i8
     v86 = sload 0 !metadata(storage=slot(0))
     v87 = lt 1, v86
     v88 = eq v87, false
@@ -257,7 +257,7 @@ fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns
     v89 = storage_array_data_slot 0
     v90 = add v89, 1
     v91 = sload v90 !metadata(storage=offset(v89, 1))
-    v92 = and v91, 255
+    v92 = trunc i256 v91 to i8
     v93 = sload 0 !metadata(storage=slot(0))
     v94 = lt 1, v93
     v95 = eq v94, false
@@ -266,7 +266,7 @@ fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns
     v97 = add v96, 1
     v98 = sload v97 !metadata(storage=offset(v96, 1))
     v99 = shr 8, v98
-    v100 = and v99, 0xffff
+    v100 = trunc i256 v99 to i16
     v101 = sload 0 !metadata(storage=slot(0))
     v102 = lt 1, v101
     v103 = eq v102, false
@@ -275,7 +275,7 @@ fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns
     v105 = add v104, 1
     v106 = sload v105 !metadata(storage=offset(v104, 1))
     v107 = shr 24, v106
-    v108 = and v107, 255
+    v108 = trunc i256 v107 to i8
     v109 = insert_value struct0, undef struct0, 0, v69
     v110 = insert_value struct0, v109, 1, v77
     v111 = insert_value struct0, v110, 2, v85
@@ -314,15 +314,15 @@ fn @clearMapping() -> struct1 [selector=0xf644c4b0, abi_params=[], abi_returns=[
     sstore v20, 0 !metadata(storage=symbolic(v20))
     v21 = mapping_slot 1, 1
     v22 = sload v21 !metadata(storage=symbolic(v21))
-    v23 = and v22, 255
+    v23 = trunc i256 v22 to i8
     v24 = mapping_slot 1, 1
     v25 = sload v24 !metadata(storage=symbolic(v24))
     v26 = shr 8, v25
-    v27 = and v26, 0xffff
+    v27 = trunc i256 v26 to i16
     v28 = mapping_slot 1, 1
     v29 = sload v28 !metadata(storage=symbolic(v28))
     v30 = shr 24, v29
-    v31 = and v30, 255
+    v31 = trunc i256 v30 to i8
     v32 = insert_value struct1, undef struct1, 0, v23
     v33 = insert_value struct1, v32, 1, v27
     v34 = insert_value struct1, v33, 2, v31
@@ -380,7 +380,7 @@ fn @assign() -> struct1 [selector=0x12ae6397, abi_params=[], abi_returns=[word<u
     v36 = storage_array_data_slot 0
     v37 = add v36, 0
     v38 = sload v37 !metadata(storage=symbolic(v36))
-    v39 = and v38, 255
+    v39 = trunc i256 v38 to i8
     v40 = sload 0 !metadata(storage=slot(0))
     v41 = lt 0, v40
     v42 = eq v41, false
@@ -389,7 +389,7 @@ fn @assign() -> struct1 [selector=0x12ae6397, abi_params=[], abi_returns=[word<u
     v44 = add v43, 0
     v45 = sload v44 !metadata(storage=symbolic(v43))
     v46 = shr 8, v45
-    v47 = and v46, 0xffff
+    v47 = trunc i256 v46 to i16
     v48 = sload 0 !metadata(storage=slot(0))
     v49 = lt 0, v48
     v50 = eq v49, false
@@ -398,7 +398,7 @@ fn @assign() -> struct1 [selector=0x12ae6397, abi_params=[], abi_returns=[word<u
     v52 = add v51, 0
     v53 = sload v52 !metadata(storage=symbolic(v51))
     v54 = shr 24, v53
-    v55 = and v54, 255
+    v55 = trunc i256 v54 to i8
     v56 = insert_value struct1, undef struct1, 0, v39
     v57 = insert_value struct1, v56, 1, v47
     v58 = insert_value struct1, v57, 2, v55
@@ -435,7 +435,7 @@ fn @clearStructWithMapping() -> struct2 [selector=0xb447ab5f, abi_params=[], abi
     v10 = sload 3 !metadata(storage=slot(3))
     v11 = add 3, 2
     v12 = sload v11 !metadata(storage=slot(5))
-    v13 = and v12, 255
+    v13 = trunc i256 v12 to i8
     v14 = mapping_slot 1, v0
     v15 = sload v14 !metadata(storage=symbolic(v14))
     v16 = sload v0 !metadata(storage=slot(4))

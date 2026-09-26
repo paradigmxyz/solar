@@ -3,35 +3,32 @@
 fn @guarded(arg0: i256) -> i256 [selector=0x5e284975, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = ne arg0, 0
-    v1 = zext i1 v0 to i256
-    icall @ensure, v1
+    icall @ensure, v0
     sstore 0, arg0 !metadata(storage=slot(0))
-    v2 = sload 0 !metadata(storage=slot(0))
-    v3 = lt v2, 10
-    v4 = zext i1 v3 to i256
-    icall @ensure, v4
-    v5 = sload 0 !metadata(storage=slot(0))
-    ret v5
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = lt v1, 10
+    icall @ensure, v2
+    v3 = sload 0 !metadata(storage=slot(0))
+    ret v3
 }
 
 fn @asserted(arg0: i256) -> i256 [selector=0x4441421f, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = ne arg0, 0
-    v1 = zext i1 v0 to i256
-    icall @invariant, v1
+    icall @invariant, v0
     ret arg0
 }
 
-fn @ensure(arg0: i256) [pure] {
+fn @ensure(arg0: i1) [pure] {
   bb0:
-    v0 = eq arg0, 0
+    v0 = eq arg0, false
     icall revert_if<empty>, v0
     ret
 }
 
-fn @invariant(arg0: i256) [pure] {
+fn @invariant(arg0: i1) [pure] {
   bb0:
-    v0 = eq arg0, 0
+    v0 = eq arg0, false
     icall panic_if<0x1>, v0
     ret
 }

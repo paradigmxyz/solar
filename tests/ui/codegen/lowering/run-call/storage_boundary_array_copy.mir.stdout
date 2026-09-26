@@ -49,65 +49,66 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v19 = lt v18, 10
     jumpi v19, bb8, bb9
   bb9:
-    v23 = lt 0, 1
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = mul 0, 10
-    v26 = add v1, v25
+    v23 = ptrtoint memoryfixedarray v17 to i256
+    v24 = lt 0, 1
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = mul 0, 10
+    v27 = add v1, v26
     jump bb10
   bb10:
-    v27 = phi [bb9: 0], [bb15: v32]
-    v28 = lt v27, 10
-    jumpi v28, bb11, bb12
+    v28 = phi [bb9: 0], [bb15: v33]
+    v29 = lt v28, 10
+    jumpi v29, bb11, bb12
   bb12:
     jump bb16
   bb16:
-    v33 = phi [bb12: 0], [bb18: v50]
     v34 = phi [bb12: 0], [bb18: v51]
-    v35 = phi [bb12: v0], [bb18: v35]
-    v36 = phi [bb12: v1], [bb18: v36]
-    v37 = lt 0, 1
-    v38 = eq v37, false
-    icall panic_if<0x32>, v38
-    v39 = mul 0, 10
-    v40 = add v36, v39
-    v41 = lt v34, 10
-    jumpi v41, bb19, bb20
+    v35 = phi [bb12: 0], [bb18: v52]
+    v36 = phi [bb12: v0], [bb18: v36]
+    v37 = phi [bb12: v1], [bb18: v37]
+    v38 = lt 0, 1
+    v39 = eq v38, false
+    icall panic_if<0x32>, v39
+    v40 = mul 0, 10
+    v41 = add v37, v40
+    v42 = lt v35, 10
+    jumpi v42, bb19, bb20
   bb20:
     jump bb17
   bb17:
-    ret v33
+    ret v34
   bb19:
-    v42 = lt 0, 1
-    v43 = eq v42, false
-    icall panic_if<0x32>, v43
-    v44 = mul 0, 10
-    v45 = add v36, v44
-    v46 = lt v34, 10
-    v47 = eq v46, false
-    icall panic_if<0x32>, v47
-    v48 = add v45, v34
-    v49 = sload v48 !metadata(storage=symbolic(v48))
-    v50 = checked_add u256, v33, v49
+    v43 = lt 0, 1
+    v44 = eq v43, false
+    icall panic_if<0x32>, v44
+    v45 = mul 0, 10
+    v46 = add v37, v45
+    v47 = lt v35, 10
+    v48 = eq v47, false
+    icall panic_if<0x32>, v48
+    v49 = add v46, v35
+    v50 = sload v49 !metadata(storage=symbolic(v49))
+    v51 = checked_add u256, v34, v50
     jump bb21
   bb21:
     jump bb18
   bb18:
-    v51 = checked_add u256, v34, 1
+    v52 = checked_add u256, v35, 1
     jump bb16
   bb11:
-    v29 = add v26, v27
-    v30 = lt v27, 10
-    jumpi v30, bb13, bb14
+    v30 = add v27, v28
+    v31 = lt v28, 10
+    jumpi v31, bb13, bb14
   bb14:
-    sstore v29, 0 !metadata(storage=symbolic(v29))
+    sstore v30, 0 !metadata(storage=symbolic(v30))
     jump bb15
   bb13:
-    v31 = memory_object_load_element memoryfixedarray<10, 1>, v17, v27
-    sstore v29, v31 !metadata(storage=symbolic(v29))
+    v32 = memory_object_load_element memoryfixedarray<10, 1>, v17, v28
+    sstore v30, v32 !metadata(storage=symbolic(v30))
     jump bb15
   bb15:
-    v32 = add v27, 1
+    v33 = add v28, 1
     jump bb10
   bb8:
     v20 = add v16, v18

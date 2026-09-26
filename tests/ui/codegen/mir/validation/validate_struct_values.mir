@@ -221,3 +221,24 @@ fn @calldata_as_memory(arg0: calldataslice) -> memptr {
     v0 = memory_object_data memorybytes, arg0
     ret v0
 }
+
+//~? ERROR: [fn31] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
+fn @mixed_width_add(arg0: i8, arg1: i16) -> i8 {
+  bb0:
+    v0 = add arg0, arg1
+    ret v0
+}
+
+//~? ERROR: [fn32] [bb0, inst0] `eq` has incompatible scalar types; use an explicit cast
+fn @mixed_width_compare(arg0: i16, arg1: i24) -> i1 {
+  bb0:
+    v0 = eq arg0, arg1
+    ret v0
+}
+
+//~? ERROR: [fn33] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
+fn @wrong_result_annotation(arg0: i8, arg1: i8) -> i16 {
+  bb0:
+    v0: i16 = add arg0, arg1
+    ret v0
+}

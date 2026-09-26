@@ -150,7 +150,7 @@ impl PureEvaluator {
                 if matches!(inst.kind, InstKind::Phi(..)) {
                     continue;
                 }
-                let result = self.eval_inst(&inst.kind, &env)?;
+                let result = self.eval_inst(func, &inst.kind, &env)?;
                 if let Some(value_id) = func.inst_result_value(inst_id) {
                     env.insert(value_id, result);
                 }
@@ -199,12 +199,17 @@ impl PureEvaluator {
         env.get(&value).copied()
     }
 
-    fn eval_inst(&self, kind: &InstKind, env: &FxHashMap<ValueId, U256>) -> Option<U256> {
+    fn eval_inst(
+        &self,
+        func: &Function,
+        kind: &InstKind,
+        env: &FxHashMap<ValueId, U256>,
+    ) -> Option<U256> {
         let get = |value| self.value_const(env, value);
         if let InstKind::Select(condition, then_value, else_value) = *kind {
             return if get(condition)?.is_zero() { get(else_value) } else { get(then_value) };
         }
-        eval::eval_inst(kind, |value| get(value).ok_or(())).ok().flatten()
+        eval::eval_typed_inst(func, kind, |value| get(value).ok_or(())).ok().flatten()
     }
 
     fn rewrite_to_return(&self, func: &mut Function, values: &[U256]) {

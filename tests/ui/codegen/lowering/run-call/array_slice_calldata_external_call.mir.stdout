@@ -42,7 +42,5 @@ fn @forward(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0x4b1
     icall revert_if<tuple_data_too_short>, v24
     v25 = add 0, 0
     v26 = mload v25
-    v27 = add 0, 0
-    v28 = mload v27
-    ret v28
+    ret v26
 }

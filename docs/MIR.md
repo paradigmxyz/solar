@@ -15,12 +15,23 @@ An `i256` carries 256 bits; source widths, signedness, and ABI encoding rules
 belong to operation and layout metadata. An `i256` argument does not imply
 heap provenance or non-wrapping address arithmetic. `void` denotes no function result.
 
-Integer type names follow `iN`, where `N` ranges from 1 to 4294967295. All
-widths can appear in MIR text; typed literals currently hold at most 256 bits.
-Only `i1`, `i160`, and `i256` have codegen support and are emitted by source
-lowering. Other widths are syntax-only for now; their eventual lowering belongs
-at the EVM IR boundary.
-Signedness belongs to operations, not integer types.
+Integer types are `i1` and byte widths `i8`, `i16`, …, `i256`. Solidity
+`uintN` and `intN` both become `iN`; signedness belongs to the operation.
+Every integer is a clean bit pattern with no set bits above its width.
+Arithmetic wraps at that width, shifts saturate, and division follows EVM's
+zero-divisor semantics. Checked Solidity arithmetic retains its explicit
+width and panic behavior.
+
+`lower-integers` legalizes narrow arithmetic and conversions to `i256` before
+EVM-shaped MIR. It materializes masks and sign extension as MIR operations,
+then `integer-cleanup` removes masks proved redundant by dominating range
+checks, and scalar passes simplify the remaining operations before stack scheduling. `i1` remains
+the branch condition type.
+
+Source bindings exposed to inline assembly use explicit `i256` carriers where
+raw upper bits must survive copies and internal calls. Typed Solidity uses
+convert these carriers to their native types. ABI and memory layout metadata
+retain signedness and storage widths independently of SSA types.
 
 Every `i1` is zero or one. Branches and select conditions require `i1`;
 compare a word with zero using `eq value, 0` or `ne value, 0` before branching.
@@ -45,7 +56,9 @@ Every operation declares its operand contract in the operation schema. The valid
 checks those contracts, dependent result types, builtin and function signatures,
 aggregate layouts, and terminators. Phase transitions and the backend boundary run
 full validation, including SSA and constant widths. Builders emit conversion
-instructions; parsing and validation never repair mismatched types.
+instructions; parsing and validation never repair mismatched types. Optional
+result annotations such as `v0: i256 = caller` preserve the legalized type of
+producers whose default result is narrow.
 
 Solidity booleans and addresses whose raw bits can be observed by assembly travel as words
 across source-function calls, source-variable joins, and immutable storage.
@@ -72,7 +85,7 @@ or types a module may contain.
 | Representation | Contract | Main work |
 | --- | --- | --- |
 | Semantic MIR | Typed SSA, structs, slices, object references, semantic builtins, ordinary function calls; ABI and storage layouts remain explicit data. | Inline and specialize small functions, propagate constants, promote frame slots, simplify aggregates, remove redundant checks and memory/storage work. |
-| Lowered MIR | `i256`, `i160`, `i1`, and `memptr` SSA, explicit routing and ABI code, physical memory accesses, lowered call signatures, backend-supported operations. No semantic builtin or unresolved layout remains. | Simplify exposed scalar code, remove redundant loads/stores, optimize generated loops where profitable, prepare scheduling. |
+| Lowered MIR | `i256`, `i1`, and `memptr` SSA, explicit routing and ABI code, physical memory accesses, lowered call signatures, backend-supported operations. No semantic builtin or unresolved layout remains. | Simplify exposed scalar code, remove redundant loads/stores, optimize generated loops where profitable, prepare scheduling. |
 | EVM IR | Scheduled blocks with physical stack operations and explicit control transfers. | Target peepholes, sharing, outlining, layout, then assembly. |
 
 `lowered` does not mean scheduled: SSA values, phis, functions, and calls survive

@@ -1,8 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_delete_packed_array.sol:StorageDeletePackedArray ===
 @module StorageDeletePackedArray
 types:
-  struct0: {i256, i256, i256}
-  struct1: {i256, i256, i256, i256, i256, i256}
+  struct0: {i8, i8, i8}
+  struct1: {i256, i8, i256}
+  struct2: {i256, i256, i256, i256, i256, i256}
 
 fn @clear() -> struct0 [selector=0x52efea6e, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>], abi_return_params=[u8, u8, u8]] {
   bb0:
@@ -93,7 +94,7 @@ fn @clear() -> struct0 [selector=0x52efea6e, abi_params=[], abi_returns=[word<u8
     v72 = sload v69 !metadata(storage=symbolic(v69))
     v73 = mul v71, 8
     v74 = shr v73, v72
-    v75 = and v74, 255
+    v75 = trunc i256 v74 to i8
     v76 = sload 0 !metadata(storage=slot(0))
     v77 = lt 1, v76
     v78 = eq v77, false
@@ -106,7 +107,7 @@ fn @clear() -> struct0 [selector=0x52efea6e, abi_params=[], abi_returns=[word<u8
     v84 = sload v81 !metadata(storage=symbolic(v81))
     v85 = mul v83, 8
     v86 = shr v85, v84
-    v87 = and v86, 255
+    v87 = trunc i256 v86 to i8
     v88 = sload 0 !metadata(storage=slot(0))
     v89 = lt 2, v88
     v90 = eq v89, false
@@ -119,7 +120,7 @@ fn @clear() -> struct0 [selector=0x52efea6e, abi_params=[], abi_returns=[word<u8
     v96 = sload v93 !metadata(storage=symbolic(v93))
     v97 = mul v95, 8
     v98 = shr v97, v96
-    v99 = and v98, 255
+    v99 = trunc i256 v98 to i8
     v100 = insert_value struct0, undef struct0, 0, v75
     v101 = insert_value struct0, v100, 1, v87
     v102 = insert_value struct0, v101, 2, v99
@@ -192,7 +193,7 @@ fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns
     v52 = sload v49 !metadata(storage=offset(v48, 1))
     v53 = mul v51, 8
     v54 = shr v53, v52
-    v55 = and v54, 255
+    v55 = trunc i256 v54 to i8
     v56 = lt 1, 3
     v57 = eq v56, false
     icall panic_if<0x32>, v57
@@ -203,7 +204,7 @@ fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns
     v62 = sload v59 !metadata(storage=offset(v58, 1))
     v63 = mul v61, 8
     v64 = shr v63, v62
-    v65 = and v64, 255
+    v65 = trunc i256 v64 to i8
     v66 = lt 2, 3
     v67 = eq v66, false
     icall panic_if<0x32>, v67
@@ -214,7 +215,7 @@ fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns
     v72 = sload v69 !metadata(storage=offset(v68, 1))
     v73 = mul v71, 8
     v74 = shr v73, v72
-    v75 = and v74, 255
+    v75 = trunc i256 v74 to i8
     v76 = insert_value struct0, undef struct0, 0, v55
     v77 = insert_value struct0, v76, 1, v65
     v78 = insert_value struct0, v77, 2, v75
@@ -226,7 +227,7 @@ fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns
     jump bb1
 }
 
-fn @deleteThenPush() -> struct0 [selector=0x63470f4e, abi_params=[], abi_returns=[word, word<u8>, word], abi_return_params=[u256, u8, u256]] {
+fn @deleteThenPush() -> struct1 [selector=0x63470f4e, abi_params=[], abi_returns=[word, word<u8>, word], abi_return_params=[u256, u8, u256]] {
   bb0:
     sstore 0, 42 !metadata(storage=slot(0))
     v0 = sload 6 !metadata(storage=slot(6))
@@ -289,11 +290,11 @@ fn @deleteThenPush() -> struct0 [selector=0x63470f4e, abi_params=[], abi_returns
     v48 = sload v45 !metadata(storage=symbolic(v45))
     v49 = mul v47, 8
     v50 = shr v49, v48
-    v51 = and v50, 255
+    v51 = trunc i256 v50 to i8
     v52 = sload 6 !metadata(storage=slot(6))
-    v53 = insert_value struct0, undef struct0, 0, v39
-    v54 = insert_value struct0, v53, 1, v51
-    v55 = insert_value struct0, v54, 2, v52
+    v53 = insert_value struct1, undef struct1, 0, v39
+    v54 = insert_value struct1, v53, 1, v51
+    v55 = insert_value struct1, v54, 2, v52
     ret v55
 }
 
@@ -363,7 +364,7 @@ fn @clearFixed() -> struct0 [selector=0x94bd0f54, abi_params=[], abi_returns=[wo
     v52 = sload v49 !metadata(storage=offset(v48, 1))
     v53 = mul v51, 8
     v54 = shr v53, v52
-    v55 = and v54, 255
+    v55 = trunc i256 v54 to i8
     v56 = lt 1, 3
     v57 = eq v56, false
     icall panic_if<0x32>, v57
@@ -374,7 +375,7 @@ fn @clearFixed() -> struct0 [selector=0x94bd0f54, abi_params=[], abi_returns=[wo
     v62 = sload v59 !metadata(storage=offset(v58, 1))
     v63 = mul v61, 8
     v64 = shr v63, v62
-    v65 = and v64, 255
+    v65 = trunc i256 v64 to i8
     v66 = lt 2, 3
     v67 = eq v66, false
     icall panic_if<0x32>, v67
@@ -385,7 +386,7 @@ fn @clearFixed() -> struct0 [selector=0x94bd0f54, abi_params=[], abi_returns=[wo
     v72 = sload v69 !metadata(storage=offset(v68, 1))
     v73 = mul v71, 8
     v74 = shr v73, v72
-    v75 = and v74, 255
+    v75 = trunc i256 v74 to i8
     v76 = insert_value struct0, undef struct0, 0, v55
     v77 = insert_value struct0, v76, 1, v65
     v78 = insert_value struct0, v77, 2, v75

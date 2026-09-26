@@ -208,6 +208,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.default_bindings.contains(&id) || self.deferred_bindings.contains(&id) {
             let ty = self.cx.gcx.type_of_item(id.into());
             let value = self.default_binding_value(ty);
+            let value = self.materialize_raw_scalar(id, value);
             self.values.insert(id, value);
             return Some(value);
         }
@@ -254,6 +255,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut value: ValueId,
         span: Span,
     ) -> Option<()> {
+        if !self.in_inline_assembly {
+            value = self.materialize_raw_scalar(id, value);
+        }
         if self.in_inline_assembly {
             let ty = self.cx.gcx.type_of_item(id.into());
             if self.builder.func().value_slice_location(value) != Some(SliceLocation::Calldata)

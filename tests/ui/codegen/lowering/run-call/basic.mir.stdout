@@ -1,7 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/basic.sol:RunCall ===
 @module RunCall
 types:
-  struct0: {i256, i256}
+  struct0: {i256, i1}
+  struct1: {i256, i256}
 
 fn @constructor() [constructor] {
   bb0:
@@ -16,25 +17,19 @@ fn @add(arg0: i256) -> i256 [selector=0x1003e2d2, view, abi_params=[u256], abi_r
     ret v1
 }
 
-fn @negate(arg0: i256) -> i256 [selector=0xb9225c15, pure, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @negate(arg0: i1) -> i1 [selector=0xb9225c15, pure, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = eq arg0, 0
-    v1 = eq v0, false
-    v2 = eq v1, false
-    v3 = zext i1 v2 to i256
-    ret v3
+    v0 = eq arg0, false
+    ret v0
 }
 
-fn @pair(arg0: i256, arg1: i256) -> struct0 [selector=0xedaceefe, pure, abi_params=[u256, bool], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
+fn @pair(arg0: i256, arg1: i1) -> struct0 [selector=0xedaceefe, pure, abi_params=[u256, bool], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
   bb0:
     v0 = checked_add u256, arg0, 1
-    v1 = eq arg1, 0
-    v2 = eq v1, false
-    v3 = eq v2, false
-    v4 = zext i1 v3 to i256
-    v5 = insert_value struct0, undef struct0, 0, v0
-    v6 = insert_value struct0, v5, 1, v4
-    ret v6
+    v1 = eq arg1, false
+    v2 = insert_value struct0, undef struct0, 0, v0
+    v3 = insert_value struct0, v2, 1, v1
+    ret v3
 }
 
 fn @sum(arg0: calldataslice) -> i256 [selector=0x0194db8e, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -98,54 +93,51 @@ fn @fullyInitializedNamedStruct() -> memorystruct [selector=0x03e8d290, pure, ab
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v2 = ptrtoint memoryarray 96 to i256
+    memory_object_store_field memorystruct<2>, v1, 0, 96
+    memory_object_store_field memorystruct<2>, v1, 1, 96
+    v2 = ptrtoint memoryarray v0 to i256
     memory_object_store_field memorystruct<2>, v1, 0, v2
-    v3 = ptrtoint memorybytes 96 to i256
-    memory_object_store_field memorystruct<2>, v1, 1, v3
-    v4 = ptrtoint memoryarray v0 to i256
-    memory_object_store_field memorystruct<2>, v1, 0, v4
-    v5 = not 31
-    v6 = and 64, v5
-    v7 = alloc memorybytes, exact, zeroed, panic, v6
-    set_memory_object_len memorybytes, v7, 1
-    v8 = ptrtoint memorybytes v7 to i256
-    memory_object_store_field memorystruct<2>, v1, 1, v8
+    v3 = not 31
+    v4 = and 64, v3
+    v5 = alloc memorybytes, exact, zeroed, panic, v4
+    set_memory_object_len memorybytes, v5, 1
+    v6 = ptrtoint memorybytes v5 to i256
+    memory_object_store_field memorystruct<2>, v1, 1, v6
     ret v1
 }
 
-fn @reservedSpillFreshness(arg0: i256) -> i256 [selector=0x45f98aed, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @reservedSpillFreshness(arg0: i1) -> i256 [selector=0x45f98aed, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = ne arg0, 0
-    jumpi v1, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb2:
     sstore 0, 99 !metadata(storage=slot(0))
-    v6 = checked_add u256, v0, 7
-    v7 = icall @pairInternal, v6
-    v8 = extract_value struct0, v7, 0
-    v9 = extract_value struct0, v7, 1
-    v10 = checked_add u256, v8, v9
-    v11 = checked_add u256, v10, v0
+    v5 = checked_add u256, v0, 7
+    v6 = icall @pairInternal, v5
+    v7 = extract_value struct1, v6, 0
+    v8 = extract_value struct1, v6, 1
+    v9 = checked_add u256, v7, v8
+    v10 = checked_add u256, v9, v0
     jump bb3
   bb1:
-    v2 = icall @pairInternal, v0
-    v3 = extract_value struct0, v2, 0
-    v4 = extract_value struct0, v2, 1
-    v5 = checked_add u256, v3, v4
+    v1 = icall @pairInternal, v0
+    v2 = extract_value struct1, v1, 0
+    v3 = extract_value struct1, v1, 1
+    v4 = checked_add u256, v2, v3
     jump bb3
   bb3:
-    v12 = phi [bb1: v4], [bb2: v0]
-    v13 = phi [bb1: v3], [bb2: v0]
-    v14 = phi [bb1: v5], [bb2: v11]
-    ret v14
+    v11 = phi [bb1: v3], [bb2: v0]
+    v12 = phi [bb1: v2], [bb2: v0]
+    v13 = phi [bb1: v4], [bb2: v10]
+    ret v13
 }
 
-fn @pairInternal(arg0: i256) -> struct0 [pure] {
+fn @pairInternal(arg0: i256) -> struct1 [pure] {
   bb0:
     v0 = checked_add u256, arg0, 1
     v1 = checked_add u256, arg0, 2
-    v2 = insert_value struct0, undef struct0, 0, v0
-    v3 = insert_value struct0, v2, 1, v1
+    v2 = insert_value struct1, undef struct1, 0, v0
+    v3 = insert_value struct1, v2, 1, v1
     ret v3
 }
 

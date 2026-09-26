@@ -136,7 +136,7 @@ CALL_OPERANDS = {
 
 
 class Context:
-    def __init__(self, selection_source=None):
+    def __init__(self, selection_source=None, integer_bits=None):
         self.values = {}
         self.assumptions = []
         self.contracts = set()
@@ -149,8 +149,60 @@ class Context:
         )
         self.fresh_id = 0
         self.memory = MemoryAddresses(self)
+        self.integer_width = None if integer_bits is None else Expr.const(integer_bits)
+        self.matching_integer = False
 
     def operation(self, name, args):
+        if self.integer_width is not None:
+            comparisons = {"Eq", "Ne", "Lt", "Gt", "SLt", "SGt"}
+            arithmetic = {
+                "Add",
+                "Sub",
+                "Mul",
+                "Div",
+                "Mod",
+                "And",
+                "Or",
+                "Xor",
+                "Shl",
+                "Shr",
+                "Sar",
+                "SDiv",
+                "SMod",
+                "Not",
+                "Exp",
+                "Clz",
+            }
+            opcode = name.removeprefix("Op.")
+            if not name.startswith("Op.") or opcode not in comparisons | arithmetic:
+                raise Unsupported(f"unmodeled narrow integer operation: {name}")
+            width = self.integer_width
+            shift = Expr("sub", (Expr.const(256), width))
+            mask = Expr("shr", (shift, Expr.const(MASK)))
+            if self.matching_integer:
+                self.assumptions.extend(
+                    z3.ULE(self.model.eval(arg), self.model.eval(mask)) for arg in args
+                )
+            if opcode in {"SLt", "SGt", "Sar", "SDiv", "SMod"}:
+                args = [
+                    arg
+                    if opcode == "Sar" and index == 0
+                    else Expr("sar", (shift, Expr("shl", (shift, arg))))
+                    for index, arg in enumerate(args)
+                ]
+            self.integer_width = None
+            try:
+                result = self.operation(name, args)
+            finally:
+                self.integer_width = width
+            if opcode == "Clz":
+                result = Expr("sub", (result, shift))
+            return (
+                result
+                if opcode in comparisons | {"Div", "Mod", "And", "Or", "Xor", "Shr"}
+                else Expr("and", (result, mask))
+            )
+
         if name.startswith("Op.") and name[3:].lower() in CALL_OPERANDS:
             opcode = name[3:].lower()
             declarations = [
@@ -277,7 +329,9 @@ class Context:
                 self.assumptions.append(self.model.eval(value) != 0)
             return value
         if not args and name in ("zero", "one", "all_ones"):
-            return Expr.const({"zero": 0, "one": 1, "all_ones": MASK}[name])
+            if name == "all_ones":
+                return self.constructor(("u256_max",))
+            return Expr.const({"zero": 0, "one": 1}[name])
         if name == "current_address" and not args:
             self.contracts.add(
                 "current_address: Rust extractor matches an ADDRESS producer in this execution context"
@@ -319,11 +373,20 @@ class Context:
         values = [self.constructor(a) for a in args]
         if name in ("object_data_offset", "field_offset", "layout_kind"):
             return self.memory.constructor(name, tuple(values))
+        if name == "integer_imm" and len(values) == 2:
+            if self.integer_width is None or values[0] != self.integer_width:
+                raise Unsupported(
+                    "integer immediate must use the matched integer width"
+                )
+            shift = Expr("sub", (Expr.const(256), self.integer_width))
+            return Expr("and", (values[1], Expr("shr", (shift, Expr.const(MASK)))))
         if name in ("imm", "u256", "resident", "make", "sequence") and len(values) == 1:
             if name == "resident":
                 self.contracts.add(
                     "resident: available value has the matched expression's word semantics"
                 )
+            if name == "imm" and self.integer_width is not None:
+                return Expr("and", (values[0], self.constructor(("u256_max",))))
             return values[0]
         if name == "imm_bool" and len(values) == 1:
             value = values[0]
@@ -335,17 +398,37 @@ class Context:
             return symbol
         if name == "zero_value" and not values:
             return Expr.const(0)
+        if name == "word_bits" and not values:
+            return self.integer_width or Expr.const(256)
+        if name == "sign_bit" and not values:
+            return Expr("sub", (self.integer_width or Expr.const(256), Expr.const(1)))
+        if name == "word_type" and not values:
+            return (
+                z3.BoolVal(True)
+                if self.integer_width is None
+                else self.model.eval(self.integer_width) == word(256)
+            )
         if name == "u256_max" and not values:
-            return Expr.const(MASK)
+            if self.integer_width is None:
+                return Expr.const(MASK)
+            return Expr(
+                "shr",
+                (Expr("sub", (Expr.const(256), self.integer_width)), Expr.const(MASK)),
+            )
         if name == "u256_from_limbs" and len(values) == 4:
             if any(v.op != "const" or v.args[0] >= 1 << 64 for v in values):
                 raise Unsupported("constant limbs must be literal u64 values")
             return Expr.const(sum(v.args[0] << (64 * i) for i, v in enumerate(values)))
         unary = {"u256_not": "not", "u256_neg": "sub"}
         if name in unary and len(values) == 1:
-            return Expr(
+            result = Expr(
                 unary[name],
                 tuple(([Expr.const(0)] if name == "u256_neg" else []) + values),
+            )
+            return (
+                result
+                if self.integer_width is None
+                else Expr("and", (result, self.constructor(("u256_max",))))
             )
         binary = {
             "u256_add": "add",
@@ -356,7 +439,14 @@ class Context:
             "u256_byte": "byte",
         }
         if name in binary and len(values) == 2:
-            return Expr(binary[name], tuple(values))
+            result = Expr(binary[name], tuple(values))
+            if self.integer_width is not None and name in (
+                "u256_add",
+                "u256_sub",
+                "u256_shl",
+            ):
+                result = Expr("and", (result, self.constructor(("u256_max",))))
+            return result
         smt = [self.model.eval(v) for v in values]
         if (
             name in ("u256_is_zero", "u256_is_one", "u256_is_all_ones")
@@ -364,7 +454,13 @@ class Context:
         ):
             return (
                 smt[0]
-                == {"u256_is_zero": 0, "u256_is_one": 1, "u256_is_all_ones": MASK}[name]
+                == {
+                    "u256_is_zero": 0,
+                    "u256_is_one": 1,
+                    "u256_is_all_ones": self.model.eval(
+                        self.constructor(("u256_max",))
+                    ),
+                }[name]
             )
         predicates = {
             "u32_lt": z3.ULT,
@@ -383,13 +479,17 @@ class Context:
         if name == "u256_min" and len(values) == 2:
             return Expr("select", (Expr("lt", tuple(values)), *values))
         if name == "shift_sum" and len(values) == 2:
-            limit = Expr.const(256)
+            limit = self.integer_width or Expr.const(256)
             capped = tuple(
                 Expr("select", (Expr("lt", (v, limit)), v, limit)) for v in values
             )
             total = Expr("add", capped)
             return Expr("select", (Expr("lt", (total, limit)), total, limit))
         if name == "sign_byte" and len(values) == 1:
+            if self.integer_width is not None:
+                self.assumptions.append(
+                    self.model.eval(self.integer_width) == word(256)
+                )
             self.assumptions.extend([z3.ULT(smt[0], word(256)), smt[0] & 7 == 0])
             return Expr(
                 "sub", (Expr.const(31), Expr("shr", (Expr.const(3), values[0])))
@@ -417,7 +517,20 @@ class Context:
             return z3.Bool(f"structural_{name}_{node!r}")
         guarantees = {
             "is_zero_or_one": lambda: z3.ULE(smt[0], word(1)),
-            "has_known_sign_bit": lambda: z3.Extract(255, 255, smt[0]) == 1,
+            "has_known_sign_bit": lambda: (
+                (
+                    smt[0]
+                    & (
+                        word(1)
+                        << (
+                            self.model.eval(self.integer_width) - word(1)
+                            if self.integer_width is not None
+                            else word(255)
+                        )
+                    )
+                )
+                != 0
+            ),
             "below_const": lambda: z3.ULT(smt[0], smt[1]),
             "at_most_const": lambda: z3.ULE(smt[0], smt[1]),
             "mask_covers": lambda: smt[0] & smt[1] == smt[1],
@@ -452,7 +565,9 @@ class Context:
             or len(inputs) != 1
         ):
             raise Unsupported(f"unmodeled root: {root}")
+        self.matching_integer = self.integer_width is not None
         lhs = self.pattern(inputs[0])
+        self.matching_integer = False
         for clause in parts[1:-1]:
             if len(clause) != 3 or clause[0] != "if-let":
                 raise Unsupported("only explicit if-let clauses are supported")

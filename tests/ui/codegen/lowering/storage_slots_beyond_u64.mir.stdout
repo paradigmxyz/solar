@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_slots_beyond_u64.sol:StorageSlotsBeyondU64 ===
 @module StorageSlotsBeyondU64
-fn @roundTrip(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xfaa172f5, abi_params=[u256, u8, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @roundTrip(arg0: i256, arg1: i8, arg2: i256) -> i256 [selector=0xfaa172f5, abi_params=[u256, u8, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 7 !metadata(storage=slot(0))
     v0 = lt arg0, 0xffffffffffffffff
@@ -10,15 +10,15 @@ fn @roundTrip(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xfaa172f5, 
     v3 = add 1, v2
     v4 = mod arg0, 32
     v5 = mul v4, 1
-    v6 = and arg1, 255
-    v7 = mul v5, 8
-    v8 = shl v7, 255
-    v9 = sload v3 !metadata(storage=offset(v2, 1))
-    v10 = not v8
-    v11 = and v9, v10
-    v12 = and v6, 255
-    v13 = shl v7, v12
-    v14 = or v11, v13
+    v6 = mul v5, 8
+    v7 = shl v6, 255
+    v8 = sload v3 !metadata(storage=offset(v2, 1))
+    v9 = not v7
+    v10 = and v8, v9
+    v11 = zext i8 arg1 to i256
+    v12 = and v11, 255
+    v13 = shl v6, v12
+    v14 = or v10, v13
     sstore v3, v14 !metadata(storage=offset(v2, 1))
     sstore 0x10800000000000000, arg2 !metadata(storage=slot(0x10800000000000000))
     v15 = sload 0 !metadata(storage=slot(0))
@@ -32,9 +32,10 @@ fn @roundTrip(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xfaa172f5, 
     v22 = sload v19 !metadata(storage=offset(v18, 1))
     v23 = mul v21, 8
     v24 = shr v23, v22
-    v25 = and v24, 255
-    v26 = checked_add u256, v15, v25
-    v27 = sload 0x10800000000000000 !metadata(storage=slot(0x10800000000000000))
-    v28 = checked_add u256, v26, v27
-    ret v28
+    v25 = trunc i256 v24 to i8
+    v26 = zext i8 v25 to i256
+    v27 = checked_add u256, v15, v26
+    v28 = sload 0x10800000000000000 !metadata(storage=slot(0x10800000000000000))
+    v29 = checked_add u256, v27, v28
+    ret v29
 }

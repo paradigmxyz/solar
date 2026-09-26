@@ -92,32 +92,36 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v54 = memory_object_load_byte memorybytes, v50, 1
     v55 = shl 248, v54
     v56 = shr 248, v55
-    v57 = checked_add u256, v41, v56
-    v58 = memory_object_len memoryarray, v20
-    v59 = lt 1, v58
-    v60 = eq v59, false
-    icall panic_if<0x32>, v60
-    v61 = memory_object_load_element memoryarray<1>, v20, 1
-    v62 = inttoptr i256 v61 to memorybytes
-    v63 = eq v61, 0
-    jumpi v63, bb7, bb8
+    v57 = trunc i256 v56 to i8
+    v58 = zext i8 v57 to i256
+    v59 = checked_add u256, v41, v58
+    v60 = memory_object_len memoryarray, v20
+    v61 = lt 1, v60
+    v62 = eq v61, false
+    icall panic_if<0x32>, v62
+    v63 = memory_object_load_element memoryarray<1>, v20, 1
+    v64 = inttoptr i256 v63 to memorybytes
+    v65 = eq v63, 0
+    jumpi v65, bb7, bb8
   bb7:
-    v64 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v64, 0
-    v65 = ptrtoint memorybytes v64 to i256
-    memory_object_store_element memoryarray<1>, v20, 1, v65
+    v66 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v66, 0
+    v67 = ptrtoint memorybytes v66 to i256
+    memory_object_store_element memoryarray<1>, v20, 1, v67
     jump bb8
   bb8:
-    v66 = phi [bb6: v62], [bb7: v64]
-    v67 = memory_object_len memorybytes, v66
-    v68 = lt 39, v67
-    v69 = eq v68, false
-    icall panic_if<0x32>, v69
-    v70 = memory_object_load_byte memorybytes, v66, 39
-    v71 = shl 248, v70
-    v72 = shr 248, v71
-    v73 = checked_add u256, v57, v72
-    ret v73
+    v68 = phi [bb6: v64], [bb7: v66]
+    v69 = memory_object_len memorybytes, v68
+    v70 = lt 39, v69
+    v71 = eq v70, false
+    icall panic_if<0x32>, v71
+    v72 = memory_object_load_byte memorybytes, v68, 39
+    v73 = shl 248, v72
+    v74 = shr 248, v73
+    v75 = trunc i256 v74 to i8
+    v76 = zext i8 v75 to i256
+    v77 = checked_add u256, v59, v76
+    ret v77
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {

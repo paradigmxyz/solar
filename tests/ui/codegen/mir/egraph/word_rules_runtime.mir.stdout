@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/mir/egraph/word_rules_runtime.sol:WordRules ===
 @module WordRules
 types:
-  struct0: {i256, i256, i256, i256, i256, i256}
+  struct0: {i1, i1, i1, i1, i1, i1}
   struct1: {i256, i256, i256, i256, i256, i256, i256, i256, i256}
   struct2: {i256, i256, i256, i256, i256}
 
-fn @inequalities(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xca51df96, pure, abi_params=[u256, u256, bool], abi_returns=[word<bool>, word<bool>, word<bool>, word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool, bool, bool, bool]] {
+fn @inequalities(arg0: i256, arg1: i256, arg2: i1) -> struct0 [selector=0xca51df96, pure, abi_params=[u256, u256, bool], abi_returns=[word<bool>, word<bool>, word<bool>, word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool, bool, bool, bool]] {
   bb0:
     v0 = ne arg0, arg1
     v1 = sub arg0, arg1
@@ -15,24 +15,17 @@ fn @inequalities(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xca51
     v5 = not arg0
     v6 = not arg1
     v7 = ne v5, v6
-    v8 = eq arg2, 0
-    v9 = eq v8, false
-    v10 = ne v9, true
-    v11 = and arg0, 255
-    v12 = ne v11, 256
-    v13 = zext i1 v0 to i256
-    v14 = zext i1 v2 to i256
-    v15 = zext i1 v4 to i256
-    v16 = zext i1 v7 to i256
-    v17 = zext i1 v10 to i256
-    v18 = zext i1 v12 to i256
-    v19 = insert_value struct0, undef struct0, 0, v13
-    v20 = insert_value struct0, v19, 1, v14
-    v21 = insert_value struct0, v20, 2, v15
-    v22 = insert_value struct0, v21, 3, v16
-    v23 = insert_value struct0, v22, 4, v17
-    v24 = insert_value struct0, v23, 5, v18
-    ret v24
+    v8 = ne arg2, true
+    v9 = trunc i256 arg0 to i8
+    v10 = zext i8 v9 to i256
+    v11 = ne v10, 256
+    v12 = insert_value struct0, undef struct0, 0, v0
+    v13 = insert_value struct0, v12, 1, v2
+    v14 = insert_value struct0, v13, 2, v4
+    v15 = insert_value struct0, v14, 3, v7
+    v16 = insert_value struct0, v15, 4, v8
+    v17 = insert_value struct0, v16, 5, v11
+    ret v17
 }
 
 fn @mixed(arg0: i256, arg1: i256) -> struct1 [selector=0xce4cbe4b, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256, u256, u256, u256]] {

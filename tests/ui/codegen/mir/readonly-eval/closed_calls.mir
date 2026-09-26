@@ -126,3 +126,59 @@ fn @reference() -> memorybytes {
   bb0:
     ret memorybytes 5
 }
+
+// CHECK-LABEL: fn @closed_i8
+// CHECK: + ret i8 0
+fn @closed_i8() -> i8 {
+  bb0:
+    v0 = icall @wrapping_i8, i8 255
+    ret v0
+}
+
+fn @wrapping_i8(arg0: i8) -> i8 {
+  bb0:
+    v0 = add arg0, i8 1
+    ret v0
+}
+
+// CHECK-LABEL: fn @closed_i128
+// CHECK: + ret i128 0
+fn @closed_i128() -> i128 {
+  bb0:
+    v0 = icall @wrapping_i128, i128 340282366920938463463374607431768211455
+    ret v0
+}
+
+fn @wrapping_i128(arg0: i128) -> i128 {
+  bb0:
+    v0 = add arg0, i128 1
+    ret v0
+}
+
+// CHECK-LABEL: fn @closed_i160
+// CHECK: + ret i160 0
+fn @closed_i160() -> i160 {
+  bb0:
+    v0 = icall @wrapping_i160, i160 1461501637330902918203684832716283019655932542975
+    ret v0
+}
+
+fn @wrapping_i160(arg0: i160) -> i160 {
+  bb0:
+    v0 = add arg0, i160 1
+    ret v0
+}
+
+// CHECK-LABEL: fn @closed_i248
+// CHECK: + ret i248 0
+fn @closed_i248() -> i248 {
+  bb0:
+    v0 = icall @wrapping_i248, i248 452312848583266388373324160190187140051835877600158453279131187530910662655
+    ret v0
+}
+
+fn @wrapping_i248(arg0: i248) -> i248 {
+  bb0:
+    v0 = add arg0, i248 1
+    ret v0
+}

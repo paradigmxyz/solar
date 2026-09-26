@@ -5,19 +5,19 @@ fn @setFlag() {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 255
     v2 = and v0, v1
-    v3 = zext i1 1 to i256
-    v4 = and v3, 255
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
+    v3 = and 1, 255
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
     ret
 }
 
-fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     icall @internal_dispatcher_p_none_r_none, 1
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 255
-    ret v1
+    v1 = trunc i256 v0 to i8
+    v2 = ne v1, i8 0
+    ret v2
 }
 
 fn @internal_dispatcher_p_none_r_none(arg0: i256) [function_pointer_dispatcher] {

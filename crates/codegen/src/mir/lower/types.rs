@@ -77,12 +77,9 @@ impl<'gcx> TypeLowerer<'gcx> {
         }
     }
 
-    /// Carries raw Solidity scalar bits across calls, where assembly may observe them.
+    /// Retains native scalar widths in function signatures.
     pub(super) fn mir_signature_type(ty: Ty<'_>) -> MirType {
-        match Self::mir_type(ty) {
-            MirType::I1 | MirType::I160 => MirType::I256,
-            ty => ty,
-        }
+        Self::mir_type(ty)
     }
 
     /// Returns the MIR representation used for a function return value.

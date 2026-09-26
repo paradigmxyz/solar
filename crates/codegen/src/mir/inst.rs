@@ -684,7 +684,15 @@ impl Instruction {
     }
 
     /// Returns the semantic operation that still needs representation lowering.
-    pub(crate) fn unlowered_reason(&self) -> Option<&'static str> {
+    pub(crate) fn unlowered_reason(&self, func: &Function) -> Option<&'static str> {
+        if self.result_ty == Some(MirType::I1)
+            && self.kind.op_def().result == super::ResultKind::Integer
+            && !matches!(self.kind, InstKind::And(..) | InstKind::Or(..) | InstKind::Xor(..))
+            || matches!(self.kind, InstKind::SLt(a, _) | InstKind::SGt(a, _)
+                if func.value_ty(a) == Some(MirType::I1))
+        {
+            return Some("narrow integer arithmetic");
+        }
         match &self.kind {
             InstKind::InsertValue { .. } | InstKind::ExtractValue { .. } => Some("struct value"),
             InstKind::MakeSlice { .. } | InstKind::SlicePtr(..) | InstKind::SliceLen(..) => {
@@ -749,9 +757,9 @@ impl Instruction {
                 || !matches!(kind, AllocationKind::Raw)
                 || *semantics != AllocationSemantics::INTERNAL)
                 .then_some("abstract allocation"),
+            InstKind::Trunc(..) | InstKind::Sext(..) => Some("integer conversion"),
+            InstKind::PtrToInt(_, bits) if *bits < 256 => Some("integer conversion"),
             InstKind::Zext(..)
-            | InstKind::Trunc(..)
-            | InstKind::Sext(..)
             | InstKind::PtrToInt(..)
             | InstKind::IntToPtr(..)
             | InstKind::Bitcast(..)
@@ -932,10 +940,20 @@ pub(crate) enum AddressCallKind {
 }
 
 impl InstKind {
-    /// Checks the operation's result type, including boolean bitwise operations.
+    /// Infers integer results from the operation's declared operand signature.
+    pub(crate) fn inferred_result_type(&self, func: &Function) -> Option<MirType> {
+        if let Self::CheckedBinary { arithmetic, .. } = self {
+            Some(arithmetic.ty().mir_type())
+        } else if self.op_def().result == super::ResultKind::Integer {
+            self.op().first_operand().map(|value| super::typing::integer_type(func, value))
+        } else {
+            self.op_def().result.default_type()
+        }
+    }
+
+    /// Checks the operation's result representation.
     pub(crate) fn admits_result_type(&self, ty: MirType) -> bool {
         self.op_def().result.admits_type(ty)
-            || (ty == MirType::I1 && matches!(self, Self::And(..) | Self::Or(..) | Self::Xor(..)))
     }
 
     /// Checks scalar operation contracts without applying implicit conversions.
@@ -953,15 +971,15 @@ impl InstKind {
             return false;
         }
         match *self {
-            Self::Eq(a, b) | Self::Ne(a, b) => {
+            Self::Eq(a, b)
+            | Self::Ne(a, b)
+            | Self::Lt(a, b)
+            | Self::Gt(a, b)
+            | Self::SLt(a, b)
+            | Self::SGt(a, b) => {
                 result == Some(MirType::I1)
                     && ty(a) == ty(b)
-                    && matches!(ty(a), Some(MirType::I256 | MirType::I160 | MirType::I1))
-            }
-            Self::And(a, b) | Self::Or(a, b) | Self::Xor(a, b) => {
-                ty(a) == result
-                    && ty(b) == result
-                    && matches!(result, Some(MirType::I256 | MirType::I1))
+                    && matches!(ty(a), Some(MirType::Int(_)))
             }
             Self::Trunc(value, bits) => matches!((ty(value), result),
                 (Some(MirType::Int(from)), Some(MirType::Int(to))) if from > to && to.get() == bits),
@@ -983,6 +1001,7 @@ impl InstKind {
                     && result.is_some_and(MirType::is_pointer))
                     || (matches!(ty(value), Some(MirType::Int(_))) && ty(value) == result)
             }
+            Self::CheckedBinary { arithmetic, .. } => result == Some(arithmetic.ty().mir_type()),
             Self::Alloc { kind, .. } => result == Some(kind.result_type()),
             Self::MakeSlice { location, .. } => result == Some(MirType::Slice(location)),
             Self::FrameLoad { kind, .. } => result == Some(kind.result_type()),
@@ -1006,9 +1025,16 @@ impl InstKind {
             | Self::LoadImmutable(..) => result.is_some(),
             // Module and builtin signatures are checked by the validator.
             Self::ICall { .. } => true,
+            _ if self.op_def().result == super::ResultKind::Integer => {
+                self.inferred_result_type(func) == result
+                    && result.is_some_and(|ty| self.admits_result_type(ty))
+            }
             _ => {
                 self.op_def().result != super::ResultKind::Custom
-                    && self.op_def().result.default_type() == result
+                    && match result {
+                        Some(ty) => self.admits_result_type(ty),
+                        None => !self.op_def().result.produces_value(),
+                    }
             }
         }
     }

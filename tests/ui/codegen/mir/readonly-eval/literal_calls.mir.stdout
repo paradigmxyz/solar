@@ -51,7 +51,7 @@ fn @dynamicWord(arg0: i256) -> i256 [selector=0x0c872375, pure, abi_params=[u256
     ret v5
 }
 
-fn @sideEffects(arg0: i256) -> struct0 [selector=0x4335d2b9, abi_params=[bool], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @sideEffects(arg0: i1) -> struct0 [selector=0x4335d2b9, abi_params=[bool], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
@@ -124,20 +124,19 @@ fn @toShort(arg0: memorybytes) -> i256 [pure] {
     ret v15
 }
 
-fn @choose(arg0: memorybytes, arg1: i256) -> i256 {
+fn @choose(arg0: memorybytes, arg1: i1) -> i256 {
   bb0:
-    v0 = ne arg1, 0
-    jumpi v0, bb1, bb2
+    jumpi arg1, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v2 = sload 0 !metadata(storage=slot(0))
-    v3 = checked_add u256, v2, 1
-    sstore 0, v3 !metadata(storage=slot(0))
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = checked_add u256, v1, 1
+    sstore 0, v2 !metadata(storage=slot(0))
     ret 7
   bb1:
-    v1 = icall @readWord, arg0
-    ret v1
+    v0 = icall @readWord, arg0
+    ret v0
 }
 
 fn @overwrite(arg0: memorybytes, arg1: i256) [pure] {

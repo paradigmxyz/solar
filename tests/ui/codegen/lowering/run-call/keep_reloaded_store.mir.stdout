@@ -25,19 +25,18 @@ fn @constructor() [constructor] {
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 132
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = sload 0 !metadata(storage=slot(0))
-    v13 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = and v12, v13
-    v15 = zext i160 v9 to i256
-    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
-    v17 = or v14, v16
-    sstore 0, v17 !metadata(storage=slot(0))
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v13 = and v11, v12
+    v14 = zext i160 v9 to i256
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = or v13, v15
+    sstore 0, v16 !metadata(storage=slot(0))
     ret
 }
 
@@ -56,9 +55,9 @@ fn @depth(arg0: i256) -> i256 [pure] {
     ret 0
 }
 
-fn @check(arg0: i256) [pure] {
+fn @check(arg0: i1) [pure] {
   bb0:
-    v0 = eq arg0, 0
+    v0 = eq arg0, false
     icall revert_if<empty>, v0
     v1 = icall @depth, 2
     v2 = eq v1, 2
@@ -70,14 +69,12 @@ fn @check(arg0: i256) [pure] {
 fn @probe(arg0: i256) -> i256 [selector=0xdb082440, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = trunc i256 v1 to i160
-    v3 = gas
-    v4 = abi_encode [word], object, selector 0x84b8ba0800000000000000000000000000000000000000000000000000000000, args arg0
-    v5 = address_staticcall v2, v4, gas v3
-    v6 = icall returndata_bytes<>
-    v7 = zext i1 v5 to i256
-    icall @check, v7
-    v8 = abi_decode [u256], v6
-    ret v8
+    v1 = trunc i256 v0 to i160
+    v2 = gas
+    v3 = abi_encode [word], object, selector 0x84b8ba0800000000000000000000000000000000000000000000000000000000, args arg0
+    v4 = address_staticcall v1, v3, gas v2
+    v5 = icall returndata_bytes<>
+    icall @check, v4
+    v6 = abi_decode [u256], v5
+    ret v6
 }

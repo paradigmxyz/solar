@@ -225,39 +225,37 @@ fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_re
     v63 = sload v60 !metadata(storage=symbolic(v60))
     v64 = mul v62, 8
     v65 = shr v64, v63
-    v66 = and v65, 255
-    v67 = shl 248, v66
-    v68 = sload 3 !metadata(storage=slot(3))
-    validate_storage_bytes v68
-    v69 = and v68, 1
-    v70 = eq v69, 1
-    v71 = sub 0, v69
-    v72 = or 127, v71
-    v73 = shr 1, v68
-    v74 = and v73, v72
-    v75 = lt 1, v74
-    v76 = eq v75, false
-    icall panic_if<0x32>, v76
-    jumpi v70, bb10, bb11
+    v66 = shl 248, v65
+    v67 = sload 3 !metadata(storage=slot(3))
+    validate_storage_bytes v67
+    v68 = and v67, 1
+    v69 = eq v68, 1
+    v70 = sub 0, v68
+    v71 = or 127, v70
+    v72 = shr 1, v67
+    v73 = and v72, v71
+    v74 = lt 1, v73
+    v75 = eq v74, false
+    icall panic_if<0x32>, v75
+    jumpi v69, bb10, bb11
   bb11:
     jump bb12
   bb10:
-    v77 = storage_array_data_slot 3
-    v78 = shr 5, 1
-    v79 = add v77, v78
+    v76 = storage_array_data_slot 3
+    v77 = shr 5, 1
+    v78 = add v76, v77
     jump bb12
   bb12:
-    v80 = phi [bb10: v79], [bb11: 3]
-    v81 = and 1, 31
-    v82 = sub 31, v81
-    v83 = sload v80 !metadata(storage=symbolic(v80))
-    v84 = mul v82, 8
-    v85 = shr v84, v83
-    v86 = and v85, 255
-    v87 = shl 248, v86
-    v88 = insert_value struct0, undef struct0, 0, v67
-    v89 = insert_value struct0, v88, 1, v87
-    ret v89
+    v79 = phi [bb10: v78], [bb11: 3]
+    v80 = and 1, 31
+    v81 = sub 31, v80
+    v82 = sload v79 !metadata(storage=symbolic(v79))
+    v83 = mul v81, 8
+    v84 = shr v83, v82
+    v85 = shl 248, v84
+    v86 = insert_value struct0, undef struct0, 0, v66
+    v87 = insert_value struct0, v86, 1, v85
+    ret v87
 }
 
 fn @setCursor(arg0: i256) -> i256 {

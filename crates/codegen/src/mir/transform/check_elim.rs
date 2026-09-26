@@ -87,7 +87,8 @@
 //! selecting only runtime functions that load bounded immutables. Before using those
 //! bounds, it narrows unsigned immutable encodings when every assignment fits, using
 //! the shared value-width and caller-argument proofs. Missing assignments and unknown
-//! words keep their declared width; unsigned layouts retain their i256 SSA carrier.
+//! words keep their declared width. Narrow SSA loads extend back to their original
+//! types; existing word-carrier loads already satisfy the integer layout contract.
 //! This exposes facts hidden behind getter calls during the ordinary earlier check passes.
 
 //! The `late-check-elim` adapter revisits conditions unified by CSE after memory
@@ -98,15 +99,21 @@
 //! dominator-scoped facts, sufficient for conditions unified by CSE, and leaves
 //! fixed-point range propagation to the earlier check passes. Size mode retains
 //! the full forward analysis. Both use the existing conservative proof logic.
-//! Run it after the post-memory CSE. Only functions with removed checks receive
+//! Integer cleanup reuses the dominator walk after integer legalization to remove masks
+//! whose inputs already fit, without running the forward fixed-point analysis.
+//! Run late check elimination after the post-memory CSE. Only functions with removed checks receive
 //! CFG cleanup, avoiding unrelated late block merges in other functions.
 
 use super::{call_cleanup, cfg_simplify::simplify_function, egraph::max_bits_with_args};
 use crate::{
     mir::{
-        BlockId, Builtin, Callee, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
-        InstKind, Module, Terminator, TypeSize, Value, ValueId, ValueLayout,
-        analysis::{CallGraphInfo, CfgInfo},
+        BlockId, Builtin, Callee, EffectKind, Function, FunctionBuilder, FunctionId,
+        ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module, Terminator, TypeSize,
+        Value, ValueId, ValueLayout,
+        analysis::{
+            CallGraphInfo, CfgInfo,
+            integers::{integer_bits, integer_mask, integer_max},
+        },
         immutable::immutable_push_type_size,
         pass::{
             MirPass, run_function_pass, run_function_pass_with_cfg, run_selected_function_pass,
@@ -141,6 +148,49 @@ impl MirPass for CheckElim {
         run_function_pass(module, analyses, |func, _| {
             let mut eliminator = CheckEliminator::new(None);
             eliminator.run(func) != 0
+        })
+    }
+}
+
+/// Removes integer masks whose input range is proved by dominating branches.
+pub(crate) struct IntegerCleanup;
+
+impl MirPass for IntegerCleanup {
+    fn name(&self) -> &'static str {
+        "integer-cleanup"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
+            if !func
+                .blocks
+                .iter()
+                .any(|block| matches!(block.terminator, Some(Terminator::Branch { .. })))
+                || !func
+                    .instructions()
+                    .any(|id| low_mask_input(func, &func.inst(id).kind).is_some())
+            {
+                return false;
+            }
+            let cfg = CfgInfo::new(func);
+            let mut eliminator = CheckEliminator { collect_masks: true, ..Default::default() };
+            let mut preds = index_vec![Vec::new(); func.blocks.len()];
+            for &block in cfg.rpo() {
+                for &succ in cfg.successors(block) {
+                    preds[succ].push(block);
+                }
+            }
+            let facts = index_vec![Facts::default(); func.blocks.len()];
+            let _ = eliminator.collect_folds(func, &cfg, &preds, &facts, &[], &mut Vec::new());
+            for &(id, value) in &eliminator.redundant_masks {
+                func.inst_mut(id).replace_kind(InstKind::Bitcast(value));
+            }
+            !eliminator.redundant_masks.is_empty()
         })
     }
 }
@@ -254,6 +304,7 @@ impl MirPass for ImmutableCheckElim {
 }
 
 /// Shrinks unsigned encodings only when every assignment preserves all stored bits.
+/// Narrow loads extend back to their original result types so existing uses remain well-typed.
 fn narrow_immutable_layouts(module: &mut Module) -> bool {
     let can_narrow = |ty| matches!(ty, ValueLayout::UInt(size) if size.bits() > 8);
     if !module.iter_immutables().any(|(_, immutable)| can_narrow(immutable.ty)) {
@@ -276,17 +327,48 @@ fn narrow_immutable_layouts(module: &mut Module) -> bool {
             }
         }
     }
-    let mut changed = false;
+    let mut types = FxHashMap::default();
     for (id, bits) in widths {
         let bits = bits.max(1).div_ceil(8) * 8;
         if let ValueLayout::UInt(size) = module.immutable(id).ty
             && bits < u32::from(size.bits())
         {
             module.immutable_mut(id).ty = ValueLayout::UInt(TypeSize::new_int_bits(bits as u16));
-            changed = true;
+            types.insert(id, module.immutable(id).ty.mir_type());
         }
     }
-    changed
+    if !types.is_empty() {
+        for func in &mut module.functions {
+            for block in func.blocks.indices() {
+                let instructions = std::mem::take(&mut func.blocks[block].instructions);
+                let mut builder = FunctionBuilder::new(func);
+                builder.switch_to_block(block);
+                for inst in instructions {
+                    match builder.func().inst(inst).kind {
+                        InstKind::StoreImmutable(id, value) if types.contains_key(&id) => {
+                            builder.set_debug_context(&builder.func().inst(inst).metadata.clone());
+                            let value = builder.cast(value, types[&id]);
+                            builder
+                                .func_mut()
+                                .inst_mut(inst)
+                                .replace_kind(InstKind::StoreImmutable(id, value));
+                        }
+                        InstKind::LoadImmutable(id)
+                            if types.contains_key(&id)
+                                && builder.func().inst(inst).result_ty != Some(MirType::I256) =>
+                        {
+                            builder.set_debug_context(&builder.func().inst(inst).metadata.clone());
+                            let value = builder.load_immutable(id, types[&id]);
+                            builder.func_mut().inst_mut(inst).replace_kind(InstKind::Zext(value));
+                        }
+                        _ => {}
+                    }
+                    builder.func_mut().blocks[block].instructions.push(inst);
+                }
+            }
+        }
+    }
+    !types.is_empty()
 }
 
 /// Excludes every constructor-reachable helper, including recursive and tail-call edges.
@@ -359,12 +441,12 @@ impl Range {
     }
 
     /// Rotates unsigned order into signed order, or back, widening a split interval.
-    fn flip_sign(self) -> Self {
-        if self.lo.bit(255) == self.hi.bit(255) {
-            let sign = U256::from(1) << 255;
+    fn flip_sign(self, bits: u32) -> Self {
+        if self.lo.bit((bits - 1) as usize) == self.hi.bit((bits - 1) as usize) {
+            let sign = U256::from(1) << (bits - 1);
             Self::new(self.lo ^ sign, self.hi ^ sign)
         } else {
-            Self::FULL
+            Self::new(U256::ZERO, U256::MAX >> (256 - bits))
         }
     }
 
@@ -445,6 +527,8 @@ struct CheckEliminator<'a> {
     immutable_ranges: Option<&'a FxHashMap<ImmutableId, Range>>,
     /// Shared CFG snapshot taken at entry, matching the previous fresh build.
     cfg: Option<Rc<CfgInfo>>,
+    collect_masks: bool,
+    redundant_masks: Vec<(InstId, ValueId)>,
     /// Statistics from the last run.
     stats: CheckElimStats,
     ranges: FxHashMap<ValueId, Range>,
@@ -671,6 +755,11 @@ impl<'a> CheckEliminator<'a> {
                     }
 
                     for &id in &func.blocks[block].instructions {
+                        if self.collect_masks
+                            && let Some(value) = self.redundant_mask(func, id)
+                        {
+                            self.redundant_masks.push((id, value));
+                        }
                         let fact = match &func.inst(id).kind {
                             InstKind::ICall {
                                 function: Callee::Builtin(Builtin::Check { is_zero, .. }),
@@ -690,8 +779,9 @@ impl<'a> CheckEliminator<'a> {
                         }
                     }
 
-                    if let Some(Terminator::Branch { condition, then_block, else_block }) =
-                        func.blocks[block].terminator.as_ref()
+                    if !self.collect_masks
+                        && let Some(Terminator::Branch { condition, then_block, else_block }) =
+                            func.blocks[block].terminator.as_ref()
                         && then_block != else_block
                         && let Some(truth) = self.eval_truth(func, *condition, MAX_DEPTH)
                     {
@@ -878,6 +968,15 @@ impl<'a> CheckEliminator<'a> {
         entries
     }
 
+    fn redundant_mask(&mut self, func: &Function, id: InstId) -> Option<ValueId> {
+        let inst = func.inst(id);
+        let (value, mask) = low_mask_input(func, &inst.kind)?;
+        (self.range_of(func, value, MAX_DEPTH).hi <= mask
+            && inst.result_ty == func.value_ty(value)
+            && inst.metadata.effect().is_none_or(|effect| effect == EffectKind::Pure))
+        .then_some(value)
+    }
+
     // === Fact recording ===
 
     /// Records the consequences of `value` being `truth` on the current
@@ -940,30 +1039,31 @@ impl<'a> CheckEliminator<'a> {
 
     /// Refines signed bounds without treating a cross-sign comparison as unsigned.
     fn assume_slt(&mut self, func: &Function, a: ValueId, b: ValueId, truth: bool, depth: usize) {
+        let bits = integer_bits(func, a);
         let ra = self.range_of(func, a, depth);
         let rb = self.range_of(func, b, depth);
-        if ra.lo.bit(255) == ra.hi.bit(255)
-            && rb.lo.bit(255) == rb.hi.bit(255)
-            && ra.lo.bit(255) == rb.lo.bit(255)
+        if ra.lo.bit((bits - 1) as usize) == ra.hi.bit((bits - 1) as usize)
+            && rb.lo.bit((bits - 1) as usize) == rb.hi.bit((bits - 1) as usize)
+            && ra.lo.bit((bits - 1) as usize) == rb.lo.bit((bits - 1) as usize)
         {
             self.assume_lt(func, a, b, truth, depth);
             return;
         }
-        let ra = ra.flip_sign();
-        let rb = rb.flip_sign();
+        let ra = ra.flip_sign(bits);
+        let rb = rb.flip_sign(bits);
         let (a_limit, b_limit) = if truth {
             (
                 Range::new(U256::ZERO, rb.hi.saturating_sub(U256::from(1))),
-                Range::new(ra.lo.saturating_add(U256::from(1)), U256::MAX),
+                Range::new(ra.lo.saturating_add(U256::from(1)), integer_max(func, a)),
             )
         } else {
-            (Range::new(rb.lo, U256::MAX), Range::new(U256::ZERO, ra.hi))
+            (Range::new(rb.lo, integer_max(func, a)), Range::new(U256::ZERO, ra.hi))
         };
         if let Some(range) = ra.intersect(a_limit) {
-            self.narrow(a, range.flip_sign());
+            self.narrow(a, range.flip_sign(bits));
         }
         if let Some(range) = rb.intersect(b_limit) {
-            self.narrow(b, range.flip_sign());
+            self.narrow(b, range.flip_sign(bits));
         }
     }
 
@@ -1150,7 +1250,9 @@ impl<'a> CheckEliminator<'a> {
             return false;
         }
         let hi = self.range_of(func, base, depth).hi;
-        amounts.into_iter().any(|amount| hi.checked_add(amount).is_some())
+        amounts
+            .into_iter()
+            .any(|amount| hi.checked_add(amount).is_some_and(|hi| hi <= integer_max(func, base)))
     }
 
     /// Whether some value is provably below `value` in the current scope,
@@ -1283,7 +1385,9 @@ impl<'a> CheckEliminator<'a> {
         if let Some(constant) = const_of(func, value) {
             return Range::singleton(constant);
         }
-        let mut range = self.ranges.get(&value).copied().unwrap_or(Range::FULL);
+        let bits = integer_bits(func, value).min(256);
+        let full = Range::new(U256::ZERO, integer_mask(bits));
+        let mut range = self.ranges.get(&value).copied().unwrap_or(full);
         if let Some(bound) = self.trip_bounds.get(&value) {
             range = range.intersect(*bound).unwrap_or(range);
         }
@@ -1293,10 +1397,12 @@ impl<'a> CheckEliminator<'a> {
         let Some(depth) = depth.checked_sub(1) else { return range };
         let Some(kind) = inst_kind(func, value) else { return range };
         let derived = match *kind {
-            InstKind::Zext(source) => self.range_of(func, source, depth),
+            InstKind::Zext(source) | InstKind::Bitcast(source) => {
+                self.range_of(func, source, depth)
+            }
             InstKind::Trunc(source, bits) if (1..=256).contains(&bits) => {
                 let source = self.range_of(func, source, depth);
-                let mask = U256::MAX >> (256 - bits);
+                let mask = integer_mask(bits);
                 if source.hi <= mask { source } else { Range::new(U256::ZERO, mask) }
             }
             InstKind::Sext(source, from_bits, _) if (1..=256).contains(&from_bits) => {
@@ -1310,22 +1416,33 @@ impl<'a> CheckEliminator<'a> {
                 .copied()
                 .unwrap_or(Range::FULL),
             InstKind::Add(a, b) => {
-                let ra = self.range_of(func, a, depth);
+                // An unconstrained operand leaves the wrapping sum's interval unconstrained.
                 let rb = self.range_of(func, b, depth);
-                match ra.hi.checked_add(rb.hi) {
-                    Some(hi) => Range::new(ra.lo.wrapping_add(rb.lo), hi),
-                    None => Range::FULL,
+                if rb == full {
+                    full
+                } else {
+                    let ra = self.range_of(func, a, depth);
+                    match ra.hi.checked_add(rb.hi).filter(|&hi| hi <= full.hi) {
+                        Some(hi) => Range::new(ra.lo.wrapping_add(rb.lo), hi),
+                        None => Range::FULL,
+                    }
                 }
             }
             InstKind::Sub(a, b) => {
                 let ra = self.range_of(func, a, depth);
                 let rb = self.range_of(func, b, depth);
-                if ra.lo >= rb.hi { Range::new(ra.lo - rb.hi, ra.hi - rb.lo) } else { Range::FULL }
+                if ra.lo >= rb.hi {
+                    Range::new(ra.lo - rb.hi, ra.hi - rb.lo)
+                } else if self.has_relation(func, Relation::Le(b, a)) {
+                    Range::new(U256::ZERO, ra.hi.saturating_sub(rb.lo))
+                } else {
+                    Range::FULL
+                }
             }
             InstKind::Mul(a, b) => {
                 let ra = self.range_of(func, a, depth);
                 let rb = self.range_of(func, b, depth);
-                match ra.hi.checked_mul(rb.hi) {
+                match ra.hi.checked_mul(rb.hi).filter(|&hi| hi <= full.hi) {
                     Some(hi) => Range::new(ra.lo.wrapping_mul(rb.lo), hi),
                     None => Range::FULL,
                 }
@@ -1363,8 +1480,8 @@ impl<'a> CheckEliminator<'a> {
             InstKind::Shl(shift, value) => {
                 let rv = self.range_of(func, value, depth);
                 match shift_amount(self, func, shift, depth) {
-                    Some(bits) if rv.hi.leading_zeros() >= bits => {
-                        Range::new(rv.lo << bits, rv.hi << bits)
+                    Some(shift) if shift < bits as usize && rv.hi <= (full.hi >> shift) => {
+                        Range::new(rv.lo << shift, rv.hi << shift)
                     }
                     _ => Range::FULL,
                 }
@@ -1373,7 +1490,7 @@ impl<'a> CheckEliminator<'a> {
             InstKind::Byte(..) => Range::new(U256::ZERO, U256::from(255)),
             InstKind::Not(a) => {
                 let ra = self.range_of(func, a, depth);
-                Range::new(!ra.hi, !ra.lo)
+                Range::new(ra.hi ^ full.hi, ra.lo ^ full.hi)
             }
             InstKind::Lt(..)
             | InstKind::Gt(..)
@@ -1480,16 +1597,17 @@ impl<'a> CheckEliminator<'a> {
         if a == b {
             return Some(false);
         }
+        let bits = integer_bits(func, a);
         let ra = self.range_of(func, a, depth);
         let rb = self.range_of(func, b, depth);
-        if ra.lo.bit(255) == ra.hi.bit(255)
-            && rb.lo.bit(255) == rb.hi.bit(255)
-            && ra.lo.bit(255) == rb.lo.bit(255)
+        if ra.lo.bit((bits - 1) as usize) == ra.hi.bit((bits - 1) as usize)
+            && rb.lo.bit((bits - 1) as usize) == rb.hi.bit((bits - 1) as usize)
+            && ra.lo.bit((bits - 1) as usize) == rb.lo.bit((bits - 1) as usize)
         {
             return self.eval_lt(func, a, b, depth);
         }
-        let ra = ra.flip_sign();
-        let rb = rb.flip_sign();
+        let ra = ra.flip_sign(bits);
+        let rb = rb.flip_sign(bits);
         if ra.hi < rb.lo {
             Some(true)
         } else if ra.lo >= rb.hi {
@@ -1514,10 +1632,10 @@ impl<'a> CheckEliminator<'a> {
         {
             let rx = self.range_of(func, x, depth);
             let ry = self.range_of(func, y, depth);
-            if rx.hi.checked_add(ry.hi).is_some() {
+            if rx.hi.checked_add(ry.hi).is_some_and(|hi| hi <= integer_max(func, a)) {
                 return Some(false);
             }
-            if rx.lo.checked_add(ry.lo).is_none() {
+            if rx.lo.checked_add(ry.lo).is_none_or(|lo| lo > integer_max(func, a)) {
                 return Some(true);
             }
         }
@@ -1535,7 +1653,7 @@ impl<'a> CheckEliminator<'a> {
         // `2x < 2y` and `2x + 1 < 2y` follow from `x < y` when `2y` cannot wrap,
         // which covers `out[2 * i]` and `out[2 * i + 1]` against `2 * n`.
         if let (Some((x, _)), Some((y, false))) = (doubled(func, a), doubled(func, b))
-            && self.range_of(func, y, depth).hi.leading_zeros() >= 1
+            && self.range_of(func, y, depth).hi <= integer_max(func, y) >> 1
             && self.has_relation(func, Relation::Lt(x, y))
         {
             return Some(true);
@@ -1633,7 +1751,7 @@ impl<'a> CheckEliminator<'a> {
             if let Some(&InstKind::Shr(count, sum)) = inst_kind(func, shifted)
                 && const_of(func, count) == Some(U256::from(1))
                 && doubled(func, sum) == Some((expected, false))
-                && self.range_of(func, expected, depth).hi.leading_zeros() >= 1
+                && self.range_of(func, expected, depth).hi <= integer_max(func, expected) >> 1
             {
                 return Some(true);
             }
@@ -1689,7 +1807,7 @@ impl<'a> CheckEliminator<'a> {
         if divisor != x || doubled(func, sum) != Some((x, false)) {
             return false;
         }
-        self.range_of(func, x, depth).hi.leading_zeros() >= 1
+        self.range_of(func, x, depth).hi <= (integer_max(func, x) >> 1)
     }
 
     /// Recognizes `div (mul x, y), d == x` with `d == y` and proves it true
@@ -1712,7 +1830,7 @@ impl<'a> CheckEliminator<'a> {
                 continue;
             }
             let rx = self.range_of(func, x, depth);
-            if rx.hi.checked_mul(ry.hi).is_some() {
+            if rx.hi.checked_mul(ry.hi).is_some_and(|hi| hi <= integer_max(func, mul_value)) {
                 return Some(true);
             }
         }
@@ -1771,8 +1889,12 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
             continue;
         }
         match func.inst(inst_id).kind {
-            InstKind::Shr(_, x) | InstKind::Mod(x, _) => {
+            InstKind::Shr(_, x) | InstKind::Mod(x, _) | InstKind::Trunc(x, _) => {
                 relations.insert(Relation::Le(value, x));
+            }
+            InstKind::Zext(x) | InstKind::Bitcast(x) => {
+                let (a, b) = ordered(value, x);
+                relations.insert(Relation::Eq(a, b));
             }
             InstKind::Div(x, divisor) if const_of(func, divisor).is_some_and(|c| !c.is_zero()) => {
                 relations.insert(Relation::Le(value, x));
@@ -2009,8 +2131,19 @@ fn trip_count_bound(func: &Function, phi: &MonotonePhi) -> Option<Range> {
     if phi.decreasing {
         Some(Range::new(initial.checked_sub(travel)?, initial))
     } else {
-        Some(Range::new(initial, initial.checked_add(travel)?))
+        Some(Range::new(
+            initial,
+            initial.checked_add(travel).filter(|&hi| hi <= integer_max(func, phi.value))?,
+        ))
     }
+}
+
+fn low_mask_input(func: &Function, kind: &InstKind) -> Option<(ValueId, U256)> {
+    let InstKind::And(a, b) = *kind else { return None };
+    let (value, mask) = const_of(func, b)
+        .map(|mask| (a, mask))
+        .or_else(|| const_of(func, a).map(|mask| (b, mask)))?;
+    (mask.wrapping_add(U256::ONE) & mask == U256::ZERO).then_some((value, mask))
 }
 
 fn const_of(func: &Function, value: ValueId) -> Option<U256> {

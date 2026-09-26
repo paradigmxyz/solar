@@ -72,8 +72,7 @@ fn @factory.0() [selector=0x1af91295, abi_wrapper, pure] {
     jump bb5
   bb5:
     v22 = phi [bb9: 0], [bb12: v45]
-    v10 = and v22, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 128, v10
+    mstore 128, v22
     returndata 128, 32
   bb1:
     revert 0, 0

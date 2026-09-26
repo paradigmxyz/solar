@@ -71,25 +71,29 @@ fn @storeCalldata(arg0: calldataslice) -> i256 [selector=0xc35992d7, abi_params=
     v54 = or v51, v53
     sstore 0, v54 !metadata(storage=slot(0))
     v55 = sload 0 !metadata(storage=slot(0))
-    v56 = and v55, 255
-    v57 = checked_mul u256, v56, 0x3e8
-    v58 = sload 0 !metadata(storage=slot(0))
-    v59 = shr 8, v58
-    v60 = and v59, 0xffff
-    v61 = checked_mul u256, v60, 100
-    v62 = checked_add u256, v57, v61
-    v63 = sload 0 !metadata(storage=slot(0))
-    v64 = shr 24, v63
-    v65 = and v64, 0xffff
-    v66 = shl 240, v65
-    v67 = and v66, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v68 = shr 248, v67
-    v69 = checked_add u256, v62, v68
-    v70 = sload 0 !metadata(storage=slot(0))
-    v71 = shr 40, v70
-    v72 = and v71, 255
-    v73 = checked_add u256, v69, v72
-    ret v73
+    v56 = trunc i256 v55 to i8
+    v57 = zext i8 v56 to i256
+    v58 = checked_mul u256, v57, 0x3e8
+    v59 = sload 0 !metadata(storage=slot(0))
+    v60 = shr 8, v59
+    v61 = trunc i256 v60 to i16
+    v62 = zext i16 v61 to i256
+    v63 = checked_mul u256, v62, 100
+    v64 = checked_add u256, v58, v63
+    v65 = sload 0 !metadata(storage=slot(0))
+    v66 = shr 24, v65
+    v67 = shl 240, v66
+    v68 = and v67, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v69 = shr 248, v68
+    v70 = trunc i256 v69 to i8
+    v71 = zext i8 v70 to i256
+    v72 = checked_add u256, v64, v71
+    v73 = sload 0 !metadata(storage=slot(0))
+    v74 = shr 40, v73
+    v75 = trunc i256 v74 to i8
+    v76 = zext i8 v75 to i256
+    v77 = checked_add u256, v72, v76
+    ret v77
 }
 
 fn @storeMemory(arg0: memorystruct) -> i256 [selector=0xdb1ba0ba, abi_params=[tuple<u8, u16, bytes2, u8>], abi_returns=[word], abi_return_params=[u256]] {
@@ -130,25 +134,29 @@ fn @storeMemory(arg0: memorystruct) -> i256 [selector=0xdb1ba0ba, abi_params=[tu
     v30 = or v27, v29
     sstore 0, v30 !metadata(storage=slot(0))
     v31 = sload 0 !metadata(storage=slot(0))
-    v32 = and v31, 255
-    v33 = checked_mul u256, v32, 0x3e8
-    v34 = sload 0 !metadata(storage=slot(0))
-    v35 = shr 8, v34
-    v36 = and v35, 0xffff
-    v37 = checked_mul u256, v36, 100
-    v38 = checked_add u256, v33, v37
-    v39 = sload 0 !metadata(storage=slot(0))
-    v40 = shr 24, v39
-    v41 = and v40, 0xffff
-    v42 = shl 240, v41
-    v43 = and v42, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v44 = shr 248, v43
-    v45 = checked_add u256, v38, v44
-    v46 = sload 0 !metadata(storage=slot(0))
-    v47 = shr 40, v46
-    v48 = and v47, 255
-    v49 = checked_add u256, v45, v48
-    ret v49
+    v32 = trunc i256 v31 to i8
+    v33 = zext i8 v32 to i256
+    v34 = checked_mul u256, v33, 0x3e8
+    v35 = sload 0 !metadata(storage=slot(0))
+    v36 = shr 8, v35
+    v37 = trunc i256 v36 to i16
+    v38 = zext i16 v37 to i256
+    v39 = checked_mul u256, v38, 100
+    v40 = checked_add u256, v34, v39
+    v41 = sload 0 !metadata(storage=slot(0))
+    v42 = shr 24, v41
+    v43 = shl 240, v42
+    v44 = and v43, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v45 = shr 248, v44
+    v46 = trunc i256 v45 to i8
+    v47 = zext i8 v46 to i256
+    v48 = checked_add u256, v40, v47
+    v49 = sload 0 !metadata(storage=slot(0))
+    v50 = shr 40, v49
+    v51 = trunc i256 v50 to i8
+    v52 = zext i8 v51 to i256
+    v53 = checked_add u256, v48, v52
+    ret v53
 }
 
 fn @storeSmall(arg0: calldataslice) -> i256 [selector=0x48de48f7, abi_params=[array<_, u16>], abi_returns=[word], abi_return_params=[u256]] {
@@ -233,8 +241,9 @@ fn @storeSmall(arg0: calldataslice) -> i256 [selector=0x48de48f7, abi_params=[ar
     v85 = sload v82 !metadata(storage=symbolic(v82))
     v86 = mul v84, 8
     v87 = shr v86, v85
-    v88 = and v87, 0xffff
-    ret v88
+    v88 = trunc i256 v87 to i16
+    v89 = zext i16 v88 to i256
+    ret v89
   bb10:
     v52 = memory_object_load_element memoryarray<1>, v21, v50
     v53 = storage_array_data_slot 1
@@ -365,11 +374,12 @@ fn @storeLeft(arg0: calldataslice) -> i256 [selector=0x2d92e508, abi_params=[arr
     v87 = sload v84 !metadata(storage=symbolic(v84))
     v88 = mul v86, 8
     v89 = shr v88, v87
-    v90 = and v89, 0xffff
-    v91 = shl 240, v90
-    v92 = and v91, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v93 = shr 248, v92
-    ret v93
+    v90 = shl 240, v89
+    v91 = and v90, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v92 = shr 248, v91
+    v93 = trunc i256 v92 to i8
+    v94 = zext i8 v93 to i256
+    ret v94
   bb10:
     v53 = memory_object_load_element memoryarray<1>, v21, v51
     v54 = storage_array_data_slot 2

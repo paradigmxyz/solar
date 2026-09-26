@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/byte_store_counter.sol:ByteStoreCounter ===
 @module ByteStoreCounter
 types:
-  struct0: {i256, i256}
+  struct0: {i1, i1}
 
 fn @encode(arg0: memorybytes) -> memorybytes [selector=0x12496a1b, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
@@ -31,7 +31,7 @@ fn @encodeImpl(arg0: memorybytes) -> memorybytes [pure] {
   bb1:
     v7 = phi [bb0: arg0], [bb3: v7]
     v8 = phi [bb0: v6], [bb3: v8]
-    v9 = phi [bb0: 0], [bb3: v39]
+    v9 = phi [bb0: 0], [bb3: v41]
     v10 = memory_object_len memorybytes, v7
     v11 = lt v9, v10
     jumpi v11, bb4, bb5
@@ -47,42 +47,44 @@ fn @encodeImpl(arg0: memorybytes) -> memorybytes [pure] {
     v15 = memory_object_load_byte memorybytes, v7, v9
     v16 = shl 248, v15
     v17 = shr 248, v16
-    v18 = shr 4, v17
-    v19 = lt v18, 16
-    v20 = eq v19, false
-    icall panic_if<0x32>, v20
-    v21 = byte v18, 0x3031323334353637383961626364656600000000000000000000000000000000
-    v22 = shl 248, v21
-    v23 = checked_mul u256, 2, v9
-    v24 = memory_object_len memorybytes, v8
-    v25 = lt v23, v24
-    v26 = eq v25, false
-    icall panic_if<0x32>, v26
-    v27 = byte 0, v22
-    memory_object_store_byte memorybytes, v8, v23, v27
-    v28 = and v17, 15
-    v29 = lt v28, 16
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = byte v28, 0x3031323334353637383961626364656600000000000000000000000000000000
-    v32 = shl 248, v31
-    v33 = checked_mul u256, 2, v9
-    v34 = checked_add u256, v33, 1
-    v35 = memory_object_len memorybytes, v8
-    v36 = lt v34, v35
-    v37 = eq v36, false
-    icall panic_if<0x32>, v37
-    v38 = byte 0, v32
-    memory_object_store_byte memorybytes, v8, v34, v38
+    v18 = trunc i256 v17 to i8
+    v19 = zext i8 v18 to i256
+    v20 = shr 4, v19
+    v21 = lt v20, 16
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = byte v20, 0x3031323334353637383961626364656600000000000000000000000000000000
+    v24 = shl 248, v23
+    v25 = checked_mul u256, 2, v9
+    v26 = memory_object_len memorybytes, v8
+    v27 = lt v25, v26
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = byte 0, v24
+    memory_object_store_byte memorybytes, v8, v25, v29
+    v30 = and v19, 15
+    v31 = lt v30, 16
+    v32 = eq v31, false
+    icall panic_if<0x32>, v32
+    v33 = byte v30, 0x3031323334353637383961626364656600000000000000000000000000000000
+    v34 = shl 248, v33
+    v35 = checked_mul u256, 2, v9
+    v36 = checked_add u256, v35, 1
+    v37 = memory_object_len memorybytes, v8
+    v38 = lt v36, v37
+    v39 = eq v38, false
+    icall panic_if<0x32>, v39
+    v40 = byte 0, v34
+    memory_object_store_byte memorybytes, v8, v36, v40
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v39 = checked_add u256, v9, 1
+    v41 = checked_add u256, v9, 1
     jump bb1
 }
 
-fn @scan(arg0: memorybytes) -> i256 [selector=0x43f8e26b, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @scan(arg0: memorybytes) -> i1 [selector=0x43f8e26b, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @scanImpl, arg0
     ret v0
@@ -97,12 +99,12 @@ fn @twice(arg0: memorybytes, arg1: memorybytes) -> struct0 [selector=0xbca4d4a4,
     ret v3
 }
 
-fn @scanImpl(arg0: memorybytes) -> i256 [pure] {
+fn @scanImpl(arg0: memorybytes) -> i1 [pure] {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v12]
+    v1 = phi [bb0: 0], [bb3: v11]
     v2 = phi [bb0: 0], [bb3: v2]
     v3 = memory_object_len memorybytes, v0
     v4 = lt v1, v3
@@ -110,8 +112,7 @@ fn @scanImpl(arg0: memorybytes) -> i256 [pure] {
   bb5:
     jump bb2
   bb2:
-    v13 = zext i1 1 to i256
-    ret v13
+    ret true
   bb4:
     v5 = memory_object_len memorybytes, v0
     v6 = lt v1, v5
@@ -128,11 +129,10 @@ fn @scanImpl(arg0: memorybytes) -> i256 [pure] {
   bb6:
     jump bb3
   bb3:
-    v12 = checked_add u256, v1, 1
+    v11 = checked_add u256, v1, 1
     jump bb1
   bb7:
-    v11 = zext i1 0 to i256
-    ret v11
+    ret false
 }
 
 fn @firstHigh(arg0: memorybytes) -> i256 [selector=0xec31a730, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
@@ -172,7 +172,7 @@ fn @firstHigh(arg0: memorybytes) -> i256 [selector=0xec31a730, pure, abi_params=
     ret v1
 }
 
-fn @checkedScan(arg0: i256) -> i256 [selector=0xf2609747, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @checkedScan(arg0: i256) -> i1 [selector=0xf2609747, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = add arg0, 63
     v1 = lt v0, arg0
@@ -184,26 +184,27 @@ fn @checkedScan(arg0: i256) -> i256 [selector=0xf2609747, pure, abi_params=[u256
     jump bb1
   bb1:
     v5 = phi [bb0: 0], [bb3: v5]
-    v6 = phi [bb0: 0], [bb3: v18]
+    v6 = phi [bb0: i8 0], [bb3: v19]
     v7 = phi [bb0: arg0], [bb3: v7]
     v8 = phi [bb0: v4], [bb3: v8]
     v9 = memory_object_len memorybytes, v8
-    v10 = lt v6, v9
-    jumpi v10, bb4, bb5
+    v10 = zext i8 v6 to i256
+    v11 = lt v10, v9
+    jumpi v11, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v19 = zext i1 1 to i256
-    ret v19
+    ret true
   bb4:
-    v11 = memory_object_len memorybytes, v8
-    v12 = lt v6, v11
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    v14 = memory_object_load_byte memorybytes, v8, v6
-    v15 = shl 248, v14
-    v16 = gt v15, 0x7f00000000000000000000000000000000000000000000000000000000000000
-    jumpi v16, bb7, bb8
+    v12 = zext i8 v6 to i256
+    v13 = memory_object_len memorybytes, v8
+    v14 = lt v12, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = memory_object_load_byte memorybytes, v8, v12
+    v17 = shl 248, v16
+    v18 = gt v17, 0x7f00000000000000000000000000000000000000000000000000000000000000
+    jumpi v18, bb7, bb8
   bb8:
     jump bb9
   bb9:
@@ -211,9 +212,8 @@ fn @checkedScan(arg0: i256) -> i256 [selector=0xf2609747, pure, abi_params=[u256
   bb6:
     jump bb3
   bb3:
-    v18 = checked_add u8, v6, 1
+    v19 = checked_add u8, v6, i8 1
     jump bb1
   bb7:
-    v17 = zext i1 0 to i256
-    ret v17
+    ret false
 }

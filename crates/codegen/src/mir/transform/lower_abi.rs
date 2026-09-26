@@ -1261,15 +1261,24 @@ impl LowerAbiCx {
                 );
                 head_offset += ty.checked_head_size().expect("ABI head size exceeds u64 range");
             }
-            let preserve_word_types = layout.types.len() == arg_types.len()
-                && layout.types.iter().zip(&arg_types).all(|(ty, &param)| {
-                    ty.is_scalar_word()
-                        && ty.mir_type() == param
-                        && !matches!(ty, AbiParamType::Scalar(crate::mir::ValueLayout::Function))
-                });
-            let mut params = IndexVec::with_capacity((head_offset / 32) as usize);
-            for (index, _) in (0..head_offset / 32).enumerate() {
-                params.push(if preserve_word_types { arg_types[index] } else { MirType::I256 });
+            // ABI words can contain sign bits above the native integer width.
+            let mut params =
+                (0..head_offset / 32).map(|_| MirType::I256).collect::<IndexVec<_, _>>();
+            for (logical, physical) in logical_physical.iter().enumerate() {
+                if let Some(physical) = *physical
+                    && let Some(&ty) = arg_types.get(logical)
+                    && layout.types[logical].mir_type() == ty
+                    && matches!(
+                        layout.types[logical],
+                        AbiParamType::Scalar(
+                            crate::mir::ValueLayout::Bool
+                                | crate::mir::ValueLayout::UInt(_)
+                                | crate::mir::ValueLayout::Address
+                        )
+                    )
+                {
+                    params[physical] = ty;
+                }
             }
             func.set_params(params);
             logical_values = logical_physical
@@ -1474,7 +1483,7 @@ impl LowerAbiCx {
             for (logical, value) in logical_values.iter_mut().enumerate() {
                 if let Some(raw) = *value
                     && let Some(&ty) = arg_types.get(logical)
-                    && matches!(ty, MirType::I1 | MirType::I160)
+                    && matches!(ty, MirType::Int(bits) if bits.get() < 256)
                 {
                     // value = cast raw to the declared scalar type
                     let normalized = builder.cast(raw, ty);
@@ -3701,6 +3710,10 @@ fn is_canonical_return_scalar(
         }
         return matches!(ty, crate::mir::ValueLayout::Int(size) if size.bits() >= 256);
     };
+    let bits = super::egraph::max_bits_with_args(func, value, 8, &|_| 256);
+    if (U256::MAX >> (256 - bits)) & !expected == U256::ZERO {
+        return true;
+    }
     if ty == crate::mir::ValueLayout::Function
         && source == ReturnValueSource::Memory
         && let Value::Inst(inst) = func.value(value)

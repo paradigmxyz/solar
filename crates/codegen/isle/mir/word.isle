@@ -1,4 +1,4 @@
-;; Pure 256-bit word reductions, checked by scripts/evm-rules/verify.py.
+;; Pure integer reductions, checked by scripts/evm-rules/verify.py.
 ;;
 ;; Mixed bitwise families were discovered by bounded enumeration; arithmetic
 ;; candidates were supplied explicitly. See scripts/evm-rules/README.md for the
@@ -15,7 +15,7 @@
 
 ;; ~((1 << n) - 1) => MAX << n
 ;; ~(x - 1) => 0 - x
-;; Mined from storage-byte masks; shifts of 256 or more yield zero.
+;; Mined from storage-byte masks; shifts at least the integer width yield zero.
 (rule (rewrite (Op.Not (sub (shl n (one)) (one)))) (Op.Shl n (imm (u256_max))))
 (rule (rewrite (Op.Not (sub x (one)))) (Op.Sub (imm (u256 0)) x))
 
@@ -160,48 +160,48 @@
 (rule (rewrite (Op.Shr (iconst shift) (and shifted (shl (iconst shift) x))))
       (if-let true (in_current_block shifted))
       (if-let true (single_use shifted))
-      (if-let true (u256_lt shift 256))
+      (if-let true (u256_lt shift (word_bits)))
       (if-let true (mask_covers (u256_shr shift (u256_max)) x))
       (Op.Add x (imm (u256 0))))
 
 ;; (x << s) == (y << s) => x == y, if neither shift loses bits.
 (rule (rewrite (Op.Eq (shl (iconst shift) x) (shl (iconst shift) y)))
-      (if-let true (u256_lt shift 256))
+      (if-let true (u256_lt shift (word_bits)))
       (if-let true (mask_covers (u256_shr shift (u256_max)) x))
       (if-let true (mask_covers (u256_shr shift (u256_max)) y))
       (Op.Eq x y))
 
 ;; (x << s) == c => x == (c >> s), if x fits and c is aligned to 2^s.
 (rule (rewrite (Op.Eq (shl (iconst shift) x) (iconst c)))
-      (if-let true (u256_lt shift 256))
+      (if-let true (u256_lt shift (word_bits)))
       (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
       (if-let true (mask_covers (u256_shr shift (u256_max)) x))
       (Op.Eq x (imm (u256_shr shift c))))
 
 ;; (x << s) < (y << s) => x < y, if neither shift loses bits.
 (rule (rewrite (Op.Lt (shl (iconst shift) x) (shl (iconst shift) y)))
-      (if-let true (u256_lt shift 256))
+      (if-let true (u256_lt shift (word_bits)))
       (if-let true (mask_covers (u256_shr shift (u256_max)) x))
       (if-let true (mask_covers (u256_shr shift (u256_max)) y))
       (Op.Lt x y))
 
 ;; (x << s) < c => x < (c >> s), if x fits and c is aligned to 2^s.
 (rule (rewrite (Op.Lt (shl (iconst shift) x) (iconst c)))
-      (if-let true (u256_lt shift 256))
+      (if-let true (u256_lt shift (word_bits)))
       (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
       (if-let true (mask_covers (u256_shr shift (u256_max)) x))
       (Op.Lt x (imm (u256_shr shift c))))
 
 ;; (x << s) > (y << s) => x > y, if neither shift loses bits.
 (rule (rewrite (Op.Gt (shl (iconst shift) x) (shl (iconst shift) y)))
-      (if-let true (u256_lt shift 256))
+      (if-let true (u256_lt shift (word_bits)))
       (if-let true (mask_covers (u256_shr shift (u256_max)) x))
       (if-let true (mask_covers (u256_shr shift (u256_max)) y))
       (Op.Gt x y))
 
 ;; (x << s) > c => x > (c >> s), if x fits and c is aligned to 2^s.
 (rule (rewrite (Op.Gt (shl (iconst shift) x) (iconst c)))
-      (if-let true (u256_lt shift 256))
+      (if-let true (u256_lt shift (word_bits)))
       (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
       (if-let true (mask_covers (u256_shr shift (u256_max)) x))
       (Op.Gt x (imm (u256_shr shift c))))

@@ -5,7 +5,7 @@ fn @dirty() -> i256 [pure] {
     ret 4
 }
 
-fn @structConstructor() -> i256 [selector=0x9b40f93f, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
+fn @structConstructor() -> i8 [selector=0x9b40f93f, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = icall @dirty
@@ -17,10 +17,14 @@ fn @structConstructor() -> i256 [selector=0x9b40f93f, pure, abi_params=[], abi_r
     v5 = lt v4, 3
     v6 = eq v5, false
     icall panic_if<0x21>, v6
-    ret v4
+    v7 = trunc i256 v4 to i8
+    v8 = lt v7, i8 3
+    v9 = eq v8, false
+    icall panic_if<0x21>, v9
+    ret v7
 }
 
-fn @arrayLiteral() -> i256 [selector=0x7e94f0e2, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
+fn @arrayLiteral() -> i8 [selector=0x7e94f0e2, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     v1 = icall @dirty
@@ -35,10 +39,14 @@ fn @arrayLiteral() -> i256 [selector=0x7e94f0e2, pure, abi_params=[], abi_return
     v7 = lt v6, 3
     v8 = eq v7, false
     icall panic_if<0x21>, v8
-    ret v6
+    v9 = trunc i256 v6 to i8
+    v10 = lt v9, i8 3
+    v11 = eq v10, false
+    icall panic_if<0x21>, v11
+    ret v9
 }
 
-fn @arrayElement() -> i256 [selector=0x050651a8, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
+fn @arrayElement() -> i8 [selector=0x050651a8, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -59,5 +67,9 @@ fn @arrayElement() -> i256 [selector=0x050651a8, pure, abi_params=[], abi_return
     v11 = lt v10, 3
     v12 = eq v11, false
     icall panic_if<0x21>, v12
-    ret v10
+    v13 = trunc i256 v10 to i8
+    v14 = lt v13, i8 3
+    v15 = eq v14, false
+    icall panic_if<0x21>, v15
+    ret v13
 }

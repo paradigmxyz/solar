@@ -9,36 +9,36 @@ fn @encodeFirst() [selector=0xe9a7b169, abi_wrapper, pure] {
   bb2:
     v3 = icall @decode_calldata_type, 4
     v4 = icall @encodeFirst.body, v3
-    v43 = mload 64 !metadata(memory=scratch)
-    v10 = add v43, 32
-    mstore v43, 32
-    v40 = ptrtoint memptr v4 to i256
-    v18 = ne v40, 0
-    v19 = zext i1 v18 to i256
-    v14 = mload v40
-    v20 = mul v14, v19
-    mstore v10, v20
-    v22 = add v20, 31
-    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v24 = add v10, 32
-    v25 = eq v23, 0
-    jumpi v25, bb4, bb3
+    v42 = mload 64 !metadata(memory=scratch)
+    v10 = add v42, 32
+    mstore v42, 32
+    v39 = ptrtoint memptr v4 to i256
+    v17 = ne v39, 0
+    v18 = zext i1 v17 to i256
+    v14 = mload v39
+    v19 = mul v14, v18
+    mstore v10, v19
+    v21 = add v19, 31
+    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v23 = add v10, 32
+    v24 = eq v22, 0
+    jumpi v24, bb4, bb3
   bb3:
-    v26 = sub v23, 32
-    v27 = add v24, v26
-    mstore v27, 0
+    v25 = sub v22, 32
+    v26 = add v23, v25
+    mstore v26, 0
     jump bb4
   bb4:
-    v29 = add v24, v23
-    v42 = add v40, 32
-    mcopy v24, v42, v20
-    v32 = sub v29, v43
-    v34 = add v32, 31
-    v36 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v44 = mload 64
-    v45 = add v44, v36
-    mstore 64, v45
-    returndata v44, v32
+    v28 = add v23, v22
+    v41 = add v39, 32
+    mcopy v23, v41, v19
+    v31 = sub v28, v42
+    v33 = add v31, 31
+    v35 = and v33, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v43 = mload 64
+    v44 = add v43, v35
+    mstore 64, v44
+    returndata v43, v31
   bb1:
     revert 0, 0
 }
@@ -50,15 +50,15 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
     jumpi v2, bb1, bb2
   bb2:
     v3 = icall @decode_calldata_type, 4
-    v66 = mload 64 !metadata(memory=scratch)
-    v9 = add v66, 32
+    v65 = mload 64 !metadata(memory=scratch)
+    v9 = add v65, 32
     v10 = add v9, 32
     mstore v9, 32
-    v61 = ptrtoint memptr v3 to i256
-    v60 = add v61, 32
-    v13 = mload v60
+    v60 = ptrtoint memptr v3 to i256
+    v59 = add v60, 32
+    v13 = mload v59
     v14 = add v10, 64
-    v12 = mload v61
+    v12 = mload v60
     mstore v10, v12
     v15 = add v10, 32
     mstore v15, 64
@@ -69,39 +69,39 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
     jumpi v23, bb3, bb4
   bb4:
     v25 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v67 = mload 64
-    v68 = add v67, v25
-    mstore 64, v68
-    mstore v67, v20
-    v69 = mload 64
-    v29 = add v69, 32
-    mstore v69, 32
-    v37 = ne v67, 0
-    v38 = zext i1 v37 to i256
-    v33 = mload v67
-    v39 = mul v33, v38
-    mstore v29, v39
-    v41 = add v39, 31
-    v42 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v43 = add v29, 32
-    v44 = eq v42, 0
-    jumpi v44, bb6, bb5
+    v66 = mload 64
+    v67 = add v66, v25
+    mstore 64, v67
+    mstore v66, v20
+    v68 = mload 64
+    v29 = add v68, 32
+    mstore v68, 32
+    v36 = ne v66, 0
+    v37 = zext i1 v36 to i256
+    v33 = mload v66
+    v38 = mul v33, v37
+    mstore v29, v38
+    v40 = add v38, 31
+    v41 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v42 = add v29, 32
+    v43 = eq v41, 0
+    jumpi v43, bb6, bb5
   bb5:
-    v45 = sub v42, 32
-    v46 = add v43, v45
-    mstore v46, 0
+    v44 = sub v41, 32
+    v45 = add v42, v44
+    mstore v45, 0
     jump bb6
   bb6:
-    v48 = add v43, v42
-    v65 = add v67, 32
-    mcopy v43, v65, v39
-    v51 = sub v48, v69
-    v53 = add v51, 31
-    v55 = and v53, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v70 = mload 64
-    v71 = add v70, v55
-    mstore 64, v71
-    returndata v70, v51
+    v47 = add v42, v41
+    v64 = add v66, 32
+    mcopy v42, v64, v38
+    v50 = sub v47, v68
+    v52 = add v50, 31
+    v54 = and v52, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v69 = mload 64
+    v70 = add v69, v54
+    mstore 64, v70
+    returndata v69, v50
   bb3:
     mstore 0, 0x4e487b71
     mstore 32, 65

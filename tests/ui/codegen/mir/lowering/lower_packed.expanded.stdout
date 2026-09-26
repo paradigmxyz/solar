@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_packed.mir (before lower-builtins) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_packed.mir (after lower-builtins) ===
   @module PackedEncoding
-  fn @mixed(arg0: i256, arg1: memorybytes) -> memorybytes {
+  fn @mixed(arg0: i16, arg1: memorybytes) -> memorybytes {
     bb0:
 -     v0 = abi_encode_packed (data hex"000102", u16 arg0, bytes arg1)
 -     ret v0
@@ -21,13 +21,14 @@
 +     v10 = and v7, v9
 +     v11 = alloc memorybytes, exact, uninitialized, infallible, v10 !metadata(preserves_fmp)
 +     set_memory_object_len memorybytes, v11, v5
-+     v12 = shl 216, arg0
-+     v13 = or 0x1020000000000000000000000000000000000000000000000000000000000, v12
-+     memory_object_store_word memorybytes, v11, 0, v13
++     v12 = zext i16 arg0 to i256
++     v13 = shl 216, v12
++     v14 = or 0x1020000000000000000000000000000000000000000000000000000000000, v13
++     memory_object_store_word memorybytes, v11, 0, v14
 +     memory_object_copy_from_slice_at memorybytes, v11, 5, v4
-+     v14 = add 5, v1
-+     v15 = lt v14, 5
-+     jumpi v15, bb1, bb4
++     v15 = add 5, v1
++     v16 = lt v15, 5
++     jumpi v16, bb1, bb4
 +   bb4:
 +     ret v11
 +   bb1:
@@ -36,17 +37,18 @@
 +     revert 28, 36
   }
   
-  fn @hash(arg0: i256) -> i256 {
+  fn @hash(arg0: i16) -> i256 {
     bb0:
 -     v0 = keccak256_packed (data hex"ab", i16 arg0, bytes2 0xcdef000000000000000000000000000000000000000000000000000000000000)
 -     ret v0
-+     v1 = and arg0, 0xffff
-+     v2 = shl 232, v1
-+     v3 = or 0xab00000000000000000000000000000000000000000000000000000000000000, v2
-+     mstore 0, v3 !metadata(memory=scratch)
++     v1 = zext i16 arg0 to i256
++     v2 = and v1, 0xffff
++     v3 = shl 232, v2
++     v4 = or 0xab00000000000000000000000000000000000000000000000000000000000000, v3
++     mstore 0, v4 !metadata(memory=scratch)
 +     mstore 3, 0xcdef000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     v4 = keccak256 0, 5 !metadata(memory=scratch)
-+     ret v4
++     v5 = keccak256 0, 5 !metadata(memory=scratch)
++     ret v5
   }
   
   fn @arrays(arg0: memoryarray, arg1: calldataslice) -> memorybytes {

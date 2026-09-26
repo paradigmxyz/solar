@@ -145,6 +145,7 @@ pub(super) fn lower(
     let mut seen_ids = FxHashSet::default();
     let function_ids =
         function_ids.into_iter().filter(|(id, _)| seen_ids.insert(*id)).collect::<Vec<_>>();
+    state.analyze_raw_scalars(gcx, contract_id, &function_ids);
     let is_library = contract.kind == hir::ContractKind::Library;
     module.is_library = is_library;
     // A library's non-view external functions may only run through `DELEGATECALL`. Like
@@ -235,14 +236,13 @@ pub(super) fn lower(
                 let return_types = function
                     .returns
                     .iter()
-                    .map(|&ret| TypeLowerer::mir_return_type(gcx.type_of_item(ret.into())))
+                    .map(|&ret| context.state.scalar_carrier(gcx, ret))
                     .collect();
                 let return_type = context.module.intern_return_type(return_types);
                 let mut builder =
                     FunctionBuilder::new_semantic(context.module.function_mut(mir_id));
                 for &param in function.parameters {
-                    builder
-                        .add_param(TypeLowerer::mir_signature_type(gcx.type_of_item(param.into())));
+                    builder.add_param(context.state.scalar_carrier(gcx, param));
                 }
                 if let Some(ty) = return_type {
                     builder.set_return_type(ty);

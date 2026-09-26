@@ -259,25 +259,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             return None;
         }
 
-        // Stack arguments are inserted above the hidden return label. A value duplicated from the
-        // preserved caller prefix must remain addressable after the label and earlier arguments
-        // have been pushed.
-        if let Some(mask) = stack_mask {
-            let mut words_above = 1;
-            for (index, &arg) in args.iter().enumerate() {
-                if !mask.contains(index) {
-                    continue;
-                }
-                if self
-                    .scheduler
-                    .stack
-                    .find(arg)
-                    .is_some_and(|depth| depth + words_above + 1 > MAX_STACK_ACCESS)
-                {
-                    return None;
-                }
-                words_above += 1;
-            }
+        if !static_call_args_reachable(&self.scheduler.stack, args, stack_mask) {
+            return None;
         }
 
         // A call cannot observe words below its hidden return address. Keep an entirely live,
@@ -368,7 +351,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .filter(|&&value| !self.scheduler.spills.is_stored(value))
                     .count();
                 let spill_fallback_cost = depth + fresh * 3 + retained.len() * 2;
-                if stack_args_are_stable && prepare_ops.len() < spill_fallback_cost {
+                if stack_args_are_stable
+                    && static_call_args_reachable(&caller_stack, args, stack_mask)
+                    && prepare_ops.len() < spill_fallback_cost
+                {
                     return Some(StaticCallStackPlan { prepare_ops, caller_stack });
                 }
             }
@@ -691,6 +677,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     mask.contains(i)
                         && !plan.retained.contains(i)
                         && matches!(func.value(arg), crate::mir::Value::Inst(_))
+                        && !Self::is_always_rematerializable_value(func, arg)
                         && self.scheduler.reloadable_spill(arg).is_none()
                 })
             })
@@ -1090,5 +1077,48 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.spill_value_if_needed(func, value);
             }
         }
+    }
+}
+
+/// Checks argument duplication after the return label and preceding arguments are pushed.
+fn static_call_args_reachable(
+    caller_stack: &StackModel,
+    args: &[ValueId],
+    mask: Option<&DenseBitSet<usize>>,
+) -> bool {
+    let Some(mask) = mask else { return true };
+    let mut words_above = 1;
+    for (index, &arg) in args.iter().enumerate() {
+        if mask.contains(index) {
+            if caller_stack
+                .find(arg)
+                .is_some_and(|depth| depth + words_above + 1 > MAX_STACK_ACCESS)
+            {
+                return false;
+            }
+            words_above += 1;
+        }
+    }
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn static_call_arguments_check_prepared_prefix() {
+        let values = (0..MAX_STACK_ACCESS + 2).map(ValueId::from_usize).collect::<Vec<_>>();
+        let original = StackModel::from_top_to_bottom(
+            values[..MAX_STACK_ACCESS - 1].iter().copied().map(Some),
+        );
+        let args = [values[MAX_STACK_ACCESS], values[MAX_STACK_ACCESS + 1], values[0]];
+        let mut mask = DenseBitSet::new_empty(args.len());
+        mask.insert_all();
+        assert!(static_call_args_reachable(&original, &args, Some(&mask)));
+        let mut prepared = original;
+        prepared.swap((MAX_STACK_ACCESS - 2) as u8);
+        prepared.pop();
+        assert!(!static_call_args_reachable(&prepared, &args, Some(&mask)));
     }
 }

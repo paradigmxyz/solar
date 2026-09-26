@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/ternary_operand_reuse.sol:TernaryOperandReuse ===
 @module TernaryOperandReuse
 types:
-  struct0: {i256, i256}
+  struct0: {i256, i160}
 
 fn @addCaller(arg0: i256, arg1: i256) [selector=0x0718ec94, view, abi_params=[u256, u256], abi_returns=[word, word<u160>], abi_return_params=[u256, address]] {
   bb0:

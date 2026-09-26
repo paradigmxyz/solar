@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/mir/loop-idioms/runtime.sol:Test ===
 @module Test
-fn @ascii(arg0: memorybytes) -> i256 [selector=0x6f11c5d5, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @ascii(arg0: memorybytes) -> i1 [selector=0x6f11c5d5, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v12]
+    v0 = phi [bb0: 0], [bb3: v11]
     v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: arg0], [bb3: v2]
     v3 = memory_object_len memorybytes, v2
@@ -13,8 +13,7 @@ fn @ascii(arg0: memorybytes) -> i256 [selector=0x6f11c5d5, pure, abi_params=[byt
   bb5:
     jump bb2
   bb2:
-    v13 = zext i1 1 to i256
-    ret v13
+    ret true
   bb4:
     v5 = memory_object_len memorybytes, v2
     v6 = lt v0, v5
@@ -31,11 +30,10 @@ fn @ascii(arg0: memorybytes) -> i256 [selector=0x6f11c5d5, pure, abi_params=[byt
   bb6:
     jump bb3
   bb3:
-    v12 = checked_add u256, v0, 1
+    v11 = checked_add u256, v0, 1
     jump bb1
   bb7:
-    v11 = zext i1 0 to i256
-    ret v11
+    ret false
 }
 
 fn @zeroBytes(arg0: memorybytes) -> i256 [selector=0xea4c6f7d, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {

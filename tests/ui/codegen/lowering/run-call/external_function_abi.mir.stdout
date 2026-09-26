@@ -45,9 +45,9 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v12 = abi_decode [function], v11
     v13 = shr 32, v12
     v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
-    v15 = address
-    v16 = zext i160 v15 to i256
-    v17 = eq v14, v16
+    v15 = trunc i256 v14 to i160
+    v16 = address
+    v17 = eq v15, v16
     icall require<short_string>, v17, 7, 0x6164647265737300000000000000000000000000000000000000000000000000
     v18 = and v12, 0xffffffff
     v19 = shl 224, v18
@@ -57,8 +57,8 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v22 = ptrtoint memorybytes v21 to i256
     v23 = add v22, 32
     v24 = mload v23
-    v25 = and v24, 0xffffffffffffffff
-    v26 = eq v25, 0
+    v25 = trunc i256 v24 to i64
+    v26 = eq v25, i64 0
     icall require<short_string>, v26, 7, 0x70616464696e6700000000000000000000000000000000000000000000000000
     v27 = abi_encode [function], object, selector 0x90898ee400000000000000000000000000000000000000000000000000000000, args v3
     v28 = ptrtoint memorybytes v27 to i256
@@ -101,9 +101,9 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v54 = shr 64, v53
     v55 = shr 32, v54
     v56 = and v55, 0xffffffffffffffffffffffffffffffffffffffff
-    v57 = address
-    v58 = zext i160 v57 to i256
-    v59 = eq v56, v58
+    v57 = trunc i256 v56 to i160
+    v58 = address
+    v59 = eq v57, v58
     icall require<short_string>, v59, 14, 0x686f6c6465722061646472657373000000000000000000000000000000000000
     v60 = memory_object_load_field memorystruct<2>, v52, 0
     v61 = shr 64, v60
@@ -143,9 +143,9 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v85 = shr 64, v84
     v86 = shr 32, v85
     v87 = and v86, 0xffffffffffffffffffffffffffffffffffffffff
-    v88 = address
-    v89 = zext i160 v88 to i256
-    v90 = eq v87, v89
+    v88 = trunc i256 v87 to i160
+    v89 = address
+    v90 = eq v88, v89
     icall require<short_string>, v90, 13, 0x6172726179206164647265737300000000000000000000000000000000000000
     v91 = memory_object_len memoryarray, v80
     v92 = lt 0, v91

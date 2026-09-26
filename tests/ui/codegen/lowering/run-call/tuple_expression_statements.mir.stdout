@@ -1,12 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/tuple_expression_statements.sol:C ===
 @module C
 types:
-  struct0: {i256, i256}
+  struct0: {i1, i256}
 
-fn @tupleLiteral() -> i256 [selector=0xd176547e, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @tupleLiteral() -> i1 [selector=0xd176547e, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = zext i1 1 to i256
-    ret v0
+    ret true
 }
 
 fn @tupleTernary() -> struct0 [selector=0x75466b3a, pure, abi_params=[], abi_returns=[word<bool>, word], abi_return_params=[bool, u256]] {
@@ -19,9 +18,8 @@ fn @tupleTernary() -> struct0 [selector=0x75466b3a, pure, abi_params=[], abi_ret
   bb3:
     v0 = phi [bb1: 2], [bb2: 4]
     v1 = phi [bb1: 2], [bb2: 4]
-    v2 = phi [bb1: 3], [bb2: 5]
-    v3 = zext i1 1 to i256
-    v4 = insert_value struct0, undef struct0, 0, v3
-    v5 = insert_value struct0, v4, 1, v0
-    ret v5
+    v2 = phi [bb1: i8 3], [bb2: i8 5]
+    v3 = insert_value struct0, undef struct0, 0, true
+    v4 = insert_value struct0, v3, 1, v0
+    ret v4
 }

@@ -67,7 +67,7 @@ fn @constructor(arg0: i256, arg1: memoryarray) [constructor, abi_params=[u256, a
     jump bb3
 }
 
-fn @entry(arg0: i256) -> i256 [selector=0xe2095c07, view, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @entry(arg0: i256) -> i160 [selector=0xe2095c07, view, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = lt arg0, v0
@@ -81,7 +81,7 @@ fn @entry(arg0: i256) -> i256 [selector=0xe2095c07, view, abi_params=[u256], abi
     v8 = sload v5 !metadata(storage=symbolic(v5))
     v9 = mul v7, 8
     v10 = shr v9, v8
-    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = trunc i256 v10 to i160
     ret v11
 }
 
@@ -164,7 +164,7 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-fn @entry(arg0: i256) -> i256 [selector=0xe2095c07, view, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @entry(arg0: i256) -> i160 [selector=0xe2095c07, view, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = lt arg0, v0
@@ -178,14 +178,14 @@ fn @entry(arg0: i256) -> i256 [selector=0xe2095c07, view, abi_params=[u256], abi
     v8 = sload v5 !metadata(storage=symbolic(v5))
     v9 = mul v7, 8
     v10 = shr v9, v8
-    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = trunc i256 v10 to i160
     ret v11
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_dynamic_array_forwarding.sol:Creator ===
 @module Creator
 types:
-  struct0: {i256, i256}
+  struct0: {i256, i160}
 
 data:
   Main_initcode_0: hex"6104fc3803806104fc6103e0396103e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016604052604c565b60a0516040015160a05160600152565b341515610439576103e0806101a052806101a0526103e06104fc380301806101c052806101c0526040820181806101c0529011610435575f82806101a0520151806103a0528201806101e0529150816101e0526020820167ffffffffffffffff6103a05111826101c05282806101c0528211915017806103c0525050506103c051610431576101e051806101e052518061020052806102005260206101e05101806102205280610220526001820180610240528061024052828061020052811061041f5760208180610240520280610260528061026052602015602082048380610240529014925082901791508191508115915083610200528261022052509050905061041f57604051806103a052806103a052806102805280610280526102605180610260526103a05101806103805280610380526103a051806103a052811067ffffffffffffffff821181179050806103c0525050506103c05161040d576103805180610380526040526102805180610280526102005180610200528152506020610200510260201560208204915061020051806102005282149150171561041f576102205180610220526101c0510360051c6102005111610431576102805161020051610220515f929091905b816102a0525f82116103ac5760405160a05181602001528181604001528060a0526080016040525050505061024e603c565b60a051606001518060c05260a0516020015160a0528060c0526103e0602001515f558060c052518060e0528060e05260015480610100528061010052818060e052811160c0519291906102a157506102b7565b815b8061012052818061010052811061035a5750505b8060e0526001555f60e051905b8061016052818060e05281106102d95761043d565b828060c05260209001602082806101605202810190505160015f5260205f20600183048101905060018306601490026008900273ffffffffffffffffffffffffffffffffffffffff811b8254811991501673ffffffffffffffffffffffffffffffffffffffff8416935083821b9150925082179150556001810190506102c4565b60015f5260205f206001828061012052048101905060018206601490026008900273ffffffffffffffffffffffffffffffffffffffff811b825481199150165f821b91501790556001810190506102a3565b826102c05282806102c0525180610300528061030052806103005260a01c151561043157806102805260209001602084806102e05202810190506103005180610300528152506001810390506020820191506001830192506102805161021c565b634e487b715f5260416020526024601cfd5b634e487b715f5260416020526024601cfd5b5f5ffd5b5f5ffd5b5f5ffd5b60b4806104485f395ff3341515602a575f3560e01c80633fa4f245146026578063e2095c0714602257602a565b6040565b602e565b5f5ffd5b5f546080526020608001608090036080f35b6024361060b0576001546004351015609e5760015f5260205f20600160043504810190506001600435066014900281549150600890021c73ffffffffffffffffffffffffffffffffffffffff90166080526020608001608090036080f35b634e487b715f5260326020526024601cfd5b5f5ffd"
@@ -211,50 +211,47 @@ fn @f(arg0: i256, arg1: memoryarray) -> struct0 [selector=0x1b2902dd, abi_params
     mcopy v12, v10, v1 !metadata(memory=heap)
     v13 = ptrtoint memptr v8 to i256
     v14 = create 0, v13, v2
-    v15 = zext i160 v14 to i256
-    v16 = ne v15, 0
-    jumpi v16, bb2, bb1
+    v15 = ne v14, i160 0
+    jumpi v15, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v17 = zext i160 v14 to i256
-    v18 = gas
-    v19 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v20 = slice_ptr v19
-    v21 = slice_len v19
-    v22 = staticcall v18, v17, v20, v21, 0, 32
-    jumpi v22, bb4, bb3
+    v16 = gas
+    v17 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v18 = slice_ptr v17
+    v19 = slice_len v17
+    v20 = zext i160 v14 to i256
+    v21 = staticcall v16, v20, v18, v19, 0, 32
+    jumpi v21, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v23 = returndatasize
-    v24 = lt v23, 32
-    icall revert_if<tuple_data_too_short>, v24
-    v25 = add 0, 0
-    v26 = mload v25
-    v27 = add 0, 0
-    v28 = mload v27
-    v29 = gas
-    v30 = abi_encode [word], selector 0xe2095c0700000000000000000000000000000000000000000000000000000000, args arg0
-    v31 = slice_ptr v30
-    v32 = slice_len v30
-    v33 = staticcall v29, v17, v31, v32, 0, 32
-    jumpi v33, bb6, bb5
+    v22 = returndatasize
+    v23 = lt v22, 32
+    icall revert_if<tuple_data_too_short>, v23
+    v24 = add 0, 0
+    v25 = mload v24
+    v26 = gas
+    v27 = abi_encode [word], selector 0xe2095c0700000000000000000000000000000000000000000000000000000000, args arg0
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = zext i160 v14 to i256
+    v31 = staticcall v26, v30, v28, v29, 0, 32
+    jumpi v31, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v34 = returndatasize
-    v35 = lt v34, 32
-    icall revert_if<tuple_data_too_short>, v35
-    v36 = add 0, 0
-    v37 = mload v36
-    v38 = and v37, 0xffffffffffffffffffffffffffffffffffffffff
-    v39 = eq v37, v38
-    v40 = eq v39, false
-    icall revert_if<empty>, v40
-    v41 = add 0, 0
-    v42 = mload v41
-    v43 = insert_value struct0, undef struct0, 0, v28
-    v44 = insert_value struct0, v43, 1, v42
-    ret v44
+    v32 = returndatasize
+    v33 = lt v32, 32
+    icall revert_if<tuple_data_too_short>, v33
+    v34 = add 0, 0
+    v35 = mload v34
+    v36 = and v35, 0xffffffffffffffffffffffffffffffffffffffff
+    v37 = eq v35, v36
+    v38 = eq v37, false
+    icall revert_if<empty>, v38
+    v39 = trunc i256 v35 to i160
+    v40 = insert_value struct0, undef struct0, 0, v25
+    v41 = insert_value struct0, v40, 1, v39
+    ret v41
 }

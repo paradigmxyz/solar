@@ -609,8 +609,6 @@ bb40:
   push 4
   calldataload
   push 1
-  jump bb89
-bb89:
   lt
   push bb11
   jumpi
@@ -619,8 +617,8 @@ bb89:
   shl
   push 4
   calldataload
-  iszero
-  iszero
+  jump bb89
+bb89:
   push 0x26121ff0
   jump bb88
 bb88:
@@ -733,6 +731,16 @@ bb45:
   mstore
   push 36
   calldatasize
+  lt
+  push bb11
+  jumpi
+  push 0xe2179b8e
+  push 224
+  shl
+  push 4
+  calldataload
+  iszero
+  iszero
   jump bb89
 bb49:
   push 128

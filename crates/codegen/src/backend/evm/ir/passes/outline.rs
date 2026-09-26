@@ -3,8 +3,9 @@
 //! The pass finds repeated straight-line machine instruction runs, replaces each profitable site
 //! with a jump to one shared body, and returns from that body through a stack-held continuation.
 //! It also finds structurally equal runs whose concrete pushes differ, turning those pushes into
-//! stack parameters in size-oriented modes. A final specialized path shares repeated large pushes
-//! when the call and return sequence is smaller than spelling out each literal.
+//! stack parameters in size-oriented modes, with up to sixteen result words. A final specialized
+//! path shares repeated large pushes when the call and return sequence is smaller than spelling
+//! out each literal.
 //!
 //! Gas-mode candidates are closed stack computations: they leave the incoming stack untouched
 //! and produce up to sixteen outputs. The hidden return address remains below those outputs;
@@ -366,7 +367,7 @@ fn outline_parametric_machine_runs(
                 let outputs = inputs + delta;
                 if len < MIN_RUN_LENGTH
                     || inputs != 0
-                    || !matches!(outputs, 0 | 1)
+                    || !(0..=16).contains(&outputs)
                     || immediate_pushes == 0
                     || immediate_pushes > MAX_PARAMETERS * 2
                     || !is_split_point(&block.instructions, end + 1)

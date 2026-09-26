@@ -1453,7 +1453,9 @@ fn is_immutable_word_leaf(func: &Function) -> bool {
         let kind = &func.inst(inst).kind;
         if matches!(kind, InstKind::LoadImmutable(_)) {
             has_immutable = true;
-        } else if kind.effect_kind() != EffectKind::Pure || kind.evm_opcode().is_none() {
+        } else if !matches!(kind, InstKind::Zext(_))
+            && (kind.effect_kind() != EffectKind::Pure || kind.evm_opcode().is_none())
+        {
             return false;
         }
     }
@@ -1828,6 +1830,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         }
     };
     let instructions = match kind {
+        InstKind::Zext(_) | InstKind::Bitcast(_) | InstKind::IntToPtr(..) => 0,
         InstKind::MappingSlot(..) | InstKind::StorageArrayDataSlot(..) => 3,
         InstKind::MappingSlotMemory(..) => 8,
         InstKind::MappingSlotCalldata(..) => 9,

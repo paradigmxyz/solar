@@ -3,7 +3,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:B ===
 @module B
-fn @nonEmptyCode() -> i256 [selector=0x73c60a6b, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @nonEmptyCode() -> i1 [selector=0x73c60a6b, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 20
@@ -26,8 +26,7 @@ fn @nonEmptyCode() -> i256 [selector=0x73c60a6b, pure, abi_params=[], abi_return
     jump bb3
   bb3:
     v10 = phi [bb1: v9], [bb2: false]
-    v11 = zext i1 v10 to i256
-    ret v11
+    ret v10
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:InternalContract ===
@@ -46,7 +45,7 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:EmptyContractRuntime ===
 @module EmptyContractRuntime
-fn @hasNonCallableRuntime() -> i256 [selector=0x0fedb051, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @hasNonCallableRuntime() -> i1 [selector=0x0fedb051, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 3
@@ -83,82 +82,10 @@ fn @hasNonCallableRuntime() -> i256 [selector=0x0fedb051, pure, abi_params=[], a
     jump bb6
   bb6:
     v16 = phi [bb4: v15], [bb5: false]
-    v17 = zext i1 v16 to i256
-    ret v17
-}
-
-fn @deploysRevertingRuntime() -> i256 [selector=0x7c2d5470, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
-  bb0:
-    v0 = abi_encode []
-    v1 = not 31
-    v2 = and 51, v1
-    v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    mstore v4, 0x34600d5760038060115f395ff35b5f5ffd5f5ffd000000000000000000000000
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 20
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 20
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
-  bb1:
-    revert_returndata
-  bb2:
-    v12 = zext i160 v9 to i256
-    v13 = gas
-    v14 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v14, 4
-    v15 = memory_object_data memorybytes, v14
-    v16 = ptrtoint memptr v15 to i256
-    mstore v16, 0xdeadbeef00000000000000000000000000000000000000000000000000000000
-    v17 = address_call v9, v14, gas v13
-    v18 = zext i160 v9 to i256
-    v19 = extcodesize v18
-    v20 = gt v19, 0
-    jumpi v20, bb3, bb4
-  bb4:
-    jump bb5
-  bb3:
-    v21 = eq v17, false
-    jump bb5
-  bb5:
-    v22 = phi [bb3: v21], [bb4: false]
-    v23 = zext i1 v22 to i256
-    ret v23
-}
-
-fn @hasCode() -> i256 [selector=0xfffc60a2, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
-  bb0:
-    v0 = abi_encode []
-    v1 = not 31
-    v2 = and 51, v1
-    v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    mstore v4, 0x34600d5760038060115f395ff35b5f5ffd5f5ffd000000000000000000000000
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 20
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 20
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
-  bb1:
-    revert_returndata
-  bb2:
-    v12 = zext i160 v9 to i256
-    v13 = zext i160 v9 to i256
-    v14 = extcodesize v13
-    v15 = ne v14, 0
-    v16 = zext i1 v15 to i256
     ret v16
 }
 
-fn @rejectsCalls() -> i256 [selector=0x99b623b6, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @deploysRevertingRuntime() -> i1 [selector=0x7c2d5470, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -172,19 +99,81 @@ fn @rejectsCalls() -> i256 [selector=0x99b623b6, abi_params=[], abi_returns=[wor
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 20
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = gas
-    v14 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v14, 0
-    v15 = memory_object_data memorybytes, v14
-    v16 = address_call v9, v14, gas v13
-    v17 = eq v16, false
-    v18 = zext i1 v17 to i256
-    ret v18
+    v11 = gas
+    v12 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v12, 4
+    v13 = memory_object_data memorybytes, v12
+    v14 = ptrtoint memptr v13 to i256
+    mstore v14, 0xdeadbeef00000000000000000000000000000000000000000000000000000000
+    v15 = address_call v9, v12, gas v11
+    v16 = zext i160 v9 to i256
+    v17 = extcodesize v16
+    v18 = gt v17, 0
+    jumpi v18, bb3, bb4
+  bb4:
+    jump bb5
+  bb3:
+    v19 = eq v15, false
+    jump bb5
+  bb5:
+    v20 = phi [bb3: v19], [bb4: false]
+    ret v20
+}
+
+fn @hasCode() -> i1 [selector=0xfffc60a2, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 51, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v4 = ptrtoint memptr v3 to i256
+    mstore v4, 0x34600d5760038060115f395ff35b5f5ffd5f5ffd000000000000000000000000
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, 20
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, 20
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v11 = zext i160 v9 to i256
+    v12 = extcodesize v11
+    v13 = ne v12, 0
+    ret v13
+}
+
+fn @rejectsCalls() -> i1 [selector=0x99b623b6, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 51, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v4 = ptrtoint memptr v3 to i256
+    mstore v4, 0x34600d5760038060115f395ff35b5f5ffd5f5ffd000000000000000000000000
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, 20
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, 20
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v11 = gas
+    v12 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v12, 0
+    v13 = memory_object_data memorybytes, v12
+    v14 = address_call v9, v12, gas v11
+    v15 = eq v14, false
+    ret v15
 }

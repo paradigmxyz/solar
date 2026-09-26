@@ -1755,13 +1755,23 @@ impl AliasAnalysis {
                 } else {
                     MemoryAddress::symbolic(value, MemoryRegion::Heap)
                 }),
-                InstKind::Add(first, second) => self
-                    .address_add(func, first, second, depth)
-                    .or_else(|| self.address_add(func, second, first, depth))
-                    .or_else(|| {
-                        Some(MemoryAddress::symbolic(value, self.pointer_region(func, value, 0)))
-                    }),
-                InstKind::Sub(base, offset) => {
+                InstKind::Add(first, second)
+                    if (super::integers::integer_bits(func, value) == 256
+                        || super::integers::arithmetic_no_wrap(func, value)) =>
+                {
+                    self.address_add(func, first, second, depth)
+                        .or_else(|| self.address_add(func, second, first, depth))
+                        .or_else(|| {
+                            Some(MemoryAddress::symbolic(
+                                value,
+                                self.pointer_region(func, value, 0),
+                            ))
+                        })
+                }
+                InstKind::Sub(base, offset)
+                    if (super::integers::integer_bits(func, value) == 256
+                        || super::integers::arithmetic_no_wrap(func, value)) =>
+                {
                     self.address_sub(func, base, offset, depth).or_else(|| {
                         Some(MemoryAddress::symbolic(value, self.pointer_region(func, value, 0)))
                     })
@@ -1906,7 +1916,10 @@ impl AliasAnalysis {
             {
                 MemoryRegion::Heap
             }
-            InstKind::Add(first, second) => {
+            InstKind::Add(first, second)
+                if (super::integers::integer_bits(func, value) == 256
+                    || super::integers::arithmetic_no_wrap(func, value)) =>
+            {
                 let first = self.pointer_region(func, first, depth + 1);
                 if first != MemoryRegion::Unknown {
                     first
@@ -2074,14 +2087,24 @@ impl AliasAnalysis {
                 Self::pointer_lower_bound(func, *object, depth + 1)?
                     .checked_add(EvmMemoryLayout::object_data_offset(*kind))
             }
-            InstKind::Add(first, second) => Self::pointer_lower_bound(func, *first, depth + 1)
-                .and_then(|base| base.checked_add(func.value_u64(*second)?))
-                .or_else(|| {
-                    Self::pointer_lower_bound(func, *second, depth + 1)
-                        .and_then(|base| base.checked_add(func.value_u64(*first)?))
-                }),
-            InstKind::Sub(base, offset) => Self::pointer_lower_bound(func, *base, depth + 1)
-                .and_then(|base| base.checked_sub(func.value_u64(*offset)?)),
+            InstKind::Add(first, second)
+                if (super::integers::integer_bits(func, value) == 256
+                    || super::integers::arithmetic_no_wrap(func, value)) =>
+            {
+                Self::pointer_lower_bound(func, *first, depth + 1)
+                    .and_then(|base| base.checked_add(func.value_u64(*second)?))
+                    .or_else(|| {
+                        Self::pointer_lower_bound(func, *second, depth + 1)
+                            .and_then(|base| base.checked_add(func.value_u64(*first)?))
+                    })
+            }
+            InstKind::Sub(base, offset)
+                if (super::integers::integer_bits(func, value) == 256
+                    || super::integers::arithmetic_no_wrap(func, value)) =>
+            {
+                Self::pointer_lower_bound(func, *base, depth + 1)
+                    .and_then(|base| base.checked_sub(func.value_u64(*offset)?))
+            }
             InstKind::SlicePtr(slice) => {
                 let Value::Inst(slice) = func.value(*slice) else { return None };
                 match &func.inst(*slice).kind {

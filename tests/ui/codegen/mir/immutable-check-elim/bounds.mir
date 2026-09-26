@@ -13,6 +13,9 @@ immutables:
   unknown: u256
   unwritten: u256
   called: u256
+  narrow_scalar: u64
+  narrow_address_width: u160
+  narrow_three_bytes: u24
 
 fn @runtime() -> i256 [selector=1] {
   bb0:
@@ -29,7 +32,8 @@ fn @runtime() -> i256 [selector=1] {
 // The legacy target uses a full word and cannot use this bound.
 fn @bounded() -> i256 {
   bb0:
-    v0 = loadimmutable small
+    v10000 = loadimmutable small
+    v0 = zext i64 v10000 to i256
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
@@ -43,7 +47,8 @@ fn @bounded() -> i256 {
 // must retain their checks because constructor loads read full staging words.
 fn @constructor(arg0: i256) [constructor] {
   bb0:
-    storeimmutable small, arg0
+    v10001 = trunc i256 arg0 to i64
+    storeimmutable small, v10001
     icall @bridge
     stop
 }
@@ -55,7 +60,8 @@ fn @bridge() {
 
 fn @shared() {
   bb0:
-    v0 = loadimmutable small
+    v10002 = loadimmutable small
+    v0 = zext i64 v10002 to i256
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
@@ -68,7 +74,8 @@ fn @shared() {
 // Signed values can have every high bit set even with a short immediate.
 fn @signed_value() -> i256 {
   bb0:
-    v0 = loadimmutable signed
+    v10003 = loadimmutable signed
+    v0 = sext i64 v10003 to i256
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
@@ -93,7 +100,8 @@ fn @wide_value() -> i256 {
 // A helper with no established runtime entry cannot acquire runtime facts.
 fn @unrooted() -> i256 {
   bb0:
-    v0 = loadimmutable small
+    v10004 = loadimmutable small
+    v0 = zext i64 v10004 to i256
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
@@ -122,4 +130,44 @@ fn @assign_called(arg0: i256) {
   bb0:
     storeimmutable called, arg0
     ret
+}
+
+fn @assign_narrow_scalars() [constructor] {
+  bb0:
+    storeimmutable narrow_three_bytes, i24 255
+    storeimmutable narrow_scalar, i64 255
+    storeimmutable narrow_address_width, i160 65535
+    v0 = loadimmutable narrow_scalar
+    v1 = add v0, i64 1
+    v2 = zext i64 v1 to i256
+    mstore 0, v2
+    ret
+}
+
+fn @load_narrow_scalar() -> i64 [selector=2] {
+  bb0:
+    v0 = loadimmutable narrow_scalar
+    v1 = add v0, i64 1
+    ret v1
+}
+
+fn @load_narrow_address_width() -> i160 [selector=3] {
+  bb0:
+    v0 = loadimmutable narrow_address_width
+    v1 = add v0, i160 1
+    ret v1
+}
+
+fn @load_narrow_three_bytes() -> i24 [selector=4] {
+  bb0:
+    v0 = loadimmutable narrow_three_bytes
+    v1 = add v0, i24 1
+    ret v1
+}
+
+fn @load_narrow_word() -> i256 [selector=5] {
+  bb0:
+    v0 = loadimmutable called
+    v1 = add v0, 1
+    ret v1
 }

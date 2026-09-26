@@ -220,3 +220,54 @@ fn @keep_checked_scale_one_address(arg0: i256) -> i256 {
   bb3:
     ret 0
 }
+
+// CHECK-LABEL: fn @native_counter
+// CHECK: + [[POINTER:v[0-9]+]] = phi [bb0: arg0]
+// CHECK: + {{v[0-9]+}} = mload [[POINTER]]
+fn @native_counter(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: i8 0], [bb2: v6]
+    v2 = lt v1, i8 4
+    jumpi v2, bb2, bb3
+  bb2:
+    v20 = zext i8 v1 to i256
+    v3 = shl 5, v20
+    v4 = add arg0, v3
+    v5 = mload v4
+    v7 = shl 5, v20
+    v8 = add arg0, v7
+    v9 = add v5, 1
+    mstore v8, v9
+    v6 = add v1, i8 1
+    jump bb1
+  bb3:
+    ret 0
+}
+
+// CHECK-LABEL: fn @wrapping_counter
+// CHECK-NOT: + {{.*}}phi
+// CHECK: shl 5,
+// CHECK: mload
+fn @wrapping_counter(arg0: i256, arg1: i8) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: i8 250], [bb2: v6]
+    v2 = lt v1, arg1
+    jumpi v2, bb2, bb3
+  bb2:
+    v20 = zext i8 v1 to i256
+    v3 = shl 5, v20
+    v4 = add arg0, v3
+    v5 = mload v4
+    v7 = shl 5, v20
+    v8 = add arg0, v7
+    v9 = add v5, 1
+    mstore v8, v9
+    v6 = add v1, i8 2
+    jump bb1
+  bb3:
+    ret 0
+}

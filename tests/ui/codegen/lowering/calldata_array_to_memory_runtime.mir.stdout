@@ -32,27 +32,27 @@ fn @viaStructLiteral(arg0: i256, arg1: calldataslice, arg2: calldataslice) -> i2
     set_memory_object_len memoryarray, v22, v1
     v23 = make_calldata_slice v2, v13
     memory_object_copy_from_slice memoryarray, v22, v23
-    v24 = slice_ptr arg2
-    v25 = slice_len arg2
-    v26 = gt v25, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v26
-    v27 = calldatasize
-    v28 = sub v27, v25
-    v29 = sgt v24, v28
-    icall revert_if<calldata_tail_too_short>, v29
-    v30 = slice_len arg2
-    v31 = add v30, 63
-    v32 = lt v31, v30
-    icall panic_if<0x41>, v32
-    v33 = not 31
-    v34 = and v31, v33
-    v35 = alloc memorybytes, exact, uninitialized, infallible, v34
-    set_memory_object_len memorybytes, v35, v30
-    memory_object_copy_from_slice memorybytes, v35, arg2
+    v24 = ptrtoint memoryarray v22 to i256
+    v25 = slice_ptr arg2
+    v26 = slice_len arg2
+    v27 = gt v26, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v27
+    v28 = calldatasize
+    v29 = sub v28, v26
+    v30 = sgt v25, v29
+    icall revert_if<calldata_tail_too_short>, v30
+    v31 = slice_len arg2
+    v32 = add v31, 63
+    v33 = lt v32, v31
+    icall panic_if<0x41>, v33
+    v34 = not 31
+    v35 = and v32, v34
+    v36 = alloc memorybytes, exact, uninitialized, infallible, v35
+    set_memory_object_len memorybytes, v36, v31
+    memory_object_copy_from_slice memorybytes, v36, arg2
+    v37 = ptrtoint memorybytes v36 to i256
     memory_object_store_field memorystruct<3>, v0, 0, arg0
-    v36 = ptrtoint memoryarray v22 to i256
-    memory_object_store_field memorystruct<3>, v0, 1, v36
-    v37 = ptrtoint memorybytes v35 to i256
+    memory_object_store_field memorystruct<3>, v0, 1, v24
     memory_object_store_field memorystruct<3>, v0, 2, v37
     v38 = memory_object_load_field memorystruct<3>, v0, 0
     v39 = memory_object_load_field memorystruct<3>, v0, 1

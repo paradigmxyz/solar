@@ -32,25 +32,23 @@ fn @hashDynamicTuple() -> i256 [selector=0xfe92a929, pure, abi_params=[], abi_re
     set_memory_object_len memoryarray, v0, 1
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v7]
+    v1 = phi [bb0: 0], [bb2: v5]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v8 = abi_encode [memory_array<tuple<word, memory_bytes, memory_array<word>>>], scratch, args v0
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = keccak256 v9, v10
-    ret v11
+    v6 = abi_encode [memory_array<tuple<word, memory_bytes, memory_array<word>>>], scratch, args v0
+    v7 = slice_ptr v6
+    v8 = slice_len v6
+    v9 = keccak256 v7, v8
+    ret v9
   bb2:
     v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v3, 0, 0
-    v4 = ptrtoint memorybytes 96 to i256
-    memory_object_store_field memorystruct<3>, v3, 1, v4
-    v5 = ptrtoint memoryarray 96 to i256
-    memory_object_store_field memorystruct<3>, v3, 2, v5
-    v6 = ptrtoint memorystruct v3 to i256
-    memory_object_store_element memoryarray<1>, v0, v1, v6
-    v7 = add v1, 1
+    memory_object_store_field memorystruct<3>, v3, 1, 96
+    memory_object_store_field memorystruct<3>, v3, 2, 96
+    v4 = ptrtoint memorystruct v3 to i256
+    memory_object_store_element memoryarray<1>, v0, v1, v4
+    v5 = add v1, 1
     jump bb1
 }
 
@@ -85,31 +83,30 @@ fn @hashDynamicFixedArray() -> i256 [selector=0x6c0960c7, pure, abi_params=[], a
     set_memory_object_len memoryarray, v0, 1
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb6: v9]
+    v1 = phi [bb0: 0], [bb6: v8]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v10 = abi_encode [memory_array<array<3, memory_bytes>>], scratch, args v0
-    v11 = slice_ptr v10
-    v12 = slice_len v10
-    v13 = keccak256 v11, v12
-    ret v13
+    v9 = abi_encode [memory_array<array<3, memory_bytes>>], scratch, args v0
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = keccak256 v10, v11
+    ret v12
   bb2:
     v3 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     jump bb4
   bb4:
-    v4 = phi [bb2: 0], [bb5: v7]
+    v4 = phi [bb2: 0], [bb5: v6]
     v5 = lt v4, 3
     jumpi v5, bb5, bb6
   bb6:
-    v8 = ptrtoint memoryfixedarray v3 to i256
-    memory_object_store_element memoryarray<1>, v0, v1, v8
-    v9 = add v1, 1
+    v7 = ptrtoint memoryfixedarray v3 to i256
+    memory_object_store_element memoryarray<1>, v0, v1, v7
+    v8 = add v1, 1
     jump bb1
   bb5:
-    v6 = ptrtoint memorybytes 96 to i256
-    memory_object_store_element memoryfixedarray<3, 1>, v3, v4, v6
-    v7 = add v4, 1
+    memory_object_store_element memoryfixedarray<3, 1>, v3, v4, 96
+    v6 = add v4, 1
     jump bb4
 }
 
@@ -119,15 +116,15 @@ fn @hashNestedTuple() -> i256 [selector=0xe4f5ccbe, pure, abi_params=[], abi_ret
     set_memory_object_len memoryarray, v0, 1
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v8]
+    v1 = phi [bb0: 0], [bb2: v7]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v9 = abi_encode [memory_array<tuple<tuple<word, word, word>, memory_bytes>>], scratch, args v0
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = keccak256 v10, v11
-    ret v12
+    v8 = abi_encode [memory_array<tuple<tuple<word, word, word>, memory_bytes>>], scratch, args v0
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = keccak256 v9, v10
+    ret v11
   bb2:
     v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v4 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
@@ -136,11 +133,10 @@ fn @hashNestedTuple() -> i256 [selector=0xe4f5ccbe, pure, abi_params=[], abi_ret
     memory_object_store_field memorystruct<3>, v4, 2, 0
     v5 = ptrtoint memorystruct v4 to i256
     memory_object_store_field memorystruct<2>, v3, 0, v5
-    v6 = ptrtoint memorybytes 96 to i256
-    memory_object_store_field memorystruct<2>, v3, 1, v6
-    v7 = ptrtoint memorystruct v3 to i256
-    memory_object_store_element memoryarray<1>, v0, v1, v7
-    v8 = add v1, 1
+    memory_object_store_field memorystruct<2>, v3, 1, 96
+    v6 = ptrtoint memorystruct v3 to i256
+    memory_object_store_element memoryarray<1>, v0, v1, v6
+    v7 = add v1, 1
     jump bb1
 }
 

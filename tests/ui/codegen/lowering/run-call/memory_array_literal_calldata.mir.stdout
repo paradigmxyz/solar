@@ -5,53 +5,52 @@ fn @collect(arg0: calldataslice, arg1: calldataslice) -> memoryfixedarray [selec
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb3:
-    v5 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v6 = slice_ptr arg0
-    v7 = slice_len arg0
-    v8 = gt v7, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v8
-    v9 = calldatasize
-    v10 = sub v9, v7
-    v11 = sgt v6, v10
-    icall revert_if<calldata_tail_too_short>, v11
-    v12 = slice_len arg0
-    v13 = add v12, 63
-    v14 = lt v13, v12
-    icall panic_if<0x41>, v14
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
-    set_memory_object_len memorybytes, v17, v12
-    memory_object_copy_from_slice memorybytes, v17, arg0
-    v18 = ptrtoint memorybytes v17 to i256
-    memory_object_store_element memoryfixedarray<2, 1>, v5, 0, v18
-    v19 = slice_ptr arg1
-    v20 = slice_len arg1
-    v21 = gt v20, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v21
-    v22 = calldatasize
-    v23 = sub v22, v20
-    v24 = sgt v19, v23
-    icall revert_if<calldata_tail_too_short>, v24
-    v25 = slice_len arg1
-    v26 = add v25, 63
-    v27 = lt v26, v25
-    icall panic_if<0x41>, v27
-    v28 = not 31
-    v29 = and v26, v28
-    v30 = alloc memorybytes, exact, uninitialized, infallible, v29
-    set_memory_object_len memorybytes, v30, v25
-    memory_object_copy_from_slice memorybytes, v30, arg1
-    v31 = ptrtoint memorybytes v30 to i256
-    memory_object_store_element memoryfixedarray<2, 1>, v5, 1, v31
-    ret v5
+    v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v5 = slice_ptr arg0
+    v6 = slice_len arg0
+    v7 = gt v6, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v7
+    v8 = calldatasize
+    v9 = sub v8, v6
+    v10 = sgt v5, v9
+    icall revert_if<calldata_tail_too_short>, v10
+    v11 = slice_len arg0
+    v12 = add v11, 63
+    v13 = lt v12, v11
+    icall panic_if<0x41>, v13
+    v14 = not 31
+    v15 = and v12, v14
+    v16 = alloc memorybytes, exact, uninitialized, infallible, v15
+    set_memory_object_len memorybytes, v16, v11
+    memory_object_copy_from_slice memorybytes, v16, arg0
+    v17 = ptrtoint memorybytes v16 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, v4, 0, v17
+    v18 = slice_ptr arg1
+    v19 = slice_len arg1
+    v20 = gt v19, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v20
+    v21 = calldatasize
+    v22 = sub v21, v19
+    v23 = sgt v18, v22
+    icall revert_if<calldata_tail_too_short>, v23
+    v24 = slice_len arg1
+    v25 = add v24, 63
+    v26 = lt v25, v24
+    icall panic_if<0x41>, v26
+    v27 = not 31
+    v28 = and v25, v27
+    v29 = alloc memorybytes, exact, uninitialized, infallible, v28
+    set_memory_object_len memorybytes, v29, v24
+    memory_object_copy_from_slice memorybytes, v29, arg1
+    v30 = ptrtoint memorybytes v29 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, v4, 1, v30
+    ret v4
   bb2:
-    v3 = ptrtoint memorybytes 96 to i256
-    memory_object_store_element memoryfixedarray<2, 1>, v0, v1, v3
-    v4 = add v1, 1
+    memory_object_store_element memoryfixedarray<2, 1>, v0, v1, 96
+    v3 = add v1, 1
     jump bb1
 }

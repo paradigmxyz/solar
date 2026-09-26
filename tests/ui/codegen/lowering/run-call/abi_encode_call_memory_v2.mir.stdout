@@ -132,124 +132,123 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     mcopy v16, v14, 0 !metadata(memory=heap)
     v17 = ptrtoint memptr v12 to i256
     v18 = create 0, v17, 50
-    v19 = zext i160 v18 to i256
-    v20 = ne v19, 0
-    jumpi v20, bb2, bb1
+    v19 = ne v18, i160 0
+    jumpi v19, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v21 = zext i160 v18 to i256
-    v22 = shl 32, v21
-    v23 = or v22, 0xa7a0d537
-    v24 = lt 1, 2
-    v25 = eq v24, false
-    icall panic_if<0x32>, v25
-    v26 = shl 64, v23
-    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v26
-    v27 = lt 1, 2
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
-    v30 = shr 64, v29
-    v31 = lt 0, 2
-    v32 = eq v31, false
-    icall panic_if<0x32>, v32
-    v33 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v34 = shr 64, v33
-    v35 = and v34, 0xffffffff
-    v36 = shl 224, v35
-    v37 = abi_encode [], object, selector v36
-    v38 = lt 1, 2
-    v39 = eq v38, false
-    icall panic_if<0x32>, v39
-    v40 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
-    v41 = shr 64, v40
-    v42 = and v41, 0xffffffff
-    v43 = shl 224, v42
-    v44 = abi_encode [], object, selector v43
-    v45 = and v30, 0xffffffff
-    v46 = shl 224, v45
-    v47 = abi_encode [], object, selector v46
-    v48 = memory_object_len memorybytes, v37
-    v49 = eq v48, 4
-    jumpi v49, bb3, bb4
+    v20 = zext i160 v18 to i256
+    v21 = shl 32, v20
+    v22 = or v21, 0xa7a0d537
+    v23 = lt 1, 2
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = shl 64, v22
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v25
+    v26 = lt 1, 2
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
+    v29 = shr 64, v28
+    v30 = lt 0, 2
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
+    v33 = shr 64, v32
+    v34 = and v33, 0xffffffff
+    v35 = shl 224, v34
+    v36 = abi_encode [], object, selector v35
+    v37 = lt 1, 2
+    v38 = eq v37, false
+    icall panic_if<0x32>, v38
+    v39 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
+    v40 = shr 64, v39
+    v41 = and v40, 0xffffffff
+    v42 = shl 224, v41
+    v43 = abi_encode [], object, selector v42
+    v44 = and v29, 0xffffffff
+    v45 = shl 224, v44
+    v46 = abi_encode [], object, selector v45
+    v47 = memory_object_len memorybytes, v36
+    v48 = eq v47, 4
+    jumpi v48, bb3, bb4
   bb4:
     jump bb5
   bb3:
-    v50 = memory_object_len memorybytes, v44
-    v51 = eq v50, 4
+    v49 = memory_object_len memorybytes, v43
+    v50 = eq v49, 4
     jump bb5
   bb5:
-    v52 = phi [bb3: v51], [bb4: false]
-    jumpi v52, bb6, bb7
+    v51 = phi [bb3: v50], [bb4: false]
+    jumpi v51, bb6, bb7
   bb7:
     jump bb8
   bb6:
-    v53 = memory_object_len memorybytes, v47
-    v54 = eq v53, 4
+    v52 = memory_object_len memorybytes, v46
+    v53 = eq v52, 4
     jump bb8
   bb8:
-    v55 = phi [bb6: v54], [bb7: false]
-    v56 = eq v55, false
-    icall panic_if<0x1>, v56
-    v57 = memory_object_load_element memorybytes, v37, 0
-    v58 = memory_object_len memorybytes, v37
-    v59 = lt v58, 4
-    v60 = sub 4, v58
-    v61 = mul 8, v60
-    v62 = shl v61, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v63 = select v59, v62, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v64 = and v57, v63
-    v65 = memory_object_load_element memorybytes, v44, 0
-    v66 = memory_object_len memorybytes, v44
-    v67 = lt v66, 4
-    v68 = sub 4, v66
-    v69 = mul 8, v68
-    v70 = shl v69, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v71 = select v67, v70, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v72 = and v65, v71
-    v73 = eq v64, v72
-    v74 = eq v73, false
-    icall panic_if<0x1>, v74
-    v75 = memory_object_load_element memorybytes, v37, 0
-    v76 = memory_object_len memorybytes, v37
-    v77 = lt v76, 4
-    v78 = sub 4, v76
-    v79 = mul 8, v78
-    v80 = shl v79, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v81 = select v77, v80, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v82 = and v75, v81
-    v83 = memory_object_load_element memorybytes, v47, 0
-    v84 = memory_object_len memorybytes, v47
-    v85 = lt v84, 4
-    v86 = sub 4, v84
-    v87 = mul 8, v86
-    v88 = shl v87, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v89 = select v85, v88, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v90 = and v83, v89
-    v91 = eq v82, v90
-    v92 = eq v91, false
-    icall panic_if<0x1>, v92
-    v93 = memory_object_load_element memorybytes, v37, 0
-    v94 = memory_object_len memorybytes, v37
-    v95 = lt v94, 4
-    v96 = sub 4, v94
-    v97 = mul 8, v96
-    v98 = shl v97, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v99 = select v95, v98, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v100 = and v93, v99
-    v101 = and v30, 0xffffffff
-    v102 = shl 224, v101
-    v103 = eq v100, v102
-    v104 = eq v103, false
-    icall panic_if<0x1>, v104
-    v105 = memory_object_load_element memorybytes, v37, 0
-    v106 = memory_object_len memorybytes, v37
-    v107 = lt v106, 4
-    v108 = sub 4, v106
-    v109 = mul 8, v108
-    v110 = shl v109, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v111 = select v107, v110, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v112 = and v105, v111
-    ret v112
+    v54 = phi [bb6: v53], [bb7: false]
+    v55 = eq v54, false
+    icall panic_if<0x1>, v55
+    v56 = memory_object_load_element memorybytes, v36, 0
+    v57 = memory_object_len memorybytes, v36
+    v58 = lt v57, 4
+    v59 = sub 4, v57
+    v60 = mul 8, v59
+    v61 = shl v60, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v62 = select v58, v61, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v63 = and v56, v62
+    v64 = memory_object_load_element memorybytes, v43, 0
+    v65 = memory_object_len memorybytes, v43
+    v66 = lt v65, 4
+    v67 = sub 4, v65
+    v68 = mul 8, v67
+    v69 = shl v68, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v70 = select v66, v69, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v71 = and v64, v70
+    v72 = eq v63, v71
+    v73 = eq v72, false
+    icall panic_if<0x1>, v73
+    v74 = memory_object_load_element memorybytes, v36, 0
+    v75 = memory_object_len memorybytes, v36
+    v76 = lt v75, 4
+    v77 = sub 4, v75
+    v78 = mul 8, v77
+    v79 = shl v78, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v80 = select v76, v79, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v81 = and v74, v80
+    v82 = memory_object_load_element memorybytes, v46, 0
+    v83 = memory_object_len memorybytes, v46
+    v84 = lt v83, 4
+    v85 = sub 4, v83
+    v86 = mul 8, v85
+    v87 = shl v86, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v88 = select v84, v87, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v89 = and v82, v88
+    v90 = eq v81, v89
+    v91 = eq v90, false
+    icall panic_if<0x1>, v91
+    v92 = memory_object_load_element memorybytes, v36, 0
+    v93 = memory_object_len memorybytes, v36
+    v94 = lt v93, 4
+    v95 = sub 4, v93
+    v96 = mul 8, v95
+    v97 = shl v96, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v98 = select v94, v97, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v99 = and v92, v98
+    v100 = and v29, 0xffffffff
+    v101 = shl 224, v100
+    v102 = eq v99, v101
+    v103 = eq v102, false
+    icall panic_if<0x1>, v103
+    v104 = memory_object_load_element memorybytes, v36, 0
+    v105 = memory_object_len memorybytes, v36
+    v106 = lt v105, 4
+    v107 = sub 4, v105
+    v108 = mul 8, v107
+    v109 = shl v108, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v110 = select v106, v109, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v111 = and v104, v110
+    ret v111
 }

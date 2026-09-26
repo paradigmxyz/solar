@@ -5,7 +5,7 @@ fn @g(arg0: i256, arg1: i256, arg2: i256) [selector=0x6dddb956, pure, abi_params
     ret
 }
 
-fn @h(arg0: i256, arg1: i256) [selector=0x2a62baf5, pure, abi_params=[u16, u16], abi_returns=[], abi_return_params=[]] {
+fn @h(arg0: i16, arg1: i16) [selector=0x2a62baf5, pure, abi_params=[u16, u16], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
@@ -23,9 +23,9 @@ fn @f() -> memorybytes [selector=0x26121ff0, view, abi_params=[], abi_returns=[m
 fn @f2() -> memorybytes [selector=0x9942ec6f, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = shl 240, 0x1234
-    v1 = and 0x1234, 0xffff
-    v2 = shr 240, v0
-    v3 = and v2, 0xffff
-    v4 = abi_encode [word<u16>, word<u16>], object, selector 0x2a62baf500000000000000000000000000000000000000000000000000000000, args v1, v3
+    v1 = shr 240, v0
+    v2 = trunc i256 v1 to i16
+    v3 = zext i16 v2 to i256
+    v4 = abi_encode [word<u16>, word<u16>], object, selector 0x2a62baf500000000000000000000000000000000000000000000000000000000, args 0x1234, v3
     ret v4
 }

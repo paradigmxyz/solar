@@ -136,7 +136,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .zip(returns)
                 .map(|((value, source_ty), id)| {
                     let target_ty = self.cx.gcx.type_of_item(id.into());
-                    self.convert_return_component(value, source_ty, target_ty, expr.span)
+                    self.convert_tuple_component(value, source_ty, target_ty, expr.span)
                 })
                 .collect();
         }
@@ -153,9 +153,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(types.to_vec())
     }
 
-    /// Converts one already-lowered component of a multi-value return source to the type the
-    /// enclosing function declares for it.
-    fn convert_return_component(
+    /// Converts an already-lowered tuple component to its target type.
+    pub(super) fn convert_tuple_component(
         &mut self,
         value: ValueId,
         source_ty: Ty<'gcx>,
@@ -265,9 +264,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             {
                 let values = self.lower_values(rhs)?;
                 if values.len() >= elements.len() {
-                    return self.store_tuple_values(elements.iter().zip(values).filter_map(
-                        |(element, value)| element.map(|element| (element, value, None)),
-                    ));
+                    let source_ty = self.cx.gcx.type_of_expr(rhs.id)?;
+                    let sources = match source_ty.kind {
+                        TyKind::Tuple(sources) => sources,
+                        _ => std::slice::from_ref(&source_ty),
+                    };
+                    return self.store_tuple_values(
+                        elements.iter().zip(values).zip(sources).filter_map(
+                            |((element, value), &source)| {
+                                element.map(|element| (element, value, Some(source)))
+                            },
+                        ),
+                    );
                 }
             }
             let mut values = Vec::with_capacity(rhs_elements.len());
@@ -282,12 +290,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if values.len() < elements.len() {
             return self.cx.report_unsupported(rhs.span, "tuple assignment arity");
         }
-        self.store_tuple_values(
-            elements
-                .iter()
-                .zip(values)
-                .filter_map(|(element, value)| element.map(|element| (element, value, None))),
-        )
+        let source_ty = self.cx.gcx.type_of_expr(rhs.id)?;
+        let sources = match source_ty.kind {
+            TyKind::Tuple(sources) => sources,
+            _ => std::slice::from_ref(&source_ty),
+        };
+        self.store_tuple_values(elements.iter().zip(values).zip(sources).filter_map(
+            |((element, value), &source)| element.map(|element| (element, value, Some(source))),
+        ))
     }
 
     fn prepare_tuple_rhs(
@@ -304,7 +314,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         };
         let source_ty = source_ty.unwrap_or(target_ty);
-        let value = if target_ty.is_ref_at(DataLocation::Storage) {
+        let value = if target_ty.is_ref_at(DataLocation::Storage)
+            || target_ty.is_ref_at(DataLocation::Calldata)
+        {
             value
         } else {
             self.materialize_memory_argument(target_ty, value, span)?
@@ -317,9 +329,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         values: impl IntoIterator<Item = (&'hir hir::Expr<'hir>, ValueId, Option<Ty<'gcx>>)>,
     ) -> Option<()> {
-        self.store_prepared_tuple_values(values.into_iter().map(|(element, value, source_ty)| {
-            (element, TupleAssignmentRhs::Materialized { value, source_ty, span: element.span })
-        }))
+        let values = values
+            .into_iter()
+            .map(|(element, value, source_ty)| {
+                let rhs = TupleAssignmentRhs::Materialized { value, source_ty, span: element.span };
+                Some((element, self.prepare_tuple_rhs(element, rhs)?))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        self.store_prepared_tuple_values(values)
     }
 
     fn store_prepared_tuple_values<'hir>(

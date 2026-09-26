@@ -46,12 +46,12 @@
 //! - require canonical loops with a preheader and a single latch
 //! - rewrite only affine address expressions derived from the recognized induction variable
 //! - preserve the original address value when it is still used outside the loop
-//! - recognize checked unsigned word updates while retaining their failure checks.
+//! - recognize checked unsigned updates at every width and retain their failure checks.
 //! - add only one scaled address counter when the original update must stay live.
 
 use crate::mir::{
-    ArithmeticKind, BlockId, CheckedOp, Function, Immediate, InstId, InstKind, Instruction,
-    MemoryRegion, MirType, Module, Terminator, Value, ValueId,
+    ArithmeticKind, BlockId, CheckedOp, Function, FunctionBuilder, Immediate, InstId, InstKind,
+    Instruction, MemoryRegion, MirType, Module, Terminator, Value, ValueId,
     analysis::{
         AffineTerm, AliasAnalysis, CfgInfo, InductionVariable, Loop, LoopAnalyzer, ScalarEvolution,
     },
@@ -737,21 +737,21 @@ impl IndVarSimplifier {
             InstKind::Add(a, b)
             | InstKind::CheckedBinary {
                 op: CheckedOp::Add,
-                arithmetic: ArithmeticKind::Unsigned(256),
+                arithmetic: ArithmeticKind::Unsigned(_),
                 lhs: a,
                 rhs: b,
             } if a == iv_value => self.value_i128(func, b),
             InstKind::Add(a, b)
             | InstKind::CheckedBinary {
                 op: CheckedOp::Add,
-                arithmetic: ArithmeticKind::Unsigned(256),
+                arithmetic: ArithmeticKind::Unsigned(_),
                 lhs: a,
                 rhs: b,
             } if b == iv_value => self.value_i128(func, a),
             InstKind::Sub(a, b)
             | InstKind::CheckedBinary {
                 op: CheckedOp::Sub,
-                arithmetic: ArithmeticKind::Unsigned(256),
+                arithmetic: ArithmeticKind::Unsigned(_),
                 lhs: a,
                 rhs: b,
             } if a == iv_value => self.value_i128(func, b)?.checked_neg(),
@@ -837,6 +837,7 @@ impl IndVarSimplifier {
         value: ValueId,
         offset: i128,
     ) -> Option<ValueId> {
+        let value = self.word_value(func, block, value);
         if offset == 0 {
             return Some(value);
         }
@@ -858,6 +859,7 @@ impl IndVarSimplifier {
         value: ValueId,
         scale: i128,
     ) -> Option<ValueId> {
+        let value = self.word_value(func, block, value);
         let magnitude = scale.checked_abs()?.unsigned_abs();
         let scaled = if magnitude == 1 {
             value
@@ -873,6 +875,12 @@ impl IndVarSimplifier {
         }
         let zero = self.offset_value(func, 0)?;
         Some(self.append_inst_value(func, block, InstKind::Sub(zero, scaled), Some(MirType::I256)))
+    }
+
+    fn word_value(&self, func: &mut Function, block: BlockId, value: ValueId) -> ValueId {
+        let mut builder = FunctionBuilder::new(func);
+        builder.switch_to_block(block);
+        builder.cast_word(value)
     }
 
     fn offset_value(&self, func: &mut Function, offset: i128) -> Option<ValueId> {
@@ -910,7 +918,11 @@ impl IndVarSimplifier {
         }
         matches!(
             func.inst(inst_id).kind,
-            InstKind::Add(_, _) | InstKind::Sub(_, _) | InstKind::Mul(_, _) | InstKind::Shl(_, _)
+            InstKind::Add(_, _)
+                | InstKind::Sub(_, _)
+                | InstKind::Mul(_, _)
+                | InstKind::Shl(_, _)
+                | InstKind::Zext(_)
         )
     }
 
@@ -944,7 +956,11 @@ impl IndVarSimplifier {
     fn is_address_builder(kind: &InstKind) -> bool {
         matches!(
             kind,
-            InstKind::Add(_, _) | InstKind::Sub(_, _) | InstKind::Mul(_, _) | InstKind::Shl(_, _)
+            InstKind::Add(_, _)
+                | InstKind::Sub(_, _)
+                | InstKind::Mul(_, _)
+                | InstKind::Shl(_, _)
+                | InstKind::Zext(_)
         )
     }
 

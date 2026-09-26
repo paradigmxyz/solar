@@ -43,7 +43,7 @@ fn @unreachable_cycle() -> struct0 [selector=0x01020304, abi_params=[], abi_retu
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @typed_address
-// CHECK: + {{v[0-9]+}} = trunc i256 arg0 to i160
+// CHECK: + {{v[0-9]+}} = zext i160 arg0 to i256
 fn @typed_address(arg0: i160, arg1: i256) -> i160 [selector=0x01020305, abi_params=[address, bool], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     ret arg0

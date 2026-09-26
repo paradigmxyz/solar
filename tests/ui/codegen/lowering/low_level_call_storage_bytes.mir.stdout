@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_call_storage_bytes.sol:LowLevelCallStorageBytes ===
 @module LowLevelCallStorageBytes
 types:
-  struct0: {i256, memorybytes}
+  struct0: {i1, memorybytes}
 
 fn @callData() -> memorybytes [selector=0x4e417a98, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
@@ -9,57 +9,54 @@ fn @callData() -> memorybytes [selector=0x4e417a98, view, abi_params=[], abi_ret
     ret v0
 }
 
-fn @target() -> i256 [selector=0xd4b83992, view, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @target() -> i160 [selector=0xd4b83992, view, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = trunc i256 v0 to i160
     ret v1
 }
 
-fn @prepare(arg0: i256, arg1: calldataslice) [selector=0xaacd9878, abi_params=[address, bytes], abi_returns=[], abi_return_params=[]] {
+fn @prepare(arg0: i160, arg1: calldataslice) [selector=0xaacd9878, abi_params=[address, bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = trunc i256 arg0 to i160
-    v1 = sload 1 !metadata(storage=slot(1))
-    v2 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = and v1, v2
-    v4 = zext i160 v0 to i256
-    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = or v3, v5
-    sstore 1, v6 !metadata(storage=slot(1))
-    v7 = slice_ptr arg1
-    v8 = slice_len arg1
-    v9 = gt v8, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v9
-    v10 = calldatasize
-    v11 = sub v10, v8
-    v12 = sgt v7, v11
-    icall revert_if<calldata_tail_too_short>, v12
-    v13 = slice_len arg1
-    v14 = add v13, 63
-    v15 = lt v14, v13
-    icall panic_if<0x41>, v15
-    v16 = not 31
-    v17 = and v14, v16
-    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
-    set_memory_object_len memorybytes, v18, v13
-    memory_object_copy_from_slice memorybytes, v18, arg1
-    icall @store_storage_bytes, 0, v18
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = and v0, v1
+    v3 = zext i160 arg0 to i256
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = or v2, v4
+    sstore 1, v5 !metadata(storage=slot(1))
+    v6 = slice_ptr arg1
+    v7 = slice_len arg1
+    v8 = gt v7, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v8
+    v9 = calldatasize
+    v10 = sub v9, v7
+    v11 = sgt v6, v10
+    icall revert_if<calldata_tail_too_short>, v11
+    v12 = slice_len arg1
+    v13 = add v12, 63
+    v14 = lt v13, v12
+    icall panic_if<0x41>, v14
+    v15 = not 31
+    v16 = and v13, v15
+    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
+    set_memory_object_len memorybytes, v17, v12
+    memory_object_copy_from_slice memorybytes, v17, arg1
+    icall @store_storage_bytes, 0, v17
     ret
 }
 
 fn @fire() -> struct0 [selector=0x457094cc, abi_params=[], abi_returns=[word<bool>, memory_bytes], abi_return_params=[bool, bytes]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = trunc i256 v0 to i160
     v2 = gas
     v3 = load_storage_bytes 0
-    v4 = trunc i256 v1 to i160
-    v5 = address_call v4, v3, gas v2
-    v6 = icall returndata_bytes<>
-    v7 = zext i1 v5 to i256
-    v8 = insert_value struct0, undef struct0, 0, v7
-    v9 = insert_value struct0, v8, 1, v6
-    ret v9
+    v4 = address_call v1, v3, gas v2
+    v5 = icall returndata_bytes<>
+    v6 = insert_value struct0, undef struct0, 0, v4
+    v7 = insert_value struct0, v6, 1, v5
+    ret v7
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {

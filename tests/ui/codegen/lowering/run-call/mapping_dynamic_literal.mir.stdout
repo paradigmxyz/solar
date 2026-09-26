@@ -33,7 +33,7 @@ fn @readMemory(arg0: memorybytes) -> i256 [selector=0xfa397925, view, abi_params
     ret v1
 }
 
-fn @readMemoryFmp(arg0: memorybytes) -> i256 [selector=0x8028da35, view, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @readMemoryFmp(arg0: memorybytes) -> i1 [selector=0x8028da35, view, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = gt v0, 128
@@ -47,8 +47,7 @@ fn @readMemoryFmp(arg0: memorybytes) -> i256 [selector=0x8028da35, view, abi_par
     jump bb3
   bb3:
     v5 = phi [bb1: v4], [bb2: false]
-    v6 = zext i1 v5 to i256
-    ret v6
+    ret v5
 }
 
 fn @readMemoryPublic(arg0: memorybytes) -> i256 [selector=0x32851fa7, view, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
@@ -87,7 +86,7 @@ fn @readLongLiteral() -> i256 [selector=0xcf0dbab7, view, abi_params=[], abi_ret
     ret v6
 }
 
-fn @register(arg0: memorybytes) -> i256 [selector=0xf2c298be, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @register(arg0: memorybytes) -> i1 [selector=0xf2c298be, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mapping_slot_memory arg0, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -95,16 +94,15 @@ fn @register(arg0: memorybytes) -> i256 [selector=0xf2c298be, abi_params=[bytes]
     v3 = eq v2, false
     icall revert_if<empty>, v3
     v4 = caller
-    v5 = mapping_slot_memory arg0, 1
-    v6 = zext i160 v4 to i256
-    sstore v5, v6 !metadata(storage=symbolic(v5))
+    v5 = zext i160 v4 to i256
+    v6 = mapping_slot_memory arg0, 1
+    sstore v6, v5 !metadata(storage=symbolic(v6))
     v7 = mapping_slot_memory arg0, 1
     v8 = sload v7 !metadata(storage=symbolic(v7))
     v9 = caller
     v10 = zext i160 v9 to i256
     v11 = eq v8, v10
-    v12 = zext i1 v11 to i256
-    ret v12
+    ret v11
 }
 
 fn @overwriteShort() -> i256 [selector=0xa33ac7ad, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

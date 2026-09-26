@@ -30,11 +30,10 @@ fn @arr(arg0: i256) -> memoryfixedarray [selector=0x71e5ee5f, pure, abi_params=[
     ret v2
 }
 
-fn @flag(arg0: i256) -> i256 [selector=0xbb760a75, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @flag(arg0: i256) -> i1 [selector=0xbb760a75, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = ne arg0, 0
-    v1 = zext i1 v0 to i256
-    ret v1
+    ret v0
 }
 
 fn @flagged(arg0: i256) -> memorystruct [selector=0xa370c668, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
@@ -85,15 +84,14 @@ fn @one(arg0: i256) -> i256 [selector=0xef56f928, pure, abi_params=[u256], abi_r
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v5 = delegatecall v3, v4, v1, v2, 0, 0
-    jumpi v5, bb2, bb1
+    v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    jumpi v4, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v6 = icall returndata_bytes<>
-    v7 = abi_decode [u256], v6
-    ret v7
+    v5 = icall returndata_bytes<>
+    v6 = abi_decode [u256], v5
+    ret v6
 }
 
 fn @two(arg0: i256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -102,23 +100,22 @@ fn @two(arg0: i256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[u256], ab
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v5 = delegatecall v3, v4, v1, v2, 0, 0
-    jumpi v5, bb2, bb1
+    v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    jumpi v4, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v6 = icall returndata_bytes<>
-    v7 = abi_decode [u256, u256], v6
-    v8 = extract_value struct0, v7, 0
-    v9 = extract_value struct0, v7, 1
-    v10 = insert_value struct0, undef struct0, 0, v8
-    v11 = insert_value struct0, v10, 1, v9
-    v12 = extract_value struct0, v11, 0
-    v13 = extract_value struct0, v11, 1
-    v14 = insert_value struct0, undef struct0, 0, v12
-    v15 = insert_value struct0, v14, 1, v13
-    ret v15
+    v5 = icall returndata_bytes<>
+    v6 = abi_decode [u256, u256], v5
+    v7 = extract_value struct0, v6, 0
+    v8 = extract_value struct0, v6, 1
+    v9 = insert_value struct0, undef struct0, 0, v7
+    v10 = insert_value struct0, v9, 1, v8
+    v11 = extract_value struct0, v10, 0
+    v12 = extract_value struct0, v10, 1
+    v13 = insert_value struct0, undef struct0, 0, v11
+    v14 = insert_value struct0, v13, 1, v12
+    ret v14
 }
 
 fn @aggregate(arg0: i256) -> memoryfixedarray [selector=0x407b7269, pure, abi_params=[u256], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
@@ -130,33 +127,30 @@ fn @aggregate(arg0: i256) -> memoryfixedarray [selector=0x407b7269, pure, abi_pa
     v3 = slice_ptr v2
     v4 = slice_len v2
     v5 = gas
-    v6 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v7 = delegatecall v5, v6, v3, v4, 0, 0
-    jumpi v7, bb2, bb1
+    v6 = delegatecall v5, 0x1111111111111111111111111111111111111111, v3, v4, 0, 0
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = icall returndata_bytes<>
-    v9 = abi_decode [array<2, u256>], v8
-    ret v9
+    v7 = icall returndata_bytes<>
+    v8 = abi_decode [array<2, u256>], v7
+    ret v8
 }
 
-fn @boolean(arg0: i256) -> i256 [selector=0xbc586ed6, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @boolean(arg0: i256) -> i1 [selector=0xbc586ed6, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode [word], selector 0xbb760a7500000000000000000000000000000000000000000000000000000000, args arg0
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v5 = delegatecall v3, v4, v1, v2, 0, 0
-    jumpi v5, bb2, bb1
+    v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    jumpi v4, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v6 = icall returndata_bytes<>
-    v7 = abi_decode [bool], v6
-    v8 = zext i1 v7 to i256
-    ret v8
+    v5 = icall returndata_bytes<>
+    v6 = abi_decode [bool], v5
+    ret v6
 }
 
 fn @structBool(arg0: i256) -> memorystruct [selector=0x199436a8, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
@@ -168,15 +162,14 @@ fn @structBool(arg0: i256) -> memorystruct [selector=0x199436a8, pure, abi_param
     v2 = slice_ptr v1
     v3 = slice_len v1
     v4 = gas
-    v5 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v6 = delegatecall v4, v5, v2, v3, 0, 0
-    jumpi v6, bb2, bb1
+    v5 = delegatecall v4, 0x1111111111111111111111111111111111111111, v2, v3, 0, 0
+    jumpi v5, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [tuple<bool, u256>], v7
-    ret v8
+    v6 = icall returndata_bytes<>
+    v7 = abi_decode [tuple<bool, u256>], v6
+    ret v7
 }
 
 fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -185,15 +178,14 @@ fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v5 = delegatecall v3, v4, v1, v2, 0, 0
-    jumpi v5, bb2, bb1
+    v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    jumpi v4, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v6 = icall returndata_bytes<>
-    v7 = abi_decode [u256], v6
-    ret v7
+    v5 = icall returndata_bytes<>
+    v6 = abi_decode [u256], v5
+    ret v6
 }
 
 fn @dynamicArgument(arg0: memorybytes) -> struct0 [selector=0x11b8efbf, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -202,35 +194,34 @@ fn @dynamicArgument(arg0: memorybytes) -> struct0 [selector=0x11b8efbf, pure, ab
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v5 = delegatecall v3, v4, v1, v2, 0, 0
-    jumpi v5, bb2, bb1
+    v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    jumpi v4, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v6 = icall returndata_bytes<>
-    v7 = abi_decode [u256, u256, u256, u256, u256, u256], v6
-    v8 = extract_value struct1, v7, 0
-    v9 = extract_value struct1, v7, 1
-    v10 = extract_value struct1, v7, 2
-    v11 = extract_value struct1, v7, 3
-    v12 = extract_value struct1, v7, 4
-    v13 = extract_value struct1, v7, 5
-    v14 = insert_value struct1, undef struct1, 0, v8
-    v15 = insert_value struct1, v14, 1, v9
-    v16 = insert_value struct1, v15, 2, v10
-    v17 = insert_value struct1, v16, 3, v11
-    v18 = insert_value struct1, v17, 4, v12
-    v19 = insert_value struct1, v18, 5, v13
-    v20 = extract_value struct1, v19, 0
-    v21 = extract_value struct1, v19, 1
-    v22 = extract_value struct1, v19, 2
-    v23 = extract_value struct1, v19, 3
-    v24 = extract_value struct1, v19, 4
-    v25 = extract_value struct1, v19, 5
-    v26 = insert_value struct0, undef struct0, 0, v20
-    v27 = insert_value struct0, v26, 1, v25
-    ret v27
+    v5 = icall returndata_bytes<>
+    v6 = abi_decode [u256, u256, u256, u256, u256, u256], v5
+    v7 = extract_value struct1, v6, 0
+    v8 = extract_value struct1, v6, 1
+    v9 = extract_value struct1, v6, 2
+    v10 = extract_value struct1, v6, 3
+    v11 = extract_value struct1, v6, 4
+    v12 = extract_value struct1, v6, 5
+    v13 = insert_value struct1, undef struct1, 0, v7
+    v14 = insert_value struct1, v13, 1, v8
+    v15 = insert_value struct1, v14, 2, v9
+    v16 = insert_value struct1, v15, 3, v10
+    v17 = insert_value struct1, v16, 4, v11
+    v18 = insert_value struct1, v17, 5, v12
+    v19 = extract_value struct1, v18, 0
+    v20 = extract_value struct1, v18, 1
+    v21 = extract_value struct1, v18, 2
+    v22 = extract_value struct1, v18, 3
+    v23 = extract_value struct1, v18, 4
+    v24 = extract_value struct1, v18, 5
+    v25 = insert_value struct0, undef struct0, 0, v19
+    v26 = insert_value struct0, v25, 1, v24
+    ret v26
 }
 
 fn @none(arg0: i256) [selector=0x2758da14, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
@@ -239,13 +230,11 @@ fn @none(arg0: i256) [selector=0x2758da14, pure, abi_params=[u256], abi_returns=
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v5 = extcodesize v4
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v8 = delegatecall v3, v7, v1, v2, 0, 0
-    jumpi v8, bb2, bb1
+    v4 = extcodesize 0x1111111111111111111111111111111111111111
+    v5 = eq v4, 0
+    icall revert_if<target_contract_has_no_code>, v5
+    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:

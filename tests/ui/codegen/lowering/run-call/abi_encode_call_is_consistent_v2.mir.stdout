@@ -10,98 +10,99 @@ fn @getExternalFunctionPointer() -> i256 [selector=0x0d5de1f2, abi_params=[], ab
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 255
     v2 = and v0, v1
-    v3 = zext i1 1 to i256
-    v4 = and v3, 255
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = address
-    v7 = zext i160 v6 to i256
-    v8 = shl 32, v7
-    v9 = or v8, 0x33d85810
-    ret v9
+    v3 = and 1, 255
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = address
+    v6 = zext i160 v5 to i256
+    v7 = shl 32, v6
+    v8 = or v7, 0x33d85810
+    ret v8
 }
 
-fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @test() -> i8 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = icall @literal_bytes_word, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
-    v1 = abi_encode [word, memory_bytes], object, selector 0x33d8581000000000000000000000000000000000000000000000000000000000, args 1, v0
-    v2 = address
-    v3 = zext i160 v2 to i256
-    v4 = shl 32, v3
-    v5 = or v4, 0x33d85810
-    v6 = shl 8, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v7 = sload 0 !metadata(storage=slot(0))
-    v8 = not v6
-    v9 = and v7, v8
-    v10 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v11 = shl 8, v10
-    v12 = or v9, v11
-    sstore 0, v12 !metadata(storage=slot(0))
-    v13 = sload 0 !metadata(storage=slot(0))
-    v14 = shr 8, v13
-    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v16 = and v15, 0xffffffff
-    v17 = shl 224, v16
-    v18 = icall @literal_bytes_word, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
-    v19 = abi_encode [word, memory_bytes], object, selector v17, args 1, v18
-    v20 = address
-    v21 = zext i160 v20 to i256
-    v22 = shl 32, v21
-    v23 = or v22, 0x33d85810
-    v24 = and v23, 0xffffffff
-    v25 = shl 224, v24
-    v26 = icall @literal_bytes_word, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
-    v27 = abi_encode [word, memory_bytes], object, selector v25, args 1, v26
-    v28 = icall @getExternalFunctionPointer
-    v29 = and v28, 0xffffffff
-    v30 = shl 224, v29
-    v31 = icall @literal_bytes_word, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
-    v32 = abi_encode [word, memory_bytes], object, selector v30, args 1, v31
-    v33 = keccak256_bytes v1
-    v34 = keccak256_bytes v19
-    v35 = eq v33, v34
-    jumpi v35, bb1, bb2
+    v1 = ptrtoint memorybytes v0 to i256
+    v2 = abi_encode [word, memory_bytes], object, selector 0x33d8581000000000000000000000000000000000000000000000000000000000, args 1, v0
+    v3 = address
+    v4 = zext i160 v3 to i256
+    v5 = shl 32, v4
+    v6 = or v5, 0x33d85810
+    v7 = shl 8, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = not v7
+    v10 = and v8, v9
+    v11 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v12 = shl 8, v11
+    v13 = or v10, v12
+    sstore 0, v13 !metadata(storage=slot(0))
+    v14 = sload 0 !metadata(storage=slot(0))
+    v15 = shr 8, v14
+    v16 = trunc i256 v15 to i192
+    v17 = zext i192 v16 to i256
+    v18 = and v17, 0xffffffff
+    v19 = shl 224, v18
+    v20 = icall @literal_bytes_word, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
+    v21 = abi_encode [word, memory_bytes], object, selector v19, args 1, v20
+    v22 = address
+    v23 = zext i160 v22 to i256
+    v24 = shl 32, v23
+    v25 = or v24, 0x33d85810
+    v26 = and v25, 0xffffffff
+    v27 = shl 224, v26
+    v28 = icall @literal_bytes_word, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
+    v29 = abi_encode [word, memory_bytes], object, selector v27, args 1, v28
+    v30 = icall @getExternalFunctionPointer
+    v31 = and v30, 0xffffffff
+    v32 = shl 224, v31
+    v33 = icall @literal_bytes_word, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
+    v34 = abi_encode [word, memory_bytes], object, selector v32, args 1, v33
+    v35 = keccak256_bytes v2
+    v36 = keccak256_bytes v21
+    v37 = eq v35, v36
+    jumpi v37, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v36 = or 0, 1
+    v38 = or i8 0, i8 1
     jump bb3
   bb3:
-    v37 = phi [bb1: v36], [bb2: 0]
-    v38 = keccak256_bytes v1
-    v39 = keccak256_bytes v27
-    v40 = eq v38, v39
-    jumpi v40, bb4, bb5
+    v39 = phi [bb1: v38], [bb2: i8 0]
+    v40 = keccak256_bytes v2
+    v41 = keccak256_bytes v29
+    v42 = eq v40, v41
+    jumpi v42, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v41 = or v37, 2
+    v43 = or v39, i8 2
     jump bb6
   bb6:
-    v42 = phi [bb4: v41], [bb5: v37]
-    v43 = keccak256_bytes v1
-    v44 = keccak256_bytes v32
-    v45 = eq v43, v44
-    jumpi v45, bb7, bb8
+    v44 = phi [bb4: v43], [bb5: v39]
+    v45 = keccak256_bytes v2
+    v46 = keccak256_bytes v34
+    v47 = eq v45, v46
+    jumpi v47, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v46 = or v42, 4
+    v48 = or v44, i8 4
     jump bb9
   bb9:
-    v47 = phi [bb7: v46], [bb8: v42]
-    v48 = sload 0 !metadata(storage=slot(0))
-    v49 = and v48, 255
-    v50 = ne v49, 0
-    jumpi v50, bb10, bb11
+    v49 = phi [bb7: v48], [bb8: v44]
+    v50 = sload 0 !metadata(storage=slot(0))
+    v51 = trunc i256 v50 to i8
+    v52 = ne v51, i8 0
+    jumpi v52, bb10, bb11
   bb11:
     jump bb12
   bb10:
-    v51 = or v47, 8
+    v53 = or v49, i8 8
     jump bb12
   bb12:
-    v52 = phi [bb10: v51], [bb11: v47]
-    ret v52
+    v54 = phi [bb10: v53], [bb11: v49]
+    ret v54
 }
 
 fn @storageEncoded() -> memorybytes [selector=0x46ad9d89, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -120,12 +121,13 @@ fn @storageEncoded() -> memorybytes [selector=0x46ad9d89, abi_params=[], abi_ret
     sstore 0, v10 !metadata(storage=slot(0))
     v11 = sload 0 !metadata(storage=slot(0))
     v12 = shr 8, v11
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v14 = and v13, 0xffffffff
-    v15 = shl 224, v14
-    v16 = icall @literal_bytes_word, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
-    v17 = abi_encode [word, memory_bytes], object, selector v15, args 1, v16
-    ret v17
+    v13 = trunc i256 v12 to i192
+    v14 = zext i192 v13 to i256
+    v15 = and v14, 0xffffffff
+    v16 = shl 224, v15
+    v17 = icall @literal_bytes_word, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
+    v18 = abi_encode [word, memory_bytes], object, selector v16, args 1, v17
+    ret v18
 }
 
 fn @localEncoded() -> memorybytes [selector=0xde7d55c6, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

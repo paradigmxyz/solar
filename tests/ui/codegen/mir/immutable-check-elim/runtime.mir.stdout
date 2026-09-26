@@ -5,6 +5,12 @@ immutables:
   b: u64
   signedValue: i64
   initial: u256
+  narrow: u64
+  threeBytes: u24
+  narrowAddressWidth: u160
+  narrowInitial: u64
+  signedInitial: u256
+  signedInitialEqual: u256
 
 fn @initial() -> i256 [selector=0xbb806dc9, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -12,34 +18,126 @@ fn @initial() -> i256 [selector=0xbb806dc9, view, abi_params=[], abi_returns=[wo
     ret v0
 }
 
-fn @constructor(arg0: i256, arg1: i256, arg2: i256) [constructor, abi_params=[u64, u64, i64]] {
+fn @narrowInitial() -> i64 [selector=0xfe957d40, view, abi_params=[], abi_returns=[word<u64>], abi_return_params=[u64]] {
   bb0:
+    v0 = loadimmutable narrowInitial
+    ret v0
+}
+
+fn @signedInitial() -> i256 [selector=0x19ac8d3d, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = loadimmutable signedInitial
+    ret v0
+}
+
+fn @signedInitialEqual() -> i1 [selector=0x726e5735, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = loadimmutable signedInitialEqual
+    v1 = ne v0, 0
+    ret v1
+}
+
+fn @constructor(arg0: i64, arg1: i64, arg2: i64) [constructor, abi_params=[u64, u64, i64]] {
+  bb0:
+    v0 = trunc i64 arg0 to i8
+    v1 = zext i8 v0 to i64
+    storeimmutable narrow, v1
+    v2 = trunc i64 arg0 to i8
+    v3 = zext i8 v2 to i24
+    storeimmutable threeBytes, v3
+    v4 = trunc i64 arg1 to i16
+    v5 = zext i16 v4 to i160
+    storeimmutable narrowAddressWidth, v5
+    v6 = loadimmutable narrow
+    v7 = checked_add u64, v6, i64 1
+    storeimmutable narrowInitial, v7
     storeimmutable a, arg0
     storeimmutable b, arg1
     storeimmutable signedValue, arg2
-    v0 = icall @total
-    storeimmutable initial, v0
+    v8 = icall @signedAsUnsigned
+    storeimmutable signedInitial, v8
+    v9 = icall @signedEqualsMinusOne
+    v10 = zext i1 v9 to i256
+    storeimmutable signedInitialEqual, v10
+    v11 = icall @total
+    storeimmutable initial, v11
     ret
+}
+
+fn @narrowThreeBytes() -> i24 [selector=0x88301e03, view, abi_params=[], abi_returns=[word<u24>], abi_return_params=[u24]] {
+  bb0:
+    v0 = loadimmutable threeBytes
+    v1 = checked_add u24, v0, i24 1
+    ret v1
+}
+
+fn @narrowed() -> i64 [selector=0xb689f827, view, abi_params=[], abi_returns=[word<u64>], abi_return_params=[u64]] {
+  bb0:
+    v0 = loadimmutable narrow
+    v1 = checked_add u64, v0, i64 1
+    ret v1
+}
+
+fn @narrowWide() -> i160 [selector=0x534abec3, view, abi_params=[], abi_returns=[word<u160>], abi_return_params=[u160]] {
+  bb0:
+    v0 = loadimmutable narrowAddressWidth
+    v1 = checked_add u160, v0, i160 1
+    ret v1
 }
 
 fn @total() -> i256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = loadimmutable a
-    v1 = loadimmutable b
-    v2 = checked_add u256, v0, v1
-    ret v2
+    v1 = zext i64 v0 to i256
+    v2 = loadimmutable b
+    v3 = zext i64 v2 to i256
+    v4 = checked_add u256, v1, v3
+    ret v4
 }
 
 fn @runtimeOnly() -> i256 [selector=0x31407e50, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = loadimmutable a
-    v1 = checked_add u256, v0, 1
+    v1 = zext i64 v0 to i256
+    v2 = checked_add u256, v1, 1
+    ret v2
+}
+
+fn @signedAsUnsigned() -> i256 [selector=0x13d185b3, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = loadimmutable signedValue
+    v1 = zext i64 v0 to i256
+    ret v1
+}
+
+fn @signedEqualsMinusOne() -> i1 [selector=0xdd9b18d1, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = loadimmutable signedValue
+    v1 = sub 0, 1
+    v2 = trunc i256 v1 to i64
+    v3 = eq v0, v2
+    ret v3
+}
+
+fn @signedShift() -> i256 [selector=0x250099c3, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = loadimmutable signedValue
+    v1 = shr i64 1, v0
+    v2 = zext i64 v1 to i256
+    ret v2
+}
+
+fn @signedNegative() -> i1 [selector=0x263bf293, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = loadimmutable signedValue
+    v1 = slt v0, i64 0
     ret v1
 }
 
 fn @signedPlusOne() -> i256 [selector=0x115fd0af, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = loadimmutable signedValue
-    v1 = checked_add u256, v0, 1
-    ret v1
+    v1 = sext i64 v0 to i256
+    v2 = checked_add u256, v1, 1
+    ret v2
 }

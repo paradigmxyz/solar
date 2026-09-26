@@ -33,27 +33,30 @@ fn @aliasedStruct(arg0: memoryarray) -> i256 [selector=0x8c175a3d, pure, abi_par
     v6 = eq v5, false
     icall panic_if<0x32>, v6
     v7 = memory_object_load_element memoryarray<1>, arg0, 0
-    v8 = and v7, 255
-    ret v8
+    v8 = trunc i256 v7 to i8
+    v9 = zext i8 v8 to i256
+    ret v9
 }
 
 fn @aliasedBytes(arg0: memoryarray) -> i256 [selector=0x4a6c046c, pure, abi_params=[array<_, u8>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = bitcast memoryarray arg0 to memorybytes
-    v1 = memory_object_len memorybytes, v0
-    v2 = lt 0, v1
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    v4 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
-    v5 = bitcast memoryarray arg0 to memorybytes
-    memory_object_store_byte memorybytes, v5, 0, v4
-    v6 = memory_object_len memoryarray, arg0
-    v7 = lt 0, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    v9 = memory_object_load_element memoryarray<1>, arg0, 0
-    v10 = and v9, 255
-    ret v10
+    v0 = ptrtoint memoryarray arg0 to i256
+    v1 = inttoptr i256 v0 to memorybytes
+    v2 = memory_object_len memorybytes, v1
+    v3 = lt 0, v2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
+    v6 = inttoptr i256 v0 to memorybytes
+    memory_object_store_byte memorybytes, v6, 0, v5
+    v7 = memory_object_len memoryarray, arg0
+    v8 = lt 0, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = memory_object_load_element memoryarray<1>, arg0, 0
+    v11 = trunc i256 v10 to i8
+    v12 = zext i8 v11 to i256
+    ret v12
 }
 
 fn @unalignedArray(arg0: memoryarray) -> i256 [selector=0xd621b19f, pure, abi_params=[array<_, u8>], abi_returns=[word], abi_return_params=[u256]] {
@@ -73,8 +76,9 @@ fn @unalignedArray(arg0: memoryarray) -> i256 [selector=0xd621b19f, pure, abi_pa
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = memory_object_load_element memoryarray<1>, arg0, 1
-    v11 = and v10, 255
-    ret v11
+    v11 = trunc i256 v10 to i8
+    v12 = zext i8 v11 to i256
+    ret v12
 }
 
 fn @unalignedHelper(arg0: memoryarray) -> i256 [selector=0x29dcbdaa, pure, abi_params=[array<_, u8>], abi_returns=[word], abi_return_params=[u256]] {
@@ -91,8 +95,9 @@ fn @unalignedHelper(arg0: memoryarray) -> i256 [selector=0x29dcbdaa, pure, abi_p
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = memory_object_load_element memoryarray<1>, arg0, 1
-    v9 = and v8, 255
-    ret v9
+    v9 = trunc i256 v8 to i8
+    v10 = zext i8 v9 to i256
+    ret v10
 }
 
 fn @_scribble(arg0: memoryarray) [pure] {

@@ -1,57 +1,53 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_call_returndata.sol:LowLevelCallReturndata ===
 @module LowLevelCallReturndata
-fn @safeTransfer(arg0: i256, arg1: i256, arg2: i256) [selector=0xd1660f99, abi_params=[address, address, u256], abi_returns=[], abi_return_params=[]] {
+fn @safeTransfer(arg0: i160, arg1: i160, arg2: i256) [selector=0xd1660f99, abi_params=[address, address, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = gas
-    v1 = trunc i256 arg1 to i160
-    v2 = zext i160 v1 to i256
-    v3 = abi_encode [word<u160>, word], object, selector 0xa9059cbb00000000000000000000000000000000000000000000000000000000, args v2, arg2
-    v4 = trunc i256 arg0 to i160
-    v5 = address_call v4, v3, gas v0
-    v6 = icall returndata_bytes<>
-    jumpi v5, bb1, bb2
+    v1 = zext i160 arg1 to i256
+    v2 = abi_encode [word<u160>, word], object, selector 0xa9059cbb00000000000000000000000000000000000000000000000000000000, args v1, arg2
+    v3 = address_call arg0, v2, gas v0
+    v4 = icall returndata_bytes<>
+    jumpi v3, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v7 = memory_object_len memorybytes, v6
-    v8 = eq v7, 0
-    jumpi v8, bb5, bb4
+    v5 = memory_object_len memorybytes, v4
+    v6 = eq v5, 0
+    jumpi v6, bb5, bb4
   bb4:
-    v9 = abi_decode [bool], v6
+    v7 = abi_decode [bool], v4
     jump bb6
   bb5:
     jump bb6
   bb6:
-    v10 = phi [bb4: v9], [bb5: true]
+    v8 = phi [bb4: v7], [bb5: true]
     jump bb3
   bb3:
-    v11 = phi [bb6: v10], [bb2: false]
-    icall require<short_string>, v11, 2, 0x5446000000000000000000000000000000000000000000000000000000000000
+    v9 = phi [bb6: v8], [bb2: false]
+    icall require<short_string>, v9, 2, 0x5446000000000000000000000000000000000000000000000000000000000000
     ret
 }
 
-fn @balanceOf(arg0: i256) -> i256 [selector=0x70a08231, view, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
+fn @balanceOf(arg0: i160) -> i256 [selector=0x70a08231, view, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = address
     v2 = zext i160 v1 to i256
     v3 = abi_encode [word<u160>], object, selector 0x70a0823100000000000000000000000000000000000000000000000000000000, args v2
-    v4 = trunc i256 arg0 to i160
-    v5 = address_staticcall v4, v3, gas v0
-    v6 = icall returndata_bytes<>
-    v7 = eq v5, false
-    icall revert_if<empty>, v7
-    v8 = abi_decode [u256], v6
-    ret v8
+    v4 = address_staticcall arg0, v3, gas v0
+    v5 = icall returndata_bytes<>
+    v6 = eq v4, false
+    icall revert_if<empty>, v6
+    v7 = abi_decode [u256], v5
+    ret v7
 }
 
-fn @forward(arg0: i256, arg1: memorybytes) -> memorybytes [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @forward(arg0: i160, arg1: memorybytes) -> memorybytes [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = gas
-    v1 = trunc i256 arg0 to i160
-    v2 = address_call v1, arg1, gas v0
-    v3 = icall returndata_bytes<>
-    v4 = eq v2, false
-    icall revert_if<empty>, v4
-    ret v3
+    v1 = address_call arg0, arg1, gas v0
+    v2 = icall returndata_bytes<>
+    v3 = eq v1, false
+    icall revert_if<empty>, v3
+    ret v2
 }

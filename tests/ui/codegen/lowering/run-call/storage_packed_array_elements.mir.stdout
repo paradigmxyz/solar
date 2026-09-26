@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_packed_array_elements.sol:StoragePackedArrayElements ===
 @module StoragePackedArrayElements
 types:
-  struct0: {i256, i256, i256}
+  struct0: {i8, i32, i120}
 
 fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word<u8>, word<u32>, word<u120>], abi_return_params=[u8, u32, u120]] {
   bb0:
@@ -143,7 +143,7 @@ fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word<u8>
     v118 = sload v115 !metadata(storage=symbolic(v114))
     v119 = mul v117, 8
     v120 = shr v119, v118
-    v121 = and v120, 255
+    v121 = trunc i256 v120 to i8
     v122 = lt 1, 9
     v123 = eq v122, false
     icall panic_if<0x32>, v123
@@ -154,7 +154,7 @@ fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word<u8>
     v128 = sload v125 !metadata(storage=offset(v124, 2))
     v129 = mul v127, 8
     v130 = shr v129, v128
-    v131 = and v130, 0xffffffff
+    v131 = trunc i256 v130 to i32
     v132 = lt 2, 3
     v133 = eq v132, false
     icall panic_if<0x32>, v133
@@ -165,7 +165,7 @@ fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word<u8>
     v138 = sload v135 !metadata(storage=offset(v134, 4))
     v139 = mul v137, 8
     v140 = shr v139, v138
-    v141 = and v140, 0xffffffffffffffffffffffffffffff
+    v141 = trunc i256 v140 to i120
     v142 = insert_value struct0, undef struct0, 0, v121
     v143 = insert_value struct0, v142, 1, v131
     v144 = insert_value struct0, v143, 2, v141

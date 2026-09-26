@@ -434,7 +434,7 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                     kind.visit_operands_mut(|value| {
                         if matches!(
                             builder.func().value_ty(*value),
-                            Some(MirType::I1 | MirType::I160)
+                            Some(MirType::Int(bits)) if bits.get() < 256
                         ) {
                             *value = builder.cast_word(*value);
                         }

@@ -237,7 +237,16 @@ pub(crate) fn display_function_text<'a>(
 
             write!(f, "    ")?;
             if inst.result_ty.is_some() {
-                write!(f, "v{} = ", inst_result_index(func, inst_id))?;
+                write!(f, "v{}", inst_result_index(func, inst_id))?;
+                if let Some(ty) = inst.result_ty
+                    && (inst.kind.op_def().result == super::ResultKind::I160 && ty == MirType::I256
+                        || matches!(inst.kind, InstKind::LoadImmutable(id)
+                            if module.and_then(|module| module.get_immutable_type(id))
+                                .is_some_and(|layout| layout.mir_type() != ty)))
+                {
+                    write!(f, ": {ty}")?;
+                }
+                write!(f, " = ")?;
             }
             writeln!(
                 f,

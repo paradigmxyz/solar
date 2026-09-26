@@ -38,9 +38,9 @@
       v1 = eq arg0, false
 -     v2 = select true, arg1, arg2
 -     v3 = select arg0, true, false
-      v4 = select arg0, false, true
+-     v4 = select arg0, false, true
 -     ret v0, v1, v2, v3, v4
-+     ret arg0, v1, arg1, arg0, v4
++     ret arg0, v1, arg1, arg0, v1
   }
   
   fn @remove_zero_length_copies(arg0: i256) -> i256 {
@@ -175,21 +175,21 @@
 +     ret 256, 255, 248, 1, 0
   }
   
-  fn @checked_constants() -> i256 {
+  fn @checked_constants() -> i8 {
     bb0:
-      v0 = checked_add u8, 255, 1
-      v1 = checked_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      v0 = checked_add u8, i8 255, i8 1
+      v1 = checked_div i8, i8 128, i8 255
       v2 = checked_div u256, 1, 0
--     v3 = checked_pow u8, 3, 5
+-     v3 = checked_pow u8, i8 3, 5
 -     ret v3
-+     ret 243
++     ret i8 243
   }
   
-  fn @wrapping_signed_division() -> i256 {
+  fn @wrapping_signed_division() -> i8 {
     bb0:
--     v0 = wrapping_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     v0 = wrapping_div i8, i8 128, i8 255
 -     ret v0
-+     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
++     ret i8 128
   }
   
   fn @constant_checks(arg0: i1) {
@@ -369,13 +369,6 @@
     bb0:
       v0 = ptrtoint memptr arg0 to i160
       v1 = inttoptr i160 v0 to memptr
-      ret v1
-  }
-  
-  fn @wide_ptr_roundtrip_preserved(arg0: i512) -> i512 {
-    bb0:
-      v0 = inttoptr i512 arg0 to memptr
-      v1 = ptrtoint memptr v0 to i512
       ret v1
   }
   
@@ -634,5 +627,101 @@
 -     v2 = ne v0, v1
 +     v2 = ne arg0, arg1
       ret v2
+  }
+  
+  fn @bool_mask(arg0: i1) -> i1 {
+    bb0:
+-     v0 = and arg0, true
+-     ret v0
++     ret arg0
+  }
+  
+  fn @narrow_shift_roundtrip(arg0: i8) -> i8 {
+    bb0:
+-     v0 = shl i8 1, arg0
++     v0 = add arg0, arg0
+      v1 = or v0, i8 1
+      v2 = shr i8 1, v1
+      ret v2
+  }
+  
+  fn @address_shift_roundtrip(arg0: i160) -> i160 {
+    bb0:
+-     v0 = shl i160 1, arg0
++     v0 = add arg0, arg0
+      v1 = or v0, i160 1
+      v2 = shr i160 1, v1
+      ret v2
+  }
+  
+  fn @saturated_narrow_shift_roundtrip(arg0: i8) -> i8 {
+    bb0:
+-     v0 = shl i8 8, arg0
+-     v1 = or v0, i8 1
+-     v2 = shr i8 8, v1
+-     ret v2
++     ret i8 0
+  }
+  
+  fn @safe_shift_roundtrip(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 255
+-     v1 = shl 248, v0
++     v1 = shl 248, arg0
+      v2 = or v1, 1
+-     v3 = shr 248, v2
+-     ret v3
++     ret v0
+  }
+  
+  fn @safe_narrow_shift_roundtrip(arg0: i8) -> i8 {
+    bb0:
+      v0 = and arg0, i8 127
+-     v1 = shl i8 1, v0
++     v1 = add arg0, arg0
+      v2 = or v1, i8 1
+-     v3 = shr i8 1, v2
+-     ret v3
++     ret v0
+  }
+  
+  fn @narrow_clz_upper_bound(arg0: i8) -> i1 {
+    bb0:
+      v0 = clz arg0
+-     v1 = lt v0, i8 9
+-     ret v1
++     ret true
+  }
+  
+  fn @narrow_clz_zero(arg0: i8) -> i1 {
+    bb0:
+      v0 = clz arg0
+-     v1 = gt v0, i8 7
++     v1 = eq arg0, i8 0
+      ret v1
+  }
+  
+  fn @narrow_clz_above_width(arg0: i8) -> i1 {
+    bb0:
+      v0 = clz arg0
+-     v1 = gt v0, i8 8
+-     ret v1
++     ret false
+  }
+  
+  fn @narrow_clz_divisor_above_width(arg0: i8) -> i8 {
+    bb0:
+      v0 = clz arg0
+-     v1 = div v0, i8 9
+-     ret v1
++     ret i8 0
+  }
+  
+  fn @narrow_clz_modulus_above_width(arg0: i8) -> i8 {
+    bb0:
+      v0 = clz arg0
+-     v1 = mod v0, i8 9
+-     ret v1
++     ret v0
   }
   

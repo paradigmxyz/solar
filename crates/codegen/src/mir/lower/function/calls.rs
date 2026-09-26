@@ -95,19 +95,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(&mir_id) = self.cx.function_ids.get(&function_id) else {
             return self.cx.report_unsupported(span, "user-defined operator function");
         };
-        let result_ty = types::TypeLowerer::mir_return_type(
-            self.cx.gcx.type_of_item(function.returns[0].into()),
-        );
+        let result_ty = self.cx.state.scalar_carrier(self.cx.gcx, function.returns[0]);
         // argument = cast operand to the operator's declared carrier type
         // result = icall operator, arguments
         let values = values
             .iter()
             .zip(function.parameters)
-            .map(|(&value, &parameter)| {
-                let ty = self.cx.gcx.type_of_item(parameter.into());
-                self.builder.cast(value, types::TypeLowerer::mir_signature_type(ty))
-            })
-            .collect();
+            .map(|(&value, &parameter)| self.materialize_scalar_carrier(parameter, value, span))
+            .collect::<Option<Vec<_>>>()?;
         let result = self.builder.icall(mir_id, values, result_ty);
         self.dirty_values.insert(result);
         Some(result)
@@ -514,7 +509,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             |this, index, argument| {
                 let parameter = function.parameters[index];
                 let value = this.lower_typed_expr(argument, parameter)?;
-                this.materialize_call_argument(parameter, value, argument.span)
+                if parameter.is_value_type() {
+                    let ty = this.cx.state.pointer_carrier(types::TypeLowerer::mir_type(parameter));
+                    Some(raw_scalars::cast_carrier(
+                        &mut this.builder,
+                        value,
+                        types::TypeLowerer::value_layout(parameter),
+                        ty,
+                    ))
+                } else {
+                    this.materialize_call_argument(parameter, value, argument.span)
+                }
             },
         )?;
         values.insert(0, function_value);
@@ -526,8 +531,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.icall_void(dispatcher, values);
             return Some(self.builder.imm(U256::ZERO));
         }
-        let return_types =
-            function.returns.iter().map(|&ty| types::TypeLowerer::mir_return_type(ty)).collect();
+        let return_types = function
+            .returns
+            .iter()
+            .map(|&ty| self.cx.state.pointer_carrier(types::TypeLowerer::mir_return_type(ty)))
+            .collect();
         let result_ty = self.cx.module.intern_return_type(return_types)?;
         // result = icall(dispatcher, function, args)
         let result = self.builder.icall(dispatcher, values, result_ty);
@@ -585,12 +593,34 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn coerce_value(&mut self, value: ValueId, from: Ty<'gcx>, to: Ty<'gcx>) -> ValueId {
+        if from == to && self.dirty_values.contains(&value) {
+            return value;
+        }
         // value = from != to ? normalize_dirty(value, from) : value
         let value = if from.peel_refs() != to.peel_refs() {
             self.normalize_dirty_scalar(value, from)
         } else {
             value
         };
+        if matches!(to.peel_refs().kind, TyKind::Enum(_)) {
+            self.validate_enum(to, value);
+        }
+        if let (Some(from_bits), Some(to_bits)) = (
+            types::TypeLowerer::mir_type(from).integer_bits(),
+            types::TypeLowerer::mir_type(to).integer_bits(),
+        ) && fixed_bytes_size(from).is_none()
+            && fixed_bytes_size(to).is_none()
+        {
+            let value = self.builder.cast(value, types::TypeLowerer::mir_type(from));
+            return if from.is_signed() && from_bits < to_bits {
+                self.builder.emit_inst(
+                    InstKind::Sext(value, from_bits, to_bits),
+                    Some(types::TypeLowerer::mir_type(to)),
+                )
+            } else {
+                self.builder.cast(value, types::TypeLowerer::mir_type(to))
+            };
+        }
         let source_size = fixed_bytes_size(from);
         let destination_size = fixed_bytes_size(to);
         if let Some(size) = destination_size
@@ -651,39 +681,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             value
         };
-        if from.peel_refs() != to.peel_refs() && types::TypeLowerer::mir_type(to) == MirType::I160 {
-            // address = trunc i160, value
-            return self.builder.cast(value, MirType::I160);
-        }
-        let integer_conversion_needs_cleanup = match (from.peel_refs().kind, to.peel_refs().kind) {
-            (
-                TyKind::Elementary(ElementaryType::UInt(from_size)),
-                TyKind::Elementary(ElementaryType::UInt(to_size)),
-            )
-            | (
-                TyKind::Elementary(ElementaryType::Int(from_size)),
-                TyKind::Elementary(ElementaryType::Int(to_size)),
-            ) => to_size.bits() < from_size.bits(),
-            (
-                TyKind::Elementary(ElementaryType::UInt(from_size)),
-                TyKind::Elementary(ElementaryType::Int(to_size)),
-            )
-            | (
-                TyKind::Elementary(ElementaryType::Int(from_size)),
-                TyKind::Elementary(ElementaryType::UInt(to_size)),
-            ) => to_size.bits() <= from_size.bits(),
-            _ => false,
-        };
-        if integer_conversion_needs_cleanup {
-            // value = normalize_integer(value, to)
-            return self.normalize_abi_scalar(value, to);
-        }
-        if let TyKind::Enum(id) = to.peel_refs().kind {
-            if !matches!(from.peel_refs().kind, TyKind::Enum(from_id) if from_id == id) {
-                // validate_enum(to, value)
-                self.validate_enum(to, value);
-            }
-            return value;
+        let to_mir = types::TypeLowerer::mir_type(to);
+        if source_size.is_some() && destination_size.is_none() && to_mir.integer_bits().is_some() {
+            return self.builder.cast(value, to_mir);
         }
         let Some(size) = destination_size else {
             return value;
@@ -731,9 +731,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let is_zero = self.builder.eq(value, zero);
                 self.builder.eq_zero(is_zero)
             }
-            // address = trunc i160, value
-            _ if types::TypeLowerer::mir_type(ty) == MirType::I160 => {
-                self.builder.cast(value, MirType::I160)
+            _ if matches!(
+                types::TypeLowerer::value_layout(ty),
+                crate::mir::ValueLayout::Int(_)
+                    | crate::mir::ValueLayout::UInt(_)
+                    | crate::mir::ValueLayout::Address
+            ) =>
+            {
+                self.builder.cast(value, types::TypeLowerer::mir_type(ty))
             }
             _ => AbiWordValidator::from_layout(types::TypeLowerer::value_layout(ty))
                 .map_or(value, |validator| validator.cleanup(&mut self.builder, value)),
@@ -782,7 +787,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let shift = self.builder.imm(64);
             return self.builder.shl(shift, value);
         }
-        self.normalize_dirty_scalar(value, ty)
+        let value = self.normalize_dirty_scalar(value, ty);
+        raw_scalars::cast_carrier(
+            &mut self.builder,
+            value,
+            types::TypeLowerer::value_layout(ty),
+            MirType::I256,
+        )
     }
 
     pub(super) fn lower_function_call(
@@ -856,7 +867,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             } else {
                 self.lower_typed_expr(receiver, parameter_ty)?
             };
-            values.push(self.materialize_call_argument(parameter_ty, value, receiver.span)?);
+            values.push(self.materialize_scalar_carrier(
+                function.parameters[0],
+                value,
+                receiver.span,
+            )?);
         }
         let arguments = self.lower_call_arguments(
             args,
@@ -878,7 +893,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     this.lower_typed_expr(argument, parameter_ty)?
                 };
-                this.materialize_call_argument(parameter_ty, value, argument.span)
+                this.materialize_scalar_carrier(parameter, value, argument.span)
             },
         )?;
         values.extend(arguments);
@@ -897,7 +912,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let return_types = function
             .returns
             .iter()
-            .map(|&ret| types::TypeLowerer::mir_return_type(self.cx.gcx.type_of_item(ret.into())))
+            .map(|&ret| self.cx.state.scalar_carrier(self.cx.gcx, ret))
             .collect();
         let result_ty = self.cx.module.intern_return_type(return_types)?;
         // result = icall(function, call_args)
@@ -1450,12 +1465,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.lower_decoded_return_value(source, return_tys, span).map(|value| vec![value])
             };
         }
-        self.validate_static_returndata(offset, return_tys);
-        let values = (0..returns)
-            .map(|index| {
-                self.load_static_abi_return_value_as(offset, index, returns, return_tys[index])
-            })
-            .collect::<Vec<_>>();
+        let values = self.decode_static_returndata(offset, return_tys);
         if mode == ExternalReturnMode::All {
             Some(values)
         } else {
@@ -1533,7 +1543,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.revert_if(missing, RevertReason::TargetContractHasNoCode);
     }
 
-    fn validate_static_returndata(&mut self, offset: ValueId, returns: &[Ty<'gcx>]) {
+    fn decode_static_returndata(&mut self, offset: ValueId, returns: &[Ty<'gcx>]) -> Vec<ValueId> {
         // required = returns * 32
         // if returndatasize < required { revert(0, 0) }
         // for i {
@@ -1543,10 +1553,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let words = u64::try_from(returns.len()).unwrap_or(u64::MAX);
         let size = self.builder.imm(words.saturating_mul(32));
         self.revert_if_short_returndata(size);
-        for (index, &ty) in returns.iter().enumerate() {
-            let value = self.load_static_abi_return_value(offset, index, returns.len());
-            self.validate_external_return_value(ty, value);
-        }
+        returns
+            .iter()
+            .enumerate()
+            .map(|(index, &ty)| {
+                let value = self.load_static_abi_return_value(offset, index, returns.len());
+                self.validate_external_return_value(ty, value);
+                if matches!(types::TypeLowerer::mir_return_type(ty), MirType::MemoryObject(_)) {
+                    self.load_static_abi_return_value_as(offset, index, returns.len(), ty)
+                } else {
+                    value
+                }
+            })
+            .collect()
     }
 
     fn validate_external_return_value(&mut self, ty: Ty<'gcx>, value: ValueId) {
@@ -1569,20 +1588,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         callee: &hir::Expr<'_>,
         function: hir::FunctionId,
     ) -> hir::FunctionId {
-        if let ExprKind::Member(base, _) = callee.kind
-            && let Some(TyKind::Type(ty)) = self.cx.gcx.type_of_expr(base.id).map(|ty| ty.kind)
-        {
-            return match ty.kind {
-                TyKind::Contract(_) => function,
-                TyKind::Super(defining_contract) => self.cx.gcx.resolve_super_function(
-                    self.cx.contract_id,
-                    defining_contract,
-                    function,
-                ),
-                _ => self.cx.gcx.resolve_virtual_function(self.cx.contract_id, function),
-            };
-        }
-        self.cx.gcx.resolve_virtual_function(self.cx.contract_id, function)
+        super::resolve_call_target(self.cx.gcx, self.cx.contract_id, callee, function)
     }
 }
 

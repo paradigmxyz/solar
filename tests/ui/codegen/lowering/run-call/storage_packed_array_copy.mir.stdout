@@ -7,74 +7,75 @@ fn @constructor() [constructor] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v19]
+    v0 = phi [bb0: 0], [bb3: v20]
     v1 = lt v0, 9
     jumpi v1, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v20 = shl 192, 2
-    v21 = lt 8, 10
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = div 8, 1
-    v24 = add 3, v23
-    v25 = mod 8, 1
-    v26 = mul v25, 17
-    v27 = mul v26, 8
-    v28 = shl v27, 0xffffffffffffffffffffffffffffffffff
-    v29 = sload v24 !metadata(storage=offset(v23, 3))
-    v30 = not v28
-    v31 = and v29, v30
-    v32 = shr 120, v20
-    v33 = and v32, 0xffffffffffffffffffffffffffffffffff
-    v34 = shl v27, v33
-    v35 = or v31, v34
-    sstore v24, v35 !metadata(storage=offset(v23, 3))
-    v36 = shl 192, 2
-    v37 = lt 9, 10
-    v38 = eq v37, false
-    icall panic_if<0x32>, v38
-    v39 = div 9, 1
-    v40 = add 3, v39
-    v41 = mod 9, 1
-    v42 = mul v41, 17
-    v43 = mul v42, 8
-    v44 = shl v43, 0xffffffffffffffffffffffffffffffffff
-    v45 = sload v40 !metadata(storage=offset(v39, 3))
-    v46 = not v44
-    v47 = and v45, v46
-    v48 = shr 120, v36
-    v49 = and v48, 0xffffffffffffffffffffffffffffffffff
-    v50 = shl v43, v49
-    v51 = or v47, v50
-    sstore v40, v51 !metadata(storage=offset(v39, 3))
+    v21 = shl 192, 2
+    v22 = lt 8, 10
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    v24 = div 8, 1
+    v25 = add 3, v24
+    v26 = mod 8, 1
+    v27 = mul v26, 17
+    v28 = mul v27, 8
+    v29 = shl v28, 0xffffffffffffffffffffffffffffffffff
+    v30 = sload v25 !metadata(storage=offset(v24, 3))
+    v31 = not v29
+    v32 = and v30, v31
+    v33 = shr 120, v21
+    v34 = and v33, 0xffffffffffffffffffffffffffffffffff
+    v35 = shl v28, v34
+    v36 = or v32, v35
+    sstore v25, v36 !metadata(storage=offset(v24, 3))
+    v37 = shl 192, 2
+    v38 = lt 9, 10
+    v39 = eq v38, false
+    icall panic_if<0x32>, v39
+    v40 = div 9, 1
+    v41 = add 3, v40
+    v42 = mod 9, 1
+    v43 = mul v42, 17
+    v44 = mul v43, 8
+    v45 = shl v44, 0xffffffffffffffffffffffffffffffffff
+    v46 = sload v41 !metadata(storage=offset(v40, 3))
+    v47 = not v45
+    v48 = and v46, v47
+    v49 = shr 120, v37
+    v50 = and v49, 0xffffffffffffffffffffffffffffffffff
+    v51 = shl v44, v50
+    v52 = or v48, v51
+    sstore v41, v52 !metadata(storage=offset(v40, 3))
     ret
   bb4:
-    v2 = and v0, 0xffffffffffffffff
-    v3 = shl 192, v2
-    v4 = lt v0, 9
-    v5 = eq v4, false
-    icall panic_if<0x32>, v5
-    v6 = div v0, 4
-    v7 = add 0, v6
-    v8 = mod v0, 4
-    v9 = mul v8, 8
+    v2 = trunc i256 v0 to i64
+    v3 = zext i64 v2 to i256
+    v4 = shl 192, v3
+    v5 = lt v0, 9
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = div v0, 4
+    v8 = add 0, v7
+    v9 = mod v0, 4
     v10 = mul v9, 8
-    v11 = shl v10, 0xffffffffffffffff
-    v12 = sload v7 !metadata(storage=symbolic(v6))
-    v13 = not v11
-    v14 = and v12, v13
-    v15 = shr 192, v3
-    v16 = and v15, 0xffffffffffffffff
-    v17 = shl v10, v16
-    v18 = or v14, v17
-    sstore v7, v18 !metadata(storage=symbolic(v6))
+    v11 = mul v10, 8
+    v12 = shl v11, 0xffffffffffffffff
+    v13 = sload v8 !metadata(storage=symbolic(v7))
+    v14 = not v12
+    v15 = and v13, v14
+    v16 = shr 192, v4
+    v17 = and v16, 0xffffffffffffffff
+    v18 = shl v11, v17
+    v19 = or v15, v18
+    sstore v8, v19 !metadata(storage=symbolic(v7))
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v19 = checked_add u256, v0, 1
+    v20 = checked_add u256, v0, 1
     jump bb1
 }
 
@@ -83,10 +84,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v0 = alloc memoryfixedarray<9, 1>, exact, uninitialized, panic, 288
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v12]
+    v1 = phi [bb0: 0], [bb2: v11]
     v2 = lt v1, 9
     jumpi v2, bb2, bb3
   bb3:
+    v12 = ptrtoint memoryfixedarray v0 to i256
     jump bb4
   bb4:
     v13 = phi [bb3: 0], [bb9: v39]
@@ -95,8 +97,8 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb6:
     jump bb10
   bb10:
-    v40 = phi [bb6: 0], [bb12: v56]
-    v41 = phi [bb6: 0], [bb12: v57]
+    v40 = phi [bb6: 0], [bb12: v57]
+    v41 = phi [bb6: 0], [bb12: v58]
     v42 = phi [bb6: 0], [bb12: v42]
     v43 = lt v41, 9
     jumpi v43, bb13, bb14
@@ -105,39 +107,40 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb11:
     jump bb16
   bb16:
-    v58 = phi [bb11: v40], [bb18: v58]
-    v59 = phi [bb11: v41], [bb18: v59]
-    v60 = phi [bb11: v42], [bb18: v76]
-    v61 = phi [bb11: 0], [bb18: v77]
-    v62 = lt v61, 10
-    jumpi v62, bb19, bb20
+    v59 = phi [bb11: v40], [bb18: v59]
+    v60 = phi [bb11: v41], [bb18: v60]
+    v61 = phi [bb11: v42], [bb18: v78]
+    v62 = phi [bb11: 0], [bb18: v79]
+    v63 = lt v62, 10
+    jumpi v63, bb19, bb20
   bb20:
     jump bb17
   bb17:
-    v78 = insert_value struct0, undef struct0, 0, v58
-    v79 = insert_value struct0, v78, 1, v60
-    ret v79
+    v80 = insert_value struct0, undef struct0, 0, v59
+    v81 = insert_value struct0, v80, 1, v61
+    ret v81
   bb19:
-    v63 = lt v61, 10
-    v64 = eq v63, false
-    icall panic_if<0x32>, v64
-    v65 = div v61, 1
-    v66 = add 3, v65
-    v67 = mod v61, 1
-    v68 = mul v67, 17
-    v69 = sload v66 !metadata(storage=offset(v65, 3))
-    v70 = mul v68, 8
-    v71 = shr v70, v69
-    v72 = and v71, 0xffffffffffffffffffffffffffffffffff
+    v64 = lt v62, 10
+    v65 = eq v64, false
+    icall panic_if<0x32>, v65
+    v66 = div v62, 1
+    v67 = add 3, v66
+    v68 = mod v62, 1
+    v69 = mul v68, 17
+    v70 = sload v67 !metadata(storage=offset(v66, 3))
+    v71 = mul v69, 8
+    v72 = shr v71, v70
     v73 = shl 120, v72
     v74 = and v73, 0xffffffffffffffff000000000000000000000000000000000000000000000000
     v75 = shr 192, v74
-    v76 = checked_add u256, v60, v75
+    v76 = trunc i256 v75 to i64
+    v77 = zext i64 v76 to i256
+    v78 = checked_add u256, v61, v77
     jump bb21
   bb21:
     jump bb18
   bb18:
-    v77 = checked_add u256, v61, 1
+    v79 = checked_add u256, v62, 1
     jump bb16
   bb13:
     v44 = lt v41, 9
@@ -150,15 +153,16 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v50 = sload v47 !metadata(storage=symbolic(v46))
     v51 = mul v49, 8
     v52 = shr v51, v50
-    v53 = and v52, 0xffffffffffffffff
-    v54 = shl 192, v53
-    v55 = shr 192, v54
-    v56 = checked_add u256, v40, v55
+    v53 = shl 192, v52
+    v54 = shr 192, v53
+    v55 = trunc i256 v54 to i64
+    v56 = zext i64 v55 to i256
+    v57 = checked_add u256, v40, v56
     jump bb15
   bb15:
     jump bb12
   bb12:
-    v57 = checked_add u256, v41, 1
+    v58 = checked_add u256, v41, 1
     jump bb10
   bb5:
     v15 = div v13, 1
@@ -203,9 +207,8 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v7 = sload v4 !metadata(storage=symbolic(v3))
     v8 = mul v6, 8
     v9 = shr v8, v7
-    v10 = and v9, 0xffffffffffffffff
-    v11 = shl 192, v10
-    memory_object_store_element memoryfixedarray<9, 1>, v0, v1, v11
-    v12 = add v1, 1
+    v10 = shl 192, v9
+    memory_object_store_element memoryfixedarray<9, 1>, v0, v1, v10
+    v11 = add v1, 1
     jump bb1
 }

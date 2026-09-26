@@ -28,8 +28,9 @@ fn @packedStorage() -> i256 [selector=0x6e5f4079, abi_params=[], abi_returns=[wo
     v4 = or v2, v3
     sstore 0, v4 !metadata(storage=slot(0))
     v5 = sload 0 !metadata(storage=slot(0))
-    v6 = and v5, 0xffffff
-    ret v6
+    v6 = trunc i256 v5 to i24
+    v7 = zext i24 v6 to i256
+    ret v7
 }
 
 fn @partialCopy() -> i256 [selector=0xb787ef80, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {

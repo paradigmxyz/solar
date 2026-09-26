@@ -202,8 +202,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // per-type encoders; copying them into a canonical object first would duplicate
             // the whole tree at every call site.
             TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Struct(_) => value,
-            _ if external_only && !dirty => value,
-            _ => self.normalize_abi_scalar(value, ty),
+            _ => {
+                let value = if external_only && !dirty {
+                    value
+                } else {
+                    self.normalize_abi_scalar(value, ty)
+                };
+                let layout = types::TypeLowerer::value_layout(ty);
+                if matches!(layout, crate::mir::ValueLayout::Int(_)) {
+                    raw_scalars::cast_carrier(&mut self.builder, value, layout, MirType::I256)
+                } else {
+                    value
+                }
+            }
         }
     }
 
@@ -800,7 +811,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .expect("function words always require cleanup")
                     .cleanup(&mut self.builder, value)
             }
-            _ => self.normalize_abi_scalar(value, ty),
+            _ => {
+                let value = self.normalize_abi_scalar(value, ty);
+                raw_scalars::cast_carrier(
+                    &mut self.builder,
+                    value,
+                    types::TypeLowerer::value_layout(ty),
+                    MirType::I256,
+                )
+            }
         };
         self.builder.memory_object_store_word(output, offset, value);
         let word = self.builder.imm(32);

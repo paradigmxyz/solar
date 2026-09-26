@@ -20,7 +20,8 @@ contract FunctionPointerSignatures {
     // CHECK-LABEL: fn @callState(
     // CHECK: [[STORED:v[0-9]+]] = sload 0
     // CHECK: [[SHIFTED:v[0-9]+]] = shr 8, [[STORED]]
-    // CHECK: [[MASKED:v[0-9]+]] = and [[SHIFTED]], 0xffffffffffffffff
+    // CHECK: [[NARROW:v[0-9]+]] = trunc i256 [[SHIFTED]] to i64
+    // CHECK: [[MASKED:v[0-9]+]] = zext i64 [[NARROW]] to i256
     // CHECK: icall @[[DISPATCHER_0]], [[MASKED]]
     function callState() public returns (bool) {
         stateFn();

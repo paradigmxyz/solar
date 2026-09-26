@@ -56,9 +56,7 @@ fn @g(arg0: calldataslice) -> i256 [selector=0x4a848537, view, abi_params=[array
     icall revert_if<tuple_data_too_short>, v85
     v86 = add 0, 0
     v87 = mload v86
-    v88 = add 0, 0
-    v89 = mload v88
-    ret v89
+    ret v87
   bb2:
     v26 = mul v24, 32
     v27 = add v3, v26

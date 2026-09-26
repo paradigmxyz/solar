@@ -1,3 +1,10 @@
+//@ run-call: DirtyCarrierPaths::signedPointer => -1
+//@ run-call: DirtyCarrierPaths::signedOperator => 1
+//@ run-call: DirtyCarrierPaths::throughPointer => 257
+//@ run-call: DirtyCarrierPaths::cleanPairDispatch => 1, 2
+//@ run-call: DirtyCarrierPaths::modifierLoop
+//@ run-call: DirtyCarrierPaths::signedLocal => -1
+//@ run-call: DirtyVirtual::throughVirtual => 257
 //@ run-call: DirtyInternalNamedReturn::dispatchAddress 0x0000000000000000000000000000000000000002 => 0x0000000000000000000000000000000000000002
 //@ run-call: DirtyInternalNamedReturn::narrowAddress 0x10000000000000000000000000000000000000002 => 0x0000000000000000000000000000000000000002
 //@ run-call: DirtyInternalNamedReturn::bytesAddress 0x1234567890123456789012345678901234567890 => 0x1234567890123456789012345678901234567890
@@ -113,4 +120,74 @@ contract DirtyInternalNamedReturn {
             dirty := eq(value, 2)
         }
     }
+}
+
+type SignedCarrier is int8;
+using {signedCarrierSign as ~} for SignedCarrier global;
+
+function signedCarrierSign(SignedCarrier value) pure returns (SignedCarrier result) {
+    assembly { result := slt(value, 0) }
+}
+
+contract DirtyCarrierPaths {
+    function inspectSigned(int8 value) internal pure returns (int256 raw) {
+        assembly { raw := value }
+    }
+
+    function signedPointer() external pure returns (int256) {
+        function(int8) internal pure returns (int256) callback = inspectSigned;
+        return callback(-1);
+    }
+
+    function signedOperator() external pure returns (int8) {
+        return SignedCarrier.unwrap(~SignedCarrier.wrap(-1));
+    }
+
+    function identity(uint8 x) internal pure returns (uint8) { return x; }
+
+    function throughPointer() external pure returns (uint256 raw) {
+        uint8 x;
+        assembly { x := 257 }
+        function(uint8) internal pure returns (uint8) callback = identity;
+        uint8 y = callback(x);
+        assembly { raw := y }
+    }
+
+    function cleanPair() internal pure returns (uint8, uint16) { return (1, 2); }
+
+    function cleanPairDispatch() external pure returns (uint8, uint16) {
+        function() internal pure returns (uint8, uint16) callback = cleanPair;
+        return callback();
+    }
+
+    modifier rawLoop() {
+        uint8 x = 1;
+        for (uint256 i; i < 2; ++i) {
+            assembly { x := add(x, 128) }
+        }
+        assembly { if iszero(eq(x, 257)) { revert(0, 0) } }
+        _;
+    }
+
+    function modifierLoop() external pure rawLoop {}
+
+    function signedLocal() external pure returns (int256 raw) {
+        int8 value = -1;
+        assembly { raw := value }
+    }
+}
+
+abstract contract DirtyVirtualBase {
+    function identity(uint8 x) internal pure virtual returns (uint8) { return x; }
+
+    function throughVirtual() external pure returns (uint256 raw) {
+        uint8 x;
+        assembly { x := 257 }
+        uint8 y = identity(x);
+        assembly { raw := y }
+    }
+}
+
+contract DirtyVirtual is DirtyVirtualBase {
+    function identity(uint8 x) internal pure override returns (uint8) { return x; }
 }

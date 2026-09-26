@@ -1,0 +1,275 @@
+//! Legalize integer bit patterns to the EVM word representation inside MIR.
+//!
+//! Semantic arithmetic wraps at its declared width, and signed operations use
+//! that width's sign bit. This pass widens integer carriers after ABI, aggregate,
+//! and memory conversion, materializing masks and sign extension as ordinary MIR
+//! operations. The following scalar passes can combine and eliminate them before
+//! stack scheduling. Booleans retain i1 so branches still require a condition;
+//! pointers retain their distinct types and explicit pointer conversions.
+//!
+//! Sign extension uses SIGNEXTEND for byte widths and negation for i1. All signatures and value
+//! types change together, preserving SSA identities across calls and cyclic phis. No ABI layout
+//! changes: narrow argument bit patterns are already clean at this internal boundary.
+//! Signed immutable loads need explicit cleanup because runtime placeholders can
+//! sign-extend their stored bits to a full word.
+
+use crate::mir::{
+    Function, FunctionBuilder, Immediate, ImmutableId, InstKind, MirType, Module, ResultKind,
+    Value, ValueId, ValueLayout,
+    pass::{MirPass, ModuleAnalyses},
+};
+use alloy_primitives::U256;
+use solar_data_structures::map::FxHashSet;
+
+pub(crate) struct LowerIntegers;
+
+impl MirPass for LowerIntegers {
+    fn name(&self) -> &'static str {
+        "lower-integers"
+    }
+
+    fn is_required(&self) -> bool {
+        true
+    }
+
+    fn run_pass(
+        &self,
+        gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut ModuleAnalyses,
+    ) -> bool {
+        let unsupported =
+            |ty: MirType| ty.integer_bits().is_some_and(|bits| !MirType::valid_integer_width(bits));
+        if module.struct_types.iter().any(|ty| ty.fields.iter().copied().any(unsupported))
+            || module.functions.iter().any(|func| {
+                unsupported(func.return_type())
+                    || func.return_components().iter().copied().any(unsupported)
+                    || (0..func.num_values()).any(|index| {
+                        func.value_ty(ValueId::from_usize(index)).is_some_and(unsupported)
+                    })
+            })
+        {
+            analyses.fail(
+                gcx.dcx()
+                    .err("integer lowering supports i1 and byte widths from i8 through i256")
+                    .emit(),
+            );
+            return false;
+        }
+        let mut changed = false;
+        for ty in &mut module.struct_types {
+            for field in &mut ty.fields {
+                let lowered = lower_type(*field);
+                changed |= lowered != *field;
+                *field = lowered;
+            }
+        }
+        let signed_immutables = module
+            .iter_immutables()
+            .filter_map(|(id, immutable)| matches!(immutable.ty, ValueLayout::Int(_)).then_some(id))
+            .collect();
+        for func in &mut module.functions {
+            changed |= lower_function(func, &signed_immutables);
+        }
+        changed
+    }
+}
+
+fn lower_type(ty: MirType) -> MirType {
+    match ty {
+        MirType::Int(bits) if (2..256).contains(&bits.get()) => MirType::I256,
+        _ => ty,
+    }
+}
+
+fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId>) -> bool {
+    let narrow = |ty| lower_type(ty) != ty;
+    if !narrow(func.return_type())
+        && !func.arg_indices().any(|index| narrow(func.arg_ty(index)))
+        && !func.return_components().iter().copied().any(narrow)
+        && !(0..func.num_values())
+            .any(|index| func.value_ty(ValueId::from_usize(index)).is_some_and(narrow))
+        && !func.instructions().any(|id| {
+            let inst = func.inst(id);
+            matches!(inst.kind, InstKind::Trunc(..) | InstKind::Sext(..))
+                || matches!(inst.kind, InstKind::PtrToInt(_, bits) if bits < 256)
+                || ((inst.kind.op_def().result == ResultKind::Integer
+                    && !matches!(
+                        inst.kind,
+                        InstKind::And(..) | InstKind::Or(..) | InstKind::Xor(..)
+                    ))
+                    || matches!(inst.kind, InstKind::SLt(..) | InstKind::SGt(..)))
+                    && inst
+                        .kind
+                        .op()
+                        .first_operand()
+                        .is_some_and(|value| func.value_ty(value) == Some(MirType::I1))
+        })
+    {
+        return false;
+    }
+    let types = (0..func.num_values())
+        .map(|index| func.value_ty(ValueId::from_usize(index)))
+        .collect::<Vec<_>>();
+    let instructions = func.instructions().collect::<Vec<_>>();
+    let mut changed = false;
+    let returns = func.return_components().iter().copied().map(lower_type).collect::<Vec<_>>();
+    let result = lower_type(func.return_type());
+    changed |= result != func.return_type() || returns != func.return_components();
+    func.set_return_type(result);
+    func.set_return_abi(returns.into_boxed_slice());
+    for index in func.arg_indices() {
+        let ty = lower_type(func.arg_ty(index));
+        changed |= ty != func.arg_ty(index);
+        func.set_arg_ty(index, ty);
+    }
+    for (index, ty) in types.iter().enumerate() {
+        if let Some(ty) = *ty
+            && lower_type(ty) != ty
+        {
+            changed = true;
+            let value = func.value_mut(ValueId::from_usize(index));
+            match value {
+                Value::Immediate(immediate) => {
+                    *immediate =
+                        Immediate::for_type(Some(MirType::I256), immediate.as_u256().unwrap());
+                }
+                Value::Undef(ty) => *ty = MirType::I256,
+                _ => {}
+            }
+        }
+    }
+    for &id in &instructions {
+        let inst = func.inst_mut(id);
+        inst.result_ty = inst.result_ty.map(lower_type);
+    }
+    // Keep original types while rewriting; earlier producers now have word results.
+    for block in func.blocks.indices() {
+        let instructions = std::mem::take(&mut func.blocks[block].instructions);
+        let mut builder = FunctionBuilder::new(func);
+        builder.switch_to_block(block);
+        for id in instructions {
+            let bits = |value: ValueId| {
+                types[value.index()].and_then(MirType::integer_bits).unwrap_or(256)
+            };
+            let inst = builder.func().inst(id);
+            let conversion = matches!(
+                inst.kind,
+                InstKind::Trunc(..)
+                    | InstKind::Sext(..)
+                    | InstKind::Zext(..)
+                    | InstKind::PtrToInt(..)
+            );
+            let narrow_scalar = (inst.kind.op_def().result == ResultKind::Integer
+                || matches!(inst.kind, InstKind::SLt(..) | InstKind::SGt(..)))
+                && inst.kind.operands().first().is_some_and(|&value| bits(value) < 256);
+            let narrow_immutable = matches!(inst.kind, InstKind::LoadImmutable(immutable)
+                if signed_immutables.contains(&immutable)
+                    && inst.result().is_some_and(|value| bits(value) < 256));
+            if !conversion && !narrow_scalar && !narrow_immutable {
+                builder.func_mut().blocks[block].instructions.push(id);
+                continue;
+            }
+            let inst = inst.clone();
+            builder.set_debug_context(&inst.metadata.debug_context());
+            let kind = match inst.kind {
+                InstKind::LoadImmutable(immutable) if narrow_immutable => {
+                    // Runtime placeholders may sign-extend the stored integer.
+                    let value = builder.load_immutable(immutable, MirType::I256);
+                    Some(clean(&mut builder, value, bits(inst.result().unwrap())))
+                }
+                InstKind::Trunc(value, width) => Some(clean(&mut builder, value, width)),
+                InstKind::Sext(value, from, to) => {
+                    let value = signed(&mut builder, value, from);
+                    Some(clean(&mut builder, value, to))
+                }
+                InstKind::Zext(value)
+                    if builder.func().value_ty(value) == builder.func().inst(id).result_ty =>
+                {
+                    Some(InstKind::Bitcast(value))
+                }
+                InstKind::PtrToInt(value, width) if width < 256 => {
+                    let value = builder.cast_word(value);
+                    Some(clean(&mut builder, value, width))
+                }
+                InstKind::And(..) | InstKind::Or(..) | InstKind::Xor(..)
+                    if inst.result_ty == Some(MirType::I1) =>
+                {
+                    None
+                }
+                ref kind
+                    if kind.op_def().result == ResultKind::Integer
+                        && kind.operands().first().is_some_and(|&value| bits(value) < 256) =>
+                {
+                    let operands = kind.operands();
+                    let width = bits(operands[0]);
+                    let mut kind = kind.clone();
+                    let signed_op =
+                        matches!(kind, InstKind::SDiv(..) | InstKind::SMod(..) | InstKind::Sar(..));
+                    let arithmetic_shift = matches!(kind, InstKind::Sar(..));
+                    let mut index = 0;
+                    kind.visit_operands_mut(|value| {
+                        *value = if signed_op && (!arithmetic_shift || index != 0) {
+                            signed(&mut builder, *value, width)
+                        } else {
+                            builder.cast_word(*value)
+                        };
+                        index += 1;
+                    });
+                    let clz = matches!(kind, InstKind::Clz(..));
+                    let mut value = builder.emit_inst(kind, Some(MirType::I256));
+                    if clz {
+                        let padding = builder.imm(256 - width);
+                        value = builder.sub(value, padding);
+                    }
+                    Some(clean(&mut builder, value, width))
+                }
+                InstKind::SLt(a, b) | InstKind::SGt(a, b) if bits(a) < 256 => {
+                    let a = signed(&mut builder, a, bits(a));
+                    let b = signed(&mut builder, b, bits(b));
+                    Some(if matches!(inst.kind, InstKind::SLt(..)) {
+                        InstKind::SLt(a, b)
+                    } else {
+                        InstKind::SGt(a, b)
+                    })
+                }
+                _ => None,
+            };
+            if let Some(kind) = kind {
+                // Preserve the result identity, including uses in backedge phis.
+                builder.func_mut().inst_mut(id).replace_kind(kind);
+                changed = true;
+            }
+            builder.func_mut().blocks[block].instructions.push(id);
+        }
+    }
+    changed
+}
+
+fn clean(builder: &mut FunctionBuilder<'_>, value: ValueId, bits: u32) -> InstKind {
+    let value = builder.cast_word(value);
+    if bits == 256 {
+        return InstKind::Bitcast(value);
+    }
+    let mask = builder.imm(U256::MAX >> (256 - bits));
+    if bits == 1 {
+        let value = builder.and(value, mask);
+        let zero = builder.imm(0);
+        InstKind::Ne(value, zero)
+    } else {
+        InstKind::And(value, mask)
+    }
+}
+
+fn signed(builder: &mut FunctionBuilder<'_>, value: ValueId, bits: u32) -> ValueId {
+    let value = builder.cast_word(value);
+    if bits == 256 {
+        value
+    } else if bits == 1 {
+        let zero = builder.imm(0);
+        builder.sub(zero, value)
+    } else {
+        let byte = builder.imm(bits / 8 - 1);
+        builder.signextend(byte, value)
+    }
+}

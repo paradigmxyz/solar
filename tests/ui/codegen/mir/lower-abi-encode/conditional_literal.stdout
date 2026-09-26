@@ -22,32 +22,31 @@
 +     mstore v8, v7
 +     v9 = memory_object_len memorybytes, v0
 +     v10 = ptrtoint memorybytes v0 to i256
-+     v11 = ptrtoint memorybytes 0 to i256
-+     v12 = eq v10, v11
-+     v13 = eq v12, false
-+     v14 = zext i1 v13 to i256
-+     v15 = mul v9, v14
-+     v16 = not 31
-+     v17 = add v15, 31
-+     v18 = and v17, v16
-+     v19 = add v5, 32
-+     v20 = add v5, v18
-+     mstore v20, 0
-+     mstore v5, v15
-+     v21 = memory_object_data memorybytes, v0
-+     v22 = add v19, v18
-+     v23 = ptrtoint memptr v21 to i256
-+     mcopy v19, v23, v15 !metadata(memory=heap)
-+     v24 = ptrtoint memptr v3 to i256
-+     v25 = sub v22, v24
-+     v26 = add v25, 0
-+     v27 = add v26, 31
-+     v28 = not 31
-+     v29 = and v27, v28
-+     v30 = alloc raw, exact, uninitialized, infallible, v29 !metadata(preserves_fmp)
-+     v31 = ptrtoint memptr v30 to i256
-+     v32 = make_memory_slice v31, v26
-+     ret v32
++     v11 = eq v10, 0
++     v12 = eq v11, false
++     v13 = zext i1 v12 to i256
++     v14 = mul v9, v13
++     v15 = not 31
++     v16 = add v14, 31
++     v17 = and v16, v15
++     v18 = add v5, 32
++     v19 = add v5, v17
++     mstore v19, 0
++     mstore v5, v14
++     v20 = memory_object_data memorybytes, v0
++     v21 = add v18, v17
++     v22 = ptrtoint memptr v20 to i256
++     mcopy v18, v22, v14 !metadata(memory=heap)
++     v23 = ptrtoint memptr v3 to i256
++     v24 = sub v21, v23
++     v25 = add v24, 0
++     v26 = add v25, 31
++     v27 = not 31
++     v28 = and v26, v27
++     v29 = alloc raw, exact, uninitialized, infallible, v28 !metadata(preserves_fmp)
++     v30 = ptrtoint memptr v29 to i256
++     v31 = make_memory_slice v30, v25
++     ret v31
   }
   
   fn @overlapping(arg0: i256) -> memoryslice {
@@ -69,32 +68,31 @@
 +     mstore v8, v7
 +     v9 = memory_object_len memorybytes, v0
 +     v10 = ptrtoint memorybytes v0 to i256
-+     v11 = ptrtoint memorybytes 0 to i256
-+     v12 = eq v10, v11
-+     v13 = eq v12, false
-+     v14 = zext i1 v13 to i256
-+     v15 = mul v9, v14
-+     v16 = not 31
-+     v17 = add v15, 31
-+     v18 = and v17, v16
-+     v19 = add v5, 32
-+     v20 = add v5, v18
-+     mstore v20, 0
-+     mstore v5, v15
-+     v21 = memory_object_data memorybytes, v0
-+     v22 = add v19, v18
-+     v23 = ptrtoint memptr v21 to i256
-+     mcopy v19, v23, v15 !metadata(memory=heap)
-+     v24 = ptrtoint memptr v3 to i256
-+     v25 = sub v22, v24
-+     v26 = add v25, 0
-+     v27 = add v26, 31
-+     v28 = not 31
-+     v29 = and v27, v28
-+     v30 = alloc raw, exact, uninitialized, infallible, v29 !metadata(preserves_fmp)
-+     v31 = ptrtoint memptr v30 to i256
-+     v32 = make_memory_slice v31, v26
-+     ret v32
++     v11 = eq v10, 0
++     v12 = eq v11, false
++     v13 = zext i1 v12 to i256
++     v14 = mul v9, v13
++     v15 = not 31
++     v16 = add v14, 31
++     v17 = and v16, v15
++     v18 = add v5, 32
++     v19 = add v5, v17
++     mstore v19, 0
++     mstore v5, v14
++     v20 = memory_object_data memorybytes, v0
++     v21 = add v18, v17
++     v22 = ptrtoint memptr v20 to i256
++     mcopy v18, v22, v14 !metadata(memory=heap)
++     v23 = ptrtoint memptr v3 to i256
++     v24 = sub v21, v23
++     v25 = add v24, 0
++     v26 = add v25, 31
++     v27 = not 31
++     v28 = and v26, v27
++     v29 = alloc raw, exact, uninitialized, infallible, v28 !metadata(preserves_fmp)
++     v30 = ptrtoint memptr v29 to i256
++     v31 = make_memory_slice v30, v25
++     ret v31
   }
   
   fn @preserved() -> memoryslice {
@@ -113,31 +111,30 @@
 +     mstore v7, v6
 +     v8 = memory_object_len memorybytes, v0
 +     v9 = ptrtoint memorybytes v0 to i256
-+     v10 = ptrtoint memorybytes 0 to i256
-+     v11 = eq v9, v10
-+     v12 = eq v11, false
-+     v13 = zext i1 v12 to i256
-+     v14 = mul v8, v13
-+     v15 = not 31
-+     v16 = add v14, 31
-+     v17 = and v16, v15
-+     v18 = add v4, 32
-+     v19 = add v4, v17
-+     mstore v19, 0
-+     mstore v4, v14
-+     v20 = memory_object_data memorybytes, v0
-+     v21 = add v18, v17
-+     v22 = ptrtoint memptr v20 to i256
-+     mcopy v18, v22, v14 !metadata(memory=heap)
-+     v23 = ptrtoint memptr v2 to i256
-+     v24 = sub v21, v23
-+     v25 = add v24, 0
-+     v26 = add v25, 31
-+     v27 = not 31
-+     v28 = and v26, v27
-+     v29 = alloc raw, exact, uninitialized, infallible, v28 !metadata(preserves_fmp)
-+     v30 = ptrtoint memptr v29 to i256
-+     v31 = make_memory_slice v30, v25
-+     ret v31
++     v10 = eq v9, 0
++     v11 = eq v10, false
++     v12 = zext i1 v11 to i256
++     v13 = mul v8, v12
++     v14 = not 31
++     v15 = add v13, 31
++     v16 = and v15, v14
++     v17 = add v4, 32
++     v18 = add v4, v16
++     mstore v18, 0
++     mstore v4, v13
++     v19 = memory_object_data memorybytes, v0
++     v20 = add v17, v16
++     v21 = ptrtoint memptr v19 to i256
++     mcopy v17, v21, v13 !metadata(memory=heap)
++     v22 = ptrtoint memptr v2 to i256
++     v23 = sub v20, v22
++     v24 = add v23, 0
++     v25 = add v24, 31
++     v26 = not 31
++     v27 = and v25, v26
++     v28 = alloc raw, exact, uninitialized, infallible, v27 !metadata(preserves_fmp)
++     v29 = ptrtoint memptr v28 to i256
++     v30 = make_memory_slice v29, v24
++     ret v30
   }
   

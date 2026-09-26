@@ -429,12 +429,13 @@ fn lower_ecrecover(
         let offset = builder.imm(offset);
         builder.memory_object_store_word(input, offset, value);
     }
-    let (output, output_len) = alloc_output(builder);
+    // The final zeroed word lies beyond the four input words and is safe on failure too.
+    let output = builder.add_u64_offset(pointer, 128);
     let address = builder.imm(1);
     let input_size = builder.imm(128);
     let output_size = builder.imm(32);
     precompile_call(builder, evm, address, pointer, input_size, output, output_size);
-    let slice = builder.make_slice(output, output_len, SliceLocation::Memory);
+    let slice = builder.make_slice(output, output_size, SliceLocation::Memory);
     let zero = builder.imm(0);
     builder.memory_slice_load_word(slice, zero)
 }

@@ -47,7 +47,7 @@ fn @copy(arg0: memoryarray) -> i256 [selector=0xc58b68ae, abi_params=[array<_, a
     v172 = sload v169 !metadata(storage=symbolic(v169))
     v173 = mul v171, 8
     v174 = shr v173, v172
-    v175 = and v174, 255
+    v175 = trunc i256 v174 to i8
     v176 = sload 0 !metadata(storage=slot(0))
     v177 = lt 0, v176
     v178 = eq v177, false
@@ -72,7 +72,7 @@ fn @copy(arg0: memoryarray) -> i256 [selector=0xc58b68ae, abi_params=[array<_, a
     v194 = sload v191 !metadata(storage=symbolic(v191))
     v195 = mul v193, 8
     v196 = shr v195, v194
-    v197 = and v196, 255
+    v197 = trunc i256 v196 to i8
     v198 = checked_add u8, v175, v197
     v199 = sload 0 !metadata(storage=slot(0))
     v200 = lt 0, v199
@@ -98,9 +98,10 @@ fn @copy(arg0: memoryarray) -> i256 [selector=0xc58b68ae, abi_params=[array<_, a
     v217 = sload v214 !metadata(storage=symbolic(v214))
     v218 = mul v216, 8
     v219 = shr v218, v217
-    v220 = and v219, 255
+    v220 = trunc i256 v219 to i8
     v221 = checked_add u8, v198, v220
-    ret v221
+    v222 = zext i8 v221 to i256
+    ret v222
   bb13:
     v29 = memory_object_load_element memoryarray<1>, arg0, v27
     v30 = inttoptr i256 v29 to memoryarray
@@ -379,7 +380,7 @@ fn @copyFixed(arg0: memoryfixedarray) -> i256 [selector=0x39bd9a66, abi_params=[
     v257 = sload v254 !metadata(storage=symbolic(v254))
     v258 = mul v256, 8
     v259 = shr v258, v257
-    v260 = and v259, 255
+    v260 = trunc i256 v259 to i8
     v261 = lt 0, 1
     v262 = eq v261, false
     icall panic_if<0x32>, v262
@@ -402,7 +403,7 @@ fn @copyFixed(arg0: memoryfixedarray) -> i256 [selector=0x39bd9a66, abi_params=[
     v277 = sload v274 !metadata(storage=symbolic(v274))
     v278 = mul v276, 8
     v279 = shr v278, v277
-    v280 = and v279, 255
+    v280 = trunc i256 v279 to i8
     v281 = checked_add u8, v260, v280
     v282 = lt 0, 1
     v283 = eq v282, false
@@ -426,9 +427,10 @@ fn @copyFixed(arg0: memoryfixedarray) -> i256 [selector=0x39bd9a66, abi_params=[
     v298 = sload v295 !metadata(storage=symbolic(v295))
     v299 = mul v297, 8
     v300 = shr v299, v298
-    v301 = and v300, 255
+    v301 = trunc i256 v300 to i8
     v302 = checked_add u8, v281, v301
-    ret v302
+    v303 = zext i8 v302 to i256
+    ret v303
   bb2:
     v2 = add 1, v0
     v3 = lt v0, 1
@@ -870,7 +872,7 @@ fn @copyDynamicFixed(arg0: memoryarray) -> i256 [selector=0x62d70355, abi_params
     v235 = sload v232 !metadata(storage=symbolic(v232))
     v236 = mul v234, 8
     v237 = shr v236, v235
-    v238 = and v237, 255
+    v238 = trunc i256 v237 to i8
     v239 = sload 2 !metadata(storage=slot(2))
     v240 = lt 0, v239
     v241 = eq v240, false
@@ -894,7 +896,7 @@ fn @copyDynamicFixed(arg0: memoryarray) -> i256 [selector=0x62d70355, abi_params
     v256 = sload v253 !metadata(storage=symbolic(v253))
     v257 = mul v255, 8
     v258 = shr v257, v256
-    v259 = and v258, 255
+    v259 = trunc i256 v258 to i8
     v260 = checked_add u8, v238, v259
     v261 = sload 2 !metadata(storage=slot(2))
     v262 = lt 1, v261
@@ -919,9 +921,10 @@ fn @copyDynamicFixed(arg0: memoryarray) -> i256 [selector=0x62d70355, abi_params
     v278 = sload v275 !metadata(storage=symbolic(v275))
     v279 = mul v277, 8
     v280 = shr v279, v278
-    v281 = and v280, 255
+    v281 = trunc i256 v280 to i8
     v282 = checked_add u8, v260, v281
-    ret v282
+    v283 = zext i8 v282 to i256
+    ret v283
   bb13:
     v28 = memory_object_load_element memoryarray<1>, arg0, v26
     v29 = inttoptr i256 v28 to memoryfixedarray

@@ -37,6 +37,7 @@ mod lvalues;
 mod memory_values;
 mod modifiers;
 mod operators;
+mod raw_scalars;
 mod statements;
 mod storage_values;
 mod values;
@@ -108,6 +109,8 @@ pub(super) struct LoweringState {
     pub(super) invalid_event_topics: FxHashSet<hir::EventId>,
     pub(super) pointer_registry: InternalFunctionPointerRegistry,
     pub(super) helpers: FxHashMap<Symbol, FunctionId>,
+    raw_scalars: FxHashSet<VariableId>,
+    raw_pointer_types: FxHashSet<MirType>,
 }
 
 /// Lowers one HIR function into a typed MIR function.
@@ -605,7 +608,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
         let previous = self.builder.replace_source_span(expr.span);
         let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
-        let result = self.lower_expr_inner(expr);
+        let result = self.lower_expr_inner(expr).map(|value| {
+            if !self.in_inline_assembly
+                && !self.dirty_values.contains(&value)
+                && let Some(ty) = self.cx.gcx.type_of_expr(expr.id)
+                && ty.is_value_type()
+                && let ty @ MirType::Int(_) = types::TypeLowerer::mir_type(ty)
+            {
+                self.builder.cast(value, ty)
+            } else {
+                value
+            }
+        });
         self.builder.replace_modifier_depth(previous_modifier_depth);
         self.builder.replace_source_span(previous);
         result
@@ -729,18 +743,42 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     Some(self.cx.gcx.types.int(256))
                 } else {
                     match op.kind {
-                        BinOpKind::Lt | BinOpKind::Gt | BinOpKind::Le | BinOpKind::Ge
-                            if lhs_is_literal =>
-                        {
-                            rhs_ty
+                        BinOpKind::Eq
+                        | BinOpKind::Ne
+                        | BinOpKind::Lt
+                        | BinOpKind::Gt
+                        | BinOpKind::Le
+                        | BinOpKind::Ge => {
+                            if lhs_is_literal && rhs_is_literal {
+                                rhs_ty
+                            } else {
+                                lhs_ty
+                                    .zip(rhs_ty)
+                                    .and_then(|(lhs, rhs)| lhs.common_type(rhs, self.cx.gcx))
+                            }
                         }
-                        BinOpKind::Lt | BinOpKind::Gt | BinOpKind::Le | BinOpKind::Ge => lhs_ty,
                         BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar if lhs_is_literal => {
                             expr_ty
                         }
                         BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar => lhs_ty,
                         _ => expr_ty,
                     }
+                };
+                let (lhs, rhs) = if let Some(ty) = ty
+                    && arithmetic_kind(ty).is_some()
+                {
+                    let lhs = lhs_ty.map_or(lhs, |source| self.coerce_value(lhs, source, ty));
+                    let rhs = if matches!(
+                        op.kind,
+                        BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar | BinOpKind::Pow
+                    ) {
+                        rhs
+                    } else {
+                        rhs_ty.map_or(rhs, |source| self.coerce_value(rhs, source, ty))
+                    };
+                    (lhs, rhs)
+                } else {
+                    (lhs, rhs)
                 };
                 let result = self.binary(op.kind, lhs, rhs, ty);
                 Some(if let Some(bytes) = expr_ty.and_then(operators::fixed_bytes_width) {
@@ -832,11 +870,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && rhs_ty.is_ref_at(DataLocation::Storage)
                 {
                     self.lower_typed_expr(rhs, memory_rhs_ty)?
-                } else if fixed_bytes.is_some()
-                    && compound_op.is_some_and(|op| {
-                        !matches!(op, BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar)
-                    })
-                {
+                } else if compound_op.is_some_and(|op| {
+                    !matches!(op, BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar)
+                }) {
                     self.lower_typed_expr(rhs, lhs_ty)?
                 } else {
                     self.lower_expr(rhs)?
@@ -853,7 +889,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let value = if let Some(bytes) = fixed_bytes {
                         self.clean_fixed_bytes(value, bytes)
                     } else {
-                        self.coerce_value(value, rhs_ty, lhs_ty)
+                        self.coerce_value(value, lhs_ty, lhs_ty)
                     };
                     self.store_lvalue_place(&place, value)?;
                     return Some(value);
@@ -969,35 +1005,10 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
             let arguments = shape
                 .params
                 .iter()
-                .copied()
-                .map(|ty| {
-                    builder.add_param(
-                        if matches!(
-                            ty,
-                            crate::mir::ValueLayout::Bool | crate::mir::ValueLayout::Address
-                        ) {
-                            MirType::I256
-                        } else {
-                            ty.mir_type()
-                        },
-                    )
-                })
+                .map(|ty| builder.add_param(state.pointer_carrier(ty.mir_type())))
                 .collect::<Vec<_>>();
             if let Some(ty) = module.intern_return_type(
-                shape
-                    .returns
-                    .iter()
-                    .map(|ty| {
-                        if matches!(
-                            ty,
-                            crate::mir::ValueLayout::Bool | crate::mir::ValueLayout::Address
-                        ) {
-                            MirType::I256
-                        } else {
-                            ty.mir_type()
-                        }
-                    })
-                    .collect(),
+                shape.returns.iter().map(|ty| state.pointer_carrier(ty.mir_type())).collect(),
             ) {
                 builder.set_return_type(ty);
             }
@@ -1022,14 +1033,21 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     .copied()
                     .zip(&shape.params)
                     .zip(&candidate_shape.params)
-                    .map(|((argument, &source), &target)| {
-                        if source == target {
+                    .zip(gcx.hir.function(function_id).parameters)
+                    .map(|(((argument, &source), &target), &parameter)| {
+                        let argument = if source == target {
                             argument
                         } else {
                             AbiWordValidator::from_layout(target).map_or(argument, |validator| {
                                 validator.cleanup(&mut builder, argument)
                             })
-                        }
+                        };
+                        raw_scalars::cast_carrier(
+                            &mut builder,
+                            argument,
+                            source,
+                            state.scalar_carrier(gcx, parameter),
+                        )
                     })
                     .collect::<Vec<_>>();
                 if shape.returns.is_empty() {
@@ -1038,8 +1056,36 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                 } else {
                     // result = icall target(arguments)
                     // ret result
-                    let result_ty = builder.func().return_components()[0];
+                    let result_ty = module.function(mir_id).return_type();
                     let result = builder.icall(mir_id, call_arguments, result_ty);
+                    let result = if let (MirType::Struct(source), MirType::Struct(target)) =
+                        (result_ty, builder.func().return_type())
+                        && source != target
+                    {
+                        let values = module.struct_types[source]
+                            .fields
+                            .iter()
+                            .copied()
+                            .zip(module.struct_types[target].fields.iter().copied())
+                            .enumerate()
+                            .map(|(index, (from, to))| {
+                                let value =
+                                    builder.extract_value(source, result, index as u32, from);
+                                raw_scalars::cast_carrier(
+                                    &mut builder,
+                                    value,
+                                    shape.returns[index],
+                                    to,
+                                )
+                            })
+                            .collect::<Vec<_>>();
+                        builder.make_struct(target, values)
+                    } else if shape.returns.len() == 1 {
+                        let ty = builder.func().return_type();
+                        raw_scalars::cast_carrier(&mut builder, result, shape.returns[0], ty)
+                    } else {
+                        result
+                    };
                     builder.ret([result]);
                 }
                 builder.replace_source_span(previous_span);
@@ -1082,4 +1128,24 @@ fn is_signed_packed_scalar(ty: Ty<'_>) -> bool {
 fn report_error<T>(gcx: Gcx<'_>, span: Span, message: &'static str) -> Option<T> {
     gcx.dcx().err(message).span(span).emit();
     None
+}
+
+fn resolve_call_target(
+    gcx: Gcx<'_>,
+    contract: hir::ContractId,
+    callee: &hir::Expr<'_>,
+    function: hir::FunctionId,
+) -> hir::FunctionId {
+    if let ExprKind::Member(base, _) = callee.kind
+        && let Some(TyKind::Type(ty)) = gcx.type_of_expr(base.id).map(|ty| ty.kind)
+    {
+        return match ty.kind {
+            TyKind::Contract(_) => function,
+            TyKind::Super(defining_contract) => {
+                gcx.resolve_super_function(contract, defining_contract, function)
+            }
+            _ => gcx.resolve_virtual_function(contract, function),
+        };
+    }
+    gcx.resolve_virtual_function(contract, function)
 }

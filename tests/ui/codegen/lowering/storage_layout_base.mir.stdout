@@ -71,7 +71,7 @@ fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[w
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutErc7201 ===
 @module LayoutErc7201
-fn @matchesReference() -> i256 [selector=0xedf3feeb, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @matchesReference() -> i1 [selector=0xedf3feeb, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 12
@@ -80,8 +80,7 @@ fn @matchesReference() -> i256 [selector=0xedf3feeb, pure, abi_params=[], abi_re
     mstore v2, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
     v3 = icall @erc7201Reference, v0
     v4 = eq 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500, v3
-    v5 = zext i1 v4 to i256
-    ret v5
+    ret v4
 }
 
 fn @erc7201Reference(arg0: memorybytes) -> i256 [pure] {

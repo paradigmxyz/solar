@@ -60,8 +60,8 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb9:
     jump bb13
   bb13:
-    v62 = phi [bb9: 0], [bb15: v86]
-    v63 = phi [bb9: 0], [bb15: v87]
+    v62 = phi [bb9: 0], [bb15: v87]
+    v63 = phi [bb9: 0], [bb15: v88]
     v64 = phi [bb9: 0], [bb15: v64]
     v65 = phi [bb9: v0], [bb15: v65]
     v66 = phi [bb9: v1], [bb15: v66]
@@ -75,10 +75,10 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb17:
     jump bb14
   bb14:
-    v88 = sload v65 !metadata(storage=symbolic(v65))
-    v89 = insert_value struct0, undef struct0, 0, v62
-    v90 = insert_value struct0, v89, 1, v88
-    ret v90
+    v89 = sload v65 !metadata(storage=symbolic(v65))
+    v90 = insert_value struct0, undef struct0, 0, v62
+    v91 = insert_value struct0, v90, 1, v89
+    ret v91
   bb16:
     v72 = lt 0, 1
     v73 = eq v72, false
@@ -95,13 +95,14 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v82 = sload v79 !metadata(storage=symbolic(v79))
     v83 = mul v81, 8
     v84 = shr v83, v82
-    v85 = and v84, 0xffffffffffffffff
-    v86 = checked_add u256, v62, v85
+    v85 = trunc i256 v84 to i64
+    v86 = zext i64 v85 to i256
+    v87 = checked_add u256, v62, v86
     jump bb18
   bb18:
     jump bb15
   bb15:
-    v87 = checked_add u256, v63, 1
+    v88 = checked_add u256, v63, 1
     jump bb13
   bb8:
     v39 = div v37, 4

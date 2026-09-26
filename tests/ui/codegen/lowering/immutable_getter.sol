@@ -7,7 +7,8 @@ contract C {
     address public immutable owner;
 
     // CHECK-LABEL: fn @constructor{{[( ]}}
-    // CHECK: storeimmutable owner, arg0
+    // CHECK: [[OWNER:v[0-9]+]] = zext i160 arg0 to i256
+    // CHECK: storeimmutable owner, [[OWNER]]
     constructor(address value) {
         owner = value;
     }

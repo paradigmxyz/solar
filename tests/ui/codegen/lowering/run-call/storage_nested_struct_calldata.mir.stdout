@@ -80,7 +80,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     v299 = sload v296 !metadata(storage=symbolic(v296))
     v300 = mul v298, 8
     v301 = shr v300, v299
-    v302 = and v301, 255
+    v302 = trunc i256 v301 to i8
     v303 = sload 0 !metadata(storage=slot(0))
     v304 = lt 0, v303
     v305 = eq v304, false
@@ -105,7 +105,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     v321 = sload v318 !metadata(storage=symbolic(v318))
     v322 = mul v320, 8
     v323 = shr v322, v321
-    v324 = and v323, 255
+    v324 = trunc i256 v323 to i8
     v325 = checked_add u8, v302, v324
     v326 = sload 0 !metadata(storage=slot(0))
     v327 = lt 0, v326
@@ -131,9 +131,10 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     v344 = sload v341 !metadata(storage=symbolic(v341))
     v345 = mul v343, 8
     v346 = shr v345, v344
-    v347 = and v346, 255
+    v347 = trunc i256 v346 to i8
     v348 = checked_add u8, v325, v347
-    ret v348
+    v349 = zext i8 v348 to i256
+    ret v349
   bb25:
     v156 = memory_object_load_element memoryarray<1>, v21, v154
     v157 = inttoptr i256 v156 to memoryarray
@@ -572,7 +573,7 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     v367 = sload v364 !metadata(storage=symbolic(v364))
     v368 = mul v366, 8
     v369 = shr v368, v367
-    v370 = and v369, 255
+    v370 = trunc i256 v369 to i8
     v371 = lt 0, 1
     v372 = eq v371, false
     icall panic_if<0x32>, v372
@@ -595,7 +596,7 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     v387 = sload v384 !metadata(storage=symbolic(v384))
     v388 = mul v386, 8
     v389 = shr v388, v387
-    v390 = and v389, 255
+    v390 = trunc i256 v389 to i8
     v391 = checked_add u8, v370, v390
     v392 = lt 0, 1
     v393 = eq v392, false
@@ -619,9 +620,10 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     v408 = sload v405 !metadata(storage=symbolic(v405))
     v409 = mul v407, 8
     v410 = shr v409, v408
-    v411 = and v410, 255
+    v411 = trunc i256 v410 to i8
     v412 = checked_add u8, v391, v411
-    ret v412
+    v413 = zext i8 v412 to i256
+    ret v413
   bb14:
     v112 = add 1, v110
     v113 = lt v110, 1
@@ -1244,7 +1246,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     v348 = sload v345 !metadata(storage=symbolic(v345))
     v349 = mul v347, 8
     v350 = shr v349, v348
-    v351 = and v350, 255
+    v351 = trunc i256 v350 to i8
     v352 = sload 2 !metadata(storage=slot(2))
     v353 = lt 0, v352
     v354 = eq v353, false
@@ -1268,7 +1270,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     v369 = sload v366 !metadata(storage=symbolic(v366))
     v370 = mul v368, 8
     v371 = shr v370, v369
-    v372 = and v371, 255
+    v372 = trunc i256 v371 to i8
     v373 = checked_add u8, v351, v372
     v374 = sload 2 !metadata(storage=slot(2))
     v375 = lt 1, v374
@@ -1293,9 +1295,10 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     v391 = sload v388 !metadata(storage=symbolic(v388))
     v392 = mul v390, 8
     v393 = shr v392, v391
-    v394 = and v393, 255
+    v394 = trunc i256 v393 to i8
     v395 = checked_add u8, v373, v394
-    ret v395
+    v396 = zext i8 v395 to i256
+    ret v396
   bb25:
     v141 = memory_object_load_element memoryarray<1>, v21, v139
     v142 = inttoptr i256 v141 to memoryfixedarray

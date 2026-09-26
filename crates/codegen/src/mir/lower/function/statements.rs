@@ -53,8 +53,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     self.default_binding_value(ty)
                 };
-                let value = self.materialize_call_argument(
-                    ty,
+                let value = self.materialize_scalar_carrier(
+                    *id,
                     value,
                     initializer.map_or(stmt.span, |expr| expr.span),
                 )?;
@@ -72,7 +72,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     if values.len() != ids.len() {
                         return self.cx.report_unsupported(expr.span, "storage reference tuple");
                     }
-                    for (id, (value, _, access)) in ids.iter().zip(values) {
+                    for (id, (value, source_ty, access)) in ids.iter().zip(values) {
                         let Some(id) = id else { continue };
                         let ty = self.cx.gcx.type_of_item((*id).into());
                         if let Some(access) = access {
@@ -93,6 +93,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 "mixed storage tuple",
                             );
                         } else {
+                            let value =
+                                self.convert_tuple_component(value, source_ty, ty, expr.span)?;
+                            let value = self.materialize_raw_scalar(*id, value);
                             self.values.insert(*id, value);
                         }
                     }
@@ -125,7 +128,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         }
                         let span = value.span;
                         let value = self.lower_typed_expr(value, ty)?;
-                        let value = self.materialize_call_argument(ty, value, span)?;
+                        let value = self.materialize_scalar_carrier(*id, value, span)?;
                         self.values.insert(*id, value);
                     }
                     return Some(());
@@ -138,6 +141,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         ids.first().is_some_and(Option::is_none),
                     )?;
                     for (id, value) in ids.iter().flatten().zip(values) {
+                        let value = self.materialize_raw_scalar(*id, value);
                         self.values.insert(*id, value);
                     }
                     return Some(());
@@ -146,8 +150,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if values.len() != ids.len() {
                     return self.cx.report_unsupported(expr.span, "tuple declaration arity");
                 }
-                for (id, value) in ids.iter().zip(values) {
+                let source_ty = self.cx.gcx.type_of_expr(expr.id)?;
+                let sources = match source_ty.kind {
+                    TyKind::Tuple(sources) => sources,
+                    _ => std::slice::from_ref(&source_ty),
+                };
+                for ((id, value), &source) in ids.iter().zip(values).zip(sources) {
                     if let Some(id) = id {
+                        let target = self.cx.gcx.type_of_item((*id).into());
+                        let value =
+                            self.convert_tuple_component(value, source, target, expr.span)?;
+                        let value = self.materialize_raw_scalar(*id, value);
                         self.values.insert(*id, value);
                     }
                 }
@@ -240,7 +253,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 self.storage_refs
                                     .insert(id, StorageAccess { slot: value, ..access });
                             } else {
-                                let value = self.materialize_call_argument(ty, value, stmt.span)?;
+                                let value =
+                                    self.materialize_scalar_carrier(id, value, stmt.span)?;
                                 self.values.insert(id, value);
                             }
                         }
@@ -261,7 +275,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 if ty.is_ref_at(DataLocation::Storage) {
                                     Some(value)
                                 } else {
-                                    self.materialize_call_argument(ty, value, stmt.span)
+                                    self.materialize_scalar_carrier(id, value, stmt.span)
                                 }
                             })
                             .collect::<Option<Vec<_>>>()?;
@@ -688,7 +702,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.builder.shl(shift, value);
         }
         if !matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::FixedBytes(_))) {
-            return value;
+            let layout = types::TypeLowerer::value_layout(ty);
+            return if matches!(layout, crate::mir::ValueLayout::Int(_)) {
+                raw_scalars::cast_carrier(&mut self.builder, value, layout, MirType::I256)
+            } else {
+                value
+            };
         }
         if let Some(value) = self.lower_fixed_bytes_literal(ty, expr) {
             return value;

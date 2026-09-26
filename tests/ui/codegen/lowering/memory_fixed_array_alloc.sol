@@ -112,10 +112,8 @@ contract NamedReturnAndDelete {
     // Uninitialized dynamic references use Solidity's zero slot.
     // CHECK-LABEL: fn @emptyMemoryReferences{{[( ]}}
     // CHECK: [[STRUCT:v[0-9]+]] = alloc memorystruct<2>
-    // CHECK: [[EMPTY_ARRAY:v[0-9]+]] = ptrtoint memoryarray 96 to i256
-    // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 0, [[EMPTY_ARRAY]]
-    // CHECK: [[EMPTY_BYTES:v[0-9]+]] = ptrtoint memorybytes 96 to i256
-    // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 1, [[EMPTY_BYTES]]
+    // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 0, 96
+    // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 1, 96
     // CHECK: memory_object_len memoryarray, memoryarray 96
     // CHECK: memory_object_len memorybytes, memorybytes 96
     function emptyMemoryReferences() public pure returns (uint256) {
@@ -141,8 +139,7 @@ contract NamedReturnAndDelete {
     // CHECK: [[WIDE:v[0-9]+]] = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     // CHECK: [[WIDE_WORD:v[0-9]+]] = ptrtoint memorystruct [[WIDE]] to i256
     // CHECK: memory_zero [[WIDE_WORD]], 128
-    // CHECK: [[EMPTY_BYTES:v[0-9]+]] = ptrtoint memorybytes 96 to i256
-    // CHECK: memory_object_store_field memorystruct<4>, [[WIDE]], 1, [[EMPTY_BYTES]]
+    // CHECK: memory_object_store_field memorystruct<4>, [[WIDE]], 1, 96
     // CHECK: ret [[WIDE]]
     function emptyWideNamedStruct() public pure returns (WideHolder memory holder) {}
 
@@ -150,10 +147,8 @@ contract NamedReturnAndDelete {
     // passes remove stores overwritten before reads.
     // CHECK-LABEL: fn @fullyInitializedNamedStruct{{[( ]}}
     // CHECK: [[STRUCT:v[0-9]+]] = alloc memorystruct<2>
-    // CHECK: [[EMPTY_ARRAY:v[0-9]+]] = ptrtoint memoryarray 96 to i256
-    // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 0, [[EMPTY_ARRAY]]
-    // CHECK: [[EMPTY_BYTES:v[0-9]+]] = ptrtoint memorybytes 96 to i256
-    // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 1, [[EMPTY_BYTES]]
+    // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 0, 96
+    // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 1, 96
     // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 1
     function fullyInitializedNamedStruct()
         public

@@ -1277,7 +1277,9 @@ fn const_fold(func: &mut Function, kind: &InstKind, ty: Option<MirType>) -> Opti
         let condition = func.value_u256(condition)?;
         return Some(if condition.is_zero() { else_value } else { then_value });
     }
-    let value = eval::eval_inst(kind, |value| func.value_u256(value).ok_or(())).ok().flatten()?;
+    let value = eval::eval_typed_inst(func, kind, |value| func.value_u256(value).ok_or(()))
+        .ok()
+        .flatten()?;
     let immediate = Immediate::for_type(ty, value);
     Some(func.alloc_value(Value::Immediate(immediate)))
 }

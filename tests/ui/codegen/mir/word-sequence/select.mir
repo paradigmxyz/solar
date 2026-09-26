@@ -1,7 +1,7 @@
 //@ revisions: gas size shape
 //@[gas] compile-flags: -Ogas -Zmir-pipeline=word-sequence
 //@[size] compile-flags: -Osize -Zmir-pipeline=word-sequence
-//@[shape] compile-flags: -Zmir-pipeline=lower-memory-objects,lower-evm-shaped
+//@[shape] compile-flags: -Zmir-pipeline=lower-memory-objects,lower-integers,lower-evm-shaped
 //@[gas] filecheck: --check-prefixes=RECIPE,GAS
 //@[size] filecheck: --check-prefixes=RECIPE,SIZE
 //@[shape] filecheck: --check-prefix=SHAPE

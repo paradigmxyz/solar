@@ -5,7 +5,86 @@
 //@ run-call: assign => 0x30, 0x31, 0x32
 //@ run-call: swap => 2, 1, 4, 3
 
+//@ run-call: signedChoice true => -1, 7
+//@ run-call: signedChoice false => 256, 9
+//@ run-call: unsignedChoice true => 255, true
+//@ run-call: unsignedChoice false => 256, false
+//@ run-call: arrayChoice true => 7, -1
+//@ run-call: arrayChoice false => 9, 256
+//@ run-call: sliceChoice true => 7, -1
+//@ run-call: sliceChoice false => 9, 256
+//@ run-call: widenedCallTuple => -1, 255
+//@ run-call: singleDeclaration => -1, -2
+//@ run-call: assignedCallTuple => -1, 255
+//@ run-call: assignedCallHole => -1
+//@ run-call: assignedCallStorage => -1, 255
+
 contract NestedTupleAssignment {
+    function signedChoice(bool choose) external pure returns (int16, uint256) {
+        return choose ? (int8(-1), uint256(7)) : (int16(256), uint256(9));
+    }
+
+    function unsignedChoice(bool choose) external pure returns (uint16, bool) {
+        return choose ? (uint8(255), true) : (uint16(256), false);
+    }
+
+    function arrayChoice(bool choose) external pure returns (uint256, int16) {
+        uint256[] memory first = new uint256[](1);
+        uint256[] memory second = new uint256[](1);
+        first[0] = 7;
+        second[0] = 9;
+        (uint256[] memory values, int16 number) =
+            choose ? (first, int8(-1)) : (second, int16(256));
+        return (values[0], number);
+    }
+
+    function sliceChoice(bool choose) external view returns (uint256, int16) {
+        return this.slicePair(choose, hex"0708", hex"090a");
+    }
+
+    function slicePair(bool choose, bytes calldata first, bytes calldata second)
+        external pure returns (uint256, int16)
+    {
+        (bytes calldata values, int16 number) =
+            choose ? (first, int8(-1)) : (second, int16(256));
+        return (uint8(values[0]), number);
+    }
+
+    function smallSigned() internal pure returns (int8) {
+        return -2;
+    }
+
+    function singleDeclaration() external pure returns (int16, int16) {
+        (int16 literalValue) = int8(-1);
+        (int16 callValue) = smallSigned();
+        return (literalValue, callValue);
+    }
+
+    function smallPair() internal pure returns (int8, uint8) {
+        return (-1, 255);
+    }
+
+    function widenedCallTuple() external pure returns (int16, uint16) {
+        (int16 signedValue, uint16 unsignedValue) = smallPair();
+        return (signedValue, unsignedValue);
+    }
+
+    function assignedCallTuple() external pure returns (int16 signedValue, uint16 unsignedValue) {
+        (signedValue, unsignedValue) = smallPair();
+    }
+
+    function assignedCallHole() external pure returns (int16 signedValue) {
+        (signedValue,) = smallPair();
+    }
+
+    int16 private storedSigned;
+    uint16 private storedUnsigned;
+
+    function assignedCallStorage() external returns (int16, uint16) {
+        (storedSigned, storedUnsigned) = smallPair();
+        return (storedSigned, storedUnsigned);
+    }
+
     function assign() external pure returns (uint256, uint256, uint256) {
         bytes memory a;
         bytes memory b;

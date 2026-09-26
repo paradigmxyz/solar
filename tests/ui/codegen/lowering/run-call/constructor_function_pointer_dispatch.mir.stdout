@@ -10,9 +10,8 @@ fn @constructor() [constructor] {
 fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes6>], abi_return_params=[bytes6]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffff
-    v2 = shl 208, v1
-    ret v2
+    v1 = shl 208, v0
+    ret v1
 }
 
 fn @leftByteShift(arg0: i256, arg1: i256) -> i256 [selector=0x49858898, pure, abi_params=[bytes6, u256], abi_returns=[word<bytes6>], abi_return_params=[bytes6]] {
@@ -27,17 +26,16 @@ fn @leftByteShift(arg0: i256, arg1: i256) -> i256 [selector=0x49858898, pure, ab
 fn @applyShift(arg0: i256, arg1: i256) {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffff
-    v2 = shl 208, v1
-    v3 = icall @internal_dispatcher_p_bytes6_u256_r_bytes6, arg0, v2, arg1
-    v4 = and v3, 0xffffffffffff0000000000000000000000000000000000000000000000000000
-    v5 = sload 0 !metadata(storage=slot(0))
-    v6 = not 0xffffffffffff
-    v7 = and v5, v6
-    v8 = shr 208, v4
-    v9 = and v8, 0xffffffffffff
-    v10 = or v7, v9
-    sstore 0, v10 !metadata(storage=slot(0))
+    v1 = shl 208, v0
+    v2 = icall @internal_dispatcher_p_bytes6_u256_r_bytes6, arg0, v1, arg1
+    v3 = and v2, 0xffffffffffff0000000000000000000000000000000000000000000000000000
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = not 0xffffffffffff
+    v6 = and v4, v5
+    v7 = shr 208, v3
+    v8 = and v7, 0xffffffffffff
+    v9 = or v6, v8
+    sstore 0, v9 !metadata(storage=slot(0))
     ret
 }
 

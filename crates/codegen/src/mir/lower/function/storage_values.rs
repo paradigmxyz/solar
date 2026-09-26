@@ -808,7 +808,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.mapping_slot_memory(key, slot)
             }
         } else {
-            let key = self.normalize_dirty_scalar(key, key_ty);
+            let key = self.encode_memory_scalar(key_ty, key);
             self.builder.mapping_slot(key, slot)
         }
     }
@@ -1212,6 +1212,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         },
                         span,
                     )?;
+                    let object =
+                        self.builder.cast(object, MirType::MemoryObject(MemoryObjectKind::Struct));
                     self.builder.icall_void(helper, vec![slot, object]);
                     return Some(());
                 }
