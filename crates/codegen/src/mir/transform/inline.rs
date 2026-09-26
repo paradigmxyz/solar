@@ -472,7 +472,7 @@ struct MirInlineSummary {
     has_control_flow: bool,
     is_check_wrapper: bool,
     /// Whether the body contains a back edge; a loop cloned into a loop nests
-    /// its carried words inside the caller's.
+    /// its carried words inside the caller's. Only hot-leaf summaries compute it.
     has_loop: bool,
     has_unsupported_terminator: bool,
     has_reference_return: bool,
@@ -1189,7 +1189,7 @@ fn summarize_function(
         is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
         has_function_selector: func.attributes.is_function_pointer_dispatcher,
         is_pure: func.attributes.state_mutability == StateMutability::Pure,
-        has_loop: has_back_edge(func),
+        has_loop: peak == PeakAnalysis::Scalars && has_back_edge(func),
         ..MirInlineSummary::default()
     };
 
