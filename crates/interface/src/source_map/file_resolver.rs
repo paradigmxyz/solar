@@ -59,12 +59,13 @@ pub struct FileResolver<'a> {
 impl<'a> FileResolver<'a> {
     /// Creates a new file resolver.
     pub fn new(source_map: &'a SourceMap) -> Self {
+        let base_path = source_map.base_path().as_deref().map(Path::to_path_buf);
         Self {
             source_map,
             include_paths: Vec::new(),
             remappings: Vec::new(),
-            base_path: source_map.base_path(),
-            custom_current_dir: source_map.base_path(),
+            base_path: base_path.clone(),
+            custom_current_dir: base_path,
             env_current_dir: OnceLock::new(),
         }
     }

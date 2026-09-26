@@ -640,3 +640,66 @@ fn read_binary_file_handles_lying_stat() {
     let bin = RealFileLoader.read_binary_file(kernel_max).unwrap();
     assert_eq!(&real[..], &bin[..]);
 }
+
+#[test]
+fn span_lookup_file_boundaries() {
+    let sm = init_source_map();
+    for (lo, hi, file_index, range) in [(12, 23, 0, 12..23), (24, 24, 1, 0..0), (25, 48, 2, 0..23)]
+    {
+        let span = Span::new(BytePos(lo), BytePos(hi));
+        let source = sm.span_to_source(span).unwrap();
+        assert!(Arc::ptr_eq(&source.file, &sm.files()[file_index]));
+        assert_eq!(source.data, range);
+        assert_eq!(sm.span_to_range(span).unwrap(), range);
+        let location = sm.is_valid_span(span).unwrap();
+        assert!(Arc::ptr_eq(&location.file, &source.file));
+    }
+
+    let span = Span::new(BytePos(23), BytePos(24));
+    let distinct = Box::new(DistinctSources {
+        begin: (PathBuf::from("blork.rs").into(), BytePos(0)),
+        end: (PathBuf::from("empty.rs").into(), BytePos(24)),
+    });
+    assert_eq!(sm.span_to_range(span), Err(SpanSnippetError::DistinctSources(distinct.clone())));
+    assert_eq!(sm.is_valid_span(span).unwrap_err(), SpanLinesError::DistinctSources(distinct));
+    assert!(sm.is_multiline(span));
+    assert!(sm.span_to_location_info(span).0.is_none());
+    assert_eq!(
+        sm.span_to_range(Span::new(BytePos(47), BytePos(49))),
+        Err(SpanSnippetError::MalformedForSourcemap(MalformedSourceMapPositions {
+            name: PathBuf::from("blork2.rs").into(),
+            source_len: 23,
+            begin_pos: BytePos(22),
+            end_pos: BytePos(24),
+        }))
+    );
+}
+
+#[test]
+fn borrowed_snippet_boundaries() {
+    let sm = SourceMap::empty();
+    sm.new_source_file(PathBuf::from("unicode.sol"), "é\n \tx").unwrap();
+    let span = Span::new(BytePos(5), BytePos(6));
+    snapbox::assert_data_eq!(sm.span_to_snippet(span).unwrap(), snapbox::str!["x"]);
+    snapbox::assert_data_eq!(sm.span_to_prev_source(span).unwrap(), snapbox::str!["é\n \t"]);
+    assert!(sm.is_line_before_span_empty(span));
+    assert!(!sm.is_line_before_span_empty(Span::new(BytePos(6), BytePos(6))));
+    assert!(sm.is_multiline(Span::new(BytePos(0), BytePos(6))));
+    assert!(!sm.is_multiline(span));
+    let invalid = Span::new(BytePos(1), BytePos(2));
+    assert_eq!(sm.span_to_range(invalid), Ok(1..2));
+    assert_eq!(sm.span_to_snippet(invalid), Err(SpanSnippetError::IllFormedSpan(invalid)));
+    assert_eq!(sm.span_to_prev_source(invalid), Err(SpanSnippetError::IllFormedSpan(invalid)));
+    assert!(!sm.is_line_before_span_empty(invalid));
+}
+
+#[test]
+fn diagnostic_base_path_snapshot() {
+    let sm = SourceMap::empty();
+    let name = FileName::from(PathBuf::from("base").join("file.sol"));
+    sm.set_base_path(Some(PathBuf::from("base")));
+    let display = sm.filename_for_diagnostics(&name);
+    sm.set_base_path(None);
+    snapbox::assert_data_eq!(display.to_string(), snapbox::str!["file.sol"]);
+    assert!(sm.base_path().is_none());
+}

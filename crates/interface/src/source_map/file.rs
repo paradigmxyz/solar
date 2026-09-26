@@ -127,7 +127,7 @@ impl FileName {
 /// Created by [`FileName::display`].
 pub struct FileNameDisplay<'a> {
     pub(crate) inner: &'a FileName,
-    pub(crate) base_path: Option<PathBuf>,
+    pub(crate) base_path: Option<Arc<Path>>,
 }
 
 impl fmt::Display for FileNameDisplay<'_> {
