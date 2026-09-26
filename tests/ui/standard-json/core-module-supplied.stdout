@@ -7,8 +7,8 @@
       "component": "general",
       "severity": "warning",
       "errorCode": null,
-      "message": "source `solar:core/v1/Bytes.sol` is provided by the compiler; the supplied content is ignored",
-      "formattedMessage": "warning: source `solar:core/v1/Bytes.sol` is provided by the compiler; the supplied content is ignored\n\n"
+      "message": "source `solar:core/v1/Bytes.sol` is provided by the compiler; the supplied content differs from it and is ignored",
+      "formattedMessage": "warning: source `solar:core/v1/Bytes.sol` is provided by the compiler; the supplied content differs from it and is ignored\n\n"
     }
   ],
   "sources": {
