@@ -840,9 +840,10 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             // A private successor restores its recorded entry stack, so keep live values there
             // before imposing a global argument layout that would spill them. A cold terminal
-            // sibling can receive the same stack when it does not need the carried values.
+            // sibling can receive the same stack when it does not need the carried values, and
+            // an unplanned join that needs none of them takes the other edge after popping them.
             // Leave a condition that must survive its branch to the global planner.
-            let preserve_branch_targets = if (!has_edge_specific_global
+            let (preserve_branch_targets, cleanup_join) = if (!has_edge_specific_global
                 || block.terminator.as_ref().is_some_and(|term| {
                     matches!(term, Terminator::Branch { condition, .. }
                         if !liveness.live_out(block_id).contains(*condition))
@@ -851,9 +852,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 && preserve_jump_target.is_none()
                 && !stack_phi_branch_preserved
             {
-                self.branch_preserve_targets(func, liveness, block_id, pos, &block_pos)
+                self.branch_preserve_targets(func, liveness, block_id, pos, &block_pos, |target| {
+                    stack_phi_plan.entries.contains_key(&target)
+                        || global_stack_plan.entry(target).is_some()
+                })
             } else {
-                Vec::new()
+                (Vec::new(), None)
             };
             if !preserve_branch_targets.is_empty()
                 && let Some(Terminator::Branch { condition, .. }) = block.terminator.as_ref()
@@ -1009,6 +1013,19 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // jump callee
                 self.emit_void_tail_call(func_id, func, callee, args);
                 None
+            } else if let Some(join) = cleanup_join
+                && let Some(Terminator::Branch { condition, then_block, else_block }) =
+                    &block.terminator
+            {
+                self.emit_join_cleanup_branch(
+                    func,
+                    *condition,
+                    *then_block,
+                    *else_block,
+                    join,
+                    fallthrough,
+                );
+                None
             } else if let (
                 Some(union),
                 Some((then_layout, else_layout)),
@@ -1135,6 +1152,13 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// swaps back up. Every other word must be live out of the block, and at most
     /// `LIVE_JOIN_LAYOUT_LIMIT` words are carried, matching what the live-join
     /// planner delivers into a block.
+    ///
+    /// The other successor may instead be a join without a planned entry layout
+    /// that reads none of the carried words, as after an `if` whose body alone
+    /// uses them. `JUMPI` cannot drop words on its taken edge, so the private
+    /// successor takes it and the join edge pops the carried words; the second
+    /// result names that join. Otherwise the carried words would be stored to
+    /// memory on both edges and reloaded in the private successor.
     fn branch_preserve_targets(
         &self,
         func: &Function,
@@ -1142,11 +1166,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         block_id: BlockId,
         pos: usize,
         block_pos: &FxHashMap<BlockId, usize>,
-    ) -> Vec<BlockId> {
+        has_planned_entry: impl Fn(BlockId) -> bool,
+    ) -> (Vec<BlockId>, Option<BlockId>) {
         let Some(Terminator::Branch { condition, then_block, else_block }) =
             func.blocks[block_id].terminator.as_ref()
         else {
-            return Vec::new();
+            return (Vec::new(), None);
         };
 
         // A freshly computed condition is the top word and JUMPI consumes it. A condition
@@ -1170,7 +1195,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 block = ?block_id,
                 "branch preserve: condition neither on top nor carried"
             );
-            return Vec::new();
+            return (Vec::new(), None);
         }
 
         // JUMPI takes the condition's slot when the condition dies here.
@@ -1192,7 +1217,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 stack = ?self.scheduler.stack,
                 "branch preserve: dead word below condition"
             );
-            return Vec::new();
+            return (Vec::new(), None);
         };
         // Unit-increment overflow checks use the sum itself as their condition. Keep that
         // sole word resident; other condition shapes retain the existing preservation policy.
@@ -1212,7 +1237,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 carried = carried.len(),
                 "branch preserve: too many carried words"
             );
-            return Vec::new();
+            return (Vec::new(), None);
         }
 
         // Consuming the branch condition removes the top stack word. A resident argument has no
@@ -1224,7 +1249,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .iter()
             .any(|value| self.scheduler.is_stack_only_value(value) && !carried.contains(&value))
         {
-            return Vec::new();
+            return (Vec::new(), None);
         }
 
         let targets = [*then_block, *else_block];
@@ -1240,13 +1265,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 ?carried,
                 "branch preserve: carried word dead in both targets"
             );
-            return Vec::new();
+            return (Vec::new(), None);
         }
 
         let mut preserved = Vec::with_capacity(2);
+        let mut cleanup = None;
         for target in targets {
-            if target == block_id {
-                return Vec::new();
+            if target == block_id || then_block == else_block {
+                return (Vec::new(), None);
             }
             tracing::trace!(
                 block = ?block_id,
@@ -1270,10 +1296,22 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !has_phi && self.is_junk_tolerant_terminal(func, liveness, target) {
                 continue;
             }
-            return Vec::new();
+            if !has_phi
+                && cleanup.is_none()
+                && !condition_live
+                && !has_planned_entry(target)
+                && carried.iter().all(|&value| !liveness.live_in(target).contains(value))
+            {
+                cleanup = Some(target);
+                continue;
+            }
+            return (Vec::new(), None);
+        }
+        if preserved.is_empty() {
+            return (Vec::new(), None);
         }
 
-        preserved
+        (preserved, cleanup)
     }
 
     fn is_junk_tolerant_terminal(

@@ -216,6 +216,34 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.stack.pop();
     }
 
+    /// Branches into a private successor that keeps the carried stack, and
+    /// pops that stack on the edge to a join that reads none of it.
+    pub(super) fn emit_join_cleanup_branch(
+        &mut self,
+        func: &Function,
+        condition: ValueId,
+        then_block: BlockId,
+        else_block: BlockId,
+        join: BlockId,
+        fallthrough: Option<BlockId>,
+    ) {
+        self.emit_value(func, condition);
+        // jumpi [iszero] condition, private
+        // pop carried...
+        // [jump join]
+        let (private, jump_if_zero) =
+            if join == else_block { (then_block, false) } else { (else_block, true) };
+        self.emit_conditional_jump(self.block_labels[&private], jump_if_zero);
+        let carried = self.scheduler.stack.clone();
+        self.pop_all_stack_values();
+        if fallthrough != Some(join) {
+            self.emit_push_label(self.block_labels[&join]);
+            self.asm.emit_op(op::JUMP);
+        }
+        // The private successor restores the stack its edge carried.
+        self.scheduler.stack = carried;
+    }
+
     pub(super) fn generate_terminator(
         &mut self,
         func: &Function,
