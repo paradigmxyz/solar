@@ -223,16 +223,9 @@ pub(crate) fn replace_terminator(func: &mut Function, block: BlockId, terminator
             remove_predecessor(func, successor, block);
         }
     }
-    link_successors(func, block, &new);
-}
-
-/// Lists `block` exactly once among the predecessors of each of `successors`.
-pub(crate) fn link_successors(func: &mut Function, block: BlockId, successors: &[BlockId]) {
-    for &successor in successors {
+    for successor in new {
         let predecessors = &mut func.blocks[successor].predecessors;
-        let mut seen = false;
-        predecessors.retain(|pred| *pred != block || !std::mem::replace(&mut seen, true));
-        if !seen {
+        if !predecessors.contains(&block) {
             predecessors.push(block);
         }
     }

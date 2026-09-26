@@ -241,8 +241,14 @@ impl<'a> Validator<'a> {
                 }
             });
 
-            // Check stored predecessor blocks exist and branch to this block.
-            for &pred in &block.predecessors {
+            // Check stored predecessor blocks exist, are listed once, and branch to this block.
+            for (index, &pred) in block.predecessors.iter().enumerate() {
+                if block.predecessors[..index].contains(&pred) {
+                    self.emit_at_block(
+                        format_args!("predecessor bb{} is listed more than once", pred.index()),
+                        block_id,
+                    );
+                }
                 if pred.index() >= num_blocks {
                     self.emit_at_block(
                         format_args!(
@@ -1993,6 +1999,35 @@ error: [bb0] successor bb1 does not list bb0 as a predecessor
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
 error: [bb1] stored predecessor bb0 does not branch to bb1
+
+
+"#]]
+            );
+        });
+    }
+
+    #[test]
+    fn duplicate_predecessor_is_caught() {
+        with_session(|sess| {
+            let mut func = make_func();
+            let target;
+            {
+                let mut builder = FunctionBuilder::new(&mut func);
+                target = builder.create_block();
+                let condition = builder.imm_bool(true);
+                builder.branch(condition, target, target);
+                builder.switch_to_block(target);
+                builder.stop();
+            }
+            // A branch with equal arms still lists its block once.
+            assert_eq!(func.blocks[target].predecessors.as_slice(), [BlockId::ENTRY]);
+            func.blocks[target].predecessors.push(BlockId::ENTRY);
+            Validator::new(&sess.dcx).validate_standalone_function(&func);
+            assert!(sess.dcx.has_errors().is_err());
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [bb1] predecessor bb0 is listed more than once
 
 
 "#]]

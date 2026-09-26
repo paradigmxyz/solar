@@ -31,7 +31,7 @@ use crate::{
         Terminator, Value, ValueId,
         analysis::{CallGraphInfo, CfgInfo},
         pass::{MirPass, run_function_pass},
-        utils::{link_successors, replace_terminator, retain_blocks},
+        utils::{replace_terminator, retain_blocks},
     },
     target::GasTier,
 };
@@ -483,9 +483,6 @@ impl CfgSimplifier {
             };
             let mut replacement = Self::known_branch_target(func, block_id);
             if replacement.is_none() && distinct {
-                // An unchanged terminator still needs deduplicated predecessor links.
-                let successors = term.successors();
-                link_successors(func, block_id, &successors);
                 continue;
             }
             let mut terminator = func.blocks[block_id].terminator.clone();
@@ -791,8 +788,9 @@ impl CfgSimplifier {
 
         for pred_id in predecessors {
             self.redirect_terminator(func, pred_id, block_id, target);
-
-            func.blocks[target].predecessors.push(pred_id);
+            if !func.blocks[target].predecessors.contains(&pred_id) {
+                func.blocks[target].predecessors.push(pred_id);
+            }
         }
 
         func.blocks[target].predecessors.retain(|p| *p != block_id);

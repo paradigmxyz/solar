@@ -13,7 +13,7 @@ pub(crate) struct BasicBlock {
     pub(crate) terminator: Option<Terminator>,
     /// Source context of the control transfer, independent of the last value instruction.
     pub(crate) terminator_metadata: InstructionMetadata,
-    /// Predecessor blocks.
+    /// Predecessor blocks, each listed once.
     pub(crate) predecessors: SmallVec<[BlockId; 4]>,
 }
 

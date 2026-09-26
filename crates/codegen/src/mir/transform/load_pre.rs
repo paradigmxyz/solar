@@ -546,7 +546,7 @@ impl LoadRedundancyEliminator {
         let mut keys = Vec::new();
         let mut key_index: FxHashMap<LoadKey, usize> = FxHashMap::default();
         for &block in rpo {
-            let predecessors = func.unique_predecessors(block);
+            let predecessors = &func.blocks[block].predecessors;
             if predecessors.len() < 2 || predecessors.iter().any(|&pred| !cfg.is_reachable(pred)) {
                 continue;
             }
@@ -675,7 +675,7 @@ impl LoadRedundancyEliminator {
             if !cx.analysis.cfg.is_reachable(target) || cx.analysis.gas.at_entry(target) {
                 continue;
             }
-            let predecessors = func.unique_predecessors(target);
+            let predecessors = &func.blocks[target].predecessors;
             if predecessors.len() < 2
                 || predecessors.iter().any(|&pred| !cx.analysis.cfg.is_reachable(pred))
             {
@@ -691,7 +691,7 @@ impl LoadRedundancyEliminator {
                     continue;
                 }
                 let Some(candidate) =
-                    self.candidate_for_load(func, cx, target, inst, key_idx, &predecessors)
+                    self.candidate_for_load(func, cx, target, inst, key_idx, predecessors)
                 else {
                     continue;
                 };

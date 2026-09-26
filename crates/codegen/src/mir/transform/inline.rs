@@ -2722,7 +2722,10 @@ fn recompute_cfg(func: &mut Function) {
 
     for (block, successors) in edges {
         for succ in successors {
-            func.blocks[succ].predecessors.push(block);
+            let predecessors = &mut func.blocks[succ].predecessors;
+            if !predecessors.contains(&block) {
+                predecessors.push(block);
+            }
         }
     }
 }

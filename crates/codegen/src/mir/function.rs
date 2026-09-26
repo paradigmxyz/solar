@@ -423,18 +423,6 @@ impl Function {
         inst_blocks
     }
 
-    /// Returns predecessors with duplicate CFG edges collapsed.
-    #[must_use]
-    pub(crate) fn unique_predecessors(&self, block: BlockId) -> Vec<BlockId> {
-        let mut predecessors = Vec::new();
-        for &pred in &self.blocks[block].predecessors {
-            if !predecessors.contains(&pred) {
-                predecessors.push(pred);
-            }
-        }
-        predecessors
-    }
-
     /// Returns true if the block contains any phi instruction.
     #[must_use]
     pub(crate) fn block_has_phi(&self, block: BlockId) -> bool {
