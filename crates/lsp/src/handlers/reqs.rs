@@ -1,5 +1,6 @@
 use super::workspace_edit::{validated_code_actions, validated_rename_workspace_edit};
 use crate::{
+    config::Config,
     diagnostics::PullReport,
     document_links::solidity_string_contents,
     formatter::{self, FormatterError},
@@ -300,6 +301,18 @@ fn latest_navigation_analysis_for_uri(
     uri: &Url,
 ) -> Option<impl Future<Output = Result<Arc<ArcSwap<SymbolTables>>, ResponseError>> + use<>> {
     let analysis = latest_analysis_for_uri(state, uri)?;
+    state.prioritize_pending_analysis();
+    Some(analysis)
+}
+
+type ConfiguredAnalysis = (Arc<ArcSwap<SymbolTables>>, Arc<Config>);
+
+fn latest_navigation_analysis_with_config_for_uri(
+    state: &GlobalState,
+    uri: &Url,
+) -> Option<impl Future<Output = Result<ConfiguredAnalysis, ResponseError>> + use<>> {
+    crate::proto::vfs_path(uri)?;
+    let analysis = state.latest_analysis_with_config();
     state.prioritize_pending_analysis();
     Some(analysis)
 }
@@ -913,11 +926,8 @@ pub(crate) fn prepare_rename(
     mut params: TextDocumentPositionParams,
 ) -> impl Future<Output = Result<Option<PrepareRenameResponse>, ResponseError>> + use<> {
     params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = crate::proto::vfs_path(&params.text_document.uri).map(|_| {
-        let analysis = state.latest_analysis_with_config();
-        state.prioritize_pending_analysis();
-        analysis
-    });
+    let latest_analysis =
+        latest_navigation_analysis_with_config_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let (symbol_tables, config) = latest_analysis.await?;
@@ -948,11 +958,7 @@ pub(crate) fn rename(
     let latest_analysis = if invalid_name {
         None
     } else {
-        crate::proto::vfs_path(&params_position.text_document.uri).map(|_| {
-            let analysis = state.latest_analysis_with_config();
-            state.prioritize_pending_analysis();
-            analysis
-        })
+        latest_navigation_analysis_with_config_for_uri(state, &params_position.text_document.uri)
     };
     let vfs = state.vfs.clone();
     let document_changes = state.config.supports_workspace_edit_document_changes();
