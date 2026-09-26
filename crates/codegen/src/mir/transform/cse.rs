@@ -309,7 +309,6 @@ struct GlobalCseContext<'a> {
     liveness: OnceCell<Liveness>,
     dom_tree: &'a DominatorTree,
     block_clobbers: &'a [(BlockId, Vec<Clobber>)],
-    reachability: &'a FxHashMap<BlockId, DenseBitSet<BlockId>>,
     /// Reachable predecessors, present only when clobbering blocks exist.
     predecessors: &'a IndexVec<BlockId, Vec<BlockId>>,
     cfg: &'a CfgInfo,
@@ -486,27 +485,23 @@ impl CommonSubexprEliminator {
             .any(|inst_id| Self::is_path_sensitive_kind(&func.inst(inst_id).kind));
         let block_clobbers =
             if has_path_sensitive_expr { self.block_clobber_summaries(func) } else { Vec::new() };
-        let empty_reachability = FxHashMap::default();
         let mut predecessors = IndexVec::new();
         let reuse = (!block_clobbers.is_empty()).then(OnceCell::new);
-        let (dom_tree, reachability) = if block_clobbers.is_empty() {
-            (cfg.dominators(), &empty_reachability)
-        } else {
+        if !block_clobbers.is_empty() {
             predecessors = index_vec![Vec::new(); func.blocks.len()];
             for block in cfg.reachable().iter() {
                 for &successor in cfg.successors(block) {
                     predecessors[successor].push(block);
                 }
             }
-            (cfg.dominators(), cfg.transitive_reachability())
-        };
+        }
+        let dom_tree = cfg.dominators();
         let mut replacements = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.num_insts());
         let mut ctx = GlobalCseContext {
             liveness: OnceCell::new(),
             dom_tree,
             block_clobbers: &block_clobbers,
-            reachability,
             predecessors: &predecessors,
             cfg,
             reuse,
@@ -801,9 +796,9 @@ impl CommonSubexprEliminator {
         {
             return;
         }
-        let Some(reachable_from_parent) = ctx.reachability.get(&parent) else { return };
         // Blocks with a path to `child` that avoids `parent`. Every such block is
-        // dominated by `parent`, so the walk stays within its dominator subtree.
+        // dominated by `parent`, so the walk stays within its dominator subtree
+        // and every block it finds is reachable from `parent`.
         let mut reaching_child = DenseBitSet::new_empty(ctx.predecessors.len());
         let mut pending = vec![child];
         while let Some(block) = pending.pop() {
@@ -818,10 +813,7 @@ impl CommonSubexprEliminator {
                 break;
             }
             // Clobbers in `parent` itself were already applied while processing it sequentially.
-            if *mid == parent
-                || !reachable_from_parent.contains(*mid)
-                || !reaching_child.contains(*mid)
-            {
+            if *mid == parent || !reaching_child.contains(*mid) {
                 continue;
             }
             for clobber in clobbers {
