@@ -32,10 +32,10 @@ derive_more.workspace = true
 semver.workspace = true
 thiserror.workspace = true
 
+arc-swap.workspace = true
 dunce = "1"
 inturn.workspace = true
 itertools.workspace = true
-itoa.workspace = true
 normalize-path.workspace = true
 once_map.workspace = true
 rayon.workspace = true

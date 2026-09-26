@@ -1,11 +1,12 @@
 //! SourceMap related types and operations.
 
 use crate::{BytePos, CharPos, Span};
+use arc_swap::ArcSwapOption;
 use once_map::OnceMap;
 use solar_data_structures::{
     fmt,
     map::FxBuildHasher,
-    sync::{RwLock, RwLockReadGuard},
+    sync::{MappedRwLockReadGuard, RwLock, RwLockReadGuard},
 };
 use std::{
     io::{self, Read},
@@ -58,12 +59,12 @@ pub struct MalformedSourceMapPositions {
 
 /// A value paired with a source file.
 #[derive(Clone, Debug)]
-pub struct WithSourceFile<T> {
-    pub file: Arc<SourceFile>,
+pub struct WithSourceFile<T, F = Arc<SourceFile>> {
+    pub file: F,
     pub data: T,
 }
 
-impl<T> std::ops::Deref for WithSourceFile<T> {
+impl<T, F> std::ops::Deref for WithSourceFile<T, F> {
     type Target = T;
 
     #[inline]
@@ -72,10 +73,24 @@ impl<T> std::ops::Deref for WithSourceFile<T> {
     }
 }
 
-impl<T> std::ops::DerefMut for WithSourceFile<T> {
+impl<T, F> std::ops::DerefMut for WithSourceFile<T, F> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.data
+    }
+}
+
+impl<T: Clone> WithSourceFile<T, &Arc<SourceFile>> {
+    /// Clones the data and shares ownership of the source file.
+    pub fn to_owned(&self) -> WithSourceFile<T> {
+        WithSourceFile { file: self.file.clone(), data: self.data.clone() }
+    }
+}
+
+impl<T> WithSourceFile<T, &Arc<SourceFile>> {
+    /// Shares ownership of the source file without cloning the data.
+    pub fn into_owned(self) -> WithSourceFile<T> {
+        WithSourceFile { file: self.file.clone(), data: self.data }
     }
 }
 
@@ -110,15 +125,15 @@ pub struct SpanLoc {
 
 // Used to be structural records.
 #[derive(Debug)]
-pub struct SourceFileAndLine {
-    pub sf: Arc<SourceFile>,
+pub struct SourceFileAndLine<F = Arc<SourceFile>> {
+    pub sf: F,
     /// Index of line, starting from 0.
     pub line: usize,
 }
 
 #[derive(Debug)]
-pub struct SourceFileAndBytePos {
-    pub sf: Arc<SourceFile>,
+pub struct SourceFileAndBytePos<F = Arc<SourceFile>> {
+    pub sf: F,
     pub pos: BytePos,
 }
 
@@ -134,7 +149,7 @@ pub struct LineInfo {
     pub end_col: CharPos,
 }
 
-pub type FileLines = WithSourceFile<Vec<LineInfo>>;
+pub type FileLines<F = Arc<SourceFile>> = WithSourceFile<Vec<LineInfo>, F>;
 
 /// Abstraction over IO operations.
 ///
@@ -180,7 +195,7 @@ pub struct SourceMap {
     #[debug(skip)]
     id_to_file: OnceMap<SourceFileId, Arc<SourceFile>, FxBuildHasher>,
 
-    base_path: RwLock<Option<PathBuf>>,
+    base_path: ArcSwapOption<PathBuf>,
     #[debug(skip)]
     file_loader: OnceLock<Box<dyn FileLoader>>,
 }
@@ -235,11 +250,11 @@ impl SourceMap {
     ///
     /// This is currently only used for trimming diagnostics' paths.
     pub(crate) fn set_base_path(&self, base_path: Option<PathBuf>) {
-        *self.base_path.write() = base_path;
+        self.base_path.store(base_path.map(Arc::new));
     }
 
-    pub(crate) fn base_path(&self) -> Option<PathBuf> {
-        self.base_path.read().as_ref().cloned()
+    pub(crate) fn base_path(&self) -> arc_swap::Guard<Option<Arc<PathBuf>>> {
+        self.base_path.load()
     }
 
     /// Returns `true` if the source map is empty.
@@ -357,8 +372,8 @@ impl SourceMap {
     }
 
     /// Returns a read guard to the source files in the source map.
-    pub fn files(&self) -> impl std::ops::Deref<Target = [Arc<SourceFile>]> + '_ {
-        RwLockReadGuard::map(self.source_files.read(), std::ops::Deref::deref)
+    pub fn files(&self) -> SourceMapFiles<'_> {
+        SourceMapFiles(RwLockReadGuard::map(self.source_files.read(), std::ops::Deref::deref))
     }
 
     /// Display the filename for diagnostics.
@@ -368,93 +383,190 @@ impl SourceMap {
 
     /// Returns `true` if the given span is multi-line.
     pub fn is_multiline(&self, span: Span) -> bool {
-        let lo = self.lookup_source_file_idx(span.lo());
-        let hi = self.lookup_source_file_idx(span.hi());
-        if lo != hi {
-            return true;
-        }
-        let f = self.files()[lo].clone();
-        let lo = f.relative_position(span.lo());
-        let hi = f.relative_position(span.hi());
-        f.lookup_line(lo) != f.lookup_line(hi)
+        self.files().is_multiline(span)
     }
 
     /// Returns the source snippet as `String` corresponding to the given `Span`.
     pub fn span_to_snippet(&self, span: Span) -> Result<String, SpanSnippetError> {
-        let WithSourceFile { file, data } = self.span_to_source(span)?;
-        file.src.get(data).map(|s| s.to_string()).ok_or(SpanSnippetError::IllFormedSpan(span))
+        self.files().span_to_snippet(span).map(str::to_owned)
     }
 
     /// Returns the source snippet as `String` before the given `Span`.
     pub fn span_to_prev_source(&self, sp: Span) -> Result<String, SpanSnippetError> {
-        let WithSourceFile { file, data } = self.span_to_source(sp)?;
-        file.src.get(..data.start).map(|s| s.to_string()).ok_or(SpanSnippetError::IllFormedSpan(sp))
+        self.files().span_to_prev_source(sp).map(str::to_owned)
     }
 
     /// For a global `BytePos`, computes the local offset within the containing `SourceFile`.
     pub fn lookup_byte_offset(&self, bpos: BytePos) -> SourceFileAndBytePos {
-        let sf = self.lookup_source_file(bpos);
-        let offset = bpos - sf.start_pos;
-        SourceFileAndBytePos { sf, pos: offset }
+        let files = self.files();
+        let SourceFileAndBytePos { sf, pos } = files.lookup_byte_offset(bpos);
+        SourceFileAndBytePos { sf: sf.clone(), pos }
     }
 
     /// Returns the index of the [`SourceFile`] (in `self.files`) that contains `pos`.
     ///
     /// This index is guaranteed to be valid for the lifetime of this `SourceMap`.
     pub fn lookup_source_file_idx(&self, pos: BytePos) -> usize {
-        Self::lookup_sf_idx(&self.files(), pos)
+        self.files().lookup_source_file_idx(pos)
     }
 
     /// Return the SourceFile that contains the given `BytePos`.
     pub fn lookup_source_file(&self, pos: BytePos) -> Arc<SourceFile> {
-        let files = &*self.files();
-        let idx = Self::lookup_sf_idx(files, pos);
-        files[idx].clone()
-    }
-
-    fn lookup_sf_idx(files: &[Arc<SourceFile>], pos: BytePos) -> usize {
-        assert!(!files.is_empty(), "attempted to lookup source file in empty `SourceMap`");
-        files.partition_point(|x| x.start_pos <= pos) - 1
+        self.files().lookup_source_file(pos).clone()
     }
 
     /// Looks up source information about a `BytePos`.
     pub fn lookup_char_pos(&self, pos: BytePos) -> WithSourceFile<Loc> {
-        let sf = self.lookup_source_file(pos);
-        let (line, col, col_display) = sf.lookup_file_pos_with_col_display(pos);
-        WithSourceFile { file: sf, data: Loc { line, col, col_display } }
+        self.files().lookup_char_pos(pos).into_owned()
     }
 
     /// If the corresponding `SourceFile` is empty, does not return a line number.
     pub fn lookup_line(&self, pos: BytePos) -> Result<SourceFileAndLine, Arc<SourceFile>> {
-        let f = self.lookup_source_file(pos);
-        let pos = f.relative_position(pos);
-        match f.lookup_line(pos) {
-            Some(line) => Ok(SourceFileAndLine { sf: f, line }),
-            None => Err(f),
-        }
+        self.files()
+            .lookup_line(pos)
+            .map(|SourceFileAndLine { sf, line }| SourceFileAndLine { sf: sf.clone(), line })
+            .map_err(Arc::clone)
     }
 
     pub fn is_valid_span(&self, sp: Span) -> Result<WithSourceFile<SpanLoc>, SpanLinesError> {
-        let lo = self.lookup_char_pos(sp.lo());
-        let hi = self.lookup_char_pos(sp.hi());
-        if lo.file.start_pos != hi.file.start_pos {
-            return Err(SpanLinesError::DistinctSources(Box::new(DistinctSources {
-                begin: (lo.file.name.clone(), lo.file.start_pos),
-                end: (hi.file.name.clone(), hi.file.start_pos),
-            })));
-        }
-        Ok(WithSourceFile { file: lo.file, data: SpanLoc { lo: lo.data, hi: hi.data } })
+        self.files().is_valid_span(sp).map(|source| source.into_owned())
     }
 
     pub fn is_line_before_span_empty(&self, sp: Span) -> bool {
-        match self.span_to_prev_source(sp) {
-            Ok(s) => s.rsplit_once('\n').unwrap_or(("", &s)).1.trim_start().is_empty(),
-            Err(_) => false,
-        }
+        self.files().is_line_before_span_empty(sp)
     }
 
     /// Computes the [`FileLines`] for the given span.
     pub fn span_to_lines(&self, sp: Span) -> Result<FileLines, SpanLinesError> {
+        self.files().span_to_lines(sp).map(|source| source.into_owned())
+    }
+
+    /// Returns the source file and the range of text corresponding to the given span.
+    ///
+    /// See [`span_to_source`](Self::span_to_source).
+    pub fn span_to_range(&self, sp: Span) -> Result<Range<usize>, SpanSnippetError> {
+        self.files().span_to_range(sp)
+    }
+
+    /// Returns the source file and the range of text corresponding to the given span.
+    pub fn span_to_source(
+        &self,
+        sp: Span,
+    ) -> Result<WithSourceFile<Range<usize>>, SpanSnippetError> {
+        self.files().span_to_source(sp).map(|source| source.into_owned())
+    }
+
+    /// Format the span location to be printed in diagnostics.
+    ///
+    /// Must not be emitted to build artifacts as this may leak local file paths.
+    pub fn span_to_diagnostic_string(&self, sp: Span) -> impl fmt::Display {
+        let (source_file, loc) = self.span_to_location_info(sp);
+        fmt::from_fn(move |f| {
+            let file_name = match &source_file {
+                Some(sf) => self.filename_for_diagnostics(&sf.name),
+                None => return f.write_str("no-location"),
+            };
+            let lo_line = loc.lo.line;
+            let lo_col = loc.lo.col.0 + 1;
+            let hi_line = loc.hi.line;
+            let hi_col = loc.hi.col.0 + 1;
+            write!(f, "{file_name}:{lo_line}:{lo_col}: {hi_line}:{hi_col}")
+        })
+    }
+
+    /// Returns the source file, line, and column information for the given span.
+    ///
+    /// This is similar to [`is_valid_span`](Self::is_valid_span).
+    pub fn span_to_location_info(&self, sp: Span) -> (Option<Arc<SourceFile>>, SpanLoc) {
+        let files = self.files();
+        let (file, loc) = files.span_to_location_info(sp);
+        (file.cloned(), loc)
+    }
+}
+
+/// A read guard that supports source lookups without cloning file handles.
+///
+/// Use this guard for repeated lookups; use [`SourceMap`] methods for individual lookups.
+/// While holding the guard, query it directly instead of calling methods that acquire another
+/// source-file lock. Drop the guard before loading files into the source map.
+pub struct SourceMapFiles<'a>(MappedRwLockReadGuard<'a, [Arc<SourceFile>]>);
+
+impl std::ops::Deref for SourceMapFiles<'_> {
+    type Target = [Arc<SourceFile>];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl SourceMapFiles<'_> {
+    /// Returns the index of the file containing a byte position.
+    pub fn lookup_source_file_idx(&self, pos: BytePos) -> usize {
+        assert!(!self.is_empty(), "attempted to lookup source file in empty `SourceMap`");
+        self.partition_point(|file| file.start_pos <= pos) - 1
+    }
+
+    /// Returns the file containing a byte position.
+    pub fn lookup_source_file(&self, pos: BytePos) -> &Arc<SourceFile> {
+        &self[self.lookup_source_file_idx(pos)]
+    }
+
+    /// Returns the file and relative byte position.
+    pub fn lookup_byte_offset(&self, pos: BytePos) -> SourceFileAndBytePos<&Arc<SourceFile>> {
+        let sf = self.lookup_source_file(pos);
+        SourceFileAndBytePos { sf, pos: pos - sf.start_pos }
+    }
+
+    /// Returns the source location for a byte position.
+    pub fn lookup_char_pos(&self, pos: BytePos) -> WithSourceFile<Loc, &Arc<SourceFile>> {
+        let file = self.lookup_source_file(pos);
+        let (line, col, col_display) = file.lookup_file_pos_with_col_display(pos);
+        WithSourceFile { file, data: Loc { line, col, col_display } }
+    }
+
+    /// Returns the file and line, or the file alone if it is empty.
+    pub fn lookup_line(
+        &self,
+        pos: BytePos,
+    ) -> Result<SourceFileAndLine<&Arc<SourceFile>>, &Arc<SourceFile>> {
+        let sf = self.lookup_source_file(pos);
+        sf.lookup_line(sf.relative_position(pos))
+            .map(|line| SourceFileAndLine { sf, line })
+            .ok_or(sf)
+    }
+
+    /// Returns whether a span crosses lines or files.
+    pub fn is_multiline(&self, span: Span) -> bool {
+        let (f, end) = self.lookup_span_files(span);
+        if f.start_pos != end.start_pos {
+            return true;
+        }
+        let lo = f.relative_position(span.lo());
+        let hi = f.relative_position(span.hi());
+        f.lookup_line(lo) != f.lookup_line(hi)
+    }
+
+    /// Returns the source file and locations at both ends of a span.
+    pub fn is_valid_span(
+        &self,
+        sp: Span,
+    ) -> Result<WithSourceFile<SpanLoc, &Arc<SourceFile>>, SpanLinesError> {
+        let (begin, end) = self.lookup_span_files(sp);
+        if begin.start_pos != end.start_pos {
+            return Err(SpanLinesError::DistinctSources(Box::new(DistinctSources {
+                begin: (begin.name.clone(), begin.start_pos),
+                end: (end.name.clone(), end.start_pos),
+            })));
+        }
+        let (line, col, col_display) = begin.lookup_file_pos_with_col_display(sp.lo());
+        let lo = Loc { line, col, col_display };
+        let (line, col, col_display) = begin.lookup_file_pos_with_col_display(sp.hi());
+        let hi = Loc { line, col, col_display };
+        Ok(WithSourceFile { file: begin, data: SpanLoc { lo, hi } })
+    }
+
+    /// Computes the lines covered by a span.
+    pub fn span_to_lines(&self, sp: Span) -> Result<FileLines<&Arc<SourceFile>>, SpanLinesError> {
         let WithSourceFile { file, data: SpanLoc { lo, hi } } = self.is_valid_span(sp)?;
         assert!(hi.line >= lo.line);
 
@@ -488,72 +600,78 @@ impl SourceMap {
         Ok(FileLines { file, data: lines })
     }
 
-    /// Returns the source file and the range of text corresponding to the given span.
-    ///
-    /// See [`span_to_source`](Self::span_to_source).
-    pub fn span_to_range(&self, sp: Span) -> Result<Range<usize>, SpanSnippetError> {
-        self.span_to_source(sp).map(|s| s.data)
-    }
-
-    /// Returns the source file and the range of text corresponding to the given span.
+    /// Returns the source file and byte range for a span.
     pub fn span_to_source(
         &self,
         sp: Span,
-    ) -> Result<WithSourceFile<Range<usize>>, SpanSnippetError> {
-        let local_begin = self.lookup_byte_offset(sp.lo());
-        let local_end = self.lookup_byte_offset(sp.hi());
-
-        if local_begin.sf.start_pos != local_end.sf.start_pos {
+    ) -> Result<WithSourceFile<Range<usize>, &Arc<SourceFile>>, SpanSnippetError> {
+        let (begin, end) = self.lookup_span_files(sp);
+        if begin.start_pos != end.start_pos {
             return Err(SpanSnippetError::DistinctSources(Box::new(DistinctSources {
-                begin: (local_begin.sf.name.clone(), local_begin.sf.start_pos),
-                end: (local_end.sf.name.clone(), local_end.sf.start_pos),
+                begin: (begin.name.clone(), begin.start_pos),
+                end: (end.name.clone(), end.start_pos),
             })));
         }
 
-        let start_index = local_begin.pos.to_usize();
-        let end_index = local_end.pos.to_usize();
-        let source_len = local_begin.sf.source_len.to_usize();
+        let begin_pos = sp.lo() - begin.start_pos;
+        let end_pos = sp.hi() - begin.start_pos;
+        let start_index = begin_pos.to_usize();
+        let end_index = end_pos.to_usize();
+        let source_len = begin.source_len.to_usize();
 
         if start_index > end_index || end_index > source_len {
             return Err(SpanSnippetError::MalformedForSourcemap(MalformedSourceMapPositions {
-                name: local_begin.sf.name.clone(),
+                name: begin.name.clone(),
                 source_len,
-                begin_pos: local_begin.pos,
-                end_pos: local_end.pos,
+                begin_pos,
+                end_pos,
             }));
         }
 
-        Ok(WithSourceFile { file: local_begin.sf, data: start_index..end_index })
+        Ok(WithSourceFile { file: begin, data: start_index..end_index })
     }
 
-    /// Format the span location to be printed in diagnostics.
-    ///
-    /// Must not be emitted to build artifacts as this may leak local file paths.
-    pub fn span_to_diagnostic_string(&self, sp: Span) -> impl fmt::Display {
-        let (source_file, loc) = self.span_to_location_info(sp);
-        fmt::from_fn(move |f| {
-            let file_name = match &source_file {
-                Some(sf) => self.filename_for_diagnostics(&sf.name),
-                None => return f.write_str("no-location"),
-            };
-            let lo_line = loc.lo.line;
-            let lo_col = loc.lo.col.0 + 1;
-            let hi_line = loc.hi.line;
-            let hi_col = loc.hi.col.0 + 1;
-            write!(f, "{file_name}:{lo_line}:{lo_col}: {hi_line}:{hi_col}")
-        })
+    /// Returns the source text for a span.
+    pub fn span_to_snippet(&self, span: Span) -> Result<&str, SpanSnippetError> {
+        let WithSourceFile { file, data: range } = self.span_to_source(span)?;
+        file.src.get(range).ok_or(SpanSnippetError::IllFormedSpan(span))
     }
 
-    /// Returns the source file, line, and column information for the given span.
-    ///
-    /// This is similar to [`is_valid_span`](Self::is_valid_span).
-    pub fn span_to_location_info(&self, sp: Span) -> (Option<Arc<SourceFile>>, SpanLoc) {
-        if self.files().is_empty() || sp.is_dummy() {
+    /// Returns the source text preceding a span.
+    pub fn span_to_prev_source(&self, sp: Span) -> Result<&str, SpanSnippetError> {
+        let WithSourceFile { file, data: range } = self.span_to_source(sp)?;
+        file.src.get(..range.start).ok_or(SpanSnippetError::IllFormedSpan(sp))
+    }
+
+    /// Returns whether only whitespace precedes the span on its line.
+    pub fn is_line_before_span_empty(&self, sp: Span) -> bool {
+        self.span_to_prev_source(sp)
+            .is_ok_and(|s| s.rsplit_once('\n').unwrap_or(("", s)).1.trim_start().is_empty())
+    }
+
+    /// Returns the byte range for a span.
+    pub fn span_to_range(&self, sp: Span) -> Result<Range<usize>, SpanSnippetError> {
+        self.span_to_source(sp).map(|source| source.data)
+    }
+
+    /// Returns source locations, or no location for dummy or invalid spans.
+    pub fn span_to_location_info(&self, sp: Span) -> (Option<&Arc<SourceFile>>, SpanLoc) {
+        if sp.is_dummy() || self.is_empty() {
             return Default::default();
         }
         let Ok(WithSourceFile { file, data }) = self.is_valid_span(sp) else {
             return Default::default();
         };
         (Some(file), data)
+    }
+
+    fn lookup_span_files(&self, sp: Span) -> (&Arc<SourceFile>, &Arc<SourceFile>) {
+        let begin = self.lookup_source_file(sp.lo());
+        let end = if (begin.start_pos..=begin.end_position()).contains(&sp.hi()) {
+            begin
+        } else {
+            self.lookup_source_file(sp.hi())
+        };
+        (begin, end)
     }
 }

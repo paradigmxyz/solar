@@ -4,7 +4,7 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 use solar_codegen::{
     ContractArtifact,
-    backend::evm::{DebugFunction, DebugFunctionExit, DebugInstruction},
+    backend::evm::{DebugFunction, DebugFunctionExit, DebugInstruction, op},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::{Gcx, hir::ContractId};
@@ -270,7 +270,7 @@ pub(crate) fn make_ethdebug_program(
         .iter()
         .enumerate()
         .map(|(index, instruction)| {
-            let mnemonic = solar_codegen::backend::evm::opcode_mnemonic(instruction.opcode)
+            let mnemonic = op::mnemonic(instruction.opcode)
                 .expect("assembled opcode should have a mnemonic")
                 .to_ascii_uppercase();
             let arguments = push_argument(bytecode, instruction)

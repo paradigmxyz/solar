@@ -2,9 +2,9 @@
 
 use super::{
     BlockId, DenseBitSet, EffectKind, EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap,
-    FxHashSet, ICallStackEdge, InstKind, Label, Liveness, MAX_STACK_ACCESS, ScheduleCost, SmallVec,
-    StackModel, StackOp, StackResultProjection, StackReturnPlan, StaticCallStackPlan, TargetSlot,
-    U256, Value, ValueId, WORD_BYTES, op,
+    FxHashSet, ICallStackEdge, InstKind, Label, Liveness, ScheduleCost, SmallVec, StackModel,
+    StackOp, StackResultProjection, StackReturnPlan, StaticCallStackPlan, TargetSlot, U256, Value,
+    ValueId, WORD_BYTES, op,
 };
 
 mod abi;
@@ -97,7 +97,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.spill_live_stack_values(func_id, func, liveness, block, inst_idx);
 
         // The dynamic-frame base is an anonymous word kept on the physical stack while arguments
-        // are stored. Give any argument that this extra word would bury beyond `DUP16` a memory
+        // are stored. Give any argument that this extra word would bury beyond `DUP` a memory
         // route first. Deep-spill recovery can move named MIR values out of the way, but it cannot
         // save an anonymous frame-base word after that word has already been pushed.
         self.materialize_deep_dynamic_call_args(func, args);
@@ -252,32 +252,35 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> Option<StaticCallStackPlan> {
         let depth = self.scheduler.stack.depth();
         if !self.preserve_caller_stack
-            || !(1..MAX_STACK_ACCESS).contains(&depth)
+            || !(1..self.stack_access_limit()).contains(&depth)
             || self.recursive_stack_functions.contains(func_id)
             || self.recursion_reaching_functions.contains(callee)
         {
             return None;
         }
 
-        // Stack arguments are inserted above the hidden return label. A value duplicated from the
-        // preserved caller prefix must remain addressable after the label and earlier arguments
-        // have been pushed.
-        if let Some(mask) = stack_mask {
+        let stack_args_fit = |stack: &StackModel| {
+            let Some(mask) = stack_mask else { return true };
             let mut words_above = 1;
             for (index, &arg) in args.iter().enumerate() {
                 if !mask.contains(index) {
                     continue;
                 }
-                if self
-                    .scheduler
-                    .stack
+                if stack
                     .find(arg)
-                    .is_some_and(|depth| depth + words_above + 1 > MAX_STACK_ACCESS)
+                    .is_some_and(|depth| depth + words_above + 1 > self.stack_access_limit())
                 {
-                    return None;
+                    return false;
                 }
                 words_above += 1;
             }
+            true
+        };
+        // Stack arguments are inserted above the hidden return label. A value duplicated from the
+        // preserved caller prefix must remain addressable after the label and earlier arguments
+        // have been pushed.
+        if !stack_args_fit(&self.scheduler.stack) {
+            return None;
         }
 
         // A call cannot observe words below its hidden return address. Keep an entirely live,
@@ -343,7 +346,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     Some(depth)
                 })
             } {
-                if depth > MAX_STACK_ACCESS {
+                if depth > self.stack_access_limit() {
                     break;
                 }
                 if depth != 0 {
@@ -368,7 +371,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .filter(|&&value| !self.scheduler.spills.is_stored(value))
                     .count();
                 let spill_fallback_cost = depth + fresh * 3 + retained.len() * 2;
-                if stack_args_are_stable && prepare_ops.len() < spill_fallback_cost {
+                if stack_args_are_stable
+                    && stack_args_fit(&caller_stack)
+                    && prepare_ops.len() < spill_fallback_cost
+                {
                     return Some(StaticCallStackPlan { prepare_ops, caller_stack });
                 }
             }
@@ -637,7 +643,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                             func.name, self.scheduler.stack
                         )
                     });
-                    assert!(depth < MAX_STACK_ACCESS, "resident argument exceeded DUP16 reach");
+                    assert!(
+                        depth < self.stack_access_limit(),
+                        "resident argument exceeded DUP reach"
+                    );
                     self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
                 }
             }
@@ -758,7 +767,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             for (pushed, index) in mask.iter().enumerate() {
                 let arg = args[index];
                 if let Some(depth) = caller_stack.find(arg)
-                    && depth + pushed + 2 > MAX_STACK_ACCESS
+                    && depth + pushed + 2 > self.stack_access_limit()
                 {
                     self.materialize_stack_only_home(func_id, func, arg);
                     if Self::can_own_spill_slot(func, arg) {
@@ -799,6 +808,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         raw_spill_slots[i],
                         caller_stack.as_ref(),
                         1 + pushed_args,
+                        carries_resident_stack,
                     );
                     pushed_args += 1;
                 }
@@ -829,7 +839,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let depth = self.scheduler.stack.find(value).unwrap_or_else(|| {
                     panic!("recursive caller argument {value:?} was not preserved")
                 });
-                assert!(depth < MAX_STACK_ACCESS, "recursive caller argument exceeded DUP16 reach");
+                assert!(
+                    depth < self.stack_access_limit(),
+                    "recursive caller argument exceeded DUP reach"
+                );
                 self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
                 let addr = self.static_frame_addr(
                     func_id,

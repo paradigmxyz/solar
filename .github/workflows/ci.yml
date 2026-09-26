@@ -106,7 +106,7 @@ jobs:
         rust: ["stable"]
         include:
           - os: "ubuntu-latest"
-            rust: "1.96" # MSRV
+            rust: "1.98" # MSRV
           - os: "ubuntu-latest"
             rust: "nightly"
         exclude:
@@ -440,10 +440,12 @@ jobs:
 
   deny:
     if: github.event_name != 'schedule'
-    uses: tempoxyz/ci/.github/workflows/deny.yml@feeee35d6e4047767f0d97881ac6e83fe3c9ebf3
+    uses: tempoxyz/gh-actions/.github/workflows/rust-deny.yml@5840979a7c849cbe541c67431ec7315cd6396e3b
     permissions:
       contents: read
       id-token: write
+    with:
+      rust-toolchain: nightly
 
   ci-success:
     name: ci success

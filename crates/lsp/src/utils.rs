@@ -2,10 +2,11 @@ use crate::proto;
 use crop::Rope;
 use std::mem;
 
+/// Applies sequential changes atomically, rejecting malformed ranges without changing the input.
 pub(crate) fn apply_document_changes(
     file_contents: &Rope,
     mut content_changes: Vec<lsp_types::TextDocumentContentChangeEvent>,
-) -> Rope {
+) -> Option<Rope> {
     // If at least one of the changes is a full document change, use the last
     // of them as the starting point and ignore all previous changes.
     let (mut text, content_changes) =
@@ -23,16 +24,16 @@ pub(crate) fn apply_document_changes(
         for (range, change) in ranges.into_iter().zip(content_changes) {
             text.replace(range, &change.text);
         }
-        return text;
+        return Some(text);
     }
 
     for change in content_changes {
         // SAFETY: we already handled the `None` case above
-        let range = proto::text_range(&text, change.range.unwrap());
+        let range = proto::text_range(&text, change.range.unwrap())?;
         text.replace(range, &change.text);
     }
 
-    text
+    Some(text)
 }
 
 fn descending_ranges(
@@ -54,8 +55,8 @@ fn descending_ranges(
     for change in changes {
         let lsp_range = change.range?;
         let range = index.checked_text_range(lsp_range)?;
-        // Checked conversion clamps oversized columns to the line end, unlike the sequential
-        // conversion. Only reuse positions that resolve exactly without that clamping.
+        // Clamping can make apparently separate edits touch. Keep these edits sequential so
+        // later positions resolve against any newly inserted text at that boundary.
         if index.position_at_byte(range.start) != Some(lsp_range.start)
             || index.position_at_byte(range.end) != Some(lsp_range.end)
         {
@@ -107,7 +108,7 @@ mod tests {
     }
 
     #[test]
-    fn descending_document_changes_preserve_oversized_columns() {
+    fn descending_document_changes_clamp_oversized_columns() {
         let changes = [
             (Range::new(Position::new(2, 0), Position::new(2, 1)), "X"),
             (Range::new(Position::new(0, 4), Position::new(0, 5)), "Y"),
@@ -117,8 +118,8 @@ mod tests {
             range_length: None,
             text: text.into(),
         });
-        let text = apply_document_changes(&Rope::from("abc\ndef\nghi"), changes.into());
-        assert_eq!(text, "abc\nYef\nXhi");
+        let text = apply_document_changes(&Rope::from("abc\ndef\nghi"), changes.into()).unwrap();
+        assert_eq!(text, "abcY\ndef\nXhi");
     }
 
     #[test]
@@ -136,9 +137,9 @@ mod tests {
             text: text.into(),
         });
         let sequential = changes.iter().fold(original.clone(), |text, change| {
-            apply_document_changes(&text, vec![change.clone()])
+            apply_document_changes(&text, vec![change.clone()]).unwrap()
         });
-        let text = apply_document_changes(&original, changes.into());
+        let text = apply_document_changes(&original, changes.into()).unwrap();
         assert_eq!(text, sequential);
         assert_eq!(text, "a🙂b\r\ncE\rc\rd世\n界e\nf😀\r\nmoreh");
     }
@@ -158,7 +159,7 @@ mod tests {
             };
         }
 
-        let text = apply_document_changes(&Rope::new(), vec![]);
+        let text = apply_document_changes(&Rope::new(), vec![]).unwrap();
         assert_eq!(text, "");
 
         let text = apply_document_changes(
@@ -168,53 +169,60 @@ mod tests {
                 range_length: None,
                 text: String::from("the"),
             }],
-        );
+        )
+        .unwrap();
         assert_eq!(text, "the");
 
-        let text = apply_document_changes(&text, c![0, 3; 0, 3 => " quick"]);
+        let text = apply_document_changes(&text, c![0, 3; 0, 3 => " quick"]).unwrap();
         assert_eq!(text, "the quick");
 
-        let text = apply_document_changes(&text, c![0, 0; 0, 4 => "", 0, 5; 0, 5 => " foxes"]);
+        let text =
+            apply_document_changes(&text, c![0, 0; 0, 4 => "", 0, 5; 0, 5 => " foxes"]).unwrap();
         assert_eq!(text, "quick foxes");
 
-        let text = apply_document_changes(&text, c![0, 11; 0, 11 => "\ndream"]);
+        let text = apply_document_changes(&text, c![0, 11; 0, 11 => "\ndream"]).unwrap();
         assert_eq!(text, "quick foxes\ndream");
 
-        let text = apply_document_changes(&text, c![1, 0; 1, 0 => "have "]);
+        let text = apply_document_changes(&text, c![1, 0; 1, 0 => "have "]).unwrap();
         assert_eq!(text, "quick foxes\nhave dream");
 
         let text = apply_document_changes(
             &text,
             c![0, 0; 0, 0 => "the ", 1, 4; 1, 4 => " quiet", 1, 16; 1, 16 => "s\n"],
-        );
+        )
+        .unwrap();
         assert_eq!(text, "the quick foxes\nhave quiet dreams\n");
 
-        let text = apply_document_changes(&text, c![0, 15; 0, 15 => "\n", 2, 17; 2, 17 => "\n"]);
+        let text =
+            apply_document_changes(&text, c![0, 15; 0, 15 => "\n", 2, 17; 2, 17 => "\n"]).unwrap();
         assert_eq!(text, "the quick foxes\n\nhave quiet dreams\n\n");
 
         let text = apply_document_changes(
             &text,
             c![1, 0; 1, 0 => "DREAM", 2, 0; 2, 0 => "they ", 3, 0; 3, 0 => "DON'T THEY?"],
-        );
+        )
+        .unwrap();
         assert_eq!(text, "the quick foxes\nDREAM\nthey have quiet dreams\nDON'T THEY?\n");
 
-        let text = apply_document_changes(&text, c![0, 10; 1, 5 => "", 2, 0; 2, 12 => ""]);
+        let text = apply_document_changes(&text, c![0, 10; 1, 5 => "", 2, 0; 3, 0 => ""]).unwrap();
         assert_eq!(text, "the quick \nthey have quiet dreams\n");
 
         let text = Rope::from("❤️");
-        let text = apply_document_changes(&text, c![0, 0; 0, 0 => "a"]);
+        let text = apply_document_changes(&text, c![0, 0; 0, 0 => "a"]).unwrap();
         assert_eq!(text, "a❤️");
 
         let text = Rope::from("a\nb");
-        let text = apply_document_changes(&text, c![0, 1; 1, 0 => "\nțc", 0, 1; 1, 1 => "d"]);
+        let text =
+            apply_document_changes(&text, c![0, 1; 1, 0 => "\nțc", 0, 1; 1, 1 => "d"]).unwrap();
         assert_eq!(text, "adcb");
 
         let text = Rope::from("a\nb");
-        let text = apply_document_changes(&text, c![0, 1; 1, 0 => "ț\nc", 0, 2; 0, 2 => "c"]);
+        let text =
+            apply_document_changes(&text, c![0, 1; 1, 0 => "ț\nc", 0, 2; 0, 2 => "c"]).unwrap();
         assert_eq!(text, "ațc\ncb");
 
         let text = Rope::from("function increment() public {\n    // 中文😀\n    umber++;\n}");
-        let text = apply_document_changes(&text, c![2, 4; 2, 9 => "number"]);
+        let text = apply_document_changes(&text, c![2, 4; 2, 9 => "number"]).unwrap();
         assert_eq!(text, "function increment() public {\n    // 中文😀\n    number++;\n}");
     }
 }

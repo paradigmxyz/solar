@@ -45,7 +45,7 @@ use std::{
     borrow::Cow,
     io, mem,
     ops::ControlFlow,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -1502,7 +1502,7 @@ impl GlobalState {
         previous_result_id: Option<String>,
     ) -> impl Future<Output = Result<PullReport, ResponseError>> + use<> {
         let (uri, latest_analysis) = match uri.to_file_path() {
-            Ok(path) => (Url::from_file_path(path).unwrap_or(uri), Some(self.latest_analysis())),
+            Ok(path) => (normalize_diagnostic_uri(uri, path), Some(self.latest_analysis())),
             Err(()) => (uri, None),
         };
         let diagnostics = self.diagnostics.clone();
@@ -1525,7 +1525,7 @@ impl GlobalState {
         range: Range,
     ) -> impl Future<Output = Result<Vec<Diagnostic>, ResponseError>> + use<> {
         let (uri, latest_analysis) = match uri.to_file_path() {
-            Ok(path) => (Url::from_file_path(path).unwrap_or(uri), Some(self.latest_analysis())),
+            Ok(path) => (normalize_diagnostic_uri(uri, path), Some(self.latest_analysis())),
             Err(()) => (uri, None),
         };
         let diagnostics = self.diagnostics.clone();
@@ -2473,6 +2473,25 @@ fn publish_diagnostic_batches(
         }
         let _ =
             client.publish_diagnostics(PublishDiagnosticsParams::new(uri, uri_diagnostics, None));
+    }
+}
+
+/// Reuses the decoded path while retaining diagnostics' support for convertible non-file URIs.
+fn normalize_diagnostic_uri(uri: Url, mut path: PathBuf) -> Url {
+    if cfg!(unix) {
+        if proto::is_normalized_file_uri(&uri) {
+            return uri;
+        }
+        // URI construction already drops redundant separators and `.` components on Unix.
+        // Only `..` requires rebuilding the path before encoding it.
+        if path.components().any(|component| component == Component::ParentDir) {
+            path = path.normalize();
+        }
+        Url::from_file_path(path).unwrap_or(uri)
+    } else {
+        // NOTE: Preserve both conversions on Windows, where rebuilding paths can interpret
+        // drive prefixes differently from URI construction.
+        proto::normalize_file_uri(Url::from_file_path(path).unwrap_or(uri))
     }
 }
 
