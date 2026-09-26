@@ -693,8 +693,8 @@ impl CommonSubexprEliminator {
                     continue;
                 }
                 if kind.has_side_effects() {
-                    // Without a replaced operand, the effects are those the summaries computed
-                    // in this address epoch, and recomputing them would only read the memo.
+                    // Without a replaced operand, the summary already holds this instruction's
+                    // clobbers, and recomputing them would only read the address memo.
                     if let Some((summary, range)) = ctx.side_effect_clobbers.get(&inst_id)
                         && (ctx.replacements.is_empty()
                             || !kind
@@ -861,8 +861,8 @@ impl CommonSubexprEliminator {
         }
     }
 
-    /// Returns the per-block invalidation summaries for blocks with clobbering effects.
-    /// Collects each block's clobbers, and where each side effect's clobbers sit among them.
+    /// Returns the clobbers of each block that has any, and where each side effect's clobbers
+    /// sit among them.
     fn block_clobber_summaries(
         &self,
         func: &Function,

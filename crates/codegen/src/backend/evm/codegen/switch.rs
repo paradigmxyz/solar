@@ -276,7 +276,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         forced,
         layout,
     } = options;
-    debug_assert!(values.is_sorted_by(|a, b| a < b));
+    debug_assert!(values.is_sorted());
     debug_assert_eq!(values.len(), linear_values.len());
     if values.len() <= 1
         || (optimization == OptimizationMode::None && forced == SwitchLowering::Auto)

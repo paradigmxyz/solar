@@ -32,7 +32,7 @@ use crate::mir::{
     utils::{replace_terminator, split_edge},
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::index_vec};
-use std::cell::OnceCell;
+use std::cell::LazyCell;
 
 /// Shapes call edges and checks the final MIR phase transition.
 pub(crate) struct LowerEvmShaped;
@@ -215,7 +215,7 @@ fn split_clobbering_phi_edges(func: &mut Function) {
     }
 
     // Only a phi on an edge whose source has another successor needs liveness.
-    let liveness = OnceCell::new();
+    let liveness = LazyCell::new(|| Liveness::compute_live_sets(func));
     let mut edges = Vec::new();
 
     for successor in phi_successors {
@@ -240,11 +240,7 @@ fn split_clobbering_phi_edges(func: &mut Function) {
                 .any(|destination| {
                     terminator_operands.contains(&destination)
                         || successors.iter().any(|&sibling| {
-                            sibling != successor
-                                && liveness
-                                    .get_or_init(|| Liveness::compute_live_sets(func))
-                                    .live_in(sibling)
-                                    .contains(destination)
+                            sibling != successor && liveness.live_in(sibling).contains(destination)
                         })
                 });
             if copy_clobbers_live_value {

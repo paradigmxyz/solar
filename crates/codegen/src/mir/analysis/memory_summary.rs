@@ -18,7 +18,11 @@ use crate::mir::{
     Module, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout, utils::IndexLists,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashSet};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+    map::FxHashSet,
+};
 use std::collections::{BTreeSet, VecDeque};
 
 /// Includes observations in callees, conservatively retaining reads without a call summary.
@@ -431,7 +435,7 @@ impl MemoryCallSummaries {
             .map(|(id, func)| targets.contains(id).then(|| AliasAnalysis::new(func)))
             .collect::<IndexVec<FunctionId, _>>();
         let calls = CallGraphInfo::new(module);
-        let mut local = IndexVec::<FunctionId, _>::from_vec(vec![None; module.functions.len()]);
+        let mut local = index_vec![None; module.functions.len()];
         for func_id in &targets {
             let func = &module.functions[func_id];
             let (sources, alias) =
@@ -443,8 +447,7 @@ impl MemoryCallSummaries {
         }
         let mut summaries = local.clone();
 
-        let mut callers =
-            IndexVec::<FunctionId, Vec<_>>::from_vec(vec![Vec::new(); module.functions.len()]);
+        let mut callers = index_vec![Vec::new(); module.functions.len()];
         for caller in &targets {
             let func = &module.functions[caller];
             for inst_id in func.instructions() {

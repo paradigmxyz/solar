@@ -150,7 +150,7 @@ impl ScalarEvolution {
                 loop_insts.insert(inst_id);
             }
         }
-        let cx = (func, loop_data, &loop_insts);
+        let cx = LoopContext { func, loop_data, loop_insts: &loop_insts };
         for block_id in &loop_data.blocks {
             let block = &func.blocks[block_id];
             for &inst_id in &block.instructions {
@@ -189,7 +189,7 @@ impl ScalarEvolution {
     }
 
     fn compute_affine_expr(&mut self, cx: LoopContext<'_>, value: ValueId) -> Option<AffineExpr> {
-        let (func, loop_data, loop_insts) = cx;
+        let LoopContext { func, loop_data, loop_insts } = cx;
         Some(match func.value(value) {
             Value::Immediate(imm) => AffineExpr::constant(u256_to_i128(imm.as_u256()?)?),
             Value::Arg(_) => AffineExpr::base(value),
@@ -259,7 +259,12 @@ impl ScalarEvolution {
 }
 
 /// The function, the loop, and the instructions of its blocks.
-type LoopContext<'a> = (&'a Function, &'a Loop, &'a DenseBitSet<InstId>);
+#[derive(Clone, Copy)]
+struct LoopContext<'a> {
+    func: &'a Function,
+    loop_data: &'a Loop,
+    loop_insts: &'a DenseBitSet<InstId>,
+}
 
 fn u256_to_i128(value: U256) -> Option<i128> {
     if value <= U256::from(i128::MAX as u128) { Some(value.to::<u128>() as i128) } else { None }

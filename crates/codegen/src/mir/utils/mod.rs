@@ -226,8 +226,7 @@ pub(crate) fn replace_terminator(func: &mut Function, block: BlockId, terminator
     link_successors(func, block, &new);
 }
 
-/// Lists `block` exactly once among the predecessors of each of its sorted, deduplicated
-/// `successors`.
+/// Lists `block` exactly once among the predecessors of each of `successors`.
 pub(crate) fn link_successors(func: &mut Function, block: BlockId, successors: &[BlockId]) {
     for &successor in successors {
         let predecessors = &mut func.blocks[successor].predecessors;

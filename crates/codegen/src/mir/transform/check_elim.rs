@@ -185,9 +185,13 @@ impl MirPass for LateCheckElim {
                     )
                 })
                 && !selected.iter().any(|block| {
-                    matches!(func.blocks[block].terminator, Some(Terminator::Branch { then_block, else_block, .. })
-                        if leads_to_revert(func, then_block, &reverting)
-                            || leads_to_revert(func, else_block, &reverting))
+                    let Some(Terminator::Branch { then_block, else_block, .. }) =
+                        func.blocks[block].terminator
+                    else {
+                        return false;
+                    };
+                    leads_to_revert(func, then_block, &reverting)
+                        || leads_to_revert(func, else_block, &reverting)
                 })
             {
                 return false;

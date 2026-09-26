@@ -2,16 +2,12 @@
 //!
 //! Transformation pipelines follow rustc MIR's pass-manager shape: passes
 //! implement [`MirPass`] and pipelines are slices of trait-object references.
-//! Analyses retain their LLVM/MLIR-style cache: read-only `AnalysisPass`es
-//! produce results cached in an `AnalysisManager`.
+//! [`ModuleAnalyses`] caches per-function CFG and alias analyses and module
+//! call summaries between the passes of one pipeline run.
 //!
 //! # Usage
 //!
 //! ```ignore
-//! // Read-only analysis pipeline (codegen):
-//! let mut am = AnalysisManager::new();
-//! let liveness = am.get_or_compute(&LivenessAnalysis, &func);
-//!
 //! let changed = run_passes(
 //!     gcx,
 //!     &mut module,

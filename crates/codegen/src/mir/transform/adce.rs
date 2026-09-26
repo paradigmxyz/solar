@@ -11,7 +11,11 @@ use crate::mir::{
     pass::{MirPass, run_function_pass},
     utils::replace_terminator,
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+    map::FxHashMap,
+};
 
 /// Function pass for aggressive dead-code elimination.
 pub(crate) struct Adce;
@@ -243,14 +247,14 @@ impl AdceContext {
     }
 
     fn value_uses(func: &Function) -> IndexVec<ValueId, UseBlocks> {
-        let mut uses = IndexVec::from_vec(vec![UseBlocks::None; func.num_values()]);
+        let mut uses = index_vec![UseBlocks::None; func.num_values()];
         let mut record = |value, block| {
             let uses = &mut uses[value];
-            *uses = match *uses {
-                UseBlocks::None => UseBlocks::One(block),
-                UseBlocks::One(used) if used == block => UseBlocks::One(block),
-                UseBlocks::One(_) | UseBlocks::Many => UseBlocks::Many,
-            };
+            match *uses {
+                UseBlocks::None => *uses = UseBlocks::One(block),
+                UseBlocks::One(used) if used != block => *uses = UseBlocks::Many,
+                UseBlocks::One(_) | UseBlocks::Many => {}
+            }
         };
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {

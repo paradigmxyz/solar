@@ -602,8 +602,8 @@ impl<'a> Builder<'a> {
         // to the same dominator subtree as the original expression.
         let mut leader = None;
         for (node_index, node) in nodes.as_slice().iter().enumerate() {
-            // The original node's memo probe already failed before the search,
-            // which leaves the memo, classes, and liveness untouched.
+            // The search leaves the memo unchanged, so the original node's failed
+            // probe still holds.
             if node_index > 0
                 && let Some(equal) = self.memo_leader((canonical(*node), ty), key, block, index)
             {
@@ -753,11 +753,11 @@ impl<'a> Builder<'a> {
         let mut alternatives = Vec::new();
         for _ in 0..self.max_nodes {
             alternatives.clear();
-            let canonical = canonical_operands(self.func, current);
+            let canonical_op = canonical_operands(self.func, current);
             isle::RuleContext::new(self.func, self.target.evm_version())
                 .with_block(block)
                 .with_uses(&self.uses)
-                .rewrite(&canonical, &mut alternatives);
+                .rewrite(&canonical_op, &mut alternatives);
             let Some(next) = alternatives.iter().find_map(|next| {
                 let next = next.map_values(|value| self.resolve(value));
                 next.into_kind()
@@ -1276,10 +1276,10 @@ fn matching_views<'a>(
     node: &Op,
     operands: &'a [(ValueId, Op)],
 ) -> impl Iterator<Item = OperandViews> + 'a {
-    let paired = matches!(node, Op::Eq { .. } | Op::Xor { .. });
+    let paired: &[_] = if matches!(node, Op::Eq { .. } | Op::Xor { .. }) { operands } else { &[] };
     let singles = operands.iter().map(|&view| [Some(view), None]);
-    let pairs = operands.iter().enumerate().filter(move |_| paired).flat_map(|(index, &first)| {
-        operands[index + 1..]
+    let pairs = paired.iter().enumerate().flat_map(|(index, &first)| {
+        paired[index + 1..]
             .iter()
             .filter(move |second| first.0 != second.0)
             .map(move |&second| [Some(first), Some(second)])
