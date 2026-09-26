@@ -26,6 +26,25 @@ fn request_signature_help(
     .unwrap()
 }
 
+fn signature_help_from_snapshot(
+    state: &mut GlobalState,
+    uri: Url,
+    position: Position,
+) -> Option<SignatureHelp> {
+    // Exercise lexical fallback independently of the handler's current-analysis requirement.
+    let path = crate::proto::vfs_path(&uri)?;
+    let source = state.vfs.read().get_file_source(&path)?;
+    let cursor = source.positions().text_range(lsp_types::Range::new(position, position))?.start;
+    state.symbol_tables.load().signature_help(
+        &uri,
+        cursor,
+        source.positions(),
+        &source.source(),
+        Some(source.statement_boundary(cursor)),
+        state.config.signature_help_options(),
+    )
+}
+
 #[test]
 fn clamps_signature_help_columns_to_the_line_end() {
     let fixture = RequestFixture::new(
@@ -109,11 +128,11 @@ fn clamps_signature_help_before_resolving_an_unindexed_call() {
 
     // This newly typed callee has no indexed callsite, so signature help resolves its declaration
     // from the cursor's scope in the previous analysis.
-    let expected = request_signature_help(&mut state, uri.clone(), position).unwrap();
+    let expected = signature_help_from_snapshot(&mut state, uri.clone(), position).unwrap();
     assert_eq!(expected.active_parameter, Some(1));
     for position in [Position::new(position.line, u32::MAX), Position::new(u32::MAX, 0)] {
         assert_eq!(
-            request_signature_help(&mut state, uri.clone(), position),
+            signature_help_from_snapshot(&mut state, uri.clone(), position),
             Some(expected.clone())
         );
     }
@@ -546,7 +565,7 @@ fn does_not_reuse_a_stale_member_call_after_the_receiver_changes() {
 }
 
 #[test]
-fn warmed_requests_reject_a_changed_receiver_before_reanalysis() {
+fn warmed_snapshot_rejects_a_changed_receiver_before_reanalysis() {
     let fixture = RequestFixture::new(
         r#"
         //- /Signature.sol open
@@ -568,8 +587,11 @@ fn warmed_requests_reject_a_changed_receiver_before_reanalysis() {
     );
     let mut state = fixture.state();
     let (uri, position) = fixture.marker_location("$1");
-    let original = request_signature_help(&mut state, uri.clone(), position).unwrap();
-    assert_eq!(request_signature_help(&mut state, uri.clone(), position), Some(original.clone()));
+    let original = signature_help_from_snapshot(&mut state, uri.clone(), position).unwrap();
+    assert_eq!(
+        signature_help_from_snapshot(&mut state, uri.clone(), position),
+        Some(original.clone())
+    );
 
     // Keep the original analysis while an edit changes only the receiver, leaving the terminal
     // name and opening-parenthesis position unchanged.
@@ -577,14 +599,14 @@ fn warmed_requests_reject_a_changed_receiver_before_reanalysis() {
     let changed = contents.replace("a.f(", "b.f(");
     let path = VfsPath::from(fixture.project_path("/Signature.sol"));
     state.vfs.write().set_file_contents(path.clone(), Some(Rope::from(changed)));
-    assert_eq!(request_signature_help(&mut state, uri.clone(), position), None);
+    assert_eq!(signature_help_from_snapshot(&mut state, uri.clone(), position), None);
 
     state.vfs.write().set_file_contents(path, Some(Rope::from(contents)));
-    assert_eq!(request_signature_help(&mut state, uri, position), Some(original));
+    assert_eq!(signature_help_from_snapshot(&mut state, uri, position), Some(original));
 }
 
 #[test]
-fn warmed_requests_use_current_string_and_comment_boundaries_before_reanalysis() {
+fn warmed_snapshot_uses_current_string_and_comment_boundaries_before_reanalysis() {
     let fixture = RequestFixture::new(
         r#"
         //- /Signature.sol open
@@ -603,9 +625,12 @@ fn warmed_requests_use_current_string_and_comment_boundaries_before_reanalysis()
     );
     let mut state = fixture.state();
     let (uri, position) = fixture.marker_location("$1");
-    let original = request_signature_help(&mut state, uri.clone(), position).unwrap();
+    let original = signature_help_from_snapshot(&mut state, uri.clone(), position).unwrap();
     assert_eq!(original.active_parameter, Some(1));
-    assert_eq!(request_signature_help(&mut state, uri.clone(), position), Some(original.clone()));
+    assert_eq!(
+        signature_help_from_snapshot(&mut state, uri.clone(), position),
+        Some(original.clone())
+    );
 
     let contents = fixture.project_contents("/Signature.sol");
     let path = VfsPath::from(fixture.project_path("/Signature.sol"));
@@ -623,18 +648,18 @@ fn warmed_requests_use_current_string_and_comment_boundaries_before_reanalysis()
         let mut expected = original.clone();
         expected.active_parameter = Some(active_parameter);
         assert_eq!(
-            request_signature_help(&mut state, uri.clone(), position),
+            signature_help_from_snapshot(&mut state, uri.clone(), position),
             Some(expected.clone())
         );
-        assert_eq!(request_signature_help(&mut state, uri.clone(), position), Some(expected));
+        assert_eq!(signature_help_from_snapshot(&mut state, uri.clone(), position), Some(expected));
     }
 
     state.vfs.write().set_file_contents(path, Some(Rope::from(contents)));
-    assert_eq!(request_signature_help(&mut state, uri, position), Some(original));
+    assert_eq!(signature_help_from_snapshot(&mut state, uri, position), Some(original));
 }
 
 #[test]
-fn warmed_requests_use_changed_lines_and_utf16_columns_before_reanalysis() {
+fn warmed_snapshot_uses_changed_lines_and_utf16_columns_before_reanalysis() {
     let fixture = RequestFixture::new(
         r#"
         //- /Signature.sol open
@@ -651,9 +676,12 @@ fn warmed_requests_use_changed_lines_and_utf16_columns_before_reanalysis() {
     );
     let mut state = fixture.state();
     let (uri, position) = fixture.marker_location("$1");
-    let original = request_signature_help(&mut state, uri.clone(), position).unwrap();
+    let original = signature_help_from_snapshot(&mut state, uri.clone(), position).unwrap();
     assert_eq!(original.active_parameter, Some(1));
-    assert_eq!(request_signature_help(&mut state, uri.clone(), position), Some(original.clone()));
+    assert_eq!(
+        signature_help_from_snapshot(&mut state, uri.clone(), position),
+        Some(original.clone())
+    );
 
     // Move the call onto a new line with changed UTF-16 columns and CRLF endings while keeping
     // the previous analysis. The lexical fallback must use the current document.
@@ -671,8 +699,11 @@ fn warmed_requests_use_changed_lines_and_utf16_columns_before_reanalysis() {
         VfsPath::from(fixture.project_path("/Signature.sol")),
         Some(Rope::from(changed)),
     );
-    assert_eq!(request_signature_help(&mut state, uri.clone(), position), Some(original.clone()));
-    assert_eq!(request_signature_help(&mut state, uri, position), Some(original));
+    assert_eq!(
+        signature_help_from_snapshot(&mut state, uri.clone(), position),
+        Some(original.clone())
+    );
+    assert_eq!(signature_help_from_snapshot(&mut state, uri, position), Some(original));
 }
 
 #[test]
@@ -705,7 +736,7 @@ fn does_not_reuse_a_stale_member_call_after_the_receiver_type_changes() {
 }
 
 #[test]
-fn warmed_member_signature_help_survives_an_earlier_line_edit() {
+fn warmed_snapshot_member_signature_help_survives_an_earlier_line_edit() {
     let fixture = RequestFixture::new(
         r#"
         //- /Signature.sol open
@@ -723,7 +754,7 @@ fn warmed_member_signature_help_survives_an_earlier_line_edit() {
     );
     let mut state = fixture.state();
     let (uri, position) = fixture.marker_location("$1");
-    let expected = request_signature_help(&mut state, uri.clone(), position).unwrap();
+    let expected = signature_help_from_snapshot(&mut state, uri.clone(), position).unwrap();
 
     let original = fixture.project_contents("/Signature.sol");
     let path = VfsPath::from(fixture.project_path("/Signature.sol"));
@@ -736,20 +767,20 @@ fn warmed_member_signature_help_survives_an_earlier_line_edit() {
     ] {
         state.vfs.write().set_file_contents(path.clone(), Some(Rope::from(changed)));
         assert_eq!(
-            request_signature_help(&mut state, uri.clone(), position),
+            signature_help_from_snapshot(&mut state, uri.clone(), position),
             Some(expected.clone())
         );
         assert_eq!(
-            request_signature_help(&mut state, uri.clone(), position),
+            signature_help_from_snapshot(&mut state, uri.clone(), position),
             Some(expected.clone())
         );
     }
     state.vfs.write().set_file_contents(path, Some(Rope::from(original)));
-    assert_eq!(request_signature_help(&mut state, uri, position), Some(expected));
+    assert_eq!(signature_help_from_snapshot(&mut state, uri, position), Some(expected));
 }
 
 #[test]
-fn warmed_member_signature_help_does_not_reuse_a_nearby_call() {
+fn warmed_snapshot_member_signature_help_does_not_reuse_a_nearby_call() {
     let fixture = RequestFixture::new(
         r#"
         //- /Signature.sol open
@@ -769,7 +800,7 @@ fn warmed_member_signature_help_does_not_reuse_a_nearby_call() {
     );
     let mut state = fixture.state();
     let (uri, position) = fixture.marker_location("$1");
-    assert!(request_signature_help(&mut state, uri.clone(), position).is_some());
+    assert!(signature_help_from_snapshot(&mut state, uri.clone(), position).is_some());
 
     // The original callee is still valid at its cached position, but a new call on the
     // same line has a different receiver and must not inherit its signature.
@@ -781,7 +812,7 @@ fn warmed_member_signature_help_does_not_reuse_a_nearby_call() {
         VfsPath::from(fixture.project_path("/Signature.sol")),
         Some(Rope::from(changed)),
     );
-    assert_eq!(request_signature_help(&mut state, uri, changed_position), None);
+    assert_eq!(signature_help_from_snapshot(&mut state, uri, changed_position), None);
 }
 
 #[test]

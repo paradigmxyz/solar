@@ -345,6 +345,7 @@ async fn resolves_only_compatible_completion_items_across_analysis_batches() {
 
     let state = GlobalState::new(ClientSocket::new_closed());
     *state.vfs.write() = project.vfs();
+    state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
     let symbol_tables = state.symbol_tables.clone();
     symbol_tables.store(Arc::new(left.symbol_tables.clone()));
     let mut router = crate::new_router_with_state(state);

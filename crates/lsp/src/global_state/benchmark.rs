@@ -744,6 +744,7 @@ pub struct BenchmarkFoldingRangeRequests {
 pub struct BenchmarkSignatureHelpRequests {
     state: super::GlobalState,
     params: SignatureHelpParams,
+    project: BenchmarkProject,
 }
 
 /// Prepared call-hierarchy requests using the production handlers and a completed analysis.
@@ -962,7 +963,8 @@ impl BenchmarkSignatureHelpRequests {
             Some(Rope::from(contents.as_str())),
             Some(1),
         );
-        state.symbol_tables.store(Arc::new(project.analyze().symbol_tables));
+        state.symbol_tables.store(Arc::new(project.clone().analyze().symbol_tables));
+        state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
         let params = SignatureHelpParams {
             text_document_position_params: TextDocumentPositionParams {
                 text_document: TextDocumentIdentifier { uri },
@@ -971,10 +973,10 @@ impl BenchmarkSignatureHelpRequests {
             work_done_progress_params: Default::default(),
             context: None,
         };
-        Self { state, params }
+        Self { state, params, project }
     }
 
-    /// Prepare an edited document with unchanged analysis, outside the request timing.
+    /// Edit and reanalyze the project before starting the request timing.
     pub fn after_edit(&self) -> Self {
         self.fresh_document(true)
     }
@@ -992,14 +994,30 @@ impl BenchmarkSignatureHelpRequests {
         if edit {
             contents.insert(contents.byte_len(), " ");
         }
-        let state = super::GlobalState::new(ClientSocket::new_closed());
+        let mut project = self.project.clone();
+        let symbol_tables = if edit {
+            let source_path = path.as_path().unwrap();
+            let (_, source) = project
+                .files
+                .iter_mut()
+                .find(|(path, _)| path == source_path)
+                .expect("signature-help document should remain a primary source");
+            *source = contents.to_string();
+            project.loader.overlays.insert(source_path.to_path_buf(), source.clone());
+            Arc::new(project.clone().analyze().symbol_tables)
+        } else {
+            self.state.symbol_tables.load_full()
+        };
+        let mut state = super::GlobalState::new(ClientSocket::new_closed());
+        state.config = self.state.config.clone();
         state.vfs.write().set_file_contents_with_version(
             path,
             Some(contents),
             Some(if edit { 2 } else { 1 }),
         );
-        state.symbol_tables.store(self.state.symbol_tables.load_full());
-        Self { state, params: self.params.clone() }
+        state.symbol_tables.store(symbol_tables);
+        state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
+        Self { state, params: self.params.clone(), project }
     }
 
     /// Move the cursor and execute a complete request against the same open document.
@@ -1629,6 +1647,40 @@ mod tests {
             assert_eq!(expected.len(), if whole_document { 2 } else { 1 });
             assert_eq!(requests.run(), expected);
         }
+    }
+
+    #[test]
+    fn signature_help_workload_reanalyzes_current_source() {
+        let project = BenchmarkProject::from_source(
+            "contract C {\nfunction target(uint128 value) internal pure {}\nfunction use() public pure { target(1); }\n}".into(),
+        );
+        let (uri, mut position) = project.unique_anchor("benchmark.sol", "target(1)").unwrap();
+        position.character += "target(".len() as u32;
+        let path = VfsPath::from(uri.to_file_path().unwrap());
+        let mut requests = BenchmarkSignatureHelpRequests::new(project, uri, position);
+        let original = requests.run().unwrap();
+        snapbox::assert_data_eq!(
+            original.signatures[0].label.as_str(),
+            snapbox::str!["function target(uint128 value) internal pure"],
+        );
+        assert_eq!(requests.before_first_request().run(), Some(original.clone()));
+        assert_eq!(requests.after_edit().run(), Some(original));
+
+        let changed = requests
+            .state
+            .vfs
+            .read()
+            .get_file_contents(&path)
+            .unwrap()
+            .to_string()
+            .replace("uint128", "uint256");
+        requests.state.vfs.write().set_file_contents(path, Some(Rope::from(changed)));
+        let mut edited = requests.after_edit();
+        let response = edited.run().unwrap();
+        snapbox::assert_data_eq!(
+            response.signatures[0].label.as_str(),
+            snapbox::str!["function target(uint256 value) internal pure"],
+        );
     }
 
     #[test]

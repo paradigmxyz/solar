@@ -105,8 +105,11 @@ The benchmark groups intentionally keep separate timing boundaries:
   tracked Unifap router, including snapshot lookup, position conversion, and response destruction.
   Results are per burst; throughput counts requests. Transport and compiler analysis are excluded.
 - `signature-help-first-request` and `signature-help-first-after-edit` measure an early or late
-  request with fresh document caches. The edited case appends whitespace while retaining analysis,
-  exercising signature help before reanalysis. Preparing and destroying snapshots is untimed.
+  request with fresh document caches and current analysis. The edited case appends whitespace and
+  reanalyzes the project before timing starts, retaining its compiler options and dependency
+  overlays. These groups exclude reanalysis, scheduling, and edit-to-response latency; preparing
+  and destroying snapshots is untimed. Historical pre-reanalysis results are not comparable with
+  the edited cases after this freshness change.
 - `single-workspace-reverted-edit` measures applying and undoing an edit followed by a complete
   production analysis epoch, including dependency validation and publication. `single-workspace-open-indexed`
   opens a disk-identical root after initial indexing; setup and destruction are untimed.

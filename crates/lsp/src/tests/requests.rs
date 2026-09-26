@@ -238,7 +238,7 @@ fn type_hierarchy_requests_wait_using_the_top_level_item_uri() {
 }
 
 #[test]
-fn invalid_rename_names_and_latency_sensitive_requests_do_not_wait_for_analysis() {
+fn invalid_rename_names_and_requests_without_source_do_not_wait_for_analysis() {
     let uri = file_uri("Test.sol");
     let mut state = pending_analysis_state();
 

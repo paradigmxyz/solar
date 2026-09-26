@@ -26,7 +26,7 @@ use std::{
     future::Future,
     io::Read as _,
     path::Path,
-    sync::Arc,
+    sync::{Arc, atomic::Ordering},
     task::{Context, Poll, Waker},
 };
 
@@ -183,7 +183,7 @@ impl RequestFixture {
         contents: &str,
         expected: impl IntoData,
     ) {
-        let items = self.completion_after_changes(marker, path, &[(path, contents)]);
+        let items = self.completion_after_changes(marker, path, &[(path, contents)], true);
         assert_data_eq!(completion_output(&items), expected);
     }
 
@@ -194,7 +194,18 @@ impl RequestFixture {
         changes: &[(&str, &str)],
         expected: impl IntoData,
     ) {
-        let items = self.completion_after_changes(marker, request_path, changes);
+        let items = self.completion_after_changes(marker, request_path, changes, false);
+        assert_data_eq!(completion_details_output(&items), expected);
+    }
+
+    pub(super) fn check_completion_details_after_reanalysis(
+        &self,
+        marker: &str,
+        path: &str,
+        contents: &str,
+        expected: impl IntoData,
+    ) {
+        let items = self.completion_after_changes(marker, path, &[(path, contents)], true);
         assert_data_eq!(completion_details_output(&items), expected);
     }
 
@@ -203,22 +214,44 @@ impl RequestFixture {
         marker: &str,
         request_path: &str,
         changes: &[(&str, &str)],
+        reanalyze: bool,
     ) -> Vec<CompletionItem> {
         let mut state = self.state_with_completion_snippets(true);
         for &(path, contents) in changes {
             let path = self.marked.project().path(path);
-            state.mark_source_analysis_pending_for_test(path.clone());
             state.vfs.write().set_file_contents(
-                crate::vfs::VfsPath::from(path),
+                crate::vfs::VfsPath::from(path.clone()),
                 Some(crop::Rope::from(contents)),
             );
+            state.mark_source_analysis_pending_for_test(path);
         }
         let uri = Url::from_file_path(self.marked.project().path(request_path)).unwrap();
         let position = self.marked.marker(marker).position();
-        let response =
-            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
-                .unwrap()
-                .unwrap();
+        let mut request = std::pin::pin!(crate::handlers::completion(
+            &mut state,
+            completion_params(uri, position),
+        ));
+        let response = match request.as_mut().poll(&mut Context::from_waker(Waker::noop())) {
+            Poll::Ready(response) => {
+                assert!(!reanalyze, "semantic completion must wait for current analysis");
+                response
+            }
+            Poll::Pending => {
+                assert!(reanalyze, "completion must return without waiting for analysis");
+                let mut snapshot = state.snapshot();
+                let mut results = AnalysisResultAccumulator::default();
+                for batch in snapshot.analysis_batches(Vec::new()) {
+                    results.push(analyze(batch));
+                }
+                assert!(snapshot.publish_analysis(
+                    state.analysis_version.load(Ordering::Acquire),
+                    results.finish(),
+                ));
+                expect_ready(request)
+            }
+        }
+        .unwrap()
+        .unwrap();
         let CompletionResponse::Array(items) = response else {
             panic!("expected completion array");
         };
@@ -679,6 +712,7 @@ impl RequestFixture {
             Some(crop::Rope::from(changed_contents)),
         );
         state.symbol_tables.store(Arc::new(result.symbol_tables));
+        state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
         let position = self.marked.marker(marker).position();
         self.check_signature_help_in_state(&mut state, uri, position, expected);
     }

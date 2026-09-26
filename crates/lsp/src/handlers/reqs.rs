@@ -17,6 +17,7 @@ use crate::{
 use arc_swap::ArcSwap;
 use async_lsp::{ClientSocket, ErrorCode, ResponseError};
 use crop::Rope;
+use either::Either;
 use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
     CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
@@ -992,23 +993,30 @@ pub(crate) fn signature_help(
 ) -> impl Future<Output = Result<Option<SignatureHelp>, ResponseError>> + use<> {
     let mut params = params.text_document_position_params;
     params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let response = state.cached_vfs_path(&params.text_document.uri).and_then(|path| {
-        let source = state.vfs.read().get_file_source(&path)?;
-        let cursor = source
-            .positions()
-            .text_range(lsp_types::Range::new(params.position, params.position))?
-            .start;
-        let statement_boundary = Some(source.statement_boundary(cursor));
-        state.symbol_tables.load().signature_help(
+    let source = state.cached_vfs_path(&params.text_document.uri).and_then(|path| {
+        let vfs = state.vfs.read();
+        Some((vfs.get_file_source(&path)?, vfs.content_revision()))
+    });
+    let Some((source, revision)) = source else { return Either::Left(ready(Ok(None))) };
+    let Some(range) =
+        source.positions().text_range(lsp_types::Range::new(params.position, params.position))
+    else {
+        return Either::Left(ready(Ok(None)));
+    };
+    let options = state.config.signature_help_options();
+    let analysis = state.interactive_analysis(revision);
+    Either::Right(async move {
+        let symbol_tables = analysis.await?;
+        let statement_boundary = Some(source.statement_boundary(range.start));
+        Ok(symbol_tables.signature_help(
             &params.text_document.uri,
-            cursor,
+            range.start,
             source.positions(),
             &source.source(),
             statement_boundary,
-            state.config.signature_help_options(),
-        )
-    });
-    ready(Ok(response))
+            options,
+        ))
+    })
 }
 
 pub(crate) fn completion(
@@ -1019,10 +1027,11 @@ pub(crate) fn completion(
         params.context.as_ref().and_then(|context| context.trigger_character.as_deref());
     let mut params = params.text_document_position;
     params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let source = state
-        .cached_vfs_path(&params.text_document.uri)
-        .and_then(|path| state.vfs.read().get_file_source(&path));
-    if let Some(source) = source {
+    let source = state.cached_vfs_path(&params.text_document.uri).and_then(|path| {
+        let vfs = state.vfs.read();
+        Some((vfs.get_file_source(&path)?, vfs.content_revision()))
+    });
+    if let Some((source, _)) = &source {
         let contents = source.contents();
         let cursor = source
             .positions()
@@ -1047,7 +1056,7 @@ pub(crate) fn completion(
                         .flatten();
                     target.completion_items(state.config.completion_options(), semantics.as_ref())
                 });
-                return ready(Ok(Some(CompletionResponse::Array(items))));
+                return Either::Left(ready(Ok(Some(CompletionResponse::Array(items)))));
             }
             NatSpecCompletionResult::NotApplicable => {}
         }
@@ -1060,22 +1069,28 @@ pub(crate) fn completion(
                 &source.source(),
             )
         {
-            return ready(Ok(Some(response)));
+            return Either::Left(ready(Ok(Some(response))));
         }
     }
     if matches!(trigger_character, Some("/" | "*" | "\"" | "'")) {
-        return ready(Ok(Some(CompletionResponse::Array(Vec::new()))));
+        return Either::Left(ready(Ok(Some(CompletionResponse::Array(Vec::new())))));
     }
-    let input = completion_input(state, &params.text_document.uri, params.position);
-    let context = input.as_ref().map(CompletionInput::context).unwrap_or_default();
+    let Some((source, revision)) = source else {
+        return Either::Left(ready(Ok(Some(CompletionResponse::Array(Vec::new())))));
+    };
     let options = state.config.completion_options();
-    let symbol_tables = state.symbol_tables.load();
-    let mut items =
-        symbol_tables.completion_items(&params.text_document.uri, params.position, context);
-    if !options.resolve_documentation {
-        symbol_tables.resolve_completion_items(&mut items, options.markdown_documentation);
-    }
-    ready(Ok(Some(CompletionResponse::Array(items))))
+    let analysis = state.interactive_analysis(revision);
+    Either::Right(async move {
+        let symbol_tables = analysis.await?;
+        let input = completion_input(source.contents(), params.position);
+        let context = input.as_ref().map(CompletionInput::context).unwrap_or_default();
+        let mut items =
+            symbol_tables.completion_items(&params.text_document.uri, params.position, context);
+        if !options.resolve_documentation {
+            symbol_tables.resolve_completion_items(&mut items, options.markdown_documentation);
+        }
+        Ok(Some(CompletionResponse::Array(items)))
+    })
 }
 
 fn import_completion(
@@ -1226,10 +1241,8 @@ impl CompletionInput {
     }
 }
 
-fn completion_input(state: &GlobalState, uri: &Url, position: Position) -> Option<CompletionInput> {
-    let path = crate::proto::vfs_path(uri)?;
-    let vfs = state.vfs.read();
-    let line = line_at(vfs.get_file_contents(&path)?, position.line as usize)?;
+fn completion_input(contents: &Rope, position: Position) -> Option<CompletionInput> {
+    let line = line_at(contents, position.line as usize)?;
     let line_prefix = line_prefix_at(&line, position)?;
     Some(completion_input_from_line_prefix(line_prefix))
 }
