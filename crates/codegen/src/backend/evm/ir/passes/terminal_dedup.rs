@@ -116,6 +116,23 @@ fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     changed
 }
 
+/// Whether blocks `a` and `b` are halting blocks with identical bodies, which run the same code.
+pub(super) fn equal_terminal_bodies(module: &Module, a: BlockId, b: BlockId) -> bool {
+    let (a, b) = (&module.blocks[a], &module.blocks[b]);
+    a.terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
+        && same_terminal_body(a, b)
+}
+
+/// Makes the terminal block `target` stand for its equal `copy`, whose paths now run it: it takes
+/// the copy's hotness and loop membership, and debug origins merge as when the copy is shared.
+pub(super) fn absorb_terminal_copy(module: &mut Module, copy: BlockId, target: BlockId) {
+    merge_debug_origins(module, &[(copy, target)]);
+    if !module.blocks[copy].metadata.hotness.is_cold() {
+        module.blocks[target].metadata.hotness = Hotness::Hot;
+    }
+    module.blocks[target].metadata.in_loop |= module.blocks[copy].metadata.in_loop;
+}
+
 fn merge_debug_origins(module: &mut Module, redirects: &[(BlockId, BlockId)]) {
     let target = redirects[0].1;
     for index in 0..module.blocks[target].instructions.len() {
