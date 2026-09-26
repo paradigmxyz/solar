@@ -7,12 +7,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         id: hir::FunctionId,
         function: &hir::Function<'_>,
-        calldata_views: u64,
+        passes: &[ViewPass],
     ) {
         self.parameters.extend_from_slice(function.parameters);
         for (index, &param) in function.parameters.iter().enumerate() {
             let ty = self.cx.gcx.type_of_item(param.into());
-            let mir_ty = parameter_type(self.cx.gcx, id, index, ty, calldata_views);
+            let mir_ty = parameter_type(self.cx.gcx, id, index, ty, passes);
             let value = self.builder.add_param(mir_ty);
             if is_view_parameter(self.cx.gcx, id, index) {
                 self.bind_view_parameter(param, value);

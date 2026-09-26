@@ -628,11 +628,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some(self.builder.keccak256(pointer, length));
                 }
                 if self.is_view_expr(value) {
-                    // hash = keccak256(view.ptr, view.len), from scratch for calldata
+                    // hash = keccak256(view)
                     let view = self.lower_view_expr(value)?;
-                    let pointer = self.builder.slice_ptr(view);
-                    let length = self.builder.slice_len(view);
-                    return Some(self.core_hash_range(view, pointer, length));
+                    return Some(self.hash_view(view));
                 }
                 let value_ty = self.cx.gcx.type_of_expr(value.id)?;
                 let memory_ty = value_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
@@ -777,8 +775,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     if self.is_view_expr(expr) {
                         // A view's bytes are copied from where it reads them.
                         let value = self.lower_view_expr(expr)?;
-                        let location = self.builder.func().value_slice_location(value)?;
-                        parts.push(ConcatPart::Slice { value, location });
+                        parts.push(match self.builder.func().value_slice_location(value) {
+                            Some(location) => ConcatPart::Slice { value, location },
+                            None => ConcatPart::Bytes(value),
+                        });
                         continue;
                     }
                     let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);

@@ -915,7 +915,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(&mir_id) = self.cx.function_ids.get(&function_id) else {
             return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
         };
-        let mir_id = self.view_callee(function_id, mir_id, &mut values);
+        let mir_id = self.view_callee(function_id, mir_id, &values);
         if let Some(value) = self.lower_pure_struct_constructor(function, &values) {
             return Some(value);
         }
