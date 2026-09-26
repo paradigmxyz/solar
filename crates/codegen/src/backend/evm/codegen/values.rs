@@ -135,6 +135,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 ScheduledOp::LoadArg(index) => {
                     if self.in_internal_function {
+                        self.scheduler.reject_hazard_arg_load(func, index);
                         self.emit_internal_arg_load(index);
                     } else if self.in_constructor {
                         self.emit_constructor_arg_load(index);

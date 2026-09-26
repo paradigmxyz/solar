@@ -1,5 +1,11 @@
 //@ codegen-matrix: standard
+//@ run-call: FrameForwarding::derived 7,4096 => 22
+//@ run-call: FrameForwarding::sweep 7,4096 => 7
+//@ run-call: FrameForwarding::sweep 7,0 => 7
 //@ run-call: Harness::run => 1
+//@ run-call: FrameForwarding::run 7, 4096 => 7
+//@ run-call: FrameForwarding::branch 7, 4096, true => 8
+//@ run-call: FrameForwarding::branch 7, 4096, false => 9
 
 // A forwarding proxy sets the free-memory pointer low and
 // `calldatacopy(0, 0, calldatasize())` before `delegatecall`ing the copied
@@ -61,5 +67,49 @@ contract Harness {
         Impl(address(p)).setBig(10, 20, 30, hex"deadbeefdeadbeefdeadbeefdeadbeef");
         require(Impl(address(p)).v() == 76, "forward");
         return 1;
+    }
+}
+
+contract FrameForwarding {
+    function run(uint256 value, uint256 length) external pure returns (uint256) {
+        return forward(value, length);
+    }
+
+    function forward(uint256 value, uint256 length) internal pure returns (uint256) {
+        assembly { calldatacopy(0x80, calldatasize(), length) }
+        return value;
+    }
+
+    function branch(uint256 value, uint256 length, bool first) external pure returns (uint256) {
+        return forwardBranch(value, length, first);
+    }
+
+    function forwardBranch(uint256 value, uint256 length, bool first) internal pure returns (uint256) {
+        assembly { calldatacopy(0x80, calldatasize(), length) }
+        if (first) return value + 1;
+        return value + 2;
+    }
+
+    function derived(uint256 value, uint256 length) external pure returns (uint256) {
+        return forwardDerived(value, length);
+    }
+
+    function forwardDerived(uint256 value, uint256 length) internal pure returns (uint256) {
+        uint256 derivedValue = value * 3 + 1;
+        assembly { calldatacopy(0x80, calldatasize(), length) }
+        return derivedValue;
+    }
+
+    function sweep(uint256 value, uint256 length) external pure returns (uint256) {
+        return forwardSweep(value, length);
+    }
+
+    function forwardSweep(uint256 value, uint256 length) internal pure returns (uint256) {
+        assembly {
+            for { let ptr := 0 } lt(ptr, length) { ptr := add(ptr, 32) } {
+                mstore(ptr, 0)
+            }
+        }
+        return value;
     }
 }

@@ -1124,6 +1124,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn store_stack_top_to_spill(&mut self, func: &Function, value: ValueId, slot: SpillSlot) {
+        self.scheduler.reject_hazard_arg_fallback(value);
         // Store to spill slot: PUSH offset, MSTORE.
         // The PUSH creates an untracked stack entry, so we track it as unknown.
         self.emit_spill_slot_addr(func, slot);
@@ -1306,7 +1307,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         value: ValueId,
     ) -> bool {
         let Some(func_id) = self.current_internal_function else { return false };
-        self.disabled_stack_only_functions.insert(func_id);
+        if !self.scheduler.reject_hazard_arg_fallback(value) {
+            self.disabled_stack_only_functions.insert(func_id);
+        }
         self.asm.emit_push(U256::ZERO);
         self.scheduler.stack.push(value);
         true

@@ -836,6 +836,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // state rather than the child activation's last stores.
         for &value in &recursive_call_values {
             if let crate::mir::Value::Arg(index) = func.value(value) {
+                self.scheduler.reject_hazard_arg_fallback(value);
                 let depth = self.scheduler.stack.find(value).unwrap_or_else(|| {
                     panic!("recursive caller argument {value:?} was not preserved")
                 });

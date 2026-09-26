@@ -150,8 +150,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             phi_plan.as_deref().map_or_else(StackPhiPlan::default, StackPhiPlan::clone);
         let resident_stack_plan = self.resident_stack_plan(func_id).cloned();
         let existing_stack_only_values = self.stack_only_values(func_id, true);
-        let hazard_recomputable =
-            cross_block_values(func, |value| !existing_stack_only_values.contains(&value));
+        let mut hazard_args = Vec::new();
+        if self.in_internal_function && !self.spill_hazard_insts.is_empty() {
+            hazard_args.extend(
+                func.live_values().filter(|&value| matches!(func.value(value), Value::Arg(_))),
+            );
+            hazard_args.sort_unstable();
+            hazard_args.dedup();
+        }
+        let hazard_recomputable = cross_block_values(func, |value| {
+            !existing_stack_only_values.contains(&value)
+                && (!self.in_internal_function || !matches!(func.value(value), Value::Arg(_)))
+        });
         let hazard_cross_block_values = self.spill_hazard_cross_block_values(
             func,
             liveness,
@@ -333,6 +343,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.set_stack_only_values(func.num_values(), initial_stack_only_values);
 
         self.preallocate_cross_block_spills(func, liveness, &cross_block_live);
+        if self.in_internal_function && !self.spill_hazard_insts.is_empty() {
+            for value in func.live_values() {
+                if !hazard_recomputable.contains(value) {
+                    self.scheduler.spills.invalidate_recomputable(value);
+                }
+            }
+        }
 
         self.cold_blocks = self.collect_cold_blocks(func);
         if !loops_analyzed {
@@ -483,8 +500,26 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             // Resident and direct arguments have no frame fallback.
             let mut stack_only_values = self.stack_only_values(func_id, block_id == BlockId::ENTRY);
+            if block_id == BlockId::ENTRY {
+                self.scheduler
+                    .set_stack_only_values(func.num_values(), stack_only_values.iter().copied());
+                for &value in hazard_stack_values.into_iter().flatten() {
+                    if matches!(func.value(value), Value::Arg(_))
+                        && !self.scheduler.stack.contains(value)
+                    {
+                        self.emit_value(func, value);
+                    }
+                }
+            }
             stack_only_values.extend(hazard_stack_values.into_iter().flatten().copied());
             self.scheduler.set_stack_only_values(func.num_values(), stack_only_values);
+            if self.in_internal_function {
+                for &value in hazard_stack_values.into_iter().flatten() {
+                    if matches!(func.value(value), Value::Arg(_)) {
+                        self.scheduler.protect_hazard_arg(func.num_values(), value);
+                    }
+                }
+            }
             if block_id != BlockId::ENTRY
                 && self.resident_stack_args(func_id).is_some()
                 && !stack_phi_plan.entries.contains_key(&block_id)
@@ -541,7 +576,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // recorded use in this block at or before it, and reloading it
                 // would only deepen the stack with a dead word.
                 if self.spill_hazard_insts.contains(&inst_id) {
-                    let at_risk: Vec<ValueId> = self
+                    let mut at_risk: Vec<ValueId> = self
                         .scheduler
                         .spills
                         .reloadable_values()
@@ -549,13 +584,26 @@ impl<'gcx> EvmCodegen<'gcx> {
                             liveness.is_used_at_or_after(value, block_id, inst_idx + 1)
                         })
                         .collect();
+                    for &value in &hazard_args {
+                        if liveness.is_used_at_or_after(value, block_id, inst_idx + 1)
+                            && !at_risk.contains(&value)
+                        {
+                            at_risk.push(value);
+                        }
+                    }
                     for value in at_risk {
-                        let recomputable = self.scheduler.spills.is_recomputable(value);
+                        let recomputable = self.scheduler.spills.is_recomputable(value)
+                            && hazard_recomputable.contains(value);
                         if !recomputable {
                             if !self.scheduler.stack.contains(value) {
                                 self.emit_value(func, value);
                             }
                             pinned_hazard_values.insert(value);
+                            if self.in_internal_function
+                                && matches!(func.value(value), Value::Arg(_))
+                            {
+                                self.scheduler.protect_hazard_arg(func.num_values(), value);
+                            }
                         }
                         self.scheduler.spills.invalidate_stored(value);
                         if let Some(available) = &mut self.spill_available {
@@ -578,6 +626,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     inst_idx,
                     result_value,
                 );
+                if self.report_hazard_preservation_failure(func) {
+                    return;
+                }
                 if !stack_only_disabled_at_entry && self.stack_only_function_disabled(func_id) {
                     return;
                 }
@@ -723,6 +774,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             let terminator_growth =
                 block.terminator.as_ref().map_or(0, Self::terminator_transient_growth);
             self.materialize_deep_stack_args(func_id, func, terminator_growth);
+            if self.report_hazard_preservation_failure(func) {
+                return;
+            }
             if !stack_only_disabled_at_entry && self.stack_only_function_disabled(func_id) {
                 return;
             }
@@ -994,6 +1048,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             } else {
                 None
             };
+            if self.report_hazard_preservation_failure(func) {
+                return;
+            }
             if let Some(position) = emitted_return {
                 function_returns.insert(position);
             }
@@ -1469,5 +1526,19 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             block_id = target;
         }
+    }
+
+    fn report_hazard_preservation_failure(&self, func: &Function) -> bool {
+        if !self.scheduler.preservation_failed() {
+            return false;
+        }
+        self.gcx
+            .dcx()
+            .err(format!(
+                "codegen cannot preserve arguments across a low-memory write in `{}`",
+                func.name
+            ))
+            .emit();
+        true
     }
 }

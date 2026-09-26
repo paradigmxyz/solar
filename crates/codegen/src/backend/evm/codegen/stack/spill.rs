@@ -204,6 +204,11 @@ impl SpillManager {
         self.recomputable.insert(value);
     }
 
+    /// Forbids rebuilding a value from inputs that may no longer be available.
+    pub(crate) fn invalidate_recomputable(&mut self, value: ValueId) {
+        self.recomputable.remove(value);
+    }
+
     /// Returns true if an unstored value may be rematerialized.
     #[must_use]
     pub(crate) fn is_recomputable(&self, value: ValueId) -> bool {
