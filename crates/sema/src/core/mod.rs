@@ -203,6 +203,9 @@ pub enum CoreIntrinsic {
     /// `Code.copyInto(dst, dstOffset, target, start, count)` and
     /// `Code.copyInto(dst, dstOffset, section)`: a checked `extcodecopy`.
     CodeCopyInto,
+    /// `Code.read(target, start, count)` and `Code.read(section)`: a checked
+    /// `extcodecopy` into a new buffer, which the copy fills.
+    CodeRead,
     /// `Bits.leadingZeros(x)`: `clz`, on targets that have it.
     LeadingZeros,
     /// `Bits.highestSetBit(x)`: `255 - clz`, with 256 for zero.
@@ -431,8 +434,11 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
             ])
         })),
         "solar:core/v1/Code.sol" => Some(CODE.get_or_init(|| {
-            // `read` is library code over `copyInto`.
-            FxHashMap::from_iter([(sym::copyInto, CoreIntrinsic::CodeCopyInto)])
+            // Both overloads of each share a name; the lowering reads the operand count.
+            FxHashMap::from_iter([
+                (sym::copyInto, CoreIntrinsic::CodeCopyInto),
+                (sym::read, CoreIntrinsic::CodeRead),
+            ])
         })),
         "solar:core/v1/Bits.sol" => Some(BITS.get_or_init(|| {
             // `popCount` has no instruction to lower to.

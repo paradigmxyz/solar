@@ -8,10 +8,12 @@
 //@ run-call-fail: part 0x63deadbeef6000526004601cf3, 2, 4 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call-fail: part 0x63deadbeef6000526004601cf3, 115792089237316195423570985008687907853269984665640564039457584007913129639935, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call-fail: overflow 0x63deadbeef6000526004601cf3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: part 0x63deadbeef6000526004601cf3, 0, 57896044618658097711785492504343953926634992332820282019728792003956564819968 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
 
 // `Code.copyInto` copies a range of another account's code into a buffer,
 // checked against the code's size and the buffer's, so nothing is padded and
-// nothing lands outside. `read` is library code over it.
+// nothing lands outside. `read` copies into a new buffer the same way, which
+// it allocates first: a length no buffer can hold raises `Panic(0x41)`.
 import {Code} from "solar:core/v1/Code.sol";
 import {Create} from "solar:core/v1/Create.sol";
 
