@@ -261,8 +261,8 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     fn debug_assert_dataflow_relocations_sorted(&self) {
-        debug_assert!(self.label_relocations.is_sorted_by_key(|r| (r.0.index(), r.1)));
-        debug_assert!(self.indexed_jump_relocations.is_sorted_by_key(|r| r.0.index()));
+        debug_assert!(self.label_relocations.is_sorted_by_key(|r| (r.0, r.1)));
+        debug_assert!(self.indexed_jump_relocations.is_sorted_by_key(|r| r.0));
         debug_assert!(self.deferred_relocations.is_sorted_by_key(|r| r.0));
         debug_assert!(self.alloc_relocations.is_sorted_by_key(|r| r.0));
     }
@@ -563,29 +563,28 @@ impl<'gcx> Assembler<'gcx> {
             let before = ranges.last().map_or(0, |(range, before)| before + range.len());
             ranges.push((range.clone(), before));
         }
-        // Relocations are sorted by block, so those before the first edited block stay as they are.
+        // Relocations before the first edited block stay as they are.
         fn shift<T>(
             relocations: &mut Vec<(ir::BlockId, usize, T)>,
             first: ir::BlockId,
             ranges: &FxHashMap<ir::BlockId, Vec<(std::ops::Range<usize>, usize)>>,
         ) {
-            let start = relocations.partition_point(|&(block, _, _)| block < first);
-            let mut kept = start;
-            for read in start..relocations.len() {
-                let (block, index, _) = &mut relocations[read];
-                if let Some(ranges) = ranges.get(block) {
-                    let position = ranges.partition_point(|(range, _)| range.start <= *index);
-                    if let Some((range, before)) = position.checked_sub(1).map(|i| &ranges[i]) {
-                        if range.contains(index) {
-                            continue;
-                        }
-                        *index -= before + range.len();
-                    }
+            relocations.retain_mut(|(block, index, _)| {
+                if *block < first {
+                    return true;
                 }
-                relocations.swap(kept, read);
-                kept += 1;
-            }
-            relocations.truncate(kept);
+                if let Some(ranges) = ranges.get(block)
+                    && let Some(position) =
+                        ranges.partition_point(|(range, _)| range.start <= *index).checked_sub(1)
+                {
+                    let (range, before) = &ranges[position];
+                    if range.contains(index) {
+                        return false;
+                    }
+                    *index -= before + range.len();
+                }
+                true
+            });
         }
         shift(&mut self.label_relocations, first, &per_block);
         shift(&mut self.deferred_relocations, first, &per_block);

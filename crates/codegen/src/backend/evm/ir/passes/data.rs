@@ -523,21 +523,19 @@ fn scan_data_references(
     let mut stack = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
         // The stack starts empty, so without a data push no slot can hold a data address.
-        if !block.instructions.iter().any(|inst| inst.pushed_data().is_some()) {
-            for (index, inst) in block.instructions.iter().enumerate() {
-                visit(block_id, index, &block.instructions);
-                if inst.opcode == op::CODESIZE {
-                    references.layout_observable = true;
-                }
-            }
-            continue;
-        }
+        let has_data = block.instructions.iter().any(|inst| inst.pushed_data().is_some());
         for (index, inst) in block.instructions.iter().enumerate() {
             visit(block_id, index, &block.instructions);
-            track_data_reference(module, inst, &mut stack, &mut references);
+            if has_data {
+                track_data_reference(module, inst, &mut stack, &mut references);
+            } else if inst.opcode == op::CODESIZE {
+                references.layout_observable = true;
+            }
         }
-        mark_stack_data_unsafe(&stack, &mut references.subslice_safe);
-        stack.clear();
+        if has_data {
+            mark_stack_data_unsafe(&stack, &mut references.subslice_safe);
+            stack.clear();
+        }
     }
     references
 }

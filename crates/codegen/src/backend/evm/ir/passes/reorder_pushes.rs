@@ -103,8 +103,8 @@ impl ReorderState {
         self.sequence.reserve(self.sequence.instructions.len());
         self.expressions.clear();
         let mut changed = false;
-        for index in 0..self.sequence.instructions.len() as u32 {
-            let inst = &self.sequence.instructions[index as usize];
+        for index in 0..self.sequence.instructions.len() {
+            let inst = &self.sequence.instructions[index];
             let swap1 = inst.as_stack_op() == Some(StackOp::Swap(1));
             if swap1
                 && let Some(pushed) = self.expressions.last()
@@ -135,7 +135,7 @@ impl ReorderState {
                 continue;
             }
 
-            let node = self.sequence.push(index);
+            let node = self.sequence.push(index as u32);
             update_expressions(&mut self.expressions, &self.sequence, node);
         }
         self.sequence.finish_into(instructions, changed);

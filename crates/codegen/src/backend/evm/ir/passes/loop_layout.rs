@@ -164,10 +164,9 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
             if visited <= 256 && reachable.contains(latch) && hotter {
                 // preheader; header ... latch; jump header
                 // -> preheader; jump header; latch; header ...
-                order.remove(l);
-                order.insert(h, latch);
-                for (position, &block) in order.iter().enumerate().take(l + 1).skip(h) {
-                    positions[block] = position as u32;
+                order[h..=l].rotate_right(1);
+                for (offset, &block) in order[h..=l].iter().enumerate() {
+                    positions[block] = (h + offset) as u32;
                 }
                 moved.insert(*header);
             }

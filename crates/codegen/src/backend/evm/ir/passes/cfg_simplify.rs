@@ -80,10 +80,9 @@ fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) ->
     state.reserve(module.blocks.len());
     let mut changed =
         gcx.sess.opts.optimization.is_gas() && rotate_loop_exits(module, &mut state.references);
-    let mut first = true;
+    // Later rounds only add `POP`s or move instructions of already truncated blocks.
+    changed |= truncate_after_terminal(module);
     loop {
-        // Later rounds only add `POP`s or move instructions of already truncated blocks.
-        let truncated = std::mem::take(&mut first) && truncate_after_terminal(module);
         let direct = simplify_known_jumps(module);
         let degenerate = simplify_degenerate_branches(module);
         let redirected = redirect_jump_thunks(
@@ -108,23 +107,9 @@ fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) ->
         );
         let coalesced =
             coalesce_blocks(module, &mut state.references, &mut state.retained, &mut state.order);
-        changed |= truncated
-            || direct
-            || degenerate
-            || redirected
-            || inlined
-            || branches
-            || swept
-            || coalesced;
-        if !truncated
-            && !direct
-            && !degenerate
-            && !redirected
-            && !inlined
-            && !branches
-            && !swept
-            && !coalesced
-        {
+        let round = direct || degenerate || redirected || inlined || branches || swept || coalesced;
+        changed |= round;
+        if !round {
             if thread_shared_jumps {
                 changed |= normalize_triangle_branches(module);
             }

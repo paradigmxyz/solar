@@ -206,29 +206,23 @@ impl RunState {
             if keep_branches && inst.as_evm_opcode() == Some(op::JUMPI) {
                 break;
             }
-            let representative = if let Some(LazyTail { block: owner, limit }) = lazy {
-                // Below a lazy node, only its owner's own instructions continue the chain.
-                let owner = &module.blocks[owner].instructions;
-                if common >= limit as usize
-                    || MachineInstKey::new(&owner[owner.len() - common - 1])
-                        != MachineInstKey::new(inst)
-                {
-                    break;
-                }
-                is_split_point(owner, owner.len() - common - 1).then_some(lazy.unwrap().block)
-            } else if let Some(&child) = self.tail_edges.get(&(node, MachineInstKey::new(inst))) {
+            let representative = if lazy.is_none()
+                && let Some(&child) = self.tail_edges.get(&(node, MachineInstKey::new(inst)))
+            {
                 node = child;
                 self.tail_representatives[node]
-            } else if let Some(tail) = self.tail_lazy[node] {
+            } else if let Some(tail) = lazy.or(self.tail_lazy[node]) {
+                // Below a lazy node, only its owner's own instructions continue the chain.
                 lazy = Some(tail);
-                let owner = &module.blocks[tail.block].instructions;
-                if common >= tail.limit as usize
-                    || MachineInstKey::new(&owner[owner.len() - common - 1])
-                        != MachineInstKey::new(inst)
-                {
+                if common >= tail.limit as usize {
                     break;
                 }
-                is_split_point(owner, owner.len() - common - 1).then_some(tail.block)
+                let owner = &module.blocks[tail.block].instructions;
+                let at = owner.len() - common - 1;
+                if MachineInstKey::new(&owner[at]) != MachineInstKey::new(inst) {
+                    break;
+                }
+                is_split_point(owner, at).then_some(tail.block)
             } else {
                 break;
             };

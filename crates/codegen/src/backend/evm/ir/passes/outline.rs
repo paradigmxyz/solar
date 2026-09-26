@@ -939,7 +939,7 @@ impl InstHashes {
         // Number each distinct instruction once, with its occurrence count and hash.
         let mut interned = FxHashMap::<MachineInstKey, u32>::default();
         let mut counts = Vec::<u32>::new();
-        let mut hashes = Vec::<u64>::new();
+        let mut hashes = Vec::new();
         let ids = module
             .blocks
             .iter()
@@ -955,8 +955,8 @@ impl InstHashes {
                             hashes.push(hasher.finish());
                             counts.push(0);
                             (counts.len() - 1) as u32
-                        }) as usize;
-                        counts[id] += 1;
+                        });
+                        counts[id as usize] += 1;
                         id
                     })
                     .collect::<Vec<_>>()
@@ -972,11 +972,11 @@ impl InstHashes {
             let mut repeated = DenseBitSet::new_empty(ids.len());
             prefix.push(0u64);
             for (index, &id) in ids.iter().enumerate() {
-                if counts[id] >= 2 {
+                if counts[id as usize] >= 2 {
                     repeated.insert(index);
                 }
                 let last = *prefix.last().expect("prefix starts with the empty run");
-                prefix.push(last.wrapping_mul(Self::BASE).wrapping_add(hashes[id]));
+                prefix.push(last.wrapping_mul(Self::BASE).wrapping_add(hashes[id as usize]));
             }
             prefixes.push(prefix);
             repeats.push(repeated);
