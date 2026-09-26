@@ -254,6 +254,9 @@ pub enum CoreIntrinsic {
     WriteEncoding,
     /// `Abi.tryWriteEncoding(out, offset, encoding)`.
     TryWriteEncoding,
+    /// `Abi.encodedSize(encoding)`: the encoding's length, computed from the
+    /// arguments of the `abi.encode` call written as the argument.
+    EncodedSize,
 }
 
 impl CoreIntrinsic {
@@ -478,6 +481,7 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
             FxHashMap::from_iter([
                 (sym::writeEncoding, CoreIntrinsic::WriteEncoding),
                 (sym::tryWriteEncoding, CoreIntrinsic::TryWriteEncoding),
+                (sym::encodedSize, CoreIntrinsic::EncodedSize),
             ])
         })),
         // `Cast`, `Precompiles`, `Buffers` and the remaining codecs are library

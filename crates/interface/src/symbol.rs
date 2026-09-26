@@ -1112,6 +1112,7 @@ symbols! {
         encodeWithSignature,
         encode_abi_array,
         encode_abi_tuple,
+        encodedSize,
         entry,
         environment_read,
         equalsAt,

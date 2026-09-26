@@ -76,6 +76,78 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
+    /// The length of the encoding the call [`Self::encoding_call`] found would produce, from its
+    /// arguments' lengths without encoding them when every argument is a value, a byte string,
+    /// an array of values or a static aggregate. Otherwise the encoding is staged past the free
+    /// memory pointer, without reserving it, and measured. The arguments are evaluated either
+    /// way.
+    pub(super) fn lower_abi_encoded_size(
+        &mut self,
+        builtin: Builtin,
+        args: hir::CallArgs<'_>,
+    ) -> Option<ValueId> {
+        let (selector, exprs) = match builtin {
+            Builtin::AbiEncode => (None, self.variadic_builtin_args(builtin, &args)?),
+            Builtin::AbiEncodeWithSelector => {
+                let (selector, rest) = self.builtin_args_with_rest::<1>(builtin, &args)?;
+                (Some(self.lower_selector_word(&selector[0])?), rest)
+            }
+            Builtin::AbiEncodeWithSignature => {
+                let (signature, rest) = self.builtin_args_with_rest::<1>(builtin, &args)?;
+                (Some(self.lower_signature_selector(&signature[0])?), rest)
+            }
+            _ => {
+                // size = len(abi_encode_scratch(...))
+                let staged = self.lower_abi_encode_call_scratch(builtin, args)?;
+                return Some(self.builder.slice_len(staged));
+            }
+        };
+        let (layout, values) = self.lower_abi_encode_arguments(exprs)?;
+        let measurable = |ty: &AbiType| match ty {
+            AbiType::Bytes(_) => true,
+            AbiType::DynamicArray { element, .. } => !element.is_dynamic(),
+            _ => !ty.is_dynamic(),
+        };
+        if !layout.types.iter().all(measurable) {
+            // size = len(abi_encode_scratch(layout, selector, values))
+            let staged = self.builder.abi_encode_scratch(layout, selector, values);
+            return Some(self.builder.slice_len(staged));
+        }
+        // size = selector_size + head_size + Σ 32 + round_up(len(bytes)) + Σ 32 + len(array) *
+        // element_size
+        let prefix = if selector.is_some() { 4 } else { 0 };
+        let mut size = self.builder.imm(prefix + layout.head_size());
+        for (ty, &value) in layout.types.iter().zip(&values) {
+            let tail = match ty {
+                AbiType::Bytes(_) => {
+                    let length = self.abi_value_len(value, MemoryObjectKind::Bytes);
+                    let rounded = self.builder.add_u64_offset(length, 31);
+                    let mask = self.builder.imm(U256::MAX << 5);
+                    let padded = self.builder.and(rounded, mask);
+                    self.builder.add_u64_offset(padded, 32)
+                }
+                AbiType::DynamicArray { element, .. } => {
+                    let length = self.abi_value_len(value, MemoryObjectKind::DynamicArray);
+                    let element_size = self.builder.imm(element.head_size());
+                    let elements = self.builder.mul(length, element_size);
+                    self.builder.add_u64_offset(elements, 32)
+                }
+                _ => continue,
+            };
+            size = self.builder.add(size, tail);
+        }
+        Some(size)
+    }
+
+    /// The length of a dynamic ABI argument: a slice's, or a memory object's.
+    fn abi_value_len(&mut self, value: ValueId, kind: MemoryObjectKind) -> ValueId {
+        if self.builder.func().value_slice_location(value).is_some() {
+            self.builder.slice_len(value)
+        } else {
+            self.builder.memory_object_len(value, kind)
+        }
+    }
+
     fn lower_abi_encode_arguments(
         &mut self,
         exprs: &[hir::Expr<'_>],
