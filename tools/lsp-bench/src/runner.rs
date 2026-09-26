@@ -2107,10 +2107,8 @@ fn apply_text_edits(
         replacements.push((start, end, range, replacement));
     }
     replacements.sort_by_key(|(start, end, _, _)| (*start, *end));
-    for pair in replacements.windows(2) {
-        if pair[0].1 > pair[1].0 {
-            bail!("WorkspaceEdit contains overlapping text edits")
-        }
+    if !replacements.is_sorted_by(|a, b| a.1 <= b.0) {
+        bail!("WorkspaceEdit contains overlapping text edits")
     }
     let content_changes = replacements
         .iter()

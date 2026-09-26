@@ -201,7 +201,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
         filters.insert(0, (ui_test::Match::Exact(vec![b'\r']), b"".to_vec()));
         filters.insert(0, (ui_test::Match::Exact(br"\\?\".to_vec()), b"".to_vec()));
     }
-    config.comment_defaults.base().normalize_stderr.extend(filters.iter().cloned());
+    config.comment_defaults.base().normalize_stderr.extend_from_slice(&filters);
     config.comment_defaults.base().normalize_stdout.extend(filters);
 
     let filters: &[(&str, &str)] = &[
@@ -448,7 +448,7 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
     emitted_revisions.sort_unstable();
     emitted_revisions.dedup();
     let mut artifact_revisions = runtime_revisions.clone();
-    artifact_revisions.extend(scoped_run_call_revisions.iter().cloned());
+    artifact_revisions.extend_from_slice(&scoped_run_call_revisions);
     if unscoped_run_call {
         if declared_revisions.is_empty() {
             if base_mir_dump {

@@ -123,7 +123,7 @@ impl OverrideFamilyIndex {
             if seen.insert(symbol_id) {
                 descendants.insert(symbol_id);
                 if let Some(derived) = self.derived.get(&symbol_id) {
-                    pending.extend(derived.iter().copied());
+                    pending.extend_from_slice(derived);
                 }
             }
         }

@@ -74,7 +74,7 @@ impl CfgInfo {
             stack.push(BlockId::ENTRY);
             while let Some(block) = stack.pop() {
                 if reachable.insert(block) {
-                    stack.extend(self.successors[block].iter().copied());
+                    stack.extend_from_slice(&self.successors[block]);
                 }
             }
             reachable
@@ -185,10 +185,10 @@ impl CfgInfo {
             for block_id in self.successors.indices() {
                 let mut reachable = DenseBitSet::new_empty(self.successors.len());
                 stack.clear();
-                stack.extend(self.successors[block_id].iter().copied());
+                stack.extend_from_slice(&self.successors[block_id]);
                 while let Some(block) = stack.pop() {
                     if reachable.insert(block) {
-                        stack.extend(self.successors[block].iter().copied());
+                        stack.extend_from_slice(&self.successors[block]);
                     }
                 }
                 reachability.insert(block_id, reachable);

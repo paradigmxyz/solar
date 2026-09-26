@@ -103,7 +103,7 @@ impl Liveness {
                 let inst = func.inst(inst_id);
 
                 if let InstKind::Phi(incoming) = &inst.kind {
-                    phi_edge_uses[block_id].extend(incoming.iter().copied());
+                    phi_edge_uses[block_id].extend_from_slice(incoming);
                 } else {
                     // Collect uses (upward-exposed uses - used before defined in this block)
                     operand_buf.clear();

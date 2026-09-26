@@ -622,7 +622,7 @@ fn split_parametric_outline_site(
     module.blocks[block].instructions.truncate(edit.start);
     continuation.terminator = module.blocks[block].terminator.take();
     let continuation = module.add_block(continuation);
-    module.blocks[block].instructions.extend(edit.prefix.iter().cloned());
+    module.blocks[block].instructions.extend_from_slice(&edit.prefix);
     module.blocks[block]
         .instructions
         .push(Instruction::push_block(continuation).with_debug_info_dropped());

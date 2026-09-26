@@ -319,7 +319,7 @@ impl DiagnosticStore {
                 for (_, owner_diagnostics) in &owners {
                     if let Some(uri_diagnostics) = owner_diagnostics.get(&uri) {
                         has_entry = true;
-                        diagnostics.extend(uri_diagnostics.iter().cloned());
+                        diagnostics.extend_from_slice(uri_diagnostics);
                     }
                 }
 
