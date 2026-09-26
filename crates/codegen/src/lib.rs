@@ -29,5 +29,6 @@ mod ir_parse;
 mod source_info;
 
 pub(crate) mod target;
+mod test_linking;
 mod timing;
 pub(crate) mod utils;

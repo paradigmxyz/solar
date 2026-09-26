@@ -73,7 +73,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let solc_version = solc_version();
-    let solc_compat_version = format!("{solc_version}+commit.{sha_short}.solar.{version}");
+    let solc_compat_version =
+        format!("{solc_version}+commit.{sha_short}.solar.{version}.testlink1");
 
     let solc_long_version = format!(
         "the Solidity compiler\n\

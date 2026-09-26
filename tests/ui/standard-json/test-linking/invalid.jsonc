@@ -1,0 +1,10 @@
+//@ filecheck:
+// CHECK: test link `input.sol:1` does not select a supported bytecode reference
+{
+  "language": "Solidity",
+  "sources": { "input.sol": { "content": "contract C {}" } },
+  "settings": {
+    "solarTestLinks": ["input.sol:1"],
+    "outputSelection": { "*": { "*": ["evm.bytecode.object"] } }
+  }
+}

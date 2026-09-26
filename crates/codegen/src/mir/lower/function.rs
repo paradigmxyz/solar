@@ -39,6 +39,7 @@ mod modifiers;
 mod operators;
 mod statements;
 mod storage_values;
+mod test_linking;
 mod values;
 
 /// Shared inputs for one contract's function lowering.

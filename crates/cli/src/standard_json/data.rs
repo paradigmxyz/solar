@@ -92,6 +92,9 @@ pub(super) struct Settings<'a> {
     pub(super) libraries: Libraries<'a>,
     #[serde(default, deserialize_with = "deserialize_present")]
     pub(super) debug: Option<DebugSettings>,
+    /// Version-one Foundry test-link selections, also accepted through `--test-link`.
+    #[serde(borrow, default)]
+    pub(super) solar_test_links: Vec<CowStr<'a>>,
     //
     // Not supported.
     // #[serde(borrow, default)]

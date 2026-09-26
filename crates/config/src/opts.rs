@@ -3,7 +3,7 @@
 use crate::{
     ColorChoice, CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, HumanEmitterKind,
     ImportRemapping, Language, LibraryAddress, OptimizationMode, RevertStrings, SwitchLowering,
-    Threads,
+    TestLink, Threads,
 };
 use std::{num::NonZeroUsize, path::PathBuf};
 
@@ -200,6 +200,14 @@ pub struct CompileOpts {
     /// Parsed unstable flags.
     #[cfg_attr(feature = "clap", arg(skip))]
     pub unstable: UnstableOpts,
+
+    /// Load selected test bytecode references through Foundry's artifact cheatcodes.
+    ///
+    /// Each reference is a source-unit name and the exclusive byte offset of the end of
+    /// `new C` or `type(C).creationCode`. Intended for build tools that track native and
+    /// dynamic dependencies separately. These artifacts require the Foundry test runtime.
+    #[cfg_attr(feature = "clap", arg(long = "test-link", value_name = "SOURCE:END", hide = true))]
+    pub test_links: Vec<TestLink>,
 
     // Allows `CompileOpts { x: y, ..Default::default() }`.
     #[doc(hidden)]

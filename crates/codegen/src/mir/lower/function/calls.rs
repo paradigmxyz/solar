@@ -267,25 +267,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
         let contract = self.cx.gcx.hir.contract(contract_id);
-        let bytecode = self
-            .cx
-            .child_bytecodes
-            .get(&contract_id)
-            .and_then(super::super::data::ContractBytecodes::deployment)
-            .ok_or_else(|| {
-                self.cx
-                    .gcx
-                    .dcx()
-                    .err(format!(
-                        "codegen is missing creation bytecode for `new {}`",
-                        contract.name
-                    ))
-                    .span(ty.span)
-                    .note("the deployed contract did not compile or was not lowered first")
-                    .emit()
-            });
-        let Ok(bytecode) = bytecode else { return None };
-
         let mut call_value = self.builder.imm(U256::ZERO);
         let mut salt = None;
         if let Some(options) = call_opts {
@@ -343,6 +324,30 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let (values, types): (Vec<_>, Vec<_>) = arguments.into_iter().unzip();
         // arguments = abi_encode(constructor_args)
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
+        if self.cx.gcx.is_test_linked(ty.span) {
+            // args = abi_encode_bytes(constructor_args)
+            // address = vm.deployCode(artifact, args, value[, salt])
+            let encoded = self.builder.abi_encode_bytes(layout, None, values.into_boxed_slice());
+            return self.lower_test_deployment(ty.span, contract_id, encoded, call_value, salt);
+        }
+        let bytecode = self
+            .cx
+            .child_bytecodes
+            .get(&contract_id)
+            .and_then(super::super::data::ContractBytecodes::deployment)
+            .ok_or_else(|| {
+                self.cx
+                    .gcx
+                    .dcx()
+                    .err(format!(
+                        "codegen is missing creation bytecode for `new {}`",
+                        contract.name
+                    ))
+                    .span(ty.span)
+                    .note("the deployed contract did not compile or was not lowered first")
+                    .emit()
+            });
+        let Ok(bytecode) = bytecode else { return None };
         let encoded = self.builder.abi_encode(Arc::clone(&layout), None, values.into_boxed_slice());
         let encoded_len = if layout.types.iter().any(AbiType::is_dynamic) {
             self.builder.slice_len(encoded)

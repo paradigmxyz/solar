@@ -190,6 +190,9 @@ impl<'gcx> CallGraphBuilder<'gcx> {
     }
 
     fn collect_bytecode_dependency(&mut self, expr: &'gcx hir::Expr<'gcx>) {
+        if self.gcx.is_test_linked(expr.span) {
+            return;
+        }
         let ty = match &expr.kind {
             hir::ExprKind::New(ty) => Some(ty),
             hir::ExprKind::Member(base, member)

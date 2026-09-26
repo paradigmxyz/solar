@@ -164,6 +164,7 @@ pub fn generate_contract_bytecodes(
     runtime_data: Option<&RuntimeDataFn<'_>>,
     capture_debug_info: &ContractSelection,
 ) -> Result<FxHashMap<ContractId, ContractArtifact>> {
+    crate::test_linking::validate(gcx)?;
     let captures = ContractCaptures {
         bytecode: contracts,
         mir: capture_mir,

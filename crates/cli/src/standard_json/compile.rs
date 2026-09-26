@@ -208,7 +208,17 @@ fn compile(
         metadata,
         libraries,
         debug,
+        solar_test_links,
     } = &settings;
+
+    for link in solar_test_links {
+        match link.parse() {
+            Ok(link) => opts.test_links.push(link),
+            Err(error) => {
+                dcx.err(format!("invalid test link `{link}`: {error}")).emit();
+            }
+        }
+    }
 
     if !metadata.append_cbor
         && metadata.bytecode_hash.is_explicit

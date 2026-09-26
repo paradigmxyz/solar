@@ -1,0 +1,29 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    },
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "test link `input.sol:1` does not select a supported bytecode reference",
+      "formattedMessage": "error: test link `input.sol:1` does not select a supported bytecode reference\n\n"
+    }
+  ],
+  "sources": {
+    "input.sol": {
+      "id": 0
+    }
+  }
+}

@@ -1463,6 +1463,22 @@ impl<'gcx> Gcx<'gcx> {
         }
         self.alloc(dependencies)
     }
+
+    /// Whether a build tool selected this source reference for Foundry runtime linking.
+    pub fn is_test_linked(self, span: Span) -> bool {
+        if self.sess.opts.test_links.is_empty() {
+            return false;
+        }
+        let Ok(source) = self.sess.source_map().span_to_source(span) else { return false };
+        let solar_interface::source_map::FileName::Real(path) = &source.file.name else {
+            return false;
+        };
+        self.sess
+            .opts
+            .test_links
+            .iter()
+            .any(|link| link.end == source.data.end && path == std::path::Path::new(&link.source))
+    }
 }
 
 fn using_directive_ty_matches(ty: Ty<'_>, using_ty: Ty<'_>) -> bool {

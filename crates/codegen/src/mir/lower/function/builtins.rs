@@ -272,6 +272,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         self.lower_bytes_literal(name.as_str().as_bytes())
                     }
                     Builtin::ContractCreationCode | Builtin::ContractRuntimeCode => {
+                        if builtin == Builtin::ContractCreationCode
+                            && self.cx.gcx.is_test_linked(expr.span)
+                        {
+                            // value = vm.getCode(artifact)
+                            return self.lower_test_creation_code(expr.span, contract_id);
+                        }
                         // value = bytes(creation_bytecode(C) | runtime_bytecode(C))
                         let creation = builtin == Builtin::ContractCreationCode;
                         let bytecode =

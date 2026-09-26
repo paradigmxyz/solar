@@ -146,6 +146,17 @@ fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> St
     if opts.revert_strings != RevertStrings::Default {
         value["settings"]["debug"] = json!({ "revertStrings": opts.revert_strings.to_string() });
     }
+    let mut links = opts
+        .test_links
+        .iter()
+        .filter(|link| value["sources"].get(&link.source).is_some())
+        .map(|link| format!("{}:{}", link.source, link.end))
+        .collect::<Vec<_>>();
+    links.sort_unstable();
+    links.dedup();
+    if !links.is_empty() {
+        value["settings"]["solarTestLinks"] = json!(links);
+    }
     serde_json::to_string(&value).expect("contract metadata must serialize")
 }
 

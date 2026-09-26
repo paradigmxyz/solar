@@ -1,0 +1,15 @@
+//@ filecheck:
+// CHECK: "Parent"
+// CHECK: solarTestLinks
+// CHECK: "object": "{{[0-9a-f]+}}"
+{
+  "language": "Solidity",
+  "sources": {
+    "input.sol": { "content": "contract Child { constructor(uint256 x) { assert(x != 0); } } contract Parent { function deploy(uint256 x) external returns (Child) { return new Child(x); } function code() external view returns (bytes memory) { return type(Child).creationCode; } }" }
+  },
+  "settings": {
+    "solarTestLinks": ["input.sol:150","input.sol:243"],
+    "optimizer": { "enabled": true, "runs": 200 },
+    "outputSelection": { "input.sol": { "Parent": ["evm.bytecode.object", "metadata"] } }
+  }
+}

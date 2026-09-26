@@ -524,6 +524,33 @@ impl fmt::Debug for LibraryAddress {
     }
 }
 
+/// A bytecode reference selected for dynamic linking by a test build tool.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TestLink {
+    /// Exact source-unit name, without applying remappings again.
+    pub source: String,
+    /// Exclusive UTF-8 byte offset of the reference's end within the source.
+    pub end: usize,
+}
+
+impl std::str::FromStr for TestLink {
+    type Err = &'static str;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let Some((source, end)) = value.rsplit_once(':') else {
+            return Err("expected SOURCE:END");
+        };
+        if source.is_empty() {
+            return Err("empty source-unit name");
+        }
+        let end = end.parse().map_err(|_| "invalid byte offset")?;
+        if end == 0 {
+            return Err("byte offset must be positive");
+        }
+        Ok(Self { source: source.to_owned(), end })
+    }
+}
+
 /// Wrapper to implement a custom `Default` value for the number of threads.
 #[derive(Clone, Copy)]
 pub struct Threads(pub NonZeroUsize);
@@ -606,5 +633,21 @@ mod tests {
                 assert_eq!(serde_json::from_str::<EvmVersion>(&json_s).unwrap(), value);
             }
         }
+    }
+
+    #[test]
+    fn test_link_location() {
+        assert_eq!(
+            "test/C.t.sol:42".parse::<TestLink>(),
+            Ok(TestLink { source: "test/C.t.sol".into(), end: 42 })
+        );
+        assert_eq!(
+            "C:/test/C.t.sol:42".parse::<TestLink>(),
+            Ok(TestLink { source: "C:/test/C.t.sol".into(), end: 42 })
+        );
+        assert_eq!("test/C.t.sol".parse::<TestLink>(), Err("expected SOURCE:END"));
+        assert_eq!(":42".parse::<TestLink>(), Err("empty source-unit name"));
+        assert_eq!("C.sol:0".parse::<TestLink>(), Err("byte offset must be positive"));
+        assert_eq!("C.sol:x".parse::<TestLink>(), Err("invalid byte offset"));
     }
 }
