@@ -1,4 +1,5 @@
 //@ codegen-matrix: standard
+//@ run-call: attachedThis => true
 //@ run-call: f 1
 //@ run-call: builtinReferences => 7
 //@ run-call: receiverEffect => 1
@@ -26,9 +27,16 @@ function identity(uint256 self) pure returns (uint256) {
 
 contract UnusedBoundLibraryFunction {
     using D for uint256;
+    using ThisMethods for UnusedBoundLibraryFunction;
     using {identity} for uint256;
 
     uint256 private count;
+    bool private constructorReceiver;
+
+    constructor() {
+        constructorReceiver = this.selfAddress() == address(this);
+    }
+
 
     function receiverEffect() external returns (uint256) {
         next().double;
@@ -95,5 +103,14 @@ contract UnusedBoundLibraryFunction {
     function freeCheckedReceiver() external pure {
         uint256[] memory values = new uint256[](1);
         values[1].identity;
+    }
+    function attachedThis() external view returns (bool) {
+        return constructorReceiver && this.selfAddress() == address(this);
+    }
+}
+
+library ThisMethods {
+    function selfAddress(UnusedBoundLibraryFunction receiver) internal pure returns (address) {
+        return address(receiver);
     }
 }

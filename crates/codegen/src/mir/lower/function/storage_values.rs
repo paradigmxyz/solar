@@ -223,19 +223,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn storage_access(&mut self, expr: &hir::Expr<'_>) -> Option<StorageAccess> {
         let expr = self.peel_bytes_conversion(expr);
+        if matches!(expr.kind, ExprKind::Ident(_) | ExprKind::Member(..))
+            && let Some(id) = self.cx.gcx.resolved_variable(expr)
+            && self.cx.gcx.hir.variable(id).is_state_variable()
+        {
+            let location = self.cx.storage.get(id)?;
+            let slot = self.builder.imm(location.slot);
+            return Some(StorageAccess { slot, location, offset: None });
+        }
         match &expr.kind {
             ExprKind::Ident(_) => {
                 let id = self.cx.gcx.resolved_variable(expr)?;
-                if let Some(access) = self.storage_refs.get(&id).copied() {
-                    return Some(access);
-                }
-                let var = self.cx.gcx.hir.variable(id);
-                if !var.is_state_variable() {
-                    return None;
-                }
-                let location = self.cx.storage.get(id)?;
-                let slot = self.builder.imm(location.slot);
-                Some(StorageAccess { slot, location, offset: None })
+                self.storage_refs.get(&id).copied()
             }
             ExprKind::Member(receiver, _) => {
                 let id = self.cx.gcx.resolved_variable(expr)?;

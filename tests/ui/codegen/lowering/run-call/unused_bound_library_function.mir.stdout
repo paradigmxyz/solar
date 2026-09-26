@@ -9,6 +9,24 @@ fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[u256], ab
 
 // === ROOT/tests/ui/codegen/lowering/run-call/unused_bound_library_function.sol:UnusedBoundLibraryFunction ===
 @module UnusedBoundLibraryFunction
+fn @constructor() [constructor] {
+  bb0:
+    v0 = address
+    v1 = zext i160 v0 to i256
+    v2 = icall @selfAddress, v1
+    v3 = trunc i256 v2 to i160
+    v4 = address
+    v5 = eq v3, v4
+    v6 = sload 1 !metadata(storage=slot(1))
+    v7 = not 255
+    v8 = and v6, v7
+    v9 = zext i1 v5 to i256
+    v10 = and v9, 255
+    v11 = or v8, v10
+    sstore 1, v11 !metadata(storage=slot(1))
+    ret
+}
+
 fn @receiverEffect() -> i256 [selector=0xc5280f8d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @next
@@ -121,7 +139,40 @@ fn @freeCheckedReceiver() [selector=0x13dcdc32, pure, abi_params=[], abi_returns
     ret
 }
 
+fn @attachedThis() -> i256 [selector=0x9c4e0a78, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = and v0, 255
+    v2 = ne v1, 0
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v3 = address
+    v4 = zext i160 v3 to i256
+    v5 = icall @selfAddress, v4
+    v6 = trunc i256 v5 to i160
+    v7 = address
+    v8 = eq v6, v7
+    jump bb3
+  bb3:
+    v9 = phi [bb1: v8], [bb2: false]
+    v10 = zext i1 v9 to i256
+    ret v10
+}
+
 fn @identity(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
+
+fn @selfAddress(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    ret v1
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/unused_bound_library_function.sol:ThisMethods ===
+@module ThisMethods
+@library

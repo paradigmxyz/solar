@@ -1,6 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
+//@ run-call: QualifiedStorage::signers 0x0000000000000000000000000000000000000007 => [0x0000000000000000000000000000000000000007]
 //@ run-call: bindAfterDeclaration 7, 11 => 11, 12
 //@ run-call: rebind true, 3, 5, 17 => 0, 17
 //@ run-call: rebind false, 3, 5, 17 => 17, 0
@@ -237,5 +238,17 @@ contract StorageReferenceReassignment {
         }
         item.b = value;
         return readB(item);
+    }
+}
+
+contract BaseQualifiedStorage {
+    uint128 internal packed;
+    address[] internal values;
+}
+
+contract QualifiedStorage is BaseQualifiedStorage {
+    function signers(address signer) external returns (address[] memory) {
+        BaseQualifiedStorage.values.push(signer);
+        return BaseQualifiedStorage.values;
     }
 }
