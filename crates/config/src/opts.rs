@@ -415,8 +415,8 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub time_passes: bool,
 
-    /// Lower all contract functions instead of only reachable ones. This is intended for
-    /// benchmarks and compiler debugging.
+    /// Generate all contract functions, retaining unreachable bodies through MIR and EVM IR.
+    /// This is intended for benchmarks and compiler debugging.
     #[cfg_attr(feature = "clap", arg(long))]
     pub codegen_all_functions: bool,
 

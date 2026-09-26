@@ -19,6 +19,7 @@
 //! ## Dead Function Elimination
 //! Remove functions that are never called, starting from entry points
 //! (public/external functions, constructor, fallback, receive).
+//! `-Zcodegen-all-functions` retains uncalled functions for backend benchmarks.
 //!
 //! Terminal-block equivalence compares every non-operand instruction field, including semantic
 //! layouts and literal payloads, while comparing SSA operands by definition position. It ignores
@@ -139,11 +140,12 @@ impl MirPass for FunctionDce {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        DeadFunctionEliminator::new().run(module) != 0
+        !gcx.sess.opts.unstable.codegen_all_functions
+            && DeadFunctionEliminator::new().run(module) != 0
     }
 }
 
