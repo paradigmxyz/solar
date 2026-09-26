@@ -213,11 +213,9 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
             continue;
         }
         let first = free[0];
-        let mut body =
-            module.blocks[first.block].instructions[first.start..first.start + first.len].to_vec();
-        merge_site_source_spans(module, &mut body, &free);
-        clear_function_invokes(&mut body);
-        let run_size = lower_bound(gcx, &body);
+        // Profitability reads only opcodes and values, so copy the body once it is chosen.
+        let run = &module.blocks[first.block].instructions[first.start..first.start + first.len];
+        let run_size = lower_bound(gcx, run);
         let stub_size = run_size
             + (target.opcode(op::JUMPDEST).bytes
                 + target.opcode(op::SWAP1).bytes * u32::from(first.outputs)
@@ -246,16 +244,19 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                 transfer_gas,
                 target.expected_executions(),
             ) {
-                if matches!(body.get(..3), Some([value, address, store])
+                if matches!(run.get(..3), Some([value, address, store])
                     if value.is_encoded_push() && address.is_encoded_push()
                         && matches!(store.opcode, op::MSTORE | op::MSTORE8))
-                    && let Some(PushValue::Immediate(value)) = body[0].value
+                    && let Some(PushValue::Immediate(value)) = run[0].value
                 {
                     state.inline_store_literals.insert(value);
                 }
                 continue;
             }
         }
+        let mut body = run.to_vec();
+        merge_site_source_spans(module, &mut body, &free);
+        clear_function_invokes(&mut body);
         for site in &free {
             claimed
                 .get_mut(&site.block)
