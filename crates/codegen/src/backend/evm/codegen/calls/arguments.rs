@@ -461,6 +461,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         spill_slot: Option<SpillSlot>,
         caller_stack: Option<&StackModel>,
         words_above: usize,
+        recover_inaccessible: bool,
     ) {
         if let Some(op) = Self::always_rematerializable_op(func, val) {
             self.asm.emit_op(op);
@@ -477,6 +478,12 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         if let Some(depth) = caller_stack.and_then(|stack| stack.find(val)) {
             let dup = depth + words_above + 1;
+            if recover_inaccessible
+                && dup > self.stack_access_limit()
+                && self.recover_lost_internal_stack_value(val)
+            {
+                return;
+            }
             assert!(
                 dup <= self.stack_access_limit(),
                 "resident caller argument exceeded DUP reach at an internal call"

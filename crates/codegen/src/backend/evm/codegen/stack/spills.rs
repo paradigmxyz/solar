@@ -1276,7 +1276,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Abandons a speculative internal stack ABI after one of its values was lost.
+    /// Abandons a speculative internal stack ABI after one of its values was lost or became
+    /// inaccessible.
     ///
     /// The emitted placeholder belongs to an attempt that the outer codegen loop discards. The
     /// next attempt excludes this function from stack-only argument and return plans, so every

@@ -1274,7 +1274,7 @@ RETURN
         assert!(EvmCodegen::stack_arg_site_eligible(&function, true, computed));
 
         with_codegen(CompileOpts::default(), |mut codegen| {
-            codegen.emit_raw_stack_arg(&function, calldata_size, None, None, 0);
+            codegen.emit_raw_stack_arg(&function, calldata_size, None, None, 0, false);
             assert_eq!(codegen.asm.assemble().bytecode, [op::CALLDATASIZE]);
         });
     }
