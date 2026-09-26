@@ -551,9 +551,9 @@ impl<'a> Builder<'a> {
                     None
                 };
                 if kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
-                    let (views, truncated) = self.matching_views(&current, view_limit);
+                    let (operands, truncated) = self.operand_views(&current, view_limit);
                     views_truncated |= truncated;
-                    for &view in &views {
+                    for view in matching_views(&current, &operands) {
                         isle::RuleContext::new(self.func, self.target.evm_version())
                             .with_block(block)
                             .with_uses(&self.uses)
@@ -561,7 +561,7 @@ impl<'a> Builder<'a> {
                             .rewrite(&current, &mut alternatives);
                     }
                     simplified[current_index] = Simplified::from_value(folded.or_else(|| {
-                        views.into_iter().find_map(|view| {
+                        matching_views(&current, &operands).find_map(|view| {
                             isle::RuleContext::new(self.func, self.target.evm_version())
                                 .with_views(view)
                                 .simplify(&current)
@@ -621,9 +621,9 @@ impl<'a> Builder<'a> {
                         None
                     };
                     if kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
-                        let (views, _) = self.matching_views(node, view_limit);
+                        let (operands, _) = self.operand_views(node, view_limit);
                         folded.or_else(|| {
-                            views.into_iter().find_map(|view| {
+                            matching_views(node, &operands).find_map(|view| {
                                 isle::RuleContext::new(self.func, self.target.evm_version())
                                     .with_views(view)
                                     .simplify(node)
@@ -654,23 +654,6 @@ impl<'a> Builder<'a> {
         } else {
             self.classes[result] = Some(Class { nodes, home: inst_id });
         }
-    }
-
-    /// Match paired complement rules without multiplying unrestricted child classes.
-    fn matching_views(&self, node: &Op, limit: usize) -> (SmallVec<[OperandViews; 11]>, bool) {
-        let (operands, truncated) = self.operand_views(node, limit);
-        let mut views = smallvec::smallvec![[None, None]];
-        views.extend(operands.iter().map(|&view| [Some(view), None]));
-        if matches!(node, Op::Eq { .. } | Op::Xor { .. }) {
-            for (index, &first) in operands.iter().enumerate() {
-                for &second in &operands[index + 1..] {
-                    if first.0 != second.0 {
-                        views.push([Some(first), Some(second)]);
-                    }
-                }
-            }
-        }
-        (views, truncated)
     }
 
     /// Only existing equivalent nodes are exposed; no new SSA values or code
@@ -1288,6 +1271,22 @@ fn const_fold(func: &mut Function, kind: &InstKind, ty: Option<MirType>) -> Opti
     let value = eval::eval_inst(kind, |value| func.value_u256(value).ok_or(())).ok().flatten()?;
     let immediate = Immediate::for_type(ty, value);
     Some(func.alloc_value(Value::Immediate(immediate)))
+}
+
+/// Match paired complement rules without multiplying unrestricted child classes.
+fn matching_views<'a>(
+    node: &Op,
+    operands: &'a [(ValueId, Op)],
+) -> impl Iterator<Item = OperandViews> + 'a {
+    let paired = matches!(node, Op::Eq { .. } | Op::Xor { .. });
+    let singles = operands.iter().map(|&view| [Some(view), None]);
+    let pairs = operands.iter().enumerate().filter(move |_| paired).flat_map(|(index, &first)| {
+        operands[index + 1..]
+            .iter()
+            .filter(move |second| first.0 != second.0)
+            .map(move |&second| [Some(first), Some(second)])
+    });
+    std::iter::once([None, None]).chain(singles).chain(pairs)
 }
 
 /// Returns whether [`const_fold`] can succeed on a node: it folds a select on an
