@@ -16,8 +16,9 @@
 //! reusable scratch buffer.
 //!
 //! This is a post-scheduling cleanup. It removes duplicated stack values within one block, then
-//! removes a trailing pure stack computation before a halting terminal, including across an
-//! unconditional edge to a block that never reads its incoming stack.
+//! removes a trailing stack computation before a halting terminal, including across an
+//! unconditional edge to a block that never reads its incoming stack. The computation may use pure
+//! operations and reads of the call's context, whose only effect is their static gas.
 
 use super::EvmPass;
 use crate::backend::evm::{
@@ -129,7 +130,9 @@ fn discardable_tail_start(instructions: &[Instruction]) -> Option<usize> {
 fn is_discardable_tail_instruction(inst: &Instruction) -> bool {
     inst.is_encoded_push()
         || inst.as_stack_op().is_some()
-        || inst.as_evm_opcode().is_some_and(op::is_pure)
+        || inst
+            .as_evm_opcode()
+            .is_some_and(|opcode| op::is_pure(opcode) || op::is_context_read(opcode))
 }
 
 /// Removes stack copies that are eventually discarded without being consumed.
