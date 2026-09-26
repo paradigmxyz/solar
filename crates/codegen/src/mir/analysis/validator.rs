@@ -747,26 +747,42 @@ impl<'a> Validator<'a> {
     }
 
     /// Checks constant widths and aggregate operands against their declared types.
+    fn validate_live_value_type(&mut self, func: &Function, value: ValueId) {
+        if func.value_ty(value).is_none_or(|ty| ty == MirType::Void) {
+            self.emit(format_args!("live value v{} has no value type", value.index()));
+        }
+        if let Value::Immediate(crate::mir::Immediate::Pointer(_, ty)) = func.value(value)
+            && !ty.is_pointer()
+        {
+            self.emit("pointer constant must have a pointer type");
+        }
+        if let Value::Immediate(immediate) = func.value(value)
+            && let MirType::Int(bits) = immediate.ty()
+            && immediate.as_u256().is_some_and(|word| word.bit_len() > bits.get() as usize)
+        {
+            self.emit(format_args!(
+                "constant v{} does not fit its type `{}`",
+                value.index(),
+                immediate.ty()
+            ));
+        }
+    }
+
     fn validate_value_types(&mut self, module: &Module, func: &Function) {
         self.validate_return_abi(module, func);
-        for value in func.live_values() {
-            if func.value_ty(value).is_none_or(|ty| ty == MirType::Void) {
-                self.emit(format_args!("live value v{} has no value type", value.index()));
+        let mut values = SmallVec::<[ValueId; 8]>::new();
+        for block in &func.blocks {
+            for &inst_id in &block.instructions {
+                let inst = func.inst(inst_id);
+                values.clear();
+                inst.kind.collect_operands(&mut values);
+                values.extend(inst.result());
+                for &value in &values {
+                    self.validate_live_value_type(func, value);
+                }
             }
-            if let Value::Immediate(crate::mir::Immediate::Pointer(_, ty)) = func.value(value)
-                && !ty.is_pointer()
-            {
-                self.emit("pointer constant must have a pointer type");
-            }
-            if let Value::Immediate(immediate) = func.value(value)
-                && let MirType::Int(bits) = immediate.ty()
-                && immediate.as_u256().is_some_and(|word| word.bit_len() > bits.get() as usize)
-            {
-                self.emit(format_args!(
-                    "constant v{} does not fit its type `{}`",
-                    value.index(),
-                    immediate.ty()
-                ));
+            if let Some(term) = &block.terminator {
+                term.for_each_operand(|value| self.validate_live_value_type(func, value));
             }
         }
         for ty in func
