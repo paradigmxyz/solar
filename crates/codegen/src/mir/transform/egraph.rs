@@ -606,7 +606,11 @@ impl<'a> Builder<'a> {
         // to the same dominator subtree as the original expression.
         let mut leader = None;
         for (node_index, node) in nodes.as_slice().iter().enumerate() {
-            if let Some(equal) = self.memo_leader((canonical(*node), ty), key, block, index) {
+            // The original node's memo probe already failed before the search,
+            // which leaves the memo, classes, and liveness untouched.
+            if node_index > 0
+                && let Some(equal) = self.memo_leader((canonical(*node), ty), key, block, index)
+            {
                 leader = Some(equal);
                 break;
             }
