@@ -424,22 +424,19 @@ impl MemoryCallSummaries {
             return Self { summaries: IndexVec::new() };
         }
 
-        let sources = module
+        // The parameter sources and alias analysis of each target.
+        let facts = module
             .functions
             .iter_enumerated()
-            .map(|(id, func)| targets.contains(id).then(|| parameter_sources(func)))
-            .collect::<IndexVec<FunctionId, _>>();
-        let aliases = module
-            .functions
-            .iter_enumerated()
-            .map(|(id, func)| targets.contains(id).then(|| AliasAnalysis::new(func)))
+            .map(|(id, func)| {
+                targets.contains(id).then(|| (parameter_sources(func), AliasAnalysis::new(func)))
+            })
             .collect::<IndexVec<FunctionId, _>>();
         let calls = CallGraphInfo::new(module);
         let mut local = index_vec![None; module.functions.len()];
         for func_id in &targets {
             let func = &module.functions[func_id];
-            let (sources, alias) =
-                (sources[func_id].as_ref().unwrap(), aliases[func_id].as_ref().unwrap());
+            let (sources, alias) = facts[func_id].as_ref().unwrap();
             let mut summary = local_summary(module, func, sources, alias);
             summary.has_multiple_returns = func.return_components().len() > 1;
             summary.control.may_diverge |= calls.is_recursive(func_id);
@@ -476,8 +473,7 @@ impl MemoryCallSummaries {
         while let Some(func_id) = worklist.pop_front() {
             queued.remove(func_id);
             let func = &module.functions[func_id];
-            let (sources, alias) =
-                (sources[func_id].as_ref().unwrap(), aliases[func_id].as_ref().unwrap());
+            let (sources, alias) = facts[func_id].as_ref().unwrap();
             let mut summary = local[func_id].clone().unwrap();
             for block in &func.blocks {
                 for &inst_id in &block.instructions {

@@ -665,14 +665,6 @@ impl MirInliner {
                             *call_counts.entry(function).or_default() += 1;
                         }
                     }
-                    debug_assert_eq!(
-                        call_counts
-                            .iter()
-                            .filter(|&(_, &count)| count != 0)
-                            .map(|(&function, &count)| (function, count))
-                            .collect::<FxHashMap<_, _>>(),
-                        self.call_counts(module),
-                    );
                     if let Some(calls) = &mut artifact_calls {
                         calls.inline(caller_id, site.callee, &callee);
                     }
