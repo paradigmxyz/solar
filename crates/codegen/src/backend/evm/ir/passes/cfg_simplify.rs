@@ -37,6 +37,8 @@
 //! is unobservable. Empty continuation thunks can therefore be bypassed even through a pushed
 //! return address. Ordinary address-taken labels remain opaque. The declaration is emitted by call
 //! lowering and machine outlining and round-trips through EVM IR independently of debug output.
+//! `-Zcodegen-all-functions` skips the unreachable-block sweep so benchmark-only function
+//! bodies survive through the remaining EVM IR passes and assembly.
 
 use super::{
     EvmPass,
@@ -98,12 +100,13 @@ fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) ->
         let branches = thread_shared_jumps
             && gcx.sess.opts.optimization.is_size()
             && expose_shared_branches(module);
-        let swept = remove_unreachable_blocks(
-            module,
-            &mut state.reachable,
-            &mut state.pending,
-            &mut state.order,
-        );
+        let swept = !gcx.sess.opts.unstable.codegen_all_functions
+            && remove_unreachable_blocks(
+                module,
+                &mut state.reachable,
+                &mut state.pending,
+                &mut state.order,
+            );
         let coalesced =
             coalesce_blocks(module, &mut state.references, &mut state.retained, &mut state.order);
         changed |= truncated

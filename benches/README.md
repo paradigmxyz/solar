@@ -29,6 +29,11 @@ updates to `main`. CodSpeed simulates the single-file and whole-project benchmar
 codegen for selected projects. The workflow can also be dispatched for codegen runtime comparisons,
 CodSpeed, or both, and can override the pinned solc release.
 
+Codegen benchmarks use `-Zcodegen-all-functions` to measure internal library functions such as
+Solarray through MIR, EVM IR, and assembly even when no external entry calls them. Backend
+errors fail the benchmark. This mode retains unreachable bodies and does not measure the
+bytecode a normal build would emit.
+
 LSP benchmark fixtures explicitly use single-threaded compiler sessions, including repeated
 workspace analysis. This prevents Rayon worker scheduling and teardown from leaking into later
 samples. Rename and quick-fix microbenchmarks call the production validation and edit-building

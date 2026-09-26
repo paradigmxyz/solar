@@ -364,7 +364,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 continue;
             }
             let needs_body = Self::is_external_entry(func)
-                || (Self::is_runtime_function(func) && internal_targets.contains(func_id));
+                || (Self::is_runtime_function(func)
+                    && (self.gcx.sess.opts.unstable.codegen_all_functions
+                        || internal_targets.contains(func_id)));
             if needs_body {
                 let label = self.new_function_label(func_id);
                 self.function_labels.insert(func_id, label);

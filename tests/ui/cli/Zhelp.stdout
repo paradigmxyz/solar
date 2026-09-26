@@ -61,7 +61,7 @@ Options:
           Print the time spent in each MIR and EVM IR pass
 
       -Zcodegen-all-functions
-          Lower all contract functions instead of only reachable ones. This is intended for benchmarks and compiler debugging
+          Generate all contract functions, retaining unreachable bodies through MIR and EVM IR. This is intended for benchmarks and compiler debugging
 
       -Zswitch-lowering <SWITCH_LOWERING>
           Force a switch lowering strategy for benchmarking (default: `auto`; values: `auto`, `linear`, `binary`, `buckets`, `dense`, or `perfect`)

@@ -243,7 +243,7 @@ impl MirPass for InlineSingleUse {
         // module-wide dead-function sweep, which would also delete uncalled
         // functions that were never reachable, such as the subjects of
         // pipeline tests.
-        if !stats.consumed.is_empty() {
+        if !gcx.sess.opts.unstable.codegen_all_functions && !stats.consumed.is_empty() {
             super::cfg_simplify::remove_unreferenced_functions(module, &stats.consumed);
         }
         stats.inlined != 0

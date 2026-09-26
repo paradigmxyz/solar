@@ -49,17 +49,18 @@ pub fn get_srcs() -> &'static [Source] {
         // CodSpeed runs project codegen by default. Mark projects that are too
         // slow or redundant under simulation with `no_codspeed_codegen`.
         sources.extend([
-            // Full Seaport codegen is too expensive under CodSpeed simulation.
-            include_source("../testdata/projects/seaport-1.6.json.gz", Capabilities::all())
-                .no_codspeed_codegen(),
+            // Backend codegen cannot preserve `prepare` values across its forwarding buffer.
+            include_source("../testdata/projects/seaport-1.6.json.gz", Capabilities::no_codegen()),
             // Solar currently stops before codegen for this project.
             include_source(
                 "../testdata/projects/openzeppelin-5.6.1.json.gz",
                 Capabilities::no_codegen(),
             ),
-            // Full Solady codegen is too expensive under CodSpeed simulation.
-            include_source("../testdata/projects/solady-0.1.26.json.gz", Capabilities::all())
-                .no_codspeed_codegen(),
+            // Backend codegen cannot preserve `testDecodeBatchAndOpData` forwarding buffers.
+            include_source(
+                "../testdata/projects/solady-0.1.26.json.gz",
+                Capabilities::no_codegen(),
+            ),
             // Solar currently stops before codegen for this project.
             include_source(
                 "../testdata/projects/v4-core-4.0.0.json.gz",
@@ -226,6 +227,7 @@ fn ensure_contract_bytecode(
     );
     gcx.dcx().has_errors()?;
     let artifact = EvmCodegen::new(gcx).lower_module(&mut module);
+    gcx.dcx().has_errors()?;
     bytecodes.insert(
         contract_id,
         codegen::mir::lower::ContractBytecodes::new(
