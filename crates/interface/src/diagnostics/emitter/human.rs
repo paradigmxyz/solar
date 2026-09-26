@@ -708,7 +708,7 @@ fn collect_annotations(
 
     // Sort annotations within each file by line number.
     for (file, ann) in output.iter_mut() {
-        ann.sort_by_key(|a| file.lookup_file_pos_with_col_display(a.span.lo()).0);
+        ann.sort_by_key(|a| file.lookup_line(file.relative_position(a.span.lo())));
     }
 
     output
