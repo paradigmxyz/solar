@@ -88,7 +88,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         // input = abi_encode(selector, args)
         let hash = keccak256(signature.as_bytes());
-        let selector = self.builder.imm(U256::from_be_slice(&hash[..4]));
+        let selector = self.builder.imm(U256::from_be_slice(&hash[..4]) << 224);
         let layout = Arc::new(AbiLayout::new(types));
         let input = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
         let ptr = self.builder.slice_ptr(input);
