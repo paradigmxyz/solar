@@ -81,7 +81,7 @@ fn @escape(arg0: memorybytes) -> memorybytes [selector=0xb00a0672, pure, abi_par
 
 fn @same(arg0: memorybytes, arg1: memorybytes) -> i256 [selector=0x6df1667c, pure, abi_params=[bytes, bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = icall @equals.18, arg0, arg1
+    v0 = icall @equals.19, arg0, arg1
     ret v0
 }
 
@@ -473,7 +473,7 @@ fn @create(arg0: i256) -> memorystruct [pure] {
     icall panic_if<0x41>, v1
     v2 = not 31
     v3 = and v0, v2
-    v4 = alloc memorybytes, exact, zeroed, panic, v3
+    v4 = alloc memorybytes, exact, uninitialized, panic, v3
     set_memory_object_len memorybytes, v4, arg0
     v5 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v6 = ptrtoint memorybytes 96 to i256
@@ -583,6 +583,18 @@ fn @finish(arg0: memorystruct) -> memorybytes [pure] {
     ret v1
 }
 
+fn @_backing(arg0: i256) -> memorybytes [pure] {
+  bb0:
+    v0 = add arg0, 63
+    v1 = lt v0, arg0
+    icall panic_if<0x41>, v1
+    v2 = not 31
+    v3 = and v0, v2
+    v4 = alloc memorybytes, exact, zeroed, panic, v3
+    set_memory_object_len memorybytes, v4, arg0
+    ret v4
+}
+
 fn @_grow(arg0: memorystruct, arg1: i256) [pure] {
   bb0:
     v0 = memory_object_load_field memorystruct<2>, arg0, 0
@@ -602,7 +614,7 @@ fn @_grow(arg0: memorystruct, arg1: i256) [pure] {
     icall panic_if<0x41>, v7
     v8 = not 31
     v9 = and v6, v8
-    v10 = alloc memorybytes, exact, zeroed, panic, v9
+    v10 = alloc memorybytes, exact, uninitialized, panic, v9
     set_memory_object_len memorybytes, v10, v5
     v11 = memory_object_load_field memorystruct<2>, arg0, 0
     v12 = inttoptr i256 v11 to memorybytes
@@ -633,7 +645,7 @@ fn @_grow(arg0: memorystruct, arg1: i256) [pure] {
     ret
 }
 
-fn @toString.16(arg0: i256) -> memorybytes [pure] {
+fn @toString.17(arg0: i256) -> memorybytes [pure] {
   bb0:
     v0 = lt arg0, 0x184f03e93ff9f4daa797ed6e38ed64bf6a1f010000000000000000
     v1 = eq v0, false
@@ -757,7 +769,7 @@ fn @toString.16(arg0: i256) -> memorybytes [pure] {
     invalid
 }
 
-fn @toString.17(arg0: i256) -> memorybytes [pure] {
+fn @toString.18(arg0: i256) -> memorybytes [pure] {
   bb0:
     v0 = slt arg0, 0
     v1 = eq v0, false
@@ -821,20 +833,20 @@ fn @toString.17(arg0: i256) -> memorybytes [pure] {
     ret v14
 }
 
-fn @equals.18(arg0: memorybytes, arg1: memorybytes) -> i256 [pure] {
+fn @equals.19(arg0: memorybytes, arg1: memorybytes) -> i256 [pure] {
   bb0:
     v0 = icall @equals.9, arg0, arg1
     ret v0
 }
 
-fn @escapeJSON.19(arg0: memorybytes) -> memorybytes [pure] {
+fn @escapeJSON.20(arg0: memorybytes) -> memorybytes [pure] {
   bb0:
     v0 = zext i1 0 to i256
     v1 = icall @core_string_escape_json_quotable, arg0, v0
     ret v1
 }
 
-fn @escapeJSON.20(arg0: memorybytes, arg1: i256) -> memorybytes [pure] {
+fn @escapeJSON.21(arg0: memorybytes, arg1: i256) -> memorybytes [pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = checked_add u256, v0, 2

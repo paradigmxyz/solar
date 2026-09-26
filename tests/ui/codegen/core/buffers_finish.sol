@@ -3,11 +3,12 @@
 // `Buffers.finish` returns what a builder holds and empties it, so a builder
 // is finished once, after its last append: every use of a builder on a path
 // after `finish` emptied it is rejected.
-import {Buffers, ByteBuilder, WordBuilder} from "solar:core/v1/Buffers.sol";
+import {AddressBuilder, Buffers, ByteBuilder, WordBuilder} from "solar:core/v1/Buffers.sol";
 
 contract Test {
     using Buffers for ByteBuilder;
     using Buffers for WordBuilder;
+    using Buffers for AddressBuilder;
 
     function again() public pure returns (bytes memory out) {
         ByteBuilder memory b = Buffers.create(4);
@@ -117,5 +118,12 @@ contract Test {
             b.appendByte(bytes1(uint8(i)));
             out = b.finish();
         }
+    }
+
+    // Every builder type is finished once.
+    function typed() public pure returns (address[] memory out) {
+        AddressBuilder memory b = Buffers.createAddresses(1);
+        out = b.finish();
+        b.append(address(1)); //~ ERROR: this uses a builder after `finish` emptied it
     }
 }

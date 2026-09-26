@@ -257,6 +257,9 @@ pub enum CoreIntrinsic {
     /// `Abi.encodedSize(encoding)`: the encoding's length, computed from the
     /// arguments of the `abi.encode` call written as the argument.
     EncodedSize,
+    /// The private backing allocations of `Buffers`: an object of the declared
+    /// type and length whose contents are left as memory holds them.
+    BuilderBacking,
 }
 
 impl CoreIntrinsic {
@@ -310,6 +313,7 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
     static RETURN: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static SLOTS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static ABI: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static BUFFERS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     match path {
         "solar:core/v1/codecs/Hex.sol" => Some(HEX.get_or_init(|| {
             // `decode` is library code.
@@ -476,6 +480,17 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
         "solar:core/v1/Build.sol" => Some(
             BUILD.get_or_init(|| FxHashMap::from_iter([(sym::gasFirst, CoreIntrinsic::GasFirst)])),
         ),
+        "solar:core/v1/Buffers.sol" => Some(BUFFERS.get_or_init(|| {
+            // Every other function is library code; the backing is what no code can read before
+            // it is written.
+            FxHashMap::from_iter([
+                (sym::_backing, CoreIntrinsic::BuilderBacking),
+                (sym::_wordBacking, CoreIntrinsic::BuilderBacking),
+                (sym::_addressBacking, CoreIntrinsic::BuilderBacking),
+                (sym::_bytes32Backing, CoreIntrinsic::BuilderBacking),
+                (sym::_int256Backing, CoreIntrinsic::BuilderBacking),
+            ])
+        })),
         "solar:core/v1/Abi.sol" => Some(ABI.get_or_init(|| {
             // The word writers are library code over `Bytes`.
             FxHashMap::from_iter([
@@ -484,8 +499,8 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (sym::encodedSize, CoreIntrinsic::EncodedSize),
             ])
         })),
-        // `Cast`, `Precompiles`, `Buffers` and the remaining codecs are library
-        // code throughout.
+        // `Cast`, `Precompiles` and the remaining codecs are library code
+        // throughout.
         _ => None,
     }
 }

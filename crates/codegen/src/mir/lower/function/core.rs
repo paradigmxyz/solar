@@ -163,6 +163,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let [encoding] = *operands.as_slice() else { return None };
                 Some(self.core_bytes_len(encoding))
             }
+            CoreIntrinsic::BuilderBacking => {
+                self.lower_core_builder_backing(function_id, &operands)
+            }
             // A shared body takes objects; a view's slice is compared in place.
             CoreIntrinsic::EqualsAt
                 if operands.iter().any(|&operand| {
@@ -1857,6 +1860,41 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let size = self.builder.add_u64_offset(padded, 64);
         self.builder.ret_data(head, size);
         Some(self.builder.imm(U256::ZERO))
+    }
+
+    /// A builder's backing from `Buffers`: allocated as `new` allocates it, with the same checks,
+    /// but not zeroed. The builder writes every byte and word it exposes before `finish` returns
+    /// them, cuts the result off at what was written, and keeps its fields to its module, so no
+    /// code reads what the memory held before.
+    fn lower_core_builder_backing(
+        &mut self,
+        function_id: hir::FunctionId,
+        operands: &[ValueId],
+    ) -> Option<ValueId> {
+        let [length] = *operands else { return None };
+        let function = self.cx.gcx.hir.function(function_id);
+        let ty = self.cx.gcx.type_of_item((*function.returns.first()?).into());
+        let layout = self.types.memory_layout(ty)?;
+        let size = match layout {
+            // size = padded(length), checked
+            MemoryObjectLayout::Bytes => self.builder.checked_padded_size(length),
+            // size = (length * element_words + 1) * 32, checked
+            MemoryObjectLayout::DynamicArray { element_words } => {
+                let stride = self.builder.imm(u64::from(element_words));
+                let payload = self.builder.checked_mul(length, stride);
+                let one = self.builder.imm(1);
+                let words = self.builder.checked_add(payload, one);
+                let word_size = self.builder.imm(32);
+                self.builder.checked_mul(words, word_size)
+            }
+            _ => return None,
+        };
+        // object = alloc(size, uninitialized)
+        // object.length = length
+        let object =
+            self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+        self.builder.set_memory_object_len(object, length, layout.kind());
+        Some(object)
     }
 
     /// `Calls.forward(target, value, data)` and `Calls.forwardDelegate(target, data)`: the call
