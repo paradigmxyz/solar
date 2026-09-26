@@ -35,12 +35,14 @@
 //! ```
 //!
 //! A view itself can only be read in place: `.length`, indexing, field reads, `keccak256`,
-//! `abi.decode`, the reads of `solar:core/v1/Bytes.sol` and `Hash.sol` that take a range (a view
-//! of a view included), and passing it as a view parameter. Any other use, such as an assignment,
-//! a write through the view, passing it to another function or returning it, is an error at the
-//! use, because it could keep the view or write the source through it. A view of a view, and an
-//! element or a field of one, reads the same bytes, so it extends the enclosing view's borrow
-//! instead of starting one.
+//! `abi.decode`, the encodings that copy it from where it is into their output (`abi.encode` and
+//! its variants, `abi.encodePacked`, `bytes.concat` and `string.concat`, event and error
+//! arguments, and the arguments of external calls), the reads of `solar:core/v1/Bytes.sol` and
+//! `Hash.sol` that take a range (a view of a view included), and passing it as a view parameter.
+//! Any other use, such as an assignment, a write through the view, passing it to another function
+//! or returning it, is an error at the use, because it could keep the view or write the source
+//! through it. A view of a view, and an element or a field of one, reads the same bytes, so it
+//! extends the enclosing view's borrow instead of starting one.
 //!
 //! `@custom:solar-view data` on an internal function makes its `bytes memory` or `string memory`
 //! parameter `data` a view parameter. Other compilers pass the caller's object, and every
@@ -317,6 +319,118 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.is_view_expr(expr) { self.lower_view_expr(expr) } else { self.lower_expr(expr) }
     }
 
+    /// Lowers `expr`, which [`Self::is_view_expr`] accepts, as a value of type `ty` an ABI
+    /// encoding takes: the view itself, which the encoding copies from where it reads, in the
+    /// canonical form a copy of it would have.
+    pub(super) fn lower_view_abi_argument(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+    ) -> Option<(ValueId, AbiType)> {
+        let view = self.lower_view_expr(expr)?;
+        let ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        let abi_type = self.types.abi_type(ty)?;
+        Some((view, self.abi_type_for_value(view, abi_type)))
+    }
+
+    /// Copies the value of type `ty` that `view` holds into the memory objects the copying decode
+    /// would have made, for the uses that take objects.
+    pub(super) fn materialize_view(
+        &mut self,
+        ty: Ty<'gcx>,
+        view: ValueId,
+        span: Span,
+    ) -> Option<ValueId> {
+        let ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        match ty.peel_refs().kind {
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                Some(self.materialize_memory_slice(view))
+            }
+            TyKind::DynArray(element) => {
+                // object = word_array(view.len)
+                // object[i] = copy(view[i]), for each element
+                let length = self.builder.slice_len(view);
+                let (object, layout) =
+                    self.builder.alloc_dynamic_word_array(length, AllocationSemantics::INTERNAL);
+                self.materialize_view_elements(element, view, length, (object, layout), span)?;
+                Some(object)
+            }
+            TyKind::Array(element, len) => {
+                // object = word_array(len)
+                // object[i] = copy(view[i]), for each element
+                let len = u64::try_from(len).ok()?;
+                let object = self.builder.alloc_word_array(len, AllocationSemantics::INTERNAL);
+                let length = self.builder.imm(len);
+                self.materialize_view_elements(element, view, length, object, span)?;
+                Some(object.0)
+            }
+            TyKind::Struct(id) => {
+                // object = struct(fields)
+                // object.field = copy(view.field), for each field
+                let fields = self.cx.gcx.hir.strukt(id).fields;
+                let AbiType::Tuple(abi_fields) = self.types.abi_type(ty)? else {
+                    return self.cx.report_unsupported(span, "view copy");
+                };
+                let (object, layout) = self
+                    .builder
+                    .alloc_word_struct(fields.len() as u64, AllocationSemantics::INTERNAL);
+                let mut offset = 0;
+                for (index, (&field, abi)) in fields.iter().zip(&abi_fields).enumerate() {
+                    let field_ty = self
+                        .cx
+                        .gcx
+                        .type_of_item(field.into())
+                        .with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+                    let head = self.builder.imm(offset);
+                    let value = self.view_item(view, head, field_ty, span)?;
+                    let value = self.materialize_view_value(field_ty, value, span)?;
+                    self.builder.memory_object_store_field(object, layout, index as u64, value);
+                    offset += abi.head_size();
+                }
+                Some(object)
+            }
+            _ => self.cx.report_unsupported(span, "view copy"),
+        }
+    }
+
+    /// Copies the `length` elements of type `element` of the array `view` into `object`, an
+    /// array object with its layout, for [`Self::materialize_view`].
+    fn materialize_view_elements(
+        &mut self,
+        element: Ty<'gcx>,
+        view: ValueId,
+        length: ValueId,
+        (object, layout): (ValueId, MemoryObjectLayout),
+        span: Span,
+    ) -> Option<()> {
+        let element = element.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        let head_size = self.types.abi_type(element)?.head_size();
+        self.counted_loop(length, |this, index| {
+            // object[index] = copy(view_item(view, index * head_size))
+            let size = this.builder.imm(head_size);
+            let head = this.builder.mul(index, size);
+            let value = this.view_item(view, head, element, span)?;
+            let value = this.materialize_view_value(element, value, span)?;
+            this.builder.memory_object_store_element(object, layout, index, value);
+            Some(())
+        })
+    }
+
+    /// The word an object holds for `value`, an item of type `ty` that [`Self::view_item`] read:
+    /// a copy of a view, or the memory form of a value.
+    fn materialize_view_value(
+        &mut self,
+        ty: Ty<'gcx>,
+        value: ValueId,
+        span: Span,
+    ) -> Option<ValueId> {
+        if ty.is_ref_at(DataLocation::Memory) {
+            self.materialize_view(ty, value, span)
+        } else {
+            Some(self.encode_memory_scalar(ty, value))
+        }
+    }
+
     /// Lowers `expr`, an element or a field of a view whose type is a value type, to its value.
     /// A memory reference element is a view, which only the reads of a view can use.
     pub(super) fn lower_view_read(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
@@ -564,8 +678,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .err(format!("the view `{name}` can only be read in place"))
             .span(span)
             .note(
-                "a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, the \
-                 `Bytes` and `Hash` reads of a range, and view parameters",
+                "a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI \
+                 encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view \
+                 parameters",
             )
     }
 }

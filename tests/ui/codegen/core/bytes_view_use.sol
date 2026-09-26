@@ -41,12 +41,6 @@ contract Test {
         return length(v); //~ ERROR: the view `v` can only be read in place
     }
 
-    function encode(bytes memory b) public pure returns (bytes memory) {
-        /// @custom:solar-view
-        bytes memory v = b.slice(0, 2);
-        return abi.encode(v); //~ ERROR: the view `v` can only be read in place
-    }
-
     function escape(bytes memory b) public pure returns (bytes memory) {
         /// @custom:solar-view
         bytes memory v = b.slice(0, 2);

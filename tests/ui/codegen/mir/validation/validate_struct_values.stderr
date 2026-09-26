@@ -52,11 +52,9 @@ error: [fn26] [bb0] raw return and revert operands must have type `i256`; use an
 
 error: [fn27] [bb0, inst0] `memory_zero` has incompatible scalar types; use an explicit cast
 
-error: [fn28] [bb0, inst0] ABI input location does not support its layout
-
-error: [fn29] [bb0, inst0] ABI input location does not support its layout
-
 error: [fn30] [bb0, inst0] `memory_object_data` has incompatible scalar types; use an explicit cast
 
-error: aborting due to 30 previous errors
+error: [fn31] [bb0, inst0] ABI input location does not support its layout
+
+error: aborting due to 29 previous errors
 

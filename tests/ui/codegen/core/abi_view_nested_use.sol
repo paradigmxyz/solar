@@ -52,10 +52,10 @@ contract Test {
         return other.length;
     }
 
-    function encoded(bytes memory data) public pure returns (bytes memory) {
+    function chosen(bytes memory data, bool first) public pure returns (uint256) {
         /// @custom:solar-view
         (bytes[] memory items) = abi.decode(data, (bytes[]));
-        return abi.encode(items); //~ ERROR: the view `items` can only be read in place
+        return (first ? items[0] : items[1]).length; //~ ERROR: the view `items` can only be read in place
     }
 
     function writes(bytes memory data) public pure returns (uint256) {

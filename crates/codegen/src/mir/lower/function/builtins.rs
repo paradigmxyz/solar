@@ -774,6 +774,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         continue;
                     }
                     all_literals = None;
+                    if self.is_view_expr(expr) {
+                        // A view's bytes are copied from where it reads them.
+                        let value = self.lower_view_expr(expr)?;
+                        let location = self.builder.func().value_slice_location(value)?;
+                        parts.push(ConcatPart::Slice { value, location });
+                        continue;
+                    }
                     let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
                     let value = self.lower_typed_expr(expr, memory_ty)?;
                     let value = self.materialize_memory_argument(memory_ty, value, expr.span)?;

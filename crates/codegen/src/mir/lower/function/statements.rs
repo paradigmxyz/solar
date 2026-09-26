@@ -399,6 +399,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(RevertPayload::EmptyString);
         }
 
+        if self.is_view_expr(expr) {
+            // The message is a copy of the view's bytes, on the path that reverts.
+            let view = self.lower_view_expr(expr)?;
+            return Some(RevertPayload::ErrorString(self.materialize_memory_slice(view)));
+        }
         let ty = self.cx.gcx.type_of_expr(expr.id)?;
         let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
         let value = self.lower_typed_expr(expr, memory_ty)?;
@@ -520,6 +525,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             args.span,
             "event argument",
             |this, index, argument| {
+                if this.is_view_expr(argument) {
+                    // A view is logged from where it reads its value.
+                    return Some((argument, this.lower_view_expr(argument)?));
+                }
                 let parameter_ty = this.cx.gcx.type_of_item(event.parameters[index].into());
                 let value = this.lower_typed_expr(argument, parameter_ty)?;
                 if let Some(argument_ty) = this.cx.gcx.type_of_expr(argument.id)
@@ -536,9 +545,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let (argument, mut value) = arguments[index];
             let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
             let variable = self.cx.gcx.hir.variable(parameter);
+            let view = self.is_view_expr(argument);
             if variable.indexed {
                 // topics += encode_indexed(argument)
                 match parameter_ty.peel_refs().kind {
+                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) if view => {
+                        // topic = keccak256(view.ptr, view.len), from scratch for calldata
+                        let pointer = self.builder.slice_ptr(value);
+                        let length = self.builder.slice_len(value);
+                        topics.push(self.core_hash_range(value, pointer, length));
+                    }
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                         if matches!(self.builder.func().value_ty(value), Some(MirType::Slice(_))) {
                             value = self.materialize_memory_slice(value);
@@ -550,6 +566,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     | TyKind::DynArray(_)
                     | TyKind::Slice(_)
                     | TyKind::Tuple(_) => {
+                        if view {
+                            // The in-place encoding of an indexed aggregate reads a copy.
+                            value = self.materialize_view(parameter_ty, value, argument.span)?;
+                        }
                         let mut abi_type = self.types.abi_type(parameter_ty)?;
                         abi_type = self.abi_type_for_value(value, abi_type);
                         let validated_static =
@@ -589,6 +609,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                     _ => topics.push(self.lower_word_value(parameter_ty, argument, value)),
                 }
+            } else if view {
+                // data_values += view, encoded from where it reads its value
+                let memory_ty = parameter_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+                let abi_type = self.types.abi_type(memory_ty)?;
+                data_types.push(self.abi_type_for_value(value, abi_type));
+                data_values.push(value);
             } else {
                 // data_values += argument
                 let mut abi_type = self.types.abi_type(parameter_ty)?;
