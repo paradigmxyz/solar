@@ -11,7 +11,7 @@ use crate::mir::{
     pass::{MirPass, run_function_pass},
     utils::replace_terminator,
 };
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 
 /// Function pass for aggressive dead-code elimination.
 pub(crate) struct Adce;
@@ -58,7 +58,15 @@ struct AggressiveDeadCodeEliminator {
 #[derive(Debug)]
 struct AdceContext {
     observes_msize: bool,
-    value_uses: FxHashMap<ValueId, DenseBitSet<BlockId>>,
+    value_uses: IndexVec<ValueId, UseBlocks>,
+}
+
+/// The blocks that use a value, as far as escape checks need to distinguish them.
+#[derive(Clone, Copy, Debug)]
+enum UseBlocks {
+    None,
+    One(BlockId),
+    Many,
 }
 
 /// Shared state for one transparent-target search sweep over an unmodified CFG.
@@ -86,7 +94,10 @@ impl AggressiveDeadCodeEliminator {
     fn run(&mut self, func: &mut Function) -> AdceStats {
         self.stats = AdceStats::default();
 
-        loop {
+        // Only branches and switches can be rewritten.
+        while func.blocks.iter().any(|block| {
+            matches!(block.terminator, Some(Terminator::Branch { .. } | Terminator::Switch { .. }))
+        }) {
             let ctx = AdceContext::new(func);
             let rewrites = self.rewrite_dead_control(func, &ctx);
             if rewrites == 0 {
@@ -211,9 +222,11 @@ impl AggressiveDeadCodeEliminator {
             let Some(value) = func.inst_result_value(inst_id) else {
                 return false;
             };
-            ctx.value_uses
-                .get(&value)
-                .is_some_and(|uses| uses.iter().any(|use_block| use_block != block_id))
+            match ctx.value_uses[value] {
+                UseBlocks::None => false,
+                UseBlocks::One(use_block) => use_block != block_id,
+                UseBlocks::Many => true,
+            }
         })
     }
 
@@ -229,22 +242,24 @@ impl AdceContext {
         Self { value_uses, observes_msize: may_observe_msize(func, None) }
     }
 
-    fn value_uses(func: &Function) -> FxHashMap<ValueId, DenseBitSet<BlockId>> {
-        let mut uses = FxHashMap::default();
+    fn value_uses(func: &Function) -> IndexVec<ValueId, UseBlocks> {
+        let mut uses = IndexVec::from_vec(vec![UseBlocks::None; func.num_values()]);
+        let mut record = |value, block| {
+            let uses = &mut uses[value];
+            *uses = match *uses {
+                UseBlocks::None => UseBlocks::One(block),
+                UseBlocks::One(used) if used == block => UseBlocks::One(block),
+                UseBlocks::One(_) | UseBlocks::Many => UseBlocks::Many,
+            };
+        };
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 for operand in func.inst(inst_id).kind.operands() {
-                    uses.entry(operand)
-                        .or_insert_with(|| DenseBitSet::new_empty(func.blocks.len()))
-                        .insert(block_id);
+                    record(operand, block_id);
                 }
             }
             if let Some(term) = &block.terminator {
-                for operand in term.operands() {
-                    uses.entry(operand)
-                        .or_insert_with(|| DenseBitSet::new_empty(func.blocks.len()))
-                        .insert(block_id);
-                }
+                term.for_each_operand(|operand| record(operand, block_id));
             }
         }
         uses
