@@ -545,7 +545,11 @@ impl<'a> Builder<'a> {
                 frontier += 1;
                 alternatives.clear();
                 let kind = current.into_kind().expect("nodes are complete instructions");
-                let folded = const_fold(self.func, &kind, ty);
+                let folded = if may_const_fold(self.func, &current) {
+                    const_fold(self.func, &kind, ty)
+                } else {
+                    None
+                };
                 if kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
                     let (views, truncated) = self.matching_views(&current, view_limit);
                     views_truncated |= truncated;
@@ -611,7 +615,11 @@ impl<'a> Builder<'a> {
                 Simplified::Unchanged => None,
                 Simplified::Pending => {
                     let kind = node.into_kind().expect("nodes are complete instructions");
-                    let folded = const_fold(self.func, &kind, ty);
+                    let folded = if may_const_fold(self.func, node) {
+                        const_fold(self.func, &kind, ty)
+                    } else {
+                        None
+                    };
                     if kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
                         let (views, _) = self.matching_views(node, view_limit);
                         folded.or_else(|| {
@@ -1280,6 +1288,21 @@ fn const_fold(func: &mut Function, kind: &InstKind, ty: Option<MirType>) -> Opti
     let value = eval::eval_inst(kind, |value| func.value_u256(value).ok_or(())).ok().flatten()?;
     let immediate = Immediate::for_type(ty, value);
     Some(func.alloc_value(Value::Immediate(immediate)))
+}
+
+/// Returns whether [`const_fold`] can succeed on a node: it folds a select on an
+/// immediate condition, and otherwise evaluates only when every operand is immediate.
+fn may_const_fold(func: &Function, node: &Op) -> bool {
+    if let Op::Select { cond, .. } = *node {
+        return func.value(cond).as_immediate().is_some();
+    }
+    let (mut any, mut all) = (false, true);
+    let _ = node.map_values(|value| {
+        any = true;
+        all &= func.value(value).as_immediate().is_some();
+        value
+    });
+    any && all
 }
 
 /// Folds only immediate results using the same identities as full extraction.
