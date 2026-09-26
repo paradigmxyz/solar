@@ -8,6 +8,8 @@ pub(super) struct ReferencedItems {
     pub(super) events: DenseBitSet<hir::EventId>,
     pub(super) errors: DenseBitSet<hir::ErrorId>,
     pub(super) bytecode_dependencies: DenseBitSet<hir::ContractId>,
+    /// The functions called internally or referenced as internal function pointers.
+    pub(super) internal_call_targets: DenseBitSet<hir::FunctionId>,
     internal_dispatch_targets: DenseBitSet<hir::FunctionId>,
 }
 
@@ -23,6 +25,7 @@ impl ReferencedItems {
             events: DenseBitSet::new_empty(gcx.hir.event_ids().count()),
             errors: DenseBitSet::new_empty(gcx.hir.error_ids().count()),
             bytecode_dependencies: DenseBitSet::new_empty(gcx.hir.contract_ids().count()),
+            internal_call_targets: DenseBitSet::new_empty(gcx.hir.function_ids().count()),
             internal_dispatch_targets: DenseBitSet::new_empty(gcx.hir.function_ids().count()),
         }
     }
@@ -181,6 +184,7 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
 
     fn add_internal_dispatch_target(&mut self, function: hir::FunctionId) {
         self.graph.internal_dispatch_targets.insert(function);
+        self.graph.internal_call_targets.insert(function);
         self.enqueue(function);
     }
 
@@ -200,6 +204,7 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
                     return false;
                 }
                 let function = self.resolve_call_target(callee, function_id);
+                self.graph.internal_call_targets.insert(function);
                 self.enqueue(function);
                 true
             }

@@ -762,6 +762,10 @@ pub(crate) struct FunctionAttributes {
     /// The widest word the single array this function returns can hold, when element
     /// cleanup proved one. Its caller can re-encode the array without cleaning it.
     pub(crate) array_return_element_bits: Option<u32>,
+    /// Whether this public function was lowered as entered only through its selector: no
+    /// internal call or internal function pointer in the contract reaches it, so its calldata
+    /// arguments are the ones the ABI decoder checked, and nothing may call it internally.
+    pub(crate) abi_entry_only: bool,
 }
 
 impl Default for FunctionAttributes {
@@ -784,6 +788,7 @@ impl Default for FunctionAttributes {
             only_cleans_address_elements: false,
             array_element_bits: FxHashMap::default(),
             array_return_element_bits: None,
+            abi_entry_only: false,
         }
     }
 }

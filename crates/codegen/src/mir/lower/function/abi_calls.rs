@@ -190,12 +190,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && matches!(self.builder.func().value(value), Value::Arg(_))
     }
 
-    /// Whether `value` is an argument of an external function, which only ABI decoding passes. A
-    /// public function also takes its arguments from internal calls, which can pass a calldata
-    /// slice that assembly set.
+    /// Whether `value` is an argument that only ABI decoding passes: one of an external function,
+    /// or of a public function that no internal call or internal function pointer reaches. A
+    /// public function called internally also takes arguments from its callers, which can pass a
+    /// calldata slice that assembly set.
     pub(super) fn is_decoded_external_argument(&self, value: ValueId) -> bool {
+        let attributes = &self.builder.func().attributes;
         self.is_external_abi_argument(value)
-            && self.builder.func().attributes.visibility == solar_ast::Visibility::External
+            && (attributes.visibility == solar_ast::Visibility::External
+                || attributes.abi_entry_only)
     }
 
     /// Whether the calldata slice `value` is known to lie inside the calldata.

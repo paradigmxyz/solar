@@ -322,6 +322,13 @@ impl LowerAbiCx {
             self.inject_callvalue_check(module.function_mut(id));
         }
 
+        for &id in &targets {
+            assert!(
+                !internally_called.contains(id) || !module.function(id).attributes.abi_entry_only,
+                "public function `{}` trusts its ABI-decoded arguments but is called internally",
+                module.function(id).name,
+            );
+        }
         let mut body_of_wrapper = FxHashMap::default();
         for id in targets {
             if let Some(body_id) = self.wrap_function(

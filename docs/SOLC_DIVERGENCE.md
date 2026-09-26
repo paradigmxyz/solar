@@ -345,18 +345,21 @@ No intentional divergences documented yet.
   end read as zeros. A length whose bytes do not fit in a word fails with
   `Panic(0x41)` where solc runs out of gas.
 - Rationale: only inline assembly can build such a range; the ABI decoder
-  validates every calldata argument. A public function also takes its
-  arguments from internal calls, which can pass it such a range, so only an
-  external function's arguments, `msg.data`, and ranges sliced out of them are
-  known to lie inside the calldata, and only their checks, which can never
-  fail, are left out. The IR pipeline is the one the compiler otherwise
-  tracks, and it decodes and encodes calldata where it lies, without a copy,
-  which the compiler does too. Failing with a panic instead of exhausting the
-  gas is cheaper and no less final.
+  validates every calldata argument. A public function that is called
+  internally, or whose internal function pointer is taken, also takes its
+  arguments from those calls, which can pass it such a range. The arguments of
+  an external function, or of a public function that nothing reaches
+  internally, `msg.data`, and ranges sliced out of them are known to lie
+  inside the calldata, and only their checks, which can never fail, are left
+  out. The IR pipeline is the one the compiler otherwise tracks, and it
+  decodes and encodes calldata where it lies, without a copy, which the
+  compiler does too. Failing with a panic instead of exhausting the gas is
+  cheaper and no less final.
 - Coverage:
   `tests/ui/codegen/lowering/run-call/assembly_calldata_pointer_unchecked.sol`,
   `tests/ui/codegen/lowering/run-call/assembly_calldata_aggregate_validation.sol`
   and
   `tests/ui/codegen/lowering/run-call/public_calldata_argument_internal_call.sol`
   (expectations from solc 0.8.37 with `--via-ir`),
-  `tests/ui/codegen/lowering/run-call/assembly_calldata_pointer_encode.sol`.
+  `tests/ui/codegen/lowering/run-call/assembly_calldata_pointer_encode.sol`,
+  `tests/ui/codegen/lowering/public_calldata_argument_entry_only.sol`.

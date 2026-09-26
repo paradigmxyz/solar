@@ -192,6 +192,11 @@ pub(super) fn lower(
         }
     }
 
+    // A public function that no internal call or internal function pointer reaches is only
+    // entered through its selector, with the arguments the ABI decoder checked.
+    mir.attributes.abi_entry_only = mir.selector.is_some()
+        && hir_function.visibility == hir::Visibility::Public
+        && !gcx.contract_internal_call_targets(context.contract_id).contains(id);
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
     lowerer.is_getter = hir_function.is_getter();
     lowerer.bind_signature(id, hir_function, passes);
