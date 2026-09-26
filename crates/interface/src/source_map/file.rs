@@ -1,5 +1,4 @@
 use crate::{BytePos, CharPos, pos::RelativeBytePos};
-use arc_swap::Guard;
 use std::{
     fmt, io,
     ops::{Range, RangeInclusive},
@@ -109,7 +108,7 @@ impl FileName {
     #[inline]
     pub fn display(&self) -> FileNameDisplay<'_> {
         let base_path = crate::SessionGlobals::try_with(|g| g.map(|g| g.source_map.base_path()))
-            .unwrap_or_else(|| Guard::from_inner(None));
+            .unwrap_or_else(|| arc_swap::Guard::from_inner(None));
         FileNameDisplay { inner: self, base_path }
     }
 
@@ -128,7 +127,7 @@ impl FileName {
 /// Created by [`FileName::display`].
 pub struct FileNameDisplay<'a> {
     pub(crate) inner: &'a FileName,
-    pub(crate) base_path: Guard<Option<Arc<PathBuf>>>,
+    pub(crate) base_path: arc_swap::Guard<Option<Arc<PathBuf>>>,
 }
 
 impl fmt::Display for FileNameDisplay<'_> {
