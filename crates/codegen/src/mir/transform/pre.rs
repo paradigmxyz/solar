@@ -145,6 +145,20 @@ impl PartialRedundancyEliminator {
     fn run(&mut self, func: &mut Function) -> PreStats {
         self.stats = PreStats::default();
 
+        // Candidates are expressions in blocks with several distinct predecessors.
+        let has_candidate = func.blocks.indices().any(|block| {
+            func.unique_predecessors(block).len() >= 2
+                && func.blocks[block].instructions.iter().any(|&inst| {
+                    let instruction = func.inst(inst);
+                    Self::is_pre_expression(&instruction.kind)
+                        && instruction.result_ty.is_some()
+                        && func.inst_result_value(inst).is_some()
+                })
+        });
+        if !has_candidate {
+            return self.stats;
+        }
+
         let mut inst_blocks = func.inst_blocks();
 
         let mut eliminated_keys = FxHashSet::default();
