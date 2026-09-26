@@ -1,0 +1,24 @@
+//@ filecheck:
+// CHECK: test link `input.sol:69` does not select a supported bytecode reference
+// CHECK: test link `input.sol:109` does not select a supported bytecode reference
+{
+  "language": "Solidity",
+  "sources": {
+    "input.sol": {
+      "content": "contract C {} contract T { bytes constant CODE = type(C).creationCode; function deploy() external { try new C() {} catch {} } }"
+    }
+  },
+  "settings": {
+    "solarTestLinks": [
+      "input.sol:69",
+      "input.sol:109"
+    ],
+    "outputSelection": {
+      "*": {
+        "*": [
+          "evm.bytecode.object"
+        ]
+      }
+    }
+  }
+}
