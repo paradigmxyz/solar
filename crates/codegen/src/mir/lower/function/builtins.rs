@@ -803,6 +803,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         continue;
                     }
                     let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+                    if abi_values::lies_in_calldata(ty) {
+                        // Calldata is copied from where it lies, unchecked, as solc does.
+                        let value = self.lower_expr(expr)?;
+                        if self.builder.func().value_slice_location(value)
+                            == Some(SliceLocation::Calldata)
+                        {
+                            parts.push(ConcatPart::Slice {
+                                value,
+                                location: SliceLocation::Calldata,
+                            });
+                            continue;
+                        }
+                        let value = self.coerce_value(value, ty, memory_ty);
+                        let value =
+                            self.materialize_memory_argument(memory_ty, value, expr.span)?;
+                        parts.push(ConcatPart::Bytes(value));
+                        continue;
+                    }
                     let value = self.lower_typed_expr(expr, memory_ty)?;
                     let value = self.materialize_memory_argument(memory_ty, value, expr.span)?;
                     parts.push(ConcatPart::Bytes(value));

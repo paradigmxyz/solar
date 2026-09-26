@@ -18,93 +18,42 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v8 = sub v3, 4
     v9 = add v2, 4
     v10 = make_calldata_slice v9, v8
-    v11 = slice_ptr v10
-    v12 = slice_len v10
-    v13 = gt v12, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v13
+    v11 = abi_decode [u256, u256], v10
+    v12 = extract_value struct1, v11, 0
+    v13 = extract_value struct1, v11, 1
     v14 = calldatasize
-    v15 = sub v14, v12
-    v16 = sgt v11, v15
-    icall revert_if<calldata_tail_too_short>, v16
-    v17 = slice_len v10
-    v18 = add v17, 63
-    v19 = lt v18, v17
-    icall panic_if<0x41>, v19
-    v20 = not 31
-    v21 = and v18, v20
-    v22 = alloc memorybytes, exact, uninitialized, infallible, v21
-    set_memory_object_len memorybytes, v22, v17
-    memory_object_copy_from_slice memorybytes, v22, v10
-    v23 = abi_decode [u256, u256], v22
-    v24 = extract_value struct1, v23, 0
-    v25 = extract_value struct1, v23, 1
-    v26 = calldatasize
-    v27 = make_calldata_slice 0, v26
-    v28 = slice_ptr v27
-    v29 = slice_len v27
-    v30 = add 4, 32
-    v31 = gt v30, v29
-    v32 = lt v30, 4
-    v33 = or v31, v32
-    v34 = zext i1 v33 to i256
-    icall revert_if<empty>, v33
-    v35 = sub v30, 4
-    v36 = add v28, 4
-    v37 = make_calldata_slice v36, v35
-    v38 = slice_ptr v37
-    v39 = slice_len v37
-    v40 = gt v39, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v40
-    v41 = calldatasize
-    v42 = sub v41, v39
-    v43 = sgt v38, v42
-    icall revert_if<calldata_tail_too_short>, v43
-    v44 = slice_len v37
-    v45 = add v44, 63
-    v46 = lt v45, v44
-    icall panic_if<0x41>, v46
-    v47 = not 31
-    v48 = and v45, v47
-    v49 = alloc memorybytes, exact, uninitialized, infallible, v48
-    set_memory_object_len memorybytes, v49, v44
-    memory_object_copy_from_slice memorybytes, v49, v37
-    v50 = abi_decode [u256], v49
-    v51 = calldatasize
-    v52 = make_calldata_slice 0, v51
-    v53 = slice_ptr v52
-    v54 = slice_len v52
-    v55 = add 4, 32
-    v56 = add 4, 32
-    v57 = add v56, 32
-    v58 = gt v57, v54
-    v59 = lt v57, v55
-    v60 = or v58, v59
-    v61 = zext i1 v60 to i256
-    icall revert_if<empty>, v60
-    v62 = sub v57, v55
-    v63 = add v53, v55
-    v64 = make_calldata_slice v63, v62
-    v65 = slice_ptr v64
-    v66 = slice_len v64
-    v67 = gt v66, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v67
-    v68 = calldatasize
-    v69 = sub v68, v66
-    v70 = sgt v65, v69
-    icall revert_if<calldata_tail_too_short>, v70
-    v71 = slice_len v64
-    v72 = add v71, 63
-    v73 = lt v72, v71
-    icall panic_if<0x41>, v73
-    v74 = not 31
-    v75 = and v72, v74
-    v76 = alloc memorybytes, exact, uninitialized, infallible, v75
-    set_memory_object_len memorybytes, v76, v71
-    memory_object_copy_from_slice memorybytes, v76, v64
-    v77 = abi_decode [u256], v76
-    v78 = insert_value struct0, undef struct0, 0, v24
-    v79 = insert_value struct0, v78, 1, v25
-    v80 = insert_value struct0, v79, 2, v50
-    v81 = insert_value struct0, v80, 3, v77
-    ret v81
+    v15 = make_calldata_slice 0, v14
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = add 4, 32
+    v19 = gt v18, v17
+    v20 = lt v18, 4
+    v21 = or v19, v20
+    v22 = zext i1 v21 to i256
+    icall revert_if<empty>, v21
+    v23 = sub v18, 4
+    v24 = add v16, 4
+    v25 = make_calldata_slice v24, v23
+    v26 = abi_decode [u256], v25
+    v27 = calldatasize
+    v28 = make_calldata_slice 0, v27
+    v29 = slice_ptr v28
+    v30 = slice_len v28
+    v31 = add 4, 32
+    v32 = add 4, 32
+    v33 = add v32, 32
+    v34 = gt v33, v30
+    v35 = lt v33, v31
+    v36 = or v34, v35
+    v37 = zext i1 v36 to i256
+    icall revert_if<empty>, v36
+    v38 = sub v33, v31
+    v39 = add v29, v31
+    v40 = make_calldata_slice v39, v38
+    v41 = abi_decode [u256], v40
+    v42 = insert_value struct0, undef struct0, 0, v12
+    v43 = insert_value struct0, v42, 1, v13
+    v44 = insert_value struct0, v43, 2, v26
+    v45 = insert_value struct0, v44, 3, v41
+    ret v45
 }

@@ -39,11 +39,38 @@ fn @isOperation(arg0: i256) -> i256 [selector=0x31d50750, view, abi_params=[byte
 
 fn @hashOperationBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice, arg3: i256, arg4: i256) -> i256 [selector=0xb1c5f427, pure, abi_params=[array<_, address>, array<_, u256>, array<_, bytes>, bytes32, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = abi_encode [calldata_array<word<u160>>, calldata_array<word>, calldata_array<calldata_bytes>, word, word], scratch, args arg0, arg1, arg2, arg3, arg4
-    v1 = slice_ptr v0
-    v2 = slice_len v0
-    v3 = keccak256 v1, v2
-    ret v3
+    v0 = slice_len arg0
+    v1 = mul v0, 32
+    v2 = eq 32, 0
+    v3 = div v1, 32
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = zext i1 v5 to i256
+    v7 = eq v6, 0
+    icall panic_if<0x41>, v7
+    v8 = slice_len arg1
+    v9 = mul v8, 32
+    v10 = eq 32, 0
+    v11 = div v9, 32
+    v12 = eq v11, v8
+    v13 = or v10, v12
+    v14 = zext i1 v13 to i256
+    v15 = eq v14, 0
+    icall panic_if<0x41>, v15
+    v16 = slice_len arg2
+    v17 = mul v16, 32
+    v18 = eq 32, 0
+    v19 = div v17, 32
+    v20 = eq v19, v16
+    v21 = or v18, v20
+    v22 = zext i1 v21 to i256
+    v23 = eq v22, 0
+    icall panic_if<0x41>, v23
+    v24 = abi_encode [calldata_array<word<u160>>, calldata_array<word>, calldata_array<calldata_bytes>, word, word], scratch, args arg0, arg1, arg2, arg3, arg4
+    v25 = slice_ptr v24
+    v26 = slice_len v24
+    v27 = keccak256 v25, v26
+    ret v27
 }
 
 fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice, arg3: i256, arg4: i256, arg5: i256) -> i256 [selector=0x8f2a0bb0, abi_params=[array<_, address>, array<_, u256>, array<_, bytes>, bytes32, bytes32, u256], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -88,15 +115,15 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v25 = phi [bb11: arg4], [bb14: v25]
     v26 = phi [bb11: arg5], [bb14: v26]
     v27 = phi [bb11: v19], [bb14: v27]
-    v28 = phi [bb11: 0], [bb14: v100]
+    v28 = phi [bb11: 0], [bb14: v94]
     v29 = slice_len v21
     v30 = lt v28, v29
     jumpi v30, bb15, bb16
   bb16:
     jump bb13
   bb13:
-    v101 = ne v25, 0
-    jumpi v101, bb18, bb19
+    v95 = ne v25, 0
+    jumpi v95, bb18, bb19
   bb19:
     jump bb20
   bb18:
@@ -181,23 +208,15 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     icall revert_if<calldata_tail_too_short>, v88
     v89 = add v76, 32
     v90 = make_calldata_slice v89, v82
-    v91 = slice_ptr v90
-    v92 = slice_len v90
-    v93 = gt v92, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v93
-    v94 = calldatasize
-    v95 = sub v94, v92
-    v96 = sgt v91, v95
-    icall revert_if<calldata_tail_too_short>, v96
-    v97 = abi_encode [word<u160>, word, calldata_bytes, word, word], args v43, v59, v90, v24, v26
-    v98 = slice_ptr v97
-    v99 = slice_len v97
-    log3 v98, v99, 0x4cf4410cc57040e44862ef0f45f3dd5a5e02db8eb8add648d4b0e236f1d07dca, v27, v28
+    v91 = abi_encode [word<u160>, word, calldata_bytes, word, word], args v43, v59, v90, v24, v26
+    v92 = slice_ptr v91
+    v93 = slice_len v91
+    log3 v92, v93, 0x4cf4410cc57040e44862ef0f45f3dd5a5e02db8eb8add648d4b0e236f1d07dca, v27, v28
     jump bb17
   bb17:
     jump bb14
   bb14:
-    v100 = checked_add u256, v28, 1
+    v94 = checked_add u256, v28, 1
     jump bb12
   bb9:
     v16 = slice_len arg0

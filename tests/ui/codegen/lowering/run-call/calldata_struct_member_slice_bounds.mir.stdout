@@ -59,26 +59,9 @@ fn @abiEdge(arg0: calldataslice) -> i256 [selector=0xdff25446, pure, abi_params=
     icall revert_if<calldata_tail_too_short>, v18
     v19 = add v6, 32
     v20 = make_calldata_slice v19, v12
-    v21 = slice_ptr v20
-    v22 = slice_len v20
-    v23 = gt v22, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v23
-    v24 = calldatasize
-    v25 = sub v24, v22
-    v26 = sgt v21, v25
-    icall revert_if<calldata_tail_too_short>, v26
-    v27 = slice_len v20
-    v28 = add v27, 63
-    v29 = lt v28, v27
-    icall panic_if<0x41>, v29
-    v30 = not 31
-    v31 = and v28, v30
-    v32 = alloc memorybytes, exact, uninitialized, infallible, v31
-    set_memory_object_len memorybytes, v32, v27
-    memory_object_copy_from_slice memorybytes, v32, v20
-    v33 = abi_decode [array<_, tuple<address, u256, bytes>>], v32
-    v34 = memory_object_len memoryarray, v33
-    ret v34
+    v21 = abi_decode [array<_, tuple<address, u256, bytes>>], v20
+    v22 = memory_object_len memoryarray, v21
+    ret v22
 }
 
 fn @_decodeBatch(arg0: calldataslice) -> calldataslice [inline_assembly, pure] {

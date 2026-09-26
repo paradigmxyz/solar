@@ -28,16 +28,8 @@ fn @encPackedBytesReference(arg0: calldataslice, arg1: i256, arg2: i256) -> memo
     v6 = sub arg2, arg1
     v7 = add v0, arg1
     v8 = make_calldata_slice v7, v6
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = gt v10, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v11
-    v12 = calldatasize
-    v13 = sub v12, v10
-    v14 = sgt v9, v13
-    icall revert_if<calldata_tail_too_short>, v14
-    v15 = abi_encode_packed (bytes v8)
-    ret v15
+    v9 = abi_encode_packed (bytes v8)
+    ret v9
 }
 
 fn @encBytes(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [selector=0x676eb8e5, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -52,16 +44,8 @@ fn @encBytes(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [select
     v6 = sub arg2, arg1
     v7 = add v0, arg1
     v8 = make_calldata_slice v7, v6
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = gt v10, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v11
-    v12 = calldatasize
-    v13 = sub v12, v10
-    v14 = sgt v9, v13
-    icall revert_if<calldata_tail_too_short>, v14
-    v15 = abi_encode [calldata_bytes], object, args v8
-    ret v15
+    v9 = abi_encode [calldata_bytes], object, args v8
+    ret v9
 }
 
 fn @encBytesReference(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [selector=0x94ba4b13, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -76,16 +60,8 @@ fn @encBytesReference(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybyte
     v6 = sub arg2, arg1
     v7 = add v0, arg1
     v8 = make_calldata_slice v7, v6
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = gt v10, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v11
-    v12 = calldatasize
-    v13 = sub v12, v10
-    v14 = sgt v9, v13
-    icall revert_if<calldata_tail_too_short>, v14
-    v15 = abi_encode [calldata_bytes], object, args v8
-    ret v15
+    v9 = abi_encode [calldata_bytes], object, args v8
+    ret v9
 }
 
 fn @encUint256(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [selector=0x5f29ad1d, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

@@ -326,3 +326,34 @@ No intentional divergences documented yet.
   cases under both compilers. The external runner applies this test-only
   correction to both compiler legs and keeps the test enabled. It checks the
   expected source text before applying the correction.
+
+### CODEGEN-009: Assembly-set calldata ranges follow solc's IR pipeline
+
+- ID: CODEGEN-009
+- Status: intentional
+- Difference: a calldata `bytes` or array whose offset or length inline
+  assembly set can lie past the end of the calldata, and solc's two pipelines
+  treat it differently: the legacy pipeline reads past the end as zeros
+  everywhere, while the IR pipeline reverts with empty data where the value is
+  copied into memory (an assignment or return as `memory`, `keccak256`, the
+  signature of `abi.encodeWithSignature`, a calldata array copied to memory).
+  `solar` follows the IR pipeline: it reverts in those places and reads zeros
+  in the others (the `abi.encode` family, `abi.encodePacked`, `bytes.concat`,
+  `sha256` and `ripemd160`, event data, external call arguments, and
+  `abi.decode`). A length whose bytes do not fit in a word fails with
+  `Panic(0x41)` where solc runs out of gas.
+- Rationale: only inline assembly can build such a range; the ABI decoder
+  validates every calldata argument. A public function also takes its
+  arguments from internal calls, which can pass it such a range, so only an
+  external function's arguments, `msg.data`, and ranges sliced out of them are
+  known to lie inside the calldata, and only their checks, which can never
+  fail, are left out. The IR pipeline is the one the compiler otherwise
+  tracks, and it decodes and encodes calldata where it lies, without a copy,
+  which the compiler does too. Failing with a panic instead of exhausting the
+  gas is cheaper and no less final.
+- Coverage:
+  `tests/ui/codegen/lowering/run-call/assembly_calldata_pointer_unchecked.sol`
+  and
+  `tests/ui/codegen/lowering/run-call/public_calldata_argument_internal_call.sol`
+  (expectations from solc 0.8.37 with `--via-ir`),
+  `tests/ui/codegen/lowering/run-call/assembly_calldata_pointer_encode.sol`.

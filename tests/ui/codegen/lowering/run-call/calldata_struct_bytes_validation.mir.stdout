@@ -80,23 +80,15 @@ fn @encodeField(arg0: calldataslice) -> i256 [selector=0xbd1dd83b, pure, abi_par
     icall revert_if<calldata_tail_too_short>, v18
     v19 = add v6, 32
     v20 = make_calldata_slice v19, v12
-    v21 = slice_ptr v20
-    v22 = slice_len v20
-    v23 = gt v22, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v23
-    v24 = calldatasize
-    v25 = sub v24, v22
-    v26 = sgt v21, v25
-    icall revert_if<calldata_tail_too_short>, v26
-    v27 = abi_encode [calldata_bytes], object, args v20
-    v28 = memory_object_len memorybytes, v27
-    v29 = lt 64, v28
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = memory_object_load_byte memorybytes, v27, 64
-    v32 = shl 248, v31
-    v33 = shr 248, v32
-    ret v33
+    v21 = abi_encode [calldata_bytes], object, args v20
+    v22 = memory_object_len memorybytes, v21
+    v23 = lt 64, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = memory_object_load_byte memorybytes, v21, 64
+    v26 = shl 248, v25
+    v27 = shr 248, v26
+    ret v27
 }
 
 fn @encodePackedField(arg0: calldataslice) -> i256 [selector=0xed098724, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -126,23 +118,15 @@ fn @encodePackedField(arg0: calldataslice) -> i256 [selector=0xed098724, pure, a
     icall revert_if<calldata_tail_too_short>, v18
     v19 = add v6, 32
     v20 = make_calldata_slice v19, v12
-    v21 = slice_ptr v20
-    v22 = slice_len v20
-    v23 = gt v22, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v23
-    v24 = calldatasize
-    v25 = sub v24, v22
-    v26 = sgt v21, v25
-    icall revert_if<calldata_tail_too_short>, v26
-    v27 = abi_encode_packed (bytes v20)
-    v28 = memory_object_len memorybytes, v27
-    v29 = lt 0, v28
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = memory_object_load_byte memorybytes, v27, 0
-    v32 = shl 248, v31
-    v33 = shr 248, v32
-    ret v33
+    v21 = abi_encode_packed (bytes v20)
+    v22 = memory_object_len memorybytes, v21
+    v23 = lt 0, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = memory_object_load_byte memorybytes, v21, 0
+    v26 = shl 248, v25
+    v27 = shr 248, v26
+    ret v27
 }
 
 fn @hashField(arg0: calldataslice) -> i256 [selector=0xdd0f255f, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[bytes32]] {

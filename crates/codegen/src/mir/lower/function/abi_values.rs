@@ -335,10 +335,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn canonicalize_abi_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
-        let external_argument = self.is_external_abi_argument(value);
+        let external_only = self.is_decoded_external_argument(value);
         let dirty = self.dirty_values.contains(&value);
-        let external_only = external_argument
-            && self.builder.func().attributes.visibility == solar_ast::Visibility::External;
         match ty.peel_refs().kind {
             // Aggregates are cleaned and validated word by word while encoding, like solc's
             // per-type encoders; copying them into a canonical object first would duplicate
@@ -385,13 +383,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return self.lower_view_materialization(exprs, &decoded_types, args[1].span);
         }
+        let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;
+        let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
         let (data, layout) = if self.is_view_expr(data_expr) {
             // A view's bytes are decoded where they are, in memory or in calldata.
             let view = self.lower_view_expr(data_expr)?;
             (view, self.abi_decode_layout(&decoded_types, args[1].span)?)
+        } else if lies_in_calldata(data_ty) {
+            // Calldata is decoded where it lies, as solc decodes it, instead of from a copy: the
+            // decode checks its offsets against the data's own length, and reads past the end of
+            // the calldata as zeros.
+            let data = self.lower_expr(data_expr)?;
+            if self.builder.func().value_slice_location(data) == Some(SliceLocation::Calldata) {
+                (data, self.abi_decode_layout(&decoded_types, args[1].span)?)
+            } else {
+                let data = self.coerce_value(data, data_ty, memory_ty);
+                let data = self.materialize_memory_argument(memory_ty, data, data_expr.span)?;
+                self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?
+            }
         } else {
-            let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;
-            let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
             let data = self.lower_typed_expr(data_expr, memory_ty)?;
             let data = self.materialize_memory_argument(memory_ty, data, data_expr.span)?;
             self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?
@@ -734,8 +744,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
             let mut value = self.lower_typed_expr(expr, memory_ty)?;
             if let Some(abi_type) = self.types.abi_type(ty) {
-                self.validate_calldata_bytes_argument(value, &abi_type);
-                self.validate_calldata_array_head(value, ty, &abi_type);
+                self.check_calldata_array_size(value, ty, &abi_type);
             }
             if self.needs_calldata_aggregate_validation(value, ty) {
                 value = self.materialize_calldata_argument(ty, value, expr.span)?;
@@ -1196,14 +1205,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if calldata { self.lower_expr(input)? } else { self.lower_view_expr(input)? };
             match self.builder.func().value_slice_location(range) {
                 Some(SliceLocation::Calldata) => {
-                    // validate(range), unless a view's decode did
+                    // The range is packed from where it lies, unchecked, as solc does.
                     // scratch = fmp
                     // calldatacopy(scratch, range.ptr, range.len)
                     // result = sha256 | ripemd160(scratch, range.len)
-                    if calldata {
-                        let bytes = AbiType::Bytes(SliceLocation::Calldata);
-                        self.validate_calldata_bytes_argument(range, &bytes);
-                    }
                     let pointer = self.builder.slice_ptr(range);
                     let length = self.builder.slice_len(range);
                     let scratch = self.builder.fmp();

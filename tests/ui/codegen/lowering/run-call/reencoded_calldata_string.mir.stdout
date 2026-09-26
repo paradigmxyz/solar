@@ -17,26 +17,18 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, inline_assembly,
   bb5:
     jump bb2
   bb2:
-    v11 = slice_ptr v1
-    v12 = slice_len v1
-    v13 = gt v12, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v13
-    v14 = calldatasize
-    v15 = sub v14, v12
-    v16 = sgt v11, v15
-    icall revert_if<calldata_tail_too_short>, v16
-    v17 = abi_encode [calldata_bytes], object, args v1
-    v18 = ptrtoint memorybytes v17 to i256
-    v19 = eq v3, v18
-    v20 = zext i1 v19 to i256
-    v21 = eq v20, 0
-    v22 = zext i1 v21 to i256
-    v23 = ne v22, 0
-    jumpi v23, bb7, bb8
+    v11 = abi_encode [calldata_bytes], object, args v1
+    v12 = ptrtoint memorybytes v11 to i256
+    v13 = eq v3, v12
+    v14 = zext i1 v13 to i256
+    v15 = eq v14, 0
+    v16 = zext i1 v15 to i256
+    v17 = ne v16, 0
+    jumpi v17, bb7, bb8
   bb8:
     jump bb9
   bb9:
-    ret v17
+    ret v11
   bb7:
     revert 0, 0
   bb4:

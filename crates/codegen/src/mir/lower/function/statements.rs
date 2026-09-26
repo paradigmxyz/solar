@@ -547,12 +547,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some((argument, this.lower_view_expr(argument)?));
                 }
                 let parameter_ty = this.cx.gcx.type_of_item(event.parameters[index].into());
+                // A calldata argument is encoded from where it lies, unchecked, as solc does.
                 let value = this.lower_typed_expr(argument, parameter_ty)?;
-                if let Some(argument_ty) = this.cx.gcx.type_of_expr(argument.id)
-                    && let Some(argument_abi_type) = this.types.abi_type(argument_ty)
-                {
-                    this.validate_calldata_bytes_argument(value, &argument_abi_type);
-                }
                 Some((argument, value))
             },
         )?;
@@ -634,6 +630,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // data_values += argument
                 let mut abi_type = self.types.abi_type(parameter_ty)?;
                 abi_type = self.abi_type_for_value(value, abi_type);
+                self.check_calldata_array_size(value, parameter_ty, &abi_type);
                 let validated_static = self.validate_calldata_static_argument(value, parameter_ty);
                 if self.needs_calldata_materialization(value, &abi_type) && !validated_static {
                     value =
