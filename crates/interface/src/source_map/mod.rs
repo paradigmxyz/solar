@@ -253,8 +253,8 @@ impl SourceMap {
         self.base_path.store(base_path.map(Arc::new));
     }
 
-    pub(crate) fn base_path(&self) -> Option<Arc<PathBuf>> {
-        self.base_path.load_full()
+    pub(crate) fn base_path(&self) -> arc_swap::Guard<Option<Arc<PathBuf>>> {
+        self.base_path.load()
     }
 
     /// Returns `true` if the source map is empty.

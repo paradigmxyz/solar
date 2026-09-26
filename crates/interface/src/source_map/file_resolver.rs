@@ -59,7 +59,7 @@ pub struct FileResolver<'a> {
 impl<'a> FileResolver<'a> {
     /// Creates a new file resolver.
     pub fn new(source_map: &'a SourceMap) -> Self {
-        let base_path = source_map.base_path();
+        let base_path = arc_swap::Guard::into_inner(source_map.base_path());
         Self {
             source_map,
             include_paths: Vec::new(),
@@ -1163,7 +1163,7 @@ mod solang_import_resolution {
     fn shares_base_path_snapshot() {
         let sm = SourceMap::empty();
         sm.set_base_path(Some(PathBuf::from("base")));
-        let base_path = sm.base_path().unwrap();
+        let base_path = arc_swap::Guard::into_inner(sm.base_path()).unwrap();
         let resolver = FileResolver::new(&sm);
         assert!(Arc::ptr_eq(resolver.base_path.as_ref().unwrap(), &base_path));
         assert!(Arc::ptr_eq(resolver.custom_current_dir.as_ref().unwrap(), &base_path));
