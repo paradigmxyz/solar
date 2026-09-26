@@ -498,6 +498,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             crate::mir::Value::Arg(index) => {
                 if self.in_internal_function {
+                    self.scheduler.reject_hazard_arg_fallback(val);
                     let func_id = self
                         .current_internal_function
                         .expect("internal caller has a current function");
@@ -609,14 +610,27 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Gives a stack-passed argument a valid frame home while retaining its stack copy.
-    fn materialize_stack_arg(&mut self, func_id: FunctionId, index: ArgIdx, value: ValueId) {
+    fn materialize_stack_arg(
+        &mut self,
+        func_id: FunctionId,
+        func: &Function,
+        index: ArgIdx,
+        value: ValueId,
+    ) {
         if !self.scheduler.is_stack_only_value(value) {
+            return;
+        }
+        if self.scheduler.reject_hazard_arg_fallback(value) {
+            // Finish this failed attempt without repeating the depth-materialization loop.
+            self.scheduler.materialize_stack_only_value(value);
             return;
         }
         let depth = self.scheduler.stack.find(value).unwrap_or_else(|| {
             panic!("stack argument {value:?} was lost before frame materialization")
         });
-        assert!(depth < self.stack_access_limit(), "stack argument exceeded DUP reach");
+        let saved =
+            self.save_stack_prefix(func, (depth + 1).saturating_sub(self.stack_access_limit()));
+        let depth = self.scheduler.stack.find(value).expect("exposed stack argument");
         self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
 
         let addr = self.static_frame_addr(
@@ -629,6 +643,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_op(op::MSTORE);
         self.scheduler.instruction_executed(2, None);
         self.scheduler.materialize_stack_only_value(value);
+        self.restore_stack_prefix(func, saved);
     }
 
     /// Gives a stack-only value a memory home before a fallback drains the physical stack.
@@ -642,7 +657,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
         match func.value(value) {
-            crate::mir::Value::Arg(index) => self.materialize_stack_arg(func_id, *index, value),
+            crate::mir::Value::Arg(index) => {
+                self.materialize_stack_arg(func_id, func, *index, value)
+            }
             crate::mir::Value::Inst(_) => {
                 let depth = self.scheduler.stack.find(value).unwrap_or_else(|| {
                     panic!("stack-only value {value:?} was lost before memory materialization")
@@ -687,7 +704,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             disabled_residency |= matches!(func.value(value), crate::mir::Value::Arg(_));
             self.materialize_stack_only_home(func_id, func, value);
         }
-        if disabled_residency {
+        if disabled_residency && !self.scheduler.preservation_failed() {
             self.disabled_stack_only_functions.insert(func_id);
         }
     }
@@ -696,6 +713,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(in crate::backend::evm::codegen) fn materialize_lazy_stack_args(
         &mut self,
         func_id: FunctionId,
+        func: &Function,
         kind: &InstKind,
         block: BlockId,
         inst_idx: usize,
@@ -708,7 +726,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (index, value) in plan.args {
             debug_assert!(operands.contains(&value));
             if plan.frame_values.contains(value) {
-                self.materialize_stack_arg(func_id, index, value);
+                self.materialize_stack_arg(func_id, func, index, value);
             }
         }
     }

@@ -13,7 +13,7 @@
 +     v5 = mload 64 !metadata(memory=scratch)
 +     v2 = inttoptr i256 v5 to memptr !metadata(memory=scratch)
 +     v6 = add v5, 64
-+     mstore 64, v6 !metadata(memory=scratch)
++     mstore 64, v6 !metadata(memory=scratch, preserves_valid_fmp)
       v3 = ptrtoint memptr v2 to i256
       mstore v3, arg0
       ret v3
@@ -98,7 +98,7 @@
 -     v6 = add v5, 64
 +     v2 = inttoptr i256 v4 to memptr
 +     v6 = add v4, 64
-      mstore 64, v6 !metadata(memory=scratch)
+      mstore 64, v6 !metadata(memory=scratch, preserves_valid_fmp)
       v3 = ptrtoint memptr v2 to i256
       mstore v3, arg0
       ret v3

@@ -2373,6 +2373,9 @@ impl<'a> InlineCloner<'a> {
                 let inst = self.callee.inst(inst_id).clone();
                 let mut instruction = Instruction::new(inst.kind.clone(), inst.result_ty);
                 instruction.metadata.copy_debug_context(&inst.metadata);
+                if inst.metadata.preserves_valid_fmp() {
+                    instruction.metadata.set_preserves_valid_fmp();
+                }
                 let new_inst = if let Some(callee_result) = self.callee.inst_result_value(inst_id) {
                     let (new_inst, new_result) = self.caller.alloc_value_inst(instruction);
                     self.value_map.insert(callee_result, new_result);

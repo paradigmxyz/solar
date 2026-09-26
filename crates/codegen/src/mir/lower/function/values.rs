@@ -427,7 +427,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             };
                             if self.is_storage_reference_binding(lhs) {
                                 TupleAssignmentRhs::StorageReference { access }
-                            } else if self.types.memory_layout(rhs_ty).is_some() {
+                            } else if types::TypeLowerer::mir_type(rhs_ty.peel_refs())
+                                .is_memory_reference()
+                            {
                                 TupleAssignmentRhs::StorageCopy {
                                     access,
                                     source_ty: rhs_ty,
@@ -461,7 +463,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             TupleAssignmentRhs::StorageReference { access }
                         } else if source_ty.is_some_and(|ty| {
                             ty.is_ref_at(DataLocation::Storage)
-                                && self.types.memory_layout(ty).is_some()
+                                && types::TypeLowerer::mir_type(ty.peel_refs())
+                                    .is_memory_reference()
                         }) {
                             let Some(access) = self.storage_access(rhs) else {
                                 return self.cx.report_unsupported(rhs.span, "storage access");

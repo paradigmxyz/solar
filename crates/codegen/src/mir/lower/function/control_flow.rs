@@ -145,6 +145,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_switch(&mut self, switch: &hir::StmtSwitch<'_>) -> Option<()> {
         let selector = self.lower_yul_word_expr(switch.selector)?;
+        let selector = self.builder.cast_word(selector);
         self.materialize_default_bindings();
         let switch_block = self.builder.current_block();
         let merge_block = self.builder.create_block();
@@ -661,10 +662,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         else_branch: MergeBranch<StorageAccess>,
     ) -> FxHashMap<VariableId, StorageAccess> {
         let mut merged = before;
-        let ids = merged.keys().copied().collect::<Vec<_>>();
+        let mut ids = merged
+            .keys()
+            .chain(then_branch.values.keys())
+            .chain(else_branch.values.keys())
+            .copied()
+            .collect::<Vec<_>>();
+        ids.sort_unstable();
+        ids.dedup();
         for id in ids {
             let then = then_branch.values.get(&id).copied().or_else(|| merged.get(&id).copied());
             let else_ = else_branch.values.get(&id).copied().or_else(|| merged.get(&id).copied());
+            if (!then_branch.terminated && then.is_none())
+                || (!else_branch.terminated && else_.is_none())
+            {
+                continue;
+            }
             let mut incoming = Vec::with_capacity(2);
             if !then_branch.terminated
                 && let Some(access) = then
@@ -1113,9 +1126,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut before: FxHashMap<VariableId, StorageAccess>,
         states: &[LoopState],
     ) -> FxHashMap<VariableId, StorageAccess> {
-        let ids = before.keys().copied().collect::<Vec<_>>();
+        let mut ids = before.keys().copied().collect::<Vec<_>>();
+        ids.extend(states.iter().flat_map(|state| state.storage_refs.keys().copied()));
+        ids.sort_unstable();
+        ids.dedup();
         for id in ids {
             let fallback = before.get(&id).copied();
+            if fallback.is_none()
+                && states.iter().any(|state| !state.storage_refs.contains_key(&id))
+            {
+                continue;
+            }
             let incoming = states
                 .iter()
                 .filter_map(|state| {

@@ -9,7 +9,7 @@ fn @data() [selector=0x73d4a13a, abi_wrapper, pure] {
   bb0:
     v32 = mload 64 !metadata(memory=scratch)
     v33 = add v32, 320
-    mstore 64, v33
+    mstore 64, v33 !metadata(preserves_valid_fmp)
     mstore v32, 257
     v31 = add v32, 32
     v3 = add v32, 288
@@ -34,7 +34,7 @@ fn @subslice() [selector=0xb9ad073e, abi_wrapper, pure] {
   bb0:
     v32 = mload 64 !metadata(memory=scratch)
     v33 = add v32, 224
-    mstore 64, v33
+    mstore 64, v33 !metadata(preserves_valid_fmp)
     mstore v32, 161
     v31 = add v32, 32
     v3 = add v32, 192
@@ -155,7 +155,7 @@ fn @zeroData.body() -> memptr [may_return_memory, pure] {
     v6 = mload 64 !metadata(memory=scratch)
     v0 = inttoptr i256 v6 to memptr !metadata(memory=scratch)
     v7 = add v6, 192
-    mstore 64, v7
+    mstore 64, v7 !metadata(preserves_valid_fmp)
     mstore v6, 160
     v8 = calldatasize
     v5 = add v6, 32
@@ -168,7 +168,7 @@ fn @zeroWord.body() -> memptr [may_return_memory, pure] {
     v6 = mload 64 !metadata(memory=scratch)
     v0 = inttoptr i256 v6 to memptr !metadata(memory=scratch)
     v7 = add v6, 64
-    mstore 64, v7
+    mstore 64, v7 !metadata(preserves_valid_fmp)
     mstore v6, 32
     v5 = add v6, 32
     mstore v5, 0
@@ -180,7 +180,7 @@ fn @splatData.body() -> memptr [may_return_memory, pure] {
     v14 = mload 64 !metadata(memory=scratch)
     v0 = inttoptr i256 v14 to memptr !metadata(memory=scratch)
     v15 = add v14, 192
-    mstore 64, v15
+    mstore 64, v15 !metadata(preserves_valid_fmp)
     mstore v14, 160
     v13 = add v14, 32
     mstore v13, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00

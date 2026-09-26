@@ -1,4 +1,8 @@
 //@ codegen-matrix: standard
+//@ run-call: DirtyBoolInternalReturn::switchCallResult => 11
+//@ run-call: DirtyBoolInternalReturn::switchBool true => 11
+//@ run-call: DirtyBoolInternalReturn::switchBool false => 7
+//@ run-call: DirtyBoolInternalReturn::switchDirty => 13
 //@ run-call: DirtyBoolInternalReturn::readDirty => true, 3
 //@ run-call: DirtyBoolInternalReturn::join true => 1
 //@ run-call: DirtyBoolInternalReturn::join false => 3
@@ -55,5 +59,31 @@ contract DirtyBoolInternalReturn {
             assembly { value := add(value, 1) }
         }
         assembly { raw := value }
+    }
+    function switchCallResult() external returns (uint256 result) {
+        (bool success,) = address(0).call("");
+        assembly {
+            switch success
+            case 0 { result := 7 }
+            default { result := 11 }
+        }
+    }
+
+    function switchBool(bool value) external pure returns (uint256 result) {
+        assembly {
+            switch value
+            case 0 { result := 7 }
+            default { result := 11 }
+        }
+    }
+
+    function switchDirty() external pure returns (uint256 result) {
+        bool value = dirty(true);
+        assembly {
+            switch value
+            case 0 { result := 7 }
+            case 1 { result := 11 }
+            default { result := 13 }
+        }
     }
 }

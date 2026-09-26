@@ -205,7 +205,7 @@ fn @tailHash.4(arg0: i256, arg1: i256) -> i256 [pure] {
     v63 = and v60, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v76 = mload 64 !metadata(memory=scratch)
     v77 = add v76, v63
-    mstore 64, v77 !metadata(memory=scratch)
+    mstore 64, v77 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v76, v50
     v68 = add v76, 32
     calldatacopy v68, v51, v50

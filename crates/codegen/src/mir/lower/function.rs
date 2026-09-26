@@ -828,7 +828,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     word
                 } else if self.in_inline_assembly {
                     self.lower_yul_word_expr(rhs)?
-                } else if self.types.memory_layout(memory_rhs_ty).is_some()
+                } else if types::TypeLowerer::mir_type(memory_rhs_ty.peel_refs())
+                    .is_memory_reference()
                     && rhs_ty.is_ref_at(DataLocation::Storage)
                 {
                     self.lower_typed_expr(rhs, memory_rhs_ty)?

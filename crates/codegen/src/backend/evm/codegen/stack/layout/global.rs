@@ -205,16 +205,31 @@ impl GlobalStackPlan {
         if values.is_empty() {
             return None;
         }
-        // Nested calls are eligible only when runtime emission can retain the live resident prefix
-        // below their return address. Stack-phi edges compose their changing values above this
-        // invariant prefix. The analysis remains deliberately all-or-nothing because resident
-        // arguments cannot fall back to memory on just one edge.
-        if func.blocks.iter().any(|block| {
-            block.instructions.iter().any(|&inst_id| {
-                !preserve_across_calls && matches!(func.inst(inst_id).kind, InstKind::ICall { .. })
-            })
-        }) {
-            return None;
+        // Values live across calls need runtime emission to retain the resident prefix below
+        // the return address. A call's own result needs no such protection. Stack-phi edges compose
+        // their changing values above this invariant prefix. The analysis remains all-or-nothing
+        // because resident arguments cannot fall back to memory on just one edge.
+        if !preserve_across_calls {
+            for (block_id, block) in func.blocks.iter_enumerated() {
+                let mut live = liveness.live_out(block_id).clone();
+                for value in block.terminator.iter().flat_map(Terminator::operands) {
+                    live.insert(value);
+                }
+                for &inst_id in block.instructions.iter().rev() {
+                    if let Some(result) = func.inst_result_value(inst_id) {
+                        live.remove(result);
+                    }
+                    let kind = &func.inst(inst_id).kind;
+                    if matches!(kind, InstKind::ICall { .. })
+                        && values.iter().any(|&value| live.contains(value))
+                    {
+                        return None;
+                    }
+                    for operand in kind.operands() {
+                        live.insert(operand);
+                    }
+                }
+            }
         }
 
         let cfg = CfgInfo::new(func);

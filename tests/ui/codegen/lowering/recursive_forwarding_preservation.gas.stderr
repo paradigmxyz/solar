@@ -1,0 +1,4 @@
+error: codegen cannot preserve arguments across a low-memory write in `recurse`
+
+error: aborting due to 1 previous error
+

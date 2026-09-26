@@ -806,7 +806,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             None
         };
-        if let ExprKind::Member(receiver, _) = callee.kind
+        if !attached
+            && let ExprKind::Member(receiver, _) = callee.kind
             && self.cx.gcx.resolved_builtin(receiver) == Some(Builtin::This)
         {
             // result = external_abi_call(this, function, args, opts)

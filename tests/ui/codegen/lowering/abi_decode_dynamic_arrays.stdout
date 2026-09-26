@@ -41,7 +41,7 @@ fn @words() [selector=0x5a7641c8, abi_wrapper, pure] {
     v80 = or v78, v79
     jumpi v80, bb4, bb9
   bb9:
-    mstore 64, v77 !metadata(memory=scratch)
+    mstore 64, v77 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v76, v19
     v31 = shl 5, v19
     v33 = shr 5, v31
@@ -110,7 +110,7 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
     v139 = or v137, v138
     jumpi v139, bb4, bb20
   bb20:
-    mstore 64, v136 !metadata(memory=scratch)
+    mstore 64, v136 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v135, v19
     v31 = shl 5, v19
     v33 = shr 5, v31
@@ -143,7 +143,7 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
   bb14:
     v141 = mload 64 !metadata(memory=scratch)
     v142 = add v141, v56
-    mstore 64, v142 !metadata(memory=scratch)
+    mstore 64, v142 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v141, v53
     v119 = add v135, 32
     v123 = add v141, 32
@@ -188,7 +188,7 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
     v110 = and v108, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v144 = mload 64 !metadata(memory=scratch)
     v145 = add v144, v110
-    mstore 64, v145 !metadata(memory=scratch)
+    mstore 64, v145 !metadata(memory=scratch, preserves_valid_fmp)
     returndata v144, v106
   bb16:
     v66 = mload v146
@@ -255,7 +255,7 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
     v147 = or v145, v146
     jumpi v147, bb4, bb18
   bb18:
-    mstore 64, v144 !metadata(memory=scratch)
+    mstore 64, v144 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v143, v19
     v31 = shl 5, v19
     v33 = shr 5, v31
@@ -302,7 +302,7 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
     v122 = and v120, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v156 = mload 64 !metadata(memory=scratch)
     v157 = add v156, v122
-    mstore 64, v157 !metadata(memory=scratch)
+    mstore 64, v157 !metadata(memory=scratch, preserves_valid_fmp)
     returndata v156, v118
   bb16:
     v94 = ptrtoint memptr v92 to i256
@@ -349,7 +349,7 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
     v153 = or v151, v152
     jumpi v153, bb4, bb19
   bb19:
-    mstore 64, v150 !metadata(memory=scratch)
+    mstore 64, v150 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v149, v52
     v59 = sub v4, v47
     v60 = gt v52, v59
@@ -412,7 +412,7 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
     v151 = or v149, v150
     jumpi v151, bb4, bb12
   bb12:
-    mstore 64, v148 !metadata(memory=scratch)
+    mstore 64, v148 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v147, v28
     v40 = shl 5, v28
     v42 = shr 5, v40
@@ -448,7 +448,7 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
     v157 = or v155, v156
     jumpi v157, bb4, bb13
   bb13:
-    mstore 64, v154 !metadata(memory=scratch)
+    mstore 64, v154 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v153, v61
     v68 = sub v10, v56
     v69 = gt v61, v68
@@ -490,7 +490,7 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
     v124 = and v122, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v160 = mload 64 !metadata(memory=scratch)
     v161 = add v160, v124
-    mstore 64, v161 !metadata(memory=scratch)
+    mstore 64, v161 !metadata(memory=scratch, preserves_valid_fmp)
     returndata v160, v120
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -525,7 +525,7 @@ fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
     v27 = or v25, v26
     jumpi v27, bb3, bb6
   bb6:
-    mstore 64, v24 !metadata(memory=scratch)
+    mstore 64, v24 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v23, v8
     v15 = sub v0, v3
     v16 = gt v8, v15

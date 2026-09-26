@@ -86,7 +86,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 "stack-return function `{}` changed return arity after ABI planning",
                 func.name
             );
-            self.pop_stack_values_not_needed_by(values);
+            self.pop_stack_values_not_needed_by(func, values);
             for value in Self::missing_stack_phi_sources(&self.scheduler.stack, values) {
                 self.emit_operand(func, value);
             }
@@ -280,7 +280,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         }
                     }
                     if !stack_args.is_empty() {
-                        self.pop_stack_values_not_needed_by(&stack_args);
+                        self.pop_stack_values_not_needed_by(func, &stack_args);
                         for value in
                             Self::missing_stack_phi_sources(&self.scheduler.stack, &stack_args)
                         {
@@ -329,7 +329,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 } else {
                     // Retain a resident condition while draining the rest. Materializing it first
                     // can duplicate an accessible copy only to swap and pop the original.
-                    self.pop_stack_values_not_needed_by(&[*condition]);
+                    self.pop_stack_values_not_needed_by(func, &[*condition]);
                     self.emit_value(func, *condition);
                 }
 

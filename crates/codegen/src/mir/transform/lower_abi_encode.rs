@@ -320,12 +320,14 @@ fn synthesize_array_helpers(
             let mut builder =
                 FunctionBuilder::new(&mut function).with_revert_strings(revert_strings);
             let value = builder.add_param(key.value_ty);
-            // The destination is a heap pointer, and typing it so lets the backend's
-            // provenance analysis see that the returned tail stays in the heap.
-            let dest = builder.add_param(MirType::I256);
+            // Keep the destination's heap provenance inside the helper. Return its
+            // length so the caller derives the tail from its own destination.
+            let dest = builder.add_param(MirType::MemPtr);
+            let dest = builder.cast(dest, MirType::I256);
             let tail = encode_memory_array(&mut builder, &key.element, value, dest, &helpers);
+            let length = builder.sub(tail, dest);
             builder.set_return_type(MirType::I256);
-            builder.ret([tail]);
+            builder.ret([length]);
         }
         let helper = module.add_function(function);
         helpers.arrays.insert(key, helper);
@@ -1221,7 +1223,9 @@ fn encode_dynamic_body(
             let location = effective_slice_location(builder.func(), value, *location);
             if location == SliceLocation::Memory {
                 if let Some(helper) = array_helper(builder.func(), helpers, element, value) {
-                    return builder.icall(helper, vec![value, dest], MirType::I256);
+                    let pointer = builder.cast(dest, MirType::MemPtr);
+                    let length = builder.icall(helper, vec![value, pointer], MirType::I256);
+                    return builder.add(dest, length);
                 }
                 return encode_memory_array(builder, element, value, dest, helpers);
             }

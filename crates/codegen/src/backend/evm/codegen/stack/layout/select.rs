@@ -483,14 +483,25 @@ impl<'gcx> EvmCodegen<'gcx> {
         cross_block_live: &OnceCell<DenseBitSet<ValueId>>,
         recomputable: &DenseBitSet<ValueId>,
     ) -> Vec<ValueId> {
+        let needs_protection = |value| {
+            (Self::can_own_spill_slot(func, value)
+                || (self.in_internal_function && matches!(func.value(value), Value::Arg(_))))
+                && !recomputable.contains(value)
+        };
         if self.spill_hazard_is_repeated_low_phi(func) {
-            return cross_block_live
+            let mut values = cross_block_live
                 .get_or_init(|| Self::cross_block_live_values(func, liveness))
-                .iter()
-                .filter(|&value| {
-                    Self::can_own_spill_slot(func, value) && !recomputable.contains(value)
-                })
-                .collect();
+                .clone();
+            if self.in_internal_function {
+                for block in func.blocks.indices() {
+                    for value in liveness.live_in(block) {
+                        if matches!(func.value(value), Value::Arg(_)) {
+                            values.insert(value);
+                        }
+                    }
+                }
+            }
+            return values.iter().filter(|&value| needs_protection(value)).collect();
         }
 
         let inst_blocks = func.inst_blocks();
@@ -498,7 +509,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for inst in &self.spill_hazard_insts {
             let Some(&block) = inst_blocks.get(inst) else { continue };
             for value in liveness.live_out(block) {
-                if Self::can_own_spill_slot(func, value) && !recomputable.contains(value) {
+                if needs_protection(value) {
                     values.insert(value);
                 }
             }

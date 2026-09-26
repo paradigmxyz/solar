@@ -247,6 +247,9 @@ pub(crate) struct StackScheduler {
     /// These values may only be reached through their physical stack copy. Treating them like
     /// ordinary MIR arguments would emit a load from an uninitialized static-frame slot.
     stack_only_values: DenseBitSet<ValueId>,
+    /// Arguments whose memory homes may overlap an assembly write.
+    protected_hazard_args: DenseBitSet<ValueId>,
+    preservation_failed: bool,
     /// Operations to emit.
     ops: Vec<ScheduledOp>,
     /// Remaining bounded-search work for this function.
@@ -710,6 +713,8 @@ impl StackScheduler {
             spills: SpillManager::new(),
             evm_version,
             stack_only_values: DenseBitSet::new_empty(0),
+            protected_hazard_args: DenseBitSet::new_empty(0),
+            preservation_failed: false,
             ops: Vec::new(),
             operand_search_budget: Cell::new(OperandSearchBudget::default()),
             #[cfg(test)]
@@ -728,6 +733,8 @@ impl StackScheduler {
         self.stack.reset();
         self.spills.clear();
         self.stack_only_values.clear_to(0);
+        self.protected_hazard_args.clear_to(0);
+        self.preservation_failed = false;
         self.ops.clear();
         self.operand_search_budget.set(OperandSearchBudget::default());
         #[cfg(test)]
@@ -757,6 +764,39 @@ impl StackScheduler {
         }
     }
 
+    /// Pins an argument whose memory home cannot survive a clobber.
+    pub(crate) fn protect_hazard_arg(&mut self, domain_size: usize, value: ValueId) {
+        if self.protected_hazard_args.is_empty() {
+            self.protected_hazard_args.clear_to(domain_size);
+        }
+        self.protected_hazard_args.insert(value);
+        if self.stack_only_values.is_empty() {
+            self.stack_only_values.clear_to(domain_size);
+        }
+        self.stack_only_values.insert(value);
+    }
+
+    /// Records an unsupported memory fallback so the caller discards this emission attempt.
+    pub(crate) fn reject_hazard_arg_fallback(&mut self, value: ValueId) -> bool {
+        let protected =
+            !self.protected_hazard_args.is_empty() && self.protected_hazard_args.contains(value);
+        self.preservation_failed |= protected;
+        protected
+    }
+
+    /// Rejects reloading an argument whose frame home may have been overwritten.
+    pub(crate) fn reject_hazard_arg_load(&mut self, func: &Function, index: ArgIdx) {
+        self.preservation_failed |= self
+            .protected_hazard_args
+            .iter()
+            .any(|value| matches!(func.value(value), Value::Arg(arg) if *arg == index));
+    }
+
+    /// Returns whether mandatory argument preservation failed.
+    pub(crate) fn preservation_failed(&self) -> bool {
+        self.preservation_failed
+    }
+
     /// Returns whether this function has values without a memory fallback.
     pub(crate) fn has_stack_only_values(&self) -> bool {
         !self.stack_only_values.is_empty()
@@ -769,6 +809,7 @@ impl StackScheduler {
 
     /// Records that `value` now has a valid memory home and may be reloaded normally.
     pub(crate) fn materialize_stack_only_value(&mut self, value: ValueId) {
+        self.reject_hazard_arg_fallback(value);
         if self.is_stack_only_value(value) {
             self.stack_only_values.remove(value);
         }

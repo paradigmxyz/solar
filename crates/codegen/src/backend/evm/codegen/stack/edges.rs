@@ -36,7 +36,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         needed.extend_from_slice(layout);
 
-        self.pop_stack_values_not_needed_by(&needed);
+        self.pop_stack_values_not_needed_by(func, &needed);
         for value in Self::missing_stack_phi_sources(&self.scheduler.stack, &needed) {
             self.emit_operand(func, value);
         }
@@ -85,7 +85,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut needed = Vec::with_capacity(union.len() + 1);
         needed.push(condition);
         needed.extend_from_slice(&union);
-        self.pop_stack_values_not_needed_by(&needed);
+        self.pop_stack_values_not_needed_by(func, &needed);
         for value in Self::missing_stack_phi_sources(&self.scheduler.stack, &needed) {
             self.emit_operand(func, value);
         }
@@ -114,8 +114,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         union
     }
 
-    fn emit_global_branch_cleanup(&mut self, layout: &[ValueId]) {
-        self.pop_stack_values_not_needed_by(layout);
+    fn emit_global_branch_cleanup(&mut self, func: &Function, layout: &[ValueId]) {
+        // Divergent arms share spill state, so cleanup must not save a deep prefix.
+        assert!(self.scheduler.depth() <= self.stack_access_limit());
+        self.pop_stack_values_not_needed_by(func, layout);
         let target: Vec<_> = layout.iter().copied().map(TargetSlot::Value).collect();
         let shuffle = self
             .scheduler
@@ -170,7 +172,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             };
             // jumpi [iszero] condition, direct
             self.emit_conditional_jump(self.block_labels[&direct], invert);
-            self.emit_global_branch_cleanup(cleanup_layout);
+            self.emit_global_branch_cleanup(func, cleanup_layout);
             if Some(cleanup) != fallthrough {
                 self.emit_push_label(self.block_labels[&cleanup]);
                 self.asm.emit_op(op::JUMP);
@@ -184,13 +186,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_conditional_jump(then_cleanup, false);
         let union_stack = self.scheduler.stack.clone();
 
-        self.emit_global_branch_cleanup(else_layout);
+        self.emit_global_branch_cleanup(func, else_layout);
         self.emit_push_label(self.block_labels[&else_block]);
         self.asm.emit_op(op::JUMP);
 
         self.asm.define_label(then_cleanup);
         self.scheduler.stack = union_stack;
-        self.emit_global_branch_cleanup(then_layout);
+        self.emit_global_branch_cleanup(func, then_layout);
         if Some(then_block) != fallthrough {
             self.emit_push_label(self.block_labels[&then_block]);
             self.asm.emit_op(op::JUMP);
@@ -232,7 +234,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (_, actual, trampoline, layout) in trampolines {
             self.asm.define_label(trampoline);
             self.set_stack_to_values(union);
-            self.emit_global_branch_cleanup(&layout);
+            self.emit_global_branch_cleanup(func, &layout);
             self.emit_push_label(actual);
             self.asm.emit_op(op::JUMP);
         }
@@ -338,7 +340,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn emit_stack_phi_edge_layout(&mut self, func: &Function, edge: &StackPhiEdge) {
-        self.pop_stack_values_not_needed_by(&edge.sources);
+        // Divergent arms share spill state, so cleanup must not save a deep prefix.
+        assert!(self.scheduler.depth() <= self.stack_access_limit());
+        self.pop_stack_values_not_needed_by(func, &edge.sources);
         // edge: push deferred_immediates; shuffle sources; rename to results
         for value in Self::missing_stack_phi_sources(&self.scheduler.stack, &edge.sources) {
             // Repeated sources already on the stack are duplicated by the shuffle.
@@ -396,7 +400,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut needed = Vec::with_capacity(union.len() + 1);
         needed.push(condition);
         needed.extend_from_slice(&union);
-        self.pop_stack_values_not_needed_by(&needed);
+        self.pop_stack_values_not_needed_by(func, &needed);
         for value in Self::missing_stack_phi_sources(&self.scheduler.stack, &needed) {
             debug_assert!(self.can_emit_stack_phi_value(func, value));
             self.emit_operand(func, value);

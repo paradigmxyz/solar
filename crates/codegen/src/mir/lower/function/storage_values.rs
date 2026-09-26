@@ -223,19 +223,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn storage_access(&mut self, expr: &hir::Expr<'_>) -> Option<StorageAccess> {
         let expr = self.peel_bytes_conversion(expr);
+        if matches!(expr.kind, ExprKind::Ident(_) | ExprKind::Member(..))
+            && let Some(id) = self.cx.gcx.resolved_variable(expr)
+            && self.cx.gcx.hir.variable(id).is_state_variable()
+        {
+            let location = self.cx.storage.get(id)?;
+            let slot = self.builder.imm(location.slot);
+            return Some(StorageAccess { slot, location, offset: None });
+        }
         match &expr.kind {
             ExprKind::Ident(_) => {
                 let id = self.cx.gcx.resolved_variable(expr)?;
-                if let Some(access) = self.storage_refs.get(&id).copied() {
-                    return Some(access);
-                }
-                let var = self.cx.gcx.hir.variable(id);
-                if !var.is_state_variable() {
-                    return None;
-                }
-                let location = self.cx.storage.get(id)?;
-                let slot = self.builder.imm(location.slot);
-                Some(StorageAccess { slot, location, offset: None })
+                self.storage_refs.get(&id).copied()
             }
             ExprKind::Member(receiver, _) => {
                 let id = self.cx.gcx.resolved_variable(expr)?;
@@ -849,9 +848,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         base_slot: ValueId,
         index: ValueId,
-        element_slots: u64,
+        element_slots: U256,
     ) -> ValueId {
-        if element_slots == 1 {
+        if element_slots == U256::ONE {
             self.builder.add(base_slot, index)
         } else {
             let stride = self.builder.imm(element_slots);
@@ -887,7 +886,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         access: StorageAccess,
         span: Span,
     ) -> Option<ValueId> {
-        if self.types.memory_layout(ty).is_some() {
+        if types::TypeLowerer::mir_type(ty.peel_refs()).is_memory_reference() {
             return self.load_storage_object(ty, access.slot, span);
         }
         let value = if let Some(offset) = access.offset {
@@ -917,7 +916,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
         span: Span,
     ) -> Option<()> {
-        if self.types.memory_layout(ty).is_some() {
+        if types::TypeLowerer::mir_type(ty.peel_refs()).is_memory_reference() {
             return self.store_storage_object_with_source(ty, source_ty, access.slot, value, span);
         }
         let dirty = !self.in_inline_assembly && self.dirty_values.contains(&value);
@@ -974,7 +973,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Array(element, len) => {
                 // object = alloc_fixed_array(len)
                 // for i in 0..len { object[i] = load_storage(element_slot(i)) }
-                let len = u64::try_from(len).ok()?;
+                let Ok(len) = u64::try_from(len) else {
+                    return self
+                        .cx
+                        .report_unsupported(span, "oversized fixed-array materialization");
+                };
                 let element_words = self.types.element_words(element);
                 let layout = MemoryObjectLayout::FixedArray { len, element_words };
                 let size =
@@ -1127,7 +1130,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.memory_object_store_element(object, layout, index, value);
         let next_index = self.builder.add_u64_offset(index, 1);
         let element_slots = self.cx.storage.element_slots(element, Span::DUMMY);
-        let next_slot = self.builder.add_u64_offset(element_slot, element_slots);
+        let next_slot = self.add_storage_offset(element_slot, element_slots);
         let backedge = self.builder.current_block();
         self.builder.jump(header);
         self.builder.add_phi_incoming(index, backedge, next_index);
@@ -1187,6 +1190,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         object: ValueId,
         span: Span,
     ) -> Option<()> {
+        let source_ty = source_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        let object = self.materialize_memory_argument(source_ty, object, span)?;
         // MIR object values retain only their coarse kind; HIR types preserve
         // the nested shape needed when fixed arrays convert to storage arrays.
         match ty.peel_refs().kind {
@@ -1228,7 +1233,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let TyKind::Array(source_element, source_len) = source_ty.peel_refs().kind else {
                     return self.cx.report_unsupported(span, "storage array conversion");
                 };
-                let len = u64::try_from(len).ok()?;
+                let Ok(len) = u64::try_from(len) else {
+                    return self
+                        .cx
+                        .report_unsupported(span, "oversized fixed-array materialization");
+                };
                 let source_len = u64::try_from(source_len).ok()?;
                 let layout = self.types.memory_layout(source_ty)?;
                 let len = self.builder.imm(len);
@@ -1594,7 +1603,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some(());
                 }
 
-                let len = u64::try_from(len).ok()?;
                 let len = self.builder.imm(len);
                 self.counted_loop(len, |this, index| {
                     let element_access = this.storage_array_element_access(
