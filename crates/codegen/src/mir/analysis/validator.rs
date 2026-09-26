@@ -330,41 +330,23 @@ impl<'a> Validator<'a> {
         let errors_before = self.error_count;
         let num_values = func.num_values();
         let num_blocks = func.blocks.len();
-        let num_insts = func.num_insts();
 
         if num_blocks == 0 {
             self.emit("function has no entry block");
             return;
         }
 
+        // `validate_references` already checked that every instruction, operand,
+        // and result reference is in range.
         self.validate_cfg(func);
         for (block_id, block) in func.blocks.iter_enumerated() {
-            let Some(term) = &block.terminator else { continue };
-
-            // Check terminator operands are in range.
-            term.for_each_operand(|op| {
-                if op.index() >= num_values {
-                    self.emit_at_block(
-                        format_args!(
-                            "terminator references undefined value v{} (only {} values exist)",
-                            op.index(),
-                            num_values
-                        ),
-                        block_id,
-                    );
-                }
-            });
+            if block.terminator.is_none() {
+                continue;
+            }
 
             // ----- Walk instructions in this block -----
             let block_preds = &block.predecessors;
             for &inst_id in &block.instructions {
-                if inst_id.index() >= num_insts {
-                    self.emit_at_block(
-                        format_args!("block contains nonexistent inst{}", inst_id.index()),
-                        block_id,
-                    );
-                    continue;
-                }
                 let inst = func.inst(inst_id);
 
                 if !inst.kind.scalar_types_match(func, inst.result_ty) {
@@ -413,17 +395,6 @@ impl<'a> Validator<'a> {
                 }
 
                 match (inst.result_ty, func.inst_result_value(inst_id)) {
-                    (Some(_), Some(result)) if result.index() >= num_values => {
-                        self.emit_at_inst(
-                            format_args!(
-                                "instruction result references undefined value v{} \
-                                 (only {num_values} values exist)",
-                                result.index()
-                            ),
-                            block_id,
-                            inst_id,
-                        );
-                    }
                     (Some(_), Some(result)) => {
                         if !matches!(func.value(result), Value::Inst(def) if *def == inst_id) {
                             self.emit_at_inst(
@@ -455,21 +426,6 @@ impl<'a> Validator<'a> {
                         );
                     }
                     (None, None) => {}
-                }
-
-                // Operand range check.
-                for op in inst.kind.operands() {
-                    if op.index() >= num_values {
-                        self.emit_at_inst(
-                            format_args!(
-                                "instruction references undefined value v{} (only {} values exist)",
-                                op.index(),
-                                num_values
-                            ),
-                            block_id,
-                            inst_id,
-                        );
-                    }
                 }
 
                 if let Some(module) = module {
