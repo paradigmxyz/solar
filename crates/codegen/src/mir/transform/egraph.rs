@@ -446,10 +446,8 @@ impl<'a> Builder<'a> {
         // Immediates created by rules while the pass runs join the canonical set.
         if let Value::Immediate(immediate) = self.func.value(value) {
             let leaf = *self.immediates.entry(immediate.clone()).or_insert(value);
-            if leaf != value {
-                self.leaves.resize(self.func.num_values(), None);
-                self.leaves[value] = Some(leaf);
-            }
+            self.leaves.resize(self.func.num_values(), None);
+            self.leaves[value] = Some(leaf);
             return leaf;
         }
         value
@@ -1171,9 +1169,8 @@ fn value_info(func: &Function) -> ValueInfo {
             Value::Arg(index) => *args[*index].get_or_insert(value),
             _ => return,
         };
-        if canonical != value {
-            leaves[value] = Some(canonical);
-        }
+        // Map canonical leaves to themselves too, so resolving them skips the lookup.
+        leaves[value] = Some(canonical);
     };
     for inst_id in func.instructions() {
         for operand in func.inst(inst_id).operands() {
