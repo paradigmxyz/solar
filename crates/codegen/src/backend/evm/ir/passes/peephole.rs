@@ -38,14 +38,17 @@ use super::{
     utils::MachineInstKey,
 };
 use crate::backend::evm::{
-    ir::{BlockId, Instruction, Module, PushValue, StackEffect, TerminatorKind},
+    ir::{BlockId, Instruction, Module, PushValue, TerminatorKind},
     op,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
-use solar_data_structures::index::IndexVec;
+use solar_data_structures::{index::IndexVec, map::FxHasher};
 use solar_sema::Gcx;
-use std::fmt;
+use std::{
+    fmt,
+    hash::{Hash, Hasher},
+};
 use tracing::trace;
 
 mod isle;
@@ -124,17 +127,24 @@ const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 /// Matching reads only each instruction's opcode, encoding, value, stack operation, stack effect,
 /// and `keep_with_next` flag, never debug metadata, so equal keys produce the same result. The
 /// final rules extend the early ones, so contents clean under them are clean under both.
+/// Records hold a hash of the keys rather than a copy, which would retain every clean block's
+/// contents a second time for the module's lifetime.
 /// Module clones start without the cache, and it never affects module equality.
 #[derive(Default)]
 pub(crate) struct CleanBlocks(IndexVec<BlockId, Option<CleanBlock>>);
 
 struct CleanBlock {
     final_cleanup: bool,
-    keys: Vec<(MachineInstKey, Option<StackEffect>)>,
+    len: usize,
+    hash: u64,
 }
 
-fn clean_key(inst: &Instruction) -> (MachineInstKey, Option<StackEffect>) {
-    (MachineInstKey::new(inst), inst.metadata.stack)
+fn clean_hash(instructions: &[Instruction]) -> u64 {
+    let mut hasher = FxHasher::default();
+    for inst in instructions {
+        (MachineInstKey::new(inst), inst.metadata.stack).hash(&mut hasher);
+    }
+    hasher.finish()
 }
 
 impl CleanBlocks {
@@ -142,9 +152,8 @@ impl CleanBlocks {
     /// whether the final rules were included.
     fn recorded(&self, block: BlockId, instructions: &[Instruction]) -> Option<bool> {
         let clean = self.0.get(block)?.as_ref()?;
-        (clean.keys.len() == instructions.len()
-            && clean.keys.iter().zip(instructions).all(|(&key, inst)| key == clean_key(inst)))
-        .then_some(clean.final_cleanup)
+        (clean.len == instructions.len() && clean.hash == clean_hash(instructions))
+            .then_some(clean.final_cleanup)
     }
 }
 
@@ -235,7 +244,8 @@ fn optimize_module<const LATE: bool>(
             } else {
                 clean.0[block_id] = Some(CleanBlock {
                     final_cleanup,
-                    keys: block.instructions.iter().map(clean_key).collect(),
+                    len: block.instructions.len(),
+                    hash: clean_hash(&block.instructions),
                 });
             }
         }
