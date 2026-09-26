@@ -8,7 +8,7 @@
 use super::{Edit, is_block_push, is_removable_push, materialization_cost, push_value, raw_opcode};
 use crate::{
     backend::evm::{
-        ir::{ImmediateMaterialization, Instruction},
+        ir::{ImmediateMaterialization, ImmediatePolicy, Instruction},
         op,
         op::*,
     },
@@ -58,7 +58,8 @@ pub(crate) fn invert_comparison(
                 && ImmediateMaterialization::new(evm_version, bound).stack_peak()
                     <= ImmediateMaterialization::new(evm_version, value).stack_peak()
                 && op::push_len(evm_version, bound)
-                    <= super::immediate_materialization_cost(evm_version, value).0 + 1
+                    <= crate::backend::evm::ir::immediate_materialization_cost(evm_version, value).0
+                        + 1
             {
                 return Some((start, bound, opposite));
             }
@@ -218,12 +219,14 @@ fn protected_word_depth(instructions: &[Instruction]) -> Option<usize> {
 pub(super) struct PeepContext<'a> {
     instructions: &'a [Instruction],
     evm_version: EvmVersion,
+    /// Prices constants as the push compaction emits them.
+    policy: ImmediatePolicy,
     final_cleanup: bool,
 }
 
 impl<'a> PeepContext<'a> {
-    pub(super) fn new(instructions: &'a [Instruction], evm_version: EvmVersion) -> Self {
-        Self { instructions, evm_version, final_cleanup: false }
+    pub(super) fn new(instructions: &'a [Instruction], policy: ImmediatePolicy) -> Self {
+        Self { instructions, evm_version: policy.evm_version(), policy, final_cleanup: false }
     }
 
     pub(super) fn with_final_cleanup(mut self, final_cleanup: bool) -> Self {
@@ -546,9 +549,9 @@ impl generated::Context for PeepContext<'_> {
         let rhs_value = push_value(rhs)?;
         let opcode = raw_opcode(instruction)?;
         let result = eval::eval_opcode(opcode, &[rhs_value, lhs_value])?;
-        let (lhs_size, lhs_gas) = materialization_cost(self.evm_version, lhs_value);
-        let (rhs_size, rhs_gas) = materialization_cost(self.evm_version, rhs_value);
-        let (result_size, result_gas) = materialization_cost(self.evm_version, result);
+        let (lhs_size, lhs_gas) = materialization_cost(self.policy, lhs_value);
+        let (rhs_size, rhs_gas) = materialization_cost(self.policy, rhs_value);
+        let (result_size, result_gas) = materialization_cost(self.policy, result);
         let input_size = lhs_size + rhs_size + 1;
         let target = Target::with(
             self.evm_version,
@@ -579,8 +582,8 @@ impl generated::Context for PeepContext<'_> {
             OptimizationMode::Gas,
             Target::DEFAULT_EXPECTED_EXECUTIONS,
         );
-        let (input_size, input_gas) = materialization_cost(self.evm_version, value);
-        let (result_size, result_gas) = materialization_cost(self.evm_version, result);
+        let (input_size, input_gas) = materialization_cost(self.policy, value);
+        let (result_size, result_gas) = materialization_cost(self.policy, result);
         let input_size = input_size + 1;
         let input_gas =
             input_gas + target.opcode_with_immediates(opcode, &[Some(value)]).gas as usize;
@@ -776,12 +779,14 @@ mod tests {
             Instruction::opcode(ISZERO),
         ];
         assert!(
-            PeepContext::new(&instructions, EvmVersion::Osaka).unprotected_tail::<2>().is_some()
+            PeepContext::new(&instructions, ImmediatePolicy::Bytes(EvmVersion::Osaka))
+                .unprotected_tail::<2>()
+                .is_some()
         );
         for boundary in 0..instructions.len() {
             instructions[boundary].metadata.keep_with_next = true;
             assert!(
-                PeepContext::new(&instructions, EvmVersion::Osaka)
+                PeepContext::new(&instructions, ImmediatePolicy::Bytes(EvmVersion::Osaka))
                     .unprotected_tail::<2>()
                     .is_none()
             );
@@ -795,11 +800,15 @@ mod tests {
         instructions[0].metadata.stack = Some(StackEffect::new(0, 1));
         instructions[1].metadata.stack = Some(StackEffect::new(1, 1));
         assert!(
-            PeepContext::new(&instructions, EvmVersion::Osaka).unprotected_tail::<2>().is_some()
+            PeepContext::new(&instructions, ImmediatePolicy::Bytes(EvmVersion::Osaka))
+                .unprotected_tail::<2>()
+                .is_some()
         );
         instructions[0].metadata.stack = Some(StackEffect::new(0, 2));
         assert!(
-            PeepContext::new(&instructions, EvmVersion::Osaka).unprotected_tail::<2>().is_none()
+            PeepContext::new(&instructions, ImmediatePolicy::Bytes(EvmVersion::Osaka))
+                .unprotected_tail::<2>()
+                .is_none()
         );
     }
 
@@ -807,12 +816,14 @@ mod tests {
     fn equality_shuffle_requires_unprotected_canonical_window() {
         let mut instructions = [GAS, DUP2, EQ, ISZERO, SWAP1, POP].map(Instruction::opcode);
         assert!(
-            PeepContext::new(&instructions, EvmVersion::Osaka).unprotected_tail::<5>().is_some()
+            PeepContext::new(&instructions, ImmediatePolicy::Bytes(EvmVersion::Osaka))
+                .unprotected_tail::<5>()
+                .is_some()
         );
         for boundary in 0..instructions.len() {
             instructions[boundary].metadata.keep_with_next = true;
             assert!(
-                PeepContext::new(&instructions, EvmVersion::Osaka)
+                PeepContext::new(&instructions, ImmediatePolicy::Bytes(EvmVersion::Osaka))
                     .unprotected_tail::<5>()
                     .is_none()
             );
@@ -821,7 +832,7 @@ mod tests {
         for instruction in 1..instructions.len() {
             instructions[instruction].metadata.stack = Some(StackEffect::new(0, 7));
             assert!(
-                PeepContext::new(&instructions, EvmVersion::Osaka)
+                PeepContext::new(&instructions, ImmediatePolicy::Bytes(EvmVersion::Osaka))
                     .unprotected_tail::<5>()
                     .is_none()
             );
@@ -837,8 +848,16 @@ mod tests {
             Instruction::push_value(U256::from(128)),
             Instruction::opcode(MLOAD),
         ];
-        assert!(PeepContext::new(&instructions, EvmVersion::Osaka).select::<false>().is_some());
+        assert!(
+            PeepContext::new(&instructions, ImmediatePolicy::Bytes(EvmVersion::Osaka))
+                .select::<false>()
+                .is_some()
+        );
         instructions[1].metadata.stack = Some(StackEffect::new(1, 0));
-        assert!(PeepContext::new(&instructions, EvmVersion::Osaka).select::<false>().is_none());
+        assert!(
+            PeepContext::new(&instructions, ImmediatePolicy::Bytes(EvmVersion::Osaka))
+                .select::<false>()
+                .is_none()
+        );
     }
 }

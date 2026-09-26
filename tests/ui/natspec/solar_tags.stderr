@@ -1,0 +1,121 @@
+error: `@custom:solar-view` must document a variable declaration statement or an internal function
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         /// @custom:solar-view
+   │              ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on the statement `bytes memory v = Bytes.slice(source, offset, count);`, or on an internal function to name its view parameters
+
+error: unknown Solar tag `@custom:solar-veiw`
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         /// @custom:solar-veiw
+   │              ━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-` tags are requirements this compiler checks
+   ╰ help: the supported tags are `@custom:solar-view`, `@custom:solar-scratch`, and `@custom:solar-terminates`
+
+error: `@custom:solar-scratch` must document a block statement
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a `{ ... }` block whose allocations do not outlive it
+
+error: `@custom:solar-terminates` must document an internal or private function
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         /// @custom:solar-terminates
+   │              ━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a function with a body that ends the call on every path
+
+error: a `@custom:solar-scratch` block cannot contain inline assembly
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │ ┏             assembly {
+LL │ ┃
+LL │ ┃                 x := add(x, 1)
+LL │ ┃             }
+   │ ┗━━━━━━━━━━━━━┛
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   ╰╴             ━━━━━━━━━━━━━━━━━━━━
+
+error: `@custom:solar-view` must document a variable declaration statement or an internal function
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │ /// @custom:solar-view
+   │      ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on the statement `bytes memory v = Bytes.slice(source, offset, count);`, or on an internal function to name its view parameters
+
+error: `@custom:solar-scratch` must document a block statement
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │     /// @custom:solar-scratch
+   │          ━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a `{ ... }` block whose allocations do not outlive it
+
+error: `@custom:solar-terminates` must document an internal or private function
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │     /// @custom:solar-terminates
+   │          ━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a function with a body that ends the call on every path
+
+error: `@custom:solar-terminates` must document an internal or private function
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │     /// @custom:solar-terminates
+   │          ━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a function with a body that ends the call on every path
+
+error: `@custom:solar-view` requires a `bytes memory` variable initialized by `Bytes.slice`, or `bytes` or `string` variables initialized by `abi.decode`
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         uint256 z = 3;
+   │         ━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         /// @custom:solar-view
+   │              ━━━━━━━━━━━━━━━━━
+   ╰ help: declare the view as `bytes memory v = Bytes.slice(source, offset, count);` or `(bytes memory v) = abi.decode(data, (bytes));`
+
+error: `@custom:solar-view` requires a `bytes memory` variable initialized by `Bytes.slice`, or `bytes` or `string` variables initialized by `abi.decode`
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         bytes memory c = new bytes(3);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         /// @custom:solar-view
+   │              ━━━━━━━━━━━━━━━━━
+   ╰ help: declare the view as `bytes memory v = Bytes.slice(source, offset, count);` or `(bytes memory v) = abi.decode(data, (bytes));`
+
+error: `@custom:solar-view` requires a `bytes memory` variable initialized by `Bytes.slice`, or `bytes` or `string` variables initialized by `abi.decode`
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         bytes memory d;
+   │         ━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         /// @custom:solar-view
+   │              ━━━━━━━━━━━━━━━━━
+   ╰ help: declare the view as `bytes memory v = Bytes.slice(source, offset, count);` or `(bytes memory v) = abi.decode(data, (bytes));`
+
+error: aborting due to 12 previous errors
+

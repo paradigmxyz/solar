@@ -1,0 +1,75 @@
+error: `giveBack` is tagged `@custom:solar-terminates` but can return to its caller
+   ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
+   │
+LL │     function giveBack(uint256 code) internal pure returns (uint256) {
+   │              ━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
+   │
+LL │     /// @custom:solar-terminates
+   ╰╴         ━━━━━━━━━━━━━━━━━━━━━━━
+note: it returns here
+   ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
+   │
+LL │         return code;
+   │         ━━━━━━━━━━━━
+   ╰ help: end every path with a revert, `Revert.raw`, `Return.abiEncoded`, or a call to another `@custom:solar-terminates` function
+
+error: `fallsThrough` is tagged `@custom:solar-terminates` but can return to its caller
+   ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
+   │
+LL │     function fallsThrough(uint256 code) internal pure {
+   │              ━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
+   │
+LL │     /// @custom:solar-terminates
+   │          ━━━━━━━━━━━━━━━━━━━━━━━
+   ├ note: control can reach the end of its body
+   ╰ help: end every path with a revert, `Revert.raw`, `Return.abiEncoded`, or a call to another `@custom:solar-terminates` function
+
+error: `inLoop` is tagged `@custom:solar-terminates` but can return to its caller
+   ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
+   │
+LL │     function inLoop(uint256 code) internal pure {
+   │              ━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
+   │
+LL │     /// @custom:solar-terminates
+   │          ━━━━━━━━━━━━━━━━━━━━━━━
+   ├ note: control can reach the end of its body
+   ╰ help: end every path with a revert, `Revert.raw`, `Return.abiEncoded`, or a call to another `@custom:solar-terminates` function
+
+error: `throughVirtual` is tagged `@custom:solar-terminates` but can return to its caller
+   ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
+   │
+LL │     function throughVirtual() internal pure {
+   │              ━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
+   │
+LL │     /// @custom:solar-terminates
+   │          ━━━━━━━━━━━━━━━━━━━━━━━
+   ├ note: control can reach the end of its body
+   ╰ help: end every path with a revert, `Revert.raw`, `Return.abiEncoded`, or a call to another `@custom:solar-terminates` function
+
+error: the `@custom:solar-terminates` function `guarded` cannot take modifiers
+   ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
+   │
+LL │     function guarded() internal pure guard {
+   │                                      ━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
+   │
+LL │     /// @custom:solar-terminates
+   │          ━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ note: a modifier can skip the body and return to the caller
+
+error: aborting due to 5 previous errors
+

@@ -1,0 +1,126 @@
+//@compile-flags: -Zmir-pipeline=check-elim
+//@filecheck:
+@module CheckElimBinarySearch
+
+// `while (l <= h) { m = (l + h) / 2; t = a[m - 1]; ... }` with `h = m - 1` or
+// `l = m + 1`. Every check folds:
+// - `l` holds `1` or some `m + 1`, and `h` holds the length or some `m - 1`, so
+//   their ranges exclude the paths carrying them unchanged, and the bounded
+//   length keeps `l + h` from wrapping;
+// - under `l <= h` the midpoint lies between them, so `m >= l >= 1`;
+// - `m - 1 < m <= h` keeps `h` at or below the length on every iteration, so
+//   `m - 1 < length` holds for the load.
+// CHECK-LABEL: @search
+// CHECK: {{^ +}}[[SUM:v[0-9]+]] = add
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = lt [[SUM]],
+// CHECK-NEXT: -     jumpi
+// CHECK-NEXT: +     jump
+// CHECK: {{^ +}}{{v[0-9]+}} = eq {{v[0-9]+}}, 0
+// CHECK-NEXT: -     jumpi
+// CHECK-NEXT: +     jump
+// CHECK: {{^ +}}{{v[0-9]+}} = lt {{v[0-9]+}}, v0
+// CHECK-NEXT: -     jumpi
+// CHECK: +     jump
+// CHECK: {{^ +}}{{v[0-9]+}} = eq {{v[0-9]+}}, 0
+// CHECK-NEXT: -     jumpi
+// CHECK-NEXT: +     jump
+fn @search(arg0: memoryarray, arg1: i256) -> i256 {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 1], [bb9: v14]
+    v2 = phi [bb0: v0], [bb9: v15]
+    v3 = gt v1, v2
+    jumpi v3, bb10, bb2
+  bb2:
+    v4 = add v1, v2
+    v5 = lt v4, v1
+    jumpi v5, bb11, bb3
+  bb3:
+    v6 = shr 1, v4
+    v7 = eq v6, 0
+    jumpi v7, bb11, bb4
+  bb4:
+    v8 = sub v6, 1
+    v9 = lt v8, v0
+    jumpi v9, bb5, bb12
+  bb5:
+    v10 = memory_object_load_element memoryarray<1>, arg0, v8
+    v11 = eq v10, arg1
+    jumpi v11, bb13, bb6
+  bb6:
+    v12 = gt arg1, v10
+    jumpi v12, bb8, bb7
+  bb7:
+    jump bb9
+  bb8:
+    v13 = add v6, 1
+    v16 = eq v13, 0
+    jumpi v16, bb11, bb9
+  bb9:
+    v14 = phi [bb7: v1], [bb8: v13]
+    v15 = phi [bb7: v8], [bb8: v2]
+    jump bb1
+  bb10:
+    ret 0
+  bb11:
+    revert 0, 0
+  bb12:
+    revert 0, 0
+  bb13:
+    ret v8
+}
+
+// An upper bound that one path replaces with an arbitrary word is not bounded
+// by the length, so the load keeps its bounds check.
+// CHECK-LABEL: @keep_arbitrary_update
+// CHECK: {{^ +}}{{v[0-9]+}} = lt {{v[0-9]+}}, v0
+// CHECK-NEXT: {{^ +}}jumpi
+fn @keep_arbitrary_update(arg0: memoryarray, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 1], [bb9: v14]
+    v2 = phi [bb0: v0], [bb9: v15]
+    v3 = gt v1, v2
+    jumpi v3, bb10, bb2
+  bb2:
+    v4 = add v1, v2
+    v5 = lt v4, v1
+    jumpi v5, bb11, bb3
+  bb3:
+    v6 = shr 1, v4
+    v7 = eq v6, 0
+    jumpi v7, bb11, bb4
+  bb4:
+    v8 = sub v6, 1
+    v9 = lt v8, v0
+    jumpi v9, bb5, bb12
+  bb5:
+    v10 = memory_object_load_element memoryarray<1>, arg0, v8
+    v11 = eq v10, arg1
+    jumpi v11, bb13, bb6
+  bb6:
+    v12 = gt arg1, v10
+    jumpi v12, bb8, bb7
+  bb7:
+    jump bb9
+  bb8:
+    v13 = add v6, 1
+    v16 = eq v13, 0
+    jumpi v16, bb11, bb9
+  bb9:
+    v14 = phi [bb7: v1], [bb8: v13]
+    v15 = phi [bb7: arg2], [bb8: v2]
+    jump bb1
+  bb10:
+    ret 0
+  bb11:
+    revert 0, 0
+  bb12:
+    revert 0, 0
+  bb13:
+    ret v8
+}

@@ -1,0 +1,173 @@
+// === <solar:core/v1/Precompiles.sol>:Precompiles ===
+@module Precompiles
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/safe-solar/precompiles/modexp/safe.sol:Safe ===
+@module Safe
+@phase lowered
+types:
+  struct0: {i256, memptr}
+
+fn @power() [selector=0x2e894bdf, abi_wrapper, view] {
+  bb0:
+    v63 = calldatasize
+    v64 = lt v63, 100
+    jumpi v64, bb6, bb7
+  bb7:
+    v65 = icall @decode_calldata_type, 4
+    v66 = icall @decode_calldata_type, 36
+    v67 = icall @decode_calldata_type, 68
+    v5 = gas
+    v139 = ptrtoint memptr v65 to i256
+    v6 = mload v139
+    v140 = ptrtoint memptr v66 to i256
+    v7 = mload v140
+    v141 = ptrtoint memptr v67 to i256
+    v8 = mload v141
+    v143 = add v139, 32
+    v26 = add v6, 96
+    v145 = add v140, 32
+    v32 = add v26, v7
+    v147 = add v141, 32
+    v38 = add v32, v8
+    v40 = add v38, 63
+    v43 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v156 = mload 64 !metadata(memory=scratch)
+    v157 = add v156, v43
+    mstore 64, v157 !metadata(memory=scratch)
+    mstore v156, v38
+    v109 = add v156, 32
+    mstore v109, v6
+    v113 = add v156, 64
+    mstore v113, v7
+    v116 = add v156, 96
+    mstore v116, v8
+    v119 = add v156, 128
+    mcopy v119, v143, v6
+    v124 = add v109, v26
+    mcopy v124, v145, v7
+    v129 = add v109, v32
+    mcopy v129, v147, v8
+    v55 = staticcall v5, 5, v109, v38, 0, 0
+    v56 = returndatasize
+    v57 = add v56, 63
+    v58 = lt v57, v56
+    jumpi v58, bb4, bb5
+  bb5:
+    v60 = and v57, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v154 = mload 64 !metadata(memory=scratch)
+    v61 = inttoptr i256 v154 to memptr !metadata(memory=scratch)
+    v155 = add v154, v60
+    mstore 64, v155 !metadata(memory=scratch)
+    mstore v154, v56
+    v105 = add v154, 32
+    returndatacopy v105, 0, v56
+    jumpi v55, bb2, bb3
+  bb2:
+    v13 = mload v141
+    v14 = ne v56, v13
+    jumpi v14, bb3, bb1
+  bb3:
+    v152 = mload 64 !metadata(memory=scratch)
+    v15 = inttoptr i256 v152 to memptr !metadata(memory=scratch)
+    v153 = add v152, 32
+    mstore 64, v153 !metadata(memory=scratch)
+    mstore v152, 0
+    jump bb1
+  bb1:
+    v102 = phi [bb3: 0], [bb2: 1]
+    v103 = phi [bb3: v15], [bb2: v61]
+    v151 = mload 64 !metadata(memory=scratch)
+    v76 = add v151, 64
+    mstore v151, v102
+    v79 = add v151, 32
+    mstore v79, 64
+    v132 = ptrtoint memptr v103 to i256
+    v86 = ne v132, 0
+    v87 = zext i1 v86 to i256
+    v82 = mload v132
+    v88 = mul v82, v87
+    v90 = add v88, 31
+    v91 = and v90, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v92 = add v76, 32
+    v93 = add v76, v91
+    mstore v93, 0
+    mstore v76, v88
+    v95 = add v92, v91
+    v134 = add v132, 32
+    mcopy v92, v134, v88
+    v98 = sub v95, v151
+    returndata v151, v98
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb6:
+    revert 0, 0
+}
+
+fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload arg0
+    v2 = add v1, 4
+    v3 = add v2, 32
+    v4 = shr 64, v1
+    v5 = gt v3, v0
+    v6 = zext i1 v5 to i256
+    v7 = or v4, v6
+    v8 = ne v7, 0
+    jumpi v8, bb1, bb2
+  bb2:
+    v9 = calldataload v2
+    v11 = add v9, 63
+    v12 = lt v11, v9
+    jumpi v12, bb3, bb4
+  bb4:
+    v14 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v24 = mload 64 !metadata(memory=scratch)
+    v15 = inttoptr i256 v24 to memptr !metadata(memory=scratch)
+    v25 = add v24, v14
+    v26 = lt v25, v24
+    v27 = zext i1 v26 to i256
+    v28 = shr 64, v25
+    v29 = or v27, v28
+    v30 = ne v29, 0
+    jumpi v30, bb3, bb6
+  bb6:
+    mstore 64, v25 !metadata(memory=scratch)
+    mstore v24, v9
+    v16 = sub v0, v3
+    v17 = gt v9, v16
+    jumpi v17, bb1, bb5
+  bb5:
+    v20 = add v24, 32
+    calldatacopy v20, v3, v9
+    ret v15
+  bb3:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0x2e894bdf => bb2]
+  bb2:
+    tail_call @power
+  bb3:
+    revert 0, 0
+}

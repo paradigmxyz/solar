@@ -204,7 +204,7 @@ fn @copyValues() -> struct0 [selector=0xd888038d, view, abi_params=[], abi_retur
     ret v15
 }
 
-fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @raw() -> i256 [selector=0xc096a632, inline_assembly, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0

@@ -4,7 +4,7 @@ types:
   struct0: {i256, i256, i256}
   struct1: {i256, i256, i256, i256}
 
-fn @discardMasks(arg0: i256) -> struct0 [selector=0x5ca9b896, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @discardMasks(arg0: i256) -> struct0 [selector=0x5ca9b896, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = and arg0, 255
     v1 = shl 248, v0
@@ -19,7 +19,7 @@ fn @discardMasks(arg0: i256) -> struct0 [selector=0x5ca9b896, pure, abi_params=[
     ret v9
 }
 
-fn @adjustBytes(arg0: i256) -> struct0 [selector=0x00154503, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @adjustBytes(arg0: i256) -> struct0 [selector=0x00154503, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = shl 248, arg0
     v1 = byte 0, v0
@@ -33,7 +33,7 @@ fn @adjustBytes(arg0: i256) -> struct0 [selector=0x00154503, pure, abi_params=[u
     ret v8
 }
 
-fn @preserveBits(arg0: i256) -> struct1 [selector=0xc75ef748, pure, abi_params=[u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @preserveBits(arg0: i256) -> struct1 [selector=0xc75ef748, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = and arg0, 127
     v1 = shl 248, v0

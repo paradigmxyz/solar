@@ -1,0 +1,87 @@
+// === <solar:core/v1/Hash.sol>:Hash ===
+@module Hash
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/safe-solar/hash/range/safe.sol:Safe ===
+@module Safe
+@phase lowered
+fn @range() [selector=0xb835317c, abi_wrapper, pure] {
+  bb0:
+    v10 = calldatasize
+    v11 = lt v10, 100
+    jumpi v11, bb3, bb4
+  bb4:
+    v12 = calldataload 4
+    v13 = add v12, 4
+    v14 = add v13, 32
+    v15 = shr 64, v12
+    v16 = gt v14, v10
+    v17 = zext i1 v16 to i256
+    v18 = or v15, v17
+    v19 = ne v18, 0
+    jumpi v19, bb3, bb5
+  bb5:
+    v20 = calldataload v13
+    v22 = add v20, 63
+    v23 = lt v22, v20
+    jumpi v23, bb6, bb7
+  bb7:
+    v25 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v38 = mload 64 !metadata(memory=scratch)
+    v39 = add v38, v25
+    v40 = lt v39, v38
+    v41 = zext i1 v40 to i256
+    v42 = shr 64, v39
+    v43 = or v41, v42
+    v44 = ne v43, 0
+    jumpi v44, bb6, bb9
+  bb9:
+    mstore 64, v39 !metadata(memory=scratch)
+    mstore v38, v20
+    v27 = sub v10, v14
+    v28 = gt v20, v27
+    jumpi v28, bb3, bb8
+  bb8:
+    v32 = add v38, 32
+    calldatacopy v32, v14, v20
+    v1 = add arg1, arg2
+    v2 = lt v1, arg1
+    v3 = gt v1, v20
+    v4 = or v2, v3
+    jumpi v4, bb1, bb2
+  bb2:
+    v8 = add v32, arg1
+    v9 = keccak256 v8, arg2
+    mstore 0, v9 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
+  bb6:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xb835317c => bb2]
+  bb2:
+    tail_call @range
+  bb3:
+    revert 0, 0
+}

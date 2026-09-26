@@ -27,7 +27,7 @@ fn @pack() -> struct0 [selector=0xef082838, pure, abi_params=[], abi_returns=[wo
     ret v13
 }
 
-fn @cleanDirtyMemory() -> i256 [selector=0x4585502b, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @cleanDirtyMemory() -> i256 [selector=0x4585502b, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -117,7 +117,7 @@ fn @packCalldata(arg0: calldataslice) -> i256 [selector=0x38651f67, pure, abi_pa
     jump bb1
 }
 
-fn @rejectDirtyCalldata() -> i256 [selector=0xe0d4a2a5, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @rejectDirtyCalldata() -> i256 [selector=0xe0d4a2a5, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1

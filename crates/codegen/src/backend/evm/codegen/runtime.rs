@@ -5,6 +5,7 @@ use super::{
     IndexVec, Liveness, MAX_STACK_DEPTH, MirPhase, Module, OptimizationMode, Terminator, index_vec,
     run_pipeline,
 };
+use crate::backend::evm::ir::SizeRescue;
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Runs the canonical MIR optimization pipeline on the module.
@@ -25,7 +26,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         );
         let runtime_code_size_limit = self.gcx.sess.opts.evm_version.runtime_code_size_limit();
         let may_need_code_size_rescue = self.gcx.sess.opts.optimization.is_gas();
-        let mut code_size_rescue = false;
+        let mut size_rescue = SizeRescue::None;
         let mut gas_first_result = None;
         loop {
             let mut preserve_caller_stack =
@@ -68,21 +69,35 @@ impl<'gcx> EvmCodegen<'gcx> {
                 break;
             }
 
-            self.asm.set_enable_size_outlining(code_size_rescue);
+            self.asm.set_size_rescue(size_rescue);
 
             let result =
                 self.asm.assemble_with_captures(self.capture_evm_ir, self.capture_debug_info);
+            // An oversized gas build first gives up the constants that cost the least gas for the
+            // bytes over the limit, then outlines repeated runs instead, and only if neither is
+            // enough does every constant also take its shortest recipe.
             if may_need_code_size_rescue
-                && !code_size_rescue
                 && let Some(limit) = runtime_code_size_limit
                 && result.bytecode.len() > limit
                 && result.bytecode.len() <= limit * 2
             {
-                gas_first_result = Some(result);
-                code_size_rescue = true;
-                continue;
+                let next = match size_rescue {
+                    SizeRescue::None => {
+                        Some(SizeRescue::Constants { bytes: result.bytecode.len() - limit })
+                    }
+                    SizeRescue::Constants { .. } => Some(SizeRescue::Outline),
+                    SizeRescue::Outline => Some(SizeRescue::Full),
+                    SizeRescue::Full => None,
+                };
+                if let Some(next) = next {
+                    if size_rescue == SizeRescue::None {
+                        gas_first_result = Some(result);
+                    }
+                    size_rescue = next;
+                    continue;
+                }
             }
-            let result = if code_size_rescue
+            let result = if size_rescue != SizeRescue::None
                 && result.bytecode.len()
                     > runtime_code_size_limit.expect("code-size rescue requires a size limit")
             {
@@ -119,6 +134,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.external_spill_addr_consts.clear();
         self.pending_static_allocs.clear();
         self.runtime_free_memory_consts.clear();
+        self.shared_free_memory_const = None;
         self.runtime_entry_reachability.clear();
         self.runtime_entry_funcs.clear();
         self.current_internal_function = None;
@@ -129,6 +145,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.recursive_frame_functions.clear_to(module.functions.len());
         self.recursive_frame_edges.clear();
         self.recursion_reaching_functions.clear_to(module.functions.len());
+        self.stack_return_buffers.clear_to(module.functions.len());
         self.function_stack_peaks.clear();
         self.icall_stack_edges.clear();
         self.runtime_stack_args = true;
@@ -374,6 +391,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Compact dispatch can leave its selector below a separately scheduled wrapper.
         // An entry with inlined bodies uses ordinary intra-function switch cleanup instead.
         self.record_runtime_entry_reachability(call_graph, entry_id);
+        if self.gcx.sess.opts.optimization.is_size() {
+            let entries = module
+                .functions
+                .iter_enumerated()
+                .filter(|&(func_id, func)| {
+                    func_id != entry_id
+                        && Self::is_external_entry(func)
+                        && self.function_labels.contains_key(&func_id)
+                })
+                .map(|(func_id, _)| func_id)
+                .collect::<Vec<_>>();
+            self.emit_shared_free_memory_start(module, call_graph, entries);
+        }
         self.in_internal_function = false;
         self.emitting_entry =
             Liveness::compute_block_local_for_codegen(&module.functions[entry_id]).is_some();

@@ -24,7 +24,7 @@ fn @accept(arg0: calldataslice, arg1: calldataslice) -> i256 [selector=0x1403c78
     ret v3
 }
 
-fn @next() -> memorybytes [selector=0x4c8fe526, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @next() -> memorybytes [selector=0x4c8fe526, inline_assembly, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = not 31
     v1 = and 543, v0
@@ -52,18 +52,18 @@ fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
     memory_object_store_element memoryarray<1>, v0, 1, 99
     jump bb1
   bb1:
-    v7 = phi [bb0: 0], [bb3: v38]
+    v7 = phi [bb0: 0], [bb3: v7]
     v8 = phi [bb0: memorybytes 96], [bb3: v33]
-    v9 = phi [bb0: 0], [bb3: v9]
-    v10 = phi [bb0: v0], [bb3: v34]
-    v11 = lt v7, 2
+    v9 = phi [bb0: v0], [bb3: v34]
+    v10 = phi [bb0: 0], [bb3: v38]
+    v11 = lt v10, 2
     jumpi v11, bb4, bb5
   bb5:
     jump bb2
   bb2:
     ret 1
   bb4:
-    v12 = abi_encode [memory_bytes, memory_array<word>], object, selector 0x1403c78f00000000000000000000000000000000000000000000000000000000, args v8, v10
+    v12 = abi_encode [memory_bytes, memory_array<word>], object, selector 0x1403c78f00000000000000000000000000000000000000000000000000000000, args v8, v9
     v13 = address
     v14 = gas
     v15 = address_call v13, v12, gas v14
@@ -71,7 +71,7 @@ fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
     v17 = eq v15, false
     icall revert_if<empty>, v17
     v18 = abi_decode [bytes32], v16
-    v19 = abi_encode [memory_bytes, memory_array<word>], scratch, args v8, v10
+    v19 = abi_encode [memory_bytes, memory_array<word>], scratch, args v8, v9
     v20 = slice_ptr v19
     v21 = slice_len v19
     v22 = keccak256 v20, v21
@@ -102,7 +102,7 @@ fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
   bb6:
     jump bb3
   bb3:
-    v38 = checked_add u256, v7, 1
+    v38 = checked_add u256, v10, 1
     jump bb1
 }
 

@@ -32,7 +32,7 @@ fn @triple(arg0: i256) -> struct0 [pure] {
     ret v3
 }
 
-fn @assign(arg0: i256, arg1: i256) -> struct1 [selector=0xf09915d4, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @assign(arg0: i256, arg1: i256) -> struct1 [selector=0xf09915d4, inline_assembly, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = icall @triple, arg1

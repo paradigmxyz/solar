@@ -14,10 +14,10 @@ bb0:
   push bb3
   jumpi
   push 42
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3 [cold]:
   push 0
@@ -43,7 +43,7 @@ bb0:
   sub
   push bb4
   jumpi
-  push 192
+  push 128
   push 64
   mstore
   push 0
@@ -65,9 +65,6 @@ bb0:
   iszero
   push bb4
   jumpi
-  dup 1
-  push 160
-  mstore
   push 32
   dup 2
   push 4
@@ -78,12 +75,10 @@ bb0:
   call
   swap 2
   pop
-  pop
+  swap 1
   iszero
   push bb4
   jumpi
-  push 160
-  mload
   mload
   push 0
   mstore
@@ -95,7 +90,7 @@ bb4 [cold]:
   dup 1
   invalid
 bb9:
-  push 160
+  push 128
   push 64
   mstore
   push 0
@@ -134,8 +129,8 @@ bb9:
   push bb4
   jumpi
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return

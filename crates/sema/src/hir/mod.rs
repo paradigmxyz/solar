@@ -9,9 +9,10 @@ use solar_data_structures::{
     BumpExt,
     index::{Idx, IndexVec},
     newtype_index,
+    smallvec::SmallVec,
 };
 use solar_interface::{
-    Ident, Span, Symbol, diagnostics::ErrorGuaranteed, kw, source_map::SourceFile,
+    Ident, Span, Symbol, diagnostics::ErrorGuaranteed, kw, source_map::SourceFile, sym,
 };
 use std::{cell::Cell, fmt, ops::ControlFlow, sync::Arc};
 use strum::EnumIs;
@@ -99,6 +100,9 @@ pub struct Hir<'hir> {
     pub(crate) errors: IndexVec<ErrorId, Error<'hir>>,
     /// All events.
     pub(crate) events: IndexVec<EventId, Event<'hir>>,
+    /// Statements documented by `@custom:solar-*` tags, in source order, with each tag's span.
+    /// The tags are rare, so lookups scan.
+    pub(crate) solar_tags: Vec<(SolarStmtTag<'hir>, Span)>,
 }
 
 macro_rules! indexvec_methods {
@@ -189,6 +193,7 @@ impl<'hir> Hir<'hir> {
             udvts: IndexVec::new(),
             errors: IndexVec::new(),
             events: IndexVec::new(),
+            solar_tags: Vec::new(),
         }
     }
 
@@ -329,6 +334,91 @@ impl<'hir> Hir<'hir> {
     ) -> HirBuilder<'hir, 'id> {
         HirBuilder::new(arena, next_id)
     }
+
+    /// Returns the span of the `@custom:solar-view` tag on a local variable's declaration.
+    pub fn solar_view(&self, id: VariableId) -> Option<Span> {
+        self.solar_tags
+            .iter()
+            .find(|&&(tag, _)| match tag {
+                SolarStmtTag::View(view) => view == id,
+                SolarStmtTag::DecodeView(vars, _) => vars.contains(&Some(id)),
+                SolarStmtTag::Scratch(_) => false,
+            })
+            .map(|&(_, span)| span)
+    }
+
+    /// Returns every statement tagged `@custom:solar-view`, in source order, with the tag's span.
+    pub fn solar_views(&self) -> impl Iterator<Item = (SolarStmtTag<'hir>, Span)> + '_ {
+        self.solar_tags.iter().copied().filter(|(tag, _)| !matches!(tag, SolarStmtTag::Scratch(_)))
+    }
+
+    /// Returns the span of the `@custom:solar-scratch` tag on the block that spans `block`.
+    pub fn solar_scratch(&self, block: Span) -> Option<Span> {
+        self.solar_tags
+            .iter()
+            .find(|&&(tag, _)| matches!(tag, SolarStmtTag::Scratch(scratch) if scratch == block))
+            .map(|&(_, span)| span)
+    }
+
+    /// Returns the span of the `@custom:solar-terminates` tag on a function's declaration.
+    pub fn solar_terminates(&self, id: FunctionId) -> Option<Span> {
+        let doc = self.doc(self.function(id).doc);
+        doc.ast_comments.iter().flat_map(|comment| comment.natspec.iter()).find_map(|natspec| {
+            matches!(
+                natspec.kind,
+                ast::NatSpecKind::Custom { name } if name.name == sym::solar_dash_terminates
+            )
+            .then_some(natspec.span)
+        })
+    }
+
+    /// Returns the parameter names the `@custom:solar-view` tags on a function's declaration list,
+    /// each with its tag's span. A tag that lists none yields an empty name.
+    pub fn solar_view_names(&self, id: FunctionId) -> SmallVec<[(Symbol, Span); 1]> {
+        let doc = self.doc(self.function(id).doc);
+        let mut names = SmallVec::new();
+        for natspec in doc.ast_comments.iter().flat_map(|comment| comment.natspec.iter()) {
+            if !matches!(
+                natspec.kind,
+                ast::NatSpecKind::Custom { name } if name.name == sym::solar_dash_view
+            ) {
+                continue;
+            }
+            let before = names.len();
+            names.extend(
+                natspec
+                    .content()
+                    .split_whitespace()
+                    .map(|name| (Symbol::intern(name), natspec.span)),
+            );
+            if names.len() == before {
+                names.push((kw::Empty, natspec.span));
+            }
+        }
+        names
+    }
+
+    /// Returns whether a `@custom:solar-view` tag on the function `id` names its parameter
+    /// `index`.
+    pub fn is_solar_view_parameter(&self, id: FunctionId, index: usize) -> bool {
+        let Some(name) =
+            self.function(id).parameters.get(index).and_then(|&param| self.variable(param).name)
+        else {
+            return false;
+        };
+        self.solar_view_names(id).iter().any(|&(view, _)| view == name.name)
+    }
+}
+
+/// A statement documented by a `@custom:solar-*` tag.
+#[derive(Clone, Copy, Debug)]
+pub enum SolarStmtTag<'hir> {
+    /// `@custom:solar-view` on the declaration of this local variable.
+    View(VariableId),
+    /// `@custom:solar-view` on a tuple declaration: its variables and its initializer.
+    DecodeView(&'hir [Option<VariableId>], &'hir Expr<'hir>),
+    /// `@custom:solar-scratch` on the block with this span.
+    Scratch(Span),
 }
 
 /// A counter for generating unique IDs.
@@ -2193,7 +2283,7 @@ mod tests {
             assert_data_eq!(actual.to_string(), expected);
         }
 
-        assert_size::<Hir<'_>>(str!["240"]);
+        assert_size::<Hir<'_>>(str!["264"]);
 
         assert_size::<Item<'_, '_>>(str!["16"]);
         assert_size::<Contract<'_>>(str!["152"]);

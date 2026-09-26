@@ -40,7 +40,7 @@ fn @forwardedLoad() -> i256 [selector=0x7cfab297, abi_params=[], abi_returns=[wo
 
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_gas_observation.sol:StorageGasCfgObservation ===
 @module StorageGasCfgObservation
-fn @diamond(arg0: i256) -> i256 [selector=0xdf460a0e, view, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @diamond(arg0: i256) -> i256 [selector=0xdf460a0e, inline_assembly, view, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = ne arg0, 0
@@ -66,14 +66,14 @@ fn @diamond(arg0: i256) -> i256 [selector=0xdf460a0e, view, abi_params=[bool], a
     ret v14
 }
 
-fn @loop() -> i256 [selector=0xa92100cb, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @loop() -> i256 [selector=0xa92100cb, inline_assembly, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb3: v19]
-    v2 = phi [bb0: 1], [bb3: v18]
-    v3 = phi [bb0: v0], [bb3: v3]
+    v1 = phi [bb0: 1], [bb3: v18]
+    v2 = phi [bb0: v0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v19]
     v4 = phi [bb0: 0], [bb3: v20]
     v5 = lt v4, 3
     v6 = zext i1 v5 to i256
@@ -82,7 +82,7 @@ fn @loop() -> i256 [selector=0xa92100cb, view, abi_params=[], abi_returns=[word<
   bb5:
     jump bb2
   bb2:
-    ret v2
+    ret v1
   bb4:
     v8 = sload 0 !metadata(storage=slot(0))
     v9 = gas
@@ -91,14 +91,14 @@ fn @loop() -> i256 [selector=0xa92100cb, view, abi_params=[], abi_returns=[word<
   bb8:
     jump bb9
   bb7:
-    v11 = sub v1, v9
+    v11 = sub v3, v9
     v12 = gt v11, 80
     v13 = zext i1 v12 to i256
-    v14 = and v2, v13
+    v14 = and v1, v13
     jump bb9
   bb9:
-    v15 = phi [bb7: v14], [bb8: v2]
-    v16 = eq v3, v8
+    v15 = phi [bb7: v14], [bb8: v1]
+    v16 = eq v2, v8
     v17 = zext i1 v16 to i256
     v18 = and v15, v17
     v19 = gas

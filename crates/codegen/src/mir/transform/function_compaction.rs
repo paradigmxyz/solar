@@ -10,6 +10,14 @@
 //! Constants must reach a pure instruction or a non-return terminator. Direct stores and returns
 //! alone do not justify discarding the call result and pushing the same constant again.
 //!
+//! A parameter that every direct call passes the same calldata word, an ABI wrapper's lazy
+//! argument or a load at a constant offset, is read from calldata in the callee instead when the
+//! callee keeps it across a loop, and pruning then drops it. Calldata does not change during a
+//! call, so the callee reads the word its callers read. Such a parameter cannot stay a resident
+//! stack argument, so every caller would stage it in the callee's static frame for the callee to
+//! reread; other parameters already travel on the stack, where the reread would only move the
+//! load into the callee.
+//!
 //! Structural buckets include canonical operand identities and constants, avoiding pairwise
 //! comparisons between bodies with the same opcodes but different inputs. Hash collisions still
 //! require the exact equivalence check.
@@ -21,11 +29,13 @@
 //! and CFG edges closes that pairwise equivalence proof, including mutual recursion.
 
 use crate::mir::{
-    ArgIdx, Callee, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
-    StorageAlias, Terminator, Value, ValueId,
+    ArgIdx, BlockId, Callee, EffectKind, Function, FunctionId, Immediate, InstId, InstKind,
+    Instruction, MirType, Module, StorageAlias, Terminator, Value, ValueId,
+    analysis::{CfgInfo, Liveness},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
 };
+use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::IndexVec,
@@ -57,7 +67,7 @@ impl MirPass for DeadArgElim {
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
-        let forwarded = forward_returned_values(module);
+        let forwarded = forward_returned_values(module) + forward_calldata_args(module);
         if !gcx.sess.opts.optimization.is_size() {
             return prune_unused_args(module) != 0 || forwarded != 0;
         }
@@ -152,6 +162,141 @@ fn forward_returned_values(module: &mut Module) -> usize {
     forwarded
 }
 
+/// Reads each parameter that every direct call passes the same calldata word from calldata in
+/// the callee, leaving the parameter unused for pruning.
+fn forward_calldata_args(module: &mut Module) -> usize {
+    // words[callee][arg] = None before any call, Some(Some(offset)) while every call passes the
+    // word at `offset`, and Some(None) once two calls disagree or one passes something else.
+    let mut words = module
+        .functions
+        .iter()
+        .map(|func| {
+            IndexVec::<ArgIdx, Option<Option<u64>>>::from_vec(vec![None; func.params.len()])
+        })
+        .collect::<IndexVec<FunctionId, _>>();
+    let mut called = DenseBitSet::new_empty(module.functions.len());
+    for func in &module.functions {
+        let calls = func
+            .instructions()
+            .filter_map(|inst| match &func.inst(inst).kind {
+                InstKind::ICall { function: Callee::Function(function), args } => {
+                    Some((*function, &args[..]))
+                }
+                _ => None,
+            })
+            .chain(func.blocks.iter().filter_map(|block| match &block.terminator {
+                Some(Terminator::TailCall { function, args }) => Some((*function, &args[..])),
+                _ => None,
+            }));
+        for (callee, args) in calls {
+            called.insert(callee);
+            for (index, &arg) in args.iter().enumerate() {
+                let Some(word) = words[callee].get_mut(ArgIdx::new(index)) else { continue };
+                let offset = calldata_word(func, arg);
+                *word = match *word {
+                    None => Some(offset),
+                    Some(previous) if previous == offset => Some(previous),
+                    Some(_) => Some(None),
+                };
+            }
+        }
+    }
+
+    let mut forwarded = 0;
+    for func_id in module.functions.indices() {
+        let func = module.function(func_id);
+        if !has_rewritable_signature(module, func_id, func, called.contains(func_id)) {
+            continue;
+        }
+        let mut offsets = words[func_id]
+            .iter_enumerated()
+            .filter_map(|(index, word)| {
+                let offset = (*word)??;
+                (func.params[index] == MirType::I256).then_some((index, offset))
+            })
+            .collect::<Vec<_>>();
+        if offsets.is_empty() {
+            continue;
+        }
+        // Profitability: a parameter live at a loop header cannot stay a resident stack argument,
+        // so it lives in the callee's static frame, which every caller fills and the callee
+        // rereads; any other parameter already travels on the stack, where rereading calldata
+        // saves nothing.
+        let loop_carried = loop_carried_args(func);
+        offsets.retain(|&(index, _)| loop_carried.contains(index));
+        if offsets.is_empty() {
+            continue;
+        }
+        let func = module.function_mut(func_id);
+        let mut replacements = FxHashMap::default();
+        let mut loads = Vec::new();
+        for (index, offset) in offsets {
+            // arg => calldataload offset
+            let offset = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(offset))));
+            let (load, word) = func.alloc_value_inst(
+                Instruction::new(InstKind::CalldataLoad(offset), Some(MirType::I256))
+                    .with_debug_info_dropped(),
+            );
+            loads.push(load);
+            for value in (0..func.num_values()).map(ValueId::from_usize) {
+                if matches!(func.value(value), Value::Arg(arg) if *arg == index) {
+                    replacements.insert(value, word);
+                }
+            }
+        }
+        forwarded += loads.len();
+        func.replace_uses(&replacements);
+        func.blocks[BlockId::ENTRY].instructions.splice(0..0, loads);
+    }
+    forwarded
+}
+
+/// The arguments live into some loop header of `func`.
+fn loop_carried_args(func: &Function) -> DenseBitSet<ArgIdx> {
+    let mut carried = DenseBitSet::new_empty(func.params.len());
+    let cfg = CfgInfo::new(func);
+    let liveness = Liveness::compute(func);
+    for (block, body) in func.blocks.iter_enumerated() {
+        if !body.predecessors.iter().any(|&latch| cfg.dominators().dominates(block, latch)) {
+            continue;
+        }
+        for value in liveness.live_in(block).iter() {
+            if let Value::Arg(index) = *func.value(value)
+                && index.index() < carried.domain_size()
+            {
+                carried.insert(index);
+            }
+        }
+    }
+    carried
+}
+
+/// The offset of the calldata word `value` holds: a lazy argument of a runtime ABI wrapper,
+/// which the backend loads from the argument's head word after the selector, or a load at a
+/// constant offset.
+fn calldata_word(func: &Function, value: ValueId) -> Option<u64> {
+    match *func.value(value) {
+        Value::Arg(index)
+            if func.attributes.is_abi_wrapper
+                && func.selector.is_some()
+                && !func.attributes.is_constructor
+                && func.params.is_empty() =>
+        {
+            u64::try_from(index.index())
+                .ok()?
+                .checked_mul(EvmMemoryLayout::WORD_SIZE)?
+                .checked_add(4)
+        }
+        Value::Inst(inst) => match func.inst(inst).kind {
+            InstKind::CalldataLoad(offset) => {
+                u64::try_from(func.value(offset).as_immediate()?.as_u256()?).ok()
+            }
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 #[derive(PartialEq, Eq)]
 enum ReturnedValue {
     Argument(ArgIdx),
@@ -185,11 +330,22 @@ fn returned_value(func: &Function) -> Option<ReturnedValue> {
 }
 
 /// Redirects calls to alpha-equivalent internal function bodies.
-pub(crate) struct MergeEquivalentFunctions;
+pub(crate) enum MergeEquivalentFunctions {
+    /// Keeps bodies apart whose proved array element widths differ, which
+    /// element cleanup and ABI lowering still read.
+    Semantic,
+    /// After ABI lowering, when no pass reads the proved widths any more:
+    /// bodies that differed only in them, such as an address overload whose
+    /// element masks folded, share one body without them.
+    Lowered,
+}
 
 impl MirPass for MergeEquivalentFunctions {
     fn name(&self) -> &'static str {
-        "merge-equivalent-functions"
+        match self {
+            Self::Semantic => "merge-equivalent-functions",
+            Self::Lowered => "merge-lowered-functions",
+        }
     }
 
     fn run_pass(
@@ -198,7 +354,7 @@ impl MirPass for MergeEquivalentFunctions {
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
-        merge_equivalent_functions(module) != 0
+        merge_equivalent_functions(module, matches!(self, Self::Lowered)) != 0
     }
 }
 
@@ -638,13 +794,14 @@ fn prune_unused_returns(module: &mut Module) -> usize {
     removed
 }
 
-/// Returns whether discarding `value` can expose only pure instructions to later DCE.
+/// Returns whether discarding `value` can expose only pure instructions and calldata reads to later
+/// DCE.
 ///
-/// Reads are deliberately retained even when their loaded value is otherwise unused: memory reads
-/// can expand memory as observed by `msize`, state reads affect warm/cold access costs, and
-/// environment reads such as `gas` are directly observable. Argument leaves are safe here because
-/// argument pruning applies this same proof to every concrete call operand and propagates caller
-/// argument dependencies to a fixed point.
+/// Other reads are deliberately retained even when their loaded value is otherwise unused: memory
+/// reads can expand memory as observed by `msize`, state reads affect warm/cold access costs, and
+/// environment reads such as `gas` are directly observable. A calldata read is none of these.
+/// Argument leaves are safe here because argument pruning applies this same proof to every
+/// concrete call operand and propagates caller argument dependencies to a fixed point.
 fn value_dependencies_are_pure(func: &Function, value: ValueId) -> bool {
     let mut seen = DenseBitSet::new_empty(func.num_values());
     let mut worklist = vec![value];
@@ -657,7 +814,9 @@ fn value_dependencies_are_pure(func: &Function, value: ValueId) -> bool {
             Value::Error(_) => return false,
             Value::Inst(inst_id) => {
                 let inst = func.inst(*inst_id);
-                if inst.kind.effect_kind() != EffectKind::Pure
+                let removable = inst.kind.effect_kind() == EffectKind::Pure
+                    || matches!(inst.kind, InstKind::CalldataLoad(_));
+                if !removable
                     || inst.metadata.effect().is_some_and(|effect| effect != EffectKind::Pure)
                 {
                     return false;
@@ -743,7 +902,7 @@ impl<'a> CanonValues<'a> {
 /// Redirects one wave of equivalent functions, then repeats because merging leaf callees can make
 /// their callers equivalent on the next wave. Dead-function elimination follows this pass in the
 /// canonical pipeline and removes redirected bodies.
-fn merge_equivalent_functions(module: &mut Module) -> usize {
+fn merge_equivalent_functions(module: &mut Module, lowered: bool) -> usize {
     let mut merged = DenseBitSet::new_empty(module.functions.len());
     let mut total = 0;
     let mut merged_instructions = 0usize;
@@ -766,6 +925,7 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
                         module.function(representative),
                         candidate,
                         module.function(candidate),
+                        lowered,
                     )
                 }) {
                     replacements.insert(candidate, representative);
@@ -785,6 +945,17 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
             .sum::<usize>();
         for (&duplicate, &representative) in &replacements {
             merge_function_debug_origins(module, duplicate, representative);
+            if lowered {
+                // Keep only the widths both bodies proved.
+                let duplicate = module.function(duplicate).attributes.clone();
+                let attributes = &mut module.function_mut(representative).attributes;
+                attributes.array_element_bits.retain(|index, bits| {
+                    duplicate.array_element_bits.get(index).is_some_and(|other| other == bits)
+                });
+                if attributes.array_return_element_bits != duplicate.array_return_element_bits {
+                    attributes.array_return_element_bits = None;
+                }
+            }
             merged.insert(duplicate);
         }
         redirect_calls(module, &replacements);
@@ -871,6 +1042,7 @@ fn equivalent_functions(
     lhs: &Function,
     rhs_id: FunctionId,
     rhs: &Function,
+    lowered: bool,
 ) -> bool {
     if lhs.params != rhs.params
         || lhs.return_components() != rhs.return_components()
@@ -878,7 +1050,7 @@ fn equivalent_functions(
         || lhs.internal_frame_size != rhs.internal_frame_size
         || lhs.external_static_return_size != rhs.external_static_return_size
         || lhs.blocks.len() != rhs.blocks.len()
-        || !equivalent_attributes(lhs, rhs)
+        || !equivalent_attributes(lhs, rhs, lowered)
         || !lhs
             .arg_indices()
             .map(|index| lhs.arg_ty(index))
@@ -905,7 +1077,9 @@ fn equivalent_functions(
                 )
                 || !equivalent_inst_payload(lhs_id, &lhs_inst.kind, rhs_id, &rhs_inst.kind)
                 || lhs_inst.metadata.memory_region() != rhs_inst.metadata.memory_region()
-                || lhs_inst.metadata.effect() != rhs_inst.metadata.effect()
+                // An annotation that repeats the instruction's own effect says nothing more.
+                || lhs_inst.metadata.effect().unwrap_or(lhs_inst.kind.effect_kind())
+                    != rhs_inst.metadata.effect().unwrap_or(rhs_inst.kind.effect_kind())
                 || lhs_inst.metadata.unchecked() != rhs_inst.metadata.unchecked()
                 || lhs_inst.metadata.deferred_alloc() != rhs_inst.metadata.deferred_alloc()
                 || lhs_inst.metadata.preserves_fmp() != rhs_inst.metadata.preserves_fmp()
@@ -968,21 +1142,28 @@ fn equivalent_storage_aliases(
     }
 }
 
-fn equivalent_attributes(lhs: &Function, rhs: &Function) -> bool {
+fn equivalent_attributes(lhs: &Function, rhs: &Function, lowered: bool) -> bool {
     lhs.attributes.visibility == rhs.attributes.visibility
         && lhs.attributes.state_mutability == rhs.attributes.state_mutability
         && lhs.attributes.is_constructor == rhs.attributes.is_constructor
         && lhs.attributes.is_fallback == rhs.attributes.is_fallback
         && lhs.attributes.is_receive == rhs.attributes.is_receive
         && lhs.attributes.may_return_memory == rhs.attributes.may_return_memory
+        // Assembly is what can break the object-length bound, so a merge keeps it visible.
+        && lhs.attributes.inline_assembly == rhs.attributes.inline_assembly
         && lhs.attributes.is_function_pointer_dispatcher
             == rhs.attributes.is_function_pointer_dispatcher
         && lhs.attributes.no_inline == rhs.attributes.no_inline
+        && lhs.attributes.preserves_array_elements == rhs.attributes.preserves_array_elements
+        && lhs.attributes.returns_param_elements == rhs.attributes.returns_param_elements
         // A proved element width is part of what callers rely on: merging a body
         // whose address array is proved canonical into one that is not would make
-        // its callers re-clean every returned element.
-        && lhs.attributes.array_element_bits == rhs.attributes.array_element_bits
-        && lhs.attributes.array_return_element_bits == rhs.attributes.array_return_element_bits
+        // its callers re-clean every returned element. Once lowered, no pass
+        // reads them any more.
+        && (lowered
+            || lhs.attributes.array_element_bits == rhs.attributes.array_element_bits
+                && lhs.attributes.array_return_element_bits
+                    == rhs.attributes.array_return_element_bits)
 }
 
 /// Compares the non-operand fields of two instructions. Operands are zeroed because their

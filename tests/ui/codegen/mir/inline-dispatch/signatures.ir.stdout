@@ -30,8 +30,8 @@ fn @entry() [entry] {
     v21 = gt v18, v20
     jumpi v21, bb5, bb11
   bb11:
-    mstore 128, v18
-    returndata 128, 32
+    mstore 0, v18
+    returndata 0, 32
   bb3:
     v6 = calldatasize
     v7 = lt v6, 68
@@ -41,8 +41,8 @@ fn @entry() [entry] {
     v9 = lt v8, v4
     jumpi v9, bb6, bb7
   bb7:
-    mstore 128, v8
-    returndata 128, 32
+    mstore 0, v8
+    returndata 0, 32
   bb6:
     mstore 0, 0x4e487b71
     mstore 32, 17

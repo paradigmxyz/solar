@@ -116,20 +116,31 @@ impl MirPass for ElementCleanup {
             // and its callees store; a returned parameter holds that and what it arrived
             // with. Several return blocks must all stay within the bound.
             if func.return_components().len() == 1 {
-                let returned = func
-                    .blocks
-                    .iter()
-                    .filter_map(|block| match &block.terminator {
-                        Some(Terminator::Return { values }) => Some(values.first().copied()),
-                        _ => None,
-                    })
-                    .map(|value| {
-                        value
-                            .and_then(|value| objects.get(&value).copied())
-                            .unwrap_or(FULL_WIDTH)
-                            .max(reading)
-                    })
-                    .max();
+                // A helper that returns words of its array parameters holds no wider
+                // words than the widest array any call site passes it. Its scalar
+                // parameters, such as a comparison flip, contribute no words.
+                let from_params = func.attributes.returns_param_elements.then(|| {
+                    func.params
+                        .iter_enumerated()
+                        .filter(|&(_, &ty)| is_array(ty))
+                        .map(|(index, _)| params.get(&(id, index)).copied().unwrap_or(FULL_WIDTH))
+                        .fold(reading, u32::max)
+                });
+                let returned = from_params.or_else(|| {
+                    func.blocks
+                        .iter()
+                        .filter_map(|block| match &block.terminator {
+                            Some(Terminator::Return { values }) => Some(values.first().copied()),
+                            _ => None,
+                        })
+                        .map(|value| {
+                            value
+                                .and_then(|value| objects.get(&value).copied())
+                                .unwrap_or(FULL_WIDTH)
+                                .max(reading)
+                        })
+                        .max()
+                });
                 tracing::trace!(function = %func.name, ?returned, reading, "array return bits");
                 if let Some(bound) = returned.filter(|bound| *bound < FULL_WIDTH) {
                     func.attributes.array_return_element_bits = Some(bound);
@@ -216,6 +227,9 @@ fn masked_element(func: &Function, inst: InstId) -> Option<(ValueId, u32)> {
 
 /// The widest word the function's own instructions may store into an array.
 fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u32 {
+    if func.attributes.preserves_array_elements {
+        return 0;
+    }
     let mut bound = 0;
     for inst in func.instructions() {
         let instruction = func.inst(inst);

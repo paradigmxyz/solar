@@ -4,7 +4,7 @@ types:
   struct0: {i256, i256, i256, i256, i256, i256}
   struct1: {i256, i256, i256, i256}
 
-fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
+fn @slots() -> struct0 [selector=0x48547d69, inline_assembly, pure, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, 0
     v1 = insert_value struct0, v0, 1, 3
@@ -124,11 +124,11 @@ fn @copyDoesNotOverlapSource() -> struct1 [selector=0x8b005e62, abi_params=[], a
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v23]
+    v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
     v3 = phi [bb0: 0], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v4]
-    v5 = lt v1, 7
+    v4 = phi [bb0: 0], [bb3: v23]
+    v5 = lt v4, 7
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
@@ -222,14 +222,14 @@ fn @copyDoesNotOverlapSource() -> struct1 [selector=0x8b005e62, abi_params=[], a
     v43 = add v32, 1
     jump bb7
   bb4:
-    v6 = and v1, 0xffffffffffffffffff
+    v6 = and v4, 0xffffffffffffffffff
     v7 = shl 184, v6
-    v8 = lt v1, 7
+    v8 = lt v4, 7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = div v1, 3
+    v10 = div v4, 3
     v11 = add 0, v10
-    v12 = mod v1, 3
+    v12 = mod v4, 3
     v13 = mul v12, 9
     v14 = mul v13, 8
     v15 = shl v14, 0xffffffffffffffffff
@@ -245,6 +245,6 @@ fn @copyDoesNotOverlapSource() -> struct1 [selector=0x8b005e62, abi_params=[], a
   bb6:
     jump bb3
   bb3:
-    v23 = checked_add u256, v1, 1
+    v23 = checked_add u256, v4, 1
     jump bb1
 }

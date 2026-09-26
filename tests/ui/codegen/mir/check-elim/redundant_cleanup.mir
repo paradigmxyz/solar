@@ -1,0 +1,92 @@
+//@compile-flags: -Zmir-pipeline=check-elim
+//@filecheck:
+@module RedundantCleanup
+
+// A guard `x < 2^136` leaves the ABI cleanup `x & (2^136 - 1)` nothing to do,
+// so the return takes `x` itself.
+// CHECK-LABEL: {{^[ +].*}}fn @mask{{[( ]}}
+// CHECK: - ret {{v[0-9]+}}
+// CHECK: + ret arg0
+fn @mask(arg0: i256) -> i256 {
+  bb0:
+    v1 = lt arg0, 0x10000000000000000000000000000000000
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = and arg0, 0xffffffffffffffffffffffffffffffffff
+    ret v2
+  bb2:
+    revert 0, 0
+}
+
+// A value below `2^111` has a clear sign bit at every width from 112 bits up,
+// so extending the sign of its low 14 bytes changes nothing.
+// CHECK-LABEL: {{^[ +].*}}fn @sign{{[( ]}}
+// CHECK: - ret {{v[0-9]+}}
+// CHECK: + ret arg0
+fn @sign(arg0: i256) -> i256 {
+  bb0:
+    v1 = lt arg0, 0x8000000000000000000000000000
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = signextend 13, arg0
+    ret v2
+  bb2:
+    revert 0, 0
+}
+
+// The failing arm calls a helper that never returns, so the join is reached
+// only from the passing edge and keeps its fact.
+// CHECK-LABEL: {{^[ +].*}}fn @after_failing_call{{[( ]}}
+// CHECK: - ret {{v[0-9]+}}
+// CHECK: + ret arg0
+fn @after_failing_call(arg0: i256) -> i256 {
+  bb0:
+    v1 = lt arg0, 0x10000000000000000000000000000000000
+    jumpi v1, bb2, bb1
+  bb1:
+    icall @fail
+    jump bb2
+  bb2:
+    v2 = and arg0, 0xffffffffffffffffffffffffffffffffff
+    ret v2
+}
+
+// A helper that may return lets the unchecked value reach the join.
+// CHECK-LABEL: {{^[ +].*}}fn @after_returning_call{{[( ]}}
+// CHECK-NOT: {{^[+-]}}
+fn @after_returning_call(arg0: i256) -> i256 {
+  bb0:
+    v1 = lt arg0, 0x10000000000000000000000000000000000
+    jumpi v1, bb2, bb1
+  bb1:
+    icall @log
+    jump bb2
+  bb2:
+    v2 = and arg0, 0xffffffffffffffffffffffffffffffffff
+    ret v2
+}
+
+// A bound one bit wider than the mask keeps it: the top bit may be set.
+// CHECK-LABEL: {{^[ +].*}}fn @wider{{[( ]}}
+// CHECK-NOT: {{^[+-]}}
+fn @wider(arg0: i256) -> i256 {
+  bb0:
+    v1 = lt arg0, 0x20000000000000000000000000000000000
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = and arg0, 0xffffffffffffffffffffffffffffffffff
+    ret v2
+  bb2:
+    revert 0, 0
+}
+
+fn @fail() {
+  bb0:
+    revert 0, 0
+}
+
+fn @log() {
+  bb0:
+    sstore 0, 1
+    ret
+}

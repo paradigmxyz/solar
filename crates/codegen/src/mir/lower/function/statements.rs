@@ -16,6 +16,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match &stmt.kind {
             StmtKind::DeclSingle(id) => {
                 let initializer = self.cx.gcx.hir.variable(*id).initializer;
+                if self.cx.gcx.hir.solar_view(*id).is_some()
+                    && let Some(initializer) = initializer
+                {
+                    if self.is_view_decode(initializer) {
+                        return self.lower_view_decode(&[Some(*id)], initializer);
+                    }
+                    return self.lower_view_declaration(*id, initializer);
+                }
                 let ty = self.cx.gcx.type_of_item((*id).into());
                 if ty.is_ref_at(DataLocation::Storage) {
                     let Some(initializer) = initializer else { return Some(()) };
@@ -61,6 +69,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.values.insert(*id, value);
             }
             StmtKind::DeclMulti(ids, expr) => {
+                if ids.iter().flatten().any(|&id| self.cx.gcx.hir.solar_view(id).is_some())
+                    && self.is_view_decode(expr)
+                {
+                    return self.lower_view_decode(ids, expr);
+                }
                 if ids.iter().flatten().any(|&id| {
                     // Memory declarations must also route through the copy
                     // path: the generic path would bind the callee's raw
@@ -189,11 +202,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                 })?;
             }
-            StmtKind::Block(block) => self.lower_block(*block)?,
+            StmtKind::Block(block) => match self.cx.gcx.hir.solar_scratch(block.span) {
+                Some(tag) => self.lower_scratch_block(*block, tag)?,
+                None => self.lower_block(*block)?,
+            },
             StmtKind::UncheckedBlock(block) => {
                 let previous = self.unchecked;
                 self.unchecked = true;
-                let result = self.lower_block(*block);
+                let result = match self.cx.gcx.hir.solar_scratch(block.span) {
+                    Some(tag) => self.lower_scratch_block(*block, tag),
+                    None => self.lower_block(*block),
+                };
                 self.unchecked = previous;
                 result?;
             }
@@ -271,6 +290,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             StmtKind::Revert(expr) => self.lower_revert_payload(expr)?,
             StmtKind::AssemblyBlock(block) => {
+                self.builder.func_mut().attributes.inline_assembly = true;
                 let previous = std::mem::replace(&mut self.in_inline_assembly, true);
                 let result = self.lower_block(*block);
                 self.in_inline_assembly = previous;

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/insertion_phi_order.sol:Test ===
 @module Test
-fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, inline_assembly, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
     v0 = ptrtoint memoryarray arg0 to i256
     v1 = mload v0
@@ -13,18 +13,18 @@ fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_param
     v7 = add v6, 32
     jump bb1
   bb1:
-    v8 = phi [bb0: v5], [bb5: v29], [bb9: v8]
-    v9 = phi [bb0: arg0], [bb5: v31], [bb9: v9]
-    v10 = phi [bb0: v1], [bb5: v27], [bb9: v10]
-    v11 = phi [bb0: v7], [bb5: v32], [bb9: v14]
-    v12 = phi [bb0: memoryarray 96], [bb5: v33], [bb9: v12]
+    v8 = phi [bb0: arg0], [bb5: v26], [bb9: v8]
+    v9 = phi [bb0: memoryarray 96], [bb5: v27], [bb9: v9]
+    v10 = phi [bb0: v1], [bb5: v28], [bb9: v10]
+    v11 = phi [bb0: v5], [bb5: v29], [bb9: v11]
+    v12 = phi [bb0: v7], [bb5: v30], [bb9: v14]
     v13 = ne 1, 0
     jumpi v13, bb3, bb4
   bb4:
     jump bb2
   bb3:
-    v14 = add v11, 32
-    v15 = gt v14, v8
+    v14 = add v12, 32
+    v15 = gt v14, v11
     v16 = zext i1 v15 to i256
     v17 = ne v16, 0
     jumpi v17, bb6, bb7
@@ -45,24 +45,24 @@ fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_param
   bb11:
     jump bb12
   bb12:
-    v26 = phi [bb11: v18], [bb16: v26]
-    v27 = phi [bb11: v10], [bb16: v27]
-    v28 = phi [bb11: v19], [bb16: v36]
-    v29 = phi [bb11: v8], [bb16: v29]
-    v30 = phi [bb11: v20], [bb16: v37]
-    v31 = phi [bb11: v9], [bb16: v31]
-    v32 = phi [bb11: v14], [bb16: v32]
-    v33 = phi [bb11: v12], [bb16: v33]
+    v26 = phi [bb11: v8], [bb16: v26]
+    v27 = phi [bb11: v9], [bb16: v27]
+    v28 = phi [bb11: v10], [bb16: v28]
+    v29 = phi [bb11: v11], [bb16: v29]
+    v30 = phi [bb11: v14], [bb16: v30]
+    v31 = phi [bb11: v18], [bb16: v31]
+    v32 = phi [bb11: v19], [bb16: v36]
+    v33 = phi [bb11: v20], [bb16: v37]
     v34 = ne 1, 0
     jumpi v34, bb14, bb15
   bb15:
     jump bb13
   bb14:
-    v35 = add v28, 32
-    mstore v35, v30
-    v36 = sub v28, 32
+    v35 = add v32, 32
+    mstore v35, v33
+    v36 = sub v32, 32
     v37 = mload v36
-    v38 = gt v37, v26
+    v38 = gt v37, v31
     v39 = zext i1 v38 to i256
     v40 = eq v39, 0
     v41 = zext i1 v40 to i256
@@ -77,10 +77,10 @@ fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_param
   bb17:
     jump bb13
   bb13:
-    v43 = phi [bb17: v36], [bb15: v28]
-    v44 = phi [bb17: v37], [bb15: v30]
+    v43 = phi [bb17: v36], [bb15: v32]
+    v44 = phi [bb17: v37], [bb15: v33]
     v45 = add v43, 32
-    mstore v45, v26
+    mstore v45, v31
     jump bb5
   bb5:
     jump bb1
@@ -89,8 +89,8 @@ fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_param
   bb6:
     jump bb2
   bb2:
-    v46 = phi [bb6: v14], [bb4: v11]
-    v47 = ptrtoint memoryarray v9 to i256
+    v46 = phi [bb6: v14], [bb4: v12]
+    v47 = ptrtoint memoryarray v8 to i256
     mstore v47, v10
-    ret v9
+    ret v8
 }

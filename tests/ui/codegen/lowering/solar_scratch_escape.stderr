@@ -1,0 +1,99 @@
+error: memory of a `@custom:solar-scratch` block is used after the block
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │         return kept.length;
+   │                ━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: memory of a `@custom:solar-scratch` block is used after the block
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │ ┏     function throughReturnVariable(uint256 x) external pure returns (bytes memory b) {
+LL │ ┃         /// @custom:solar-scratch
+LL │ ┃         {
+LL │ ┃             bytes memory t = abi.encode(x);
+   ‡ ┃
+LL │ ┃     }
+   │ ┗━━━━━┛
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: this returns memory of a `@custom:solar-scratch` block
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │             return t;
+   │             ━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: this stores a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │ …     outer[0] = t;
+   │       ━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: this call may store a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │ …     link(outer, x);
+   │       ━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: this call may store a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │ …     y = stash(x);
+   │           ━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ├ note: `stash` contains inline assembly, which may store any word
+   ╰ help: keep only values past the block, or remove the tag
+
+error: memory of a `@custom:solar-scratch` block is used after the block
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │                 total += previous.length;
+   │                          ━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │             /// @custom:solar-scratch
+   │                  ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: aborting due to 7 previous errors
+

@@ -11,7 +11,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word<
     ret v2
 }
 
-fn @testFlags() -> i256 [selector=0x74da97f7, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @testFlags() -> i256 [selector=0x74da97f7, inline_assembly, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @auth
     v1 = ptrtoint memorystruct v0 to i256
@@ -66,7 +66,7 @@ fn @auth() -> memorystruct [pure] {
     ret v3
 }
 
-fn @check(arg0: i256, arg1: memorystruct) -> i256 [pure] {
+fn @check(arg0: i256, arg1: memorystruct) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 2

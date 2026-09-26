@@ -8,23 +8,23 @@ fn @combine() [selector=0xd9171e32, abi_wrapper, pure] {
     jumpi v19, bb4, bb5
   bb5:
     v0 = alloc raw, exact, uninitialized, infallible, 96 !metadata(deferred_alloc)
-    v41 = mload 64 !metadata(memory=scratch)
-    v42 = add v41, 128
-    mstore 64, v42 !metadata(memory=scratch)
-    mstore v41, arg0
-    v25 = add v41, 32
-    mstore v25, 1
-    v40 = add v41, 64
-    mstore v40, 2
-    v27 = add v41, 96
-    mstore v27, arg0
-    v37 = ptrtoint memptr v0 to i256
-    mstore v37, v41
-    v29 = add v37, 32
-    mstore v29, v40
-    v31 = add v37, 64
-    mstore v31, 3
-    v7 = mload v41
+    v40 = mload 64 !metadata(memory=scratch)
+    v41 = add v40, 128
+    mstore 64, v41 !metadata(memory=scratch)
+    mstore v40, arg0
+    v24 = add v40, 32
+    mstore v24, 1
+    v39 = add v40, 64
+    mstore v39, 2
+    v26 = add v40, 96
+    mstore v26, arg0
+    v36 = ptrtoint memptr v0 to i256
+    mstore v36, v40
+    v28 = add v36, 32
+    mstore v28, v39
+    v30 = add v36, 64
+    mstore v30, 3
+    v7 = mload v40
     v14 = add v7, arg0
     v15 = lt v14, v7
     jumpi v15, bb1, bb2
@@ -33,8 +33,8 @@ fn @combine() [selector=0xd9171e32, abi_wrapper, pure] {
     v17 = lt v16, v14
     jumpi v17, bb1, bb3
   bb3:
-    mstore 128, v16
-    returndata 128, 32
+    mstore 0, v16 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)

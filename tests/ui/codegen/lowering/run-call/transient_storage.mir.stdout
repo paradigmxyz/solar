@@ -11,7 +11,7 @@ fn @temporary() -> i256 [selector=0x52099d8b, view, abi_params=[], abi_returns=[
     ret v0
 }
 
-fn @separateSpaces(arg0: i256, arg1: i256) -> struct0 [selector=0x9ef32708, abi_params=[u256, u256], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
+fn @separateSpaces(arg0: i256, arg1: i256) -> struct0 [selector=0x9ef32708, inline_assembly, abi_params=[u256, u256], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     tstore 0, arg1
@@ -28,7 +28,7 @@ fn @separateSpaces(arg0: i256, arg1: i256) -> struct0 [selector=0x9ef32708, abi_
     ret v9
 }
 
-fn @packed() -> struct1 [selector=0x8f23d5f6, abi_params=[], abi_returns=[word<u16>, word<u16>, word], abi_return_params=[u16, u16, u256]] {
+fn @packed() -> struct1 [selector=0x8f23d5f6, inline_assembly, abi_params=[], abi_returns=[word<u16>, word<u16>, word], abi_return_params=[u16, u16, u256]] {
   bb0:
     v0 = tload 1
     v1 = not 0xffff
@@ -74,7 +74,7 @@ fn @signed() -> i256 [selector=0x232a6b9d, abi_params=[], abi_returns=[word<i16>
     ret v11
 }
 
-fn @clear() -> struct2 [selector=0x52efea6e, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @clear() -> struct2 [selector=0x52efea6e, inline_assembly, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     tstore 0, 42
     tstore 0, 0

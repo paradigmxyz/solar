@@ -1,0 +1,39 @@
+// === ROOT/tests/ui/safe-solar/math/mul512/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase lowered
+types:
+  struct0: {i256, i256}
+
+fn @product() [selector=0xba88c3b7, abi_wrapper, inline_assembly, pure] {
+  bb0:
+    v9 = calldatasize
+    v10 = lt v9, 68
+    jumpi v10, bb1, bb2
+  bb2:
+    v1 = mulmod arg0, arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v2 = mul arg0, arg1
+    v3 = lt v1, v2
+    v4 = zext i1 v3 to i256
+    v5 = sub v1, v2
+    v6 = sub v5, v4
+    mstore 0, v6 !metadata(memory=scratch)
+    mstore 32, v2 !metadata(memory=scratch)
+    returndata 0, 64
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xba88c3b7 => bb2]
+  bb2:
+    tail_call @product
+  bb3:
+    revert 0, 0
+}

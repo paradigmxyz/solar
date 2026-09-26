@@ -1,0 +1,78 @@
+// === ROOT/tests/ui/safe-solar/math/sqrt/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase lowered
+fn @root() [selector=0xe56bf027, abi_wrapper, inline_assembly, pure] {
+  bb0:
+    v49 = calldatasize
+    v50 = lt v49, 36
+    jumpi v50, bb1, bb2
+  bb2:
+    v0 = gt arg0, 0xffffffffffffffffffffffffffffffffff
+    v1 = zext i1 v0 to i256
+    v2 = shl 7, v1
+    v3 = shr v2, arg0
+    v4 = gt v3, 0xffffffffffffffffff
+    v5 = zext i1 v4 to i256
+    v6 = shl 6, v5
+    v7 = or v2, v6
+    v8 = shr v7, arg0
+    v9 = gt v8, 0xffffffffff
+    v10 = zext i1 v9 to i256
+    v11 = shl 5, v10
+    v12 = or v7, v11
+    v13 = shr v12, arg0
+    v14 = gt v13, 0xffffff
+    v15 = zext i1 v14 to i256
+    v16 = shl 4, v15
+    v17 = or v12, v16
+    v18 = shr 1, v17
+    v19 = shl v18, 181
+    v20 = shr v17, arg0
+    v21 = add v20, 0x10000
+    v22 = mul v19, v21
+    v23 = shr 18, v22
+    v24 = div arg0, v23
+    v25 = add v23, v24
+    v26 = shr 1, v25
+    v27 = div arg0, v26
+    v28 = add v26, v27
+    v29 = shr 1, v28
+    v30 = div arg0, v29
+    v31 = add v29, v30
+    v32 = shr 1, v31
+    v33 = div arg0, v32
+    v34 = add v32, v33
+    v35 = shr 1, v34
+    v36 = div arg0, v35
+    v37 = add v35, v36
+    v38 = shr 1, v37
+    v39 = div arg0, v38
+    v40 = add v38, v39
+    v41 = shr 1, v40
+    v42 = div arg0, v41
+    v43 = add v41, v42
+    v44 = shr 1, v43
+    v45 = div arg0, v44
+    v46 = lt v45, v44
+    v47 = zext i1 v46 to i256
+    v48 = sub v44, v47
+    mstore 0, v48 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xe56bf027 => bb2]
+  bb2:
+    tail_call @root
+  bb3:
+    revert 0, 0
+}

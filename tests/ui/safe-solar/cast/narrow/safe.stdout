@@ -1,0 +1,45 @@
+// === <solar:core/v1/Cast.sol>:Cast ===
+@module Cast
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/safe-solar/cast/narrow/safe.sol:Safe ===
+@module Safe
+@phase lowered
+fn @narrow() [selector=0x0ebb6188, abi_wrapper, pure] {
+  bb0:
+    v7 = calldatasize
+    v8 = lt v7, 36
+    jumpi v8, bb3, bb4
+  bb4:
+    v1 = gt arg0, 0xffffffffff
+    jumpi v1, bb2, bb1
+  bb1:
+    mstore 0, arg0
+    returndata 0, 32
+  bb2:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xebb6188 => bb2]
+  bb2:
+    tail_call @narrow
+  bb3:
+    revert 0, 0
+}

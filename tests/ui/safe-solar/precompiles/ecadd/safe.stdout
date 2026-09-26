@@ -1,0 +1,93 @@
+// === <solar:core/v1/Precompiles.sol>:Precompiles ===
+@module Precompiles
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/safe-solar/precompiles/ecadd/safe.sol:Safe ===
+@module Safe
+@phase lowered
+types:
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256}
+
+fn @add() [selector=0xe022d77c, abi_wrapper, view] {
+  bb0:
+    v52 = calldatasize
+    v53 = lt v52, 132
+    jumpi v53, bb6, bb8
+  bb8:
+    v7 = gas
+    v87 = mload 64 !metadata(memory=scratch)
+    v88 = add v87, 160
+    mstore 64, v88 !metadata(memory=scratch)
+    mstore v87, 128
+    v84 = add v87, 32
+    mstore v84, arg0
+    v65 = add v87, 64
+    mstore v65, arg1
+    v67 = add v87, 96
+    mstore v67, arg2
+    v69 = add v87, 128
+    mstore v69, arg3
+    v28 = staticcall v7, 6, v84, 128, 0, 0
+    v29 = returndatasize
+    v30 = add v29, 63
+    v31 = lt v30, v29
+    jumpi v31, bb4, bb5
+  bb5:
+    v33 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v85 = mload 64 !metadata(memory=scratch)
+    v86 = add v85, v33
+    mstore 64, v86 !metadata(memory=scratch)
+    mstore v85, v29
+    v74 = add v85, 32
+    returndatacopy v74, 0, v29
+    jumpi v28, bb2, bb1
+  bb2:
+    v12 = ne v29, 64
+    jumpi v12, bb1, bb3
+  bb3:
+    v39 = add v74, v29
+    v41 = lt v39, v74
+    v42 = lt v29, 64
+    v43 = or v41, v42
+    jumpi v43, bb6, bb7
+  bb7:
+    v46 = mload v74
+    v48 = add v85, 64
+    v49 = mload v48
+    jump bb1
+  bb1:
+    v70 = phi [bb5: 0], [bb2: 0], [bb7: 1]
+    v71 = phi [bb5: 0], [bb2: 0], [bb7: v46]
+    v72 = phi [bb5: 0], [bb2: 0], [bb7: v49]
+    mstore 128, v70
+    mstore 160, v71
+    mstore 192, v72
+    returndata 128, 96
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb6:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xe022d77c => bb2]
+  bb2:
+    tail_call @add
+  bb3:
+    revert 0, 0
+}

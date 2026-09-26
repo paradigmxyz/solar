@@ -140,7 +140,7 @@ fn @acceptsPayable() -> i256 [selector=0xd6e5da6b, payable, abi_params=[], abi_r
     ret v11
 }
 
-fn @deploy(arg0: memorybytes) -> i256 {
+fn @deploy(arg0: memorybytes) -> i256 [inline_assembly] {
   bb0:
     v0 = ptrtoint memorybytes arg0 to i256
     v1 = mload v0

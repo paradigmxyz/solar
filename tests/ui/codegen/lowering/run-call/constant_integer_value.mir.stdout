@@ -40,7 +40,7 @@ fn @mulWadDown(arg0: i256, arg1: i256) -> i256 [pure] {
     ret v0
 }
 
-fn @mulDivDown(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
+fn @mulDivDown(arg0: i256, arg1: i256, arg2: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1
     v1 = gt arg0, v0

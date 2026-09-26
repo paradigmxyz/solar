@@ -1,0 +1,155 @@
+// === ROOT/tests/ui/safe-solar/base64/encode/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase lowered
+fn @encode() [selector=0xfc4c4555, abi_wrapper, inline_assembly, pure] {
+  bb0:
+    v73 = calldatasize
+    v74 = lt v73, 100
+    jumpi v74, bb6, bb7
+  bb7:
+    v75 = calldataload 36
+    v76 = lt v75, 2
+    jumpi v76, bb8, bb6
+  bb8:
+    v77 = calldataload 68
+    v78 = lt v77, 2
+    jumpi v78, bb9, bb6
+  bb9:
+    v79 = calldataload 4
+    v80 = add v79, 4
+    v81 = add v80, 32
+    v82 = shr 64, v79
+    v83 = gt v81, v73
+    v84 = zext i1 v83 to i256
+    v85 = or v82, v84
+    v86 = ne v85, 0
+    jumpi v86, bb6, bb10
+  bb10:
+    v87 = calldataload v80
+    v89 = add v87, 63
+    v90 = lt v89, v87
+    jumpi v90, bb11, bb12
+  bb12:
+    v92 = and v89, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v131 = mload 64 !metadata(memory=scratch)
+    v93 = inttoptr i256 v131 to memptr !metadata(memory=scratch)
+    v132 = add v131, v92
+    v133 = lt v132, v131
+    v134 = zext i1 v133 to i256
+    v135 = shr 64, v132
+    v136 = or v134, v135
+    v137 = ne v136, 0
+    jumpi v137, bb11, bb14
+  bb14:
+    mstore 64, v132 !metadata(memory=scratch)
+    mstore v131, v87
+    v94 = sub v73, v81
+    v95 = gt v87, v94
+    jumpi v95, bb6, bb13
+  bb13:
+    v126 = add v131, 32
+    calldatacopy v126, v81, v87
+    v2 = ne v87, 0
+    jumpi v2, bb1, bb2
+  bb1:
+    v3 = add v87, 2
+    v4 = div v3, 3
+    v5 = shl 2, v4
+    v6 = mload 64 !metadata(memory=scratch)
+    mstore 31, 0x4142434445464748494a4b4c4d4e4f505152535455565758595a616263646566 !metadata(memory=scratch)
+    v7 = eq arg1, 0
+    v8 = zext i1 v7 to i256
+    v9 = mul v8, 0x670
+    v10 = xor v9, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392d5f
+    mstore 63, v10 !metadata(memory=scratch)
+    v11 = add v6, 32
+    v12 = add v11, v5
+    v15 = add v126, v87
+    v16 = mload v15
+    mstore v15, 0
+    jump bb3
+  bb3:
+    v17 = phi [bb1: v93], [bb5: v49]
+    v23 = phi [bb1: v11], [bb5: v43]
+    v28 = ptrtoint memptr v17 to i256
+    v29 = add v28, 3
+    v30 = mload v29
+    v31 = shr 18, v30
+    v32 = and v31, 63
+    v33 = mload v32
+    mstore8 0, v33 !metadata(memory=scratch)
+    v34 = shr 12, v30
+    v35 = and v34, 63
+    v36 = mload v35
+    mstore8 1, v36 !metadata(memory=scratch)
+    v37 = shr 6, v30
+    v38 = and v37, 63
+    v39 = mload v38
+    mstore8 2, v39 !metadata(memory=scratch)
+    v40 = and v30, 63
+    v41 = mload v40
+    mstore8 3, v41 !metadata(memory=scratch)
+    v42 = mload 0 !metadata(memory=scratch)
+    mstore v23, v42
+    v43 = add v23, 4
+    v44 = lt v43, v12
+    jumpi v44, bb5, bb4
+  bb4:
+    mstore v15, v16
+    v53 = add v12, 32
+    mstore 64, v53 !metadata(memory=scratch)
+    v54 = mod v87, 3
+    v55 = div 2, v54
+    v57 = sub v43, v55
+    mstore v57, 0x3d3d000000000000000000000000000000000000000000000000000000000000
+    v62 = mul arg2, v55
+    v63 = sub v43, v62
+    mstore v63, 0
+    v64 = sub v5, v62
+    mstore v6, v64
+    jump bb2
+  bb2:
+    v70 = phi [bb4: v6], [bb13: 96]
+    v138 = mload 64 !metadata(memory=scratch)
+    v102 = add v138, 32
+    mstore v138, 32
+    v109 = ne v70, 0
+    v110 = zext i1 v109 to i256
+    v106 = mload v70
+    v111 = mul v106, v110
+    v113 = add v111, 31
+    v114 = and v113, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v115 = add v102, 32
+    v116 = add v102, v114
+    mstore v116, 0
+    mstore v102, v111
+    v118 = add v115, v114
+    v129 = add v70, 32
+    mcopy v115, v129, v111
+    v121 = sub v118, v138
+    returndata v138, v121
+  bb5:
+    v49 = inttoptr i256 v29 to memptr
+    jump bb3
+  bb11:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb6:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xfc4c4555 => bb2]
+  bb2:
+    tail_call @encode
+  bb3:
+    revert 0, 0
+}

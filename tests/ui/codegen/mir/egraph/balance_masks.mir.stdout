@@ -4,21 +4,21 @@ types:
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 
-fn @masked(arg0: i256) -> i256 [selector=0x38caca52, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @masked(arg0: i256) -> i256 [selector=0x38caca52, inline_assembly, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     v1 = balance v0
     ret v1
 }
 
-fn @wide(arg0: i256) -> i256 [selector=0x598b5337, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @wide(arg0: i256) -> i256 [selector=0x598b5337, inline_assembly, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and 0x800000000000000000000000ffffffffffffffffffffffffffffffffffffffff, arg0
     v1 = balance v0
     ret v1
 }
 
-fn @shared(arg0: i256) -> struct0 [selector=0x727ee1fa, view, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @shared(arg0: i256) -> struct0 [selector=0x727ee1fa, inline_assembly, view, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     v1 = balance v0

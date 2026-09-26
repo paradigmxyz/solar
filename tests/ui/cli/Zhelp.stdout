@@ -16,6 +16,9 @@ Options:
       -Zno-resolve-imports
           Disables import resolution
 
+      -Zno-core-intrinsics
+          Calls the portable body of every `solar:core/` module function instead of lowering it directly, which is how the two are compared
+
       -Zrecover-incomplete-input
           Recovers incomplete input into a partial AST
 

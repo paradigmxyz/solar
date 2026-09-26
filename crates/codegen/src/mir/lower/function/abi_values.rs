@@ -30,6 +30,52 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(self.builder.abi_encode_scratch(layout, selector, values))
     }
 
+    /// The builtin and arguments of `expr` when it is an `abi.encode`, `abi.encodeWithSelector`,
+    /// `abi.encodeWithSignature`, or `abi.encodeCall` call.
+    pub(super) fn encoding_call<'a>(
+        &self,
+        expr: &'a hir::Expr<'a>,
+    ) -> Option<(Builtin, hir::CallArgs<'a>)> {
+        let ExprKind::Call(callee, args, _) = &expr.peel_parens().kind else { return None };
+        let builtin = self.cx.gcx.resolved_builtin(callee)?;
+        matches!(
+            builtin,
+            Builtin::AbiEncode
+                | Builtin::AbiEncodeWithSelector
+                | Builtin::AbiEncodeWithSignature
+                | Builtin::AbiEncodeCall
+        )
+        .then_some((builtin, *args))
+    }
+
+    /// Lowers the call [`Self::encoding_call`] found to its encoding, staged past the free
+    /// memory pointer without reserving it. The encoding must be consumed before anything
+    /// allocates.
+    pub(super) fn lower_abi_encode_call_scratch(
+        &mut self,
+        builtin: Builtin,
+        args: hir::CallArgs<'_>,
+    ) -> Option<ValueId> {
+        match builtin {
+            Builtin::AbiEncode => {
+                let exprs = self.variadic_builtin_args(builtin, &args)?;
+                self.lower_abi_encode_scratch(exprs, None)
+            }
+            Builtin::AbiEncodeWithSelector => {
+                let (selector, rest) = self.builtin_args_with_rest::<1>(builtin, &args)?;
+                let selector = self.lower_selector_word(&selector[0])?;
+                self.lower_abi_encode_scratch(rest, Some(selector))
+            }
+            Builtin::AbiEncodeWithSignature => {
+                let (signature, rest) = self.builtin_args_with_rest::<1>(builtin, &args)?;
+                let selector = self.lower_signature_selector(&signature[0])?;
+                self.lower_abi_encode_scratch(rest, Some(selector))
+            }
+            Builtin::AbiEncodeCall => self.lower_abi_encode_call_in(args, true),
+            _ => None,
+        }
+    }
+
     fn lower_abi_encode_arguments(
         &mut self,
         exprs: &[hir::Expr<'_>],
@@ -137,7 +183,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_abi_encode_call(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
-        // data = abi_encode_bytes(parameter_layout, function.selector, values)
+        self.lower_abi_encode_call_in(args, false)
+    }
+
+    /// `abi.encodeCall(f, (args))`, into a fresh bytes object, or staged past the free memory
+    /// pointer when `scratch`.
+    fn lower_abi_encode_call_in(
+        &mut self,
+        args: hir::CallArgs<'_>,
+        scratch: bool,
+    ) -> Option<ValueId> {
+        // data = abi_encode_bytes | abi_encode_scratch(parameter_layout, function.selector, values)
         let args = self.builtin_args::<2>(Builtin::AbiEncodeCall, &args)?;
         let function = &args[0];
         let tuple = &args[1];
@@ -189,7 +245,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         )?;
         let (values, types): (Vec<_>, Vec<_>) = values_and_types.into_iter().unzip();
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-        Some(self.builder.abi_encode_bytes(layout, Some(selector), values.into_boxed_slice()))
+        let values = values.into_boxed_slice();
+        Some(if scratch {
+            self.builder.abi_encode_scratch(layout, Some(selector), values)
+        } else {
+            self.builder.abi_encode_bytes(layout, Some(selector), values)
+        })
     }
 
     pub(super) fn canonicalize_abi_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
@@ -231,11 +292,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         let data_expr = &args[0];
-        let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;
-        let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-        let data = self.lower_typed_expr(data_expr, memory_ty)?;
-        let data = self.materialize_memory_argument(memory_ty, data, data_expr.span)?;
-        let (data, layout) = self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?;
+        let (data, layout) = if let Some(view) = self.view_operand(data_expr) {
+            // A view's bytes are decoded where they are, in memory or in calldata.
+            (view, self.abi_decode_layout(&decoded_types, args[1].span)?)
+        } else {
+            let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;
+            let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+            let data = self.lower_typed_expr(data_expr, memory_ty)?;
+            let data = self.materialize_memory_argument(memory_ty, data, data_expr.span)?;
+            self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?
+        };
         let layout = self.cx.module.intern_abi_param_layout(layout);
         let fields = decoded_types.iter().map(|&ty| types::TypeLowerer::mir_type(ty)).collect();
         let result_ty = self.cx.module.intern_return_type(fields)?;
@@ -252,6 +318,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(MirType::Slice(_)) => self.materialize_memory_slice(data),
             _ => data,
         };
+        Some((data, self.abi_decode_layout(types, span)?))
+    }
+
+    /// The ABI layout of a decode of `types`.
+    pub(super) fn abi_decode_layout(
+        &mut self,
+        types: &[Ty<'gcx>],
+        span: Span,
+    ) -> Option<AbiParamLayout> {
         let mut abi_types = Vec::with_capacity(types.len());
         for &ty in types {
             let Some(abi_type) = self.types.abi_param_type(ty) else {
@@ -259,7 +334,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             abi_types.push(abi_type);
         }
-        Some((data, AbiParamLayout::new(abi_types.into_boxed_slice())))
+        Some(AbiParamLayout::new(abi_types.into_boxed_slice()))
     }
 
     pub(super) fn lower_abi_decode_values(
@@ -454,6 +529,58 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder
                 .emit_inst(InstKind::AbiEncodePacked { parts, hash: true }, Some(MirType::I256)),
         )
+    }
+
+    /// `keccak256(abi.encode(a))` and `keccak256(abi.encode(a, b))` over value
+    /// types. Each such argument encodes as exactly its cleaned word, which is
+    /// what the packed encoder writes for a full-width scalar, so the hash is
+    /// built in scratch space the way the packed form already is, with no
+    /// free-pointer traffic. Anything else keeps the general encoder.
+    pub(super) fn lower_keccak_abi_encode_words(
+        &mut self,
+        exprs: &[hir::Expr<'_>],
+    ) -> Option<ValueId> {
+        if !(1..=2).contains(&exprs.len()) {
+            return None;
+        }
+        let tys = exprs
+            .iter()
+            .map(|expr| self.cx.gcx.type_of_expr(expr.id))
+            .collect::<Option<Vec<_>>>()?;
+        if !tys.iter().all(|&ty| Self::is_abi_word_value_type(ty)) {
+            return None;
+        }
+        let mut parts = Vec::with_capacity(exprs.len());
+        // words = clean(evaluate_arguments_in_order(args))
+        for (expr, &ty) in exprs.iter().zip(&tys) {
+            let value = self.lower_typed_expr(expr, ty)?;
+            let value = self.normalize_abi_scalar(value, ty);
+            parts.push(PackedPart::Scalar { value, ty: crate::mir::ValueLayout::uint256() });
+        }
+        // hash = keccak256_packed(words)
+        Some(self.builder.emit_inst(
+            InstKind::AbiEncodePacked { parts: parts.into_boxed_slice(), hash: true },
+            Some(MirType::I256),
+        ))
+    }
+
+    /// Whether `abi.encode` of a `ty` value is its one cleaned word. External
+    /// function values and literals without a concrete type are left to the
+    /// general encoder.
+    fn is_abi_word_value_type(ty: Ty<'gcx>) -> bool {
+        match ty.kind {
+            TyKind::Elementary(elementary) => matches!(
+                elementary,
+                solar_sema::hir::ElementaryType::Bool
+                    | solar_sema::hir::ElementaryType::Address(_)
+                    | solar_sema::hir::ElementaryType::Int(_)
+                    | solar_sema::hir::ElementaryType::UInt(_)
+                    | solar_sema::hir::ElementaryType::FixedBytes(_)
+            ),
+            TyKind::Contract(_) | TyKind::Enum(_) => true,
+            TyKind::Udvt(inner, _) => Self::is_abi_word_value_type(inner),
+            _ => false,
+        }
     }
 
     pub(super) fn is_scratch_packed_expr(&self, expr: &hir::Expr<'_>) -> bool {

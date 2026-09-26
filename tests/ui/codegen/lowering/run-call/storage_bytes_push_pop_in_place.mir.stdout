@@ -228,11 +228,11 @@ fn @pushZero(arg0: i256) -> struct0 [selector=0xb0e28d5e, abi_params=[u256], abi
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v42]
-    v1 = phi [bb0: 0], [bb3: v1]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = phi [bb0: memorybytes 96], [bb3: v3]
-    v4 = lt v0, v2
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: memorybytes 96], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v42]
+    v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
@@ -307,7 +307,7 @@ fn @pushZero(arg0: i256) -> struct0 [selector=0xb0e28d5e, abi_params=[u256], abi
   bb6:
     jump bb3
   bb3:
-    v42 = checked_add u256, v0, 1
+    v42 = checked_add u256, v3, 1
     jump bb1
 }
 
@@ -316,9 +316,9 @@ fn @pushAssign(arg0: i256) -> memorybytes [selector=0xbcb447d8, abi_params=[u256
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v48]
-    v2 = phi [bb0: memorybytes 96], [bb3: v2]
-    v3 = lt v1, v0
+    v1 = phi [bb0: memorybytes 96], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v48]
+    v3 = lt v2, v0
     jumpi v3, bb4, bb5
   bb5:
     jump bb2
@@ -326,7 +326,7 @@ fn @pushAssign(arg0: i256) -> memorybytes [selector=0xbcb447d8, abi_params=[u256
     v49 = icall @load_storage_bytes, 0
     ret v49
   bb4:
-    v4 = checked_add u256, v1, 1
+    v4 = checked_add u256, v2, 1
     v5 = and v4, 255
     v6 = shl 248, v5
     v7 = sload 0 !metadata(storage=slot(0))
@@ -391,7 +391,7 @@ fn @pushAssign(arg0: i256) -> memorybytes [selector=0xbcb447d8, abi_params=[u256
   bb6:
     jump bb3
   bb3:
-    v48 = checked_add u256, v1, 1
+    v48 = checked_add u256, v2, 1
     jump bb1
 }
 
@@ -401,11 +401,11 @@ fn @popTo(arg0: i256, arg1: i256) -> struct0 [selector=0x6203376f, abi_params=[u
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v50]
+    v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: memorybytes 96], [bb3: v2]
-    v3 = phi [bb0: arg1], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v4]
-    v5 = lt v1, v3
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v50]
+    v5 = lt v4, v1
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
@@ -488,22 +488,22 @@ fn @popTo(arg0: i256, arg1: i256) -> struct0 [selector=0x6203376f, abi_params=[u
   bb6:
     jump bb3
   bb3:
-    v50 = checked_add u256, v1, 1
+    v50 = checked_add u256, v4, 1
     jump bb1
 }
 
-fn @slots(arg0: i256, arg1: i256) -> struct1 [selector=0xec823b6d, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[bytes32, bytes32, bytes32]] {
+fn @slots(arg0: i256, arg1: i256) -> struct1 [selector=0xec823b6d, inline_assembly, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[bytes32, bytes32, bytes32]] {
   bb0:
     icall @_push, arg0
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v1]
-    v2 = phi [bb0: arg1], [bb3: v2]
-    v3 = phi [bb0: 0], [bb3: v51]
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v3]
     v4 = phi [bb0: 0], [bb3: v4]
-    v5 = phi [bb0: arg0], [bb3: v5]
-    v6 = lt v3, v2
+    v5 = phi [bb0: 0], [bb3: v51]
+    v6 = lt v5, v1
     jumpi v6, bb4, bb5
   bb5:
     jump bb2
@@ -584,7 +584,7 @@ fn @slots(arg0: i256, arg1: i256) -> struct1 [selector=0xec823b6d, abi_params=[u
   bb6:
     jump bb3
   bb3:
-    v51 = checked_add u256, v3, 1
+    v51 = checked_add u256, v5, 1
     jump bb1
 }
 
@@ -592,13 +592,13 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[u256], 
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v0]
-    v1 = phi [bb0: arg0], [bb3: v1]
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
     v3 = phi [bb0: 0], [bb3: v3]
     v4 = phi [bb0: 0], [bb3: v4]
     v5 = phi [bb0: 0], [bb3: v84]
-    v6 = lt v5, v1
+    v6 = lt v5, v0
     jumpi v6, bb4, bb5
   bb5:
     jump bb2
@@ -640,7 +640,7 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[u256], 
     v110 = and v109, 255
     v111 = shl 248, v110
     v112 = shr 248, v111
-    v113 = checked_div u256, v1, 2
+    v113 = checked_div u256, v0, 2
     v114 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v114
     v115 = and v114, 1
@@ -670,7 +670,7 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[u256], 
     v132 = and v131, 255
     v133 = shl 248, v132
     v134 = shr 248, v133
-    v135 = checked_sub u256, v1, 1
+    v135 = checked_sub u256, v0, 1
     v136 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v136
     v137 = and v136, 1
@@ -1045,11 +1045,11 @@ fn @structPushPop(arg0: i256) -> struct0 [selector=0x9c0e8d6f, abi_params=[u256]
     sstore 1, arg0 !metadata(storage=slot(1))
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v49]
+    v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: memorybytes 96], [bb3: v1]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = phi [bb0: 0], [bb3: v3]
-    v4 = lt v0, v2
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v49]
+    v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
@@ -1124,7 +1124,7 @@ fn @structPushPop(arg0: i256) -> struct0 [selector=0x9c0e8d6f, abi_params=[u256]
     ret v99
   bb4:
     v5 = add 1, 1
-    v6 = checked_add u256, v0, 1
+    v6 = checked_add u256, v3, 1
     v7 = and v6, 255
     v8 = shl 248, v7
     v9 = sload v5 !metadata(storage=slot(2))
@@ -1188,7 +1188,7 @@ fn @structPushPop(arg0: i256) -> struct0 [selector=0x9c0e8d6f, abi_params=[u256]
   bb6:
     jump bb3
   bb3:
-    v49 = checked_add u256, v0, 1
+    v49 = checked_add u256, v3, 1
     jump bb1
 }
 
@@ -1196,10 +1196,10 @@ fn @mappingPushPop(arg0: i256) -> memorybytes [selector=0x9881887b, abi_params=[
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: memorybytes 96], [bb3: v0]
-    v1 = phi [bb0: arg0], [bb3: v1]
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: memorybytes 96], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v48]
-    v3 = lt v2, v1
+    v3 = lt v2, v0
     jumpi v3, bb4, bb5
   bb5:
     jump bb2
@@ -1350,10 +1350,10 @@ fn @_pushPop(arg0: i256, arg1: i256) -> memorybytes {
     jump bb1
   bb1:
     v0 = phi [bb0: arg1], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v48]
-    v2 = phi [bb0: memorybytes 96], [bb3: v2]
+    v1 = phi [bb0: memorybytes 96], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v48]
     v3 = phi [bb0: arg0], [bb3: v3]
-    v4 = lt v1, v0
+    v4 = lt v2, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
@@ -1422,7 +1422,7 @@ fn @_pushPop(arg0: i256, arg1: i256) -> memorybytes {
     v93 = icall @load_storage_bytes, v3
     ret v93
   bb4:
-    v5 = checked_add u256, v1, 1
+    v5 = checked_add u256, v2, 1
     v6 = and v5, 255
     v7 = shl 248, v6
     v8 = sload v3 !metadata(storage=symbolic(v3))
@@ -1486,11 +1486,11 @@ fn @_pushPop(arg0: i256, arg1: i256) -> memorybytes {
   bb6:
     jump bb3
   bb3:
-    v48 = checked_add u256, v1, 1
+    v48 = checked_add u256, v2, 1
     jump bb1
 }
 
-fn @pushZeroRead(arg0: i256) -> struct3 [selector=0x421e4f69, abi_params=[u256], abi_returns=[word<bytes1>, word], abi_return_params=[bytes1, bytes32]] {
+fn @pushZeroRead(arg0: i256) -> struct3 [selector=0x421e4f69, inline_assembly, abi_params=[u256], abi_returns=[word<bytes1>, word], abi_return_params=[bytes1, bytes32]] {
   bb0:
     v0 = mod arg0, 32
     v1 = mul v0, 2
@@ -1556,7 +1556,7 @@ fn @pushZeroRead(arg0: i256) -> struct3 [selector=0x421e4f69, abi_params=[u256],
     ret v43
 }
 
-fn @pushZeroReadLong(arg0: i256) -> struct1 [selector=0x18e52e09, abi_params=[u256], abi_returns=[word<bytes1>, word, word], abi_return_params=[bytes1, bytes32, bytes32]] {
+fn @pushZeroReadLong(arg0: i256) -> struct1 [selector=0x18e52e09, inline_assembly, abi_params=[u256], abi_returns=[word<bytes1>, word, word], abi_return_params=[bytes1, bytes32, bytes32]] {
   bb0:
     v0 = mod arg0, 32
     v1 = add v0, 32
@@ -1641,11 +1641,11 @@ fn @pushPopWords(arg0: i256) -> struct3 [selector=0x068eaf65, abi_params=[u256],
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v23]
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
-    v3 = phi [bb0: arg0], [bb3: v3]
-    v4 = lt v1, v3
+    v3 = phi [bb0: 0], [bb3: v23]
+    v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
@@ -1689,7 +1689,7 @@ fn @pushPopWords(arg0: i256) -> struct3 [selector=0x068eaf65, abi_params=[u256],
     v56 = insert_value struct3, v55, 1, v54
     ret v56
   bb4:
-    v5 = checked_add u256, v1, 1
+    v5 = checked_add u256, v3, 1
     v6 = and v5, 255
     v7 = sload 4 !metadata(storage=slot(4))
     v8 = gt v7, 0xffffffffffffffff
@@ -1714,7 +1714,7 @@ fn @pushPopWords(arg0: i256) -> struct3 [selector=0x068eaf65, abi_params=[u256],
   bb6:
     jump bb3
   bb3:
-    v23 = checked_add u256, v1, 1
+    v23 = checked_add u256, v3, 1
     jump bb1
 }
 

@@ -199,9 +199,9 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[u256], a
     jump bb1
   bb1:
     v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: v0], [bb3: v14]
-    v3 = phi [bb0: 0], [bb3: v3]
-    v4 = gt v2, v1
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: v0], [bb3: v14]
+    v4 = gt v3, v1
     v5 = eq v4, false
     jumpi v5, bb4, bb5
   bb5:
@@ -425,7 +425,7 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[u256], a
   bb6:
     jump bb3
   bb3:
-    v14 = checked_add u256, v2, 1
+    v14 = checked_add u256, v3, 1
     jump bb1
 }
 
@@ -434,9 +434,9 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
     v0 = sload 0 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    v1 = phi [bb0: v0], [bb3: v12]
-    v2 = phi [bb0: 0], [bb3: v2]
-    v3 = lt v1, 9
+    v1 = phi [bb0: 0], [bb3: v1]
+    v2 = phi [bb0: v0], [bb3: v12]
+    v3 = lt v2, 9
     jumpi v3, bb4, bb5
   bb5:
     jump bb2
@@ -609,6 +609,6 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
   bb6:
     jump bb3
   bb3:
-    v12 = checked_add u256, v1, 1
+    v12 = checked_add u256, v2, 1
     jump bb1
 }

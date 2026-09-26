@@ -1,0 +1,168 @@
+// === <solar:core/v1/Bytes.sol>:Bytes ===
+@module Bytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/v1/Abi.sol>:Abi ===
+@module Abi
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/safe-solar/abi/encodeinto/safe.sol:Safe ===
+@module Safe
+@phase lowered
+fn @payload() [selector=0x63fd6252, abi_wrapper, pure] {
+  bb0:
+    v15 = calldataload 4
+    v16 = shr 160, v15
+    v17 = eq v16, 0
+    jumpi v17, bb2, bb1
+  bb1:
+    revert 0, 0
+  bb2:
+    v36 = mload 64 !metadata(memory=scratch)
+    v6 = inttoptr i256 v36 to memptr !metadata(memory=scratch)
+    v37 = add v36, 128
+    v38 = lt v37, v36
+    v39 = zext i1 v38 to i256
+    v40 = shr 64, v37
+    v41 = or v39, v40
+    v42 = ne v41, 0
+    jumpi v42, bb4, bb3
+  bb3:
+    mstore 64, v37 !metadata(memory=scratch)
+    v43 = calldatasize
+    calldatacopy v36, v43, 128
+    mstore v36, 68
+    v7 = icall @encodeSelectorInto, v6, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v8 = icall @encodeInto.4, v6, 4, arg0
+    v10 = icall @encodeInto.4, v6, 36, arg1
+    v21 = mload v36
+    v22 = add v21, 31
+    v24 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v35 = add v36, 32
+    v27 = add v35, v21
+    mstore v27, 0
+    v29 = sub v36, 32
+    mstore v29, 32
+    v30 = add v24, 64
+    returndata v29, v30
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @short() [selector=0xb2d29f33, abi_wrapper, pure] {
+  bb0:
+    v14 = calldataload 4
+    v15 = shr 160, v14
+    v16 = eq v15, 0
+    jumpi v16, bb2, bb1
+  bb1:
+    revert 0, 0
+  bb2:
+    v35 = mload 64 !metadata(memory=scratch)
+    v5 = inttoptr i256 v35 to memptr !metadata(memory=scratch)
+    v36 = add v35, 96
+    v37 = lt v36, v35
+    v38 = zext i1 v37 to i256
+    v39 = shr 64, v36
+    v40 = or v38, v39
+    v41 = ne v40, 0
+    jumpi v41, bb4, bb3
+  bb3:
+    mstore 64, v36 !metadata(memory=scratch)
+    v42 = calldatasize
+    calldatacopy v35, v42, 96
+    mstore v35, 36
+    v6 = icall @encodeSelectorInto, v5, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v7 = icall @encodeInto.4, v5, 4, arg0
+    v9 = icall @encodeInto.4, v5, 36, arg1
+    v20 = mload v35
+    v21 = add v20, 31
+    v23 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v34 = add v35, 32
+    v26 = add v34, v20
+    mstore v26, 0
+    v28 = sub v35, 32
+    mstore v28, 32
+    v29 = add v23, 64
+    returndata v28, v29
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @encodeInto.4(arg0: memptr, arg1: i256, arg2: i256) -> i256 [may_return_memory, pure] {
+  bb0:
+    v13 = ptrtoint memptr arg0 to i256
+    v1 = mload v13
+    v2 = add arg1, 32
+    v3 = lt v2, arg1
+    v4 = gt v2, v1
+    v5 = or v3, v4
+    jumpi v5, bb1, bb2
+  bb2:
+    v11 = add v13, 32
+    v12 = add v11, arg1
+    mstore v12, arg2
+    ret 32
+  bb1:
+    tail_call @revert_stub
+}
+
+fn @encodeSelectorInto(arg0: memptr, arg1: i256) -> i256 [may_return_memory, pure] {
+  bb0:
+    v16 = ptrtoint memptr arg0 to i256
+    v0 = mload v16
+    v3 = lt v0, 4
+    jumpi v3, bb1, bb2
+  bb2:
+    v18 = add v16, 32
+    v9 = mload v18
+    v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v11 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v12 = or v10, v11
+    mstore v18, v12
+    ret 4
+  bb1:
+    tail_call @revert_stub
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 68
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr 224, v6
+    switch v7, default bb1, [0x63fd6252 => bb3, 0xb2d29f33 => bb4]
+  bb4:
+    tail_call @short
+  bb3:
+    tail_call @payload
+  bb1:
+    revert 0, 0
+}

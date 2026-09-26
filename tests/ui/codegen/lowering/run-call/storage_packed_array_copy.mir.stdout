@@ -96,9 +96,9 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb10
   bb10:
     v40 = phi [bb6: 0], [bb12: v56]
-    v41 = phi [bb6: 0], [bb12: v57]
-    v42 = phi [bb6: 0], [bb12: v42]
-    v43 = lt v41, 9
+    v41 = phi [bb6: 0], [bb12: v41]
+    v42 = phi [bb6: 0], [bb12: v57]
+    v43 = lt v42, 9
     jumpi v43, bb13, bb14
   bb14:
     jump bb11
@@ -106,8 +106,8 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb16
   bb16:
     v58 = phi [bb11: v40], [bb18: v58]
-    v59 = phi [bb11: v41], [bb18: v59]
-    v60 = phi [bb11: v42], [bb18: v76]
+    v59 = phi [bb11: v41], [bb18: v76]
+    v60 = phi [bb11: v42], [bb18: v60]
     v61 = phi [bb11: 0], [bb18: v77]
     v62 = lt v61, 10
     jumpi v62, bb19, bb20
@@ -115,7 +115,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb17
   bb17:
     v78 = insert_value struct0, undef struct0, 0, v58
-    v79 = insert_value struct0, v78, 1, v60
+    v79 = insert_value struct0, v78, 1, v59
     ret v79
   bb19:
     v63 = lt v61, 10
@@ -132,7 +132,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v73 = shl 120, v72
     v74 = and v73, 0xffffffffffffffff000000000000000000000000000000000000000000000000
     v75 = shr 192, v74
-    v76 = checked_add u256, v60, v75
+    v76 = checked_add u256, v59, v75
     jump bb21
   bb21:
     jump bb18
@@ -140,12 +140,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v77 = checked_add u256, v61, 1
     jump bb16
   bb13:
-    v44 = lt v41, 9
+    v44 = lt v42, 9
     v45 = eq v44, false
     icall panic_if<0x32>, v45
-    v46 = div v41, 4
+    v46 = div v42, 4
     v47 = add 0, v46
-    v48 = mod v41, 4
+    v48 = mod v42, 4
     v49 = mul v48, 8
     v50 = sload v47 !metadata(storage=symbolic(v46))
     v51 = mul v49, 8
@@ -158,7 +158,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb15:
     jump bb12
   bb12:
-    v57 = checked_add u256, v41, 1
+    v57 = checked_add u256, v42, 1
     jump bb10
   bb5:
     v15 = div v13, 1

@@ -8,13 +8,13 @@ fn @dummy() [selector=0x32e43a11, abi_params=[], abi_returns=[], abi_return_para
     ret
 }
 
-fn @raw(arg0: i256) -> i256 [selector=0xbd2d517e, pure, abi_params=[function], abi_returns=[word], abi_return_params=[u256]] {
+fn @raw(arg0: i256) -> i256 [selector=0xbd2d517e, inline_assembly, pure, abi_params=[function], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = calldataload 4
     ret v0
 }
 
-fn @validate(arg0: calldataslice) -> i256 [selector=0xadfc46c0, pure, abi_params=[tuple<function>], abi_returns=[word], abi_return_params=[u256]] {
+fn @validate(arg0: calldataslice) -> i256 [selector=0xadfc46c0, inline_assembly, pure, abi_params=[tuple<function>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
@@ -28,7 +28,7 @@ fn @validate(arg0: calldataslice) -> i256 [selector=0xadfc46c0, pure, abi_params
     ret v7
 }
 
-fn @validateArray(arg0: calldataslice) -> i256 [selector=0xc124fd97, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[u256]] {
+fn @validateArray(arg0: calldataslice) -> i256 [selector=0xc124fd97, inline_assembly, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0
@@ -46,7 +46,7 @@ fn @validateArray(arg0: calldataslice) -> i256 [selector=0xc124fd97, pure, abi_p
     ret v10
 }
 
-fn @memoryLayout() -> i256 [selector=0x5caf991a, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @memoryLayout() -> i256 [selector=0x5caf991a, inline_assembly, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = address
@@ -68,7 +68,7 @@ fn @memoryLayout() -> i256 [selector=0x5caf991a, view, abi_params=[], abi_return
     ret v15
 }
 
-fn @cleanup(arg0: i256) -> struct0 [selector=0x0aa40018, view, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @cleanup(arg0: i256) -> struct0 [selector=0x0aa40018, inline_assembly, view, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = address
@@ -122,7 +122,7 @@ fn @cleanup(arg0: i256) -> struct0 [selector=0x0aa40018, view, abi_params=[u256]
     ret v36
 }
 
-fn @dirtyReturn(arg0: i256) -> memorystruct [selector=0x2aae0ed6, view, abi_params=[u256], abi_returns=[tuple<function>], abi_return_params=[tuple<function>]] {
+fn @dirtyReturn(arg0: i256) -> memorystruct [selector=0x2aae0ed6, inline_assembly, view, abi_params=[u256], abi_returns=[tuple<function>], abi_return_params=[tuple<function>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = address
@@ -136,7 +136,7 @@ fn @dirtyReturn(arg0: i256) -> memorystruct [selector=0x2aae0ed6, view, abi_para
     ret v0
 }
 
-fn @cleanupArray(arg0: i256) -> i256 [selector=0x7e130ca5, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @cleanupArray(arg0: i256) -> i256 [selector=0x7e130ca5, inline_assembly, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -164,7 +164,7 @@ fn @cleanupArray(arg0: i256) -> i256 [selector=0x7e130ca5, view, abi_params=[u25
     ret v15
 }
 
-fn @packedArray(arg0: i256) -> memorybytes [selector=0xc341d66f, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @packedArray(arg0: i256) -> memorybytes [selector=0xc341d66f, inline_assembly, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -175,7 +175,7 @@ fn @packedArray(arg0: i256) -> memorybytes [selector=0xc341d66f, pure, abi_param
     ret v3
 }
 
-fn @memoryStructToStorage(arg0: i256) -> i256 [selector=0xb4caea8f, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @memoryStructToStorage(arg0: i256) -> i256 [selector=0xb4caea8f, inline_assembly, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = address
@@ -217,7 +217,7 @@ fn @memoryStructToStorage(arg0: i256) -> i256 [selector=0xb4caea8f, abi_params=[
     ret v28
 }
 
-fn @storageStructToMemory() -> i256 [selector=0x9a40632d, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @storageStructToMemory() -> i256 [selector=0x9a40632d, inline_assembly, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = address
@@ -252,7 +252,7 @@ fn @storageStructToMemory() -> i256 [selector=0x9a40632d, abi_params=[], abi_ret
     ret v26
 }
 
-fn @memoryArrayToStorage(arg0: i256) -> i256 [selector=0xe3183809, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @memoryArrayToStorage(arg0: i256) -> i256 [selector=0xe3183809, inline_assembly, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -349,7 +349,7 @@ fn @memoryArrayToStorage(arg0: i256) -> i256 [selector=0xe3183809, abi_params=[u
     jump bb3
 }
 
-fn @storageArrayToMemory() -> i256 [selector=0xc4550e60, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @storageArrayToMemory() -> i256 [selector=0xc4550e60, inline_assembly, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256

@@ -6,10 +6,16 @@
 //! remain unchanged because repeated word copies have memmove-like ordering that `MCOPY` does not
 //! necessarily preserve.
 
-use super::EvmPass;
-use crate::backend::evm::{
-    ir::{Instruction, Module},
-    op::{self, WORD_BYTES},
+use super::{
+    EvmPass,
+    compact_pushes::{ImmediatePolicy, policy_materialization_cost},
+};
+use crate::{
+    backend::evm::{
+        ir::{Instruction, Module},
+        op::{self, WORD_BYTES},
+    },
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_config::OptimizationMode;
@@ -147,14 +153,13 @@ fn ranges_disjoint(source: U256, destination: U256, words: usize) -> bool {
 }
 
 fn profitable(gcx: Gcx<'_>, source: U256, destination: U256, length: U256, words: usize) -> bool {
-    let evm_version = gcx.sess.opts.evm_version;
+    let policy = ImmediatePolicy::of(Target::new(gcx));
     let mut old_size = words * 2;
     let mut old_gas = words * 6;
     for index in 0..words {
         let offset = U256::from(index * WORD_BYTES);
         for value in [source + offset, destination + offset] {
-            let (size, gas) =
-                super::compact_pushes::immediate_materialization_cost(evm_version, value);
+            let (size, gas) = policy_materialization_cost(policy, value);
             old_size += size;
             old_gas += gas;
         }
@@ -163,7 +168,7 @@ fn profitable(gcx: Gcx<'_>, source: U256, destination: U256, length: U256, words
     let mut new_size = 1;
     let mut new_gas = 3 + 3 * words;
     for value in [length, source, destination] {
-        let (size, gas) = super::compact_pushes::immediate_materialization_cost(evm_version, value);
+        let (size, gas) = policy_materialization_cost(policy, value);
         new_size += size;
         new_gas += gas;
     }

@@ -303,6 +303,17 @@ fn compile(
                     |pcx| {
                         let mut files = Vec::<(PathBuf, String)>::with_capacity(sources.len());
                         for (name, source) in sources {
+                            // The compiler provides these; a copy supplied so
+                            // another compiler can resolve the same input is
+                            // set aside rather than allowed to stand in.
+                            if solar_sema::core::is_reserved_path(name.as_ref()) {
+                                pcx.dcx()
+                                    .warn(format!(
+                                        "source `{name}` is provided by the compiler; the supplied content is ignored"
+                                    ))
+                                    .emit();
+                                continue;
+                            }
                             let Some(content) = source.content else {
                                 let message = if source.urls.is_empty() {
                                     format!("source `{name}` is missing `content`")

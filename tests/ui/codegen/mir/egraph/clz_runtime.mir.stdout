@@ -4,7 +4,7 @@ types:
   struct0: {i256, i256, i256, i256}
   struct1: {i256, i256, i256, i256, i256, i256, i256, i256, i256, i256}
 
-fn @inequalities(arg0: i256) -> struct0 [selector=0x6774d5e5, pure, abi_params=[u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @inequalities(arg0: i256) -> struct0 [selector=0x6774d5e5, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = clz arg0
     v1 = eq v0, 255
@@ -33,7 +33,7 @@ fn @inequalities(arg0: i256) -> struct0 [selector=0x6774d5e5, pure, abi_params=[
     ret v23
 }
 
-fn @simplify(arg0: i256) -> struct1 [selector=0xb009c6b8, pure, abi_params=[u256], abi_returns=[word, word, word, word, word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256, u256, u256, u256, u256]] {
+fn @simplify(arg0: i256) -> struct1 [selector=0xb009c6b8, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word, word, word, word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256, u256, u256, u256, u256]] {
   bb0:
     v0 = clz arg0
     v1 = eq v0, 0

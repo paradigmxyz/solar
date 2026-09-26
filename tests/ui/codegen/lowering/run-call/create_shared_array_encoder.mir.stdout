@@ -1,0 +1,328 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/create_shared_array_encoder.sol:Child ===
+@module Child
+fn @start() -> i256 [selector=0xbe9a6555, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @b0() -> i256 [selector=0x3602175c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
+
+fn @b1() -> i256 [selector=0xee495002, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 2 !metadata(storage=slot(2))
+    ret v0
+}
+
+fn @r0() -> i256 [selector=0x659621b5, view, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
+  bb0:
+    v0 = sload 3 !metadata(storage=slot(3))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v1
+}
+
+fn @constructor(arg0: memoryarray, arg1: memoryarray, arg2: i256) [constructor, abi_params=[array<_, address>, array<_, u256>, u256]] {
+  bb0:
+    sstore 0, arg2 !metadata(storage=slot(0))
+    v0 = memory_object_len memoryarray, arg1
+    v1 = lt 0, v0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = memory_object_load_element memoryarray<1>, arg1, 0
+    sstore 1, v3 !metadata(storage=slot(1))
+    v4 = memory_object_len memoryarray, arg1
+    v5 = lt 1, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = memory_object_load_element memoryarray<1>, arg1, 1
+    sstore 2, v7 !metadata(storage=slot(2))
+    v8 = memory_object_len memoryarray, arg0
+    v9 = lt 0, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = memory_object_load_element memoryarray<1>, arg0, 0
+    v12 = trunc i256 v11 to i160
+    v13 = sload 3 !metadata(storage=slot(3))
+    v14 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v15 = and v13, v14
+    v16 = zext i160 v12 to i256
+    v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
+    v18 = or v15, v17
+    sstore 3, v18 !metadata(storage=slot(3))
+    ret
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/create_shared_array_encoder.sol:CreateSharedArrayEncoder ===
+@module CreateSharedArrayEncoder
+types:
+  struct0: {i256, i256, i256, i256}
+
+data:
+  Child_initcode_0: hex"6105663803806105666103e0396103e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0166040523415156104ab576103e08060c0528060c0526103e06105663803018060e0528060e05260608201818060e05290116104a7578160c0525f820151806103c052820180610100528061010052602081016103c051806103c05260401c8360e052838060e052821191508191501715156104a35780610100525180610120528061012052602061010051018061014052806101405260018201806101605280610160528280610120528110610491576020818061016052028061018052806101805260201560208204838061016052901492508290179150819150811591509061049157604051806103c052806103c052806101a052806101a0528180610180526103c051018061038052915081610380526103c051806103c052821082806103805260401c81179050151561047f578180610380526040529050806101a052806101a0528261012052828061012052815250602082026020156020820491508380610120528214915017156104915780610140528061014052820360051c81116104a3576101a051610140515f949093905b836101c0525f8411610421576020810193509350935081519150818301806102a0529250826102a052602083018260401c9250848060e0529011821791508115159150906104a35781806102a05251806102c052806102c05260208301806102e0529250826102e052600181018061030052806103005281806102c0528110610491576020818061030052028061032052806103205260201560208204838061030052901492508290179150819150811591509061049157604051806103c052806103c052806103405280610340528180610320526103c05101806103a0529150816103a0526103c051806103c052821082806103a05260401c81179050151561040f5781806103a052604052905080610340528061034052816102c05281806102c05281525060208102806103605280610360526020156020820483806102c0529014811790501561049157836102e05283806102e052850394508460051c9450848211915093506104a3576103405180610340526020900183806103605283806102e052825e509150506103e0604001515f55610340518061034052515f10156103fd57610340518061034052602090015160015561034051806103405251600110156103fd576103405180610340526040900151600255806101a052515f10156103fd576101a051806101a052602090015173ffffffffffffffffffffffffffffffffffffffff1660035473ffffffffffffffffffffffffffffffffffffffff1981169050819150176003556104af565b634e487b715f5260326020526024601cfd5b634e487b715f5260416020526024601cfd5b846101e05284806101e0525180610220528061022052806102205260a01c15156104a35782806101a05260209001602087806102005202810190506102205180610220528152506001840393506020850194506001860195506101c9565b634e487b715f5260416020526024601cfd5b634e487b715f5260416020526024601cfd5b5f5ffd5b5f5ffd5b5f5ffd5b60ac806104ba5f395ff33415156046575f3560e01c80633602175c146042578063659621b514603e578063be9a655514603a578063ee495002146036576046565b606f565b604a565b6082565b605c565b5f5ffd5b5f546080526020608001608090036080f35b6001546080526020608001608090036080f35b6002546080526020608001608090036080f35b60035473ffffffffffffffffffffffffffffffffffffffff90166080526020608001608090036080f3"
+
+fn @one(arg0: i256) -> memoryarray [pure] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v0, 1
+    v1 = memory_object_len memoryarray, v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = trunc i256 arg0 to i160
+    v5 = zext i160 v4 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v5
+    ret v0
+}
+
+fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    set_memory_object_len memoryarray, v0, 2
+    v1 = trunc i256 0x1234 to i160
+    v2 = memory_object_len memoryarray, v0
+    v3 = lt 0, v2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = zext i160 v1 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v5
+    v6 = trunc i256 0x5678 to i160
+    v7 = memory_object_len memoryarray, v0
+    v8 = lt 1, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = zext i160 v6 to i256
+    memory_object_store_element memoryarray<1>, v0, 1, v10
+    v11 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    set_memory_object_len memoryarray, v11, 2
+    v12 = memory_object_len memoryarray, v11
+    v13 = lt 0, v12
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    memory_object_store_element memoryarray<1>, v11, 0, 100
+    v15 = memory_object_len memoryarray, v11
+    v16 = lt 1, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    memory_object_store_element memoryarray<1>, v11, 1, 200
+    v18 = abi_encode [memory_array<word<u160>>, memory_array<word>, word], args v0, v11, 17
+    v19 = slice_len v18
+    v20 = add 0x566, v19
+    v21 = lt v20, 0x566
+    icall panic_if<0x41>, v21
+    v22 = add v20, 31
+    v23 = lt v22, v20
+    icall panic_if<0x41>, v23
+    v24 = not 31
+    v25 = and v22, v24
+    v26 = alloc raw, exact, uninitialized, infallible, v25
+    v27 = ptrtoint memptr v26 to i256
+    data_copy Child_initcode_0, v27, 0x566
+    v28 = slice_ptr v18
+    v29 = ptrtoint memptr v26 to i256
+    v30 = add v29, 0x566
+    mcopy v30, v28, v19 !metadata(memory=heap)
+    v31 = ptrtoint memptr v26 to i256
+    v32 = create 0, v31, v20
+    v33 = zext i160 v32 to i256
+    v34 = ne v33, 0
+    jumpi v34, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v35 = zext i160 v32 to i256
+    v36 = gas
+    v37 = abi_encode [], selector 0xbe9a655500000000000000000000000000000000000000000000000000000000
+    v38 = slice_ptr v37
+    v39 = slice_len v37
+    v40 = staticcall v36, v35, v38, v39, 0, 32
+    jumpi v40, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v41 = returndatasize
+    v42 = lt v41, 32
+    icall revert_if<tuple_data_too_short>, v42
+    v43 = add 0, 0
+    v44 = mload v43
+    v45 = add 0, 0
+    v46 = mload v45
+    v47 = gas
+    v48 = abi_encode [], selector 0x3602175c00000000000000000000000000000000000000000000000000000000
+    v49 = slice_ptr v48
+    v50 = slice_len v48
+    v51 = staticcall v47, v35, v49, v50, 0, 32
+    jumpi v51, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v52 = returndatasize
+    v53 = lt v52, 32
+    icall revert_if<tuple_data_too_short>, v53
+    v54 = add 0, 0
+    v55 = mload v54
+    v56 = add 0, 0
+    v57 = mload v56
+    v58 = gas
+    v59 = abi_encode [], selector 0xee49500200000000000000000000000000000000000000000000000000000000
+    v60 = slice_ptr v59
+    v61 = slice_len v59
+    v62 = staticcall v58, v35, v60, v61, 0, 32
+    jumpi v62, bb8, bb7
+  bb7:
+    revert_returndata
+  bb8:
+    v63 = returndatasize
+    v64 = lt v63, 32
+    icall revert_if<tuple_data_too_short>, v64
+    v65 = add 0, 0
+    v66 = mload v65
+    v67 = add 0, 0
+    v68 = mload v67
+    v69 = gas
+    v70 = abi_encode [], selector 0x659621b500000000000000000000000000000000000000000000000000000000
+    v71 = slice_ptr v70
+    v72 = slice_len v70
+    v73 = staticcall v69, v35, v71, v72, 0, 32
+    jumpi v73, bb10, bb9
+  bb9:
+    revert_returndata
+  bb10:
+    v74 = returndatasize
+    v75 = lt v74, 32
+    icall revert_if<tuple_data_too_short>, v75
+    v76 = add 0, 0
+    v77 = mload v76
+    v78 = and v77, 0xffffffffffffffffffffffffffffffffffffffff
+    v79 = eq v77, v78
+    v80 = eq v79, false
+    icall revert_if<empty>, v80
+    v81 = add 0, 0
+    v82 = mload v81
+    v83 = insert_value struct0, undef struct0, 0, v46
+    v84 = insert_value struct0, v83, 1, v57
+    v85 = insert_value struct0, v84, 2, v68
+    v86 = insert_value struct0, v85, 3, v82
+    ret v86
+}
+
+fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    set_memory_object_len memoryarray, v0, 2
+    v1 = memory_object_len memoryarray, v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    memory_object_store_element memoryarray<1>, v0, 0, 1
+    v4 = memory_object_len memoryarray, v0
+    v5 = lt 1, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    memory_object_store_element memoryarray<1>, v0, 1, 2
+    v7 = trunc i256 153 to i160
+    v8 = zext i160 v7 to i256
+    v9 = icall @one, v8
+    v10 = abi_encode [memory_array<word<u160>>, memory_array<word>, word], args v9, v0, 5
+    v11 = slice_len v10
+    v12 = add 0x566, v11
+    v13 = lt v12, 0x566
+    icall panic_if<0x41>, v13
+    v14 = add v12, 31
+    v15 = lt v14, v12
+    icall panic_if<0x41>, v15
+    v16 = not 31
+    v17 = and v14, v16
+    v18 = alloc raw, exact, uninitialized, infallible, v17
+    v19 = ptrtoint memptr v18 to i256
+    data_copy Child_initcode_0, v19, 0x566
+    v20 = slice_ptr v10
+    v21 = ptrtoint memptr v18 to i256
+    v22 = add v21, 0x566
+    mcopy v22, v20, v11 !metadata(memory=heap)
+    v23 = ptrtoint memptr v18 to i256
+    v24 = create 0, v23, v12
+    v25 = zext i160 v24 to i256
+    v26 = ne v25, 0
+    jumpi v26, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v27 = zext i160 v24 to i256
+    v28 = gas
+    v29 = abi_encode [], selector 0xbe9a655500000000000000000000000000000000000000000000000000000000
+    v30 = slice_ptr v29
+    v31 = slice_len v29
+    v32 = staticcall v28, v27, v30, v31, 0, 32
+    jumpi v32, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v33 = returndatasize
+    v34 = lt v33, 32
+    icall revert_if<tuple_data_too_short>, v34
+    v35 = add 0, 0
+    v36 = mload v35
+    v37 = add 0, 0
+    v38 = mload v37
+    v39 = gas
+    v40 = abi_encode [], selector 0x3602175c00000000000000000000000000000000000000000000000000000000
+    v41 = slice_ptr v40
+    v42 = slice_len v40
+    v43 = staticcall v39, v27, v41, v42, 0, 32
+    jumpi v43, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v44 = returndatasize
+    v45 = lt v44, 32
+    icall revert_if<tuple_data_too_short>, v45
+    v46 = add 0, 0
+    v47 = mload v46
+    v48 = add 0, 0
+    v49 = mload v48
+    v50 = gas
+    v51 = abi_encode [], selector 0xee49500200000000000000000000000000000000000000000000000000000000
+    v52 = slice_ptr v51
+    v53 = slice_len v51
+    v54 = staticcall v50, v27, v52, v53, 0, 32
+    jumpi v54, bb8, bb7
+  bb7:
+    revert_returndata
+  bb8:
+    v55 = returndatasize
+    v56 = lt v55, 32
+    icall revert_if<tuple_data_too_short>, v56
+    v57 = add 0, 0
+    v58 = mload v57
+    v59 = add 0, 0
+    v60 = mload v59
+    v61 = gas
+    v62 = abi_encode [], selector 0x659621b500000000000000000000000000000000000000000000000000000000
+    v63 = slice_ptr v62
+    v64 = slice_len v62
+    v65 = staticcall v61, v27, v63, v64, 0, 32
+    jumpi v65, bb10, bb9
+  bb9:
+    revert_returndata
+  bb10:
+    v66 = returndatasize
+    v67 = lt v66, 32
+    icall revert_if<tuple_data_too_short>, v67
+    v68 = add 0, 0
+    v69 = mload v68
+    v70 = and v69, 0xffffffffffffffffffffffffffffffffffffffff
+    v71 = eq v69, v70
+    v72 = eq v71, false
+    icall revert_if<empty>, v72
+    v73 = add 0, 0
+    v74 = mload v73
+    v75 = insert_value struct0, undef struct0, 0, v38
+    v76 = insert_value struct0, v75, 1, v49
+    v77 = insert_value struct0, v76, 2, v60
+    v78 = insert_value struct0, v77, 3, v74
+    ret v78
+}

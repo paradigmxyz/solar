@@ -13,7 +13,7 @@
 contract ICallMultiStackReturn {
     // A two-word stack return rotates the hidden return label above both results.
     // CHECK-LABEL: @module ICallMultiStackReturn_runtime
-    // CHECK: push 192
+    // CHECK: push 128
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // CHECK: push [[PAIR_RETURN:bb[0-9]+]]

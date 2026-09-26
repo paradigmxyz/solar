@@ -908,23 +908,32 @@ impl<'gcx> EvmCodegen<'gcx> {
                 return;
             }
 
-            // Keep the ordinary return area for multiword stack callees as a compiler-owned
-            // fallback buffer. A callee may legally leave slot `0x40` clobbered, so deriving this
-            // address from the post-call free-memory pointer would turn a valid return into an
-            // arbitrary write or OOG. The common direct-projection path never touches the buffer.
-            let return_base = plan.local_base - plan.arity as u64 * EvmMemoryLayout::WORD_SIZE;
-            let buffer = self.static_frame_addr(callee, return_base);
-            self.asm.emit_push_deferred(buffer);
-            self.asm.emit_push(U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT));
-            self.asm.emit_op(op::MSTORE);
-
-            for index in (1..plan.arity).rev() {
+            if !Self::reads_multi_return_buffer(func) {
+                // Nothing in the caller reads the tail results: drop them.
+                for _ in 1..plan.arity {
+                    self.asm.emit_stack_op(StackOp::Pop);
+                }
+            } else {
+                // Keep the ordinary return area for multiword stack callees as a compiler-owned
+                // fallback buffer. A callee may legally leave slot `0x40` clobbered, so deriving
+                // this address from the post-call free-memory pointer would turn a valid return
+                // into an arbitrary write or OOG. The common direct-projection path never
+                // touches the buffer.
+                let return_base = plan.local_base - plan.arity as u64 * EvmMemoryLayout::WORD_SIZE;
+                self.stack_return_buffers.insert(callee);
+                let buffer = self.static_frame_addr(callee, return_base);
+                self.asm.emit_push_deferred(buffer);
                 self.asm.emit_push(U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT));
-                self.asm.emit_op(op::MLOAD);
-                self.asm.emit_push(U256::from(index as u64 * EvmMemoryLayout::WORD_SIZE));
-                self.asm.emit_op(op::ADD);
-                // The address is on top of the anonymous return word.
                 self.asm.emit_op(op::MSTORE);
+
+                for index in (1..plan.arity).rev() {
+                    self.asm.emit_push(U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT));
+                    self.asm.emit_op(op::MLOAD);
+                    self.asm.emit_push(U256::from(index as u64 * EvmMemoryLayout::WORD_SIZE));
+                    self.asm.emit_op(op::ADD);
+                    // The address is on top of the anonymous return word.
+                    self.asm.emit_op(op::MSTORE);
+                }
             }
         }
 
@@ -934,6 +943,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else {
             self.asm.emit_stack_op(StackOp::Pop);
         }
+    }
+
+    /// Whether `func` reads the multi-return buffer pointer, which is the only
+    /// way MIR consumes a call's results after the first.
+    fn reads_multi_return_buffer(func: &Function) -> bool {
+        func.instructions().any(|inst| {
+            matches!(func.inst(inst).kind, InstKind::MLoad(addr)
+                if func.value_u64(addr) == Some(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT))
+        })
     }
 
     /// Plans direct adoption of a stack-returned tuple's anonymous tail words.

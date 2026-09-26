@@ -3,11 +3,16 @@
 //! Constant switches start as MIR `switch` terminators. This module compares
 //! several EVM shapes for the same sorted case values: a source-ordered linear
 //! scan, a balanced binary tree, modulo buckets, a bounds-checked dense table,
-//! and collision-free bit-slice or affine hashes. Each candidate models both
+//! and collision-free bit-slice or affine hashes. Bucket counts range from
+//! short tables of four to sixty-four slots, whose chains replace the top
+//! levels of a tree in one indexed jump, up to about one case per slot; a
+//! power-of-two count hashes with a mask. Each candidate models both
 //! hit and miss paths, including the default cleanup sequence and the later
 //! block-layout effects that change label widths.
 //!
-//! Gas mode limits extra code and ranks candidates by the modeled runtime cost.
+//! Gas mode ranks the external selector switch by its lifetime cost: modeled
+//! runtime over the expected calls plus the deposit of its code. Other switches
+//! rank by modeled runtime cost within an artifact-wide code-growth budget.
 //! Size mode uses conservative label widths while selecting a plan and lets the
 //! EVM IR layout pass recover safe local-width and fallthrough wins. The emitter
 //! keeps the original case order for linear scans and uses sorted values only
@@ -52,7 +57,10 @@ const JUMPDEST_GAS: usize = GasTier::Jumpdest.fixed_gas() as usize;
 const PACKED_TERMINAL_TARGET_MAX_SIZE: usize = 2;
 const MIN_BUCKET_CASES: usize = 2;
 // Bound table footprint and the number of bucket blocks processed by EVM IR passes.
-const MAX_BUCKET_CASES: usize = 64;
+// Lifetime pricing weighs the selector switch's footprint itself, so the bound only
+// needs to keep the table searches small; 128 cases admit large ABIs such as a full
+// set of integer casts.
+const MAX_BUCKET_CASES: usize = 128;
 const MAX_PERFECT_BIT_TABLE_SIZE: usize = 256;
 const MAX_DENSE_RANGE: usize = 4096;
 const MAX_BUCKET_CANDIDATES: usize = 33;
@@ -60,7 +68,9 @@ const MAX_BUCKET_CANDIDATES: usize = 33;
 // their individual gas-mode growth at a round conservative plateau under unknown
 // case frequencies.
 pub(super) const MAX_BIT_SLICE_GAS_CODE_GROWTH: usize = 80;
-/// Bounds cumulative bytecode growth per artifact under the runtime-gas objective.
+/// Bounds cumulative bytecode growth per artifact under the runtime-gas objective
+/// for switches without an execution estimate. The external selector switch
+/// weighs its deposit against its expected calls instead.
 ///
 /// Keep this a round policy limit rather than fitting it to a corpus transition.
 pub(super) const MAX_GAS_CODE_GROWTH: usize = 192;
@@ -920,15 +930,20 @@ fn binary_leaf_sizes(len: usize) -> Vec<usize> {
 fn bucket_count_candidates(len: usize) -> Vec<usize> {
     let first = (len.saturating_mul(3) / 4).max(2);
     let last = len.saturating_mul(5) / 4;
+    // Fewer buckets scan longer chains through a smaller table, between a
+    // balanced tree's leaves and one case per slot. Powers of two up to 64
+    // keep the table packable and the search bounded.
+    let short_tables = (2..=6).map(|shift| 1usize << shift).filter(|&count| count < first);
     let count = last - first + 1;
     if count <= MAX_BUCKET_CANDIDATES {
-        return (first..=last).collect();
+        return short_tables.chain(first..=last).collect();
     }
 
     let span = last - first;
     let denominator = MAX_BUCKET_CANDIDATES - 1;
     let mut candidates = (0..MAX_BUCKET_CANDIDATES)
         .map(|index| first + span.saturating_mul(index) / denominator)
+        .chain(short_tables)
         .collect::<Vec<_>>();
     candidates.push(len);
     candidates.sort_unstable();
@@ -972,8 +987,12 @@ fn bucket_lowering_cost_with_tests(
 ) -> LoweringCost {
     debug_assert!(!default.can_fallthrough());
     debug_assert_eq!(values.len(), equality_costs.len());
-    let hash_len = 1 + push_len(evm_version, U256::from(bucket_count)) + 1 + 1;
-    let hash_gas = VERY_LOW_GAS * 3 + MOD_GAS;
+    // bucket = and value, count - 1 (a power of two), or mod value, count
+    let (hash_len, hash_gas) = if bucket_count.is_power_of_two() {
+        (1 + push_len(evm_version, U256::from(bucket_count - 1)) + 1, VERY_LOW_GAS * 3)
+    } else {
+        (1 + push_len(evm_version, U256::from(bucket_count)) + 1 + 1, VERY_LOW_GAS * 3 + MOD_GAS)
+    };
     let (mut cost, dispatch_gas) = indexed_jump_dispatch_cost(
         values.len(),
         bucket_count,
@@ -1694,10 +1713,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             .collect();
 
         self.emit_stack_op(StackOp::Dup(1));
-        self.asm.emit_push(U256::from(bucket_count));
-        self.scheduler.stack.push_unknown();
-        self.emit_stack_op(StackOp::Swap(1));
-        self.asm.emit_op(op::MOD);
+        if bucket_count.is_power_of_two() {
+            // bucket = and value, count - 1
+            self.asm.emit_push(U256::from(bucket_count - 1));
+            self.scheduler.stack.push_unknown();
+            self.asm.emit_op(op::AND);
+        } else {
+            // bucket = mod value, count
+            self.asm.emit_push(U256::from(bucket_count));
+            self.scheduler.stack.push_unknown();
+            self.emit_stack_op(StackOp::Swap(1));
+            self.asm.emit_op(op::MOD);
+        }
         self.scheduler.instruction_executed_untracked(2);
         self.asm.emit_indexed_jump(bucket_labels.clone());
         self.scheduler.stack.pop();
@@ -1969,6 +1996,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         preserve_stack: bool,
     ) {
         let constant_entries = self.constant_switch_entries(func, cases);
+        // The selector switch prices its deposit over the expected calls, so
+        // only switches without an execution estimate draw on the budget.
+        let lifetime_priced = self.emitting_entry;
         let plan = constant_entries.as_ref().map_or(
             SwitchSelection { plan: SwitchPlan::Linear, gas_code_growth: 0 },
             |(linear_values, entries)| {
@@ -1986,12 +2016,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                     SwitchPlanOptions {
                         optimization: self.gcx.sess.opts.optimization,
                         evm_version: self.gcx.sess.opts.evm_version,
-                        expected_executions: self
-                            .emitting_entry
+                        expected_executions: lifetime_priced
                             .then(|| Target::new(self.gcx).expected_executions()),
                         default,
                         table_target_width: self.asm.indexed_jump_target_width_bound(),
-                        max_gas_code_growth: self.switch_gas_code_growth_remaining,
+                        max_gas_code_growth: if lifetime_priced {
+                            usize::MAX
+                        } else {
+                            self.switch_gas_code_growth_remaining
+                        },
                         max_bit_slice_gas_code_growth: self
                             .gcx
                             .sess
@@ -2005,8 +2038,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 )
             },
         );
-        self.switch_gas_code_growth_remaining =
-            self.switch_gas_code_growth_remaining.saturating_sub(plan.gas_code_growth);
+        if !lifetime_priced {
+            self.switch_gas_code_growth_remaining =
+                self.switch_gas_code_growth_remaining.saturating_sub(plan.gas_code_growth);
+        }
         let plan = plan.plan;
         let constant_entries = constant_entries.map(|(_, entries)| entries);
 
@@ -2694,7 +2729,7 @@ mod tests {
     #[test]
     fn bounds_bucket_search_for_large_switches() {
         let candidates = bucket_count_candidates(10_000);
-        assert!(candidates.len() <= MAX_BUCKET_CANDIDATES + 1);
+        assert!(candidates.len() <= MAX_BUCKET_CANDIDATES + 6);
         assert!(candidates.contains(&10_000));
         assert!(bucket_count_candidates(97).contains(&97));
     }

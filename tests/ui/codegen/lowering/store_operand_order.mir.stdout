@@ -3,7 +3,7 @@
 types:
   struct0: {i256, i256, i256}
 
-fn @memoryWords(arg0: i256) -> struct0 [selector=0x9d17b978, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @memoryWords(arg0: i256) -> struct0 [selector=0x9d17b978, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, arg0
@@ -24,7 +24,7 @@ fn @memoryWords(arg0: i256) -> struct0 [selector=0x9d17b978, pure, abi_params=[u
     ret v11
 }
 
-fn @stateWords(arg0: i256) -> struct0 [selector=0x0797de3c, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @stateWords(arg0: i256) -> struct0 [selector=0x0797de3c, inline_assembly, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     sstore arg0, arg0 !metadata(storage=symbolic(arg0))
     v0 = sload arg0 !metadata(storage=symbolic(arg0))

@@ -1,0 +1,31 @@
+//@compile-flags: -Zmir-pipeline=check-elim
+//@filecheck:
+@module CheckElimAssemblyLengths
+
+// Assembly can store any word in a length, so while any function carries it,
+// lengths stay unknown and the wrap test on their sum remains.
+// CHECK-LABEL: @sum_of_lengths
+// CHECK: {{^ +}}{{v[0-9]+}} = lt
+// CHECK-NEXT: {{^ +}}jumpi
+fn @sum_of_lengths(arg0: memoryarray, arg1: memorybytes) -> i256 {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    v1 = memory_object_len memorybytes, arg1
+    v2 = add v0, v1
+    v3 = lt v2, v0
+    jumpi v3, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v2
+}
+
+// `assembly { mstore(a, n) }`
+// CHECK-LABEL: @forge
+// CHECK-SAME: inline_assembly
+fn @forge(arg0: memoryarray, arg1: i256) [inline_assembly] {
+  bb0:
+    v0 = ptrtoint memoryarray arg0 to i256
+    mstore v0, arg1
+    ret
+}

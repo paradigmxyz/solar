@@ -20,7 +20,7 @@ fn @append.1(arg0: memorystruct, arg1: i256) -> memorystruct [pure] {
     ret arg0
 }
 
-fn @append.2(arg0: memorystruct, arg1: memorystruct) -> memorystruct [pure] {
+fn @append.2(arg0: memorystruct, arg1: memorystruct) -> memorystruct [inline_assembly, pure] {
   bb0:
     v0 = ptrtoint memorystruct arg1 to i256
     v1 = shl 8, v0
@@ -34,7 +34,7 @@ fn @append.2(arg0: memorystruct, arg1: memorystruct) -> memorystruct [pure] {
     ret arg0
 }
 
-fn @dirtyFreeMemory() [view] {
+fn @dirtyFreeMemory() [inline_assembly, view] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = gas
@@ -48,7 +48,7 @@ fn @dirtyFreeMemory() [view] {
     ret
 }
 
-fn @defaultLocal() -> i256 [selector=0x2f73c827, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @defaultLocal() -> i256 [selector=0x2f73c827, inline_assembly, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -60,7 +60,7 @@ fn @defaultLocal() -> i256 [selector=0x2f73c827, view, abi_params=[], abi_return
     ret v4
 }
 
-fn @defaultReturn() -> i256 [selector=0x099c80fd, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @defaultReturn() -> i256 [selector=0x099c80fd, inline_assembly, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     icall @dirtyFreeMemory
     v0 = icall @empty
@@ -71,7 +71,7 @@ fn @defaultReturn() -> i256 [selector=0x099c80fd, view, abi_params=[], abi_retur
     ret v4
 }
 
-fn @firstAppend() -> i256 [selector=0x9d2b282b, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @firstAppend() -> i256 [selector=0x9d2b282b, inline_assembly, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -96,7 +96,7 @@ fn @firstAppend() -> i256 [selector=0x9d2b282b, view, abi_params=[], abi_returns
     ret v17
 }
 
-fn @secondAppend() -> i256 [selector=0xdce19125, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @secondAppend() -> i256 [selector=0xdce19125, inline_assembly, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -119,7 +119,7 @@ fn @secondAppend() -> i256 [selector=0xdce19125, view, abi_params=[], abi_return
     ret v15
 }
 
-fn @recursiveYul(arg0: i256) -> struct0 [selector=0x2aa1bcc4, pure, abi_params=[u256], abi_returns=[word, word<bytes1>], abi_return_params=[u256, bytes1]] {
+fn @recursiveYul(arg0: i256) -> struct0 [selector=0x2aa1bcc4, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word<bytes1>], abi_return_params=[u256, bytes1]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = icall @encode, arg0, v0
@@ -130,7 +130,7 @@ fn @recursiveYul(arg0: i256) -> struct0 [selector=0x2aa1bcc4, pure, abi_params=[
     ret v5
 }
 
-fn @nestedListEncoding() -> struct0 [selector=0xb61d93a1, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, bytes32]] {
+fn @nestedListEncoding() -> struct0 [selector=0xb61d93a1, inline_assembly, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, bytes32]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -158,7 +158,7 @@ fn @nestedListEncoding() -> struct0 [selector=0xb61d93a1, pure, abi_params=[], a
     ret v21
 }
 
-fn @updateTail(arg0: memorystruct, arg1: memorystruct) [pure] {
+fn @updateTail(arg0: memorystruct, arg1: memorystruct) [inline_assembly, pure] {
   bb0:
     v0 = ptrtoint memorystruct arg0 to i256
     v1 = mload v0
@@ -181,7 +181,7 @@ fn @updateTail(arg0: memorystruct, arg1: memorystruct) [pure] {
     ret
 }
 
-fn @encode(arg0: i256, arg1: i256) -> i256 {
+fn @encode(arg0: i256, arg1: i256) -> i256 [inline_assembly] {
   bb0:
     v0 = eq arg0, 0
     v1 = zext i1 v0 to i256
@@ -202,7 +202,7 @@ fn @encode(arg0: i256, arg1: i256) -> i256 {
     ret v3
 }
 
-fn @encodeUint(arg0: i256, arg1: i256) -> i256 {
+fn @encodeUint(arg0: i256, arg1: i256) -> i256 [inline_assembly] {
   bb0:
     v0 = add arg1, 1
     v1 = gt arg0, 127
@@ -255,7 +255,7 @@ fn @encodeUint(arg0: i256, arg1: i256) -> i256 {
     ret v0
 }
 
-fn @encodeAddress(arg0: i256, arg1: i256) -> i256 {
+fn @encodeAddress(arg0: i256, arg1: i256) -> i256 [inline_assembly] {
   bb0:
     v0 = add arg1, 21
     v1 = shl 88, arg0
@@ -264,7 +264,7 @@ fn @encodeAddress(arg0: i256, arg1: i256) -> i256 {
     ret v0
 }
 
-fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 [inline_assembly] {
   bb0:
     v0 = add arg1, 1
     v1 = mload arg0
@@ -300,24 +300,24 @@ fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     v41 = sub v40, v38
     jump bb7
   bb7:
-    v42 = phi [bb3: v1], [bb11: v42]
-    v43 = phi [bb3: v41], [bb11: v43]
-    v44 = phi [bb3: arg1], [bb11: v44]
-    v45 = phi [bb3: arg2], [bb11: v45]
-    v46 = phi [bb3: v34], [bb11: v46]
-    v47 = phi [bb3: v39], [bb11: v47]
+    v42 = phi [bb3: arg0], [bb11: v42]
+    v43 = phi [bb3: arg1], [bb11: v43]
+    v44 = phi [bb3: arg2], [bb11: v44]
+    v45 = phi [bb3: v39], [bb11: v45]
+    v46 = phi [bb3: v1], [bb11: v46]
+    v47 = phi [bb3: v34], [bb11: v47]
     v48 = phi [bb3: v38], [bb11: v53]
-    v49 = phi [bb3: arg0], [bb11: v49]
+    v49 = phi [bb3: v41], [bb11: v49]
     v50 = ne 1, 0
     jumpi v50, bb9, bb10
   bb10:
     jump bb8
   bb9:
-    v51 = add v43, v48
+    v51 = add v49, v48
     v52 = mload v51
     mstore v48, v52
     v53 = add v48, 32
-    v54 = lt v53, v47
+    v54 = lt v53, v45
     v55 = zext i1 v54 to i256
     v56 = eq v55, 0
     v57 = zext i1 v56 to i256
@@ -333,13 +333,13 @@ fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     jump bb8
   bb8:
     v59 = phi [bb12: v53], [bb10: v48]
-    v60 = shl 3, v46
+    v60 = shl 3, v47
     v61 = sub 248, v60
-    v62 = shl v61, v42
-    v63 = mload v44
+    v62 = shl v61, v46
+    v63 = mload v43
     v64 = or v63, v62
-    mstore v44, v64
-    ret v47
+    mstore v43, v64
+    ret v45
   bb1:
     v7 = add 32, arg0
     v8 = mload v7
@@ -370,7 +370,7 @@ fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     ret v22
 }
 
-fn @encodeList(arg0: i256, arg1: i256) -> i256 {
+fn @encodeList(arg0: i256, arg1: i256) -> i256 [inline_assembly] {
   bb0:
     v0 = mload arg0
     v1 = eq v0, 0
@@ -383,10 +383,10 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 {
     v5 = add arg1, 32
     jump bb4
   bb4:
-    v6 = phi [bb3: arg1], [bb8: v6], [bb15: v6], [bb17: v6], [bb18: v6], [bb21: v6]
-    v7 = phi [bb3: v5], [bb8: v48], [bb15: v29], [bb17: v33], [bb18: v39], [bb21: v45]
-    v8 = phi [bb3: arg0], [bb8: v8], [bb15: v8], [bb17: v8], [bb18: v8], [bb21: v8]
-    v9 = phi [bb3: 0], [bb8: v9], [bb15: v9], [bb17: v9], [bb18: v9], [bb21: v9]
+    v6 = phi [bb3: arg0], [bb8: v6], [bb15: v6], [bb17: v6], [bb18: v6], [bb21: v6]
+    v7 = phi [bb3: arg1], [bb8: v7], [bb15: v7], [bb17: v7], [bb18: v7], [bb21: v7]
+    v8 = phi [bb3: 0], [bb8: v8], [bb15: v8], [bb17: v8], [bb18: v8], [bb21: v8]
+    v9 = phi [bb3: v5], [bb8: v48], [bb15: v29], [bb17: v33], [bb18: v39], [bb21: v45]
     v10 = phi [bb3: arg0], [bb8: v13], [bb15: v13], [bb17: v13], [bb18: v13], [bb21: v13]
     v11 = ne 1, 0
     jumpi v11, bb6, bb7
@@ -429,19 +429,19 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 {
   bb23:
     v46 = mload v13
     v47 = shr 48, v46
-    v48 = icall @encodeAddress, v47, v7
+    v48 = icall @encodeAddress, v47, v9
     jump bb8
   bb8:
     jump bb4
   bb21:
     v43 = mload v13
     v44 = shr 48, v43
-    v45 = icall @encodeList, v44, v7
+    v45 = icall @encodeList, v44, v9
     jump bb4
   bb18:
     v37 = mload v13
     v38 = shr 48, v37
-    v39 = icall @encodeBytes, v38, v7, 128
+    v39 = icall @encodeBytes, v38, v9, 128
     jump bb4
   bb12:
     v24 = eq v18, 0
@@ -454,19 +454,19 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 {
     v30 = mload v13
     v31 = shr 48, v30
     v32 = mload v31
-    v33 = icall @encodeUint, v32, v7
+    v33 = icall @encodeUint, v32, v9
     jump bb4
   bb15:
     v27 = mload v13
     v28 = shr 48, v27
-    v29 = icall @encodeUint, v28, v7
+    v29 = icall @encodeUint, v28, v9
     jump bb4
   bb9:
     jump bb5
   bb5:
     v49 = phi [bb9: v13], [bb7: v10]
-    v50 = add v6, 32
-    v51 = sub v7, v50
+    v50 = add v7, 32
+    v51 = sub v9, v50
     v52 = gt v51, 55
     v53 = zext i1 v52 to i256
     v54 = eq v53, 0
@@ -476,21 +476,21 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 {
   bb25:
     jump bb26
   bb26:
-    mstore v6, v51
-    v66 = icall @encodeBytes, v6, v6, 192
+    mstore v7, v51
+    v66 = icall @encodeBytes, v7, v7, 192
     ret v66
   bb24:
     v57 = add v51, 192
-    mstore8 v6, v57
-    v58 = add v6, 32
+    mstore8 v7, v57
+    v58 = add v7, 32
     v59 = mload v58
-    v60 = add v6, 1
+    v60 = add v7, 1
     mstore v60, v59
-    v61 = add v6, 64
+    v61 = add v7, 64
     v62 = mload v61
-    v63 = add v6, 33
+    v63 = add v7, 33
     mstore v63, v62
-    v64 = add v6, 1
+    v64 = add v7, 1
     v65 = add v51, v64
     ret v65
   bb1:

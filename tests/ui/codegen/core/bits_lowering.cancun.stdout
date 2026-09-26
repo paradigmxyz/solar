@@ -1,0 +1,151 @@
+// === <solar:core/v1/Bits.sol>:Bits ===
+@module Bits
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/bits_lowering.sol:Test ===
+@module Test
+@phase lowered
+fn @leading() [selector=0x3ce23483, abi_wrapper, pure] {
+  bb0:
+    v1 = gt arg0, 0xffffffffffffffffffffffffffffffff
+    v28 = zext i1 v1 to i256
+    v29 = shl 7, v28
+    v3 = shr v29, arg0
+    v4 = gt v3, 0xffffffffffffffff
+    v30 = zext i1 v4 to i256
+    v31 = shl 6, v30
+    v6 = or v29, v31
+    v7 = shr v6, arg0
+    v8 = gt v7, 0xffffffff
+    v32 = zext i1 v8 to i256
+    v33 = shl 5, v32
+    v10 = or v6, v33
+    v11 = shr v10, arg0
+    v12 = gt v11, 0xffff
+    v34 = zext i1 v12 to i256
+    v35 = shl 4, v34
+    v14 = or v10, v35
+    v15 = shr v14, arg0
+    v16 = gt v15, 255
+    v36 = zext i1 v16 to i256
+    v37 = shl 3, v36
+    v18 = or v14, v37
+    v19 = shr v18, arg0
+    v20 = shr v19, 0x8421084210842108cc6318c6db6d54be
+    v21 = and v20, 31
+    v22 = byte v21, 0xf8f9f9faf9fdfafbf9fdfcfdfafbfcfef9fafdfafcfcfbfefafafcfbffffffff
+    v23 = xor v18, v22
+    v24 = eq arg0, 0
+    v38 = zext i1 v24 to i256
+    v26 = add v23, v38
+    mstore 0, v26 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @highest() [selector=0xe076913c, abi_wrapper, pure] {
+  bb0:
+    v3 = gt arg0, 0xffffffffffffffffffffffffffffffff
+    v30 = zext i1 v3 to i256
+    v31 = shl 7, v30
+    v1 = eq arg0, 0
+    v28 = zext i1 v1 to i256
+    v29 = shl 8, v28
+    v5 = or v29, v31
+    v6 = shr v5, arg0
+    v7 = gt v6, 0xffffffffffffffff
+    v32 = zext i1 v7 to i256
+    v33 = shl 6, v32
+    v9 = or v5, v33
+    v10 = shr v9, arg0
+    v11 = gt v10, 0xffffffff
+    v34 = zext i1 v11 to i256
+    v35 = shl 5, v34
+    v13 = or v9, v35
+    v14 = shr v13, arg0
+    v15 = gt v14, 0xffff
+    v36 = zext i1 v15 to i256
+    v37 = shl 4, v36
+    v17 = or v13, v37
+    v18 = shr v17, arg0
+    v19 = gt v18, 255
+    v38 = zext i1 v19 to i256
+    v39 = shl 3, v38
+    v21 = or v17, v39
+    v22 = shr v21, arg0
+    v23 = shr v22, 0x8421084210842108cc6318c6db6d54be
+    v24 = and v23, 31
+    v25 = byte v24, 0x706060506020504060203020504030106050205030304010505030400000000
+    v26 = or v21, v25
+    mstore 0, v26 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @trailing() [selector=0x5b348c5a, abi_wrapper, pure] {
+  bb0:
+    v0 = sub 0, arg0
+    v1 = and arg0, v0
+    v2 = mul v1, 0xb6db6db6ddddddddd34d34d349249249210842108c6318c639ce739cffffffff
+    v3 = shr 250, v2
+    v4 = shl 2, v3
+    v5 = shl v4, 0x8040405543005266443200005020610674053026020000107506200176117077
+    v6 = shr 252, v5
+    v7 = shl 5, v6
+    v8 = shr v7, v1
+    v9 = div 0xd76453e0, v8
+    v10 = and v9, 31
+    v11 = byte v10, 0x1f0d1e100c1d070f090b19131c1706010e11080a1a141802121b1503160405
+    v12 = or v7, v11
+    mstore 0, v12 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @ones() [selector=0xb2f925a4, abi_wrapper, pure] {
+  bb0:
+    v1 = and arg0, 1
+    v2 = shr 1, arg0
+    v3 = shr 1, v2
+    v4 = and v3, 0x5555555555555555555555555555555555555555555555555555555555555555
+    v5 = sub v2, v4
+    v7 = shr 2, v5
+    v8 = and v7, 0x3333333333333333333333333333333333333333333333333333333333333333
+    v6 = and v5, 0x3333333333333333333333333333333333333333333333333333333333333333
+    v9 = add v6, v8
+    v10 = shr 4, v9
+    v11 = add v9, v10
+    v12 = and v11, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+    v13 = mul v12, 0x101010101010101010101010101010101010101010101010101010101010101
+    v14 = shr 248, v13
+    v15 = add v14, v1
+    mstore 0, v15 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr 224, v6
+    switch v7, default bb1, [0x3ce23483 => bb3, 0x5b348c5a => bb4, 0xb2f925a4 => bb5, 0xe076913c => bb6]
+  bb6:
+    tail_call @highest
+  bb5:
+    tail_call @ones
+  bb4:
+    tail_call @trailing
+  bb3:
+    tail_call @leading
+  bb1:
+    revert 0, 0
+}

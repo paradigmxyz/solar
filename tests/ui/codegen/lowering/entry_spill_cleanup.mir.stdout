@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/entry_spill_cleanup.sol:EntrySpillCleanup ===
 @module EntrySpillCleanup
-fn @prefixed(arg0: memorybytes) -> memorybytes [selector=0x13e7d096, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @prefixed(arg0: memorybytes) -> memorybytes [selector=0x13e7d096, inline_assembly, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @toHexStringNoPrefix, arg0
     v1 = ptrtoint memorybytes v0 to i256
@@ -15,7 +15,7 @@ fn @prefixed(arg0: memorybytes) -> memorybytes [selector=0x13e7d096, pure, abi_p
     ret v7
 }
 
-fn @toHexStringNoPrefix(arg0: memorybytes) -> memorybytes [selector=0x449f3447, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @toHexStringNoPrefix(arg0: memorybytes) -> memorybytes [selector=0x449f3447, inline_assembly, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = ptrtoint memorybytes arg0 to i256
     v1 = mload v0
@@ -30,12 +30,12 @@ fn @toHexStringNoPrefix(arg0: memorybytes) -> memorybytes [selector=0x449f3447, 
     jump bb1
   bb1:
     v8 = phi [bb0: arg0], [bb5: v30]
-    v9 = phi [bb0: v1], [bb5: v9]
-    v10 = phi [bb0: v7], [bb5: v10]
-    v11 = phi [bb0: v3], [bb5: v11]
-    v12 = phi [bb0: v5], [bb5: v29]
+    v9 = phi [bb0: v3], [bb5: v9]
+    v10 = phi [bb0: v1], [bb5: v10]
+    v11 = phi [bb0: v5], [bb5: v29]
+    v12 = phi [bb0: v7], [bb5: v12]
     v13 = ptrtoint memorybytes v8 to i256
-    v14 = eq v13, v10
+    v14 = eq v13, v12
     v15 = zext i1 v14 to i256
     v16 = eq v15, 0
     v17 = zext i1 v16 to i256
@@ -44,10 +44,10 @@ fn @toHexStringNoPrefix(arg0: memorybytes) -> memorybytes [selector=0x449f3447, 
   bb4:
     jump bb2
   bb2:
-    mstore v12, 0
-    v31 = add v12, 32
+    mstore v11, 0
+    v31 = add v11, 32
     mstore 64, v31 !metadata(memory=scratch)
-    v32 = inttoptr i256 v11 to memorybytes
+    v32 = inttoptr i256 v9 to memorybytes
     ret v32
   bb3:
     v19 = ptrtoint memorybytes v8 to i256
@@ -55,14 +55,14 @@ fn @toHexStringNoPrefix(arg0: memorybytes) -> memorybytes [selector=0x449f3447, 
     v21 = mload v20
     v22 = and v21, 15
     v23 = mload v22
-    v24 = add v12, 1
+    v24 = add v11, 1
     mstore8 v24, v23
     v25 = mload v20
     v26 = shr 4, v25
     v27 = and v26, 15
     v28 = mload v27
-    mstore8 v12, v28
-    v29 = add v12, 2
+    mstore8 v11, v28
+    v29 = add v11, 2
     jump bb5
   bb5:
     v30 = inttoptr i256 v20 to memorybytes

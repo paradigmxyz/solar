@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/cse/internal_call_effects.sol:InternalCallEffects ===
 @module InternalCallEffects
-fn @disjoint() -> i256 [selector=0xbf1f2d2a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @disjoint() -> i256 [selector=0xbf1f2d2a, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 10 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -10,7 +10,7 @@ fn @disjoint() -> i256 [selector=0xbf1f2d2a, abi_params=[], abi_returns=[word], 
     ret v2
 }
 
-fn @overlap() -> i256 [selector=0xea9e4070, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @overlap() -> i256 [selector=0xea9e4070, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 1, 10 !metadata(storage=slot(1))
     v0 = sload 1 !metadata(storage=slot(1))
@@ -20,7 +20,7 @@ fn @overlap() -> i256 [selector=0xea9e4070, abi_params=[], abi_returns=[word], a
     ret v2
 }
 
-fn @unknown(arg0: i256) -> i256 [selector=0x71667367, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @unknown(arg0: i256) -> i256 [selector=0x71667367, inline_assembly, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 10 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -30,7 +30,7 @@ fn @unknown(arg0: i256) -> i256 [selector=0x71667367, abi_params=[u256], abi_ret
     ret v2
 }
 
-fn @recursive(arg0: i256) -> i256 [selector=0x6fe03c36, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @recursive(arg0: i256) -> i256 [selector=0x6fe03c36, inline_assembly, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 10 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -40,7 +40,7 @@ fn @recursive(arg0: i256) -> i256 [selector=0x6fe03c36, abi_params=[u256], abi_r
     ret v2
 }
 
-fn @transientSlots() -> i256 [selector=0xe5208ad5, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @transientSlots() -> i256 [selector=0xe5208ad5, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     tstore 0, 10
     v0 = tload 0
@@ -50,7 +50,7 @@ fn @transientSlots() -> i256 [selector=0xe5208ad5, abi_params=[], abi_returns=[w
     ret v2
 }
 
-fn @observedReturn() -> i256 [selector=0xba4bd320, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @observedReturn() -> i256 [selector=0xba4bd320, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     mstore 128, 7
     icall @returnMemory
@@ -58,7 +58,7 @@ fn @observedReturn() -> i256 [selector=0xba4bd320, pure, abi_params=[], abi_retu
     ret 9
 }
 
-fn @observedRevert() [selector=0xcc19b047, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @observedRevert() [selector=0xcc19b047, inline_assembly, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     mstore 128, 7
     icall @revertMemory
@@ -66,7 +66,7 @@ fn @observedRevert() [selector=0xcc19b047, pure, abi_params=[], abi_returns=[], 
     ret
 }
 
-fn @memoryDisjoint() -> i256 [selector=0xc1ce920c, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @memoryDisjoint() -> i256 [selector=0xc1ce920c, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 10
@@ -86,7 +86,7 @@ fn @memoryDisjoint() -> i256 [selector=0xc1ce920c, pure, abi_params=[], abi_retu
     ret v9
 }
 
-fn @memoryOverlap() -> i256 [selector=0xb7b7ef77, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @memoryOverlap() -> i256 [selector=0xb7b7ef77, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 10
@@ -105,7 +105,7 @@ fn @memoryOverlap() -> i256 [selector=0xb7b7ef77, pure, abi_params=[], abi_retur
     ret v8
 }
 
-fn @memoryPartialOverlap() -> i256 [selector=0x3f1d4740, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @memoryPartialOverlap() -> i256 [selector=0x3f1d4740, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 10
@@ -125,7 +125,7 @@ fn @memoryPartialOverlap() -> i256 [selector=0x3f1d4740, pure, abi_params=[], ab
     ret v9
 }
 
-fn @memoryRecursive() -> i256 [selector=0xff857f19, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @memoryRecursive() -> i256 [selector=0xff857f19, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     memory_object_store_element memoryfixedarray<3, 1>, v0, 0, 10
@@ -145,7 +145,7 @@ fn @memoryRecursive() -> i256 [selector=0xff857f19, pure, abi_params=[], abi_ret
     ret v8
 }
 
-fn @writeMemory(arg0: i256) [pure] {
+fn @writeMemory(arg0: i256) [inline_assembly, pure] {
   bb0:
     mstore arg0, 7
     ret
@@ -167,13 +167,13 @@ fn @writeMemoryRecursive(arg0: i256, arg1: i256) [pure] {
     ret
 }
 
-fn @writeOne() {
+fn @writeOne() [inline_assembly] {
   bb0:
     sstore 1, 7 !metadata(storage=slot(1))
     ret
 }
 
-fn @writeSlot(arg0: i256) {
+fn @writeSlot(arg0: i256) [inline_assembly] {
   bb0:
     sstore arg0, 7 !metadata(storage=symbolic(arg0))
     ret
@@ -194,18 +194,18 @@ fn @recurse(arg0: i256) {
     ret
 }
 
-fn @writeTransientOne() {
+fn @writeTransientOne() [inline_assembly] {
   bb0:
     tstore 1, 7
     ret
 }
 
-fn @returnMemory() [pure] {
+fn @returnMemory() [inline_assembly, pure] {
   bb0:
     returndata 128, 32
 }
 
-fn @revertMemory() [pure] {
+fn @revertMemory() [inline_assembly, pure] {
   bb0:
     revert 128, 32
 }

@@ -112,7 +112,7 @@ fn @lenBytes(arg0: memorybytes) -> i256 [pure] {
     ret v0
 }
 
-fn @firstWord(arg0: memorybytes) -> i256 [pure] {
+fn @firstWord(arg0: memorybytes) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = ptrtoint memorybytes arg0 to i256
     v1 = add v0, 32

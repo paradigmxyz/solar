@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/scan_exit_constants.sol:ScanExitConstants ===
 @module ScanExitConstants
-fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gt arg0, 0x400
     v1 = eq v0, false
@@ -15,31 +15,31 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params
     set_memory_object_len memorybytes, v7, arg0
     jump bb1
   bb1:
-    v8 = phi [bb0: v7], [bb3: v8]
-    v9 = phi [bb0: arg0], [bb3: v9]
-    v10 = phi [bb0: 0], [bb3: v20]
-    v11 = phi [bb0: 0], [bb3: v11]
-    v12 = phi [bb0: arg1], [bb3: v12]
-    v13 = lt v10, v9
+    v8 = phi [bb0: arg0], [bb3: v8]
+    v9 = phi [bb0: arg1], [bb3: v9]
+    v10 = phi [bb0: 0], [bb3: v10]
+    v11 = phi [bb0: v7], [bb3: v11]
+    v12 = phi [bb0: 0], [bb3: v20]
+    v13 = lt v12, v8
     jumpi v13, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v21 = ptrtoint memorybytes v8 to i256
+    v21 = ptrtoint memorybytes v11 to i256
     v22 = add v21, 32
-    v23 = add v22, v9
+    v23 = add v22, v8
     mstore v23, 0xdeadbeef
-    v24 = icall @scan, v8
-    v25 = ptrtoint memorybytes v8 to i256
+    v24 = icall @scan, v11
+    v25 = ptrtoint memorybytes v11 to i256
     v26 = add v25, 32
-    v27 = add v26, v9
+    v27 = add v26, v8
     v28 = mload v27
     v29 = eq v28, 0xdeadbeef
     v30 = eq v29, false
     icall revert_if<empty>, v30
     ret v24
   bb4:
-    v14 = eq v10, v12
+    v14 = eq v12, v9
     jumpi v14, bb7, bb8
   bb8:
     jump bb9
@@ -47,21 +47,21 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params
     jump bb9
   bb9:
     v15 = phi [bb7: 0x8000000000000000000000000000000000000000000000000000000000000000], [bb8: 0x4100000000000000000000000000000000000000000000000000000000000000]
-    v16 = memory_object_len memorybytes, v8
-    v17 = lt v10, v16
+    v16 = memory_object_len memorybytes, v11
+    v17 = lt v12, v16
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = byte 0, v15
-    memory_object_store_byte memorybytes, v8, v10, v19
+    memory_object_store_byte memorybytes, v11, v12, v19
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v20 = checked_add u256, v10, 1
+    v20 = checked_add u256, v12, 1
     jump bb1
 }
 
-fn @scan(arg0: memorybytes) -> i256 [pure] {
+fn @scan(arg0: memorybytes) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = ptrtoint memorybytes arg0 to i256
     v1 = mload v0
@@ -77,26 +77,26 @@ fn @scan(arg0: memorybytes) -> i256 [pure] {
     mstore v5, 0
     jump bb4
   bb4:
-    v7 = phi [bb1: 1], [bb8: v7]
-    v8 = phi [bb1: v4], [bb8: v17]
-    v9 = phi [bb1: v6], [bb8: v9]
-    v10 = phi [bb1: arg0], [bb8: v10]
-    v11 = phi [bb1: v1], [bb8: v11]
-    v12 = phi [bb1: v5], [bb8: v12]
+    v7 = phi [bb1: arg0], [bb8: v7]
+    v8 = phi [bb1: 1], [bb8: v8]
+    v9 = phi [bb1: v1], [bb8: v9]
+    v10 = phi [bb1: v4], [bb8: v17]
+    v11 = phi [bb1: v5], [bb8: v11]
+    v12 = phi [bb1: v6], [bb8: v12]
     v13 = ne 1, 0
     jumpi v13, bb6, bb7
   bb7:
     jump bb5
   bb6:
-    v14 = mload v8
+    v14 = mload v10
     v15 = and v14, 0x8080808080808080808080808080808080808080808080808080808080808080
     v16 = ne v15, 0
     jumpi v16, bb9, bb10
   bb10:
     jump bb11
   bb11:
-    v17 = add v8, 32
-    v18 = lt v17, v12
+    v17 = add v10, 32
+    v18 = lt v17, v11
     v19 = zext i1 v18 to i256
     v20 = eq v19, 0
     v21 = zext i1 v20 to i256
@@ -113,13 +113,13 @@ fn @scan(arg0: memorybytes) -> i256 [pure] {
   bb9:
     jump bb5
   bb5:
-    v23 = phi [bb9: 0], [bb12: v7], [bb7: v7]
-    v24 = phi [bb9: v8], [bb12: v17], [bb7: v8]
-    mstore v12, v9
+    v23 = phi [bb9: 0], [bb12: v8], [bb7: v8]
+    v24 = phi [bb9: v10], [bb12: v17], [bb7: v10]
+    mstore v11, v12
     jump bb3
   bb3:
-    v25 = phi [bb5: v10], [bb2: arg0]
+    v25 = phi [bb5: v7], [bb2: arg0]
     v26 = phi [bb5: v23], [bb2: 1]
-    v27 = phi [bb5: v11], [bb2: v1]
+    v27 = phi [bb5: v9], [bb2: v1]
     ret v26
 }

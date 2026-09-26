@@ -4,7 +4,7 @@ types:
   struct0: {i256, i256, i256}
   struct1: {i256, i256}
 
-fn @storeLong() -> struct0 [selector=0xc4a6ec73, abi_params=[], abi_returns=[word, word, word], abi_return_params=[bytes32, bytes32, u256]] {
+fn @storeLong() -> struct0 [selector=0xc4a6ec73, inline_assembly, abi_params=[], abi_returns=[word, word, word], abi_return_params=[bytes32, bytes32, u256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, 33
@@ -36,7 +36,7 @@ fn @storeLong() -> struct0 [selector=0xc4a6ec73, abi_params=[], abi_returns=[wor
     ret v19
 }
 
-fn @storeShort() -> struct1 [selector=0x5296e6c1, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, u256]] {
+fn @storeShort() -> struct1 [selector=0x5296e6c1, inline_assembly, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, u256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, 5

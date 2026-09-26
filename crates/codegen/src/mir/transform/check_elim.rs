@@ -21,11 +21,27 @@
 //! recorded facts with checked 256-bit arithmetic; a condition that is
 //! provably constant folds the branch to an unconditional jump, and the dead
 //! panic block is cleaned up by the existing CFG passes. Anything that is
-//! not provable is left untouched. Explicit integer casts retain range facts only
+//! not provable is left untouched. A width test spelled as a shift, `x >> k`
+//! being zero, bounds `x` below `2^k`, and a zero-extended test is zero
+//! exactly when the test is false, so failure words that `or` several tests
+//! still give each test's fact on the passing edge. Explicit integer casts retain range facts only
 //! when their width and sign semantics preserve the bounded values. Semantic checks use the same
 //! facts in instruction order: a passing check refines all later execution, and a proven passing
 //! check can be removed before expansion. Facts roll back on leaving each dominator subtree, so a
 //! check on one conditional path cannot justify removing a check on another.
+//!
+//! The same facts retire cleanups that change nothing in their scope: an `and`
+//! with a low mask `2^k - 1` of a value bounded by the mask, and a `signextend`
+//! of a value below its sign bit, give way to their operand. These are mostly
+//! the ABI cleanups of a narrowing cast's result behind its own range check.
+//! A branch condition that the code it guards uses again, such as a length
+//! test that also selects a mask, is replaced by its truth wherever the scope
+//! decides it, so `zext(n < 32) - 1` is zero behind `n < 32` and the condition
+//! need not stay live into the arm.
+//! A block that calls a function which never returns to its caller, because
+//! every path reverts, stops, returns from the external call, or tail-calls
+//! such a function, contributes no edge: a failing arm that calls a revert
+//! helper and falls into the join leaves the passing edge's facts intact.
 //!
 //! Before the dominator walk, a bounded forward analysis carries the intersection
 //! of relational facts and the union of ranges across predecessor edges. Phi
@@ -41,6 +57,12 @@
 //! After an edge consumes a single-use predicate, its own range and single-use
 //! negations are discarded. Operand ranges and relations remain available;
 //! predicates referenced by instructions, phis, or other terminators stay live.
+//! A loop header phi's range leaves out the paths that carry it around the loop
+//! unchanged: every visit holds the preheader value or a value an earlier
+//! iteration stored, so the union of the stores' edge ranges covers it by
+//! induction over the header's visits. Phis between a store and the latch are
+//! decomposed into their incoming edges. This bounds a binary search's `low`
+//! and `high`, which one path updates while the other carries them.
 //!
 //! Loop header phis of the form `p = phi [pre: init], [latch: p - c]` with a
 //! constant nonzero step are monotone when the update provably cannot wrap at
@@ -49,6 +71,13 @@
 //! scope without assuming the invariant, then adds the relation to the header's
 //! entry facts and walks again. This establishes `j <= i < length` for a
 //! descending inner index initialized from a bounded outer counter.
+//!
+//! A header phi whose updates are not constant steps is monotone when each
+//! update is proven, in the scope computing it, to stay on the phi's side of its
+//! current value. A binary search's `high = mid - 1` stays below `high` because
+//! the midpoint lies between the bounds, which establishes `high <= length`. The
+//! midpoint fact itself is recorded where `(x + y) >> 1` is defined: when the
+//! scope orders `x <= y` and the sum cannot wrap, it lies between them.
 //!
 //! When both the start and the step of such a phi are constants, the phi also
 //! carries a range bound from the target's trip-count limit: a counter cannot
@@ -59,12 +88,43 @@
 //! path such a check guards is unreachable by any transaction, not merely
 //! unlikely, so removing it preserves the checked semantics.
 //!
+//! Paired zero-based cursors also expose a scaled capacity invariant. When an
+//! input cursor advances by a constant `S`, an output cursor advances by at
+//! most `K * S`, and a checked allocation reserves `input_length * K`,
+//! induction proves every write of at most `K * S` bytes remains within that
+//! allocation. The proof requires the same natural-loop header/backedge, an
+//! active guard (`input < input_length` for a unit step, `input + S <=
+//! input_length` otherwise, found past the header's own checks), an exact
+//! capacity product or doubling, and alias analysis showing that the input
+//! length and output capacity are stable throughout the loop. Unknown writes,
+//! wider output steps, multiple latches, or logical-length mutations retain
+//! their checks.
+//!
+//! Two more universal equalities feed those proofs. A checked `u256` sum equals
+//! a wrapping sum of the same operands wherever it is defined, so a loop test
+//! on `i + 16` covers a bounds check that adds 16 to `i` again. In a module
+//! without inline assembly, rereads of a parameter object's length agree, and
+//! a fresh object's rereads equal the length stored at its allocation, when
+//! nothing in the function can write that length: stores into other fresh
+//! objects cannot reach it, nor can writes that end at or below the zero slot,
+//! such as the scratch words a slot hash writes, a write in a block that leaves
+//! the function reaches only later reads in that block, and calls count
+//! through their memory summaries. The rereads themselves stay in place for the scheduler to
+//! price. A comparison of two sums with constant offsets also reads a reread
+//! length as the checked sum stored at allocation, which cannot wrap, so
+//! `31 + (n & ~31)` stays within a buffer of `(n & 255) + 32` bytes.
+//!
 //! Transitive relational queries lazily index candidate edges once per function,
 //! when a query needs to combine facts. An edge is followed only
 //! when its fact is present in the current scope; the index itself proves
 //! nothing. Derived values that never exceed their source (right shifts, masks,
 //! remainders, divisions by a nonzero constant) contribute universal `<=` edges
-//! that hold in every scope, so `i < length / 2` reaches `i < length`. A value
+//! that hold in every scope, so `i < length / 2` reaches `i < length`. Two
+//! masks of one word are ordered the same way when one mask's bits are a
+//! subset of the other's, as `x & ~31 <= x & 255` after folding merged the
+//! masks that separated a rounded length from the word it came from. So does
+//! an if-converted minimum `b + (a < b) * (a - b)`, below both `a` and `b`,
+//! which lets `i < min(x.length, y.length)` reach both lengths. A value
 //! with a strict path below it in the current scope is at least one, which
 //! folds `length == 0` guards and the `length - 1` underflow check that follow
 //! `i < length / 2`; differences inherit the strict bound of their minuend. Search follows at most
@@ -72,10 +132,28 @@
 //! contains a strict edge. Exhausting this bound leaves the check in place; disequality is never
 //! treated as transitive.
 //!
+//! Bitwise `or` and `xor` stay below the next power of two above both
+//! operands' bounds, and `or` stays at or above each operand, so lane sums over
+//! bytes mixed that way and bit counts built from table lookups stay bounded.
+//!
+//! Checked scaling by a power of two tests that `(x << k) >> k == x`; the test
+//! holds whenever `x`'s range leaves its top `k` bits clear, so an allocation
+//! sized from a bounded length drops it. A checked product
+//! `or (eq y, 0), (eq (div (mul x, y), y), x)` holds whenever the bounds of `x`
+//! and `y` multiply without wrapping; its first disjunct covers a zero `y`. A
+//! difference `a - b` taken where the scope orders `b <= a` cannot wrap, so it
+//! stays below `a`'s bound even when the operands' ranges overlap. Together they
+//! drop the capacity checks of a replacement sized from bounded lengths.
+//!
 //! Signed comparisons rotate intervals by the sign bit to use the same ordered
 //! bounds. An interval crossing the rotation boundary widens to unknown; signed
 //! facts only become unsigned relations when both operands have the same known
 //! sign. These bounds use the existing join and dominance scopes.
+//!
+//! A module without inline assembly bounds every memory object's logical length by the
+//! allocation limit: each length was written by a checked allocation, an ABI decoder, or a core
+//! operation that only shortens an object. Assembly can store any word in a length word, so a
+//! module with any function carrying assembly, directly or inlined, keeps lengths unknown.
 //!
 //! Runtime-only functions also use bounds from zero-extended immutable encodings.
 //! These bounds follow the target's actual immediate width, not the result's
@@ -104,14 +182,19 @@
 use super::{call_cleanup, cfg_simplify::simplify_function, egraph::max_bits_with_args};
 use crate::{
     mir::{
-        BlockId, Builtin, Callee, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
-        InstKind, Module, Terminator, TypeSize, Value, ValueId, ValueLayout,
-        analysis::{CallGraphInfo, CfgInfo},
+        ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, Function, FunctionId, Immediate,
+        ImmutableEncoding, ImmutableId, InstId, InstKind, Module, Terminator, TypeSize, Value,
+        ValueId, ValueLayout,
+        analysis::{
+            Access, AddressSpace, AliasAnalysis, CallGraphInfo, CfgInfo, Location,
+            MemoryCallSummaries,
+        },
         immutable::immutable_push_type_size,
+        memory::EvmMemoryLayout,
         pass::{
             MirPass, run_function_pass, run_function_pass_with_cfg, run_selected_function_pass,
         },
-        utils::fold_terminator_to_jump,
+        utils::{self as mir_utils, fold_terminator_to_jump},
     },
     target::Target,
 };
@@ -122,7 +205,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
-use std::rc::Rc;
+use std::{rc::Rc, sync::Arc};
 
 /// Function pass for range-based overflow-check elimination.
 pub(crate) struct CheckElim;
@@ -138,8 +221,13 @@ impl MirPass for CheckElim {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let object_lengths = object_length_bound(module);
+        let summaries = object_lengths.is_some().then(|| analyses.call_summaries(module));
+        let never_returning = Arc::new(never_returning(module));
         run_function_pass(module, analyses, |func, _| {
-            let mut eliminator = CheckEliminator::new(None);
+            let mut eliminator = CheckEliminator::new(None, object_lengths);
+            eliminator.call_summaries.clone_from(&summaries);
+            eliminator.never_returning = Some(Arc::clone(&never_returning));
             eliminator.run(func) != 0
         })
     }
@@ -166,14 +254,17 @@ impl MirPass for LateCheckElim {
                 leads_to_revert(func, BlockId::ENTRY, &FxHashSet::default()).then_some(id)
             })
             .collect::<FxHashSet<_>>();
+        let object_lengths = object_length_bound(module);
+        let never_returning = Arc::new(never_returning(module));
         run_function_pass_with_cfg(module, analyses, |func, analyses| {
             let selected =
                 gcx.sess.opts.optimization.is_gas().then(|| analyses.cfg().cyclic_blocks());
             if selected.is_some_and(DenseBitSet::is_empty) {
                 return false;
             }
-            let mut eliminator = CheckEliminator::new(None);
+            let mut eliminator = CheckEliminator::new(None, object_lengths);
             eliminator.cfg = Some(Rc::clone(analyses.cfg()));
+            eliminator.never_returning = Some(Arc::clone(&never_returning));
             let changed =
                 eliminator.run_in_blocks(func, selected.map(|blocks| (blocks, &reverting))) != 0;
             if changed {
@@ -184,6 +275,35 @@ impl MirPass for LateCheckElim {
             changed
         })
     }
+}
+
+/// Functions that never return to their caller: no path reaches an internal
+/// `return`, and every tail call goes to another such function. Calling one
+/// ends the frame by reverting, stopping, returning from the external call or
+/// looping, so the caller's code after the call never runs.
+fn never_returning(module: &Module) -> FxHashSet<FunctionId> {
+    let mut returning = DenseBitSet::new_empty(module.functions.len());
+    loop {
+        let mut changed = false;
+        for (id, func) in module.functions.iter_enumerated() {
+            if returning.contains(id) {
+                continue;
+            }
+            let returns = func.blocks.iter().any(|block| match &block.terminator {
+                Some(Terminator::Return { .. }) => true,
+                Some(Terminator::TailCall { function, .. }) => returning.contains(*function),
+                _ => false,
+            });
+            if returns {
+                returning.insert(id);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    module.functions.indices().filter(|&id| !returning.contains(id)).collect()
 }
 
 /// Recognizes short unconditional failure paths, including outlined revert helpers.
@@ -202,6 +322,18 @@ fn leads_to_revert(func: &Function, mut block: BlockId, reverting: &FxHashSet<Fu
 }
 
 /// Applies runtime immutable bounds after getter inlining exposes their loads.
+/// The range every memory object's logical length stays in, when the module guarantees one.
+///
+/// Without inline assembly, each length was written by a checked allocation, an ABI decoder,
+/// or a core operation that only shortens an object, so the object and its header fit below
+/// the allocation limit. Assembly can store any word in a length, so any function carrying it
+/// leaves lengths unknown. Removed functions no longer run, and inlining keeps the bit on the
+/// callers that received their code.
+fn object_length_bound(module: &Module) -> Option<Range> {
+    (!module.functions.iter().any(|func| func.attributes.inline_assembly))
+        .then(|| Range::new(U256::ZERO, U256::from(EvmMemoryLayout::MAX_ALLOCATION_END)))
+}
+
 pub(crate) struct ImmutableCheckElim;
 
 impl MirPass for ImmutableCheckElim {
@@ -245,8 +377,9 @@ impl MirPass for ImmutableCheckElim {
                 runtime_only.remove(id);
             }
         }
+        let object_lengths = object_length_bound(module);
         run_selected_function_pass(module, analyses, &runtime_only, |func, analyses| {
-            let mut eliminator = CheckEliminator::new(Some(&bounds));
+            let mut eliminator = CheckEliminator::new(Some(&bounds), object_lengths);
             eliminator.cfg = Some(Rc::clone(analyses.cfg()));
             eliminator.run(func) != 0
         }) || narrowed
@@ -290,7 +423,7 @@ fn narrow_immutable_layouts(module: &mut Module) -> bool {
 }
 
 /// Excludes every constructor-reachable helper, including recursive and tail-call edges.
-fn runtime_only_functions(module: &Module) -> DenseBitSet<FunctionId> {
+pub(super) fn runtime_only_functions(module: &Module) -> DenseBitSet<FunctionId> {
     let graph = CallGraphInfo::new(module);
     let roots = |constructor| {
         module.functions.iter_enumerated().filter_map(move |(id, func)| {
@@ -326,6 +459,10 @@ struct CheckElimStats {
     /// Number of branches folded to unconditional jumps.
     branches_folded: usize,
     checks_removed: usize,
+    /// Number of masks and sign extensions proven to leave their operand unchanged.
+    cleanups_removed: usize,
+    /// Number of branch-condition uses replaced by the truth their scope proves.
+    conditions_decided: usize,
 }
 
 /// An inclusive unsigned 256-bit interval.
@@ -373,6 +510,16 @@ impl Range {
     }
 }
 
+/// What one dominator walk proves: branches to fold into jumps to the kept
+/// target, passing checks to remove, cleanups whose result is their operand,
+/// and uses of a branch condition whose truth the use's scope decides.
+struct WalkProofs {
+    folds: Vec<(BlockId, BlockId)>,
+    checks: DenseBitSet<InstId>,
+    cleanups: Vec<(ValueId, ValueId)>,
+    decided: Vec<(InstId, ValueId, bool)>,
+}
+
 /// Differences indexed under their subtrahend, each entry a minuend and the
 /// value holding their difference.
 type DifferenceIndex = FxHashMap<ValueId, SmallVec<[(ValueId, ValueId); 2]>>;
@@ -417,6 +564,10 @@ struct MonotonePhi {
     value: ValueId,
     /// The incoming value from outside the loop.
     initial: ValueId,
+    /// The predecessor carrying `initial` into the header.
+    preheader: BlockId,
+    /// The predecessor carrying `next` back into the header.
+    latch: BlockId,
     /// The backedge update result, `value - step` or `value + step`.
     next: ValueId,
     /// The constant step operand.
@@ -427,8 +578,70 @@ struct MonotonePhi {
     decreasing: bool,
 }
 
+/// A loop-carried output cursor that advances by at most `max_step` while a
+/// sibling input cursor advances by a constant `step`.
+///
+/// Both cursors start at zero and share the same header and backedge. Combined
+/// with the loop guard, which puts `index + step <= length` in the body, and an
+/// exact `capacity = length * scale` where `max_step <= scale * step`,
+/// induction gives `cursor <= index * scale`. This is the checked
+/// string-builder shape: every iteration can safely write at most the capacity
+/// reserved for the input items it consumes.
+#[derive(Clone, Debug)]
+struct ScaledCursor {
+    cursor: ValueId,
+    index: ValueId,
+    length: ValueId,
+    /// The input cursor's constant step.
+    step: U256,
+    /// The guard fact active in the loop body: `index < length` for a unit
+    /// step, or `index + step <= length`.
+    guard: Relation,
+    /// Whether the guard's sum wraps instead of checking, so that the proof
+    /// must bound the index first.
+    wrapping_sum: bool,
+    preheader: BlockId,
+    loop_blocks: DenseBitSet<BlockId>,
+    max_step: U256,
+}
+
 impl MonotonePhi {
     /// The invariant that holds once the update is known not to wrap.
+    fn relation(&self) -> Relation {
+        if self.decreasing {
+            Relation::Le(self.value, self.initial)
+        } else {
+            Relation::Le(self.initial, self.value)
+        }
+    }
+}
+
+/// A loop header phi whose updates never move it away from its initial value,
+/// pending a proof of each update in the scope computing it.
+///
+/// `p = phi [pre: init], [latch: next]`, where `next` reaches the latch through
+/// phis whose inputs are `p` itself or an update instruction. When every update
+/// `u` satisfies `u <= p` (or `p <= u`) where it is computed, `p <= init` (or
+/// `init <= p`) holds on every iteration by induction: each header visit holds
+/// `init`, the previous visit's value, or an update no further from `init` than
+/// that value. Unlike [`MonotonePhi`], an update need not be a constant step:
+/// a binary search's `high = mid - 1` stays below `high` because `mid <= high`.
+#[derive(Clone, Debug)]
+struct BoundedPhi {
+    /// The loop header holding the phi.
+    header: BlockId,
+    /// The phi result.
+    value: ValueId,
+    /// The incoming value from outside the loop.
+    initial: ValueId,
+    /// Whether every update must stay at or below the phi, rather than at or above it.
+    decreasing: bool,
+    /// Each update with the block defining it, whose facts decide the update's bound.
+    updates: SmallVec<[(ValueId, BlockId); 2]>,
+}
+
+impl BoundedPhi {
+    /// The invariant that holds once every update is known to stay bounded.
     fn relation(&self) -> Relation {
         if self.decreasing {
             Relation::Le(self.value, self.initial)
@@ -443,8 +656,16 @@ impl MonotonePhi {
 struct CheckEliminator<'a> {
     /// Context-independent bounds for runtime-only immutable loads.
     immutable_ranges: Option<&'a FxHashMap<ImmutableId, Range>>,
+    /// Bound on every memory object's logical length, when the module guarantees one.
+    object_lengths: Option<Range>,
+    /// Module call summaries, which let calls that write no parameter keep its
+    /// length stable.
+    call_summaries: Option<Arc<MemoryCallSummaries>>,
     /// Shared CFG snapshot taken at entry, matching the previous fresh build.
     cfg: Option<Rc<CfgInfo>>,
+    /// Functions that never return to their caller; a block that calls one
+    /// never reaches its terminator.
+    never_returning: Option<Arc<FxHashSet<FunctionId>>>,
     /// Statistics from the last run.
     stats: CheckElimStats,
     ranges: FxHashMap<ValueId, Range>,
@@ -456,6 +677,9 @@ struct CheckEliminator<'a> {
     /// Orderings between a derived value and its source that hold wherever the
     /// value exists: shifts, masks, and constant divisions never grow.
     universal_relations: FxHashSet<Relation>,
+    /// The value each stable object-length read agrees with: the length stored
+    /// right after a fresh object's allocation, or a parameter's first read.
+    length_anchors: FxHashMap<ValueId, ValueId>,
     /// Relations indexed under their right operand, for lower-bound searches.
     reverse_index: Option<FxHashMap<ValueId, SmallVec<[Relation; 2]>>>,
     /// Differences indexed under their subtrahend: `b` maps to every `(a, a - b)`.
@@ -467,6 +691,8 @@ struct CheckEliminator<'a> {
     /// Counting header phis with constant start and step, bounded by the
     /// distance any affordable number of iterations can travel.
     trip_bounds: FxHashMap<ValueId, Range>,
+    /// Structurally proved bounded output cursors in natural loops.
+    scaled_cursors: Vec<ScaledCursor>,
     range_undo: Vec<(ValueId, Option<Range>)>,
     relation_undo: Vec<Relation>,
 }
@@ -474,8 +700,11 @@ struct CheckEliminator<'a> {
 impl<'a> CheckEliminator<'a> {
     /// Creates a new check eliminator.
     #[must_use]
-    fn new(immutable_ranges: Option<&'a FxHashMap<ImmutableId, Range>>) -> Self {
-        Self { immutable_ranges, ..Self::default() }
+    fn new(
+        immutable_ranges: Option<&'a FxHashMap<ImmutableId, Range>>,
+        object_lengths: Option<Range>,
+    ) -> Self {
+        Self { immutable_ranges, object_lengths, ..Self::default() }
     }
 
     /// Runs check elimination on a function. Returns the number of folded
@@ -497,7 +726,9 @@ impl<'a> CheckEliminator<'a> {
         self.difference_index = None;
         self.monotone_relations.clear();
         self.universal_relations.clear();
+        self.length_anchors.clear();
         self.trip_bounds.clear();
+        self.scaled_cursors.clear();
         if !func.blocks.iter().any(|block| {
             matches!(
                 block.terminator,
@@ -517,11 +748,23 @@ impl<'a> CheckEliminator<'a> {
             return 0;
         }
         self.universal_relations = universal_relations(func, &relevant);
+        self.universal_relations.extend(checked_sum_twins(func));
+        if self.object_lengths.is_some() {
+            for (read, anchor) in stable_object_lengths(func, self.call_summaries.clone()) {
+                self.length_anchors.insert(read, anchor);
+                let (a, b) = ordered(anchor, read);
+                self.universal_relations.insert(Relation::Eq(a, b));
+            }
+        }
 
         // Predecessors recomputed from reachable terminators: facts must only
-        // come from edges that can actually execute.
+        // come from edges that can actually execute. A block that calls a
+        // function that never returns ends the frame before its terminator.
         let mut preds = index_vec![Vec::new(); func.blocks.len()];
         for &block in cfg.rpo() {
+            if self.calls_never_returning(func, block) {
+                continue;
+            }
             for &succ in cfg.successors(block) {
                 preds[succ].push(block);
             }
@@ -541,38 +784,68 @@ impl<'a> CheckEliminator<'a> {
             self.join_facts(func, &cfg, &preds, &relevant)
         };
         let candidates = monotone_phi_candidates(func, &cfg, &preds, &relevant);
+        let bounded = bounded_phi_candidates(func, &cfg, &preds, &relevant, &candidates);
+        self.scaled_cursors = scaled_cursor_candidates(func, &cfg, &preds, &candidates);
         for phi in &candidates {
             if let Some(bound) = trip_count_bound(func, phi) {
                 self.trip_bounds.insert(phi.value, bound);
             }
         }
         let mut proven = Vec::new();
-        let (mut folds, mut checks) =
-            self.collect_folds(func, &cfg, &preds, &facts, &candidates, &mut proven);
-        if !proven.is_empty() {
+        let mut bounded_proofs = vec![0; bounded.len()];
+        let mut proofs = self.collect_folds(
+            func,
+            &cfg,
+            &preds,
+            &facts,
+            (&candidates, &mut proven),
+            (&bounded, &mut bounded_proofs),
+        );
+        let invariants = proven
+            .iter()
+            .map(|phi| (phi.header, phi.value, phi.initial, phi.decreasing, phi.relation()))
+            .chain(
+                bounded
+                    .iter()
+                    .zip(&bounded_proofs)
+                    .filter(|&(phi, &proofs)| proofs == phi.updates.len())
+                    .map(|(phi, _)| {
+                        (phi.header, phi.value, phi.initial, phi.decreasing, phi.relation())
+                    }),
+            )
+            .collect::<Vec<_>>();
+        if !invariants.is_empty() {
             // The invariant is available wherever the phi is: attach it to the
             // header's entry facts and index it for transitive queries.
-            for phi in &proven {
-                facts[phi.header].relations.insert(phi.relation());
-                if let Some(initial) = const_of(func, phi.initial) {
-                    let bound = if phi.decreasing {
+            for (header, value, initial, decreasing, relation) in invariants {
+                facts[header].relations.insert(relation);
+                if let Some(initial) = const_of(func, initial) {
+                    let bound = if decreasing {
                         Range::new(U256::ZERO, initial)
                     } else {
                         Range::new(initial, U256::MAX)
                     };
-                    let ranges = &mut facts[phi.header].ranges;
+                    let ranges = &mut facts[header].ranges;
                     let narrowed = ranges
-                        .get(&phi.value)
+                        .get(&value)
                         .map_or(bound, |range| range.intersect(bound).unwrap_or(*range));
-                    ranges.insert(phi.value, narrowed);
+                    ranges.insert(value, narrowed);
                 }
-                self.monotone_relations.push(phi.relation());
+                self.monotone_relations.push(relation);
             }
             self.relation_index = None;
             self.reverse_index = None;
             self.strict_lower_bounds = None;
-            (folds, checks) = self.collect_folds(func, &cfg, &preds, &facts, &[], &mut Vec::new());
+            proofs = self.collect_folds(
+                func,
+                &cfg,
+                &preds,
+                &facts,
+                (&[], &mut Vec::new()),
+                (&[], &mut []),
+            );
         }
+        let WalkProofs { mut folds, checks, cleanups, decided } = proofs;
         if let Some((selected, reverting)) = selected {
             folds.retain(|&(block, keep)| {
                 if selected.contains(block)
@@ -591,8 +864,21 @@ impl<'a> CheckEliminator<'a> {
         self.range_undo.clear();
         self.relation_undo.clear();
 
-        if folds.is_empty() && checks.is_empty() {
+        let decided = if selected.is_some() { Vec::new() } else { decided };
+        if folds.is_empty() && checks.is_empty() && cleanups.is_empty() && decided.is_empty() {
             return 0;
+        }
+        // v = op c, ... where the use's scope decides c => v = op true|false, ...
+        for &(inst, condition, truth) in &decided {
+            let constant = func.alloc_value(Value::Immediate(Immediate::I1(truth)));
+            let replacements = FxHashMap::from_iter([(condition, constant)]);
+            mir_utils::replace_inst_uses(func.inst_mut(inst), &replacements);
+        }
+        if !cleanups.is_empty() {
+            // v = and x, 2^k - 1 (x <= 2^k - 1) => x
+            // v = signextend b, x (x below the sign bit) => x
+            let replacements = cleanups.iter().copied().collect::<FxHashMap<_, _>>();
+            func.replace_uses_canonicalized(&replacements);
         }
         // branch proven_condition, keep, discard => jump keep
         for &(block, keep) in &folds {
@@ -607,22 +893,28 @@ impl<'a> CheckEliminator<'a> {
         }
         self.stats.branches_folded = folds.len();
         self.stats.checks_removed = checks.count();
-        self.stats.branches_folded + self.stats.checks_removed
+        self.stats.cleanups_removed = cleanups.len();
+        self.stats.conditions_decided = decided.len();
+        self.stats.branches_folded
+            + self.stats.checks_removed
+            + self.stats.cleanups_removed
+            + self.stats.conditions_decided
     }
 
     /// Walks the dominator tree, recording edge and check facts. Returns branch folds and
     /// proven passing checks to remove.
-    /// `candidates` whose update is proven wrap-free in its defining block's
-    /// scope are appended to `proven`.
+    /// Monotone candidates whose update is proven wrap-free in its defining block's
+    /// scope are appended to their `proven` list. Each bounded candidate's count
+    /// grows by one for every update proven to stay bounded in its own scope.
     fn collect_folds(
         &mut self,
         func: &Function,
         cfg: &CfgInfo,
         preds: &IndexVec<BlockId, Vec<BlockId>>,
         facts: &IndexVec<BlockId, Facts>,
-        candidates: &[MonotonePhi],
-        proven: &mut Vec<MonotonePhi>,
-    ) -> (Vec<(BlockId, BlockId)>, DenseBitSet<InstId>) {
+        (candidates, proven): (&[MonotonePhi], &mut Vec<MonotonePhi>),
+        (bounded, bounded_proofs): (&[BoundedPhi], &mut [usize]),
+    ) -> WalkProofs {
         enum Walk {
             Enter(BlockId),
             Exit { range_mark: usize, relation_mark: usize },
@@ -630,6 +922,24 @@ impl<'a> CheckEliminator<'a> {
 
         let mut folds = Vec::new();
         let mut checks = DenseBitSet::new_empty(func.num_insts());
+        let mut cleanups = Vec::new();
+        let mut decided = Vec::new();
+        // A branch condition reused by the code it guards, such as a length
+        // test that also selects a mask, is decided wherever the edge it
+        // took dominates the use.
+        let conditions = func
+            .blocks
+            .iter()
+            .filter_map(|block| match block.terminator {
+                Some(Terminator::Branch { condition, then_block, else_block })
+                    if then_block != else_block
+                        && !matches!(func.value(condition), Value::Immediate(_)) =>
+                {
+                    Some(condition)
+                }
+                _ => None,
+            })
+            .collect::<FxHashSet<_>>();
         let mut stack = vec![Walk::Enter(BlockId::ENTRY)];
         while let Some(item) = stack.pop() {
             match item {
@@ -688,6 +998,36 @@ impl<'a> CheckEliminator<'a> {
                             }
                             self.assume(func, condition, passing, MAX_DEPTH);
                         }
+                        if let Some(average) = func.inst_result_value(id) {
+                            self.assume_average(func, average);
+                        }
+                        if let Some(result) = func.inst_result_value(id)
+                            && let Some(operand) = self.redundant_cleanup(func, id)
+                        {
+                            cleanups.push((result, operand));
+                        }
+                        if fact.is_none() && !matches!(func.inst(id).kind, InstKind::Phi(_)) {
+                            for operand in func.inst(id).kind.operands() {
+                                if conditions.contains(&operand)
+                                    && !decided
+                                        .iter()
+                                        .any(|&(inst, value, _)| inst == id && value == operand)
+                                    && let Some(truth) = self.eval_truth(func, operand, MAX_DEPTH)
+                                {
+                                    decided.push((id, operand, truth));
+                                }
+                            }
+                        }
+                    }
+
+                    // Every path from an update to the latch leaves this block, so the
+                    // facts at its end hold wherever the update reaches the phi.
+                    for (phi, proofs) in bounded.iter().zip(bounded_proofs.iter_mut()) {
+                        for &(update, home) in &phi.updates {
+                            if home == block && self.update_stays_bounded(func, phi, update) {
+                                *proofs += 1;
+                            }
+                        }
                     }
 
                     if let Some(Terminator::Branch { condition, then_block, else_block }) =
@@ -704,7 +1044,72 @@ impl<'a> CheckEliminator<'a> {
                 }
             }
         }
-        (folds, checks)
+        WalkProofs { folds, checks, cleanups, decided }
+    }
+
+    /// Whether `block` calls a function that never returns to its caller.
+    fn calls_never_returning(&self, func: &Function, block: BlockId) -> bool {
+        let Some(never_returning) = &self.never_returning else { return false };
+        func.blocks[block].instructions.iter().any(|&inst| {
+            matches!(
+                func.inst(inst).kind,
+                InstKind::ICall { function: Callee::Function(callee), .. }
+                    if never_returning.contains(&callee)
+            )
+        })
+    }
+
+    /// Returns the operand of a cleanup the scope already proves idle: an `and`
+    /// with a low mask `2^k - 1` of a value at most the mask, or a
+    /// `signextend` of a value whose sign bit and every bit above it are
+    /// clear.
+    fn redundant_cleanup(&mut self, func: &Function, inst: InstId) -> Option<ValueId> {
+        match func.inst(inst).kind {
+            InstKind::And(a, b) => {
+                let (value, mask) = match (const_of(func, a), const_of(func, b)) {
+                    (None, Some(mask)) => (a, mask),
+                    (Some(mask), None) => (b, mask),
+                    _ => return None,
+                };
+                let low_mask =
+                    mask.checked_add(U256::from(1)).is_some_and(|next| next & mask == U256::ZERO);
+                (low_mask && self.range_of(func, value, MAX_DEPTH).hi <= mask).then_some(value)
+            }
+            InstKind::SignExtend(byte, value) => {
+                let byte = const_of(func, byte).filter(|byte| *byte < U256::from(31))?;
+                let sign_bit = U256::from(1) << (8 * byte.to::<usize>() + 7);
+                (self.range_of(func, value, MAX_DEPTH).hi < sign_bit).then_some(value)
+            }
+            _ => None,
+        }
+    }
+
+    /// Decides in the current scope whether a bounded phi's update stays on the
+    /// phi's side of its current value, without assuming the invariant it would
+    /// establish.
+    fn update_stays_bounded(&mut self, func: &Function, phi: &BoundedPhi, update: ValueId) -> bool {
+        let (low, high) = if phi.decreasing { (update, phi.value) } else { (phi.value, update) };
+        self.eval_lt(func, high, low, MAX_DEPTH) == Some(false)
+            || self.eval_lt(func, low, high, MAX_DEPTH) == Some(true)
+    }
+
+    /// Records that a halved sum lies between its addends.
+    ///
+    /// `(x + y) >> 1` is at least `x` and at most `y` when `x <= y` and the sum
+    /// does not wrap: `2x <= x + y <= 2y`, and halving keeps the order. A binary
+    /// search's midpoint then stays within its bounds.
+    fn assume_average(&mut self, func: &Function, average: ValueId) {
+        let Some((sum, x, y)) = halved_sum(func, average) else { return };
+        if self.eval_lt(func, sum, x, MAX_DEPTH) != Some(false) {
+            return;
+        }
+        for (low, high) in [(x, y), (y, x)] {
+            if self.has_relation(func, Relation::Le(low, high)) {
+                self.add_relation(Relation::Le(low, average));
+                self.add_relation(Relation::Le(average, high));
+                return;
+            }
+        }
     }
 
     /// Decides in the current scope whether a monotone phi's update cannot
@@ -761,8 +1166,18 @@ impl<'a> CheckEliminator<'a> {
         }
         let mut entries = index_vec![Facts::default(); func.blocks.len()];
         let mut exits = entries.clone();
-        let mut cx = Self::new(self.immutable_ranges);
+        // Loop headers: blocks entered by an edge from a block they dominate.
+        let mut headers = DenseBitSet::new_empty(func.blocks.len());
+        for &block in cfg.rpo() {
+            if preds[block].iter().any(|&pred| cfg.dominators().dominates(block, pred)) {
+                headers.insert(block);
+            }
+        }
+        // The latest range of each phi input on its incoming edge.
+        let mut edge_ranges = FxHashMap::<(ValueId, BlockId), Range>::default();
+        let mut cx = Self::new(self.immutable_ranges, self.object_lengths);
         cx.universal_relations.clone_from(&self.universal_relations);
+        cx.length_anchors.clone_from(&self.length_anchors);
         let mut pending = cfg.reachable().clone();
         for _ in 0..MAX_ROUNDS {
             let mut changed = false;
@@ -802,6 +1217,9 @@ impl<'a> CheckEliminator<'a> {
                                 Some((value, cx.range_of(func, input, MAX_DEPTH)))
                             })
                             .collect();
+                        for &(value, range) in &phi_ranges {
+                            edge_ranges.insert((value, pred), range);
+                        }
                         for value in consumed_conditions.get(&pred).into_iter().flatten() {
                             cx.ranges.remove(value);
                         }
@@ -836,6 +1254,34 @@ impl<'a> CheckEliminator<'a> {
                                 ranges: std::mem::take(&mut cx.ranges),
                                 relations: std::mem::take(&mut cx.relations),
                             });
+                        }
+                    }
+                }
+                if headers.contains(block)
+                    && let Some(merged) = &mut merged
+                {
+                    for &inst in &func.blocks[block].instructions {
+                        let InstKind::Phi(incoming) = &func.inst(inst).kind else { continue };
+                        let Some(value) = func.inst_result_value(inst) else { continue };
+                        if !relevant.contains(value) {
+                            continue;
+                        }
+                        let carried =
+                            incoming.iter().try_fold(None::<Range>, |acc, &(pred, input)| {
+                                let range =
+                                    carried_range(func, value, value, pred, input, &edge_ranges, 4);
+                                let acc = match (acc, range) {
+                                    (Some(acc), Some(range)) => Some(acc.union(range)),
+                                    (acc, range) => acc.or(range),
+                                };
+                                (acc != Some(Range::FULL)).then_some(acc)
+                            });
+                        if let Some(Some(range)) = carried {
+                            let narrowed = merged
+                                .ranges
+                                .get(&value)
+                                .map_or(range, |known| known.intersect(range).unwrap_or(*known));
+                            merged.ranges.insert(value, narrowed);
                         }
                     }
                 }
@@ -910,6 +1356,23 @@ impl<'a> CheckEliminator<'a> {
                 self.assume(func, a, false, depth);
                 self.assume(func, b, false, depth);
             }
+            // `shr k, x` is nonzero exactly when `x >= 2^k`.
+            InstKind::Shr(shift, x) => {
+                if let Some(bits) = shift_amount(self, func, shift, depth) {
+                    if bits == 0 {
+                        self.assume(func, x, truth, depth);
+                    } else {
+                        let limit = U256::MAX >> (256 - bits);
+                        if truth {
+                            self.narrow(x, Range::new(limit + U256::from(1), U256::MAX));
+                        } else {
+                            self.narrow(x, Range::new(U256::ZERO, limit));
+                        }
+                    }
+                }
+            }
+            // A zero extension is zero exactly when its source is.
+            InstKind::Zext(source) => self.assume(func, source, truth, depth),
             _ => {}
         }
     }
@@ -1153,6 +1616,220 @@ impl<'a> CheckEliminator<'a> {
         amounts.into_iter().any(|amount| hi.checked_add(amount).is_some())
     }
 
+    /// Decides `x + c1 < y + c2` from a fact `x + d < y` or `x + d <= y`:
+    /// `Some(true)` when the sum is strictly below, `Some(false)` when it is
+    /// only at most equal. Needs `d <= c1 <= d + c2`, so `x + c1` is
+    /// `(x + d) + (c1 - d)` with `c1 - d <= c2`, and `y + c2` not wrapping,
+    /// which its own passing check, its range or a checked sum establishes;
+    /// then neither side wraps and the order carries over. A side without an
+    /// offset has an offset of zero. A limit equal in scope to a sum, such as
+    /// a reread length equal to the checked sum stored at allocation, is also
+    /// tried as that sum.
+    fn shifted_below(
+        &mut self,
+        func: &Function,
+        a: ValueId,
+        b: ValueId,
+        depth: usize,
+    ) -> Option<bool> {
+        self.ensure_reverse_index(func);
+        let reverse = self.reverse_index.as_ref().expect("relation index was just built");
+        let mut limits = SmallVec::<[_; 2]>::new();
+        limits.push(shifted_operand(func, b));
+        for &fact in reverse.get(&b).into_iter().flatten() {
+            if let Relation::Eq(p, q) = fact
+                && (self.relations.contains(&fact) || self.universal_relations.contains(&fact))
+            {
+                let sum = if p == b { q } else { p };
+                let limit = shifted_operand(func, sum);
+                if !limit.1.is_zero() && !limits.contains(&limit) {
+                    limits.push(limit);
+                }
+            }
+        }
+        let mut result = None;
+        for (y, c2, exact) in limits {
+            match self.shifted_below_limit(func, a, b, (y, c2, exact), depth) {
+                Some(true) => return Some(true),
+                Some(false) => result = Some(false),
+                None => {}
+            }
+        }
+        result
+    }
+
+    /// [`Self::shifted_below`] against one form `y + c2` of the limit `b`,
+    /// `exact` when that sum is checked and so cannot wrap.
+    fn shifted_below_limit(
+        &mut self,
+        func: &Function,
+        a: ValueId,
+        b: ValueId,
+        (y, c2, exact): (ValueId, U256, bool),
+        depth: usize,
+    ) -> Option<bool> {
+        let (x, c1, _) = shifted_operand(func, a);
+        if x == y || (c1.is_zero() && c2.is_zero()) {
+            return None;
+        }
+        let reverse = self.reverse_index.as_ref().expect("relation index was just built");
+        let mut best = None::<(U256, bool)>;
+        for &fact in reverse.get(&y).into_iter().flatten() {
+            let (index, strict) = match fact {
+                Relation::Lt(index, limit) if limit == y => (index, true),
+                Relation::Le(index, limit) if limit == y => (index, false),
+                _ => continue,
+            };
+            if !self.relations.contains(&fact) && !self.universal_relations.contains(&fact) {
+                continue;
+            }
+            let (base, d, _) = shifted_operand(func, index);
+            if base != x || d > c1 {
+                continue;
+            }
+            if best.is_none_or(|(known, _)| d > known || (d == known && strict)) {
+                best = Some((d, strict));
+            }
+        }
+        let (d, strict) = best?;
+        let reach = d.checked_add(c2)?;
+        if c1 > reach {
+            return None;
+        }
+        let sum_sound = c2.is_zero()
+            || exact
+            || self.has_relation(func, Relation::Le(y, b))
+            || self.range_of(func, y, depth).hi.checked_add(c2).is_some();
+        if !sum_sound {
+            return None;
+        }
+        Some(strict || c1 < reach)
+    }
+
+    /// Whether a bounded loop cursor plus `width` fits in `capacity`.
+    ///
+    /// This discharges checked fixed-width writes in builders that reserve
+    /// `scale * input_length` bytes and consume a constant number of input
+    /// items per iteration. The proof is structural and local to a natural
+    /// loop: both cursors start at zero, the input cursor steps by a constant,
+    /// every output update is bounded by `scale` times that step, and no loop
+    /// block changes the output object's logical length. A checked
+    /// multiplication, or its still-dominating round-trip check after
+    /// lowering, proves that the capacity product is exact.
+    fn scaled_cursor_fits(
+        &mut self,
+        func: &Function,
+        cursor: ValueId,
+        width: U256,
+        capacity: Option<ValueId>,
+        depth: usize,
+    ) -> bool {
+        let candidates = self
+            .scaled_cursors
+            .iter()
+            .filter(|candidate| candidate.cursor == cursor && width <= candidate.max_step)
+            .cloned()
+            .collect::<Vec<_>>();
+        for candidate in candidates {
+            if !self.has_relation(func, candidate.guard)
+                || (candidate.wrapping_sum
+                    && self
+                        .range_of(func, candidate.index, depth)
+                        .hi
+                        .checked_add(candidate.step)
+                        .is_none())
+            {
+                continue;
+            }
+            let requested_object = capacity.and_then(|value| match inst_kind(func, value) {
+                Some(&InstKind::MemoryObjectLen(object, kind)) => Some((object, kind)),
+                _ => None,
+            });
+            for &inst_id in &func.blocks[candidate.preheader].instructions {
+                let InstKind::SetMemoryObjectLen(object, length, kind) = func.inst(inst_id).kind
+                else {
+                    continue;
+                };
+                if requested_object.is_some_and(|requested| requested != (object, kind)) {
+                    continue;
+                }
+                if capacity.is_some_and(|capacity| {
+                    requested_object.is_none() && !values_equal(func, capacity, length)
+                }) {
+                    continue;
+                }
+                if candidate.loop_blocks.iter().any(|block| {
+                    func.blocks[block].instructions.iter().any(|&inst| {
+                        matches!(func.inst(inst).kind,
+                            InstKind::SetMemoryObjectLen(loop_object, _, loop_kind)
+                                if loop_object == object && loop_kind == kind)
+                    })
+                }) {
+                    continue;
+                }
+                let Some(scale) = self.exact_scale(func, length, &candidate, depth) else {
+                    continue;
+                };
+                let Some(reach) = scale.checked_mul(candidate.step) else { continue };
+                if reach >= candidate.max_step && width <= reach {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Returns `scale` for an exact `length * scale` product.
+    fn exact_scale(
+        &mut self,
+        func: &Function,
+        product: ValueId,
+        candidate: &ScaledCursor,
+        depth: usize,
+    ) -> Option<U256> {
+        // A doubling `length + length` is the product by two the egraph leaves.
+        if let Some((source, false)) = doubled(func, product) {
+            return (same_stable_length(func, source, candidate.length, candidate)
+                && self.range_of(func, source, depth).hi.leading_zeros() >= 1)
+                .then(|| U256::from(2));
+        }
+        let (lhs, rhs, checked) = match inst_kind(func, product)? {
+            InstKind::CheckedBinary {
+                op: CheckedOp::Mul,
+                arithmetic: ArithmeticKind::Unsigned(256),
+                lhs,
+                rhs,
+            } => (*lhs, *rhs, true),
+            InstKind::Mul(lhs, rhs) => (*lhs, *rhs, false),
+            _ => return None,
+        };
+        let (source, scale) = if same_stable_length(func, lhs, candidate.length, candidate) {
+            (lhs, const_of(func, rhs)?)
+        } else if same_stable_length(func, rhs, candidate.length, candidate) {
+            (rhs, const_of(func, lhs)?)
+        } else {
+            return None;
+        };
+        if scale.is_zero() {
+            return None;
+        }
+        if checked || self.range_of(func, source, depth).hi.checked_mul(scale).is_some() {
+            return Some(scale);
+        }
+        for inst_id in func.instructions() {
+            let InstKind::Div(dividend, divisor) = func.inst(inst_id).kind else { continue };
+            if dividend != product || const_of(func, divisor) != Some(scale) {
+                continue;
+            }
+            let Some(quotient) = func.inst_result_value(inst_id) else { continue };
+            let (a, b) = ordered(quotient, source);
+            if self.has_relation(func, Relation::Eq(a, b)) {
+                return Some(scale);
+            }
+        }
+        None
+    }
+
     /// Whether some value is provably below `value` in the current scope,
     /// which puts `value` at one or more: every word is at least zero.
     fn has_strict_lower_bound(&mut self, func: &Function, value: ValueId) -> bool {
@@ -1309,6 +1986,18 @@ impl<'a> CheckEliminator<'a> {
                 .and_then(|ranges| ranges.get(&id))
                 .copied()
                 .unwrap_or(Range::FULL),
+            InstKind::MemoryObjectLen(..) => {
+                let lengths = self.object_lengths.unwrap_or(Range::FULL);
+                // A stable read is the length its object was given, under that
+                // value's bounds in this scope.
+                match self.length_anchors.get(&value).copied() {
+                    Some(anchor) => {
+                        let anchored = self.range_of(func, anchor, depth);
+                        lengths.intersect(anchored).unwrap_or(lengths)
+                    }
+                    None => lengths,
+                }
+            }
             InstKind::Add(a, b) => {
                 let ra = self.range_of(func, a, depth);
                 let rb = self.range_of(func, b, depth);
@@ -1320,7 +2009,14 @@ impl<'a> CheckEliminator<'a> {
             InstKind::Sub(a, b) => {
                 let ra = self.range_of(func, a, depth);
                 let rb = self.range_of(func, b, depth);
-                if ra.lo >= rb.hi { Range::new(ra.lo - rb.hi, ra.hi - rb.lo) } else { Range::FULL }
+                if ra.lo >= rb.hi {
+                    Range::new(ra.lo - rb.hi, ra.hi - rb.lo)
+                } else if ra.hi >= rb.lo && self.has_relation(func, Relation::Le(b, a)) {
+                    // A known `b <= a` rules out wrapping where the ranges overlap.
+                    Range::new(U256::ZERO, ra.hi - rb.lo)
+                } else {
+                    Range::FULL
+                }
             }
             InstKind::Mul(a, b) => {
                 let ra = self.range_of(func, a, depth);
@@ -1350,6 +2046,17 @@ impl<'a> CheckEliminator<'a> {
                 let ra = self.range_of(func, a, depth);
                 let rb = self.range_of(func, b, depth);
                 Range::new(U256::ZERO, ra.hi.min(rb.hi))
+            }
+            // Neither sets a bit above both operands' highest bits; `or` also
+            // keeps every bit of each, so it is at least either operand.
+            InstKind::Or(a, b) | InstKind::Xor(a, b) => {
+                let ra = self.range_of(func, a, depth);
+                let rb = self.range_of(func, b, depth);
+                let bits = ra.hi.max(rb.hi).bit_len();
+                let hi = if bits == 256 { U256::MAX } else { (U256::ONE << bits) - U256::ONE };
+                let lo =
+                    if matches!(kind, InstKind::Or(..)) { ra.lo.max(rb.lo) } else { U256::ZERO };
+                Range::new(lo, hi)
             }
             // EVM shifts take the count first. A constant right shift maps both
             // bounds; a constant left shift keeps them when the top cannot spill.
@@ -1449,6 +2156,8 @@ impl<'a> CheckEliminator<'a> {
             InstKind::Or(a, b) => {
                 if self.doubling_check_holds(func, a, b, depth)
                     || self.doubling_check_holds(func, b, a, depth)
+                    || self.product_check_holds(func, a, b, depth)
+                    || self.product_check_holds(func, b, a, depth)
                 {
                     return Some(true);
                 }
@@ -1522,6 +2231,28 @@ impl<'a> CheckEliminator<'a> {
             }
         }
 
+        // A variable-rate output cursor in a bounded builder stays within its
+        // reserved capacity. This proves all three forms emitted by checked
+        // indexing: the addition does not wrap, the end offset is not beyond
+        // the capacity, and the current cursor is strictly inside it while
+        // the input loop guard is true.
+        if let Some((cursor, width)) = add_with_bounded_width(func, a) {
+            if b == cursor && self.scaled_cursor_fits(func, cursor, width, None, depth) {
+                return Some(false);
+            }
+            if self.scaled_cursor_fits(func, cursor, width, Some(b), depth) {
+                return Some(true);
+            }
+        }
+        if let Some((cursor, width)) = add_with_bounded_width(func, b)
+            && self.scaled_cursor_fits(func, cursor, width, Some(a), depth)
+        {
+            return Some(false);
+        }
+        if self.scaled_cursor_fits(func, a, U256::ZERO, Some(b), depth) {
+            return Some(true);
+        }
+
         // Underflow check variant `lt x, (sub x, y)`: equivalent to
         // `lt x, y` for every `y` (with wrapping subtraction).
         if let Some(&InstKind::Sub(x, y)) = inst_kind(func, b)
@@ -1590,6 +2321,18 @@ impl<'a> CheckEliminator<'a> {
             return Some(true);
         }
 
+        // Both sides shifted by constants: `x + c1 < y + c2` follows from
+        // `x + d < y`, and `y + c2 < x + c1` is false after `x + d <= y`, when
+        // `d <= c1 <= d + c2` and `y + c2` cannot wrap, which covers a word
+        // written at `j` into 29 bytes of slack, `j + 32 <= length + 29`,
+        // after the guard `j + 3 <= length` and the allocation's own check.
+        if self.shifted_below(func, a, b, depth) == Some(true) {
+            return Some(true);
+        }
+        if self.shifted_below(func, b, a, depth).is_some() {
+            return Some(false);
+        }
+
         let (x, y) = ordered(a, b);
         if self.has_relation(func, Relation::Lt(a, b)) {
             return Some(true);
@@ -1618,6 +2361,18 @@ impl<'a> CheckEliminator<'a> {
         if a == b {
             return Some(true);
         }
+        // A zero test negates the truth of an `or` or `and`, which their
+        // operands may prove where bit ranges cannot, as for a checked
+        // product's disjunction. Comparisons already reach their truth
+        // through their ranges.
+        for (tested, zero) in [(a, b), (b, a)] {
+            if const_of(func, zero) == Some(U256::ZERO)
+                && matches!(inst_kind(func, tested), Some(InstKind::Or(..) | InstKind::And(..)))
+                && let Some(truth) = self.eval_truth(func, tested, depth)
+            {
+                return Some(!truth);
+            }
+        }
 
         // Overflow check for checked mul: `eq (div (mul x, y), y), x` holds
         // iff `x * y` did not wrap, provided the divisor is nonzero. Recognize
@@ -1627,6 +2382,20 @@ impl<'a> CheckEliminator<'a> {
         }
         if let Some(truth) = self.eval_muldiv_roundtrip(func, b, a, depth) {
             return Some(truth);
+        }
+        // A scaling shift's check `eq (shr k, (shl k, x)), x` holds iff no set bit
+        // of `x` shifts out, which `x < 2^(256 - k)` rules out.
+        for (shifted, expected) in [(a, b), (b, a)] {
+            if let Some(&InstKind::Shr(count, product)) = inst_kind(func, shifted)
+                && let Some(&InstKind::Shl(inner, source)) = inst_kind(func, product)
+                && source == expected
+                && let Some(bits) = const_of(func, count)
+                && const_of(func, inner) == Some(bits)
+                && bits < U256::from(256)
+                && U256::from(self.range_of(func, expected, depth).hi.leading_zeros()) >= bits
+            {
+                return Some(true);
+            }
         }
         // Its doubling form `eq (shr 1, (add x, x)), x` holds iff `x + x` did not wrap.
         for (shifted, expected) in [(a, b), (b, a)] {
@@ -1692,6 +2461,42 @@ impl<'a> CheckEliminator<'a> {
         self.range_of(func, x, depth).hi.leading_zeros() >= 1
     }
 
+    /// Recognizes the checked product `or (eq y, 0), (eq (div (mul x, y), y), x)`,
+    /// which holds whenever `x * y` cannot wrap: a zero `y` satisfies the first
+    /// disjunct and any other `y` divides the exact product back to `x`.
+    fn product_check_holds(
+        &mut self,
+        func: &Function,
+        zero_test: ValueId,
+        roundtrip: ValueId,
+        depth: usize,
+    ) -> bool {
+        let Some(y) = inst_kind(func, zero_test).and_then(|kind| kind.zero_test_operand(func))
+        else {
+            return false;
+        };
+        let Some(&InstKind::Eq(lhs, rhs)) = inst_kind(func, roundtrip) else { return false };
+        for (quotient, expected) in [(lhs, rhs), (rhs, lhs)] {
+            let Some(&InstKind::Div(product, divisor)) = inst_kind(func, quotient) else {
+                continue;
+            };
+            let Some(&InstKind::Mul(p, q)) = inst_kind(func, product) else { continue };
+            if !values_equal(func, divisor, y) {
+                continue;
+            }
+            for (x, factor) in [(p, q), (q, p)] {
+                if x == expected && values_equal(func, factor, y) {
+                    let rx = self.range_of(func, x, depth);
+                    let ry = self.range_of(func, y, depth);
+                    if rx.hi.checked_mul(ry.hi).is_some() {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
     /// Recognizes `div (mul x, y), d == x` with `d == y` and proves it true
     /// when `x * y` cannot wrap and the divisor is provably nonzero.
     fn eval_muldiv_roundtrip(
@@ -1718,6 +2523,50 @@ impl<'a> CheckEliminator<'a> {
         }
         None
     }
+}
+
+/// The range of `input`, the value `owner` receives from `pred`, as far as it can reach the
+/// loop header phi `header_phi`, or `None` when the input is the header phi itself.
+///
+/// A header phi holds either its preheader value or a value an earlier iteration stored in
+/// it. A path that carries the phi around the loop unchanged stores what the phi already held,
+/// so by induction over the header's visits the union of the other inputs covers every value
+/// it takes; the carried paths contribute nothing to that union. Phis between the update and
+/// the latch are decomposed into their own incoming edges, each with the range recorded for
+/// that edge, up to `depth` levels. Every range is a fact about one edge that holds in each
+/// execution, so the union is sound whether or not the forward analysis has converged.
+fn carried_range(
+    func: &Function,
+    header_phi: ValueId,
+    owner: ValueId,
+    pred: BlockId,
+    input: ValueId,
+    edge_ranges: &FxHashMap<(ValueId, BlockId), Range>,
+    depth: usize,
+) -> Option<Range> {
+    if input == header_phi {
+        return None;
+    }
+    if let Some(depth) = depth.checked_sub(1)
+        && let Value::Inst(inst) = func.value(input)
+        && let InstKind::Phi(incoming) = &func.inst(*inst).kind
+    {
+        let mut carried = None::<Range>;
+        for &(inner_pred, inner) in incoming {
+            let Some(range) =
+                carried_range(func, header_phi, input, inner_pred, inner, edge_ranges, depth)
+            else {
+                continue;
+            };
+            let union = carried.map_or(range, |known| known.union(range));
+            if union == Range::FULL {
+                return Some(Range::FULL);
+            }
+            carried = Some(union);
+        }
+        return carried;
+    }
+    Some(edge_ranges.get(&(owner, pred)).copied().unwrap_or(Range::FULL))
 }
 
 /// Values whose ranges can affect a branch, closed over all SSA operands.
@@ -1765,6 +2614,7 @@ fn branch_inputs(func: &Function, cfg: &CfgInfo) -> DenseBitSet<ValueId> {
 /// derives from. Only values feeding branches are indexed.
 fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHashSet<Relation> {
     let mut relations = FxHashSet::default();
+    let mut masks = FxHashMap::<ValueId, SmallVec<[(ValueId, U256); 2]>>::default();
     for inst_id in func.instructions() {
         let Some(value) = func.inst_result_value(inst_id) else { continue };
         if !relevant.contains(value) {
@@ -1780,32 +2630,217 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
             InstKind::And(x, y) => {
                 relations.insert(Relation::Le(value, x));
                 relations.insert(Relation::Le(value, y));
+                for (x, mask) in [(x, y), (y, x)] {
+                    if let Some(mask) = const_of(func, mask) {
+                        masks.entry(x).or_default().push((value, mask));
+                    }
+                }
             }
-            // If conversion rewrites `if (x > limit) x = limit` to
-            // `x + (x > limit) * (limit - x)`, which is `limit` when the test
-            // holds and `x` otherwise, so it never exceeds `limit`.
+            // If conversion rewrites `if (x > limit) x = limit`, and so the
+            // minimum of two values, to `x + (x > limit) * (limit - x)`, which
+            // is `limit` when the test holds and `x` otherwise, so it never
+            // exceeds either.
             InstKind::Add(x, adjustment) => {
                 for (x, adjustment) in [(x, adjustment), (adjustment, x)] {
                     if let Some(limit) = clamp_limit(func, x, adjustment) {
                         relations.insert(Relation::Le(value, limit));
+                        relations.insert(Relation::Le(value, x));
                     }
                 }
             }
             _ => {}
         }
     }
+    // Two masks of one word: the one whose bits the other's include never
+    // exceeds it, as `x & ~31 <= x & 0xff` once folding has merged the masks
+    // that separated the rounded value from the word it rounds.
+    for masked in masks.values() {
+        for &(small, small_mask) in masked {
+            for &(large, large_mask) in masked {
+                if small != large && small_mask & !large_mask == U256::ZERO {
+                    relations.insert(Relation::Le(small, large));
+                }
+            }
+        }
+    }
     relations
+}
+
+/// Equates each checked `u256` sum with a wrapping sum of the same operands.
+///
+/// The checked sum is defined only where it did not wrap, and there both hold
+/// the same word, so a guard on one bounds the other: a loop test on
+/// `i + 16` then covers a bounds check that adds `16` to `i` again.
+fn checked_sum_twins(func: &Function) -> Vec<Relation> {
+    // Constants may be distinct values with equal words.
+    let key = |value: ValueId| match const_of(func, value) {
+        Some(constant) => (true, constant),
+        None => (false, U256::from(value.index())),
+    };
+    let mut sums = FxHashMap::<_, (SmallVec<[ValueId; 2]>, SmallVec<[ValueId; 2]>)>::default();
+    for inst_id in func.instructions() {
+        let Some(value) = func.inst_result_value(inst_id) else { continue };
+        let (a, b, checked) = match func.inst(inst_id).kind {
+            InstKind::Add(a, b) => (a, b, false),
+            InstKind::CheckedBinary {
+                op: CheckedOp::Add,
+                arithmetic: ArithmeticKind::Unsigned(256),
+                lhs,
+                rhs,
+            } => (lhs, rhs, true),
+            _ => continue,
+        };
+        let (a, b) = (key(a), key(b));
+        let entry = sums.entry(if a <= b { (a, b) } else { (b, a) }).or_default();
+        if checked { entry.1.push(value) } else { entry.0.push(value) }
+    }
+    let mut relations = Vec::new();
+    for (wrapping, checked) in sums.values() {
+        for &checked in checked {
+            for &wrapping in wrapping {
+                let (a, b) = ordered(checked, wrapping);
+                relations.push(Relation::Eq(a, b));
+            }
+        }
+    }
+    relations
+}
+
+/// Pairs each reread of an object's length that nothing in the function can
+/// change with the value it agrees with: a parameter object's first read, or
+/// the length set at allocation for a fresh object whose length is set once.
+///
+/// Callers run this only for modules without inline assembly. There a
+/// parameter object lies below the free-memory pointer at entry, while the
+/// function's own allocations start at or above it, so writes into other
+/// fresh objects cannot reach its length word, and a fresh object's length
+/// changes only through its own length stores. A write in a block that leaves
+/// the function, such as a panic's encoding or a final truncation, reaches
+/// only the reads after it in that block. Any other write that may reach the
+/// word, including every call with memory effects, keeps the reads apart. The
+/// loads stay where they are: only the checks learn that they agree.
+fn stable_object_lengths(
+    func: &Function,
+    summaries: Option<Arc<MemoryCallSummaries>>,
+) -> Vec<(ValueId, ValueId)> {
+    let mut reads = FxHashMap::<_, SmallVec<[(InstId, ValueId); 2]>>::default();
+    for inst_id in func.instructions() {
+        if let InstKind::MemoryObjectLen(object, kind) = func.inst(inst_id).kind
+            && let Some(value) = func.inst_result_value(inst_id)
+        {
+            reads.entry((object, kind)).or_default().push((inst_id, value));
+        }
+    }
+    // A fresh object's anchor is the length stored right after its allocation,
+    // before any read in that block; a parameter's is its first read.
+    let definitions = func.inst_blocks();
+    let mut anchors = FxHashMap::<_, (Option<InstId>, ValueId)>::default();
+    for (&(object, kind), group) in &reads {
+        match func.value(object) {
+            Value::Arg(_) if group.len() > 1 => {
+                anchors.insert((object, kind), (None, group[0].1));
+            }
+            &Value::Inst(alloc) if matches!(func.inst(alloc).kind, InstKind::Alloc { .. }) => {
+                let Some(&block) = definitions.get(&alloc) else { continue };
+                let instructions = &func.blocks[block].instructions;
+                let Some(position) = instructions.iter().position(|&inst| inst == alloc) else {
+                    continue;
+                };
+                for &inst in &instructions[position + 1..] {
+                    if group.iter().any(|&(read, _)| read == inst) {
+                        break;
+                    }
+                    if let InstKind::SetMemoryObjectLen(set_object, length, set_kind) =
+                        func.inst(inst).kind
+                        && set_object == object
+                        && set_kind == kind
+                    {
+                        anchors.insert((object, kind), (Some(inst), length));
+                        break;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    if anchors.is_empty() {
+        return Vec::new();
+    }
+    let aa = match summaries {
+        Some(summaries) => AliasAnalysis::with_call_summaries(func, summaries),
+        None => AliasAnalysis::new(func),
+    };
+    let mut relations = Vec::new();
+    for (&(object, kind), &(anchor_set, anchor)) in &anchors {
+        let group = &reads[&(object, kind)];
+        let Some(location) = aa.memory_object_length_location(func, group[0].0, object, kind)
+        else {
+            continue;
+        };
+        let location = Location::Memory(location);
+        let stable = func.blocks.iter().all(|block| {
+            let exits = block.terminator.as_ref().is_some_and(|term| term.successors().is_empty());
+            block.instructions.iter().enumerate().all(|(position, &inst)| {
+                let inst_kind = &func.inst(inst).kind;
+                let sets_object = matches!(*inst_kind,
+                    InstKind::SetMemoryObjectLen(set_object, ..) if set_object == object);
+                Some(inst) == anchor_set
+                    || !aa.instruction_mod_ref(func, inst).may_write(&aa, location)
+                    || writes_below_objects(&aa, func, inst)
+                    || (writes_only_fresh_object(func, inst_kind) && !sets_object)
+                    || (exits
+                        && block.instructions[position + 1..]
+                            .iter()
+                            .all(|later| group.iter().all(|&(read, _)| read != *later)))
+            })
+        });
+        if stable {
+            relations.extend(
+                group
+                    .iter()
+                    .filter(|&&(_, value)| value != anchor)
+                    .map(|&(_, value)| (value, anchor)),
+            );
+        }
+    }
+    relations
+}
+
+/// Whether every memory write of `inst` ends at or below the zero slot, as
+/// the scratch words a slot hash writes do.
+///
+/// Callers run this only for modules without inline assembly. There every
+/// memory object's length word lies at or above the zero slot: an empty
+/// object is the zero slot itself, and every other object lies above the
+/// free-memory pointer's initial value. Alias analysis cannot use that in
+/// general, because assembly can make a pointer to any address.
+fn writes_below_objects(aa: &AliasAnalysis, func: &Function, inst: InstId) -> bool {
+    aa.instruction_mod_ref(func, inst).writes().iter().all(|&access| match access {
+        Access::Location(Location::Memory(location)) => location
+            .address
+            .as_absolute()
+            .zip(location.size.as_const())
+            .and_then(|(start, size)| start.checked_add(size))
+            .is_some_and(|end| end <= EvmMemoryLayout::ZERO_SLOT),
+        Access::Location(_) => true,
+        Access::Any(space) => space != AddressSpace::Memory,
+    })
 }
 
 /// The upper limit of a clamp written as `x + (x > limit) * (limit - x)`.
 ///
 /// The product is zero when the test fails, leaving `x`, and `limit - x` when
-/// it holds, leaving exactly `limit` under wrapping addition. Either way the
-/// sum is at most `limit`.
+/// it holds, leaving exactly `limit` under wrapping addition, which is then
+/// below `x`. Either way the sum is at most both `x` and `limit`. The test is
+/// an `i1` widened to a word, and may be spelled `limit < x`.
 fn clamp_limit(func: &Function, x: ValueId, adjustment: ValueId) -> Option<ValueId> {
     let &InstKind::Mul(first, second) = inst_kind(func, adjustment)? else { return None };
     for (condition, difference) in [(first, second), (second, first)] {
-        let Some(&InstKind::Gt(tested, limit)) = inst_kind(func, condition) else { continue };
+        let Some(&InstKind::Zext(condition)) = inst_kind(func, condition) else { continue };
+        let (tested, limit) = match inst_kind(func, condition) {
+            Some(&InstKind::Gt(tested, limit) | &InstKind::Lt(limit, tested)) => (tested, limit),
+            _ => continue,
+        };
         if tested != x {
             continue;
         }
@@ -1827,6 +2862,17 @@ fn relation_candidates(func: &Function) -> FxHashMap<ValueId, SmallVec<[Relation
             index_relation(&mut index, relation);
         }
     };
+    // A halved sum can lie between its addends in either order.
+    for inst in func.instructions() {
+        if let Some(average) = func.inst_result_value(inst)
+            && let Some((_, x, y)) = halved_sum(func, average)
+        {
+            for bound in [x, y] {
+                add(Relation::Le(bound, average));
+                add(Relation::Le(average, bound));
+            }
+        }
+    }
     let mut visited = DenseBitSet::new_empty(func.num_values());
     let mut pending = Vec::new();
     for block in &func.blocks {
@@ -1862,6 +2908,289 @@ fn relation_candidates(func: &Function) -> FxHashMap<ValueId, SmallVec<[Relation
         }
     }
     index
+}
+
+/// Finds paired zero-based loop cursors where `index` advances by a constant
+/// step and `cursor` advances by a path-dependent amount with a finite maximum.
+///
+/// The header guards the body with `index < length` for a unit step, or with
+/// `index + step > length` exiting the loop, where the sum is the checked or
+/// wrapping sum the backedge also stores. A wrapping sum qualifies because the
+/// guard fact names that exact value: a wrapped sum would still sit below
+/// `length`, so the proof requires the index's range to rule wrapping out
+/// before trusting it.
+fn scaled_cursor_candidates(
+    func: &Function,
+    cfg: &CfgInfo,
+    preds: &IndexVec<BlockId, Vec<BlockId>>,
+    monotone: &[MonotonePhi],
+) -> Vec<ScaledCursor> {
+    let mut candidates = Vec::new();
+    for index_phi in monotone {
+        let Some(step) = const_of(func, index_phi.step) else { continue };
+        if index_phi.decreasing || const_of(func, index_phi.initial) != Some(U256::ZERO) {
+            continue;
+        }
+        let loop_blocks =
+            natural_loop_blocks(index_phi.header, index_phi.latch, preds, func.blocks.len());
+        if !loop_blocks.contains(index_phi.header)
+            || !loop_blocks.contains(index_phi.latch)
+            || !cfg.dominators().dominates(index_phi.header, index_phi.latch)
+        {
+            continue;
+        }
+        let index = index_phi.value;
+        let Some((length, guard, wrapping_sum)) =
+            loop_guard(func, index_phi.header, &loop_blocks, index, step)
+        else {
+            continue;
+        };
+        for &inst_id in &func.blocks[index_phi.header].instructions {
+            let InstKind::Phi(incoming) = &func.inst(inst_id).kind else { continue };
+            let Some(cursor) = func.inst_result_value(inst_id) else { continue };
+            if cursor == index {
+                continue;
+            }
+            let mut initial = None;
+            let mut next = None;
+            let mut valid = true;
+            for &(block, value) in incoming {
+                if block == index_phi.preheader {
+                    if initial.replace(value).is_some() {
+                        valid = false;
+                    }
+                } else if block == index_phi.latch {
+                    if next.replace(value).is_some() {
+                        valid = false;
+                    }
+                } else {
+                    valid = false;
+                }
+            }
+            let (Some(initial), Some(next)) = (initial, next) else { continue };
+            if !valid || const_of(func, initial) != Some(U256::ZERO) {
+                continue;
+            }
+            let Some(max_step) = bounded_increment(func, next, cursor, 12) else { continue };
+            if max_step.is_zero() {
+                continue;
+            }
+            candidates.push(ScaledCursor {
+                cursor,
+                index,
+                length,
+                step,
+                guard,
+                wrapping_sum,
+                preheader: index_phi.preheader,
+                loop_blocks: loop_blocks.clone(),
+                max_step,
+            });
+        }
+    }
+    candidates
+        .sort_unstable_by_key(|candidate| (candidate.cursor.index(), candidate.index.index()));
+    candidates.dedup_by_key(|candidate| (candidate.cursor, candidate.index));
+    candidates
+}
+
+/// Finds the test guarding a loop body: the first branch from the header, past
+/// checks whose failing side leaves the function, that compares the index or
+/// its stepped sum with a length. Returns the length, the fact the body sees,
+/// and whether that fact names a wrapping sum.
+fn loop_guard(
+    func: &Function,
+    header: BlockId,
+    loop_blocks: &DenseBitSet<BlockId>,
+    index: ValueId,
+    step: U256,
+) -> Option<(ValueId, Relation, bool)> {
+    let exits = |block: BlockId| {
+        func.blocks[block].terminator.as_ref().is_some_and(|term| term.successors().is_empty())
+    };
+    let mut block = header;
+    for _ in 0..8 {
+        match *func.blocks[block].terminator.as_ref()? {
+            Terminator::Branch { condition, then_block, else_block } => {
+                match *inst_kind(func, condition)? {
+                    InstKind::Lt(tested, length) if tested == index && step == U256::ONE => {
+                        return Some((length, Relation::Lt(index, length), false));
+                    }
+                    InstKind::Gt(sum, length) | InstKind::Lt(length, sum)
+                        if let Some(wrapping) = step_sum(func, sum, index, step) =>
+                    {
+                        return Some((length, Relation::Le(sum, length), wrapping));
+                    }
+                    _ => {}
+                }
+                block = if exits(then_block) {
+                    else_block
+                } else if exits(else_block) {
+                    then_block
+                } else {
+                    return None;
+                };
+            }
+            Terminator::Jump(next) => block = next,
+            _ => return None,
+        }
+        if block == header || !loop_blocks.contains(block) {
+            return None;
+        }
+    }
+    None
+}
+
+/// Whether `sum` adds the constant `step` to `index`, and if so whether the
+/// sum wraps (`Some(true)`) or is a checked `u256` sum (`Some(false)`).
+fn step_sum(func: &Function, sum: ValueId, index: ValueId, step: U256) -> Option<bool> {
+    let (a, b, wrapping) = match *inst_kind(func, sum)? {
+        InstKind::Add(a, b) => (a, b, true),
+        InstKind::CheckedBinary {
+            op: CheckedOp::Add,
+            arithmetic: ArithmeticKind::Unsigned(256),
+            lhs,
+            rhs,
+        } => (lhs, rhs, false),
+        _ => return None,
+    };
+    let matches =
+        |base: ValueId, offset: ValueId| base == index && const_of(func, offset) == Some(step);
+    (matches(a, b) || matches(b, a)).then_some(wrapping)
+}
+
+fn natural_loop_blocks(
+    header: BlockId,
+    latch: BlockId,
+    preds: &IndexVec<BlockId, Vec<BlockId>>,
+    block_count: usize,
+) -> DenseBitSet<BlockId> {
+    let mut blocks = DenseBitSet::new_empty(block_count);
+    blocks.insert(header);
+    let mut pending = vec![latch];
+    while let Some(block) = pending.pop() {
+        if !blocks.insert(block) {
+            continue;
+        }
+        for &pred in &preds[block] {
+            if pred != header {
+                pending.push(pred);
+            }
+        }
+    }
+    blocks
+}
+
+/// Maximum nonnegative increment represented by `next` relative to `base`.
+fn bounded_increment(func: &Function, next: ValueId, base: ValueId, depth: usize) -> Option<U256> {
+    if next == base {
+        return Some(U256::ZERO);
+    }
+    let depth = depth.checked_sub(1)?;
+    match inst_kind(func, next)? {
+        InstKind::Add(a, b)
+        | InstKind::CheckedBinary {
+            op: CheckedOp::Add,
+            arithmetic: ArithmeticKind::Unsigned(256),
+            lhs: a,
+            rhs: b,
+        } => {
+            if *a == base {
+                bounded_value_max(func, *b, depth)
+            } else if *b == base {
+                bounded_value_max(func, *a, depth)
+            } else {
+                None
+            }
+        }
+        InstKind::Phi(incoming) => incoming
+            .iter()
+            .map(|&(_, value)| bounded_increment(func, value, base, depth))
+            .try_fold(U256::ZERO, |max, value| value.map(|value| max.max(value))),
+        InstKind::Select(_, then_value, else_value) => [*then_value, *else_value]
+            .into_iter()
+            .map(|value| bounded_increment(func, value, base, depth))
+            .try_fold(U256::ZERO, |max, value| value.map(|value| max.max(value))),
+        _ => None,
+    }
+}
+
+/// Maximum value of a constant/phi/select expression.
+fn bounded_value_max(func: &Function, value: ValueId, depth: usize) -> Option<U256> {
+    if let Some(constant) = const_of(func, value) {
+        return Some(constant);
+    }
+    let depth = depth.checked_sub(1)?;
+    match inst_kind(func, value)? {
+        InstKind::Phi(incoming) => incoming
+            .iter()
+            .map(|&(_, value)| bounded_value_max(func, value, depth))
+            .try_fold(U256::ZERO, |max, value| value.map(|value| max.max(value))),
+        InstKind::Select(_, then_value, else_value) => [*then_value, *else_value]
+            .into_iter()
+            .map(|value| bounded_value_max(func, value, depth))
+            .try_fold(U256::ZERO, |max, value| value.map(|value| max.max(value))),
+        InstKind::Zext(source) => bounded_value_max(func, *source, depth),
+        InstKind::Trunc(source, bits) if (1..=256).contains(bits) => {
+            let mask = U256::MAX >> (256 - bits);
+            bounded_value_max(func, *source, depth).map(|value| value.min(mask))
+        }
+        InstKind::And(a, b) => match (const_of(func, *a), const_of(func, *b)) {
+            (Some(mask), None) => bounded_value_max(func, *b, depth).map(|value| value.min(mask)),
+            (None, Some(mask)) => bounded_value_max(func, *a, depth).map(|value| value.min(mask)),
+            _ => None,
+        },
+        InstKind::ExtractValue { aggregate, index, .. } => {
+            bounded_aggregate_field_max(func, *aggregate, *index, depth)
+        }
+        _ => None,
+    }
+}
+
+fn bounded_aggregate_field_max(
+    func: &Function,
+    aggregate: ValueId,
+    field: u32,
+    depth: usize,
+) -> Option<U256> {
+    let depth = depth.checked_sub(1)?;
+    match inst_kind(func, aggregate)? {
+        InstKind::InsertValue { aggregate, index, value, .. } => {
+            if *index == field {
+                bounded_value_max(func, *value, depth)
+            } else {
+                bounded_aggregate_field_max(func, *aggregate, field, depth)
+            }
+        }
+        InstKind::Phi(incoming) => incoming
+            .iter()
+            .map(|&(_, value)| bounded_aggregate_field_max(func, value, field, depth))
+            .try_fold(U256::ZERO, |max, value| value.map(|value| max.max(value))),
+        InstKind::Select(_, then_value, else_value) => [*then_value, *else_value]
+            .into_iter()
+            .map(|value| bounded_aggregate_field_max(func, value, field, depth))
+            .try_fold(U256::ZERO, |max, value| value.map(|value| max.max(value))),
+        _ => None,
+    }
+}
+
+/// Splits `base + width` when `width` is a bounded constant expression.
+fn add_with_bounded_width(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
+    let (a, b) = match inst_kind(func, value)? {
+        InstKind::Add(a, b)
+        | InstKind::CheckedBinary {
+            op: CheckedOp::Add,
+            arithmetic: ArithmeticKind::Unsigned(256),
+            lhs: a,
+            rhs: b,
+        } => (*a, *b),
+        _ => return None,
+    };
+    if let Some(width) = bounded_value_max(func, b, 12) {
+        Some((a, width))
+    } else {
+        bounded_value_max(func, a, 12).map(|width| (b, width))
+    }
 }
 
 /// Indexes `relation` under its left operand, and under both operands for an
@@ -1928,10 +3257,114 @@ fn monotone_phi_candidates(
                 continue;
             }
             let Some(&home) = definitions.get(next_inst) else { continue };
-            candidates.push(MonotonePhi { header, value, initial, next, step, home, decreasing });
+            candidates.push(MonotonePhi {
+                header,
+                value,
+                initial,
+                preheader: pre,
+                latch,
+                next,
+                step,
+                home,
+                decreasing,
+            });
         }
     }
     candidates
+}
+
+/// Splits `(x + y) >> 1` or `(x + y) / 2` into the sum and its addends.
+fn halved_sum(func: &Function, value: ValueId) -> Option<(ValueId, ValueId, ValueId)> {
+    let sum = match *inst_kind(func, value)? {
+        InstKind::Shr(shift, sum) if const_of(func, shift) == Some(U256::ONE) => sum,
+        InstKind::Div(sum, divisor) if const_of(func, divisor) == Some(U256::from(2)) => sum,
+        _ => return None,
+    };
+    let InstKind::Add(x, y) = *inst_kind(func, sum)? else { return None };
+    Some((sum, x, y))
+}
+
+/// Finds header phis whose latch value is the phi itself or an update, through
+/// at most a few phis, and that are not constant-step monotone candidates.
+/// Each is proposed in both directions; only one can have every update proven.
+fn bounded_phi_candidates(
+    func: &Function,
+    cfg: &CfgInfo,
+    preds: &IndexVec<BlockId, Vec<BlockId>>,
+    relevant: &DenseBitSet<ValueId>,
+    monotone: &[MonotonePhi],
+) -> Vec<BoundedPhi> {
+    let mut candidates = Vec::new();
+    let cyclic = cfg.cyclic_blocks();
+    if cyclic.is_empty() {
+        return candidates;
+    }
+    let definitions = func.inst_blocks();
+    let dominators = cfg.dominators();
+    for header in cyclic.iter() {
+        for &inst in &func.blocks[header].instructions {
+            let InstKind::Phi(incoming) = &func.inst(inst).kind else { continue };
+            let Some(value) = func.inst_result_value(inst) else { continue };
+            if !relevant.contains(value) || monotone.iter().any(|phi| phi.value == value) {
+                continue;
+            }
+            let mut initial = None;
+            let mut updates = SmallVec::new();
+            let mut valid = true;
+            for &(pred, input) in incoming {
+                if !preds[header].contains(&pred) {
+                    continue;
+                }
+                if !dominators.dominates(header, pred) {
+                    valid &= initial.replace(input).is_none();
+                } else {
+                    valid &= collect_updates(func, &definitions, value, input, &mut updates, 4);
+                }
+            }
+            let Some(initial) = initial else { continue };
+            if !valid || updates.is_empty() {
+                continue;
+            }
+            for decreasing in [true, false] {
+                candidates.push(BoundedPhi {
+                    header,
+                    value,
+                    initial,
+                    decreasing,
+                    updates: updates.clone(),
+                });
+            }
+        }
+    }
+    candidates
+}
+
+/// Collects the instructions a latch input can carry into `phi`, looking through
+/// at most `depth` phis. Fails on any other input, such as an argument.
+fn collect_updates(
+    func: &Function,
+    definitions: &FxHashMap<InstId, BlockId>,
+    phi: ValueId,
+    input: ValueId,
+    updates: &mut SmallVec<[(ValueId, BlockId); 2]>,
+    depth: usize,
+) -> bool {
+    if input == phi {
+        return true;
+    }
+    let Value::Inst(inst) = *func.value(input) else { return false };
+    if let InstKind::Phi(incoming) = &func.inst(inst).kind
+        && let Some(depth) = depth.checked_sub(1)
+    {
+        return incoming
+            .iter()
+            .all(|&(_, inner)| collect_updates(func, definitions, phi, inner, updates, depth));
+    }
+    let Some(&home) = definitions.get(&inst) else { return false };
+    if !updates.contains(&(input, home)) {
+        updates.push((input, home));
+    }
+    true
 }
 
 /// Returns the fact implied on the unique dominating edge into `block`:
@@ -2013,6 +3446,27 @@ fn trip_count_bound(func: &Function, phi: &MonotonePhi) -> Option<Range> {
     }
 }
 
+/// Splits `x + c` with a literal `c` into `(x, c)`; any other value has an
+/// offset of zero. The flag is set for a checked `u256` sum, which is defined
+/// only where it does not wrap.
+fn shifted_operand(func: &Function, value: ValueId) -> (ValueId, U256, bool) {
+    let (x, c, exact) = match inst_kind(func, value) {
+        Some(&InstKind::Add(x, c)) => (x, c, false),
+        Some(&InstKind::CheckedBinary {
+            op: CheckedOp::Add,
+            arithmetic: ArithmeticKind::Unsigned(256),
+            lhs,
+            rhs,
+        }) => (lhs, rhs, true),
+        _ => return (value, U256::ZERO, false),
+    };
+    match (const_of(func, x), const_of(func, c)) {
+        (_, Some(offset)) => (x, offset, exact),
+        (Some(offset), None) => (c, offset, exact),
+        (None, None) => (value, U256::ZERO, false),
+    }
+}
+
 fn const_of(func: &Function, value: ValueId) -> Option<U256> {
     match func.value(value) {
         Value::Immediate(imm) => imm.as_u256(),
@@ -2036,6 +3490,61 @@ fn values_equal(func: &Function, a: ValueId, b: ValueId) -> bool {
         (Some(a), Some(b)) => a == b,
         _ => false,
     }
+}
+
+/// Whether two SSA values read the same memory-object length and no instruction
+/// that executes from allocation through the loop may change that length. This
+/// lets a loop-header reload stand in for the load used to size a checked
+/// allocation without relying on CSE.
+fn same_stable_length(func: &Function, a: ValueId, b: ValueId, candidate: &ScaledCursor) -> bool {
+    if a == b {
+        return true;
+    }
+    let (
+        Some(&InstKind::MemoryObjectLen(a_object, a_kind)),
+        Some(&InstKind::MemoryObjectLen(b_object, b_kind)),
+    ) = (inst_kind(func, a), inst_kind(func, b))
+    else {
+        return false;
+    };
+    if a_object != b_object || a_kind != b_kind {
+        return false;
+    }
+    let (Value::Inst(a_inst), Value::Inst(_)) = (func.value(a), func.value(b)) else {
+        return false;
+    };
+    let aa = AliasAnalysis::new(func);
+    let Some(location) = aa.memory_object_length_location(func, *a_inst, a_object, a_kind) else {
+        return false;
+    };
+    let location = Location::Memory(location);
+    std::iter::once(candidate.preheader)
+        .chain(candidate.loop_blocks.iter())
+        .flat_map(|block| func.blocks[block].instructions.iter().copied())
+        .all(|inst| {
+            let effects = aa.instruction_mod_ref(func, inst);
+            !effects.may_write(&aa, location)
+                || writes_only_fresh_object(func, &func.inst(inst).kind)
+        })
+}
+
+/// Whether a write is confined to an object produced by this function's
+/// allocator. A fresh allocation and its header/payload cannot overlap an
+/// already-live input object under the MIR allocation contract.
+fn writes_only_fresh_object(func: &Function, kind: &InstKind) -> bool {
+    let object = match *kind {
+        InstKind::Alloc { .. } => return true,
+        InstKind::SetMemoryObjectLen(object, ..)
+        | InstKind::MemoryObjectStoreField { object, .. }
+        | InstKind::MemoryObjectStoreElement { object, .. }
+        | InstKind::MemoryObjectStoreByte { object, .. }
+        | InstKind::MemoryObjectStoreWord { object, .. }
+        | InstKind::MemoryObjectCopyFromSlice { object, .. }
+        | InstKind::MemoryObjectCopyFromSliceAt { object, .. } => object,
+        InstKind::MemoryObjectCopy { destination, .. } => destination,
+        _ => return false,
+    };
+    matches!(inst_kind(func, object), Some(InstKind::Alloc { .. }))
 }
 
 #[cfg(test)]

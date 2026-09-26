@@ -7,8 +7,8 @@ fn @lastWord() [selector=0x3955f902, abi_wrapper, pure] {
     v4 = calldataload v3
     v5 = add v3, 32
     v0 = icall @_last, v5, v4
-    mstore 128, v0
-    returndata 128, 32
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @lastWord2() [selector=0x97f495a8, abi_wrapper, pure] {
@@ -24,13 +24,13 @@ fn @lastWord2() [selector=0x97f495a8, abi_wrapper, pure] {
     v8 = add v16, 1
     v10 = icall @_last, v8, v7
     v11 = xor v0, v10
-    mstore 128, v11
-    returndata 128, 32
+    mstore 0, v11 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
 
-fn @_last(arg0: i256, arg1: i256) -> i256 [pure] {
+fn @_last(arg0: i256, arg1: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v1 = sub arg1, 32
     v3 = add arg0, v1

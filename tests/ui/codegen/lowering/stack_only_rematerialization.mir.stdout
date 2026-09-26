@@ -12,7 +12,7 @@ fn @second(arg0: i256) -> i256 [selector=0xc04a1ee8, pure, abi_params=[bool], ab
     ret v0
 }
 
-fn @storeAtDerivedAddress(arg0: i256, arg1: i256) -> i256 [pure] {
+fn @storeAtDerivedAddress(arg0: i256, arg1: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = add arg0, 32
     v1 = ne arg1, 0

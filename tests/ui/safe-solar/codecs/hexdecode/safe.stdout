@@ -1,0 +1,237 @@
+// === <solar:core/v1/Bytes.sol>:Bytes ===
+@module Bytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/v1/codecs/Hex.sol>:Hex ===
+@module Hex
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/safe-solar/codecs/hexdecode/safe.sol:Safe ===
+@module Safe
+@phase lowered
+fn @decode.0() [selector=0x49145c91, abi_wrapper, pure] {
+  bb0:
+    v1 = calldatasize
+    v2 = lt v1, 36
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = calldataload 4
+    v4 = add v3, 4
+    v5 = add v4, 32
+    v6 = shr 64, v3
+    v7 = gt v5, v1
+    v8 = zext i1 v7 to i256
+    v9 = or v6, v8
+    v10 = ne v9, 0
+    jumpi v10, bb1, bb3
+  bb3:
+    v11 = calldataload v4
+    v13 = add v11, 63
+    v14 = lt v13, v11
+    jumpi v14, bb4, bb5
+  bb5:
+    v16 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v43 = mload 64 !metadata(memory=scratch)
+    v17 = inttoptr i256 v43 to memptr !metadata(memory=scratch)
+    v44 = add v43, v16
+    v45 = lt v44, v43
+    v46 = zext i1 v45 to i256
+    v47 = shr 64, v44
+    v48 = or v46, v47
+    v49 = ne v48, 0
+    jumpi v49, bb4, bb7
+  bb7:
+    mstore 64, v44 !metadata(memory=scratch)
+    mstore v43, v11
+    v18 = sub v1, v5
+    v19 = gt v11, v18
+    jumpi v19, bb1, bb6
+  bb6:
+    v36 = add v43, 32
+    calldatacopy v36, v5, v11
+    v0 = icall @decode.1, v17
+    v40 = ptrtoint memptr v0 to i256
+    v24 = mload v40
+    v25 = add v24, 31
+    v27 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v42 = add v40, 32
+    v30 = add v42, v24
+    mstore v30, 0
+    v32 = sub v40, 32
+    mstore v32, 32
+    v33 = add v27, 64
+    returndata v32, v33
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @decode.1(arg0: memptr) -> memptr [may_return_memory, pure] {
+  bb0:
+    v153 = ptrtoint memptr arg0 to i256
+    v0 = mload v153
+    v1 = lt v0, 2
+    jumpi v1, bb3, bb1
+  bb1:
+    v116 = add v153, 32
+    v118 = mload v116
+    v119 = byte 0, v118
+    v8 = eq v119, 48
+    jumpi v8, bb2, bb3
+  bb2:
+    v122 = add v153, 33
+    v123 = mload v122
+    v124 = byte 0, v123
+    v15 = eq v124, 120
+    v21 = eq v124, 88
+    v170 = or v15, v21
+    jumpi v170, bb4, bb3
+  bb3:
+    jump bb4
+  bb4:
+    v24 = phi [bb2: 2], [bb3: 0]
+    v101 = sub v0, v24
+    v102 = lt v0, v24
+    jumpi v102, bb14, bb15
+  bb15:
+    v104 = and v101, 1
+    v27 = ne v104, 0
+    jumpi v27, bb10, bb16
+  bb16:
+    v108 = shr 1, v101
+    v30 = add v108, 63
+    v33 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v160 = mload 64 !metadata(memory=scratch)
+    v34 = inttoptr i256 v160 to memptr !metadata(memory=scratch)
+    v161 = add v160, v33
+    v162 = lt v161, v160
+    v163 = zext i1 v162 to i256
+    v164 = shr 64, v161
+    v165 = or v163, v164
+    v166 = ne v165, 0
+    jumpi v166, bb18, bb17
+  bb17:
+    mstore 64, v161 !metadata(memory=scratch)
+    v169 = calldatasize
+    calldatacopy v160, v169, v33
+    mstore v160, v108
+    v167 = mload 64 !metadata(memory=scratch)
+    v168 = add v167, 288
+    mstore 64, v168 !metadata(memory=scratch)
+    mstore v167, 256
+    v159 = add v167, 32
+    mstore v159, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v39 = add v167, 64
+    mstore v39, 0xffffffffffffffffffffffffffffffff00010203040506070809ffffffffffff
+    v41 = add v167, 96
+    mstore v41, 0xff0a0b0c0d0e0fffffffffffffffffffffffffffffffffffffffffffffffffff
+    v43 = add v167, 128
+    mstore v43, 0xff0a0b0c0d0e0fffffffffffffffffffffffffffffffffffffffffffffffffff
+    v45 = add v167, 160
+    mstore v45, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v47 = add v167, 192
+    mstore v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v49 = add v167, 224
+    mstore v49, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v51 = add v167, 256
+    mstore v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jump bb5
+  bb5:
+    v56 = phi [bb17: v24], [bb13: v111]
+    v58 = phi [bb17: 0], [bb13: v87]
+    v59 = phi [bb17: 0], [bb13: v113]
+    v60 = lt v56, v0
+    jumpi v60, bb7, bb6
+  bb6:
+    v99 = and v58, 128
+    v100 = ne v99, 0
+    jumpi v100, bb10, bb8
+  bb8:
+    ret v34
+  bb7:
+    v61 = mload v153
+    v62 = lt v56, v61
+    jumpi v62, bb11, bb9
+  bb11:
+    v131 = add v153, 32
+    v132 = add v131, v56
+    v133 = mload v132
+    v134 = byte 0, v133
+    v137 = add v159, v134
+    v138 = mload v137
+    v139 = byte 0, v138
+    v109 = add v56, 1
+    v75 = lt v109, v61
+    jumpi v75, bb12, bb9
+  bb12:
+    v142 = add v131, v109
+    v143 = mload v142
+    v144 = byte 0, v143
+    v147 = add v159, v144
+    v148 = mload v147
+    v149 = byte 0, v148
+    v86 = or v139, v149
+    v87 = or v58, v86
+    v88 = shl 4, v139
+    v89 = and v149, 15
+    v90 = or v88, v89
+    v91 = and v90, 255
+    v93 = mload v160
+    v94 = lt v59, v93
+    jumpi v94, bb13, bb9
+  bb9:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
+  bb13:
+    v151 = add v160, 32
+    v152 = add v151, v59
+    mstore8 v152, v91
+    v111 = add v56, 2
+    v113 = add v59, 1
+    jump bb5
+  bb18:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb10:
+    tail_call @revert_stub
+  bb14:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 0, 0xcbbc48a0 !metadata(memory=scratch)
+    revert 28, 4
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0x49145c91 => bb2]
+  bb2:
+    tail_call @decode.0
+  bb3:
+    revert 0, 0
+}

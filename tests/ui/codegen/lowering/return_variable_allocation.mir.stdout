@@ -3,7 +3,7 @@
 types:
   struct0: {i256, i256, i256}
 
-fn @memorySize() -> i256 [pure] {
+fn @memorySize() -> i256 [inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     ret v0

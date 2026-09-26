@@ -4,6 +4,11 @@
 //! protocol and expose further optimization opportunities. The dedicated single-use pass only
 //! consumes one-call-site, frameless scalar helpers without reference returns. The
 //! original body disappears through function DCE, so this avoids duplicating shared bodies.
+//! Consuming a helper moves its calls into the caller, where each may have become the
+//! only call of its callee, so the single-use pass repeats for a few bounded rounds
+//! until one inlines nothing. Size builds run it for loop-free callees only: a consumed
+//! body always drops the call protocol, but a looping body kept as a call can still
+//! merge with an equivalent one once lowering has made them identical.
 //! Recursive calls, explicit no-inline functions, large helpers, and aggregate allocation
 //! semantics stay with the existing call convention. It runs before late scalar cleanup.
 //! For gas-oriented lifetime decisions, statically counted loops weight call-protocol
@@ -11,6 +16,8 @@
 //! with a header guard and no other exit receive that weight. Conditional calls and
 //! unknown loop bounds retain the ordinary per-invocation estimate; size mode keeps
 //! its existing growth policy. These are profitability estimates, never legality facts.
+//! Callee summaries count alpha-equivalent return blocks once: MIR keeps returns unshared
+//! for the backend, which shares identical return sequences after stack scheduling.
 //! Tiny check wrappers containing a semantic check and an optional boolean
 //! negation also inline before check lowering. This exposes the guard to caller
 //! analyses without duplicating arbitrary control flow or allocation. Ordinary
@@ -75,6 +82,7 @@ use crate::{
         immutable::immutable_push_type_size,
         memory::{EvmMemoryLayout, MemoryLayoutPolicy},
         pass::MirPass,
+        transform::cfg_simplify::terminal_block_key,
         utils::{replace_terminator_uses_canonicalized, resolve_replacement},
     },
     target::{Cost, Target},
@@ -84,7 +92,7 @@ use solar_ast::StateMutability;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     index::IndexVec,
-    map::FxHashMap,
+    map::{FxHashMap, FxHashSet},
 };
 use solar_sema::Gcx;
 
@@ -218,6 +226,15 @@ pub(crate) enum InlineSingleUse {
     Semantic,
     /// Must not introduce semantic frame operations after memory lowering.
     Physical,
+    /// As `Semantic`, for size builds: helpers with a loop stay calls, since
+    /// a looping body is where two helpers that lower to the same code merge
+    /// after lowering, and a consumed body can no longer be shared.
+    LoopFree,
+}
+
+impl InlineSingleUse {
+    /// Rounds of consuming helpers whose last call a previous round moved.
+    const MAX_ROUNDS: usize = 4;
 }
 
 impl MirPass for InlineSingleUse {
@@ -231,22 +248,33 @@ impl MirPass for InlineSingleUse {
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let stats = MirInliner {
-            mode: InlineMode::SingleUse,
-            max_single_call_sanity_instructions: 256,
-            frame_staging_allowed: matches!(self, Self::Semantic)
-                && module.phase < MirPhase::Lowered,
-            ..MirInliner::default()
+        // Consuming a callee moves its calls into the caller, where each can be
+        // single-use in turn. Rounds repeat until one inlines nothing, at most
+        // `MAX_ROUNDS` times.
+        let mut changed = false;
+        for _ in 0..Self::MAX_ROUNDS {
+            let stats = MirInliner {
+                mode: InlineMode::SingleUse,
+                max_single_call_sanity_instructions: 256,
+                frame_staging_allowed: matches!(self, Self::Semantic | Self::LoopFree)
+                    && module.phase < MirPhase::Lowered,
+                loop_free_only: matches!(self, Self::LoopFree),
+                ..MirInliner::default()
+            }
+            .run(gcx, module);
+            // The consumed bodies are dead now. Remove exactly those instead of a
+            // module-wide dead-function sweep, which would also delete uncalled
+            // functions that were never reachable, such as the subjects of
+            // pipeline tests.
+            if !stats.consumed.is_empty() {
+                super::cfg_simplify::remove_unreferenced_functions(module, &stats.consumed);
+            }
+            if stats.inlined == 0 {
+                break;
+            }
+            changed = true;
         }
-        .run(gcx, module);
-        // The consumed bodies are dead now. Remove exactly those instead of a
-        // module-wide dead-function sweep, which would also delete uncalled
-        // functions that were never reachable, such as the subjects of
-        // pipeline tests.
-        if !stats.consumed.is_empty() {
-            super::cfg_simplify::remove_unreferenced_functions(module, &stats.consumed);
-        }
-        stats.inlined != 0
+        changed
     }
 }
 
@@ -325,6 +353,8 @@ struct MirInliner {
     /// frame slots are lowered to physical memory, a late run must leave such
     /// callees alone: the staging instructions would survive the phase boundary.
     frame_staging_allowed: bool,
+    /// Restricts single-use consumption to callees without a loop.
+    loop_free_only: bool,
     mode: InlineMode,
 }
 
@@ -367,16 +397,13 @@ impl Default for MirInliner {
             immutable_leaves_only: false,
             memory_wrappers_only: false,
             frame_staging_allowed: true,
+            loop_free_only: false,
             mode: InlineMode::Normal,
         }
     }
 }
 
 impl MirInliner {
-    /// How many times a loop without a computable trip count is assumed to
-    /// run per invocation when a hot leaf is weighed: GCC's estimate for such
-    /// loops. Counted loops use their real trip count instead.
-    const UNCOUNTED_LOOP_EXECUTIONS: u64 = 10;
     /// A hot leaf shared by more call sites than this stays a call: every
     /// clone deposits the whole body again.
     const MAX_HOT_LEAF_CALL_SITES: usize = 8;
@@ -827,7 +854,8 @@ impl MirInliner {
                 || summary.internal_frame_size != 0
                 || summary.has_reference_return
                 || (summary.has_phi && !bounded_phi)
-                || (!self.frame_staging_allowed && summary.return_values > 1))
+                || (!self.frame_staging_allowed && summary.return_values > 1)
+                || (self.loop_free_only && summary.has_loop))
         {
             return false;
         }
@@ -970,7 +998,7 @@ impl MirInliner {
         let loop_executions = if !self.target.optimization().is_gas() {
             1
         } else if self.mode == InlineMode::HotLeaves && site.loop_depth > 0 && !site.loop_counted {
-            Self::UNCOUNTED_LOOP_EXECUTIONS
+            Target::UNCOUNTED_LOOP_EXECUTIONS
         } else {
             site.loop_executions
         };
@@ -1186,7 +1214,17 @@ fn summarize_function(
         ..MirInlineSummary::default()
     };
 
-    for block in func.blocks.iter() {
+    // Alpha-equivalent returns count once: the backend shares them after stack
+    // scheduling, and the limits below were tuned on shared returns.
+    let mut returns = FxHashSet::default();
+    for (block_id, block) in func.blocks.iter_enumerated() {
+        if matches!(block.terminator, Some(Terminator::Return { .. }))
+            && let Some(key) = terminal_block_key(func, block_id)
+            && !returns.insert(key)
+        {
+            summary.block_count -= 1;
+            continue;
+        }
         for &inst_id in &block.instructions {
             let kind = &func.inst(inst_id).kind;
             let (inst_cost, instructions) = estimate_inst_cost(gcx, module, kind);
@@ -2348,6 +2386,8 @@ impl<'a> InlineCloner<'a> {
         callee_frame_prefix: u64,
         args: Box<[ValueId]>,
     ) -> Self {
+        // The callee's instructions move into the caller, and with them any assembly.
+        caller.attributes.inline_assembly |= callee.attributes.inline_assembly;
         Self {
             caller,
             callee,

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/scalar_dispatch.sol:ScalarDispatch ===
 @module ScalarDispatch
 @phase lowered
-fn @entry() [entry] {
+fn @entry() [entry, inline_assembly] {
   bb0:
     v0 = callvalue
     v1 = calldatasize
@@ -21,65 +21,65 @@ fn @entry() [entry] {
     jump bb16
   bb16:
     v33 = phi [bb6: v8], [bb17: v37]
-    v34 = phi [bb6: 0], [bb17: v39]
-    v35 = phi [bb6: v9], [bb17: v38]
-    v36 = lt v34, v10
+    v34 = phi [bb6: v9], [bb17: v38]
+    v35 = phi [bb6: 0], [bb17: v39]
+    v36 = lt v35, v10
     jumpi v36, bb17, bb18
   bb18:
-    mstore 128, v33
-    returndata 128, 32
+    mstore 0, v33
+    returndata 0, 32
   bb17:
-    v37 = and v33, v35
-    v38 = add v35, v34
-    v39 = add v34, 1
+    v37 = and v33, v34
+    v38 = add v34, v35
+    v39 = add v35, 1
     jump bb16
   bb5:
     jump bb13
   bb13:
-    v26 = phi [bb5: 0], [bb14: v32]
+    v26 = phi [bb5: v8], [bb14: v30]
     v27 = phi [bb5: v9], [bb14: v31]
-    v28 = phi [bb5: v8], [bb14: v30]
-    v29 = lt v26, v10
+    v28 = phi [bb5: 0], [bb14: v32]
+    v29 = lt v28, v10
     jumpi v29, bb14, bb15
   bb15:
-    mstore 128, v28
-    returndata 128, 32
+    mstore 0, v26
+    returndata 0, 32
   bb14:
-    v30 = sub v27, v28
-    v31 = add v27, v26
-    v32 = add v26, 1
+    v30 = sub v27, v26
+    v31 = add v27, v28
+    v32 = add v28, 1
     jump bb13
   bb4:
     jump bb10
   bb10:
     v19 = phi [bb4: v8], [bb11: v23]
-    v20 = phi [bb4: 0], [bb11: v25]
-    v21 = phi [bb4: v9], [bb11: v24]
-    v22 = lt v20, v10
+    v20 = phi [bb4: v9], [bb11: v24]
+    v21 = phi [bb4: 0], [bb11: v25]
+    v22 = lt v21, v10
     jumpi v22, bb11, bb12
   bb12:
-    mstore 128, v19
-    returndata 128, 32
+    mstore 0, v19
+    returndata 0, 32
   bb11:
-    v23 = xor v19, v21
-    v24 = add v21, v20
-    v25 = add v20, 1
+    v23 = xor v19, v20
+    v24 = add v20, v21
+    v25 = add v21, 1
     jump bb10
   bb3:
     jump bb7
   bb7:
-    v11 = phi [bb3: v9], [bb8: v17]
-    v12 = phi [bb3: v8], [bb8: v16]
+    v11 = phi [bb3: v8], [bb8: v16]
+    v12 = phi [bb3: v9], [bb8: v17]
     v13 = phi [bb3: 0], [bb8: v18]
     v14 = lt v13, v10
     jumpi v14, bb8, bb9
   bb9:
-    mstore 128, v12
-    returndata 128, 32
+    mstore 0, v11
+    returndata 0, 32
   bb8:
-    v15 = not v11
-    v16 = and v15, v12
-    v17 = add v11, v13
+    v15 = not v12
+    v16 = and v15, v11
+    v17 = add v12, v13
     v18 = add v13, 1
     jump bb7
   bb1:

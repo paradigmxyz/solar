@@ -1,0 +1,162 @@
+// === <solar:core/v1/Bytes.sol>:Bytes ===
+@module Bytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/safe-solar/libstring/hex/safe.sol:Safe ===
+@module Safe
+@phase lowered
+fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
+  bb0:
+    v125 = calldatasize
+    v126 = lt v125, 68
+    jumpi v126, bb16, bb17
+  bb17:
+    v78 = add arg1, arg1
+    v80 = shr 1, v78
+    v84 = ne v80, arg1
+    jumpi v84, bb14, bb15
+  bb15:
+    v1 = add v78, 63
+    v2 = lt v1, v78
+    jumpi v2, bb8, bb9
+  bb9:
+    v4 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v156 = mload 64 !metadata(memory=scratch)
+    v157 = add v156, v4
+    v158 = lt v157, v156
+    v159 = zext i1 v158 to i256
+    v160 = shr 64, v157
+    v161 = or v159, v160
+    v162 = ne v161, 0
+    jumpi v162, bb8, bb18
+  bb18:
+    mstore 64, v157 !metadata(memory=scratch)
+    v163 = calldatasize
+    calldatacopy v156, v163, v4
+    mstore v156, v78
+    v148 = add v156, 32
+    jump bb1
+  bb1:
+    v6 = phi [bb18: arg0], [bb13: v25]
+    v9 = phi [bb18: arg1], [bb13: v85]
+    v10 = lt v9, 16
+    jumpi v10, bb3, bb2
+  bb2:
+    v85 = sub v9, 16
+    v87 = add v85, v85
+    v14 = and v6, 0xffffffffffffffffffffffffffffffff
+    v56 = shl 64, v14
+    v57 = or v14, v56
+    v58 = and v57, 0xffffffffffffffff0000000000000000ffffffffffffffff
+    v59 = shl 32, v58
+    v60 = or v58, v59
+    v61 = and v60, 0xffffffff00000000ffffffff00000000ffffffff00000000ffffffff
+    v62 = shl 16, v61
+    v63 = or v61, v62
+    v64 = and v63, 0xffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff
+    v65 = shl 8, v64
+    v66 = or v64, v65
+    v67 = and v66, 0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff
+    v68 = shl 4, v67
+    v69 = or v67, v68
+    v70 = and v69, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+    v105 = add v70, 0x606060606060606060606060606060606060606060606060606060606060606
+    v72 = shr 4, v105
+    v73 = and v72, 0x101010101010101010101010101010101010101010101010101010101010101
+    v107 = add v70, 0x3030303030303030303030303030303030303030303030303030303030303030
+    v109 = mul v73, 39
+    v116 = add v107, v109
+    v16 = mload v156
+    v17 = add v87, 32
+    v18 = lt v17, v87
+    v19 = gt v17, v16
+    v20 = or v18, v19
+    jumpi v20, bb10, bb13
+  bb13:
+    v149 = add v148, v87
+    mstore v149, v116
+    v25 = shr 128, v6
+    jump bb1
+  bb3:
+    v142 = add v156, 32
+    v164 = shl 1, v9
+    v165 = add v142, v164
+    v166 = sub v165, 1
+    jump bb4
+  bb4:
+    v26 = phi [bb3: v6], [bb11: v54]
+    v29 = phi [bb3: v9], [bb11: v94]
+    v167 = phi [bb3: v166], [bb11: v168]
+    v30 = ne v29, 0
+    jumpi v30, bb6, bb5
+  bb5:
+    v55 = ne v26, 0
+    jumpi v55, bb12, bb7
+  bb7:
+    v130 = mload v156
+    v131 = add v130, 31
+    v133 = and v131, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v154 = add v156, 32
+    v136 = add v154, v130
+    mstore v136, 0
+    v138 = sub v156, 32
+    mstore v138, 32
+    v139 = add v133, 64
+    returndata v138, v139
+  bb12:
+    mstore 0, 0x2194895a !metadata(memory=scratch)
+    revert 28, 4
+  bb6:
+    v94 = sub v29, 1
+    v32 = and v26, 15
+    v35 = byte v32, 0x3031323334353637383961626364656600000000000000000000000000000000
+    v96 = add v94, v94
+    v103 = add v96, 1
+    v39 = mload v156
+    v40 = lt v103, v39
+    jumpi v40, bb11, bb10
+  bb10:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
+  bb11:
+    mstore8 v167, v35
+    v43 = shr 4, v26
+    v44 = and v43, 15
+    v47 = byte v44, 0x3031323334353637383961626364656600000000000000000000000000000000
+    v146 = sub v167, 1
+    mstore8 v146, v47
+    v54 = shr 4, v43
+    v168 = sub v167, 2
+    jump bb4
+  bb8:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb14:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
+  bb16:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xe1425395 => bb2]
+  bb2:
+    tail_call @toHex
+  bb3:
+    revert 0, 0
+}

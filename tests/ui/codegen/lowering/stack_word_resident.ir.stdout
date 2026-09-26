@@ -22,18 +22,18 @@ bb0:
   calldataload
   push 4
   calldataload
+  dup 2
+  dup 2
   xor
-  push 36
-  calldataload
-  push 4
-  calldataload
+  dup 3
+  dup 3
   and
-  dup 2
-  dup 2
-  add
+  swap 3
+  swap 1
+  swap 2
+  or
   push 128
   mstore
-  swap 1
   push 160
   mstore
   push 192

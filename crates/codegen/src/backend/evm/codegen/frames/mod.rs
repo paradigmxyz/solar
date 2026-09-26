@@ -22,6 +22,7 @@ use crate::mir::{
     Callee,
     utils::{eval::eval_inst, u256_to_u64},
 };
+use solar_data_structures::index::IndexVec;
 
 /// A dynamic-length write to a low absolute base below this bound above
 /// `HEAP_START` is treated as possibly reaching the spill area.
@@ -54,7 +55,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// callers and callees while unused signature and spill words disappear.
     ///
     /// Address-taken locals, multiword return buffers and recursive frames retain their layouts.
-    /// Constructors retain their independent frame convention.
+    /// A multiword helper that returns on the stack has no such buffer unless a call site
+    /// staged its results there. Constructors retain their independent frame convention.
     pub(in crate::backend::evm::codegen) fn pack_scalar_static_frames(&mut self, module: &Module) {
         if !self.runtime_stack_args
             || !(self.gcx.sess.opts.optimization.is_gas()
@@ -69,7 +71,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             let func = &module.functions[func_id];
             if !self.recursive_frame_functions.contains(func_id)
                 && func.internal_frame_size == 0
-                && func.return_components().len() <= 1
+                && (func.return_components().len() <= 1
+                    || (self.stack_return_plan(func_id).is_some()
+                        && !self.stack_return_buffers.contains(func_id)))
                 && !func
                     .instructions()
                     .any(|inst| matches!(func.inst(inst).kind, InstKind::InternalFrameAddr(_)))
@@ -922,9 +926,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 )
             })
             .collect();
+        // An entry-specific constant takes its own floor; the shared one the largest.
+        let mut starts = FxHashMap::<DeferredConst, u64>::default();
         for (entry, id) in self.runtime_free_memory_consts.drain() {
             let floor = free_memory_floors[&entry];
-            self.asm.set_deferred_const(id, U256::from(floor));
+            let start = starts.entry(id).or_insert(floor);
+            *start = (*start).max(floor);
+        }
+        for (id, start) in starts {
+            self.asm.set_deferred_const(id, U256::from(start));
         }
         self.runtime_entry_reachability.clear();
     }
@@ -975,6 +985,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 argument_offsets,
                 returned_offsets,
                 projections,
+                None,
                 &mut visiting,
                 &mut memo,
             ) {
@@ -988,9 +999,21 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Propagates known heap offsets through actual arguments and helper returns.
     /// Scalar parameters acquire heap provenance only from a caller. Forward and
     /// backward propagation each need at most one round per nonrecursive call edge.
+    /// Offsets do not travel around a recursive call cycle, just as a loop-carried
+    /// phi does not feed its own offset: arguments of a call within the caller's
+    /// recursive component are not propagated, and a returned offset ignores results
+    /// of such calls. Each access is measured from the values that enter the cycle.
+    /// Otherwise an argument stepped backward on every recursive call would grow by
+    /// one step per round until the round budget ran out.
     pub(in crate::backend::evm::codegen) fn heap_prefix_offsets(
         module: &Module,
     ) -> HeapPrefixOffsets {
+        let call_graph = CallGraphInfo::new(module);
+        let components = module
+            .functions
+            .indices()
+            .map(|func_id| call_graph.recursive_component(func_id))
+            .collect::<IndexVec<FunctionId, _>>();
         let mut offsets = HeapPrefixOffsets::default();
         for (func_id, func) in module.functions.iter_enumerated() {
             for (block_id, block) in func.blocks.iter_enumerated() {
@@ -1022,7 +1045,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             for (func_id, func) in module.functions.iter_enumerated() {
                 let mut visiting = DenseBitSet::new_empty(func.num_values());
                 let mut memo = FxHashMap::default();
-                let mut derive = |value| {
+                let component = &components[func_id];
+                let mut derive = |value, cycle| {
                     // A cycle can leave a partial result for a nested root.
                     memo.clear();
                     Self::heap_prefix_offset(
@@ -1031,6 +1055,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         arguments.get(&func_id),
                         returns,
                         projections.get(&func_id),
+                        cycle,
                         &mut visiting,
                         &mut memo,
                     )
@@ -1055,8 +1080,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                         }
                     }));
                 for (callee, args) in calls {
+                    if component.contains(callee) {
+                        continue;
+                    }
                     for (index, &value) in args.iter().enumerate() {
-                        if let Some(offset) = derive(value) {
+                        if let Some(offset) = derive(value, None) {
                             incoming.push((callee, ArgIdx::new(index), offset));
                         }
                     }
@@ -1065,16 +1093,18 @@ impl<'gcx> EvmCodegen<'gcx> {
                 for block in &func.blocks {
                     match &block.terminator {
                         Some(Terminator::Return { values }) => {
-                            for (component, &value) in values.iter().enumerate() {
-                                if let Some(offset) = derive(value) {
-                                    returned.push((component, offset));
+                            for (index, &value) in values.iter().enumerate() {
+                                if let Some(offset) = derive(value, Some(component)) {
+                                    returned.push((index, offset));
                                 }
                             }
                         }
-                        Some(Terminator::TailCall { function, .. }) => {
-                            for component in 0..func.return_components().len() {
-                                if let Some(&offset) = returns.get(&(*function, component)) {
-                                    returned.push((component, offset));
+                        Some(Terminator::TailCall { function, .. })
+                            if !component.contains(*function) =>
+                        {
+                            for index in 0..func.return_components().len() {
+                                if let Some(&offset) = returns.get(&(*function, index)) {
+                                    returned.push((index, offset));
                                 }
                             }
                         }
@@ -1158,20 +1188,26 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Returns how far `value` can point before its underlying heap object.
+    ///
+    /// Results of calls into `cycle` do not count; propagation passes the caller's
+    /// recursive component while it derives the caller's own returned offsets.
+    #[allow(clippy::too_many_arguments)]
     fn heap_prefix_offset(
         func: &Function,
         value: ValueId,
         argument_offsets: Option<&FxHashMap<ArgIdx, u64>>,
         returned_offsets: &FxHashMap<(FunctionId, usize), u64>,
         projections: Option<&FxHashMap<ValueId, (FunctionId, usize)>>,
+        cycle: Option<&DenseBitSet<FunctionId>>,
         visiting: &mut DenseBitSet<ValueId>,
         memo: &mut FxHashMap<ValueId, u64>,
     ) -> Option<u64> {
         if let Some(&offset) = memo.get(&value) {
             return Some(offset);
         }
-        if let Some(component) = projections.and_then(|values| values.get(&value))
-            && let Some(&offset) = returned_offsets.get(component)
+        if let Some(&(callee, component)) = projections.and_then(|values| values.get(&value))
+            && !cycle.is_some_and(|cycle| cycle.contains(callee))
+            && let Some(&offset) = returned_offsets.get(&(callee, component))
         {
             return Some(offset);
         }
@@ -1185,6 +1221,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 argument_offsets,
                 returned_offsets,
                 projections,
+                cycle,
                 visiting,
                 memo,
             )
@@ -1221,6 +1258,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     Some(0)
                 }
                 InstKind::ICall { function: Callee::Function(function), .. } => {
+                    if cycle.is_some_and(|cycle| cycle.contains(*function)) {
+                        return None;
+                    }
                     returned_offsets.get(&(*function, 0)).copied()
                 }
                 InstKind::Add(first, second) => {
@@ -1380,15 +1420,66 @@ impl<'gcx> EvmCodegen<'gcx> {
         func.instructions().any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::ICall { .. }))
     }
 
+    /// Initializes the free-memory pointer for the external `entry` when anything it reaches
+    /// uses dynamic memory. After a shared store before dispatch, the entry only records
+    /// that the shared start must cover its own.
     pub(in crate::backend::evm::codegen) fn emit_entry_free_memory_start(
         &mut self,
         module: &Module,
         call_graph: &CallGraphInfo,
         entry: FunctionId,
     ) {
+        if !self.entry_needs_free_memory(module, call_graph, entry) {
+            return;
+        }
+        if let Some(id) = self.shared_free_memory_const {
+            self.runtime_free_memory_consts.insert(entry, id);
+            return;
+        }
+
+        let id = self.asm.new_deferred_const();
+        self.emit_free_memory_start(id);
+        self.runtime_free_memory_consts.insert(entry, id);
+    }
+
+    /// Stores the free-memory pointer once before dispatch when at least two external entries
+    /// need it, instead of at each of them: size builds trade the memory the smaller entries
+    /// then leave unused for one store in place of one per entry.
+    pub(in crate::backend::evm::codegen) fn emit_shared_free_memory_start(
+        &mut self,
+        module: &Module,
+        call_graph: &CallGraphInfo,
+        entries: impl IntoIterator<Item = FunctionId>,
+    ) {
+        let mut needed = 0usize;
+        for entry in entries {
+            needed += usize::from(self.entry_needs_free_memory(module, call_graph, entry));
+        }
+        if needed < 2 {
+            return;
+        }
+        let id = self.asm.new_deferred_const();
+        self.emit_free_memory_start(id);
+        self.shared_free_memory_const = Some(id);
+    }
+
+    fn emit_free_memory_start(&mut self, id: DeferredConst) {
+        // mstore(FMP_SLOT, start)
+        self.asm.emit_push_deferred(id);
+        self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
+        self.asm.emit_op(op::MSTORE);
+    }
+
+    /// Whether anything the external `entry` reaches uses dynamic memory.
+    fn entry_needs_free_memory(
+        &mut self,
+        module: &Module,
+        call_graph: &CallGraphInfo,
+        entry: FunctionId,
+    ) -> bool {
         self.record_runtime_entry_reachability(call_graph, entry);
         let reachable = &self.runtime_entry_reachability[&entry];
-        let needs_free_memory = reachable.iter().any(|func_id| {
+        reachable.iter().any(|func_id| {
             call_graph.is_recursive(func_id)
                 || Self::function_may_observe_free_memory_slot(&module.functions[func_id])
                 || module.functions[func_id].instructions().any(|inst_id| {
@@ -1398,16 +1489,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                             if module.function(function).return_components().len() > 1 || !self.static_frame_functions.contains(function)
                     )
                 })
-        });
-        if !needs_free_memory {
-            return;
-        }
-
-        let id = self.asm.new_deferred_const();
-        self.asm.emit_push_deferred(id);
-        self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-        self.asm.emit_op(op::MSTORE);
-        self.runtime_free_memory_consts.insert(entry, id);
+        })
     }
 
     /// Records every function whose memory bounds contribute to one runtime entry.
@@ -1601,6 +1683,7 @@ mod tests {
                     None,
                     &FxHashMap::default(),
                     None,
+                    None,
                     &mut visiting,
                     &mut memo,
                 ),
@@ -1615,6 +1698,7 @@ mod tests {
                     value,
                     None,
                     &FxHashMap::default(),
+                    None,
                     None,
                     &mut visiting,
                     &mut memo
@@ -1793,6 +1877,7 @@ mod tests {
                     None,
                     &FxHashMap::default(),
                     None,
+                    None,
                     &mut visiting,
                     &mut memo,
                 ),
@@ -1859,6 +1944,36 @@ mod tests {
         assert_eq!(offsets.returns[&(root, 0)], 64);
         assert_eq!(offsets.arguments[&scalar][&ArgIdx::new(0)], 0);
         assert!(!offsets.returns.contains_key(&(scalar, 0)));
+    }
+
+    #[test]
+    fn heap_prefix_recursive_cycle() {
+        let mut module = Module::new(Ident::DUMMY);
+        let walker = module.add_function(Function::new(Ident::DUMMY));
+        let mut builder = FunctionBuilder::new(&mut module.functions[walker]);
+        // walker(pointer):
+        //   previous = pointer - 32
+        //   mload previous
+        //   walker(previous)
+        let pointer = builder.add_param(MirType::I256);
+        let word = builder.imm(32);
+        let previous = builder.sub(pointer, word);
+        builder.mload(previous);
+        builder.icall_void(walker, vec![previous]);
+        builder.ret([]);
+
+        let mut caller = Function::new(Ident::DUMMY);
+        let mut builder = FunctionBuilder::new(&mut caller);
+        // walker(fmp)
+        let base = builder.fmp();
+        builder.icall_void(walker, vec![base]);
+        builder.ret([]);
+        module.add_function(caller);
+
+        // Only the caller's argument enters the cycle, so the guard covers one step.
+        let offsets = EvmCodegen::heap_prefix_offsets(&module);
+        assert_eq!(offsets.arguments[&walker][&ArgIdx::new(0)], 0);
+        assert_eq!(offsets.guard(walker, &module.functions[walker]), 32);
     }
 
     #[test]

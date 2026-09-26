@@ -468,10 +468,10 @@ fn @bumpAll(arg0: i256) -> struct0 [selector=0x583a2887, abi_params=[u256], abi_
     icall @_fill, arg0
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v59]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = phi [bb0: 0], [bb3: v3]
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v59]
     v4 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v4
     v5 = and v4, 1
@@ -480,18 +480,18 @@ fn @bumpAll(arg0: i256) -> struct0 [selector=0x583a2887, abi_params=[u256], abi_
     v8 = or 127, v7
     v9 = shr 1, v4
     v10 = and v9, v8
-    v11 = lt v1, v10
+    v11 = lt v3, v10
     jumpi v11, bb4, bb5
   bb5:
     jump bb2
   bb2:
     jump bb13
   bb13:
-    v60 = phi [bb2: 0], [bb15: v95]
-    v61 = phi [bb2: v0], [bb15: v94]
-    v62 = phi [bb2: v1], [bb15: v62]
-    v63 = phi [bb2: v2], [bb15: v63]
-    v64 = phi [bb2: v3], [bb15: v64]
+    v60 = phi [bb2: v0], [bb15: v60]
+    v61 = phi [bb2: v1], [bb15: v94]
+    v62 = phi [bb2: v2], [bb15: v62]
+    v63 = phi [bb2: v3], [bb15: v63]
+    v64 = phi [bb2: 0], [bb15: v95]
     v65 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v65
     v66 = and v65, 1
@@ -500,7 +500,7 @@ fn @bumpAll(arg0: i256) -> struct0 [selector=0x583a2887, abi_params=[u256], abi_
     v69 = or 127, v68
     v70 = shr 1, v65
     v71 = and v70, v69
-    v72 = lt v60, v71
+    v72 = lt v64, v71
     jumpi v72, bb16, bb17
   bb17:
     jump bb14
@@ -525,7 +525,7 @@ fn @bumpAll(arg0: i256) -> struct0 [selector=0x583a2887, abi_params=[u256], abi_
     v77 = or 127, v76
     v78 = shr 1, v73
     v79 = and v78, v77
-    v80 = lt v60, v79
+    v80 = lt v64, v79
     v81 = eq v80, false
     icall panic_if<0x32>, v81
     jumpi v75, bb19, bb20
@@ -533,12 +533,12 @@ fn @bumpAll(arg0: i256) -> struct0 [selector=0x583a2887, abi_params=[u256], abi_
     jump bb21
   bb19:
     v82 = storage_array_data_slot 0
-    v83 = shr 5, v60
+    v83 = shr 5, v64
     v84 = add v82, v83
     jump bb21
   bb21:
     v85 = phi [bb19: v84], [bb20: 0]
-    v86 = and v60, 31
+    v86 = and v64, 31
     v87 = sub 31, v86
     v88 = sload v85 !metadata(storage=symbolic(v85))
     v89 = mul v87, 8
@@ -551,7 +551,7 @@ fn @bumpAll(arg0: i256) -> struct0 [selector=0x583a2887, abi_params=[u256], abi_
   bb18:
     jump bb15
   bb15:
-    v95 = checked_add u256, v60, 1
+    v95 = checked_add u256, v64, 1
     jump bb13
   bb4:
     v12 = sload 0 !metadata(storage=slot(0))
@@ -562,7 +562,7 @@ fn @bumpAll(arg0: i256) -> struct0 [selector=0x583a2887, abi_params=[u256], abi_
     v16 = or 127, v15
     v17 = shr 1, v12
     v18 = and v17, v16
-    v19 = lt v1, v18
+    v19 = lt v3, v18
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     jumpi v14, bb7, bb8
@@ -570,12 +570,12 @@ fn @bumpAll(arg0: i256) -> struct0 [selector=0x583a2887, abi_params=[u256], abi_
     jump bb9
   bb7:
     v21 = storage_array_data_slot 0
-    v22 = shr 5, v1
+    v22 = shr 5, v3
     v23 = add v21, v22
     jump bb9
   bb9:
     v24 = phi [bb7: v23], [bb8: 0]
-    v25 = and v1, 31
+    v25 = and v3, 31
     v26 = sub 31, v25
     v27 = sload v24 !metadata(storage=symbolic(v24))
     v28 = mul v26, 8
@@ -593,7 +593,7 @@ fn @bumpAll(arg0: i256) -> struct0 [selector=0x583a2887, abi_params=[u256], abi_
     v39 = or 127, v38
     v40 = shr 1, v35
     v41 = and v40, v39
-    v42 = lt v1, v41
+    v42 = lt v3, v41
     v43 = eq v42, false
     icall panic_if<0x32>, v43
     jumpi v37, bb10, bb11
@@ -601,12 +601,12 @@ fn @bumpAll(arg0: i256) -> struct0 [selector=0x583a2887, abi_params=[u256], abi_
     jump bb12
   bb10:
     v44 = storage_array_data_slot 0
-    v45 = shr 5, v1
+    v45 = shr 5, v3
     v46 = add v44, v45
     jump bb12
   bb12:
     v47 = phi [bb10: v46], [bb11: 0]
-    v48 = and v1, 31
+    v48 = and v3, 31
     v49 = sub 31, v48
     v50 = mul v49, 8
     v51 = shl v50, 255
@@ -622,7 +622,7 @@ fn @bumpAll(arg0: i256) -> struct0 [selector=0x583a2887, abi_params=[u256], abi_
   bb6:
     jump bb3
   bb3:
-    v59 = checked_add u256, v1, 1
+    v59 = checked_add u256, v3, 1
     jump bb1
 }
 
@@ -894,7 +894,7 @@ fn @deleteLast(arg0: i256) -> struct2 [selector=0x32a309a7, abi_params=[u256], a
     ret v78
 }
 
-fn @rawByte(arg0: i256) -> i256 [selector=0xa88f9005, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @rawByte(arg0: i256) -> i256 [selector=0xa88f9005, inline_assembly, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall @_fill, arg0
     v0 = checked_sub u256, arg0, 1

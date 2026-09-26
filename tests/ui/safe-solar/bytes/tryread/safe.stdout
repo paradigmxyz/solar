@@ -1,0 +1,96 @@
+// === <solar:core/v1/Bytes.sol>:Bytes ===
+@module Bytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/safe-solar/bytes/tryread/safe.sol:Safe ===
+@module Safe
+@phase lowered
+types:
+  struct0: {i256, i256}
+
+fn @peek() [selector=0xa230438f, abi_wrapper, pure] {
+  bb0:
+    v28 = calldatasize
+    v29 = lt v28, 68
+    jumpi v29, bb1, bb2
+  bb2:
+    v30 = calldataload 4
+    v31 = add v30, 4
+    v32 = add v31, 32
+    v33 = shr 64, v30
+    v34 = gt v32, v28
+    v35 = zext i1 v34 to i256
+    v36 = or v33, v35
+    v37 = ne v36, 0
+    jumpi v37, bb1, bb3
+  bb3:
+    v38 = calldataload v31
+    v40 = add v38, 63
+    v41 = lt v40, v38
+    jumpi v41, bb4, bb5
+  bb5:
+    v43 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v63 = mload 64 !metadata(memory=scratch)
+    v64 = add v63, v43
+    v65 = lt v64, v63
+    v66 = zext i1 v65 to i256
+    v67 = shr 64, v64
+    v68 = or v66, v67
+    v69 = ne v68, 0
+    jumpi v69, bb4, bb7
+  bb7:
+    mstore 64, v64 !metadata(memory=scratch)
+    mstore v63, v38
+    v45 = sub v28, v32
+    v46 = gt v38, v45
+    jumpi v46, bb1, bb6
+  bb6:
+    v54 = add v63, 32
+    calldatacopy v54, v32, v38
+    v70 = mload 64 !metadata(memory=scratch)
+    v71 = add v70, 64
+    mstore 64, v71 !metadata(memory=scratch)
+    mstore v70, 4
+    v60 = add v70, 32
+    mstore v60, 0x1122334400000000000000000000000000000000000000000000000000000000
+    v4 = add arg1, 4
+    v5 = lt v4, arg1
+    v6 = gt v4, v38
+    v7 = or v5, v6
+    v9 = eq v7, false
+    v24 = zext i1 v9 to i256
+    v10 = mul v24, arg1
+    v13 = add v54, v10
+    v14 = mload v13
+    v15 = mul v24, v14
+    v16 = and v15, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 0, v24
+    mstore 32, v16 !metadata(memory=scratch)
+    returndata 0, 64
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xa230438f => bb2]
+  bb2:
+    tail_call @peek
+  bb3:
+    revert 0, 0
+}

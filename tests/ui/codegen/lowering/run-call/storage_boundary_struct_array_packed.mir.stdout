@@ -3,18 +3,18 @@
 types:
   struct0: {i256, i256}
 
-fn @getBoundaryArray() -> i256 [pure] {
+fn @getBoundaryArray() -> i256 [inline_assembly, pure] {
   bb0:
     v0 = sub 0, 5
     ret v0
 }
 
-fn @getDest() -> i256 [pure] {
+fn @getDest() -> i256 [inline_assembly, pure] {
   bb0:
     ret 6
 }
 
-fn @getCanary() -> i256 [pure] {
+fn @getCanary() -> i256 [inline_assembly, pure] {
   bb0:
     ret 5
 }
@@ -73,19 +73,19 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb18:
     jump bb19
   bb19:
-    v165 = phi [bb18: 0], [bb21: v216]
-    v166 = phi [bb18: v2], [bb21: v166]
-    v167 = phi [bb18: v3], [bb21: v215]
-    v168 = phi [bb18: v4], [bb21: v168]
-    v169 = phi [bb18: v59], [bb21: v169]
-    v170 = phi [bb18: v5], [bb21: v170]
-    v171 = phi [bb18: v6], [bb21: v171]
-    v172 = lt v165, 10
+    v165 = phi [bb18: v2], [bb21: v215]
+    v166 = phi [bb18: v3], [bb21: v166]
+    v167 = phi [bb18: v4], [bb21: v167]
+    v168 = phi [bb18: 0], [bb21: v216]
+    v169 = phi [bb18: v5], [bb21: v169]
+    v170 = phi [bb18: v6], [bb21: v170]
+    v171 = phi [bb18: v59], [bb21: v171]
+    v172 = lt v168, 10
     jumpi v172, bb22, bb23
   bb23:
     jump bb20
   bb20:
-    v217 = sload v170 !metadata(storage=symbolic(v170))
+    v217 = sload v169 !metadata(storage=symbolic(v169))
     v218 = eq v217, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jumpi v218, bb25, bb26
   bb26:
@@ -95,7 +95,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v220 = eq v219, false
     icall panic_if<0x32>, v220
     v221 = mul 0, 10
-    v222 = add v171, v221
+    v222 = add v170, v221
     v223 = lt 9, 10
     v224 = eq v223, false
     icall panic_if<0x32>, v224
@@ -108,7 +108,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb27:
     v230 = phi [bb25: v229], [bb26: false]
     v231 = zext i1 v230 to i256
-    v232 = insert_value struct0, undef struct0, 0, v167
+    v232 = insert_value struct0, undef struct0, 0, v165
     v233 = insert_value struct0, v232, 1, v231
     ret v233
   bb22:
@@ -116,22 +116,22 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v174 = eq v173, false
     icall panic_if<0x32>, v174
     v175 = mul 0, 10
-    v176 = add v169, v175
-    v177 = lt v165, 10
+    v176 = add v171, v175
+    v177 = lt v168, 10
     v178 = eq v177, false
     icall panic_if<0x32>, v178
-    v179 = add v176, v165
+    v179 = add v176, v168
     v180 = sload v179 !metadata(storage=symbolic(v179))
     v181 = and v180, 0xffffffffffffffff
     v182 = lt 0, 1
     v183 = eq v182, false
     icall panic_if<0x32>, v183
     v184 = mul 0, 10
-    v185 = add v169, v184
-    v186 = lt v165, 10
+    v185 = add v171, v184
+    v186 = lt v168, 10
     v187 = eq v186, false
     icall panic_if<0x32>, v187
-    v188 = add v185, v165
+    v188 = add v185, v168
     v189 = sload v188 !metadata(storage=symbolic(v188))
     v190 = shr 64, v189
     v191 = and v190, 0xffffffffffffffff
@@ -140,11 +140,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v194 = eq v193, false
     icall panic_if<0x32>, v194
     v195 = mul 0, 10
-    v196 = add v169, v195
-    v197 = lt v165, 10
+    v196 = add v171, v195
+    v197 = lt v168, 10
     v198 = eq v197, false
     icall panic_if<0x32>, v198
-    v199 = add v196, v165
+    v199 = add v196, v168
     v200 = sload v199 !metadata(storage=symbolic(v199))
     v201 = shr 128, v200
     v202 = and v201, 0xffffffffffffffff
@@ -153,21 +153,21 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v205 = eq v204, false
     icall panic_if<0x32>, v205
     v206 = mul 0, 10
-    v207 = add v169, v206
-    v208 = lt v165, 10
+    v207 = add v171, v206
+    v208 = lt v168, 10
     v209 = eq v208, false
     icall panic_if<0x32>, v209
-    v210 = add v207, v165
+    v210 = add v207, v168
     v211 = sload v210 !metadata(storage=symbolic(v210))
     v212 = shr 192, v211
     v213 = and v212, 0xffffffffffffffff
     v214 = checked_add u64, v203, v213
-    v215 = checked_add u256, v167, v214
+    v215 = checked_add u256, v165, v214
     jump bb24
   bb24:
     jump bb21
   bb21:
-    v216 = checked_add u256, v165, 1
+    v216 = checked_add u256, v168, 1
     jump bb19
   bb17:
     v163 = add v160, v161

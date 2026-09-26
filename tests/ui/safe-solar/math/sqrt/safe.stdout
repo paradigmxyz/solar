@@ -1,0 +1,72 @@
+// === <solar:core/v1/Bits.sol>:Bits ===
+@module Bits
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/v1/Math.sol>:Math ===
+@module Math
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/safe-solar/math/sqrt/safe.sol:Safe ===
+@module Safe
+@phase lowered
+fn @root() [selector=0xe56bf027, abi_wrapper, pure] {
+  bb0:
+    v18 = calldatasize
+    v19 = lt v18, 36
+    jumpi v19, bb6, bb7
+  bb7:
+    v1 = eq arg0, 0
+    jumpi v1, bb1, bb2
+  bb2:
+    v2 = clz arg0
+    v3 = xor v2, 255
+    v7 = shr 1, v3
+    v8 = add v7, 1
+    v9 = shl v8, 1
+    jump bb3
+  bb3:
+    v10 = phi [bb2: v9], [bb5: v13]
+    v16 = ne v10, 0
+    jumpi v16, bb5, bb4
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 18 !metadata(memory=scratch)
+    revert 28, 36
+  bb5:
+    v17 = div arg0, v10
+    v12 = add v10, v17
+    v13 = shr 1, v12
+    v14 = lt v13, v10
+    jumpi v14, bb3, bb1
+  bb1:
+    v15 = phi [bb7: 0], [bb5: v10]
+    mstore 0, v15 !metadata(memory=scratch)
+    returndata 0, 32
+  bb6:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xe56bf027 => bb2]
+  bb2:
+    tail_call @root
+  bb3:
+    revert 0, 0
+}

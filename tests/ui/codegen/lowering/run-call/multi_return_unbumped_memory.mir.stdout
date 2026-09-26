@@ -3,7 +3,7 @@
 types:
   struct0: {i256, i256}
 
-fn @output() -> i256 [selector=0xf20eaeb8, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @output() -> i256 [selector=0xf20eaeb8, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 32
@@ -14,7 +14,7 @@ fn @output() -> i256 [selector=0xf20eaeb8, pure, abi_params=[], abi_returns=[wor
     ret v5
 }
 
-fn @emitWord(arg0: i256) -> struct0 {
+fn @emitWord(arg0: i256) -> struct0 [inline_assembly] {
   bb0:
     v0 = shl 240, 0x1234
     mstore arg0, v0

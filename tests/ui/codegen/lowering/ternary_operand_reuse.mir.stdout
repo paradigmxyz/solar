@@ -3,7 +3,7 @@
 types:
   struct0: {i256, i256}
 
-fn @addCaller(arg0: i256, arg1: i256) [selector=0x0718ec94, view, abi_params=[u256, u256], abi_returns=[word, word<u160>], abi_return_params=[u256, address]] {
+fn @addCaller(arg0: i256, arg1: i256) [selector=0x0718ec94, inline_assembly, view, abi_params=[u256, u256], abi_returns=[word, word<u160>], abi_return_params=[u256, address]] {
   bb0:
     v0 = caller
     v1 = zext i160 v0 to i256
@@ -13,7 +13,7 @@ fn @addCaller(arg0: i256, arg1: i256) [selector=0x0718ec94, view, abi_params=[u2
     returndata 0, 64
 }
 
-fn @mulRepeated(arg0: i256) [selector=0xfd9e0caf, view, abi_params=[u256], abi_returns=[word, word<u160>], abi_return_params=[u256, address]] {
+fn @mulRepeated(arg0: i256) [selector=0xfd9e0caf, inline_assembly, view, abi_params=[u256], abi_returns=[word, word<u160>], abi_return_params=[u256, address]] {
   bb0:
     v0 = caller
     v1 = zext i160 v0 to i256

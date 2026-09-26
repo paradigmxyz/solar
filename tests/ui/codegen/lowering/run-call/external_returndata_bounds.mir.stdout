@@ -32,14 +32,14 @@ fn @aggregate() -> memorystruct [selector=0xaf36778b, pure, abi_params=[], abi_r
     ret v0
 }
 
-fn @malformed() [selector=0x0a39e7bc, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @malformed() [selector=0x0a39e7bc, inline_assembly, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     mstore 0, 32 !metadata(memory=scratch)
     mstore 32, 256 !metadata(memory=scratch)
     returndata 0, 64
 }
 
-fn @dirtyAddress() -> i256 [selector=0x986597e5, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @dirtyAddress() -> i256 [selector=0x986597e5, inline_assembly, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = not 0
     ret v0

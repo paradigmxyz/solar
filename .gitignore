@@ -11,3 +11,5 @@ tests/foundry/**/cache*/
 tests/foundry/**/out*/
 crates/codegen/testdata/**/cache*/
 crates/codegen/testdata/**/out*/
+.agents/
+skills-lock.json

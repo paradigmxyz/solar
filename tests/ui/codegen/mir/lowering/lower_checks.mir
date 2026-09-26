@@ -41,6 +41,21 @@ fn @payloads(arg0: i1, arg1: memorybytes, arg2: i256) {
     ret
 }
 
+// A custom error with at most three words stages its payload below the heap
+// like a panic; a longer one encodes at the free-memory pointer.
+// CHECK-LABEL: fn @word_error_payloads(
+// CHECK: + mstore 0, 0x12345678
+// CHECK-NEXT: + mstore 32, arg1
+// CHECK-NEXT: + mstore 64, arg2
+// CHECK-NEXT: + revert 28, 68
+// CHECK: abi_encode [word, word, word, word], scratch
+fn @word_error_payloads(arg0: i1, arg1: i256, arg2: i256) {
+  bb0:
+    icall require<custom_error [word, word]>, arg0, 0x1234567800000000000000000000000000000000000000000000000000000000, arg1, arg2
+    icall require<custom_error [word, word, word, word]>, arg0, 0x1234567800000000000000000000000000000000000000000000000000000000, arg1, arg2, arg1, arg2
+    ret
+}
+
 // CHECK-LABEL: fn @constant_failure_with_writes(
 // CHECK: memory_zero
 // CHECK-NOT: jumpi

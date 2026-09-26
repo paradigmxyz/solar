@@ -1,0 +1,498 @@
+// === <solar:core/v1/Bytes.sol>:Bytes ===
+@module Bytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/v1/Calls.sol>:Calls ===
+@module Calls
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/v1/Create.sol>:Create ===
+@module Create
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/calls_lowering.sol:Test ===
+@module Test
+@phase lowered
+types:
+  struct0: {i256, i256, i256, i256}
+  struct1: {i256, i256, i256}
+  struct2: {i256, i256, i256, i256, i256}
+
+fn @probe() [selector=0xbed1a1cc, abi_wrapper] {
+  bb0:
+    v16 = calldatasize
+    v17 = lt v16, 36
+    jumpi v17, bb1, bb2
+  bb2:
+    v18 = icall @decode_calldata_type, 4
+    v0 = icall @deploy, v18
+    v36 = mload 64 !metadata(memory=scratch)
+    v3 = inttoptr i256 v36 to memptr !metadata(memory=scratch)
+    v37 = add v36, 64
+    v38 = lt v37, v36
+    v39 = zext i1 v38 to i256
+    v40 = shr 64, v37
+    v41 = or v39, v40
+    v42 = ne v41, 0
+    jumpi v42, bb4, bb3
+  bb3:
+    mstore 64, v37 !metadata(memory=scratch)
+    v45 = calldatasize
+    calldatacopy v36, v45, 64
+    mstore v36, 32
+    v4 = gas
+    v43 = mload 64 !metadata(memory=scratch)
+    v5 = inttoptr i256 v43 to memptr !metadata(memory=scratch)
+    v44 = add v43, 32
+    mstore 64, v44 !metadata(memory=scratch)
+    mstore v43, 0
+    v27 = icall @callInto, v0, 0, v4, v5, v3
+    v33 = mload 32 !metadata(memory=scratch)
+    v29 = add v33, 32
+    v30 = mload v29
+    v31 = add v33, 64
+    v32 = mload v31
+    v11 = icall @readBytes32, v3, 0
+    v20 = ne v27, 0
+    v21 = zext i1 v20 to i256
+    mstore 128, v21
+    mstore 160, v30
+    mstore 192, v32
+    mstore 224, v11
+    returndata 128, 128
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @probeStatic() [selector=0x2151f594, abi_wrapper] {
+  bb0:
+    v16 = calldatasize
+    v17 = lt v16, 36
+    jumpi v17, bb1, bb2
+  bb2:
+    v18 = icall @decode_calldata_type, 4
+    v0 = icall @deploy, v18
+    v36 = mload 64 !metadata(memory=scratch)
+    v3 = inttoptr i256 v36 to memptr !metadata(memory=scratch)
+    v37 = add v36, 64
+    v38 = lt v37, v36
+    v39 = zext i1 v38 to i256
+    v40 = shr 64, v37
+    v41 = or v39, v40
+    v42 = ne v41, 0
+    jumpi v42, bb4, bb3
+  bb3:
+    mstore 64, v37 !metadata(memory=scratch)
+    v45 = calldatasize
+    calldatacopy v36, v45, 64
+    mstore v36, 32
+    v4 = gas
+    v43 = mload 64 !metadata(memory=scratch)
+    v5 = inttoptr i256 v43 to memptr !metadata(memory=scratch)
+    v44 = add v43, 32
+    mstore 64, v44 !metadata(memory=scratch)
+    mstore v43, 0
+    v27 = icall @staticCallInto, v0, v4, v5, v3
+    v33 = mload 32 !metadata(memory=scratch)
+    v29 = add v33, 32
+    v30 = mload v29
+    v31 = add v33, 64
+    v32 = mload v31
+    v11 = icall @readBytes32, v3, 0
+    v20 = ne v27, 0
+    v21 = zext i1 v20 to i256
+    mstore 128, v21
+    mstore 160, v30
+    mstore 192, v32
+    mstore 224, v11
+    returndata 128, 128
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @probeDelegate() [selector=0xc0e324b4, abi_wrapper] {
+  bb0:
+    v16 = calldatasize
+    v17 = lt v16, 36
+    jumpi v17, bb1, bb2
+  bb2:
+    v18 = icall @decode_calldata_type, 4
+    v0 = icall @deploy, v18
+    v36 = mload 64 !metadata(memory=scratch)
+    v3 = inttoptr i256 v36 to memptr !metadata(memory=scratch)
+    v37 = add v36, 64
+    v38 = lt v37, v36
+    v39 = zext i1 v38 to i256
+    v40 = shr 64, v37
+    v41 = or v39, v40
+    v42 = ne v41, 0
+    jumpi v42, bb4, bb3
+  bb3:
+    mstore 64, v37 !metadata(memory=scratch)
+    v45 = calldatasize
+    calldatacopy v36, v45, 64
+    mstore v36, 32
+    v4 = gas
+    v43 = mload 64 !metadata(memory=scratch)
+    v5 = inttoptr i256 v43 to memptr !metadata(memory=scratch)
+    v44 = add v43, 32
+    mstore 64, v44 !metadata(memory=scratch)
+    mstore v43, 0
+    v27 = icall @delegateCallInto, v0, v4, v5, v3
+    v33 = mload 32 !metadata(memory=scratch)
+    v29 = add v33, 32
+    v30 = mload v29
+    v31 = add v33, 64
+    v32 = mload v31
+    v11 = icall @readBytes32, v3, 0
+    v20 = ne v27, 0
+    v21 = zext i1 v20 to i256
+    mstore 128, v21
+    mstore 160, v30
+    mstore 192, v32
+    mstore 224, v11
+    returndata 128, 128
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @probeWide() [selector=0x9ac072a4, abi_wrapper] {
+  bb0:
+    v18 = calldatasize
+    v19 = lt v18, 36
+    jumpi v19, bb1, bb2
+  bb2:
+    v20 = icall @decode_calldata_type, 4
+    v0 = icall @deploy, v20
+    v39 = mload 64 !metadata(memory=scratch)
+    v3 = inttoptr i256 v39 to memptr !metadata(memory=scratch)
+    v40 = add v39, 128
+    v41 = lt v40, v39
+    v42 = zext i1 v41 to i256
+    v43 = shr 64, v40
+    v44 = or v42, v43
+    v45 = ne v44, 0
+    jumpi v45, bb4, bb3
+  bb3:
+    mstore 64, v40 !metadata(memory=scratch)
+    v48 = calldatasize
+    calldatacopy v39, v48, 128
+    mstore v39, 96
+    icall @fill, v3, 96, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v4 = gas
+    v46 = mload 64 !metadata(memory=scratch)
+    v5 = inttoptr i256 v46 to memptr !metadata(memory=scratch)
+    v47 = add v46, 32
+    mstore 64, v47 !metadata(memory=scratch)
+    mstore v46, 0
+    v30 = icall @callInto, v0, 0, v4, v5, v3
+    v36 = mload 32 !metadata(memory=scratch)
+    v32 = add v36, 32
+    v33 = mload v32
+    v34 = add v36, 64
+    v35 = mload v34
+    v11 = icall @readBytes32, v3, 32
+    v12 = icall @readBytes32, v3, 64
+    v22 = ne v30, 0
+    v23 = zext i1 v22 to i256
+    mstore 128, v23
+    mstore 160, v33
+    mstore 192, v35
+    mstore 224, v11
+    mstore 256, v12
+    returndata 128, 160
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @probeEmpty() [selector=0x58eb6d8a, abi_wrapper] {
+  bb0:
+    v34 = mload 64 !metadata(memory=scratch)
+    v2 = inttoptr i256 v34 to memptr !metadata(memory=scratch)
+    v35 = add v34, 64
+    v36 = lt v35, v34
+    v37 = zext i1 v36 to i256
+    v38 = shr 64, v35
+    v39 = or v37, v38
+    v40 = ne v39, 0
+    jumpi v40, bb2, bb1
+  bb1:
+    mstore 64, v35 !metadata(memory=scratch)
+    v43 = calldatasize
+    calldatacopy v34, v43, 64
+    mstore v34, 32
+    icall @fill, v2, 32, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v5 = gas
+    v41 = mload 64 !metadata(memory=scratch)
+    v6 = inttoptr i256 v41 to memptr !metadata(memory=scratch)
+    v42 = add v41, 32
+    mstore 64, v42 !metadata(memory=scratch)
+    mstore v41, 0
+    v25 = icall @callInto, 0xdead, 0, v5, v6, v2
+    v31 = mload 32 !metadata(memory=scratch)
+    v27 = add v31, 32
+    v28 = mload v27
+    v29 = add v31, 64
+    v30 = mload v29
+    v12 = icall @readBytes32, v2, 0
+    v18 = ne v25, 0
+    v19 = zext i1 v18 to i256
+    mstore 128, v19
+    mstore 160, v28
+    mstore 192, v30
+    mstore 224, v12
+    returndata 128, 128
+  bb2:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @readBytes32(arg0: memptr, arg1: i256) -> i256 [may_return_memory, pure] {
+  bb0:
+    v31 = ptrtoint memptr arg0 to i256
+    v27 = add v31, 32
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 0], [bb8: v13]
+    v3 = phi [bb0: 0], [bb8: v24]
+    v4 = lt v3, 32
+    jumpi v4, bb3, bb2
+  bb2:
+    ret v2
+  bb3:
+    v15 = add arg1, v3
+    v16 = lt v15, arg1
+    jumpi v16, bb6, bb7
+  bb7:
+    v6 = mload v31
+    v7 = lt v15, v6
+    jumpi v7, bb5, bb4
+  bb4:
+    tail_call @revert_stub
+  bb5:
+    v28 = add v27, v15
+    v29 = mload v28
+    v30 = byte 0, v29
+    v10 = shl 248, v30
+    v17 = shl 3, v3
+    v18 = eq v3, 0
+    v19 = div v17, v3
+    v20 = eq v19, 8
+    v21 = or v18, v20
+    jumpi v21, bb8, bb6
+  bb8:
+    v12 = shr v17, v10
+    v13 = or v2, v12
+    v24 = add v3, 1
+    jump bb1
+  bb6:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @fill(arg0: memptr, arg1: i256, arg2: i256) [may_return_memory, pure] {
+  bb0:
+    v10 = byte 0, arg2
+    v19 = ptrtoint memptr arg0 to i256
+    v17 = add v19, 32
+    jump bb1
+  bb1:
+    v4 = phi [bb0: 0], [bb4: v14]
+    v5 = lt v4, arg1
+    jumpi v5, bb5, bb2
+  bb2:
+    ret
+  bb5:
+    v7 = mload v19
+    v8 = lt v4, v7
+    jumpi v8, bb4, bb3
+  bb3:
+    tail_call @revert_stub
+  bb4:
+    v18 = add v17, v4
+    mstore8 v18, v10
+    v14 = add v4, 1
+    jump bb1
+}
+
+fn @callInto(arg0: i256, arg1: i256, arg2: i256, arg3: memptr, arg4: memptr) -> struct1 [may_return_memory, inline_assembly, return_abi=[i256, i256, i256]] {
+  bb0:
+    v0 = ptrtoint memptr arg4 to i256
+    v1 = mload v0
+    v3 = add v0, 32
+    v4 = ptrtoint memptr arg3 to i256
+    v5 = mload v4
+    v7 = add v4, 32
+    v8 = call arg2, arg0, arg1, v7, v5, v3, v1
+    v9 = zext i1 v8 to i256
+    v10 = returndatasize
+    v22 = sub v1, v10
+    v13 = gt v10, v1
+    v23 = zext i1 v13 to i256
+    v24 = mul v23, v22
+    v25 = add v10, v24
+    ret v9, v25, v10
+}
+
+fn @staticCallInto(arg0: i256, arg1: i256, arg2: memptr, arg3: memptr) -> struct1 [may_return_memory, inline_assembly, view, return_abi=[i256, i256, i256]] {
+  bb0:
+    v0 = ptrtoint memptr arg3 to i256
+    v1 = mload v0
+    v3 = add v0, 32
+    v4 = ptrtoint memptr arg2 to i256
+    v5 = mload v4
+    v7 = add v4, 32
+    v8 = staticcall arg1, arg0, v7, v5, v3, v1
+    v9 = zext i1 v8 to i256
+    v10 = returndatasize
+    v22 = sub v1, v10
+    v13 = gt v10, v1
+    v23 = zext i1 v13 to i256
+    v24 = mul v23, v22
+    v25 = add v10, v24
+    ret v9, v25, v10
+}
+
+fn @delegateCallInto(arg0: i256, arg1: i256, arg2: memptr, arg3: memptr) -> struct1 [may_return_memory, inline_assembly, return_abi=[i256, i256, i256]] {
+  bb0:
+    v0 = ptrtoint memptr arg3 to i256
+    v1 = mload v0
+    v3 = add v0, 32
+    v4 = ptrtoint memptr arg2 to i256
+    v5 = mload v4
+    v7 = add v4, 32
+    v8 = delegatecall arg1, arg0, v7, v5, v3, v1
+    v9 = zext i1 v8 to i256
+    v10 = returndatasize
+    v22 = sub v1, v10
+    v13 = gt v10, v1
+    v23 = zext i1 v13 to i256
+    v24 = mul v23, v22
+    v25 = add v10, v24
+    ret v9, v25, v10
+}
+
+fn @deploy(arg0: memptr) -> i256 [may_return_memory, inline_assembly] {
+  bb0:
+    v0 = ptrtoint memptr arg0 to i256
+    v1 = mload v0
+    v3 = add v0, 32
+    v4 = create 0, v3, v1
+    v5 = zext i160 v4 to i256
+    v7 = eq v4, i160 0
+    jumpi v7, bb2, bb1
+  bb1:
+    ret v5
+  bb2:
+    mstore 0, 0x30116425 !metadata(memory=scratch)
+    revert 28, 4
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload arg0
+    v2 = add v1, 4
+    v3 = add v2, 32
+    v4 = shr 64, v1
+    v5 = gt v3, v0
+    v6 = zext i1 v5 to i256
+    v7 = or v4, v6
+    v8 = ne v7, 0
+    jumpi v8, bb1, bb2
+  bb2:
+    v9 = calldataload v2
+    v11 = add v9, 63
+    v12 = lt v11, v9
+    jumpi v12, bb3, bb4
+  bb4:
+    v14 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v24 = mload 64 !metadata(memory=scratch)
+    v15 = inttoptr i256 v24 to memptr !metadata(memory=scratch)
+    v25 = add v24, v14
+    v26 = lt v25, v24
+    v27 = zext i1 v26 to i256
+    v28 = shr 64, v25
+    v29 = or v27, v28
+    v30 = ne v29, 0
+    jumpi v30, bb3, bb6
+  bb6:
+    mstore 64, v25 !metadata(memory=scratch)
+    mstore v24, v9
+    v16 = sub v0, v3
+    v17 = gt v9, v16
+    jumpi v17, bb1, bb5
+  bb5:
+    v20 = add v24, 32
+    calldatacopy v20, v3, v9
+    ret v15
+  bb3:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb7, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb7, [0x2151f594 => bb2, 0x58eb6d8a => bb3, 0x9ac072a4 => bb4, 0xbed1a1cc => bb5, 0xc0e324b4 => bb6]
+  bb6:
+    tail_call @probeDelegate
+  bb5:
+    tail_call @probe
+  bb4:
+    tail_call @probeWide
+  bb3:
+    tail_call @probeEmpty
+  bb2:
+    tail_call @probeStatic
+  bb7:
+    revert 0, 0
+}

@@ -894,12 +894,34 @@ impl<'a> Validator<'a> {
                         }
                     }
                     InstKind::AbiDecode { data, layout } => {
-                        self.check_value_type(
-                            func.value_ty(*data),
-                            Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
-                            block,
-                            id,
-                        );
+                        let data_ty = func.value_ty(*data);
+                        if !matches!(
+                            data_ty,
+                            Some(
+                                MirType::MemoryObject(MemoryObjectKind::Bytes)
+                                    | MirType::Slice(
+                                        SliceLocation::Memory | SliceLocation::Calldata
+                                    )
+                            )
+                        ) {
+                            self.check_value_type(
+                                data_ty,
+                                Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
+                                block,
+                                id,
+                            );
+                        }
+                        // A `bytes` field may be a view: a slice of the data's location.
+                        let view = MirType::Slice(match data_ty {
+                            Some(MirType::Slice(SliceLocation::Calldata)) => {
+                                SliceLocation::Calldata
+                            }
+                            _ => SliceLocation::Memory,
+                        });
+                        let field_ok = |field: MirType, abi: &crate::mir::AbiParamType| {
+                            field == abi.mir_type()
+                                || (matches!(abi, crate::mir::AbiParamType::Bytes) && field == view)
+                        };
                         let valid = match inst.result_ty {
                             Some(MirType::Struct(ty)) => {
                                 module.struct_types.get(ty).is_some_and(|ty| {
@@ -908,10 +930,10 @@ impl<'a> Validator<'a> {
                                             .fields
                                             .iter()
                                             .zip(&layout.types)
-                                            .all(|(&field, abi)| field == abi.mir_type())
+                                            .all(|(&field, abi)| field_ok(field, abi))
                                 })
                             }
-                            Some(ty) => layout.types.len() == 1 && ty == layout.types[0].mir_type(),
+                            Some(ty) => layout.types.len() == 1 && field_ok(ty, &layout.types[0]),
                             None => false,
                         };
                         if !valid {

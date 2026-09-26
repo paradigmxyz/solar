@@ -41,3 +41,46 @@ fn @keep_mul_check_without_bound(arg0: i256) -> i256 {
   bb2:
     ret v1
 }
+
+// A product of two variable factors tests a zero divisor in its own
+// disjunct: `or (eq y, 0), (eq (div (mul x, y), y), x)`. Both factors stay
+// below 2^128, so the product cannot wrap and the check folds even though `y`
+// may be zero.
+// CHECK-LABEL: {{^[ +].*}}fn @fold_product_check_with_zero_disjunct{{[( ]}}
+// CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
+// CHECK: + jump bb2
+fn @fold_product_check_with_zero_disjunct(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = shr 128, arg0
+    v1 = shr 128, arg1
+    v2 = mul v0, v1
+    v3 = eq v1, 0
+    v4 = div v2, v1
+    v5 = eq v4, v0
+    v6 = or v3, v5
+    v7 = eq v6, false
+    jumpi v7, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v2
+}
+
+// With only one factor bounded the product can wrap: the check stays.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_product_check_with_one_bound{{[( ]}}
+// CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
+fn @keep_product_check_with_one_bound(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = shr 128, arg0
+    v2 = mul v0, arg1
+    v3 = eq arg1, 0
+    v4 = div v2, arg1
+    v5 = eq v4, v0
+    v6 = or v3, v5
+    v7 = eq v6, false
+    jumpi v7, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v2
+}

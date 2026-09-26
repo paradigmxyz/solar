@@ -48,6 +48,15 @@
 //! extraction takes the byte its offset names. The lowest read must come first
 //! in the block, so the value it produces is available where the others stood.
 //!
+//! # A mask under the extractions
+//!
+//! A word read as a few bytes is masked to them before it is taken apart,
+//! `byte(i, mload(a) & 0xffffffff00..00)`. Each extraction reads a byte the
+//! mask keeps, so when every use of the masked word is such an extraction the
+//! extractions read the word itself and the mask dies with its constant. All
+//! uses must go at once: one extraction alone would trade a copy of the
+//! masked word for a copy of the unmasked one and keep the mask alive.
+//!
 //! # Limitations
 //!
 //! A run must lie in one basic block. Reads whose bounds checks were not
@@ -58,11 +67,14 @@
 //! backward scan a block gives.
 
 use crate::mir::{
-    EffectKind, Function, Immediate, InstId, InstKind, Module, Value, ValueId,
+    EffectKind, Function, Immediate, InstId, InstKind, MirType, Module, Terminator, Value, ValueId,
     pass::{MirPass, ModuleAnalyses, run_function_pass},
 };
 use alloy_primitives::U256;
-use solar_data_structures::{index::IndexVec, map::FxHashSet};
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_sema::Gcx;
 
 /// Bytes one word read can cover, so the longest run the pass will fuse.
@@ -100,8 +112,8 @@ fn run_function(func: &mut Function) -> bool {
     // A dead use of an extracted byte would hide the run behind a use count the
     // shape does not really have, so drop unused pure instructions first.
     sweep_dead(func);
+    let mut changed = unmask_bytes(func);
     let uses = super::egraph::use_counts(func);
-    let mut changed = false;
     for block in func.blocks.indices().collect::<Vec<_>>() {
         // A side-effecting instruction may store into the range being read, so
         // only instructions since the last one can take part in a run.
@@ -324,6 +336,60 @@ fn rewrite_groups(func: &mut Function, groups: &[Vec<(u64, InstId, ValueId)>]) -
             func.inst_mut(inst).replace_kind(InstKind::Byte(index, *first_word));
             changed = true;
         }
+    }
+    changed
+}
+
+/// Points the byte extractions of a masked word at the word itself when the
+/// mask keeps every byte they take and nothing else reads the masked word.
+fn unmask_bytes(func: &mut Function) -> bool {
+    let mut users = FxHashMap::<ValueId, Vec<Option<InstId>>>::default();
+    for block in &func.blocks {
+        for &inst in &block.instructions {
+            for operand in func.inst(inst).kind.operands() {
+                users.entry(operand).or_default().push(Some(inst));
+            }
+        }
+        for operand in block.terminator.iter().flat_map(Terminator::operands) {
+            users.entry(operand).or_default().push(None);
+        }
+    }
+    let mut changed = false;
+    for inst in func.instructions().collect::<Vec<_>>() {
+        let InstKind::And(a, b) = func.inst(inst).kind else { continue };
+        let (word, mask) = match (func.value_u256(a), func.value_u256(b)) {
+            (Some(mask), None) => (b, mask),
+            (None, Some(mask)) => (a, mask),
+            _ => continue,
+        };
+        let Some(masked) = func.inst_result_value(inst) else { continue };
+        let Some(uses) = users.get(&masked) else { continue };
+        // byte(i, masked) with byte i of the mask all ones, for every use
+        let kept = |user: &Option<InstId>| {
+            let user = (*user)?;
+            let InstKind::Byte(index, extracted) = func.inst(user).kind else { return None };
+            if extracted != masked {
+                return None;
+            }
+            let index = func.value_u64(index)?;
+            let all_ones = index < 32 && mask.byte(31 - index as usize) == 0xff;
+            all_ones.then_some((user, index))
+        };
+        let Some(extractions) = uses.iter().map(kept).collect::<Option<Vec<_>>>() else {
+            continue;
+        };
+        if extractions.is_empty() {
+            continue;
+        }
+        // %byte = byte(i, %word)
+        for (user, index) in extractions {
+            let index = func.alloc_value(Value::Immediate(Immediate::for_type(
+                Some(MirType::I256),
+                U256::from(index),
+            )));
+            func.inst_mut(user).replace_kind(InstKind::Byte(index, word));
+        }
+        changed = true;
     }
     changed
 }

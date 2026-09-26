@@ -76,27 +76,27 @@ fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, abi_para
     v35 = add v34, 16
     jump bb1
   bb1:
-    v36 = phi [bb0: v7], [bb5: v36]
-    v37 = phi [bb0: v35], [bb5: v54]
-    v38 = phi [bb0: v23], [bb5: v38]
-    v39 = phi [bb0: arg2], [bb5: v39]
-    v40 = phi [bb0: 0], [bb5: v50]
-    v41 = phi [bb0: v11], [bb5: v41]
-    v42 = phi [bb0: v27], [bb5: v42]
-    v43 = phi [bb0: 0], [bb5: v43]
-    v44 = phi [bb0: v15], [bb5: v44]
-    v45 = phi [bb0: v31], [bb5: v45]
-    v46 = phi [bb0: arg0], [bb5: v46]
-    v47 = phi [bb0: v3], [bb5: v47]
-    v48 = phi [bb0: v19], [bb5: v51]
-    v49 = phi [bb0: arg1], [bb5: v49]
+    v36 = phi [bb0: arg0], [bb5: v36]
+    v37 = phi [bb0: arg1], [bb5: v37]
+    v38 = phi [bb0: arg2], [bb5: v38]
+    v39 = phi [bb0: 0], [bb5: v39]
+    v40 = phi [bb0: v3], [bb5: v40]
+    v41 = phi [bb0: v7], [bb5: v41]
+    v42 = phi [bb0: v11], [bb5: v42]
+    v43 = phi [bb0: v15], [bb5: v43]
+    v44 = phi [bb0: v19], [bb5: v51]
+    v45 = phi [bb0: v23], [bb5: v45]
+    v46 = phi [bb0: v27], [bb5: v46]
+    v47 = phi [bb0: v31], [bb5: v47]
+    v48 = phi [bb0: v35], [bb5: v54]
+    v49 = phi [bb0: 0], [bb5: v50]
     jumpi true, bb3, bb4
   bb4:
     jump bb2
   bb3:
-    v50 = add v40, 1
-    v51 = xor v48, v50
-    v52 = and v42, 3
+    v50 = add v49, 1
+    v51 = xor v44, v50
+    v52 = and v46, 3
     v53 = gt v50, v52
     jumpi v53, bb6, bb7
   bb7:
@@ -109,12 +109,12 @@ fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, abi_para
   bb6:
     jump bb2
   bb2:
-    v55 = phi [bb6: v50], [bb4: v40]
-    v56 = phi [bb6: v51], [bb4: v48]
-    v57 = icall @step, v44, v45
+    v55 = phi [bb6: v51], [bb4: v44]
+    v56 = phi [bb6: v50], [bb4: v49]
+    v57 = icall @step, v43, v47
     v58 = extract_value struct0, v57, 0
     v59 = extract_value struct0, v57, 1
-    v60 = and v41, 7
+    v60 = and v42, 7
     v61 = lt v60, 8
     v62 = eq v61, false
     icall panic_if<0x32>, v62
@@ -122,43 +122,43 @@ fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, abi_para
     v64 = sload v63 !metadata(storage=offset(v60, 1))
     v65 = sload 0 !metadata(storage=slot(0))
     v66 = add v64, v65
-    v67 = add v66, v45
-    v68 = and v37, 2
+    v67 = add v66, v47
+    v68 = and v48, 2
     v69 = eq v68, 0
     jumpi v69, bb9, bb10
   bb10:
     v76 = icall @mix, v67
-    v77 = xor v76, v41
+    v77 = xor v76, v42
     jump bb11
   bb9:
     v70 = sload 0 !metadata(storage=slot(0))
-    v71 = add v70, v56
+    v71 = add v70, v55
     sstore 0, v71 !metadata(storage=slot(0))
-    v72 = and v41, 7
+    v72 = and v42, 7
     v73 = lt v72, 8
     v74 = eq v73, false
     icall panic_if<0x32>, v74
     v75 = add 1, v72
-    sstore v75, v56 !metadata(storage=offset(v72, 1))
+    sstore v75, v55 !metadata(storage=offset(v72, 1))
     jump bb11
   bb11:
-    v78 = phi [bb9: v36], [bb10: v77]
-    v79 = mul v47, 1
+    v78 = phi [bb9: v41], [bb10: v77]
+    v79 = mul v40, 1
     v80 = mul v78, 2
     v81 = xor v79, v80
-    v82 = mul v41, 3
+    v82 = mul v42, 3
     v83 = xor v81, v82
     v84 = mul v67, 5
     v85 = xor v83, v84
-    v86 = mul v56, 6
+    v86 = mul v55, 6
     v87 = xor v85, v86
     v88 = mul v59, 9
     v89 = xor v87, v88
     v90 = mul v58, 10
     v91 = xor v89, v90
-    v92 = mul v45, 13
+    v92 = mul v47, 13
     v93 = xor v91, v92
-    v94 = mul v37, 14
+    v94 = mul v48, 14
     v95 = xor v93, v94
     ret v95
 }

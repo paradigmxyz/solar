@@ -4,7 +4,7 @@ types:
   struct0: {i256, i256, i256, i256, i256}
   struct1: {i256, i256}
 
-fn @assemblyValues() -> struct0 [selector=0x5fa26448, pure, abi_params=[], abi_returns=[word, word<bytes2>, word<bytes3>, word<bool>, word<u160>], abi_return_params=[u256, bytes2, bytes3, bool, address]] {
+fn @assemblyValues() -> struct0 [selector=0x5fa26448, inline_assembly, pure, abi_params=[], abi_returns=[word, word<bytes2>, word<bytes3>, word<bool>, word<u160>], abi_return_params=[u256, bytes2, bytes3, bool, address]] {
   bb0:
     v0 = zext i1 1 to i256
     v1 = insert_value struct0, undef struct0, 0, 2
@@ -15,7 +15,7 @@ fn @assemblyValues() -> struct0 [selector=0x5fa26448, pure, abi_params=[], abi_r
     ret v5
 }
 
-fn @assemblyReferences() -> struct1 [selector=0x7bafbded, pure, abi_params=[], abi_returns=[word<bytes2>, word<bytes3>], abi_return_params=[bytes2, bytes3]] {
+fn @assemblyReferences() -> struct1 [selector=0x7bafbded, inline_assembly, pure, abi_params=[], abi_returns=[word<bytes2>, word<bytes3>], abi_return_params=[bytes2, bytes3]] {
   bb0:
     v0 = insert_value struct1, undef struct1, 0, 0xabcd000000000000000000000000000000000000000000000000000000000000
     v1 = insert_value struct1, v0, 1, 0x6162630000000000000000000000000000000000000000000000000000000000

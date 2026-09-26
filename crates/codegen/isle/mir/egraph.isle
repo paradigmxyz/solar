@@ -616,6 +616,14 @@
 ;; signed(0) >> _ => 0
 (rule 1 (simplify (Op.Sar _ (and value (zero)))) value)
 
+;; byte(index, value & mask) => 0, when the mask clears that byte
+(rule 5 (simplify (Op.Byte (iconst index) (band _ (iconst mask))))
+      (if-let true (u256_is_zero (u256_byte index mask)))
+      (imm (u256 0)))
+;; byte(index, mask & value) => 0, under the same condition
+(rule 4 (simplify (Op.Byte (iconst index) (band (iconst mask) _)))
+      (if-let true (u256_is_zero (u256_byte index mask)))
+      (imm (u256 0)))
 ;; byte(_, 0) => 0
 (rule 3 (simplify (Op.Byte _ (zero))) (imm (u256 0)))
 ;; byte(index, _) => 0, when index >= 32

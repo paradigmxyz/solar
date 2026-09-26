@@ -972,7 +972,7 @@ fn @dCalldataDyn(arg0: calldataslice) -> struct1 [selector=0xe931c6df, pure, abi
     ret v24
 }
 
-fn @dOverlap(arg0: memorybytes) -> struct5 [selector=0x9297ba94, pure, abi_params=[bytes], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
+fn @dOverlap(arg0: memorybytes) -> struct5 [selector=0x9297ba94, inline_assembly, pure, abi_params=[bytes], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
   bb0:
     v0 = abi_decode [array<_, u256>, array<_, u256>], arg0
     v1 = extract_value struct8, v0, 0

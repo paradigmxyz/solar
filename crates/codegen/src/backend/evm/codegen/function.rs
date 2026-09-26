@@ -360,6 +360,29 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // Generate each block.
         let store_cfg = CfgInfo::new(func);
+        // Loops entered from a single block outside them, by header. Their carried invariants
+        // may still be reordered to the stack that enters them before any of them is emitted.
+        let loop_bodies = if self.gcx.sess.opts.optimization.is_gas()
+            && !stack_phi_plan.entries.is_empty()
+            && !store_cfg.cyclic_blocks().is_empty()
+        {
+            let mut loop_analyzer = LoopAnalyzer::new();
+            let loop_info = loop_analyzer.analyze_structure(func);
+            loop_info
+                .all_loops()
+                .filter(|loop_data| {
+                    func.blocks[loop_data.header]
+                        .predecessors
+                        .iter()
+                        .filter(|&&pred| !loop_data.blocks.contains(pred))
+                        .count()
+                        == 1
+                })
+                .map(|loop_data| (loop_data.header, loop_data.blocks.clone()))
+                .collect::<FxHashMap<_, _>>()
+        } else {
+            FxHashMap::default()
+        };
         let block_order = self.block_layout_order(func, &store_cfg);
         let block_pos: FxHashMap<BlockId, usize> =
             block_order.iter().enumerate().map(|(pos, &b)| (b, pos)).collect();
@@ -535,14 +558,20 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // Only values still needed past the clobber are pinned: a phi
                 // source or an operand the copy itself consumes has its last
                 // recorded use in this block at or before it, and reloading it
-                // would only deepen the stack with a dead word.
+                // would only deepen the stack with a dead word. A value this
+                // block defines at or after the clobber has no word to hold
+                // yet: free-memory-pointer loads reserve a reloadable slot
+                // before their definition parks them, and reloading one here
+                // would read a slot nothing has stored.
                 if self.spill_hazard_insts.contains(&inst_id) {
+                    let pending = &block.instructions[inst_idx..];
                     let at_risk: Vec<ValueId> = self
                         .scheduler
                         .spills
                         .reloadable_values()
                         .filter(|&value| {
                             liveness.is_used_at_or_after(value, block_id, inst_idx + 1)
+                                && !matches!(func.value(value), Value::Inst(def) if pending.contains(def))
                         })
                         .collect();
                     for value in at_risk {
@@ -723,6 +752,20 @@ impl<'gcx> EvmCodegen<'gcx> {
                 return;
             }
 
+            // loop entry: invariants take the order this block's stack holds them in
+            if let Some(Terminator::Jump(header)) = block.terminator
+                && let Some(body) = loop_bodies.get(&header)
+                && body.iter().all(|member| block_pos.get(&member).is_some_and(|&at| at > pos))
+            {
+                self.rebind_loop_invariants(
+                    func,
+                    &mut stack_phi_plan,
+                    &global_stack_plan,
+                    block_id,
+                    header,
+                    body,
+                );
+            }
             let stack_phi_preserved = stack_phi_plan.edges.get(&block_id).is_some_and(|edge| {
                 if !self.can_prepare_stack_phi_edge(func, edge) {
                     return false;
@@ -821,6 +864,19 @@ impl<'gcx> EvmCodegen<'gcx> {
                     // inserting another carried word can increase their shuffle and spill costs.
                     self.spill_value_if_needed(func, *condition);
                 }
+            }
+            if !preserve_branch_targets.is_empty()
+                && let Some(Terminator::Branch { condition, .. }) = block.terminator.as_ref()
+                && !liveness.live_out(block_id).contains(*condition)
+                && let Some(depth) = self.scheduler.stack.find(*condition)
+                && depth > 0
+            {
+                // swap depth(condition)
+                // jumpi condition, then, else
+                // A dead word dropped after the condition was computed left the condition under
+                // the word that came up in its place. Draining the stack to reach it would store
+                // every carried word here and reload each on both arms.
+                self.emit_stack_op(StackOp::Swap(depth as u8));
             }
             if !preserve_branch_targets.is_empty() {
                 // Junk-terminal siblings may have argument padding in their global plan,
@@ -1065,9 +1121,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// it. If both successors are private, later blocks, we can leave those
     /// values on the stack for both edges instead of spilling them before every
     /// loop condition. The condition may also be a carried loop invariant below
-    /// the top, which the terminator duplicates for `JUMPI`. Every word must be
-    /// live out of the block, and at most `LIVE_JOIN_LAYOUT_LIMIT` words are
-    /// carried, matching what the live-join planner delivers into a block.
+    /// the top, which the terminator duplicates for `JUMPI`, or one that dies at
+    /// the branch and was covered when a dead word was dropped, which the caller
+    /// swaps back up. Every other word must be live out of the block, and at most
+    /// `LIVE_JOIN_LAYOUT_LIMIT` words are carried, matching what the live-join
+    /// planner delivers into a block.
     fn branch_preserve_targets(
         &self,
         func: &Function,
@@ -1084,15 +1142,20 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // A freshly computed condition is the top word and JUMPI consumes it. A condition
         // carried below the top is a loop invariant the successors still read; the terminator
-        // duplicates it for JUMPI, so the whole stack survives the branch.
+        // duplicates it for JUMPI, so the whole stack survives the branch. A condition that
+        // dies at the branch can sit below the top as well, once a dead word beneath it has
+        // been swapped up and dropped; the caller swaps it back up for JUMPI, and the word it
+        // trades places with stays among the carried ones.
         let condition_on_top = self.scheduler.stack.top() == Some(*condition);
+        let condition_live = liveness.live_out(block_id).contains(*condition);
+        let condition_depth = self.scheduler.stack.find(*condition);
+        let buried = !condition_on_top
+            && !condition_live
+            && condition_depth.is_some_and(|depth| depth <= self.stack_access_limit());
         if !condition_on_top
-            && !(liveness.live_out(block_id).contains(*condition)
-                && self
-                    .scheduler
-                    .stack
-                    .find(*condition)
-                    .is_some_and(|depth| depth < self.stack_access_limit()))
+            && !buried
+            && !(condition_live
+                && condition_depth.is_some_and(|depth| depth < self.stack_access_limit()))
         {
             tracing::trace!(
                 block = ?block_id,
@@ -1101,12 +1164,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             return Vec::new();
         }
 
+        // JUMPI takes the condition's slot when the condition dies here.
+        let consumed = if condition_on_top { Some(0) } else { condition_depth.filter(|_| buried) };
         let Some(mut carried) = self
             .scheduler
             .stack
             .iter()
-            .skip(usize::from(condition_on_top))
-            .map(|slot| {
+            .enumerate()
+            .filter(|(depth, _)| Some(*depth) != consumed)
+            .map(|(_, slot)| {
                 let value = slot?;
                 liveness.live_out(block_id).contains(value).then_some(value)
             })

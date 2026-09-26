@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/cold_call_fallthrough.sol:ColdCallFallthrough (runtime) ===
 @module ColdCallFallthrough_runtime
 bb0:
+  push 128
+  push 64
+  mstore
   push 36
   calldatasize
   lt
@@ -28,9 +31,6 @@ bb4 [cold]:
   push 0
   revert
 bb5:
-  push 160
-  push 64
-  mstore
   push 4
   calldataload
   iszero
@@ -40,10 +40,10 @@ bb19:
   jumpi
   push 4
   calldataload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb7 [cold]:
   push 4
@@ -84,9 +84,6 @@ bb18 [cold]:
   push 0
   revert
 bb8:
-  push 160
-  push 64
-  mstore
   push 100
   push 4
   calldataload

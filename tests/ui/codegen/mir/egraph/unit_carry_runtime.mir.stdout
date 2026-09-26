@@ -3,7 +3,7 @@
 types:
   struct0: {i256, i256}
 
-fn @carries(arg0: i256) -> struct0 [selector=0xe64b0efb, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @carries(arg0: i256) -> struct0 [selector=0xe64b0efb, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0

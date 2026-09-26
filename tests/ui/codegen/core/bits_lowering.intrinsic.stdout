@@ -1,0 +1,90 @@
+// === <solar:core/v1/Bits.sol>:Bits ===
+@module Bits
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/bits_lowering.sol:Test ===
+@module Test
+@phase lowered
+fn @leading() [selector=0x3ce23483, abi_wrapper, pure] {
+  bb0:
+    v0 = clz arg0
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @highest() [selector=0xe076913c, abi_wrapper, pure] {
+  bb0:
+    v0 = clz arg0
+    v1 = xor v0, 255
+    v2 = eq arg0, 0
+    v3 = zext i1 v2 to i256
+    v4 = mul v3, 255
+    v5 = xor v1, v4
+    mstore 0, v5 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @trailing() [selector=0x5b348c5a, abi_wrapper, pure] {
+  bb0:
+    v0 = sub 0, arg0
+    v1 = and arg0, v0
+    v2 = clz v1
+    v3 = xor v2, 255
+    v4 = eq v1, 0
+    v5 = zext i1 v4 to i256
+    v6 = mul v5, 255
+    v7 = xor v3, v6
+    mstore 0, v7 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @ones() [selector=0xb2f925a4, abi_wrapper, pure] {
+  bb0:
+    v1 = and arg0, 1
+    v2 = shr 1, arg0
+    v3 = shr 1, v2
+    v4 = and v3, 0x5555555555555555555555555555555555555555555555555555555555555555
+    v5 = sub v2, v4
+    v7 = shr 2, v5
+    v8 = and v7, 0x3333333333333333333333333333333333333333333333333333333333333333
+    v6 = and v5, 0x3333333333333333333333333333333333333333333333333333333333333333
+    v9 = add v6, v8
+    v10 = shr 4, v9
+    v11 = add v9, v10
+    v12 = and v11, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+    v13 = mul v12, 0x101010101010101010101010101010101010101010101010101010101010101
+    v14 = shr 248, v13
+    v15 = add v14, v1
+    mstore 0, v15 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr 224, v6
+    switch v7, default bb1, [0x3ce23483 => bb3, 0x5b348c5a => bb4, 0xb2f925a4 => bb5, 0xe076913c => bb6]
+  bb6:
+    tail_call @highest
+  bb5:
+    tail_call @ones
+  bb4:
+    tail_call @trailing
+  bb3:
+    tail_call @leading
+  bb1:
+    revert 0, 0
+}

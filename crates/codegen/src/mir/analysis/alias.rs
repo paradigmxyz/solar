@@ -701,9 +701,17 @@ impl AliasAnalysis {
         size: LocationSize,
     ) -> Option<MemoryLocation> {
         if let MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) = address.base {
-            let bound = match func.inst(inst).kind {
-                InstKind::Alloc { size, .. } => func.value_u64(size),
-                _ => None,
+            let (bound, has_length_word) = match func.inst(inst).kind {
+                InstKind::Alloc { size, kind, .. } => (
+                    func.value_u64(size),
+                    matches!(
+                        kind,
+                        crate::mir::AllocationKind::Object(
+                            MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. }
+                        )
+                    ),
+                ),
+                _ => (None, false),
             };
             let within_bounds = size.as_const().is_some_and(|size| {
                 size == 0
@@ -712,6 +720,14 @@ impl AliasAnalysis {
                         .checked_add(size)
                         .zip(bound)
                         .is_some_and(|(end, bound)| end <= bound)
+                    // A dynamic memory object keeps its length in its first
+                    // word, so that word belongs to the allocation whatever
+                    // size was requested. Without this every `new bytes(n)`
+                    // turns the store of its own length into a write through
+                    // an unknown pointer.
+                    || (has_length_word
+                        && address.offset == 0
+                        && size == EvmMemoryLayout::WORD_SIZE)
             });
             if !within_bounds {
                 // A fresh allocation's nonnegative offsets can reach other heap objects while
@@ -806,6 +822,11 @@ impl AliasAnalysis {
                         escaping.insert(operand);
                     }
                 }
+                // The analysis cannot follow a decoded memory view back to the data it points
+                // into, so that data escapes.
+                if let Some(data) = Self::viewed_decode_data(func, inst_id) {
+                    escaping.insert(data);
+                }
             }
 
             if let Some(terminator) = &block.terminator {
@@ -855,6 +876,25 @@ impl AliasAnalysis {
             }
         }
         escaping
+    }
+
+    /// The data of the decode whose memory view `inst` yields, when it yields one.
+    fn viewed_decode_data(func: &Function, inst: InstId) -> Option<ValueId> {
+        if func.inst_result_value(inst).and_then(|value| func.value_slice_location(value))
+            != Some(SliceLocation::Memory)
+        {
+            return None;
+        }
+        let decode = match func.inst(inst).kind {
+            InstKind::AbiDecode { data, .. } => return Some(data),
+            InstKind::ExtractValue { aggregate, .. } => aggregate,
+            _ => return None,
+        };
+        let Value::Inst(decode) = *func.value(decode) else { return None };
+        match func.inst(decode).kind {
+            InstKind::AbiDecode { data, .. } => Some(data),
+            _ => None,
+        }
     }
 
     fn terminator_operand_escapes(&self, terminator: &Terminator, operand: ValueId) -> bool {
@@ -1243,7 +1283,23 @@ impl AliasAnalysis {
                             .and_then(EvmMemoryLayout::align_word)
                             .map_or(SizeOperand::Unknown, SizeOperand::Const),
                     };
-                    write_memory(&mut effects, ptr, size);
+                    // The fill is the allocation's own extent, so it fits the
+                    // allocation whatever its size. Going through the bounds
+                    // test would demote a fill of dynamic size to a write
+                    // through an unknown pointer, which may alias everything.
+                    match size {
+                        SizeOperand::Unknown => write_memory(&mut effects, ptr, size),
+                        _ => {
+                            let size = self.resolved_location_size(func, size, replacements);
+                            match self.memory_address(func, resolve(ptr)) {
+                                Some(address) => {
+                                    let location = MemoryLocation::new(address, size);
+                                    effects.write(Access::Location(Location::Memory(location)));
+                                }
+                                None => effects.write_any(AddressSpace::Memory),
+                            }
+                        }
+                    }
                 }
             }
             InstKind::StorageBytesLoad(..) | InstKind::StorageArrayLoad { .. } => {
@@ -1840,23 +1896,23 @@ impl AliasAnalysis {
                 // spaces, not memory, so they carry no memory provenance.
                 SliceLocation::Calldata | SliceLocation::Returndata => None,
             },
-            InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } => {
-                Some(if self.allocation_is_dynamic(func, *inst_id) {
-                    MemoryAddress {
-                        region: MemoryRegion::Heap,
-                        base: MemoryBase::DynamicAllocation(*inst_id),
-                        offset: 0,
-                    }
-                } else if self.allocation_has_unique_provenance(func, *inst_id) {
-                    MemoryAddress {
-                        region: MemoryRegion::Heap,
-                        base: MemoryBase::Allocation(*inst_id),
-                        offset: 0,
-                    }
-                } else {
-                    MemoryAddress::symbolic(slice, MemoryRegion::Heap)
-                })
-            }
+            // An encoding is a fresh allocation. A decoded slice views the data it was decoded
+            // from, like any other slice whose memory is unknown.
+            InstKind::AbiEncode { .. } => Some(if self.allocation_is_dynamic(func, *inst_id) {
+                MemoryAddress {
+                    region: MemoryRegion::Heap,
+                    base: MemoryBase::DynamicAllocation(*inst_id),
+                    offset: 0,
+                }
+            } else if self.allocation_has_unique_provenance(func, *inst_id) {
+                MemoryAddress {
+                    region: MemoryRegion::Heap,
+                    base: MemoryBase::Allocation(*inst_id),
+                    offset: 0,
+                }
+            } else {
+                MemoryAddress::symbolic(slice, MemoryRegion::Heap)
+            }),
             _ => Some(MemoryAddress::symbolic(slice, MemoryRegion::Unknown)),
         }
     }
@@ -2083,12 +2139,15 @@ impl AliasAnalysis {
             InstKind::Sub(base, offset) => Self::pointer_lower_bound(func, *base, depth + 1)
                 .and_then(|base| base.checked_sub(func.value_u64(*offset)?)),
             InstKind::SlicePtr(slice) => {
+                let location = func.value_slice_location(*slice);
                 let Value::Inst(slice) = func.value(*slice) else { return None };
                 match &func.inst(*slice).kind {
                     InstKind::MakeSlice { ptr, location: SliceLocation::Memory, .. } => {
                         Self::pointer_lower_bound(func, *ptr, depth + 1)
                     }
-                    InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } => {
+                    InstKind::AbiEncode { .. } => Some(EvmMemoryLayout::HEAP_START),
+                    // A memory view lies in the data it was decoded from.
+                    InstKind::AbiDecode { .. } if location == Some(SliceLocation::Memory) => {
                         Some(EvmMemoryLayout::HEAP_START)
                     }
                     _ => None,

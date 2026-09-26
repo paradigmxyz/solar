@@ -33,7 +33,7 @@ data:
   LongReturn_initcode_0: hex"34600d5760de8060115f395ff35b5f5ffd341515601c575f3560e01c806326121ff014601857601c565b6020565b5f5ffd5b6103806040526040518061032052806103205280610300528061030052610280610320510160405280610300526102803682375060145f101560cc57610300518061030052602a81525060146001101560cc5761030051806103005260209001602b8152505f61030051905b80610340526014811060a957610280608001915050608090036080f35b60208180610340520282806103005201516020820260800152600181019050608c565b634e487b715f5260326020526024601cfd"
   ShortReturn_initcode_1: hex"34600d5760328060115f395ff35b5f5ffd341515601c575f3560e01c806326121ff014601857601c565b6020565b5f5ffd5b602a6080526020608001608090036080f3"
 
-fn @directOne() -> struct0 [selector=0x6aec8241, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @directOne() -> struct0 [selector=0x6aec8241, inline_assembly, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -79,7 +79,7 @@ fn @directOne() -> struct0 [selector=0x6aec8241, abi_params=[], abi_returns=[wor
     ret v29
 }
 
-fn @pointerOne() -> struct0 [selector=0xc114b656, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @pointerOne() -> struct0 [selector=0xc114b656, inline_assembly, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -130,7 +130,7 @@ fn @pointerOne() -> struct0 [selector=0xc114b656, abi_params=[], abi_returns=[wo
     ret v34
 }
 
-fn @directTwo() -> struct1 [selector=0x5ffbc6a1, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @directTwo() -> struct1 [selector=0x5ffbc6a1, inline_assembly, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -185,7 +185,7 @@ fn @directTwo() -> struct1 [selector=0x5ffbc6a1, abi_params=[], abi_returns=[wor
     ret v38
 }
 
-fn @pointerTwo() -> struct1 [selector=0x48c1a795, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @pointerTwo() -> struct1 [selector=0x48c1a795, inline_assembly, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31

@@ -102,10 +102,10 @@ fn @scanImpl(arg0: memorybytes) -> i256 [pure] {
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v12]
-    v2 = phi [bb0: 0], [bb3: v2]
+    v1 = phi [bb0: 0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v12]
     v3 = memory_object_len memorybytes, v0
-    v4 = lt v1, v3
+    v4 = lt v2, v3
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
@@ -114,10 +114,10 @@ fn @scanImpl(arg0: memorybytes) -> i256 [pure] {
     ret v13
   bb4:
     v5 = memory_object_len memorybytes, v0
-    v6 = lt v1, v5
+    v6 = lt v2, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    v8 = memory_object_load_byte memorybytes, v0, v1
+    v8 = memory_object_load_byte memorybytes, v0, v2
     v9 = shl 248, v8
     v10 = gt v9, 0x7f00000000000000000000000000000000000000000000000000000000000000
     jumpi v10, bb7, bb8
@@ -128,7 +128,7 @@ fn @scanImpl(arg0: memorybytes) -> i256 [pure] {
   bb6:
     jump bb3
   bb3:
-    v12 = checked_add u256, v1, 1
+    v12 = checked_add u256, v2, 1
     jump bb1
   bb7:
     v11 = zext i1 0 to i256
@@ -140,10 +140,10 @@ fn @firstHigh(arg0: memorybytes) -> i256 [selector=0xec31a730, pure, abi_params=
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v11]
-    v2 = phi [bb0: 0], [bb3: v2]
+    v1 = phi [bb0: 0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v11]
     v3 = memory_object_len memorybytes, v0
-    v4 = lt v1, v3
+    v4 = lt v2, v3
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
@@ -152,10 +152,10 @@ fn @firstHigh(arg0: memorybytes) -> i256 [selector=0xec31a730, pure, abi_params=
     ret v12
   bb4:
     v5 = memory_object_len memorybytes, v0
-    v6 = lt v1, v5
+    v6 = lt v2, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    v8 = memory_object_load_byte memorybytes, v0, v1
+    v8 = memory_object_load_byte memorybytes, v0, v2
     v9 = shl 248, v8
     v10 = gt v9, 0x7f00000000000000000000000000000000000000000000000000000000000000
     jumpi v10, bb7, bb8
@@ -166,10 +166,10 @@ fn @firstHigh(arg0: memorybytes) -> i256 [selector=0xec31a730, pure, abi_params=
   bb6:
     jump bb3
   bb3:
-    v11 = checked_add u256, v1, 1
+    v11 = checked_add u256, v2, 1
     jump bb1
   bb7:
-    ret v1
+    ret v2
 }
 
 fn @checkedScan(arg0: i256) -> i256 [selector=0xf2609747, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -183,12 +183,12 @@ fn @checkedScan(arg0: i256) -> i256 [selector=0xf2609747, pure, abi_params=[u256
     set_memory_object_len memorybytes, v4, arg0
     jump bb1
   bb1:
-    v5 = phi [bb0: 0], [bb3: v5]
-    v6 = phi [bb0: 0], [bb3: v18]
-    v7 = phi [bb0: arg0], [bb3: v7]
-    v8 = phi [bb0: v4], [bb3: v8]
-    v9 = memory_object_len memorybytes, v8
-    v10 = lt v6, v9
+    v5 = phi [bb0: arg0], [bb3: v5]
+    v6 = phi [bb0: 0], [bb3: v6]
+    v7 = phi [bb0: v4], [bb3: v7]
+    v8 = phi [bb0: 0], [bb3: v18]
+    v9 = memory_object_len memorybytes, v7
+    v10 = lt v8, v9
     jumpi v10, bb4, bb5
   bb5:
     jump bb2
@@ -196,11 +196,11 @@ fn @checkedScan(arg0: i256) -> i256 [selector=0xf2609747, pure, abi_params=[u256
     v19 = zext i1 1 to i256
     ret v19
   bb4:
-    v11 = memory_object_len memorybytes, v8
-    v12 = lt v6, v11
+    v11 = memory_object_len memorybytes, v7
+    v12 = lt v8, v11
     v13 = eq v12, false
     icall panic_if<0x32>, v13
-    v14 = memory_object_load_byte memorybytes, v8, v6
+    v14 = memory_object_load_byte memorybytes, v7, v8
     v15 = shl 248, v14
     v16 = gt v15, 0x7f00000000000000000000000000000000000000000000000000000000000000
     jumpi v16, bb7, bb8
@@ -211,7 +211,7 @@ fn @checkedScan(arg0: i256) -> i256 [selector=0xf2609747, pure, abi_params=[u256
   bb6:
     jump bb3
   bb3:
-    v18 = checked_add u8, v6, 1
+    v18 = checked_add u8, v8, 1
     jump bb1
   bb7:
     v17 = zext i1 0 to i256

@@ -1,0 +1,130 @@
+// === <solar:core/v1/Code.sol>:Code ===
+@module Code
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/v1/Create.sol>:Create ===
+@module Create
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/safe-solar/code/read/safe.sol:Safe ===
+@module Safe
+@phase lowered
+fn @part() [selector=0x107cd163, abi_wrapper] {
+  bb0:
+    v26 = calldatasize
+    v27 = lt v26, 100
+    jumpi v27, bb7, bb8
+  bb8:
+    v28 = calldataload 4
+    v29 = add v28, 4
+    v30 = add v29, 32
+    v31 = shr 64, v28
+    v32 = gt v30, v26
+    v33 = zext i1 v32 to i256
+    v34 = or v31, v33
+    v35 = ne v34, 0
+    jumpi v35, bb7, bb9
+  bb9:
+    v36 = calldataload v29
+    v38 = add v36, 63
+    v39 = lt v38, v36
+    jumpi v39, bb3, bb10
+  bb10:
+    v41 = and v38, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v79 = mload 64 !metadata(memory=scratch)
+    v80 = add v79, v41
+    v81 = lt v80, v79
+    v82 = zext i1 v81 to i256
+    v83 = shr 64, v80
+    v84 = or v82, v83
+    v85 = ne v84, 0
+    jumpi v85, bb3, bb13
+  bb13:
+    mstore 64, v80 !metadata(memory=scratch)
+    mstore v79, v36
+    v43 = sub v26, v30
+    v44 = gt v36, v43
+    jumpi v44, bb7, bb11
+  bb11:
+    v61 = add v79, 32
+    calldatacopy v61, v30, v36
+    v0 = add arg2, 63
+    v1 = lt v0, arg2
+    jumpi v1, bb3, bb4
+  bb4:
+    v3 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v72 = mload 64 !metadata(memory=scratch)
+    v73 = add v72, v3
+    v74 = lt v73, v72
+    v75 = zext i1 v74 to i256
+    v76 = shr 64, v73
+    v77 = or v75, v76
+    v78 = ne v77, 0
+    jumpi v78, bb3, bb12
+  bb12:
+    mstore 64, v73 !metadata(memory=scratch)
+    v86 = calldatasize
+    calldatacopy v72, v86, v3
+    mstore v72, arg2
+    v5 = mload v79
+    v8 = create 0, v61, v5
+    v9 = eq v8, i160 0
+    jumpi v9, bb1, bb2
+  bb2:
+    v10 = zext i160 v8 to i256
+    v65 = add v72, 32
+    v20 = extcodesize v10
+    v21 = add arg1, arg2
+    v22 = lt v21, arg1
+    v23 = gt v21, v20
+    v24 = or v22, v23
+    jumpi v24, bb5, bb6
+  bb6:
+    extcodecopy v10, v65, arg1, arg2
+    v50 = add arg2, 31
+    v52 = and v50, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v55 = add v65, arg2
+    mstore v55, 0
+    v57 = sub v72, 32
+    mstore v57, 32
+    v58 = add v52, 64
+    returndata v57, v58
+  bb5:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    mstore 0, 0x3011642500000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    revert 0, 4
+  bb3:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb7:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0x107cd163 => bb2]
+  bb2:
+    tail_call @part
+  bb3:
+    revert 0, 0
+}

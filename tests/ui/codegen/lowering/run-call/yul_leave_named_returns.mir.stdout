@@ -3,13 +3,13 @@
 types:
   struct0: {i256, i256}
 
-fn @leaveInFor() -> i256 [selector=0xc89cb30d, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @leaveInFor() -> i256 [selector=0xc89cb30d, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @skip, 2
     ret v0
 }
 
-fn @leaveEarly() -> i256 [selector=0x13ca22ec, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @leaveEarly() -> i256 [selector=0x13ca22ec, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @f, 3
     v1 = icall @f, 20
@@ -17,7 +17,7 @@ fn @leaveEarly() -> i256 [selector=0x13ca22ec, pure, abi_params=[], abi_returns=
     ret v2
 }
 
-fn @leaveMulti() -> struct0 [selector=0x4478046f, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @leaveMulti() -> struct0 [selector=0x4478046f, inline_assembly, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = icall @pair, 7
     v1 = extract_value struct0, v0, 0
@@ -27,20 +27,20 @@ fn @leaveMulti() -> struct0 [selector=0x4478046f, pure, abi_params=[], abi_retur
     ret v4
 }
 
-fn @skip(arg0: i256) -> i256 {
+fn @skip(arg0: i256) -> i256 [inline_assembly] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb3: v6]
-    v1 = phi [bb0: arg0], [bb3: v1]
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg0], [bb3: v6]
     v2 = ne 1, 0
     jumpi v2, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v0
+    ret v1
   bb4:
-    v3 = eq v0, 5
+    v3 = eq v1, 5
     v4 = zext i1 v3 to i256
     v5 = ne v4, 0
     jumpi v5, bb7, bb8
@@ -51,13 +51,13 @@ fn @skip(arg0: i256) -> i256 {
   bb6:
     jump bb3
   bb3:
-    v6 = add v0, 1
+    v6 = add v1, 1
     jump bb1
   bb7:
-    ret v0
+    ret v1
 }
 
-fn @f(arg0: i256) -> i256 {
+fn @f(arg0: i256) -> i256 [inline_assembly] {
   bb0:
     v0 = gt arg0, 10
     v1 = zext i1 v0 to i256
@@ -72,7 +72,7 @@ fn @f(arg0: i256) -> i256 {
     ret arg0
 }
 
-fn @pair(arg0: i256) -> struct0 {
+fn @pair(arg0: i256) -> struct0 [inline_assembly] {
   bb0:
     v0 = gt arg0, 5
     v1 = zext i1 v0 to i256

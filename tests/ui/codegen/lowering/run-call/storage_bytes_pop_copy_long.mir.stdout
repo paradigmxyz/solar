@@ -4,9 +4,9 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v43]
-    v1 = phi [bb0: memorybytes 96], [bb3: v1]
-    v2 = lt v0, 33
+    v0 = phi [bb0: memorybytes 96], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v43]
+    v2 = lt v1, 33
     jumpi v2, bb4, bb5
   bb5:
     jump bb2
@@ -14,9 +14,9 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     jump bb12
   bb12:
     v44 = phi [bb2: v0], [bb14: v44]
-    v45 = phi [bb2: 0], [bb14: v92]
-    v46 = phi [bb2: v1], [bb14: v46]
-    v47 = lt v45, 4
+    v45 = phi [bb2: v1], [bb14: v45]
+    v46 = phi [bb2: 0], [bb14: v92]
+    v47 = lt v46, 4
     jumpi v47, bb15, bb16
   bb16:
     jump bb13
@@ -89,7 +89,7 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
   bb17:
     jump bb14
   bb14:
-    v92 = checked_add u256, v45, 1
+    v92 = checked_add u256, v46, 1
     jump bb12
   bb4:
     v3 = sload 0 !metadata(storage=slot(0))
@@ -153,7 +153,7 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
   bb6:
     jump bb3
   bb3:
-    v43 = checked_add u256, v0, 1
+    v43 = checked_add u256, v1, 1
     jump bb1
 }
 
@@ -240,9 +240,9 @@ fn @testOnePop() -> i256 [selector=0x38de92b5, abi_params=[], abi_returns=[word<
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v43]
-    v1 = phi [bb0: 0], [bb3: v1]
-    v2 = lt v0, 33
+    v0 = phi [bb0: 0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v43]
+    v2 = lt v1, 33
     jumpi v2, bb4, bb5
   bb5:
     jump bb2
@@ -400,6 +400,6 @@ fn @testOnePop() -> i256 [selector=0x38de92b5, abi_params=[], abi_returns=[word<
   bb6:
     jump bb3
   bb3:
-    v43 = checked_add u256, v0, 1
+    v43 = checked_add u256, v1, 1
     jump bb1
 }

@@ -25,63 +25,45 @@ bb4 [cold]:
   revert
 bb5:
   push 7
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb6:
-  push 128
+  push 160
   dup 1
   push 64
   mstore
-  push 160
+  dup 1
   dup 2
   add
   push 64
   mstore
-  dup 1
+  push 128
   dup 2
   mstore
   push 32
   dup 2
   add
-  dup 2
+  push 128
   push_data literal_0
   dup 3
   codecopy
-  dup 2
-  iszero
-  iszero
-  push 7
-  shl
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
+  pop
   dup 1
-  dup 4
+  dup 2
   add
   push 0
   swap 1
   mstore
-  push 64
-  dup 5
-  add
-  dup 3
-  dup 5
-  dup 3
-  mcopy
-  pop
   push 32
-  dup 5
+  swap 1
+  sub
+  push 32
+  dup 2
   mstore
-  swap 2
-  mstore
-  push 64
-  add
+  push 192
   dup 2
   return
 
@@ -125,11 +107,11 @@ bb26 [cold]:
   push 0
   revert
 bb6:
-  push 192
+  push 160
   push 64
   mstore
   push 0
-  push 160
+  push 128
   mstore
   push 64
   mload
@@ -138,11 +120,11 @@ bb6:
   add
   push 64
   mstore
-  push 255
+  push 233
   push_data Child_initcode_0
   dup 3
   codecopy
-  push 255
+  push 233
   swap 1
   push 0
   create
@@ -188,24 +170,24 @@ bb6:
   push 0
   return
 bb18:
-  push 256
+  push 192
   push 64
   mstore
   push 0
-  push 160
+  push 128
   mstore
   push 64
   mload
-  dup 1
+  push 256
   dup 2
   add
   push 64
   mstore
-  push 255
+  push 233
   push_data Child_initcode_0
   dup 3
   codecopy
-  push 255
+  push 233
   swap 1
   push 0
   create
@@ -214,7 +196,7 @@ bb18:
   push bb26
   jumpi
   push 0
-  push 192
+  push 160
   mstore
   push 64
   mload
@@ -223,11 +205,11 @@ bb18:
   add
   push 64
   mstore
-  push 255
+  push 233
   push_data Child_initcode_0
   dup 3
   codecopy
-  push 255
+  push 233
   swap 1
   push 0
   create
@@ -257,8 +239,7 @@ bb18:
   swap 3
   pop
   pop
-  push 224
-  mstore
+  swap 1
   iszero
   push bb26
   jumpi
@@ -285,12 +266,13 @@ bb18:
   push 0
   push 4
   dup 4
-  push 224
-  mload
+  dup 7
   gas
   staticcall
-  swap 1
+  swap 3
   pop
+  pop
+  swap 1
   iszero
   push bb26
   jumpi
@@ -324,4 +306,4 @@ bb27 [cold]:
   push 28
   revert
 
-@data Child_initcode_0 hex"34600d5760ee8060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b60808060405260a081016040528081526020810181606e823981151560071b601f8101601f19168083015f9052604084018284825e5060208452915260400181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+@data Child_initcode_0 hex"34600d5760d88060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602a575b5f5ffd5b60075f5260205ff35b60a0806040528081016040526080815260208101608060588239508081015f9052602090036020815260c081f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"

@@ -1,0 +1,73 @@
+// === ROOT/tests/ui/safe-solar/strings/tostring/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase lowered
+fn @decimal() [selector=0xf371efa4, abi_wrapper, pure] {
+  bb0:
+    v1 = calldatasize
+    v2 = lt v1, 36
+    jumpi v2, bb1, bb2
+  bb2:
+    v0 = icall @_toString, arg0
+    v35 = mload 64 !metadata(memory=scratch)
+    v8 = add v35, 32
+    mstore v35, 32
+    v32 = ptrtoint memptr v0 to i256
+    v16 = ne v32, 0
+    v17 = zext i1 v16 to i256
+    v12 = mload v32
+    v18 = mul v12, v17
+    v20 = add v18, 31
+    v21 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v22 = add v8, 32
+    v23 = add v8, v21
+    mstore v23, 0
+    mstore v8, v18
+    v25 = add v22, v21
+    v34 = add v32, 32
+    mcopy v22, v34, v18
+    v28 = sub v25, v35
+    returndata v35, v28
+  bb1:
+    revert 0, 0
+}
+
+fn @_toString(arg0: i256) -> memptr [may_return_memory, inline_assembly, pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = add v0, 128
+    v2 = add v1, 32
+    mstore 64, v2 !metadata(memory=scratch)
+    mstore v1, 0
+    jump bb1
+  bb1:
+    v5 = phi [bb0: v1], [bb1: v10]
+    v8 = phi [bb0: arg0], [bb1: v13]
+    v10 = add v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v11 = mod v8, 10
+    v12 = add v11, 48
+    mstore8 v10, v12
+    v13 = div v8, 10
+    v14 = eq v13, 0
+    jumpi v14, bb2, bb1
+  bb2:
+    v19 = sub v1, v10
+    v20 = sub v10, 32
+    mstore v20, v19
+    v21 = inttoptr i256 v20 to memptr
+    ret v21
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xf371efa4 => bb2]
+  bb2:
+    tail_call @decimal
+  bb3:
+    revert 0, 0
+}

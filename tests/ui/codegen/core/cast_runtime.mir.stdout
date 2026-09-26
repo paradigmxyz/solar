@@ -1,0 +1,165 @@
+// === <solar:core/v1/Cast.sol>:Cast ===
+@module Cast
+@library
+
+// === ROOT/tests/ui/codegen/core/cast_runtime.sol:Test ===
+@module Test
+fn @u8(arg0: i256) -> i256 [selector=0x9cac9f98, pure, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
+  bb0:
+    v0 = icall @toUint8, arg0
+    ret v0
+}
+
+fn @u40(arg0: i256) -> i256 [selector=0x3a605894, pure, abi_params=[u256], abi_returns=[word<u40>], abi_return_params=[u40]] {
+  bb0:
+    v0 = icall @toUint40, arg0
+    ret v0
+}
+
+fn @u248(arg0: i256) -> i256 [selector=0x6f8e19bc, pure, abi_params=[u256], abi_returns=[word<u248>], abi_return_params=[u248]] {
+  bb0:
+    v0 = icall @toUint248, arg0
+    ret v0
+}
+
+fn @i8(arg0: i256) -> i256 [selector=0x600de753, pure, abi_params=[i256], abi_returns=[word<i8>], abi_return_params=[i8]] {
+  bb0:
+    v0 = icall @toInt8, arg0
+    ret v0
+}
+
+fn @i128(arg0: i256) -> i256 [selector=0x5c565493, pure, abi_params=[i256], abi_returns=[word<i128>], abi_return_params=[i128]] {
+  bb0:
+    v0 = icall @toInt128, arg0
+    ret v0
+}
+
+fn @signed(arg0: i256) -> i256 [selector=0x735957f8, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    v0 = icall @toInt256, arg0
+    ret v0
+}
+
+fn @unsigned(arg0: i256) -> i256 [selector=0xf6786747, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @toUint256, arg0
+    ret v0
+}
+
+fn @toUint8(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = gt arg0, 255
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    icall @_overflow
+    jump bb3
+  bb3:
+    v1 = and arg0, 255
+    ret v1
+}
+
+fn @toUint40(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = gt arg0, 0xffffffffff
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    icall @_overflow
+    jump bb3
+  bb3:
+    v1 = and arg0, 0xffffffffff
+    ret v1
+}
+
+fn @toUint248(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = gt arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    icall @_overflow
+    jump bb3
+  bb3:
+    v1 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    ret v1
+}
+
+fn @toInt8(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = slt arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    jumpi v0, bb2, bb1
+  bb1:
+    v1 = sgt arg0, 127
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v2 = phi [bb1: v1], [bb2: true]
+    jumpi v2, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    icall @_overflow
+    jump bb6
+  bb6:
+    v3 = signextend 0, arg0
+    ret v3
+}
+
+fn @toInt128(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = slt arg0, 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
+    jumpi v0, bb2, bb1
+  bb1:
+    v1 = sgt arg0, 0x7fffffffffffffffffffffffffffffff
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v2 = phi [bb1: v1], [bb2: true]
+    jumpi v2, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    icall @_overflow
+    jump bb6
+  bb6:
+    v3 = signextend 15, arg0
+    ret v3
+}
+
+fn @toInt256(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = gt arg0, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    icall @_overflow
+    jump bb3
+  bb3:
+    ret arg0
+}
+
+fn @toUint256(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = slt arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    icall @_overflow
+    jump bb3
+  bb3:
+    ret arg0
+}
+
+fn @_overflow() [pure] {
+  bb0:
+    v0 = checked_add u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    ret
+}

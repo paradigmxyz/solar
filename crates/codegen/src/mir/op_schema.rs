@@ -1752,10 +1752,12 @@ define_mir_ops! {
         /// Interned semantic ABI layout.
         layout: AbiLayoutRef,
     },
-    /// Decode a memory-backed ABI tuple into semantic MIR values.
+    /// Decode an ABI tuple held in memory or calldata into semantic MIR values.
     ///
     /// The instruction result is the first tuple value. Additional values are
     /// published through the multi-return buffer, matching ordinary MIR calls.
+    /// A `bytes` or `string` field typed as a slice of the data's location is a
+    /// validated view of its bytes in the data rather than a copy.
     #[mir_op(
         mnemonic = "abi_decode",
         result = Custom,
@@ -1765,9 +1767,9 @@ define_mir_ops! {
         side_effects = true,
         category = Some("ABI decoding")
     )]
-    #[operand_types(func => Some(smallvec![MirType::MemoryObject(MemoryObjectKind::Bytes)]))]
+    #[operand_types(func => Some(smallvec![typing::read_object(func, *data, MemoryObjectKind::Bytes)]))]
     AbiDecode {
-        /// ABI-encoded bytes object.
+        /// ABI-encoded bytes: a memory object, or a memory or calldata slice.
         data: ValueId,
         /// Interned ABI input layout, including scalar validation types.
         layout: AbiParamLayoutRef,

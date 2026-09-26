@@ -674,10 +674,35 @@ pub(crate) struct FunctionAttributes {
     /// the original signature's frame-lifetime constraint. The backend uses this sticky bit to
     /// avoid reclaiming memory that may have escaped through inline assembly.
     pub(crate) may_return_memory: bool,
+    /// Whether this function's body came from inline assembly, directly or through a callee
+    /// inlined into it.
+    ///
+    /// Only assembly can write a memory object's length word or turn an arbitrary word into a
+    /// memory object. While no function in a module has this bit, every length was written by
+    /// a checked allocation, an ABI decoder, or a core operation that only shortens an object,
+    /// so each stays below
+    /// [`MAX_ALLOCATION_END`](super::memory::EvmMemoryLayout::MAX_ALLOCATION_END). The bit is
+    /// sticky: inlining carries it into the caller, and only functions with equal bits merge.
+    pub(crate) inline_assembly: bool,
     /// Whether this function dispatches an internal function-pointer shape.
     pub(crate) is_function_pointer_dispatcher: bool,
     /// Never clone this function into multiple callers.
     pub(crate) no_inline: bool,
+    /// Every memory write either permutes words already present in an array
+    /// argument, stores into an array whose elements are full words, or writes
+    /// free memory above the free-memory pointer, so calls cannot widen any
+    /// array's element bit width.
+    ///
+    /// This is a trusted invariant for compiler-synthesized helpers. It must
+    /// stay false for source functions and for helpers that store new words
+    /// into arrays with narrower elements.
+    pub(crate) preserves_array_elements: bool,
+    /// Every element word of the single array this function returns was read
+    /// from an element of one of its array parameters, so the result holds no
+    /// wider words than they do.
+    ///
+    /// This is a trusted invariant for compiler-synthesized helpers.
+    pub(crate) returns_param_elements: bool,
     /// Proved upper bound, in bits, on the words each array parameter can
     /// hold while this function reads it, recorded by element cleanup for
     /// the ABI return proofs that run after the element masks are gone.
@@ -698,8 +723,11 @@ impl Default for FunctionAttributes {
             is_receive: false,
             is_yul: false,
             may_return_memory: false,
+            inline_assembly: false,
             is_function_pointer_dispatcher: false,
             no_inline: false,
+            preserves_array_elements: false,
+            returns_param_elements: false,
             array_element_bits: FxHashMap::default(),
             array_return_element_bits: None,
         }

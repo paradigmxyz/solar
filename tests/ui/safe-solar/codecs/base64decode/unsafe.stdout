@@ -1,0 +1,166 @@
+// === ROOT/tests/ui/safe-solar/codecs/base64decode/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase lowered
+fn @decode() [selector=0x49145c91, abi_wrapper, pure] {
+  bb0:
+    v1 = calldatasize
+    v2 = lt v1, 36
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = calldataload 4
+    v4 = add v3, 4
+    v5 = add v4, 32
+    v6 = shr 64, v3
+    v7 = gt v5, v1
+    v8 = zext i1 v7 to i256
+    v9 = or v6, v8
+    v10 = ne v9, 0
+    jumpi v10, bb1, bb3
+  bb3:
+    v11 = calldataload v4
+    v13 = add v11, 63
+    v14 = lt v13, v11
+    jumpi v14, bb4, bb5
+  bb5:
+    v16 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v58 = mload 64 !metadata(memory=scratch)
+    v17 = inttoptr i256 v58 to memptr !metadata(memory=scratch)
+    v59 = add v58, v16
+    v60 = lt v59, v58
+    v61 = zext i1 v60 to i256
+    v62 = shr 64, v59
+    v63 = or v61, v62
+    v64 = ne v63, 0
+    jumpi v64, bb4, bb7
+  bb7:
+    mstore 64, v59 !metadata(memory=scratch)
+    mstore v58, v11
+    v18 = sub v1, v5
+    v19 = gt v11, v18
+    jumpi v19, bb1, bb6
+  bb6:
+    v51 = add v58, 32
+    calldatacopy v51, v5, v11
+    v0 = icall @_decode, v17
+    v65 = mload 64 !metadata(memory=scratch)
+    v26 = add v65, 32
+    mstore v65, 32
+    v55 = ptrtoint memptr v0 to i256
+    v34 = ne v55, 0
+    v35 = zext i1 v34 to i256
+    v30 = mload v55
+    v36 = mul v30, v35
+    v38 = add v36, 31
+    v39 = and v38, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v40 = add v26, 32
+    v41 = add v26, v39
+    mstore v41, 0
+    mstore v26, v36
+    v43 = add v40, v39
+    v57 = add v55, 32
+    mcopy v40, v57, v36
+    v46 = sub v43, v65
+    returndata v65, v46
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @_decode(arg0: memptr) -> memptr [may_return_memory, inline_assembly, pure] {
+  bb0:
+    v0 = ptrtoint memptr arg0 to i256
+    v1 = mload v0
+    v2 = ne v1, 0
+    jumpi v2, bb1, bb2
+  bb1:
+    v3 = shr 2, v1
+    v4 = mul v3, 3
+    v10 = and v1, 3
+    v11 = eq v10, 0
+    jumpi v11, bb4, bb5
+  bb5:
+    v27 = sub v10, 1
+    v28 = add v4, v27
+    jump bb3
+  bb4:
+    v15 = add v0, v1
+    v16 = mload v15
+    v17 = xor v16, 0x3d3d
+    v18 = byte 31, v17
+    v19 = eq v18, 0
+    v20 = zext i1 v19 to i256
+    v21 = byte 30, v17
+    v22 = eq v21, 0
+    v23 = zext i1 v22 to i256
+    v24 = add v23, v20
+    v25 = sub v4, v24
+    jump bb3
+  bb3:
+    v29 = phi [bb4: v25], [bb5: v28]
+    v30 = mload 64 !metadata(memory=scratch)
+    mstore v30, v29
+    v31 = add v30, 32
+    v32 = add v31, v29
+    mstore 91, 0xfc000000fc00686c7074787c8084888c9094989ca0a4a8acb0b4b8bcc0c4c8cc !metadata(memory=scratch)
+    mstore 59, 0x4080c1014181c2024282c3034383c4044484c5054585c6064 !metadata(memory=scratch)
+    mstore 26, 0xf8fcf800fcd0d4d8dce0e4e8ecf0f4 !metadata(memory=scratch)
+    jump bb6
+  bb6:
+    v33 = phi [bb3: arg0], [bb8: v67]
+    v37 = phi [bb3: v31], [bb8: v61]
+    v41 = ptrtoint memptr v33 to i256
+    v42 = add v41, 4
+    v43 = mload v42
+    v44 = byte 31, v43
+    v45 = mload v44
+    v46 = shr 6, v45
+    v47 = byte 30, v43
+    v48 = mload v47
+    v49 = and v48, 0xfc000000fc00686c7074787c8084888c9094989ca0a4a8acb0b4b8bcc0c4c8cc
+    v50 = or v49, v46
+    v51 = shr 6, v50
+    v52 = byte 29, v43
+    v53 = mload v52
+    v54 = and v53, 0xfc000000fc00686c7074787c8084888c9094989ca0a4a8acb0b4b8bcc0c4c8cc
+    v55 = or v54, v51
+    v56 = shr 6, v55
+    v57 = byte 28, v43
+    v58 = mload v57
+    v59 = and v58, 0xfc000000fc00686c7074787c8084888c9094989ca0a4a8acb0b4b8bcc0c4c8cc
+    v60 = or v59, v56
+    mstore v37, v60
+    v61 = add v37, 3
+    v62 = lt v61, v32
+    jumpi v62, bb8, bb7
+  bb7:
+    v71 = add v32, 32
+    mstore 64, v71 !metadata(memory=scratch)
+    mstore v32, 0
+    mstore 96, 0 !metadata(memory=scratch)
+    jump bb2
+  bb2:
+    v75 = phi [bb7: v30], [bb0: 96]
+    v77 = inttoptr i256 v75 to memptr
+    ret v77
+  bb8:
+    v67 = inttoptr i256 v42 to memptr
+    jump bb6
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0x49145c91 => bb2]
+  bb2:
+    tail_call @decode
+  bb3:
+    revert 0, 0
+}

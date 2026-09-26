@@ -143,15 +143,17 @@ fn @keep_distinct_memory_fields(arg0: i256, arg1: i256, arg2: memorystruct) {
 // CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
 // CHECK-DAG: {{^[ +].*}}keccak256_packed (data hex"61")
 // CHECK-DAG: {{^[ +].*}}keccak256_packed (data hex"62")
-fn @keep_distinct_packed_literals(arg0: i1) -> i256 {
+fn @keep_distinct_packed_literals(arg0: i1) {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
     v0 = keccak256_packed (data hex"61")
-    ret v0
+    mstore 0, v0
+    returndata 0, 32
   bb2:
     v1 = keccak256_packed (data hex"62")
-    ret v1
+    mstore 0, v1
+    returndata 0, 32
 }
 
 // Enum bounds remain distinct even when the array type and slot are identical.
@@ -159,30 +161,72 @@ fn @keep_distinct_packed_literals(arg0: i1) -> i256 {
 // CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
 // CHECK: {{^[ +].*}}load_storage_array enum<3>, arg1
 // CHECK: {{^[ +].*}}load_storage_array enum<2>, arg1
-fn @keep_distinct_enum_bounds(arg0: i1, arg1: i256) -> memoryarray {
+fn @keep_distinct_enum_bounds(arg0: i1, arg1: i256) {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
     v0 = load_storage_array enum<2>, arg1
-    ret v0
+    icall @consume_array, v0
+    stop
   bb2:
     v1 = load_storage_array enum<3>, arg1
-    ret v1
+    icall @consume_array, v1
+    stop
+}
+
+fn @consume_array(arg0: memoryarray) {
+  bb0:
+    ret
 }
 
 // Identical payloads still allow alpha-equivalent terminal blocks to merge.
 // CHECK-LABEL: {{^[ +].*}}fn @merge_equal_packed_literals{{[( ]}}
 // CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
 // CHECK: {{^[ +].*}}keccak256_packed (data hex"61")
-fn @merge_equal_packed_literals(arg0: i1) -> i256 {
+fn @merge_equal_packed_literals(arg0: i1) {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
     v0 = keccak256_packed (data hex"61")
-    ret v0
+    mstore 0, v0
+    returndata 0, 32
   bb2:
     v1 = keccak256_packed (data hex"61")
-    ret v1
+    mstore 0, v1
+    returndata 0, 32
+}
+
+// Internal returns stay separate, so a loop's exit branch keeps a target of its own.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_internal_returns{{[( ]}}
+// CHECK: {{^[ +].*}}jumpi arg0, bb1, bb2
+// CHECK: {{^[ +].*}}jumpi arg1, bb3, bb4
+// CHECK-COUNT-2: {{^[ +].*}}ret 0
+fn @keep_internal_returns(arg0: i1, arg1: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    ret 0
+  bb2:
+    jumpi arg1, bb3, bb4
+  bb3:
+    ret 0
+  bb4:
+    ret 1
+}
+
+// A branch between two returns of the same value folds to one of them.
+// CHECK-LABEL: {{^[ +].*}}fn @fold_equal_returns{{[( ]}}
+// CHECK: - jumpi arg0, bb1, bb2
+// CHECK-NOT: {{^[ +].*}}jumpi
+// CHECK: {{^[ +].*}}ret 0
+// CHECK-NOT: {{^[ +].*}}ret
+fn @fold_equal_returns(arg0: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    ret 0
+  bb2:
+    ret 0
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_storage_literals{{[( ]}}
@@ -194,10 +238,10 @@ fn @keep_distinct_storage_literals(arg0: i1, arg1: i256) {
     jumpi arg0, bb1, bb2
   bb1:
     store_storage_bytes_literal arg1, hex"61"
-    ret
+    stop
   bb2:
     store_storage_bytes_literal arg1, hex"62"
-    ret
+    stop
 }
 
 // Library addresses carry distinct relocation identities.
@@ -205,13 +249,17 @@ fn @keep_distinct_storage_literals(arg0: i1, arg1: i256) {
 // CHECK: {{^[ +].*}}jumpi arg0, bb1, bb2
 // CHECK: library_address "B.sol":"L"
 // CHECK: library_address "A.sol":"L"
-fn @keep_distinct_libraries(arg0: i1) -> i160 {
+fn @keep_distinct_libraries(arg0: i1) {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
     v0 = library_address "A.sol":"L"
-    ret v0
+    v2 = zext i160 v0 to i256
+    mstore 0, v2
+    returndata 0, 32
   bb2:
     v1 = library_address "B.sol":"L"
-    ret v1
+    v3 = zext i160 v1 to i256
+    mstore 0, v3
+    returndata 0, 32
 }

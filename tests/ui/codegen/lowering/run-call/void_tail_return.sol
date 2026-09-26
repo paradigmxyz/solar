@@ -11,6 +11,9 @@
 //@ run-call: tuple 2, 5 => 2, 5, 5
 //@ run-call-fail: tuple 0, 5
 //@ run-call-fail: tuple 2, 0
+//@ run-call: quietTwice 4 => 48
+//@ run-call: callQuiet 4 => 48
+//@ run-call: toggleLoud 7 => true
 
 contract VoidTailReturn {
     uint256 private total;
@@ -75,6 +78,36 @@ contract VoidTailReturn {
     function finish() internal {
         for (uint256 i; i < 4; ++i) total += i + 1;
         total += 6;
+    }
+
+    mapping(uint256 => uint256) private words;
+
+    function toggleBit(uint256 key, uint256 index) internal returns (bool) {
+        uint256 slot = key ^ (index >> 8);
+        uint256 word = words[slot] ^ (1 << (index & 255));
+        words[slot] = word;
+        return (word >> (index & 255)) & 1 == 1;
+    }
+
+    // The terminal call returns a word this void function discards, so the
+    // callee cannot return straight to this function's continuation.
+    function toggleQuiet(uint256 index) internal {
+        toggleBit(0, index);
+    }
+
+    function toggleLoud(uint256 index) external returns (bool) {
+        return toggleBit(0, index);
+    }
+
+    // An internal caller returns through the address below the discarded word.
+    function callQuiet(uint256 index) external returns (uint256) {
+        return quietTwice(index);
+    }
+
+    function quietTwice(uint256 index) public returns (uint256) {
+        toggleQuiet(index);
+        toggleQuiet(index + 1);
+        return words[index >> 8];
     }
 
     function recurse(uint256 depth) external returns (uint256) {

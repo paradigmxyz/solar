@@ -122,10 +122,10 @@ bb15 [loop]:
   lt
   push bb17
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3:
   dup 1
@@ -169,8 +169,8 @@ bb10 [loop]:
   lt
   push bb12
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return

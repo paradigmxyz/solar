@@ -1,0 +1,94 @@
+// === <solar:core/v1/CalldataBytes.sol>:CalldataBytes ===
+@module CalldataBytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/safe-solar/calldata/copy/safe.sol:Safe ===
+@module Safe
+@phase lowered
+fn @part() [selector=0x107cd163, abi_wrapper, pure] {
+  bb0:
+    v22 = calldatasize
+    v23 = lt v22, 100
+    jumpi v23, bb5, bb6
+  bb6:
+    v24 = calldataload 4
+    v25 = add v24, 4
+    v26 = add v25, 32
+    v27 = gt v24, 0xffffffffffffffff
+    v28 = gt v26, v22
+    v29 = or v27, v28
+    v30 = zext i1 v29 to i256
+    v31 = calldataload v25
+    v33 = sub v22, v26
+    v34 = gt v31, v33
+    v35 = zext i1 v34 to i256
+    v36 = or v30, v35
+    v37 = ne v36, 0
+    jumpi v37, bb5, bb7
+  bb7:
+    v0 = add arg2, 63
+    v1 = lt v0, arg2
+    jumpi v1, bb1, bb2
+  bb2:
+    v3 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v57 = mload 64 !metadata(memory=scratch)
+    v58 = add v57, v3
+    v59 = lt v58, v57
+    v60 = zext i1 v59 to i256
+    v61 = shr 64, v58
+    v62 = or v60, v61
+    v63 = ne v62, 0
+    jumpi v63, bb1, bb8
+  bb8:
+    mstore 64, v58 !metadata(memory=scratch)
+    v64 = calldatasize
+    calldatacopy v57, v64, v3
+    mstore v57, arg2
+    v55 = add v57, 32
+    v15 = add arg1, arg2
+    v16 = lt v15, arg1
+    v17 = gt v15, v31
+    v18 = or v16, v17
+    jumpi v18, bb3, bb4
+  bb4:
+    v21 = add v26, arg1
+    calldatacopy v55, v21, arg2
+    v43 = add arg2, 31
+    v45 = and v43, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v48 = add v55, arg2
+    mstore v48, 0
+    v50 = sub v57, 32
+    mstore v50, 32
+    v51 = add v45, 64
+    returndata v50, v51
+  bb3:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb5:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0x107cd163 => bb2]
+  bb2:
+    tail_call @part
+  bb3:
+    revert 0, 0
+}

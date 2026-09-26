@@ -1,0 +1,31 @@
+//@ filecheck:
+// A source supplied under the reserved prefix is what a project ships so that
+// another compiler can resolve the same input. Here it is set aside with a
+// warning, and the import resolves to the compiler's own module: the stand-in
+// body would return `0xdeadbeef`, and the real one is a masked word read.
+// CHECK: "errors": [
+// CHECK: "type": "Warning"
+// CHECK: "message": "source `solar:core/v1/Bytes.sol` is provided by the compiler; the supplied content is ignored"
+// CHECK: "contracts": {
+// CHECK: "A.sol": {
+// CHECK: "T": {
+// CHECK: "abi": [
+// CHECK-NOT: "solar:core/v1/Bytes.sol": {
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "import {Bytes} from \"solar:core/v1/Bytes.sol\"; contract T { function f(bytes memory b) public pure returns (bytes4) { return Bytes.readBytes4(b, 0); } }"
+    },
+    "solar:core/v1/Bytes.sol": {
+      "content": "library Bytes { function readBytes4(bytes memory, uint256) internal pure returns (bytes4) { return 0xdeadbeef; } }"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "A.sol": {
+        "*": ["abi"]
+      }
+    }
+  }
+}

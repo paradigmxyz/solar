@@ -1,0 +1,30 @@
+// === ROOT/tests/ui/safe-solar/cast/narrow/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase lowered
+fn @narrow() [selector=0x0ebb6188, abi_wrapper, inline_assembly, pure] {
+  bb0:
+    v1 = calldatasize
+    v2 = lt v1, 36
+    jumpi v2, bb1, bb2
+  bb2:
+    v0 = and arg0, 0xffffffffff
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xebb6188 => bb2]
+  bb2:
+    tail_call @narrow
+  bb3:
+    revert 0, 0
+}

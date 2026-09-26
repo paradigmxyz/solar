@@ -50,7 +50,7 @@ fn @frameShadow() -> struct0 [selector=0x7953faf2, pure, abi_params=[], abi_retu
     ret v3
 }
 
-fn @rawAssembly() -> i256 [selector=0x89eb38b4, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @rawAssembly() -> i256 [selector=0x89eb38b4, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore 64, v0 !metadata(memory=scratch)

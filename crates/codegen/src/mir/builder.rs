@@ -732,7 +732,6 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Sets the free-memory pointer.
-    #[cfg(test)]
     pub(crate) fn set_fmp(&mut self, value: ValueId) {
         self.emit_void_inst(InstKind::SetFmp(value))
     }
@@ -1069,6 +1068,49 @@ impl<'a> FunctionBuilder<'a> {
         self.eq(value, zero)
     }
 
+    /// Tests a value against zero.
+    pub(crate) fn ne_zero(&mut self, value: ValueId) -> ValueId {
+        let zero = self.func.alloc_value(Value::Immediate(Immediate::for_type(
+            self.func.value_ty(value),
+            U256::ZERO,
+        )));
+        // result = ne value, 0
+        self.ne(value, zero)
+    }
+
+    /// Returns a word that is nonzero exactly when `value` exceeds `2^bits - 1`.
+    ///
+    /// With bitwise shifting the test is a shift, which needs no wide
+    /// immediate and joins other failure words through `or`.
+    pub(crate) fn exceeds_bits_word(
+        &mut self,
+        value: ValueId,
+        bits: u32,
+        shifting: bool,
+    ) -> ValueId {
+        if shifting {
+            // word = shr bits, value
+            let shift = self.imm(u64::from(bits));
+            return self.shr(shift, value);
+        }
+        // word = zext (gt value, 2^bits - 1) to i256
+        let above = self.exceeds_bits(value, bits, false);
+        self.cast(above, MirType::I256)
+    }
+
+    /// Tests whether `value` exceeds `2^bits - 1`; see [`Self::exceeds_bits_word`].
+    pub(crate) fn exceeds_bits(&mut self, value: ValueId, bits: u32, shifting: bool) -> ValueId {
+        debug_assert!((1..256).contains(&bits));
+        if shifting {
+            // result = ne (shr bits, value), 0
+            let word = self.exceeds_bits_word(value, bits, true);
+            return self.ne_zero(word);
+        }
+        // result = gt value, 2^bits - 1
+        let limit = self.imm(U256::MAX >> (256 - bits as usize));
+        self.gt(value, limit)
+    }
+
     /// Preserves all bits while forgetting a value's nominal one-word type.
     pub(crate) fn cast_word(&mut self, value: ValueId) -> ValueId {
         // word = zext integer or ptrtoint pointer to i256
@@ -1168,6 +1210,24 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         // object = inttoptr word to object, or bitcast pointer to object
         self.cast(ptr, MirType::MemoryObject(kind))
+    }
+
+    /// Gives an address inside a region the caller allocated an object type,
+    /// marking the cast as a real object: the null default object, which only a
+    /// zeroed aggregate slot produces, never comes from here.
+    pub(crate) fn memory_object_in_allocation(
+        &mut self,
+        ptr: ValueId,
+        kind: MemoryObjectKind,
+    ) -> ValueId {
+        // object = inttoptr word to object !metadata(nonnull)
+        let object = self.memory_object_from_ptr(ptr, kind);
+        if object != ptr
+            && let Value::Inst(inst) = *self.func.value(object)
+        {
+            self.func.inst_mut(inst).metadata.set_nonnull();
+        }
+        object
     }
 
     /// Builds a struct from its ordered field values.

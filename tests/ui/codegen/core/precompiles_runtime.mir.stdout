@@ -1,0 +1,215 @@
+// === <solar:core/v1/Precompiles.sol>:Precompiles ===
+@module Precompiles
+@library
+
+// === ROOT/tests/ui/codegen/core/precompiles_runtime.sol:Test ===
+@module Test
+types:
+  struct0: {i256, memorybytes}
+  struct1: {i256, i256, i256}
+  struct2: {i256, i256}
+
+fn @modexp.0(arg0: memorybytes, arg1: memorybytes, arg2: memorybytes) -> struct0 [selector=0x8b4c9e83, view, abi_params=[bytes, bytes, bytes], abi_returns=[word<bool>, memory_bytes], abi_return_params=[bool, bytes]] {
+  bb0:
+    v0 = icall @modexp.4, arg0, arg1, arg2
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = insert_value struct0, undef struct0, 0, v1
+    v4 = insert_value struct0, v3, 1, v2
+    ret v4
+}
+
+fn @ecAdd.1(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct1 [selector=0xcde62483, view, abi_params=[u256, u256, u256, u256], abi_returns=[word<bool>, word, word], abi_return_params=[bool, u256, u256]] {
+  bb0:
+    v0 = icall @ecAdd.5, arg0, arg1, arg2, arg3
+    v1 = extract_value struct1, v0, 0
+    v2 = extract_value struct1, v0, 1
+    v3 = extract_value struct1, v0, 2
+    v4 = insert_value struct1, undef struct1, 0, v1
+    v5 = insert_value struct1, v4, 1, v2
+    v6 = insert_value struct1, v5, 2, v3
+    ret v6
+}
+
+fn @ecMul.2(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0xa804c77d, view, abi_params=[u256, u256, u256], abi_returns=[word<bool>, word, word], abi_return_params=[bool, u256, u256]] {
+  bb0:
+    v0 = icall @ecMul.6, arg0, arg1, arg2
+    v1 = extract_value struct1, v0, 0
+    v2 = extract_value struct1, v0, 1
+    v3 = extract_value struct1, v0, 2
+    v4 = insert_value struct1, undef struct1, 0, v1
+    v5 = insert_value struct1, v4, 1, v2
+    v6 = insert_value struct1, v5, 2, v3
+    ret v6
+}
+
+fn @ecPairing.3(arg0: memorybytes) -> struct2 [selector=0x41e65fde, view, abi_params=[bytes], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
+  bb0:
+    v0 = icall @ecPairing.7, arg0
+    v1 = extract_value struct2, v0, 0
+    v2 = extract_value struct2, v0, 1
+    v3 = insert_value struct2, undef struct2, 0, v1
+    v4 = insert_value struct2, v3, 1, v2
+    ret v4
+}
+
+fn @modexp.4(arg0: memorybytes, arg1: memorybytes, arg2: memorybytes) -> struct0 [view] {
+  bb0:
+    v0 = trunc i256 5 to i160
+    v1 = gas
+    v2 = memory_object_len memorybytes, arg0
+    v3 = memory_object_len memorybytes, arg1
+    v4 = memory_object_len memorybytes, arg2
+    v5 = abi_encode_packed (u256 v2, u256 v3, u256 v4, bytes arg0, bytes arg1, bytes arg2)
+    v6 = address_staticcall v0, v5, gas v1
+    v7 = icall returndata_bytes<>
+    v8 = eq v6, false
+    jumpi v8, bb2, bb1
+  bb1:
+    v9 = memory_object_len memorybytes, v7
+    v10 = memory_object_len memorybytes, arg2
+    v11 = ne v9, v10
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v12 = phi [bb1: v11], [bb2: true]
+    jumpi v12, bb4, bb5
+  bb5:
+    jump bb6
+  bb6:
+    v18 = zext i1 v6 to i256
+    v19 = insert_value struct0, undef struct0, 0, v18
+    v20 = insert_value struct0, v19, 1, v7
+    ret v20
+  bb4:
+    v13 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v13, 0
+    v14 = memory_object_data memorybytes, v13
+    v15 = zext i1 0 to i256
+    v16 = insert_value struct0, undef struct0, 0, v15
+    v17 = insert_value struct0, v16, 1, v13
+    ret v17
+}
+
+fn @ecAdd.5(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct1 [view] {
+  bb0:
+    v0 = trunc i256 6 to i160
+    v1 = gas
+    v2 = abi_encode [word, word, word, word], object, args arg0, arg1, arg2, arg3
+    v3 = address_staticcall v0, v2, gas v1
+    v4 = icall returndata_bytes<>
+    v5 = eq v3, false
+    jumpi v5, bb2, bb1
+  bb1:
+    v6 = memory_object_len memorybytes, v4
+    v7 = ne v6, 64
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v8 = phi [bb1: v7], [bb2: true]
+    jumpi v8, bb4, bb5
+  bb5:
+    jump bb6
+  bb6:
+    v13 = abi_decode [u256, u256], v4
+    v14 = extract_value struct2, v13, 0
+    v15 = extract_value struct2, v13, 1
+    v16 = zext i1 v3 to i256
+    v17 = insert_value struct1, undef struct1, 0, v16
+    v18 = insert_value struct1, v17, 1, v14
+    v19 = insert_value struct1, v18, 2, v15
+    ret v19
+  bb4:
+    v9 = zext i1 0 to i256
+    v10 = insert_value struct1, undef struct1, 0, v9
+    v11 = insert_value struct1, v10, 1, 0
+    v12 = insert_value struct1, v11, 2, 0
+    ret v12
+}
+
+fn @ecMul.6(arg0: i256, arg1: i256, arg2: i256) -> struct1 [view] {
+  bb0:
+    v0 = trunc i256 7 to i160
+    v1 = gas
+    v2 = abi_encode [word, word, word], object, args arg0, arg1, arg2
+    v3 = address_staticcall v0, v2, gas v1
+    v4 = icall returndata_bytes<>
+    v5 = eq v3, false
+    jumpi v5, bb2, bb1
+  bb1:
+    v6 = memory_object_len memorybytes, v4
+    v7 = ne v6, 64
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v8 = phi [bb1: v7], [bb2: true]
+    jumpi v8, bb4, bb5
+  bb5:
+    jump bb6
+  bb6:
+    v13 = abi_decode [u256, u256], v4
+    v14 = extract_value struct2, v13, 0
+    v15 = extract_value struct2, v13, 1
+    v16 = zext i1 v3 to i256
+    v17 = insert_value struct1, undef struct1, 0, v16
+    v18 = insert_value struct1, v17, 1, v14
+    v19 = insert_value struct1, v18, 2, v15
+    ret v19
+  bb4:
+    v9 = zext i1 0 to i256
+    v10 = insert_value struct1, undef struct1, 0, v9
+    v11 = insert_value struct1, v10, 1, 0
+    v12 = insert_value struct1, v11, 2, 0
+    ret v12
+}
+
+fn @ecPairing.7(arg0: memorybytes) -> struct2 [view] {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    v1 = checked_rem u256, v0, 192
+    v2 = ne v1, 0
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v7 = trunc i256 8 to i160
+    v8 = gas
+    v9 = address_staticcall v7, arg0, gas v8
+    v10 = icall returndata_bytes<>
+    v11 = eq v9, false
+    jumpi v11, bb5, bb4
+  bb4:
+    v12 = memory_object_len memorybytes, v10
+    v13 = ne v12, 32
+    jump bb6
+  bb5:
+    jump bb6
+  bb6:
+    v14 = phi [bb4: v13], [bb5: true]
+    jumpi v14, bb7, bb8
+  bb8:
+    jump bb9
+  bb9:
+    v19 = abi_decode [u256], v10
+    v20 = eq v19, 1
+    v21 = zext i1 v9 to i256
+    v22 = zext i1 v20 to i256
+    v23 = insert_value struct2, undef struct2, 0, v21
+    v24 = insert_value struct2, v23, 1, v22
+    ret v24
+  bb7:
+    v15 = zext i1 0 to i256
+    v16 = zext i1 0 to i256
+    v17 = insert_value struct2, undef struct2, 0, v15
+    v18 = insert_value struct2, v17, 1, v16
+    ret v18
+  bb1:
+    v3 = zext i1 0 to i256
+    v4 = zext i1 0 to i256
+    v5 = insert_value struct2, undef struct2, 0, v3
+    v6 = insert_value struct2, v5, 1, v4
+    ret v6
+}

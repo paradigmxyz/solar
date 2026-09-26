@@ -1,0 +1,154 @@
+// === <solar:core/v1/Hash.sol>:Hash ===
+@module Hash
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/hash_lowering.sol:Test ===
+@module Test
+@phase lowered
+fn @hash() [selector=0x00d07523, abi_wrapper, pure] {
+  bb0:
+    v1 = calldatasize
+    v2 = lt v1, 100
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = calldataload 4
+    v4 = add v3, 4
+    v5 = add v4, 32
+    v6 = shr 64, v3
+    v7 = gt v5, v1
+    v8 = zext i1 v7 to i256
+    v9 = or v6, v8
+    v10 = ne v9, 0
+    jumpi v10, bb1, bb3
+  bb3:
+    v11 = calldataload v4
+    v13 = add v11, 63
+    v14 = lt v13, v11
+    jumpi v14, bb4, bb5
+  bb5:
+    v16 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v27 = mload 64 !metadata(memory=scratch)
+    v17 = inttoptr i256 v27 to memptr !metadata(memory=scratch)
+    v28 = add v27, v16
+    v29 = lt v28, v27
+    v30 = zext i1 v29 to i256
+    v31 = shr 64, v28
+    v32 = or v30, v31
+    v33 = ne v32, 0
+    jumpi v33, bb4, bb7
+  bb7:
+    mstore 64, v28 !metadata(memory=scratch)
+    mstore v27, v11
+    v18 = sub v1, v5
+    v19 = gt v11, v18
+    jumpi v19, bb1, bb6
+  bb6:
+    v23 = add v27, 32
+    calldatacopy v23, v5, v11
+    v0 = icall @keccak256Range, v17
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @keccak256Range(arg0: memptr) -> i256 [may_return_memory, pure] {
+  bb0:
+    v43 = calldataload 36
+    v44 = calldataload 68
+    v57 = ptrtoint memptr arg0 to i256
+    v0 = mload v57
+    v1 = gt v44, v0
+    v36 = sub v0, v44
+    v4 = gt v43, v36
+    v42 = or v1, v4
+    jumpi v42, bb5, bb1
+  bb1:
+    v8 = add v44, 63
+    v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v61 = mload 64 !metadata(memory=scratch)
+    v62 = add v61, v11
+    v63 = lt v62, v61
+    v64 = zext i1 v63 to i256
+    v65 = shr 64, v62
+    v66 = or v64, v65
+    v67 = ne v66, 0
+    jumpi v67, bb9, bb8
+  bb8:
+    mstore 64, v62 !metadata(memory=scratch)
+    v75 = calldatasize
+    calldatacopy v61, v75, v11
+    mstore v61, v44
+    v55 = add v61, 32
+    v76 = add v57, v43
+    v77 = add v76, 32
+    jump bb2
+  bb2:
+    v18 = phi [bb8: 0], [bb7: v40]
+    v78 = phi [bb8: v77], [bb7: v79]
+    v19 = lt v18, v44
+    jumpi v19, bb4, bb3
+  bb3:
+    v46 = mload v61
+    v48 = add v61, 32
+    v31 = keccak256 v48, v46
+    ret v31
+  bb4:
+    v38 = add v43, v18
+    v21 = mload v57
+    v22 = lt v38, v21
+    jumpi v22, bb7, bb6
+  bb7:
+    v52 = mload v78
+    v53 = byte 0, v52
+    v56 = add v55, v18
+    mstore8 v56, v53
+    v40 = add v18, 1
+    v79 = add v78, 1
+    jump bb2
+  bb5:
+    v68 = mload 64 !metadata(memory=scratch)
+    v69 = add v68, 32
+    v70 = lt v69, v68
+    v71 = zext i1 v70 to i256
+    v72 = shr 64, v69
+    v73 = or v71, v72
+    v74 = ne v73, 0
+    jumpi v74, bb9, bb10
+  bb10:
+    mstore 64, v69 !metadata(memory=scratch)
+    mstore v68, 0
+    jump bb6
+  bb6:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
+  bb9:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xd07523 => bb2]
+  bb2:
+    tail_call @hash
+  bb3:
+    revert 0, 0
+}

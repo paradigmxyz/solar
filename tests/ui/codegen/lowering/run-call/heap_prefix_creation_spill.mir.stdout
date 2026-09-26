@@ -62,7 +62,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     ret 1
 }
 
-fn @_cloneDeterministic(arg0: i256, arg1: memorybytes, arg2: i256) -> i256 {
+fn @_cloneDeterministic(arg0: i256, arg1: memorybytes, arg2: i256) -> i256 [inline_assembly] {
   bb0:
     v0 = icall @_creationStart, arg1
     v1 = ptrtoint memorybytes arg1 to i256
@@ -132,7 +132,7 @@ fn @_cloneDeterministic(arg0: i256, arg1: memorybytes, arg2: i256) -> i256 {
     revert 0, 0
 }
 
-fn @_creationStart(arg0: memorybytes) -> i256 [pure] {
+fn @_creationStart(arg0: memorybytes) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = ptrtoint memorybytes arg0 to i256
     v1 = sub v0, 76
@@ -144,7 +144,7 @@ fn @_creationStart(arg0: memorybytes) -> i256 [pure] {
 types:
   struct0: {i256, i256}
 
-fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @check(arg0: i256) -> i256 [selector=0x5f72f450, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = add arg0, 1
     v1 = icall @pair.2
@@ -155,7 +155,7 @@ fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[u256], abi
     ret v4
 }
 
-fn @checkSecond(arg0: i256) -> i256 [selector=0x509876d9, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @checkSecond(arg0: i256) -> i256 [selector=0x509876d9, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = add arg0, 1
     v1 = icall @pair.3
@@ -166,7 +166,7 @@ fn @checkSecond(arg0: i256) -> i256 [selector=0x509876d9, pure, abi_params=[u256
     ret v4
 }
 
-fn @pair.2() -> struct0 {
+fn @pair.2() -> struct0 [inline_assembly] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = sub v0, 160
@@ -175,7 +175,7 @@ fn @pair.2() -> struct0 {
     ret v3
 }
 
-fn @pair.3() -> struct0 {
+fn @pair.3() -> struct0 [inline_assembly] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = sub v0, 128
@@ -192,7 +192,7 @@ fn @saved() -> i256 [selector=0x164b045a, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, inline_assembly, abi_params=[u256]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
@@ -220,7 +220,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
     ret
 }
 
-fn @build(arg0: i256) -> i256 [pure] {
+fn @build(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
@@ -240,7 +240,7 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params
     ret v0
 }
 
-fn @build(arg0: i256, arg1: i256) -> i256 [pure] {
+fn @build(arg0: i256, arg1: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = ne arg1, 0
     jumpi v0, bb1, bb2

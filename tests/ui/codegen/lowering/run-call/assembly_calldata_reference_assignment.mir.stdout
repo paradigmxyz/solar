@@ -4,7 +4,7 @@ types:
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 
-fn @structs(arg0: calldataslice, arg1: calldataslice) -> struct0 [selector=0x46afc9f8, pure, abi_params=[tuple<u256>, tuple<u256, u256>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @structs(arg0: calldataslice, arg1: calldataslice) -> struct0 [selector=0x46afc9f8, inline_assembly, pure, abi_params=[tuple<u256>, tuple<u256, u256>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = slice_ptr arg1
     v1 = slice_len arg0
@@ -22,7 +22,7 @@ fn @structs(arg0: calldataslice, arg1: calldataslice) -> struct0 [selector=0x46a
     ret v12
 }
 
-fn @staticArray(arg0: calldataslice) -> struct0 [selector=0xaa2fa031, pure, abi_params=[array<2, array<2, u256>>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @staticArray(arg0: calldataslice) -> struct0 [selector=0xaa2fa031, inline_assembly, pure, abi_params=[array<2, array<2, u256>>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = make_calldata_slice 4, v0
@@ -59,7 +59,7 @@ fn @staticArray(arg0: calldataslice) -> struct0 [selector=0xaa2fa031, pure, abi_
     ret v27
 }
 
-fn @dynamicArray(arg0: calldataslice) -> struct1 [selector=0xb8731349, pure, abi_params=[array<_, array<2, u256>>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @dynamicArray(arg0: calldataslice) -> struct1 [selector=0xb8731349, inline_assembly, pure, abi_params=[array<_, array<2, u256>>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -102,7 +102,7 @@ fn @dynamicArray(arg0: calldataslice) -> struct1 [selector=0xb8731349, pure, abi
     ret v33
 }
 
-fn @dynamicWords(arg0: calldataslice) -> memoryarray [selector=0x148d46ad, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @dynamicWords(arg0: calldataslice) -> memoryarray [selector=0x148d46ad, inline_assembly, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -142,7 +142,7 @@ fn @dynamicWords(arg0: calldataslice) -> memoryarray [selector=0x148d46ad, pure,
     ret v27
 }
 
-fn @dynamicFixed(arg0: calldataslice) -> memoryarray [selector=0x71cafd78, pure, abi_params=[array<_, array<2, u256>>], abi_returns=[memory_array<array<2, word>>], abi_return_params=[array<_, array<2, u256>>]] {
+fn @dynamicFixed(arg0: calldataslice) -> memoryarray [selector=0x71cafd78, inline_assembly, pure, abi_params=[array<_, array<2, u256>>], abi_returns=[memory_array<array<2, word>>], abi_return_params=[array<_, array<2, u256>>]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -203,7 +203,7 @@ fn @dynamicFixed(arg0: calldataslice) -> memoryarray [selector=0x71cafd78, pure,
     jump bb1
 }
 
-fn @dynamicNarrow(arg0: calldataslice) -> memoryarray [selector=0x320b552a, pure, abi_params=[array<_, u8>], abi_returns=[memory_array<word<u8>>], abi_return_params=[array<_, u8>]] {
+fn @dynamicNarrow(arg0: calldataslice) -> memoryarray [selector=0x320b552a, inline_assembly, pure, abi_params=[array<_, u8>], abi_returns=[memory_array<word<u8>>], abi_return_params=[array<_, u8>]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -258,7 +258,7 @@ fn @dynamicNarrow(arg0: calldataslice) -> memoryarray [selector=0x320b552a, pure
     jump bb1
 }
 
-fn @dynamicNested(arg0: calldataslice) -> memoryarray [selector=0x24abb2f5, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, u256>>]] {
+fn @dynamicNested(arg0: calldataslice) -> memoryarray [selector=0x24abb2f5, inline_assembly, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, u256>>]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -346,7 +346,7 @@ fn @dynamicNested(arg0: calldataslice) -> memoryarray [selector=0x24abb2f5, pure
     jump bb1
 }
 
-fn @dynamicOverflow(arg0: calldataslice) -> memoryarray [selector=0x51072adf, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @dynamicOverflow(arg0: calldataslice) -> memoryarray [selector=0x51072adf, inline_assembly, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -387,7 +387,7 @@ fn @dynamicOverflow(arg0: calldataslice) -> memoryarray [selector=0x51072adf, pu
     ret v28
 }
 
-fn @dynamicEmptyAtEnd(arg0: calldataslice) -> memoryarray [selector=0x93d2ba08, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @dynamicEmptyAtEnd(arg0: calldataslice) -> memoryarray [selector=0x93d2ba08, inline_assembly, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
     v0 = calldatasize
     v1 = slice_ptr arg0
@@ -428,7 +428,7 @@ fn @dynamicEmptyAtEnd(arg0: calldataslice) -> memoryarray [selector=0x93d2ba08, 
     ret v28
 }
 
-fn @dynamicEmptyPastEnd(arg0: calldataslice) -> memoryarray [selector=0x77beb5ce, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @dynamicEmptyPastEnd(arg0: calldataslice) -> memoryarray [selector=0x77beb5ce, inline_assembly, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
     v0 = calldatasize
     v1 = add v0, 1
@@ -470,7 +470,7 @@ fn @dynamicEmptyPastEnd(arg0: calldataslice) -> memoryarray [selector=0x77beb5ce
     ret v29
 }
 
-fn @dynamicWrappingEnd(arg0: calldataslice) -> memoryarray [selector=0x4c797599, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @dynamicWrappingEnd(arg0: calldataslice) -> memoryarray [selector=0x4c797599, inline_assembly, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
     v0 = not 0
     v1 = slice_ptr arg0
@@ -511,7 +511,7 @@ fn @dynamicWrappingEnd(arg0: calldataslice) -> memoryarray [selector=0x4c797599,
     ret v28
 }
 
-fn @returnedSlice(arg0: calldataslice) -> i256 [selector=0x515c2822, pure, abi_params=[bytes], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+fn @returnedSlice(arg0: calldataslice) -> i256 [selector=0x515c2822, inline_assembly, pure, abi_params=[bytes], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = icall @slice, arg0, 0
     v1 = slice_ptr v0
@@ -520,7 +520,7 @@ fn @returnedSlice(arg0: calldataslice) -> i256 [selector=0x515c2822, pure, abi_p
     ret v3
 }
 
-fn @emptyUnassignedSlice() -> i256 [selector=0xfe14379c, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @emptyUnassignedSlice() -> i256 [selector=0xfe14379c, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = make_calldata_slice 0, 0
     v1 = slice_ptr v0
@@ -536,7 +536,7 @@ fn @sliceLength(arg0: calldataslice) -> i256 [pure] {
     ret v0
 }
 
-fn @slice(arg0: calldataslice, arg1: i256) -> calldataslice [pure] {
+fn @slice(arg0: calldataslice, arg1: i256) -> calldataslice [inline_assembly, pure] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, arg1

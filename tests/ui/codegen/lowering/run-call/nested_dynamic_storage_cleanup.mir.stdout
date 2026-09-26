@@ -3,7 +3,7 @@
 types:
   struct0: {i256, i256}
 
-fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @f() -> struct0 [selector=0x26121ff0, inline_assembly, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff

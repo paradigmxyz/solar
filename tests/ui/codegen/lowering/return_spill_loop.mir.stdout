@@ -89,7 +89,7 @@ fn @twice(arg0: memorybytes, arg1: i256) -> memorybytes [selector=0x5a2aaa96, pu
     ret v1
 }
 
-fn @copy(arg0: memorybytes, arg1: i256) -> memorybytes [pure] {
+fn @copy(arg0: memorybytes, arg1: i256) -> memorybytes [inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = ptrtoint memorybytes arg0 to i256
@@ -101,40 +101,40 @@ fn @copy(arg0: memorybytes, arg1: i256) -> memorybytes [pure] {
     v7 = sub v0, v6
     jump bb1
   bb1:
-    v8 = phi [bb0: arg1], [bb5: v8], [bb11: v8]
-    v9 = phi [bb0: v2], [bb5: v31], [bb11: v24]
-    v10 = phi [bb0: v7], [bb5: v10], [bb11: v10]
-    v11 = phi [bb0: arg0], [bb5: v11], [bb11: v11]
-    v12 = phi [bb0: v0], [bb5: v12], [bb11: v12]
-    v13 = phi [bb0: v5], [bb5: v13], [bb11: v13]
-    v14 = lt v9, v13
+    v8 = phi [bb0: arg0], [bb5: v8], [bb11: v8]
+    v9 = phi [bb0: arg1], [bb5: v9], [bb11: v9]
+    v10 = phi [bb0: v0], [bb5: v10], [bb11: v10]
+    v11 = phi [bb0: v2], [bb5: v31], [bb11: v24]
+    v12 = phi [bb0: v5], [bb5: v12], [bb11: v12]
+    v13 = phi [bb0: v7], [bb5: v13], [bb11: v13]
+    v14 = lt v11, v12
     v15 = zext i1 v14 to i256
     v16 = ne v15, 0
     jumpi v16, bb3, bb4
   bb4:
     jump bb2
   bb3:
-    v17 = mload v9
+    v17 = mload v11
     v18 = byte 0, v17
-    v19 = eq v18, v8
+    v19 = eq v18, v9
     v20 = zext i1 v19 to i256
     v21 = ne v20, 0
     jumpi v21, bb6, bb7
   bb7:
     jump bb8
   bb8:
-    v30 = add v9, v10
+    v30 = add v11, v13
     mstore v30, v17
-    v31 = add v9, 1
+    v31 = add v11, 1
     jump bb5
   bb5:
     jump bb1
   bb6:
     v22 = not v17
-    v23 = add v9, v10
+    v23 = add v11, v13
     mstore v23, v22
-    v24 = add v9, 1
-    v25 = lt v24, v13
+    v24 = add v11, 1
+    v25 = lt v24, v12
     v26 = zext i1 v25 to i256
     v27 = eq v26, 0
     v28 = zext i1 v27 to i256
@@ -147,17 +147,17 @@ fn @copy(arg0: memorybytes, arg1: i256) -> memorybytes [pure] {
   bb9:
     jump bb2
   bb2:
-    v32 = phi [bb9: v24], [bb4: v9]
-    v33 = ptrtoint memorybytes v11 to i256
+    v32 = phi [bb9: v24], [bb4: v11]
+    v33 = ptrtoint memorybytes v8 to i256
     v34 = add v33, 32
     v35 = sub v32, v34
-    mstore v12, v35
-    v36 = add v12, 32
+    mstore v10, v35
+    v36 = add v10, 32
     v37 = add v36, v35
     mstore v37, 0
-    v38 = add v12, 64
+    v38 = add v10, 64
     v39 = add v38, v35
     mstore 64, v39 !metadata(memory=scratch)
-    v40 = inttoptr i256 v12 to memorybytes
+    v40 = inttoptr i256 v10 to memorybytes
     ret v40
 }

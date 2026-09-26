@@ -3,7 +3,7 @@
 types:
   struct0: {i256, i256}
 
-fn @probe(arg0: calldataslice) -> struct0 [selector=0xaf74ef39, pure, abi_params=[array<_, u256>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @probe(arg0: calldataslice) -> struct0 [selector=0xaf74ef39, inline_assembly, pure, abi_params=[array<_, u256>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0

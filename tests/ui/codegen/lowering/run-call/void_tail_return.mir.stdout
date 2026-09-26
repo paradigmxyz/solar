@@ -137,6 +137,54 @@ fn @finish() {
     jump bb1
 }
 
+fn @toggleBit(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = shr 8, arg1
+    v1 = xor arg0, v0
+    v2 = mapping_slot v1, 3
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    v4 = and arg1, 255
+    v5 = shl v4, 1
+    v6 = xor v3, v5
+    v7 = mapping_slot v1, 3
+    sstore v7, v6 !metadata(storage=symbolic(v7))
+    v8 = and arg1, 255
+    v9 = shr v8, v6
+    v10 = and v9, 1
+    v11 = eq v10, 1
+    v12 = zext i1 v11 to i256
+    ret v12
+}
+
+fn @toggleQuiet(arg0: i256) {
+  bb0:
+    v0 = icall @toggleBit, 0, arg0
+    ret
+}
+
+fn @toggleLoud(arg0: i256) -> i256 [selector=0x8131966e, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @toggleBit, 0, arg0
+    ret v0
+}
+
+fn @callQuiet(arg0: i256) -> i256 [selector=0x240caa21, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @quietTwice, arg0
+    ret v0
+}
+
+fn @quietTwice(arg0: i256) -> i256 [selector=0xf4c54f25, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    icall @toggleQuiet, arg0
+    v0 = checked_add u256, arg0, 1
+    icall @toggleQuiet, v0
+    v1 = shr 8, arg0
+    v2 = mapping_slot v1, 3
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    ret v3
+}
+
 fn @recurse(arg0: i256) -> i256 [selector=0xb2041d21, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall @recursive, arg0
@@ -188,14 +236,14 @@ fn @recursivePair(arg0: i256, arg1: i256, arg2: i256) {
     ret
 }
 
-fn @recurseYul(arg0: i256) -> i256 [selector=0xdcf2147e, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @recurseYul(arg0: i256) -> i256 [selector=0xdcf2147e, inline_assembly, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall @recursiveYul, arg0
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @recursiveYul(arg0: i256) {
+fn @recursiveYul(arg0: i256) [inline_assembly] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2

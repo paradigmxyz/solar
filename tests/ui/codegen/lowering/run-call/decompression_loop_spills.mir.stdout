@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/decompression_loop_spills.sol:Decompressor ===
 @module Decompressor
-fn @fallback() [fallback, payable] {
+fn @fallback() [inline_assembly, fallback, payable] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
@@ -27,7 +27,7 @@ fn @fallback() [fallback, payable] {
     returndata 0, 32
 }
 
-fn @_decompress() {
+fn @_decompress() [inline_assembly] {
   bb0:
     v0 = calldatasize
     v1 = eq v0, 0
@@ -40,11 +40,11 @@ fn @_decompress() {
     v6 = not 3
     jump bb4
   bb4:
-    v7 = phi [bb3: v6], [bb8: v7], [bb14: v7]
-    v8 = phi [bb3: 0], [bb8: v18], [bb14: v26]
-    v9 = phi [bb3: 0], [bb8: v38], [bb14: v37]
+    v7 = phi [bb3: 0], [bb8: v38], [bb14: v37]
+    v8 = phi [bb3: v6], [bb8: v8], [bb14: v8]
+    v9 = phi [bb3: 0], [bb8: v18], [bb14: v26]
     v10 = calldatasize
-    v11 = lt v8, v10
+    v11 = lt v9, v10
     v12 = zext i1 v11 to i256
     v13 = ne v12, 0
     jumpi v13, bb6, bb7
@@ -55,7 +55,7 @@ fn @_decompress() {
     v40 = address
     v41 = zext i160 v40 to i256
     v42 = gas
-    v43 = delegatecall v42, v41, 0, v9, v39, 0
+    v43 = delegatecall v42, v41, 0, v7, v39, 0
     v44 = zext i1 v43 to i256
     v45 = returndatasize
     returndatacopy 0, 0, v45 !metadata(memory=scratch)
@@ -72,11 +72,11 @@ fn @_decompress() {
     v49 = returndatasize
     revert 0, v49
   bb6:
-    v14 = calldataload v8
-    v15 = add v8, v7
+    v14 = calldataload v9
+    v15 = add v9, v8
     v16 = xor v15, v14
     v17 = byte 0, v16
-    v18 = add v8, 1
+    v18 = add v9, 1
     v19 = eq v17, 0
     v20 = zext i1 v19 to i256
     v21 = ne v20, 0
@@ -84,19 +84,19 @@ fn @_decompress() {
   bb10:
     jump bb11
   bb11:
-    mstore8 v9, v17
-    v38 = add v9, 1
+    mstore8 v7, v17
+    v38 = add v7, 1
     jump bb8
   bb8:
     jump bb4
   bb9:
     v22 = calldataload v18
-    v23 = add v18, v7
+    v23 = add v18, v8
     v24 = xor v23, v22
     v25 = byte 0, v24
     v26 = add v18, 1
     v27 = not 0
-    mstore v9, v27
+    mstore v7, v27
     v28 = gt v25, 127
     v29 = zext i1 v28 to i256
     v30 = eq v29, 0
@@ -108,12 +108,12 @@ fn @_decompress() {
   bb12:
     v33 = add v25, 1
     v34 = calldatasize
-    calldatacopy v9, v34, v33
+    calldatacopy v7, v34, v33
     jump bb14
   bb14:
     v35 = and v25, 127
     v36 = add v35, 1
-    v37 = add v9, v36
+    v37 = add v7, v36
     jump bb4
   bb1:
     v4 = calldatasize
@@ -124,22 +124,22 @@ fn @_decompress() {
 // === ROOT/tests/ui/codegen/lowering/run-call/decompression_loop_spills.sol:Harness ===
 @module Harness
 data:
-  Decompressor_initcode_0: hex"34600d5760fd8060115f395ff35b5f5ffd60c06040525f5460ff901615156028575f5460ff1981169050600160ff9016811790505f556036565b365f5f37365f205f5260205ff35b3615151560f9576003195f5f915b813681101515606b575f38855f305af493505050503d5f5f3e1515156067573d5ff35b3d5ffd5b35828281018290189150815f1a9150600181019050925080151515609b5783818153905060018101905092506044565b82359050828281018290189150815f1a915060018101905092505f1984818152905081607f811115151560d25791509350909160e0565b600181013683379150935090915b607f821691506001820191508184019150925091906044565b3636f3"
+  Decompressor_initcode_0: hex"34600e576101008060125f395ff35b5f5ffd60c06040525f5460ff901615156028575f5460ff1981169050600160ff9016811790505f556036565b365f5f37365f205f5260205ff35b3615151560fc576003195f5f91905b823681101515606c575f38835f305af493505050503d5f5f3e1515156068573d5ff35b3d5ffd5b35838381018290189150815f1a9150600181019050935080151515609b57818181539050600181019150506045565b83359050838381018290189150815f1a915060018101905093505f1982818152905081607f811115151560d3579150915090919260e2565b60018101368337915091509091925b607f82169150600182019150818301915091509091906045565b3636f3"
 
 fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 301, v1
+    v2 = and 305, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy Decompressor_initcode_0, v4, 270
+    data_copy Decompressor_initcode_0, v4, 274
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 270
+    v7 = add v6, 274
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 270
+    v9 = create 0, v8, 274
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1

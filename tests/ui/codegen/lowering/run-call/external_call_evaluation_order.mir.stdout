@@ -11,7 +11,7 @@ fn @mutate() -> i256 [selector=0x7795b5fc, abi_params=[], abi_returns=[word], ab
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_evaluation_order.sol:ExternalCallEvaluationOrder ===
 @module ExternalCallEvaluationOrder
 data:
-  MutatingBase_initcode_0: hex"34600d5760698060115f395ff35b5f5ffd341515601c575f3560e01c80637795b5fc14601857601c565b6020565b5f5ffd5b5f54600181018060a0528060a05281811091505060575760a0518060a0525f5560a0518060a0526080526020608001608090036080f35b634e487b715f5260116020526024601cfd"
+  MutatingBase_initcode_0: hex"34600d5760668060115f395ff35b5f5ffd341515601c575f3560e01c80637795b5fc14601857601c565b6020565b5f5ffd5b5f54600181018060a0528060a0528181109150906054578060a0525f5560a0518060a0526080526020608001608090036080f35b634e487b715f5260116020526024601cfd"
 
 immutables:
   target: u256
@@ -104,7 +104,7 @@ fn @callOptions() -> i256 [selector=0xec5f47fe, abi_params=[], abi_returns=[word
     ret v13
 }
 
-fn @dirtyUint8(arg0: i256) -> i256 [pure] {
+fn @dirtyUint8(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     ret arg0
 }
@@ -185,16 +185,16 @@ fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 153, v1
+    v2 = and 150, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy MutatingBase_initcode_0, v4, 122
+    data_copy MutatingBase_initcode_0, v4, 119
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 122
+    v7 = add v6, 119
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 122
+    v9 = create 0, v8, 119
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1

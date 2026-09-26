@@ -46,6 +46,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::InlineTinyLeaves,
     &inline::InlineHotLeaves,
     &if_convert::IfConvert,
+    &if_convert::MergeConditions,
     &inline::InlineImmutableLeaves,
     &inline::InlineMemoryWrappers,
     &inline_dispatch::InlineDispatch,
@@ -61,6 +62,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &readonly_eval::ReadonlyEval,
     &cse::Cse,
     &cse::FmpCse,
+    &fmp_dse::FmpDse,
     &pre::Pre,
     &element_cleanup::ElementCleanup,
     &egraph::Egraph,
@@ -82,9 +84,11 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &jump_threading::JumpThreading,
     &cfg_simplify::BranchSimplify,
     &cfg_simplify::CfgSimplify,
+    &cfg_simplify::SplitReturns,
     &frame_promotion::FrameSlotPromotion,
     &function_compaction::DeadArgElim,
-    &function_compaction::MergeEquivalentFunctions,
+    &function_compaction::MergeEquivalentFunctions::Semantic,
+    &function_compaction::MergeEquivalentFunctions::Lowered,
     &memory_dse::MemoryDse,
     &coalesce_allocs::CoalesceAllocs,
     &static_alloc::StaticAlloc,
@@ -234,11 +238,14 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // Keep this separate from general inlining, whose larger candidates regress measured gas.
     &GasOnly::new(inline::InlineTinyLeaves),
     &GasOnly::new(inline::InlineSingleUse::Semantic),
+    // Size builds consume only loop-free helpers: looping bodies stay calls, where
+    // equivalent ones can still merge after lowering.
+    &SizeOnly::new(inline::InlineSingleUse::LoopFree),
     &inline::SpecializeFunctionPointers,
     &specialize::Specialize,
     &function_compaction::DeadArgElim,
     &cfg_simplify::FunctionDce,
-    &function_compaction::MergeEquivalentFunctions,
+    &function_compaction::MergeEquivalentFunctions::Semantic,
     &cfg_simplify::FunctionDce,
 ];
 
@@ -284,7 +291,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &cfg_simplify::FunctionDce,
     &function_compaction::DeadArgElim,
     &dce::Dce,
-    &function_compaction::MergeEquivalentFunctions,
+    &function_compaction::MergeEquivalentFunctions::Semantic,
     &cfg_simplify::FunctionDce,
     &static_alloc::DeferAlloc,
     &lower_abi_encode::LowerAbiEncode,
@@ -364,27 +371,36 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // instead of reloading its argument and re-adding the header every
     // iteration.
     &GasOnly::new(loop_opt::Licm),
+    // Collapse canonical read-only byte scans after bounds cleanup and word
+    // simplification expose their final physical shape, while their bytes are
+    // still addressed from the loop index the matchers expect.
+    &GasOnly::new(loop_idioms::LoopIdioms),
     // With the base hoisted, each element address is `base + scale * index`
     // plus invariants; carry it as a pointer stepped on the latch instead of
     // rebuilding it from the index every iteration.
     &GasOnly::new(indvar_simplify::IndVarSimplify),
-    // Collapse canonical read-only byte scans after bounds cleanup and word
-    // simplification expose their final physical shape.
-    &GasOnly::new(loop_idioms::LoopIdioms),
     // ABI and memory lowering leave dead guards and empty trampoline blocks.
     // Clean them before EVM shaping isolates phi copies on critical edges.
     &cfg_simplify::CfgSimplify,
+    // Proved argument widths leave short-circuit arms a single comparison.
+    &if_convert::MergeConditions,
     // A word-at-a-time loop is compact enough to consume at its sole call site.
     // This removes the internal frame protocol without duplicating the body;
     // the pass drops the consumed callee itself.
     &GasOnly::new(inline::InlineSingleUse::Physical),
     &cfg_simplify::CfgSimplify,
+    // With inlining done, loop exits may reach a return of their own; a shared
+    // return would cost the loop its carried stack on every iteration.
+    &cfg_simplify::SplitReturns,
     &lower_evm_shaped::LowerEvmShaped,
 ];
 
 /// Optimizes lowered word SSA before physical stack scheduling.
 static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     &GasOnly::new(cse::FmpCse),
+    // Scratch blocks leave a dead pointer bump before the restore that follows their last
+    // allocation, and the restore then stores the pointer the slot already holds.
+    &fmp_dse::FmpDse,
     &const_fold::ConstFold,
     &cfg_simplify::BranchSimplify,
     // Reconstruct old induction values on exits before selecting physical stack order.
@@ -392,6 +408,11 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     // Late lowering can leave pure address and length calculations unused.
     // Remove their complete dependency chains before selecting physical stack order.
     &dce::Dce,
+    // Lowering and this cleanup can leave bodies that differed only in their
+    // semantic element types identical, such as an address overload whose
+    // element masks folded; call one of them from both sites.
+    &SizeOnly::new(function_compaction::MergeEquivalentFunctions::Lowered),
+    &SizeOnly::new(cfg_simplify::FunctionDce),
     &evm_inst_schedule::EvmInstSchedule,
 ];
 

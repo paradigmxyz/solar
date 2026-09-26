@@ -1,18 +1,17 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_named_return.sol:CalldataSliceNamedReturn ===
 @module CalldataSliceNamedReturn
 @phase lowered
-fn @unwrap(arg0: i256, arg1: i256) -> calldataslice [pure, return_abi=[i256, i256]] {
+fn @unwrap(arg0: i256, arg1: i256) -> calldataslice [inline_assembly, pure, return_abi=[i256, i256]] {
   bb0:
     v1 = sub arg1, 32
     v3 = add arg0, v1
     v4 = calldataload v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb1:
-    jump bb2
   bb2:
-    v17 = phi [bb1: v1], [bb0: arg1]
-    ret arg0, v17
+    ret arg0, arg1
+  bb1:
+    ret arg0, v1
 }
 
 fn @use() [selector=0x01bd03f7, abi_wrapper, pure] {
@@ -37,11 +36,11 @@ fn @use() [selector=0x01bd03f7, abi_wrapper, pure] {
     jumpi v17, bb1, bb3
   bb3:
     v0 = icall @unwrap, v6, v11
-    v23 = mload 32 !metadata(memory=scratch)
-    v24 = add v23, 32
-    v25 = mload v24
-    mstore 128, v25
-    returndata 128, 32
+    v22 = mload 32 !metadata(memory=scratch)
+    v23 = add v22, 32
+    v24 = mload v23
+    mstore 0, v24
+    returndata 0, 32
   bb1:
     revert 0, 0
 }

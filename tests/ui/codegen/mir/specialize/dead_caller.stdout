@@ -1,0 +1,66 @@
+- // === ROOT/tests/ui/codegen/mir/specialize/dead_caller.mir (before specialize) ===
++ // === ROOT/tests/ui/codegen/mir/specialize/dead_caller.mir (after specialize) ===
+  @module DeadCaller
+  fn @first(arg0: i256) -> i256 [selector=0x00000001] {
+    bb0:
+      v0 = icall @helper, 0, arg0
+      ret v0
+  }
+  
+  fn @second(arg0: i256) -> i256 [selector=0x00000002] {
+    bb0:
+      v0 = icall @helper, 0, arg0
+      ret v0
+  }
+  
+  fn @stale(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = icall @helper, arg0, arg1
+      ret v0
+  }
+  
+  fn @helper(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = ne arg0, 0
+-     jumpi v0, bb1, bb2
+-   bb2:
+      v3 = add arg1, 7
+      ret v3
+-   bb1:
+-     v1 = mul arg1, arg1
+-     v2 = mul v1, v1
+-     ret v2
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/specialize/dead_caller.mir (before dead-arg-elim) ===
++ // === ROOT/tests/ui/codegen/mir/specialize/dead_caller.mir (after dead-arg-elim) ===
+  @module DeadCaller
+  fn @first(arg0: i256) -> i256 [selector=0x00000001] {
+    bb0:
+-     v0 = icall @helper, 0, arg0
++     v0 = icall @helper, arg0
+      ret v0
+  }
+  
+  fn @second(arg0: i256) -> i256 [selector=0x00000002] {
+    bb0:
+-     v0 = icall @helper, 0, arg0
++     v0 = icall @helper, arg0
+      ret v0
+  }
+  
+  fn @stale(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = icall @helper, arg0, arg1
++     v0 = icall @helper, arg1
+      ret v0
+  }
+  
+- fn @helper(arg0: i256, arg1: i256) -> i256 {
++ fn @helper(arg0: i256) -> i256 {
+    bb0:
+-     v3 = add arg1, 7
++     v3 = add arg0, 7
+      ret v3
+  }
+  

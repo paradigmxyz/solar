@@ -1,0 +1,173 @@
+// === <solar:core/v1/Bytes.sol>:Bytes ===
+@module Bytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/bytes_write_alias.sol:BytesWriteAlias ===
+@module BytesWriteAlias
+@phase lowered
+fn @doubled() [selector=0x61fe03e4, abi_wrapper, pure] {
+  bb0:
+    v3 = icall @decode_calldata_type, 4
+    v0 = icall @_doubled, v3
+    v18 = ptrtoint memptr v0 to i256
+    v7 = mload v18
+    v8 = add v7, 31
+    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v20 = add v18, 32
+    v13 = add v20, v7
+    mstore v13, 0
+    v15 = sub v18, 32
+    mstore v15, 32
+    v16 = add v10, 64
+    returndata v15, v16
+}
+
+fn @doubledTwice() [selector=0x406883b8, abi_wrapper, pure] {
+  bb0:
+    v4 = icall @decode_calldata_type, 4
+    v0 = icall @_doubled, v4
+    v1 = icall @_doubled, v0
+    v19 = ptrtoint memptr v1 to i256
+    v8 = mload v19
+    v9 = add v8, 31
+    v11 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v21 = add v19, 32
+    v14 = add v21, v8
+    mstore v14, 0
+    v16 = sub v19, 32
+    mstore v16, 32
+    v17 = add v11, 64
+    returndata v16, v17
+}
+
+fn @_doubled(arg0: memptr) -> memptr [may_return_memory, pure] {
+  bb0:
+    v67 = ptrtoint memptr arg0 to i256
+    v0 = mload v67
+    v1 = add v0, 63
+    v4 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v73 = mload 64 !metadata(memory=scratch)
+    v5 = inttoptr i256 v73 to memptr !metadata(memory=scratch)
+    v74 = add v73, v4
+    v75 = lt v74, v73
+    v76 = zext i1 v75 to i256
+    v77 = shr 64, v74
+    v78 = or v76, v77
+    v79 = ne v78, 0
+    jumpi v79, bb8, bb7
+  bb7:
+    mstore 64, v74 !metadata(memory=scratch)
+    v80 = calldatasize
+    calldatacopy v73, v80, v4
+    mstore v73, v0
+    v70 = add v67, 32
+    v57 = add v73, 32
+    jump bb1
+  bb1:
+    v8 = phi [bb7: 0], [bb2: v50]
+    v50 = add v8, 32
+    v10 = mload v67
+    v11 = gt v50, v10
+    jumpi v11, bb3, bb2
+  bb2:
+    v21 = add v70, v8
+    v22 = mload v21
+    v23 = add v22, v22
+    v58 = add v57, v8
+    mstore v58, v23
+    jump bb1
+  bb3:
+    v65 = add v73, 32
+    jump bb4
+  bb4:
+    v37 = phi [bb3: v8], [bb6: v52]
+    v38 = mload v67
+    v39 = lt v37, v38
+    jumpi v39, bb6, bb5
+  bb5:
+    ret v5
+  bb6:
+    v61 = add v70, v37
+    v62 = mload v61
+    v63 = byte 0, v62
+    v66 = add v65, v37
+    mstore8 v66, v63
+    v52 = add v37, 1
+    jump bb4
+  bb8:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload arg0
+    v2 = add v1, 4
+    v3 = add v2, 32
+    v4 = shr 64, v1
+    v5 = gt v3, v0
+    v6 = zext i1 v5 to i256
+    v7 = or v4, v6
+    v8 = ne v7, 0
+    jumpi v8, bb1, bb2
+  bb2:
+    v9 = calldataload v2
+    v11 = add v9, 63
+    v12 = lt v11, v9
+    jumpi v12, bb3, bb4
+  bb4:
+    v14 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v24 = mload 64 !metadata(memory=scratch)
+    v15 = inttoptr i256 v24 to memptr !metadata(memory=scratch)
+    v25 = add v24, v14
+    v26 = lt v25, v24
+    v27 = zext i1 v26 to i256
+    v28 = shr 64, v25
+    v29 = or v27, v28
+    v30 = ne v29, 0
+    jumpi v30, bb3, bb6
+  bb6:
+    mstore 64, v25 !metadata(memory=scratch)
+    mstore v24, v9
+    v16 = sub v0, v3
+    v17 = gt v9, v16
+    jumpi v17, bb1, bb5
+  bb5:
+    v20 = add v24, 32
+    calldatacopy v20, v3, v9
+    ret v15
+  bb3:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr 224, v6
+    switch v7, default bb1, [0x406883b8 => bb3, 0x61fe03e4 => bb4]
+  bb4:
+    tail_call @doubled
+  bb3:
+    tail_call @doubledTwice
+  bb1:
+    revert 0, 0
+}

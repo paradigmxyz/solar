@@ -67,25 +67,25 @@ fn @sum(arg0: calldataslice) -> i256 [selector=0xe3db0bf3, pure, abi_params=[arr
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v38]
-    v2 = phi [bb0: 0], [bb3: v37]
+    v1 = phi [bb0: 0], [bb3: v37]
+    v2 = phi [bb0: 0], [bb3: v38]
     v3 = slice_len v0
-    v4 = lt v1, v3
+    v4 = lt v2, v3
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v2
+    ret v1
   bb4:
     v5 = slice_len v0
-    v6 = lt v1, v5
+    v6 = lt v2, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = slice_ptr v0
-    v9 = mul v1, 32
+    v9 = mul v2, 32
     v10 = eq 32, 0
     v11 = div v9, 32
-    v12 = eq v11, v1
+    v12 = eq v11, v2
     v13 = or v10, v12
     v14 = zext i1 v13 to i256
     v15 = eq v14, 0
@@ -115,12 +115,12 @@ fn @sum(arg0: calldataslice) -> i256 [selector=0xe3db0bf3, pure, abi_params=[arr
     v34 = add v21, 32
     v35 = make_calldata_slice v34, v27
     v36 = icall @_length, v35
-    v37 = checked_add u256, v2, v36
+    v37 = checked_add u256, v1, v36
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v38 = checked_add u256, v1, 1
+    v38 = checked_add u256, v2, 1
     jump bb1
 }
 
@@ -199,7 +199,7 @@ fn @structMember() -> struct0 [selector=0x9f2d7231, view, abi_params=[], abi_ret
     jump bb1
 }
 
-fn @inspect(arg0: calldataslice) -> struct0 [selector=0x903f85b3, pure, abi_params=[array<_, tuple<address, u256, bytes>>], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
+fn @inspect(arg0: calldataslice) -> struct0 [selector=0x903f85b3, inline_assembly, pure, abi_params=[array<_, tuple<address, u256, bytes>>], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0

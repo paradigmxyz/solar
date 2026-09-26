@@ -1,0 +1,112 @@
+//@compile-flags: -Zmir-pipeline=cse
+//@filecheck:
+@module CseTestedWordReuse
+
+// A loop-varying word reloaded across one edge is reused only while few words are live, since
+// carrying it can cost a spill. Here thirteen are, but the word decided the branch into the
+// block and its reload decides the branch out: `while (seen[slot] != 0)` followed by
+// `seen[slot] - 1`, whose underflow test is the loop's own. Reuse turns the second branch into
+// a repeat of the first for branch folding to remove, so it is taken regardless.
+// A branch tests an `i1`, so each word reaches its branch through a zero test.
+// CHECK-LABEL: fn @reuse_tested_word(
+// CHECK: {{^ +}}[[WORD:v[0-9]+]] = mload [[SLOT:v[0-9]+]]
+// CHECK-NEXT: {{^ +}}[[TEST:v[0-9]+]] = ne [[WORD]], 0
+// CHECK-NEXT: {{^ +}}jumpi [[TEST]],
+// CHECK: -     {{v[0-9]+}} = mload [[SLOT]]
+// CHECK-NEXT: -     {{v[0-9]+}} = sub
+// CHECK-NEXT: -     {{v[0-9]+}} = ne
+// CHECK-NEXT: -     jumpi
+// CHECK-NEXT: +     {{v[0-9]+}} = sub [[WORD]], 1
+// CHECK-NEXT: +     jumpi [[TEST]],
+fn @reuse_tested_word(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v10 = add arg1, 1
+    v11 = add arg1, 2
+    v12 = add arg1, 3
+    v13 = add arg1, 4
+    v14 = add arg1, 5
+    v15 = add arg1, 6
+    v16 = add arg1, 7
+    v17 = add arg1, 8
+    v18 = add arg1, 9
+    v19 = add arg1, 10
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb4: v6]
+    v1 = shl 5, v0
+    v2 = add arg0, v1
+    v3 = mload v2
+    v29 = ne v3, 0
+    jumpi v29, bb2, bb3
+  bb2:
+    v4 = mload v2
+    v5 = sub v4, 1
+    v30 = ne v4, 0
+    jumpi v30, bb4, bb5
+  bb4:
+    v6 = add v0, v5
+    jump bb1
+  bb3:
+    mstore v2, v10
+    v20 = add v10, v11
+    v21 = add v20, v12
+    v22 = add v21, v13
+    v23 = add v22, v14
+    v24 = add v23, v15
+    v25 = add v24, v16
+    v26 = add v25, v17
+    v27 = add v26, v18
+    v28 = add v27, v19
+    ret v28
+  bb5:
+    revert 0, 0
+}
+
+// The same reload feeding arithmetic alone decides nothing, so it stays a load: nothing folds,
+// and the word would be one more to carry.
+// CHECK-LABEL: fn @reload_untested_word(
+// CHECK: {{^ +}}{{v[0-9]+}} = mload [[SLOT:v[0-9]+]]
+// CHECK: {{^ +}}{{v[0-9]+}} = mload [[SLOT]]
+fn @reload_untested_word(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v10 = add arg1, 1
+    v11 = add arg1, 2
+    v12 = add arg1, 3
+    v13 = add arg1, 4
+    v14 = add arg1, 5
+    v15 = add arg1, 6
+    v16 = add arg1, 7
+    v17 = add arg1, 8
+    v18 = add arg1, 9
+    v19 = add arg1, 10
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb4: v6]
+    v1 = shl 5, v0
+    v2 = add arg0, v1
+    v3 = mload v2
+    v31 = ne v3, 0
+    jumpi v31, bb2, bb3
+  bb2:
+    v4 = mload v2
+    v5 = sub v4, 1
+    v7 = lt v5, arg1
+    jumpi v7, bb4, bb5
+  bb4:
+    v6 = add v0, v5
+    jump bb1
+  bb3:
+    mstore v2, v10
+    v20 = add v10, v11
+    v21 = add v20, v12
+    v22 = add v21, v13
+    v23 = add v22, v14
+    v24 = add v23, v15
+    v25 = add v24, v16
+    v26 = add v25, v17
+    v27 = add v26, v18
+    v28 = add v27, v19
+    ret v28
+  bb5:
+    revert 0, 0
+}

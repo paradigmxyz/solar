@@ -1,0 +1,159 @@
+// === ROOT/tests/ui/safe-solar/strings/escapejson/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase lowered
+fn @escape() [selector=0xb00a0672, abi_wrapper, pure] {
+  bb0:
+    v2 = calldatasize
+    v3 = lt v2, 36
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = calldataload 4
+    v5 = add v4, 4
+    v6 = add v5, 32
+    v7 = shr 64, v4
+    v8 = gt v6, v2
+    v9 = zext i1 v8 to i256
+    v10 = or v7, v9
+    v11 = ne v10, 0
+    jumpi v11, bb1, bb3
+  bb3:
+    v12 = calldataload v5
+    v14 = add v12, 63
+    v15 = lt v14, v12
+    jumpi v15, bb4, bb5
+  bb5:
+    v17 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v59 = mload 64 !metadata(memory=scratch)
+    v18 = inttoptr i256 v59 to memptr !metadata(memory=scratch)
+    v60 = add v59, v17
+    v61 = lt v60, v59
+    v62 = zext i1 v61 to i256
+    v63 = shr 64, v60
+    v64 = or v62, v63
+    v65 = ne v64, 0
+    jumpi v65, bb4, bb7
+  bb7:
+    mstore 64, v60 !metadata(memory=scratch)
+    mstore v59, v12
+    v19 = sub v2, v6
+    v20 = gt v12, v19
+    jumpi v20, bb1, bb6
+  bb6:
+    v52 = add v59, 32
+    calldatacopy v52, v6, v12
+    v1 = icall @_escapeJSON, v18
+    v66 = mload 64 !metadata(memory=scratch)
+    v27 = add v66, 32
+    mstore v66, 32
+    v56 = ptrtoint memptr v1 to i256
+    v35 = ne v56, 0
+    v36 = zext i1 v35 to i256
+    v31 = mload v56
+    v37 = mul v31, v36
+    v39 = add v37, 31
+    v40 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v41 = add v27, 32
+    v42 = add v27, v40
+    mstore v42, 0
+    mstore v27, v37
+    v44 = add v41, v40
+    v58 = add v56, 32
+    mcopy v41, v58, v37
+    v47 = sub v44, v66
+    returndata v66, v47
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @_escapeJSON(arg0: memptr) -> memptr [may_return_memory, inline_assembly, pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = add v0, 32
+    mstore 21, 0x5c75303030303031323334353637383961626364656662746e006672 !metadata(memory=scratch)
+    v8 = ptrtoint memptr arg0 to i256
+    v9 = mload v8
+    v11 = add v8, v9
+    jump bb1
+  bb1:
+    v12 = phi [bb0: arg0], [bb9: v56], [bb6: v57], [bb7: v58], [bb8: v59]
+    v15 = phi [bb0: v1], [bb9: v55], [bb6: v38], [bb7: v40], [bb8: v51]
+    v18 = ptrtoint memptr v12 to i256
+    v21 = ne v18, v11
+    jumpi v21, bb3, bb2
+  bb2:
+    mstore v15, 0
+    v64 = sub v15, v1
+    mstore v0, v64
+    v65 = add v15, 32
+    mstore 64, v65 !metadata(memory=scratch)
+    v66 = inttoptr i256 v0 to memptr
+    ret v66
+  bb3:
+    v25 = add v18, 1
+    v26 = mload v25
+    v27 = and v26, 255
+    v28 = lt v27, 32
+    jumpi v28, bb5, bb4
+  bb4:
+    v33 = shl v27, 1
+    v34 = and v33, 0x100000000000000400000000
+    v35 = eq v34, 0
+    jumpi v35, bb6, bb7
+  bb7:
+    mstore8 v15, 92
+    v39 = add v15, 1
+    mstore8 v39, v27
+    v40 = add v15, 2
+    v58 = inttoptr i256 v25 to memptr
+    jump bb1
+  bb6:
+    mstore8 v15, v27
+    v38 = add v15, 1
+    v57 = inttoptr i256 v25 to memptr
+    jump bb1
+  bb5:
+    v41 = shl v27, 1
+    v42 = and v41, 0x3700
+    v43 = eq v42, 0
+    jumpi v43, bb8, bb9
+  bb9:
+    mstore8 v15, 92
+    v52 = add v27, 8
+    v53 = mload v52
+    v54 = add v15, 1
+    mstore8 v54, v53
+    v55 = add v15, 2
+    v56 = inttoptr i256 v25 to memptr
+    jump bb1
+  bb8:
+    v46 = shr 4, v27
+    v47 = mload v46
+    mstore8 29, v47 !metadata(memory=scratch)
+    v48 = and v27, 15
+    v49 = mload v48
+    mstore8 30, v49 !metadata(memory=scratch)
+    v50 = mload 25 !metadata(memory=scratch)
+    mstore v15, v50
+    v51 = add v15, 6
+    v59 = inttoptr i256 v25 to memptr
+    jump bb1
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xb00a0672 => bb2]
+  bb2:
+    tail_call @escape
+  bb3:
+    revert 0, 0
+}

@@ -3,12 +3,13 @@
   @module LowerEvmShapedLegality
   fn @entry() [entry] {
     bb0:
--     v0 = storage_array_data_slot 7
--     v1 = sload v0
-+     mstore 0, 7 !metadata(memory=scratch)
-+     v2 = keccak256 0, 32 !metadata(memory=scratch)
-+     v1 = sload v2
-      mstore 128, v1
+      v0 = calldataload 0
+-     v1 = storage_array_data_slot v0
+-     v2 = sload v1
++     mstore 0, v0 !metadata(memory=scratch)
++     v3 = keccak256 0, 32 !metadata(memory=scratch)
++     v2 = sload v3
+      mstore 128, v2
       returndata 128, 32
   }
   
@@ -18,10 +19,11 @@
 + @phase lowered
   fn @entry() [entry] {
     bb0:
-      mstore 0, 7 !metadata(memory=scratch)
-      v2 = keccak256 0, 32 !metadata(memory=scratch)
-      v1 = sload v2
-      mstore 128, v1
+      v0 = calldataload 0
+      mstore 0, v0 !metadata(memory=scratch)
+      v3 = keccak256 0, 32 !metadata(memory=scratch)
+      v2 = sload v3
+      mstore 128, v2
       returndata 128, 32
   }
   

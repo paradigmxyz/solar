@@ -11,12 +11,12 @@ bb0:
   dup 1
   push 0x2be02e45
   eq
-  push bb22
+  push bb24
   jumpi
   dup 1
   push 0x3ce9e381
   eq
-  push bb31
+  push bb33
   jumpi
   dup 1
   push 0x7da1365e
@@ -54,13 +54,13 @@ bb45 [cold]:
 bb7:
   push 0
   sload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb8:
-  push 160
+  push 128
   push 64
   mstore
   push 36
@@ -134,55 +134,68 @@ bb8:
   dup 2
   mstore
   push 32
-  add
   dup 2
-  dup 5
+  add
+  dup 3
+  dup 6
   dup 3
   calldatacopy
+  swap 2
+  pop
   swap 3
   pop
-  pop
-  push 5
-  shl
-  dup 2
-  add
   push 0
-  exchange 1, 2
+  push 0
+  exchange 2, 3
   jump bb15
 bb17 [loop]:
-  dup 2
+  dup 4
   mload
+  dup 1
+  dup 3
+  lt
+  iszero
+  push bb20
+  jumpi
   dup 2
+  push 5
+  shl
+  dup 5
   add
-  swap 1
-  dup 2
+  mload
+  dup 4
+  add
+  swap 3
+  dup 4
   lt
   push bb45
   jumpi
   swap 1
-  push 32
+  push 1
   add
   swap 1
+  swap 2
   jump bb15
 bb15 [loop]:
-  dup 3
-  dup 3
+  swap 2
+  dup 2
   lt
   push bb17
   jumpi
-  dup 1
+  dup 2
   push 0
   sstore
+  pop
   swap 2
   pop
   pop
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
-bb22:
-  push 160
+bb24:
+  push 128
   push 64
   mstore
   push 36
@@ -265,13 +278,13 @@ bb22:
   pop
   swap 1
   pop
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
-bb31:
-  push 256
+bb33:
+  push 224
   push 64
   mstore
   push 100
@@ -339,7 +352,7 @@ bb31:
   or
   push bb6
   jumpi
-  push 160
+  push 128
   dup 4
   push 5
   shl
@@ -431,53 +444,25 @@ bb31:
   swap 2
   push 4
   calldataload
-  dup 2
+  dup 1
+  dup 3
   mstore
   push 32
-  dup 2
-  add
   dup 3
+  add
+  dup 4
   swap 1
   mstore
+  swap 1
   push 64
   add
-  dup 3
+  dup 4
   swap 1
   mstore
-  mload
-  push 10
-  dup 2
-  mul
-  push 10
-  dup 2
-  div
-  swap 1
-  swap 2
-  sub
-  push bb45
-  jumpi
-  push 4
-  calldataload
-  add
-  push 4
-  calldataload
-  dup 2
-  lt
-  push bb45
-  jumpi
   swap 1
   mload
-  push 100
-  dup 2
+  push 10
   mul
-  push 100
-  dup 2
-  div
-  swap 1
-  swap 2
-  sub
-  push bb45
-  jumpi
   dup 2
   add
   swap 1
@@ -485,8 +470,25 @@ bb31:
   lt
   push bb45
   jumpi
-  push 128
+  swap 1
+  mload
+  push 100
+  mul
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb45
+  jumpi
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
+bb20 [cold]:
+  push 0x4e487b71
+  push 0
+  mstore
+  push 50
+  jump bb49

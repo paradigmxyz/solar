@@ -1,0 +1,90 @@
+// === <solar:core/v1/Arrays.sol>:Arrays ===
+@module Arrays
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/v1/Bytes.sol>:Bytes ===
+@module Bytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/v1/Buffers.sol>:Buffers ===
+@module Buffers
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/v1/Strings.sol>:Strings ===
+@module Strings
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/safe-solar/strings/tostring/safe.sol:Safe ===
+@module Safe
+@phase lowered
+fn @decimal() [selector=0xf371efa4, abi_wrapper, pure] {
+  bb0:
+    v13 = calldatasize
+    v14 = lt v13, 36
+    jumpi v14, bb3, bb4
+  bb4:
+    v29 = mload 64 !metadata(memory=scratch)
+    v30 = add v29, 160
+    mstore 64, v30 !metadata(memory=scratch)
+    v2 = add v29, 128
+    mstore v2, 0
+    jump bb1
+  bb1:
+    v3 = phi [bb4: arg0], [bb1: v8]
+    v4 = phi [bb4: v2], [bb1: v5]
+    v5 = sub v4, 1
+    v6 = mod v3, 10
+    v7 = add v6, 48
+    mstore8 v5, v7
+    v8 = div v3, 10
+    v9 = eq v8, 0
+    jumpi v9, bb2, bb1
+  bb2:
+    v10 = sub v2, v5
+    v11 = sub v5, 32
+    mstore v11, v10
+    v19 = add v10, 31
+    v21 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    mstore v2, 0
+    v25 = sub v11, 32
+    mstore v25, 32
+    v26 = add v21, 64
+    returndata v25, v26
+  bb3:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xf371efa4 => bb2]
+  bb2:
+    tail_call @decimal
+  bb3:
+    revert 0, 0
+}

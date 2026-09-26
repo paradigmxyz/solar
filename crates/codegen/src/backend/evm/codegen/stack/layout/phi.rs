@@ -8,9 +8,19 @@
 //! beyond DUP/SWAP reach keep their established fallback. Planning stays at the MIR-to-EVM
 //! boundary and changes neither the MIR CFG nor the semantics of its checks.
 //!
-//! A non-header join with one phi also considers interleaving that result with carried words in
-//! an incoming stack's order. Both layouts are priced with the actual target stack shuffler over
-//! every predecessor; unknown residency or an unrealizable shuffle retains the existing layout.
+//! A non-header join also considers interleaving its phi results with carried words in the
+//! stack order of each forward predecessor; which of them comes first is an accident of how the
+//! CFG was built, so all of them propose. A join holding nothing but phis leaves with the stack
+//! it entered with, so the order its planned successor expects is a further candidate, and what
+//! the join would still shuffle on the way out is part of every candidate's price. A loop latch
+//! given its header's order is an empty block that is threaded away, and the arms of the loop
+//! body jump to the header themselves; one that still shuffles keeps a jump and a jump
+//! destination of its own, charged from the cost model. When the successor expects more words
+//! than the join plans, those ride beneath it, and only the order of the join's own words is
+//! priced, provided they are the words the successor wants on top. Every candidate is priced
+//! with the actual target stack shuffler over every predecessor, and the cheapest replaces the
+//! default order only when it costs no more; unknown residency or an unrealizable shuffle
+//! retains the existing layout.
 //! Small loop headers with no carried words instead order their phi results by final use in the
 //! pure latch, keeping soon-consumed words near the top. This heuristic is limited to three or
 //! four phis and a single-predecessor latch with at most sixteen instructions. Both incoming edges
@@ -38,7 +48,7 @@ use super::super::super::{
 
 use crate::{
     backend::evm::codegen::stack::shuffler::StackShuffler,
-    target::{Cost, Target},
+    target::{Cost, StackCosts, Target},
 };
 
 #[derive(Clone, Default)]
@@ -348,14 +358,17 @@ impl<'a> StackPhiPlanner<'a> {
         plan
     }
 
-    /// Plans entry layouts for the acyclic joins the phi planners left alone. A join keeps its
-    /// phi results and the live-in values that are already on the stack at the exit of every
+    /// Plans entry layouts for the acyclic joins the phi planners left alone. A join keeps its phi
+    /// results and the live-in values that are already on the stack at the exit of every
     /// predecessor, so a value defined before a diamond crosses it without a spill store and a
     /// reload on the far side, and no edge has to load anything it did not have. Residency is a
     /// static fixpoint over the planned layouts: a carried value stays resident through
-    /// single-predecessor chains and planned joins until a call drains the stack. The sibling
-    /// arm of a planned branch gets a layout of its own; a sibling that only aborts is entered
-    /// with the carried words beneath it, and any other sibling starts from an empty stack.
+    /// single-predecessor chains and planned joins until a call drains the stack. A branch the plan
+    /// does not own takes the condition it computes off the top, but one it was entered with stays
+    /// below and is duplicated for `JUMPI`, so an invariant test goes around a loop with the other
+    /// carried words. The sibling arm of a planned branch gets a layout of its own; a sibling that
+    /// only aborts is entered with the carried words beneath it, and any other sibling starts from
+    /// an empty stack.
     fn plan_live_joins(&self, liveness: &Liveness, plan: &mut StackPhiPlan) {
         let func = self.func;
         let mut loop_headers = DenseBitSet::new_empty(func.blocks.len());
@@ -391,10 +404,11 @@ impl<'a> StackPhiPlanner<'a> {
             // Two kinds of source keep the join out of the plan. A resident argument has one
             // physical word with no frame fallback, so it cannot be both the phi input and the
             // invariant prefix the argument layout merges below the phis. A literal that is
-            // also live past the join is admitted only in gas mode, where the branch emitter
-            // materializes an edge-exclusive immediate on its own edge; the other modes keep
-            // the established exclusion outside self-loops, since two loops seeded from one
-            // literal and allocating inside their bodies mislaid the counter at `-O none`.
+            // also live past the join is admitted in gas and size modes. In gas mode the branch
+            // emitter materializes an edge-exclusive immediate on its own edge, and size mode
+            // carries the literal in the branch's union layout. Unoptimized builds keep the
+            // established exclusion outside self-loops, since two loops seeded from one literal
+            // and allocating inside their bodies mislaid the counter at `-O none`.
             let phi_source_is_live_in = block.predecessors.iter().any(|&pred| {
                 self.phi_sources_for_pred(&phis, pred).is_some_and(|sources| {
                     sources.iter().any(|&source| {
@@ -402,7 +416,8 @@ impl<'a> StackPhiPlanner<'a> {
                             && match self.func.value(source) {
                                 crate::mir::Value::Arg(_) => true,
                                 crate::mir::Value::Immediate(_) => {
-                                    !self.target.optimization().is_gas()
+                                    !(self.target.optimization().is_gas()
+                                        || self.target.optimization().is_size())
                                         && !block.predecessors.contains(&block_id)
                                 }
                                 _ => false,
@@ -760,15 +775,36 @@ impl<'a> StackPhiPlanner<'a> {
         for &pred in &self.func.blocks[join].predecessors {
             let resident = state.resident_out.get(&pred)?;
             let sources = self.layout_sources(join, layout, pred)?;
-            let stack = StackModel::from_top_to_bottom(resident.iter().copied().map(Some));
-            let goal = sources.into_iter().map(TargetSlot::Value).collect::<Vec<_>>();
-            let shuffle = StackShuffler::for_evm_version(&stack, &goal, self.target.evm_version())
-                .with_wide_permutation_search(self.target.optimization().is_gas())
-                .shuffle()?;
-            let (_, gas, bytes) = lowered_stack_cost(&shuffle.ops, self.target.evm_version());
-            cost += Cost::new(gas as u32, bytes as u32);
+            cost += self.shuffle_cost(resident, &sources)?;
         }
         Some(cost)
+    }
+
+    /// Prices the shuffle that turns the stack `resident`, top first, into `goal`.
+    fn shuffle_cost(&self, resident: &[ValueId], goal: &[ValueId]) -> Option<Cost> {
+        let stack = StackModel::from_top_to_bottom(resident.iter().copied().map(Some));
+        let goal = goal.iter().copied().map(TargetSlot::Value).collect::<Vec<_>>();
+        let shuffle = StackShuffler::for_evm_version(&stack, &goal, self.target.evm_version())
+            .with_wide_permutation_search(self.target.optimization().is_gas())
+            .shuffle()?;
+        let (_, gas, bytes) = lowered_stack_cost(&shuffle.ops, self.target.evm_version());
+        Some(Cost::new(gas as u32, bytes as u32))
+    }
+
+    /// The words a planned successor expects from `join`, top first, when `join` holds nothing
+    /// but phis and jumps straight on: its entry layout is then also the stack it leaves with.
+    /// The latch that merges the arms of a loop body before the backedge is the usual case.
+    fn phi_only_exit(&self, join: BlockId, state: &LiveJoinState) -> Option<Vec<ValueId>> {
+        let block = &self.func.blocks[join];
+        let only_phis = block
+            .instructions
+            .iter()
+            .all(|&inst| matches!(self.func.inst(inst).kind, InstKind::Phi(_)));
+        let Some(Terminator::Jump(successor)) = block.terminator.as_ref() else { return None };
+        if !only_phis || *successor == join {
+            return None;
+        }
+        self.layout_sources(*successor, state.layouts.get(successor)?, join)
     }
 
     /// Refreshes the layout of a planned join or sibling arm from the newest residency and
@@ -863,21 +899,73 @@ impl<'a> StackPhiPlanner<'a> {
                         .rposition(|&inst| func.inst(inst).kind.operands().contains(value))
                 });
             }
-            if latches.is_empty()
-                && facts.join_phis[&join].len() == 1
-                && let Some(resident) = state.resident_out.get(&first)
-                && let Some(sources) = self.layout_sources(join, &phis, first)
-                && sources.iter().all(|source| resident.contains(source))
-            {
-                let mut slots = phis.iter().copied().zip(sources).collect::<Vec<_>>();
-                slots.sort_by_key(|(_, source)| resident.iter().position(|value| value == source));
-                let ordered = slots.into_iter().map(|(result, _)| result).collect::<Vec<_>>();
-                if ordered != phis
-                    && let Some(before) = self.join_shuffle_cost(join, &phis, state)
-                    && let Some(after) = self.join_shuffle_cost(join, &ordered, state)
+            if latches.is_empty() && !facts.join_phis[&join].is_empty() {
+                // Every forward predecessor proposes its own physical order. Which of them
+                // comes first is an accident of how the CFG was built, and the one whose
+                // order costs least overall is often not the first: a branch that reaches
+                // the join directly shuffles before it jumps, on every execution of both
+                // of its arms, while a block that falls into the join shuffles on its own
+                // path only.
+                //
+                // A join that holds nothing but phis leaves with the stack it entered with,
+                // so what it hands its successor is part of the price, and the successor's
+                // own order is a candidate too: a latch whose layout already is what the
+                // loop header expects is an empty block, and the arms of the loop body
+                // jump to the header themselves.
+                //
+                // The successor may expect more words than this block plans. Those ride
+                // beneath it untouched, so the price is the order of this block's own words,
+                // which can be told only when they are what the successor wants on top.
+                let exit = self.phi_only_exit(join, state).and_then(|goal| {
+                    let top = goal.get(..phis.len())?;
+                    phis.iter().all(|value| top.contains(value)).then(|| top.to_vec())
+                });
+                let price = |layout: &[ValueId]| {
+                    let mut cost = self.join_shuffle_cost(join, layout, state)?;
+                    if let Some(goal) = &exit {
+                        let leaving = self.shuffle_cost(layout, goal)?;
+                        if leaving != Cost::ZERO {
+                            // A block that still shuffles stays a block: its predecessors
+                            // jump to it and it jumps on, where an empty one is threaded
+                            // away and they jump to its successor themselves.
+                            cost += leaving + StackCosts::CONTROL_FLOW_JUMP + StackCosts::JUMPDEST;
+                        }
+                    }
+                    Some(cost)
+                };
+                let mut candidates = Vec::new();
+                for pred in forward.clone() {
+                    let Some(resident) = state.resident_out.get(&pred) else { continue };
+                    let Some(sources) = self.layout_sources(join, &phis, pred) else { continue };
+                    if !sources.iter().all(|source| resident.contains(source)) {
+                        continue;
+                    }
+                    let mut slots = phis.iter().copied().zip(sources).collect::<Vec<_>>();
+                    slots.sort_by_key(|(_, source)| {
+                        resident.iter().position(|value| value == source)
+                    });
+                    candidates.push(slots.into_iter().map(|(result, _)| result).collect());
+                }
+                if let Some(goal) = &exit {
+                    candidates.push(goal.clone());
+                }
+                let mut best: Option<(Cost, Vec<ValueId>)> = None;
+                for ordered in candidates {
+                    if ordered == phis {
+                        continue;
+                    }
+                    let Some(cost) = price(&ordered) else { continue };
+                    if best.as_ref().is_none_or(|(least, _)| self.target.cmp(cost, *least).is_lt())
+                    {
+                        best = Some((cost, ordered));
+                    }
+                }
+                if let Some((after, ordered)) = best
+                    && let Some(before) = price(&phis)
                     && self.target.cmp(after, before).is_le()
                 {
-                    // [phi, carried...] -> incoming physical order, with phi sources renamed
+                    // [phi, carried...] -> an incoming or outgoing physical order, with phi
+                    // sources renamed
                     phis = ordered;
                 }
             }
@@ -992,11 +1080,16 @@ impl<'a> StackPhiPlanner<'a> {
             resident.extend(defs.iter().copied().filter(|def| !incoming.contains(def)));
             resident.extend(incoming.iter().copied().filter(|value| live_out.contains(*value)));
         }
-        // An unplanned branch consumes its condition. Its spill home may still exist, but
-        // the join planner must not count a reload as an already-resident stack word.
+        // An unplanned branch consumes the condition it finds on top, which is the one the
+        // block computes. Its spill home may still exist, but the join planner must not count
+        // a reload as an already-resident stack word. A condition the block was entered with
+        // rides below the top instead: the branch duplicates it for `JUMPI` and every word
+        // survives, so an invariant that guards each iteration goes around the loop on the
+        // stack rather than being banned at the latch and reloaded by the header.
         if !facts.planned_branches.contains(block_id)
             && !plan.branch_edges.contains_key(&block_id)
             && let Some(Terminator::Branch { condition, .. }) = &block.terminator
+            && (resident.first() == Some(condition) || !incoming.contains(condition))
         {
             resident.retain(|value| value != condition);
         }

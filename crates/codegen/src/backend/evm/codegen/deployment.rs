@@ -352,6 +352,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.external_spill_addr_consts.clear();
             self.pending_static_allocs.clear();
             self.runtime_free_memory_consts.clear();
+            self.shared_free_memory_const = None;
             self.runtime_entry_reachability.clear();
             self.runtime_entry_funcs.clear();
             self.current_internal_function = None;

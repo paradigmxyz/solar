@@ -303,6 +303,9 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
         if func.attributes.may_return_memory {
             write_function_attribute(f, &mut first, "may_return_memory")?;
         }
+        if func.attributes.inline_assembly {
+            write_function_attribute(f, &mut first, "inline_assembly")?;
+        }
         if func.attributes.is_function_pointer_dispatcher {
             write_function_attribute(f, &mut first, "function_pointer_dispatcher")?;
         }
@@ -716,7 +719,22 @@ fn display_inst_kind<'a>(
             Ok(())
         }
         InstKind::AbiDecode { data, layout } => {
-            write!(f, "abi_decode {layout}, {}", display_val(*data, func))
+            write!(f, "abi_decode {layout}, {}", display_val(*data, func))?;
+            // Every `bytes` value of the decode is a view of the data.
+            let views = match result_ty {
+                Some(MirType::Slice(_)) => true,
+                Some(MirType::Struct(id)) => module.is_some_and(|module| {
+                    module.struct_types[id]
+                        .fields
+                        .iter()
+                        .any(|field| matches!(field, MirType::Slice(_)))
+                }),
+                _ => false,
+            };
+            if views {
+                write!(f, ", views")?;
+            }
+            Ok(())
         }
         InstKind::StorageToMemory { storage, memory, layout } => write!(
             f,
@@ -893,6 +911,7 @@ fn display_metadata<'a>(
         Unchecked,
         DeferredAlloc,
         PreservesFmp,
+        Nonnull,
         LoopDepth(u16),
         Effect(EffectKind),
     }
@@ -919,6 +938,7 @@ fn display_metadata<'a>(
             MetadataField::Unchecked => write!(f, "unchecked"),
             MetadataField::DeferredAlloc => write!(f, "deferred_alloc"),
             MetadataField::PreservesFmp => write!(f, "preserves_fmp"),
+            MetadataField::Nonnull => write!(f, "nonnull"),
             MetadataField::LoopDepth(loop_depth) => write!(f, "loop_depth={loop_depth}"),
             MetadataField::Effect(effect) => write!(f, "effect={}", effect.name()),
         })
@@ -935,7 +955,7 @@ fn display_metadata<'a>(
     }
 
     fmt::from_fn(move |f| {
-        let mut fields = ArrayVec::<MetadataField<'_>, 10>::new();
+        let mut fields = ArrayVec::<MetadataField<'_>, 11>::new();
 
         if let Some(storage) = metadata.storage_alias() {
             fields.push(MetadataField::Storage(storage, func));
@@ -968,6 +988,9 @@ fn display_metadata<'a>(
         }
         if metadata.preserves_fmp() {
             fields.push(MetadataField::PreservesFmp);
+        }
+        if metadata.nonnull() {
+            fields.push(MetadataField::Nonnull);
         }
         if metadata.loop_depth != 0 {
             fields.push(MetadataField::LoopDepth(metadata.loop_depth));

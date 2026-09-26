@@ -70,13 +70,13 @@ fn @highLevelGas() -> i256 [selector=0x480be654, abi_params=[], abi_returns=[wor
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_call_options.sol:BareCatchReturndata ===
 @module BareCatchReturndata
-fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @fail() [selector=0xa9cc4718, inline_assembly, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     mstore 0, 42 !metadata(memory=scratch)
     revert 0, 32
 }
 
-fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @read() -> i256 [selector=0x57de26a4, inline_assembly, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas

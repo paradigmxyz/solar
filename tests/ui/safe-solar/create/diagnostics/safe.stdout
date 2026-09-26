@@ -1,0 +1,102 @@
+// === <solar:core/v1/Create.sol>:Create ===
+@module Create
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/safe-solar/create/diagnostics/safe.sol:Safe ===
+@module Safe
+@phase lowered
+types:
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256, i256, i256}
+
+fn @attempt() [selector=0xa95d7aa6, abi_wrapper] {
+  bb0:
+    v27 = calldatasize
+    v28 = lt v27, 36
+    jumpi v28, bb1, bb2
+  bb2:
+    v29 = calldataload 4
+    v30 = add v29, 4
+    v31 = add v30, 32
+    v32 = shr 64, v29
+    v33 = gt v31, v27
+    v34 = zext i1 v33 to i256
+    v35 = or v32, v34
+    v36 = ne v35, 0
+    jumpi v36, bb1, bb3
+  bb3:
+    v37 = calldataload v30
+    v39 = add v37, 63
+    v40 = lt v39, v37
+    jumpi v40, bb4, bb5
+  bb5:
+    v42 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v64 = mload 64 !metadata(memory=scratch)
+    v65 = add v64, v42
+    v66 = lt v65, v64
+    v67 = zext i1 v66 to i256
+    v68 = shr 64, v65
+    v69 = or v67, v68
+    v70 = ne v69, 0
+    jumpi v70, bb4, bb7
+  bb7:
+    mstore 64, v65 !metadata(memory=scratch)
+    mstore v64, v37
+    v44 = sub v27, v31
+    v45 = gt v37, v44
+    jumpi v45, bb1, bb6
+  bb6:
+    v55 = add v64, 32
+    calldatacopy v55, v31, v37
+    v71 = mload 64 !metadata(memory=scratch)
+    v72 = add v71, 64
+    v73 = lt v72, v71
+    v74 = zext i1 v73 to i256
+    v75 = shr 64, v72
+    v76 = or v74, v75
+    v77 = ne v76, 0
+    jumpi v77, bb4, bb8
+  bb8:
+    mstore 64, v72 !metadata(memory=scratch)
+    v78 = calldatasize
+    calldatacopy v71, v78, 64
+    mstore v71, 4
+    v61 = add v71, 32
+    v8 = create 0, v55, v37
+    v9 = returndatasize
+    v10 = lt v9, 4
+    v11 = select v10, v9, 4
+    returndatacopy v61, 0, v11
+    v13 = ne v8, i160 0
+    v14 = zext i1 v13 to i256
+    mstore 128, v14
+    mstore 160, v11
+    mstore 192, v9
+    returndata 128, 96
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xa95d7aa6 => bb2]
+  bb2:
+    tail_call @attempt
+  bb3:
+    revert 0, 0
+}

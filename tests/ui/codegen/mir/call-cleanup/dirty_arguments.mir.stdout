@@ -18,7 +18,7 @@ fn @compareRawReturn(arg0: i256, arg1: i256) -> i256 [selector=0x6585d271, pure,
     ret v6
 }
 
-fn @rawReturn(arg0: i256) -> i256 [pure] {
+fn @rawReturn(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     ret arg0
 }
@@ -56,7 +56,7 @@ fn @selectedClean(arg0: i256) -> i256 [selector=0x4d264e8d, pure, abi_params=[bo
     ret v0
 }
 
-fn @selectedDirty(arg0: i256) -> i256 [selector=0x046d9187, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @selectedDirty(arg0: i256) -> i256 [selector=0x046d9187, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @selected, arg0
     ret v0
@@ -84,7 +84,7 @@ fn @cleanIsZero(arg0: i256) -> i256 [selector=0xcb37dd49, pure, abi_params=[addr
     ret v3
 }
 
-fn @dirtyIsZero(arg0: i256) -> i256 [selector=0x9f3c1122, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @dirtyIsZero(arg0: i256) -> i256 [selector=0x9f3c1122, inline_assembly, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = trunc i256 arg0 to i160
     v1 = trunc i256 0 to i160
@@ -100,7 +100,7 @@ fn @cleanCast(arg0: i256) -> i256 [selector=0x12a6bf89, pure, abi_params=[addres
     ret v1
 }
 
-fn @dirtyCast(arg0: i256) -> i256 [selector=0x9a5c5594, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirtyCast(arg0: i256) -> i256 [selector=0x9a5c5594, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = trunc i256 arg0 to i160
     v1 = zext i160 v0 to i256
@@ -113,25 +113,25 @@ fn @clean(arg0: i256) -> i256 [selector=0x169b2623, pure, abi_params=[address], 
     ret v0
 }
 
-fn @dirty(arg0: i256) -> i256 [selector=0x55136761, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirty(arg0: i256) -> i256 [selector=0x55136761, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @addressBits, arg0
     ret v0
 }
 
-fn @addressBits(arg0: i256) -> i256 [pure] {
+fn @addressBits(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     ret v0
 }
 
-fn @observeDirty(arg0: i256) -> i256 [selector=0xd14495e8, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @observeDirty(arg0: i256) -> i256 [selector=0xd14495e8, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @rawBits, arg0
     ret v0
 }
 
-fn @rawBits(arg0: i256) -> i256 [pure] {
+fn @rawBits(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     ret arg0
 }
@@ -142,13 +142,13 @@ fn @cleanBool(arg0: i256) -> i256 [selector=0x6a54e09a, pure, abi_params=[bool],
     ret v0
 }
 
-fn @dirtyBool(arg0: i256) -> i256 [selector=0x121fbc13, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirtyBool(arg0: i256) -> i256 [selector=0x121fbc13, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @boolBit, arg0
     ret v0
 }
 
-fn @boolBit(arg0: i256) -> i256 [pure] {
+fn @boolBit(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = and arg0, 1
     ret v0

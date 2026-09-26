@@ -99,7 +99,7 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-fn @constructor() [constructor] {
+fn @constructor() [constructor, inline_assembly] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     stop
@@ -113,7 +113,7 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-fn @constructor(arg0: i256) [constructor, abi_params=[bool]] {
+fn @constructor(arg0: i256) [constructor, inline_assembly, abi_params=[bool]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     v0 = ne arg0, 0

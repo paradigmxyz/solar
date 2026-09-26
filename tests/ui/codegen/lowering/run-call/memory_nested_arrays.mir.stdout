@@ -12,11 +12,11 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256]
   bb3:
     jump bb4
   bb4:
-    v5 = phi [bb3: 0], [bb6: v40]
-    v6 = phi [bb3: arg0], [bb6: v20]
+    v5 = phi [bb3: arg0], [bb6: v19]
+    v6 = phi [bb3: 0], [bb6: v20]
     v7 = phi [bb3: v0], [bb6: v21]
-    v8 = phi [bb3: 0], [bb6: v23]
-    v9 = lt v5, 2
+    v8 = phi [bb3: 0], [bb6: v40]
+    v9 = lt v8, 2
     jumpi v9, bb7, bb8
   bb8:
     jump bb5
@@ -57,7 +57,7 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256]
     v60 = lt 1, v59
     v61 = eq v60, false
     icall panic_if<0x32>, v61
-    memory_object_store_element memoryarray<1>, v58, 1, v6
+    memory_object_store_element memoryarray<1>, v58, 1, v5
     v62 = memory_object_len memoryarray, v7
     v63 = lt 1, v62
     v64 = eq v63, false
@@ -106,19 +106,19 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256]
     jumpi v12, bb11, bb12
   bb12:
     v15 = memory_object_len memoryarray, v7
-    v16 = lt v5, v15
+    v16 = lt v8, v15
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = ptrtoint memoryarray v10 to i256
-    memory_object_store_element memoryarray<1>, v7, v5, v18
+    memory_object_store_element memoryarray<1>, v7, v8, v18
     jump bb13
   bb13:
     v19 = phi [bb12: v5], [bb15: v19]
     v20 = phi [bb12: v6], [bb15: v20]
     v21 = phi [bb12: v7], [bb15: v21]
-    v22 = phi [bb12: 0], [bb15: v39]
-    v23 = phi [bb12: v8], [bb15: v23]
-    v24 = lt v22, 3
+    v22 = phi [bb12: v8], [bb15: v22]
+    v23 = phi [bb12: 0], [bb15: v39]
+    v24 = lt v23, 3
     jumpi v24, bb16, bb17
   bb17:
     jump bb14
@@ -127,16 +127,16 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256]
   bb9:
     jump bb6
   bb6:
-    v40 = checked_add u256, v19, 1
+    v40 = checked_add u256, v22, 1
     jump bb4
   bb16:
     v25 = alloc memoryarray<1>, exact, zeroed, panic, 160
     set_memory_object_len memoryarray, v25, 4
     v26 = memory_object_len memoryarray, v21
-    v27 = lt v19, v26
+    v27 = lt v22, v26
     v28 = eq v27, false
     icall panic_if<0x32>, v28
-    v29 = memory_object_load_element memoryarray<1>, v21, v19
+    v29 = memory_object_load_element memoryarray<1>, v21, v22
     v30 = inttoptr i256 v29 to memoryarray
     v31 = eq v29, 0
     jumpi v31, bb19, bb20
@@ -144,21 +144,21 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256]
     v32 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v32, 0
     v33 = ptrtoint memoryarray v32 to i256
-    memory_object_store_element memoryarray<1>, v21, v19, v33
+    memory_object_store_element memoryarray<1>, v21, v22, v33
     jump bb20
   bb20:
     v34 = phi [bb16: v30], [bb19: v32]
     v35 = memory_object_len memoryarray, v34
-    v36 = lt v22, v35
+    v36 = lt v23, v35
     v37 = eq v36, false
     icall panic_if<0x32>, v37
     v38 = ptrtoint memoryarray v25 to i256
-    memory_object_store_element memoryarray<1>, v34, v22, v38
+    memory_object_store_element memoryarray<1>, v34, v23, v38
     jump bb18
   bb18:
     jump bb15
   bb15:
-    v39 = checked_add u256, v22, 1
+    v39 = checked_add u256, v23, 1
     jump bb13
   bb11:
     v13 = ptrtoint memoryarray 96 to i256
@@ -185,19 +185,19 @@ fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[u256], 
     jump bb4
   bb4:
     v5 = phi [bb3: arg0], [bb6: v19]
-    v6 = phi [bb3: v0], [bb6: v20]
-    v7 = phi [bb3: 0], [bb6: v40]
-    v8 = phi [bb3: 0], [bb6: v23]
-    v9 = lt v7, 2
+    v6 = phi [bb3: 0], [bb6: v20]
+    v7 = phi [bb3: v0], [bb6: v21]
+    v8 = phi [bb3: 0], [bb6: v40]
+    v9 = lt v8, 2
     jumpi v9, bb7, bb8
   bb8:
     jump bb5
   bb5:
-    v41 = memory_object_len memoryarray, v6
+    v41 = memory_object_len memoryarray, v7
     v42 = lt 1, v41
     v43 = eq v42, false
     icall panic_if<0x32>, v43
-    v44 = memory_object_load_element memoryarray<1>, v6, 1
+    v44 = memory_object_load_element memoryarray<1>, v7, 1
     v45 = inttoptr i256 v44 to memoryarray
     v46 = eq v44, 0
     jumpi v46, bb21, bb22
@@ -205,7 +205,7 @@ fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[u256], 
     v47 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v47, 0
     v48 = ptrtoint memoryarray v47 to i256
-    memory_object_store_element memoryarray<1>, v6, 1, v48
+    memory_object_store_element memoryarray<1>, v7, 1, v48
     jump bb22
   bb22:
     v49 = phi [bb5: v45], [bb21: v47]
@@ -240,20 +240,20 @@ fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[u256], 
     v12 = lt v11, 3
     jumpi v12, bb11, bb12
   bb12:
-    v15 = memory_object_len memoryarray, v6
-    v16 = lt v7, v15
+    v15 = memory_object_len memoryarray, v7
+    v16 = lt v8, v15
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = ptrtoint memoryarray v10 to i256
-    memory_object_store_element memoryarray<1>, v6, v7, v18
+    memory_object_store_element memoryarray<1>, v7, v8, v18
     jump bb13
   bb13:
     v19 = phi [bb12: v5], [bb15: v19]
     v20 = phi [bb12: v6], [bb15: v20]
-    v21 = phi [bb12: 0], [bb15: v39]
-    v22 = phi [bb12: v7], [bb15: v22]
-    v23 = phi [bb12: v8], [bb15: v23]
-    v24 = lt v21, 3
+    v21 = phi [bb12: v7], [bb15: v21]
+    v22 = phi [bb12: v8], [bb15: v22]
+    v23 = phi [bb12: 0], [bb15: v39]
+    v24 = lt v23, 3
     jumpi v24, bb16, bb17
   bb17:
     jump bb14
@@ -267,11 +267,11 @@ fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[u256], 
   bb16:
     v25 = alloc memoryarray<1>, exact, zeroed, panic, 160
     set_memory_object_len memoryarray, v25, 4
-    v26 = memory_object_len memoryarray, v20
+    v26 = memory_object_len memoryarray, v21
     v27 = lt v22, v26
     v28 = eq v27, false
     icall panic_if<0x32>, v28
-    v29 = memory_object_load_element memoryarray<1>, v20, v22
+    v29 = memory_object_load_element memoryarray<1>, v21, v22
     v30 = inttoptr i256 v29 to memoryarray
     v31 = eq v29, 0
     jumpi v31, bb19, bb20
@@ -279,21 +279,21 @@ fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[u256], 
     v32 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v32, 0
     v33 = ptrtoint memoryarray v32 to i256
-    memory_object_store_element memoryarray<1>, v20, v22, v33
+    memory_object_store_element memoryarray<1>, v21, v22, v33
     jump bb20
   bb20:
     v34 = phi [bb16: v30], [bb19: v32]
     v35 = memory_object_len memoryarray, v34
-    v36 = lt v21, v35
+    v36 = lt v23, v35
     v37 = eq v36, false
     icall panic_if<0x32>, v37
     v38 = ptrtoint memoryarray v25 to i256
-    memory_object_store_element memoryarray<1>, v34, v21, v38
+    memory_object_store_element memoryarray<1>, v34, v23, v38
     jump bb18
   bb18:
     jump bb15
   bb15:
-    v39 = checked_add u256, v21, 1
+    v39 = checked_add u256, v23, 1
     jump bb13
   bb11:
     v13 = ptrtoint memoryarray 96 to i256

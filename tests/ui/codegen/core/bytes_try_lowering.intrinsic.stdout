@@ -1,0 +1,205 @@
+// === <solar:core/v1/Bytes.sol>:Bytes ===
+@module Bytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/bytes_try_lowering.sol:Test ===
+@module Test
+@phase lowered
+types:
+  struct0: {i256, i256}
+
+fn @try1() [selector=0x7c4fe00c, abi_wrapper, pure] {
+  bb0:
+    v27 = icall @decode_calldata_type, 4
+    v33 = ptrtoint memptr v27 to i256
+    v0 = mload v33
+    v1 = add arg1, 1
+    v2 = eq v1, 0
+    v3 = gt v1, v0
+    v4 = or v2, v3
+    v6 = eq v4, false
+    v21 = zext i1 v6 to i256
+    v7 = mul v21, arg1
+    v35 = add v33, 32
+    v10 = add v35, v7
+    v11 = mload v10
+    v12 = mul v21, v11
+    v13 = and v12, 0xff00000000000000000000000000000000000000000000000000000000000000
+    mstore 0, v21
+    mstore 32, v13 !metadata(memory=scratch)
+    returndata 0, 64
+}
+
+fn @try4() [selector=0x7f498037, abi_wrapper, pure] {
+  bb0:
+    v27 = icall @decode_calldata_type, 4
+    v33 = ptrtoint memptr v27 to i256
+    v0 = mload v33
+    v1 = add arg1, 4
+    v2 = lt v1, arg1
+    v3 = gt v1, v0
+    v4 = or v2, v3
+    v6 = eq v4, false
+    v21 = zext i1 v6 to i256
+    v7 = mul v21, arg1
+    v35 = add v33, 32
+    v10 = add v35, v7
+    v11 = mload v10
+    v12 = mul v21, v11
+    v13 = and v12, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 0, v21
+    mstore 32, v13 !metadata(memory=scratch)
+    returndata 0, 64
+}
+
+fn @try32() [selector=0xf00ebb05, abi_wrapper, pure] {
+  bb0:
+    v26 = icall @decode_calldata_type, 4
+    v32 = ptrtoint memptr v26 to i256
+    v0 = mload v32
+    v1 = add arg1, 32
+    v2 = lt v1, arg1
+    v3 = gt v1, v0
+    v4 = or v2, v3
+    v6 = eq v4, false
+    v20 = zext i1 v6 to i256
+    v7 = mul v20, arg1
+    v34 = add v32, 32
+    v10 = add v34, v7
+    v11 = mload v10
+    v12 = mul v20, v11
+    mstore 0, v20
+    mstore 32, v12 !metadata(memory=scratch)
+    returndata 0, 64
+}
+
+fn @tryWord() [selector=0xdc133dec, abi_wrapper, pure] {
+  bb0:
+    v26 = icall @decode_calldata_type, 4
+    v32 = ptrtoint memptr v26 to i256
+    v0 = mload v32
+    v1 = add arg1, 32
+    v2 = lt v1, arg1
+    v3 = gt v1, v0
+    v4 = or v2, v3
+    v6 = eq v4, false
+    v20 = zext i1 v6 to i256
+    v7 = mul v20, arg1
+    v34 = add v32, 32
+    v10 = add v34, v7
+    v11 = mload v10
+    v12 = mul v20, v11
+    mstore 0, v20
+    mstore 32, v12 !metadata(memory=scratch)
+    returndata 0, 64
+}
+
+fn @guarded() [selector=0xd0dcc2fe, abi_wrapper, pure] {
+  bb0:
+    v45 = icall @decode_calldata_type, 4
+    v54 = mload 64 !metadata(memory=scratch)
+    v55 = add v54, 64
+    mstore 64, v55 !metadata(memory=scratch)
+    mstore v54, 4
+    v50 = add v54, 32
+    mstore v50, 0x1122334400000000000000000000000000000000000000000000000000000000
+    v51 = ptrtoint memptr v45 to i256
+    v3 = mload v51
+    v4 = add arg1, 4
+    v6 = gt v4, v3
+    v5 = lt v4, arg1
+    v7 = or v5, v6
+    v9 = eq v7, false
+    v35 = zext i1 v9 to i256
+    v10 = mul v35, arg1
+    v53 = add v51, 32
+    v13 = add v53, v10
+    v14 = mload v13
+    v15 = mul v35, v14
+    v16 = and v15, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v39 = sub 0x1122334400000000000000000000000000000000000000000000000000000000, v16
+    v40 = zext i1 v7 to i256
+    v41 = mul v40, v39
+    v42 = add v16, v41
+    v46 = and v42, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 0, v46 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload arg0
+    v2 = add v1, 4
+    v3 = add v2, 32
+    v4 = shr 64, v1
+    v5 = gt v3, v0
+    v6 = zext i1 v5 to i256
+    v7 = or v4, v6
+    v8 = ne v7, 0
+    jumpi v8, bb1, bb2
+  bb2:
+    v9 = calldataload v2
+    v11 = add v9, 63
+    v12 = lt v11, v9
+    jumpi v12, bb3, bb4
+  bb4:
+    v14 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v24 = mload 64 !metadata(memory=scratch)
+    v15 = inttoptr i256 v24 to memptr !metadata(memory=scratch)
+    v25 = add v24, v14
+    v26 = lt v25, v24
+    v27 = zext i1 v26 to i256
+    v28 = shr 64, v25
+    v29 = or v27, v28
+    v30 = ne v29, 0
+    jumpi v30, bb3, bb6
+  bb6:
+    mstore 64, v25 !metadata(memory=scratch)
+    mstore v24, v9
+    v16 = sub v0, v3
+    v17 = gt v9, v16
+    jumpi v17, bb1, bb5
+  bb5:
+    v20 = add v24, 32
+    calldatacopy v20, v3, v9
+    ret v15
+  bb3:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 68
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr 224, v6
+    switch v7, default bb1, [0x7c4fe00c => bb3, 0x7f498037 => bb4, 0xd0dcc2fe => bb5, 0xdc133dec => bb6, 0xf00ebb05 => bb7]
+  bb7:
+    tail_call @try32
+  bb6:
+    tail_call @tryWord
+  bb5:
+    tail_call @guarded
+  bb4:
+    tail_call @try4
+  bb3:
+    tail_call @try1
+  bb1:
+    revert 0, 0
+}

@@ -81,7 +81,7 @@ fn @packedDynamicHashLocal(arg0: i256, arg1: calldataslice) -> i256 [selector=0x
     ret v0
 }
 
-fn @packedDynamicHashModified(arg0: i256, arg1: calldataslice) -> i256 [selector=0x31a86e65, pure, abi_params=[bytes32, bytes], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @packedDynamicHashModified(arg0: i256, arg1: calldataslice) -> i256 [selector=0x31a86e65, inline_assembly, pure, abi_params=[bytes32, bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = abi_encode_packed (bytes32 arg0, bytes arg1)
     v1 = keccak256_bytes v0
@@ -109,7 +109,7 @@ fn @mutatedInput() -> memorybytes [selector=0x7d98764f, pure, abi_params=[], abi
     ret v5
 }
 
-fn @shorten(arg0: memorybytes) -> i256 [pure] {
+fn @shorten(arg0: memorybytes) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = ptrtoint memorybytes arg0 to i256
     mstore v0, 1

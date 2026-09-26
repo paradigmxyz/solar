@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/inline-dispatch/raw_memory.sol:RawMemory ===
 @module RawMemory
 @phase lowered
-fn @raw() [selector=0x302e678f, abi_wrapper, pure] {
+fn @raw() [selector=0x302e678f, abi_wrapper, inline_assembly, pure] {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -22,8 +22,8 @@ fn @sum() [selector=0xcad0899b, abi_wrapper, pure] {
     v2 = lt v1, arg0
     jumpi v2, bb1, bb2
   bb2:
-    mstore 128, v1
-    returndata 128, 32
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
@@ -52,7 +52,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/mir/inline-dispatch/raw_memory.sol:RawRevert ===
 @module RawRevert
 @phase lowered
-fn @raw() [selector=0x302e678f, abi_wrapper, pure] {
+fn @raw() [selector=0x302e678f, abi_wrapper, inline_assembly, pure] {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -73,8 +73,8 @@ fn @sum() [selector=0xcad0899b, abi_wrapper, pure] {
     v2 = lt v1, arg0
     jumpi v2, bb1, bb2
   bb2:
-    mstore 128, v1
-    returndata 128, 32
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)

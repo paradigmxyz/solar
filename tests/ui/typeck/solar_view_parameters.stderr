@@ -1,0 +1,36 @@
+error: `@custom:solar-view` must document a variable declaration statement or an internal function
+   ╭▸ ROOT/tests/ui/typeck/solar_view_parameters.sol:LL:CC
+   │
+LL │     /// @custom:solar-view data
+   │          ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on the statement `bytes memory v = Bytes.slice(source, offset, count);`, or on an internal function to name its view parameters
+
+error: `@custom:solar-view` on a function must name its view parameters
+   ╭▸ ROOT/tests/ui/typeck/solar_view_parameters.sol:LL:CC
+   │
+LL │     /// @custom:solar-view
+   │          ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: list the names, as in `@custom:solar-view data`
+
+error: `@custom:solar-view` names `missing`, which is not a parameter of `unknown`
+   ╭▸ ROOT/tests/ui/typeck/solar_view_parameters.sol:LL:CC
+   │
+LL │     /// @custom:solar-view missing
+   ╰╴         ━━━━━━━━━━━━━━━━━
+
+error: the view parameter `values` must be `bytes memory` or `string memory`
+   ╭▸ ROOT/tests/ui/typeck/solar_view_parameters.sol:LL:CC
+   │
+LL │     function words(uint256[] memory values) internal pure returns (uint256) {
+   │                    ━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_view_parameters.sol:LL:CC
+   │
+LL │     /// @custom:solar-view values
+   ╰╴         ━━━━━━━━━━━━━━━━━
+
+error: aborting due to 4 previous errors
+

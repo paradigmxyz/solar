@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_above_constant_image.sol:Registry ===
 @module Registry
-fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [selector=0x8a54c52f, abi_params=[address, bytes32, u256, address, u256], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [selector=0x8a54c52f, inline_assembly, abi_params=[address, bytes32, u256, address, u256], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     calldatacopy 140, 36, 128
     mstore 108, 0x5af43d82803e903d91602b57fd5bf3 !metadata(memory=scratch)
@@ -50,7 +50,7 @@ fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [s
 data:
   Registry_initcode_0: hex"34600e576101388060125f395ff35b5f5ffd341515601c575f3560e01c80638a54c52f14601857601c565b6020565b5f5ffd5b61016060405260a436106101345760043560a01c15156101345760643560a01c15156101345760806024608c376e5af43d82803e903d91602b57fd5bf3606c52600435605d52733d60ad80600a3d3981f3363d3d373d3d3d363d7360495260ff5f5360b76055206035523060601b60015260243560155260555f208061012052806101205280610120523b15151560c75761012051806101205260601b60601c5f5260205ff35b60243560b760555ff580610140528061014052806101405215151561012757610140518061014052606c526084356064356004357f79f19b3655ee38b1ce526556b7731a20c8f218fbda4a3990b6cc4172fdf887226060606ca46020606cf35b6320188a595f526004601cfd5b5f5ffd"
 
-fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @run() -> i256 [selector=0xc0406226, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31

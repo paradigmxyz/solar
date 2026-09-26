@@ -30,8 +30,10 @@
 //! availability before applying the retained instruction's clobbers so an identical write does not
 //! invalidate itself.
 //!
-//! Loads at allocation bases stay local unless the cached value already crosses the block edge.
-//! Extending their lifetimes can add a spill whose store and reload cost more than the load.
+//! Loads at allocation bases stay local unless the cached value already crosses the block edge
+//! or is still live at the end of every predecessor, where it is held on the way in anyway.
+//! Extending their lifetimes further can add a spill whose store and reload cost more than the
+//! load.
 //! Constant word and semantic length writes seed the same read cache without extending register
 //! lifetimes. Overlapping writes and calls invalidate these entries through the usual alias checks.
 //!
@@ -72,13 +74,13 @@
 //! body changes; callers must still observe any improved callee summaries.
 
 use crate::mir::{
-    AddressCallKind, BlockId, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId,
-    InstId, InstKind, Instruction, MemoryObjectKind, MemoryObjectLayout, MirType, Module,
-    SliceLocation, StorageAlias, Value, ValueId,
+    AddressCallKind, AllocationKind, BlockId, Callee, EffectKind, Function, FunctionId, Immediate,
+    ImmutableId, InstId, InstKind, Instruction, MemoryObjectKind, MemoryObjectLayout, MirType,
+    Module, SliceLocation, StorageAlias, Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
-        Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
-        MemoryLocation,
+        Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryBase,
+        MemoryCallSummaries, MemoryLocation,
     },
     memory::EvmMemoryLayout,
     pass::{
@@ -676,7 +678,7 @@ impl CommonSubexprEliminator {
                     && func.value_ty(*result) == func.value_ty(*cached)
                 {
                     if matches!(key, ExprKey::MLoad(_))
-                        && !Self::memory_reuse_pays_off(func, ctx, block_id, *cached, kind)
+                        && !Self::memory_reuse_pays_off(func, ctx, block_id, *cached, *result, kind)
                     {
                         // Reload instead of extending the cached value's live range.
                         cache.insert(key.clone(), *result);
@@ -721,12 +723,15 @@ impl CommonSubexprEliminator {
     /// word is defined in this block, is already live into it, or is a
     /// loop-invariant read, where every iteration repeats the saving and code
     /// motion would keep the word live anyway; a loop-varying element reloaded
-    /// after a compare-and-branch is cheaper to load again than to carry.
+    /// after a compare-and-branch is cheaper to load again than to carry,
+    /// unless the reload is itself only tested again, where reuse lets the
+    /// second test fold into the first.
     fn memory_reuse_pays_off(
         func: &Function,
         ctx: &GlobalCseContext<'_>,
         block: BlockId,
         cached: ValueId,
+        reload: ValueId,
         kind: &InstKind,
     ) -> bool {
         let Some(reuse) = &ctx.reuse else { return true };
@@ -745,6 +750,29 @@ impl CommonSubexprEliminator {
             return true;
         }
         if facts.liveness.live_in(block).contains(cached) {
+            return true;
+        }
+        // The cached word decided the branch into this block and the reload decides the
+        // branch out of it, as when a loop tests `seen[slot] != 0` and its body computes
+        // `seen[slot] - 1`. Reuse makes the second test a repeat of the first, which branch
+        // folding removes along with the load, so it pays whatever else is live here. A
+        // branch tests an `i1`, so each word reaches its branch through a zero test.
+        let tests = |condition: &ValueId, word: ValueId| {
+            *condition == word
+                || matches!(func.value(*condition), Value::Inst(inst)
+                    if matches!(func.inst(*inst).kind,
+                        InstKind::Ne(lhs, rhs) | InstKind::Eq(lhs, rhs)
+                            if lhs == word && func.value_u64(rhs) == Some(0)))
+        };
+        if let Some(&home) = facts.definitions.get(cached_inst)
+            && ctx.predecessors[block].as_slice() == [home]
+            && let Some(Terminator::Branch { condition: tested, then_block, else_block }) =
+                &func.blocks[home].terminator
+            && tests(tested, cached)
+            && then_block != else_block
+            && let Some(Terminator::Branch { condition, .. }) = &func.blocks[block].terminator
+            && tests(condition, reload)
+        {
             return true;
         }
         // The word crosses exactly one edge from its defining block, as after
@@ -784,15 +812,29 @@ impl CommonSubexprEliminator {
         cache: &mut ExprCache,
         ctx: &GlobalCseContext<'_>,
     ) {
+        let liveness = ctx.liveness.get_or_init(|| Liveness::compute(func));
+        // The word is still held wherever control enters `child`: it, or a read it has
+        // replaced, is live at the end of every predecessor. Reuse then lengthens its life by
+        // less than this block, or, where it replaces a read that outlives the block, by
+        // nothing, since it takes over that read's place. A result array's length after the
+        // loop that filled it is the case: the next loop reads its bound in its preheader and
+        // carries it around either way.
+        let held_at_entry = |value: ValueId| {
+            func.blocks[child].predecessors.iter().all(|&pred| {
+                let live_out = liveness.live_out(pred);
+                live_out.contains(value)
+                    || ctx.replacements.keys().any(|&replaced| {
+                        live_out.contains(replaced)
+                            && mir_utils::resolve_replacement(replaced, ctx.replacements) == value
+                    })
+            })
+        };
         cache.retain_stateful(|key, value| {
             !matches!(key, ExprKey::MLoad(location)
                 if location.address.is_allocation_base())
                 || func.value_u256(*value).is_some()
-                || ctx
-                    .liveness
-                    .get_or_init(|| Liveness::compute(func))
-                    .live_in(child)
-                    .contains(*value)
+                || liveness.live_in(child).contains(*value)
+                || held_at_entry(*value)
         });
         // A sole predecessor has already applied every clobber before this edge.
         if func.blocks[child].predecessors.as_slice() == [parent]
@@ -825,7 +867,7 @@ impl CommonSubexprEliminator {
                 continue;
             }
             for clobber in clobbers {
-                self.apply_clobber(cache, clobber);
+                self.apply_clobber(func, cache, clobber);
                 if !cache.has_stateful() {
                     break;
                 }
@@ -1170,7 +1212,7 @@ impl CommonSubexprEliminator {
         let mut clobbers = Vec::new();
         self.side_effect_clobbers(func, inst_id, kind, replacements, &mut clobbers);
         for clobber in &clobbers {
-            self.apply_clobber(expr_cache, clobber);
+            self.apply_clobber(func, expr_cache, clobber);
             if !expr_cache.has_stateful() {
                 break;
             }
@@ -1218,10 +1260,10 @@ impl CommonSubexprEliminator {
     }
 
     /// Removes cache entries invalidated by a single clobbering effect.
-    fn apply_clobber(&self, expr_cache: &mut ExprCache, clobber: &Clobber) {
+    fn apply_clobber(&self, func: &Function, expr_cache: &mut ExprCache, clobber: &Clobber) {
         match *clobber {
             Clobber::GasObservation => expr_cache.clear_stateful(),
-            Clobber::Memory(write) => self.invalidate_memory(expr_cache, write),
+            Clobber::Memory(write) => self.invalidate_memory(func, expr_cache, write),
             Clobber::Storage(write) => {
                 expr_cache.retain_stateful(|key, _| match key {
                     ExprKey::SLoad(cached) => write.preserves(*cached, |cached, assigned| {
@@ -1260,12 +1302,67 @@ impl CommonSubexprEliminator {
         }
     }
 
-    fn invalidate_memory(&self, expr_cache: &mut ExprCache, write: ClobberScope<MemRangeKey>) {
+    /// Whether `write` is the free-memory-pointer slot, which the bump of every
+    /// allocation stores to, and `read` the length word of a dynamic memory
+    /// object.
+    ///
+    /// The memory model owns both. The slot is a reserved word that ends where
+    /// the zero slot begins, and an object's length word is the zero slot or a
+    /// heap word, so the bump cannot change a length. Nothing else is claimed:
+    /// a raw load, a field, an element, and the object of a recycled
+    /// allocation keep the alias answer, and only this cache asks. Without it
+    /// every `new bytes(n)` between a read of `s.length` and the loop over `s`
+    /// leaves the loop comparing against a second length, which no bounds
+    /// check can be folded into.
+    fn bump_misses_length_word(
+        func: &Function,
+        read: MemoryLocation,
+        write: MemoryLocation,
+    ) -> bool {
+        let word = LocationSize::Const(EvmMemoryLayout::WORD_SIZE);
+        let is_bump = write.address.base == MemoryBase::Absolute
+            && write.address.offset == EvmMemoryLayout::FMP_SLOT
+            && write.size == word;
+        if !is_bump || read.address.offset != 0 || read.size != word {
+            return false;
+        }
+        match read.address.base {
+            MemoryBase::Param(value) => matches!(
+                func.value(value),
+                Value::Arg(index) if matches!(
+                    func.arg_ty(*index),
+                    MirType::MemoryObject(
+                        MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray
+                    )
+                )
+            ),
+            MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) => matches!(
+                func.inst(inst).kind,
+                InstKind::Alloc {
+                    kind: AllocationKind::Object(
+                        MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. }
+                    ),
+                    ..
+                }
+            ),
+            _ => false,
+        }
+    }
+
+    fn invalidate_memory(
+        &self,
+        func: &Function,
+        expr_cache: &mut ExprCache,
+        write: ClobberScope<MemRangeKey>,
+    ) {
         expr_cache.retain_stateful(|key, _| match key {
-            ExprKey::MLoad(read) | ExprKey::Keccak256(read) => write
-                .preserves(*read, |read, write| {
-                    AliasAnalysis::memory_alias_locations(read, write).may_alias()
-                }),
+            ExprKey::MLoad(read) => write.preserves(*read, |read, write| {
+                !Self::bump_misses_length_word(func, read, write)
+                    && AliasAnalysis::memory_alias_locations(read, write).may_alias()
+            }),
+            ExprKey::Keccak256(read) => write.preserves(*read, |read, write| {
+                AliasAnalysis::memory_alias_locations(read, write).may_alias()
+            }),
             ExprKey::MappingSlot(..)
             | ExprKey::StorageArrayDataSlot(..)
             | ExprKey::StorageArrayElementSlot(..) => {
@@ -1503,12 +1600,7 @@ impl CommonSubexprEliminator {
         counts
     }
 
-    fn count_terminator_uses(
-        term: &crate::mir::Terminator,
-        counts: &mut FxHashMap<ValueId, usize>,
-    ) {
-        use crate::mir::Terminator;
-
+    fn count_terminator_uses(term: &Terminator, counts: &mut FxHashMap<ValueId, usize>) {
         let mut count = |value| {
             *counts.entry(value).or_default() += 1;
         };

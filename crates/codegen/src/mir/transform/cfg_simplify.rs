@@ -20,10 +20,20 @@
 //! Remove functions that are never called, starting from entry points
 //! (public/external functions, constructor, fallback, receive).
 //!
+//! ## Return Splitting
+//! `split-returns` gives each further predecessor of a return block that holds nothing but phis
+//! a copy returning the values arriving on that edge. Lowering routes modifier bodies and several
+//! helper exits through one such block. It runs after the last inlining, which prices a callee by
+//! its distinct returns. A branch between two returns of the same values folds to a jump.
+//!
 //! Terminal-block equivalence compares every non-operand instruction field, including semantic
 //! layouts and literal payloads, while comparing SSA operands by definition position. It ignores
 //! source context. Shared instructions and
 //! terminators retain the bounded union of their original locations instead.
+//! Internal returns are not shared, and late shared ones are split: a shared return would give a
+//! loop's exit branch a target with several predecessors, and the backend cannot carry the loop's
+//! stack across such a branch. The EVM IR terminal deduplication and tail merging share identical
+//! return sequences after stack scheduling instead.
 
 use crate::{
     mir::{
@@ -31,7 +41,7 @@ use crate::{
         Terminator, Value, ValueId,
         analysis::{CallGraphInfo, CfgInfo},
         pass::{MirPass, run_function_pass},
-        utils::{replace_terminator, retain_blocks},
+        utils::{replace_terminator, retain_blocks, split_edge},
     },
     target::GasTier,
 };
@@ -85,6 +95,41 @@ impl MirPass for BranchSimplify {
     }
 }
 
+/// Gives every predecessor of a shared return block a return of its own.
+///
+/// Runs once no later pass needs a function's exits to meet: inlining and the
+/// passes before it count one shared return per function. A loop's exit branch
+/// into a shared return cannot keep the loop's carried stack, so the backend
+/// would spill it on every iteration; a private return lets the branch keep it.
+pub(crate) struct SplitReturns;
+
+impl MirPass for SplitReturns {
+    fn name(&self) -> &'static str {
+        "split-returns"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
+            let mut simplifier = CfgSimplifier::new();
+            simplifier.split_shared_returns(func);
+            if simplifier.stats.returns_split == 0 {
+                return false;
+            }
+            // pred: ...; jump copy; copy: ret values -> pred: ...; ret values
+            // v = phi [pred: x]; ret v -> ret x
+            simplifier.merge_blocks(func);
+            simplifier.simplify_trivial_phis(func);
+            let _ = remove_unreachable_blocks(func);
+            true
+        })
+    }
+}
+
 /// Cleans a function after a local transform changes its control flow.
 pub(super) fn simplify_function(func: &mut Function) -> bool {
     CfgSimplifier::new().run_to_fixpoint(func).total() != 0
@@ -112,21 +157,24 @@ impl MirPass for SimplifyTrivialPhis {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
-            let mut simplifier = CfgSimplifier::new();
-            let mut changed = false;
-            // Replacing one phi can make the phi it fed trivial in turn.
-            loop {
-                let before = simplifier.stats.trivial_phis_simplified;
-                simplifier.simplify_trivial_phis(func);
-                if simplifier.stats.trivial_phis_simplified == before {
-                    break;
-                }
-                changed = true;
-            }
-            changed
-        })
+        run_function_pass(module, analyses, |func, _| fold_trivial_phis(func))
     }
+}
+
+/// Replaces every trivial phi by its unique incoming value. Returns whether any phi changed.
+pub(crate) fn fold_trivial_phis(func: &mut Function) -> bool {
+    let mut simplifier = CfgSimplifier::new();
+    let mut changed = false;
+    // Replacing one phi can make the phi it fed trivial in turn.
+    loop {
+        let before = simplifier.stats.trivial_phis_simplified;
+        simplifier.simplify_trivial_phis(func);
+        if simplifier.stats.trivial_phis_simplified == before {
+            break;
+        }
+        changed = true;
+    }
+    changed
 }
 
 /// Module pass for dead internal function elimination.
@@ -147,10 +195,9 @@ impl MirPass for FunctionDce {
     }
 }
 
-/// Alpha-equivalence key for a terminal block used by
-/// [`CfgSimplifier::deduplicate_terminal_blocks`].
+/// Alpha-equivalence key for a terminal block, built by [`terminal_block_key`].
 #[derive(Debug, PartialEq, Eq, Hash)]
-struct CanonBlock {
+pub(super) struct CanonBlock {
     insts: Vec<CanonInst>,
     term_mnemonic: &'static str,
     term_function: Option<FunctionId>,
@@ -188,6 +235,8 @@ struct CfgSimplifyStats {
     trivial_phis_simplified: usize,
     /// Number of identical terminal blocks merged into one shared block.
     terminal_blocks_deduplicated: usize,
+    /// Number of return copies given to predecessors of a shared return block.
+    returns_split: usize,
     /// Number of unreachable block tombstones removed.
     unreachable_blocks_removed: usize,
     /// Number of dead functions eliminated.
@@ -205,6 +254,7 @@ impl CfgSimplifyStats {
             + self.terminators_simplified
             + self.trivial_phis_simplified
             + self.terminal_blocks_deduplicated
+            + self.returns_split
             + self.unreachable_blocks_removed
             + self.dead_functions_eliminated
     }
@@ -216,6 +266,7 @@ impl CfgSimplifyStats {
         self.terminators_simplified += other.terminators_simplified;
         self.trivial_phis_simplified += other.trivial_phis_simplified;
         self.terminal_blocks_deduplicated += other.terminal_blocks_deduplicated;
+        self.returns_split += other.returns_split;
         self.unreachable_blocks_removed += other.unreachable_blocks_removed;
         self.dead_functions_eliminated += other.dead_functions_eliminated;
         self.gas_saved += other.gas_saved;
@@ -261,6 +312,67 @@ impl CfgSimplifier {
         self.stats.total()
     }
 
+    /// Gives every further predecessor of a shared return block its own return.
+    ///
+    /// Only blocks holding nothing but phis are copied. Each copy returns the
+    /// values arriving on its edge: a phi resolves to that edge's input, and
+    /// any other returned value dominates the block and so every predecessor.
+    /// The original block keeps its first predecessor. External entries keep
+    /// their shared return: ABI lowering expands each return into a full
+    /// encoder and proves canonical payloads only for a single return block.
+    fn split_shared_returns(&mut self, func: &mut Function) {
+        if func.is_external_entry() {
+            return;
+        }
+        for block_id in func.blocks.indices() {
+            let block = &func.blocks[block_id];
+            let Some(Terminator::Return { values }) = &block.terminator else { continue };
+            if block.predecessors.len() < 2
+                || !block
+                    .instructions
+                    .iter()
+                    .all(|&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
+            {
+                continue;
+            }
+            let first = block.predecessors[0];
+            let mut predecessors = block
+                .predecessors
+                .iter()
+                .copied()
+                .filter(|&pred| pred != first)
+                .collect::<Vec<_>>();
+            predecessors.sort_unstable();
+            predecessors.dedup();
+            let values = values.clone();
+            let metadata = block.terminator_metadata.clone();
+            for pred in predecessors {
+                let values = values
+                    .iter()
+                    .map(|&value| {
+                        let Value::Inst(inst_id) = func.value(value) else { return value };
+                        match &func.inst(*inst_id).kind {
+                            InstKind::Phi(incoming)
+                                if func.blocks[block_id].instructions.contains(inst_id) =>
+                            {
+                                incoming
+                                    .iter()
+                                    .find(|&&(block, _)| block == pred)
+                                    .map_or(value, |&(_, incoming)| incoming)
+                            }
+                            _ => value,
+                        }
+                    })
+                    .collect();
+                // pred -> block: ret phis => pred -> copy: ret incoming(pred)
+                let copy = split_edge(func, pred, block_id);
+                replace_terminator(func, copy, Terminator::Return { values });
+                func.blocks[copy].terminator_metadata = metadata.clone();
+                self.stats.returns_split += 1;
+            }
+        }
+    }
+
     /// Merges identical terminal blocks (no phis, terminator without
     /// successors, alpha-equivalent instructions) into one shared block and
     /// redirects all predecessor edges to it.
@@ -270,14 +382,23 @@ impl CfgSimplifier {
     /// function. The rewrite is phi-safe by construction: the kept block has
     /// no phis and a terminal block has no successors, so no phi inputs
     /// elsewhere can mention it.
+    ///
+    /// Internal returns stay separate. A shared return gives a loop's exit
+    /// edge a target with several predecessors, where the backend cannot keep
+    /// the loop's carried stack across the branch and spills it on every
+    /// iteration. The backend shares identical return sequences after stack
+    /// scheduling instead.
     fn deduplicate_terminal_blocks(&mut self, func: &mut Function) {
         let mut kept: FxHashMap<CanonBlock, BlockId> = FxHashMap::default();
         let mut merges: Vec<(BlockId, BlockId)> = Vec::new();
         for block_id in func.blocks.indices() {
-            if func.blocks[block_id].predecessors.is_empty() {
+            let block = &func.blocks[block_id];
+            if block.predecessors.is_empty()
+                || matches!(block.terminator, Some(Terminator::Return { .. }))
+            {
                 continue;
             }
-            let Some(canon) = Self::canonicalize_terminal_block(func, block_id) else {
+            let Some(canon) = terminal_block_key(func, block_id) else {
                 continue;
             };
             let keep = *kept.entry(canon).or_insert(block_id);
@@ -312,85 +433,6 @@ impl CfgSimplifier {
             func.blocks[dup].predecessors.clear();
             self.stats.terminal_blocks_deduplicated += 1;
         }
-    }
-
-    /// Builds the alpha-equivalence key of a terminal block, or `None` if the
-    /// block is not a dedup candidate.
-    fn canonicalize_terminal_block(func: &Function, block_id: BlockId) -> Option<CanonBlock> {
-        let block = &func.blocks[block_id];
-        let term = block.terminator.as_ref()?;
-        if matches!(term, Terminator::Invalid) || !term.successors().is_empty() {
-            return None;
-        }
-
-        let mut local_defs: FxHashMap<ValueId, usize> = FxHashMap::default();
-        for (position, &inst_id) in block.instructions.iter().enumerate() {
-            if let Some(result) = func.inst_result_value(inst_id) {
-                local_defs.insert(result, position);
-            }
-        }
-
-        let canon_operand = |value: ValueId| {
-            if let Some(&position) = local_defs.get(&value) {
-                return CanonOperand::Local(position);
-            }
-            match func.value(value) {
-                Value::Immediate(imm) => CanonOperand::Imm(imm.clone()),
-                _ => CanonOperand::Outside(value),
-            }
-        };
-
-        let mut insts = Vec::with_capacity(block.instructions.len());
-        for &inst_id in &block.instructions {
-            let inst = func.inst(inst_id);
-            match &inst.kind {
-                InstKind::Phi(_)
-                | InstKind::Alloc { .. }
-                | InstKind::MemoryObjectLen(_, _)
-                | InstKind::SetMemoryObjectLen(_, _, _)
-                | InstKind::MemoryObjectData(_, _)
-                | InstKind::MemoryObjectFieldAddr { .. }
-                | InstKind::MemoryObjectElementAddr { .. }
-                | InstKind::MemoryObjectLoadField { .. }
-                | InstKind::MemoryObjectStoreField { .. }
-                | InstKind::MemoryObjectLoadElement { .. }
-                | InstKind::MemoryObjectLoadByte { .. }
-                | InstKind::MemoryObjectStoreElement { .. }
-                | InstKind::MemoryObjectStoreByte { .. }
-                | InstKind::MemoryObjectStoreWord { .. }
-                | InstKind::MemorySliceLoadWord { .. }
-                | InstKind::CalldataSliceLoadWord { .. }
-                | InstKind::MemoryObjectCopyFromSlice { .. }
-                | InstKind::MemoryObjectCopyFromSliceAt { .. }
-                | InstKind::MemoryObjectCopy { .. }
-                | InstKind::AbiEncode { .. }
-                | InstKind::AbiDecode { .. }
-                | InstKind::StorageToMemory { .. }
-                | InstKind::MemoryToStorage { .. }
-                | InstKind::ClearStorage { .. }
-                | InstKind::FrameLoad { .. }
-                | InstKind::FrameStore { .. }
-                | InstKind::StoreImmutable(_, _)
-                | InstKind::LoadImmutable(_)
-                | InstKind::StorageArrayElementSlot { .. } => return None,
-                _ => {}
-            }
-            let mut metadata = inst.metadata.clone();
-            metadata.set_hir_expr(None);
-            metadata.mark_debug_info_dropped();
-            metadata.loop_depth = 0;
-            insts.push(CanonInst {
-                kind: inst.kind.clone_without_operands(),
-                operands: inst.kind.operands().into_iter().map(canon_operand).collect(),
-                result_ty: inst.result_ty,
-                metadata,
-            });
-        }
-
-        let term_function =
-            if let Terminator::TailCall { function, .. } = term { Some(*function) } else { None };
-        let term_operands = term.operands().into_iter().map(canon_operand).collect();
-        Some(CanonBlock { insts, term_mnemonic: term.mnemonic(), term_function, term_operands })
     }
 
     fn simplify_trivial_phis(&mut self, func: &mut Function) {
@@ -486,6 +528,12 @@ impl CfgSimplifier {
                     {
                         Some(*then_block)
                     }
+                    Some(Terminator::Branch { then_block, else_block, .. })
+                        if Self::equivalent_returns(func, *then_block, *else_block) =>
+                    {
+                        Self::merge_return_origins(func, *else_block, *then_block);
+                        Some(*then_block)
+                    }
                     Some(Terminator::Switch { default, cases, .. }) => {
                         let old_len = cases.len();
                         while cases.last().is_some_and(|(_, target)| target == default) {
@@ -509,6 +557,32 @@ impl CfgSimplifier {
                 replace_terminator(func, block_id, terminator);
             }
         }
+    }
+
+    /// Whether two distinct blocks return the same values through the same instructions.
+    ///
+    /// Returns are never shared, so a branch between two copies of one return
+    /// stays until it is folded here.
+    fn equivalent_returns(func: &Function, a: BlockId, b: BlockId) -> bool {
+        a != b
+            && matches!(func.blocks[a].terminator, Some(Terminator::Return { .. }))
+            && terminal_block_key(func, a)
+                .is_some_and(|key| terminal_block_key(func, b) == Some(key))
+    }
+
+    /// Adds the source origins of an equivalent return to the one that replaces it.
+    fn merge_return_origins(func: &mut Function, from: BlockId, into: BlockId) {
+        let origins = func.blocks[into]
+            .instructions
+            .iter()
+            .zip(&func.blocks[from].instructions)
+            .map(|(&target, &source)| (target, func.inst(source).metadata.debug_context()))
+            .collect::<Vec<_>>();
+        for (target, metadata) in origins {
+            func.inst_mut(target).metadata.merge_debug_context(&metadata);
+        }
+        let metadata = func.blocks[from].terminator_metadata.debug_context();
+        func.blocks[into].terminator_metadata.merge_debug_context(&metadata);
     }
 
     fn known_branch_target(func: &Function, block: BlockId) -> Option<BlockId> {
@@ -984,4 +1058,83 @@ fn retain_functions(module: &mut Module, keep: &DenseBitSet<FunctionId>) -> usiz
     }
 
     removed
+}
+
+/// Builds the alpha-equivalence key of a terminal block, or `None` if the
+/// block cannot be shared.
+pub(super) fn terminal_block_key(func: &Function, block_id: BlockId) -> Option<CanonBlock> {
+    let block = &func.blocks[block_id];
+    let term = block.terminator.as_ref()?;
+    if matches!(term, Terminator::Invalid) || !term.successors().is_empty() {
+        return None;
+    }
+
+    let mut local_defs: FxHashMap<ValueId, usize> = FxHashMap::default();
+    for (position, &inst_id) in block.instructions.iter().enumerate() {
+        if let Some(result) = func.inst_result_value(inst_id) {
+            local_defs.insert(result, position);
+        }
+    }
+
+    let canon_operand = |value: ValueId| {
+        if let Some(&position) = local_defs.get(&value) {
+            return CanonOperand::Local(position);
+        }
+        match func.value(value) {
+            Value::Immediate(imm) => CanonOperand::Imm(imm.clone()),
+            _ => CanonOperand::Outside(value),
+        }
+    };
+
+    let mut insts = Vec::with_capacity(block.instructions.len());
+    for &inst_id in &block.instructions {
+        let inst = func.inst(inst_id);
+        match &inst.kind {
+            InstKind::Phi(_)
+            | InstKind::Alloc { .. }
+            | InstKind::MemoryObjectLen(_, _)
+            | InstKind::SetMemoryObjectLen(_, _, _)
+            | InstKind::MemoryObjectData(_, _)
+            | InstKind::MemoryObjectFieldAddr { .. }
+            | InstKind::MemoryObjectElementAddr { .. }
+            | InstKind::MemoryObjectLoadField { .. }
+            | InstKind::MemoryObjectStoreField { .. }
+            | InstKind::MemoryObjectLoadElement { .. }
+            | InstKind::MemoryObjectLoadByte { .. }
+            | InstKind::MemoryObjectStoreElement { .. }
+            | InstKind::MemoryObjectStoreByte { .. }
+            | InstKind::MemoryObjectStoreWord { .. }
+            | InstKind::MemorySliceLoadWord { .. }
+            | InstKind::CalldataSliceLoadWord { .. }
+            | InstKind::MemoryObjectCopyFromSlice { .. }
+            | InstKind::MemoryObjectCopyFromSliceAt { .. }
+            | InstKind::MemoryObjectCopy { .. }
+            | InstKind::AbiEncode { .. }
+            | InstKind::AbiDecode { .. }
+            | InstKind::StorageToMemory { .. }
+            | InstKind::MemoryToStorage { .. }
+            | InstKind::ClearStorage { .. }
+            | InstKind::FrameLoad { .. }
+            | InstKind::FrameStore { .. }
+            | InstKind::StoreImmutable(_, _)
+            | InstKind::LoadImmutable(_)
+            | InstKind::StorageArrayElementSlot { .. } => return None,
+            _ => {}
+        }
+        let mut metadata = inst.metadata.clone();
+        metadata.set_hir_expr(None);
+        metadata.mark_debug_info_dropped();
+        metadata.loop_depth = 0;
+        insts.push(CanonInst {
+            kind: inst.kind.clone_without_operands(),
+            operands: inst.kind.operands().into_iter().map(canon_operand).collect(),
+            result_ty: inst.result_ty,
+            metadata,
+        });
+    }
+
+    let term_function =
+        if let Terminator::TailCall { function, .. } = term { Some(*function) } else { None };
+    let term_operands = term.operands().into_iter().map(canon_operand).collect();
+    Some(CanonBlock { insts, term_mnemonic: term.mnemonic(), term_function, term_operands })
 }
