@@ -259,25 +259,28 @@ impl<'gcx> EvmCodegen<'gcx> {
             return None;
         }
 
-        // Stack arguments are inserted above the hidden return label. A value duplicated from the
-        // preserved caller prefix must remain addressable after the label and earlier arguments
-        // have been pushed.
-        if let Some(mask) = stack_mask {
+        let stack_args_fit = |stack: &StackModel| {
+            let Some(mask) = stack_mask else { return true };
             let mut words_above = 1;
             for (index, &arg) in args.iter().enumerate() {
                 if !mask.contains(index) {
                     continue;
                 }
-                if self
-                    .scheduler
-                    .stack
+                if stack
                     .find(arg)
                     .is_some_and(|depth| depth + words_above + 1 > self.stack_access_limit())
                 {
-                    return None;
+                    return false;
                 }
                 words_above += 1;
             }
+            true
+        };
+        // Stack arguments are inserted above the hidden return label. A value duplicated from the
+        // preserved caller prefix must remain addressable after the label and earlier arguments
+        // have been pushed.
+        if !stack_args_fit(&self.scheduler.stack) {
+            return None;
         }
 
         // A call cannot observe words below its hidden return address. Keep an entirely live,
@@ -368,7 +371,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .filter(|&&value| !self.scheduler.spills.is_stored(value))
                     .count();
                 let spill_fallback_cost = depth + fresh * 3 + retained.len() * 2;
-                if stack_args_are_stable && prepare_ops.len() < spill_fallback_cost {
+                if stack_args_are_stable
+                    && stack_args_fit(&caller_stack)
+                    && prepare_ops.len() < spill_fallback_cost
+                {
                     return Some(StaticCallStackPlan { prepare_ops, caller_stack });
                 }
             }
@@ -789,6 +795,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         raw_spill_slots[i],
                         caller_stack.as_ref(),
                         1 + pushed_args,
+                        carries_resident_stack,
                     );
                     pushed_args += 1;
                 }
