@@ -624,6 +624,73 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ))
     }
 
+    /// The arguments of `expr` when it is an `abi.encodePacked` call that ends with a `bytes` or
+    /// `string` in memory, after literals and scalars of at most one word in all: an encoding
+    /// [`Self::lower_packed_in_place`] lays out over the length word of those bytes instead of
+    /// copying them.
+    pub(super) fn packed_in_place_args<'a>(
+        &self,
+        expr: &'a hir::Expr<'a>,
+    ) -> Option<&'a [hir::Expr<'a>]> {
+        let (callee, args, _) = expr.peel_parens().as_call()?;
+        if self.cx.gcx.resolved_builtin(callee)? != Builtin::AbiEncodePacked {
+            return None;
+        }
+        let hir::CallArgsKind::Unnamed(exprs) = args.kind else { return None };
+        let (bytes, prefix) = exprs.split_last()?;
+        let ty = self.cx.gcx.type_of_expr(bytes.id)?;
+        if !ty.is_ref_at(DataLocation::Memory)
+            || !self.is_dynamic_bytes_type(ty)
+            || self.is_view_expr(bytes)
+        {
+            return None;
+        }
+        let mut size = 0;
+        for expr in prefix {
+            if let ExprKind::Lit(lit) = self.peel_bytes_conversion(expr).peel_parens().kind
+                && let LitKind::Str(_, bytes, _) = &lit.kind
+            {
+                size += bytes.as_byte_str().len() as u64;
+            } else if !self.is_view_expr(expr)
+                && let Some((length, _)) =
+                    self.packed_static_shape(self.cx.gcx.type_of_expr(expr.id)?)
+            {
+                size += length;
+            } else {
+                return None;
+            }
+        }
+        (size <= 32).then_some(exprs)
+    }
+
+    /// Lowers the `abi.encodePacked` arguments [`Self::packed_in_place_args`] accepted, laid out
+    /// over the length word of the bytes they end with: a memory slice of the encoding, and the
+    /// layout [`restore_length`] undoes once the slice has been read. Bytes that turn out not to
+    /// be a memory object are encoded as usual instead.
+    pub(super) fn lower_packed_in_place(
+        &mut self,
+        exprs: &[hir::Expr<'_>],
+    ) -> Option<(ValueId, Option<PrefixedBytes>)> {
+        let parts = self.lower_packed_parts(exprs)?;
+        if let Some((PackedPart::Bytes(object), prefix)) = parts.split_last()
+            && self.builder.func().value_slice_location(*object).is_none()
+            && static_prefix_size(prefix).is_some()
+        {
+            // mstore(object.header, prefix)
+            // input = memory_slice(object.header + 32 - prefix_size, prefix_size + object.len)
+            let prefixed = prefix_over_length(&mut self.builder, prefix, *object);
+            let input =
+                self.builder.make_slice(prefixed.start, prefixed.size, SliceLocation::Memory);
+            return Some((input, Some(prefixed)));
+        }
+        // output = abi_encode_packed(parts)
+        let output = self.builder.emit_inst(
+            InstKind::AbiEncodePacked { parts, hash: false },
+            Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
+        );
+        Some((output, None))
+    }
+
     pub(super) fn lower_keccak_abi_encode_packed(
         &mut self,
         args: hir::CallArgs<'_>,

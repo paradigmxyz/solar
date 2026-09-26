@@ -166,6 +166,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|&parameter| self.cx.gcx.type_of_item(parameter.into()))
             .collect::<Vec<_>>();
         let mut operands = vec![None; parameter_tys.len()];
+        let mut in_place = None;
         for (position, &(index, argument)) in order.iter().enumerate() {
             let parameter_ty = *parameter_tys.get(index)?;
             // The operands evaluated after this one.
@@ -203,6 +204,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // only name buffers already in memory, so nothing allocates before the call
                 // reads it.
                 self.lower_abi_encode_call_scratch(builtin, encode_args)?
+            } else if Self::core_in_place_input(intrinsic) == Some(index)
+                && later().all(|later| self.core_argument_leaves_memory(later))
+                && let Some(packed) = self.packed_in_place_args(argument)
+            {
+                // The input is laid out over the length word of the bytes it ends with, which
+                // is written back once the creation or call has read it. The operands after it
+                // neither read nor write memory, and the intrinsic reads no buffer before it
+                // creates or calls, so nothing observes the borrowed word.
+                let (value, prefixed) = self.lower_packed_in_place(packed)?;
+                in_place = prefixed;
+                value
             } else {
                 let value = self.lower_typed_expr(argument, parameter_ty)?;
                 self.materialize_call_argument(parameter_ty, value, argument.span)?
@@ -216,7 +228,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.before_core_return(expr.span)?;
         }
 
-        match intrinsic {
+        let result = match intrinsic {
             CoreIntrinsic::Base64Encode => self.lower_core_base64_encode_call(&operands),
             CoreIntrinsic::Base64Decode => self.lower_core_base64_decode(&operands),
             CoreIntrinsic::ReadBytes(width) => self.lower_core_read(&operands, width),
@@ -408,7 +420,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     _ => self.builder.mul(x, y),
                 })
             }
+        };
+        if let Some(prefixed) = &in_place {
+            // mstore(bytes.header, bytes.len)
+            restore_length(&mut self.builder, prefixed);
         }
+        result
     }
 
     /// The index of the single set bit of `bit`, or 256 when it is zero,
@@ -2143,6 +2160,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         )
     }
 
+    /// The operand of a creation or call intrinsic whose input an `abi.encodePacked` call can
+    /// lay out in place. The intrinsics that also take an output buffer read it before they
+    /// create or call, and it can be the bytes the input ends with, so they are left out.
+    fn core_in_place_input(intrinsic: CoreIntrinsic) -> Option<usize> {
+        match intrinsic {
+            CoreIntrinsic::Deploy
+            | CoreIntrinsic::Deploy2
+            | CoreIntrinsic::TryDeploy
+            | CoreIntrinsic::TryDeploy2 => Some(0),
+            CoreIntrinsic::CallBounded => Some(3),
+            CoreIntrinsic::StaticCallBounded => Some(2),
+            _ => None,
+        }
+    }
+
     /// Whether evaluating the operand `expr` neither allocates nor writes memory: a number
     /// literal, or a local variable holding a value or a memory reference, neither of which
     /// needs a conversion that copies.
@@ -2535,8 +2567,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// The `create` or `create2` both deployment families share.
     fn core_create(&mut self, initcode: ValueId, salt: Option<ValueId>, value: ValueId) -> ValueId {
-        let length = self.builder.memory_object_len(initcode, MemoryObjectKind::Bytes);
-        let pointer = self.builder.memory_object_data(initcode, MemoryObjectKind::Bytes);
+        // The initcode is a buffer, or an encoding laid out in place.
+        let length = self.core_bytes_len(initcode);
+        let pointer = self.core_bytes_data(initcode);
         // deployed = create|create2(value, data, len[, salt])
         match salt {
             Some(salt) => self.builder.create2(value, pointer, length, salt),
