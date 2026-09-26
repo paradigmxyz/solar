@@ -263,8 +263,6 @@ impl<'gcx> Assembler<'gcx> {
     fn debug_assert_dataflow_relocations_sorted(&self) {
         debug_assert!(self.label_relocations.is_sorted_by_key(|r| (r.0, r.1)));
         debug_assert!(self.indexed_jump_relocations.is_sorted_by_key(|r| r.0));
-        debug_assert!(self.deferred_relocations.is_sorted_by_key(|r| r.0));
-        debug_assert!(self.alloc_relocations.is_sorted_by_key(|r| r.0));
     }
 
     /// Control-flow edges among the blocks in `range` before EVM IR finalization.

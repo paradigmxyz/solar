@@ -283,12 +283,13 @@ impl<'a> PeepContext<'a> {
         if last.is_encoded_push() {
             return None;
         }
-        let class = match (last.as_stack_op(), last.as_evm_opcode()) {
-            (Some(StackOp::Dup(_)), _) | (None, Some(DUP1..=DUP16)) => TailClass::Dup,
-            (Some(StackOp::Swap(_)), _) | (None, Some(SWAP1..=SWAP16)) => TailClass::Swap,
-            (Some(StackOp::Exchange(..)), _) => TailClass::Exchange,
-            (Some(StackOp::Pop), _) | (None, Some(POP)) => TailClass::Pop,
-            (None, _) => TailClass::Op,
+        // The verifier rejects raw stack opcodes, so the logical form classifies every tail.
+        let class = match last.as_stack_op() {
+            Some(StackOp::Dup(_)) => TailClass::Dup,
+            Some(StackOp::Swap(_)) => TailClass::Swap,
+            Some(StackOp::Exchange(..)) => TailClass::Exchange,
+            Some(StackOp::Pop) => TailClass::Pop,
+            None => TailClass::Op,
         };
         let rewrite = self.select_class(class);
         if cfg!(debug_assertions) {

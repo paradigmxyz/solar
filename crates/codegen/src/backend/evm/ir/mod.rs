@@ -103,7 +103,7 @@ pub struct Module {
     /// Whether passes must account for every operation's source debug information.
     debug_info_tracked: bool,
     /// Block contents in which an earlier peephole run found nothing to rewrite.
-    pub(crate) peephole_clean: passes::CleanBlocks,
+    pub(super) peephole_clean: passes::CleanBlocks,
 }
 
 impl Module {

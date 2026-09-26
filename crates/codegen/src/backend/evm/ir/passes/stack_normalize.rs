@@ -121,7 +121,9 @@ struct Normalizer {
 impl Normalizer {
     fn run(&mut self, instructions: &mut Vec<Instruction>, evm_version: EvmVersion) -> bool {
         self.normalizations.clear();
-        if !instructions.windows(2).any(|window| window.iter().all(|inst| stack_op(inst).is_some()))
+        if !instructions
+            .windows(2)
+            .any(|window| window.iter().all(|inst| inst.as_stack_op().is_some()))
         {
             return false;
         }
@@ -129,7 +131,7 @@ impl Normalizer {
         let mut cursor = 0;
         while cursor < instructions.len() {
             let run_start = cursor;
-            while cursor < instructions.len() && stack_op(&instructions[cursor]).is_some() {
+            while cursor < instructions.len() && instructions[cursor].as_stack_op().is_some() {
                 cursor += 1;
             }
             if cursor == run_start {
@@ -146,7 +148,7 @@ impl Normalizer {
                 };
                 let end = start + len;
                 input.clear();
-                input.extend(instructions[start..end].iter().filter_map(stack_op));
+                input.extend(instructions[start..end].iter().filter_map(Instruction::as_stack_op));
                 if input.len() >= 2
                     && let Some(output) = normalization(&input, evm_version, &mut self.cache)
                 {
@@ -176,7 +178,6 @@ impl Normalizer {
                 match original.next() {
                     Some((_, mut inst)) => {
                         replacement.metadata = std::mem::take(&mut inst.metadata);
-                        replacement.metadata.stack = None;
                     }
                     None => match instructions.last() {
                         Some(last) if instructions.len() > first => {
@@ -221,10 +222,6 @@ fn compute_normalization(input: &StackRun, evm_version: EvmVersion) -> Option<St
         && output_cost.2 <= input_cost.2
         && output_cost != input_cost)
         .then_some(output)
-}
-
-fn stack_op(inst: &Instruction) -> Option<StackOp> {
-    inst.as_stack_op()
 }
 
 fn remove_redundant_permutations(

@@ -21,7 +21,10 @@
 
 use super::EvmPass;
 use crate::backend::evm::{
-    ir::{Block, BlockId, Instruction, Module, Terminator, TerminatorKind},
+    ir::{
+        Block, BlockId, Instruction, Module, Terminator, TerminatorKind,
+        default_instruction_stack_effect,
+    },
     op::{self, StackOp},
 };
 use solar_config::EvmVersion;
@@ -78,17 +81,17 @@ fn block_ignores_entry_stack(block: &Block) -> bool {
     let Some((inputs, _)) = halting_stack_io(kind) else { return false };
     let mut depth = 0usize;
     for inst in &block.instructions {
-        // Only unknown instructions declare a stack effect; treat them as opaque.
-        if inst.metadata.stack.is_some() || inst.as_evm_opcode().is_some_and(is_analysis_boundary) {
+        if inst.as_evm_opcode().is_some_and(is_analysis_boundary) {
             return false;
         }
         let (inputs, outputs) = if let Some(stack_op) = inst.as_stack_op() {
             let inputs = stack_op.required_depth();
             let outputs = inputs.checked_add_signed(stack_op.net_growth()).unwrap();
             (inputs, outputs)
-        } else if let Some(effect) = inst.effective_stack_effect() {
+        } else if let Some(effect) = default_instruction_stack_effect(inst) {
             (usize::from(effect.inputs), usize::from(effect.outputs))
         } else {
+            // An unknown instruction stays opaque, whatever stack effect it declares.
             return false;
         };
         if depth < inputs {
@@ -402,13 +405,11 @@ fn find_candidate(
                 candidate.replace(index, StackOp::Exchange(n, m), replacement, evm_version);
             }
             None => {
-                // Only unknown instructions declare a stack effect; treat them as opaque.
-                if inst.metadata.stack.is_some()
-                    || inst.as_evm_opcode().is_some_and(is_analysis_boundary)
-                {
+                if inst.as_evm_opcode().is_some_and(is_analysis_boundary) {
                     return None;
                 }
-                let effect = inst.effective_stack_effect()?;
+                // An unknown instruction stays opaque, whatever stack effect it declares.
+                let effect = default_instruction_stack_effect(inst)?;
                 let inputs = usize::from(effect.inputs);
                 if inputs > slots.len()
                     || slots[slots.len() - inputs..].iter().any(|slot| slot.is_ghost)

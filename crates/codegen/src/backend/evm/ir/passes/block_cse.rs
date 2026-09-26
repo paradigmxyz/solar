@@ -111,7 +111,6 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
             {
                 let mut duplicate = Instruction::stack_op(op::StackOp::Dup((depth + 1) as u8));
                 duplicate.metadata = inst.metadata;
-                duplicate.metadata.stack = None;
                 let origin = instructions.len();
                 instructions.push(duplicate);
                 stack.push(StackValue { expr, span: None, origin: Some(origin) });
@@ -222,7 +221,6 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
                     instructions.truncate(instructions.len() - 1);
                     let mut duplicate = Instruction::stack_op(op::StackOp::Dup((depth + 1) as u8));
                     duplicate.metadata = inst.metadata;
-                    duplicate.metadata.stack = None;
                     let origin = instructions.len();
                     instructions.push(duplicate);
                     stack.push(StackValue { expr: known, span: None, origin: Some(origin) });
@@ -267,7 +265,6 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
                 instructions.truncate(start);
                 let mut duplicate = Instruction::stack_op(op::StackOp::Dup((depth + 1) as u8));
                 duplicate.metadata = inst.metadata;
-                duplicate.metadata.stack = None;
                 let origin = instructions.len();
                 instructions.push(duplicate);
                 stack.push(StackValue { expr, span: None, origin: Some(origin) });

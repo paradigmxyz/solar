@@ -124,8 +124,8 @@ const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 /// Block contents on which a peephole run found no rewrite, so the same contents can be skipped.
 ///
 /// Matching reads only each instruction's opcode, encoding, value, stack operation, and
-/// `keep_with_next` flag, never metadata, so equal keys produce the same result. The final rules
-/// extend the early ones, so contents clean under them are clean under both.
+/// `keep_with_next` flag, and no other metadata, so equal keys produce the same result. The final
+/// rules extend the early ones, so contents clean under them are clean under both.
 /// Module clones start without the cache, and it never affects module equality.
 ///
 /// NOTE: Records hold a hash of the keys rather than a copy, which would retain every clean
@@ -505,14 +505,12 @@ fn overwrite_raw(inst: &mut Instruction, opcode: u8) {
     let metadata = std::mem::take(&mut inst.metadata);
     *inst = Instruction::opcode(opcode);
     inst.metadata = metadata;
-    inst.metadata.stack = None;
 }
 
 fn overwrite_stack_op(inst: &mut Instruction, stack_op: op::StackOp) {
     let metadata = std::mem::take(&mut inst.metadata);
     *inst = Instruction::stack_op(stack_op);
     inst.metadata = metadata;
-    inst.metadata.stack = None;
 }
 
 /// Returns the byte length and static gas of the selected materialization of `value`.

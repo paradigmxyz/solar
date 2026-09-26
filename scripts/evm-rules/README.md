@@ -337,7 +337,7 @@ Malformed input bytecode and out-of-gas behavior are excluded. The Rust window
 facets, edits and target lowering remain trusted and are recorded by hash.
 The guarded five-op window rejects protected instruction boundaries, and the
 verifier forbids stack effect overrides on known opcodes; focused window-helper
-tests check these Rust-side guards.
+tests check the boundary guard.
 Other peepholes, especially memory and branch rewrites, are not covered by this
 lane. Unknown syntax, guards, edits or operations fail verification.
 

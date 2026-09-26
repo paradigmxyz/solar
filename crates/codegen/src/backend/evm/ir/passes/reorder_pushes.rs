@@ -281,7 +281,6 @@ impl InstructionSequence {
         let metadata = std::mem::take(&mut instruction.metadata);
         let mut replacement = Instruction::stack_op(stack_op);
         replacement.metadata = metadata;
-        replacement.metadata.stack = None;
         *instruction = replacement;
     }
 
