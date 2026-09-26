@@ -15,6 +15,7 @@
 //@ run-call: echo 5, 36 => true, 0x123456780000000000000000000000000000000000000000000000000000000000000005, 36
 //@ run-call: echo 5, 10 => true, 0x12345678000000000000, 36
 //@ run-call: echoStatic 5, 6 => true, 0x00000000000000000000000000000000000000000000000000000000000000050000000000000000000000000000000000000000000000000000000000000006, 64
+//@ run-call: nothing 5 => true, 0x, 32
 
 // `Calls.callBounded` and `staticCallBounded` copy at most `maxCopy` bytes
 // of what the callee returns, or reverts with, into a buffer allocated once
@@ -22,12 +23,21 @@
 // where they are called: a payload built by `abi.encode*` is staged past the
 // free memory pointer, as the operand after it is a number or a local, and
 // the buffer is allocated after the call. The identity precompile returns
-// its input, so the buffer receives the payload.
+// its input, so the buffer receives the payload. An empty literal payload is
+// sent from no memory, and a bound of zero copies nothing into the empty
+// bytes, so neither needs a buffer.
+// CHECK-LABEL: fn @bounded()
+// CHECK-NOT: mstore 64,
+// CHECK: = call {{v[0-9]+}}, {{v[0-9]+}}, 0, 0, 0, 0, 0
 // CHECK-LABEL: fn @echo()
 // CHECK-NOT: mstore 64,
 // CHECK: = call {{v[0-9]+}}, 4, 0, {{v[0-9]+}}, 36, 0, 0
 // CHECK: mstore 64,
 // CHECK: returndatacopy
+// CHECK-LABEL: fn @nothing()
+// CHECK-NOT: mstore 64,
+// CHECK: = call {{v[0-9]+}}, 4, 0, {{v[0-9]+}}, 32, 0, 0
+// CHECK-NOT: returndatacopy
 // CHECK-LABEL: fn @echoStatic()
 // CHECK-NOT: mstore 64,
 // CHECK: = staticcall {{v[0-9]+}}, 4, {{v[0-9]+}}, 64, 0, 0
@@ -59,6 +69,13 @@ contract Test {
     {
         return
             Calls.callBounded(address(4), 0, gasleft(), abi.encodeWithSelector(0x12345678, a), maxCopy);
+    }
+
+    function nothing(uint256 a)
+        public
+        returns (bool success, bytes memory output, uint256 total)
+    {
+        return Calls.callBounded(address(4), 0, gasleft(), abi.encode(a), 0);
     }
 
     function echoStatic(uint256 a, uint256 b)
