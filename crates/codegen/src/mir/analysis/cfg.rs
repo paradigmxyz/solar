@@ -101,9 +101,9 @@ impl CfgInfo {
                 if !visited.insert(start) {
                     continue;
                 }
-                stack.push((start, 0usize));
+                stack.push((start, 0u32));
                 while let Some((block, next)) = stack.last_mut() {
-                    if let Some(&successor) = self.successors[*block].get(*next) {
+                    if let Some(&successor) = self.successors[*block].get(*next as usize) {
                         *next += 1;
                         if visited.insert(successor) {
                             stack.push((successor, 0));
@@ -149,10 +149,10 @@ impl CfgInfo {
         self.rpo.get_or_init(|| {
             let mut reachable = DenseBitSet::new_empty(self.successors.len());
             let mut rpo = Vec::with_capacity(self.successors.len());
-            let mut stack = vec![(BlockId::ENTRY, 0usize)];
+            let mut stack = vec![(BlockId::ENTRY, 0u32)];
             reachable.insert(BlockId::ENTRY);
             while let Some((block, next)) = stack.last_mut() {
-                if let Some(&succ) = self.successors[*block].get(*next) {
+                if let Some(&succ) = self.successors[*block].get(*next as usize) {
                     *next += 1;
                     if reachable.insert(succ) {
                         stack.push((succ, 0));

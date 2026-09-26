@@ -103,7 +103,7 @@ fn backedge_weights(module: &Module, header: BlockId) -> FxHashMap<BlockId, u64>
 fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut order = module.blocks.indices().collect::<Vec<_>>();
     // Position of each block in `order`.
-    let mut positions = (0..order.len()).collect::<IndexVec<BlockId, _>>();
+    let mut positions = (0..order.len() as u32).collect::<IndexVec<BlockId, _>>();
     let mut moved = DenseBitSet::new_empty(module.blocks.len());
     let mut reachable = DenseBitSet::new_empty(module.blocks.len());
     let mut pending = Vec::new();
@@ -114,7 +114,7 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
             && !moved.contains(*header)
             && !module.blocks[latch].metadata.hotness.is_cold()
         {
-            let (h, l) = (positions[*header], positions[latch]);
+            let (h, l) = (positions[*header] as usize, positions[latch] as usize);
             if h == 0 || l <= h {
                 continue;
             }
@@ -167,7 +167,7 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 order.remove(l);
                 order.insert(h, latch);
                 for (position, &block) in order.iter().enumerate().take(l + 1).skip(h) {
-                    positions[block] = position;
+                    positions[block] = position as u32;
                 }
                 moved.insert(*header);
             }

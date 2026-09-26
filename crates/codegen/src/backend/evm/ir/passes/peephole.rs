@@ -135,7 +135,7 @@ pub(crate) struct CleanBlocks(IndexVec<BlockId, Option<CleanBlock>>);
 
 struct CleanBlock {
     final_cleanup: bool,
-    len: usize,
+    len: u32,
     hash: u64,
 }
 
@@ -152,7 +152,7 @@ impl CleanBlocks {
     /// whether the final rules were included.
     fn recorded(&self, block: BlockId, instructions: &[Instruction]) -> Option<bool> {
         let clean = self.0.get(block)?.as_ref()?;
-        (clean.len == instructions.len() && clean.hash == clean_hash(instructions))
+        (clean.len as usize == instructions.len() && clean.hash == clean_hash(instructions))
             .then_some(clean.final_cleanup)
     }
 }
@@ -244,7 +244,7 @@ fn optimize_module<const LATE: bool>(
             } else {
                 clean.0[block_id] = Some(CleanBlock {
                     final_cleanup,
-                    len: block.instructions.len(),
+                    len: block.instructions.len() as u32,
                     hash: clean_hash(&block.instructions),
                 });
             }

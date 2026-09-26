@@ -32,6 +32,7 @@ use crate::backend::evm::{
     op::{self, StackOp},
 };
 use solar_config::{EvmVersion, OptimizationMode};
+use solar_data_structures::{index::IndexVec, newtype_index};
 use solar_sema::Gcx;
 
 pub(super) const REORDER_PUSHES: ReorderPushes =
@@ -102,8 +103,8 @@ impl ReorderState {
         self.sequence.reserve(self.sequence.instructions.len());
         self.expressions.clear();
         let mut changed = false;
-        for index in 0..self.sequence.instructions.len() {
-            let inst = &self.sequence.instructions[index];
+        for index in 0..self.sequence.instructions.len() as u32 {
+            let inst = &self.sequence.instructions[index as usize];
             let swap1 = inst.as_stack_op() == Some(StackOp::Swap(1));
             if swap1
                 && let Some(pushed) = self.expressions.last()
@@ -155,9 +156,9 @@ fn rebase_dup(evm_version: EvmVersion, depth: u8) -> Option<StackOp> {
 
 fn rebasable_dup_before(
     sequence: &InstructionSequence,
-    before: usize,
+    before: NodeId,
     evm_version: EvmVersion,
-) -> Option<(usize, StackOp)> {
+) -> Option<(NodeId, StackOp)> {
     let mut node = sequence.previous(before)?;
     loop {
         let inst = sequence.instruction(node);
@@ -178,7 +179,7 @@ fn rebasable_dup_before(
 
 #[derive(Clone, Copy)]
 struct Expression {
-    start: usize,
+    start: NodeId,
     immediate_recipe: bool,
     movable: bool,
 }
@@ -186,7 +187,7 @@ struct Expression {
 fn update_expressions(
     expressions: &mut Vec<Expression>,
     sequence: &InstructionSequence,
-    node: usize,
+    node: NodeId,
 ) {
     let inst = sequence.instruction(node);
     let effect = if let Some(effect) = inst.effective_stack_effect()
@@ -222,20 +223,25 @@ fn update_expressions(
     expressions.push(Expression { start: first, immediate_recipe, movable });
 }
 
+newtype_index! {
+    /// A node of an [`InstructionSequence`].
+    struct NodeId;
+}
+
 struct InstructionNode {
     /// Index of the instruction in the block being reordered.
-    instruction: usize,
-    previous: Option<usize>,
-    next: Option<usize>,
+    instruction: u32,
+    previous: Option<NodeId>,
+    next: Option<NodeId>,
 }
 
 /// A linked order over the block's instructions, which stay in place until it is finished.
 #[derive(Default)]
 struct InstructionSequence {
     instructions: Vec<Instruction>,
-    nodes: Vec<InstructionNode>,
-    first: Option<usize>,
-    last: Option<usize>,
+    nodes: IndexVec<NodeId, InstructionNode>,
+    first: Option<NodeId>,
+    last: Option<NodeId>,
 }
 
 impl InstructionSequence {
@@ -250,9 +256,9 @@ impl InstructionSequence {
         self.nodes.reserve(additional);
     }
 
-    fn push(&mut self, instruction: usize) -> usize {
-        let index = self.nodes.len();
-        self.nodes.push(InstructionNode { instruction, previous: self.last, next: None });
+    fn push(&mut self, instruction: u32) -> NodeId {
+        let index =
+            self.nodes.push(InstructionNode { instruction, previous: self.last, next: None });
         if let Some(last) = self.last {
             self.nodes[last].next = Some(index);
         } else {
@@ -262,16 +268,16 @@ impl InstructionSequence {
         index
     }
 
-    fn instruction(&self, index: usize) -> &Instruction {
-        &self.instructions[self.nodes[index].instruction]
+    fn instruction(&self, index: NodeId) -> &Instruction {
+        &self.instructions[self.nodes[index].instruction as usize]
     }
 
-    fn previous(&self, index: usize) -> Option<usize> {
+    fn previous(&self, index: NodeId) -> Option<NodeId> {
         self.nodes[index].previous
     }
 
-    fn replace_stack_op(&mut self, index: usize, stack_op: StackOp) {
-        let instruction = &mut self.instructions[self.nodes[index].instruction];
+    fn replace_stack_op(&mut self, index: NodeId, stack_op: StackOp) {
+        let instruction = &mut self.instructions[self.nodes[index].instruction as usize];
         let metadata = std::mem::take(&mut instruction.metadata);
         let mut replacement = Instruction::stack_op(stack_op);
         replacement.metadata = metadata;
@@ -279,7 +285,7 @@ impl InstructionSequence {
         *instruction = replacement;
     }
 
-    fn move_range_before(&mut self, start: usize, end: usize, before: usize) {
+    fn move_range_before(&mut self, start: NodeId, end: NodeId, before: NodeId) {
         let previous = self.nodes[start].previous;
         let next = self.nodes[end].next;
         if let Some(previous) = previous {
@@ -316,7 +322,7 @@ impl InstructionSequence {
         let mut current = self.first;
         while let Some(index) = current {
             let node = &self.nodes[index];
-            instructions.push(slots[node.instruction].take().unwrap());
+            instructions.push(slots[node.instruction as usize].take().unwrap());
             current = node.next;
         }
     }

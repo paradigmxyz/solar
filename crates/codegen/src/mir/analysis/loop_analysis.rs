@@ -151,9 +151,9 @@ impl LoopAnalyzer {
         // A back edge targets a dominator of its source, and a dominator precedes
         // every block it dominates in reverse postorder. Without an edge to the
         // same or an earlier position there are no loops, and no dominator tree to build.
-        let mut positions = index_vec![usize::MAX; cfg.num_blocks()];
+        let mut positions = index_vec![u32::MAX; cfg.num_blocks()];
         for (position, &block_id) in cfg.rpo().iter().enumerate() {
-            positions[block_id] = position;
+            positions[block_id] = position as u32;
         }
         let has_retreating_edge = cfg.rpo().iter().any(|&block_id| {
             func.blocks[block_id].terminator.as_ref().is_some_and(|term| {

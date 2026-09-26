@@ -52,7 +52,11 @@ use crate::{
     },
     target::Target,
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+    newtype_index,
+};
 use solar_sema::Gcx;
 
 pub(super) struct TailMerge;
@@ -95,11 +99,16 @@ struct RunState {
     groups: Vec<MergeGroup>,
     commons: Vec<usize>,
     tails: Vec<(usize, BlockId)>,
-    tail_roots: FxHashMap<TerminatorKind, usize>,
-    tail_edges: FxHashMap<(usize, MachineInstKey), usize>,
-    tail_representatives: Vec<Option<BlockId>>,
+    tail_roots: FxHashMap<TerminatorKind, TailNode>,
+    tail_edges: FxHashMap<(TailNode, MachineInstKey), TailNode>,
+    tail_representatives: IndexVec<TailNode, Option<BlockId>>,
     /// The single inserted block continuing below a node whose chain is not built yet.
-    tail_lazy: Vec<Option<LazyTail>>,
+    tail_lazy: IndexVec<TailNode, Option<LazyTail>>,
+}
+
+newtype_index! {
+    /// A node of the reversed-suffix trie.
+    struct TailNode;
 }
 
 /// An unmaterialized trie chain: only `block` continues below the node, down to depth `limit`.
@@ -110,7 +119,7 @@ struct RunState {
 #[derive(Clone, Copy)]
 struct LazyTail {
     block: BlockId,
-    limit: usize,
+    limit: u32,
 }
 
 impl RunState {
@@ -200,7 +209,7 @@ impl RunState {
             let representative = if let Some(LazyTail { block: owner, limit }) = lazy {
                 // Below a lazy node, only its owner's own instructions continue the chain.
                 let owner = &module.blocks[owner].instructions;
-                if common >= limit
+                if common >= limit as usize
                     || MachineInstKey::new(&owner[owner.len() - common - 1])
                         != MachineInstKey::new(inst)
                 {
@@ -213,7 +222,7 @@ impl RunState {
             } else if let Some(tail) = self.tail_lazy[node] {
                 lazy = Some(tail);
                 let owner = &module.blocks[tail.block].instructions;
-                if common >= tail.limit
+                if common >= tail.limit as usize
                     || MachineInstKey::new(&owner[owner.len() - common - 1])
                         != MachineInstKey::new(inst)
                 {
@@ -276,23 +285,23 @@ impl RunState {
             self.tail_edges.insert((node, key), child);
             self.tail_representatives[child] = split.then_some(block_id);
             self.tail_lazy[child] =
-                (common + 1 < limit).then_some(LazyTail { block: block_id, limit });
+                (common + 1 < limit).then_some(LazyTail { block: block_id, limit: limit as u32 });
             return;
         }
     }
 
     /// Builds the next node of a lazy chain at `node`, which is at depth `depth`.
-    fn expand_lazy_tail(&mut self, module: &Module, node: usize, depth: usize) {
+    fn expand_lazy_tail(&mut self, module: &Module, node: TailNode, depth: usize) {
         let Some(tail) = self.tail_lazy[node].take() else { return };
         let owner = &module.blocks[tail.block].instructions;
         let at = owner.len() - depth - 1;
         let child = self.new_tail_node();
         self.tail_edges.insert((node, MachineInstKey::new(&owner[at])), child);
         self.tail_representatives[child] = is_split_point(owner, at).then_some(tail.block);
-        self.tail_lazy[child] = (depth + 1 < tail.limit).then_some(tail);
+        self.tail_lazy[child] = (depth + 1 < tail.limit as usize).then_some(tail);
     }
 
-    fn tail_root(&mut self, terminator: &TerminatorKind) -> usize {
+    fn tail_root(&mut self, terminator: &TerminatorKind) -> TailNode {
         if let Some(&root) = self.tail_roots.get(terminator) {
             return root;
         }
@@ -301,11 +310,9 @@ impl RunState {
         root
     }
 
-    fn new_tail_node(&mut self) -> usize {
-        let node = self.tail_representatives.len();
-        self.tail_representatives.push(None);
+    fn new_tail_node(&mut self) -> TailNode {
         self.tail_lazy.push(None);
-        node
+        self.tail_representatives.push(None)
     }
 
     fn apply_merges(&mut self, module: &mut Module, labels: &mut FreshLabels) -> bool {
