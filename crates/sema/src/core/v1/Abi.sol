@@ -22,6 +22,11 @@ import {Bytes} from "solar:core/v1/Bytes.sol";
 /// way the encoding is complete before `out` changes, so an argument that
 /// aliases `out` is encoded as it was.
 ///
+/// `encodedSize` answers how long an encoding is, with the `abi.encode` call
+/// written as its argument in the same way: this compiler computes the length
+/// from the arguments without encoding them where their shapes allow, and
+/// otherwise measures the encoding staged past the free memory pointer.
+///
 /// A write that does not fit fails with `Panic(0x32)` before modifying `out`;
 /// the `try` forms report that instead, and write nothing. Neither form undoes
 /// side effects of evaluating the arguments, which happens before the call.
@@ -174,6 +179,13 @@ library Abi {
     {
         if (!fits(out, offset, encoding.length)) return (false, 0);
         return (true, writeEncoding(out, offset, encoding));
+    }
+
+    /// @dev The length of `encoding`. Pass an `abi.encode`,
+    /// `abi.encodeWithSelector`, `abi.encodeWithSignature`, or `abi.encodeCall`
+    /// call to learn it without allocating the encoding.
+    function encodedSize(bytes memory encoding) internal pure returns (uint256 size) {
+        return encoding.length;
     }
 
     /// @dev Whether `count` bytes at `offset` lie inside `out`. The sum is

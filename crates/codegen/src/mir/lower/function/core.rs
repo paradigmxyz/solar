@@ -98,6 +98,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         receiver: Option<&hir::Expr<'_>>,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
+        // `Abi.encodedSize(abi.encode(...))` measures the call's arguments instead of encoding
+        // them.
+        if intrinsic == CoreIntrinsic::EncodedSize
+            && let Some(argument) = receiver.or_else(|| args.exprs().next())
+            && let Some((builtin, encode_args)) = self.encoding_call(argument)
+        {
+            return self.lower_abi_encoded_size(builtin, encode_args);
+        }
         let function = self.cx.gcx.hir.function(function_id);
         // The receiver of `using Bytes for bytes` is the first parameter, so
         // both spellings reach the same operand list and the same operation.
@@ -151,6 +159,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.lower_core_try_write_encoding(function_id, &operands)
             }
             CoreIntrinsic::Fill => self.lower_core_fill(&operands),
+            CoreIntrinsic::EncodedSize => {
+                let [encoding] = *operands.as_slice() else { return None };
+                Some(self.core_bytes_len(encoding))
+            }
             // A shared body takes objects; a view's slice is compared in place.
             CoreIntrinsic::EqualsAt
                 if operands.iter().any(|&operand| {
@@ -2610,6 +2622,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::CopyInto
             | CoreIntrinsic::WriteEncoding
             | CoreIntrinsic::TryWriteEncoding => index == 2,
+            CoreIntrinsic::EncodedSize => index == 0,
             CoreIntrinsic::EqualsAt => index == 0 || index == 2,
             _ => false,
         }
