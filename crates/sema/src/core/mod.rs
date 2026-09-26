@@ -172,8 +172,16 @@ pub enum CoreIntrinsic {
     StringUnpackTwo,
     /// `Revert.raw(data)`: revert with exactly `data`.
     RevertRaw,
-    /// `Return.abiEncoded(s)`: end the call returning `s` ABI-encoded.
+    /// `Return.abiEncoded(value)`: end the call returning `value` ABI-encoded.
     ReturnAbiEncoded,
+    /// `Return.raw(data)`: end the call returning exactly `data`.
+    ReturnRaw,
+    /// `Calls.forward(target, value, data)`: call `target` and end the call
+    /// with its response.
+    Forward,
+    /// `Calls.forwardDelegate(target, data)`: delegate-call `target` and end
+    /// the call with its response.
+    ForwardDelegate,
     /// `Slots.load(root, index)`: the word `index` slots past the root's hash.
     SlotsLoad,
     /// `Slots.store(root, index, value)`.
@@ -246,6 +254,22 @@ pub enum CoreIntrinsic {
     WriteEncoding,
     /// `Abi.tryWriteEncoding(out, offset, encoding)`.
     TryWriteEncoding,
+}
+
+impl CoreIntrinsic {
+    /// Whether a call to this operation can end the external call successfully, from however
+    /// deep in its internal calls it runs.
+    pub fn returns_from_call(self) -> bool {
+        matches!(
+            self,
+            Self::ReturnAbiEncoded | Self::ReturnRaw | Self::Forward | Self::ForwardDelegate
+        )
+    }
+
+    /// Whether a call to this operation never returns to its caller.
+    pub fn ends_call(self) -> bool {
+        self == Self::RevertRaw || self.returns_from_call()
+    }
 }
 
 /// Returns the intrinsic `function` names, if it is one.
@@ -371,7 +395,11 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
             REVERT.get_or_init(|| FxHashMap::from_iter([(sym::raw, CoreIntrinsic::RevertRaw)])),
         ),
         "solar:core/v1/Return.sol" => Some(RETURN.get_or_init(|| {
-            FxHashMap::from_iter([(sym::abiEncoded, CoreIntrinsic::ReturnAbiEncoded)])
+            // Every `abiEncoded` overload shares the name; the lowering reads the parameter type.
+            FxHashMap::from_iter([
+                (sym::abiEncoded, CoreIntrinsic::ReturnAbiEncoded),
+                (sym::raw, CoreIntrinsic::ReturnRaw),
+            ])
         })),
         "solar:core/v1/Slots.sol" => Some(SLOTS.get_or_init(|| {
             FxHashMap::from_iter([
@@ -412,6 +440,8 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (sym::callInto, CoreIntrinsic::CallInto),
                 (sym::staticCallInto, CoreIntrinsic::StaticCallInto),
                 (sym::delegateCallInto, CoreIntrinsic::DelegateCallInto),
+                (sym::forward, CoreIntrinsic::Forward),
+                (sym::forwardDelegate, CoreIntrinsic::ForwardDelegate),
             ])
         })),
         "solar:core/v1/CalldataBytes.sol" => Some(CALLDATA_BYTES.get_or_init(|| {

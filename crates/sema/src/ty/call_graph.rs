@@ -41,6 +41,9 @@ struct CallGraphBuilder<'gcx, 's> {
     current: Option<hir::FunctionId>,
     /// The function that first reached each function, or `None` for a root.
     parents: FxIndexMap<hir::FunctionId, Option<hir::FunctionId>>,
+    /// The first call through an internal function pointer, as the function it is in, or `None`
+    /// for code outside any function.
+    pointer_call: Option<Option<hir::FunctionId>>,
 }
 
 impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
@@ -59,6 +62,7 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
             stop,
             current: None,
             parents: FxIndexMap::default(),
+            pointer_call: None,
         }
     }
 
@@ -187,6 +191,9 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
                 let Some(function_id) =
                     function.function_id.or_else(|| self.gcx.resolved_function(callee))
                 else {
+                    if function.is_internal() && self.pointer_call.is_none() {
+                        self.pointer_call = Some(self.current);
+                    }
                     return false;
                 };
                 if !function.is_internal() {
@@ -340,6 +347,47 @@ pub(super) fn interface_items(gcx: Gcx<'_>, id: hir::ContractId) -> InterfaceIte
 
 pub(super) fn all_items(gcx: Gcx<'_>, id: hir::ContractId) -> ReferencedItems {
     CallGraphBuilder::build_all(gcx, id)
+}
+
+/// Where [`traced_from`] starts.
+#[derive(Clone, Copy)]
+pub(crate) enum TraceRoot {
+    /// The contract's creation: its state variable initializers, constructors and base constructor
+    /// arguments.
+    Creation,
+    /// A call to one function.
+    Function(hir::FunctionId),
+}
+
+/// The functions a call to `root` in the contract `id` runs, with the function that first reached
+/// each, or `None` for a root. A call through an internal function pointer can reach every
+/// function whose value the contract takes anywhere, so it reaches them all.
+pub(crate) fn traced_from(
+    gcx: Gcx<'_>,
+    id: hir::ContractId,
+    root: TraceRoot,
+) -> FxIndexMap<hir::FunctionId, Option<hir::FunctionId>> {
+    let mut builder = CallGraphBuilder::new(gcx, id, &|_| false);
+    match root {
+        TraceRoot::Creation => builder.enter_creation(),
+        TraceRoot::Function(function) => builder.enqueue(function),
+    }
+    builder.drain();
+    if let Some(caller) = builder.pointer_call {
+        let items = gcx.interface_items(id);
+        builder.current = caller;
+        for target in items
+            .creation
+            .internal_dispatch_targets
+            .iter()
+            .chain(items.deployed.internal_dispatch_targets.iter())
+        {
+            builder.enqueue(target);
+        }
+        builder.current = None;
+        builder.drain();
+    }
+    builder.parents
 }
 
 /// The functions the contract `id` runs, found as [`interface_items`] finds them, from its

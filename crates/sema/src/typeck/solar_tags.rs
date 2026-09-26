@@ -320,12 +320,10 @@ fn expr_ends_call(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> bool {
         );
     }
     let Some(function) = gcx.resolved_function(callee) else { return false };
-    matches!(
-        intrinsic_of(gcx, function),
-        Some(CoreIntrinsic::RevertRaw | CoreIntrinsic::ReturnAbiEncoded)
-    ) || (gcx.hir.solar_terminates(function).is_some()
-        && declaration_tag_applies(gcx, function.into())
-        && !gcx.hir.function(function).virtual_)
+    intrinsic_of(gcx, function).is_some_and(CoreIntrinsic::ends_call)
+        || (gcx.hir.solar_terminates(function).is_some()
+            && declaration_tag_applies(gcx, function.into())
+            && !gcx.hir.function(function).virtual_)
 }
 
 /// Returns the span of the first `return` among `stmts` and the statements nested in them.

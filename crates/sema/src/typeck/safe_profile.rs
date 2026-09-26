@@ -177,23 +177,35 @@ pub(crate) enum Violation {
 impl Findings {
     /// The chain of functions through which the code reaches `function`.
     fn path(&self, gcx: Gcx<'_>, function: hir::FunctionId) -> String {
-        let mut names = Vec::new();
-        let mut current = Some(function);
-        while let Some(id) = current {
-            if names.len() == 8 {
-                names.push("…".to_string());
-                break;
-            }
-            let name = gcx.item_name(id);
-            names.push(match gcx.hir.function(id).contract {
-                Some(contract) => format!("`{}.{name}`", gcx.hir.contract(contract).name),
-                None => format!("`{name}`"),
-            });
-            current = self.reached.get(&id).copied().flatten();
-        }
-        names.reverse();
-        names.join(" → ")
+        describe_path(gcx, &self.reached, function)
     }
+}
+
+/// The chain of functions through which a trace that records the function first reaching each
+/// function in `reached` reaches `function`, from its root.
+pub(super) fn describe_path(
+    gcx: Gcx<'_>,
+    reached: &FxIndexMap<hir::FunctionId, Option<hir::FunctionId>>,
+    function: hir::FunctionId,
+) -> String {
+    let mut names = Vec::new();
+    let mut current = Some(function);
+    while let Some(id) = current {
+        if names.len() == 8 {
+            names.push("…".to_string());
+            break;
+        }
+        // A constructor, a fallback or a receive function is named by its kind.
+        let f = gcx.hir.function(id);
+        let name = f.name_or_kind();
+        names.push(match f.contract {
+            Some(contract) => format!("`{}.{name}`", gcx.hir.contract(contract).name),
+            None => format!("`{name}`"),
+        });
+        current = reached.get(&id).copied().flatten();
+    }
+    names.reverse();
+    names.join(" → ")
 }
 
 /// Finds what the code the contract `id` runs does that a safe profile rejects.

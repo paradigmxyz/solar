@@ -1135,6 +1135,8 @@ symbols! {
         finish,
         fmp,
         fn_: "fn",
+        forward,
+        forwardDelegate,
         frame_load,
         frame_store,
         from,

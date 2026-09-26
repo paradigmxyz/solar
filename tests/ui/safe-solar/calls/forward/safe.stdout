@@ -1,0 +1,135 @@
+// === ROOT/tests/ui/safe-solar/calls/forward/auxiliary/target.sol:Target ===
+@module Target
+@phase lowered
+types:
+  struct0: {i256, i256}
+
+fn @whoAmI() [selector=0xda91254c, abi_wrapper] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v7 = add v0, 1
+    v8 = eq v7, 0
+    jumpi v8, bb1, bb2
+  bb2:
+    sstore 0, v7 !metadata(storage=slot(0))
+    v2 = caller
+    v4 = zext i160 v2 to i256
+    mstore 0, v4
+    mstore 32, v7 !metadata(memory=scratch)
+    returndata 0, 64
+  bb1:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @fail() [selector=0x132e4f3c, abi_wrapper, pure] {
+  bb0:
+    v0 = calldatasize
+    v1 = lt v0, 36
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 0, 0xc77ea641 !metadata(memory=scratch)
+    mstore 32, arg0
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @greet() [selector=0xcfae3217, abi_wrapper, pure] {
+  bb0:
+    mstore 128, 32
+    mstore 160, 22
+    mstore 192, 0x68656c6c6f2c20666f7277617264656420776f726c6400000000000000000000
+    returndata 128, 96
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb5, [0x132e4f3c => bb2, 0xcfae3217 => bb3, 0xda91254c => bb4]
+  bb4:
+    tail_call @whoAmI
+  bb3:
+    tail_call @greet
+  bb2:
+    tail_call @fail
+  bb5:
+    revert 0, 0
+}
+
+// === <solar:core/v1/Calls.sol>:Calls ===
+@module Calls
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/safe-solar/calls/forward/safe.sol:Safe ===
+@module Safe
+@phase lowered
+data:
+  Target_initcode_0: hex"34600d5760978060115f395ff35b5f5ffd34603e575f3560e01c8063132e4f3c146082578063cfae3217146042578063da91254c03603e575f546001018015606f57805f55335f5260205260405ff35b5f5ffd5b6020608052601660a0527568656c6c6f2c20666f7277617264656420776f726c6460501b60c05260606080f35b634e487b715f5260115b6020526024601cfd5b60243610603e5763c77ea6415f52600435607956"
+
+immutables:
+  implementation: u160
+
+fn @fallback() [abi_wrapper, fallback, payable] {
+  bb0:
+    v0 = loadimmutable implementation
+    v1 = calldatasize
+    calldatacopy 0, 0, v1
+    v5 = gas
+    v6 = delegatecall v5, v0, 0, v1, 0, 0
+    jumpi v6, bb1, bb2
+  bb2:
+    v9 = returndatasize
+    returndatacopy 0, 0, v9 !metadata(memory=abi_return)
+    v10 = returndatasize
+    revert 0, v10
+  bb1:
+    v7 = returndatasize
+    returndatacopy 0, 0, v7 !metadata(memory=abi_return)
+    v8 = returndatasize
+    returndata 0, v8
+}
+
+fn @constructor() [abi_wrapper, constructor] {
+  bb0:
+    v15 = callvalue
+    v16 = ne v15, 0
+    jumpi v16, bb4, bb1
+  bb1:
+    v24 = mload 64 !metadata(memory=scratch)
+    v25 = add v24, 224
+    mstore 64, v25 !metadata(memory=scratch)
+    mstore v24, 0
+    v23 = add v24, 32
+    data_copy Target_initcode_0, v23, 168
+    v9 = create 0, v23, 168
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb3, bb2
+  bb2:
+    v13 = returndatasize
+    returndatacopy 0, 0, v13 !metadata(memory=abi_return)
+    v14 = returndatasize
+    revert 0, v14
+  bb3:
+    mstore 192, v10
+    ret
+  bb4:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    tail_call @fallback
+}
