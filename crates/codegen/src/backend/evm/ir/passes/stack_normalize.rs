@@ -13,7 +13,7 @@
 //! A replacement must be lowerable on the selected EVM version and must weakly improve encoded
 //! bytes, static gas, and instruction count while strictly improving at least one. The Pareto
 //! checks prevent target-specific deep stack ops from trading a regression in one objective for a
-//! win in another. Instructions with custom stack effects break a run, and metadata from retained
+//! win in another. Any instruction other than a stack op breaks a run, and metadata from retained
 //! positions is transferred to replacement ops.
 //!
 //! This is deliberately a small late machine-level normalizer, not a second MIR stack scheduler.

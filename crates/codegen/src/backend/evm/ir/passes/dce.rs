@@ -188,6 +188,7 @@ fn eliminate_in_block(
         else {
             return rewrites;
         };
+        let walked = &instructions[..=last_pop];
         let mut start = 0;
         while start < last_pop {
             let Some(StackOp::Dup(depth)) = instructions[start].as_stack_op() else {
@@ -203,7 +204,7 @@ fn eliminate_in_block(
             let candidate = if depth == 1 {
                 better_candidate(
                     find_candidate(
-                        &instructions[..=last_pop],
+                        walked,
                         start,
                         depth,
                         Ghost::Original,
@@ -211,7 +212,7 @@ fn eliminate_in_block(
                         evm_version,
                     ),
                     find_candidate(
-                        &instructions[..=last_pop],
+                        walked,
                         start,
                         depth,
                         Ghost::Duplicate,
@@ -221,7 +222,7 @@ fn eliminate_in_block(
                 )
             } else {
                 find_candidate(
-                    &instructions[..=last_pop],
+                    walked,
                     start,
                     depth,
                     Ghost::Duplicate,
