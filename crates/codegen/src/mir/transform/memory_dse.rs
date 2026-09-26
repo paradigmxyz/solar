@@ -14,7 +14,7 @@ use crate::mir::{
     Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, MemoryAddress,
-        MemoryBase, MemoryLocation, ModRef,
+        MemoryBase, MemoryLocation,
     },
     memory::EvmMemoryLayout,
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
@@ -28,7 +28,6 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 use std::{
-    cell::RefCell,
     collections::{BTreeMap, VecDeque},
     rc::Rc,
 };
@@ -98,25 +97,6 @@ struct MemoryStoreEliminator {
     /// Number of memory instructions eliminated.
     eliminated_count: usize,
     alias: Option<Rc<AliasAnalysis>>,
-    /// Instructions known to have no memory effects, with what they observe.
-    ///
-    /// Such effects follow from the instruction kind and callee summary alone, and computing
-    /// them never resolves an address, so answering repeated queries from here leaves the
-    /// alias analysis's address memo exactly as recomputing them would.
-    memory_free: RefCell<IndexVec<InstId, Option<MemoryFree>>>,
-}
-
-/// What an instruction without memory effects observes.
-#[derive(Clone, Copy, Debug)]
-struct MemoryFree {
-    observes_memory_size: bool,
-    observes_gas: bool,
-}
-
-impl MemoryFree {
-    fn observes(self) -> bool {
-        self.observes_memory_size || self.observes_gas
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -461,26 +441,6 @@ impl MemoryStoreEliminator {
 
     fn alias(&self) -> &AliasAnalysis {
         self.alias.as_ref().expect("memory DSE alias snapshot is initialized")
-    }
-
-    /// Returns an instruction's effects, or what it observes when it has no memory effects.
-    fn memory_effects(&self, func: &Function, inst_id: InstId) -> Result<ModRef, MemoryFree> {
-        if let Some(Some(free)) = self.memory_free.borrow().get(inst_id) {
-            return Err(*free);
-        }
-        let effects = self.alias().instruction_mod_ref(func, inst_id);
-        if !effects.reads_space(AddressSpace::Memory) && !effects.writes_space(AddressSpace::Memory)
-        {
-            let mut memory_free = self.memory_free.borrow_mut();
-            if memory_free.len() <= inst_id.index() {
-                memory_free.resize(func.num_insts().max(inst_id.index() + 1), None);
-            }
-            memory_free[inst_id] = Some(MemoryFree {
-                observes_memory_size: effects.observes_memory_size(),
-                observes_gas: effects.observes_gas(),
-            });
-        }
-        Ok(effects)
     }
 
     /// Removes full-word stores to a constant, word-aligned address that no
@@ -897,8 +857,9 @@ impl MemoryStoreEliminator {
                 InstKind::MLoad(_) | InstKind::MemoryObjectLen(_, _) => has_load = true,
                 InstKind::Keccak256(_, _) => has_keccak = true,
                 _ if self
-                    .memory_effects(func, inst_id)
-                    .is_ok_and(|effects| effects.writes_space(AddressSpace::Memory)) =>
+                    .alias()
+                    .instruction_mod_ref(func, inst_id)
+                    .writes_space(AddressSpace::Memory) =>
                 {
                     memory_writes += 1;
                 }
@@ -1042,15 +1003,7 @@ impl MemoryStoreEliminator {
         inst_id: InstId,
         overwritten: &mut FxHashSet<MemAddrKey>,
     ) {
-        let effects = match self.memory_effects(func, inst_id) {
-            Ok(effects) => effects,
-            Err(free) => {
-                if free.observes() {
-                    overwritten.clear();
-                }
-                return;
-            }
-        };
+        let effects = self.alias().instruction_mod_ref(func, inst_id);
         if effects.observes_memory_size()
             || effects.observes_gas()
             || effects.reads_anywhere(AddressSpace::Memory)
@@ -1662,24 +1615,18 @@ impl MemoryStoreEliminator {
     }
 
     fn is_memory_or_gas_observer(&self, func: &Function, inst_id: InstId) -> bool {
-        match self.memory_effects(func, inst_id) {
-            Ok(effects) => {
-                effects.reads_space(AddressSpace::Memory)
-                    || effects.writes_space(AddressSpace::Memory)
-                    || effects.observes_memory_size()
-                    || effects.observes_gas()
-            }
-            Err(free) => free.observes(),
-        }
+        let effects = self.alias().instruction_mod_ref(func, inst_id);
+        effects.reads_space(AddressSpace::Memory)
+            || effects.writes_space(AddressSpace::Memory)
+            || effects.observes_memory_size()
+            || effects.observes_gas()
     }
 
     fn has_frame_observer(&self, func: &Function) -> bool {
         func.instructions().any(|inst_id| {
-            let observes = match self.memory_effects(func, inst_id) {
-                Ok(effects) => effects.observes_gas() || effects.observes_memory_size(),
-                Err(free) => free.observes(),
-            };
-            observes
+            let effects = self.alias().instruction_mod_ref(func, inst_id);
+            effects.observes_gas()
+                || effects.observes_memory_size()
                 || matches!(
                     func.inst(inst_id).kind,
                     InstKind::ICall { function: Callee::Function(_), .. }
@@ -1691,10 +1638,10 @@ impl MemoryStoreEliminator {
         let mut reads = Vec::new();
 
         for inst_id in func.instructions() {
-            // Instructions without memory effects read no frame slot.
-            if let Ok(effects) = self.memory_effects(func, inst_id) {
-                Self::push_frame_reads(&mut reads, effects.reads())?;
-            }
+            Self::push_frame_reads(
+                &mut reads,
+                self.alias().instruction_mod_ref(func, inst_id).reads(),
+            )?;
         }
 
         for block in func.blocks.iter() {
@@ -1739,8 +1686,7 @@ impl MemoryStoreEliminator {
     }
 
     fn can_mutate_memory(&self, func: &Function, inst_id: InstId) -> bool {
-        self.memory_effects(func, inst_id)
-            .is_ok_and(|effects| effects.writes_space(AddressSpace::Memory))
+        self.alias().instruction_mod_ref(func, inst_id).writes_space(AddressSpace::Memory)
     }
 
     fn cross_block_memory_barrier(&self, func: &Function, inst_id: InstId) -> bool {
