@@ -170,18 +170,43 @@ fn synthesize_unique_layout(
         return None;
     }
     removed.sort_unstable();
-    let mut best = None;
-    loop {
+    let mut best = None::<(Vec<StackOp>, (usize, usize, usize))>;
+    'orders: loop {
         let mut current = source.clone();
         let mut ops = Vec::new();
-        for &value in &removed {
-            let depth = current.iter().position(|&current| current == value)?;
+        let mut prefix_cost = (0, 0, 0);
+        for index in 0..removed.len() {
+            let start = ops.len();
+            let depth = current.iter().position(|&current| current == removed[index])?;
             if depth != 0 {
                 ops.push(StackOp::Swap(depth as u8));
                 current.swap(0, depth);
             }
             ops.push(StackOp::Pop);
             current.remove(0);
+            // Costs only grow, so no order sharing this prefix can beat `best`, and a prefix
+            // without a lowering makes every such order invalid. Skip them all.
+            let cost =
+                ops[start..].iter().try_fold(prefix_cost, |(instructions, gas, size), op| {
+                    let metrics = op.metrics(evm_version)?;
+                    Some((
+                        instructions + metrics.instruction_count,
+                        gas + metrics.static_gas,
+                        size + metrics.assembled_len,
+                    ))
+                });
+            match cost {
+                Some(cost) if best.as_ref().is_none_or(|(_, best_cost)| cost < *best_cost) => {
+                    prefix_cost = cost;
+                }
+                _ => {
+                    removed[index + 1..].sort_unstable_by(|a, b| b.cmp(a));
+                    if !next_permutation(&mut removed) {
+                        return best.map(|(ops, _)| ops);
+                    }
+                    continue 'orders;
+                }
+            }
         }
         ops.extend(synthesize_unique_permutation(&mut current, &target_values));
         if ops.iter().all(|op| op.lowering(evm_version).is_some()) {
@@ -671,7 +696,6 @@ impl<'a> StackShuffler<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::evm::codegen::stack::model::MAX_STACK_ACCESS;
 
     fn make_model(values: &[Option<ValueId>]) -> StackModel {
         let mut model = StackModel::new();
@@ -922,15 +946,15 @@ mod tests {
 
     #[test]
     fn test_shuffle_uses_swap16() {
-        let values: Vec<_> = (0..=MAX_STACK_ACCESS).map(ValueId::from_usize).collect();
+        let values: Vec<_> = (0..=16).map(ValueId::from_usize).collect();
         let source = make_model(&values.iter().copied().map(Some).collect::<Vec<_>>());
         let mut target_values = values;
-        target_values.swap(0, MAX_STACK_ACCESS);
+        target_values.swap(0, 16);
         let target: Vec<_> = target_values.into_iter().map(TargetSlot::Value).collect();
 
         let result = StackShuffler::new(&source, &target).shuffle().unwrap();
 
-        assert_eq!(result.ops, [StackOp::Swap(MAX_STACK_ACCESS as u8)]);
+        assert_eq!(result.ops, [StackOp::Swap(16)]);
         assert_reaches(&source, &target, &result);
     }
 
@@ -955,14 +979,9 @@ mod tests {
             counts
         });
 
-        let result = StackShuffler::search_exact(
-            source,
-            &target,
-            &multiplicities,
-            MAX_STACK_ACCESS,
-            EvmVersion::Osaka,
-        )
-        .unwrap();
+        let result =
+            StackShuffler::search_exact(source, &target, &multiplicities, 16, EvmVersion::Osaka)
+                .unwrap();
 
         assert_eq!(
             result.ops,
@@ -1013,7 +1032,7 @@ mod tests {
                     shuffler.source,
                     &target,
                     &shuffler.multiplicities,
-                    MAX_STACK_ACCESS,
+                    16,
                     shuffler.evm_version,
                 )
                 .unwrap();

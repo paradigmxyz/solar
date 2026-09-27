@@ -9,7 +9,7 @@ contract FunctionSelectorSideEffect {
 
     function f() external view {}
 
-    function h() external returns (FunctionSelectorSideEffect) {
+    function h() public returns (FunctionSelectorSideEffect) {
         value = 42;
         return this;
     }

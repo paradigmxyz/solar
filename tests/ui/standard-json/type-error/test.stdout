@@ -15,9 +15,5 @@
       "formattedMessage": "error: mismatched types\n   ╭▸ A.sol:LL:CC\n   │\nLL │         uint x = true;\n   ╰╴                 ━━━━ expected `uint256`, found `bool`\n\n"
     }
   ],
-  "sources": {
-    "A.sol": {
-      "id": 0
-    }
-  }
+  "sources": {}
 }

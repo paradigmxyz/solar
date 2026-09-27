@@ -143,8 +143,8 @@ impl Liveness {
             let block = &func.blocks[block_id];
 
             new_live_out.clear();
-            if let Some(terminator) = &block.terminator {
-                terminator.for_each_successor(|succ| {
+            if let Some(term) = &block.terminator {
+                term.for_each_successor(|succ| {
                     new_live_out.union(&block_liveness[succ].live_in);
                     for &(pred, value) in &phi_edge_uses[succ] {
                         if pred == block_id {

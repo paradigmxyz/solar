@@ -1,6 +1,7 @@
 // CHECK: "errors": [
 // CHECK: "message": "mismatched types"
 // CHECK: expected `uint256`, found `bool`
+// CHECK: "sources": {}
 // CHECK-NOT: "contracts"
 {
   "language": "Solidity",

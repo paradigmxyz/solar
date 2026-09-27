@@ -12,7 +12,7 @@ use std::{
     borrow::Cow,
     io,
     ops::ControlFlow,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::{Arc, OnceLock},
 };
 
@@ -48,10 +48,10 @@ pub struct FileResolver<'a> {
     /// Import remappings.
     remappings: Vec<ImportRemapping>,
     /// Base path for source unit names.
-    base_path: Option<PathBuf>,
+    base_path: Option<Arc<PathBuf>>,
 
     /// Custom current directory.
-    custom_current_dir: Option<PathBuf>,
+    custom_current_dir: Option<Arc<PathBuf>>,
     /// [`std::env::current_dir`] cache. Unused if the current directory is set manually.
     env_current_dir: OnceLock<Option<PathBuf>>,
 }
@@ -59,12 +59,13 @@ pub struct FileResolver<'a> {
 impl<'a> FileResolver<'a> {
     /// Creates a new file resolver.
     pub fn new(source_map: &'a SourceMap) -> Self {
+        let base_path = arc_swap::Guard::into_inner(source_map.base_path());
         Self {
             source_map,
             include_paths: Vec::new(),
             remappings: Vec::new(),
-            base_path: source_map.base_path(),
-            custom_current_dir: source_map.base_path(),
+            base_path: base_path.clone(),
+            custom_current_dir: base_path,
             env_current_dir: OnceLock::new(),
         }
     }
@@ -94,7 +95,7 @@ impl<'a> FileResolver<'a> {
                 };
                 self.set_base_path(base_path);
                 // Source unit names are relative to the base path after parent paths are stripped.
-                self.set_current_dir(base_path);
+                self.custom_current_dir = self.base_path.clone();
             }
         }
     }
@@ -119,7 +120,7 @@ impl<'a> FileResolver<'a> {
         if !current_dir.is_absolute() {
             panic!("current_dir must be an absolute path");
         }
-        self.custom_current_dir = Some(current_dir.to_path_buf());
+        self.custom_current_dir = Some(Arc::new(current_dir.to_path_buf()));
     }
 
     /// Sets the base path.
@@ -132,7 +133,7 @@ impl<'a> FileResolver<'a> {
         if !base_path.is_absolute() {
             panic!("base_path must be an absolute path");
         }
-        self.base_path = Some(base_path.to_path_buf());
+        self.base_path = Some(Arc::new(base_path.to_path_buf()));
     }
 
     /// Adds include paths.
@@ -169,12 +170,12 @@ impl<'a> FileResolver<'a> {
     /// Returns the current directory, if resolved successfully.
     #[doc(alias = "try_base_path")]
     pub fn try_current_dir(&self) -> Option<&Path> {
-        self.custom_current_dir.as_deref().or_else(|| self.env_current_dir())
+        self.custom_current_dir.as_deref().map(PathBuf::as_path).or_else(|| self.env_current_dir())
     }
 
     /// Returns the base path for import resolution.
     pub fn try_base_path(&self) -> Option<&Path> {
-        self.base_path.as_deref().or_else(|| self.try_current_dir())
+        self.base_path.as_deref().map(PathBuf::as_path).or_else(|| self.try_current_dir())
     }
 
     fn env_current_dir(&self) -> Option<&Path> {
@@ -252,12 +253,26 @@ impl<'a> FileResolver<'a> {
         // will only check the path relative to the current file.
         let is_relative = path.starts_with("./") || path.starts_with("../");
         if is_relative {
-            let try_path = if let Some(parent_dir) = parent.and_then(Path::parent) {
-                Cow::Owned(parent_dir.join(path))
+            // Normalize only the import suffix: leading `../` and `./` in an
+            // inline source-unit name are part of its identity.
+            let source_unit = if let Some(parent_dir) = parent.and_then(Path::parent) {
+                let mut source_unit = parent_dir.to_path_buf();
+                for component in path.components() {
+                    match component {
+                        Component::CurDir => {}
+                        Component::ParentDir => {
+                            source_unit.pop();
+                        }
+                        component => source_unit.push(component.as_os_str()),
+                    }
+                }
+                Cow::Owned(source_unit)
             } else {
                 Cow::Borrowed(path)
             };
-            visit(&try_path, ResolutionCandidateKind::RelativeFile)?;
+            let source_unit = self.remap_path(&source_unit, parent);
+            visit(&source_unit, ResolutionCandidateKind::SourceUnit)?;
+            visit(&source_unit, ResolutionCandidateKind::RelativeFile)?;
             return ControlFlow::Continue(());
         }
 
@@ -331,11 +346,6 @@ impl<'a> FileResolver<'a> {
             ResolutionCandidateKind::RelativeFile
             | ResolutionCandidateKind::DirectFile
             | ResolutionCandidateKind::SearchFile => {
-                if matches!(kind, ResolutionCandidateKind::RelativeFile)
-                    && let Some(file) = self.source_map().get_file(&*self.normalize(path))
-                {
-                    return ControlFlow::Break(Ok(file));
-                }
                 let file = match self.try_file(path) {
                     Ok(file) => file,
                     Err(err) => return ControlFlow::Break(Err(err)),
@@ -453,7 +463,9 @@ pub fn apply_import_remappings<'a>(
     let mut longest_prefix = 0;
     let mut longest_context = 0;
     let mut best_match_target = None;
-    let mut unprefixed_path = path;
+    let path_text = path.to_string_lossy();
+    let path_text = sanitize_path(&path_text);
+    let mut unprefixed_path = &*path_text;
     for ImportRemapping { context, prefix, path: target } in remappings {
         let context = &*sanitize_path(context);
         let prefix = &*sanitize_path(prefix);
@@ -471,7 +483,7 @@ pub fn apply_import_remappings<'a>(
             continue;
         }
         // Skip if the prefix does not match.
-        let Ok(up) = path.strip_prefix(prefix) else {
+        let Some(up) = path_text.strip_prefix(prefix) else {
             continue;
         };
         longest_context = context.len();
@@ -480,11 +492,9 @@ pub fn apply_import_remappings<'a>(
         unprefixed_path = up;
     }
     if let Some(best_match_target) = best_match_target {
-        let mut out = PathBuf::from(&*best_match_target);
-        out.push(unprefixed_path);
-        Cow::Owned(out)
+        Cow::Owned(PathBuf::from(format!("{best_match_target}{unprefixed_path}")))
     } else {
-        Cow::Borrowed(unprefixed_path)
+        Cow::Borrowed(path)
     }
 }
 
@@ -1156,5 +1166,18 @@ mod solang_import_resolution {
                 },
             ],
         );
+    }
+
+    #[test]
+    fn shares_base_path_snapshot() {
+        let sm = SourceMap::empty();
+        sm.set_base_path(Some(PathBuf::from("base")));
+        let base_path = arc_swap::Guard::into_inner(sm.base_path()).unwrap();
+        let resolver = FileResolver::new(&sm);
+        assert!(Arc::ptr_eq(resolver.base_path.as_ref().unwrap(), &base_path));
+        assert!(Arc::ptr_eq(resolver.custom_current_dir.as_ref().unwrap(), &base_path));
+        sm.set_base_path(None);
+        assert_eq!(resolver.try_base_path(), Some(Path::new("base")));
+        assert_eq!(resolver.try_current_dir(), Some(Path::new("base")));
     }
 }

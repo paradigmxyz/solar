@@ -9,6 +9,11 @@
 //! `target/foundry-external/checkouts` and are reused offline once fetched.
 //! `SOLAR_FOUNDRY_EXTERNAL_MANIFEST` replaces the curated list with a TOML
 //! manifest of out-of-repo projects.
+//!
+//! Pinned projects may carry narrow test-only corrections, applied identically
+//! before both compiler legs. Each correction checks its source text and reports
+//! its reason; changed or ambiguous sites fail preparation instead of skipping
+//! tests. Manifest projects keep their sources unchanged.
 
 use super::{
     AssertionPolicy, SOLAR_BINARY, SkipEntry, TestConfig, forge_available, workspace_root,
@@ -56,6 +61,7 @@ struct ExternalProject {
     skip_tests: &'static [Skip],
     skip_contracts: &'static [Skip],
     notes: &'static str,
+    test_fixes: &'static [TestFix],
 }
 
 /// The curated corpus. Dependencies must come from the projects' own git
@@ -73,6 +79,7 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         skip_tests: &[],
         skip_contracts: &[],
         notes: "lending core: exact 0.8.19 pragma, invariant suite, evm paris",
+        test_fixes: &[],
     },
     ExternalProject {
         name: "solmate",
@@ -85,6 +92,7 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         skip_tests: &[],
         skip_contracts: &[],
         notes: "token/utility library: heavy fuzz coverage of arithmetic edge cases",
+        test_fixes: &[],
     },
     ExternalProject {
         name: "solady",
@@ -96,6 +104,12 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         skip_tests: &[],
         skip_contracts: &[],
         notes: "assembly-heavy library: the widest inline-assembly coverage available",
+        test_fixes: &[TestFix {
+            path: "test/ERC6551.t.sol",
+            before: "assertEq(target.balance, 123);\n\n        vm.prank(_randomNonZeroAddress());",
+            after: "assertEq(target.balance, 123);\n\n        vm.prank(address(uint160(t.owner) ^ 1));",
+            reason: "the unauthorized caller must differ from the owner; random addresses can repeat",
+        }],
     },
     // prb-math was considered but is excluded: its forge-std comes from
     // npm/bun (`devDependencies`), not a git submodule. Run it through
@@ -111,6 +125,7 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         skip_tests: &[],
         skip_contracts: &[],
         notes: "build-only: whole-project codegen and artifact parity",
+        test_fixes: &[],
     },
     ExternalProject {
         name: "openzeppelin-contracts",
@@ -122,6 +137,12 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         skip_tests: &[],
         skip_contracts: &[],
         notes: "divergence tracker: broadest idiomatic Solidity surface; needs a forge that knows evm osaka",
+        test_fixes: &[TestFix {
+            path: "test/utils/Blockhash.t.sol",
+            before: "uint256 currentBlock = block.number - 1;",
+            after: "uint256 currentBlock = vm.getBlockNumber() - 1;",
+            reason: "snapshot block number through the cheatcode getter before vm.roll (CODEGEN-008)",
+        }],
     },
     ExternalProject {
         name: "uniswap-v4-core",
@@ -134,6 +155,7 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         skip_tests: &[],
         skip_contracts: &[],
         notes: "divergence tracker: transient storage, via-ir profile, ffi gas snapshots",
+        test_fixes: &[],
     },
 ];
 
@@ -160,6 +182,7 @@ struct ResolvedProject {
     skip_tests: Vec<SkipEntry>,
     skip_contracts: Vec<SkipEntry>,
     notes: String,
+    test_fixes: &'static [TestFix],
 }
 
 /// Root of a `SOLAR_FOUNDRY_EXTERNAL_MANIFEST` TOML file.
@@ -218,6 +241,7 @@ impl ResolvedProject {
             skip_tests: skip_entries(project.skip_tests),
             skip_contracts: skip_entries(project.skip_contracts),
             notes: project.notes.to_string(),
+            test_fixes: project.test_fixes,
         }
     }
 
@@ -245,6 +269,7 @@ impl ResolvedProject {
             skip_tests: manifest_skips(project.skip_tests),
             skip_contracts: manifest_skips(project.skip_contracts),
             notes: project.notes,
+            test_fixes: &[],
         }
     }
 
@@ -446,10 +471,83 @@ pub(super) fn run_external_suite(solar: &Path) {
                 }
             },
         };
+        if let Err(reason) = apply_test_fixes(project, &dir) {
+            eprintln!("[{}] test preparation failed: {reason}", project.name);
+            failures.push(project.name.clone());
+            continue;
+        }
         let config = project.test_config(dir);
         if catch_unwind(AssertUnwindSafe(|| config.run())).is_err() {
             failures.push(project.name.clone());
         }
     }
     assert!(failures.is_empty(), "External Foundry projects failed: {}", failures.join(", "));
+}
+
+/// A test-only correction applied to both compiler legs at the pinned revision.
+struct TestFix {
+    path: &'static str,
+    before: &'static str,
+    after: &'static str,
+    reason: &'static str,
+}
+
+fn apply_test_fixes(project: &ResolvedProject, dir: &Path) -> Result<(), String> {
+    for fix in project.test_fixes {
+        let path = dir.join(fix.path);
+        let source = fs::read_to_string(&path).map_err(|error| format!("{}: {error}", fix.path))?;
+        if source.matches(fix.before).count() == 1 && !source.contains(fix.after) {
+            fs::write(&path, source.replacen(fix.before, fix.after, 1))
+                .map_err(|error| format!("{}: {error}", fix.path))?;
+        } else if source.contains(fix.before) || source.matches(fix.after).count() != 1 {
+            return Err(format!("{}: expected exactly one test-fix site", fix.path));
+        }
+        println!("[{}] test fix in {}: {}", project.name, fix.path, fix.reason);
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_fixes_are_idempotent() {
+        for project in EXTERNAL_PROJECTS {
+            let project = ResolvedProject::from_curated(project);
+            let dir = tempfile::tempdir().unwrap();
+            for fix in project.test_fixes {
+                let path = dir.path().join(fix.path);
+                fs::create_dir_all(path.parent().unwrap()).unwrap();
+                fs::write(path, fix.before).unwrap();
+            }
+            apply_test_fixes(&project, dir.path()).unwrap();
+            apply_test_fixes(&project, dir.path()).unwrap();
+            for fix in project.test_fixes {
+                assert_eq!(fs::read_to_string(dir.path().join(fix.path)).unwrap(), fix.after);
+            }
+        }
+    }
+
+    #[test]
+    fn test_fixes_reject_changed_or_repeated_sources() {
+        for project in EXTERNAL_PROJECTS {
+            let project = ResolvedProject::from_curated(project);
+            let dir = tempfile::tempdir().unwrap();
+            for fix in project.test_fixes {
+                let path = dir.path().join(fix.path);
+                fs::create_dir_all(path.parent().unwrap()).unwrap();
+                for source in [
+                    String::new(),
+                    fix.before.repeat(2),
+                    fix.after.repeat(2),
+                    format!("{}{}", fix.before, fix.after),
+                ] {
+                    fs::write(&path, &source).unwrap();
+                    assert!(apply_test_fixes(&project, dir.path()).is_err());
+                    assert_eq!(fs::read_to_string(&path).unwrap(), source);
+                }
+            }
+        }
+    }
 }
