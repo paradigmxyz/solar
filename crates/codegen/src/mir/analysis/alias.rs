@@ -403,11 +403,28 @@ enum AddressState {
     Resolved(Option<MemoryAddress>),
 }
 
+/// Memoized address resolutions, indexed by value.
+#[derive(Clone, Debug, Default)]
+struct AddressMemo {
+    /// Grows on demand, since transforms may add values after construction.
+    states: IndexVec<ValueId, AddressState>,
+    /// The values whose state is not [`AddressState::Unresolved`], so clearing costs only
+    /// what was queried.
+    touched: Vec<ValueId>,
+}
+
+impl AddressMemo {
+    fn clear(&mut self) {
+        for value in self.touched.drain(..) {
+            self.states[value] = AddressState::Unresolved;
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 struct PointerProvenance {
     allocations: FxHashMap<InstId, AllocationProvenance>,
-    /// Grows on demand, since transforms may add values after construction.
-    addresses: RefCell<IndexVec<ValueId, AddressState>>,
+    addresses: RefCell<AddressMemo>,
 }
 
 impl PointerProvenance {
@@ -1709,16 +1726,19 @@ impl AliasAnalysis {
     ) -> Option<MemoryAddress> {
         let provenance = self.provenance(func);
         {
-            let mut addresses = provenance.addresses.borrow_mut();
-            if addresses.len() <= value.index() {
-                addresses
-                    .resize(func.num_values().max(value.index() + 1), AddressState::Unresolved);
+            let mut memo = provenance.addresses.borrow_mut();
+            let AddressMemo { states, touched } = &mut *memo;
+            if states.len() <= value.index() {
+                states.resize(func.num_values().max(value.index() + 1), AddressState::Unresolved);
             }
-            match addresses[value] {
+            match states[value] {
                 AddressState::Resolved(address) => return address,
-                AddressState::Unresolved if depth <= 8 => addresses[value] = AddressState::Visiting,
+                AddressState::Unresolved if depth <= 8 => {
+                    states[value] = AddressState::Visiting;
+                    touched.push(value);
+                }
                 AddressState::Unresolved | AddressState::Visiting => {
-                    drop(addresses);
+                    drop(memo);
                     return Some(MemoryAddress::symbolic(
                         value,
                         self.pointer_region(func, value, 0),
@@ -1798,7 +1818,7 @@ impl AliasAnalysis {
                 _ => Some(MemoryAddress::symbolic(value, self.pointer_region(func, value, 0))),
             },
         })();
-        provenance.addresses.borrow_mut()[value] = AddressState::Resolved(address);
+        provenance.addresses.borrow_mut().states[value] = AddressState::Resolved(address);
         address
     }
 
