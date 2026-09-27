@@ -182,6 +182,7 @@ fn optimize_module<const LATE: bool>(
     let evm_version = gcx.sess.opts.evm_version;
     module.peephole_clean.0.resize_with(module.blocks.len(), || None);
     let parallel = gcx.sess.is_parallel()
+        && sync::current_thread_has_pending_tasks() != Some(true)
         && !gcx.sess.opts.unstable.print_after_each
         && !gcx.sess.opts.unstable.pass_diff
         && !gcx.sess.opts.unstable.time_passes

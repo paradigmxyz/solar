@@ -747,6 +747,7 @@ impl ModuleAnalyses {
     pub(crate) fn call_summaries(&mut self, module: &Module) -> Arc<MemoryCallSummaries> {
         Arc::clone(self.call_summaries.get_or_insert_with(|| {
             let parallel = self.parallel
+                && sync::current_thread_has_pending_tasks() != Some(true)
                 && module.functions.iter().map(Function::num_insts).sum::<usize>()
                     >= MIN_PARALLEL_INSTRUCTIONS;
             Arc::new(MemoryCallSummaries::new(module, parallel))
@@ -877,7 +878,7 @@ fn run_parallel_function_pass(
     cache_key: Option<TypeId>,
     run: &(impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync),
 ) -> Option<bool> {
-    if !analyses.parallel {
+    if !analyses.parallel || sync::current_thread_has_pending_tasks() == Some(true) {
         return None;
     }
     let functions = module.functions.len();
