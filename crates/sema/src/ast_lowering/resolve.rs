@@ -1348,13 +1348,6 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_condition(&mut self, expr: &ast::yul::Expr<'_>) -> &'gcx hir::Expr<'gcx> {
-        match &expr.kind {
-            ast::yul::ExprKind::Lit(lit) if matches!(lit.kind, ast::LitKind::Bool(_)) => {
-                return self.lower_yul_expr(expr);
-            }
-            _ => {}
-        }
-
         // <expr> != 0
         let expr = self.lower_yul_expr(expr);
         let zero = self.yul_number_lit(U256::ZERO, expr.span);
