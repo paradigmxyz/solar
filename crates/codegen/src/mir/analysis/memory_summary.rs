@@ -22,6 +22,7 @@ use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
     map::FxHashSet,
+    sync,
 };
 use std::collections::{BTreeSet, VecDeque};
 
@@ -401,7 +402,7 @@ pub(crate) struct MemoryCallSummaries {
 impl MemoryCallSummaries {
     /// Computes summaries to a monotone fixpoint over the module call graph.
     #[must_use]
-    pub(crate) fn new(module: &Module) -> Self {
+    pub(crate) fn new(module: &Module, parallel: bool) -> Self {
         let mut targets = DenseBitSet::new_empty(module.functions.len());
         for func in &module.functions {
             for inst in func.instructions() {
@@ -424,23 +425,28 @@ impl MemoryCallSummaries {
             return Self { summaries: IndexVec::new() };
         }
 
-        // The parameter sources and alias analysis of each target.
-        let facts = module
-            .functions
-            .iter_enumerated()
-            .map(|(id, func)| {
-                targets.contains(id).then(|| (parameter_sources(func), AliasAnalysis::new(func)))
-            })
-            .collect::<IndexVec<FunctionId, _>>();
-        let calls = CallGraphInfo::new(module);
+        // Each worker retains the same local alias memo for the serial call-graph fixpoint.
+        let mut facts = module.functions.iter().map(|_| None).collect::<IndexVec<FunctionId, _>>();
         let mut local = index_vec![None; module.functions.len()];
+        sync::scope(parallel && targets.count() > 1, |scope| {
+            for (((id, func), facts), summary) in
+                module.functions.iter_enumerated().zip(facts.iter_mut()).zip(local.iter_mut())
+            {
+                if targets.contains(id) {
+                    scope.spawn(move |_| {
+                        let sources = parameter_sources(func);
+                        let alias = AliasAnalysis::new(func);
+                        *summary = Some(local_summary(module, func, &sources, &alias));
+                        *facts = Some((sources, alias));
+                    });
+                }
+            }
+        });
+        let calls = CallGraphInfo::new(module);
         for func_id in &targets {
-            let func = &module.functions[func_id];
-            let (sources, alias) = facts[func_id].as_ref().unwrap();
-            let mut summary = local_summary(module, func, sources, alias);
-            summary.has_multiple_returns = func.return_components().len() > 1;
+            let summary = local[func_id].as_mut().unwrap();
+            summary.has_multiple_returns = module.functions[func_id].return_components().len() > 1;
             summary.control.may_diverge |= calls.is_recursive(func_id);
-            local[func_id] = Some(summary);
         }
         let mut summaries = local.clone();
 
@@ -1097,7 +1103,8 @@ mod tests {
                     args: Default::default(),
                 });
                 let entry = module.add_function(entry);
-                let summaries = MemoryCallSummaries::new(&module);
+                let summaries = MemoryCallSummaries::new(&module, false);
+                assert_eq!(MemoryCallSummaries::new(&module, true).summaries, summaries.summaries);
                 assert!(summaries.get(entry).is_none());
                 for function in [leaf, caller] {
                     let summary = summaries.get(function).unwrap();
@@ -1201,7 +1208,8 @@ mod tests {
             builder.ret([]);
         }
         let entry = module.add_function(entry);
-        let summaries = MemoryCallSummaries::new(&module);
+        let summaries = MemoryCallSummaries::new(&module, false);
+        assert_eq!(MemoryCallSummaries::new(&module, true).summaries, summaries.summaries);
         assert!(summaries.get(entry).is_none());
         assert!(!summaries.get(reader_caller).unwrap().captures_param(ArgIdx::new(0)));
         assert!(summaries.get(returning_caller).unwrap().captures_param(ArgIdx::new(0)));
