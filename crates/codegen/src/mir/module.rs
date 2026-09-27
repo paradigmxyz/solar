@@ -6,7 +6,7 @@ use super::{
     Terminator, ValueId,
 };
 use crate::link::{ContractCode, LibraryTable};
-use alloy_primitives::Bytes;
+use alloy_primitives::{B256, Bytes};
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -112,6 +112,8 @@ pub struct Module {
     pub(super) phase: MirPhase,
     /// Whether passes must account for every instruction's source debug information.
     debug_info_tracked: bool,
+    /// Digests of the rewrites `llm-optimize` applied, in function order.
+    pub(crate) llm_rewrites: Vec<B256>,
 }
 
 impl Module {
@@ -185,6 +187,7 @@ impl Module {
             is_library: false,
             phase: MirPhase::Semantic,
             debug_info_tracked: false,
+            llm_rewrites: Vec::new(),
         }
     }
 

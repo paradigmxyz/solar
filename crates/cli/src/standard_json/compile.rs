@@ -406,7 +406,7 @@ fn compile(
                     // Metadata settings affect the CBOR trailer independently of
                     // the code-generation options stored in the session.
                     let metadata_identity = alloy_primitives::keccak256(format!("{metadata:?}"));
-                    make_ethdebug_compilation(gcx, Some(metadata_identity))
+                    make_ethdebug_compilation(gcx, Some(metadata_identity), bytecodes.as_ref())
                 });
                 let compilation_id = compilation.as_ref().map(EthdebugCompilation::id);
 
