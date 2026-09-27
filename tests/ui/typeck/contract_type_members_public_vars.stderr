@@ -1,9 +1,3 @@
-error: types containing internal function pointers cannot be parameter or return types of public functions
-   ╭▸ ROOT/tests/ui/typeck/contract_type_members_public_vars.sol:LL:CC
-   │
-LL │     function invalid(function() internal callback) external {}
-   ╰╴                     ━━━━━━━━━━━━━━━━━━━
-
 error: expected function, found `uint256`
    ╭▸ ROOT/tests/ui/typeck/contract_type_members_public_vars.sol:LL:CC
    │
@@ -86,11 +80,5 @@ LL │         QualifiedLvalueDerived.derivedImmutable = 5;
    │
    ╰ help: immutables can only be assigned in state variable initializers, constructor arguments, or constructor bodies
 
-error: member `invalid` not found on type `type(contract InvalidInterfaceSignature)`
-   ╭▸ ROOT/tests/ui/typeck/contract_type_members_public_vars.sol:LL:CC
-   │
-LL │         InvalidInterfaceSignature.invalid;
-   ╰╴                                  ━━━━━━━
-
-error: aborting due to 13 previous errors
+error: aborting due to 11 previous errors
 

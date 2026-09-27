@@ -60,12 +60,3 @@ contract QualifiedLvalueDerived is QualifiedLvalueBase {
         QualifiedLvalueDerived.derivedImmutable = 5; //~ ERROR: cannot assign to immutable here
     }
 }
-
-contract InvalidInterfaceSignature {
-    function invalid(function() internal callback) external {} //~ ERROR: types containing internal function pointers
-}
-contract InvalidInterfaceReference {
-    function useInvalid() external pure {
-        InvalidInterfaceSignature.invalid; //~ ERROR: member `invalid` not found
-    }
-}

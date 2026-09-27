@@ -16,4 +16,34 @@ contract C {
         Executor.check.address; //~ ERROR: member `address` not found
         Executor.check.selector;
     }
+
+    function ownSelector() external pure returns (bytes4) {
+        return OwnOverload.initialize.selector;
+    }
+
+    function encodeOwn() external pure returns (bytes memory) {
+        return abi.encodeCall(OwnOverload.initialize, (true));
+    }
+
+    function hiddenSelector() external pure returns (bytes4) {
+        return HiddenOverload.initialize.selector; //~ ERROR: member `initialize` not found
+    }
+
+    function inheritedSelector() external pure returns (bytes4) {
+        return InheritedOverload.initialize.selector; //~ ERROR: member `initialize` not found
+    }
 }
+
+contract BaseOverload {
+    function initialize(uint value) external {}
+}
+
+contract OwnOverload is BaseOverload {
+    function initialize(bool value) external {}
+}
+
+contract HiddenOverload is BaseOverload {
+    function initialize(bool value) internal {}
+}
+
+contract InheritedOverload is BaseOverload {}
