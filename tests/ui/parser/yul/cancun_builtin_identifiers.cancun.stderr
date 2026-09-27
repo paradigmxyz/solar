@@ -1,4 +1,4 @@
-error: expected identifier, found Yul EVM builtin keyword `mcopy`
+error: `mcopy` is reserved for a Yul builtin
    ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
    │
 LL │             let mcopy

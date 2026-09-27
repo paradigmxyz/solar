@@ -52,17 +52,17 @@ Coverage: `tests/ui/typeck/unchecked_as_single_statement.sol`; the upstream
 `unchecked_while_body` parse-only fixture remains excluded from solc parity
 testing.
 
-### PARSE-002: Versioned builtin names in standalone Yul
+### PARSE-002: Standalone Yul stops after parsing
 
-Status: intentional.
+Status: implementation gap.
 
-Difference: in standalone Yul, `solar` reserves builtin names even when the
-selected EVM version does not support them. Inline Solidity assembly follows
-the target's builtin availability, including allowing `difficulty` as an
-identifier from Paris onward.
+Difference: Solar parses Yul builtin names as identifiers without consulting
+an EVM version. Inline assembly checks reserved names, future-builtin warnings,
+and builtin availability during name resolution. Standalone Yul currently
+stops after parsing, so it does not perform those semantic checks.
 
-Rationale: standalone Yul parses builtin calls before checking their target
-availability during name resolution.
+Rationale: builtin availability is a semantic rule, not part of the grammar.
+Standalone Yul needs semantic analysis before it can enforce the same rules.
 
 Coverage: `tests/ui/parser/yul/cancun_builtin_identifiers.sol` and the
 `tests/ui/assembly/yul_builtins_*_evm_version.sol` fixtures.
