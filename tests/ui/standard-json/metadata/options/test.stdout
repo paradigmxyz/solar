@@ -6,16 +6,6 @@
       "type": "Warning",
       "component": "general",
       "severity": "warning",
-      "errorCode": null,
-      "message": "solc optimizer details do not apply to Solar's optimization pipeline; only `enabled` and `runs` are used",
-      "formattedMessage": "warning: solc optimizer details do not apply to Solar's optimization pipeline; only `enabled` and `runs` are used\n\n"
-    },
-    {
-      "sourceLocation": null,
-      "secondarySourceLocations": [],
-      "type": "Warning",
-      "component": "general",
-      "severity": "warning",
       "errorCode": "2264",
       "message": "code generation is experimental",
       "formattedMessage": "warning[2264]: code generation is experimental\n\n"

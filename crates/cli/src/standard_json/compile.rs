@@ -267,38 +267,6 @@ fn compile(
         return write_empty_standard_json_output(source_map, opts, diagnostics, out);
     }
 
-    if let Some(details) = optimizer.as_ref().and_then(|optimizer| optimizer.details.as_ref()) {
-        for (name, value) in details {
-            let valid = match name.as_str() {
-                "peephole"
-                | "inliner"
-                | "jumpdestRemover"
-                | "orderLiterals"
-                | "deduplicate"
-                | "cse"
-                | "constantOptimizer"
-                | "yul"
-                | "simpleCounterForLoopUncheckedIncrement" => value.is_boolean(),
-                "yulDetails" => value.as_object().is_some_and(|details| {
-                    details.iter().all(|(name, value)| match name.as_str() {
-                        "stackAllocation" => value.is_boolean(),
-                        "optimizerSteps" => value.is_string(),
-                        _ => false,
-                    })
-                }),
-                _ => false,
-            };
-            if !valid {
-                dcx.err(format!("invalid optimizer detail `{name}`")).emit();
-            }
-        }
-        if dcx.has_errors().is_err() {
-            return write_empty_standard_json_output(source_map, opts, diagnostics, out);
-        }
-        if !details.is_empty() {
-            dcx.warn("solc optimizer details do not apply to Solar's optimization pipeline; only `enabled` and `runs` are used").emit();
-        }
-    }
     let (optimizer_enabled, optimizer_runs) = optimizer_settings(optimizer.as_ref());
     // Treat lower run counts as size optimization.
     opts.optimization = if optimizer_enabled {

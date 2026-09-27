@@ -227,9 +227,9 @@ pub(super) struct Optimizer {
     /// Expected executions per deployment for optimizer tradeoffs.
     #[serde(default)]
     pub(super) runs: Option<u64>,
-    /// Solc-specific pass controls, checked for shape but not applied to Solar's pipeline.
-    #[serde(default)]
-    pub(super) details: Option<Map<String, Value>>,
+    /// Solc-specific pass controls do not apply to Solar.
+    #[serde(default, rename = "details")]
+    _details: serde::de::IgnoredAny,
 }
 
 pub(super) fn optimizer_settings(optimizer: Option<&Optimizer>) -> (bool, u64) {

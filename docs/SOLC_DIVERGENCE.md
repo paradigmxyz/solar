@@ -347,13 +347,11 @@ No intentional divergences documented yet.
 
 Status: intentional.
 
-Difference: `solar` accepts known `settings.optimizer.details` fields with the
-expected JSON types and warns that they do not control its optimizer. It uses
-only `enabled` and `runs`; it does not interpret solc's Yul pass sequence.
+Difference: `solar` ignores `settings.optimizer.details`, including unknown
+fields and values that solc rejects. It uses only `enabled` and `runs` to
+configure its optimizer.
 
-Rationale: Solar has its own optimization pipeline, so solc pass switches have
-no equivalent meaning. Accepting these settings lets existing compiler inputs
-run while the warning makes the difference explicit.
+Rationale: Solar has its own optimization pipeline, so solc pass controls have
+no equivalent meaning.
 
-Coverage: `tests/ui/standard-json/metadata/options/test.jsonc` and
-`tests/ui/standard-json/invalid-settings/optimizer-details.jsonc`.
+Coverage: `tests/ui/standard-json/metadata/options/test.jsonc`.
