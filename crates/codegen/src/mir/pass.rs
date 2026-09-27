@@ -26,6 +26,7 @@ use crate::mir::{
     pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff, run_passes_inner},
     transform::*,
 };
+use either::Either;
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap, sync};
 use solar_interface::diagnostics::ErrorGuaranteed;
@@ -498,23 +499,28 @@ fn run_function_pass_with(
     requirements: FunctionAnalysisRequirements,
     run: &(impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync),
 ) -> bool {
-    run_function_pass_with_cache(module, analyses, requirements, None, run)
+    run_function_pass_with_cache(module, analyses, None, requirements, None, run)
 }
 
 fn run_function_pass_with_cache(
     module: &mut Module,
     analyses: &mut ModuleAnalyses,
+    selected: Option<&DenseBitSet<FunctionId>>,
     requirements: FunctionAnalysisRequirements,
     cache_key: Option<TypeId>,
     run: &(impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync),
 ) -> bool {
     if let Some(changed) =
-        run_parallel_function_pass(module, analyses, None, requirements, cache_key, run)
+        run_parallel_function_pass(module, analyses, selected, requirements, cache_key, run)
     {
         return changed;
     }
+    let functions = match selected {
+        Some(selected) => Either::Left(selected.iter()),
+        None => Either::Right(module.functions.indices()),
+    };
     let mut changed = false;
-    for func_id in module.functions.indices() {
+    for func_id in functions {
         if module.functions[func_id].blocks.is_empty() {
             continue;
         }
@@ -533,10 +539,10 @@ pub(crate) fn run_selected_function_pass(
     selected: &DenseBitSet<FunctionId>,
     run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
 ) -> bool {
-    run_selected_function_pass_with(
+    run_function_pass_with_cache(
         module,
         analyses,
-        selected,
+        Some(selected),
         FunctionAnalysisRequirements::CFG,
         None,
         &run,
@@ -551,10 +557,10 @@ pub(crate) fn run_selected_function_pass_with_alias_and_cfg(
     selected: &DenseBitSet<FunctionId>,
     run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
 ) -> bool {
-    run_selected_function_pass_with(
+    run_function_pass_with_cache(
         module,
         analyses,
-        selected,
+        Some(selected),
         FunctionAnalysisRequirements::ALL,
         None,
         &run,
@@ -571,10 +577,10 @@ pub(crate) fn run_selected_function_pass_cached<P: 'static>(
     selected: &DenseBitSet<FunctionId>,
     run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
 ) -> bool {
-    run_selected_function_pass_with(
+    run_function_pass_with_cache(
         module,
         analyses,
-        selected,
+        Some(selected),
         FunctionAnalysisRequirements::CFG,
         Some(TypeId::of::<P>()),
         &run,
@@ -589,39 +595,14 @@ pub(crate) fn run_selected_function_pass_without_analyses_cached<P: 'static>(
     selected: &DenseBitSet<FunctionId>,
     run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
 ) -> bool {
-    run_selected_function_pass_with(
+    run_function_pass_with_cache(
         module,
         analyses,
-        selected,
+        Some(selected),
         FunctionAnalysisRequirements::NONE,
         Some(TypeId::of::<P>()),
         &run,
     )
-}
-
-fn run_selected_function_pass_with(
-    module: &mut Module,
-    analyses: &mut ModuleAnalyses,
-    selected: &DenseBitSet<FunctionId>,
-    requirements: FunctionAnalysisRequirements,
-    cache_key: Option<TypeId>,
-    run: &(impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync),
-) -> bool {
-    if let Some(changed) =
-        run_parallel_function_pass(module, analyses, Some(selected), requirements, cache_key, run)
-    {
-        return changed;
-    }
-    let mut changed = false;
-    for func_id in selected.iter() {
-        if module.functions[func_id].blocks.is_empty() {
-            continue;
-        }
-        changed |=
-            run_function_pass_cached(analyses, module, func_id, requirements, cache_key, run);
-    }
-    analyses.preserved_by_pass = true;
-    changed
 }
 
 /// Per-function analysis snapshots handed to a pass run.
@@ -909,13 +890,17 @@ fn run_parallel_function_pass(
     {
         return None;
     }
-    let mut any_changed = false;
-    if requirements.alias()
-        && analyses.call_summaries.is_none()
-        && let Some(first_missing) = module
+    let first_missing = if requirements.alias() {
+        module
             .functions
             .indices()
             .find(|id| runnable[id.index()] && !analyses.alias.contains_key(id))
+    } else {
+        None
+    };
+    let mut any_changed = false;
+    if analyses.call_summaries.is_none()
+        && let Some(first_missing) = first_missing
     {
         // Preserve the point at which a serial pass would first build call summaries.
         for id in module.functions.indices().take(first_missing.index()) {
@@ -926,16 +911,7 @@ fn run_parallel_function_pass(
             }
         }
     }
-    let summaries = if requirements.alias()
-        && module
-            .functions
-            .indices()
-            .any(|id| runnable[id.index()] && !analyses.alias.contains_key(&id))
-    {
-        Some(analyses.call_summaries(module))
-    } else {
-        None
-    };
+    let summaries = first_missing.map(|_| analyses.call_summaries(module));
     let jobs = module
         .functions
         .iter_enumerated()
@@ -1088,6 +1064,7 @@ mod tests {
             assert!(!run_function_pass_with_cache(
                 &mut module,
                 &mut analyses,
+                None,
                 FunctionAnalysisRequirements::CFG,
                 key,
                 &run

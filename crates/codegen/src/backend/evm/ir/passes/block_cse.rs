@@ -18,7 +18,7 @@
 //! expose adjacent stack and arithmetic simplifications.
 //! Large modules regenerate disjoint block chunks in parallel.
 
-use super::EvmPass;
+use super::{EvmPass, utils::should_parallelize_blocks};
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue},
     op,
@@ -48,12 +48,7 @@ impl EvmPass for BlockCse {
             }
             changed
         };
-        let parallel = gcx.sess.is_parallel()
-            && sync::current_thread_has_pending_tasks() != Some(true)
-            && !gcx.sess.opts.unstable.print_after_each
-            && !gcx.sess.opts.unstable.pass_diff
-            && !gcx.sess.opts.unstable.time_passes
-            && module.blocks.iter().map(|block| block.instructions.len()).sum::<usize>() >= 4096;
+        let parallel = should_parallelize_blocks(gcx, module);
         if !parallel {
             return run(&mut module.blocks);
         }

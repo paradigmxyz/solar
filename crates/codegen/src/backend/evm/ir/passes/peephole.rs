@@ -35,7 +35,7 @@
 use super::{
     EvmPass,
     compact_pushes::{immediate_materialization_cost, materialize_immediate},
-    utils::MachineInstKey,
+    utils::{MachineInstKey, should_parallelize_blocks},
 };
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue, TerminatorKind},
@@ -181,12 +181,7 @@ fn optimize_module<const LATE: bool>(
 ) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
     module.peephole_clean.0.resize_with(module.blocks.len(), || None);
-    let parallel = gcx.sess.is_parallel()
-        && sync::current_thread_has_pending_tasks() != Some(true)
-        && !gcx.sess.opts.unstable.print_after_each
-        && !gcx.sess.opts.unstable.pass_diff
-        && !gcx.sess.opts.unstable.time_passes
-        && module.blocks.iter().map(|block| block.instructions.len()).sum::<usize>() >= 4096;
+    let parallel = should_parallelize_blocks(gcx, module);
     if !parallel {
         return optimize_blocks::<LATE>(
             evm_version,

@@ -12,6 +12,7 @@ use crate::backend::evm::{
 use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashSet,
+    sync,
 };
 use solar_sema::Gcx;
 
@@ -158,6 +159,15 @@ fn remap_terminator_blocks(kind: &mut TerminatorKind, remap: &IndexVec<BlockId, 
     kind.visit_targets_mut(|target| {
         *target = remap[*target].expect("terminator target must be retained");
     });
+}
+
+pub(super) fn should_parallelize_blocks(gcx: Gcx<'_>, module: &Module) -> bool {
+    gcx.sess.is_parallel()
+        && sync::current_thread_has_pending_tasks() != Some(true)
+        && !gcx.sess.opts.unstable.print_after_each
+        && !gcx.sess.opts.unstable.pass_diff
+        && !gcx.sess.opts.unstable.time_passes
+        && module.blocks.iter().map(|block| block.instructions.len()).sum::<usize>() >= 4096
 }
 
 #[cfg(test)]

@@ -398,12 +398,15 @@ def same_file(a: Path, b: Path) -> bool:
 
 
 def same_output(a: Path, b: Path, unordered_diagnostics: bool) -> bool:
-    if same_file(a, b):
+    if not a.exists() or not b.exists():
+        return False
+    contents = [path.read_bytes() for path in (a, b)]
+    if contents[0] == contents[1]:
         return True
     if not unordered_diagnostics:
         return False
     try:
-        outputs = [json.loads(path.read_bytes()) for path in (a, b)]
+        outputs = [json.loads(content) for content in contents]
     except ValueError, UnicodeDecodeError:
         return False
     for output in outputs:
