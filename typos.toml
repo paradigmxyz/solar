@@ -6,6 +6,7 @@ extend-exclude = [
     "Cargo.toml",
     "Cargo.lock",
     "CHANGELOG.md",
+    "docs/SOURCIFY_ERRORS.md", # Saved diagnostics include third-party source text.
     "*.json",
     "**/tests/**",
     "**/test/**",
