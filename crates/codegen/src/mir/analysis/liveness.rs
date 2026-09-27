@@ -11,11 +11,12 @@
 //! edge: an operand is live out of the predecessor it flows from and is not live into
 //! the merge block, which only sees the phi result.
 
-use crate::mir::{BlockId, Function, InstKind, Terminator, Value, ValueId, utils::IndexLists};
+use crate::mir::{BlockId, Function, InstKind, Terminator, Value, ValueId};
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::{BitMatrix, BitMatrixRow, DenseBitSet},
     index::{IndexVec, index_vec},
+    map::FxHashMap,
 };
 use std::collections::VecDeque;
 
@@ -36,9 +37,11 @@ pub(crate) struct Liveness {
     live_in: BitMatrix<BlockId, ValueId>,
     /// Values live at each block's exit.
     live_out: BitMatrix<BlockId, ValueId>,
-    /// The last use of each value within each block where it's used.
+    /// The last use location of each value within each block: (block, instruction index).
+    /// The key is (ValueId, BlockId), and value is the instruction index (None = terminator).
+    /// This tracks the last use of a value *within* each block where it's used.
     /// `None` when only the live sets were computed.
-    last_use_in_block: Option<LastUses>,
+    last_use_in_block: Option<FxHashMap<(ValueId, BlockId), Option<usize>>>,
     /// Number of values in the function.
     #[allow(dead_code)]
     num_values: usize,
@@ -156,27 +159,36 @@ impl Liveness {
         if !tracks_last_uses {
             return Self { live_in, live_out, last_use_in_block: None, num_values };
         }
+        let mut last_use_in_block = FxHashMap::default();
         // A phi operand is used when its predecessor transfers control, so it
         // must survive to that block's terminator.
-        let phi_uses_by_pred = IndexLists::new(num_blocks, phi_edge_uses.iter().flatten().copied());
-        let mut last_use_in_block = LastUses::with_capacity(num_blocks);
-        let mut uses = Vec::new();
+        for edge_uses in &phi_edge_uses {
+            for &(pred, value) in edge_uses {
+                last_use_in_block.insert((value, pred), None);
+            }
+        }
         for (block_id, block) in func.blocks.iter_enumerated() {
-            uses.extend(
-                phi_uses_by_pred.get(block_id).iter().map(|&value| (value, LastUses::TERMINATOR)),
-            );
+            // Check terminator uses - these are the last use in this block
             if let Some(term) = &block.terminator {
                 operand_buf.clear();
                 collect_terminator_uses(term, &mut operand_buf);
-                uses.extend(operand_buf.iter().map(|&operand| (operand, LastUses::TERMINATOR)));
-            }
-            for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
-                let inst = func.inst(inst_id);
-                if !matches!(inst.kind, InstKind::Phi(_)) {
-                    inst.kind.visit_operands(|operand| uses.push((operand, inst_idx as u32)));
+                for &operand in &operand_buf {
+                    // Terminator is represented by None for inst_idx
+                    last_use_in_block.entry((operand, block_id)).or_insert(None);
                 }
             }
-            last_use_in_block.push_block(&mut uses);
+
+            // Check instruction uses in reverse order
+            // The first occurrence in reverse order is the last use in forward order
+            for (inst_idx, &inst_id) in block.instructions.iter().enumerate().rev() {
+                let inst = func.inst(inst_id);
+                if matches!(inst.kind, InstKind::Phi(_)) {
+                    continue;
+                }
+                inst.kind.visit_operands(|operand| {
+                    last_use_in_block.entry((operand, block_id)).or_insert(Some(inst_idx));
+                });
+            }
         }
 
         Self { live_in, live_out, last_use_in_block: Some(last_use_in_block), num_values }
@@ -223,20 +235,20 @@ impl Liveness {
 
         let live_in = BitMatrix::new(func.blocks.len(), 0);
         let live_out = BitMatrix::new(func.blocks.len(), 0);
-        let mut last_use_in_block = LastUses::with_capacity(func.blocks.len());
-        let mut uses = Vec::new();
-        for block in &func.blocks {
+        let mut last_use_in_block = FxHashMap::default();
+        for (block_id, block) in func.blocks.iter_enumerated() {
             if let Some(term) = &block.terminator {
                 operands.clear();
                 collect_terminator_uses(term, &mut operands);
-                uses.extend(operands.iter().map(|&operand| (operand, LastUses::TERMINATOR)));
+                for &operand in &operands {
+                    last_use_in_block.entry((operand, block_id)).or_insert(None);
+                }
             }
-            for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
-                func.inst(inst_id)
-                    .kind
-                    .visit_operands(|operand| uses.push((operand, inst_idx as u32)));
+            for (inst_idx, &inst_id) in block.instructions.iter().enumerate().rev() {
+                func.inst(inst_id).kind.visit_operands(|operand| {
+                    last_use_in_block.entry((operand, block_id)).or_insert(Some(inst_idx));
+                });
             }
-            last_use_in_block.push_block(&mut uses);
         }
 
         Some(Self { live_in, live_out, last_use_in_block: Some(last_use_in_block), num_values })
@@ -288,10 +300,10 @@ impl Liveness {
 
     #[cfg(test)]
     fn last_use_in_block(&self, val: ValueId, block: BlockId) -> Option<Option<usize>> {
-        self.last_uses().get(val, block)
+        self.last_uses().get(&(val, block)).copied()
     }
 
-    fn last_uses(&self) -> &LastUses {
+    fn last_uses(&self) -> &FxHashMap<(ValueId, BlockId), Option<usize>> {
         self.last_use_in_block.as_ref().expect("liveness was computed without last uses")
     }
 
@@ -307,8 +319,8 @@ impl Liveness {
             return true;
         }
 
-        match self.last_uses().get(val, block) {
-            Some(Some(last_idx)) => last_idx >= inst_idx,
+        match self.last_uses().get(&(val, block)) {
+            Some(Some(last_idx)) => *last_idx >= inst_idx,
             Some(None) => true,
             None => false,
         }
@@ -327,54 +339,14 @@ impl Liveness {
         }
 
         // Check if this instruction is the last use within this block
-        match self.last_uses().get(val, block) {
-            Some(Some(last_idx)) => last_idx == inst_idx,
+        match self.last_uses().get(&(val, block)) {
+            Some(&Some(last_idx)) => last_idx == inst_idx,
             // Last use is in terminator - not dead after any instruction
-            Some(None) => false,
+            Some(&None) => false,
             // Value not used in this block at all - should not happen if we're asking
             // but conservatively say it's dead
             None => true,
         }
-    }
-}
-
-/// The last use of each value in each block, found by binary search over the block's uses.
-#[derive(Debug)]
-struct LastUses {
-    /// Block `b` owns `entries[starts[b]..starts[b + 1]]`.
-    starts: Vec<u32>,
-    /// `(value, index)` pairs sorted by value, where `index` is the last instruction using the
-    /// value, or [`Self::TERMINATOR`] for the terminator or a successor phi.
-    entries: Vec<(ValueId, u32)>,
-}
-
-impl LastUses {
-    const TERMINATOR: u32 = u32::MAX;
-
-    fn with_capacity(blocks: usize) -> Self {
-        let mut starts = Vec::with_capacity(blocks + 1);
-        starts.push(0);
-        Self { starts, entries: Vec::new() }
-    }
-
-    /// Appends the next block from its `(value, index)` uses, keeping each value's latest use,
-    /// and clears `uses`.
-    fn push_block(&mut self, uses: &mut Vec<(ValueId, u32)>) {
-        uses.sort_unstable_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)));
-        uses.dedup_by_key(|&mut (value, _)| value);
-        self.entries.extend_from_slice(uses);
-        self.starts.push(self.entries.len() as u32);
-        uses.clear();
-    }
-
-    /// Returns the last use of `value` in `block`: `Some(None)` for the terminator or a successor
-    /// phi, and `None` when the block does not use it.
-    fn get(&self, value: ValueId, block: BlockId) -> Option<Option<usize>> {
-        let start = *self.starts.get(block.index())? as usize;
-        let end = *self.starts.get(block.index() + 1)? as usize;
-        let entries = &self.entries[start..end];
-        let index = entries[entries.binary_search_by_key(&value, |&(value, _)| value).ok()?].1;
-        Some((index != Self::TERMINATOR).then_some(index as usize))
     }
 }
 
