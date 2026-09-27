@@ -943,9 +943,11 @@ fn numeric_literal_expr_needs_fold(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> Option
         _ => false,
     };
     match &expr.kind {
-        ExprKind::Lit(lit) if matches!(lit.kind, LitKind::Number(_) | LitKind::Rational(_)) => {
-            Some(needs_fold())
-        }
+        ExprKind::Lit(lit) => match &lit.kind {
+            LitKind::Number(_) => Some(false),
+            LitKind::Rational(value) => Some(!value.is_integer()),
+            _ => None,
+        },
         ExprKind::Unary(op, inner) if matches!(op.kind, UnOpKind::Neg | UnOpKind::BitNot) => {
             Some(needs_fold() | numeric_literal_expr_needs_fold(gcx, inner)?)
         }
