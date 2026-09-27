@@ -122,6 +122,11 @@ def main() -> None:
     )
     identity.add_argument("-j", "--jobs", type=int, default=os.cpu_count() or 4)
     identity.add_argument("--compiler-jobs", type=int, default=1)
+    identity.add_argument(
+        "--unordered-diagnostics",
+        action="store_true",
+        help="compare diagnostic contents without their parallel emission order",
+    )
     identity.set_defaults(run=cmd_identity)
 
     stat = commands.add_parser(
@@ -312,11 +317,11 @@ def cmd_identity(args: argparse.Namespace) -> None:
     different = [
         path.stem
         for path in inputs
-        if any(
-            not same_file(
-                base_dir / f"{path.stem}.{ext}", cand_dir / f"{path.stem}.{ext}"
-            )
-            for ext in ("out", "code")
+        if not same_file(base_dir / f"{path.stem}.code", cand_dir / f"{path.stem}.code")
+        or not same_output(
+            base_dir / f"{path.stem}.out",
+            cand_dir / f"{path.stem}.out",
+            args.unordered_diagnostics,
         )
     ]
     if different:
@@ -325,7 +330,10 @@ def cmd_identity(args: argparse.Namespace) -> None:
         sys.exit(
             f"{len(different)} of {len(inputs)} outputs differ from `{label(args.base)}`"
         )
-    print(f"identical: all {len(inputs)} outputs match `{label(args.base)}`")
+    qualification = " (ignoring diagnostic order)" if args.unordered_diagnostics else ""
+    print(
+        f"identical: all {len(inputs)} outputs match `{label(args.base)}`{qualification}"
+    )
 
 
 def compile_all(
@@ -365,6 +373,23 @@ def identity_stamp(solar: Path, inputs: list[Path], compiler_jobs: int) -> str:
 
 def same_file(a: Path, b: Path) -> bool:
     return a.exists() and b.exists() and a.read_bytes() == b.read_bytes()
+
+
+def same_output(a: Path, b: Path, unordered_diagnostics: bool) -> bool:
+    if same_file(a, b):
+        return True
+    if not unordered_diagnostics:
+        return False
+    try:
+        outputs = [json.loads(path.read_bytes()) for path in (a, b)]
+    except ValueError, UnicodeDecodeError:
+        return False
+    for output in outputs:
+        if not isinstance(output, dict):
+            return False
+        if "errors" in output:
+            output["errors"].sort(key=lambda error: json.dumps(error, sort_keys=True))
+    return outputs[0] == outputs[1]
 
 
 # === stat, wall, size ===
