@@ -601,11 +601,7 @@ fn track_data_reference(
         mark_stack_data_unsafe(stack, &mut references.subslice_safe);
     }
 
-    let Some(effect) = inst.stack_effect() else {
-        mark_stack_data_unsafe(stack, &mut references.subslice_safe);
-        stack.clear();
-        return;
-    };
+    let effect = inst.stack_effect();
     let inputs = usize::from(effect.inputs);
     ensure_stack_depth(stack, inputs);
     let first_input = stack.len() - inputs;

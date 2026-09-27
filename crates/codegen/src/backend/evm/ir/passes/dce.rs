@@ -81,8 +81,7 @@ fn block_ignores_entry_stack(block: &Block) -> bool {
         if inst.as_evm_opcode().is_some_and(is_analysis_boundary) {
             return false;
         }
-        // Verified IR has no instruction without a known stack effect.
-        let Some(effect) = inst.stack_effect() else { return false };
+        let effect = inst.stack_effect();
         let (inputs, outputs) = (usize::from(effect.inputs), usize::from(effect.outputs));
         if depth < inputs {
             return false;
@@ -399,8 +398,7 @@ fn find_candidate(
                 if inst.as_evm_opcode().is_some_and(is_analysis_boundary) {
                     return None;
                 }
-                // Verified IR has no instruction without a known stack effect.
-                let effect = inst.stack_effect()?;
+                let effect = inst.stack_effect();
                 let inputs = usize::from(effect.inputs);
                 if inputs > slots.len()
                     || slots[slots.len() - inputs..].iter().any(|slot| slot.is_ghost)

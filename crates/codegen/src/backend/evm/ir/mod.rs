@@ -517,20 +517,24 @@ impl Instruction {
     /// Returns the words the instruction reads from the top of the stack and the words it leaves
     /// there. A stack operation reads down to its deepest operand: `dup 2` is 2 -> 3.
     ///
-    /// Returns `None` for an opcode without a known effect or a stack operation too deep to
-    /// describe, which verification rejects.
+    /// Verification rejects every instruction without one: an unknown opcode, a raw extended stack
+    /// opcode, or a stack operation deeper than the verifier allows.
     #[must_use]
-    pub(crate) fn stack_effect(&self) -> Option<StackEffect> {
+    pub(crate) fn stack_effect(&self) -> StackEffect {
         if let Some(stack_op) = self.stack_op {
             let inputs = stack_op.required_depth();
-            let outputs = inputs.checked_add_signed(stack_op.net_growth())?;
-            return Some(StackEffect::new(u8::try_from(inputs).ok()?, u8::try_from(outputs).ok()?));
+            let outputs = inputs.checked_add_signed(stack_op.net_growth()).unwrap();
+            let depth = |words| u8::try_from(words).expect("verified stack operation depth");
+            return StackEffect::new(depth(inputs), depth(outputs));
         }
         if self.is_encoded_push() {
-            return Some(StackEffect::new(0, 1));
+            return StackEffect::new(0, 1);
         }
-        let (inputs, outputs) = self.definition()?.stack_io?;
-        Some(StackEffect::new(inputs, outputs))
+        let (inputs, outputs) = self
+            .definition()
+            .and_then(|definition| definition.stack_io)
+            .expect("verified instruction stack effect");
+        StackEffect::new(inputs, outputs)
     }
 
     /// Returns the deferred constant referenced by this push instruction, if any.
@@ -962,12 +966,12 @@ mod tests {
     fn terminators_describe_control_flow() {
         let add = Instruction::opcode(op::ADD);
         assert_eq!(add.definition().map(|def| def.mnemonic), Some("add"));
-        assert_eq!(add.stack_effect(), Some(StackEffect::new(2, 1)));
+        assert_eq!(add.stack_effect(), StackEffect::new(2, 1));
         let effect = |op| Instruction::stack_op(op).stack_effect();
-        assert_eq!(effect(StackOp::Dup(2)), Some(StackEffect::new(2, 3)));
-        assert_eq!(effect(StackOp::Swap(1)), Some(StackEffect::new(2, 2)));
-        assert_eq!(effect(StackOp::Exchange(1, 3)), Some(StackEffect::new(4, 4)));
-        assert_eq!(effect(StackOp::Pop), Some(StackEffect::new(1, 0)));
+        assert_eq!(effect(StackOp::Dup(2)), StackEffect::new(2, 3));
+        assert_eq!(effect(StackOp::Swap(1)), StackEffect::new(2, 2));
+        assert_eq!(effect(StackOp::Exchange(1, 3)), StackEffect::new(4, 4));
+        assert_eq!(effect(StackOp::Pop), StackEffect::new(1, 0));
 
         let jump = TerminatorKind::Jump(BlockId::ENTRY);
         assert_eq!(jump.stack_io(), Some((0, 0)));

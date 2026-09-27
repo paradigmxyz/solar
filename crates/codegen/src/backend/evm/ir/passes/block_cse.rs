@@ -155,11 +155,6 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
             }
             continue;
         }
-        if matches!(opcode, op::SWAPN | op::EXCHANGE) {
-            instructions.push(inst);
-            stack.clear();
-            continue;
-        }
 
         if opcode == op::MSTORE || opcode == op::MSTORE8 {
             ensure_depth(&mut stack, 2, &mut next_expr);
@@ -292,22 +287,15 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
         if op::writes_storage(opcode) {
             storage_epoch = storage_epoch.wrapping_add(1);
         }
-        if let Some(effect) = stack_effect {
-            let inputs = usize::from(effect.inputs);
-            ensure_depth(&mut stack, inputs, &mut next_expr);
-            stack.truncate(stack.len() - inputs);
-            for _ in 0..effect.outputs {
-                stack.push(StackValue {
-                    expr: fresh(&mut next_expr),
-                    span: None,
-                    origin: Some(origin),
-                });
-            }
-        } else {
-            // Verified IR has no instruction without a known stack effect; should one appear,
-            // forget every tracked value and store rather than guess its effect.
-            stack.clear();
-            known_stores.clear();
+        let inputs = usize::from(stack_effect.inputs);
+        ensure_depth(&mut stack, inputs, &mut next_expr);
+        stack.truncate(stack.len() - inputs);
+        for _ in 0..stack_effect.outputs {
+            stack.push(StackValue {
+                expr: fresh(&mut next_expr),
+                span: None,
+                origin: Some(origin),
+            });
         }
     }
 
@@ -371,10 +359,6 @@ fn may_regenerate(instructions: &[Instruction], stack_access_limit: usize) -> bo
             }
             continue;
         }
-        if matches!(opcode, op::SWAPN | op::EXCHANGE) {
-            stack.clear();
-            continue;
-        }
 
         if let Some((inputs, read_epoch)) = expression_inputs(opcode, memory_epoch, storage_epoch) {
             ensure_hash_depth(&mut stack, inputs, &mut next_fresh);
@@ -407,15 +391,12 @@ fn may_regenerate(instructions: &[Instruction], stack_access_limit: usize) -> bo
         if op::writes_storage(opcode) {
             storage_epoch = storage_epoch.wrapping_add(1);
         }
-        if let Some(effect) = inst.stack_effect() {
-            let inputs = usize::from(effect.inputs);
-            ensure_hash_depth(&mut stack, inputs, &mut next_fresh);
-            stack.truncate(stack.len() - inputs);
-            for _ in 0..effect.outputs {
-                stack.push(FingerprintValue { expr: fresh_hash(&mut next_fresh), span: None });
-            }
-        } else {
-            stack.clear();
+        let effect = inst.stack_effect();
+        let inputs = usize::from(effect.inputs);
+        ensure_hash_depth(&mut stack, inputs, &mut next_fresh);
+        stack.truncate(stack.len() - inputs);
+        for _ in 0..effect.outputs {
+            stack.push(FingerprintValue { expr: fresh_hash(&mut next_fresh), span: None });
         }
     }
     false

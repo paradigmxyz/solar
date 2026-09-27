@@ -363,7 +363,11 @@ impl<'a> Verifier<'a> {
             }
         }
 
-        if inst.stack_effect().is_none() {
+        // Stack operation depths are checked above.
+        if inst.as_stack_op().is_none()
+            && !inst.is_encoded_push()
+            && op::stack_io(inst.opcode).is_none()
+        {
             self.error_in_block(
                 block_id,
                 format_args!("instruction `{}` has no known stack effect", inst.mnemonic()),
@@ -468,9 +472,7 @@ impl<'a> Verifier<'a> {
                         break;
                     }
                 } else {
-                    let effect = inst
-                        .stack_effect()
-                        .expect("instruction stack effect must be known after shape validation");
+                    let effect = inst.stack_effect();
                     if self
                         .apply_effect(&mut reported, block_id, inst.mnemonic(), effect, &mut stack)
                         .is_err()
