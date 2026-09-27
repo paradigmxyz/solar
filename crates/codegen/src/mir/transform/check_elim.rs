@@ -763,9 +763,7 @@ impl<'a> CheckEliminator<'a> {
         let mut uses = index_vec![0usize; func.num_values()];
         for block in &func.blocks {
             for &inst in &block.instructions {
-                for value in func.inst(inst).operands() {
-                    uses[value] += 1;
-                }
+                func.inst(inst).kind.for_each_operand(|value| uses[value] += 1);
             }
             if let Some(term) = &block.terminator {
                 term.for_each_operand(|value| uses[value] += 1);

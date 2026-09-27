@@ -631,11 +631,12 @@ fn local_summary(
             // An instruction that consumes both a pointer-derived value and a heap-derived one
             // can relate the object to the heap, whatever the positions: comparisons, pointer
             // arithmetic against the free-memory pointer, or storing one through the other.
-            let operands = kind.operands();
-            if operands.iter().any(|operand| heap_derived.contains(*operand)) {
-                for operand in operands {
+            let mut meets_heap = false;
+            kind.for_each_operand(|operand| meets_heap |= heap_derived.contains(operand));
+            if meets_heap {
+                kind.for_each_operand(|operand| {
                     observe_sources(&mut summary, func, sources, operand);
-                }
+                });
             }
 
             match kind {
@@ -727,7 +728,7 @@ fn local_summary(
 /// state changes are discarded with the call frame.
 fn returning_blocks(func: &Function) -> DenseBitSet<BlockId> {
     let mut returning = DenseBitSet::new_empty(func.blocks.len());
-    let mut predecessors = IndexVec::from_vec(vec![Vec::new(); func.blocks.len()]);
+    let mut edges = Vec::new();
     let mut worklist = Vec::new();
     for (block_id, block) in func.blocks.iter_enumerated() {
         let Some(terminator) = &block.terminator else {
@@ -735,20 +736,24 @@ fn returning_blocks(func: &Function) -> DenseBitSet<BlockId> {
             worklist.push(block_id);
             continue;
         };
-        for successor in terminator.successors() {
-            predecessors[successor].push(block_id);
-        }
-        if !matches!(
-            terminator,
-            Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid
-        ) && terminator.successors().is_empty()
+        let mut exits = true;
+        terminator.for_each_successor(|successor| {
+            edges.push((successor, block_id));
+            exits = false;
+        });
+        if exits
+            && !matches!(
+                terminator,
+                Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid
+            )
         {
             returning.insert(block_id);
             worklist.push(block_id);
         }
     }
+    let predecessors = IndexLists::new(func.blocks.len(), edges.iter().copied());
     while let Some(block) = worklist.pop() {
-        for &predecessor in &predecessors[block] {
+        for &predecessor in predecessors.get(block) {
             if returning.insert(predecessor) {
                 worklist.push(predecessor);
             }
@@ -780,19 +785,18 @@ fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
     if worklist.is_empty() {
         return derived;
     }
-    let mut users = IndexVec::from_vec(vec![Vec::new(); func.num_values()]);
+    let mut edges = Vec::new();
     for inst_id in func.instructions() {
         if let Some(result) = func.inst_result_value(inst_id)
             && !derived.contains(result)
             && !instruction_loads_data(&func.inst(inst_id).kind)
         {
-            for operand in func.inst(inst_id).kind.operands() {
-                users[operand].push(result);
-            }
+            func.inst(inst_id).kind.for_each_operand(|operand| edges.push((operand, result)));
         }
     }
+    let users = IndexLists::new(func.num_values(), edges.iter().copied());
     while let Some(value) = worklist.pop() {
-        for &user in &users[value] {
+        for &user in users.get(value) {
             if derived.insert(user) {
                 worklist.push(user);
             }
@@ -980,7 +984,7 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> 
     let mut worklist = VecDeque::new();
     for inst_id in func.instructions() {
         let Some(result) = func.inst_result_value(inst_id) else { continue };
-        let mut add_user = |operand: ValueId| {
+        let add_user = |operand: ValueId| {
             edges.push((operand, result));
             if let Value::Arg(index) = func.value(operand)
                 && index.index() < params
@@ -994,9 +998,7 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> 
         if instruction_loads_data(kind) || instruction_compares_values(kind) {
             continue;
         }
-        for operand in kind.operands() {
-            add_user(operand);
-        }
+        kind.for_each_operand(add_user);
     }
 
     let users = IndexLists::new(func.num_values(), edges.iter().copied());

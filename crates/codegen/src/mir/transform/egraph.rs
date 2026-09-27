@@ -1176,9 +1176,7 @@ fn value_info(func: &Function) -> ValueInfo {
         leaves[value] = Some(canonical);
     };
     for inst_id in func.instructions() {
-        for operand in func.inst(inst_id).operands() {
-            record(operand);
-        }
+        func.inst(inst_id).kind.for_each_operand(&mut record);
     }
     for block in &func.blocks {
         if let Some(term) = &block.terminator {
@@ -1192,9 +1190,7 @@ fn value_info(func: &Function) -> ValueInfo {
 pub(super) fn use_counts(func: &Function) -> IndexVec<ValueId, u32> {
     let mut uses = IndexVec::from_vec(vec![0; func.num_values()]);
     for inst_id in func.instructions() {
-        for operand in func.inst(inst_id).operands() {
-            uses[operand] += 1;
-        }
+        func.inst(inst_id).kind.for_each_operand(|operand| uses[operand] += 1);
     }
     for block in func.blocks.iter() {
         if let Some(term) = &block.terminator {

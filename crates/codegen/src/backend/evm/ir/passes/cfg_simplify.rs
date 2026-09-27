@@ -103,10 +103,14 @@ fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) ->
             module,
             &mut state.reachable,
             &mut state.pending,
+            &mut state.references,
             &mut state.order,
         );
+        if swept {
+            count_references(module, &mut state.references);
+        }
         let coalesced =
-            coalesce_blocks(module, &mut state.references, &mut state.retained, &mut state.order);
+            coalesce_blocks(module, &state.references, &mut state.retained, &mut state.order);
         let round = direct || degenerate || redirected || inlined || branches || swept || coalesced;
         changed |= round;
         if !round {
@@ -575,16 +579,23 @@ fn is_direct_jump_label_through_head(
             }))
 }
 
+/// Removes blocks unreachable from the entry. When none are removed, `references` holds
+/// every block's reference count, as [`count_references`] computes it.
 #[must_use]
 fn remove_unreachable_blocks(
     module: &mut Module,
     reachable: &mut DenseBitSet<BlockId>,
     pending: &mut Vec<BlockId>,
+    references: &mut IndexVec<BlockId, usize>,
     order: &mut Vec<BlockId>,
 ) -> bool {
+    references.clear();
+    references.resize(module.blocks.len(), 0);
     if module.blocks.is_empty() {
         return false;
     }
+    // Count the implicit program-entry edge.
+    references[BlockId::ENTRY] = 1;
     reachable.clear_to(module.blocks.len());
     pending.clear();
     pending.push(BlockId::ENTRY);
@@ -595,11 +606,15 @@ fn remove_unreachable_blocks(
         let block = &module.blocks[block_id];
         for inst in &block.instructions {
             if let Some(PushValue::Block(target)) = &inst.value {
+                references[*target] += 1;
                 pending.push(*target);
             }
         }
         if let Some(term) = &block.terminator {
-            term.kind.visit_targets(|target| pending.push(target));
+            term.kind.visit_targets(|target| {
+                references[target] += 1;
+                pending.push(target);
+            });
         }
     }
     if reachable.count() == module.blocks.len() {
@@ -611,15 +626,11 @@ fn remove_unreachable_blocks(
     true
 }
 
-fn coalesce_blocks(
-    module: &mut Module,
-    references: &mut IndexVec<BlockId, usize>,
-    retained: &mut DenseBitSet<BlockId>,
-    order: &mut Vec<BlockId>,
-) -> bool {
+/// Counts the pushed labels and terminator edges targeting each block, plus the implicit
+/// program-entry edge.
+fn count_references(module: &Module, references: &mut IndexVec<BlockId, usize>) {
     references.clear();
     references.resize(module.blocks.len(), 0);
-    // Count the implicit program-entry edge.
     if let Some(entry_references) = references.first_mut() {
         *entry_references = 1;
     }
@@ -633,7 +644,15 @@ fn coalesce_blocks(
             term.kind.visit_targets(|target| references[target] += 1);
         }
     }
+}
 
+/// Merges each block into its only predecessor, given every block's `references` count.
+fn coalesce_blocks(
+    module: &mut Module,
+    references: &IndexVec<BlockId, usize>,
+    retained: &mut DenseBitSet<BlockId>,
+    order: &mut Vec<BlockId>,
+) -> bool {
     if retained.domain_size() != module.blocks.len() {
         *retained = DenseBitSet::new_filled(module.blocks.len());
     } else {

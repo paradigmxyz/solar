@@ -95,7 +95,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     //   length. Equality still compares instructions, so the grouping is exactly as before.
     // - Large modules use shorter runs so candidate storage stays bounded. Longer repeated
     //   sequences can still be outlined in chunks.
-    let hashes = InstHashes::new(module);
+    let hashes = RunHashes::new(module, MachineInstKey::new);
     let repeated_instructions = hashes.repeated_count();
     if repeated_instructions == 0 || repeated_instructions > MAX_MACHINE_RUN_CANDIDATES {
         return false;
@@ -340,7 +340,7 @@ fn outline_parametric_machine_runs(
     const MAX_RUN_LENGTH: usize = 64;
     const MAX_PARAMETERS: usize = 8;
 
-    let hashes = ParamInstHashes::new(module);
+    let hashes = RunHashes::new(module, ParamInstKey::new);
     let mut candidates =
         FxHashMap::<ParamMachineInstSlice<'_>, SmallVec<[ParamSite; 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
@@ -919,67 +919,65 @@ struct ParamEdit {
     prefix: Vec<Instruction>,
 }
 
-/// Per-block instruction tables: whether each instruction occurs more than
+/// Instruction tables over all blocks: whether each instruction occurs more than
 /// once module-wide, and prefix hashes so any run hashes in constant time.
 ///
 /// `prefix[i + 1] = prefix[i] * BASE + hash(inst[i])`, so the run `[start, end]`
 /// hashes to `prefix[end + 1] - prefix[start] * BASE^len`. Equal instruction
 /// sequences always produce equal hashes, which is all the map needs: equality
 /// still compares the instructions themselves.
-struct InstHashes {
-    prefixes: IndexVec<BlockId, Vec<u64>>,
-    repeats: IndexVec<BlockId, DenseBitSet<usize>>,
+///
+/// The blocks share flat tables. Block `b`'s instructions start at `starts[b]`, and its
+/// prefixes, which hold one more entry, at `starts[b] + b`.
+struct RunHashes {
+    starts: IndexVec<BlockId, usize>,
+    prefixes: Vec<u64>,
+    repeats: DenseBitSet<usize>,
     powers: Vec<u64>,
 }
 
-impl InstHashes {
+impl RunHashes {
     const BASE: u64 = 0x100_0000_01b3;
 
-    fn new(module: &Module) -> Self {
-        // Number each distinct instruction once, with its occurrence count and hash.
-        let mut interned = FxHashMap::<MachineInstKey, u32>::default();
+    fn new<K: Copy + Eq + Hash>(module: &Module, key: impl Fn(&Instruction) -> K) -> Self {
+        // Number each distinct key once, with its occurrence count and hash.
+        let total = module.blocks.iter().map(|block| block.instructions.len()).sum();
+        let mut interned = FxHashMap::<K, u32>::default();
         let mut counts = Vec::<u32>::new();
         let mut hashes = Vec::new();
-        let ids = module
-            .blocks
-            .iter()
-            .map(|block| {
-                block
-                    .instructions
-                    .iter()
-                    .map(|inst| {
-                        let key = MachineInstKey::new(inst);
-                        let id = *interned.entry(key).or_insert_with(|| {
-                            let mut hasher = FxHasher::default();
-                            key.hash(&mut hasher);
-                            hashes.push(hasher.finish());
-                            counts.push(0);
-                            (counts.len() - 1) as u32
-                        }) as usize;
-                        counts[id] += 1;
-                        id
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
-
+        let mut ids = Vec::with_capacity(total);
+        let mut starts = IndexVec::with_capacity(module.blocks.len());
         let mut longest = 0;
-        let mut prefixes = IndexVec::with_capacity(module.blocks.len());
-        let mut repeats = IndexVec::with_capacity(module.blocks.len());
-        for ids in &ids {
-            longest = longest.max(ids.len());
-            let mut prefix = Vec::with_capacity(ids.len() + 1);
-            let mut repeated = DenseBitSet::new_empty(ids.len());
-            prefix.push(0u64);
-            for (index, &id) in ids.iter().enumerate() {
-                if counts[id] >= 2 {
-                    repeated.insert(index);
-                }
-                let last = *prefix.last().expect("prefix starts with the empty run");
-                prefix.push(last.wrapping_mul(Self::BASE).wrapping_add(hashes[id]));
+        for block in &module.blocks {
+            starts.push(ids.len());
+            longest = longest.max(block.instructions.len());
+            for inst in &block.instructions {
+                let key = key(inst);
+                let id = *interned.entry(key).or_insert_with(|| {
+                    let mut hasher = FxHasher::default();
+                    key.hash(&mut hasher);
+                    hashes.push(hasher.finish());
+                    counts.push(0);
+                    (counts.len() - 1) as u32
+                }) as usize;
+                counts[id] += 1;
+                ids.push(id);
             }
-            prefixes.push(prefix);
-            repeats.push(repeated);
+        }
+
+        let mut prefixes = Vec::with_capacity(total + module.blocks.len());
+        let mut repeats = DenseBitSet::new_empty(total);
+        let mut ids = ids.iter().enumerate();
+        for block in &module.blocks {
+            let mut last = 0u64;
+            prefixes.push(last);
+            for (index, &id) in ids.by_ref().take(block.instructions.len()) {
+                if counts[id] >= 2 {
+                    repeats.insert(index);
+                }
+                last = last.wrapping_mul(Self::BASE).wrapping_add(hashes[id]);
+                prefixes.push(last);
+            }
         }
 
         let mut powers = Vec::with_capacity(longest + 1);
@@ -988,22 +986,22 @@ impl InstHashes {
             powers.push(powers[index].wrapping_mul(Self::BASE));
         }
 
-        Self { prefixes, repeats, powers }
+        Self { starts, prefixes, repeats, powers }
     }
 
     /// Whether this instruction occurs more than once in the module. A run that
     /// contains an instruction occurring exactly once can never occur twice, so
     /// it can never be outlined.
     fn repeats(&self, block: BlockId, index: usize) -> bool {
-        self.repeats[block].contains(index)
+        self.repeats.contains(self.starts[block] + index)
     }
 
     fn repeated_count(&self) -> usize {
-        self.repeats.iter().map(DenseBitSet::count).sum()
+        self.repeats.count()
     }
 
     fn range(&self, block: BlockId, start: usize, end: usize) -> u64 {
-        let prefix = &self.prefixes[block];
+        let prefix = &self.prefixes[self.starts[block] + block.index()..];
         prefix[end + 1].wrapping_sub(prefix[start].wrapping_mul(self.powers[end + 1 - start]))
     }
 }
@@ -1047,61 +1045,6 @@ impl ParamInstKey {
         } else {
             Self::Exact(MachineInstKey::new(inst))
         }
-    }
-}
-
-struct ParamInstHashes {
-    prefixes: IndexVec<BlockId, Vec<u64>>,
-    repeats: IndexVec<BlockId, DenseBitSet<usize>>,
-    powers: Vec<u64>,
-}
-
-impl ParamInstHashes {
-    fn new(module: &Module) -> Self {
-        let mut counts = FxHashMap::<ParamInstKey, u32>::default();
-        for block in &module.blocks {
-            for inst in &block.instructions {
-                *counts.entry(ParamInstKey::new(inst)).or_default() += 1;
-            }
-        }
-
-        let mut longest = 0;
-        let mut prefixes = IndexVec::with_capacity(module.blocks.len());
-        let mut repeats = IndexVec::with_capacity(module.blocks.len());
-        for block in &module.blocks {
-            longest = longest.max(block.instructions.len());
-            let mut prefix = Vec::with_capacity(block.instructions.len() + 1);
-            let mut repeated = DenseBitSet::new_empty(block.instructions.len());
-            prefix.push(0u64);
-            for (index, inst) in block.instructions.iter().enumerate() {
-                let key = ParamInstKey::new(inst);
-                if counts.get(&key).copied().unwrap_or(0) >= 2 {
-                    repeated.insert(index);
-                }
-                let mut hasher = FxHasher::default();
-                key.hash(&mut hasher);
-                let last = *prefix.last().expect("prefix starts with the empty run");
-                prefix.push(last.wrapping_mul(InstHashes::BASE).wrapping_add(hasher.finish()));
-            }
-            prefixes.push(prefix);
-            repeats.push(repeated);
-        }
-
-        let mut powers = Vec::with_capacity(longest + 1);
-        powers.push(1u64);
-        for index in 0..longest {
-            powers.push(powers[index].wrapping_mul(InstHashes::BASE));
-        }
-        Self { prefixes, repeats, powers }
-    }
-
-    fn repeats(&self, block: BlockId, index: usize) -> bool {
-        self.repeats[block].contains(index)
-    }
-
-    fn range(&self, block: BlockId, start: usize, end: usize) -> u64 {
-        let prefix = &self.prefixes[block];
-        prefix[end + 1].wrapping_sub(prefix[start].wrapping_mul(self.powers[end + 1 - start]))
     }
 }
 
