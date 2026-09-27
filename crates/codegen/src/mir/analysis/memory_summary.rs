@@ -822,9 +822,7 @@ fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
             && !derived.contains(result)
             && !instruction_loads_data(&func.inst(inst_id).kind)
         {
-            for operand in func.inst(inst_id).kind.operands() {
-                users[operand].push(result);
-            }
+            func.inst(inst_id).kind.visit_operands(|operand| users[operand].push(result));
         }
     }
     while let Some(value) = worklist.pop() {
