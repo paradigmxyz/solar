@@ -266,9 +266,9 @@ impl<'a> FileResolver<'a> {
                         component => source_unit.push(component.as_os_str()),
                     }
                 }
-                source_unit
+                Cow::Owned(source_unit)
             } else {
-                path.to_path_buf()
+                Cow::Borrowed(path)
             };
             let source_unit = self.remap_path(&source_unit, parent);
             visit(&source_unit, ResolutionCandidateKind::SourceUnit)?;
