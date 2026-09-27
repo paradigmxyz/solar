@@ -2497,11 +2497,6 @@ impl<'gcx> TypeChecker<'gcx> {
 
         let mut selected = SmallVec::<[_; 4]>::new();
         for &res in res {
-            if let hir::Res::Item(hir::ItemId::Function(id)) = res
-                && self.gcx.hir.function(id).visibility == solar_ast::Visibility::External
-            {
-                continue;
-            }
             let ty = self.type_of_res(res);
             let Some(signature) = self.gcx.callable_signature_of_ty(ty) else {
                 continue;

@@ -70,7 +70,7 @@ impl super::LoweringContext<'_> {
                         } else if let Some(import_scope) = import_scope {
                             // Import all declarations.
                             for (&name, decls) in &import_scope.declarations {
-                                for decl in decls {
+                                for decl in &decls.all {
                                     // Re-span to the import statement.
                                     let mut decl = *decl;
                                     decl.span = import_item.span;
@@ -2275,7 +2275,7 @@ impl<'gcx> SymbolResolver<'gcx> {
         name: Ident,
         scopes: &'a SymbolResolverScopes,
     ) -> Option<&'a [Declaration]> {
-        scopes.get(self).find_map(move |scope| scope.resolve(name))
+        scopes.get(self).find_map(move |scope| scope.resolve_unqualified(name))
     }
 
     fn resolve_name_non_local<'a>(
@@ -2285,7 +2285,7 @@ impl<'gcx> SymbolResolver<'gcx> {
     ) -> Result<&'a [Declaration], ResolverError> {
         scopes
             .get_non_local(self)
-            .find_map(move |scope| scope.resolve(name))
+            .find_map(move |scope| scope.resolve_unqualified(name))
             .ok_or_else(|| ResolverError::new(name, ResolverErrorKind::Unresolved))
     }
 
@@ -2394,7 +2394,28 @@ impl fmt::Debug for Declarations {
 const INNER_INLINE_CAPACITY: usize = 1;
 const INNER_FIRST_RESERVE: usize = 4 - INNER_INLINE_CAPACITY;
 
-type DeclarationsInner = SmallVec<[Declaration; INNER_INLINE_CAPACITY]>;
+type DeclarationList = SmallVec<[Declaration; INNER_INLINE_CAPACITY]>;
+
+#[derive(Clone, Default)]
+struct DeclarationsInner {
+    all: DeclarationList,
+    /// Declarations visible to unqualified lookup precede external-only functions.
+    visible: usize,
+}
+
+impl DeclarationsInner {
+    fn push(&mut self, decl: Declaration, visible: bool) {
+        if self.all.len() == self.all.capacity() && self.all.capacity() == INNER_INLINE_CAPACITY {
+            self.all.reserve(INNER_FIRST_RESERVE);
+        }
+        if visible {
+            self.all.insert(self.visible, decl);
+            self.visible += 1;
+        } else {
+            self.all.push(decl);
+        }
+    }
+}
 
 impl Declarations {
     pub(crate) fn new() -> Self {
@@ -2418,20 +2439,25 @@ impl Declarations {
     }
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = (Symbol, &[Declaration])> {
-        self.declarations.iter().map(|(key, values)| (*key, values.as_slice()))
+        self.declarations.iter().map(|(key, values)| (*key, values.all.as_slice()))
     }
 
     pub(crate) fn resolve(&self, name: Ident) -> Option<&[Declaration]> {
-        self.declarations.get(&name.name).map(std::ops::Deref::deref)
+        self.declarations.get(&name.name).map(|decls| decls.all.as_slice())
     }
 
-    pub(crate) fn resolve_cloned(&self, name: Ident) -> Option<DeclarationsInner> {
-        self.declarations.get(&name.name).cloned()
+    fn resolve_unqualified(&self, name: Ident) -> Option<&[Declaration]> {
+        let decls = self.declarations.get(&name.name)?;
+        (decls.visible > 0).then_some(&decls.all[..decls.visible])
+    }
+
+    pub(crate) fn resolve_cloned(&self, name: Ident) -> Option<DeclarationList> {
+        self.declarations.get(&name.name).map(|decls| decls.all.clone())
     }
 
     /// Declares `name => decl` without checking for conflicts.
     pub(crate) fn declare_unchecked(&mut self, name: Symbol, decl: Declaration) {
-        self.declarations.entry(name).or_default().push(decl);
+        self.declarations.entry(name).or_default().push(decl, true);
     }
 
     /// Declares `Ident { name, span } => kind` by converting it to
@@ -2464,21 +2490,23 @@ impl Declarations {
         name: Symbol,
         decl: Declaration,
     ) -> Result<(), Declaration> {
+        let visible = !matches!(decl.res, Res::Item(hir::ItemId::Function(id))
+            if hir.function(id).visibility == ast::Visibility::External);
         match self.declarations.entry(name) {
             IndexEntry::Occupied(entry) => {
                 let declarations = entry.into_mut();
-                if let Some(conflict) = Self::conflicting_declaration(hir, decl, declarations) {
+                if let Some(conflict) = Self::conflicting_declaration(hir, decl, &declarations.all)
+                {
                     return Err(conflict);
                 }
-                if !declarations.contains(&decl) {
-                    if declarations.capacity() == INNER_INLINE_CAPACITY {
-                        declarations.reserve(INNER_FIRST_RESERVE);
-                    }
-                    declarations.push(decl);
+                if !declarations.all.contains(&decl) {
+                    declarations.push(decl, visible);
                 }
             }
             IndexEntry::Vacant(entry) => {
-                entry.insert(SmallVec::from_buf([decl]));
+                let mut declarations = DeclarationsInner::default();
+                declarations.push(decl, visible);
+                entry.insert(declarations);
             }
         }
         Ok(())
