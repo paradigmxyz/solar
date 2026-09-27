@@ -95,16 +95,89 @@
           },
           {
             "type": "function",
+            "name": "arrays",
+            "inputs": [
+              {
+                "name": "cs",
+                "type": "C[]",
+                "internalType": "contract C[]"
+              },
+              {
+                "name": "ks",
+                "type": "L.Kind[2]",
+                "internalType": "enum L.Kind[2]"
+              },
+              {
+                "name": "ss",
+                "type": "tuple[]",
+                "internalType": "struct L.S[]",
+                "components": [
+                  {
+                    "name": "c",
+                    "type": "C",
+                    "internalType": "contract C"
+                  },
+                  {
+                    "name": "k",
+                    "type": "L.Kind",
+                    "internalType": "enum L.Kind"
+                  },
+                  {
+                    "name": "n",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                  }
+                ]
+              }
+            ],
+            "outputs": [
+              {
+                "name": "",
+                "type": "C[]",
+                "internalType": "contract C[]"
+              },
+              {
+                "name": "",
+                "type": "L.Kind[2]",
+                "internalType": "enum L.Kind[2]"
+              },
+              {
+                "name": "",
+                "type": "tuple[]",
+                "internalType": "struct L.S[]",
+                "components": [
+                  {
+                    "name": "c",
+                    "type": "C",
+                    "internalType": "contract C"
+                  },
+                  {
+                    "name": "k",
+                    "type": "L.Kind",
+                    "internalType": "enum L.Kind"
+                  },
+                  {
+                    "name": "n",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                  }
+                ]
+              }
+            ],
+            "stateMutability": "pure"
+          },
+          {
+            "type": "function",
             "name": "f",
             "inputs": [
               {
                 "name": "c",
-                "type": "address",
+                "type": "C",
                 "internalType": "contract C"
               },
               {
                 "name": "k",
-                "type": "uint8",
+                "type": "L.Kind",
                 "internalType": "enum L.Kind"
               },
               {
@@ -114,12 +187,12 @@
                 "components": [
                   {
                     "name": "c",
-                    "type": "address",
+                    "type": "C",
                     "internalType": "contract C"
                   },
                   {
                     "name": "k",
-                    "type": "uint8",
+                    "type": "L.Kind",
                     "internalType": "enum L.Kind"
                   },
                   {
@@ -194,7 +267,8 @@
         },
         "evm": {
           "methodIdentifiers": {
-            "f(C,L.Kind,L.S)": "10bef4d0"
+            "f(C,L.Kind,L.S)": "10bef4d0",
+            "arrays(C[],L.Kind[2],L.S[])": "dc0cd8a7"
           }
         }
       }
