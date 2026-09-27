@@ -665,7 +665,7 @@ impl AllocationSemantics {
 }
 
 /// An instruction in the MIR.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash)]
 pub(crate) struct Instruction {
     /// The kind of instruction.
     pub(crate) kind: InstKind,

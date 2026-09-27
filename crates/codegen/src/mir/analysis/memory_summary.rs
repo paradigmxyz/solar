@@ -21,9 +21,12 @@ use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
-    map::FxHashSet,
+    map::{FxHashSet, FxHasher},
 };
-use std::collections::{BTreeSet, VecDeque};
+use std::{
+    collections::{BTreeSet, VecDeque},
+    hash::{Hash, Hasher},
+};
 
 /// Includes observations in callees, conservatively retaining reads without a call summary.
 pub(crate) fn may_observe_msize(func: &Function, summaries: Option<&MemoryCallSummaries>) -> bool {
@@ -398,10 +401,36 @@ pub(crate) struct MemoryCallSummaries {
     summaries: IndexVec<FunctionId, Option<FunctionMemorySummary>>,
 }
 
+/// Function-local summary facts kept across [`MemoryCallSummaries`] builds.
+#[derive(Debug, Default)]
+pub(crate) struct LocalSummaryCache {
+    functions: IndexVec<FunctionId, Option<LocalFacts>>,
+}
+
+/// The facts of one call target that depend only on its body.
+#[derive(Debug)]
+struct LocalFacts {
+    /// The [`local_fingerprint`] these facts were computed for.
+    fingerprint: u64,
+    summary: FunctionMemorySummary,
+    sources: IndexVec<ValueId, DenseBitSet<ArgIdx>>,
+    /// The analysis as [`local_summary`] left it. Address memos depend on the query order,
+    /// so every build continues from this state.
+    alias: AliasAnalysis,
+}
+
 impl MemoryCallSummaries {
     /// Computes summaries to a monotone fixpoint over the module call graph.
+    #[cfg(test)]
     #[must_use]
     pub(crate) fn new(module: &Module) -> Self {
+        Self::with_cache(module, &mut LocalSummaryCache::default())
+    }
+
+    /// Like [`Self::new`], reusing the local facts of functions unchanged since `cache` was
+    /// last updated.
+    #[must_use]
+    pub(crate) fn with_cache(module: &Module, cache: &mut LocalSummaryCache) -> Self {
         let mut targets = DenseBitSet::new_empty(module.functions.len());
         for func in &module.functions {
             for inst in func.instructions() {
@@ -424,20 +453,20 @@ impl MemoryCallSummaries {
             return Self { summaries: IndexVec::new() };
         }
 
-        // The parameter sources and alias analysis of each target.
-        let facts = module
-            .functions
-            .iter_enumerated()
-            .map(|(id, func)| {
-                targets.contains(id).then(|| (parameter_sources(func), AliasAnalysis::new(func)))
-            })
-            .collect::<IndexVec<FunctionId, _>>();
+        cache.functions.resize_with(module.functions.len(), || None);
         let calls = CallGraphInfo::new(module);
         let mut local = index_vec![None; module.functions.len()];
         for func_id in &targets {
             let func = &module.functions[func_id];
-            let (sources, alias) = facts[func_id].as_ref().unwrap();
-            let mut summary = local_summary(module, func, sources, alias);
+            let fingerprint = local_fingerprint(module, func);
+            let facts = &mut cache.functions[func_id];
+            if facts.as_ref().is_none_or(|facts| facts.fingerprint != fingerprint) {
+                let sources = parameter_sources(func);
+                let alias = AliasAnalysis::new(func);
+                let summary = local_summary(module, func, &sources, &alias);
+                *facts = Some(LocalFacts { fingerprint, summary, sources, alias });
+            }
+            let mut summary = facts.as_ref().unwrap().summary.clone();
             summary.has_multiple_returns = func.return_components().len() > 1;
             summary.control.may_diverge |= calls.is_recursive(func_id);
             local[func_id] = Some(summary);
@@ -468,12 +497,17 @@ impl MemoryCallSummaries {
             function_callers.dedup();
         }
 
+        // Each build queries a fresh copy of the cached analyses.
+        let mut aliases = IndexVec::<FunctionId, Option<AliasAnalysis>>::new();
+        aliases.resize_with(module.functions.len(), || None);
         let mut worklist = targets.iter().collect::<VecDeque<_>>();
         let mut queued = targets;
         while let Some(func_id) = worklist.pop_front() {
             queued.remove(func_id);
             let func = &module.functions[func_id];
-            let (sources, alias) = facts[func_id].as_ref().unwrap();
+            let facts = cache.functions[func_id].as_ref().unwrap();
+            let sources = &facts.sources;
+            let alias = aliases[func_id].get_or_insert_with(|| facts.alias.clone());
             let mut summary = local[func_id].clone().unwrap();
             for block in &func.blocks {
                 for &inst_id in &block.instructions {
@@ -521,6 +555,23 @@ impl MemoryCallSummaries {
     pub(crate) fn get(&self, function: FunctionId) -> Option<&FunctionMemorySummary> {
         self.summaries.get(function).and_then(Option::as_ref)
     }
+}
+
+/// Identifies the inputs of [`local_summary`]: the function, and which callees are missing or
+/// return multiple results.
+fn local_fingerprint(module: &Module, func: &Function) -> u64 {
+    let mut hasher = FxHasher::default();
+    func.fingerprint().hash(&mut hasher);
+    for inst in func.instructions() {
+        if let InstKind::ICall { function: Callee::Function(function), .. } = func.inst(inst).kind {
+            module
+                .functions
+                .get(function)
+                .is_none_or(|callee| callee.return_components().len() > 1)
+                .hash(&mut hasher);
+        }
+    }
+    hasher.finish()
 }
 
 fn merge_call(
