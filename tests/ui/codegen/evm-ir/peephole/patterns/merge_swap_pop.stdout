@@ -89,8 +89,7 @@
     push 0
     mstore
     stop
-  bb6:
-    callf !metadata(stack=0->18)
+  bb6 [stack=18]:
     swap 16
     pop
     pop

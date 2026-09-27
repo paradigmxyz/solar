@@ -1681,7 +1681,10 @@ impl<'a> FunctionBuilder<'a> {
     pub(crate) fn set_terminator(&mut self, terminator: Terminator) {
         let current = self.current_block;
         for successor in terminator.successors() {
-            self.func.blocks[successor].predecessors.push(current);
+            let predecessors = &mut self.func.blocks[successor].predecessors;
+            if !predecessors.contains(&current) {
+                predecessors.push(current);
+            }
         }
         let mut metadata = InstructionMetadata::EMPTY;
         self.set_current_debug_context(&mut metadata);

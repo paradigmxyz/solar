@@ -12,7 +12,7 @@ use crate::{
     natspec_completion::{self, NatSpecCompletionResult},
     progress::send_progress,
     proto::normalize_file_uri,
-    rename::validate_rename_scope,
+    rename::{RenameCandidate, validate_rename_scope},
     symbols::{CompletionContext, CompletionItemData, SymbolTables},
     vfs::{Vfs, VfsPath},
 };
@@ -936,6 +936,7 @@ pub(crate) fn prepare_rename(
         let Some(candidate) = candidate else { return Ok(None) };
         tokio::task::spawn_blocking(move || {
             validate_rename_scope(&candidate, &config)?;
+            ensure_rename_coverage(&candidate, &config)?;
             Ok(Some(PrepareRenameResponse::Range(candidate.range)))
         })
         .await
@@ -982,6 +983,7 @@ pub(crate) fn rename(
 
         tokio::task::spawn_blocking(move || {
             validate_rename_scope(&candidate, &config)?;
+            ensure_rename_coverage(&candidate, &config)?;
             validated_rename_workspace_edit(candidate, new_name, vfs, document_changes)
         })
         .await
@@ -992,6 +994,18 @@ pub(crate) fn rename(
 
 fn rename_task_failed(error: tokio::task::JoinError) -> ResponseError {
     ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("rename task failed: {error}"))
+}
+
+fn ensure_rename_coverage(
+    candidate: &RenameCandidate,
+    config: &Config,
+) -> Result<(), ResponseError> {
+    if candidate.requires_complete_workspace && config.may_omit_source_files() {
+        return Err(request_failed(
+            "cannot rename this symbol because workspace indexing may omit source files",
+        ));
+    }
+    Ok(())
 }
 
 pub(crate) fn inlay_hints(

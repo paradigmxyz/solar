@@ -20,30 +20,28 @@ bb0:
   sub
   stop
 
-// COMMON-LABEL: bb1:
+// COMMON-LABEL: bb1 [stack=15]:
 // COMMON: -   dup 15
 // COMMON: {{^[ +].*}}push_deferred 0
 // COMMON: -   swap 1
 // COMMON: +   dup 16
-bb1:
-  callf !metadata(stack=0->15)
+bb1 [stack=15]:
   dup 15
   push_deferred 0
   swap 1
   sub
   stop
 
-// OSAKA-LABEL: bb2:
+// OSAKA-LABEL: bb2 [stack=16]:
 // OSAKA: {{^    dup 16}}
 // OSAKA-NEXT: {{^    push_immutable 0, 32}}
 // OSAKA-NEXT: {{^    swap 1}}
-// AMSTERDAM-LABEL: bb2:
+// AMSTERDAM-LABEL: bb2 [stack=16]:
 // AMSTERDAM: -   dup 16
 // AMSTERDAM: {{^[ +].*}}push_immutable 0, 32
 // AMSTERDAM: -   swap 1
 // AMSTERDAM: +   dup 17
-bb2:
-  callf !metadata(stack=0->16)
+bb2 [stack=16]:
   dup 16
   push_immutable 0, 32
   swap 1

@@ -94,7 +94,8 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
 
     fn function_mutability(&self, id: hir::FunctionId) -> MutabilityAndLocation {
         let mut visited = DenseBitSet::new_empty(self.gcx.hir.function_ids().len());
-        let mut stack = vec![id];
+        let mut stack = Vec::new();
+        stack.push(id);
         let mut best = MutabilityAndLocation {
             mutability: StateMutability::Pure,
             location: self.gcx.hir.function(id).span,
@@ -272,15 +273,14 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
     fn report_yul_builtin(&mut self, builtin: Builtin, span: Span) {
         let mutability = match builtin {
             YulSstore | YulTstore | YulLog0 | YulLog1 | YulLog2 | YulLog3 | YulLog4 | YulCreate
-            | YulCreate2 | YulCall | YulCallcode | YulDelegatecall | YulSelfdestruct
-            | YulExtcall | YulExtdelegatecall => StateMutability::NonPayable,
-            YulSload | YulTload | YulGas | YulAddress | YulBalance | YulSelfbalance | YulCaller
-            | YulExtcodesize | YulExtcodecopy | YulExtcodehash | YulStaticcall
-            | YulExtstaticcall | YulChainid | YulBasefee | YulBlobbasefee | YulBlobhash
-            | YulCoinbase | YulDifficulty | YulPrevrandao | YulGaslimit | YulNumber
-            | YulSlotnum | YulTimestamp | YulGasprice | YulOrigin | YulBlockhash => {
-                StateMutability::View
+            | YulCreate2 | YulCall | YulCallcode | YulDelegatecall | YulSelfdestruct => {
+                StateMutability::NonPayable
             }
+            YulSload | YulTload | YulGas | YulAddress | YulBalance | YulSelfbalance | YulCaller
+            | YulExtcodesize | YulExtcodecopy | YulExtcodehash | YulStaticcall | YulChainid
+            | YulBasefee | YulBlobbasefee | YulBlobhash | YulCoinbase | YulDifficulty
+            | YulPrevrandao | YulGaslimit | YulNumber | YulSlotnum | YulTimestamp | YulGasprice
+            | YulOrigin | YulBlockhash => StateMutability::View,
             YulCallvalue => StateMutability::View,
             _ => StateMutability::Pure,
         };

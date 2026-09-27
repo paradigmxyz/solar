@@ -90,15 +90,15 @@ impl DeadCodeEliminator {
         let mut uses = IndexVec::<ValueId, usize>::from_vec(vec![0; func.num_values()]);
         for block in &func.blocks {
             if let Some(term) = &block.terminator {
-                for operand in term.operands() {
+                term.visit_operands(|operand| {
                     uses[operand] += 1;
-                }
+                });
             }
         }
         for inst in func.instructions() {
-            for operand in func.inst(inst).kind.operands() {
+            func.inst(inst).kind.visit_operands(|operand| {
                 uses[operand] += 1;
-            }
+            });
         }
 
         let mut discardable = DenseBitSet::new_empty(func.num_insts());
@@ -121,7 +121,7 @@ impl DeadCodeEliminator {
             if !dead.insert(inst) {
                 continue;
             }
-            for operand in func.inst(inst).kind.operands() {
+            func.inst(inst).kind.visit_operands(|operand| {
                 uses[operand] -= 1;
                 if uses[operand] == 0
                     && let Value::Inst(producer) = *func.value(operand)
@@ -129,7 +129,7 @@ impl DeadCodeEliminator {
                 {
                     pending.push(producer);
                 }
-            }
+            });
         }
         if !dead.is_empty() {
             for block in &mut func.blocks {

@@ -113,11 +113,10 @@ bb5:
   stop
 
 // The merged `SWAP17` has no Osaka lowering, so leave the legacy boundary intact.
-// CHECK-LABEL: {{^[ +].*}}bb6:
+// CHECK-LABEL: {{^[ +].*}}bb6 [stack=18]:
 // CHECK: {{^[ +].*}}swap 16
 // CHECK: {{^[ +].*}}swap 1
-bb6:
-  callf !metadata(stack=0->18)
+bb6 [stack=18]:
   swap 16
   pop
   pop

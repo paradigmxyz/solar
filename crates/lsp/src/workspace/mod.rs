@@ -594,7 +594,8 @@ impl Workspace {
                 let flycheck_source_roots = profile.build_source_roots(&root);
                 // Index the project independently of the build's entry-point directories.
                 // Keep explicit roots for external sources and exclusion overrides.
-                let mut source_roots = vec![root.clone()];
+                let mut source_roots = Vec::new();
+                source_roots.push(root.clone());
                 source_roots
                     .extend(flycheck_source_roots.iter().filter(|path| **path != root).cloned());
                 (

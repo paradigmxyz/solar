@@ -421,8 +421,8 @@ async fn rename_uses_dependency_policy_published_with_analysis() {
     assert_dependency_rename_rejected(&mut state, params).await;
 }
 
-#[test]
-fn allows_first_party_library_directories_inside_sources() {
+#[tokio::test]
+async fn allows_first_party_library_directories_inside_sources() {
     let fixture = RequestFixture::new(
         r#"
         //- /foundry.toml
@@ -433,14 +433,53 @@ fn allows_first_party_library_directories_inside_sources() {
         "#,
         "/src/lib/Math.sol",
     );
-    fixture.check_rename(
-        "$1",
-        "Numbers",
-        str![[r#"
-/src/lib/Math.sol:0:8-0:12 -> Numbers
+    for use_default_excludes in [true, false] {
+        let (mut state, params) = fixture.rename_state_and_params("$1", "Numbers");
+        let initialize = InitializeParams {
+            workspace_folders: Some(vec![WorkspaceFolder {
+                uri: Url::from_file_path(fixture.project_path("/")).unwrap(),
+                name: "fixture".into(),
+            }]),
+            initialization_options: Some(serde_json::json!({
+                "indexing": { "useDefaultExcludes": use_default_excludes },
+            })),
+            ..Default::default()
+        };
+        let (_, mut config) = negotiate_capabilities(initialize);
+        config.rediscover_workspaces();
+        assert_eq!(config.may_omit_source_files(), use_default_excludes);
+        state.config = Arc::new(config);
 
-"#]],
-    );
+        let prepared =
+            handlers::prepare_rename(&mut state, params.text_document_position.clone()).await;
+        let renamed = handlers::rename(&mut state, params).await;
+        if use_default_excludes {
+            for error in [prepared.unwrap_err(), renamed.unwrap_err()] {
+                assert_eq!(error.code, ErrorCode::REQUEST_FAILED);
+                snapbox::assert_data_eq!(
+                    error.message,
+                    "cannot rename this symbol because workspace indexing may omit source files",
+                );
+            }
+        } else {
+            assert!(prepared.unwrap().is_some());
+            let changes = renamed.unwrap().unwrap().changes.unwrap();
+            let uri = Url::from_file_path(fixture.project_path("/src/lib/Math.sol")).unwrap();
+            assert_eq!(
+                changes,
+                std::collections::HashMap::from([(
+                    uri,
+                    vec![lsp_types::TextEdit::new(
+                        lsp_types::Range::new(
+                            lsp_types::Position::new(0, 8),
+                            lsp_types::Position::new(0, 12),
+                        ),
+                        "Numbers".into(),
+                    )],
+                )]),
+            );
+        }
+    }
 }
 
 #[cfg(unix)]
@@ -732,7 +771,7 @@ async fn keeps_dependency_locals_read_only() {
         //- /src/Main.sol
         import "../lib/dep/Dep.sol";
         contract Main {
-            function read(Dep dep) public pure returns (uint256) {
+            function $3read(Dep dep) public pure returns (uint256) {
                 uint256 $2local = dep.value();
                 return local;
             }
@@ -740,20 +779,41 @@ async fn keeps_dependency_locals_read_only() {
         "#,
         "/src/Main.sol",
     );
-    let (mut state, params) = fixture.rename_state_and_params("$1", "renamed");
-    assert_dependency_rename_rejected(&mut state, params).await;
+    for complete in [true, false] {
+        for marker in ["$1", "$2", "$3"] {
+            let (mut state, params) = fixture.rename_state_and_params(marker, "renamed");
+            assert!(!state.config.may_omit_source_files());
+            let mut analyzed_config = (*state.config).clone();
+            if !complete {
+                analyzed_config.mark_analysis_source_files_incomplete();
+            }
+            state.analysis_commit.lock().analysis_config = Some(Arc::new(analyzed_config));
+            if marker == "$1" {
+                assert_dependency_rename_rejected(&mut state, params).await;
+                continue;
+            }
 
-    let (mut state, params) = fixture.rename_state_and_params("$2", "renamed");
-    assert!(
-        handlers::prepare_rename(&mut state, params.text_document_position.clone())
-            .await
-            .unwrap()
-            .is_some()
-    );
-    let changes = handlers::rename(&mut state, params).await.unwrap().unwrap().changes.unwrap();
-    let source_uri = Url::from_file_path(fixture.project_path("/src/Main.sol")).unwrap();
-    assert_eq!(changes.len(), 1);
-    let edits = &changes[&source_uri];
-    assert_eq!(edits.len(), 2);
-    assert!(edits.iter().all(|edit| edit.new_text == "renamed"));
+            let prepared =
+                handlers::prepare_rename(&mut state, params.text_document_position.clone()).await;
+            let renamed = handlers::rename(&mut state, params).await;
+            if !complete && marker == "$3" {
+                for error in [prepared.unwrap_err(), renamed.unwrap_err()] {
+                    assert_eq!(error.code, ErrorCode::REQUEST_FAILED);
+                    snapbox::assert_data_eq!(
+                        error.message,
+                        "cannot rename this symbol because workspace indexing may omit source files",
+                    );
+                }
+            } else {
+                assert!(prepared.unwrap().is_some());
+                let changes = renamed.unwrap().unwrap().changes.unwrap();
+                let source_uri =
+                    Url::from_file_path(fixture.project_path("/src/Main.sol")).unwrap();
+                assert_eq!(changes.len(), 1);
+                let edits = &changes[&source_uri];
+                assert_eq!(edits.len(), if marker == "$2" { 2 } else { 1 });
+                assert!(edits.iter().all(|edit| edit.new_text == "renamed"));
+            }
+        }
+    }
 }

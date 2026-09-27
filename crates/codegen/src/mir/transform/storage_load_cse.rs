@@ -12,13 +12,11 @@
 use crate::mir::{
     BlockId, Function, InstId, InstKind, Module, StorageAlias, ValueId,
     analysis::{Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Liveness, Location},
-    pass::{
-        AnalysisManager, LivenessAnalysis, MirPass, run_selected_function_pass_with_alias_and_cfg,
-    },
+    pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
-use std::rc::Rc;
+use std::{cell::OnceCell, rc::Rc};
 
 /// Function pass for straight-line storage-load CSE.
 pub(crate) struct StorageLoadCse;
@@ -90,15 +88,15 @@ impl StorageLoadCseCx {
             self.alias = Some(Rc::new(AliasAnalysis::new(func)));
         }
 
-        let mut analyses = AnalysisManager::new();
-        let liveness = analyses.get_or_compute(&LivenessAnalysis, func);
+        // Liveness is only needed when a load meets an earlier load of the same slot.
+        let liveness = OnceCell::new();
         state.replacements.clear();
         state.dead.clear();
 
         let gas = GasObservations::new(func, &CfgInfo::new(func), self.alias.as_ref().unwrap());
         for block_id in func.blocks.indices() {
             state.cached_loads.clear();
-            self.process_block(func, block_id, liveness, &gas, state);
+            self.process_block(func, block_id, &liveness, &gas, state);
         }
 
         if !state.replacements.is_empty() {
@@ -131,7 +129,7 @@ impl StorageLoadCseCx {
         &mut self,
         func: &Function,
         block_id: BlockId,
-        liveness: &Liveness,
+        liveness: &OnceCell<Liveness>,
         gas: &GasObservations,
         state: &mut RunState,
     ) {
@@ -153,7 +151,10 @@ impl StorageLoadCseCx {
                         continue;
                     }
                     if let Some(&(cached, from_store)) = state.cached_loads.get(&alias) {
-                        if !from_store && !liveness.is_used_at_or_after(cached, block_id, inst_idx)
+                        if !from_store
+                            && !liveness
+                                .get_or_init(|| Liveness::compute(func))
+                                .is_used_at_or_after(cached, block_id, inst_idx)
                         {
                             state.cached_loads.insert(alias, (result, false));
                             continue;

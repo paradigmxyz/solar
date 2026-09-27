@@ -298,6 +298,7 @@ mod tests {
                 .collect(),
             conflicting_contents: false,
             requires_yul_validation: false,
+            requires_complete_workspace: true,
         };
         let expected = HashMap::from([
             (

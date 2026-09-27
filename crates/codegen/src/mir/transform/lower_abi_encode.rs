@@ -322,7 +322,9 @@ fn synthesize_array_helpers(
             let value = builder.add_param(key.value_ty);
             // The destination is a heap pointer, and typing it so lets the backend's
             // provenance analysis see that the returned tail stays in the heap.
-            let dest = builder.add_param(MirType::I256);
+            let dest = builder.add_param(MirType::MemPtr);
+            // dest = ptrtoint memptr dest to i256
+            let dest = builder.cast(dest, MirType::I256);
             let tail = encode_memory_array(&mut builder, &key.element, value, dest, &helpers);
             builder.set_return_type(MirType::I256);
             builder.ret([tail]);
@@ -517,15 +519,15 @@ fn terminal_return_encodes(func: &Function) -> FxHashSet<InstId> {
     }
     let mut uses = FxHashMap::<ValueId, usize>::default();
     for inst_id in func.instructions() {
-        for operand in func.inst(inst_id).operands() {
+        func.inst(inst_id).visit_operands(|operand| {
             *uses.entry(operand).or_default() += 1;
-        }
+        });
     }
     for block in &func.blocks {
         if let Some(term) = &block.terminator {
-            for operand in term.operands() {
+            term.visit_operands(|operand| {
                 *uses.entry(operand).or_default() += 1;
-            }
+            });
         }
     }
 
@@ -1221,6 +1223,9 @@ fn encode_dynamic_body(
             let location = effective_slice_location(builder.func(), value, *location);
             if location == SliceLocation::Memory {
                 if let Some(helper) = array_helper(builder.func(), helpers, element, value) {
+                    // dest = inttoptr i256 dest to memptr
+                    // tail = icall @encode_abi_array, value, dest
+                    let dest = builder.cast(dest, MirType::MemPtr);
                     return builder.icall(helper, vec![value, dest], MirType::I256);
                 }
                 return encode_memory_array(builder, element, value, dest, helpers);

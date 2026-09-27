@@ -297,7 +297,7 @@ impl LoopOptimizer {
         carried: &mut FxHashMap<BlockId, usize>,
     ) {
         let Some(preheader) = loop_data.preheader else { return };
-        if self.loop_observes_gas(func, loop_data) {
+        if loop_data.invariant_insts.is_empty() || self.loop_observes_gas(func, loop_data) {
             return;
         }
 
@@ -311,6 +311,9 @@ impl LoopOptimizer {
                     && self.is_profitable_licm_root(func, inst_id, ctx)
             })
             .collect();
+        if roots.is_empty() {
+            return;
+        }
         roots.sort_unstable_by(|&a, &b| {
             self.licm_profit(func, b)
                 .cmp(&self.licm_profit(func, a))
@@ -1111,13 +1114,13 @@ impl LoopOptimizer {
             }
 
             let inst = func.inst(inst_id);
-            for operand in inst.kind.operands() {
+            inst.kind.visit_operands(|operand| {
                 if let Value::Inst(dep_inst) = func.value(operand)
                     && inst_set.contains(*dep_inst)
                 {
                     visit(func, *dep_inst, inst_set, visited, result);
                 }
-            }
+            });
             result.push(inst_id);
         }
 

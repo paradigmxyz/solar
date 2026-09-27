@@ -102,6 +102,8 @@ pub struct Module {
     pub(crate) code_follows: bool,
     /// Whether passes must account for every operation's source debug information.
     debug_info_tracked: bool,
+    /// Block contents in which an earlier peephole run found nothing to rewrite.
+    pub(super) peephole_clean: passes::CleanBlocks,
 }
 
 impl Module {
@@ -139,6 +141,7 @@ impl Module {
             enable_size_outlining: false,
             code_follows: false,
             debug_info_tracked: false,
+            peephole_clean: passes::CleanBlocks::default(),
         }
     }
 
@@ -234,6 +237,11 @@ pub(crate) struct BlockMetadata {
     pub(crate) is_continuation: bool,
     /// Source function entered by this block's leading `JUMPDEST`.
     pub(crate) function_invoke: Option<DebugFunction>,
+    /// Stack depth at which verification enters this block, in addition to its modeled edges.
+    ///
+    /// Only textual EVM IR declares it, so that a test can start a block with a deep stack; the
+    /// entry block is otherwise entered at depth zero.
+    pub(crate) entry_depth: Option<u16>,
 }
 
 /// Block hotness metadata.
@@ -330,7 +338,7 @@ impl Instruction {
     /// Returns whether this instruction has a raw branch target outside its block.
     #[must_use]
     pub(crate) const fn has_raw_branch_target(&self) -> bool {
-        matches!(self.opcode, op::JUMPI | op::RJUMPI | op::RJUMPV)
+        self.opcode == op::JUMPI
     }
 
     /// Creates an encoded immediate push instruction.
@@ -366,7 +374,7 @@ impl Instruction {
             encoding: Self::ENCODED_PUSH,
             value: None,
             stack_op: None,
-            metadata: Metadata { stack: Some(StackEffect::new(0, 1)), ..Metadata::default() },
+            metadata: Metadata::default(),
         }
     }
 
@@ -400,7 +408,7 @@ impl Instruction {
             encoding,
             value: Some(value),
             stack_op: None,
-            metadata: Metadata { stack: Some(StackEffect::new(0, 1)), ..Metadata::default() },
+            metadata: Metadata::default(),
         }
     }
 
@@ -481,15 +489,7 @@ impl Instruction {
                     f.write_str("push_immutable")
                 }
                 encoding if encoding == Self::ENCODED_PUSH | Self::DATA => f.write_str("push_data"),
-                _ => match self.opcode {
-                    opcode @ op::DUP1..=op::DUP16 => {
-                        write!(f, "dup {}", opcode - op::DUP1 + 1)
-                    }
-                    opcode @ op::SWAP1..=op::SWAP16 => {
-                        write!(f, "swap {}", opcode - op::SWAP1 + 1)
-                    }
-                    _ => op::fmt(self.opcode, f),
-                },
+                _ => op::fmt(self.opcode, f),
             },
         })
     }
@@ -506,18 +506,27 @@ impl Instruction {
         self.stack_op
     }
 
-    /// Returns metadata's stack effect override or the opcode's default effect.
+    /// Returns the words the instruction reads from the top of the stack and the words it leaves
+    /// there. A stack operation reads down to its deepest operand: `dup 2` is 2 -> 3.
+    ///
+    /// Verification rejects every instruction without one: an unknown opcode, a raw extended stack
+    /// opcode, or a stack operation deeper than the verifier allows.
     #[must_use]
-    pub(crate) fn effective_stack_effect(&self) -> Option<StackEffect> {
-        self.metadata.stack.or_else(|| default_instruction_stack_effect(self))
-    }
-
-    /// Returns whether metadata preserves the opcode's default stack effect.
-    #[must_use]
-    pub(crate) fn has_canonical_stack_effect(&self) -> bool {
-        self.metadata
-            .stack
-            .is_none_or(|effect| Some(effect) == default_instruction_stack_effect(self))
+    pub(crate) fn stack_effect(&self) -> StackEffect {
+        if let Some(stack_op) = self.stack_op {
+            let inputs = stack_op.required_depth();
+            let outputs = inputs.checked_add_signed(stack_op.net_growth()).unwrap();
+            let depth = |words| u8::try_from(words).expect("verified stack operation depth");
+            return StackEffect::new(depth(inputs), depth(outputs));
+        }
+        if self.is_encoded_push() {
+            return StackEffect::new(0, 1);
+        }
+        let (inputs, outputs) = self
+            .definition()
+            .and_then(|definition| definition.stack_io)
+            .expect("verified instruction stack effect");
+        StackEffect::new(inputs, outputs)
     }
 
     /// Returns the deferred constant referenced by this push instruction, if any.
@@ -734,8 +743,6 @@ enum PushValue {
 /// Metadata carried by instructions and terminators.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Metadata {
-    /// Optional stack effect.
-    pub(crate) stack: Option<StackEffect>,
     /// Whether this instruction must stay immediately before the next instruction of its block.
     ///
     /// Only meaningful on instructions. It forbids every transform both from turning the boundary
@@ -819,7 +826,7 @@ impl Metadata {
         self.modifier_depth = other.modifier_depth;
     }
 
-    /// Copies debug information without copying machine properties such as stack effects.
+    /// Copies debug information without copying machine properties such as `keep_with_next`.
     pub(crate) fn copy_debug_info_from(&mut self, other: &Self) {
         self.copy_source_debug_from(other);
         self.function_invoke = other.function_invoke;
@@ -938,16 +945,6 @@ impl StackEffect {
     }
 }
 
-pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> Option<StackEffect> {
-    if inst.is_encoded_push() {
-        Some(StackEffect::new(0, 1))
-    } else if let Some((inputs, outputs)) = inst.definition().and_then(|def| def.stack_io) {
-        Some(StackEffect::new(inputs, outputs))
-    } else {
-        None
-    }
-}
-
 pub(super) fn default_terminator_stack_effect(kind: &TerminatorKind) -> Option<StackEffect> {
     let (inputs, outputs) = kind.stack_io()?;
     Some(StackEffect::new(inputs, outputs))
@@ -961,7 +958,12 @@ mod tests {
     fn terminators_describe_control_flow() {
         let add = Instruction::opcode(op::ADD);
         assert_eq!(add.definition().map(|def| def.mnemonic), Some("add"));
-        assert_eq!(default_instruction_stack_effect(&add), Some(StackEffect::new(2, 1)));
+        assert_eq!(add.stack_effect(), StackEffect::new(2, 1));
+        let effect = |op| Instruction::stack_op(op).stack_effect();
+        assert_eq!(effect(StackOp::Dup(2)), StackEffect::new(2, 3));
+        assert_eq!(effect(StackOp::Swap(1)), StackEffect::new(2, 2));
+        assert_eq!(effect(StackOp::Exchange(1, 3)), StackEffect::new(4, 4));
+        assert_eq!(effect(StackOp::Pop), StackEffect::new(1, 0));
 
         let jump = TerminatorKind::Jump(BlockId::ENTRY);
         assert_eq!(jump.stack_io(), Some((0, 0)));

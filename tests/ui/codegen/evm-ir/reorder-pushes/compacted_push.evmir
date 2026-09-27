@@ -7,11 +7,7 @@
 //@[default_size] filecheck: --check-prefix=DEFAULT
 @module CompactedPush
 
-bb0:
-  callf !metadata(stack=0->255)
-  callf !metadata(stack=0->255)
-  callf !metadata(stack=0->255)
-  callf !metadata(stack=0->255)
+bb0 [stack=1020]:
   push 0
   push 0
   push bb1
@@ -21,7 +17,7 @@ bb0:
 // EXPLICIT-LABEL: after compact-pushes
 // DEFAULT-LABEL: after pipeline-default
 // EXPLICIT: bb1:
-// DEFAULT: bb0:
+// DEFAULT: bb0 [stack=1020]:
 // EXPLICIT: push 1
 // EXPLICIT-NEXT: push 128
 // EXPLICIT-NEXT: shl
@@ -42,15 +38,14 @@ bb1:
   stop
 
 // A compact recipe can also be the producer moved after a literal push.
-// EXPLICIT-LABEL: bb2:
+// EXPLICIT-LABEL: bb2 [stack=3]:
 // EXPLICIT: {{^[ +].*}}push 10
 // EXPLICIT: push 1
 // EXPLICIT: push 128
 // EXPLICIT: shl
 // EXPLICIT-NOT: swap 1
 // EXPLICIT: sub
-bb2:
-  callf !metadata(stack=0->3)
+bb2 [stack=3]:
   pop
   pop
   pop

@@ -109,11 +109,11 @@ impl GasObservations {
         }
         for block in func.blocks.iter() {
             if let Some(terminator) = &block.terminator {
-                for operand in terminator.operands() {
+                terminator.visit_operands(|operand| {
                     if let Some(&gas_inst) = gas_values.get(&operand) {
                         observed.insert(gas_inst);
                     }
-                }
+                });
             }
         }
         for gas_inst in observed.iter() {

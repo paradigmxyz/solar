@@ -1,0 +1,8 @@
+error: instructions cannot declare a stack effect; declare a block's entry depth with `[stack=N]` instead
+   ╭▸ ROOT/tests/ui/codegen/evm-ir/validation/stack_metadata.evmir:LL:CC
+   │
+LL │   push 1 !metadata(stack=0->1)
+   ╰╴                        ━
+
+error: aborting due to 1 previous error
+
