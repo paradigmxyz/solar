@@ -245,8 +245,8 @@ impl Access {
 /// operation overwrites every byte or executes the write on every path.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct ModRef {
-    reads: SmallVec<[Access; 4]>,
-    writes: SmallVec<[Access; 4]>,
+    reads: SmallVec<[Access; 2]>,
+    writes: SmallVec<[Access; 2]>,
     observes_memory_size: bool,
     observes_gas: bool,
 }
