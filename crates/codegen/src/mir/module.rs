@@ -154,6 +154,18 @@ impl Module {
         super::parser::parse(sess, source)
     }
 
+    /// Parses one function as a candidate replacement for one of this module's functions.
+    ///
+    /// Candidates are untrusted, so they are held to a stricter grammar than [`Self::parse`]
+    /// accepts: see [`super::parser::parse_candidate`]. [`Self::candidate_text`] prints it.
+    pub(crate) fn parse_function(
+        &self,
+        sess: &solar_interface::Session,
+        source: &solar_interface::source_map::SourceFile,
+    ) -> solar_interface::Result<Function> {
+        super::parser::parse_candidate(sess, source, self)
+    }
+
     /// Creates a new module.
     #[must_use]
     pub(crate) fn new(name: Ident) -> Self {
@@ -536,6 +548,7 @@ impl Module {
                             func,
                             Some(self),
                             self.dispatch_entry == Some(id),
+                            true,
                         )
                     })
                     .format("\n")
@@ -555,6 +568,12 @@ impl Module {
                     .format("\n\n")
             )
         })
+    }
+
+    /// Displays `function` as candidate text: its textual MIR without metadata, naming callees
+    /// from this module. [`Self::parse_function`] parses it back.
+    pub(crate) fn candidate_text<'a>(&'a self, function: &'a Function) -> impl fmt::Display + 'a {
+        super::display::display_function_text(function, Some(self), false, false)
     }
 }
 
