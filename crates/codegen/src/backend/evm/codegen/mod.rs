@@ -45,6 +45,7 @@ use crate::{
             immutable_staging_end,
         },
         memory::EvmMemoryLayout,
+        pass::run_pipeline,
     },
 };
 use alloy_primitives::U256;
@@ -604,10 +605,6 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Controls whether modules without an external entry still run the MIR pipeline.
     pub(crate) fn set_capture_mir(&mut self, capture: bool) {
         self.capture_mir = capture;
-    }
-
-    pub(crate) fn set_scheduling(&mut self, scheduling: crate::scheduling::Scheduling) {
-        self.asm.scheduling = scheduling;
     }
 }
 

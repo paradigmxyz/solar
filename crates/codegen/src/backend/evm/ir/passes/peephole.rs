@@ -7,8 +7,8 @@
 //!
 //! Prefixes are inspected in place until the first rewrite. Only then is the
 //! unvisited suffix moved to a scratch buffer for streaming cleanup. Unchanged
-//! prefixes require no instruction copies. The pipeline caches unchanged block inputs
-//! so later sweeps can skip blocks untouched by other passes. Rules never cross a block boundary;
+//! blocks require no instruction copies, which matters when later pipeline
+//! passes expose few new opportunities. Rules never cross a block boundary;
 //! target legality, push removability, and symbolic stack bounds stay in the
 //! extractors, and edits preserve their existing metadata policy.
 //! Comparison inversion tracks a constant through up to 24 instructions that cannot observe
@@ -32,12 +32,12 @@
 //! occupy more bytes overall. Matching is bounded to 24 instructions per tail.
 
 use super::{
-    EvmPass, PassCache,
+    EvmPass,
     compact_pushes::{immediate_materialization_cost, materialize_immediate},
     utils::MachineInstKey,
 };
 use crate::backend::evm::{
-    ir::{Block, BlockId, Instruction, Module, PushValue, TerminatorKind},
+    ir::{BlockId, Instruction, Module, PushValue, TerminatorKind},
     op,
 };
 use alloy_primitives::U256;
@@ -73,16 +73,7 @@ impl EvmPass for Peephole {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        optimize_module::<false>(gcx, module, self.final_cleanup, None)
-    }
-
-    fn run_pass_with_cache(
-        &self,
-        gcx: Gcx<'_>,
-        module: &mut Module,
-        cache: &mut PassCache,
-    ) -> bool {
-        optimize_module::<false>(gcx, module, self.final_cleanup, Some((self, cache)))
+        optimize_module::<false>(gcx, module, self.final_cleanup)
     }
 }
 
@@ -95,7 +86,7 @@ impl EvmPass for LateWord {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        optimize_module::<true>(gcx, module, false, None)
+        optimize_module::<true>(gcx, module, false)
     }
 }
 
@@ -123,19 +114,6 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
         let changed = self.0.run_pass(gcx, module);
         if changed {
             let _ = Peephole::EARLY.run_pass(gcx, module);
-        }
-        changed
-    }
-
-    fn run_pass_with_cache(
-        &self,
-        gcx: Gcx<'_>,
-        module: &mut Module,
-        cache: &mut PassCache,
-    ) -> bool {
-        let changed = self.0.run_pass_with_cache(gcx, module, cache);
-        if changed {
-            let _ = Peephole::EARLY.run_pass_with_cache(gcx, module, cache);
         }
         changed
     }
@@ -171,11 +149,14 @@ fn clean_hash(instructions: &[Instruction]) -> u64 {
     hasher.finish()
 }
 
-/// Returns whether these contents are clean and whether final rules were included.
-fn recorded_clean(clean: &Option<CleanBlock>, instructions: &[Instruction]) -> Option<bool> {
-    let clean = clean.as_ref()?;
-    (clean.len as usize == instructions.len() && clean.hash == clean_hash(instructions))
-        .then_some(clean.final_cleanup)
+impl CleanBlocks {
+    /// Returns whether the block was recorded clean with exactly these contents, and if so,
+    /// whether the final rules were included.
+    fn recorded(&self, block: BlockId, instructions: &[Instruction]) -> Option<bool> {
+        let clean = self.0.get(block)?.as_ref()?;
+        (clean.len as usize == instructions.len() && clean.hash == clean_hash(instructions))
+            .then_some(clean.final_cleanup)
+    }
 }
 
 impl Clone for CleanBlocks {
@@ -202,93 +183,75 @@ fn optimize_module<const LATE: bool>(
     gcx: Gcx<'_>,
     module: &mut Module,
     final_cleanup: bool,
-    cache: Option<(&Peephole, &mut PassCache)>,
 ) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
-    let mut clean = std::mem::take(&mut module.peephole_clean);
+    let mut changed = false;
+    let mut scratch = Vec::new();
+    let clean = &mut module.peephole_clean;
     clean.0.resize_with(module.blocks.len(), || None);
-    let make_run = || {
-        let mut scratch = Vec::new();
-        move |block: &mut Block, clean: &mut Option<CleanBlock>| {
-            let mut changed = false;
-            // The late rules are separate from the cached early and final ones.
-            let recorded = if LATE { None } else { recorded_clean(clean, &block.instructions) };
-            let skip = recorded.is_some_and(|recorded_final| recorded_final || !final_cleanup);
-            let early_clean = final_cleanup && recorded == Some(false);
-            // Dead stack traffic before a terminator that cannot observe it is dead-code
-            // elimination's to remove; this pass only rewrites what it can see locally.
-            let rewrites = if skip {
-                0
+    for (block_id, block) in module.blocks.iter_mut_enumerated() {
+        // The late rules are separate from the cached early and final ones.
+        let recorded = if LATE { None } else { clean.recorded(block_id, &block.instructions) };
+        let skip = recorded.is_some_and(|recorded_final| recorded_final || !final_cleanup);
+        let early_clean = final_cleanup && recorded == Some(false);
+        // Dead stack traffic before a terminator that cannot observe it is dead-code
+        // elimination's to remove; this pass only rewrites what it can see locally.
+        let rewrites = if skip {
+            0
+        } else {
+            optimize::<LATE>(
+                evm_version,
+                &mut block.instructions,
+                &mut scratch,
+                block.label,
+                final_cleanup,
+                early_clean,
+            )
+        };
+        changed |= rewrites != 0;
+        let mut returned_zero = false;
+        // mstore(offset, value); return(offset, 32)
+        // -> mstore(0, value); return(0, 32)
+        if final_cleanup
+            && matches!(
+                block.terminator.as_ref().map(|term| &term.kind),
+                Some(TerminatorKind::Op(op::RETURN))
+            )
+            && let [prefix @ .., offset, store, size, returned] = block.instructions.as_mut_slice()
+            && store.as_evm_opcode() == Some(op::MSTORE)
+            && size.concrete_immediate() == Some(U256::from(32))
+            && let Some(address) = offset.concrete_immediate()
+            && !address.is_zero()
+            && returned.concrete_immediate() == Some(address)
+            && prefix
+                .windows(2)
+                .rev()
+                .take_while(|pair| pair[1].as_evm_opcode() != Some(op::JUMPDEST))
+                .any(|pair| {
+                    pair[1].as_evm_opcode() == Some(op::MSTORE)
+                        && pair[0].concrete_immediate().is_some_and(|previous| previous >= address)
+                })
+        {
+            offset.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
+            returned.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
+            changed = true;
+            returned_zero = true;
+        }
+        if !LATE && !skip {
+            if rewrites != 0 || returned_zero {
+                clean.0[block_id] = None;
+            } else if early_clean {
+                // The same contents are now clean under the final rules as well.
+                clean.0[block_id].as_mut().unwrap().final_cleanup = true;
             } else {
-                optimize::<LATE>(
-                    evm_version,
-                    &mut block.instructions,
-                    &mut scratch,
-                    block.label,
+                clean.0[block_id] = Some(CleanBlock {
                     final_cleanup,
-                    early_clean,
-                )
-            };
-            changed |= rewrites != 0;
-            let mut returned_zero = false;
-            // mstore(offset, value); return(offset, 32)
-            // -> mstore(0, value); return(0, 32)
-            if final_cleanup
-                && matches!(
-                    block.terminator.as_ref().map(|term| &term.kind),
-                    Some(TerminatorKind::Op(op::RETURN))
-                )
-                && let [prefix @ .., offset, store, size, returned] =
-                    block.instructions.as_mut_slice()
-                && store.as_evm_opcode() == Some(op::MSTORE)
-                && size.concrete_immediate() == Some(U256::from(32))
-                && let Some(address) = offset.concrete_immediate()
-                && !address.is_zero()
-                && returned.concrete_immediate() == Some(address)
-                && prefix
-                    .windows(2)
-                    .rev()
-                    .take_while(|pair| pair[1].as_evm_opcode() != Some(op::JUMPDEST))
-                    .any(|pair| {
-                        pair[1].as_evm_opcode() == Some(op::MSTORE)
-                            && pair[0]
-                                .concrete_immediate()
-                                .is_some_and(|previous| previous >= address)
-                    })
-            {
-                offset.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
-                returned.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
-                changed = true;
-                returned_zero = true;
+                    len: block.instructions.len() as u32,
+                    hash: clean_hash(&block.instructions),
+                });
             }
-            if !LATE && !skip {
-                if rewrites != 0 || returned_zero {
-                    *clean = None;
-                } else if early_clean {
-                    // The same contents are now clean under the final rules as well.
-                    clean.as_mut().unwrap().final_cleanup = true;
-                } else {
-                    *clean = Some(CleanBlock {
-                        final_cleanup,
-                        len: block.instructions.len() as u32,
-                        hash: clean_hash(&block.instructions),
-                    });
-                }
-            }
-            changed
         }
-    };
-    let changed = if let Some((pass, cache)) = cache {
-        cache.run_blocks(pass, module, &mut clean.0.raw, make_run)
-    } else {
-        let mut run = make_run();
-        let mut changed = false;
-        for (block, clean) in module.blocks.iter_mut().zip(&mut clean.0) {
-            changed |= run(block, clean);
-        }
-        changed
-    };
-    module.peephole_clean = clean;
+    }
     changed
 }
 

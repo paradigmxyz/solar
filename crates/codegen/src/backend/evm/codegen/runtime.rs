@@ -3,17 +3,13 @@
 use super::{
     ArtifactKind, BlockId, CallGraphInfo, DenseBitSet, EvmCodegen, FunctionId, GeneratedCode,
     IndexVec, Liveness, MAX_STACK_DEPTH, MirPhase, Module, OptimizationMode, Terminator, index_vec,
+    run_pipeline,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Runs the canonical MIR optimization pipeline on the module.
     pub(super) fn run_optimization_passes(&mut self, module: &mut Module) {
-        let _changed = crate::mir::pass::run_pipeline_with_scheduling(
-            self.gcx,
-            module,
-            None,
-            &self.asm.scheduling,
-        );
+        let _changed = run_pipeline(self.gcx, module, None);
     }
 
     /// Generates runtime bytecode for a module.

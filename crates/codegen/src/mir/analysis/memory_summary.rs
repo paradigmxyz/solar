@@ -7,10 +7,7 @@
 //! Unknown accesses and oversized sets widen to the entire address space. Actual arguments
 //! instantiate each call footprint; allocation-relative ranges require a bounds proof before
 //! they can benefit from allocation disjointness. No callee-local
-//! value identities escape into a caller summary. Function-local inputs survive module-summary
-//! rebuilds until their body changes; changes to callee return arities also invalidate them
-//! because multi-return calls introduce caller-side memory effects. Call effects and recursive
-//! control flow are solved afresh on every rebuild.
+//! value identities escape into a caller summary.
 
 use super::{
     Access, AddressSpace, AliasAnalysis, CallGraphInfo, Location, LocationSize, MemoryAddress,
@@ -24,7 +21,7 @@ use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
-    map::{FxHashMap, FxHashSet},
+    map::FxHashSet,
 };
 use std::collections::{BTreeSet, VecDeque};
 
@@ -404,21 +401,7 @@ pub(crate) struct MemoryCallSummaries {
 impl MemoryCallSummaries {
     /// Computes summaries to a monotone fixpoint over the module call graph.
     #[must_use]
-    #[cfg(test)]
     pub(crate) fn new(module: &Module) -> Self {
-        Self::with_cache(module, &mut MemorySummaryCache::default())
-    }
-
-    pub(crate) fn with_cache(module: &Module, cache: &mut MemorySummaryCache) -> Self {
-        let multiple_returns = module
-            .functions
-            .iter()
-            .map(|func| func.return_components().len() > 1)
-            .collect::<Vec<_>>();
-        if cache.multiple_returns != multiple_returns {
-            cache.functions.clear();
-            cache.multiple_returns = multiple_returns;
-        }
         let mut targets = DenseBitSet::new_empty(module.functions.len());
         for func in &module.functions {
             for inst in func.instructions() {
@@ -441,18 +424,21 @@ impl MemoryCallSummaries {
             return Self { summaries: IndexVec::new() };
         }
 
+        // The parameter sources and alias analysis of each target.
+        let facts = module
+            .functions
+            .iter_enumerated()
+            .map(|(id, func)| {
+                targets.contains(id).then(|| (parameter_sources(func), AliasAnalysis::new(func)))
+            })
+            .collect::<IndexVec<FunctionId, _>>();
         let calls = CallGraphInfo::new(module);
         let mut local = index_vec![None; module.functions.len()];
         for func_id in &targets {
-            let inputs = cache.functions.entry(func_id).or_insert_with(|| {
-                let func = &module.functions[func_id];
-                let sources = parameter_sources(func);
-                let alias = AliasAnalysis::new(func);
-                let mut summary = local_summary(module, func, &sources, &alias);
-                summary.has_multiple_returns = func.return_components().len() > 1;
-                LocalMemorySummary { sources, alias, summary }
-            });
-            let mut summary = inputs.summary.clone();
+            let func = &module.functions[func_id];
+            let (sources, alias) = facts[func_id].as_ref().unwrap();
+            let mut summary = local_summary(module, func, sources, alias);
+            summary.has_multiple_returns = func.return_components().len() > 1;
             summary.control.may_diverge |= calls.is_recursive(func_id);
             local[func_id] = Some(summary);
         }
@@ -487,6 +473,7 @@ impl MemoryCallSummaries {
         while let Some(func_id) = worklist.pop_front() {
             queued.remove(func_id);
             let func = &module.functions[func_id];
+            let (sources, alias) = facts[func_id].as_ref().unwrap();
             let mut summary = local[func_id].clone().unwrap();
             for block in &func.blocks {
                 for &inst_id in &block.instructions {
@@ -499,8 +486,8 @@ impl MemoryCallSummaries {
                             func,
                             summaries.get(function).and_then(Option::as_ref),
                             args,
-                            &cache.functions[&func_id].sources,
-                            &cache.functions[&func_id].alias,
+                            sources,
+                            alias,
                         );
                     }
                 }
@@ -510,8 +497,8 @@ impl MemoryCallSummaries {
                         func,
                         summaries.get(*function).and_then(Option::as_ref),
                         args,
-                        &cache.functions[&func_id].sources,
-                        &cache.functions[&func_id].alias,
+                        sources,
+                        alias,
                     );
                 }
             }
@@ -534,31 +521,6 @@ impl MemoryCallSummaries {
     pub(crate) fn get(&self, function: FunctionId) -> Option<&FunctionMemorySummary> {
         self.summaries.get(function).and_then(Option::as_ref)
     }
-}
-
-/// Function-local inputs retained across module-summary rebuilds. Callee effects and
-/// recursive-call facts are solved afresh; only unchanged bodies reuse their local scans.
-#[derive(Default)]
-pub(crate) struct MemorySummaryCache {
-    functions: FxHashMap<FunctionId, LocalMemorySummary>,
-    multiple_returns: Vec<bool>,
-}
-
-impl MemorySummaryCache {
-    pub(crate) fn invalidate(&mut self, function: FunctionId) {
-        self.functions.remove(&function);
-    }
-
-    pub(crate) fn clear(&mut self) {
-        self.functions.clear();
-        self.multiple_returns.clear();
-    }
-}
-
-struct LocalMemorySummary {
-    sources: IndexVec<ValueId, DenseBitSet<ArgIdx>>,
-    alias: AliasAnalysis,
-    summary: FunctionMemorySummary,
 }
 
 fn merge_call(
@@ -1245,64 +1207,5 @@ mod tests {
         assert!(summaries.get(returning_caller).unwrap().captures_param(ArgIdx::new(0)));
         assert!(summaries.get(obfuscated).unwrap().captures_param(ArgIdx::new(0)));
         assert!(summaries.get(resetter).unwrap().may_reset_fmp());
-    }
-
-    #[test]
-    fn cached_inputs_follow_callee_changes() {
-        let mut module = Module::new(Ident::DUMMY);
-        let mut leaf = Function::new(Ident::DUMMY);
-        {
-            let mut builder = FunctionBuilder::new(&mut leaf);
-            let pointer = builder.add_param(MirType::I256);
-            let value = builder.imm(1);
-            builder.mstore(pointer, value);
-            builder.ret([]);
-        }
-        let leaf = module.add_function(leaf);
-        let mut caller = Function::new(Ident::DUMMY);
-        {
-            let mut builder = FunctionBuilder::new(&mut caller);
-            let pointer = builder.imm(128);
-            builder.icall_void(leaf, vec![pointer]);
-            builder.ret([]);
-        }
-        let caller = module.add_function(caller);
-        let mut entry = Function::new(Ident::DUMMY);
-        FunctionBuilder::new(&mut entry)
-            .set_terminator(Terminator::TailCall { function: caller, args: Default::default() });
-        module.add_function(entry);
-        let mut cache = MemorySummaryCache::default();
-        let summaries = MemoryCallSummaries::with_cache(&module, &mut cache);
-        assert!(summaries.get(caller).unwrap().writes(AddressSpace::Memory));
-        assert_eq!(
-            summaries.summaries,
-            MemoryCallSummaries::with_cache(&module, &mut cache).summaries
-        );
-
-        module.functions[leaf].blocks[BlockId::ENTRY].instructions.clear();
-        cache.invalidate(leaf);
-        let summaries = MemoryCallSummaries::with_cache(&module, &mut cache);
-        assert!(!summaries.get(caller).unwrap().writes(AddressSpace::Memory));
-        assert_eq!(summaries.summaries, MemoryCallSummaries::new(&module).summaries);
-
-        module.functions[leaf].blocks[BlockId::ENTRY].terminator =
-            Some(Terminator::TailCall { function: caller, args: Default::default() });
-        cache.invalidate(leaf);
-        let summaries = MemoryCallSummaries::with_cache(&module, &mut cache);
-        assert!(summaries.get(caller).unwrap().control.may_diverge);
-        assert_eq!(summaries.summaries, MemoryCallSummaries::new(&module).summaries);
-
-        module.functions[leaf].set_return_type(MirType::I256);
-        module.functions[leaf].set_return_abi([MirType::I256; 2]);
-        {
-            let mut builder = FunctionBuilder::new(&mut module.functions[leaf]);
-            let value = builder.imm(0);
-            builder.ret([value, value]);
-        }
-        cache.invalidate(leaf);
-        let summaries = MemoryCallSummaries::with_cache(&module, &mut cache);
-        assert!(summaries.get(caller).unwrap().writes(AddressSpace::Memory));
-        assert!(!summaries.get(caller).unwrap().control.may_diverge);
-        assert_eq!(summaries.summaries, MemoryCallSummaries::new(&module).summaries);
     }
 }

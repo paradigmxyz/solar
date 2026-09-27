@@ -4,8 +4,7 @@ use crate::{
     Backend, EvmCodegen,
     backend::evm::{DebugInstruction, ir},
     link::{Library, LibraryRelocation, LibraryTable, RelocatableBytecode},
-    mir::{Module, lower, pass::run_pipeline_with_scheduling},
-    scheduling::Scheduling,
+    mir::{Module, lower, pass::run_pipeline},
 };
 use alloy_primitives::Bytes;
 use either::Either;
@@ -221,7 +220,6 @@ pub fn generate_contract_bytecodes(
         }),
         priorities,
     };
-    graph.scheduling.add_contracts(roots.len());
     sync::scope(parallel, |scope| {
         for &root in &roots {
             if !parallel {
@@ -267,7 +265,6 @@ struct ContractGraph {
     dependencies: IndexVec<ContractId, GrowableBitSet<ContractId>>,
     dependents: IndexVec<ContractId, Vec<ContractId>>,
     reachable: DenseBitSet<ContractId>,
-    scheduling: Scheduling,
 }
 
 impl ContractGraph {
@@ -279,7 +276,6 @@ impl ContractGraph {
             ),
             dependents: IndexVec::from_vec((0..contract_count).map(|_| Vec::new()).collect()),
             reachable: DenseBitSet::new_empty(contract_count),
-            scheduling: Scheduling::default(),
         };
         let mut visiting = DenseBitSet::new_empty(contract_count);
         for contract_id in contracts.into_iter(gcx) {
@@ -392,7 +388,6 @@ fn spawn_contract_codegen<'scope, 'gcx>(
         let contract_id = ready.pop();
         let Ok(artifact) = generate_contract_bytecode(gcx, contract_id, captures, graph, artifacts)
         else {
-            graph.scheduling.finish_contract();
             return;
         };
         artifacts[contract_id]
@@ -404,7 +399,6 @@ fn spawn_contract_codegen<'scope, 'gcx>(
             assert!(previous > 0, "contract dependency count underflow");
             if previous == 1 {
                 ready.push(dependent);
-                graph.scheduling.add_contracts(1);
                 spawn_contract_codegen(
                     &scope,
                     gcx,
@@ -416,7 +410,6 @@ fn spawn_contract_codegen<'scope, 'gcx>(
                 );
             }
         }
-        graph.scheduling.finish_contract();
     });
 }
 
@@ -473,7 +466,6 @@ fn generate_contract_bytecode(
     let artifact = if needs_backend {
         module.set_debug_info_tracked(captures.debug_info.contains(contract_id));
         let mut codegen = EvmCodegen::new(gcx);
-        codegen.set_scheduling(graph.scheduling.clone());
         codegen.set_capture_mir(capture_mir && !capture_built);
         codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
         codegen.set_capture_debug_info(captures.debug_info.contains(contract_id));
@@ -482,7 +474,7 @@ fn generate_contract_bytecode(
         artifact
     } else {
         if capture_mir && !capture_built {
-            let _changed = run_pipeline_with_scheduling(gcx, &mut module, None, &graph.scheduling);
+            let _changed = run_pipeline(gcx, &mut module, None);
             gcx.dcx().has_errors()?;
         }
         Default::default()

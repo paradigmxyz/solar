@@ -423,7 +423,7 @@ fn ethdebug_omits_unresolved_library_operands() {
 }
 
 #[test]
-fn debug_output_function_scheduling_is_deterministic() {
+fn debug_output_scheduling_is_deterministic() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("parallel.sol");
     let mut source = String::from(

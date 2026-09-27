@@ -230,13 +230,11 @@ pub(super) struct PeepContext<'a> {
     instructions: &'a [Instruction],
     evm_version: EvmVersion,
     final_cleanup: bool,
-    /// Decoding shared by rules inspecting the same six-instruction suffix.
-    opcodes: [Option<Option<u8>>; 6],
 }
 
 impl<'a> PeepContext<'a> {
     pub(super) fn new(instructions: &'a [Instruction], evm_version: EvmVersion) -> Self {
-        Self { instructions, evm_version, final_cleanup: false, opcodes: [None; 6] }
+        Self { instructions, evm_version, final_cleanup: false }
     }
 
     pub(super) fn with_final_cleanup(mut self, final_cleanup: bool) -> Self {
@@ -680,12 +678,7 @@ impl generated::Context for PeepContext<'_> {
     }
 
     fn opcode(&mut self, inst: Inst) -> Option<u8> {
-        let offset = self.instructions.len() - 1 - inst;
-        if let Some(cached) = self.opcodes.get_mut(offset) {
-            *cached.get_or_insert_with(|| self.instructions[inst].as_evm_opcode())
-        } else {
-            self.instructions[inst].as_evm_opcode()
-        }
+        self.instructions[inst].as_evm_opcode()
     }
 
     fn removable_push(&mut self, inst: Inst) -> Option<()> {

@@ -104,7 +104,6 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) gcx: Gcx<'gcx>,
     /// Artifact whose labels are being laid out.
     pub(in crate::backend) artifact_kind: ArtifactKind,
-    pub(in crate::backend) scheduling: crate::scheduling::Scheduling,
     /// EVM IR emitted directly by MIR lowering.
     pub(in crate::backend) program: ir::Module,
     /// Whether `program` already has explicit EVM IR terminators.
@@ -164,7 +163,6 @@ impl<'gcx> Assembler<'gcx> {
         Self {
             gcx,
             artifact_kind: ArtifactKind::Runtime,
-            scheduling: crate::scheduling::Scheduling::default(),
             program: ir::Module::new(sym::asm),
             program_is_finalized: false,
             outlining: None,

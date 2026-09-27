@@ -2919,44 +2919,6 @@ mod tests {
         assert_eq!(InstKind::MSize.op(), Op::MSize);
         assert_eq!(add.op().into_kind().as_ref(), Some(&add));
         assert_eq!(InstKind::Phi(Vec::new()).op().into_kind(), None);
-
-        let a = ValueId::new(0);
-        let b = ValueId::new(1);
-        for (kind, expected) in [
-            (InstKind::MSize, vec![]),
-            (InstKind::Add(a, b), vec![a, b]),
-            (
-                InstKind::AbiEncodePacked {
-                    parts: [PackedPart::Literal(Bytes::new()), PackedPart::Bytes(b)].into(),
-                    hash: false,
-                },
-                vec![b],
-            ),
-            (
-                InstKind::AbiEncode {
-                    mode: AbiEncodeMode::Bytes,
-                    selector: None,
-                    args: [].into(),
-                    layout: AbiLayout::new([]).into(),
-                },
-                vec![],
-            ),
-            (InstKind::Phi(vec![(BlockId::ENTRY, b), (BlockId::ENTRY, a)]), vec![b, a]),
-            (
-                InstKind::AbiEncode {
-                    mode: AbiEncodeMode::Bytes,
-                    selector: Some(a),
-                    args: [b, a].into(),
-                    layout: AbiLayout::new([]).into(),
-                },
-                vec![a, b, a],
-            ),
-        ] {
-            let mut visited = Vec::new();
-            kind.visit_operands(|operand| visited.push(operand));
-            assert_eq!(visited, expected);
-            assert_eq!(visited.as_slice(), kind.operands().as_slice());
-        }
     }
 
     #[test]

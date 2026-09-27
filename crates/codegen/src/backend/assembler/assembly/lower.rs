@@ -23,8 +23,7 @@ impl Assembler<'_> {
         }
         let Some((mut program, labels)) = self.finish_evm_ir() else { return };
         ir::builder::resolve_known_deferred_constants(&mut program, &self.deferred_values);
-        self.outlining =
-            Some(ir::OutliningCheckpoint::prepare(self.gcx, &mut program, &self.scheduling));
+        self.outlining = Some(ir::OutliningCheckpoint::prepare(self.gcx, &mut program));
         self.program = program;
         self.block_labels = labels;
         self.program_is_finalized = true;
@@ -50,9 +49,9 @@ impl Assembler<'_> {
         let input_is_valid = cfg!(debug_assertions) && ir::verify::Verifier::is_valid(&ir_program);
         let errors_before = self.gcx.dcx().err_count();
         let _changed = if let Some(checkpoint) = self.outlining.take() {
-            checkpoint.resume(self.gcx, &mut ir_program, &self.scheduling)
+            checkpoint.resume(self.gcx, &mut ir_program)
         } else {
-            ir::run_pipeline_with_scheduling(self.gcx, &mut ir_program, None, &self.scheduling)
+            ir::run_pipeline(self.gcx, &mut ir_program, None)
         };
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);

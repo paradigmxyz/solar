@@ -6,12 +6,7 @@
 //! Within a pipeline run, a pass that reported no change need not repeat until
 //! another pass changes the module. The cache uses the pass type, name, and an
 //! explicit configuration key so differently configured adapters stay distinct.
-//! A changing pass clears the module cache. Independent block passes also retain exact
-//! unchanged inputs, including metadata, keyed by pass configuration and stable block label.
-//! They reuse those inputs across edits to other blocks and run large batches within the
-//! contract graph's shared thread budget. No pass is assumed to reach a fixed point.
-//! Gas-first codegen and size rescue share the prefix before the first outlining pass;
-//! this is the first pass that reads the rescue policy.
+//! A changing pass clears the cache; no pass is assumed to reach a fixed point.
 
 mod block_cse;
 mod block_layout;
@@ -38,7 +33,7 @@ pub(super) mod utils;
 pub(in crate::backend) use legalize_shifts::legalize_shifts;
 pub(super) use peephole::CleanBlocks;
 
-use super::{Block, Module};
+use super::Module;
 use crate::{
     mir::pass_manager::{
         parse_pass_pipeline, pipeline_output_name, print_pass_diff, should_validate_ir,
@@ -46,7 +41,6 @@ use crate::{
     timing::PassTimer,
 };
 use solar_config::OptimizationMode;
-use solar_data_structures::{map::FxHashMap, sync};
 use solar_interface::diagnostics::DiagCtxt;
 use solar_sema::Gcx;
 use std::any::{Any, TypeId};
@@ -76,16 +70,6 @@ pub trait EvmPass: Any + Sync {
     /// Runs the pass and returns whether it changed EVM IR.
     #[must_use]
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool;
-
-    /// Runs with pipeline-local caches for explicitly independent block transforms.
-    fn run_pass_with_cache(
-        &self,
-        gcx: Gcx<'_>,
-        module: &mut Module,
-        _cache: &mut PassCache,
-    ) -> bool {
-        self.run_pass(gcx, module)
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -98,94 +82,6 @@ struct PassCacheKey {
 impl PassCacheKey {
     fn new(pass: &dyn EvmPass) -> Self {
         Self { type_id: pass.type_id(), name: pass.name(), config: pass.cache_config() }
-    }
-}
-
-/// Retains unchanged block inputs for local passes within one pipeline run.
-#[doc(hidden)]
-#[derive(Default)]
-pub struct PassCache {
-    blocks: FxHashMap<PassCacheKey, FxHashMap<u32, Block>>,
-    threads: usize,
-    scheduling: crate::scheduling::Scheduling,
-}
-
-impl PassCache {
-    fn new(gcx: Gcx<'_>, scheduling: &crate::scheduling::Scheduling) -> Self {
-        let opts = &gcx.sess.opts.unstable;
-        let threads = if opts.time_passes || opts.print_after_each || opts.pass_diff {
-            1
-        } else {
-            gcx.sess.threads()
-        };
-        Self { threads, scheduling: scheduling.clone(), ..Self::default() }
-    }
-
-    fn run_blocks<S: Send, R: FnMut(&mut Block, &mut S) -> bool>(
-        &mut self,
-        pass: &dyn EvmPass,
-        module: &mut Module,
-        states: &mut [S],
-        make_run: impl Fn() -> R + Sync,
-    ) -> bool {
-        assert_eq!(module.blocks.len(), states.len());
-        let blocks = self.blocks.entry(PassCacheKey::new(pass)).or_default();
-        let threads = self.scheduling.threads(self.threads);
-        if threads > 1
-            && module.blocks.iter().map(|block| block.instructions.len()).sum::<usize>() >= 8192
-        {
-            let mut tasks = module
-                .blocks
-                .iter_mut()
-                .zip(states.iter_mut())
-                .filter(|(block, _)| blocks.get(&block.label).is_none_or(|cached| cached != *block))
-                .map(|(block, state)| (block, state, false))
-                .collect::<Vec<_>>();
-            let work = tasks.iter().map(|(block, _, _)| block.instructions.len()).sum::<usize>();
-            if tasks.len() > 1 && work >= 8192 {
-                let chunk_size = tasks.len().div_ceil(threads * 4);
-                sync::scope(true, |scope| {
-                    for chunk in tasks.chunks_mut(chunk_size) {
-                        let make_run = &make_run;
-                        scope.spawn(move |_| {
-                            let mut run = make_run();
-                            for (block, state, changed) in chunk {
-                                *changed = run(block, state);
-                            }
-                        });
-                    }
-                });
-            } else {
-                let mut run = make_run();
-                for (block, state, changed) in &mut tasks {
-                    *changed = run(block, state);
-                }
-            }
-            let mut changed = false;
-            for (block, _, block_changed) in tasks {
-                if block_changed {
-                    blocks.remove(&block.label);
-                } else if block.instructions.len() >= 8 {
-                    blocks.insert(block.label, block.clone());
-                }
-                changed |= block_changed;
-            }
-            return changed;
-        }
-        let mut run = make_run();
-        let mut changed = false;
-        for (block, state) in module.blocks.iter_mut().zip(states) {
-            if blocks.get(&block.label).is_some_and(|cached| cached == block) {
-                continue;
-            }
-            if run(block, state) {
-                blocks.remove(&block.label);
-                changed = true;
-            } else if block.instructions.len() >= 8 {
-                blocks.insert(block.label, block.clone());
-            }
-        }
-        changed
     }
 }
 
@@ -302,13 +198,13 @@ pub fn run_passes(
     passes: &[&dyn EvmPass],
     name: Option<&str>,
 ) -> bool {
-    run_passes_inner(gcx, module, passes, true, name, &crate::scheduling::Scheduling::default())
+    run_passes_inner(gcx, module, passes, true, name)
 }
 
 /// Runs EVM IR passes without validating after each pass.
 #[must_use]
 pub fn run_passes_no_validate(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn EvmPass]) -> bool {
-    run_passes_inner(gcx, module, passes, false, None, &crate::scheduling::Scheduling::default())
+    run_passes_inner(gcx, module, passes, false, None)
 }
 
 #[must_use]
@@ -318,9 +214,8 @@ fn run_passes_inner(
     passes: &[&dyn EvmPass],
     validate_each: bool,
     name: Option<&str>,
-    scheduling: &crate::scheduling::Scheduling,
 ) -> bool {
-    run_passes_with_history(gcx, module, passes, validate_each, name, scheduling, &mut Vec::new())
+    run_passes_with_history(gcx, module, passes, validate_each, name, &mut Vec::new())
 }
 
 fn run_passes_with_history(
@@ -329,14 +224,12 @@ fn run_passes_with_history(
     passes: &[&dyn EvmPass],
     validate_each: bool,
     name: Option<&str>,
-    scheduling: &crate::scheduling::Scheduling,
     unchanged: &mut Vec<PassCacheKey>,
 ) -> bool {
     let output_name =
         name.map(ToOwned::to_owned).unwrap_or_else(|| pipeline_output_name(gcx, module.name()));
     let explicit = name.is_some();
     let mut changed = false;
-    let mut cache = PassCache::new(gcx, scheduling);
     for pass in passes {
         let pass_name = pass.name();
         let before =
@@ -355,7 +248,7 @@ fn run_passes_with_history(
             debug_assert!(unchanged.iter().filter(|entry| **entry == cache_key).count() <= 1);
             let target_support_before = (!cached && validate_each && should_validate_ir(gcx))
                 .then(|| super::verify::Verifier::new(gcx).target_support_snapshot(module));
-            let pass_changed = !cached && pass.run_pass_with_cache(gcx, module, &mut cache);
+            let pass_changed = !cached && pass.run_pass(gcx, module);
             if pass_changed {
                 unchanged.clear();
             } else if !cached {
@@ -426,29 +319,20 @@ fn assert_debug_info_handled(module: &Module, pass_name: &str, when: &str) {
 /// `name` overrides the module name in pass output.
 #[must_use]
 pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
-    run_pipeline_with_scheduling(gcx, module, name, &crate::scheduling::Scheduling::default())
-}
-
-pub(crate) fn run_pipeline_with_scheduling(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    name: Option<&str>,
-    scheduling: &crate::scheduling::Scheduling,
-) -> bool {
     super::verify::Verifier::new(gcx).verify_before_pipeline(module);
     if gcx.dcx().has_errors().is_err() {
         return false;
     }
 
     let Some(value) = gcx.sess.opts.unstable.evm_ir_pipeline.as_deref() else {
-        return run_passes_inner(gcx, module, DEFAULT_PIPELINE, true, None, scheduling);
+        return run_passes(gcx, module, DEFAULT_PIPELINE, None);
     };
     let pipeline = match parse_pass_pipeline(gcx, value, "EVM IR", lookup_pass) {
         Ok(pipeline) => pipeline,
         Err(_) => return false,
     };
     let Some(passes) = pipeline else {
-        return run_passes_inner(gcx, module, DEFAULT_PIPELINE, true, None, scheduling);
+        return run_passes(gcx, module, DEFAULT_PIPELINE, None);
     };
 
     let name =
@@ -456,7 +340,7 @@ pub(crate) fn run_pipeline_with_scheduling(
     let mut changed = false;
     for pass in passes {
         if let Some(pass) = pass {
-            changed |= run_passes_inner(gcx, module, &[pass], true, Some(&name), scheduling);
+            changed |= run_passes(gcx, module, &[pass], Some(&name));
         } else if gcx.sess.opts.unstable.pass_diff {
             let text = module.to_text();
             print_pass_diff(&name, "none", &text, &text);
@@ -476,11 +360,7 @@ pub(crate) struct OutliningCheckpoint {
 }
 
 impl OutliningCheckpoint {
-    pub(crate) fn prepare(
-        gcx: Gcx<'_>,
-        module: &mut Module,
-        scheduling: &crate::scheduling::Scheduling,
-    ) -> Self {
+    pub(crate) fn prepare(gcx: Gcx<'_>, module: &mut Module) -> Self {
         let next_pass = DEFAULT_PIPELINE
             .iter()
             .position(|pass| (*pass).type_id() == TypeId::of::<outline::Outline>())
@@ -494,26 +374,19 @@ impl OutliningCheckpoint {
                 &DEFAULT_PIPELINE[..next_pass],
                 true,
                 None,
-                scheduling,
                 &mut checkpoint.unchanged,
             );
         }
         checkpoint
     }
 
-    pub(crate) fn resume(
-        mut self,
-        gcx: Gcx<'_>,
-        module: &mut Module,
-        scheduling: &crate::scheduling::Scheduling,
-    ) -> bool {
+    pub(crate) fn resume(mut self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         run_passes_with_history(
             gcx,
             module,
             &DEFAULT_PIPELINE[self.next_pass..],
             true,
             None,
-            scheduling,
             &mut self.unchanged,
         )
     }
@@ -522,9 +395,6 @@ impl OutliningCheckpoint {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::evm::{ir::Instruction, op};
-    use solar_interface::sym;
-    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
     fn pass_cache_keys_include_configuration() {
@@ -539,36 +409,5 @@ mod tests {
 
         let dce_with_cleanup = peephole::Cleanup(dce::Dce);
         assert_ne!(PassCacheKey::new(&dce::Dce), PassCacheKey::new(&dce_with_cleanup));
-    }
-
-    #[test]
-    fn block_cache_tracks_inputs_and_configuration() {
-        let mut module = Module::new(sym::runtime);
-        let mut block = Block::new(0);
-        block.instructions = vec![Instruction::opcode(op::PC); 8];
-        module.add_block(block);
-        let mut cache = PassCache::default();
-        let calls = AtomicUsize::new(0);
-        let unchanged = || {
-            |_: &mut Block, _: &mut ()| {
-                calls.fetch_add(1, Ordering::Relaxed);
-                false
-            }
-        };
-        assert!(!cache.run_blocks(&peephole::Peephole::EARLY, &mut module, &mut [()], unchanged));
-        assert!(!cache.run_blocks(&peephole::Peephole::EARLY, &mut module, &mut [()], unchanged));
-        assert_eq!(calls.load(Ordering::Relaxed), 1);
-        module.blocks[super::super::BlockId::from_usize(0)].instructions[0] =
-            Instruction::opcode(op::MSIZE);
-        assert!(!cache.run_blocks(&peephole::Peephole::EARLY, &mut module, &mut [()], unchanged));
-        assert_eq!(calls.load(Ordering::Relaxed), 2);
-        assert!(!cache.run_blocks(&peephole::Peephole::FINAL, &mut module, &mut [()], unchanged));
-        assert_eq!(calls.load(Ordering::Relaxed), 3);
-        assert!(cache.run_blocks(&peephole::LateWord, &mut module, &mut [()], || |block, _| {
-            block.instructions[0] = Instruction::opcode(op::PC);
-            true
-        }));
-        assert!(!cache.run_blocks(&peephole::LateWord, &mut module, &mut [()], unchanged));
-        assert_eq!(calls.load(Ordering::Relaxed), 4);
     }
 }
