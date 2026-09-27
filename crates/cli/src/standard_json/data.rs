@@ -252,8 +252,8 @@ impl Libraries<'_> {
 pub(super) struct CompilerOutput<'gcx> {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(super) errors: Vec<SolcDiagnostic<'gcx>>,
-    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub(super) sources: FxIndexMap<String, SourceOutput>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) sources: Option<FxIndexMap<String, SourceOutput>>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
     pub(super) contracts: FxIndexMap<String, FxIndexMap<String, ContractOutput<'gcx>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
