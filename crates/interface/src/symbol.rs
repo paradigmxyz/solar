@@ -323,7 +323,7 @@ impl Symbol {
     #[inline]
     pub fn is_yul_builtin(self) -> bool {
         (self >= kw::Add && self <= kw::Xor)
-            || (self >= kw::Clz && self <= kw::Setimmutable)
+            || (self >= kw::Datacopy && self <= kw::Setimmutable)
             || matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
     }
 
@@ -331,7 +331,7 @@ impl Symbol {
     #[inline]
     pub fn is_reserved_yul_builtin(self) -> bool {
         (self >= kw::Add && self <= kw::Xor)
-            || matches!(self, kw::Address | kw::Byte | kw::Clz | kw::Return | kw::Revert)
+            || matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
     }
 
     /// Returns `true` if the symbol is a Yul EVM builtin keyword reserved by `evm_version`.
@@ -888,6 +888,7 @@ symbols! {
         Caller:         "caller",
         Callvalue:      "callvalue",
         Chainid:        "chainid",
+        Clz:            "clz",
         Codecopy:       "codecopy",
         Codesize:       "codesize",
         Coinbase:       "coinbase",
@@ -951,7 +952,7 @@ symbols! {
         Tstore:         "tstore",
         Xor:            "xor",
 
-        Clz:            "clz",
+        // Yul object and compiler builtins, which are not reserved names.
         Datacopy:       "datacopy",
         Dataoffset:     "dataoffset",
         Datasize:       "datasize",
