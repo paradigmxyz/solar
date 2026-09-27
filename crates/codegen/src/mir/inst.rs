@@ -829,9 +829,6 @@ impl Instruction {
             | InstKind::CallCode { .. }
             | InstKind::StaticCall { .. }
             | InstKind::DelegateCall { .. }
-            | InstKind::ExtCall { .. }
-            | InstKind::ExtDelegateCall { .. }
-            | InstKind::ExtStaticCall { .. }
             | InstKind::ICall { function: Callee::Function(_), .. }
             | InstKind::Create(..)
             | InstKind::Create2(..)

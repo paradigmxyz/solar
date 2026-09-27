@@ -2652,42 +2652,6 @@ define_mir_ops! {
         ret_offset: ValueId,
         ret_size: ValueId,
     },
-    /// EOF external call: `extcall(addr, argsOffset, argsSize, value)`.
-    #[mir_op(
-        mnemonic = "extcall",
-        result = I256,
-        phases = PhaseSet::ALL,
-        effect = ExternalCall,
-        traits = OpTraits::NONE,
-        side_effects = true,
-        category = None
-    )]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
-    ExtCall { addr: ValueId, args_offset: ValueId, args_size: ValueId, value: ValueId },
-    /// EOF external delegate call: `extdelegatecall(addr, argsOffset, argsSize)`.
-    #[mir_op(
-        mnemonic = "extdelegatecall",
-        result = I256,
-        phases = PhaseSet::ALL,
-        effect = ExternalCall,
-        traits = OpTraits::NONE,
-        side_effects = true,
-        category = None
-    )]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
-    ExtDelegateCall { addr: ValueId, args_offset: ValueId, args_size: ValueId },
-    /// EOF external static call: `extstaticcall(addr, argsOffset, argsSize)`.
-    #[mir_op(
-        mnemonic = "extstaticcall",
-        result = I256,
-        phases = PhaseSet::ALL,
-        effect = ExternalCall,
-        traits = OpTraits::NONE,
-        side_effects = true,
-        category = None
-    )]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
-    ExtStaticCall { addr: ValueId, args_offset: ValueId, args_size: ValueId },
     /// Internal function call lowered to a direct jump.
     #[mir_op(
         mnemonic = "icall",

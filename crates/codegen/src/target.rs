@@ -71,8 +71,6 @@ pub(crate) enum GasTier {
     Call,
     /// `SELFDESTRUCT`, priced by EIP-150.
     SelfDestruct,
-    /// A fixed price outside the tiered schedule.
-    Fixed(u32),
 }
 
 /// Whether an account or storage slot was already touched in the transaction.
@@ -181,7 +179,6 @@ impl GasTier {
                     0
                 }
             }
-            Self::Fixed(gas) => gas,
         }
     }
 
@@ -675,7 +672,7 @@ mod tests {
                     && def.is_available(version)
                     && def.is_pure()
                     && def.gas.dynamic_gas(version) == 0
-                    && let Some((inputs, 1)) = def.stack_io
+                    && let (inputs, 1) = def.stack_io
                 {
                     let cost = target.opcode(opcode);
                     writeln!(

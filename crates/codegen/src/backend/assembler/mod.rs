@@ -785,7 +785,7 @@ mod tests {
         assert_eq!(op::stack_io(op::ADD), Some((2, 1)));
         assert_eq!(op::stack_io(op::MSTORE), Some((2, 0)));
         assert_eq!(op::stack_io(op::CALLVALUE), Some((0, 1)));
-        assert_eq!(op::stack_io(op::CALLF), None);
+        assert_eq!(op::stack_io(0x0c), None);
         solar_interface::enter(|| {
             assert_eq!(op::from_ir_symbol(solar_interface::kw::Add), Some(op::ADD));
         });

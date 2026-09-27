@@ -1248,9 +1248,6 @@ fn summarize_function(
                 | InstKind::CallCode { .. }
                 | InstKind::StaticCall { .. }
                 | InstKind::DelegateCall { .. }
-                | InstKind::ExtCall { .. }
-                | InstKind::ExtDelegateCall { .. }
-                | InstKind::ExtStaticCall { .. }
                 | InstKind::Create(..)
                 | InstKind::Create2(..) => {
                     summary.has_external_call = true;
@@ -1816,10 +1813,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         InstKind::Call { .. }
         | InstKind::CallCode { .. }
         | InstKind::StaticCall { .. }
-        | InstKind::DelegateCall { .. }
-        | InstKind::ExtCall { .. }
-        | InstKind::ExtDelegateCall { .. }
-        | InstKind::ExtStaticCall { .. } => seq(&[op::CALL]),
+        | InstKind::DelegateCall { .. } => seq(&[op::CALL]),
         InstKind::ICall { function: Callee::Function(function), args } => {
             target.icall(args.len(), module.function(*function).return_components().len(), 0)
         }

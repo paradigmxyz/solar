@@ -338,7 +338,7 @@ impl Instruction {
     /// Returns whether this instruction has a raw branch target outside its block.
     #[must_use]
     pub(crate) const fn has_raw_branch_target(&self) -> bool {
-        matches!(self.opcode, op::JUMPI | op::RJUMPI | op::RJUMPV)
+        self.opcode == op::JUMPI
     }
 
     /// Creates an encoded immediate push instruction.
@@ -521,7 +521,7 @@ impl Instruction {
         if self.is_encoded_push() {
             return Some(StackEffect::new(0, 1));
         }
-        let (inputs, outputs) = self.definition()?.stack_io?;
+        let (inputs, outputs) = self.definition()?.stack_io;
         Some(StackEffect::new(inputs, outputs))
     }
 

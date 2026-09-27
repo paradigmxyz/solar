@@ -1374,7 +1374,6 @@ impl CommonSubexprEliminator {
         ) && !matches!(
             kind,
             InstKind::StaticCall { .. }
-                | InstKind::ExtStaticCall { .. }
                 | InstKind::AddressCall { kind: AddressCallKind::Static, .. }
         )
     }

@@ -349,9 +349,6 @@ impl StorageScalarPromoter {
                     | InstKind::CallCode { .. }
                     | InstKind::StaticCall { .. }
                     | InstKind::DelegateCall { .. }
-                    | InstKind::ExtCall { .. }
-                    | InstKind::ExtDelegateCall { .. }
-                    | InstKind::ExtStaticCall { .. }
                     | InstKind::ICall { function: Callee::Function(_), .. }
                     | InstKind::Create(_, _, _)
                     | InstKind::Create2(_, _, _, _) => return false,

@@ -566,16 +566,9 @@ const fn is_analysis_boundary(opcode: u8) -> bool {
         || matches!(
             opcode,
             op::JUMPI
-                | op::RJUMP
-                | op::RJUMPI
-                | op::RJUMPV
-                | op::CALLF
-                | op::RETF
-                | op::JUMPF
                 // Reject malformed raw extended operations. Logical operations are handled above.
                 | op::DUPN
                 | op::SWAPN
                 | op::EXCHANGE
-                | op::RETURNCONTRACT
         )
 }

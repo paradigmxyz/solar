@@ -323,7 +323,7 @@ impl Symbol {
     #[inline]
     pub fn is_yul_builtin(self) -> bool {
         (self >= kw::Add && self <= kw::Xor)
-            || (self >= kw::Auxdataloadn && self <= kw::Setimmutable)
+            || (self >= kw::Clz && self <= kw::Setimmutable)
             || matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
     }
 
@@ -951,19 +951,13 @@ symbols! {
         Tstore:         "tstore",
         Xor:            "xor",
 
-        Auxdataloadn:   "auxdataloadn",
         Clz:            "clz",
         Datacopy:       "datacopy",
         Dataoffset:     "dataoffset",
         Datasize:       "datasize",
-        Eofcreate:      "eofcreate",
-        Extcall:        "extcall",
-        Extdelegatecall: "extdelegatecall",
-        Extstaticcall:   "extstaticcall",
         Linkersymbol:   "linkersymbol",
         Loadimmutable:  "loadimmutable",
         Memoryguard:    "memoryguard",
-        Returncontract: "returncontract",
         Setimmutable:   "setimmutable",
 
         // Experimental Solidity specific keywords.
