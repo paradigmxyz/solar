@@ -1,5 +1,6 @@
 use super::workspace_edit::{validated_code_actions, validated_rename_workspace_edit};
 use crate::{
+    config::Config,
     diagnostics::PullReport,
     document_links::solidity_string_contents,
     formatter::{self, FormatterError},
@@ -11,6 +12,7 @@ use crate::{
     natspec_completion::{self, NatSpecCompletionResult},
     progress::send_progress,
     proto::normalize_file_uri,
+    rename::RenameCandidate,
     symbols::{CompletionContext, CompletionItemData, SymbolTables},
     vfs::{Vfs, VfsPath},
 };
@@ -912,15 +914,19 @@ pub(crate) fn prepare_rename(
     mut params: TextDocumentPositionParams,
 ) -> impl Future<Output = Result<Option<PrepareRenameResponse>, ResponseError>> + use<> {
     params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
+    let latest_analysis = crate::proto::vfs_path(&params.text_document.uri).map(|_| {
+        let analysis = state.latest_analysis_with_config();
+        state.prioritize_pending_analysis();
+        analysis
+    });
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables
-            .load()
-            .rename_candidate(&params.text_document.uri, params.position)
-            .map(|candidate| PrepareRenameResponse::Range(candidate.range));
-        Ok(response)
+        let (symbol_tables, config) = latest_analysis.await?;
+        let candidate =
+            symbol_tables.load().rename_candidate(&params.text_document.uri, params.position);
+        let Some(candidate) = candidate else { return Ok(None) };
+        ensure_rename_coverage(&candidate, &config)?;
+        Ok(Some(PrepareRenameResponse::Range(candidate.range)))
     }
 }
 
@@ -939,7 +945,11 @@ pub(crate) fn rename(
     let latest_analysis = if invalid_name {
         None
     } else {
-        latest_navigation_analysis_for_uri(state, &params_position.text_document.uri)
+        crate::proto::vfs_path(&params_position.text_document.uri).map(|_| {
+            let analysis = state.latest_analysis_with_config();
+            state.prioritize_pending_analysis();
+            analysis
+        })
     };
     let vfs = state.vfs.clone();
     let document_changes = state.config.supports_workspace_edit_document_changes();
@@ -949,7 +959,7 @@ pub(crate) fn rename(
         }
 
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
+        let (symbol_tables, config) = latest_analysis.await?;
         let candidate = symbol_tables
             .load()
             .rename_candidate(&params_position.text_document.uri, params_position.position);
@@ -960,6 +970,7 @@ pub(crate) fn rename(
         if candidate.old_name == new_name {
             return Ok(None);
         }
+        ensure_rename_coverage(&candidate, &config)?;
 
         tokio::task::spawn_blocking(move || {
             validated_rename_workspace_edit(candidate, new_name, vfs, document_changes)
@@ -970,6 +981,18 @@ pub(crate) fn rename(
         })?
         .map(Some)
     }
+}
+
+fn ensure_rename_coverage(
+    candidate: &RenameCandidate,
+    config: &Config,
+) -> Result<(), ResponseError> {
+    if candidate.requires_complete_workspace && config.may_omit_source_files() {
+        return Err(request_failed(
+            "cannot rename this symbol because workspace indexing may omit source files",
+        ));
+    }
+    Ok(())
 }
 
 pub(crate) fn inlay_hints(

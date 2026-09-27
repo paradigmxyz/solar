@@ -147,6 +147,8 @@ pub(crate) struct DeclarationSymbol {
     pub(crate) location: Location,
     pub(crate) name_range: Range,
     pub(crate) parent: Option<SymbolId>,
+    /// Whether the declaration's references are known to be confined to its defining file.
+    pub(crate) rename_is_local: bool,
     has_definition: bool,
     has_getter_completion: bool,
     documentation: Option<crate::documentation::ResolvedDocumentation>,
@@ -364,6 +366,16 @@ impl SymbolTables {
                     location,
                     name_range: name_location.range,
                     parent: None,
+                    // Input parameters can be referenced by named arguments in other files.
+                    rename_is_local: matches!(
+                        item_id,
+                        ItemId::Variable(id) if matches!(
+                            gcx.hir.variable(id).kind,
+                            hir::VarKind::Statement
+                                | hir::VarKind::TryCatch
+                                | hir::VarKind::FunctionReturn
+                        )
+                    ),
                     has_definition: item_has_definition(gcx, item_id),
                     has_getter_completion: matches!(
                         item_id,
@@ -1631,6 +1643,7 @@ impl SymbolTables {
             location: Location { uri: uri.clone(), range: location },
             name_range,
             parent,
+            rename_is_local: false,
             has_definition: true,
             has_getter_completion: false,
             documentation: None,
