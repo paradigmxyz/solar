@@ -68,6 +68,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 break;
             }
         }
+        if self.gcx.dcx().has_errors().is_err() {
+            return GeneratedCode::default();
+        }
         // Both outlining policies share the same scheduled and structurally simplified input.
         if may_need_code_size_rescue && runtime_code_size_limit.is_some() {
             self.asm.prepare_outlining();

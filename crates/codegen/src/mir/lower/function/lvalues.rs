@@ -236,7 +236,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(location) = self.cx.storage.get(id) {
             let ty = self.cx.gcx.type_of_item(id.into());
             if matches!(ty.peel_refs().kind, TyKind::Mapping(..)) {
-                return self.cx.report_unsupported(span, "mapping value");
+                return Some(self.builder.imm(location.slot));
             }
             let slot = self.builder.imm(location.slot);
             return self.load_storage_value(
