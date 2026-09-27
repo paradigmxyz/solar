@@ -17,6 +17,7 @@ mod gas;
 pub(crate) use gas::{pre_tangerine_call_gas, precompile_gas};
 mod index_lists;
 pub(crate) use index_lists::IndexLists;
+pub(crate) mod interp;
 
 pub(crate) fn remap_block_order(
     func: &mut Function,
