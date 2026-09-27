@@ -40,6 +40,7 @@ use crate::{
     backend::evm::codegen::stack::shuffler::StackShuffler,
     target::{Cost, Target},
 };
+use solar_data_structures::bit_set::BitMatrix;
 
 #[derive(Clone, Default)]
 pub(in crate::backend::evm::codegen) struct StackPhiPlan {
@@ -256,7 +257,7 @@ struct LiveJoinFacts {
     /// The non-phi operands a block reads that are live into it.
     own_uses: IndexVec<BlockId, Vec<ValueId>>,
     /// The values live both into and out of a block: what it may carry onward.
-    live_through: IndexVec<BlockId, DenseBitSet<ValueId>>,
+    live_through: BitMatrix<BlockId, ValueId>,
     /// The carriable results a block defines after its last internal call and keeps live at
     /// its exit, top of the stack first.
     defs: IndexVec<BlockId, Vec<ValueId>>,
@@ -278,7 +279,7 @@ struct LiveJoinFacts {
 struct LiveJoinState {
     layouts: FxHashMap<BlockId, Vec<ValueId>>,
     resident_out: FxHashMap<BlockId, Vec<ValueId>>,
-    wanted: IndexVec<BlockId, DenseBitSet<ValueId>>,
+    wanted: BitMatrix<BlockId, ValueId>,
     /// The next `wanted` set under construction, swapped in when it differs.
     scratch: DenseBitSet<ValueId>,
     /// A successor's wants masked to what the block carries through.
@@ -290,7 +291,7 @@ impl LiveJoinState {
         Self {
             layouts: FxHashMap::default(),
             resident_out: FxHashMap::default(),
-            wanted: IndexVec::from_vec(vec![DenseBitSet::new_empty(num_values); num_blocks]),
+            wanted: BitMatrix::new(num_blocks, num_values),
             scratch: DenseBitSet::new_empty(num_values),
             mask: DenseBitSet::new_empty(num_values),
         }
@@ -675,7 +676,7 @@ impl<'a> StackPhiPlanner<'a> {
         let count = func.blocks.len();
         let num_values = func.num_values();
         let mut own_uses = IndexVec::with_capacity(count);
-        let mut live_through = IndexVec::with_capacity(count);
+        let mut live_through = BitMatrix::new(count, num_values);
         let mut defs = IndexVec::with_capacity(count);
         let mut has_call = DenseBitSet::new_empty(count);
         let mut carries_arm = DenseBitSet::new_empty(count);
@@ -707,11 +708,9 @@ impl<'a> StackPhiPlanner<'a> {
             }
             uses.sort_unstable_by_key(|value| value.index());
             uses.dedup();
-            let mut through = DenseBitSet::new_empty(num_values);
-            for value in live_in.iter().filter(|&value| live_out.contains(value)) {
-                through.insert(value);
-            }
-            live_through.push(through);
+            let mut through = DenseBitSet::from(live_in);
+            through.intersect(&live_out);
+            live_through.replace_row(block_id, &through);
             // Layouts list the top of the stack first; a new definition lands on top.
             kept.reverse();
             own_uses.push(uses);
@@ -804,7 +803,7 @@ impl<'a> StackPhiPlanner<'a> {
             // every iteration instead of shuffled once.
             let wide = block.predecessors.len() > 2 && !facts.back_edges.contains_key(&join);
             let used_here = &facts.join_uses[&join];
-            let wanted = &state.wanted[join];
+            let wanted = state.wanted.row(join);
             let loop_carried = |value: ValueId| {
                 facts.loop_headers_of[join].iter().any(|header| {
                     state.layouts.get(header).is_some_and(|layout| layout.contains(&value))
@@ -913,7 +912,7 @@ impl<'a> StackPhiPlanner<'a> {
                 });
             }
             let resident = state.resident_out.get(&pred).map(Vec::as_slice).unwrap_or_default();
-            let wanted = &state.wanted[arm];
+            let wanted = state.wanted.row(arm);
             let mut carried = resident
                 .iter()
                 .copied()
@@ -1024,7 +1023,7 @@ impl<'a> StackPhiPlanner<'a> {
     ) -> bool {
         let func = self.func;
         let block = &func.blocks[block_id];
-        let live_through = &facts.live_through[block_id];
+        let live_through = facts.live_through.row(block_id);
         let LiveJoinState { layouts, wanted, scratch, mask, .. } = state;
         scratch.clear();
         for &value in &facts.own_uses[block_id] {
@@ -1079,8 +1078,9 @@ impl<'a> StackPhiPlanner<'a> {
                 } else if let Some(entry) = plan.entries.get(&succ) {
                     want(scratch, succ, entry);
                 } else {
-                    mask.clone_from(&wanted[succ]);
-                    mask.intersect(live_through);
+                    mask.clear();
+                    mask.union(&wanted.row(succ));
+                    mask.intersect(&live_through);
                     scratch.union(mask);
                 }
             }
@@ -1097,11 +1097,7 @@ impl<'a> StackPhiPlanner<'a> {
                 }
             }
         }
-        if wanted[block_id] == *scratch {
-            return false;
-        }
-        std::mem::swap(&mut wanted[block_id], scratch);
-        true
+        wanted.replace_row(block_id, scratch)
     }
 
     /// The words of an edge that feed phis rather than ride through unchanged. Only these skip
