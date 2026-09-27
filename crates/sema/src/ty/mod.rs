@@ -353,7 +353,6 @@ pub struct GlobalCtxt<'gcx> {
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
     pub(crate) eval_cache: FxOnceMap<hir::ExprId, Box<crate::eval::EvalResult>>,
-    pub(crate) eval_errors: FxOnceMap<hir::ExprId, ErrorGuaranteed>,
     pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
 }
 
@@ -390,7 +389,6 @@ impl<'gcx> GlobalCtxt<'gcx> {
             interner,
             cache: Cache::default(),
             eval_cache: FxOnceMap::default(),
-            eval_errors: FxOnceMap::default(),
             override_index: OnceLock::new(),
         }
     }
@@ -1137,20 +1135,22 @@ impl<'gcx> Gcx<'gcx> {
                     )
                 })
             }
-            solar_ast::LitKind::Rational(value) => {
-                let spelling = lit.symbol.as_str();
-                if spelling.ends_with('_')
-                    || ["__", "._", "_.", "_e", "_E", "e_", "E_"]
-                        .iter()
-                        .any(|pattern| spelling.contains(pattern))
+            solar_ast::LitKind::Rational(_) => {
+                let value = lit.symbol.as_str();
+                if value.ends_with('_')
+                    || value.contains("__")
+                    || value.contains("._")
+                    || value.contains("_.")
+                    || value.contains("_e")
+                    || value.contains("_E")
+                    || value.contains("e_")
+                    || value.contains("E_")
                 {
-                    return self.mk_ty_misc_err();
-                }
-                if *value.denom() == alloy_primitives::U256::from(1) {
-                    self.mk_ty_int_literal(false, value.numer().bit_len() as _)
-                        .unwrap_or_else(|| self.mk_ty_misc_err())
+                    self.mk_ty_misc_err()
                 } else {
-                    self.mk_ty(TyKind::RationalLiteral)
+                    self.mk_ty_err(
+                        self.dcx().emit_err(lit.span, "rational literals are not supported"),
+                    )
                 }
             }
             solar_ast::LitKind::Address(_) => self.types.address,
@@ -1667,11 +1667,18 @@ pub fn interface_id(gcx: _, id: hir::ContractId) -> Selector {
 /// The contract doesn't have to be an interface.
 pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'gcx> {
     let c = gcx.hir.contract(id);
+    let mut inheritance_start = None;
     let mut signatures_seen = FxHashSet::default();
     let mut hash_collisions = FxHashMap::default();
     let functions = c.linearized_bases.iter().flat_map(|&base| {
         let b = gcx.hir.contract(base);
-        b.functions().filter(|&f| gcx.hir.function(f).is_part_of_external_interface())
+        let functions =
+            b.functions().filter(|&f| gcx.hir.function(f).is_part_of_external_interface());
+        if base == id {
+            assert!(inheritance_start.is_none(), "duplicate self ID in linearized_bases");
+            inheritance_start = Some(functions.clone().count());
+        }
+        functions
     }).filter_map(|f_id| {
         let f = gcx.hir.function(f_id);
         let TyKind::Fn(fn_ty) = gcx.type_of_item(f_id.into()).kind else { unreachable!() };
@@ -1745,7 +1752,7 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
     });
     let functions = gcx.bump().alloc_from_iter(functions);
     trace!("{}.interfaceFunctions.len() = {}", gcx.contract_fully_qualified_name(id), functions.len());
-    let inheritance_start = functions.partition_point(|f| gcx.hir.function(f.id).contract == Some(id));
+    let inheritance_start = inheritance_start.expect("linearized_bases did not contain self ID");
     InterfaceFunctions { functions, inheritance_start }
 }
 

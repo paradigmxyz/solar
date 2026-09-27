@@ -40,7 +40,6 @@ impl EnumVariantSize for hir::ExprKind<'_> {
             Self::Assign(lhs, op, rhs) => variant_payload_size!(self, lhs, op, rhs),
             Self::Binary(lhs, op, rhs) => variant_payload_size!(self, lhs, op, rhs),
             Self::Call(expr, args, opts) => variant_payload_size!(self, expr, args, opts),
-            Self::CallOptions(expr, opts) => variant_payload_size!(self, expr, opts),
             Self::Delete(expr) => variant_payload_size!(self, expr),
             Self::Ident(res) => variant_payload_size!(self, res),
             Self::Index(expr, index) => variant_payload_size!(self, expr, index),
@@ -350,33 +349,11 @@ impl<'hir> HirVisit<'hir> for HirStatCollector<'hir> {
         record_hir_variants!(
             (self, expr, expr.kind, hir, Expr, ExprKind),
             [
-                Array,
-                Assign,
-                Binary,
-                Call,
-                CallOptions,
-                Delete,
-                Ident,
-                Index,
-                Slice,
-                Lit,
-                Member,
-                New,
-                Payable,
-                Ternary,
-                Tuple,
-                TypeCall,
-                Type,
-                Unary,
-                YulMember,
-                Err
+                Array, Assign, Binary, Call, Delete, Ident, Index, Slice, Lit, Member, New,
+                Payable, Ternary, Tuple, TypeCall, Type, Unary, YulMember, Err
             ]
         );
         match &expr.kind {
-            hir::ExprKind::CallOptions(expr, opts) => {
-                self.visit_expr(expr)?;
-                self.visit_call_options(opts)?;
-            }
             hir::ExprKind::Call(expr, args, opts) => {
                 self.visit_expr(expr)?;
                 if let Some(opts) = opts {

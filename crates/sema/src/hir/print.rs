@@ -589,18 +589,6 @@ impl<'gcx, W: fmt::Write> HirPrinter<'gcx, W> {
                 self.print_expr(rhs)?;
                 self.out.write_char(')')?;
             }
-            ExprKind::CallOptions(callee, opts) => {
-                self.print_expr(callee)?;
-                self.out.write_str(" { ")?;
-                for (i, arg) in opts.args.iter().enumerate() {
-                    if i != 0 {
-                        self.out.write_str(", ")?;
-                    }
-                    write!(self.out, "{}: ", arg.name)?;
-                    self.print_expr(&arg.value)?;
-                }
-                self.out.write_str(" }")?;
-            }
             ExprKind::Call(callee, args, opts) => {
                 self.print_expr(callee)?;
                 if let Some(opts) = opts {

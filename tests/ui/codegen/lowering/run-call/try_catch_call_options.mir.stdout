@@ -40,67 +40,6 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @optionValue() -> i256 {
-  bb0:
-    v0 = sload 1 !metadata(storage=slot(1))
-    v1 = checked_add u256, v0, 1
-    sstore 1, v1 !metadata(storage=slot(1))
-    ret 0
-}
-
-fn @discardOptions() -> i256 [selector=0x0035efd4, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = trunc i256 v1 to i160
-    v3 = icall @optionValue
-    v4 = icall @optionValue
-    v5 = sload 1 !metadata(storage=slot(1))
-    ret v5
-}
-
-fn @optionMembers() -> i256 [selector=0x1b98d889, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = shl 32, v1
-    v3 = or v2, 0x5c36b186
-    v4 = icall @optionValue
-    v5 = shr 32, v3
-    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
-    v7 = sload 0 !metadata(storage=slot(0))
-    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = trunc i256 v8 to i160
-    v10 = zext i160 v9 to i256
-    v11 = eq v6, v10
-    jumpi v11, bb1, bb2
-  bb2:
-    jump bb3
-  bb1:
-    v12 = sload 0 !metadata(storage=slot(0))
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = shl 32, v13
-    v15 = or v14, 0x5c36b186
-    v16 = icall @optionValue
-    v17 = and v15, 0xffffffff
-    v18 = shl 224, v17
-    v19 = eq v18, 0x5c36b18600000000000000000000000000000000000000000000000000000000
-    jump bb3
-  bb3:
-    v20 = phi [bb1: v19], [bb2: false]
-    jumpi v20, bb4, bb5
-  bb5:
-    jump bb6
-  bb4:
-    v21 = sload 1 !metadata(storage=slot(1))
-    v22 = eq v21, 2
-    jump bb6
-  bb6:
-    v23 = phi [bb4: v22], [bb5: false]
-    v24 = zext i1 v23 to i256
-    ret v24
-}
-
 fn @highLevelGas() -> i256 [selector=0x480be654, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))

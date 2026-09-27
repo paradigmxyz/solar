@@ -226,7 +226,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.dcx().emit_err(slot.span, "base slot of storage layout evaluates to a value outside the range of type `uint256`");
                 }
             }
-            Ok(ConstValue::Bool(_) | ConstValue::Rational(_)) => {
+            Ok(ConstValue::Bool(_)) => {
                 self.dcx()
                     .emit_err(slot.span, "base slot of storage layout must evaluate to an integer");
             }
@@ -375,7 +375,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         return self.gcx.mk_ty_err(err.emit());
                     }
                     self.check_tuple_assign_rhs(lhs, ty, rhs);
-                    self.gcx.mk_ty_tuple(&[])
+                    ty
                 } else if let Some(op) = op {
                     let rhs_ty = self.check_expr(rhs);
                     let result = self.check_binop(None, lhs, ty, rhs, rhs_ty, op, true);
@@ -396,37 +396,16 @@ impl<'gcx> TypeChecker<'gcx> {
                 let lhs = self.check_expr(lhs_e);
                 let rhs = self.check_expr(rhs_e);
 
-                if matches!(lhs.kind, TyKind::IntLiteral(..) | TyKind::RationalLiteral)
-                    && matches!(rhs.kind, TyKind::IntLiteral(..) | TyKind::RationalLiteral)
+                // When both operands are IntLiteral, evaluate the expression to preserve
+                // literal type through binary operations (needed for -(1 + 2) to work).
+                if let (TyKind::IntLiteral(..), TyKind::IntLiteral(..)) = (lhs.kind, rhs.kind)
+                    && !op.kind.is_cmp()
+                    && let Some(lit_ty) = self.try_eval_int_literal_expr(expr)
                 {
-                    match self.gcx.try_eval_const_value(expr) {
-                        Ok(ConstValue::Bool(_)) => return self.gcx.types.bool,
-                        Ok(ConstValue::Rational(_)) => {
-                            return self.gcx.mk_ty(TyKind::RationalLiteral);
-                        }
-                        Ok(_) => {
-                            if let Some(ty) = self.try_eval_int_literal_expr(expr) {
-                                return ty;
-                            }
-                        }
-                        Err(error)
-                            if !matches!(
-                                error.kind,
-                                crate::eval::EvalErrorKind::UnsupportedBinaryOp
-                            ) =>
-                        {
-                            return self.gcx.mk_ty_err(self.gcx.emit_const_eval_error(expr, error));
-                        }
-                        Err(_) => {}
-                    }
+                    return lit_ty;
                 }
 
                 self.check_binop(Some(expr.id), lhs_e, lhs, rhs_e, rhs, op, false)
-            }
-            hir::ExprKind::CallOptions(callee, options) => {
-                let callee_ty = self.check_expr(callee);
-                let ty = self.check_call_options(callee_ty, options.args, options.span);
-                self.gcx.mk_ty(TyKind::CallOptions(ty))
             }
             hir::ExprKind::Call(callee, ref args, opts) => {
                 let mut callee_ty = if let hir::ExprKind::Member(receiver, ident) = callee.kind {
@@ -441,9 +420,8 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
 
                 let callee_signature = self.gcx.callable_signature_of_ty(callee_ty);
-                let callee_param_source = callee_signature
-                    .and_then(|signature| signature.param_source)
-                    .or_else(|| self.gcx.call_param_source(callee));
+                let callee_param_source =
+                    callee_signature.and_then(|signature| signature.param_source);
                 if let TyKind::Type(_) = callee_ty.kind
                     && let Some(signature) = callee_signature
                 {
@@ -890,9 +868,6 @@ impl<'gcx> TypeChecker<'gcx> {
                 } else {
                     self.check_expr(inner)
                 };
-                if ty.kind == TyKind::RationalLiteral && op.kind == hir::UnOpKind::Neg {
-                    return ty;
-                }
                 if valid_unop(ty, op.kind) {
                     if op.kind == hir::UnOpKind::Neg
                         && let TyKind::IntLiteral(..) = ty.kind
@@ -3143,7 +3118,6 @@ impl<'gcx> TypeChecker<'gcx> {
             | hir::ExprKind::Payable(_)
             | hir::ExprKind::New(_)
             | hir::ExprKind::Ternary(..)
-            | hir::ExprKind::CallOptions(..)
             | hir::ExprKind::TypeCall(_)
             | hir::ExprKind::Type(_)
             | hir::ExprKind::Unary(..) => false,
@@ -3615,7 +3589,7 @@ fn invalid_storage_pointer_return(actual: Ty<'_>, expected: Ty<'_>) -> bool {
 
 fn is_int_literal_expr(expr: &hir::Expr<'_>) -> bool {
     match &expr.kind {
-        hir::ExprKind::Lit(lit) => matches!(lit.kind, LitKind::Number(_) | LitKind::Rational(_)),
+        hir::ExprKind::Lit(lit) => matches!(lit.kind, LitKind::Number(_)),
         hir::ExprKind::Unary(op, inner)
             if matches!(op.kind, hir::UnOpKind::Neg | hir::UnOpKind::BitNot) =>
         {
@@ -3955,8 +3929,6 @@ fn binop_common_type<'gcx>(
         | TyKind::Elementary(hir::ElementaryType::Fixed(..))
         | TyKind::Elementary(hir::ElementaryType::UFixed(..))
         | TyKind::StringLiteral(..)
-        | TyKind::RationalLiteral
-        | TyKind::CallOptions(_)
         | TyKind::DynArray(_)
         | TyKind::Array(..)
         | TyKind::Slice(_)

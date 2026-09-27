@@ -14,10 +14,3 @@ contract C {
         }
     }
 }
-
-contract DifficultyName {
-    function read() external pure returns (uint difficulty) {
-        assembly { difficulty := 1 }
-        //~[london]^ ERROR: expected identifier, found Yul EVM builtin keyword `difficulty`
-    }
-}

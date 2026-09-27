@@ -24,11 +24,11 @@ contract PublicStateVarDerived is PublicStateVarBase {
 contract PublicStateVarOtherScope {
     function getStateVars() public view {
         PublicStateVarDerived.selfVar;
-        PublicStateVarDerived.baseVar; //~ ERROR: member `baseVar` not found
+        PublicStateVarDerived.baseVar;
         PublicStateVarBase.baseVar;
 
         PublicStateVarDerived.selfVar(); //~ ERROR: cannot call function via contract type name
-        PublicStateVarDerived.baseVar(); //~ ERROR: member `baseVar` not found
+        PublicStateVarDerived.baseVar(); //~ ERROR: cannot call function via contract type name
         PublicStateVarBase.baseVar(); //~ ERROR: cannot call function via contract type name
     }
 }
@@ -58,14 +58,5 @@ contract QualifiedLvalueDerived is QualifiedLvalueBase {
         QualifiedLvalueBase.constantVar = 3; //~ ERROR: cannot assign to a constant variable
         QualifiedLvalueBase.immutableVar = 4; //~ ERROR: cannot assign to immutable here
         QualifiedLvalueDerived.derivedImmutable = 5; //~ ERROR: cannot assign to immutable here
-    }
-}
-
-contract InvalidInterfaceSignature {
-    function invalid(function() internal callback) external {} //~ ERROR: types containing internal function pointers
-}
-contract InvalidInterfaceReference {
-    function useInvalid() external pure {
-        InvalidInterfaceSignature.invalid; //~ ERROR: member `invalid` not found
     }
 }

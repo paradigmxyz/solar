@@ -10,13 +10,3 @@ contract C {
         f({b: true,  u: 1,     s: "abc"});
     }
 }
-
-contract Created {
-    constructor(uint count, bool enabled) {}
-}
-
-contract Factory {
-    function create() external returns (Created) {
-        return new Created({enabled: true, count: 7});
-    }
-}

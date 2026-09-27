@@ -1,3 +1,4 @@
+// ported-from: test/cmdlineTests/standard_metadata_large_optimizer_runs/input.json
 // CHECK: "metadata":
 // CHECK: \"optimizer\":{\"enabled\":true,\"runs\":18446744073709551615}
 {
@@ -10,7 +11,6 @@
   "settings": {
     "optimizer": {
       "enabled": true,
-      "details": {"peephole": false, "yul": true, "yulDetails": {"stackAllocation": true, "optimizerSteps": "dhfoDgvulfnTUtnIf"}},
       "runs": 18446744073709551615
     },
     "outputSelection": {

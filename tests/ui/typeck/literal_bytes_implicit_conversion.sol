@@ -1,8 +1,5 @@
 contract C {
     function f() public pure {
-        bytes1 empty = "";
-        bytes4 converted = bytes4("");
-        bytes8 hexEmpty = hex"";
         // --- Valid: literal to fixed-size bytes (equal size) ---
         bytes3 b3_1 = "abc";
         bytes3 b3_2 = hex"123456";

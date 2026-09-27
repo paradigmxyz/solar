@@ -1,4 +1,3 @@
-//@ run-call: YulBooleanConditions::loop => 3
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
@@ -37,18 +36,6 @@ contract C {
     function builtin() external pure returns (bytes32 result) {
         assembly {
             result := or(hex"1234", 0)
-        }
-    }
-}
-
-contract YulBooleanConditions {
-    function loop() external pure returns (uint result) {
-        assembly {
-            if false { result := 99 }
-            for {} true {} {
-                result := add(result, 1)
-                if eq(result, 3) { break }
-            }
         }
     }
 }

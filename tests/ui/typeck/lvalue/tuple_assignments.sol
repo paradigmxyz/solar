@@ -48,9 +48,3 @@ contract Test {
         (((x,),)) = ((true, 1), 2); //~ ERROR: mismatched types
     }
 }
-
-contract ConditionalTupleAssignment {
-    function assign(bool condition) external pure returns (uint a, uint b) {
-        condition ? (a, b,) = (1, 2, 3) : (a, b) = (4, 5);
-    }
-}

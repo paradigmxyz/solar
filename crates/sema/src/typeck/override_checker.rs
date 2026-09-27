@@ -341,7 +341,7 @@ impl<'gcx> OverrideChecker<'gcx> {
         for f_id in contract.functions() {
             let f = self.gcx.hir.function(f_id);
             // Skip constructors and getter functions (which are handled via variables).
-            if f.is_yul || f.kind.is_constructor() || f.is_getter() {
+            if f.kind.is_constructor() || f.is_getter() {
                 continue;
             }
             let proxy = OverrideProxy::Function(f_id);
@@ -801,7 +801,7 @@ impl<'gcx> OverrideChecker<'gcx> {
             .functions()
             .filter_map(|f_id| {
                 let f = self.gcx.hir.function(f_id);
-                if f.is_yul || f.kind.is_constructor() {
+                if f.kind.is_constructor() {
                     return None;
                 }
                 Some(self.signature(OverrideProxy::Function(f_id)))
@@ -985,7 +985,7 @@ fn override_index<'gcx>(gcx: Gcx<'gcx>) -> &'gcx OverrideIndex<'gcx> {
             if f.body.is_none() {
                 unimplemented_functions.push(f_id);
             }
-            if f.is_yul || f.kind.is_constructor() {
+            if f.kind.is_constructor() {
                 continue;
             }
             let proxy = OverrideProxy::Function(f_id);
