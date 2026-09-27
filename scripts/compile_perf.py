@@ -87,6 +87,19 @@ NO_FSMONITOR = {
 }
 
 
+SINGLE_CONTRACT_INPUTS = [
+    ("seaport-1.6-gas", "single", "contracts/Seaport.sol", "Seaport"),
+    ("v4-core-4.0.0-gas", "single", "src/PoolManager.sol", "PoolManager"),
+    (
+        "seaport-1.6-gas",
+        "fuzz-engine",
+        "test/foundry/new/FuzzEngine.t.sol",
+        "FuzzEngineTest",
+    ),
+    ("v4-core-4.0.0-gas", "pool-test", "test/PoolManager.t.sol", "PoolManagerTest"),
+]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -293,7 +306,16 @@ def cmd_corpus(args: argparse.Namespace) -> None:
             settings["optimizer"] = optimizer
             settings["outputSelection"] = {"*": {"*": OUTPUTS}}
             (CORPUS / f"{name}-{mode}.json").write_text(json.dumps(data))
-    print(f"wrote {len(sources) * len(MODES)} inputs to {CORPUS}")
+    focused = 0
+    for base, suffix, source_file, contract in SINGLE_CONTRACT_INPUTS:
+        path = CORPUS / f"{base}.json"
+        if not path.exists():
+            continue
+        data = json.loads(path.read_bytes())
+        data["settings"]["outputSelection"] = {source_file: {contract: OUTPUTS}}
+        (CORPUS / f"{base}-{suffix}.json").write_text(json.dumps(data))
+        focused += 1
+    print(f"wrote {len(sources) * len(MODES) + focused} inputs to {CORPUS}")
 
 
 # === identity ===
