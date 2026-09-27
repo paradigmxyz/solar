@@ -1348,13 +1348,6 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_condition(&mut self, expr: &ast::yul::Expr<'_>) -> &'gcx hir::Expr<'gcx> {
-        match &expr.kind {
-            ast::yul::ExprKind::Lit(lit) if matches!(lit.kind, ast::LitKind::Bool(_)) => {
-                return self.lower_yul_expr(expr);
-            }
-            _ => {}
-        }
-
         // <expr> != 0
         let expr = self.lower_yul_expr(expr);
         let zero = self.yul_number_lit(U256::ZERO, expr.span);
@@ -1887,16 +1880,9 @@ impl<'gcx> ResolveContext<'gcx> {
                 let (callee, options) = self.lower_call_callee(callee);
                 hir::ExprKind::Call(callee, self.lower_call_args(args), options)
             }
-            ast::ExprKind::CallOptions(callee, options) => {
-                let callee = self.lower_expr(callee);
-                let _options = self.lower_named_args(options);
-                let options_span = callee.span.shrink_to_hi().with_hi(expr.span.hi());
-                hir::ExprKind::Err(self.sess.dcx.emit_err_span_note(
-                    options_span,
-                    "call options must be part of a call expression",
-                    expr.span,
-                    "this expression is not a function call expression",
-                ))
+            ast::ExprKind::CallOptions(..) => {
+                let (callee, options) = self.lower_call_callee(expr);
+                hir::ExprKind::CallOptions(callee, options.unwrap())
             }
             ast::ExprKind::Delete(expr) => hir::ExprKind::Delete(self.lower_expr(expr)),
             ast::ExprKind::Ident(name) => {

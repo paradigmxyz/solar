@@ -4,6 +4,38 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constant_integer_value.sol:ConstantIntegerValue ===
 @module ConstantIntegerValue
+fn @zeroNegativePower() -> i256 [selector=0x8d04abf9, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sub 0, 1
+    v1 = checked_pow i256, 0, v0
+    ret v1
+}
+
+fn @decimal() -> i256 [selector=0x76809ce3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 0x429d069189e0000
+}
+
+fn @negativeExponent() -> i256 [selector=0x13a47541, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 5
+}
+
+fn @fraction() -> i256 [selector=0xd8894bb5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 1
+}
+
+fn @fractionCompare() -> i256 [selector=0xdf414a28, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    ret 1
+}
+
+fn @typedDivision() -> i256 [selector=0xb00dd952, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 0
+}
+
 fn @calc() -> i256 [selector=0x96f1b6be, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @mulWadDown, 0x8ac7230489e80000, 0xaa87bee538000

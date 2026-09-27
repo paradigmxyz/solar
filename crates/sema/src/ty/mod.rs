@@ -353,6 +353,7 @@ pub struct GlobalCtxt<'gcx> {
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
     pub(crate) eval_cache: FxOnceMap<hir::ExprId, Box<crate::eval::EvalResult>>,
+    pub(crate) eval_errors: FxOnceMap<hir::ExprId, ErrorGuaranteed>,
     pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
 }
 
@@ -389,6 +390,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
             interner,
             cache: Cache::default(),
             eval_cache: FxOnceMap::default(),
+            eval_errors: FxOnceMap::default(),
             override_index: OnceLock::new(),
         }
     }
@@ -1135,22 +1137,20 @@ impl<'gcx> Gcx<'gcx> {
                     )
                 })
             }
-            solar_ast::LitKind::Rational(_) => {
-                let value = lit.symbol.as_str();
-                if value.ends_with('_')
-                    || value.contains("__")
-                    || value.contains("._")
-                    || value.contains("_.")
-                    || value.contains("_e")
-                    || value.contains("_E")
-                    || value.contains("e_")
-                    || value.contains("E_")
+            solar_ast::LitKind::Rational(value) => {
+                let spelling = lit.symbol.as_str();
+                if spelling.ends_with('_')
+                    || ["__", "._", "_.", "_e", "_E", "e_", "E_"]
+                        .iter()
+                        .any(|pattern| spelling.contains(pattern))
                 {
-                    self.mk_ty_misc_err()
+                    return self.mk_ty_misc_err();
+                }
+                if *value.denom() == alloy_primitives::U256::from(1) {
+                    self.mk_ty_int_literal(false, value.numer().bit_len() as _)
+                        .unwrap_or_else(|| self.mk_ty_misc_err())
                 } else {
-                    self.mk_ty_err(
-                        self.dcx().emit_err(lit.span, "rational literals are not supported"),
-                    )
+                    self.mk_ty(TyKind::RationalLiteral)
                 }
             }
             solar_ast::LitKind::Address(_) => self.types.address,

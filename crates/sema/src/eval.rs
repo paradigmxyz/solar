@@ -1,6 +1,7 @@
 use crate::{builtins::Builtin, hir, ty::Gcx};
 use alloy_primitives::{B256, U256, keccak256};
 use num_bigint::{BigInt, BigUint, Sign};
+use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 use solar_ast::{ElementaryType, LitKind, StrKind, TypeSize};
 use solar_interface::{ByteSymbol, Span, diagnostics::ErrorGuaranteed};
@@ -50,7 +51,7 @@ impl<'gcx> Gcx<'gcx> {
     pub fn try_eval_const(self, expr: &hir::Expr<'_>) -> Result<&'gcx IntScalar, EvalError> {
         match self.try_eval_const_value(expr)? {
             ConstValue::Integer(value) => Ok(value),
-            ConstValue::Bool(_) => Err(EE::UnsupportedExpr.into()),
+            ConstValue::Bool(_) | ConstValue::Rational(_) => Err(EE::UnsupportedExpr.into()),
             ConstValue::String(_) => Err(EE::UnsupportedLiteral.into()),
         }
     }
@@ -82,11 +83,15 @@ impl<'gcx> Gcx<'gcx> {
     pub fn emit_const_eval_error(self, expr: &hir::Expr<'_>, err: EvalError) -> ErrorGuaranteed {
         match err.kind {
             EE::AlreadyEmitted(guar) => guar,
-            _ => {
-                let msg = format!("failed to evaluate constant: {}", err.kind.msg());
-                let label = "evaluation of constant value failed here";
-                self.dcx().emit_err_label(expr.span, msg, err.span, label)
-            }
+            _ => self.eval_errors.map_insert(
+                expr.id,
+                |_| {
+                    let msg = format!("failed to evaluate constant: {}", err.kind.msg());
+                    let label = "evaluation of constant value failed here";
+                    self.dcx().emit_err_label(expr.span, msg, err.span, label)
+                },
+                |_, guar| *guar,
+            ),
         }
     }
 }
@@ -209,13 +214,16 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             LitKind::Str(StrKind::Str | StrKind::Unicode, s, _) => Ok(ConstValue::String(s)),
             LitKind::Str(StrKind::Hex, _, _) => Err(EE::UnsupportedLiteral.into()),
             LitKind::Number(n) => Ok(ConstValue::Integer(IntScalar::new(n))),
-            // LitKind::Rational(ratio) => todo!(),
+            LitKind::Rational(ratio) => ConstValue::rational(Ratio::new(
+                IntScalar::bigint_from_u256(*ratio.numer()),
+                IntScalar::bigint_from_u256(*ratio.denom()),
+            ))
+            .map_err(Into::into),
             LitKind::Address(address) => {
                 Ok(ConstValue::Integer(IntScalar::from_be_bytes(address.as_slice())))
             }
             LitKind::Bool(bool) => Ok(ConstValue::Bool(bool)),
             LitKind::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),
-            _ => Err(EE::UnsupportedLiteral.into()),
         }
     }
 }
@@ -225,6 +233,8 @@ impl<'gcx> ConstantEvaluator<'gcx> {
 pub enum ConstValue {
     /// Integer-like constant value.
     Integer(IntScalar),
+    /// Exact fractional literal value.
+    Rational(Ratio<BigInt>),
     /// Boolean constant value.
     Bool(bool),
     /// String constant value.
@@ -236,7 +246,7 @@ impl ConstValue {
     pub fn as_u256(&self) -> Option<U256> {
         match self {
             Self::Integer(value) => value.as_u256(),
-            Self::Bool(_) | Self::String(_) => None,
+            Self::Bool(_) | Self::String(_) | Self::Rational(_) => None,
         }
     }
 
@@ -244,7 +254,7 @@ impl ConstValue {
     pub fn as_bool(&self) -> Option<bool> {
         match self {
             Self::Bool(value) => Some(*value),
-            Self::Integer(_) | Self::String(_) => None,
+            Self::Integer(_) | Self::String(_) | Self::Rational(_) => None,
         }
     }
 
@@ -257,7 +267,7 @@ impl ConstValue {
     pub fn into_integer(self) -> Result<IntScalar, EvalError> {
         match self {
             Self::Integer(value) => Ok(value),
-            Self::Bool(_) => Err(EE::UnsupportedExpr.into()),
+            Self::Bool(_) | Self::Rational(_) => Err(EE::UnsupportedExpr.into()),
             Self::String(_) => Err(EE::UnsupportedLiteral.into()),
         }
     }
@@ -266,14 +276,24 @@ impl ConstValue {
     pub fn unop(self, op: hir::UnOpKind) -> Result<Self, EE> {
         Ok(match (self, op) {
             (Self::Integer(value), op) => Self::Integer(value.unop(op)?),
+            (Self::Rational(value), hir::UnOpKind::Neg) => Self::rational(-value)?,
             (Self::Bool(value), hir::UnOpKind::Not) => Self::Bool(!value),
-            (Self::Bool(_) | Self::String(_), _) => return Err(EE::UnsupportedUnaryOp),
+            (Self::Bool(_) | Self::String(_) | Self::Rational(_), _) => {
+                return Err(EE::UnsupportedUnaryOp);
+            }
         })
     }
 
     /// Applies the given binary operation to this value.
     pub fn binop(self, rhs: Self, op: hir::BinOpKind) -> Result<Self, EE> {
         use hir::BinOpKind::*;
+        if matches!((&self, &rhs), (Self::Rational(_), _) | (_, Self::Rational(_)))
+            || matches!((&self, &rhs), (Self::Integer(l), Self::Integer(r))
+                if l.ty.is_none() && r.ty.is_none()
+                    && (op == Div || (op == Pow && r.is_negative())))
+        {
+            return self.rational_binop(rhs, op);
+        }
         Ok(match (self, rhs) {
             (Self::Integer(lhs), Self::Integer(rhs)) => match op {
                 Lt => Self::Bool(lhs.data < rhs.data),
@@ -299,6 +319,61 @@ impl ConstValue {
             },
             _ => return Err(EE::UnsupportedBinaryOp),
         })
+    }
+
+    fn rational(value: Ratio<BigInt>) -> Result<Self, EE> {
+        if value.numer().bits() > MAX_INTERMEDIATE_BITS
+            || value.denom().bits() > MAX_INTERMEDIATE_BITS
+        {
+            return Err(EE::ArithmeticOverflow);
+        }
+        if value.is_integer() {
+            Ok(Self::Integer(IntScalar::checked(value.to_integer())?))
+        } else {
+            Ok(Self::Rational(value))
+        }
+    }
+
+    fn into_rational(self) -> Result<Ratio<BigInt>, EE> {
+        match self {
+            Self::Rational(value) => Ok(value),
+            Self::Integer(value) if value.ty.is_none() => Ok(Ratio::from_integer(value.data)),
+            _ => Err(EE::UnsupportedBinaryOp),
+        }
+    }
+
+    fn rational_binop(self, rhs: Self, op: hir::BinOpKind) -> Result<Self, EE> {
+        use hir::BinOpKind::*;
+        let lhs = self.into_rational()?;
+        let rhs = rhs.into_rational()?;
+        let value = match op {
+            Lt => return Ok(Self::Bool(lhs < rhs)),
+            Le => return Ok(Self::Bool(lhs <= rhs)),
+            Gt => return Ok(Self::Bool(lhs > rhs)),
+            Ge => return Ok(Self::Bool(lhs >= rhs)),
+            Eq => return Ok(Self::Bool(lhs == rhs)),
+            Ne => return Ok(Self::Bool(lhs != rhs)),
+            Add => lhs + rhs,
+            Sub => lhs - rhs,
+            Mul => lhs * rhs,
+            Div | Rem if rhs.is_zero() => return Err(EE::DivisionByZero),
+            Div => lhs / rhs,
+            Rem => lhs % rhs,
+            Pow if rhs.is_integer() => {
+                let exponent = rhs.to_integer();
+                if lhs.is_zero() && exponent.is_negative() {
+                    return Ok(Self::Integer(IntScalar::new(U256::ZERO)));
+                }
+                let power = IntScalar { data: exponent.abs(), ty: None };
+                let numerator = IntScalar::checked(lhs.numer().clone())?
+                    .checked_pow(IntScalar { data: power.data.clone(), ty: None })?;
+                let denominator = IntScalar::checked(lhs.denom().clone())?.checked_pow(power)?;
+                let result = Ratio::new(numerator.data, denominator.data);
+                if exponent.is_negative() { result.recip() } else { result }
+            }
+            _ => return Err(EE::UnsupportedBinaryOp),
+        };
+        Self::rational(value)
     }
 }
 

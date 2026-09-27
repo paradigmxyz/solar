@@ -128,3 +128,21 @@ contract C {
         }
     }
 }
+
+contract BaseHelper {
+    function base() external pure returns (uint result) {
+        assembly {
+            function helper() -> r { r := 1 }
+            result := helper()
+        }
+    }
+}
+
+contract DerivedHelper is BaseHelper {
+    function derived() external pure returns (uint result) {
+        assembly {
+            function helper() -> r { r := 2 }
+            result := helper()
+        }
+    }
+}
