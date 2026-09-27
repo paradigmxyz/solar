@@ -244,6 +244,39 @@ macro_rules! opcodes {
             map
         };
 
+        /// Each opcode's traits, packed apart from the full definitions so hot trait queries touch
+        /// a few cache lines. Unknown opcodes have no traits.
+        static OPCODE_TRAITS: [OpcodeTraits; 256] = {
+            let mut traits = [OpcodeTraits::NONE; 256];
+            let mut opcode = 0;
+            while opcode < 256 {
+                if let Some(definition) = &OPCODE_DEFS[opcode] {
+                    traits[opcode] = definition.traits;
+                }
+                opcode += 1;
+            }
+            traits
+        };
+
+        /// Each opcode's stack effect, packed like [`OPCODE_TRAITS`].
+        static OPCODE_STACK_IO: [Option<(u8, u8)>; 256] = {
+            let mut stack_io = [None; 256];
+            let mut opcode = 0;
+            while opcode < 256 {
+                if let Some(definition) = &OPCODE_DEFS[opcode] {
+                    stack_io[opcode] = definition.stack_io;
+                }
+                opcode += 1;
+            }
+            stack_io
+        };
+
+        /// Returns the traits of an opcode; unknown opcodes have none.
+        #[must_use]
+        pub(crate) const fn traits(opcode: u8) -> OpcodeTraits {
+            OPCODE_TRAITS[opcode as usize]
+        }
+
         /// Returns the generated schema definition for an opcode.
         #[must_use]
         pub(crate) const fn definition(opcode: u8) -> Option<&'static OpDef> {
@@ -298,10 +331,7 @@ macro_rules! opcodes {
         /// Returns the number of stack items consumed and produced by an opcode.
         #[must_use]
         pub(crate) const fn stack_io(opcode: u8) -> Option<(u8, u8)> {
-            match definition(opcode) {
-                Some(definition) => definition.stack_io,
-                None => None,
-            }
+            OPCODE_STACK_IO[opcode as usize]
         }
     };
 }
@@ -477,6 +507,7 @@ pub(crate) const fn push(width: u8) -> u8 {
 
 impl OpDef {
     /// Returns whether this operation halts or unconditionally transfers control.
+    #[cfg(test)]
     #[must_use]
     pub(crate) const fn is_terminal(self) -> bool {
         self.traits.contains(OpcodeTraits::TERMINAL)
@@ -494,12 +525,14 @@ impl OpDef {
     }
 
     /// Returns whether this operation's operands may be swapped without changing its result.
+    #[cfg(test)]
     #[must_use]
     pub(crate) const fn is_commutative(self) -> bool {
         self.traits.contains(OpcodeTraits::COMMUTATIVE)
     }
 
     /// Returns whether this operation is a pure function of its stack operands.
+    #[cfg(test)]
     #[must_use]
     pub(crate) const fn is_pure(self) -> bool {
         self.traits.contains(OpcodeTraits::PURE)
@@ -791,10 +824,7 @@ pub(crate) const fn decode_exchange(immediate: u8) -> Option<(u8, u8)> {
 /// Returns whether an opcode halts or unconditionally transfers control.
 #[must_use]
 pub(crate) const fn is_terminal(op: u8) -> bool {
-    match definition(op) {
-        Some(definition) => definition.is_terminal(),
-        None => false,
-    }
+    traits(op).contains(OpcodeTraits::TERMINAL)
 }
 
 /// Returns whether an opcode is available for `evm_version`.
@@ -809,10 +839,7 @@ pub(crate) fn is_available(opcode: u8, evm_version: EvmVersion) -> bool {
 /// Returns whether an opcode's operands may be swapped without changing its result.
 #[must_use]
 pub(crate) const fn is_commutative(op: u8) -> bool {
-    match definition(op) {
-        Some(definition) => definition.is_commutative(),
-        None => false,
-    }
+    traits(op).contains(OpcodeTraits::COMMUTATIVE)
 }
 
 /// Returns the equivalent binary opcode after swapping its stack operands.
@@ -835,10 +862,7 @@ pub(crate) const fn swapped_binary_opcode(opcode: u8) -> Option<u8> {
 /// occurrences with equal operands always produce the same value.
 #[must_use]
 pub(crate) const fn is_pure(op: u8) -> bool {
-    match definition(op) {
-        Some(definition) => definition.is_pure(),
-        None => false,
-    }
+    traits(op).contains(OpcodeTraits::PURE)
 }
 
 /// Returns whether inserting a push immediately before this opcode preserves its behavior.
