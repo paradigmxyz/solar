@@ -708,8 +708,10 @@ impl<'a> StackPhiPlanner<'a> {
             }
             uses.sort_unstable_by_key(|value| value.index());
             uses.dedup();
-            let mut through = DenseBitSet::from(live_in);
-            through.intersect(&live_out);
+            let mut through = DenseBitSet::new_empty(num_values);
+            for value in live_in.iter().filter(|&value| live_out.contains(value)) {
+                through.insert(value);
+            }
             live_through.replace_row(block_id, &through);
             // Layouts list the top of the stack first; a new definition lands on top.
             kept.reverse();

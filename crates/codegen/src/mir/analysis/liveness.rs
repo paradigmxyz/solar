@@ -4,7 +4,7 @@
 //! A value is live at a point if there exists a path from that point to a use of the value
 //! that doesn't pass through a definition of that value.
 //!
-//! The analysis stores one dense bit matrix row per block, indexed by `ValueId`.
+//! The analysis uses dense bitsets indexed by `ValueId` for efficiency.
 //!
 //! Phi nodes are ordinary instructions (`InstKind::Phi`) whose result is defined like
 //! any other instruction result, but their incoming operands are uses on the incoming
@@ -14,26 +14,36 @@
 use crate::mir::{BlockId, Function, InstKind, Terminator, Value, ValueId};
 use smallvec::SmallVec;
 use solar_data_structures::{
-    bit_set::{BitMatrix, BitMatrixRow, DenseBitSet, GrowableBitSet},
+    bit_set::{DenseBitSet, GrowableBitSet},
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
 use std::collections::VecDeque;
 
+/// A dense bitset for tracking live values.
+pub(crate) type LiveSet = GrowableBitSet<ValueId>;
+
 #[cfg(test)]
 #[derive(Clone, Debug)]
 struct LivenessInfo {
-    live_before: GrowableBitSet<ValueId>,
-    live_after: GrowableBitSet<ValueId>,
+    live_before: LiveSet,
+    live_after: LiveSet,
+}
+
+/// Per-block liveness results.
+#[derive(Clone, Debug)]
+struct BlockLiveness {
+    /// Values live at block entry (live_in).
+    live_in: LiveSet,
+    /// Values live at block exit (live_out).
+    live_out: LiveSet,
 }
 
 /// Liveness analysis results for a function.
 #[derive(Debug)]
 pub(crate) struct Liveness {
-    /// Values live at each block's entry.
-    live_in: BitMatrix<BlockId, ValueId>,
-    /// Values live at each block's exit.
-    live_out: BitMatrix<BlockId, ValueId>,
+    /// Per-block liveness information (indexed by block index).
+    block_liveness: IndexVec<BlockId, BlockLiveness>,
     /// The last use location of each value within each block: (block, instruction index).
     /// The key is (ValueId, BlockId), and value is the instruction index (None = terminator).
     /// This tracks the last use of a value *within* each block where it's used.
@@ -62,12 +72,21 @@ impl Liveness {
         let num_values = func.num_values();
         let num_blocks = func.blocks.len();
 
-        let mut live_in = BitMatrix::new(num_blocks, num_values);
-        let mut live_out = BitMatrix::new(num_blocks, num_values);
+        // Initialize per-block liveness
+        let mut block_liveness = (0..num_blocks)
+            .map(|_| BlockLiveness {
+                live_in: LiveSet::with_capacity(num_values),
+                live_out: LiveSet::with_capacity(num_values),
+            })
+            .collect::<IndexVec<BlockId, _>>();
 
         // Compute local def/use sets for each block
-        let mut block_defs = BitMatrix::new(num_blocks, num_values);
-        let mut block_uses = BitMatrix::new(num_blocks, num_values);
+        let mut block_defs = (0..num_blocks)
+            .map(|_| LiveSet::with_capacity(num_values))
+            .collect::<IndexVec<BlockId, _>>();
+        let mut block_uses = (0..num_blocks)
+            .map(|_| LiveSet::with_capacity(num_values))
+            .collect::<IndexVec<BlockId, _>>();
 
         // Phi operands are uses on the incoming edge, keyed by the merge block: each entry
         // is live out of its predecessor and does not enter the merge block.
@@ -87,14 +106,14 @@ impl Liveness {
                 } else {
                     // Collect uses (upward-exposed uses - used before defined in this block)
                     inst.kind.visit_operands(|operand| {
-                        if !block_defs.contains(block_id, operand) {
-                            block_uses.insert(block_id, operand);
+                        if !block_defs[block_id].contains(operand) {
+                            block_uses[block_id].insert(operand);
                         }
                     });
                 }
 
                 if let Some(val_id) = func.inst_result_value(inst_id) {
-                    block_defs.insert(block_id, val_id);
+                    block_defs[block_id].insert(val_id);
                 }
             }
 
@@ -103,8 +122,8 @@ impl Liveness {
                 operand_buf.clear();
                 collect_terminator_uses(term, &mut operand_buf);
                 for &operand in &operand_buf {
-                    if !block_defs.contains(block_id, operand) {
-                        block_uses.insert(block_id, operand);
+                    if !block_defs[block_id].contains(operand) {
+                        block_uses[block_id].insert(operand);
                     }
                 }
             }
@@ -116,8 +135,8 @@ impl Liveness {
         // live_in(B) = block_uses(B) | (live_out(B) - block_defs(B))
         let mut worklist: VecDeque<BlockId> = func.blocks.indices().rev().collect();
         let mut queued = DenseBitSet::new_filled(num_blocks);
-        let mut new_live_out = DenseBitSet::new_empty(num_values);
-        let mut new_live_in = DenseBitSet::new_empty(num_values);
+        let mut new_live_out = LiveSet::with_capacity(num_values);
+        let mut new_live_in = LiveSet::with_capacity(num_values);
 
         while let Some(block_id) = worklist.pop_front() {
             queued.remove(block_id);
@@ -126,7 +145,7 @@ impl Liveness {
             new_live_out.clear();
             if let Some(term) = &block.terminator {
                 term.for_each_successor(|succ| {
-                    new_live_out.union(&live_in.row(succ));
+                    new_live_out.union(&block_liveness[succ].live_in);
                     for &(pred, value) in &phi_edge_uses[succ] {
                         if pred == block_id {
                             new_live_out.insert(value);
@@ -137,11 +156,15 @@ impl Liveness {
 
             // live_in = use ∪ (live_out - def)
             new_live_in.clone_from(&new_live_out);
-            new_live_in.subtract(&block_defs.row(block_id));
-            new_live_in.union(&block_uses.row(block_id));
+            new_live_in.subtract(&block_defs[block_id]);
+            new_live_in.union(&block_uses[block_id]);
 
-            let out_changed = live_out.replace_row(block_id, &new_live_out);
-            if live_in.replace_row(block_id, &new_live_in) | out_changed {
+            if new_live_out != block_liveness[block_id].live_out
+                || new_live_in != block_liveness[block_id].live_in
+            {
+                std::mem::swap(&mut block_liveness[block_id].live_out, &mut new_live_out);
+                std::mem::swap(&mut block_liveness[block_id].live_in, &mut new_live_in);
+
                 // Add predecessors to worklist
                 for &pred in &block.predecessors {
                     if queued.insert(pred) {
@@ -154,7 +177,7 @@ impl Liveness {
         // Compute last use locations per block
         // For each value, track the last instruction index where it's used within each block.
         if !tracks_last_uses {
-            return Self { live_in, live_out, last_use_in_block: None, num_values };
+            return Self { block_liveness, last_use_in_block: None, num_values };
         }
         let mut last_use_in_block = FxHashMap::default();
         // A phi operand is used when its predecessor transfers control, so it
@@ -188,7 +211,7 @@ impl Liveness {
             }
         }
 
-        Self { live_in, live_out, last_use_in_block: Some(last_use_in_block), num_values }
+        Self { block_liveness, last_use_in_block: Some(last_use_in_block), num_values }
     }
 
     /// Computes the subset of liveness needed by codegen when every computed
@@ -230,8 +253,13 @@ impl Liveness {
             }
         }
 
-        let live_in = BitMatrix::new(func.blocks.len(), 0);
-        let live_out = BitMatrix::new(func.blocks.len(), 0);
+        let block_liveness = index_vec![
+            BlockLiveness {
+                live_in: LiveSet::new_empty(),
+                live_out: LiveSet::new_empty(),
+            };
+            func.blocks.len()
+        ];
         let mut last_use_in_block = FxHashMap::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
             if let Some(term) = &block.terminator {
@@ -248,25 +276,25 @@ impl Liveness {
             }
         }
 
-        Some(Self { live_in, live_out, last_use_in_block: Some(last_use_in_block), num_values })
+        Some(Self { block_liveness, last_use_in_block: Some(last_use_in_block), num_values })
     }
 
     /// Returns the values live at the entry of a block.
     #[must_use]
-    pub(crate) fn live_in(&self, block: BlockId) -> BitMatrixRow<'_, ValueId> {
-        self.live_in.row(block)
+    pub(crate) fn live_in(&self, block: BlockId) -> &LiveSet {
+        &self.block_liveness[block].live_in
     }
 
     /// Returns the values live at the exit of a block.
     #[must_use]
-    pub(crate) fn live_out(&self, block: BlockId) -> BitMatrixRow<'_, ValueId> {
-        self.live_out.row(block)
+    pub(crate) fn live_out(&self, block: BlockId) -> &LiveSet {
+        &self.block_liveness[block].live_out
     }
 
     #[cfg(test)]
     fn live_at_inst(&self, func: &Function, block_id: BlockId, inst_idx: usize) -> LivenessInfo {
         let block = &func.blocks[block_id];
-        let mut live = GrowableBitSet::from(self.live_out(block_id));
+        let mut live = self.block_liveness[block_id].live_out.clone();
 
         if let Some(term) = &block.terminator {
             let mut term_uses = SmallVec::<[ValueId; 8]>::new();
@@ -312,7 +340,7 @@ impl Liveness {
         block: BlockId,
         inst_idx: usize,
     ) -> bool {
-        if self.live_out(block).contains(val) {
+        if self.block_liveness[block].live_out.contains(val) {
             return true;
         }
 
@@ -331,7 +359,7 @@ impl Liveness {
     #[must_use]
     pub(crate) fn is_dead_after(&self, val: ValueId, block: BlockId, inst_idx: usize) -> bool {
         // If the value is in live_out, it's used by successor blocks, so it's not dead
-        if self.live_out(block).contains(val) {
+        if self.block_liveness[block].live_out.contains(val) {
             return false;
         }
 
@@ -355,6 +383,88 @@ fn collect_terminator_uses(term: &Terminator, out: &mut SmallVec<[ValueId; 8]>) 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_liveset_basic() {
+        let mut set = LiveSet::with_capacity(100);
+        let v0 = ValueId::from_usize(0);
+        let v42 = ValueId::from_usize(42);
+        let v99 = ValueId::from_usize(99);
+
+        assert!(!set.contains(v0));
+        assert!(!set.contains(v42));
+
+        assert!(set.insert(v0));
+        assert!(set.contains(v0));
+        assert!(!set.insert(v0)); // Already present
+
+        assert!(set.insert(v42));
+        assert!(set.contains(v42));
+
+        assert!(set.insert(v99));
+        assert_eq!(set.count(), 3);
+
+        set.remove(v42);
+        assert!(!set.contains(v42));
+        assert_eq!(set.count(), 2);
+    }
+
+    #[test]
+    fn test_liveset_union() {
+        let mut set1 = LiveSet::with_capacity(64);
+        let mut set2 = LiveSet::with_capacity(64);
+
+        set1.insert(ValueId::from_usize(1));
+        set1.insert(ValueId::from_usize(3));
+        set2.insert(ValueId::from_usize(2));
+        set2.insert(ValueId::from_usize(3));
+
+        assert!(set1.union(&set2));
+        assert!(set1.contains(ValueId::from_usize(1)));
+        assert!(set1.contains(ValueId::from_usize(2)));
+        assert!(set1.contains(ValueId::from_usize(3)));
+        assert_eq!(set1.count(), 3);
+
+        // Union again should not change
+        assert!(!set1.union(&set2));
+    }
+
+    #[test]
+    fn test_liveset_boundary() {
+        let mut set = LiveSet::with_capacity(200);
+        for i in [0, 1, 62, 63, 64, 65, 126, 127, 128, 129, 199] {
+            assert!(set.insert(ValueId::from_usize(i)));
+            assert!(set.contains(ValueId::from_usize(i)));
+        }
+        assert_eq!(set.count(), 11);
+    }
+
+    #[test]
+    fn test_liveset_clear() {
+        let mut set = LiveSet::with_capacity(128);
+        set.insert(ValueId::from_usize(0));
+        set.insert(ValueId::from_usize(63));
+        set.insert(ValueId::from_usize(64));
+        set.insert(ValueId::from_usize(127));
+        assert_eq!(set.count(), 4);
+        set.clear();
+        assert_eq!(set.count(), 0);
+        assert!(!set.contains(ValueId::from_usize(0)));
+    }
+
+    #[test]
+    fn test_liveset_iter() {
+        let mut set = LiveSet::with_capacity(200);
+        let indices = [0, 5, 63, 64, 127, 128, 199];
+        for &i in &indices {
+            set.insert(ValueId::from_usize(i));
+        }
+        let collected: Vec<usize> = set.iter().map(|v| v.index()).collect();
+        assert_eq!(collected, indices);
+    }
+
+    // === Liveness algorithm tests ===
+
     use crate::mir::{Function, FunctionBuilder, MirType};
     use solar_interface::Ident;
 

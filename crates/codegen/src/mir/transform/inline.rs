@@ -1357,7 +1357,7 @@ fn scalar_stack_peak(func: &Function) -> usize {
     let liveness = Liveness::compute_live_sets(func);
     let mut peak = 0;
     for (block, body) in func.blocks.iter_enumerated() {
-        let mut live = GrowableBitSet::from(liveness.live_out(block));
+        let mut live = liveness.live_out(block).clone();
         if let Some(term) = &body.terminator {
             term.visit_operands(|value| {
                 live.insert(value);
@@ -1382,7 +1382,7 @@ fn scalar_stack_peak(func: &Function) -> usize {
 /// Caller words that survive the internal call and overlap an inline expansion.
 fn surviving_call_words(func: &Function, liveness: &Liveness, site: CallSite) -> usize {
     let body = &func.blocks[site.block];
-    let mut live = GrowableBitSet::from(liveness.live_out(site.block));
+    let mut live = liveness.live_out(site.block).clone();
     if let Some(term) = &body.terminator {
         term.visit_operands(|value| {
             live.insert(value);
