@@ -1565,23 +1565,36 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn check_yul_identifier(&self, name: Ident) -> Result<(), ErrorGuaranteed> {
-        if self.is_reserved_yul_name(name) {
+        if !name.is_reserved_yul_builtin() {
+            return Ok(());
+        }
+        let target = self.lcx.sess.opts.evm_version;
+        let future = match Builtin::from_yul_name(name.name) {
+            Some(Builtin::YulPrevrandao) => !target.has_prev_randao(),
+            Some(
+                builtin @ (Builtin::YulBasefee
+                | Builtin::YulBlobbasefee
+                | Builtin::YulBlobhash
+                | Builtin::YulMcopy
+                | Builtin::YulTload
+                | Builtin::YulTstore
+                | Builtin::YulClz
+                | Builtin::YulSlotnum),
+            ) => builtin.required_evm_version(target).is_some(),
+            _ => false,
+        };
+        if !future {
             return Err(self
                 .dcx()
                 .emit_err(name.span, format!("`{name}` is reserved for a Yul builtin")));
         }
-        if name.is_reserved_yul_builtin()
-            && let Some(builtin) = Builtin::from_yul_name(name.name)
-            && builtin != Builtin::YulDifficulty
-        {
-            self.dcx()
-                .warn(format!(
-                    "`{name}` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier"
-                ))
-                .span(name.span)
-                .code(error_code!(5470))
-                .emit();
-        }
+        self.dcx()
+            .warn(format!(
+                "`{name}` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier"
+            ))
+            .span(name.span)
+            .code(error_code!(5470))
+            .emit();
         Ok(())
     }
 

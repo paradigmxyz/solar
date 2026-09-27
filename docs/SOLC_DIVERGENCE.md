@@ -59,7 +59,10 @@ Status: implementation gap.
 Difference: Solar parses Yul builtin names as identifiers without consulting
 an EVM version. Inline assembly checks reserved names, future-builtin warnings,
 and builtin availability during name resolution. Standalone Yul currently
-stops after parsing, so it does not perform those semantic checks.
+stops after parsing, so it does not perform those semantic checks. Yul declarations
+reserve `difficulty` even after Paris, while references to Solidity variables
+named `difficulty` are allowed from Paris onward. The upstream parser-only test
+modes skip builtin-name checks that Solar performs during semantic analysis.
 
 Rationale: builtin availability is a semantic rule, not part of the grammar.
 Standalone Yul needs semantic analysis before it can enforce the same rules.

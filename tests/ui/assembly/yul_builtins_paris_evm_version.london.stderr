@@ -12,5 +12,29 @@ error: builtin function `difficulty` must be called
 LL │         assembly { difficulty := 1 }
    ╰╴                   ━━━━━━━━━━
 
-error: aborting due to 2 previous errors
+error: `difficulty` is reserved for a Yul builtin
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
+   │
+LL │             let difficulty := 1
+   ╰╴                ━━━━━━━━━━
+
+error: `difficulty` is reserved for a Yul builtin
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
+   │
+LL │             function difficulty() {}
+   ╰╴                     ━━━━━━━━━━
+
+error: `difficulty` is reserved for a Yul builtin
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
+   │
+LL │             function helper(difficulty) {}
+   ╰╴                            ━━━━━━━━━━
+
+error: `difficulty` is reserved for a Yul builtin
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
+   │
+LL │             function helper() -> difficulty {}
+   ╰╴                                 ━━━━━━━━━━
+
+error: aborting due to 6 previous errors
 

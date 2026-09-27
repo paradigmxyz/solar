@@ -14,5 +14,17 @@ LL │             pop(selfbalance())
    │
    ╰ help: compile with `--evm-version istanbul` or newer
 
-error: aborting due to 2 previous errors
+error: `chainid` is reserved for a Yul builtin
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_istanbul_evm_version.sol:LL:CC
+   │
+LL │             let chainid
+   ╰╴                ━━━━━━━
+
+error: `selfbalance` is reserved for a Yul builtin
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_istanbul_evm_version.sol:LL:CC
+   │
+LL │             let selfbalance
+   ╰╴                ━━━━━━━━━━━
+
+error: aborting due to 4 previous errors
 

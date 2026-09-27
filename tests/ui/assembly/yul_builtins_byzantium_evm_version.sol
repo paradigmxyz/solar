@@ -12,6 +12,16 @@ contract C {
             //~[homestead]^ ERROR: Yul builtin `returndatacopy` requires Byzantium-compatible EVM
             pop(staticcall(0, 0, 0, 0, 0, 0))
             //~[homestead]^ ERROR: Yul builtin `staticcall` requires Byzantium-compatible EVM
+
+            let returndatasize
+            //~^ ERROR: `returndatasize` is reserved for a Yul builtin
+
+            let returndatacopy
+            //~^ ERROR: `returndatacopy` is reserved for a Yul builtin
+
+            let staticcall
+            //~^ ERROR: `staticcall` is reserved for a Yul builtin
+
         }
     }
 }

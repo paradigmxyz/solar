@@ -19,4 +19,23 @@ contract C {
         assembly { difficulty := 1 }
         //~[london]^ ERROR: builtin function `difficulty` must be called
     }
+
+    function reserved() external pure {
+        assembly {
+            let difficulty := 1
+            //~[london,paris]^ ERROR: `difficulty` is reserved for a Yul builtin
+        }
+        assembly {
+            function difficulty() {}
+            //~[london,paris]^ ERROR: `difficulty` is reserved for a Yul builtin
+        }
+        assembly {
+            function helper(difficulty) {}
+            //~[london,paris]^ ERROR: `difficulty` is reserved for a Yul builtin
+        }
+        assembly {
+            function helper() -> difficulty {}
+            //~[london,paris]^ ERROR: `difficulty` is reserved for a Yul builtin
+        }
+    }
 }
