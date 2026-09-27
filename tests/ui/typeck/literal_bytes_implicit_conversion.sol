@@ -1,8 +1,5 @@
 contract C {
     function f() public pure {
-        bytes1 empty = "";
-        bytes4 converted = bytes4("");
-        bytes8 hexEmpty = hex"";
         // --- Valid: literal to fixed-size bytes (equal size) ---
         bytes3 b3_1 = "abc";
         bytes3 b3_2 = hex"123456";
@@ -10,6 +7,9 @@ contract C {
         // --- Valid: literal to fixed-size bytes (larger size) ---
         bytes10 b10_1 = "abc";
         bytes10 b10_2 = hex"123456";
+        bytes1 empty = "";
+        bytes4 converted = bytes4("");
+        bytes8 hexEmpty = hex"";
 
         // --- Invalid: literal to fixed-size bytes (smaller size) ---
         bytes2 invalid_b2 = "abc"; //~ ERROR: mismatched types
