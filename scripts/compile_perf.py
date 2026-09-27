@@ -121,6 +121,7 @@ def main() -> None:
         "--rerun-base", action="store_true", help="recompute base outputs"
     )
     identity.add_argument("-j", "--jobs", type=int, default=os.cpu_count() or 4)
+    identity.add_argument("--compiler-jobs", type=int, default=1)
     identity.set_defaults(run=cmd_identity)
 
     stat = commands.add_parser(
@@ -303,11 +304,11 @@ def cmd_identity(args: argparse.Namespace) -> None:
     if (
         args.rerun_base
         or not stamp.exists()
-        or stamp.read_text() != identity_stamp(base, inputs)
+        or stamp.read_text() != identity_stamp(base, inputs, args.compiler_jobs)
     ):
-        compile_all(base, inputs, base_dir, args.jobs)
+        compile_all(base, inputs, base_dir, args.jobs, args.compiler_jobs)
     cand_dir = IDENTITY / label(args.cand)
-    compile_all(binary(args.cand), inputs, cand_dir, args.jobs)
+    compile_all(binary(args.cand), inputs, cand_dir, args.jobs, args.compiler_jobs)
     different = [
         path.stem
         for path in inputs
@@ -327,13 +328,15 @@ def cmd_identity(args: argparse.Namespace) -> None:
     print(f"identical: all {len(inputs)} outputs match `{label(args.base)}`")
 
 
-def compile_all(solar: Path, inputs: list[Path], out: Path, jobs: int) -> None:
+def compile_all(
+    solar: Path, inputs: list[Path], out: Path, jobs: int, compiler_jobs: int
+) -> None:
     out.mkdir(parents=True, exist_ok=True)
 
     def one(path: Path) -> None:
         with path.open("rb") as stdin:
             result = subprocess.run(
-                [solar, "--standard-json", "-j1"],
+                [solar, "--standard-json", f"-j{compiler_jobs}"],
                 stdin=stdin,
                 capture_output=True,
                 check=False,
@@ -344,15 +347,19 @@ def compile_all(solar: Path, inputs: list[Path], out: Path, jobs: int) -> None:
 
     with concurrent.futures.ThreadPoolExecutor(jobs) as pool:
         list(pool.map(one, inputs))
-    (out / "stamp.json").write_text(identity_stamp(solar, inputs))
+    (out / "stamp.json").write_text(identity_stamp(solar, inputs, compiler_jobs))
 
 
-def identity_stamp(solar: Path, inputs: list[Path]) -> str:
+def identity_stamp(solar: Path, inputs: list[Path], compiler_jobs: int) -> str:
     """Identifies the binary and corpus behind saved outputs, so stale outputs are recomputed."""
     info = solar.stat()
     files = {path.name: path.stat().st_mtime_ns for path in inputs}
     return json.dumps(
-        {"binary": [str(solar), info.st_size, info.st_mtime_ns], "inputs": files}
+        {
+            "binary": [str(solar), info.st_size, info.st_mtime_ns],
+            "inputs": files,
+            "compiler_jobs": compiler_jobs,
+        }
     )
 
 
