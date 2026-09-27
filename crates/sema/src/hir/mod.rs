@@ -1692,7 +1692,7 @@ pub struct Expr<'hir> {
     pub span: Span,
 }
 
-impl Expr<'_> {
+impl<'hir> Expr<'hir> {
     /// Peels off unnecessary parentheses from the expression.
     pub fn peel_parens(&self) -> &Self {
         let mut expr = self;
@@ -1700,6 +1700,23 @@ impl Expr<'_> {
             expr = inner;
         }
         expr
+    }
+
+    /// Returns the callee and options attached to this function expression.
+    pub fn split_call_options(&self) -> (&Self, Option<&'hir CallOptions<'hir>>) {
+        let expr = self.peel_parens();
+        if let ExprKind::CallOptions(callee, options) = expr.kind {
+            (callee.peel_parens(), Some(options))
+        } else {
+            (expr, None)
+        }
+    }
+
+    /// Returns a call's callee, arguments, and attached options.
+    pub fn as_call(&self) -> Option<(&Self, &CallArgs<'hir>, Option<&'hir CallOptions<'hir>>)> {
+        let ExprKind::Call(callee, args) = &self.kind else { return None };
+        let (callee, options) = callee.split_call_options();
+        Some((callee, args, options))
     }
 
     /// Returns the resolution if this is an unambiguous identifier expression.
@@ -1756,15 +1773,16 @@ impl Expr<'_> {
     pub fn visit<T>(&self, f: &mut impl FnMut(&Self) -> ControlFlow<T>) -> ControlFlow<T> {
         f(self)?;
         match &self.kind {
-            ExprKind::Call(callee, args, options) => {
+            ExprKind::Call(callee, args) => {
                 callee.visit(f)?;
-                if let Some(options) = options {
-                    for arg in options.args {
-                        arg.value.visit(f)?;
-                    }
-                }
                 for arg in args.exprs() {
                     arg.visit(f)?;
+                }
+            }
+            ExprKind::CallOptions(callee, options) => {
+                callee.visit(f)?;
+                for arg in options.args {
+                    arg.value.visit(f)?;
                 }
             }
             ExprKind::Delete(expr)
@@ -1830,7 +1848,10 @@ pub enum ExprKind<'hir> {
     Binary(&'hir Expr<'hir>, BinOp, &'hir Expr<'hir>),
 
     /// A function call expression: `foo(42)`, `foo({ bar: 42 })`, `foo{ gas: 100_000 }(42)`.
-    Call(&'hir Expr<'hir>, CallArgs<'hir>, Option<&'hir CallOptions<'hir>>),
+    Call(&'hir Expr<'hir>, CallArgs<'hir>),
+
+    /// A function value with unevaluated call options.
+    CallOptions(&'hir Expr<'hir>, &'hir CallOptions<'hir>),
 
     // TODO: Add a MethodCall variant
     /// A unary `delete` expression: `delete vector`.
@@ -2208,8 +2229,8 @@ mod tests {
         assert_size::<TypeKind<'_>>(str!["16"]);
         assert_size::<Type<'_>>(str!["24"]);
 
-        assert_size::<ExprKind<'_>>(str!["48"]);
-        assert_size::<Expr<'_>>(str!["64"]);
+        assert_size::<ExprKind<'_>>(str!["40"]);
+        assert_size::<Expr<'_>>(str!["56"]);
 
         assert_size::<StmtKind<'_>>(str!["40"]);
         assert_size::<Stmt<'_>>(str!["48"]);

@@ -6,6 +6,7 @@
 //@ run-call: local => 0x202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f
 //@ run-call: stringDirect => 0x68656c6c6f000000000000000000000000000000000000000000000000000000
 //@ run-call: builtin => 0x1234000000000000000000000000000000000000000000000000000000000000
+//@ run-call: loop => 3
 // ported-from: test/libsolidity/semanticTests/literals/hex_string_with_non_printable_characters.sol
 contract C {
     function direct() external pure returns (bytes32 result) {
@@ -36,6 +37,16 @@ contract C {
     function builtin() external pure returns (bytes32 result) {
         assembly {
             result := or(hex"1234", 0)
+        }
+    }
+
+    function loop() external pure returns (uint result) {
+        assembly {
+            if false { result := 99 }
+            for {} true {} {
+                result := add(result, 1)
+                if eq(result, 3) { break }
+            }
         }
     }
 }

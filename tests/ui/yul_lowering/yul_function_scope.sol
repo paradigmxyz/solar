@@ -127,4 +127,20 @@ contract C {
             }
         }
     }
+
+    function base() external pure returns (uint result) {
+        assembly {
+            function helper() -> r { r := 1 }
+            result := helper()
+        }
+    }
+}
+
+contract DerivedHelper is C {
+    function derived() external pure returns (uint result) {
+        assembly {
+            function helper() -> r { r := 2 }
+            result := helper()
+        }
+    }
 }

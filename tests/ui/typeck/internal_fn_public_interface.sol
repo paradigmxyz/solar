@@ -7,6 +7,9 @@ contract C {
 
     // Internal function type as internal state variable - should be OK (no getter).
     function(uint) internal internal myInternalFuncInternal;
+
+    function invalid(function() internal callback) external {} //~ ERROR: types containing internal function pointers
+
 }
 
 contract D {
@@ -16,4 +19,8 @@ contract D {
     }
 
     S public myVar; //~ ERROR: types containing internal function pointers cannot be parameter or return types of public getter functions
+
+    function useInvalid() external pure {
+        C.invalid; //~ ERROR: member `invalid` not found
+    }
 }

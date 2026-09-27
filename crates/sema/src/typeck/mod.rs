@@ -715,6 +715,7 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Result<Option<U256>,
     match ty.kind {
         TyKind::Elementary(..)
         | TyKind::StringLiteral(..)
+        | TyKind::CallOptions(_)
         | TyKind::IntLiteral(..)
         | TyKind::Mapping(..)
         | TyKind::Contract(..)

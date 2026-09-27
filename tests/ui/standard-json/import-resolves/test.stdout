@@ -1,19 +1,57 @@
 {
   "sources": {
-    "B.sol": {
+    "./packages/B.sol": {
       "id": 0
     },
-    "A.sol": {
+    "./packages/A.sol": {
       "id": 1
     },
-    "prefixedB.sol": {
+    "../virtual/B.sol": {
       "id": 2
     },
-    "prefixA.sol": {
+    "../virtual/A.sol": {
       "id": 3
+    },
+    "B.sol": {
+      "id": 4
+    },
+    "A.sol": {
+      "id": 5
+    },
+    "remapped/B.sol": {
+      "id": 6
+    },
+    "mapped/A.sol": {
+      "id": 7
+    },
+    "prefixedB.sol": {
+      "id": 8
+    },
+    "prefixA.sol": {
+      "id": 9
     }
   },
   "contracts": {
+    "./packages/B.sol": {
+      "DottedParent": {
+        "abi": []
+      }
+    },
+    "./packages/A.sol": {
+      "Dotted": {
+        "abi": []
+      }
+    },
+    "../virtual/B.sol": {
+      "Parent": {
+        "abi": []
+      }
+    },
+    "../virtual/A.sol": {
+      "Relative": {
+        "abi": []
+      }
+    },
     "B.sol": {
       "B": {
         "abi": [
@@ -50,6 +88,16 @@
             "stateMutability": "pure"
           }
         ]
+      }
+    },
+    "remapped/B.sol": {
+      "RemappedParent": {
+        "abi": []
+      }
+    },
+    "mapped/A.sol": {
+      "Mapped": {
+        "abi": []
       }
     },
     "prefixedB.sol": {

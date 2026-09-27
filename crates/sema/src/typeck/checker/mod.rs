@@ -407,7 +407,8 @@ impl<'gcx> TypeChecker<'gcx> {
 
                 self.check_binop(Some(expr.id), lhs_e, lhs, rhs_e, rhs, op, false)
             }
-            hir::ExprKind::Call(callee, ref args, opts) => {
+            hir::ExprKind::Call(wrapped_callee, ref args) => {
+                let (callee, opts) = wrapped_callee.split_call_options();
                 let mut callee_ty = if let hir::ExprKind::Member(receiver, ident) = callee.kind {
                     self.check_member_call_callee(callee, receiver, ident, args)
                 } else if let hir::ExprKind::Ident(res) = callee.kind {
@@ -417,11 +418,15 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
                 if let Some(opts) = opts {
                     callee_ty = self.check_call_options(callee_ty, opts.args, opts.span);
+                    self.results
+                        .expr_types
+                        .insert(wrapped_callee.id, self.gcx.mk_ty(TyKind::CallOptions(callee_ty)));
                 }
 
                 let callee_signature = self.gcx.callable_signature_of_ty(callee_ty);
-                let callee_param_source =
-                    callee_signature.and_then(|signature| signature.param_source);
+                let callee_param_source = callee_signature
+                    .and_then(|signature| signature.param_source)
+                    .or_else(|| self.gcx.call_param_source(callee));
                 if let TyKind::Type(_) = callee_ty.kind
                     && let Some(signature) = callee_signature
                 {
@@ -523,6 +528,11 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
 
                 ty
+            }
+            hir::ExprKind::CallOptions(callee, options) => {
+                let callee_ty = self.check_expr(callee);
+                let ty = self.check_call_options(callee_ty, options.args, options.span);
+                self.gcx.mk_ty(TyKind::CallOptions(ty))
             }
             hir::ExprKind::Delete(expr) => {
                 let ty = self.require_lvalue(expr);
@@ -1404,7 +1414,9 @@ impl<'gcx> TypeChecker<'gcx> {
         // `docs/SOLC_DIVERGENCE.md`.
         let expr = try_.expr.peel_parens();
         let callee_ty = match expr.kind {
-            hir::ExprKind::Call(callee, ..) => self.results.expr_types.get(&callee.id).copied(),
+            hir::ExprKind::Call(callee, ..) => {
+                self.results.expr_types.get(&callee.split_call_options().0.id).copied()
+            }
             _ => None,
         };
         if let Some(callee_ty) = callee_ty {
@@ -1890,7 +1902,7 @@ impl<'gcx> TypeChecker<'gcx> {
             };
         }
 
-        let hir::ExprKind::Call(callee, args, opts) = expr.kind else {
+        let Some((callee, args, opts)) = expr.as_call() else {
             let actual = self.check_expr_once(expr);
             return self.check_expected(expr, actual, self.gcx.types.string_ref.memory);
         };
@@ -1924,7 +1936,7 @@ impl<'gcx> TypeChecker<'gcx> {
             return self.check_expected(expr, actual, self.gcx.types.string_ref.memory);
         }
 
-        let selected = match self.select_call_overload(&error_res, &args) {
+        let selected = match self.select_call_overload(&error_res, args) {
             Ok(res) => res,
             Err(e) => {
                 let msg = match e {
@@ -1946,7 +1958,7 @@ impl<'gcx> TypeChecker<'gcx> {
         if !self.results.expr_types.contains_key(&callee.id) {
             self.register_ty(callee, callee_ty);
         }
-        let result = self.check_call_args(expr.span, &args, param_tys, param_source);
+        let result = self.check_call_args(expr.span, args, param_tys, param_source);
         self.register_ty(expr, self.gcx.types.unit);
         result
     }
@@ -3118,6 +3130,7 @@ impl<'gcx> TypeChecker<'gcx> {
             | hir::ExprKind::Payable(_)
             | hir::ExprKind::New(_)
             | hir::ExprKind::Ternary(..)
+            | hir::ExprKind::CallOptions(..)
             | hir::ExprKind::TypeCall(_)
             | hir::ExprKind::Type(_)
             | hir::ExprKind::Unary(..) => false,
@@ -3929,6 +3942,7 @@ fn binop_common_type<'gcx>(
         | TyKind::Elementary(hir::ElementaryType::Fixed(..))
         | TyKind::Elementary(hir::ElementaryType::UFixed(..))
         | TyKind::StringLiteral(..)
+        | TyKind::CallOptions(_)
         | TyKind::DynArray(_)
         | TyKind::Array(..)
         | TyKind::Slice(_)

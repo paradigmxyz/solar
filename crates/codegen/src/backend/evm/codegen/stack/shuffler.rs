@@ -170,18 +170,43 @@ fn synthesize_unique_layout(
         return None;
     }
     removed.sort_unstable();
-    let mut best = None;
-    loop {
+    let mut best = None::<(Vec<StackOp>, (usize, usize, usize))>;
+    'orders: loop {
         let mut current = source.clone();
         let mut ops = Vec::new();
-        for &value in &removed {
-            let depth = current.iter().position(|&current| current == value)?;
+        let mut prefix_cost = (0, 0, 0);
+        for index in 0..removed.len() {
+            let start = ops.len();
+            let depth = current.iter().position(|&current| current == removed[index])?;
             if depth != 0 {
                 ops.push(StackOp::Swap(depth as u8));
                 current.swap(0, depth);
             }
             ops.push(StackOp::Pop);
             current.remove(0);
+            // Costs only grow, so no order sharing this prefix can beat `best`, and a prefix
+            // without a lowering makes every such order invalid. Skip them all.
+            let cost =
+                ops[start..].iter().try_fold(prefix_cost, |(instructions, gas, size), op| {
+                    let metrics = op.metrics(evm_version)?;
+                    Some((
+                        instructions + metrics.instruction_count,
+                        gas + metrics.static_gas,
+                        size + metrics.assembled_len,
+                    ))
+                });
+            match cost {
+                Some(cost) if best.as_ref().is_none_or(|(_, best_cost)| cost < *best_cost) => {
+                    prefix_cost = cost;
+                }
+                _ => {
+                    removed[index + 1..].sort_unstable_by(|a, b| b.cmp(a));
+                    if !next_permutation(&mut removed) {
+                        return best.map(|(ops, _)| ops);
+                    }
+                    continue 'orders;
+                }
+            }
         }
         ops.extend(synthesize_unique_permutation(&mut current, &target_values));
         if ops.iter().all(|op| op.lowering(evm_version).is_some()) {
