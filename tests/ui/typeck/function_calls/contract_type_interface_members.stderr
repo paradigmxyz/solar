@@ -10,5 +10,17 @@ error: member `address` not found on type `function Executor.check() pure`
 LL │         Executor.check.address;
    ╰╴                       ━━━━━━━
 
-error: aborting due to 2 previous errors
+error: member `execute` not found on type `type(contract HiddenExecutor)`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/contract_type_interface_members.sol:LL:CC
+   │
+LL │         return HiddenExecutor.execute.selector;
+   ╰╴                              ━━━━━━━
+
+error: member `execute` not found on type `type(contract InheritedExecutor)`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/contract_type_interface_members.sol:LL:CC
+   │
+LL │         return InheritedExecutor.execute.selector;
+   ╰╴                                 ━━━━━━━
+
+error: aborting due to 4 previous errors
 
