@@ -1011,6 +1011,16 @@ impl<'p, 'sess, 'ast, 'cb> SemverVersionParser<'p, 'sess, 'ast, 'cb> {
             minor = Some(self.parse_version_part());
             if self.eat_dot() {
                 patch = Some(self.parse_version_part());
+                // Solc starts another match component after the third dot.
+                if self.eat_dot() && self.pos_inside > 0 {
+                    let suffix = self.current_str().unwrap();
+                    self.p.token.kind = TokenKind::Literal(
+                        solar_ast::token::TokenLitKind::Integer,
+                        Symbol::intern(suffix),
+                    );
+                    self.p.token.span = self.current_span();
+                    self.pos_inside = 0;
+                }
             }
         }
         if self.pos_inside > 0 || self.bumps == 0 {
