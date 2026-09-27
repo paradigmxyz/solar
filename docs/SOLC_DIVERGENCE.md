@@ -30,6 +30,23 @@ Use the next ID in the relevant phase.
 | Rationale | Why the behavior exists or is accepted. |
 | Coverage | Tests, fixtures, or issues that keep the behavior visible. |
 
+## Standard JSON
+
+### JSON-001: Unknown input fields
+
+Status: intentional.
+
+Difference: `solar` ignores unknown fields in standard-JSON input objects,
+including unknown debug and metadata settings that solc rejects. It also
+ignores `settings.optimizer.details`; only `enabled` and `runs` configure
+the optimizer. Supported fields still require their expected JSON types.
+
+Rationale: Solar accepts inputs containing options it does not implement.
+Solc-specific pass controls have no equivalent meaning in Solar's pipeline.
+
+Coverage: `tests/ui/standard-json/metadata/options/test.jsonc` and
+`tests/ui/standard-json/debug/unknown-key/test.jsonc`.
+
 ## Parsing
 
 ### PARSE-001: Validation stage differences
@@ -340,20 +357,3 @@ No intentional divergences documented yet.
   cases under both compilers. The external runner applies this test-only
   correction to both compiler legs and keeps the test enabled. It checks the
   expected source text before applying the correction.
-
-## Standard JSON
-
-### JSON-001: Unknown input fields
-
-Status: intentional.
-
-Difference: `solar` ignores unknown fields in standard-JSON input objects,
-including unknown debug and metadata settings that solc rejects. It also
-ignores `settings.optimizer.details`; only `enabled` and `runs` configure
-the optimizer. Supported fields still require their expected JSON types.
-
-Rationale: Solar accepts inputs containing options it does not implement.
-Solc-specific pass controls have no equivalent meaning in Solar's pipeline.
-
-Coverage: `tests/ui/standard-json/metadata/options/test.jsonc` and
-`tests/ui/standard-json/debug/unknown-key/test.jsonc`.

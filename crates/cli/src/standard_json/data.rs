@@ -942,7 +942,6 @@ mod tests {
 
     #[test]
     fn debug_settings_parse_solc_names() {
-        assert!(serde_json::from_str::<DebugSettings>(r#"{"verbose":true}"#).is_err());
         assert!(serde_json::from_str::<DebugSettings>(r#"{"revertStrings":null}"#).is_err());
         assert!(serde_json::from_str::<DebugSettings>(r#"{"debugInfo":null}"#).is_err());
         assert!(serde_json::from_str::<Settings<'_>>(r#"{"debug":null}"#).is_err());
