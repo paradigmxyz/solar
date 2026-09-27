@@ -226,7 +226,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.dcx().emit_err(slot.span, "base slot of storage layout evaluates to a value outside the range of type `uint256`");
                 }
             }
-            Ok(ConstValue::Bool(_)) => {
+            Ok(ConstValue::Bool(_) | ConstValue::Rational(_)) => {
                 self.dcx()
                     .emit_err(slot.span, "base slot of storage layout must evaluate to an integer");
             }
@@ -396,13 +396,29 @@ impl<'gcx> TypeChecker<'gcx> {
                 let lhs = self.check_expr(lhs_e);
                 let rhs = self.check_expr(rhs_e);
 
-                // When both operands are IntLiteral, evaluate the expression to preserve
-                // literal type through binary operations (needed for -(1 + 2) to work).
-                if let (TyKind::IntLiteral(..), TyKind::IntLiteral(..)) = (lhs.kind, rhs.kind)
-                    && !op.kind.is_cmp()
-                    && let Some(lit_ty) = self.try_eval_int_literal_expr(expr)
+                if matches!(lhs.kind, TyKind::IntLiteral(..) | TyKind::RationalLiteral)
+                    && matches!(rhs.kind, TyKind::IntLiteral(..) | TyKind::RationalLiteral)
                 {
-                    return lit_ty;
+                    match self.gcx.try_eval_const_value(expr) {
+                        Ok(ConstValue::Bool(_)) => return self.gcx.types.bool,
+                        Ok(ConstValue::Rational(_)) => {
+                            return self.gcx.mk_ty(TyKind::RationalLiteral);
+                        }
+                        Ok(_) => {
+                            if let Some(ty) = self.try_eval_int_literal_expr(expr) {
+                                return ty;
+                            }
+                        }
+                        Err(error)
+                            if !matches!(
+                                error.kind,
+                                crate::eval::EvalErrorKind::UnsupportedBinaryOp
+                            ) =>
+                        {
+                            return self.gcx.mk_ty_err(self.gcx.emit_const_eval_error(expr, error));
+                        }
+                        Err(_) => {}
+                    }
                 }
 
                 self.check_binop(Some(expr.id), lhs_e, lhs, rhs_e, rhs, op, false)
@@ -878,6 +894,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 } else {
                     self.check_expr(inner)
                 };
+                if ty.kind == TyKind::RationalLiteral && op.kind == hir::UnOpKind::Neg {
+                    return ty;
+                }
                 if valid_unop(ty, op.kind) {
                     if op.kind == hir::UnOpKind::Neg
                         && let TyKind::IntLiteral(..) = ty.kind
@@ -3602,7 +3621,7 @@ fn invalid_storage_pointer_return(actual: Ty<'_>, expected: Ty<'_>) -> bool {
 
 fn is_int_literal_expr(expr: &hir::Expr<'_>) -> bool {
     match &expr.kind {
-        hir::ExprKind::Lit(lit) => matches!(lit.kind, LitKind::Number(_)),
+        hir::ExprKind::Lit(lit) => matches!(lit.kind, LitKind::Number(_) | LitKind::Rational(_)),
         hir::ExprKind::Unary(op, inner)
             if matches!(op.kind, hir::UnOpKind::Neg | hir::UnOpKind::BitNot) =>
         {
@@ -3943,6 +3962,7 @@ fn binop_common_type<'gcx>(
         | TyKind::Elementary(hir::ElementaryType::UFixed(..))
         | TyKind::StringLiteral(..)
         | TyKind::CallOptions(_)
+        | TyKind::RationalLiteral
         | TyKind::DynArray(_)
         | TyKind::Array(..)
         | TyKind::Slice(_)

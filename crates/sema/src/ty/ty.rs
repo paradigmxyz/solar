@@ -437,6 +437,7 @@ impl<'gcx> Ty<'gcx> {
         match self.kind {
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
+            | TyKind::RationalLiteral
             | TyKind::IntLiteral(..)
             | TyKind::Contract(_)
             | TyKind::Super(_)
@@ -503,6 +504,7 @@ impl<'gcx> Ty<'gcx> {
             }
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
+            | TyKind::RationalLiteral
             | TyKind::IntLiteral(..)
             | TyKind::Contract(_)
             | TyKind::Super(_)
@@ -1155,7 +1157,7 @@ impl<'gcx> Ty<'gcx> {
     #[doc(alias = "mobile_type")]
     pub fn mobile(self, gcx: Gcx<'gcx>) -> Option<Self> {
         Some(match self.kind {
-            TyKind::CallOptions(_) => return None,
+            TyKind::CallOptions(_) | TyKind::RationalLiteral => return None,
             TyKind::IntLiteral(false, size, _) => gcx.types.uint_(size),
             TyKind::IntLiteral(true, size, _) => gcx.types.int_(size),
             TyKind::StringLiteral(..) => gcx.types.string_ref.memory,
@@ -1261,6 +1263,9 @@ pub enum TyKind<'gcx> {
 
     /// An ephemeral function value with call options.
     CallOptions(Ty<'gcx>),
+
+    /// A fractional numeric literal with no runtime type.
+    RationalLiteral,
 
     /// A reference to another type which lives in the data location.
     Ref(Ty<'gcx>, DataLocation),
@@ -1471,6 +1476,7 @@ impl TyFlags {
         match *ty {
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
+            | TyKind::RationalLiteral
             | TyKind::IntLiteral(..)
             | TyKind::Contract(_)
             | TyKind::Super(_)
