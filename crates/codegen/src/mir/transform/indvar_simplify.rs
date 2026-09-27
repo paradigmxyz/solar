@@ -231,25 +231,6 @@ impl IndVarSimplifier {
 
         let scev = ScalarEvolution::analyze(func, loop_data);
         let carried = Self::carried_words(func, loop_data);
-        // The loop's instructions, and the values it reads other than through address arithmetic.
-        let mut loop_insts = DenseBitSet::new_empty(func.num_insts());
-        let mut non_address_uses = DenseBitSet::new_empty(func.num_values());
-        for block in &loop_data.blocks {
-            for &inst_id in &func.blocks[block].instructions {
-                loop_insts.insert(inst_id);
-                let kind = &func.inst(inst_id).kind;
-                if !Self::is_address_builder(kind) {
-                    kind.visit_operands(|operand| {
-                        non_address_uses.insert(operand);
-                    });
-                }
-            }
-            if let Some(term) = &func.blocks[block].terminator {
-                term.visit_operands(|operand| {
-                    non_address_uses.insert(operand);
-                });
-            }
-        }
         let update_value = func.inst_result_value(iv.update_inst);
         let mut candidates: FxHashMap<AddressKey, Vec<ValueId>> = FxHashMap::default();
         let mut offset_shared = FxHashSet::default();
@@ -268,11 +249,11 @@ impl IndVarSimplifier {
                     continue;
                 }
                 let Some(delta) = key.scale.checked_mul(step) else { continue };
-                if delta == 0 || !non_address_uses.contains(value) {
+                if delta == 0 || !self.has_non_address_loop_use(func, loop_data, value) {
                     continue;
                 }
                 if update_value
-                    .is_some_and(|update| Self::depends_on(func, &loop_insts, value, update, 0))
+                    .is_some_and(|update| Self::depends_on(func, loop_data, value, update, 0))
                 {
                     offset_shared.insert(value);
                 }
@@ -524,23 +505,6 @@ impl IndVarSimplifier {
         update: Option<InstId>,
         addresses: &FxHashSet<ValueId>,
     ) -> bool {
-        // (operand, (user, block)) edges, and the values terminators read.
-        let mut edges = Vec::new();
-        let mut terminator_uses = DenseBitSet::new_empty(func.num_values());
-        for (block_id, block) in func.blocks.iter_enumerated() {
-            for &inst_id in &block.instructions {
-                func.inst(inst_id).kind.visit_operands(|operand| {
-                    edges.push((operand, (inst_id, block_id)));
-                });
-            }
-            if let Some(term) = &block.terminator {
-                term.visit_operands(|operand| {
-                    terminator_uses.insert(operand);
-                });
-            }
-        }
-        let users = mir_utils::IndexLists::new(func.num_values(), edges.iter().copied());
-
         let mut pending = Vec::new();
         pending.push(iv);
         let mut visited = FxHashSet::default();
@@ -548,25 +512,31 @@ impl IndVarSimplifier {
             if !visited.insert(value) {
                 continue;
             }
-            if terminator_uses.contains(value) {
-                return false;
-            }
-            for &(inst_id, block_id) in users.get(value) {
-                if inst_id == condition || Some(inst_id) == update {
-                    continue;
-                }
-                let inst = func.inst(inst_id);
-                let Some(result) = func.inst_result_value(inst_id) else { return false };
-                if !loop_data.blocks.contains(block_id) || matches!(inst.kind, InstKind::Phi(_)) {
+            for (block_id, block) in func.blocks.iter_enumerated() {
+                let in_loop = loop_data.blocks.contains(block_id);
+                if block.terminator.as_ref().is_some_and(|term| term.operands().contains(&value)) {
                     return false;
                 }
-                if addresses.contains(&result) {
-                    continue;
+                for &inst_id in &block.instructions {
+                    let inst = func.inst(inst_id);
+                    if !inst.kind.operands().contains(&value) {
+                        continue;
+                    }
+                    if inst_id == condition || Some(inst_id) == update {
+                        continue;
+                    }
+                    let Some(result) = func.inst_result_value(inst_id) else { return false };
+                    if !in_loop || matches!(inst.kind, InstKind::Phi(_)) {
+                        return false;
+                    }
+                    if addresses.contains(&result) {
+                        continue;
+                    }
+                    if !Self::is_address_builder(&inst.kind) {
+                        return false;
+                    }
+                    pending.push(result);
                 }
-                if !Self::is_address_builder(&inst.kind) {
-                    return false;
-                }
-                pending.push(result);
             }
         }
         true
@@ -699,7 +669,7 @@ impl IndVarSimplifier {
     /// reach the update from every address.
     fn depends_on(
         func: &Function,
-        loop_insts: &DenseBitSet<InstId>,
+        loop_data: &Loop,
         value: ValueId,
         target: ValueId,
         depth: usize,
@@ -713,11 +683,14 @@ impl IndVarSimplifier {
         let Value::Inst(inst_id) = func.value(value) else { return false };
         let kind = &func.inst(*inst_id).kind;
         !matches!(kind, InstKind::Phi(_))
-            && loop_insts.contains(*inst_id)
+            && loop_data
+                .blocks
+                .iter()
+                .any(|block| func.blocks[block].instructions.contains(inst_id))
             && kind
                 .operands()
                 .iter()
-                .any(|&operand| Self::depends_on(func, loop_insts, operand, target, depth + 1))
+                .any(|&operand| Self::depends_on(func, loop_data, operand, target, depth + 1))
     }
 
     /// The words the backend carries through the loop: the header's phis and
@@ -948,6 +921,25 @@ impl IndVarSimplifier {
             _ => return None,
         };
         if value <= U256::from(i128::MAX as u128) { Some(value.to::<u128>() as i128) } else { None }
+    }
+
+    fn has_non_address_loop_use(&self, func: &Function, loop_data: &Loop, value: ValueId) -> bool {
+        for block in &loop_data.blocks {
+            for &inst_id in &func.blocks[block].instructions {
+                let kind = &func.inst(inst_id).kind;
+                if kind.operands().contains(&value) && !Self::is_address_builder(kind) {
+                    return true;
+                }
+            }
+            if func.blocks[block]
+                .terminator
+                .as_ref()
+                .is_some_and(|term| term.operands().contains(&value))
+            {
+                return true;
+            }
+        }
+        false
     }
 
     fn is_address_builder(kind: &InstKind) -> bool {
