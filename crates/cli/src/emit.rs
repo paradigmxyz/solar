@@ -319,7 +319,7 @@ fn emit_combined_json(
         }
     }
     let compilation = (emit_ethdebug || emit_ethdebug_runtime || emit_ethdebug_resources)
-        .then(|| make_ethdebug_compilation(gcx, None));
+        .then(|| make_ethdebug_compilation(gcx, None, artifacts));
     let source_map_encoder =
         (emit_srcmap || emit_srcmap_runtime).then(|| SourceMapEncoder::new(gcx));
     let mut output = CombinedJson {

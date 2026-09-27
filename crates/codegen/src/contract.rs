@@ -9,7 +9,7 @@ use crate::{
     },
     mir::{Module, lower, pass::run_pipeline},
 };
-use alloy_primitives::Bytes;
+use alloy_primitives::{B256, Bytes};
 use either::Either;
 use solar_ast::TypeSize;
 use solar_config::{EvmVersion, OptimizationMode};
@@ -57,6 +57,9 @@ pub struct ContractArtifact {
     pub deployment_debug_info: Option<DebugInfo>,
     /// Final runtime instruction locations.
     pub runtime_debug_info: Option<DebugInfo>,
+    /// Digests of the `llm-optimize` rewrites in this contract's code, which change its bytecode
+    /// without changing its sources or options.
+    pub llm_rewrites: Vec<B256>,
 }
 
 /// An immutable placeholder in runtime bytecode.
@@ -546,6 +549,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             graph.dependencies[contract_id].count(),
             "embedded contracts must have distinct source-qualified names"
         );
+        let llm_rewrites = if codegen.is_some() { module.llm_rewrites.clone() } else { Vec::new() };
         let artifact = match codegen {
             Some(mut codegen) => {
                 let artifact = codegen.finish_module(&module, &children);
@@ -629,6 +633,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             runtime_evm_ir: artifact.runtime_evm_ir,
             deployment_debug_info: artifact.deployment_debug_info,
             runtime_debug_info: artifact.runtime_debug_info,
+            llm_rewrites,
         })
     }
 }

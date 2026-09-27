@@ -70,7 +70,7 @@ use crate::{
     },
     target::{Cost, Target},
 };
-use alloy_primitives::keccak256;
+use alloy_primitives::{B256, keccak256};
 use solar_config::{LlmOptimizeMode, OptimizationMode};
 use solar_data_structures::map::FxHashSet;
 use solar_interface::{
@@ -111,11 +111,19 @@ impl MirPass for LlmOptimize {
         let Some(optimizer) = Optimizer::new(gcx) else { return false };
         let rewrites = optimizer.run(module);
         let changed = !rewrites.is_empty();
-        for (id, function) in rewrites {
-            *module.function_mut(id) = function;
+        for (id, rewrite) in rewrites {
+            *module.function_mut(id) = rewrite.function;
+            module.llm_rewrites.push(rewrite.digest);
         }
         changed
     }
+}
+
+/// A rewrite the pass applies.
+struct Rewrite {
+    function: Function,
+    /// Names the original and its replacement, for build identities.
+    digest: B256,
 }
 
 /// A candidate that passed every check.
@@ -197,7 +205,7 @@ impl<'gcx> Optimizer<'gcx> {
     }
 
     /// Decides every offered function of `module` and returns the rewrites, in function order.
-    fn run(&self, module: &Module) -> Vec<(FunctionId, Function)> {
+    fn run(&self, module: &Module) -> Vec<(FunctionId, Rewrite)> {
         if let Some(reason) = eligibility::module_exclusion(module) {
             self.trace(module, None, format_args!("offers nothing: {reason}"));
             return Vec::new();
@@ -207,15 +215,15 @@ impl<'gcx> Optimizer<'gcx> {
         for id in module.functions.indices() {
             if let Some(reason) = eligibility::exclusion(module, &graph, id) {
                 self.trace(module, Some(id), format_args!("not offered: {reason}"));
-            } else if let Some(function) = self.optimize(module, id) {
-                rewrites.push((id, function));
+            } else if let Some(rewrite) = self.optimize(module, id) {
+                rewrites.push((id, rewrite));
             }
         }
         rewrites
     }
 
     /// Replays or asks for a rewrite of function `id`.
-    fn optimize(&self, module: &Module, id: FunctionId) -> Option<Function> {
+    fn optimize(&self, module: &Module, id: FunctionId) -> Option<Rewrite> {
         let original = module.function(id);
         let canonical = match self.parse(module, &module.candidate_text(original).to_string()) {
             Ok(parsed) => module.candidate_text(&parsed).to_string(),
@@ -235,8 +243,11 @@ impl<'gcx> Optimizer<'gcx> {
         };
         let baseline = tests.baseline();
         let key = Cache::key(self.target, &canonical);
+        let digest = |accepted: &Accepted| keccak256(format!("{key}\n{}", accepted.text));
         let cached = match self.replay(module, id, &tests, &key, &canonical) {
-            Replay::Accepted(accepted) => return Some(accepted.function),
+            Replay::Accepted(accepted) => {
+                return Some(Rewrite { digest: digest(&accepted), function: accepted.function });
+            }
             Replay::Rejected => true,
             Replay::Missing => false,
         };
@@ -258,7 +269,7 @@ impl<'gcx> Optimizer<'gcx> {
                 self.gcx.dcx().warn(message).emit();
             }
         }
-        Some(best.function)
+        Some(Rewrite { digest: digest(&best), function: best.function })
     }
 
     /// Asks `rewriter` for candidates replacing function `id` until it has nothing cheaper, the
