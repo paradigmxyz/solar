@@ -227,6 +227,9 @@ pub(super) struct Optimizer {
     /// Expected executions per deployment for optimizer tradeoffs.
     #[serde(default)]
     pub(super) runs: Option<u64>,
+    /// Solc-specific pass controls, checked for shape but not applied to Solar's pipeline.
+    #[serde(default)]
+    pub(super) details: Option<Map<String, Value>>,
 }
 
 pub(super) fn optimizer_settings(optimizer: Option<&Optimizer>) -> (bool, u64) {
@@ -968,11 +971,6 @@ mod tests {
             serde_json::from_str::<DebugSettings>(r#"{"debugInfo":["ethdebug"]}"#).unwrap();
         assert!(explicit.selects_debug_info(DebugInfoComponent::Ethdebug));
         assert!(!explicit.selects_debug_info(DebugInfoComponent::Location));
-    }
-
-    #[test]
-    fn optimizer_rejects_unsupported_details() {
-        assert!(serde_json::from_str::<Optimizer>(r#"{"details":{"peephole":false}}"#).is_err());
     }
 
     fn selection_flags(input: &str) -> OutputSelectionFlags {

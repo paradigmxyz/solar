@@ -437,6 +437,7 @@ impl<'gcx> Ty<'gcx> {
         match self.kind {
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
+            | TyKind::RationalLiteral
             | TyKind::IntLiteral(..)
             | TyKind::Contract(_)
             | TyKind::Super(_)
@@ -448,7 +449,8 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::Struct(_)
             | TyKind::Err(_) => ControlFlow::Continue(()),
 
-            TyKind::Ref(ty, _)
+            TyKind::CallOptions(ty)
+            | TyKind::Ref(ty, _)
             | TyKind::DynArray(ty)
             | TyKind::Array(ty, _)
             | TyKind::Slice(ty)
@@ -502,6 +504,7 @@ impl<'gcx> Ty<'gcx> {
             }
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
+            | TyKind::RationalLiteral
             | TyKind::IntLiteral(..)
             | TyKind::Contract(_)
             | TyKind::Super(_)
@@ -512,7 +515,8 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::Variadic
             | TyKind::Err(_) => ControlFlow::Continue(()),
 
-            TyKind::Ref(ty, _)
+            TyKind::CallOptions(ty)
+            | TyKind::Ref(ty, _)
             | TyKind::DynArray(ty)
             | TyKind::Array(ty, _)
             | TyKind::Slice(ty)
@@ -794,7 +798,7 @@ impl<'gcx> Ty<'gcx> {
                 Ok(())
             }
             (StringLiteral(_, size_from), Elementary(FixedBytes(size_to))) => {
-                if size_from.bytes() <= size_to.bytes() {
+                if size_from.bytes_raw() <= size_to.bytes() {
                     Ok(())
                 } else {
                     Result::Err(TyConvertError::LiteralTooLarge)
@@ -1153,6 +1157,7 @@ impl<'gcx> Ty<'gcx> {
     #[doc(alias = "mobile_type")]
     pub fn mobile(self, gcx: Gcx<'gcx>) -> Option<Self> {
         Some(match self.kind {
+            TyKind::RationalLiteral | TyKind::CallOptions(_) => return None,
             TyKind::IntLiteral(false, size, _) => gcx.types.uint_(size),
             TyKind::IntLiteral(true, size, _) => gcx.types.int_(size),
             TyKind::StringLiteral(..) => gcx.types.string_ref.memory,
@@ -1255,6 +1260,12 @@ pub enum TyKind<'gcx> {
     /// Any integer or fixed-point number literal.
     /// Contains `(negative, minimum bits, compatible fixed-bytes size)`.
     IntLiteral(bool, TypeSize, Option<TypeSize>),
+
+    /// A fractional numeric literal with no runtime type.
+    RationalLiteral,
+
+    /// An ephemeral function value with call options.
+    CallOptions(Ty<'gcx>),
 
     /// A reference to another type which lives in the data location.
     Ref(Ty<'gcx>, DataLocation),
@@ -1465,6 +1476,7 @@ impl TyFlags {
         match *ty {
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
+            | TyKind::RationalLiteral
             | TyKind::IntLiteral(..)
             | TyKind::Contract(_)
             | TyKind::Super(_)
@@ -1480,7 +1492,8 @@ impl TyFlags {
                 }
             }
 
-            TyKind::Ref(ty, _)
+            TyKind::CallOptions(ty)
+            | TyKind::Ref(ty, _)
             | TyKind::DynArray(ty)
             | TyKind::Array(ty, _)
             | TyKind::Slice(ty)

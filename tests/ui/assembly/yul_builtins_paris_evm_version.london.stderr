@@ -1,3 +1,9 @@
+error: expected identifier, found Yul EVM builtin keyword `difficulty`
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
+   │
+LL │         assembly { difficulty := 1 }
+   ╰╴                   ━━━━━━━━━━
+
 error: Yul builtin `prevrandao` requires Paris-compatible EVM
    ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
    │
@@ -6,5 +12,5 @@ LL │             pop(prevrandao())
    │
    ╰ help: compile with `--evm-version paris` or newer
 
-error: aborting due to 1 previous error
+error: aborting due to 2 previous errors
 

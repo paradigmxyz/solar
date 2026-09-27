@@ -1756,6 +1756,12 @@ impl Expr<'_> {
     pub fn visit<T>(&self, f: &mut impl FnMut(&Self) -> ControlFlow<T>) -> ControlFlow<T> {
         f(self)?;
         match &self.kind {
+            ExprKind::CallOptions(callee, options) => {
+                callee.visit(f)?;
+                for arg in options.args {
+                    arg.value.visit(f)?;
+                }
+            }
             ExprKind::Call(callee, args, options) => {
                 callee.visit(f)?;
                 if let Some(options) = options {
@@ -1831,6 +1837,9 @@ pub enum ExprKind<'hir> {
 
     /// A function call expression: `foo(42)`, `foo({ bar: 42 })`, `foo{ gas: 100_000 }(42)`.
     Call(&'hir Expr<'hir>, CallArgs<'hir>, Option<&'hir CallOptions<'hir>>),
+
+    /// A function value with unevaluated call options.
+    CallOptions(&'hir Expr<'hir>, &'hir CallOptions<'hir>),
 
     // TODO: Add a MethodCall variant
     /// A unary `delete` expression: `delete vector`.

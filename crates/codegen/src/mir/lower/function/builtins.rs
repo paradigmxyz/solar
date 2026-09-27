@@ -551,6 +551,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn is_external_function_value(&self, expr: &hir::Expr<'_>) -> bool {
+        if let ExprKind::CallOptions(callee, _) = expr.peel_parens().kind {
+            return self.is_external_function_value(callee);
+        }
         matches!(
             self.type_of_expr_or_variable(expr).map(|ty| ty.kind),
             Some(TyKind::Fn(function)) if function.is_external()

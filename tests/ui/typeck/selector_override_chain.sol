@@ -41,3 +41,30 @@ contract Overloads {
         return g.selector; //~ ERROR: no matching declarations found
     }
 }
+
+contract BaseOverload {
+    function initialize(uint value) external {}
+}
+contract OwnOverload is BaseOverload {
+    function initialize(bool value) external {}
+}
+contract QualifiedOverload {
+    function selector() external pure returns (bytes4) { return OwnOverload.initialize.selector; }
+    function encode() external pure returns (bytes memory) { return abi.encodeCall(OwnOverload.initialize, (true)); }
+}
+
+contract HiddenOverload is BaseOverload {
+    function initialize(bool value) internal {}
+}
+contract HiddenQualifiedOverload {
+    function selector() external pure returns (bytes4) {
+        return HiddenOverload.initialize.selector; //~ ERROR: member `initialize` not found
+    }
+}
+
+contract InheritedOverload is BaseOverload {}
+contract InheritedQualifiedOverload {
+    function selector() external pure returns (bytes4) {
+        return InheritedOverload.initialize.selector; //~ ERROR: member `initialize` not found
+    }
+}

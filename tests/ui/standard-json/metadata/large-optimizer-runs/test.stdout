@@ -1,4 +1,16 @@
 {
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": null,
+      "message": "solc optimizer details do not apply to Solar's optimization pipeline; only `enabled` and `runs` are used",
+      "formattedMessage": "warning: solc optimizer details do not apply to Solar's optimization pipeline; only `enabled` and `runs` are used\n\n"
+    }
+  ],
   "sources": {
     "A.sol": {
       "id": 0

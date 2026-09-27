@@ -45,3 +45,9 @@ contract C {
         pick(value); //~ ERROR: no matching declarations found
     }
 }
+
+contract ExternalOverload {
+    function choose(uint256 value) external pure returns (uint256) { return value; }
+    function choose(uint8 value) public pure returns (uint8) { return value; }
+    function callInternal(uint8 value) public pure returns (uint8) { return choose(value); }
+}
