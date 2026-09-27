@@ -6,6 +6,11 @@
   },
   "contracts": {
     "A.sol": {
+      "C": {
+        "evm": {
+          "methodIdentifiers": {}
+        }
+      },
       "L": {
         "abi": [
           {

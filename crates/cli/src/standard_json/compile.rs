@@ -547,8 +547,9 @@ fn make_contract_output<'gcx>(
 
     let mut evm = EvmOutput::default();
     if output_selection.contains(OutputSelectionFlags::METHOD_IDENTIFIERS) {
+        let method_identifiers = evm.method_identifiers.insert(FxIndexMap::default());
         for function in gcx.interface_functions(contract_id) {
-            evm.method_identifiers.insert(
+            method_identifiers.insert(
                 gcx.item_signature(function.id.into()).to_string(),
                 alloy_primitives::hex::encode(function.selector),
             );
