@@ -653,7 +653,14 @@ macro_rules! define_mir_ops {
             }
 
             /// Visits every value operand in canonical order, without collecting them.
+            #[inline]
             pub(crate) fn visit_operands(&self, mut f: impl FnMut(ValueId)) {
+                self.visit_operands_dyn(&mut f);
+            }
+
+            /// Shares one copy of the operand match between all visitors, instead of
+            /// instantiating it for every closure.
+            fn visit_operands_dyn(&self, mut f: &mut dyn FnMut(ValueId)) {
                 match self {
                     $(
                         Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
