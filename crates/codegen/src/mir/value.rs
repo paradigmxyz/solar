@@ -6,7 +6,7 @@ use solar_interface::diagnostics::ErrorGuaranteed;
 use std::{cmp::Ordering, fmt, num::NonZeroU32};
 
 /// An SSA value in the MIR.
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug)]
 pub(crate) enum Value {
     /// Result of an instruction.
     Inst(InstId),

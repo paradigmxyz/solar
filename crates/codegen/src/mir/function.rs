@@ -11,11 +11,10 @@ use solar_data_structures::{
     bit_set::DenseBitSet,
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
-    map::{FxHashMap, FxHasher, StdEntry},
+    map::{FxHashMap, StdEntry},
 };
 use solar_interface::{Ident, Span, Symbol};
 use solar_sema::hir::{StateMutability, Visibility};
-use std::hash::{Hash, Hasher};
 
 /// A function in the MIR.
 #[derive(Clone, Debug)]
@@ -631,59 +630,6 @@ impl Function {
     #[must_use]
     pub(crate) fn is_public(&self) -> bool {
         matches!(self.attributes.visibility, Visibility::Public | Visibility::External)
-    }
-
-    /// Returns a hash of the function's signature, values, and live code.
-    ///
-    /// Names and source spans are excluded. Analyses compare fingerprints to reuse facts
-    /// computed for an earlier, identical version of the function.
-    #[must_use]
-    pub(crate) fn fingerprint(&self) -> u64 {
-        let mut hasher = FxHasher::default();
-        self.selector.hash(&mut hasher);
-        let FunctionAttributes {
-            visibility,
-            state_mutability,
-            is_abi_wrapper,
-            is_constructor,
-            is_fallback,
-            is_receive,
-            is_yul,
-            may_return_memory,
-            is_function_pointer_dispatcher,
-            no_inline,
-            array_element_bits,
-            array_return_element_bits,
-        } = &self.attributes;
-        (visibility, state_mutability, is_abi_wrapper, is_constructor, is_fallback, is_receive)
-            .hash(&mut hasher);
-        (is_yul, may_return_memory, is_function_pointer_dispatcher, no_inline).hash(&mut hasher);
-        let mut element_bits = array_element_bits.iter().collect::<SmallVec<[_; 4]>>();
-        element_bits.sort_unstable();
-        (element_bits, array_return_element_bits).hash(&mut hasher);
-        self.params.hash(&mut hasher);
-        self.return_type.hash(&mut hasher);
-        self.return_abi.hash(&mut hasher);
-        self.abi_returns.hash(&mut hasher);
-        self.abi_return_params.hash(&mut hasher);
-        self.abi_params.hash(&mut hasher);
-        self.abi_param_locations.hash(&mut hasher);
-        self.internal_frame_size.hash(&mut hasher);
-        self.external_static_return_size.hash(&mut hasher);
-        self.values.hash(&mut hasher);
-        self.arg_types.hash(&mut hasher);
-        self.blocks.len().hash(&mut hasher);
-        for block in &self.blocks {
-            block.instructions.len().hash(&mut hasher);
-            for &inst in &block.instructions {
-                inst.hash(&mut hasher);
-                self.instructions[inst].hash(&mut hasher);
-            }
-            block.terminator.hash(&mut hasher);
-            block.terminator_metadata.hash(&mut hasher);
-            block.predecessors.hash(&mut hasher);
-        }
-        hasher.finish()
     }
 }
 

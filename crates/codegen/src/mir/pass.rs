@@ -18,7 +18,7 @@
 
 use crate::mir::{
     Function, FunctionId, InstId, MirPhase, Module,
-    analysis::{AliasAnalysis, CfgInfo, LocalSummaryCache, MemoryCallSummaries},
+    analysis::{AliasAnalysis, CfgInfo, MemoryCallSummaries},
     pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff, run_passes_inner},
     transform::*,
 };
@@ -660,8 +660,6 @@ pub struct ModuleAnalyses {
     /// no change. Any intervening mutation of that body removes the entry.
     local_no_change: FxHashMap<TypeId, DenseBitSet<FunctionId>>,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
-    /// Kept across invalidation: entries are checked against function fingerprints.
-    summary_cache: LocalSummaryCache,
     preserved_by_pass: bool,
     call_summaries_preserved: bool,
 }
@@ -730,9 +728,9 @@ impl ModuleAnalyses {
     /// Returns the module call summaries, computing them on first use. A pass that changes
     /// the module drops them unless it calls [`Self::preserve_call_summaries`].
     pub(crate) fn call_summaries(&mut self, module: &Module) -> Arc<MemoryCallSummaries> {
-        Arc::clone(self.call_summaries.get_or_insert_with(|| {
-            Arc::new(MemoryCallSummaries::with_cache(module, &mut self.summary_cache))
-        }))
+        Arc::clone(
+            self.call_summaries.get_or_insert_with(|| Arc::new(MemoryCallSummaries::new(module))),
+        )
     }
 
     /// Declares that the running pass leaves the module call summaries valid.
