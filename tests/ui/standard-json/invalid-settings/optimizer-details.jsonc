@@ -1,0 +1,18 @@
+// CHECK: "message": "invalid optimizer detail `cse`"
+// CHECK: "message": "invalid optimizer detail `unknown`"
+// CHECK: "message": "invalid optimizer detail `yulDetails`"
+// CHECK-NOT: "contracts"
+{
+  "language": "Solidity",
+  "sources": {"A.sol": {"content": "contract A {}"}},
+  "settings": {
+    "optimizer": {
+      "details": {
+        "cse": "true",
+        "unknown": true,
+        "yulDetails": {"stackAllocation": 1, "optimizerSteps": false}
+      }
+    },
+    "outputSelection": {"*": {"*": ["evm.bytecode.object"]}}
+  }
+}
