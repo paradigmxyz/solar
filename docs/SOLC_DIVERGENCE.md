@@ -340,3 +340,20 @@ No intentional divergences documented yet.
   cases under both compilers. The external runner applies this test-only
   correction to both compiler legs and keeps the test enabled. It checks the
   expected source text before applying the correction.
+
+## Standard JSON
+
+### JSON-001: Solc optimizer details
+
+Status: intentional.
+
+Difference: `solar` accepts known `settings.optimizer.details` fields with the
+expected JSON types and warns that they do not control its optimizer. It uses
+only `enabled` and `runs`; it does not interpret solc's Yul pass sequence.
+
+Rationale: Solar has its own optimization pipeline, so solc pass switches have
+no equivalent meaning. Accepting these settings lets existing compiler inputs
+run while the warning makes the difference explicit.
+
+Coverage: `tests/ui/standard-json/metadata/large-optimizer-runs/test.jsonc` and
+`tests/ui/standard-json/invalid-settings/optimizer-details.jsonc`.
