@@ -7,11 +7,18 @@
 {
   "language": "Solidity",
   "sources": {
+    "../virtual/A.sol": {"content": "import './B.sol'; contract Relative is Parent {}"},
+    "../virtual/B.sol": {"content": "contract Parent {}"},
+    "./packages/A.sol": {"content": "import './B.sol'; contract Dotted is DottedParent {}"},
+    "./packages/B.sol": {"content": "contract DottedParent {}"},
+    "mapped/A.sol": {"content": "import './B.sol'; contract Mapped is RemappedParent {}"},
+    "remapped/B.sol": {"content": "contract RemappedParent {}"},
     "B.sol": {
       "content": "contract B { function g() public pure returns (uint) { return 2; } }"
     }
   },
   "settings": {
+    "remappings": ["mapped/B.sol=remapped/B.sol"],
     "outputSelection": {
       "*": {
         "*": [

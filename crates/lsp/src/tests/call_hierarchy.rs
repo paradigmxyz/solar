@@ -128,7 +128,7 @@ fn groups_repeated_calls_and_preserves_recursion() {
         //- /Repeated.sol
         contract C {
             function $1callee() internal {}
-            function $2caller() external {
+            function $2caller() public {
                 $3callee();
                 $4callee();
                 $5caller();

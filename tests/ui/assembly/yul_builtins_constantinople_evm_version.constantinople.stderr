@@ -1,0 +1,32 @@
+error: `shl` is reserved for a Yul builtin
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_constantinople_evm_version.sol:LL:CC
+   │
+LL │             let shl
+   ╰╴                ━━━
+
+error: `shr` is reserved for a Yul builtin
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_constantinople_evm_version.sol:LL:CC
+   │
+LL │             let shr
+   ╰╴                ━━━
+
+error: `sar` is reserved for a Yul builtin
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_constantinople_evm_version.sol:LL:CC
+   │
+LL │             let sar
+   ╰╴                ━━━
+
+error: `create2` is reserved for a Yul builtin
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_constantinople_evm_version.sol:LL:CC
+   │
+LL │             let create2
+   ╰╴                ━━━━━━━
+
+error: `extcodehash` is reserved for a Yul builtin
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_constantinople_evm_version.sol:LL:CC
+   │
+LL │             let extcodehash
+   ╰╴                ━━━━━━━━━━━
+
+error: aborting due to 5 previous errors
+
