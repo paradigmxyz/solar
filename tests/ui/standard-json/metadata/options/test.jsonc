@@ -19,6 +19,7 @@
     ],
     "optimizer": {
       "enabled": true,
+      "details": {"peephole": false, "yul": true, "yulDetails": {"stackAllocation": true, "optimizerSteps": "dhfoDgvulfnTUtnIf"}},
       "runs": 1
     },
     "metadata": {

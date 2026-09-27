@@ -355,5 +355,5 @@ Rationale: Solar has its own optimization pipeline, so solc pass switches have
 no equivalent meaning. Accepting these settings lets existing compiler inputs
 run while the warning makes the difference explicit.
 
-Coverage: `tests/ui/standard-json/metadata/large-optimizer-runs/test.jsonc` and
+Coverage: `tests/ui/standard-json/metadata/options/test.jsonc` and
 `tests/ui/standard-json/invalid-settings/optimizer-details.jsonc`.
