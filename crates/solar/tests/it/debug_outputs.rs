@@ -421,3 +421,58 @@ fn ethdebug_omits_unresolved_library_operands() {
     }
     assert!(unresolved > 0);
 }
+
+#[test]
+fn debug_output_size_rescue_is_deterministic() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("parallel.sol");
+    let mut source = String::from(
+        "contract C { uint value; function helper(uint x) internal view returns (uint) { return x ^ value; }",
+    );
+    for i in 0..20 {
+        source.push_str(&format!("function f{i}(uint x) external returns (uint) {{ unchecked {{"));
+        let step = format!("x = (x * {}) ^ (x >> 1);", i * 2 + 7);
+        for _ in 0..144 {
+            source.push_str(&step);
+        }
+        source.push_str("value = helper(x); return value; }}");
+    }
+    source.push('}');
+    fs::write(&path, source).unwrap();
+    let mut expected = None::<Value>;
+    for (threads, pipeline) in [("1", None), ("4", None), ("16", None), ("16", Some("default"))] {
+        let mut command = Command::new(SOLAR);
+        if let Some(pipeline) = pipeline {
+            command.arg(format!("-Zevm-ir-pipeline={pipeline}"));
+        }
+        let output = command
+            .arg(&path)
+            .args([
+                "--threads",
+                threads,
+                "-O",
+                "gas",
+                "--emit=bin,bin-runtime,ethdebug,ethdebug-runtime,srcmap,srcmap-runtime",
+            ])
+            .output()
+            .expect("run compiler");
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        let mut output: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert!(!output["contracts"].as_object().unwrap().is_empty());
+        if pipeline.is_some() {
+            // Explicit pipeline settings have a distinct compilation identity.
+            let id = expected.as_ref().unwrap()["ethdebug"]["compilation"]["id"].clone();
+            output["ethdebug"]["compilation"]["id"] = id.clone();
+            for contract in output["contracts"].as_object_mut().unwrap().values_mut() {
+                for program in ["ethdebug", "ethdebug-runtime"] {
+                    contract[program]["compilation"]["id"] = id.clone();
+                }
+            }
+        }
+        if let Some(expected) = &expected {
+            assert_eq!(&output, expected, "threads={threads}");
+        } else {
+            expected = Some(output);
+        }
+    }
+}
