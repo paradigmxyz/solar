@@ -260,7 +260,7 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
             // Internal types.
             TyKind::StringLiteral(utf8, size) => {
                 let kind = if utf8 { "utf8" } else { "bytes" };
-                write!(self.buf, "{kind}_string_literal[{}]", size.bytes())
+                write!(self.buf, "{kind}_string_literal[{}]", size.bytes_raw())
             }
             TyKind::IntLiteral(_, size, _) => {
                 write!(self.buf, "int_literal[{}]", size.bits())
