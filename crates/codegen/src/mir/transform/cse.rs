@@ -1542,9 +1542,9 @@ impl CommonSubexprEliminator {
     fn value_use_counts(func: &Function) -> FxHashMap<ValueId, usize> {
         let mut counts = FxHashMap::default();
         for inst_id in func.instructions() {
-            for value in func.inst(inst_id).operands() {
+            func.inst(inst_id).visit_operands(|value| {
                 *counts.entry(value).or_default() += 1;
-            }
+            });
         }
         for block in func.blocks.iter() {
             if let Some(term) = &block.terminator {

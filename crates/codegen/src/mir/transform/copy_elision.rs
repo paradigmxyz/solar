@@ -200,9 +200,9 @@ impl CopyElisionCx {
                 if matches!(inst.kind, InstKind::MemoryObjectStoreElement { .. }) {
                     self.indexed_stores.insert(inst_id, block_id);
                 }
-                for operand in inst.operands() {
+                inst.visit_operands(|operand| {
                     self.uses.entry(operand).or_default().push(inst_id);
-                }
+                });
             }
         }
         for block in &func.blocks {

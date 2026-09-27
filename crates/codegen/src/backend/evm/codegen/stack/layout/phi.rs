@@ -1803,14 +1803,14 @@ impl<'a> StackPhiPlanner<'a> {
                 if matches!(inst.kind, InstKind::Phi(_)) {
                     continue;
                 }
-                for value in inst.kind.operands() {
+                inst.kind.visit_operands(|value| {
                     self.push_live_through_value(loop_info, value, values);
-                }
+                });
             }
             if let Some(term) = &block.terminator {
-                for value in term.operands() {
+                term.visit_operands(|value| {
                     self.push_live_through_value(loop_info, value, values);
-                }
+                });
             }
         }
     }

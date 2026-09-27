@@ -155,17 +155,17 @@ impl ScalarEvolution {
             let block = &func.blocks[block_id];
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
-                for operand in inst.kind.operands() {
+                inst.kind.visit_operands(|operand| {
                     let _ = analysis.affine_expr(cx, operand);
-                }
+                });
                 if let Some(result) = func.inst_result_value(inst_id) {
                     let _ = analysis.affine_expr(cx, result);
                 }
             }
             if let Some(terminator) = &block.terminator {
-                for operand in terminator.operands() {
+                terminator.visit_operands(|operand| {
                     let _ = analysis.affine_expr(cx, operand);
-                }
+                });
             }
         }
         analysis

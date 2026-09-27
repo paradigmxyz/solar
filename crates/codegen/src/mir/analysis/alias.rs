@@ -801,19 +801,19 @@ impl AliasAnalysis {
         for block in &func.blocks {
             for &inst_id in &block.instructions {
                 let kind = &func.inst(inst_id).kind;
-                for operand in kind.operands() {
+                kind.visit_operands(|operand| {
                     if self.instruction_operand_escapes(kind, operand) {
                         escaping.insert(operand);
                     }
-                }
+                });
             }
 
             if let Some(terminator) = &block.terminator {
-                for operand in terminator.operands() {
+                terminator.visit_operands(|operand| {
                     if self.terminator_operand_escapes(terminator, operand) {
                         escaping.insert(operand);
                     }
-                }
+                });
             }
         }
 

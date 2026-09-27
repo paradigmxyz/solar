@@ -398,9 +398,9 @@ fn masks_live_across_calls(func: &Function) -> DenseBitSet<ValueId> {
     for (id, block) in func.blocks.iter_enumerated() {
         let mut live = liveness.live_out(id).clone();
         if let Some(term) = &block.terminator {
-            for value in term.operands() {
+            term.visit_operands(|value| {
                 live.insert(value);
-            }
+            });
         }
         for &inst in block.instructions.iter().rev() {
             let instruction = func.inst(inst);
@@ -412,9 +412,9 @@ fn masks_live_across_calls(func: &Function) -> DenseBitSet<ValueId> {
             if let Some(value) = func.inst_result_value(inst) {
                 live.remove(value);
             }
-            for value in instruction.operands() {
+            instruction.visit_operands(|value| {
                 live.insert(value);
-            }
+            });
         }
     }
     protected

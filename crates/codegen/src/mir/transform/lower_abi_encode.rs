@@ -517,15 +517,15 @@ fn terminal_return_encodes(func: &Function) -> FxHashSet<InstId> {
     }
     let mut uses = FxHashMap::<ValueId, usize>::default();
     for inst_id in func.instructions() {
-        for operand in func.inst(inst_id).operands() {
+        func.inst(inst_id).visit_operands(|operand| {
             *uses.entry(operand).or_default() += 1;
-        }
+        });
     }
     for block in &func.blocks {
         if let Some(term) = &block.terminator {
-            for operand in term.operands() {
+            term.visit_operands(|operand| {
                 *uses.entry(operand).or_default() += 1;
-            }
+            });
         }
     }
 

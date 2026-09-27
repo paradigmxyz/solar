@@ -1114,13 +1114,13 @@ impl LoopOptimizer {
             }
 
             let inst = func.inst(inst_id);
-            for operand in inst.kind.operands() {
+            inst.kind.visit_operands(|operand| {
                 if let Value::Inst(dep_inst) = func.value(operand)
                     && inst_set.contains(*dep_inst)
                 {
                     visit(func, *dep_inst, inst_set, visited, result);
                 }
-            }
+            });
             result.push(inst_id);
         }
 

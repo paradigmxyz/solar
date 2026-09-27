@@ -382,7 +382,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &user in &block.instructions {
                 let phi = matches!(func.inst(user).kind, InstKind::Phi(_));
-                for operand in func.inst(user).kind.operands() {
+                func.inst(user).kind.visit_operands(|operand| {
                     if let Some((definition, count, blocks, used_in_definition, used_by_phi, _)) =
                         uses.get_mut(&operand)
                     {
@@ -391,7 +391,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         *count += 1;
                         blocks.insert(block_id);
                     }
-                }
+                });
             }
             for operand in block.terminator.iter().flat_map(Terminator::operands) {
                 if let Some((definition, count, blocks, used_in_definition, _, _)) =

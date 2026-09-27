@@ -276,15 +276,15 @@ impl ValueUses {
         let mut instructions = index_vec![Vec::new(); func.num_values()];
         let mut terminators = index_vec![Vec::new(); func.num_values()];
         for inst_id in func.instructions() {
-            for operand in func.inst(inst_id).operands() {
+            func.inst(inst_id).visit_operands(|operand| {
                 instructions[operand].push(inst_id);
-            }
+            });
         }
         for (block_id, block) in func.blocks.iter_enumerated() {
             if let Some(terminator) = &block.terminator {
-                for operand in terminator.operands() {
+                terminator.visit_operands(|operand| {
                     terminators[operand].push(block_id);
-                }
+                });
             }
         }
         Self { instructions, terminators }

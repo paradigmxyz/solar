@@ -1369,9 +1369,9 @@ fn scalar_stack_peak(func: &Function) -> usize {
                 live.remove(result);
             }
             if !matches!(func.inst(inst).kind, InstKind::Phi(_)) {
-                for value in func.inst(inst).operands() {
+                func.inst(inst).visit_operands(|value| {
                     live.insert(value);
-                }
+                });
             }
             peak = peak.max(live_word_count(func, &live));
         }
@@ -1392,9 +1392,9 @@ fn surviving_call_words(func: &Function, liveness: &Liveness, site: CallSite) ->
         if let Some(result) = func.inst_result_value(inst) {
             live.remove(result);
         }
-        for value in func.inst(inst).operands() {
+        func.inst(inst).visit_operands(|value| {
             live.insert(value);
-        }
+        });
     }
     if let Some(result) = func.inst_result_value(site.inst) {
         live.remove(result);

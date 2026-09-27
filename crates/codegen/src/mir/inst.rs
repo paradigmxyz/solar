@@ -873,6 +873,11 @@ impl Instruction {
         self.kind.operands()
     }
 
+    /// Visits the operands of this instruction in canonical order, without collecting them.
+    pub(crate) fn visit_operands(&self, f: impl FnMut(ValueId)) {
+        self.kind.visit_operands(f);
+    }
+
     /// Replaces an operation with an equivalent one, preserving its result and provenance.
     ///
     /// Memory regions, storage aliases, and effect overrides describe the old

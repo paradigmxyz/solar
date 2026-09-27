@@ -570,11 +570,11 @@ impl Target {
                     _ => None,
                 };
                 cost += self.op(&kind.op(), immediate);
-                for operand in kind.operands() {
+                kind.visit_operands(|operand| {
                     if let Some(value) = immediate(operand) {
                         cost += self.push(value);
                     }
-                }
+                });
             }
             let edges =
                 block.terminator.as_ref().map_or(0, |terminator| terminator.successors().len());

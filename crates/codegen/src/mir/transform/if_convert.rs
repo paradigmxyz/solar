@@ -407,11 +407,11 @@ fn transfer_cost(target: Target) -> Cost {
 fn inst_cost(func: &Function, target: Target, inst: InstId) -> Cost {
     let kind = &func.inst(inst).kind;
     let mut cost = target.op(&kind.op(), |value| func.value_u256(value));
-    for operand in kind.operands() {
+    kind.visit_operands(|operand| {
         if let Some(literal) = func.value_u256(operand) {
             cost = cost.plus(target.push(literal));
         }
-    }
+    });
     cost
 }
 

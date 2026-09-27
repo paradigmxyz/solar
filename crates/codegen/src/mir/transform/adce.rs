@@ -258,9 +258,9 @@ impl AdceContext {
         };
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
-                for operand in func.inst(inst_id).kind.operands() {
+                func.inst(inst_id).kind.visit_operands(|operand| {
                     record(operand, block_id);
-                }
+                });
             }
             if let Some(term) = &block.terminator {
                 term.visit_operands(|operand| record(operand, block_id));

@@ -340,7 +340,7 @@ impl LoopAnalyzer {
         }
         for block in &loop_info.blocks {
             for &inst_id in &func.blocks[block].instructions {
-                for operand in func.inst(inst_id).kind.operands() {
+                func.inst(inst_id).kind.visit_operands(|operand| {
                     if matches!(func.value(operand), Value::Immediate(_) | Value::Arg(_))
                         || matches!(
                             func.value(operand),
@@ -349,7 +349,7 @@ impl LoopAnalyzer {
                     {
                         invariant_values.insert(operand);
                     }
-                }
+                });
             }
         }
 

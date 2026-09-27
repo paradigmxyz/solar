@@ -210,14 +210,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             for (block_idx, block) in func.blocks.iter().enumerate() {
                 for &inst_id in &block.instructions {
                     inst_block[inst_id] = Some(block_idx);
-                    for operand in func.inst(inst_id).kind.operands() {
+                    func.inst(inst_id).kind.visit_operands(|operand| {
                         *use_counts.entry(operand).or_default() += 1;
-                    }
+                    });
                 }
                 if let Some(term) = &block.terminator {
-                    for operand in term.operands() {
+                    term.visit_operands(|operand| {
                         *use_counts.entry(operand).or_default() += 1;
-                    }
+                    });
                 }
             }
             for (block_idx, block) in func.blocks.iter().enumerate() {

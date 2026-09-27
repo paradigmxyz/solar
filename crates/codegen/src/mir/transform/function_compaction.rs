@@ -103,20 +103,20 @@ fn forward_returned_values(module: &mut Module) -> usize {
         for block in &func.blocks {
             for &inst in &block.instructions {
                 let kind = &func.inst(inst).kind;
-                for value in kind.operands() {
+                kind.visit_operands(|value| {
                     used.insert(value);
                     if kind.effect_kind() == EffectKind::Pure {
                         constant_uses.insert(value);
                     }
-                }
+                });
             }
             if let Some(term) = &block.terminator {
-                for value in term.operands() {
+                term.visit_operands(|value| {
                     used.insert(value);
                     if !matches!(term, Terminator::Return { .. }) {
                         constant_uses.insert(value);
                     }
-                }
+                });
             }
         }
         let mut replacements = FxHashMap::default();
@@ -339,9 +339,9 @@ fn prune_unused_args(module: &mut Module) -> usize {
                 called.insert(*function);
                 record_arg_dependencies(func_id, func, *function, args, &mut live, &mut dependents);
             } else {
-                for operand in kind.operands() {
+                kind.visit_operands(|operand| {
                     mark_arg_live(func, operand, &mut live[func_id]);
-                }
+                });
             }
         }
         for block in &func.blocks {
@@ -350,9 +350,9 @@ fn prune_unused_args(module: &mut Module) -> usize {
                 called.insert(*function);
                 record_arg_dependencies(func_id, func, *function, args, &mut live, &mut dependents);
             } else {
-                for operand in term.operands() {
+                term.visit_operands(|operand| {
                     mark_arg_live(func, operand, &mut live[func_id]);
-                }
+                });
             }
         }
     }
@@ -853,15 +853,15 @@ fn equivalence_bucket(func: &Function) -> u64 {
             let inst = func.inst(inst_id);
             inst.kind.mnemonic().hash(&mut key);
             inst.result_ty.hash(&mut key);
-            for operand in inst.kind.operands() {
+            inst.kind.visit_operands(|operand| {
                 values.value(operand).hash(&mut key);
-            }
+            });
         }
         block.terminator.as_ref().map_or("none", Terminator::mnemonic).hash(&mut key);
         if let Some(term) = &block.terminator {
-            for operand in term.operands() {
+            term.visit_operands(|operand| {
                 values.value(operand).hash(&mut key);
-            }
+            });
         }
     }
     key.finish()
