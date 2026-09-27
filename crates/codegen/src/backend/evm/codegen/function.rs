@@ -115,8 +115,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         let block_local_liveness =
             self.emitting_entry.then(|| Liveness::compute_block_local_for_codegen(func)).flatten();
         let whole_function_liveness = block_local_liveness.is_none();
-        let liveness = block_local_liveness.unwrap_or_else(|| Liveness::compute(func));
-        let liveness = &liveness;
+        let liveness =
+            block_local_liveness.map_or_else(|| self.function_liveness(func_id, func), Rc::new);
+        let liveness = &*liveness;
         let cross_block_live = OnceCell::new();
         let mut function_returns = FxHashSet::default();
 
