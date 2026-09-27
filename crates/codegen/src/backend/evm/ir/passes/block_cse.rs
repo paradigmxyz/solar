@@ -16,14 +16,19 @@
 //! This runs after physical stack scheduling, where repeated expressions and redundant constant
 //! memory traffic are visible. Peephole cleanup follows it because removing a computation can
 //! expose adjacent stack and arithmetic simplifications.
+//! Large modules regenerate disjoint block chunks in parallel.
 
 use super::EvmPass;
 use crate::backend::evm::{
-    ir::{Instruction, Module, PushValue},
+    ir::{Block, BlockId, Instruction, Module, PushValue},
     op,
 };
 use smallvec::SmallVec;
-use solar_data_structures::map::{FxHashMap, FxHasher};
+use solar_data_structures::{
+    index::IndexSlice,
+    map::{FxHashMap, FxHasher},
+    sync,
+};
 use solar_sema::Gcx;
 use std::hash::{Hash, Hasher};
 
@@ -35,12 +40,30 @@ impl EvmPass for BlockCse {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let mut changed = false;
         let stack_access_limit = gcx.sess.opts.evm_version.reachable_stack_depth();
-        for block in &mut module.blocks {
-            changed |= regenerate_block(&mut block.instructions, stack_access_limit);
+        let run = |blocks: &mut IndexSlice<BlockId, [Block]>| {
+            let mut changed = false;
+            for block in blocks {
+                changed |= regenerate_block(&mut block.instructions, stack_access_limit);
+            }
+            changed
+        };
+        let parallel = gcx.sess.is_parallel()
+            && !gcx.sess.opts.unstable.print_after_each
+            && !gcx.sess.opts.unstable.pass_diff
+            && !gcx.sess.opts.unstable.time_passes
+            && module.blocks.iter().map(|block| block.instructions.len()).sum::<usize>() >= 4096;
+        if !parallel {
+            return run(&mut module.blocks);
         }
-        changed
+        let mut results = vec![false; module.blocks.len().div_ceil(64)];
+        sync::scope(true, |scope| {
+            for (blocks, result) in module.blocks.chunks_mut(64).zip(&mut results) {
+                let run = &run;
+                scope.spawn(move |_| *result = run(blocks));
+            }
+        });
+        results.into_iter().any(|changed| changed)
     }
 }
 

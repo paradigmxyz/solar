@@ -30,6 +30,7 @@
 //! constants. Deferring this rewrite preserves earlier outlining opportunities;
 //! doing it in MIR can turn a shareable run into two smaller inline copies that
 //! occupy more bytes overall. Matching is bounded to 24 instructions per tail.
+//! Large modules process disjoint block chunks in parallel, each with its own rewrite buffer.
 
 use super::{
     EvmPass,
@@ -37,12 +38,16 @@ use super::{
     utils::MachineInstKey,
 };
 use crate::backend::evm::{
-    ir::{BlockId, Instruction, Module, PushValue, TerminatorKind},
+    ir::{Block, BlockId, Instruction, Module, PushValue, TerminatorKind},
     op,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
-use solar_data_structures::{index::IndexVec, map::FxHasher};
+use solar_data_structures::{
+    index::{IndexSlice, IndexVec},
+    map::FxHasher,
+    sync,
+};
 use solar_sema::Gcx;
 use std::{
     fmt,
@@ -149,16 +154,6 @@ fn clean_hash(instructions: &[Instruction]) -> u64 {
     hasher.finish()
 }
 
-impl CleanBlocks {
-    /// Returns whether the block was recorded clean with exactly these contents, and if so,
-    /// whether the final rules were included.
-    fn recorded(&self, block: BlockId, instructions: &[Instruction]) -> Option<bool> {
-        let clean = self.0.get(block)?.as_ref()?;
-        (clean.len as usize == instructions.len() && clean.hash == clean_hash(instructions))
-            .then_some(clean.final_cleanup)
-    }
-}
-
 impl Clone for CleanBlocks {
     fn clone(&self) -> Self {
         Self::default()
@@ -185,13 +180,55 @@ fn optimize_module<const LATE: bool>(
     final_cleanup: bool,
 ) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
+    module.peephole_clean.0.resize_with(module.blocks.len(), || None);
+    let parallel = gcx.sess.is_parallel()
+        && !gcx.sess.opts.unstable.print_after_each
+        && !gcx.sess.opts.unstable.pass_diff
+        && !gcx.sess.opts.unstable.time_passes
+        && module.blocks.iter().map(|block| block.instructions.len()).sum::<usize>() >= 4096;
+    if !parallel {
+        return optimize_blocks::<LATE>(
+            evm_version,
+            &mut module.blocks,
+            &mut module.peephole_clean.0,
+            final_cleanup,
+        );
+    }
+    let mut results = vec![false; module.blocks.len().div_ceil(64)];
+    sync::scope(true, |scope| {
+        for ((blocks, clean), result) in module
+            .blocks
+            .chunks_mut(64)
+            .zip(module.peephole_clean.0.chunks_mut(64))
+            .zip(&mut results)
+        {
+            scope.spawn(move |_| {
+                *result = optimize_blocks::<LATE>(evm_version, blocks, clean, final_cleanup);
+            });
+        }
+    });
+    results.into_iter().any(|changed| changed)
+}
+
+fn optimize_blocks<const LATE: bool>(
+    evm_version: EvmVersion,
+    blocks: &mut IndexSlice<BlockId, [Block]>,
+    clean: &mut IndexSlice<BlockId, [Option<CleanBlock>]>,
+    final_cleanup: bool,
+) -> bool {
     let mut changed = false;
     let mut scratch = Vec::new();
-    let clean = &mut module.peephole_clean;
-    clean.0.resize_with(module.blocks.len(), || None);
-    for (block_id, block) in module.blocks.iter_mut_enumerated() {
+    for (block, clean) in blocks.iter_mut().zip(clean) {
         // The late rules are separate from the cached early and final ones.
-        let recorded = if LATE { None } else { clean.recorded(block_id, &block.instructions) };
+        let recorded = if LATE {
+            None
+        } else {
+            clean.as_ref().and_then(|clean| {
+                (clean.len as usize == block.instructions.len()
+                    && clean.hash == clean_hash(&block.instructions))
+                .then_some(clean.final_cleanup)
+            })
+        };
         let skip = recorded.is_some_and(|recorded_final| recorded_final || !final_cleanup);
         let early_clean = final_cleanup && recorded == Some(false);
         // Dead stack traffic before a terminator that cannot observe it is dead-code
@@ -239,12 +276,12 @@ fn optimize_module<const LATE: bool>(
         }
         if !LATE && !skip {
             if rewrites != 0 || returned_zero {
-                clean.0[block_id] = None;
+                *clean = None;
             } else if early_clean {
                 // The same contents are now clean under the final rules as well.
-                clean.0[block_id].as_mut().unwrap().final_cleanup = true;
+                clean.as_mut().unwrap().final_cleanup = true;
             } else {
-                clean.0[block_id] = Some(CleanBlock {
+                *clean = Some(CleanBlock {
                     final_cleanup,
                     len: block.instructions.len() as u32,
                     hash: clean_hash(&block.instructions),
