@@ -18,12 +18,12 @@ use super::{
 };
 use crate::mir::{
     ArgIdx, BlockId, Callee, ControlEffects, Function, FunctionId, InstId, InstKind, MemoryRegion,
-    Module, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    Module, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout, utils::IndexLists,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
-    index::IndexVec,
+    index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
 use std::collections::{BTreeSet, VecDeque};
@@ -398,7 +398,7 @@ impl FunctionMemorySummary {
 /// Cached module-level summaries for all internal-call targets.
 #[derive(Clone, Debug)]
 pub(crate) struct MemoryCallSummaries {
-    summaries: FxHashMap<FunctionId, FunctionMemorySummary>,
+    summaries: IndexVec<FunctionId, Option<FunctionMemorySummary>>,
 }
 
 impl MemoryCallSummaries {
@@ -438,11 +438,11 @@ impl MemoryCallSummaries {
             }
         }
         if targets.is_empty() {
-            return Self { summaries: FxHashMap::default() };
+            return Self { summaries: IndexVec::new() };
         }
 
         let calls = CallGraphInfo::new(module);
-        let mut local = FxHashMap::default();
+        let mut local = index_vec![None; module.functions.len()];
         for func_id in &targets {
             let inputs = cache.functions.entry(func_id).or_insert_with(|| {
                 let func = &module.functions[func_id];
@@ -454,27 +454,30 @@ impl MemoryCallSummaries {
             });
             let mut summary = inputs.summary.clone();
             summary.control.may_diverge |= calls.is_recursive(func_id);
-            local.insert(func_id, summary);
+            local[func_id] = Some(summary);
         }
         let mut summaries = local.clone();
 
-        let mut callers = FxHashMap::<_, Vec<_>>::default();
+        let mut callers = index_vec![Vec::new(); module.functions.len()];
         for caller in &targets {
             let func = &module.functions[caller];
             for inst_id in func.instructions() {
                 if let InstKind::ICall { function: Callee::Function(function), .. } =
                     func.inst(inst_id).kind
+                    && let Some(function_callers) = callers.get_mut(function)
                 {
-                    callers.entry(function).or_default().push(caller);
+                    function_callers.push(caller);
                 }
             }
             for block in &func.blocks {
-                if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
-                    callers.entry(*function).or_default().push(caller);
+                if let Some(Terminator::TailCall { function, .. }) = &block.terminator
+                    && let Some(function_callers) = callers.get_mut(*function)
+                {
+                    function_callers.push(caller);
                 }
             }
         }
-        for function_callers in callers.values_mut() {
+        for function_callers in &mut callers {
             function_callers.sort_unstable();
             function_callers.dedup();
         }
@@ -484,7 +487,7 @@ impl MemoryCallSummaries {
         while let Some(func_id) = worklist.pop_front() {
             queued.remove(func_id);
             let func = &module.functions[func_id];
-            let mut summary = local[&func_id].clone();
+            let mut summary = local[func_id].clone().unwrap();
             for block in &func.blocks {
                 for &inst_id in &block.instructions {
                     if let InstKind::ICall {
@@ -494,7 +497,7 @@ impl MemoryCallSummaries {
                         merge_call(
                             &mut summary,
                             func,
-                            summaries.get(&function),
+                            summaries.get(function).and_then(Option::as_ref),
                             args,
                             &cache.functions[&func_id].sources,
                             &cache.functions[&func_id].alias,
@@ -505,7 +508,7 @@ impl MemoryCallSummaries {
                     merge_call(
                         &mut summary,
                         func,
-                        summaries.get(function),
+                        summaries.get(*function).and_then(Option::as_ref),
                         args,
                         &cache.functions[&func_id].sources,
                         &cache.functions[&func_id].alias,
@@ -513,9 +516,9 @@ impl MemoryCallSummaries {
                 }
             }
 
-            if summary != summaries[&func_id] {
-                summaries.insert(func_id, summary);
-                for &caller in callers.get(&func_id).into_iter().flatten() {
+            if summaries[func_id].as_ref() != Some(&summary) {
+                summaries[func_id] = Some(summary);
+                for &caller in &callers[func_id] {
                     if queued.insert(caller) {
                         worklist.push_back(caller);
                     }
@@ -529,7 +532,7 @@ impl MemoryCallSummaries {
     /// Returns a summary for a called function that belongs to this module.
     #[must_use]
     pub(crate) fn get(&self, function: FunctionId) -> Option<&FunctionMemorySummary> {
-        self.summaries.get(&function)
+        self.summaries.get(function).and_then(Option::as_ref)
     }
 }
 
@@ -666,11 +669,11 @@ fn local_summary(
             // An instruction that consumes both a pointer-derived value and a heap-derived one
             // can relate the object to the heap, whatever the positions: comparisons, pointer
             // arithmetic against the free-memory pointer, or storing one through the other.
-            let mut observes_heap = false;
-            kind.visit_operands(|operand| observes_heap |= heap_derived.contains(operand));
-            if observes_heap {
+            let mut meets_heap = false;
+            kind.visit_operands(|operand| meets_heap |= heap_derived.contains(operand));
+            if meets_heap {
                 kind.visit_operands(|operand| {
-                    observe_sources(&mut summary, func, sources, operand)
+                    observe_sources(&mut summary, func, sources, operand);
                 });
             }
 
@@ -763,7 +766,7 @@ fn local_summary(
 /// state changes are discarded with the call frame.
 fn returning_blocks(func: &Function) -> DenseBitSet<BlockId> {
     let mut returning = DenseBitSet::new_empty(func.blocks.len());
-    let mut predecessors = IndexVec::from_vec(vec![Vec::new(); func.blocks.len()]);
+    let mut edges = Vec::new();
     let mut worklist = Vec::new();
     for (block_id, block) in func.blocks.iter_enumerated() {
         let Some(terminator) = &block.terminator else {
@@ -771,20 +774,24 @@ fn returning_blocks(func: &Function) -> DenseBitSet<BlockId> {
             worklist.push(block_id);
             continue;
         };
-        for successor in terminator.successors() {
-            predecessors[successor].push(block_id);
-        }
-        if !matches!(
-            terminator,
-            Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid
-        ) && terminator.successors().is_empty()
+        let mut exits = true;
+        terminator.for_each_successor(|successor| {
+            edges.push((successor, block_id));
+            exits = false;
+        });
+        if exits
+            && !matches!(
+                terminator,
+                Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid
+            )
         {
             returning.insert(block_id);
             worklist.push(block_id);
         }
     }
+    let predecessors = IndexLists::new(func.blocks.len(), edges.iter().copied());
     while let Some(block) = worklist.pop() {
-        for &predecessor in &predecessors[block] {
+        for &predecessor in predecessors.get(block) {
             if returning.insert(predecessor) {
                 worklist.push(predecessor);
             }
@@ -816,17 +823,18 @@ fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
     if worklist.is_empty() {
         return derived;
     }
-    let mut users = IndexVec::from_vec(vec![Vec::new(); func.num_values()]);
+    let mut edges = Vec::new();
     for inst_id in func.instructions() {
         if let Some(result) = func.inst_result_value(inst_id)
             && !derived.contains(result)
             && !instruction_loads_data(&func.inst(inst_id).kind)
         {
-            func.inst(inst_id).kind.visit_operands(|operand| users[operand].push(result));
+            func.inst(inst_id).kind.visit_operands(|operand| edges.push((operand, result)));
         }
     }
+    let users = IndexLists::new(func.num_values(), edges.iter().copied());
     while let Some(value) = worklist.pop() {
-        for &user in &users[value] {
+        for &user in users.get(value) {
             if derived.insert(user) {
                 worklist.push(user);
             }
@@ -1008,13 +1016,14 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> 
         return sources;
     }
 
-    let mut users = IndexVec::from_vec(vec![Vec::new(); func.num_values()]);
+    // (operand, user) edges through which parameter sources propagate.
+    let mut edges = Vec::new();
     let mut queued = DenseBitSet::new_empty(func.num_values());
     let mut worklist = VecDeque::new();
     for inst_id in func.instructions() {
         let Some(result) = func.inst_result_value(inst_id) else { continue };
         let add_user = |operand: ValueId| {
-            users[operand].push(result);
+            edges.push((operand, result));
             if let Value::Arg(index) = func.value(operand)
                 && index.index() < params
                 && sources[operand].insert(*index)
@@ -1030,10 +1039,12 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> 
         kind.visit_operands(add_user);
     }
 
+    let users = IndexLists::new(func.num_values(), edges.iter().copied());
+
     while let Some(value) = worklist.pop_front() {
         queued.remove(value);
         let propagated = sources[value].clone();
-        for &user in &users[value] {
+        for &user in users.get(value) {
             if sources[user].union(&propagated) && queued.insert(user) {
                 worklist.push_back(user);
             }

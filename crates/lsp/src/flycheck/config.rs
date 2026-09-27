@@ -128,7 +128,8 @@ fn resolve_workspace_path(workspace_root: &Path, path: &Path) -> PathBuf {
 }
 
 fn forge_lint_args(selected_profile: Option<&str>) -> Vec<String> {
-    let mut args = vec!["lint".into(), "--json".into()];
+    let mut args = Vec::new();
+    args.extend(["lint".into(), "--json".into()]);
     if let Some(profile) = selected_profile {
         args.extend(["--profile".into(), profile.into()]);
     }

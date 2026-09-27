@@ -144,7 +144,7 @@ pub(crate) trait Operands {
 
     /// Appends every value operand held by this field in canonical order.
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>);
-    /// Visits every value operand held by this field.
+    /// Visits every value operand held by this field in canonical order.
     fn visit(&self, f: &mut impl FnMut(ValueId));
     /// Visits every value operand held by this field mutably.
     fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId));
@@ -219,7 +219,9 @@ impl Operands for Option<ValueId> {
 
     #[inline]
     fn visit(&self, f: &mut impl FnMut(ValueId)) {
-        self.iter().copied().for_each(f);
+        if let Some(value) = *self {
+            f(value);
+        }
     }
 
     #[inline]
@@ -258,7 +260,7 @@ impl Operands for Box<[ValueId]> {
 
     #[inline]
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
-        out.extend(self.iter().copied());
+        out.extend_from_slice(self);
     }
 
     #[inline]
@@ -301,7 +303,7 @@ impl Operands for Vec<(BlockId, ValueId)> {
 
     #[inline]
     fn visit(&self, f: &mut impl FnMut(ValueId)) {
-        self.iter().map(|(_, value)| *value).for_each(f);
+        self.iter().for_each(|&(_, value)| f(value));
     }
 
     #[inline]
@@ -334,8 +336,6 @@ impl Operands for Box<[PackedPart]> {
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
         out.extend(self.iter().filter_map(PackedPart::value));
     }
-
-    #[inline]
     fn visit(&self, f: &mut impl FnMut(ValueId)) {
         self.iter().filter_map(PackedPart::value).for_each(f);
     }
@@ -652,8 +652,15 @@ macro_rules! define_mir_ops {
                 }
             }
 
-            /// Visits every value operand in canonical order without collecting them.
+            /// Visits every value operand in canonical order, without collecting them.
+            #[inline]
             pub(crate) fn visit_operands(&self, mut f: impl FnMut(ValueId)) {
+                self.visit_operands_dyn(&mut f);
+            }
+
+            /// Shares one copy of the operand match between all visitors, instead of
+            /// instantiating it for every closure.
+            fn visit_operands_dyn(&self, mut f: &mut dyn FnMut(ValueId)) {
                 match self {
                     $(
                         Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
@@ -2697,42 +2704,6 @@ define_mir_ops! {
         ret_offset: ValueId,
         ret_size: ValueId,
     },
-    /// EOF external call: `extcall(addr, argsOffset, argsSize, value)`.
-    #[mir_op(
-        mnemonic = "extcall",
-        result = I256,
-        phases = PhaseSet::ALL,
-        effect = ExternalCall,
-        traits = OpTraits::NONE,
-        side_effects = true,
-        category = None
-    )]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
-    ExtCall { addr: ValueId, args_offset: ValueId, args_size: ValueId, value: ValueId },
-    /// EOF external delegate call: `extdelegatecall(addr, argsOffset, argsSize)`.
-    #[mir_op(
-        mnemonic = "extdelegatecall",
-        result = I256,
-        phases = PhaseSet::ALL,
-        effect = ExternalCall,
-        traits = OpTraits::NONE,
-        side_effects = true,
-        category = None
-    )]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
-    ExtDelegateCall { addr: ValueId, args_offset: ValueId, args_size: ValueId },
-    /// EOF external static call: `extstaticcall(addr, argsOffset, argsSize)`.
-    #[mir_op(
-        mnemonic = "extstaticcall",
-        result = I256,
-        phases = PhaseSet::ALL,
-        effect = ExternalCall,
-        traits = OpTraits::NONE,
-        side_effects = true,
-        category = None
-    )]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
-    ExtStaticCall { addr: ValueId, args_offset: ValueId, args_size: ValueId },
     /// Internal function call lowered to a direct jump.
     #[mir_op(
         mnemonic = "icall",

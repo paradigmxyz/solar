@@ -1,0 +1,7 @@
+@module module
+
+// Instructions take their stack effect from their opcode and cannot declare one.
+bb0:
+  push 1 !metadata(stack=0->1)
+//~^ ERROR: instructions cannot declare a stack effect
+  stop

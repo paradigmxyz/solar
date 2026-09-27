@@ -23,6 +23,7 @@ struct ParsedBlockHeader {
     in_loop: bool,
     is_continuation: bool,
     function_invoke: Option<DebugFunction>,
+    entry_depth: Option<u16>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -102,6 +103,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 module.blocks[block_id].metadata.in_loop = header.in_loop;
                 module.blocks[block_id].metadata.is_continuation = header.is_continuation;
                 module.blocks[block_id].metadata.function_invoke = header.function_invoke;
+                module.blocks[block_id].metadata.entry_depth = header.entry_depth;
                 current_block = Some(block_id);
                 continue;
             }
@@ -142,6 +144,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut in_loop = false;
         let mut is_continuation = false;
         let mut function_invoke = None;
+        let mut entry_depth = None;
         while self.parser.eat(TokenKind::OpenDelim(Delimiter::Bracket)) {
             loop {
                 if self.parser.eat_keyword(sym::cold) {
@@ -159,9 +162,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         identifier,
                         declaration: Span::new(BytePos(lo), BytePos(hi)),
                     });
+                } else if self.parser.eat_keyword(sym::stack) {
+                    self.parser.expect(TokenKind::Eq)?;
+                    let depth = self.parser.parse_uint()?;
+                    entry_depth =
+                        Some(u16::try_from(depth).map_err(|_| {
+                            self.parser.error("block entry depth does not fit in u16")
+                        })?);
                 } else {
                     return Err(self.parser.error(
-                        "expected `cold`, `loop`, `continuation`, or `invoke` block attribute",
+                        "expected `cold`, `loop`, `continuation`, `invoke`, or `stack` block \
+                         attribute",
                     ));
                 }
                 if !self.parser.eat(TokenKind::Comma) {
@@ -173,7 +184,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         self.parser.expect(TokenKind::Colon)?;
 
-        Ok(Some(ParsedBlockHeader { label, hotness, in_loop, is_continuation, function_invoke }))
+        Ok(Some(ParsedBlockHeader {
+            label,
+            hotness,
+            in_loop,
+            is_continuation,
+            function_invoke,
+            entry_depth,
+        }))
     }
 
     fn current_block_label(&self) -> PResult<'sess, Option<Symbol>> {
@@ -342,7 +360,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 TerminatorKind::JumpI { then_block, else_block }
             }
             sym::indexed_jump => {
-                let mut targets = vec![self.parse_block_ref(module)?];
+                let mut targets = Vec::new();
+                targets.push(self.parse_block_ref(module)?);
                 while self.parser.eat(TokenKind::Comma) {
                     targets.push(self.parse_block_ref(module)?);
                 }
@@ -460,11 +479,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         loop {
             let key = self.parser.parse_ident()?;
             if key == sym::stack {
-                self.parser.expect(TokenKind::Eq)?;
-                let inputs = self.parse_u8()?;
-                self.parser.expect(TokenKind::Arrow)?;
-                let outputs = self.parse_u8()?;
-                metadata.stack = Some(StackEffect::new(inputs, outputs));
+                return Err(self.parser.error(
+                    "instructions cannot declare a stack effect; declare a block's entry depth \
+                     with `[stack=N]` instead",
+                ));
             } else if key == sym::span {
                 self.parser.expect(TokenKind::Eq)?;
                 let (lo, hi) = self.parser.parse_span_bounds()?;

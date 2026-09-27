@@ -472,7 +472,7 @@ struct MirInlineSummary {
     has_control_flow: bool,
     is_check_wrapper: bool,
     /// Whether the body contains a back edge; a loop cloned into a loop nests
-    /// its carried words inside the caller's.
+    /// its carried words inside the caller's. Only hot-leaf summaries compute it.
     has_loop: bool,
     has_unsupported_terminator: bool,
     has_reference_return: bool,
@@ -551,7 +551,13 @@ impl MirInliner {
             if !summaries.get(&caller_id).is_some_and(|summary| summary.has_icall) {
                 continue;
             }
-            let mut loop_costs = block_loop_costs(module.function(caller_id));
+            // Single-use and constant-leaf candidates are decided without loop weights.
+            let mut loop_costs =
+                if matches!(self.mode, InlineMode::SingleUse | InlineMode::ConstantLeaves) {
+                    FxHashMap::default()
+                } else {
+                    block_loop_costs(module.function(caller_id))
+                };
             // Bound how much each caller may grow from inlining so a function
             // calling many internal helpers (e.g. a large verifier) cannot
             // balloon past the deployable code-size limit.
@@ -610,7 +616,8 @@ impl MirInliner {
                     summary.phi_stack_peak.or_else(|| memory_wrappers.get(&site.callee).copied())
                 {
                     let caller = module.function(caller_id);
-                    let liveness = caller_liveness.get_or_insert_with(|| Liveness::compute(caller));
+                    let liveness =
+                        caller_liveness.get_or_insert_with(|| Liveness::compute_live_sets(caller));
                     if surviving_call_words(caller, liveness, site).saturating_add(peak)
                         > self.stack_budget()
                     {
@@ -645,25 +652,21 @@ impl MirInliner {
                         .saturating_sub(old_size)
                         .saturating_add(new_summary.estimated_code_size);
                     summaries.insert(caller_id, new_summary);
-                    if self.mode == InlineMode::TinyLeaves {
-                        // Remove this call site and count the forwarded calls cloned into its
-                        // caller. The original callee remains until function DCE runs.
-                        if let Some(count) = call_counts.get_mut(&site.callee) {
-                            *count = count.saturating_sub(1);
+                    // Remove this call site and count the calls cloned into its caller.
+                    // The original callee remains until function DCE runs, and a callee
+                    // with a tail call is never inlined.
+                    if let Some(count) = call_counts.get_mut(&site.callee) {
+                        *count = count.saturating_sub(1);
+                    }
+                    for inst in callee.instructions() {
+                        if let InstKind::ICall { function: Callee::Function(function), .. } =
+                            callee.inst(inst).kind
+                        {
+                            *call_counts.entry(function).or_default() += 1;
                         }
-                        for inst in callee.instructions() {
-                            if let InstKind::ICall {
-                                function: Callee::Function(function), ..
-                            } = callee.inst(inst).kind
-                            {
-                                *call_counts.entry(function).or_default() += 1;
-                            }
-                        }
-                        if let Some(calls) = &mut artifact_calls {
-                            calls.inline(caller_id, site.callee, &callee);
-                        }
-                    } else {
-                        call_counts = self.call_counts(module);
+                    }
+                    if let Some(calls) = &mut artifact_calls {
+                        calls.inline(caller_id, site.callee, &callee);
                     }
                     cursor = (site.block.index(), 0);
                 } else {
@@ -1182,7 +1185,7 @@ fn summarize_function(
         is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
         has_function_selector: func.attributes.is_function_pointer_dispatcher,
         is_pure: func.attributes.state_mutability == StateMutability::Pure,
-        has_loop: has_back_edge(func),
+        has_loop: peak == PeakAnalysis::Scalars && has_back_edge(func),
         ..MirInlineSummary::default()
     };
 
@@ -1245,9 +1248,6 @@ fn summarize_function(
                 | InstKind::CallCode { .. }
                 | InstKind::StaticCall { .. }
                 | InstKind::DelegateCall { .. }
-                | InstKind::ExtCall { .. }
-                | InstKind::ExtDelegateCall { .. }
-                | InstKind::ExtStaticCall { .. }
                 | InstKind::Create(..)
                 | InstKind::Create2(..) => {
                     summary.has_external_call = true;
@@ -1325,7 +1325,8 @@ fn summarize_function(
 fn has_back_edge(func: &Function) -> bool {
     let mut on_path = DenseBitSet::new_empty(func.blocks.len());
     let mut finished = DenseBitSet::new_empty(func.blocks.len());
-    let mut stack = vec![(BlockId::ENTRY, 0)];
+    let mut stack = Vec::new();
+    stack.push((BlockId::ENTRY, 0));
     on_path.insert(BlockId::ENTRY);
     while let Some(top) = stack.last_mut() {
         let (block, next) = *top;
@@ -1353,12 +1354,12 @@ fn has_back_edge(func: &Function) -> bool {
 
 /// Peak SSA live words in a small scalar helper; immediates are rematerialized.
 fn scalar_stack_peak(func: &Function) -> usize {
-    let liveness = Liveness::compute(func);
+    let liveness = Liveness::compute_live_sets(func);
     let mut peak = 0;
     for (block, body) in func.blocks.iter_enumerated() {
         let mut live = liveness.live_out(block).clone();
         if let Some(term) = &body.terminator {
-            term.for_each_operand(|value| {
+            term.visit_operands(|value| {
                 live.insert(value);
             });
         }
@@ -1368,9 +1369,9 @@ fn scalar_stack_peak(func: &Function) -> usize {
                 live.remove(result);
             }
             if !matches!(func.inst(inst).kind, InstKind::Phi(_)) {
-                for value in func.inst(inst).operands() {
+                func.inst(inst).visit_operands(|value| {
                     live.insert(value);
-                }
+                });
             }
             peak = peak.max(live_word_count(func, &live));
         }
@@ -1383,7 +1384,7 @@ fn surviving_call_words(func: &Function, liveness: &Liveness, site: CallSite) ->
     let body = &func.blocks[site.block];
     let mut live = liveness.live_out(site.block).clone();
     if let Some(term) = &body.terminator {
-        term.for_each_operand(|value| {
+        term.visit_operands(|value| {
             live.insert(value);
         });
     }
@@ -1391,9 +1392,9 @@ fn surviving_call_words(func: &Function, liveness: &Liveness, site: CallSite) ->
         if let Some(result) = func.inst_result_value(inst) {
             live.remove(result);
         }
-        for value in func.inst(inst).operands() {
+        func.inst(inst).visit_operands(|value| {
             live.insert(value);
-        }
+        });
     }
     if let Some(result) = func.inst_result_value(site.inst) {
         live.remove(result);
@@ -1812,10 +1813,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         InstKind::Call { .. }
         | InstKind::CallCode { .. }
         | InstKind::StaticCall { .. }
-        | InstKind::DelegateCall { .. }
-        | InstKind::ExtCall { .. }
-        | InstKind::ExtDelegateCall { .. }
-        | InstKind::ExtStaticCall { .. } => seq(&[op::CALL]),
+        | InstKind::DelegateCall { .. } => seq(&[op::CALL]),
         InstKind::ICall { function: Callee::Function(function), args } => {
             target.icall(args.len(), module.function(*function).return_components().len(), 0)
         }
@@ -1895,7 +1893,7 @@ struct LoopCost {
 
 fn block_loop_costs(func: &Function) -> FxHashMap<BlockId, LoopCost> {
     let mut analyzer = LoopAnalyzer::new();
-    let loop_info = analyzer.analyze(func);
+    let loop_info = analyzer.analyze_trip_counts(func);
     let mut costs = FxHashMap::default();
     for loop_data in loop_info.all_loops() {
         let counted = loop_data.trip_count.filter(|_| {
@@ -2719,7 +2717,10 @@ fn recompute_cfg(func: &mut Function) {
 
     for (block, successors) in edges {
         for succ in successors {
-            func.blocks[succ].predecessors.push(block);
+            let predecessors = &mut func.blocks[succ].predecessors;
+            if !predecessors.contains(&block) {
+                predecessors.push(block);
+            }
         }
     }
 }

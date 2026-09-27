@@ -15,6 +15,8 @@ use solar_data_structures::{
 pub(crate) mod eval;
 mod gas;
 pub(crate) use gas::{pre_tangerine_call_gas, precompile_gas};
+mod index_lists;
+pub(crate) use index_lists::IndexLists;
 
 pub(crate) fn remap_block_order(
     func: &mut Function,
@@ -223,9 +225,7 @@ pub(crate) fn replace_terminator(func: &mut Function, block: BlockId, terminator
     }
     for successor in new {
         let predecessors = &mut func.blocks[successor].predecessors;
-        let mut seen = false;
-        predecessors.retain(|pred| *pred != block || !std::mem::replace(&mut seen, true));
-        if !seen {
+        if !predecessors.contains(&block) {
             predecessors.push(block);
         }
     }

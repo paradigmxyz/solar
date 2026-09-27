@@ -191,15 +191,15 @@ class StackProofTests(unittest.TestCase):
 
     def test_wrong_depth_and_opcode_have_replayed_counterexamples(self):
         for source in (
-            "(rule (peep_nonpush (last2 (dup 2) (swap 1))) (rewrite 2 (Edit.Keep 1)))",
-            "(rule (peep_nonpush (last2 (opcode $NOT) (opcode $NOT))) (rewrite 2 (Edit.OverwriteOne $ISZERO)))",
+            "(rule (peep_swap (last2 (dup 2) (swap 1))) (rewrite 2 (Edit.Keep 1)))",
+            "(rule (peep_op (last2 (opcode $NOT) (opcode $NOT))) (rewrite 2 (Edit.OverwriteOne $ISZERO)))",
         ):
             result = self.verify(source)["rules"][0]
             self.assertEqual(result["status"], "counterexample")
             self.assertTrue(result["variants"][0]["replayed"])
 
     def test_equality_shuffle_requires_symmetric_operands(self):
-        correct = "(rule (peep_nonpush (unprotected_last5 (opcode $DUP2) (opcode $EQ) (opcode $ISZERO) (opcode $SWAP1) (opcode $POP))) (rewrite 5 (Edit.RemoveFirstKeepTwo)))"
+        correct = "(rule (peep_pop (unprotected_last5 (opcode $DUP2) (opcode $EQ) (opcode $ISZERO) (opcode $SWAP1) (opcode $POP))) (rewrite 5 (Edit.RemoveFirstKeepTwo)))"
         self.assertEqual(self.verify(correct)["rules"][0]["status"], "proved")
         wrong = correct.replace("$DUP2", "$DUP1")
         result = self.verify(wrong)["rules"][0]
@@ -208,9 +208,10 @@ class StackProofTests(unittest.TestCase):
 
     def test_unknown_effect_and_changed_extent_fail_closed(self):
         for source in (
-            "(rule (peep_nonpush (last2 (opcode $MLOAD) (pop))) (rewrite 2 (Edit.Keep 0)))",
-            "(rule (peep_nonpush (last2 (dup 1) (pop))) (rewrite 3 (Edit.Keep 0)))",
-            "(rule (peep_nonpush (last2 (dup 1) (pop))) (rewrite 2 (Edit.Unknown)))",
+            "(rule (peep_pop (last2 (opcode $MLOAD) (pop))) (rewrite 2 (Edit.Keep 0)))",
+            "(rule (peep_pop (last2 (dup 1) (pop))) (rewrite 3 (Edit.Keep 0)))",
+            "(rule (peep_pop (last2 (dup 1) (pop))) (rewrite 2 (Edit.Unknown)))",
+            "(rule (peep_op (last2 (dup 1) (pop))) (rewrite 2 (Edit.Keep 0)))",
         ):
             self.assertEqual(self.verify(source)["rules"][0]["status"], "unsupported")
 

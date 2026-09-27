@@ -394,14 +394,15 @@ impl<T> Clone for DenseBitSet<T> {
     fn clone(&self) -> Self {
         DenseBitSet {
             domain_size: self.domain_size,
-            words: self.words.clone(),
+            words: WordVec::from_slice(&self.words),
             marker: PhantomData,
         }
     }
 
     fn clone_from(&mut self, from: &Self) {
         self.domain_size = from.domain_size;
-        self.words.clone_from(&from.words);
+        self.words.clear();
+        self.words.extend_from_slice(&from.words);
     }
 }
 

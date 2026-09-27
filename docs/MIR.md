@@ -636,8 +636,7 @@ unused stack words, but their payloads and required live-ins stay explicit.
 Final CFG cleanup exposes acyclic branch triangles as structural conditional
 terminators. Layout places the taken arm before its join so assembly can omit
 the arm’s jump. Known loops and cold arms keep their existing order, and the
-conversion preserves source origins and keeps glued instructions and custom stack
-effects intact. Debug events move to retained operations where representable.
+conversion preserves source origins and keeps glued instructions intact. Debug events move to retained operations where representable.
 
 EVM layout packs small shared terminal traces below the PUSH1 address limit.
 It moves the whole fallthrough trace, so moving a shared exit does not insert

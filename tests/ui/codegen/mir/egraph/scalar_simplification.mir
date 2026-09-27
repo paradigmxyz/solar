@@ -514,17 +514,6 @@ fn @cross_block_address_cast(arg0: i256) -> i1 {
     ret v2
 }
 
-// CHECK-LABEL: fn @eof_address_cast
-// CHECK: {{^[ +].*}}[[CLEAN:v[0-9]+]] = zext i160
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = extcall [[CLEAN]], 0, 0, 0
-fn @eof_address_cast(arg0: i256) -> i256 {
-  bb0:
-    v0 = trunc i256 arg0 to i160
-    v1 = zext i160 v0 to i256
-    v2 = extcall v1, 0, 0, 0
-    ret v2
-}
-
 fn @nested_select_false(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> i256 {
   bb0:
     v4 = select arg0, arg2, arg3

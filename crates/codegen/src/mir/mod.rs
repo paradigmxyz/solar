@@ -262,7 +262,8 @@ mod round_trip {
     }
 
     fn fixture_paths(root: &Path, extension: &str) -> Vec<PathBuf> {
-        let mut dirs = vec![root.to_path_buf()];
+        let mut dirs = Vec::new();
+        dirs.push(root.to_path_buf());
         let mut paths = Vec::new();
         while let Some(dir) = dirs.pop() {
             for entry in std::fs::read_dir(dir).unwrap() {

@@ -36,6 +36,7 @@ mod terminal_layout;
 pub(super) mod utils;
 
 pub(in crate::backend) use legalize_shifts::legalize_shifts;
+pub(super) use peephole::CleanBlocks;
 
 use super::{Block, Module};
 use crate::{
@@ -120,12 +121,14 @@ impl PassCache {
         Self { threads, scheduling: scheduling.clone(), ..Self::default() }
     }
 
-    fn run_blocks<R: FnMut(&mut Block) -> bool>(
+    fn run_blocks<S: Send, R: FnMut(&mut Block, &mut S) -> bool>(
         &mut self,
         pass: &dyn EvmPass,
         module: &mut Module,
+        states: &mut [S],
         make_run: impl Fn() -> R + Sync,
     ) -> bool {
+        assert_eq!(module.blocks.len(), states.len());
         let blocks = self.blocks.entry(PassCacheKey::new(pass)).or_default();
         let threads = self.scheduling.threads(self.threads);
         if threads > 1
@@ -134,10 +137,11 @@ impl PassCache {
             let mut tasks = module
                 .blocks
                 .iter_mut()
-                .filter(|block| blocks.get(&block.label).is_none_or(|cached| cached != *block))
-                .map(|block| (block, false))
+                .zip(states.iter_mut())
+                .filter(|(block, _)| blocks.get(&block.label).is_none_or(|cached| cached != *block))
+                .map(|(block, state)| (block, state, false))
                 .collect::<Vec<_>>();
-            let work = tasks.iter().map(|(block, _)| block.instructions.len()).sum::<usize>();
+            let work = tasks.iter().map(|(block, _, _)| block.instructions.len()).sum::<usize>();
             if tasks.len() > 1 && work >= 8192 {
                 let chunk_size = tasks.len().div_ceil(threads * 4);
                 sync::scope(true, |scope| {
@@ -145,20 +149,20 @@ impl PassCache {
                         let make_run = &make_run;
                         scope.spawn(move |_| {
                             let mut run = make_run();
-                            for (block, changed) in chunk {
-                                *changed = run(block);
+                            for (block, state, changed) in chunk {
+                                *changed = run(block, state);
                             }
                         });
                     }
                 });
             } else {
                 let mut run = make_run();
-                for (block, changed) in &mut tasks {
-                    *changed = run(block);
+                for (block, state, changed) in &mut tasks {
+                    *changed = run(block, state);
                 }
             }
             let mut changed = false;
-            for (block, block_changed) in tasks {
+            for (block, _, block_changed) in tasks {
                 if block_changed {
                     blocks.remove(&block.label);
                 } else if block.instructions.len() >= 8 {
@@ -170,11 +174,11 @@ impl PassCache {
         }
         let mut run = make_run();
         let mut changed = false;
-        for block in &mut module.blocks {
+        for (block, state) in module.blocks.iter_mut().zip(states) {
             if blocks.get(&block.label).is_some_and(|cached| cached == block) {
                 continue;
             }
-            if run(block) {
+            if run(block, state) {
                 blocks.remove(&block.label);
                 changed = true;
             } else if block.instructions.len() >= 8 {
@@ -546,25 +550,25 @@ mod tests {
         let mut cache = PassCache::default();
         let calls = AtomicUsize::new(0);
         let unchanged = || {
-            |_: &mut Block| {
+            |_: &mut Block, _: &mut ()| {
                 calls.fetch_add(1, Ordering::Relaxed);
                 false
             }
         };
-        assert!(!cache.run_blocks(&peephole::Peephole::EARLY, &mut module, unchanged));
-        assert!(!cache.run_blocks(&peephole::Peephole::EARLY, &mut module, unchanged));
+        assert!(!cache.run_blocks(&peephole::Peephole::EARLY, &mut module, &mut [()], unchanged));
+        assert!(!cache.run_blocks(&peephole::Peephole::EARLY, &mut module, &mut [()], unchanged));
         assert_eq!(calls.load(Ordering::Relaxed), 1);
         module.blocks[super::super::BlockId::from_usize(0)].instructions[0] =
             Instruction::opcode(op::MSIZE);
-        assert!(!cache.run_blocks(&peephole::Peephole::EARLY, &mut module, unchanged));
+        assert!(!cache.run_blocks(&peephole::Peephole::EARLY, &mut module, &mut [()], unchanged));
         assert_eq!(calls.load(Ordering::Relaxed), 2);
-        assert!(!cache.run_blocks(&peephole::Peephole::FINAL, &mut module, unchanged));
+        assert!(!cache.run_blocks(&peephole::Peephole::FINAL, &mut module, &mut [()], unchanged));
         assert_eq!(calls.load(Ordering::Relaxed), 3);
-        assert!(cache.run_blocks(&peephole::LateWord, &mut module, || |block| {
+        assert!(cache.run_blocks(&peephole::LateWord, &mut module, &mut [()], || |block, _| {
             block.instructions[0] = Instruction::opcode(op::PC);
             true
         }));
-        assert!(!cache.run_blocks(&peephole::LateWord, &mut module, unchanged));
+        assert!(!cache.run_blocks(&peephole::LateWord, &mut module, &mut [()], unchanged));
         assert_eq!(calls.load(Ordering::Relaxed), 4);
     }
 }

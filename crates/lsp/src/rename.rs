@@ -93,10 +93,9 @@ impl OccurrenceIndex {
     fn rebuild(&mut self, occurrences: &[RenameOccurrence]) {
         // `normalize_occurrences` orders the global list by URI and range before these
         // per-file indexes are populated, so the entries are already start-sorted.
-        debug_assert!(self.entries.windows(2).all(|pair| {
-            let lhs = occurrences[pair[0]].location.range;
-            let rhs = occurrences[pair[1]].location.range;
-            (lhs.start, lhs.end, pair[0]) <= (rhs.start, rhs.end, pair[1])
+        debug_assert!(self.entries.is_sorted_by_key(|&entry| {
+            let range = occurrences[entry].location.range;
+            (range.start, range.end, entry)
         }));
 
         self.prefix_max_end.clear();
@@ -654,7 +653,7 @@ impl RenameIndex {
                 RenameTarget::Symbol(symbol_id) => symbols.push(symbol_id),
                 RenameTarget::ImportAlias(alias_id) => {
                     if let Some(targets) = self.alias_symbols.get(&alias_id) {
-                        symbols.extend(targets.iter().copied());
+                        symbols.extend_from_slice(targets);
                     }
                 }
                 RenameTarget::MappingName(_) => {}

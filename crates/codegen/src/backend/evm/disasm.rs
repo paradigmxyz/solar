@@ -320,7 +320,7 @@ mod tests {
         let actual = format!(
             "pushes: {:?}\nmixed: {:?}\npre-paris: {:?}\nparis: {:?}\n",
             disassemble_standard_json(&[op::PUSH2, 0x01, 0x20, op::PUSH2, 0x01], EvmVersion::Osaka,),
-            disassemble_standard_json(&[0x0c, op::DATALOAD], EvmVersion::Osaka),
+            disassemble_standard_json(&[0x0c, op::ADD], EvmVersion::Osaka),
             disassemble_standard_json(&[op::PREVRANDAO], EvmVersion::Homestead),
             disassemble_standard_json(&[op::PREVRANDAO], EvmVersion::Paris),
         );
@@ -328,7 +328,7 @@ mod tests {
             actual,
             str![[r#"
 pushes: "PUSH2 0x120 PUSH2 0x100 "
-mixed: "0xC DATALOAD "
+mixed: "0xC ADD "
 pre-paris: "DIFFICULTY "
 paris: "PREVRANDAO "
 

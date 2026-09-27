@@ -3,21 +3,19 @@
 @module ExtendedStackPeephole
 
 // Logical stack operations are not limited to the legacy opcode range.
-// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK-LABEL: {{^[ +].*}}bb0 [stack=235]:
 // CHECK: {{^[ +].*}}dup 235
 // CHECK-NEXT: -   swap 235
-bb0:
-  callf !metadata(stack=0->235)
+bb0 [stack=235]:
   dup 235
   swap 235
   stop
 
-// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK-LABEL: {{^[ +].*}}bb1 [stack=19]:
 // CHECK: -   swap 17
 // CHECK: +   swap 18
 // CHECK: -   swap 1
-bb1:
-  callf !metadata(stack=0->19)
+bb1 [stack=19]:
   swap 17
   pop
   pop
@@ -40,11 +38,10 @@ bb1:
   pop
   stop
 
-// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK-LABEL: {{^[ +].*}}bb2 [stack=18]:
 // CHECK: -   swap 17
 // CHECK-COUNT-18: {{^[ +].*}}pop
-bb2:
-  callf !metadata(stack=0->18)
+bb2 [stack=18]:
   swap 17
   pop
   pop

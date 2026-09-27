@@ -242,9 +242,6 @@ impl InstKind {
             | Self::CallCode { .. }
             | Self::StaticCall { .. }
             | Self::DelegateCall { .. }
-            | Self::ExtCall { .. }
-            | Self::ExtDelegateCall { .. }
-            | Self::ExtStaticCall { .. }
             | Self::Create(..)
             | Self::Create2(..)
             | Self::Log0(..)

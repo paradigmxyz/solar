@@ -228,7 +228,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     if block_id == BlockId::ENTRY && info.first_entry_call.is_none() && is_call {
                         info.first_entry_call = Some(inst_idx);
                     }
-                    for operand in kind.operands() {
+                    kind.visit_operands(|operand| {
                         *info.use_counts.entry(operand).or_insert(0) += 1;
                         if block_id == BlockId::ENTRY {
                             info.entry_first_uses.entry(operand).or_insert(inst_idx);
@@ -238,11 +238,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                         if is_call {
                             info.call_uses.insert(operand);
                         }
-                    }
+                    });
                 }
                 if let Some(term) = &block.terminator {
                     let is_call = matches!(term, Terminator::TailCall { .. });
-                    for operand in term.operands() {
+                    term.visit_operands(|operand| {
                         *info.use_counts.entry(operand).or_insert(0) += 1;
                         if block_id != BlockId::ENTRY {
                             info.non_entry_uses.insert(operand);
@@ -250,7 +250,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         if is_call {
                             info.call_uses.insert(operand);
                         }
-                    }
+                    });
                 }
             }
             all_uses.insert(func_id, info);

@@ -829,9 +829,6 @@ impl Instruction {
             | InstKind::CallCode { .. }
             | InstKind::StaticCall { .. }
             | InstKind::DelegateCall { .. }
-            | InstKind::ExtCall { .. }
-            | InstKind::ExtDelegateCall { .. }
-            | InstKind::ExtStaticCall { .. }
             | InstKind::ICall { function: Callee::Function(_), .. }
             | InstKind::Create(..)
             | InstKind::Create2(..)
@@ -874,6 +871,11 @@ impl Instruction {
     #[must_use]
     pub(crate) fn operands(&self) -> SmallVec<[ValueId; 8]> {
         self.kind.operands()
+    }
+
+    /// Visits the operands of this instruction in canonical order, without collecting them.
+    pub(crate) fn visit_operands(&self, f: impl FnMut(ValueId)) {
+        self.kind.visit_operands(f);
     }
 
     /// Replaces an operation with an equivalent one, preserving its result and provenance.
@@ -941,14 +943,8 @@ impl InstKind {
     /// Checks scalar operation contracts without applying implicit conversions.
     pub(crate) fn scalar_types_match(&self, func: &Function, result: Option<MirType>) -> bool {
         let ty = |value| func.value_ty(value);
-        let expected = self.operand_types(func);
-        if let Some(expected) = expected
-            && (expected.len() != self.operands().len()
-                || self
-                    .operands()
-                    .iter()
-                    .zip(expected)
-                    .any(|(&value, expected)| ty(value) != Some(expected)))
+        if let Some(expected) = self.operand_types(func)
+            && !self.operands().iter().map(|&value| ty(value)).eq(expected.into_iter().map(Some))
         {
             return false;
         }
