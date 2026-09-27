@@ -10,13 +10,6 @@ contract C {
             //~[petersburg]^ ERROR: Yul builtin `chainid` requires Istanbul-compatible EVM
             pop(selfbalance())
             //~[petersburg]^ ERROR: Yul builtin `selfbalance` requires Istanbul-compatible EVM
-
-            let chainid
-            //~^ ERROR: `chainid` is reserved for a Yul builtin
-
-            let selfbalance
-            //~^ ERROR: `selfbalance` is reserved for a Yul builtin
-
         }
     }
 }

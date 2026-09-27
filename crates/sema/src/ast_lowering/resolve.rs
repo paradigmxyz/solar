@@ -1122,9 +1122,6 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn declare_yul_function(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
-        if self.check_yul_identifier(function.name).is_err() {
-            return;
-        }
         let res = Res::Item(hir::ItemId::Function(id));
         let _ = self.scopes.current_scope().declare_res(
             self.lcx.sess,
@@ -1183,9 +1180,7 @@ impl<'gcx> ResolveContext<'gcx> {
         );
         let id = self.hir.variables.push(var);
         let res = Res::Item(hir::ItemId::Variable(id));
-        let _ = self.check_yul_identifier(name).and_then(|()| {
-            self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res)
-        });
+        let _ = self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
         id
     }
 
@@ -1285,9 +1280,8 @@ impl<'gcx> ResolveContext<'gcx> {
         );
         let id = self.hir.variables.push(var);
         let res = Res::Item(hir::ItemId::Variable(id));
-        let result = self.check_yul_identifier(name).and_then(|()| {
-            self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res)
-        });
+        let result =
+            self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
         (id, result)
     }
 
@@ -1464,7 +1458,14 @@ impl<'gcx> ResolveContext<'gcx> {
                     .help(format!("compile with `--evm-version {required}` or newer"))
                     .emit());
             }
-            return Ok(self.arena.alloc_as_slice(Res::Builtin(builtin)));
+            let is_active = match builtin {
+                Builtin::YulDifficulty => !target.has_prev_randao(),
+                Builtin::YulPrevrandao => target.has_prev_randao(),
+                _ => true,
+            };
+            if is_active {
+                return Ok(self.arena.alloc_as_slice(Res::Builtin(builtin)));
+            }
         }
         if name.name.as_str().starts_with("verbatim_") {
             return Err(self.dcx().emit_err(name.span, "unsupported verbatim builtin"));
@@ -1497,14 +1498,7 @@ impl<'gcx> ResolveContext<'gcx> {
     fn lower_yul_path_expr_full(&mut self, path: &ast::PathSlice) -> hir::Expr<'gcx> {
         let segments = path.segments();
         let first = segments.first().copied().unwrap();
-        let resolved = if segments.len() == 1 && self.is_reserved_yul_name(first) {
-            Err(self
-                .dcx()
-                .emit_err(first.span, format!("builtin function `{first}` must be called")))
-        } else {
-            self.resolve_yul_paths(first)
-        };
-        let kind = match resolved {
+        let kind = match self.resolve_yul_paths(first) {
             Ok(decls) => hir::ExprKind::Ident(
                 self.arena.alloc_slice_fill_iter(decls.iter().map(|decl| decl.res)),
             ),
@@ -1542,53 +1536,6 @@ impl<'gcx> ResolveContext<'gcx> {
         self.resolver
             .resolve_name_non_local(name, &self.scopes)
             .map_err(self.resolver.emit_resolver_error())
-    }
-
-    fn is_reserved_yul_name(&self, name: Ident) -> bool {
-        let target = self.lcx.sess.opts.evm_version;
-        name.is_reserved_yul_builtin()
-            && Builtin::from_yul_name(name.name).is_some_and(|builtin| {
-                builtin.required_evm_version(target).is_none()
-                    && match builtin {
-                        Builtin::YulDifficulty => !target.has_prev_randao(),
-                        Builtin::YulPrevrandao => target.has_prev_randao(),
-                        _ => true,
-                    }
-            })
-    }
-
-    fn check_yul_identifier(&self, name: Ident) -> Result<(), ErrorGuaranteed> {
-        if !name.is_reserved_yul_builtin() {
-            return Ok(());
-        }
-        let target = self.lcx.sess.opts.evm_version;
-        let future = match Builtin::from_yul_name(name.name) {
-            Some(Builtin::YulPrevrandao) => !target.has_prev_randao(),
-            Some(
-                builtin @ (Builtin::YulBasefee
-                | Builtin::YulBlobbasefee
-                | Builtin::YulBlobhash
-                | Builtin::YulMcopy
-                | Builtin::YulTload
-                | Builtin::YulTstore
-                | Builtin::YulClz
-                | Builtin::YulSlotnum),
-            ) => builtin.required_evm_version(target).is_some(),
-            _ => false,
-        };
-        if !future {
-            return Err(self
-                .dcx()
-                .emit_err(name.span, format!("`{name}` is reserved for a Yul builtin")));
-        }
-        self.dcx()
-            .warn(format!(
-                "`{name}` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier"
-            ))
-            .span(name.span)
-            .code(error_code!(5470))
-            .emit();
-        Ok(())
     }
 
     fn yul_number_lit(&mut self, value: U256, span: Span) -> &'gcx hir::Expr<'gcx> {

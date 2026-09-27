@@ -1,3 +1,27 @@
+error: expected identifier, found Yul EVM builtin keyword `difficulty`
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
+   │
+LL │             let difficulty := 1
+   ╰╴                ━━━━━━━━━━
+
+error: expected identifier, found Yul EVM builtin keyword `difficulty`
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
+   │
+LL │             function difficulty() {}
+   ╰╴                     ━━━━━━━━━━
+
+error: expected identifier, found Yul EVM builtin keyword `difficulty`
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
+   │
+LL │             function helper(difficulty) {}
+   ╰╴                            ━━━━━━━━━━
+
+error: expected identifier, found Yul EVM builtin keyword `difficulty`
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
+   │
+LL │             function helper() -> difficulty {}
+   ╰╴                                 ━━━━━━━━━━
+
 error: Yul builtin `difficulty` is unavailable for Paris-compatible EVM
    ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
    │
@@ -5,30 +29,6 @@ LL │             pop(difficulty())
    │                 ━━━━━━━━━━
    │
    ╰ help: use `prevrandao()` when compiling for `paris` or newer
-
-error: `difficulty` is reserved for a Yul builtin
-   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
-   │
-LL │             let difficulty := 1
-   ╰╴                ━━━━━━━━━━
-
-error: `difficulty` is reserved for a Yul builtin
-   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
-   │
-LL │             function difficulty() {}
-   ╰╴                     ━━━━━━━━━━
-
-error: `difficulty` is reserved for a Yul builtin
-   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
-   │
-LL │             function helper(difficulty) {}
-   ╰╴                            ━━━━━━━━━━
-
-error: `difficulty` is reserved for a Yul builtin
-   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
-   │
-LL │             function helper() -> difficulty {}
-   ╰╴                                 ━━━━━━━━━━
 
 error: aborting due to 5 previous errors
 
