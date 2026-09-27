@@ -298,6 +298,7 @@ fn compile(
         |compiler| {
             let mut output = CompilerOutput::default();
             let result = (|| {
+                let mut parsed_sources = FxIndexMap::default();
                 let control_flow = crate::commands::compile::run_pipeline(
                     compiler,
                     |pcx| {
@@ -313,10 +314,13 @@ fn compile(
                             };
                             files.push((PathBuf::from(name.as_ref()), content.into()));
                         }
+                        output.sources = (!files.is_empty()).then(FxIndexMap::default);
                         pcx.par_load_files_with_contents(files)
                     },
-                    |compiler| output.sources = source_outputs_from_compiler(compiler),
+                    |compiler| parsed_sources = source_outputs_from_compiler(compiler),
                 )?;
+                compiler.gcx().dcx().has_errors()?;
+                output.sources = Some(parsed_sources);
                 if control_flow.is_break() {
                     return Ok(());
                 }
