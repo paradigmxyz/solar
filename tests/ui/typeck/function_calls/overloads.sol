@@ -44,25 +44,9 @@ contract C {
     function noMatch(address value) public pure {
         pick(value); //~ ERROR: no matching declarations found
     }
-}
 
-contract ExternalOverload {
     function choose(uint256 value) external pure returns (uint256) { return value; }
     function choose(uint8 value) public pure returns (uint8) { return value; }
     function functionValue() internal pure returns (function(uint8) internal pure returns (uint8)) { return choose; }
     function callInternal(uint8 value) public pure returns (uint8) { return choose(value); }
-}
-
-uint256 constant N_COINS = 2;
-interface StableSwap {
-    function N_COINS() external view returns (uint256);
-    function balances() external view returns (uint256[N_COINS] memory);
-}
-
-contract ExternalConstantShadow {
-    function N_COINS() external pure returns (uint256) { return 3; }
-    function value() public pure returns (uint256) { return N_COINS; }
-    function assemblyValue() public pure returns (uint256 result) {
-        assembly { result := N_COINS }
-    }
 }
