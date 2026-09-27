@@ -796,7 +796,7 @@ impl<'gcx> Ty<'gcx> {
                 Ok(())
             }
             (StringLiteral(_, size_from), Elementary(FixedBytes(size_to))) => {
-                if size_from.bytes() <= size_to.bytes() {
+                if size_from.bytes_raw() <= size_to.bytes() {
                     Ok(())
                 } else {
                     Result::Err(TyConvertError::LiteralTooLarge)
