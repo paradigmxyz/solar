@@ -620,6 +620,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(self.builder.imm(value.as_evm_word()));
         }
         match &expr.kind {
+            ExprKind::CallOptions(callee, options) => {
+                let value = if self.discarded_exprs.contains(&expr.id) {
+                    match callee.peel_parens().kind {
+                        ExprKind::Member(receiver, _) => self.lower_discarded_expr(receiver)?,
+                        ExprKind::New(_) => self.builder.imm(0),
+                        _ => self.lower_discarded_expr(callee)?,
+                    }
+                } else {
+                    self.lower_expr(callee)?
+                };
+                for option in options.args {
+                    self.lower_discarded_expr(&option.value)?;
+                }
+                Some(value)
+            }
             ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),
             ExprKind::Array(elements) => self.lower_array(expr, elements),
             ExprKind::Ident(_) => {
@@ -749,8 +764,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     result
                 })
             }
-            ExprKind::Call(callee, args, call_opts) => {
-                self.lower_call(expr, callee, *args, *call_opts)
+            ExprKind::Call(callee, args) => {
+                let (callee, call_opts) = callee.split_call_options();
+                self.lower_call(expr, callee, *args, call_opts)
             }
             ExprKind::Delete(value) => {
                 self.delete_lvalue(value)?;

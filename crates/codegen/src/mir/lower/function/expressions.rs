@@ -289,7 +289,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut expr = expr;
         loop {
             expr = expr.peel_parens();
-            if let ExprKind::Call(callee, args, _) = &expr.kind
+            if let Some((callee, args, _)) = expr.as_call()
                 && let ExprKind::Type(ty) = &callee.kind
                 && matches!(
                     ty.kind,

@@ -2815,7 +2815,7 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
                 self.visit_lvalue(lhs)?;
                 self.visit_expr(rhs)?;
             }
-            hir::ExprKind::Call(callee, ref args, _) => {
+            hir::ExprKind::Call(callee, ref args) => {
                 if let Some(source) = self.call_param_source(callee) {
                     self.push_named_arg_references(source, args);
                 }

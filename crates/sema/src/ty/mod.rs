@@ -569,7 +569,7 @@ impl<'gcx> Gcx<'gcx> {
         call: &hir::Expr<'gcx>,
         parameter_index: usize,
     ) -> Option<&'gcx hir::Expr<'gcx>> {
-        let hir::ExprKind::Call(callee, args, _) = call.peel_parens().kind else { return None };
+        let (callee, args, _) = call.peel_parens().as_call()?;
         let callee_ty = self.type_of_expr(callee.id)?;
         let signature = self.callable_signature_of_ty(callee_ty);
 
@@ -605,7 +605,7 @@ impl<'gcx> Gcx<'gcx> {
     /// The selected callable type takes precedence. Syntax and builtin semantics only recover
     /// parameter names when the selected signature does not carry a declaration source.
     pub fn call_param_source(self, callee: &hir::Expr<'_>) -> Option<CallableParamSource> {
-        let callee = callee.peel_parens();
+        let callee = callee.split_call_options().0;
         if let Some(source) = self
             .type_of_expr(callee.id)
             .and_then(|ty| self.callable_signature_of_ty(ty))
@@ -646,7 +646,7 @@ impl<'gcx> Gcx<'gcx> {
     #[inline]
     pub fn resolved_call(self, expr: &hir::Expr<'gcx>) -> Option<ResolvedCallee> {
         let hir::ExprKind::Call(callee, ..) = expr.peel_parens().kind else { return None };
-        self.resolved_callee(callee.id)
+        self.resolved_callee(callee.split_call_options().0.id)
     }
 
     /// Resolves every segment of a source path in its source and contract scopes.

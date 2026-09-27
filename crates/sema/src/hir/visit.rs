@@ -148,13 +148,12 @@ pub trait Visit<'hir> {
 
     fn visit_expr(&mut self, expr: &'hir Expr<'hir>) -> ControlFlow<Self::BreakValue> {
         match expr.kind {
-            ExprKind::Call(expr, ref args, opts) => {
+            ExprKind::CallOptions(callee, options) => {
+                self.visit_expr(callee)?;
+                for arg in options.args { self.visit_expr(&arg.value)?; }
+            }
+            ExprKind::Call(expr, ref args) => {
                 self.visit_expr(expr)?;
-                if let Some(opts) = opts {
-                    for arg in opts.args {
-                        self.visit_expr(&arg.value)?;
-                    }
-                }
                 self.visit_call_args(args)?;
             }
             ExprKind::Delete(expr)

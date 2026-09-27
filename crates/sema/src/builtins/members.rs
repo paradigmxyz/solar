@@ -11,6 +11,9 @@ pub type MemberList<'gcx> = &'gcx [Member<'gcx>];
 pub(crate) type MemberListOwned<'gcx> = Vec<Member<'gcx>>;
 
 pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'gcx> {
+    if let TyKind::CallOptions(inner) = ty.kind {
+        return native_members(gcx, inner);
+    }
     let expected_ref = || panic!("native_members: type {ty:?} should be wrapped in Ref");
     gcx.bump().alloc_vec(match ty.kind {
         TyKind::Elementary(elementary_type) => match elementary_type {
@@ -25,7 +28,7 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
             ElementaryType::FixedBytes(_size) => fixed_bytes(gcx),
         },
         TyKind::StringLiteral(_utf8, _size) => Default::default(),
-        TyKind::IntLiteral(..) => Default::default(),
+        TyKind::IntLiteral(..) | TyKind::CallOptions(_) => Default::default(),
         TyKind::Ref(inner, loc) => reference(gcx, ty, inner, loc),
         TyKind::DynArray(_ty) => expected_ref(),
         TyKind::Array(_ty, _len) => expected_ref(),
