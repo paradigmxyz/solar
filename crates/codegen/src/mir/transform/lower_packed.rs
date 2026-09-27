@@ -12,7 +12,7 @@
 //! all, can be read without being copied: the prefix is written over the length word of the bytes,
 //! which it then immediately precedes, and the length is written back once the encoding has been
 //! read. The hash of such an encoding is taken that way, and creations and calls that take one as
-//! their input read it the same way ([`prefix_over_length`](crate::mir::prefix_over_length)).
+//! their input read it the same way ([`prefix_over_length`]).
 //! Between the two writes run only the instruction reading the range and code that touches
 //! neither the bytes nor their length, so nothing observes the borrowed length word.
 
