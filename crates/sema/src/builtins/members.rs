@@ -288,7 +288,7 @@ fn contract_type(
 
     match access {
         ContractTypeAccess::External => {
-            members.extend(gcx.interface_functions(id).iter().map(|f| {
+            members.extend(gcx.interface_functions(id).own().iter().map(|f| {
                 let item = hir::ItemId::from(f.id);
                 let ty = declaration_function_ty(gcx, gcx.type_of_item(item));
                 Member::with_res(gcx.item_name(item).name, ty, item)
