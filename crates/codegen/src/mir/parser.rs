@@ -69,6 +69,22 @@ pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
     parser.parse_module().map_err(PErr::emit)
 }
 
+/// Parses one function as a candidate replacement for a function of `module`.
+///
+/// Candidate text is untrusted, so it may not use what the module-level parser accepts on trust:
+/// `!metadata`, `undef`, `err`, implicit arguments, numeric `fnN` references, `entry`, ABI
+/// layouts, or libraries and struct types the module does not declare. Exactly one function must
+/// follow, and its function references resolve against `module` by name.
+pub(super) fn parse_candidate(
+    sess: &Session,
+    source: &SourceFile,
+    module: &Module,
+) -> Result<Function> {
+    let arena = Arena::new();
+    let mut parser = Parser::new(sess, &arena, source);
+    parser.parse_candidate(module).map_err(PErr::emit)
+}
+
 #[cfg(test)]
 pub(super) fn parse_module(sess: &Session, input: &str) -> Result<Module> {
     let name = format!("test{}.mir", sess.source_map().files().len());
@@ -85,6 +101,8 @@ pub(super) fn parse_module(sess: &Session, input: &str) -> Result<Module> {
 
 struct Parser<'sess, 'ast> {
     parser: crate::ir_parse::Parser<'sess, 'ast>,
+    /// Whether the input is an untrusted candidate function; see [`parse_candidate`].
+    candidate: bool,
     pending_function_ref: Option<(MangledSymbol, Span)>,
     parsed_dispatch_entry: bool,
     function_refs: Vec<PendingFunctionRef>,
@@ -133,6 +151,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn new(sess: &'sess Session, arena: &'ast Arena, source: &SourceFile) -> Self {
         Self {
             parser: crate::ir_parse::Parser::new(sess, arena, source),
+            candidate: false,
             pending_function_ref: None,
             parsed_dispatch_entry: false,
             function_refs: Vec::new(),
@@ -346,106 +365,80 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         function_refs: Vec<(FunctionId, PendingFunctionRef)>,
         explicit_results: &FxHashSet<(FunctionId, InstId)>,
     ) -> PResult<'sess, ()> {
-        let mut declarations = FxHashMap::<MangledSymbol, Vec<FunctionId>>::default();
-        for (id, function) in module.functions.iter_enumerated() {
-            declarations.entry(function.name).or_default().push(id);
-        }
+        let declarations = function_declarations(&module.functions);
         for (owner, reference) in function_refs {
-            let matches = declarations.get(&reference.name);
-            let Some(matches) = matches else {
-                return Err(self.parser.error_at(
-                    reference.span,
-                    format!("unknown function reference `{}`", reference.name),
-                ));
-            };
-            let [function] = matches.as_slice() else {
-                return Err(self.parser.error_at(
-                    reference.span,
-                    format!("function reference `{}` is ambiguous", reference.name),
-                ));
-            };
-            match reference.target {
-                FunctionRefTarget::Instruction(inst) => {
-                    let instruction = module.functions[owner].inst_mut(inst);
-                    let InstKind::ICall { function: Callee::Function(target), .. } =
-                        &mut instruction.kind
-                    else {
-                        unreachable!()
-                    };
-                    *target = *function;
-                }
-                FunctionRefTarget::Terminator(block) => {
-                    let Some(Terminator::TailCall { function: target, .. }) =
-                        &mut module.functions[owner].blocks[block].terminator
-                    else {
-                        unreachable!()
-                    };
-                    *target = *function;
-                }
-            }
+            let function = self.resolve_function_ref(&declarations, &reference)?;
+            retarget_function_ref(&mut module.functions[owner], reference.target, function);
         }
-        let return_types = module
-            .functions
-            .iter()
-            .map(|function| function.return_components().first().copied())
-            .collect::<IndexVec<_, _>>();
+        let return_types = function_return_types(&module.functions);
         for (function_id, function) in module.functions.iter_mut_enumerated() {
-            let instructions = function.instructions().collect::<Vec<_>>();
-            for &id in &instructions {
-                let instruction = function.inst_mut(id);
-                if explicit_results.contains(&(function_id, id)) {
-                    continue;
-                }
-                if let InstKind::ICall { function: Callee::Function(function), .. } =
-                    instruction.kind
-                    && instruction.result_ty.is_some()
-                    && let Some(Some(ty)) = return_types.get(function)
-                {
-                    instruction.result_ty = Some(*ty);
-                }
-            }
-            // phi/select of typed operands -> the operand type
-            // Resolve after calls, including forward and numeric function references. Each merge
-            // acquires a non-default type at most once, so cyclic value references cannot
-            // oscillate.
-            loop {
-                let mut changed = false;
-                for &id in &instructions {
-                    let instruction = function.inst(id);
-                    let non_default = |ty| {
-                        matches!(ty, MirType::Struct(_) | MirType::Slice(_) | MirType::MemPtr)
-                            || matches!(ty, MirType::Int(bits) if bits.get() != 256)
-                    };
-                    if explicit_results.contains(&(function_id, id))
-                        || instruction.result_ty.is_some_and(non_default)
-                    {
-                        continue;
-                    }
-                    let ty = match &instruction.kind {
-                        kind if kind.op_def().result == super::ResultKind::Integer => {
-                            kind.inferred_result_type(function).filter(|&ty| non_default(ty))
-                        }
-                        InstKind::Select(_, a, b) => [*a, *b]
-                            .into_iter()
-                            .filter_map(|value| function.value_ty(value))
-                            .find(|&ty| non_default(ty)),
-                        InstKind::Phi(incoming) => incoming
-                            .iter()
-                            .filter_map(|&(_, value)| function.value_ty(value))
-                            .find(|&ty| non_default(ty)),
-                        _ => None,
-                    };
-                    if let Some(ty) = ty {
-                        function.inst_mut(id).result_ty = Some(ty);
-                        changed = true;
-                    }
-                }
-                if !changed {
-                    break;
-                }
-            }
+            infer_result_types(function, &return_types, |inst| {
+                explicit_results.contains(&(function_id, inst))
+            });
         }
         Ok(())
+    }
+
+    fn resolve_function_ref(
+        &self,
+        declarations: &FxHashMap<MangledSymbol, Vec<FunctionId>>,
+        reference: &PendingFunctionRef,
+    ) -> PResult<'sess, FunctionId> {
+        let Some(matches) = declarations.get(&reference.name) else {
+            return Err(self.parser.error_at(
+                reference.span,
+                format!("unknown function reference `{}`", reference.name),
+            ));
+        };
+        let [function] = matches.as_slice() else {
+            return Err(self.parser.error_at(
+                reference.span,
+                format!("function reference `{}` is ambiguous", reference.name),
+            ));
+        };
+        Ok(*function)
+    }
+
+    fn parse_candidate(&mut self, module: &Module) -> PResult<'sess, Function> {
+        self.candidate = true;
+        self.struct_types = module.struct_types.clone();
+        self.data_sizes = module
+            .data
+            .iter()
+            .map(|data| data.bytes.known().map_or(0, |bytes| bytes.len()))
+            .collect();
+        self.immutable_names = module
+            .iter_immutables()
+            .map(|(id, immutable)| (immutable.name.name, (id, immutable.ty.mir_type())))
+            .collect();
+        self.parser.libraries = module.libraries.clone();
+
+        let mut function = self.parse_function()?;
+        if !self.parser.is_eof() {
+            return Err(self.parser.error("expected the end of the candidate after its function"));
+        }
+        // ABI layouts, the only source of new struct types, are rejected where they start.
+        if self.struct_types.len() != module.struct_types.len() {
+            return Err(self.parser.error("candidates may not declare struct types"));
+        }
+        let declarations = function_declarations(&module.functions);
+        for reference in std::mem::take(&mut self.function_refs) {
+            let target = self.resolve_function_ref(&declarations, &reference)?;
+            retarget_function_ref(&mut function, reference.target, target);
+        }
+        let explicit_results =
+            std::mem::take(&mut self.explicit_results).into_iter().collect::<FxHashSet<_>>();
+        infer_result_types(&mut function, &function_return_types(&module.functions), |inst| {
+            explicit_results.contains(&inst)
+        });
+        for (value, ty, span) in std::mem::take(&mut self.cast_sources) {
+            if function.value_ty(value) != Some(ty) {
+                return Err(self
+                    .parser
+                    .error_at(span, "cast source type does not match its operand"));
+            }
+        }
+        Ok(function)
     }
 
     fn parse_function(&mut self) -> PResult<'sess, Function> {
@@ -600,6 +593,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
 
         loop {
+            let key_span = self.parser.token().span;
             let key = self.parser.parse_ident()?;
             match key {
                 sym::selector => {
@@ -636,6 +630,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     builder.func_mut().abi_params = Some(self.parse_abi_param_layout()?);
                 }
                 sym::abi_wrapper => builder.func_mut().attributes.is_abi_wrapper = true,
+                sym::entry if self.candidate => {
+                    return Err(self
+                        .parser
+                        .error_at(key_span, "candidates may not declare `entry`"));
+                }
                 sym::entry => self.parsed_dispatch_entry = true,
                 sym::may_return_memory => {
                     builder.func_mut().attributes.may_return_memory = true;
@@ -780,7 +779,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             return Ok(builder.imm(v));
         }
         // Identifier-like — could be argN, vN, true, false.
+        let span = self.parser.token().span;
         let ident = self.parser.parse_ident()?;
+        if self.candidate && (ident == sym::undef || ident == sym::err) {
+            return Err(self.parser.error_at(span, format!("candidates may not use `{ident}`")));
+        }
         if ident == sym::undef {
             let ty = self.parse_type()?;
             return Ok(builder.undef(ty));
@@ -804,6 +807,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             // printed ABI wrappers round-trip. A function that does
             // declare parameters keeps strict bounds checking.
             if idx >= self.arg_values.len() && builder.func().params.is_empty() {
+                if self.candidate {
+                    return Err(self
+                        .parser
+                        .error_at(span, "candidates must declare the arguments they use"));
+                }
                 for _ in self.arg_values.len()..=idx {
                     let val = builder.func_mut().alloc_implicit_arg(MirType::I256);
                     self.arg_values.push(val);
@@ -943,6 +951,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses an ABI layout: `[type, type, ...]`. Structurally identical
     /// layouts are interned so repeated encodes share one allocation.
     fn parse_abi_layout(&mut self) -> PResult<'sess, AbiLayoutRef> {
+        self.reject_candidate_abi_layout()?;
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
         let mut types = Vec::new();
         if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
@@ -971,6 +980,15 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let layout = std::sync::Arc::new(layout);
         self.abi_param_layouts.push(std::sync::Arc::clone(&layout));
         layout
+    }
+
+    /// Rejects an ABI layout in a candidate: lowered MIR has none, and a layout could declare
+    /// struct types the module lacks.
+    fn reject_candidate_abi_layout(&self) -> PResult<'sess, ()> {
+        if self.candidate {
+            return Err(self.parser.error("candidates may not use ABI layouts"));
+        }
+        Ok(())
     }
 
     fn parse_abi_type(&mut self) -> PResult<'sess, AbiType> {
@@ -1042,6 +1060,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn parse_abi_param_layout(&mut self) -> PResult<'sess, AbiParamLayout> {
+        self.reject_candidate_abi_layout()?;
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
         let mut types = Vec::new();
         if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
@@ -1213,6 +1232,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
         let span = self.parser.token().span;
         let name = self.parser.parse_ident()?;
+        if self.candidate {
+            return Err(self
+                .parser
+                .error_at(span, "candidates must reference functions by `@name`"));
+        }
         if let Some(index) = name.as_str().strip_prefix("fn").and_then(|s| s.parse().ok()) {
             return Ok(FunctionId::from_usize(index));
         }
@@ -1432,8 +1456,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         builder: &mut FunctionBuilder<'_>,
     ) -> PResult<'sess, InstructionMetadata> {
         let mut metadata = InstructionMetadata::EMPTY;
+        let span = self.parser.token().span;
         if !self.parser.eat(TokenKind::Not) {
             return Ok(metadata);
+        }
+        // The backend trusts memory regions and effects, so candidates carry none.
+        if self.candidate {
+            return Err(self.parser.error_at(span, "candidates may not carry `!metadata`"));
         }
         self.parser.expect_keyword(sym::metadata)?;
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
@@ -2486,5 +2515,105 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             },
         };
         Ok(parsed)
+    }
+}
+
+/// Maps each function name to the functions that declare it.
+fn function_declarations(
+    functions: &IndexVec<FunctionId, Function>,
+) -> FxHashMap<MangledSymbol, Vec<FunctionId>> {
+    let mut declarations = FxHashMap::<MangledSymbol, Vec<FunctionId>>::default();
+    for (id, function) in functions.iter_enumerated() {
+        declarations.entry(function.name).or_default().push(id);
+    }
+    declarations
+}
+
+/// Points a parsed call at its resolved callee.
+fn retarget_function_ref(function: &mut Function, target: FunctionRefTarget, callee: FunctionId) {
+    match target {
+        FunctionRefTarget::Instruction(inst) => {
+            let InstKind::ICall { function: Callee::Function(target), .. } =
+                &mut function.inst_mut(inst).kind
+            else {
+                unreachable!()
+            };
+            *target = callee;
+        }
+        FunctionRefTarget::Terminator(block) => {
+            let Some(Terminator::TailCall { function: target, .. }) =
+                &mut function.blocks[block].terminator
+            else {
+                unreachable!()
+            };
+            *target = callee;
+        }
+    }
+}
+
+/// Returns each function's first return component, which types its call results.
+fn function_return_types(
+    functions: &IndexVec<FunctionId, Function>,
+) -> IndexVec<FunctionId, Option<MirType>> {
+    functions.iter().map(|function| function.return_components().first().copied()).collect()
+}
+
+/// Types call results from their callees, and merges and integer operations from their operands,
+/// leaving the results whose type the text states.
+fn infer_result_types(
+    function: &mut Function,
+    return_types: &IndexVec<FunctionId, Option<MirType>>,
+    is_explicit: impl Fn(InstId) -> bool,
+) {
+    let instructions = function.instructions().collect::<Vec<_>>();
+    for &id in &instructions {
+        if is_explicit(id) {
+            continue;
+        }
+        let instruction = function.inst_mut(id);
+        if let InstKind::ICall { function: Callee::Function(function), .. } = instruction.kind
+            && instruction.result_ty.is_some()
+            && let Some(Some(ty)) = return_types.get(function)
+        {
+            instruction.result_ty = Some(*ty);
+        }
+    }
+    // phi/select of typed operands -> the operand type
+    // Resolve after calls, including forward and numeric function references. Each merge
+    // acquires a non-default type at most once, so cyclic value references cannot
+    // oscillate.
+    loop {
+        let mut changed = false;
+        for &id in &instructions {
+            let instruction = function.inst(id);
+            let non_default = |ty| {
+                matches!(ty, MirType::Struct(_) | MirType::Slice(_) | MirType::MemPtr)
+                    || matches!(ty, MirType::Int(bits) if bits.get() != 256)
+            };
+            if is_explicit(id) || instruction.result_ty.is_some_and(non_default) {
+                continue;
+            }
+            let ty = match &instruction.kind {
+                kind if kind.op_def().result == super::ResultKind::Integer => {
+                    kind.inferred_result_type(function).filter(|&ty| non_default(ty))
+                }
+                InstKind::Select(_, a, b) => [*a, *b]
+                    .into_iter()
+                    .filter_map(|value| function.value_ty(value))
+                    .find(|&ty| non_default(ty)),
+                InstKind::Phi(incoming) => incoming
+                    .iter()
+                    .filter_map(|&(_, value)| function.value_ty(value))
+                    .find(|&ty| non_default(ty)),
+                _ => None,
+            };
+            if let Some(ty) = ty {
+                function.inst_mut(id).result_ty = Some(ty);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
     }
 }
