@@ -79,7 +79,8 @@ impl NatSpecCompletionTarget {
         if let Some(semantics) = semantics {
             for contract in &semantics.inheritdoc_contracts {
                 let template = Template::new(options.snippet_support);
-                let mut lines = vec![template.literal(&format!("@inheritdoc {contract}"))];
+                let mut lines = Vec::new();
+                lines.push(template.literal(&format!("@inheritdoc {contract}")));
                 template.finish(&mut lines);
                 items.push(self.completion_item(
                     format!("NatSpec @inheritdoc {contract}"),
@@ -120,7 +121,8 @@ impl NatSpecCompletionTarget {
                     ast::FunctionKind::Function => format!("function {}", name?),
                     _ => kind.to_string(),
                 };
-                let mut lines = vec![template.described("")];
+                let mut lines = Vec::new();
+                lines.push(template.described(""));
                 push_parameters(&mut lines, template, &self.parameters);
                 if !matches!(kind, ast::FunctionKind::Constructor | ast::FunctionKind::Receive) {
                     push_returns(&mut lines, template, &self.returns);
@@ -149,7 +151,8 @@ impl NatSpecCompletionTarget {
             }
             TargetKind::Struct => {
                 let name = name?;
-                let mut lines = vec![template.described("")];
+                let mut lines = Vec::new();
+                lines.push(template.described(""));
                 push_parameters(&mut lines, template, &self.parameters);
                 ("NatSpec struct documentation".into(), format!("struct {name}"), lines)
             }
@@ -163,13 +166,15 @@ impl NatSpecCompletionTarget {
             }
             TargetKind::Event => {
                 let name = name?;
-                let mut lines = vec![template.described("")];
+                let mut lines = Vec::new();
+                lines.push(template.described(""));
                 push_parameters(&mut lines, template, &self.parameters);
                 ("NatSpec event documentation".into(), format!("event {name}"), lines)
             }
             TargetKind::Error => {
                 let name = name?;
-                let mut lines = vec![template.described("")];
+                let mut lines = Vec::new();
+                lines.push(template.described(""));
                 push_parameters(&mut lines, template, &self.parameters);
                 ("NatSpec error documentation".into(), format!("error {name}"), lines)
             }

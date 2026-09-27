@@ -138,7 +138,7 @@ fn fmp_write_has_future_observer(func: &Function, cfg: &CfgInfo, inst_id: InstId
     {
         return true;
     }
-    if cfg.transitive_reachability().get(&block).into_iter().flat_map(|blocks| blocks.iter()).any(
+    if cfg.transitive_reachability().get(block).into_iter().flat_map(|blocks| blocks.iter()).any(
         |block| {
             func.blocks[block]
                 .instructions
@@ -276,15 +276,15 @@ impl ValueUses {
         let mut instructions = index_vec![Vec::new(); func.num_values()];
         let mut terminators = index_vec![Vec::new(); func.num_values()];
         for inst_id in func.instructions() {
-            for operand in func.inst(inst_id).operands() {
+            func.inst(inst_id).visit_operands(|operand| {
                 instructions[operand].push(inst_id);
-            }
+            });
         }
         for (block_id, block) in func.blocks.iter_enumerated() {
             if let Some(terminator) = &block.terminator {
-                for operand in terminator.operands() {
+                terminator.visit_operands(|operand| {
                     terminators[operand].push(block_id);
-                }
+                });
             }
         }
         Self { instructions, terminators }
@@ -303,7 +303,8 @@ fn candidate_uses_are_safe(
     // definition order does not matter.
     let mut derived: FxHashMap<ValueId, u64> = FxHashMap::default();
     derived.insert(cand.ptr, 0);
-    let mut pending = vec![cand.ptr];
+    let mut pending = Vec::new();
+    pending.push(cand.ptr);
     while let Some(value) = pending.pop() {
         for &inst_id in &uses.instructions[value] {
             let Some(result) = func.inst_result_value(inst_id) else { continue };

@@ -139,32 +139,16 @@
 0xa2 log2             io=4/0 since=homestead gas=1125 +8
 0xa3 log3             io=5/0 since=homestead gas=1500 +8
 0xa4 log4             io=6/0 since=homestead gas=1875 +8
-0xd0 dataload         io=1/1 since=never gas=4
-0xd1 dataloadn        io=0/1 since=never gas=3
-0xd2 datasize         io=0/1 since=never gas=2
-0xd3 datacopy         io=3/0 since=never gas=3 +3 writes_memory
-0xe0 rjump            io=0/0 since=never gas=2
-0xe1 rjumpi           io=1/0 since=never gas=4
-0xe2 rjumpv           io=1/0 since=never gas=4
-0xe3 callf            io=? since=never gas=5 writes_memory writes_storage
-0xe4 retf             io=? since=never gas=3
-0xe5 jumpf            io=? since=never gas=5
-0xe6 dupn             io=0/1 since=amsterdam gas=3
-0xe7 swapn            io=0/0 since=amsterdam gas=3
-0xe8 exchange         io=0/0 since=amsterdam gas=3
-0xec eofcreate        io=4/1 since=never gas=32000 writes_storage
-0xee returncontract   io=2/0 since=never gas=0
+0xe6 dupn             io=? since=amsterdam gas=3
+0xe7 swapn            io=? since=amsterdam gas=3
+0xe8 exchange         io=? since=amsterdam gas=3
 0xf0 create           io=3/1 bits=[]/160 since=homestead gas=32000 writes_storage
 0xf1 call             io=7/1 bits=[256, 160]/1 since=homestead gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage
 0xf2 callcode         io=7/1 bits=[256, 160]/1 since=homestead gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage
 0xf3 return           io=2/0 since=homestead gas=0 terminal
 0xf4 delegatecall     io=6/1 bits=[256, 160]/1 since=homestead gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage
 0xf5 create2          io=4/1 bits=[]/160 since=constantinople gas=32000 writes_storage
-0xf7 returndataload   io=1/1 since=never gas=3
-0xf8 extcall          io=4/1 since=never gas=40 tangerineWhistle=700 berlin=2600 writes_storage
-0xf9 extdelegatecall  io=3/1 since=never gas=40 tangerineWhistle=700 berlin=2600 writes_storage
 0xfa staticcall       io=6/1 bits=[256, 160]/1 since=byzantium gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage
-0xfb extstaticcall    io=3/1 since=never gas=40 tangerineWhistle=700 berlin=2600
 0xfd revert           io=2/0 since=byzantium gas=0 terminal
 0xfe invalid          io=0/0 since=homestead gas=0 terminal
 0xff selfdestruct     io=1/0 bits=[160]/256 since=homestead gas=0 tangerineWhistle=5000 terminal

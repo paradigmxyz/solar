@@ -593,7 +593,8 @@ struct FlatPositionIndex<'a> {
 
 impl<'a> FlatPositionIndex<'a> {
     fn new(source: &'a str, file: Option<&SourceFile>) -> Self {
-        let mut line_starts = vec![0];
+        let mut line_starts = Vec::new();
+        line_starts.push(0);
         let mut previous_cr_end = None;
         for offset in memchr::memchr2_iter(b'\r', b'\n', source.as_bytes()) {
             let is_cr = source.as_bytes()[offset] == b'\r';

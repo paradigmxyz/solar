@@ -468,7 +468,8 @@ fn coalesce_constant_allocations(func: &mut Function) {
                 continue;
             };
 
-            let mut allocations = vec![(inst_id, first, false)];
+            let mut allocations = Vec::new();
+            allocations.push((inst_id, first, false));
             let mut owners = IndexVec::from_vec(vec![None; func.num_values()]);
             owners[first.result] = Some(0);
             let mut scan = position + 1;

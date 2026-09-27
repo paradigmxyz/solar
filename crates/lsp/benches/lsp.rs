@@ -427,7 +427,8 @@ fn code_lens_queries(c: &mut Criterion) {
         fixture.project.unique_anchor("benchmark.sol", "function_0255(1, 2, address(0))").unwrap();
     let analysis = fixture.project.analyze();
     assert_clean(&analysis);
-    let mut first_requests = vec![("256-functions".to_owned(), analysis.clone(), uri.clone())];
+    let mut first_requests = Vec::new();
+    first_requests.push(("256-functions".to_owned(), analysis.clone(), uri.clone()));
     assert!(analysis.code_lenses(&uri).len() >= HOVER_FUNCTION_COUNT);
     let mut group = c.benchmark_group("lsp/code-lens");
     group.bench_function(BenchmarkId::from_parameter("256-functions"), |b| {

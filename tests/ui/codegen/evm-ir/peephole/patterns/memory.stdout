@@ -52,11 +52,7 @@
     push 32
     mstore
     stop
-  bb6:
-    callf !metadata(stack=0->255)
-    callf !metadata(stack=0->255)
-    callf !metadata(stack=0->255)
-    callf !metadata(stack=0->255)
+  bb6 [stack=1019]:
     push 0
     push 0
     push 7

@@ -2068,7 +2068,7 @@ impl SymbolTables {
         self.file_declaration_positions.reserve(self.files.len());
         for (uri, symbols) in &self.files {
             let mut positions = PositionIndex::default();
-            positions.entries.extend(symbols.iter().copied());
+            positions.entries.extend_from_slice(symbols);
             positions.rebuild(|symbol_id| self.declarations[symbol_id].name_range);
             self.file_declaration_positions.insert(uri.clone(), positions);
         }

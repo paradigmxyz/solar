@@ -447,13 +447,13 @@ impl Analysis {
             return false;
         }
         let reach = self.cfg.transitive_reachability();
-        let Some(reachable_from) = reach.get(&from) else { return true };
+        let Some(reachable_from) = reach.get(from) else { return true };
         for (&mid, kills) in &self.kills {
             if mid == from || !kills.contains(key_idx) {
                 continue;
             }
             if reachable_from.contains(mid)
-                && reach.get(&mid).is_some_and(|reachable| reachable.contains(to))
+                && reach.get(mid).is_some_and(|reachable| reachable.contains(to))
             {
                 return true;
             }
@@ -546,7 +546,7 @@ impl LoadRedundancyEliminator {
         let mut keys = Vec::new();
         let mut key_index: FxHashMap<LoadKey, usize> = FxHashMap::default();
         for &block in rpo {
-            let predecessors = func.unique_predecessors(block);
+            let predecessors = &func.blocks[block].predecessors;
             if predecessors.len() < 2 || predecessors.iter().any(|&pred| !cfg.is_reachable(pred)) {
                 continue;
             }
@@ -675,7 +675,7 @@ impl LoadRedundancyEliminator {
             if !cx.analysis.cfg.is_reachable(target) || cx.analysis.gas.at_entry(target) {
                 continue;
             }
-            let predecessors = func.unique_predecessors(target);
+            let predecessors = &func.blocks[target].predecessors;
             if predecessors.len() < 2
                 || predecessors.iter().any(|&pred| !cx.analysis.cfg.is_reachable(pred))
             {
@@ -691,7 +691,7 @@ impl LoadRedundancyEliminator {
                     continue;
                 }
                 let Some(candidate) =
-                    self.candidate_for_load(func, cx, target, inst, key_idx, &predecessors)
+                    self.candidate_for_load(func, cx, target, inst, key_idx, predecessors)
                 else {
                     continue;
                 };
@@ -917,7 +917,7 @@ impl LoadRedundancyEliminator {
                 !matches!(func.value(value), Value::Immediate(_))
                     && !self
                         .liveness
-                        .get_or_init(|| Liveness::compute(func))
+                        .get_or_init(|| Liveness::compute_live_sets(func))
                         .live_in(target)
                         .contains(value)
             })
@@ -1048,7 +1048,7 @@ impl LoadRedundancyEliminator {
                     || matches!(func.value(value), Value::Immediate(_))
                     || self
                         .liveness
-                        .get_or_init(|| Liveness::compute(func))
+                        .get_or_init(|| Liveness::compute_live_sets(func))
                         .live_out(block)
                         .contains(value)
                 {

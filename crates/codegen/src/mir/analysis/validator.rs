@@ -162,7 +162,7 @@ impl<'a> Validator<'a> {
                 }
             }
             if let Some(term) = &body.terminator {
-                term.for_each_operand(|value| {
+                term.visit_operands(|value| {
                     self.validate_value_reference(func, value, num_args, block);
                 });
             }
@@ -241,8 +241,14 @@ impl<'a> Validator<'a> {
                 }
             });
 
-            // Check stored predecessor blocks exist and branch to this block.
-            for &pred in &block.predecessors {
+            // Check stored predecessor blocks exist, are listed once, and branch to this block.
+            for (index, &pred) in block.predecessors.iter().enumerate() {
+                if block.predecessors[..index].contains(&pred) {
+                    self.emit_at_block(
+                        format_args!("predecessor bb{} is listed more than once", pred.index()),
+                        block_id,
+                    );
+                }
                 if pred.index() >= num_blocks {
                     self.emit_at_block(
                         format_args!(
@@ -330,41 +336,23 @@ impl<'a> Validator<'a> {
         let errors_before = self.error_count;
         let num_values = func.num_values();
         let num_blocks = func.blocks.len();
-        let num_insts = func.num_insts();
 
         if num_blocks == 0 {
             self.emit("function has no entry block");
             return;
         }
 
+        // `validate_references` already checked that every instruction, operand,
+        // and result reference is in range.
         self.validate_cfg(func);
         for (block_id, block) in func.blocks.iter_enumerated() {
-            let Some(term) = &block.terminator else { continue };
-
-            // Check terminator operands are in range.
-            term.for_each_operand(|op| {
-                if op.index() >= num_values {
-                    self.emit_at_block(
-                        format_args!(
-                            "terminator references undefined value v{} (only {} values exist)",
-                            op.index(),
-                            num_values
-                        ),
-                        block_id,
-                    );
-                }
-            });
+            if block.terminator.is_none() {
+                continue;
+            }
 
             // ----- Walk instructions in this block -----
             let block_preds = &block.predecessors;
             for &inst_id in &block.instructions {
-                if inst_id.index() >= num_insts {
-                    self.emit_at_block(
-                        format_args!("block contains nonexistent inst{}", inst_id.index()),
-                        block_id,
-                    );
-                    continue;
-                }
                 let inst = func.inst(inst_id);
 
                 if !inst.kind.scalar_types_match(func, inst.result_ty) {
@@ -413,17 +401,6 @@ impl<'a> Validator<'a> {
                 }
 
                 match (inst.result_ty, func.inst_result_value(inst_id)) {
-                    (Some(_), Some(result)) if result.index() >= num_values => {
-                        self.emit_at_inst(
-                            format_args!(
-                                "instruction result references undefined value v{} \
-                                 (only {num_values} values exist)",
-                                result.index()
-                            ),
-                            block_id,
-                            inst_id,
-                        );
-                    }
                     (Some(_), Some(result)) => {
                         if !matches!(func.value(result), Value::Inst(def) if *def == inst_id) {
                             self.emit_at_inst(
@@ -455,21 +432,6 @@ impl<'a> Validator<'a> {
                         );
                     }
                     (None, None) => {}
-                }
-
-                // Operand range check.
-                for op in inst.kind.operands() {
-                    if op.index() >= num_values {
-                        self.emit_at_inst(
-                            format_args!(
-                                "instruction references undefined value v{} (only {} values exist)",
-                                op.index(),
-                                num_values
-                            ),
-                            block_id,
-                            inst_id,
-                        );
-                    }
                 }
 
                 if let Some(module) = module {
@@ -620,7 +582,7 @@ impl<'a> Validator<'a> {
                 }
             }
             if let Some(term) = &block.terminator {
-                term.for_each_operand(|operand| {
+                term.visit_operands(|operand| {
                     if let Some((def, _)) =
                         self.live_definition(func, &def_location_of, operand, block_id)
                         && def != block_id
@@ -793,24 +755,19 @@ impl<'a> Validator<'a> {
     /// Checks constant widths and aggregate operands against their declared types.
     fn validate_value_types(&mut self, module: &Module, func: &Function) {
         self.validate_return_abi(module, func);
-        for value in func.live_values() {
-            if func.value_ty(value).is_none_or(|ty| ty == MirType::Void) {
-                self.emit(format_args!("live value v{} has no value type", value.index()));
+        let mut values = SmallVec::<[ValueId; 8]>::new();
+        for block in &func.blocks {
+            for &inst_id in &block.instructions {
+                let inst = func.inst(inst_id);
+                values.clear();
+                inst.kind.collect_operands(&mut values);
+                values.extend(inst.result());
+                for &value in &values {
+                    self.validate_live_value_type(func, value);
+                }
             }
-            if let Value::Immediate(crate::mir::Immediate::Pointer(_, ty)) = func.value(value)
-                && !ty.is_pointer()
-            {
-                self.emit("pointer constant must have a pointer type");
-            }
-            if let Value::Immediate(immediate) = func.value(value)
-                && let MirType::Int(bits) = immediate.ty()
-                && immediate.as_u256().is_some_and(|word| word.bit_len() > bits.get() as usize)
-            {
-                self.emit(format_args!(
-                    "constant v{} does not fit its type `{}`",
-                    value.index(),
-                    immediate.ty()
-                ));
+            if let Some(term) = &block.terminator {
+                term.visit_operands(|value| self.validate_live_value_type(func, value));
             }
         }
         for ty in func
@@ -990,7 +947,7 @@ impl<'a> Validator<'a> {
                 }
             }
             if let Some(term) = &body.terminator {
-                term.for_each_operand(|value| {
+                term.visit_operands(|value| {
                     if let Some(MirType::Struct(ty)) = func.value_ty(value)
                         && module.struct_types.get(ty).is_none()
                     {
@@ -1052,6 +1009,28 @@ impl<'a> Validator<'a> {
                 }
                 _ => {}
             }
+        }
+    }
+
+    /// Checks that a live value has a value type and that a constant fits it.
+    fn validate_live_value_type(&mut self, func: &Function, value: ValueId) {
+        if func.value_ty(value).is_none_or(|ty| ty == MirType::Void) {
+            self.emit(format_args!("live value v{} has no value type", value.index()));
+        }
+        if let Value::Immediate(crate::mir::Immediate::Pointer(_, ty)) = func.value(value)
+            && !ty.is_pointer()
+        {
+            self.emit("pointer constant must have a pointer type");
+        }
+        if let Value::Immediate(immediate) = func.value(value)
+            && let MirType::Int(bits) = immediate.ty()
+            && immediate.as_u256().is_some_and(|word| word.bit_len() > bits.get() as usize)
+        {
+            self.emit(format_args!(
+                "constant v{} does not fit its type `{}`",
+                value.index(),
+                immediate.ty()
+            ));
         }
     }
 
@@ -1363,15 +1342,7 @@ impl<'a> Validator<'a> {
             ));
         }
         if phase == MirPhase::Lowered {
-            let types = func
-                .arg_indices()
-                .map(|index| func.arg_ty(index))
-                .chain(func.return_components().iter().copied())
-                .chain(func.live_values().filter_map(|value| func.value_ty(value)))
-                .chain(func.instructions().filter_map(|id| func.inst(id).result_ty));
-            if let Some(ty) =
-                types.into_iter().find(|ty| !ty.is_word() || matches!(ty, MirType::MemoryObject(_)))
-            {
+            if let Some(ty) = first_non_word_type(func) {
                 self.emit(format_args!(
                     "non-word type `{ty}` survives the `lowered` phase boundary"
                 ));
@@ -1488,6 +1459,41 @@ fn return_abi_matches(
         }
     }
     components.is_empty()
+}
+
+/// Returns the first type, in signature and then block order, that is not a scalar word.
+fn first_non_word_type(func: &Function) -> Option<MirType> {
+    let non_word = |ty: MirType| !ty.is_word() || matches!(ty, MirType::MemoryObject(_));
+    let signature = func.arg_indices().map(|index| func.arg_ty(index));
+    if let Some(ty) =
+        signature.chain(func.return_components().iter().copied()).find(|&ty| non_word(ty))
+    {
+        return Some(ty);
+    }
+    let mut operands = SmallVec::<[ValueId; 8]>::new();
+    let value_type = |value| func.value_ty(value).filter(|&ty| non_word(ty));
+    for block in &func.blocks {
+        for &inst_id in &block.instructions {
+            let inst = func.inst(inst_id);
+            operands.clear();
+            inst.kind.collect_operands(&mut operands);
+            if let Some(ty) = operands.iter().copied().chain(inst.result()).find_map(value_type) {
+                return Some(ty);
+            }
+        }
+        let mut found = None;
+        if let Some(term) = &block.terminator {
+            term.visit_operands(|value| {
+                if found.is_none() {
+                    found = value_type(value);
+                }
+            });
+        }
+        if found.is_some() {
+            return found;
+        }
+    }
+    func.instructions().filter_map(|id| func.inst(id).result_ty).find(|&ty| non_word(ty))
 }
 
 // =============================================================================
@@ -1993,6 +1999,35 @@ error: [bb0] successor bb1 does not list bb0 as a predecessor
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
 error: [bb1] stored predecessor bb0 does not branch to bb1
+
+
+"#]]
+            );
+        });
+    }
+
+    #[test]
+    fn duplicate_predecessor_is_caught() {
+        with_session(|sess| {
+            let mut func = make_func();
+            let target;
+            {
+                let mut builder = FunctionBuilder::new(&mut func);
+                target = builder.create_block();
+                let condition = builder.imm_bool(true);
+                builder.branch(condition, target, target);
+                builder.switch_to_block(target);
+                builder.stop();
+            }
+            // A branch with equal arms still lists its block once.
+            assert_eq!(func.blocks[target].predecessors.as_slice(), [BlockId::ENTRY]);
+            func.blocks[target].predecessors.push(BlockId::ENTRY);
+            Validator::new(&sess.dcx).validate_standalone_function(&func);
+            assert!(sess.dcx.has_errors().is_err());
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [bb1] predecessor bb0 is listed more than once
 
 
 "#]]

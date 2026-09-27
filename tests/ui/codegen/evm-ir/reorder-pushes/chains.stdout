@@ -18,12 +18,7 @@
 +   calldatasize
     sub
     stop
-  bb2:
-    callf !metadata(stack=0->255)
-    callf !metadata(stack=0->255)
-    callf !metadata(stack=0->255)
-    callf !metadata(stack=0->255)
-    callf !metadata(stack=0->2)
+  bb2 [stack=1021]:
 +   push 1
     calldatasize
     calldatasize
@@ -32,11 +27,7 @@
 -   swap 1
     sub
     stop
-  bb3:
-    callf !metadata(stack=0->255)
-    callf !metadata(stack=0->255)
-    callf !metadata(stack=0->255)
-    callf !metadata(stack=0->255)
+  bb3 [stack=1019]:
     push 0
 +   push 1
 +   push 2

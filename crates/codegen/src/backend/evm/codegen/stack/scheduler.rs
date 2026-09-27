@@ -959,7 +959,8 @@ impl StackScheduler {
         }
         let expansion_limit = MAX_OPERAND_SEARCH_EXPANSIONS.min(budget.remaining_expansions);
         let start_state = OperandSearchState { stack: start.stack, cost: start.cost, parent: None };
-        let mut states = vec![start_state];
+        let mut states = Vec::new();
+        states.push(start_state);
         let mut queue = BinaryHeap::new();
         let mut visited = FxHashMap::default();
         let mut serial = 0usize;
@@ -2786,7 +2787,7 @@ mod tests {
                     next.push(sequence);
                 }
             }
-            all.extend(next.iter().cloned());
+            all.extend_from_slice(&next);
             level = next;
         }
         all

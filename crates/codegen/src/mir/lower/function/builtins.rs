@@ -954,12 +954,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             Builtin::YulCreate => lower!(create(value, offset, size)),
             Builtin::YulCreate2 => lower!(create2(value, offset, size, salt)),
-            Builtin::YulExtcall | Builtin::YulExtdelegatecall | Builtin::YulExtstaticcall => self
-                .unsupported_yul_version(
-                    "codegen cannot emit EOF-only external calls in legacy bytecode",
-                    "remove the EOF-only call or use a compiler that emits EOF containers",
-                    args.span,
-                ),
             _ => report_error(
                 self.cx.gcx,
                 args.span,
@@ -1132,16 +1126,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .err(format!("unsupported builtin call `{}`", builtin.name()))
             .span(span)
             .emit();
-        None
-    }
-
-    fn unsupported_yul_version<T>(
-        &self,
-        message: &'static str,
-        help: &'static str,
-        span: Span,
-    ) -> Option<T> {
-        self.cx.gcx.dcx().err(message).span(span).help(help).emit();
         None
     }
 }

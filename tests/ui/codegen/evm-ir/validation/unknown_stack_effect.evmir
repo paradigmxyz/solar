@@ -1,0 +1,6 @@
+//~? ERROR: EVM IR verification failed: block 0: instruction `op_0c` has no known stack effect
+@module module
+
+bb0:
+  op_0c
+  stop

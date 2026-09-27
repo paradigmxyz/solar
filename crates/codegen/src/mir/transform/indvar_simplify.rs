@@ -505,7 +505,8 @@ impl IndVarSimplifier {
         update: Option<InstId>,
         addresses: &FxHashSet<ValueId>,
     ) -> bool {
-        let mut pending = vec![iv];
+        let mut pending = Vec::new();
+        pending.push(iv);
         let mut visited = FxHashSet::default();
         while let Some(value) = pending.pop() {
             if !visited.insert(value) {

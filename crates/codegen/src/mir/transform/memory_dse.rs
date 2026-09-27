@@ -558,7 +558,8 @@ impl MemoryStoreEliminator {
             if !visited.insert(root) {
                 continue;
             }
-            let mut stack = vec![(root, 0usize)];
+            let mut stack = Vec::new();
+            stack.push((root, 0usize));
             while let Some((block, next)) = stack.last_mut() {
                 if let Some(&succ) = successors[*block].get(*next) {
                     *next += 1;

@@ -67,6 +67,9 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
                 function.declaration.hi().0
             )?;
         }
+        if let Some(depth) = block.metadata.entry_depth {
+            write!(f, " [stack={depth}]")?;
+        }
         writeln!(f, ":")?;
         for inst in &block.instructions {
             writeln!(f, "  {}", display_instruction(module, inst))?;
@@ -93,7 +96,7 @@ fn display_instruction<'a>(module: &'a Module, inst: &'a Instruction) -> impl fm
         if let Some(size) = inst.immutable_type_size() {
             write!(f, ", {}", size.bytes())?;
         }
-        write!(f, "{}", display_metadata(&inst.metadata, default_instruction_stack_effect(inst)))
+        write!(f, "{}", display_metadata(&inst.metadata))
     })
 }
 
@@ -131,25 +134,16 @@ fn display_terminator<'a>(module: &'a Module, term: &'a Terminator) -> impl fmt:
                 }
             }
         }
-        write!(
-            f,
-            "{}",
-            display_metadata(&term.metadata, default_terminator_stack_effect(&term.kind))
-        )
+        write!(f, "{}", display_metadata(&term.metadata))
     })
 }
 
-fn display_metadata(
-    metadata: &Metadata,
-    default_stack: Option<StackEffect>,
-) -> impl fmt::Display + '_ {
+fn display_metadata(metadata: &Metadata) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| {
-        let stack = metadata.stack.filter(|&stack| Some(stack) != default_stack);
         let spans = metadata.source_spans();
         let function_invoke = metadata.function_invoke();
         let function_exit = metadata.function_exit();
-        if stack.is_none()
-            && spans.is_empty()
+        if spans.is_empty()
             && function_invoke.is_none()
             && function_exit.is_none()
             && !metadata.keep_with_next
@@ -158,18 +152,11 @@ fn display_metadata(
         }
 
         write!(f, " !metadata(")?;
-        if let Some(stack) = stack {
-            write!(f, "stack={}->{}", stack.inputs, stack.outputs)?;
-        }
+        let mut separator = "";
         if let [span] = spans {
-            if stack.is_some() {
-                write!(f, ", ")?;
-            }
             write!(f, "span={}..{}", span.lo().0, span.hi().0)?;
+            separator = ", ";
         } else if !spans.is_empty() {
-            if stack.is_some() {
-                write!(f, ", ")?;
-            }
             write!(f, "spans=[")?;
             for (index, span) in spans.iter().enumerate() {
                 if index != 0 {
@@ -178,38 +165,28 @@ fn display_metadata(
                 write!(f, "{}..{}", span.lo().0, span.hi().0)?;
             }
             write!(f, "]")?;
+            separator = ", ";
         }
         if let Some(function) = function_invoke {
-            if stack.is_some() || !spans.is_empty() {
-                write!(f, ", ")?;
-            }
             write!(
                 f,
-                "invoke={}@{}..{}",
+                "{separator}invoke={}@{}..{}",
                 function.identifier,
                 function.declaration.lo().0,
                 function.declaration.hi().0
             )?;
+            separator = ", ";
         }
         if let Some(function_exit) = function_exit {
-            if stack.is_some() || !spans.is_empty() || function_invoke.is_some() {
-                write!(f, ", ")?;
-            }
             let exit = match function_exit {
                 DebugFunctionExit::Return => "return",
                 DebugFunctionExit::Revert => "revert",
             };
-            write!(f, "exit={exit}")?;
+            write!(f, "{separator}exit={exit}")?;
+            separator = ", ";
         }
         if metadata.keep_with_next {
-            if stack.is_some()
-                || !spans.is_empty()
-                || function_invoke.is_some()
-                || function_exit.is_some()
-            {
-                write!(f, ", ")?;
-            }
-            write!(f, "keep_with_next")?;
+            write!(f, "{separator}keep_with_next")?;
         }
         write!(f, ")")?;
         Ok(())
