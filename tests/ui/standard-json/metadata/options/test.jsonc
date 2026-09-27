@@ -5,8 +5,10 @@
 // CHECK: fea265627a7a7231
 {
   "language": "Solidity",
+  "unknown": {"nested": [null, true, 1]},
   "sources": {
     "A.sol": {
+      "unknown": false,
       "content": "import \"lib/B.sol\";\ncontract A { function value() external pure returns (uint256) { return B.value(); } }"
     },
     "src/B.sol": {
@@ -14,16 +16,19 @@
     }
   },
   "settings": {
+    "unknown": [],
     "remappings": [
       "lib/=src/"
     ],
     "optimizer": {
       "enabled": true,
+      "unknown": "ignored",
       "details": {"peephole": false, "cse": "ignored", "unknown": true, "yulDetails": {"stackAllocation": 1, "optimizerSteps": false}},
       "runs": 1
     },
     "metadata": {
       "useLiteralContent": true,
+      "unknown": {"ignored": true},
       "bytecodeHash": "bzzr1"
     },
     "libraries": {

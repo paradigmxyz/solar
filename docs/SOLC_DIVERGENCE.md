@@ -343,15 +343,17 @@ No intentional divergences documented yet.
 
 ## Standard JSON
 
-### JSON-001: Solc optimizer details
+### JSON-001: Unknown input fields
 
 Status: intentional.
 
-Difference: `solar` ignores `settings.optimizer.details`, including unknown
-fields and values that solc rejects. It uses only `enabled` and `runs` to
-configure its optimizer.
+Difference: `solar` ignores unknown fields in standard-JSON input objects,
+including unknown debug and metadata settings that solc rejects. It also
+ignores `settings.optimizer.details`; only `enabled` and `runs` configure
+the optimizer. Supported fields still require their expected JSON types.
 
-Rationale: Solar has its own optimization pipeline, so solc pass controls have
-no equivalent meaning.
+Rationale: Solar accepts inputs containing options it does not implement.
+Solc-specific pass controls have no equivalent meaning in Solar's pipeline.
 
-Coverage: `tests/ui/standard-json/metadata/options/test.jsonc`.
+Coverage: `tests/ui/standard-json/metadata/options/test.jsonc` and
+`tests/ui/standard-json/debug/unknown-key/test.jsonc`.

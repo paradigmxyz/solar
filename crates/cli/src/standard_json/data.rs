@@ -106,7 +106,7 @@ pub(super) struct Settings<'a> {
 
 /// The solc Standard JSON `settings.debug` object.
 #[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct DebugSettings {
     /// Revert reason string handling.
     #[serde(default, deserialize_with = "deserialize_present")]
@@ -160,7 +160,7 @@ impl DebugInfoComponent {
 
 /// The solc Standard JSON `settings.metadata` object.
 #[derive(Clone, Copy, Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct MetadataSettings {
     #[serde(default = "default_true")]
     #[serde(rename = "appendCBOR")]
@@ -219,7 +219,7 @@ where
 
 /// The supported subset of solc's Standard JSON `settings.optimizer` object.
 #[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct Optimizer {
     /// Whether the optimizer is enabled.
     #[serde(default)]
@@ -227,9 +227,6 @@ pub(super) struct Optimizer {
     /// Expected executions per deployment for optimizer tradeoffs.
     #[serde(default)]
     pub(super) runs: Option<u64>,
-    /// Solc-specific pass controls do not apply to Solar.
-    #[serde(default, rename = "details")]
-    _details: serde::de::IgnoredAny,
 }
 
 pub(super) fn optimizer_settings(optimizer: Option<&Optimizer>) -> (bool, u64) {
