@@ -1651,7 +1651,12 @@ impl<R: BitSetIndex, C: BitSetIndex> BitMatrix<R, C> {
         assert!(row.index() < self.num_rows);
         assert_eq!(with.domain_size(), self.num_columns);
         let (start, end) = self.range(row);
-        update_words(&mut self.words[start..end], &with.words, |_, b| b)
+        let words = &mut self.words[start..end];
+        if *words == *with.words {
+            return false;
+        }
+        words.copy_from_slice(&with.words);
+        true
     }
 }
 
