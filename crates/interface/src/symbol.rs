@@ -337,7 +337,9 @@ impl Symbol {
     /// Returns `true` if the symbol is a Yul EVM builtin keyword reserved by `evm_version`.
     #[inline]
     pub fn is_reserved_yul_builtin_in(self, evm_version: crate::config::EvmVersion) -> bool {
-        self.is_reserved_yul_builtin() && !self.is_future_yul_builtin(evm_version)
+        self.is_reserved_yul_builtin()
+            && !self.is_future_yul_builtin(evm_version)
+            && !(self == kw::Difficulty && evm_version.has_prev_randao())
     }
 
     /// Returns `true` if the symbol is a future Yul EVM builtin keyword.
