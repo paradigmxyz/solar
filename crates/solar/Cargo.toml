@@ -81,6 +81,9 @@ mimalloc = ["solar-cli?/mimalloc"]
 # Clap support.
 clap = ["solar-config/clap"]
 
+# Rewrite MIR with a model through `-Zllm-optimize=live`.
+llm = ["solar-cli?/llm"]
+
 # Debugging and profiling.
 tracing = ["solar-cli?/tracing"]
 tracing-off = ["solar-cli?/tracing-off"]

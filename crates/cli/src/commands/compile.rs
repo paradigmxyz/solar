@@ -128,9 +128,13 @@ pub(crate) fn run_compiler_session_with(
     finish: bool,
 ) -> Result {
     sess.validate()?;
+    let rewriter = crate::llm::install(&sess)?;
     let mut compiler = solar_sema::Compiler::new(sess);
     let result = compiler.enter_mut(|compiler| {
         let result = f(compiler);
+        if let Some(rewriter) = rewriter {
+            rewriter.finish(compiler.gcx().sess);
+        }
         if !finish {
             return result;
         }

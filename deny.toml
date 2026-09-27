@@ -4,6 +4,9 @@ yanked = "warn"
 ignore = [
     # `paste` is unmaintained - doesn't matter
     "RUSTSEC-2024-0436",
+    # `fxhash` is unmaintained; only the `llm` feature's model client reaches it, through a tool
+    # search index the rewriter never enables
+    "RUSTSEC-2025-0057",
 ]
 
 [bans]
@@ -36,6 +39,11 @@ exceptions = [
     # https://tldrlegal.com/license/creative-commons-cc0-1.0-universal
     { allow = ["CC0-1.0"], name = "aurora-engine-modexp" },
     { allow = ["CC0-1.0"], name = "tiny-keccak" },
+    # The TLS stack of the `llm` feature's model client.
+    { allow = ["ISC"], name = "ring" },
+    { allow = ["ISC"], name = "rustls-webpki" },
+    { allow = ["ISC"], name = "untrusted" },
+    { allow = ["CDLA-Permissive-2.0"], name = "webpki-root-certs" },
 ]
 
 [sources]
