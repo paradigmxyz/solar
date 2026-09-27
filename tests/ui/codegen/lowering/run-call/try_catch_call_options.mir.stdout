@@ -5,37 +5,25 @@ fn @ping() [selector=0x5c36b186, abi_params=[], abi_returns=[], abi_return_param
     ret
 }
 
-fn @payablePing() [selector=0x3c6cacf1, payable, abi_params=[], abi_returns=[], abi_return_params=[]] {
-  bb0:
-    icall revert_if<empty>, true
-    invalid
-}
-
-fn @payablePong() [selector=0xfa3191c7, payable, abi_params=[], abi_returns=[], abi_return_params=[]] {
-  bb0:
-    icall revert_if<empty>, true
-    invalid
-}
-
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_call_options.sol:TryCallOptions ===
 @module TryCallOptions
 data:
-  TryCallOptionsTarget_initcode_0: hex"34600d5760588060115f395ff35b5f5ffd5f3560e01c80633c6cacf114602e5780635c36b18614602a578063fa3191c7146026576032565b604d565b6036565b6042565b5f5ffd5b341515603e57005b5f5ffd5b6001604957fe5b5f5ffd5b6001605457fe5b5f5ffd"
+  TryCallOptionsTarget_initcode_0: hex"34600d5760218060115f395ff35b5f5ffd341515601c575f3560e01c80635c36b18614601857601c565b6020565b5f5ffd5b"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 136, v1
+    v2 = and 81, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy TryCallOptionsTarget_initcode_0, v4, 105
+    data_copy TryCallOptionsTarget_initcode_0, v4, 50
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 105
+    v7 = add v6, 50
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 105
+    v9 = create 0, v8, 50
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -50,216 +38,6 @@ fn @constructor() [constructor] {
     v17 = or v14, v16
     sstore 0, v17 !metadata(storage=slot(0))
     ret
-}
-
-fn @optionValue() -> i256 {
-  bb0:
-    v0 = sload 1 !metadata(storage=slot(1))
-    v1 = checked_add u256, v0, 1
-    sstore 1, v1 !metadata(storage=slot(1))
-    ret 0
-}
-
-fn @discardOptions() -> i256 [selector=0x0035efd4, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = trunc i256 v1 to i160
-    v3 = icall @optionValue
-    v4 = icall @optionValue
-    v5 = sload 1 !metadata(storage=slot(1))
-    ret v5
-}
-
-fn @optionMembers() -> i256 [selector=0x1b98d889, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = shl 32, v1
-    v3 = or v2, 0x5c36b186
-    v4 = icall @optionValue
-    v5 = shr 32, v3
-    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
-    v7 = sload 0 !metadata(storage=slot(0))
-    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = trunc i256 v8 to i160
-    v10 = zext i160 v9 to i256
-    v11 = eq v6, v10
-    jumpi v11, bb1, bb2
-  bb2:
-    jump bb3
-  bb1:
-    v12 = sload 0 !metadata(storage=slot(0))
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = shl 32, v13
-    v15 = or v14, 0x5c36b186
-    v16 = icall @optionValue
-    v17 = and v15, 0xffffffff
-    v18 = shl 224, v17
-    v19 = eq v18, 0x5c36b18600000000000000000000000000000000000000000000000000000000
-    jump bb3
-  bb3:
-    v20 = phi [bb1: v19], [bb2: false]
-    jumpi v20, bb4, bb5
-  bb5:
-    jump bb6
-  bb4:
-    v21 = sload 1 !metadata(storage=slot(1))
-    v22 = eq v21, 2
-    jump bb6
-  bb6:
-    v23 = phi [bb4: v22], [bb5: false]
-    v24 = zext i1 v23 to i256
-    ret v24
-}
-
-fn @selectorOption() -> i256 {
-  bb0:
-    v0 = sload 1 !metadata(storage=slot(1))
-    v1 = checked_add u256, v0, 1
-    sstore 1, v1 !metadata(storage=slot(1))
-    ret 1
-}
-
-fn @receiver() -> i256 {
-  bb0:
-    v0 = sload 2 !metadata(storage=slot(2))
-    v1 = checked_add u256, v0, 1
-    sstore 2, v1 !metadata(storage=slot(2))
-    v2 = sload 0 !metadata(storage=slot(0))
-    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    ret v3
-}
-
-fn @functionValue() -> i256 {
-  bb0:
-    v0 = sload 2 !metadata(storage=slot(2))
-    v1 = checked_add u256, v0, 1
-    sstore 2, v1 !metadata(storage=slot(2))
-    v2 = sload 0 !metadata(storage=slot(0))
-    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    v4 = shl 32, v3
-    v5 = or v4, 0x3c6cacf1
-    ret v5
-}
-
-fn @directSelector() -> i256 [selector=0x2c3bf323, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
-  bb0:
-    v0 = icall @receiver
-    v1 = shl 32, v0
-    v2 = or v1, 0x3c6cacf1
-    v3 = icall @selectorOption
-    v4 = icall @selectorOption
-    v5 = and v2, 0xffffffff
-    v6 = shl 224, v5
-    v7 = and 0x3c6cacf17355442efe2e1d01c892a4d4020ba5b5a7d30df06c2731f0a3109d44, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v8 = eq v6, v7
-    jumpi v8, bb1, bb2
-  bb2:
-    jump bb3
-  bb1:
-    v9 = sload 1 !metadata(storage=slot(1))
-    v10 = eq v9, 2
-    jump bb3
-  bb3:
-    v11 = phi [bb1: v10], [bb2: false]
-    jumpi v11, bb4, bb5
-  bb5:
-    jump bb6
-  bb4:
-    v12 = sload 2 !metadata(storage=slot(2))
-    v13 = eq v12, 1
-    jump bb6
-  bb6:
-    v14 = phi [bb4: v13], [bb5: false]
-    v15 = zext i1 v14 to i256
-    ret v15
-}
-
-fn @pointerSelector(arg0: i256) -> i256 [selector=0x7700d7ca, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
-  bb0:
-    v0 = ne arg0, 0
-    jumpi v0, bb1, bb2
-  bb2:
-    v5 = sload 0 !metadata(storage=slot(0))
-    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
-    v7 = shl 32, v6
-    v8 = or v7, 0xfa3191c7
-    jump bb3
-  bb1:
-    v1 = sload 0 !metadata(storage=slot(0))
-    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = shl 32, v2
-    v4 = or v3, 0x3c6cacf1
-    jump bb3
-  bb3:
-    v9 = phi [bb1: v4], [bb2: v8]
-    v10 = icall @selectorOption
-    v11 = icall @selectorOption
-    v12 = and v9, 0xffffffff
-    v13 = shl 224, v12
-    v14 = ne arg0, 0
-    jumpi v14, bb4, bb5
-  bb5:
-    v16 = and 0xfa3191c747331363dab3800c03f6bfeed06db92122fc11aecd602e8738c8973f, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    jump bb6
-  bb4:
-    v15 = and 0x3c6cacf17355442efe2e1d01c892a4d4020ba5b5a7d30df06c2731f0a3109d44, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    jump bb6
-  bb6:
-    v17 = phi [bb4: v15], [bb5: v16]
-    v18 = eq v13, v17
-    jumpi v18, bb7, bb8
-  bb8:
-    jump bb9
-  bb7:
-    v19 = sload 1 !metadata(storage=slot(1))
-    v20 = eq v19, 2
-    jump bb9
-  bb9:
-    v21 = phi [bb7: v20], [bb8: false]
-    jumpi v21, bb10, bb11
-  bb11:
-    jump bb12
-  bb10:
-    v22 = sload 2 !metadata(storage=slot(2))
-    v23 = eq v22, 0
-    jump bb12
-  bb12:
-    v24 = phi [bb10: v23], [bb11: false]
-    v25 = zext i1 v24 to i256
-    ret v25
-}
-
-fn @returnedSelector() -> i256 [selector=0x9be40e11, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
-  bb0:
-    v0 = icall @functionValue
-    v1 = icall @selectorOption
-    v2 = icall @selectorOption
-    v3 = and v0, 0xffffffff
-    v4 = shl 224, v3
-    v5 = and 0x3c6cacf17355442efe2e1d01c892a4d4020ba5b5a7d30df06c2731f0a3109d44, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v6 = eq v4, v5
-    jumpi v6, bb1, bb2
-  bb2:
-    jump bb3
-  bb1:
-    v7 = sload 1 !metadata(storage=slot(1))
-    v8 = eq v7, 2
-    jump bb3
-  bb3:
-    v9 = phi [bb1: v8], [bb2: false]
-    jumpi v9, bb4, bb5
-  bb5:
-    jump bb6
-  bb4:
-    v10 = sload 2 !metadata(storage=slot(2))
-    v11 = eq v10, 1
-    jump bb6
-  bb6:
-    v12 = phi [bb4: v11], [bb5: false]
-    v13 = zext i1 v12 to i256
-    ret v13
 }
 
 fn @highLevelGas() -> i256 [selector=0x480be654, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {

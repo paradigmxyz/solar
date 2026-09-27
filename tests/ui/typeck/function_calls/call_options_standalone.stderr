@@ -9,13 +9,13 @@ LL │         this.h{gas: 42}{value: 5}();
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
    │
-LL │         function() external stored = this.f{gas: 1};
+LL │         function() external stored = this.g{gas: 1};
    ╰╴                                     ━━━━━━━━━━━━━━ expected `function () external`, found `function () external with call options`
 
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
    │
-LL │         this.f{gas: true};
+LL │         this.g{gas: true};
    ╰╴                    ━━━━ expected `uint256`, found `bool`
 
 error: aborting due to 3 previous errors

@@ -14,12 +14,8 @@ contract CallOptionMembers {
             this.h{gas: 42, value: 5}.address == this.h.address &&
             this.h{gas: 42, value: 5}.selector == this.h.selector;
     }
-}
-
-contract InvalidOptionValue {
-    function f() external {}
     function assign() external view {
-        function() external stored = this.f{gas: 1}; //~ ERROR: mismatched types
-        this.f{gas: true}; //~ ERROR: mismatched types
+        function() external stored = this.g{gas: 1}; //~ ERROR: mismatched types
+        this.g{gas: true}; //~ ERROR: mismatched types
     }
 }
