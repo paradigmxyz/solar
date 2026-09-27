@@ -226,6 +226,19 @@ impl Memory {
         first
     }
 
+    /// Returns the lowest byte address this memory wrote and `other` did not.
+    pub(crate) fn first_write_outside(&self, other: &Self) -> Option<u64> {
+        let mut first = None::<u64>;
+        for (&word, &mask) in &self.written {
+            let outside = mask & !other.written.get(&word).copied().unwrap_or_default();
+            if outside != 0 {
+                let address = word * WORD_BYTES + u64::from(outside.trailing_zeros());
+                first = Some(first.map_or(address, |first| first.min(address)));
+            }
+        }
+        first
+    }
+
     fn byte(&self, address: u64) -> u8 {
         let (word, index) = (address / WORD_BYTES, (address % WORD_BYTES) as usize);
         self.words.get(&word).map_or_else(|| self.seeded(word)[index], |bytes| bytes[index])
@@ -480,8 +493,11 @@ impl<'a> Run<'_, 'a> {
     ) -> ControlFlow<Outcome> {
         self.burn(1)?;
         let instruction = body.inst(inst);
-        if !supports(&instruction.kind) {
-            return ControlFlow::Break(Outcome::Unsupported(instruction.kind.op_def().mnemonic));
+        let mnemonic = instruction.kind.op_def().mnemonic;
+        // `supports` in full costs an evaluation per step; the arms below and `eval_inst` decide
+        // the rest the same way.
+        if !instruction.kind.op_def().phases.contains(MirPhase::Lowered) {
+            return ControlFlow::Break(Outcome::Unsupported(mnemonic));
         }
         let frame = self.frames.last().expect("a run always has a frame");
         meter.instruction(body, inst, &|value| frame.word(value));
@@ -523,13 +539,14 @@ impl<'a> Run<'_, 'a> {
                 };
                 return self.call(callee, args, instruction.result());
             }
-            kind => {
-                let evaluated = eval_inst(kind, |value| frame.word(value).ok_or(()));
-                let Ok(Some(word)) = evaluated else {
+            InstKind::ICall { .. } => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
+            kind => match eval_inst(kind, |value| frame.word(value).ok_or(())) {
+                Ok(Some(word)) => word,
+                Ok(None) => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
+                Err(()) => {
                     return ControlFlow::Break(Outcome::Unsupported("value without a definition"));
-                };
-                word
-            }
+                }
+            },
         };
         let Some(value) = instruction.result() else {
             return ControlFlow::Break(Outcome::Unsupported("result without a value"));
@@ -854,6 +871,8 @@ fn @storage(arg0: i256) -> i256 {
         written.store8(U256::from(80), U256::from(fresh.byte(80) ^ 1)).unwrap();
         assert_eq!(written.first_difference(&fresh), Some(80));
         assert_eq!(fresh.first_difference(&written), Some(80));
+        assert_eq!(written.first_write_outside(&fresh), Some(70));
+        assert_eq!(fresh.first_write_outside(&written), None);
     }
 
     #[test]

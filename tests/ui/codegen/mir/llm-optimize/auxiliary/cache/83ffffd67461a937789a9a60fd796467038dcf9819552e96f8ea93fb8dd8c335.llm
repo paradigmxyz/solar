@@ -1,0 +1,16 @@
+solar llm-optimize cache v1
+--- original
+fn @pow2(arg0: i256) -> i256 {
+  bb0:
+    v0 = exp 2, arg0
+    ret v0
+}
+--- rewrite
+fn @pow2(arg0: i256) -> i256 {
+  bb0:
+    v0 = shl arg0, 1
+    ret v0
+}
+--- evidence
+source: script
+samples: 512

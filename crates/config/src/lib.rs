@@ -272,6 +272,20 @@ str_enum! {
     }
 }
 
+str_enum! {
+    /// Where the `llm-optimize` MIR pass takes its rewrites from.
+    #[strum(serialize_all = "kebab-case")]
+    #[non_exhaustive]
+    pub enum LlmOptimizeMode {
+        /// Only rewrites recorded in the cache, checked again before use.
+        Replay,
+        /// A model, through the installed rewriter.
+        Live,
+        /// Scripted candidates, for testing the pass.
+        Script,
+    }
+}
+
 impl OptimizationMode {
     /// Returns whether codegen should favor bytecode size over runtime gas (`-O size`).
     #[inline]

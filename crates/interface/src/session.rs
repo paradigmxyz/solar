@@ -3,7 +3,8 @@ use crate::{
     diagnostics::{DiagCtxt, EmittedDiagnostics},
 };
 use solar_config::{
-    CompileOpts, CompilerOutput, CompilerStage, Language, SINGLE_THREADED_TARGET, UnstableOpts,
+    CompileOpts, CompilerOutput, CompilerStage, Language, LlmOptimizeMode, SINGLE_THREADED_TARGET,
+    UnstableOpts,
 };
 use std::{
     fmt,
@@ -241,6 +242,7 @@ impl Session {
         let mut result = Ok(());
         result = result.and(self.check_unique("emit", &self.opts.emit));
         result = result.and(self.validate_language());
+        result = result.and(self.validate_llm_optimize());
         result
     }
 
@@ -260,6 +262,47 @@ impl Session {
             return Err(self.dcx.err("`-Zmir-pipeline` requires a .sol or .mir input file").emit());
         }
         Ok(())
+    }
+
+    fn validate_llm_optimize(&self) -> crate::Result<()> {
+        let unstable = &self.opts.unstable;
+        let mode = unstable.llm_optimize;
+        let requirements = [
+            ("llm-cache", unstable.llm_cache.is_some(), None),
+            ("llm-rounds", unstable.llm_rounds.is_some(), None),
+            ("llm-samples", unstable.llm_samples.is_some(), None),
+            ("llm-trace", unstable.llm_trace, None),
+            ("llm-script", unstable.llm_script.is_some(), Some(LlmOptimizeMode::Script)),
+            ("llm-model", unstable.llm_model.is_some(), Some(LlmOptimizeMode::Live)),
+        ];
+        for (flag, set, required) in requirements {
+            if !set {
+                continue;
+            }
+            match (mode, required) {
+                (None, None) => {
+                    let message = format!("`-Z{flag}` requires `-Zllm-optimize`");
+                    return Err(self.dcx.err(message).emit());
+                }
+                (_, Some(required)) if mode != Some(required) => {
+                    let message = format!("`-Z{flag}` requires `-Zllm-optimize={required}`");
+                    return Err(self.dcx.err(message).emit());
+                }
+                _ => {}
+            }
+        }
+        if unstable.llm_samples == Some(0) {
+            return Err(self.dcx.err("`-Zllm-samples` must be positive").emit());
+        }
+        match mode {
+            Some(LlmOptimizeMode::Script) if unstable.llm_script.is_none() => {
+                Err(self.dcx.err("`-Zllm-optimize=script` requires `-Zllm-script`").emit())
+            }
+            Some(LlmOptimizeMode::Replay) if unstable.llm_cache.is_none() => {
+                Err(self.dcx.err("`-Zllm-optimize=replay` requires `-Zllm-cache`").emit())
+            }
+            _ => Ok(()),
+        }
     }
 
     /// Reconfigures inner state to match any new options.

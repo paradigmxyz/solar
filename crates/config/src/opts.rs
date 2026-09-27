@@ -2,8 +2,8 @@
 
 use crate::{
     ColorChoice, CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, HumanEmitterKind,
-    ImportRemapping, Language, LibraryAddress, OptimizationMode, RevertStrings, SwitchLowering,
-    Threads,
+    ImportRemapping, Language, LibraryAddress, LlmOptimizeMode, OptimizationMode, RevertStrings,
+    SwitchLowering, Threads,
 };
 use std::{num::NonZeroUsize, path::PathBuf};
 
@@ -456,6 +456,51 @@ pub struct UnstableOpts {
     /// Library callers can enable this to reclaim memory between compilations.
     #[cfg_attr(feature = "clap", arg(skip))]
     pub drop_gcx: bool,
+
+    /// Rewrite eligible functions of lowered MIR with the `llm-optimize` pass, taking rewrites
+    /// from the cache (`replay`), a model (`live`), or a script (`script`). Rewrites are tested,
+    /// not proved.
+    #[cfg_attr(
+        feature = "clap",
+        arg(
+            long,
+            value_enum,
+            require_equals = true,
+            value_name = "MODE",
+            hide_possible_values = true
+        )
+    )]
+    pub llm_optimize: Option<LlmOptimizeMode>,
+
+    /// Directory of `llm-optimize` rewrites, read in every mode and written unless replaying.
+    #[cfg_attr(
+        feature = "clap",
+        arg(long, require_equals = true, value_name = "DIR", value_hint = ValueHint::DirPath)
+    )]
+    pub llm_cache: Option<PathBuf>,
+
+    /// File of scripted `llm-optimize` candidates, for `-Zllm-optimize=script`.
+    #[cfg_attr(
+        feature = "clap",
+        arg(long, require_equals = true, value_name = "FILE", value_hint = ValueHint::FilePath)
+    )]
+    pub llm_script: Option<PathBuf>,
+
+    /// Model that `-Zllm-optimize=live` asks.
+    #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "MODEL"))]
+    pub llm_model: Option<String>,
+
+    /// Candidates `llm-optimize` asks for per function (default: 6).
+    #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "N"))]
+    pub llm_rounds: Option<usize>,
+
+    /// Generated inputs `llm-optimize` runs each candidate on (default: 512).
+    #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "N"))]
+    pub llm_samples: Option<usize>,
+
+    /// Print what `llm-optimize` offers, hears, and decides.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub llm_trace: bool,
 
     // ----------------------------------------
     // Please add new options above this point!

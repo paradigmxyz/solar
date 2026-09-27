@@ -1,0 +1,17 @@
+Candidates for `calls.mir`.
+
+--- function twice
+--- candidate
+fn @twice(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 2
+    ret v0
+}
+
+--- function forward
+--- candidate
+fn @forward(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1
+    ret v0
+}

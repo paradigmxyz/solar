@@ -131,8 +131,13 @@ impl BlockId {
 /// indices. A *second* round-trip must be stable.
 #[cfg(test)]
 mod round_trip {
-    use super::{Function, FunctionId, MirPhase, Module, Value};
-    use crate::mir::{analysis, lower};
+    use super::{Function, FunctionId, InstKind, MirPhase, Module, Value};
+    use crate::mir::{
+        analysis, lower,
+        transform::dce::DeadCodeEliminator,
+        utils::interp::{Limits, Machine, Memory, mix64},
+    };
+    use alloy_primitives::U256;
     use snapbox::{assert_data_eq, str};
     use solar_interface::{
         ColorChoice, Session,
@@ -142,6 +147,7 @@ mod round_trip {
     use solar_sema::Compiler;
     use std::{
         ops::ControlFlow,
+        panic::{AssertUnwindSafe, catch_unwind},
         path::{Path, PathBuf},
         sync::Arc,
     };
@@ -750,5 +756,138 @@ error: expected `fn`
             None => analysis::validate_phase(&dcx, module, module.phase()),
         };
         result.map_err(|_| dcx.emitted_diagnostics().unwrap().to_string())
+    }
+
+    /// Candidates are untrusted, so every mutation of a lowered fixture function must end as a
+    /// parse or validation error or as a run, never as a panic.
+    #[test]
+    fn candidate_mutations() {
+        const MUTATIONS: u64 = 32;
+        let dir = ui_codegen_dir().join("mir");
+        let mut failures = Vec::new();
+        let mut parsed = 0usize;
+        for path in fixture_paths(&dir, "mir") {
+            #[allow(clippy::disallowed_methods)]
+            let raw = std::fs::read_to_string(&path).unwrap();
+            let text = raw.lines().filter(|l| !l.starts_with("//@")).collect::<Vec<_>>().join("\n");
+            let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            sess.enter(|| {
+                let Ok(module) = parse_module(&sess, &text) else { return };
+                if module.phase() != MirPhase::Lowered || validate(&module, None).is_err() {
+                    return;
+                }
+                for (id, func) in module.iter_functions() {
+                    let text = module.candidate_text(func).to_string();
+                    for mutation in 0..MUTATIONS {
+                        let seed = mix64(id.index() as u64 * MUTATIONS + mutation)
+                            ^ mix64(name.len() as u64);
+                        let mutated = mutate(&text, seed);
+                        let checked = catch_unwind(AssertUnwindSafe(|| {
+                            check_candidate(&sess, &module, id, func, &mutated, seed)
+                        }));
+                        match checked {
+                            Ok(true) => parsed += 1,
+                            Ok(false) => {}
+                            Err(_) => failures.push(format!("{name}:\n{mutated}")),
+                        }
+                    }
+                }
+            });
+        }
+        assert!(parsed > 0, "no mutated candidate parsed");
+        assert!(
+            failures.is_empty(),
+            "{} mutated candidate(s) panicked:\n{}",
+            failures.len(),
+            failures.join("\n")
+        );
+    }
+
+    /// Takes `text` through the pass's checks as a candidate for function `id` and runs it when
+    /// it validates. Returns whether it parsed.
+    fn check_candidate(
+        sess: &Session,
+        module: &Module,
+        id: FunctionId,
+        func: &Function,
+        text: &str,
+        seed: u64,
+    ) -> bool {
+        let Ok(candidate) = parse_candidate(sess, module, text) else { return false };
+        if candidate.params != func.params
+            || candidate.return_components() != func.return_components()
+        {
+            return true;
+        }
+        let mut body = func.clone();
+        body.replace_body(candidate);
+        if validate(module, Some((id, &body))).is_err() {
+            return true;
+        }
+        DeadCodeEliminator::new().run_to_fixpoint(&mut body);
+        let machine = Machine::with_replacement(module, id, &body);
+        for input in 0..4 {
+            let args = func
+                .params
+                .iter()
+                .enumerate()
+                .map(|(index, _)| U256::from(mix64(seed ^ (input * 16 + index as u64)) % 512))
+                .collect::<Vec<_>>();
+            let memory = Memory::new(seed ^ input, 4);
+            let _ = machine.run(id, &args, memory, Limits { fuel: 10_000, depth: 16 }, &mut ());
+        }
+        true
+    }
+
+    /// Mutates candidate text: deletes, repeats, or swaps lines, or replaces a word with another
+    /// word of the text, an operation's name, or a token that is often invalid.
+    fn mutate(text: &str, seed: u64) -> String {
+        let mut state = seed;
+        let mut next = |bound: usize| {
+            state = mix64(state);
+            (state % bound as u64) as usize
+        };
+        let mut lines = text.lines().map(str::to_owned).collect::<Vec<_>>();
+        let words = text.split_whitespace().collect::<Vec<_>>();
+        for _ in 0..1 + next(3) {
+            let line = 1 + next(lines.len().saturating_sub(2).max(1));
+            match next(5) {
+                0 => {
+                    lines.remove(line);
+                }
+                1 => lines.insert(line, lines[line].clone()),
+                2 => {
+                    let other = 1 + next(lines.len().saturating_sub(2).max(1));
+                    lines.swap(line, other);
+                }
+                _ => {
+                    let mut tokens = lines[line].split(' ').map(str::to_owned).collect::<Vec<_>>();
+                    let token = next(tokens.len());
+                    tokens[token] = match next(3) {
+                        0 => words[next(words.len())].to_owned(),
+                        1 => InstKind::MNEMONICS[next(InstKind::MNEMONICS.len())].to_owned(),
+                        _ => [
+                            "bb9",
+                            "v99",
+                            "arg9",
+                            "0x10000000000000000000000000000000000000000000000000000000000000000",
+                            "i1",
+                            "memptr",
+                            "[",
+                            "]",
+                            ",",
+                            "=",
+                            "@main",
+                            "undef",
+                            "!metadata()",
+                        ][next(13)]
+                        .to_owned(),
+                    };
+                    lines[line] = tokens.join(" ");
+                }
+            }
+        }
+        lines.join("\n")
     }
 }

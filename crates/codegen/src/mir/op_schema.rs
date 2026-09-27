@@ -606,7 +606,6 @@ macro_rules! define_mir_ops {
             }
 
             /// All declared textual names, including attribute-dependent spellings.
-            #[cfg(test)]
             pub(crate) const MNEMONICS: &[&str] = &[
                 $( $mnemonic, $( $alternate_mnemonic, )* )+
             ];

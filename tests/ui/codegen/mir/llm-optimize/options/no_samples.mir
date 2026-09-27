@@ -1,0 +1,9 @@
+//@ compile-flags: -Zllm-optimize=replay -Zllm-cache=cache -Zllm-samples=0
+@module Options
+@phase lowered
+fn @main() [entry] {
+  bb0:
+    stop
+}
+
+//~? ERROR: `-Zllm-samples` must be positive

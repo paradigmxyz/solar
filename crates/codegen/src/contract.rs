@@ -191,7 +191,8 @@ pub fn generate_contract_bytecodes(
     let parallel = gcx.sess.is_parallel()
         && !gcx.sess.opts.unstable.print_after_each
         && !gcx.sess.opts.unstable.pass_diff
-        && !gcx.sess.opts.unstable.time_passes;
+        && !gcx.sess.opts.unstable.time_passes
+        && !gcx.sess.opts.unstable.llm_trace;
     let priorities = if parallel {
         graph.scheduling_priorities(gcx)
     } else {

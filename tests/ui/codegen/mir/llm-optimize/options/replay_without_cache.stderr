@@ -1,0 +1,2 @@
+error: `-Zllm-optimize=replay` requires `-Zllm-cache`
+

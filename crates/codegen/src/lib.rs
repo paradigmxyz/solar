@@ -28,6 +28,8 @@ pub use link::{
     QualifiedName, RelocatableBytecode,
 };
 
+pub mod llm;
+
 mod ir_parse;
 mod source_info;
 

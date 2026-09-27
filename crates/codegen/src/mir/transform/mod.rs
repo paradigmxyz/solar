@@ -22,6 +22,7 @@ pub(crate) mod inline;
 pub(crate) mod inline_dispatch;
 pub(crate) mod inline_guards;
 pub(crate) mod jump_threading;
+pub(crate) mod llm_optimize;
 pub(crate) mod load_pre;
 pub(crate) mod loop_canonicalize;
 pub(crate) mod loop_exit_remat;
