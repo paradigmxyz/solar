@@ -420,8 +420,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
 
                 let callee_signature = self.gcx.callable_signature_of_ty(callee_ty);
-                let callee_param_source =
-                    callee_signature.and_then(|signature| signature.param_source);
+                let callee_param_source = callee_signature
+                    .and_then(|signature| signature.param_source)
+                    .or_else(|| self.gcx.call_param_source(callee));
                 if let TyKind::Type(_) = callee_ty.kind
                     && let Some(signature) = callee_signature
                 {
