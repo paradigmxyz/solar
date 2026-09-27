@@ -281,7 +281,7 @@ pub(super) fn literal_store_run(
 ) -> Option<(Bytes, usize)> {
     let [value, dup, store, ..] = instructions.get(start..)? else { return None };
     let first = value.concrete_immediate()?;
-    if dup.as_evm_opcode() != Some(op::DUP2) || store.as_evm_opcode() != Some(op::MSTORE) {
+    if dup.as_stack_op() != Some(op::StackOp::Dup(2)) || store.as_evm_opcode() != Some(op::MSTORE) {
         return None;
     }
 
@@ -290,9 +290,9 @@ pub(super) fn literal_store_run(
     while let Some(window) = instructions.get(end..end + 6) {
         let [offset, dup, add, value, swap, store] = window else { unreachable!() };
         if offset.concrete_immediate() != Some(U256::from(words * WORD_BYTES))
-            || dup.as_evm_opcode() != Some(op::DUP2)
+            || dup.as_stack_op() != Some(op::StackOp::Dup(2))
             || add.as_evm_opcode() != Some(op::ADD)
-            || swap.as_evm_opcode() != Some(op::SWAP1)
+            || swap.as_stack_op() != Some(op::StackOp::Swap(1))
             || store.as_evm_opcode() != Some(op::MSTORE)
         {
             break;

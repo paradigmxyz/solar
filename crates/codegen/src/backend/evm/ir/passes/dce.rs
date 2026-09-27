@@ -553,13 +553,5 @@ fn apply_edits(
 }
 
 const fn is_analysis_boundary(opcode: u8) -> bool {
-    op::is_terminal(opcode)
-        || matches!(
-            opcode,
-            op::JUMPI
-                // Reject malformed raw extended operations. Logical operations are handled above.
-                | op::DUPN
-                | op::SWAPN
-                | op::EXCHANGE
-        )
+    op::is_terminal(opcode) || opcode == op::JUMPI
 }
