@@ -644,7 +644,7 @@ impl FunctionAnalyses {
     }
 }
 
-const MIN_PARALLEL_INSTRUCTIONS: usize = 4096;
+const MIN_PARALLEL_INSTRUCTIONS: usize = 1024;
 
 #[derive(Clone, Copy)]
 struct FunctionAnalysisRequirements(u8);
