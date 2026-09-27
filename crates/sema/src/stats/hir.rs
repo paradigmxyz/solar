@@ -373,13 +373,13 @@ impl<'hir> HirVisit<'hir> for HirStatCollector<'hir> {
             ]
         );
         match &expr.kind {
-            hir::ExprKind::CallOptions(expr, opts) => {
-                self.visit_expr(expr)?;
-                self.visit_call_options(opts)?;
-            }
             hir::ExprKind::Call(expr, args) => {
                 self.visit_expr(expr)?;
                 self.visit_call_args(args)?;
+            }
+            hir::ExprKind::CallOptions(expr, opts) => {
+                self.visit_expr(expr)?;
+                self.visit_call_options(opts)?;
             }
             hir::ExprKind::Delete(expr)
             | hir::ExprKind::Member(expr, _)

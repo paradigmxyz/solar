@@ -407,11 +407,6 @@ impl<'gcx> TypeChecker<'gcx> {
 
                 self.check_binop(Some(expr.id), lhs_e, lhs, rhs_e, rhs, op, false)
             }
-            hir::ExprKind::CallOptions(callee, options) => {
-                let callee_ty = self.check_expr(callee);
-                let ty = self.check_call_options(callee_ty, options.args, options.span);
-                self.gcx.mk_ty(TyKind::CallOptions(ty))
-            }
             hir::ExprKind::Call(wrapped_callee, ref args) => {
                 let (callee, opts) = wrapped_callee.split_call_options();
                 let mut callee_ty = if let hir::ExprKind::Member(receiver, ident) = callee.kind {
@@ -532,6 +527,11 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
 
                 ty
+            }
+            hir::ExprKind::CallOptions(callee, options) => {
+                let callee_ty = self.check_expr(callee);
+                let ty = self.check_call_options(callee_ty, options.args, options.span);
+                self.gcx.mk_ty(TyKind::CallOptions(ty))
             }
             hir::ExprKind::Delete(expr) => {
                 let ty = self.require_lvalue(expr);

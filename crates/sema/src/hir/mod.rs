@@ -1773,16 +1773,16 @@ impl<'hir> Expr<'hir> {
     pub fn visit<T>(&self, f: &mut impl FnMut(&Self) -> ControlFlow<T>) -> ControlFlow<T> {
         f(self)?;
         match &self.kind {
-            ExprKind::CallOptions(callee, options) => {
-                callee.visit(f)?;
-                for arg in options.args {
-                    arg.value.visit(f)?;
-                }
-            }
             ExprKind::Call(callee, args) => {
                 callee.visit(f)?;
                 for arg in args.exprs() {
                     arg.visit(f)?;
+                }
+            }
+            ExprKind::CallOptions(callee, options) => {
+                callee.visit(f)?;
+                for arg in options.args {
+                    arg.value.visit(f)?;
                 }
             }
             ExprKind::Delete(expr)

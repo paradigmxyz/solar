@@ -589,6 +589,10 @@ impl<'gcx, W: fmt::Write> HirPrinter<'gcx, W> {
                 self.print_expr(rhs)?;
                 self.out.write_char(')')?;
             }
+            ExprKind::Call(callee, args) => {
+                self.print_expr(callee)?;
+                self.print_call_args(args)?;
+            }
             ExprKind::CallOptions(callee, opts) => {
                 self.print_expr(callee)?;
                 self.out.write_str(" { ")?;
@@ -600,10 +604,6 @@ impl<'gcx, W: fmt::Write> HirPrinter<'gcx, W> {
                     self.print_expr(&arg.value)?;
                 }
                 self.out.write_str(" }")?;
-            }
-            ExprKind::Call(callee, args) => {
-                self.print_expr(callee)?;
-                self.print_call_args(args)?;
             }
             ExprKind::Delete(expr) => {
                 self.out.write_str("delete ")?;
