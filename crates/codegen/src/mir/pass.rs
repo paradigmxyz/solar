@@ -107,6 +107,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
     &evm_inst_schedule::EvmInstSchedule,
+    &llm_optimize::LlmOptimize,
 ];
 
 /// Finds a MIR pass by command-line name.
@@ -407,6 +408,8 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     // Late lowering can leave pure address and length calculations unused.
     // Remove their complete dependency chains before selecting physical stack order.
     &dce::Dce,
+    // Only with `-Zllm-optimize`: offer the finished word SSA of small functions to a rewriter.
+    &llm_optimize::LlmOptimize,
     &evm_inst_schedule::EvmInstSchedule,
 ];
 

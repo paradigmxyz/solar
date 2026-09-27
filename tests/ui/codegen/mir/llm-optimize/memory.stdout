@@ -1,0 +1,60 @@
+llm-optimize Memory @main: not offered: is the dispatch entry
+llm-optimize Memory @hash_pair: offered at 115 gas, 32 bytes
+llm-optimize Memory @hash_pair: round 1: rejected at equivalence: the original returns 0x31f343bbf1bf134c5ed325dfccc4d1c9f0e4b1b0df11767cbc4b560be89c80e7, but the candidate returns 0x3622aba76ab9433f494a54a453d6dea2453e22703520f70c2febcf84e80cf64
+  on arg0 = 0xffffffffffffffff, arg1 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, free memory pointer 0x80
+llm-optimize Memory @hash_pair: round 2: rejected at equivalence: the candidate writes memory byte 0x60, which the original never writes
+  on arg0 = 0xffffffffffffffff, arg1 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, free memory pointer 0x80
+llm-optimize Memory @hash_pair: round 3: rejected at equivalence: the original returns 0x31f343bbf1bf134c5ed325dfccc4d1c9f0e4b1b0df11767cbc4b560be89c80e7, but the candidate returns 0x4d43279b262b2155ae9db1814f22cfd52ba02ce2d143fc6964d893ebf7b23e9b
+  on arg0 = 0xffffffffffffffff, arg1 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, free memory pointer 0x80
+llm-optimize Memory @hash_pair: stopped after 3 rejections in a row
+llm-optimize Memory @aliasing: offered at 1179 gas, 31 bytes
+llm-optimize Memory @aliasing: round 1: rejected at equivalence: the original returns 0x2, but the candidate returns 0x1
+  on arg0 = 0xe, arg1 = 0xe, free memory pointer 0x160
+llm-optimize Memory @aliasing: round 2: nothing cheaper
+llm-optimize Memory @check: offered at 58 gas, 30 bytes
+llm-optimize Memory @check: round 1: rejected at equivalence: the original reverts with 0x0000000000000000000000010000000000000000000000000000000000000000, but the candidate reverts with 0x00000000000000000000000100000000000000000000000000000000000000
+  on arg0 = 0x10000000000000000000000000000000000000000, free memory pointer 0xc0
+llm-optimize Memory @check: round 2: nothing cheaper
+- // === ROOT/tests/ui/codegen/mir/llm-optimize/memory.mir (before llm-optimize) ===
++ // === ROOT/tests/ui/codegen/mir/llm-optimize/memory.mir (after llm-optimize) ===
+  @module Memory
+  @phase lowered
+  fn @main() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = calldataload 32
+      v2 = icall @hash_pair, v0, v1
+      v3 = icall @aliasing, v0, v1
+      v4 = add v2, v3
+      icall @check, v4
+      mstore 0, v4
+      returndata 0, 32
+  }
+  
+  fn @hash_pair(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      mstore 0, arg0
+      mstore 32, arg1
+      v0 = keccak256 0, 64
+      ret v0
+  }
+  
+  fn @aliasing(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      mstore arg0, 1
+      mstore arg1, 2
+      v0 = mload arg0
+      ret v0
+  }
+  
+  fn @check(arg0: i256) {
+    bb0:
+      v0 = gt arg0, 0x3e8
+      jumpi v0, bb1, bb2
+    bb2:
+      ret
+    bb1:
+      mstore 0, arg0
+      revert 0, 32
+  }
+  

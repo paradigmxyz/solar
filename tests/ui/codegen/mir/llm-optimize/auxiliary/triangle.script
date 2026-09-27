@@ -1,0 +1,11 @@
+The closed form of `sumBelow` in `triangle.sol`.
+
+--- function sumBelow
+--- candidate
+fn @sumBelow(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = sub arg0, 1
+    v1 = mul arg0, v0
+    v2 = shr 1, v1
+    ret v2
+}

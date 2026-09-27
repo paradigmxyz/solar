@@ -75,6 +75,27 @@ Options:
       -Zassert-planned-edge-spill-home
           Assert instead of logging when a value is live across a planned stack edge into an already-emitted block without a spill home
 
+      -Zllm-optimize=<MODE>
+          Rewrite eligible functions of lowered MIR with the `llm-optimize` pass, taking rewrites from the cache (`replay`), a model (`live`), or a script (`script`). Rewrites are tested, not proved
+
+      -Zllm-cache=<DIR>
+          Directory of `llm-optimize` rewrites, read in every mode and written unless replaying
+
+      -Zllm-script=<FILE>
+          File of scripted `llm-optimize` candidates, for `-Zllm-optimize=script`
+
+      -Zllm-model=<MODEL>
+          Model that `-Zllm-optimize=live` asks
+
+      -Zllm-rounds=<N>
+          Candidates `llm-optimize` asks for per function (default: 6)
+
+      -Zllm-samples=<N>
+          Generated inputs `llm-optimize` runs each candidate on (default: 512)
+
+      -Zllm-trace
+          Print what `llm-optimize` offers, hears, and decides
+
       -Zhelp
           Print help
 

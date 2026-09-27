@@ -1,0 +1,39 @@
+llm-optimize Loops @main: not offered: is the dispatch entry
+llm-optimize Loops @sum: offered at 8569 gas, 43 bytes
+llm-optimize Loops @sum: round 1: accepted at 82 gas, 31 bytes
+llm-optimize Loops @sum: round 2: accepted at 74 gas, 28 bytes
+llm-optimize Loops @sum: round 3: rejected at cost: costs 72 gas, 28 bytes, which does not beat 74 gas, 28 bytes
+llm-optimize Loops @sum: round 4: nothing cheaper
+llm-optimize Loops @sum: rewritten from 8569 gas, 43 bytes to 74 gas, 28 bytes
+- // === ROOT/tests/ui/codegen/mir/llm-optimize/loops.mir (before llm-optimize) ===
++ // === ROOT/tests/ui/codegen/mir/llm-optimize/loops.mir (after llm-optimize) ===
+  @module Loops
+  @phase lowered
+  fn @main() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = icall @sum, v0
+      mstore 0, v1
+      returndata 0, 32
+  }
+  
+  fn @sum(arg0: i256) -> i256 {
+    bb0:
+-     jump bb1
+-   bb1:
+-     v0 = phi [bb0: 0], [bb2: v3]
+-     v1 = phi [bb0: 0], [bb2: v4]
+-     v2 = lt v0, arg0
+-     jumpi v2, bb2, bb3
+-   bb3:
+-     ret v1
+-   bb2:
+-     v3 = add v0, 1
+-     v4 = add v1, v0
+-     jump bb1
++     v0 = sub arg0, 1
++     v1 = mul arg0, v0
++     v2 = div v1, 2
++     ret v2
+  }
+  

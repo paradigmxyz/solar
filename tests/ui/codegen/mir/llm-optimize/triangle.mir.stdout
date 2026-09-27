@@ -1,0 +1,38 @@
+// === ROOT/tests/ui/codegen/mir/llm-optimize/triangle.sol:Triangle ===
+@module Triangle
+fn @triangle(arg0: i256) -> i256 [selector=0x50c2698d, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @sumBelow, arg0
+    ret v0
+}
+
+fn @triangles(arg0: i256, arg1: i256) -> i256 [selector=0x461d6332, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @sumBelow, arg0
+    v1 = icall @sumBelow, arg1
+    v2 = add v0, v1
+    ret v2
+}
+
+fn @sumBelow(arg0: i256) -> i256 [pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v5]
+    v2 = phi [bb0: 0], [bb3: v4]
+    v3 = lt v1, v0
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v2
+  bb4:
+    v4 = add v2, v1
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v5 = add v1, 1
+    jump bb1
+}

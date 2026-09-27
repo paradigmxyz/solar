@@ -641,6 +641,17 @@ impl Function {
     pub(crate) fn is_public(&self) -> bool {
         matches!(self.attributes.visibility, Visibility::Public | Visibility::External)
     }
+
+    /// Replaces the body of this function, its argument slots, values, instructions, and blocks,
+    /// with that of `body`, which must take the same parameters. The function keeps its name,
+    /// signature, attributes, spans, and memory layout.
+    pub(crate) fn replace_body(&mut self, body: Self) {
+        debug_assert_eq!(self.params, body.params);
+        self.arg_types = body.arg_types;
+        self.values = body.values;
+        self.instructions = body.instructions;
+        self.blocks = body.blocks;
+    }
 }
 
 /// Iterator for [`Function::live_values`], refilling one buffer per instruction or terminator.
