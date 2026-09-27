@@ -1383,7 +1383,7 @@ impl<'gcx> ResolveContext<'gcx> {
                     hir::ExprKind::Ident(res),
                     call.name.span,
                 );
-                hir::ExprKind::Call(callee, self.lower_yul_call_args(call.arguments, span), None)
+                hir::ExprKind::Call(callee, self.lower_yul_call_args(call.arguments, span))
             }
             Err(guar) => hir::ExprKind::Err(guar),
         }
@@ -1608,7 +1608,6 @@ impl<'gcx> ResolveContext<'gcx> {
                     span: path.span(),
                 }),
                 self.lower_call_args(args),
-                None,
             ),
             id: self.next_id(),
             span,
@@ -1876,21 +1875,11 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::ExprKind::Binary(lhs, op, rhs) => {
                 hir::ExprKind::Binary(self.lower_expr(lhs), *op, self.lower_expr(rhs))
             }
-            ast::ExprKind::Call(callee, args) => {
-                let (callee, options) = self.lower_call_callee(callee);
-                hir::ExprKind::Call(callee, self.lower_call_args(args), options)
-            }
-            ast::ExprKind::CallOptions(callee, options) => {
-                let callee = self.lower_expr(callee);
-                let _options = self.lower_named_args(options);
-                let options_span = callee.span.shrink_to_hi().with_hi(expr.span.hi());
-                hir::ExprKind::Err(self.sess.dcx.emit_err_span_note(
-                    options_span,
-                    "call options must be part of a call expression",
-                    expr.span,
-                    "this expression is not a function call expression",
-                ))
-            }
+            ast::ExprKind::Call(callee, args) => hir::ExprKind::Call(
+                self.lower_expr(callee.peel_parens()),
+                self.lower_call_args(args),
+            ),
+            ast::ExprKind::CallOptions(..) => self.lower_call_options(expr),
             ast::ExprKind::Delete(expr) => hir::ExprKind::Delete(self.lower_expr(expr)),
             ast::ExprKind::Ident(name) => {
                 match self.resolve_paths(ast::PathSlice::from_ref(name)) {
@@ -1946,37 +1935,25 @@ impl<'gcx> ResolveContext<'gcx> {
         self.arena.alloc_with(|| lit.copy_without_data())
     }
 
-    fn lower_call_callee(
-        &mut self,
-        callee: &ast::Expr<'_>,
-    ) -> (&'gcx hir::Expr<'gcx>, Option<&'gcx hir::CallOptions<'gcx>>) {
+    fn lower_call_options(&mut self, expr: &ast::Expr<'_>) -> hir::ExprKind<'gcx> {
+        let ast::ExprKind::CallOptions(callee, args) = &expr.kind else { unreachable!() };
         let mut inner = callee.peel_parens();
-        let mut options = None;
+        let mut options = hir::CallOptions { span: expr.span, args: self.lower_named_args(args) };
         let mut has_nested_options = false;
-
         while let ast::ExprKind::CallOptions(next, args) = &inner.kind {
-            if options.is_some() {
-                has_nested_options = true;
-            }
-            options =
-                Some(hir::CallOptions { span: inner.span, args: self.lower_named_args(args) });
+            has_nested_options = true;
+            options = hir::CallOptions { span: inner.span, args: self.lower_named_args(args) };
             inner = next.peel_parens();
         }
-
-        let Some(options) = options else {
-            return (self.lower_expr(inner), None);
-        };
-
         if has_nested_options {
             self.sess
                 .dcx
                 .err("function call options have already been set")
-                .span(callee.span)
+                .span(expr.span)
                 .help("combine them into a single `{...}` option")
                 .emit();
         }
-
-        (self.lower_expr(inner), Some(self.arena.alloc(options)))
+        hir::ExprKind::CallOptions(self.lower_expr(inner), self.arena.alloc(options))
     }
 
     fn lower_named_args(&mut self, options: &[ast::NamedArg<'_>]) -> &'gcx [hir::NamedArg<'gcx>] {

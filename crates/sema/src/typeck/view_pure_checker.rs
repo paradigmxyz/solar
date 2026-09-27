@@ -415,7 +415,7 @@ impl<'gcx, 'a> Visit<'gcx> for ViewPureChecker<'gcx, 'a> {
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
         self.walk_stmt(stmt)?;
         if let StmtKind::Emit(expr) = stmt.kind {
-            let ExprKind::Call(callee, ref args, _) = expr.kind else { unreachable!() };
+            let Some((callee, args, _)) = expr.as_call() else { unreachable!() };
             self.report(StateMutability::NonPayable, callee.span.to(args.span), None);
         }
         ControlFlow::Continue(())
@@ -423,7 +423,7 @@ impl<'gcx, 'a> Visit<'gcx> for ViewPureChecker<'gcx, 'a> {
 
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
         let writing = std::mem::replace(&mut self.writing, false);
-        let yul_builtin = if let ExprKind::Call(callee, _, _) = expr.kind {
+        let yul_builtin = if let Some((callee, _, _)) = expr.as_call() {
             self.gcx.resolved_builtin(callee).filter(|builtin| builtin.is_yul())
         } else {
             None
@@ -464,7 +464,7 @@ impl<'gcx, 'a> Visit<'gcx> for ViewPureChecker<'gcx, 'a> {
 
         match expr.kind {
             ExprKind::Binary(_, _, _) | ExprKind::Unary(_, _) => self.report_operator_call(expr),
-            ExprKind::Call(callee, _, _) => self.report_call_expr(expr, callee),
+            ExprKind::Call(callee, _) => self.report_call_expr(expr, callee.split_call_options().0),
             ExprKind::Ident(_) => {
                 if let Some(res) = self.gcx.resolved_expr(expr) {
                     self.report_res(res, expr.span, writing);

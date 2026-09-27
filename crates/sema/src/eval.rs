@@ -137,7 +137,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 let r = self.try_eval_value(r)?;
                 l.binop(r, bin_op.kind).map_err(Into::into)
             }
-            hir::ExprKind::Call(callee, ref args, opts) => self.eval_call(callee, args, opts),
+            hir::ExprKind::Call(callee, ref args) => self.eval_call(callee, args),
             // hir::ExprKind::Delete(_) => unimplemented!(),
             hir::ExprKind::Ident(res) => {
                 // Ignore invalid overloads since they will get correctly detected later.
@@ -185,14 +185,8 @@ impl<'gcx> ConstantEvaluator<'gcx> {
         }
     }
 
-    fn eval_call(
-        &mut self,
-        callee: &hir::Expr<'_>,
-        args: &hir::CallArgs<'_>,
-        opts: Option<&hir::CallOptions<'_>>,
-    ) -> EvalResult {
-        if opts.is_none()
-            && let hir::ExprKind::Ident(res) = callee.peel_parens().kind
+    fn eval_call(&mut self, callee: &hir::Expr<'_>, args: &hir::CallArgs<'_>) -> EvalResult {
+        if let hir::ExprKind::Ident(res) = callee.peel_parens().kind
             && matches!(res.first(), Some(hir::Res::Builtin(Builtin::Erc7201)))
             && let hir::CallArgsKind::Unnamed([arg]) = args.kind
             && let ConstValue::String(namespace_id) = self.try_eval_value(arg)?
