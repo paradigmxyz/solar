@@ -393,31 +393,21 @@ struct AllocationProvenance {
     unique: bool,
 }
 
-/// Memoized address resolution, indexed by value.
-#[derive(Clone, Debug, Default)]
-struct AddressMemo {
-    /// [`Self::UNRESOLVED`], [`Self::VISITING`], or `Self::RESOLVED + i` for `resolved[i]`.
-    /// Grows on demand, since transforms may add values after construction.
-    states: IndexVec<ValueId, u32>,
-    resolved: Vec<Option<MemoryAddress>>,
-}
-
-impl AddressMemo {
-    const UNRESOLVED: u32 = 0;
+/// Memoized address resolution of one value.
+#[derive(Clone, Copy, Debug, Default)]
+enum AddressState {
+    #[default]
+    Unresolved,
     /// Resolution is in progress further up the recursion.
-    const VISITING: u32 = 1;
-    const RESOLVED: u32 = 2;
-
-    fn clear(&mut self) {
-        self.states.clear();
-        self.resolved.clear();
-    }
+    Visiting,
+    Resolved(Option<MemoryAddress>),
 }
 
 #[derive(Clone, Debug, Default)]
 struct PointerProvenance {
     allocations: FxHashMap<InstId, AllocationProvenance>,
-    addresses: RefCell<AddressMemo>,
+    /// Grows on demand, since transforms may add values after construction.
+    addresses: RefCell<IndexVec<ValueId, AddressState>>,
 }
 
 impl PointerProvenance {
@@ -1719,26 +1709,21 @@ impl AliasAnalysis {
     ) -> Option<MemoryAddress> {
         let provenance = self.provenance(func);
         {
-            let mut memo = provenance.addresses.borrow_mut();
-            let states = &mut memo.states;
-            if states.len() <= value.index() {
-                let len = func.num_values().max(value.index() + 1);
-                if states.is_empty() {
-                    *states = IndexVec::from_vec(vec![AddressMemo::UNRESOLVED; len]);
-                } else {
-                    states.resize(len, AddressMemo::UNRESOLVED);
-                }
+            let mut addresses = provenance.addresses.borrow_mut();
+            if addresses.len() <= value.index() {
+                addresses
+                    .resize(func.num_values().max(value.index() + 1), AddressState::Unresolved);
             }
-            match states[value] {
-                AddressMemo::UNRESOLVED if depth <= 8 => states[value] = AddressMemo::VISITING,
-                AddressMemo::UNRESOLVED | AddressMemo::VISITING => {
-                    drop(memo);
+            match addresses[value] {
+                AddressState::Resolved(address) => return address,
+                AddressState::Unresolved if depth <= 8 => addresses[value] = AddressState::Visiting,
+                AddressState::Unresolved | AddressState::Visiting => {
+                    drop(addresses);
                     return Some(MemoryAddress::symbolic(
                         value,
                         self.pointer_region(func, value, 0),
                     ));
                 }
-                state => return memo.resolved[(state - AddressMemo::RESOLVED) as usize],
             }
         }
         let address = (|| match func.value(value) {
@@ -1813,9 +1798,7 @@ impl AliasAnalysis {
                 _ => Some(MemoryAddress::symbolic(value, self.pointer_region(func, value, 0))),
             },
         })();
-        let mut memo = provenance.addresses.borrow_mut();
-        memo.states[value] = AddressMemo::RESOLVED + memo.resolved.len() as u32;
-        memo.resolved.push(address);
+        provenance.addresses.borrow_mut()[value] = AddressState::Resolved(address);
         address
     }
 
