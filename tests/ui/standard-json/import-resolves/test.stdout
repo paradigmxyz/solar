@@ -23,6 +23,12 @@
     },
     "mapped/A.sol": {
       "id": 7
+    },
+    "prefixedB.sol": {
+      "id": 8
+    },
+    "prefixA.sol": {
+      "id": 9
     }
   },
   "contracts": {
@@ -91,6 +97,16 @@
     },
     "mapped/A.sol": {
       "Mapped": {
+        "abi": []
+      }
+    },
+    "prefixedB.sol": {
+      "PrefixParent": {
+        "abi": []
+      }
+    },
+    "prefixA.sol": {
+      "PrefixImport": {
         "abi": []
       }
     }
