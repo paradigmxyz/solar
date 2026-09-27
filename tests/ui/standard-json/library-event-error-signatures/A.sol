@@ -26,4 +26,12 @@ library L {
     function f(C c, Kind k, S memory s) external pure returns (uint256) {
         return uint256(uint160(address(c))) + uint256(k) + s.n;
     }
+
+    function arrays(C[] calldata cs, Kind[2] memory ks, S[] calldata ss)
+        external
+        pure
+        returns (C[] memory, Kind[2] memory, S[] memory)
+    {
+        return (cs, ks, ss);
+    }
 }

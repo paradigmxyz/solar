@@ -303,8 +303,8 @@ pub(super) struct ContractOutput<'gcx> {
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct EvmOutput {
-    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub(super) method_identifiers: FxIndexMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) method_identifiers: Option<FxIndexMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) bytecode: Option<BytecodeOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -860,7 +860,7 @@ impl ContractOutput<'_> {
 
 impl EvmOutput {
     pub(super) fn is_empty(&self) -> bool {
-        self.method_identifiers.is_empty()
+        self.method_identifiers.is_none()
             && self.bytecode.is_none()
             && self.deployed_bytecode.is_none()
     }
