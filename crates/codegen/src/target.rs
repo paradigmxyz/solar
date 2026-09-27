@@ -340,6 +340,10 @@ impl Target {
     /// or its back-edge jump), so a counter stepping by a small constant never
     /// travels further than `step << 64` from where it started.
     pub(crate) const MAX_TRIP_COUNT_BITS: usize = 64;
+    /// Gas per word of memory, charged as memory grows (`G_memory`).
+    pub(crate) const MEMORY_WORD_GAS: u64 = 3;
+    /// Divisor of the quadratic memory charge, `words² / 512` (`G_quaddivisor`).
+    pub(crate) const MEMORY_QUADRATIC_DIVISOR: u64 = 512;
 
     /// The model of the session's EVM version, objective, and optimizer runs.
     pub(crate) fn new(gcx: Gcx<'_>) -> Self {
@@ -579,12 +583,34 @@ impl Target {
             let edges =
                 block.terminator.as_ref().map_or(0, |terminator| terminator.successors().len());
             for _ in 0..edges {
-                cost += self.opcode(op::PUSH2);
-                cost += self.opcode(op::JUMPI);
-                cost += self.opcode(op::JUMPDEST);
+                cost += self.branch();
             }
         }
         cost
+    }
+
+    /// Cost of one jump to a block: the pushed label, `JUMP`, and the target's `JUMPDEST`.
+    pub(crate) fn jump(self) -> Cost {
+        self.opcode(op::PUSH2) + self.opcode(op::JUMP) + self.opcode(op::JUMPDEST)
+    }
+
+    /// Cost of one conditional jump to a block: the pushed label, `JUMPI`, and the target's
+    /// `JUMPDEST`.
+    pub(crate) fn branch(self) -> Cost {
+        self.opcode(op::PUSH2) + self.opcode(op::JUMPI) + self.opcode(op::JUMPDEST)
+    }
+
+    /// Gas of growing memory from `from_words` to `to_words` words: memory costs
+    /// [`Self::MEMORY_WORD_GAS`] per word plus the square of its words over
+    /// [`Self::MEMORY_QUADRATIC_DIVISOR`], and growth pays the difference. Staying the same size
+    /// or shrinking is free.
+    pub(crate) fn memory_expansion_gas(self, from_words: u64, to_words: u64) -> u128 {
+        let memory_gas = |words: u64| {
+            let words = u128::from(words);
+            words * u128::from(Self::MEMORY_WORD_GAS)
+                + words * words / u128::from(Self::MEMORY_QUADRATIC_DIVISOR)
+        };
+        memory_gas(to_words).saturating_sub(memory_gas(from_words))
     }
 
     /// Deployment-lifetime gas of `cost`: expected executions of its runtime
@@ -791,6 +817,23 @@ mod tests {
         assert_eq!(GasTier::Copy.dynamic_units(&[None, None, Some(U256::from(33))]), 2);
         assert_eq!(GasTier::Log(1).dynamic_units(&[None, Some(U256::from(5)), None]), 5);
         assert_eq!(GasTier::VeryLow.dynamic_units(&[None, None]), 0);
+    }
+
+    #[test]
+    fn jumps_and_memory_expansion() {
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        assert_eq!(target.jump(), Cost::new(12, 5));
+        assert_eq!(target.branch(), Cost::new(14, 5));
+        assert_eq!(target.memory_expansion_gas(0, 1), 3);
+        assert_eq!(target.memory_expansion_gas(0, 32), 98);
+        assert_eq!(target.memory_expansion_gas(32, 64), 102);
+        assert_eq!(target.memory_expansion_gas(64, 32), 0);
+        assert_eq!(target.memory_expansion_gas(0, 1 << 20), 2_150_629_376);
+        let top = target.memory_expansion_gas(0, u64::MAX);
+        assert_eq!(
+            top,
+            (u128::from(u64::MAX) * u128::from(u64::MAX)) / 512 + 3 * u128::from(u64::MAX)
+        );
     }
 
     #[test]
