@@ -11,10 +11,10 @@ fn remapped_guard_project() -> MarkedProject {
         //- /left/foundry.toml
         [profile.default]
         auto_detect_remappings = false
-        remappings = ["@auth/=lib/auth/"]
+        remappings = ["@auth/=lib/auth/", "shared/=../shared/"]
 
         //- /left/src/Main.sol
-        import "../../shared/Shared.sol";
+        import "shared/Shared.sol";
 
         //- /left/lib/auth/Guard.sol
         /// @notice Shared guard documentation.
@@ -23,10 +23,10 @@ fn remapped_guard_project() -> MarkedProject {
         //- /right/foundry.toml
         [profile.default]
         auto_detect_remappings = false
-        remappings = ["@auth/=lib/auth/"]
+        remappings = ["@auth/=lib/auth/", "shared/=../shared/"]
 
         //- /right/src/Main.sol
-        import "../../shared/Shared.sol";
+        import "shared/Shared.sol";
 
         //- /right/lib/auth/Guard.sol
         /// @notice Shared guard documentation.
@@ -90,7 +90,7 @@ fn compatible_contexts_preserve_and_deduplicate_point_queries() {
         concat!(
             "[profile.default]\n",
             "auto_detect_remappings = false\n",
-            "remappings = [\"@auth/=../left/lib/auth/\"]\n",
+            "remappings = [\"@auth/=../left/lib/auth/\", \"shared/=../shared/\"]\n",
         ),
     );
     let uri = Url::from_file_path(marked.project().path("/shared/Shared.sol")).unwrap();
@@ -172,10 +172,10 @@ fn shared_function_hover_compares_inherited_documentation_in_both_orders() {
         //- /left/foundry.toml
         [profile.default]
         auto_detect_remappings = false
-        remappings = ["@dep/=lib/dep/"]
+        remappings = ["@dep/=lib/dep/", "shared/=../shared/"]
 
         //- /left/src/Main.sol
-        import "../../shared/Shared.sol";
+        import "shared/Shared.sol";
 
         //- /left/lib/dep/Base.sol
         abstract contract Base {
@@ -186,10 +186,10 @@ fn shared_function_hover_compares_inherited_documentation_in_both_orders() {
         //- /right/foundry.toml
         [profile.default]
         auto_detect_remappings = false
-        remappings = ["@dep/=lib/dep/"]
+        remappings = ["@dep/=lib/dep/", "shared/=../shared/"]
 
         //- /right/src/Main.sol
-        import "../../shared/Shared.sol";
+        import "shared/Shared.sol";
 
         //- /right/lib/dep/Base.sol
         abstract contract Base {
