@@ -139,9 +139,9 @@
 0xa2 log2             io=4/0 since=homestead gas=1125 +8
 0xa3 log3             io=5/0 since=homestead gas=1500 +8
 0xa4 log4             io=6/0 since=homestead gas=1875 +8
-0xe6 dupn             io=0/1 since=amsterdam gas=3
-0xe7 swapn            io=0/0 since=amsterdam gas=3
-0xe8 exchange         io=0/0 since=amsterdam gas=3
+0xe6 dupn             io=? since=amsterdam gas=3
+0xe7 swapn            io=? since=amsterdam gas=3
+0xe8 exchange         io=? since=amsterdam gas=3
 0xf0 create           io=3/1 bits=[]/160 since=homestead gas=32000 writes_storage
 0xf1 call             io=7/1 bits=[256, 160]/1 since=homestead gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage
 0xf2 callcode         io=7/1 bits=[256, 160]/1 since=homestead gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage

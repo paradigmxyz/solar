@@ -96,7 +96,7 @@ mod tests {
                 let kind = build(&operands);
                 if let Some(lowering) = opcode_lowering(&kind.op()) {
                     let definition = definition(lowering.opcode()).unwrap();
-                    let (pops, pushes) = definition.stack_io;
+                    let (pops, pushes) = definition.stack_io.unwrap();
                     assert_eq!(usize::from(pops), arity, "{name}");
                     assert_eq!(pushes != 0, kind.op_def().result.produces_value(), "{name}");
                     writeln!(

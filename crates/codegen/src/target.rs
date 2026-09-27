@@ -672,7 +672,7 @@ mod tests {
                     && def.is_available(version)
                     && def.is_pure()
                     && def.gas.dynamic_gas(version) == 0
-                    && let (inputs, 1) = def.stack_io
+                    && let Some((inputs, 1)) = def.stack_io
                 {
                     let cost = target.opcode(opcode);
                     writeln!(

@@ -81,16 +81,9 @@ fn block_ignores_entry_stack(block: &Block) -> bool {
         if inst.as_evm_opcode().is_some_and(is_analysis_boundary) {
             return false;
         }
-        let (inputs, outputs) = if let Some(stack_op) = inst.as_stack_op() {
-            let inputs = stack_op.required_depth();
-            let outputs = inputs.checked_add_signed(stack_op.net_growth()).unwrap();
-            (inputs, outputs)
-        } else if let Some(effect) = inst.stack_effect() {
-            (usize::from(effect.inputs), usize::from(effect.outputs))
-        } else {
-            // Verified IR has no instruction without a known stack effect.
-            return false;
-        };
+        // Verified IR has no instruction without a known stack effect.
+        let Some(effect) = inst.stack_effect() else { return false };
+        let (inputs, outputs) = (usize::from(effect.inputs), usize::from(effect.outputs));
         if depth < inputs {
             return false;
         }

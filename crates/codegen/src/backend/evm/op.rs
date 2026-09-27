@@ -63,6 +63,15 @@ macro_rules! opcode_mnemonic {
     };
 }
 
+macro_rules! opcode_stack_io {
+    (_,_) => {
+        None
+    };
+    ($inputs:literal, $outputs:literal) => {
+        Some(($inputs, $outputs))
+    };
+}
+
 macro_rules! opcode_traits {
     () => {
         OpcodeTraits::NONE
@@ -198,8 +207,8 @@ macro_rules! opcodes {
             pub(crate) opcode: u8,
             /// Canonical textual mnemonic.
             pub(crate) mnemonic: &'static str,
-            /// Number of stack items consumed and produced.
-            pub(crate) stack_io: (u8, u8),
+            /// Number of stack items consumed and produced, unless an immediate operand decides it.
+            pub(crate) stack_io: Option<(u8, u8)>,
             /// Declarative operation properties.
             pub(crate) traits: OpcodeTraits,
             /// Maximum significant result bits; unknown results use the full word.
@@ -223,7 +232,7 @@ macro_rules! opcodes {
                 map[opcode as usize] = Some(OpDef {
                     opcode,
                     mnemonic: opcode_mnemonic!($mnemonic),
-                    stack_io: ($inputs, $outputs),
+                    stack_io: opcode_stack_io!($inputs, $outputs),
                     traits: opcode_traits!($($trait)|*),
                     result_bits: opcode_result_bits!($($result_bits)?),
                     input_bits: &[$($($input_bits),*)?],
@@ -290,7 +299,7 @@ macro_rules! opcodes {
         #[must_use]
         pub(crate) const fn stack_io(opcode: u8) -> Option<(u8, u8)> {
             match definition(opcode) {
-                Some(definition) => Some(definition.stack_io),
+                Some(definition) => definition.stack_io,
                 None => None,
             }
         }
@@ -439,9 +448,9 @@ opcodes! {
     0xa2 => LOG2 => log2 => stack_io(4, 0) => traits() => gas(log2) => available(legacy);
     0xa3 => LOG3 => log3 => stack_io(5, 0) => traits() => gas(log3) => available(legacy);
     0xa4 => LOG4 => log4 => stack_io(6, 0) => traits() => gas(log4) => available(legacy);
-    0xe6 => DUPN => dupn => stack_io(0, 1) => traits() => gas(verylow) => available(extended_stack_ops);
-    0xe7 => SWAPN => swapn => stack_io(0, 0) => traits() => gas(verylow) => available(extended_stack_ops);
-    0xe8 => EXCHANGE => exchange => stack_io(0, 0) => traits() => gas(verylow) => available(extended_stack_ops);
+    0xe6 => DUPN => dupn => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
+    0xe7 => SWAPN => swapn => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
+    0xe8 => EXCHANGE => exchange => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
     0xf0 => CREATE => create => stack_io(3, 1) => traits(WRITES_STORAGE) => gas(create) => available(legacy) => result_bits(160);
     0xf1 => CALL => call => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
     0xf2 => CALLCODE => callcode => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
@@ -901,7 +910,7 @@ mod tests {
         let add = definition(ADD).expect("declared opcode");
         assert_eq!(add.opcode, ADD);
         assert_eq!(add.mnemonic, "add");
-        assert_eq!(add.stack_io, (2, 1));
+        assert_eq!(add.stack_io, Some((2, 1)));
         assert!(add.is_pure());
         assert!(add.is_commutative());
         assert_eq!(definition(0x0c), None);
@@ -947,11 +956,15 @@ mod tests {
         for opcode in u8::MIN..=u8::MAX {
             let Some(def) = definition(opcode) else { continue };
             write!(table, "0x{opcode:02x} {:<16}", def.mnemonic).unwrap();
-            let (inputs, outputs) = def.stack_io;
-            write!(table, " io={inputs}/{outputs}").unwrap();
+            match def.stack_io {
+                Some((inputs, outputs)) => write!(table, " io={inputs}/{outputs}").unwrap(),
+                None => table.push_str(" io=?"),
+            }
             assert!(def.result_bits <= 256);
             assert!(def.input_bits.iter().all(|&bits| bits <= 256));
-            assert!(def.input_bits.len() <= usize::from(inputs));
+            assert!(
+                def.input_bits.len() <= usize::from(def.stack_io.map_or(0, |(inputs, _)| inputs))
+            );
             if def.result_bits != 256 || !def.input_bits.is_empty() {
                 write!(table, " bits={:?}/{}", def.input_bits, def.result_bits).unwrap();
             }
