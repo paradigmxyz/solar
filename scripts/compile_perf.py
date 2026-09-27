@@ -478,8 +478,12 @@ def perf_stat(solar: Path, path: Path, core: int, jobs: str) -> dict[str, float]
 def cmd_wall(args: argparse.Namespace) -> None:
     bins = [binary(name) for name in args.bins]
     jobs = [f"-j{args.jobs}"] if args.jobs else []
+    output = WORK / "wall"
+    output.mkdir(parents=True, exist_ok=True)
     for path in inputs_of(args):
-        with tempfile.NamedTemporaryFile(suffix=".json") as export:
+        with tempfile.NamedTemporaryFile(
+            dir=output, prefix=f"{path.stem}-", suffix=".json", delete=False
+        ) as export:
             command: list[Any] = [
                 "hyperfine",
                 "-N",
@@ -513,13 +517,16 @@ def cmd_wall(args: argparse.Namespace) -> None:
                 f"{result['mean'] * 1e3:.1f} ms",
                 f"± {result['stddev'] * 1e3:.1f}",
                 change(result["mean"], base),
+                f"{result['median'] * 1e3:.1f} ms",
+                change(result["median"], results[0]["median"]),
             ]
             for result in results
         ]
         print(
             f"\n{path.stem} ({args.runs} runs, {jobs[0] if jobs else 'default jobs'})"
         )
-        table(["binary", "mean", "stddev", ""], rows)
+        table(["binary", "mean", "stddev", "", "median", ""], rows)
+        print(f"samples: {export.name}")
 
 
 def cmd_size(args: argparse.Namespace) -> None:
