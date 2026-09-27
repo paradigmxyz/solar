@@ -56,6 +56,46 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
 
     let stem = path.file_stem().unwrap().to_str().unwrap();
     #[rustfmt::skip]
+    if path_contains("/yulSyntaxTests/") && matches!(
+        stem,
+        | "assignment_to_builtin"
+        | "blobbasefee_reserved_identifier_post_cancun"
+        | "blobhash"
+        | "builtin_identifier_1"
+        | "builtin_identifier_2"
+        | "builtin_identifier_3"
+        | "builtin_identifier_4"
+        | "builtin_identifier_5"
+        | "builtin_identifier_6"
+        | "builtin_identifier_7"
+        | "clash_with_non_reserved_pure_yul_builtin"
+        | "clash_with_reserved_builtin"
+        | "clash_with_reserved_pure_yul_builtin"
+        | "clz"
+        | "datacopy_shadowing"
+        | "dataoffset_shadowing"
+        | "datasize_shadowing"
+        | "for_expr_invalid_5"
+        | "functional_partial"
+        | "if_statement_invalid_1"
+        | "if_statement_invalid_4"
+        | "linkersymbol_invalid_redefine_builtin"
+        | "linkersymbol_shadowing"
+        | "loadimmutable_shadowing"
+        | "mcopy_as_identifier"
+        | "opcode_for_function_args_1"
+        | "opcode_for_function_args_2"
+        | "opcode_for_functions"
+        | "setimmutable_shadowing"
+        | "slotnum_reserved_identifier_post_amsterdam"
+        | "switch_invalid_expr_2"
+        | "tload_as_identifier_post_cancun"
+        | "tstore_as_identifier_post_cancun"
+    ) {
+        return Err("Yul builtin names are checked after parsing");
+    };
+
+    #[rustfmt::skip]
     if matches!(
         stem,
         // TODO: Why should this fail?

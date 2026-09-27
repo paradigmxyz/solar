@@ -16,6 +16,22 @@ contract C {
             //~[byzantium]^ ERROR: Yul builtin `create2` requires Constantinople-compatible EVM
             pop(extcodehash(0))
             //~[byzantium]^ ERROR: Yul builtin `extcodehash` requires Constantinople-compatible EVM
+
+            let shl
+            //~^ ERROR: `shl` is reserved for a Yul builtin
+
+            let shr
+            //~^ ERROR: `shr` is reserved for a Yul builtin
+
+            let sar
+            //~^ ERROR: `sar` is reserved for a Yul builtin
+
+            let create2
+            //~^ ERROR: `create2` is reserved for a Yul builtin
+
+            let extcodehash
+            //~^ ERROR: `extcodehash` is reserved for a Yul builtin
+
         }
     }
 }

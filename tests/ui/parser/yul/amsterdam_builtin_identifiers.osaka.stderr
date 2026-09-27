@@ -10,3 +10,15 @@ warning[5470]: `slotnum` will be promoted to Yul reserved identifier in the futu
 LL │             let slotnum := 1
    ╰╴                ━━━━━━━
 
+warning[5470]: `slotnum` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier
+   ╭▸ ROOT/tests/ui/parser/yul/amsterdam_builtin_identifiers.sol:LL:CC
+   │
+LL │             function helper(slotnum) {}
+   ╰╴                            ━━━━━━━
+
+warning[5470]: `slotnum` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier
+   ╭▸ ROOT/tests/ui/parser/yul/amsterdam_builtin_identifiers.sol:LL:CC
+   │
+LL │             function helper() -> slotnum { slotnum := 1 }
+   ╰╴                                 ━━━━━━━
+
