@@ -14,11 +14,14 @@
 use crate::mir::{BlockId, Function, InstKind, Terminator, Value, ValueId};
 use smallvec::SmallVec;
 use solar_data_structures::{
-    bit_set::{BitMatrix, BitMatrixRow, DenseBitSet, GrowableBitSet},
+    bit_set::{BitMatrix, BitMatrixRow, DenseBitSet},
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
 use std::collections::VecDeque;
+
+#[cfg(test)]
+use solar_data_structures::bit_set::GrowableBitSet;
 
 #[cfg(test)]
 #[derive(Clone, Debug)]
