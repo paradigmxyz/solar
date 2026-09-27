@@ -5,6 +5,12 @@
     },
     "A.sol": {
       "id": 1
+    },
+    "prefixedB.sol": {
+      "id": 2
+    },
+    "prefixA.sol": {
+      "id": 3
     }
   },
   "contracts": {
@@ -44,6 +50,16 @@
             "stateMutability": "pure"
           }
         ]
+      }
+    },
+    "prefixedB.sol": {
+      "PrefixParent": {
+        "abi": []
+      }
+    },
+    "prefixA.sol": {
+      "PrefixImport": {
+        "abi": []
       }
     }
   }

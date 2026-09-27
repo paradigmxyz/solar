@@ -454,7 +454,9 @@ pub fn apply_import_remappings<'a>(
     let mut longest_prefix = 0;
     let mut longest_context = 0;
     let mut best_match_target = None;
-    let mut unprefixed_path = path;
+    let path_text = path.to_string_lossy();
+    let path_text = sanitize_path(&path_text);
+    let mut unprefixed_path = &*path_text;
     for ImportRemapping { context, prefix, path: target } in remappings {
         let context = &*sanitize_path(context);
         let prefix = &*sanitize_path(prefix);
@@ -472,7 +474,7 @@ pub fn apply_import_remappings<'a>(
             continue;
         }
         // Skip if the prefix does not match.
-        let Ok(up) = path.strip_prefix(prefix) else {
+        let Some(up) = path_text.strip_prefix(prefix) else {
             continue;
         };
         longest_context = context.len();
@@ -481,11 +483,9 @@ pub fn apply_import_remappings<'a>(
         unprefixed_path = up;
     }
     if let Some(best_match_target) = best_match_target {
-        let mut out = PathBuf::from(&*best_match_target);
-        out.push(unprefixed_path);
-        Cow::Owned(out)
+        Cow::Owned(PathBuf::from(format!("{best_match_target}{unprefixed_path}")))
     } else {
-        Cow::Borrowed(unprefixed_path)
+        Cow::Borrowed(path)
     }
 }
 

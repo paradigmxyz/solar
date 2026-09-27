@@ -7,11 +7,14 @@
 {
   "language": "Solidity",
   "sources": {
+    "prefixA.sol": {"content": "import 'prefix/B.sol'; contract PrefixImport is PrefixParent {}"},
+    "prefixedB.sol": {"content": "contract PrefixParent {}"},
     "B.sol": {
       "content": "contract B { function g() public pure returns (uint) { return 2; } }"
     }
   },
   "settings": {
+    "remappings": ["prefix/=prefixed"],
     "outputSelection": {
       "*": {
         "*": [
