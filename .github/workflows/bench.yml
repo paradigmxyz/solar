@@ -48,9 +48,7 @@ jobs:
       BASE_BRANCH: ${{ github.base_ref || 'main' }}
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@2266f708a378d7e72378413158112fcafadb1a50 # pr-294-warning-rollout
-        with:
-          warning-annotations: false
+        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
       - name: Checkout Solar
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -332,9 +330,7 @@ jobs:
       contents: read
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@2266f708a378d7e72378413158112fcafadb1a50 # pr-294-warning-rollout
-        with:
-          warning-annotations: false
+        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false

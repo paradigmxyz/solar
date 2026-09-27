@@ -31,9 +31,7 @@ jobs:
       contents: read
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@2266f708a378d7e72378413158112fcafadb1a50 # pr-294-warning-rollout
-        with:
-          warning-annotations: false
+        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -118,9 +116,7 @@ jobs:
             rust: ${{ github.event_name == 'push' && 'none' || 'stable' }}
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@2266f708a378d7e72378413158112fcafadb1a50 # pr-294-warning-rollout
-        with:
-          warning-annotations: false
+        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -190,9 +186,7 @@ jobs:
       contents: read
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@2266f708a378d7e72378413158112fcafadb1a50 # pr-294-warning-rollout
-        with:
-          warning-annotations: false
+        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -234,9 +228,7 @@ jobs:
       FANDANGO_FOUNDRY_FUZZ_RUNS: ${{ github.event_name == 'schedule' && '256' || '64' }}
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@2266f708a378d7e72378413158112fcafadb1a50 # pr-294-warning-rollout
-        with:
-          warning-annotations: false
+        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -280,9 +272,7 @@ jobs:
       contents: read
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@2266f708a378d7e72378413158112fcafadb1a50 # pr-294-warning-rollout
-        with:
-          warning-annotations: false
+        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -312,9 +302,7 @@ jobs:
       contents: read
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@2266f708a378d7e72378413158112fcafadb1a50 # pr-294-warning-rollout
-        with:
-          warning-annotations: false
+        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -341,9 +329,7 @@ jobs:
       contents: read
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@2266f708a378d7e72378413158112fcafadb1a50 # pr-294-warning-rollout
-        with:
-          warning-annotations: false
+        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -358,9 +344,7 @@ jobs:
       contents: read
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@2266f708a378d7e72378413158112fcafadb1a50 # pr-294-warning-rollout
-        with:
-          warning-annotations: false
+        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -386,9 +370,7 @@ jobs:
       contents: read
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@2266f708a378d7e72378413158112fcafadb1a50 # pr-294-warning-rollout
-        with:
-          warning-annotations: false
+        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -414,9 +396,7 @@ jobs:
       contents: read
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@2266f708a378d7e72378413158112fcafadb1a50 # pr-294-warning-rollout
-        with:
-          warning-annotations: false
+        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -443,9 +423,7 @@ jobs:
             build-mode: none
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@2266f708a378d7e72378413158112fcafadb1a50 # pr-294-warning-rollout
-        with:
-          warning-annotations: false
+        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -462,13 +440,12 @@ jobs:
 
   deny:
     if: github.event_name != 'schedule'
-    uses: tempoxyz/gh-actions/.github/workflows/rust-deny.yml@2266f708a378d7e72378413158112fcafadb1a50 # pr-294-warning-rollout
+    uses: tempoxyz/gh-actions/.github/workflows/rust-deny.yml@5840979a7c849cbe541c67431ec7315cd6396e3b
     permissions:
       contents: read
       id-token: write
     with:
       rust-toolchain: nightly
-      secure-runner-warning-annotations: false
 
   ci-success:
     name: ci success
