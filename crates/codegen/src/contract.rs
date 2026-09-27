@@ -15,15 +15,16 @@ use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     index::IndexVec,
     map::FxHashMap,
-    sync::{self, Scope},
+    sync::{self, Mutex, Scope},
 };
 use solar_interface::{Result, Symbol, error_code};
 use solar_sema::{
     Gcx,
-    hir::{ContractId, ItemId, VariableId},
+    hir::{ContractId, VariableId},
 };
 use std::{
     cmp::Reverse,
+    collections::BinaryHeap,
     sync::{
         OnceLock,
         atomic::{AtomicUsize, Ordering},
@@ -182,7 +183,7 @@ pub fn generate_contract_bytecodes(
     requested.union_with(capture_mir);
     requested.union_with(capture_evm_ir);
     requested.union_with(capture_debug_info);
-    let mut graph = ContractGraph::discover(gcx, &requested)?;
+    let graph = ContractGraph::discover(gcx, &requested)?;
     let contract_count = gcx.hir.contract_ids().len();
     let artifacts =
         IndexVec::<ContractId, _>::from_vec((0..contract_count).map(|_| OnceLock::new()).collect());
@@ -206,14 +207,26 @@ pub fn generate_contract_bytecodes(
         && !gcx.sess.opts.unstable.print_after_each
         && !gcx.sess.opts.unstable.pass_diff
         && !gcx.sess.opts.unstable.time_passes;
-    let mut ready = ready.iter().collect::<Vec<_>>();
-    if parallel {
-        let priorities = graph.scheduling_priorities(gcx);
-        ready.sort_unstable_by_key(|&id| (Reverse(priorities[id]), id));
-    }
-    graph.scheduling.add_contracts(ready.len());
+    let priorities = if parallel {
+        graph.scheduling_priorities(gcx)
+    } else {
+        IndexVec::from_vec(vec![0; contract_count])
+    };
+    let roots = ready.iter().collect::<Vec<_>>();
+    let ready = ContractQueue {
+        contracts: Mutex::new(if parallel {
+            roots.iter().map(|&id| (priorities[id], Reverse(id))).collect()
+        } else {
+            BinaryHeap::new()
+        }),
+        priorities,
+    };
+    graph.scheduling.add_contracts(roots.len());
     sync::scope(parallel, |scope| {
-        for &contract_id in &ready {
+        for &root in &roots {
+            if !parallel {
+                ready.push(root);
+            }
             spawn_contract_codegen(
                 &scope,
                 gcx,
@@ -221,7 +234,7 @@ pub fn generate_contract_bytecodes(
                 &graph,
                 &artifacts,
                 &remaining_dependencies,
-                contract_id,
+                &ready,
             );
         }
     });
@@ -317,19 +330,15 @@ impl ContractGraph {
 
     /// Starts the estimated longest dependency chains first. Source-body sizes are
     /// a cheap scheduling estimate; they do not affect what gets compiled.
-    fn scheduling_priorities(&mut self, gcx: Gcx<'_>) -> IndexVec<ContractId, u64> {
+    fn scheduling_priorities(&self, gcx: Gcx<'_>) -> IndexVec<ContractId, u64> {
         let mut costs = IndexVec::from_vec(vec![0u64; self.dependencies.len()]);
         for id in self.reachable.iter() {
             costs[id] = gcx
-                .hir
-                .contract_item_ids(id)
-                .map(|item| {
-                    if let ItemId::Function(function) = item {
-                        let span = gcx.hir.function(function).body_span;
-                        u64::from(span.hi().to_u32() - span.lo().to_u32())
-                    } else {
-                        0
-                    }
+                .contract_reachable_functions(id)
+                .iter()
+                .map(|function| {
+                    let span = gcx.hir.function(function).body_span;
+                    u64::from(span.hi().to_u32() - span.lo().to_u32())
                 })
                 .sum::<u64>()
                 .max(1);
@@ -347,10 +356,24 @@ impl ContractGraph {
                 }
             }
         }
-        for dependents in &mut self.dependents {
-            dependents.sort_unstable_by_key(|&id| (Reverse(priorities[id]), id));
-        }
         priorities
+    }
+}
+
+/// Workers choose the highest-priority ready contract independently of Rayon's task order.
+struct ContractQueue {
+    contracts: Mutex<BinaryHeap<(u64, Reverse<ContractId>)>>,
+    priorities: IndexVec<ContractId, u64>,
+}
+
+impl ContractQueue {
+    fn push(&self, id: ContractId) {
+        self.contracts.lock().push((self.priorities[id], Reverse(id)));
+    }
+
+    fn pop(&self) -> ContractId {
+        let (_, Reverse(id)) = self.contracts.lock().pop().expect("each job has a ready contract");
+        id
     }
 }
 
@@ -361,11 +384,12 @@ fn spawn_contract_codegen<'scope, 'gcx>(
     graph: &'scope ContractGraph,
     artifacts: &'scope IndexVec<ContractId, OnceLock<ContractArtifact>>,
     remaining_dependencies: &'scope IndexVec<ContractId, AtomicUsize>,
-    contract_id: ContractId,
+    ready: &'scope ContractQueue,
 ) where
     'gcx: 'scope,
 {
     scope.spawn(move |scope| {
+        let contract_id = ready.pop();
         let Ok(artifact) = generate_contract_bytecode(gcx, contract_id, captures, graph, artifacts)
         else {
             graph.scheduling.finish_contract();
@@ -379,6 +403,7 @@ fn spawn_contract_codegen<'scope, 'gcx>(
             let previous = remaining_dependencies[dependent].fetch_sub(1, Ordering::AcqRel);
             assert!(previous > 0, "contract dependency count underflow");
             if previous == 1 {
+                ready.push(dependent);
                 graph.scheduling.add_contracts(1);
                 spawn_contract_codegen(
                     &scope,
@@ -387,7 +412,7 @@ fn spawn_contract_codegen<'scope, 'gcx>(
                     graph,
                     artifacts,
                     remaining_dependencies,
-                    dependent,
+                    ready,
                 );
             }
         }

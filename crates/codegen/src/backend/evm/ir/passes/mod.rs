@@ -10,6 +10,8 @@
 //! unchanged inputs, including metadata, keyed by pass configuration and stable block label.
 //! They reuse those inputs across edits to other blocks and run large batches within the
 //! contract graph's shared thread budget. No pass is assumed to reach a fixed point.
+//! Gas-first codegen and size rescue share the prefix before the first outlining pass;
+//! this is the first pass that reads the rescue policy.
 
 mod block_cse;
 mod block_layout;
@@ -314,11 +316,22 @@ fn run_passes_inner(
     name: Option<&str>,
     scheduling: &crate::scheduling::Scheduling,
 ) -> bool {
+    run_passes_with_history(gcx, module, passes, validate_each, name, scheduling, &mut Vec::new())
+}
+
+fn run_passes_with_history(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    passes: &[&dyn EvmPass],
+    validate_each: bool,
+    name: Option<&str>,
+    scheduling: &crate::scheduling::Scheduling,
+    unchanged: &mut Vec<PassCacheKey>,
+) -> bool {
     let output_name =
         name.map(ToOwned::to_owned).unwrap_or_else(|| pipeline_output_name(gcx, module.name()));
     let explicit = name.is_some();
     let mut changed = false;
-    let mut unchanged = Vec::<PassCacheKey>::new();
     let mut cache = PassCache::new(gcx, scheduling);
     for pass in passes {
         let pass_name = pass.name();
@@ -449,6 +462,57 @@ pub(crate) fn run_pipeline_with_scheduling(
         }
     }
     changed
+}
+
+/// The unchanged-pass history at the first policy-dependent stage of the default pipeline.
+#[derive(Clone, Debug)]
+pub(crate) struct OutliningCheckpoint {
+    next_pass: usize,
+    unchanged: Vec<PassCacheKey>,
+}
+
+impl OutliningCheckpoint {
+    pub(crate) fn prepare(
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        scheduling: &crate::scheduling::Scheduling,
+    ) -> Self {
+        let next_pass = DEFAULT_PIPELINE
+            .iter()
+            .position(|pass| (*pass).type_id() == TypeId::of::<outline::Outline>())
+            .expect("default pipeline contains outlining");
+        let mut checkpoint = Self { next_pass, unchanged: Vec::new() };
+        super::verify::Verifier::new(gcx).verify_before_pipeline(module);
+        if gcx.dcx().has_errors().is_ok() {
+            let _ = run_passes_with_history(
+                gcx,
+                module,
+                &DEFAULT_PIPELINE[..next_pass],
+                true,
+                None,
+                scheduling,
+                &mut checkpoint.unchanged,
+            );
+        }
+        checkpoint
+    }
+
+    pub(crate) fn resume(
+        mut self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        scheduling: &crate::scheduling::Scheduling,
+    ) -> bool {
+        run_passes_with_history(
+            gcx,
+            module,
+            &DEFAULT_PIPELINE[self.next_pass..],
+            true,
+            None,
+            scheduling,
+            &mut self.unchanged,
+        )
+    }
 }
 
 #[cfg(test)]

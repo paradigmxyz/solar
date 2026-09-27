@@ -439,9 +439,13 @@ fn debug_output_function_scheduling_is_deterministic() {
     }
     source.push('}');
     fs::write(&path, source).unwrap();
-    let mut expected = None;
-    for threads in ["1", "4", "16", "16"] {
-        let output = Command::new(SOLAR)
+    let mut expected = None::<Value>;
+    for (threads, pipeline) in [("1", None), ("4", None), ("16", None), ("16", Some("default"))] {
+        let mut command = Command::new(SOLAR);
+        if let Some(pipeline) = pipeline {
+            command.arg(format!("-Zevm-ir-pipeline={pipeline}"));
+        }
+        let output = command
             .arg(&path)
             .args([
                 "--threads",
@@ -453,8 +457,18 @@ fn debug_output_function_scheduling_is_deterministic() {
             .output()
             .expect("run compiler");
         assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
-        let output: Value = serde_json::from_slice(&output.stdout).unwrap();
+        let mut output: Value = serde_json::from_slice(&output.stdout).unwrap();
         assert!(!output["contracts"].as_object().unwrap().is_empty());
+        if pipeline.is_some() {
+            // Explicit pipeline settings have a distinct compilation identity.
+            let id = expected.as_ref().unwrap()["ethdebug"]["compilation"]["id"].clone();
+            output["ethdebug"]["compilation"]["id"] = id.clone();
+            for contract in output["contracts"].as_object_mut().unwrap().values_mut() {
+                for program in ["ethdebug", "ethdebug-runtime"] {
+                    contract[program]["compilation"]["id"] = id.clone();
+                }
+            }
+        }
         if let Some(expected) = &expected {
             assert_eq!(&output, expected, "threads={threads}");
         } else {

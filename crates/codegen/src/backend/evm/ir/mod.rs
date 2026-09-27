@@ -28,7 +28,7 @@ pub(in crate::backend) mod builder;
 mod display;
 mod parse;
 mod passes;
-pub(crate) use passes::{compact_pushes, run_pipeline_with_scheduling};
+pub(crate) use passes::{OutliningCheckpoint, compact_pushes, run_pipeline_with_scheduling};
 pub(in crate::backend) mod verify;
 
 pub(crate) use passes::compact_pushes::immediate_materialization_cost;
