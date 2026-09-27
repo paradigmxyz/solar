@@ -403,15 +403,15 @@ impl generated::Context for RuleContext<'_> {
         self.func.alloc_value(MirValue::Immediate(Immediate::I1(value)))
     }
 
-    fn word_bits(&mut self) -> u64 {
+    fn integer_width(&mut self) -> u64 {
         u64::from(self.integer_ty.integer_bits().unwrap())
     }
 
-    fn sign_bit(&mut self) -> u64 {
-        self.word_bits() - 1
+    fn integer_sign_bit(&mut self) -> u64 {
+        self.integer_width() - 1
     }
 
-    fn word_type(&mut self) -> bool {
+    fn is_i256(&mut self) -> bool {
         self.integer_ty == MirType::I256
     }
 

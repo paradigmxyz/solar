@@ -398,11 +398,11 @@ class Context:
             return symbol
         if name == "zero_value" and not values:
             return Expr.const(0)
-        if name == "word_bits" and not values:
+        if name == "integer_width" and not values:
             return self.integer_width or Expr.const(256)
-        if name == "sign_bit" and not values:
+        if name == "integer_sign_bit" and not values:
             return Expr("sub", (self.integer_width or Expr.const(256), Expr.const(1)))
-        if name == "word_type" and not values:
+        if name == "is_i256" and not values:
             return (
                 z3.BoolVal(True)
                 if self.integer_width is None

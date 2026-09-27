@@ -30,12 +30,12 @@
 ;; the bitwise-AND extractor is `band`.
 
 ;; Predicates and projections implemented in `transform/egraph/isle.rs`.
-(decl pure word_bits () u64)
-(extern constructor word_bits word_bits)
-(decl pure sign_bit () u64)
-(extern constructor sign_bit sign_bit)
-(decl pure word_type () bool)
-(extern constructor word_type word_type)
+(decl pure integer_width () u64)
+(extern constructor integer_width integer_width)
+(decl pure integer_sign_bit () u64)
+(extern constructor integer_sign_bit integer_sign_bit)
+(decl pure is_i256 () bool)
+(extern constructor is_i256 is_i256)
 
 (decl iconst (U256) Value)
 (extern extractor iconst iconst)
@@ -276,7 +276,7 @@
 
 ;; a ^ MAX => ~a, except i1 whose complement stays a legal branch condition.
 (rule (rewrite (Op.Xor a (all_ones)))
-      (if-let false (u256_eq (u256 (word_bits)) 1))
+      (if-let false (u256_eq (u256 (integer_width)) 1))
       (Op.Not a))
 ;; i1 a ^ true => a == false
 (rule (rewrite (Op.Xor (and a (integer_bits 1)) (one))) (Op.Eq a (imm_bool false)))
@@ -311,9 +311,9 @@
 (rule (rewrite (Op.Gt (sub x y) x)) (Op.Lt x y))
 
 ;; clz(input) == W - 1 => input == 1
-(rule (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c (sign_bit))) (Op.Eq input (imm (u256 1))))
+(rule (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c (integer_sign_bit))) (Op.Eq input (imm (u256 1))))
 ;; clz(input) == W => input == 0
-(rule (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c (word_bits))) (Op.Eq input (imm (u256 0))))
+(rule (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c (integer_width))) (Op.Eq input (imm (u256 0))))
 
 ;; clz(input) == 0 => signed(input) < 0
 (rule (rewrite (Op.Eq (clz input) (zero))) (Op.SLt input (imm (u256 0))))
@@ -323,15 +323,15 @@
 (rule (rewrite (Op.Eq (bxor a b) (zero))) (Op.Eq a b))
 
 ;; clz(input) < W => input > 0
-(rule (rewrite (Op.Lt (clz input) (iconst c))) (if-let true (u256_eq c (word_bits))) (Op.Ne input (imm (u256 0))))
+(rule (rewrite (Op.Lt (clz input) (iconst c))) (if-let true (u256_eq c (integer_width))) (Op.Ne input (imm (u256 0))))
 ;; a < 1 => a == 0
 (rule (rewrite (Op.Lt a (one))) (Op.Eq a (imm (u256 0))))
 
 ;; clz(input) > W - 1 => input == 0
-(rule (rewrite (Op.Gt (clz input) (iconst c))) (if-let true (u256_eq c (sign_bit))) (Op.Eq input (imm (u256 0))))
+(rule (rewrite (Op.Gt (clz input) (iconst c))) (if-let true (u256_eq c (integer_sign_bit))) (Op.Eq input (imm (u256 0))))
 
 ;; clz(input) >> 8 => input == 0, for i256
-(rule (rewrite (Op.Shr (iconst c) (clz input))) (if-let true (word_type)) (if-let true (u256_eq c 8)) (Op.Eq input (imm (u256 0))))
+(rule (rewrite (Op.Shr (iconst c) (clz input))) (if-let true (is_i256)) (if-let true (u256_eq c 8)) (Op.Eq input (imm (u256 0))))
 ;; byte(30, clz(input)) => input == 0
 (rule (rewrite (Op.Byte (iconst c) (clz input))) (if-let true (u256_eq c 30)) (Op.Eq input (imm (u256 0))))
 
@@ -447,7 +447,7 @@
 ;; _ / 0 => 0
 (rule 2 (simplify (Op.Div _ (zero))) (imm (u256 0)))
 ;; clz(_) / b => 0, when constant b > W
-(rule 1 (simplify (Op.Div (clz _) (iconst b))) (if-let true (u256_gt b (word_bits))) (imm (u256 0)))
+(rule 1 (simplify (Op.Div (clz _) (iconst b))) (if-let true (u256_gt b (integer_width))) (imm (u256 0)))
 ;; sdiv(0, _) => 0
 (rule 3 (simplify (Op.SDiv (and a (zero)) _)) a)
 ;; sdiv(a, 1) => a
@@ -466,7 +466,7 @@
 ;; a % a => 0
 (rule 2 (simplify (Op.Mod a a)) (imm (u256 0)))
 ;; clz(x) % b => clz(x), when constant b > W
-(rule 1 (simplify (Op.Mod (and a (clz _)) (iconst b))) (if-let true (u256_gt b (word_bits))) a)
+(rule 1 (simplify (Op.Mod (and a (clz _)) (iconst b))) (if-let true (u256_gt b (integer_width))) a)
 ;; smod(x, -1) => 0
 (rule 5 (simplify (Op.SMod _ (all_ones))) (imm (u256 0)))
 ;; smod(0, _) => 0
@@ -603,7 +603,7 @@
 ;; 0 << _ => 0
 (rule 2 (simplify (Op.Shl _ (and value (zero)))) value)
 ;; _ << shift => 0, when shift >= W
-(rule 1 (simplify (Op.Shl (iconst shift) _)) (if-let true (u256_ge shift (word_bits))) (imm (u256 0)))
+(rule 1 (simplify (Op.Shl (iconst shift) _)) (if-let true (u256_ge shift (integer_width))) (imm (u256 0)))
 
 ;; (value << shift | constant) >> shift => value
 ;; No value bits are lost at the operation's width, and constant fits below the shift.
@@ -621,7 +621,7 @@
 ;; clz(_) >> shift => 0, when shift >= 9
 (rule 2 (simplify (Op.Shr (iconst shift) (clz _))) (if-let true (u256_ge shift 9)) (imm (u256 0)))
 ;; _ >> shift => 0, when shift >= W
-(rule 1 (simplify (Op.Shr (iconst shift) _)) (if-let true (u256_ge shift (word_bits))) (imm (u256 0)))
+(rule 1 (simplify (Op.Shr (iconst shift) _)) (if-let true (u256_ge shift (integer_width))) (imm (u256 0)))
 
 ;; signed(value) >> 0 => value
 (rule 2 (simplify (Op.Sar (zero) value)) value)
@@ -643,14 +643,14 @@
 ;; a == a => 1
 (rule 5 (simplify (Op.Eq a a)) (imm_bool true))
 ;; clz(_) == c => 0, when c > W
-(rule 4 (simplify (Op.Eq (clz _) (iconst c))) (if-let true (u256_gt c (word_bits))) (imm_bool false))
+(rule 4 (simplify (Op.Eq (clz _) (iconst c))) (if-let true (u256_gt c (integer_width))) (imm_bool false))
 ;; a == 1 => a, when a is boolean
 (rule 2 (simplify (Op.Eq (and a (bool_value)) (one))) a)
 
 ;; a < c => 1, when a is known to be less than constant c
 (rule 10 (simplify (Op.Lt a (iconst c))) (if-let true (below_const a c)) (imm_bool true))
 ;; clz(_) < b => 1, when b > W
-(rule 8 (simplify (Op.Lt (clz _) (iconst b))) (if-let true (u256_gt b (word_bits))) (imm_bool true))
+(rule 8 (simplify (Op.Lt (clz _) (iconst b))) (if-let true (u256_gt b (integer_width))) (imm_bool true))
 ;; a < a => 0
 (rule 6 (simplify (Op.Lt a a)) (imm_bool false))
 ;; _ < 0 => 0
@@ -661,7 +661,7 @@
 ;; a > c => 0, when a is known to be at most constant c
 (rule 10 (simplify (Op.Gt a (iconst c))) (if-let true (at_most_const a c)) (imm_bool false))
 ;; clz(_) > b => 0, when constant b >= W
-(rule 8 (simplify (Op.Gt (clz _) (iconst b))) (if-let true (u256_ge b (word_bits))) (imm_bool false))
+(rule 8 (simplify (Op.Gt (clz _) (iconst b))) (if-let true (u256_ge b (integer_width))) (imm_bool false))
 ;; a > a => 0
 (rule 6 (simplify (Op.Gt a a)) (imm_bool false))
 ;; a > 0 => a, when a is boolean
@@ -732,15 +732,15 @@
 ;; (a ^ b) != 0 => a != b.
 (rule (rewrite (Op.Ne (bxor a b) (zero))) (Op.Ne a b))
 ;; clz(x) != W - 1 => x != 1.
-(rule (rewrite (Op.Ne (clz x) (iconst c))) (if-let true (u256_eq c (sign_bit))) (Op.Ne x (imm (u256 1))))
+(rule (rewrite (Op.Ne (clz x) (iconst c))) (if-let true (u256_eq c (integer_sign_bit))) (Op.Ne x (imm (u256 1))))
 ;; clz(x) != W => x != 0.
-(rule (rewrite (Op.Ne (clz x) (iconst c))) (if-let true (u256_eq c (word_bits))) (Op.Ne x (imm (u256 0))))
+(rule (rewrite (Op.Ne (clz x) (iconst c))) (if-let true (u256_eq c (integer_width))) (Op.Ne x (imm (u256 0))))
 ;; x != true => x == false, when x is boolean.
 (rule (rewrite (Op.Ne (and x (bool_value)) (one))) (Op.Eq x (imm_bool false)))
 ;; a != c => true, when a is known to be less than constant c.
 (rule 7 (simplify (Op.Ne a (iconst c))) (if-let true (below_const a c)) (imm_bool true))
 ;; clz(_) != c => true, when c > W.
-(rule 5 (simplify (Op.Ne (clz _) (iconst c))) (if-let true (u256_gt c (word_bits))) (imm_bool true))
+(rule 5 (simplify (Op.Ne (clz _) (iconst c))) (if-let true (u256_gt c (integer_width))) (imm_bool true))
 
 (decl integer_bits (u32) Value)
 (extern extractor integer_bits integer_bits)
