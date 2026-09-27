@@ -2127,6 +2127,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     solc_version, solc_version_error = (
         binary_version(solc) if solc else ("unavailable", "")
     )
+    if args.reference_results:
+        versions = {
+            data["label"].removeprefix("solc ")
+            for result in reference_results.values()
+            if (data := result.get("compilers", {}).get("solc", {})).get("label")
+        }
+        if len(versions) > 1:
+            parser.error("reference results contain multiple solc versions")
+        solc_version = next(iter(versions), "unavailable")
     solar_version, solar_version_error = binary_version(solar)
 
     specs = []
@@ -2160,7 +2169,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         tests = list(suite_tests)
 
     skipped = []
-    if args.solc and not args.include_incompatible:
+    if (args.solc or args.reference_results) and not args.include_incompatible:
         compatible_tests = []
         for test in tests:
             if test.project_file is not None and not version_in_range(
