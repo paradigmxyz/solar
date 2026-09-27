@@ -42,14 +42,6 @@ contract ConstantIntegerValue {
     uint constant ONE = 1;
     uint constant HALF = ONE / 2;
 
-    function zeroNegativePower() external pure returns (uint) { 0.5; return 0 ** -1; }
-
-    function decimal() external pure returns (uint) { return 0.3 * 10**18; }
-    function negativeExponent() external pure returns (uint) { return 50 * 10**8 * 10**-9; }
-    function fraction() external pure returns (uint) { return (1 / 2) * 2; }
-    function fractionCompare() external pure returns (bool) { return 0.3 < 0.5; }
-    function typedDivision() external pure returns (uint) { return HALF; }
-
     function calc() external pure returns (uint256) {
         uint256 liquidity = 10_000 ether;
         uint256 swapAmount = 10 ether;
@@ -69,4 +61,12 @@ contract ConstantIntegerValue {
             return (x & y) + ((x ^ y) >> 1);
         }
     }
+
+    function zeroNegativePower() external pure returns (uint) { 0.5; return 0 ** -1; }
+
+    function decimal() external pure returns (uint) { return 0.3 * 10**18; }
+    function negativeExponent() external pure returns (uint) { return 50 * 10**8 * 10**-9; }
+    function fraction() external pure returns (uint) { return (1 / 2) * 2; }
+    function fractionCompare() external pure returns (bool) { return 0.3 < 0.5; }
+    function typedDivision() external pure returns (uint) { return HALF; }
 }

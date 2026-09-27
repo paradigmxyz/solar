@@ -4,6 +4,36 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constant_integer_value.sol:ConstantIntegerValue ===
 @module ConstantIntegerValue
+fn @calc() -> i256 [selector=0x96f1b6be, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @mulWadDown, 0x8ac7230489e80000, 0xaa87bee538000
+    v1 = exp 2, 128
+    v2 = icall @mulDivDown, v0, v1, 0x21e19e0c9bab2400000
+    ret v2
+}
+
+fn @avgEdge() -> i256 [selector=0xbb94a0c5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @average, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    ret v0
+}
+
+fn @negativeConstant() -> i256 [selector=0xce4ac84e, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sub 0, 0xd89e8
+    v1 = icall @isMinTick, v0
+    ret v1
+}
+
+fn @average(arg0: i256, arg1: i256) -> i256 [pure] {
+  bb0:
+    v0 = and arg0, arg1
+    v1 = xor arg0, arg1
+    v2 = shr 1, v1
+    v3 = add v0, v2
+    ret v3
+}
+
 fn @zeroNegativePower() -> i256 [selector=0x8d04abf9, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sub 0, 1
@@ -34,36 +64,6 @@ fn @fractionCompare() -> i256 [selector=0xdf414a28, pure, abi_params=[], abi_ret
 fn @typedDivision() -> i256 [selector=0xb00dd952, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 0
-}
-
-fn @calc() -> i256 [selector=0x96f1b6be, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
-  bb0:
-    v0 = icall @mulWadDown, 0x8ac7230489e80000, 0xaa87bee538000
-    v1 = exp 2, 128
-    v2 = icall @mulDivDown, v0, v1, 0x21e19e0c9bab2400000
-    ret v2
-}
-
-fn @avgEdge() -> i256 [selector=0xbb94a0c5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
-  bb0:
-    v0 = icall @average, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
-    ret v0
-}
-
-fn @negativeConstant() -> i256 [selector=0xce4ac84e, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
-  bb0:
-    v0 = sub 0, 0xd89e8
-    v1 = icall @isMinTick, v0
-    ret v1
-}
-
-fn @average(arg0: i256, arg1: i256) -> i256 [pure] {
-  bb0:
-    v0 = and arg0, arg1
-    v1 = xor arg0, arg1
-    v2 = shr 1, v1
-    v3 = add v0, v2
-    ret v3
 }
 
 fn @mulWadDown(arg0: i256, arg1: i256) -> i256 [pure] {
