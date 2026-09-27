@@ -22,8 +22,9 @@ jobs:
       contents: read
       pull-requests: read
       statuses: write
-    uses: tempoxyz/gh-actions/.github/workflows/pr-audit.yml@9714ff353c4199ff9f498205ef7b3319869dd51d # 2026-09-25T18-10-33Z-9714ff35
+    uses: tempoxyz/gh-actions/.github/workflows/pr-audit.yml@2266f708a378d7e72378413158112fcafadb1a50 # pr-294-warning-rollout
     with:
+      secure-runner-warning-annotations: false
       required-labels: |
         cyclops
         agentic-audit

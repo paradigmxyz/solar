@@ -527,7 +527,9 @@ jobs:
       artifact_id: ${{ steps.upload.outputs.artifact-id }}
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@117919c943b804057be733b0c4034c5542e58959 # 2026-09-23T05-09-41Z-117919c9
+        uses: tempoxyz/gh-actions/actions/secure-runner@2266f708a378d7e72378413158112fcafadb1a50 # pr-294-warning-rollout
+        with:
+          warning-annotations: false
       - name: Checkout main revision (D)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -577,7 +579,9 @@ jobs:
       artifact_id: ${{ steps.upload.outputs.artifact-id }}
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@117919c943b804057be733b0c4034c5542e58959 # 2026-09-23T05-09-41Z-117919c9
+        uses: tempoxyz/gh-actions/actions/secure-runner@2266f708a378d7e72378413158112fcafadb1a50 # pr-294-warning-rollout
+        with:
+          warning-annotations: false
       - name: Checkout test merge revision (M)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -630,7 +634,9 @@ jobs:
     steps:
       # Keep the adapter separate from both revisions whose binaries are measured.
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@117919c943b804057be733b0c4034c5542e58959 # 2026-09-23T05-09-41Z-117919c9
+        uses: tempoxyz/gh-actions/actions/secure-runner@2266f708a378d7e72378413158112fcafadb1a50 # pr-294-warning-rollout
+        with:
+          warning-annotations: false
       - name: Checkout trusted benchmark adapter
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

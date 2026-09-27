@@ -31,7 +31,9 @@ jobs:
       pull-requests: write
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@117919c943b804057be733b0c4034c5542e58959 # 2026-09-23T05-09-41Z-117919c9
+        uses: tempoxyz/gh-actions/actions/secure-runner@2266f708a378d7e72378413158112fcafadb1a50 # pr-294-warning-rollout
+        with:
+          warning-annotations: false
       - name: Find pull request and validate workflow run
         id: pr
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
