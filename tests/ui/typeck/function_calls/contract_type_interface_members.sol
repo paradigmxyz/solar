@@ -18,32 +18,28 @@ contract C {
     }
 
     function ownSelector() external pure returns (bytes4) {
-        return OwnOverload.initialize.selector;
+        return OwnExecutor.execute.selector;
     }
 
     function encodeOwn() external pure returns (bytes memory) {
-        return abi.encodeCall(OwnOverload.initialize, (true));
+        return abi.encodeCall(OwnExecutor.execute, (true));
     }
 
     function hiddenSelector() external pure returns (bytes4) {
-        return HiddenOverload.initialize.selector; //~ ERROR: member `initialize` not found
+        return HiddenExecutor.execute.selector; //~ ERROR: member `execute` not found
     }
 
     function inheritedSelector() external pure returns (bytes4) {
-        return InheritedOverload.initialize.selector; //~ ERROR: member `initialize` not found
+        return InheritedExecutor.execute.selector; //~ ERROR: member `execute` not found
     }
 }
 
-contract BaseOverload {
-    function initialize(uint value) external {}
+interface OwnExecutor is Executor {
+    function execute(bool value) external;
 }
 
-contract OwnOverload is BaseOverload {
-    function initialize(bool value) external {}
+abstract contract HiddenExecutor is Executor {
+    function execute(bool value) internal {}
 }
 
-contract HiddenOverload is BaseOverload {
-    function initialize(bool value) internal {}
-}
-
-contract InheritedOverload is BaseOverload {}
+interface InheritedExecutor is Executor {}

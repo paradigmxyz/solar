@@ -10,17 +10,17 @@ error: member `address` not found on type `function Executor.check() pure`
 LL │         Executor.check.address;
    ╰╴                       ━━━━━━━
 
-error: member `initialize` not found on type `type(contract HiddenOverload)`
+error: member `execute` not found on type `type(contract HiddenExecutor)`
    ╭▸ ROOT/tests/ui/typeck/function_calls/contract_type_interface_members.sol:LL:CC
    │
-LL │         return HiddenOverload.initialize.selector;
-   ╰╴                              ━━━━━━━━━━
+LL │         return HiddenExecutor.execute.selector;
+   ╰╴                              ━━━━━━━
 
-error: member `initialize` not found on type `type(contract InheritedOverload)`
+error: member `execute` not found on type `type(contract InheritedExecutor)`
    ╭▸ ROOT/tests/ui/typeck/function_calls/contract_type_interface_members.sol:LL:CC
    │
-LL │         return InheritedOverload.initialize.selector;
-   ╰╴                                 ━━━━━━━━━━
+LL │         return InheritedExecutor.execute.selector;
+   ╰╴                                 ━━━━━━━
 
 error: aborting due to 4 previous errors
 
