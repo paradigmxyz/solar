@@ -12,7 +12,7 @@ use crate::{
     natspec_completion::{self, NatSpecCompletionResult},
     progress::send_progress,
     proto::normalize_file_uri,
-    rename::RenameCandidate,
+    rename::{RenameCandidate, validate_rename_scope},
     symbols::{CompletionContext, CompletionItemData, SymbolTables},
     vfs::{Vfs, VfsPath},
 };
@@ -301,6 +301,18 @@ fn latest_navigation_analysis_for_uri(
     uri: &Url,
 ) -> Option<impl Future<Output = Result<Arc<ArcSwap<SymbolTables>>, ResponseError>> + use<>> {
     let analysis = latest_analysis_for_uri(state, uri)?;
+    state.prioritize_pending_analysis();
+    Some(analysis)
+}
+
+type ConfiguredAnalysis = (Arc<ArcSwap<SymbolTables>>, Arc<Config>);
+
+fn latest_navigation_analysis_with_config_for_uri(
+    state: &GlobalState,
+    uri: &Url,
+) -> Option<impl Future<Output = Result<ConfiguredAnalysis, ResponseError>> + use<>> {
+    crate::proto::vfs_path(uri)?;
+    let analysis = state.latest_analysis_with_config();
     state.prioritize_pending_analysis();
     Some(analysis)
 }
@@ -914,19 +926,21 @@ pub(crate) fn prepare_rename(
     mut params: TextDocumentPositionParams,
 ) -> impl Future<Output = Result<Option<PrepareRenameResponse>, ResponseError>> + use<> {
     params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = crate::proto::vfs_path(&params.text_document.uri).map(|_| {
-        let analysis = state.latest_analysis_with_config();
-        state.prioritize_pending_analysis();
-        analysis
-    });
+    let latest_analysis =
+        latest_navigation_analysis_with_config_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let (symbol_tables, config) = latest_analysis.await?;
         let candidate =
             symbol_tables.load().rename_candidate(&params.text_document.uri, params.position);
         let Some(candidate) = candidate else { return Ok(None) };
-        ensure_rename_coverage(&candidate, &config)?;
-        Ok(Some(PrepareRenameResponse::Range(candidate.range)))
+        tokio::task::spawn_blocking(move || {
+            validate_rename_scope(&candidate, &config)?;
+            ensure_rename_coverage(&candidate, &config)?;
+            Ok(Some(PrepareRenameResponse::Range(candidate.range)))
+        })
+        .await
+        .map_err(rename_task_failed)?
     }
 }
 
@@ -945,11 +959,7 @@ pub(crate) fn rename(
     let latest_analysis = if invalid_name {
         None
     } else {
-        crate::proto::vfs_path(&params_position.text_document.uri).map(|_| {
-            let analysis = state.latest_analysis_with_config();
-            state.prioritize_pending_analysis();
-            analysis
-        })
+        latest_navigation_analysis_with_config_for_uri(state, &params_position.text_document.uri)
     };
     let vfs = state.vfs.clone();
     let document_changes = state.config.supports_workspace_edit_document_changes();
@@ -970,17 +980,20 @@ pub(crate) fn rename(
         if candidate.old_name == new_name {
             return Ok(None);
         }
-        ensure_rename_coverage(&candidate, &config)?;
 
         tokio::task::spawn_blocking(move || {
+            validate_rename_scope(&candidate, &config)?;
+            ensure_rename_coverage(&candidate, &config)?;
             validated_rename_workspace_edit(candidate, new_name, vfs, document_changes)
         })
         .await
-        .map_err(|error| {
-            ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("rename task failed: {error}"))
-        })?
+        .map_err(rename_task_failed)?
         .map(Some)
     }
+}
+
+fn rename_task_failed(error: tokio::task::JoinError) -> ResponseError {
+    ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("rename task failed: {error}"))
 }
 
 fn ensure_rename_coverage(
