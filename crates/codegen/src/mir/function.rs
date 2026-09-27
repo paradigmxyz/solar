@@ -661,7 +661,7 @@ impl Iterator for LiveValues<'_> {
                 self.inst += 1;
             } else {
                 if let Some(term) = &block.terminator {
-                    term.for_each_operand(|value| self.values.push(value));
+                    term.visit_operands(|value| self.values.push(value));
                 }
                 self.block += 1;
                 self.inst = 0;

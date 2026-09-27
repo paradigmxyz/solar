@@ -263,7 +263,7 @@ impl AdceContext {
                 }
             }
             if let Some(term) = &block.terminator {
-                term.for_each_operand(|operand| record(operand, block_id));
+                term.visit_operands(|operand| record(operand, block_id));
             }
         }
         uses

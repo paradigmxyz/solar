@@ -1003,7 +1003,7 @@ fn counter_escapes(func: &Function, header: BlockId, body: BlockId, index: Value
         }
         if let Some(term) = &contents.terminator {
             let mut found = false;
-            term.for_each_operand(|operand| found |= operand == index);
+            term.visit_operands(|operand| found |= operand == index);
             if found {
                 return true;
             }

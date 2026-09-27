@@ -763,10 +763,10 @@ impl<'a> CheckEliminator<'a> {
         let mut uses = index_vec![0usize; func.num_values()];
         for block in &func.blocks {
             for &inst in &block.instructions {
-                func.inst(inst).kind.for_each_operand(|value| uses[value] += 1);
+                func.inst(inst).kind.visit_operands(|value| uses[value] += 1);
             }
             if let Some(term) = &block.terminator {
-                term.for_each_operand(|value| uses[value] += 1);
+                term.visit_operands(|value| uses[value] += 1);
             }
         }
         let mut consumed_conditions = FxHashMap::<BlockId, SmallVec<[ValueId; 2]>>::default();

@@ -1359,7 +1359,7 @@ fn scalar_stack_peak(func: &Function) -> usize {
     for (block, body) in func.blocks.iter_enumerated() {
         let mut live = liveness.live_out(block).clone();
         if let Some(term) = &body.terminator {
-            term.for_each_operand(|value| {
+            term.visit_operands(|value| {
                 live.insert(value);
             });
         }
@@ -1384,7 +1384,7 @@ fn surviving_call_words(func: &Function, liveness: &Liveness, site: CallSite) ->
     let body = &func.blocks[site.block];
     let mut live = liveness.live_out(site.block).clone();
     if let Some(term) = &body.terminator {
-        term.for_each_operand(|value| {
+        term.visit_operands(|value| {
             live.insert(value);
         });
     }

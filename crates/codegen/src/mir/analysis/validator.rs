@@ -162,7 +162,7 @@ impl<'a> Validator<'a> {
                 }
             }
             if let Some(term) = &body.terminator {
-                term.for_each_operand(|value| {
+                term.visit_operands(|value| {
                     self.validate_value_reference(func, value, num_args, block);
                 });
             }
@@ -582,7 +582,7 @@ impl<'a> Validator<'a> {
                 }
             }
             if let Some(term) = &block.terminator {
-                term.for_each_operand(|operand| {
+                term.visit_operands(|operand| {
                     if let Some((def, _)) =
                         self.live_definition(func, &def_location_of, operand, block_id)
                         && def != block_id
@@ -767,7 +767,7 @@ impl<'a> Validator<'a> {
                 }
             }
             if let Some(term) = &block.terminator {
-                term.for_each_operand(|value| self.validate_live_value_type(func, value));
+                term.visit_operands(|value| self.validate_live_value_type(func, value));
             }
         }
         for ty in func
@@ -947,7 +947,7 @@ impl<'a> Validator<'a> {
                 }
             }
             if let Some(term) = &body.terminator {
-                term.for_each_operand(|value| {
+                term.visit_operands(|value| {
                     if let Some(MirType::Struct(ty)) = func.value_ty(value)
                         && module.struct_types.get(ty).is_none()
                     {
@@ -1483,7 +1483,7 @@ fn first_non_word_type(func: &Function) -> Option<MirType> {
         }
         let mut found = None;
         if let Some(term) = &block.terminator {
-            term.for_each_operand(|value| {
+            term.visit_operands(|value| {
                 if found.is_none() {
                     found = value_type(value);
                 }

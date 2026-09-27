@@ -632,9 +632,9 @@ fn local_summary(
             // can relate the object to the heap, whatever the positions: comparisons, pointer
             // arithmetic against the free-memory pointer, or storing one through the other.
             let mut meets_heap = false;
-            kind.for_each_operand(|operand| meets_heap |= heap_derived.contains(operand));
+            kind.visit_operands(|operand| meets_heap |= heap_derived.contains(operand));
             if meets_heap {
-                kind.for_each_operand(|operand| {
+                kind.visit_operands(|operand| {
                     observe_sources(&mut summary, func, sources, operand);
                 });
             }
@@ -791,7 +791,7 @@ fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
             && !derived.contains(result)
             && !instruction_loads_data(&func.inst(inst_id).kind)
         {
-            func.inst(inst_id).kind.for_each_operand(|operand| edges.push((operand, result)));
+            func.inst(inst_id).kind.visit_operands(|operand| edges.push((operand, result)));
         }
     }
     let users = IndexLists::new(func.num_values(), edges.iter().copied());
@@ -998,7 +998,7 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> 
         if instruction_loads_data(kind) || instruction_compares_values(kind) {
             continue;
         }
-        kind.for_each_operand(add_user);
+        kind.visit_operands(add_user);
     }
 
     let users = IndexLists::new(func.num_values(), edges.iter().copied());

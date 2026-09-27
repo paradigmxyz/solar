@@ -267,7 +267,7 @@ impl Module {
                 }
                 let mut found = false;
                 if let Some(term) = &block.terminator {
-                    term.for_each_operand(|value| found |= matches(value));
+                    term.visit_operands(|value| found |= matches(value));
                 }
                 if found {
                     return true;
