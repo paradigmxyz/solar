@@ -76,7 +76,7 @@ contract SignedIntegerLiterals {
     }
 
     function largePositiveDivision() external pure returns (uint256) {
-        return 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff / 2;
+        return uint256(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff) / 2;
     }
 
     function largePositiveRightShift(uint256 shift) external pure returns (uint256) {
