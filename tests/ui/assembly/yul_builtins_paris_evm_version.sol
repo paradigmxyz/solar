@@ -13,4 +13,25 @@ contract C {
             //~[paris]^ ERROR: Yul builtin `difficulty` is unavailable for Paris-compatible EVM
         }
     }
+
+    function read() external pure returns (uint difficulty) {
+        assembly { difficulty := add(difficulty, 1) }
+        //~[london]^ ERROR: expected identifier, found Yul EVM builtin keyword `difficulty`
+        //~[london]| ERROR: builtin function `difficulty` must be called
+    }
+
+    function identifiers() external pure {
+        assembly {
+            let difficulty := 1 //~ ERROR: expected identifier, found Yul EVM builtin keyword `difficulty`
+        }
+        assembly {
+            function difficulty() {} //~ ERROR: expected identifier, found Yul EVM builtin keyword `difficulty`
+        }
+        assembly {
+            function helper(difficulty) {} //~ ERROR: expected identifier, found Yul EVM builtin keyword `difficulty`
+        }
+        assembly {
+            function helper() -> difficulty {} //~ ERROR: expected identifier, found Yul EVM builtin keyword `difficulty`
+        }
+    }
 }

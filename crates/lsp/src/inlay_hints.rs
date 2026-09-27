@@ -272,7 +272,7 @@ impl<'gcx> Visit<'gcx> for InlayHintCollector<'_, 'gcx> {
     }
 
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
-        if let ExprKind::Call(callee, ref args, _) = expr.kind {
+        if let Some((callee, args, _)) = expr.as_call() {
             let callee_ty = self.gcx.type_of_expr(callee.id);
             if self.gcx.resolved_builtin(callee) == Some(Builtin::AbiEncodeCall) {
                 self.push_abi_encode_call_parameter_hints(args);

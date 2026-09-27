@@ -276,7 +276,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         forced,
         layout,
     } = options;
-    debug_assert!(values.windows(2).all(|values| values[0] < values[1]));
+    debug_assert!(values.is_sorted());
     debug_assert_eq!(values.len(), linear_values.len());
     if values.len() <= 1
         || (optimization == OptimizationMode::None && forced == SwitchLowering::Auto)
@@ -899,7 +899,8 @@ fn lowering_cost_with_tests(
 }
 
 fn binary_leaf_sizes(len: usize) -> Vec<usize> {
-    let mut pending = vec![len];
+    let mut pending = Vec::new();
+    pending.push(len);
     let mut sizes = Vec::new();
     while let Some(len) = pending.pop() {
         if len <= 1 {

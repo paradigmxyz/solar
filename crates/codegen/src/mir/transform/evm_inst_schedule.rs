@@ -213,13 +213,13 @@ impl EvmInstSchedule {
             scratch.active_members.push(inst_id);
         }
         for &inst_id in segment {
-            for operand in func.inst(inst_id).kind.operands() {
+            func.inst(inst_id).kind.visit_operands(|operand| {
                 if let Value::Inst(dependency) = func.value(operand)
                     && scratch.members.contains(*dependency)
                 {
                     scratch.dependencies.insert(*dependency);
                 }
-            }
+            });
         }
 
         let consumer_roots = consumer_inputs

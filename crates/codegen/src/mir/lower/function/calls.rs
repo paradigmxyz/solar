@@ -927,7 +927,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let body = function.body?;
         let [stmt] = body.stmts else { return None };
         let StmtKind::Return(Some(return_expr)) = stmt.kind else { return None };
-        let ExprKind::Call(constructor, args, None) = return_expr.peel_parens().kind else {
+        let Some((constructor, args, None)) = return_expr.peel_parens().as_call() else {
             return None;
         };
         let Some(hir::Res::Item(item)) = self.cx.gcx.resolved_expr(constructor) else {
@@ -942,7 +942,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for (&id, &value) in function.parameters.iter().zip(values) {
             self.values.insert(id, value);
         }
-        let result = self.lower_struct_constructor(return_expr, struct_id, args);
+        let result = self.lower_struct_constructor(return_expr, struct_id, *args);
         self.restore_bindings(&saved);
         result
     }

@@ -298,6 +298,7 @@ fn compile(
         |compiler| {
             let mut output = CompilerOutput::default();
             let result = (|| {
+                let mut parsed_sources = FxIndexMap::default();
                 let control_flow = crate::commands::compile::run_pipeline(
                     compiler,
                     |pcx| {
@@ -313,10 +314,13 @@ fn compile(
                             };
                             files.push((PathBuf::from(name.as_ref()), content.into()));
                         }
+                        output.sources = (!files.is_empty()).then(FxIndexMap::default);
                         pcx.par_load_files_with_contents(files)
                     },
-                    |compiler| output.sources = source_outputs_from_compiler(compiler),
+                    |compiler| parsed_sources = source_outputs_from_compiler(compiler),
                 )?;
+                compiler.gcx().dcx().has_errors()?;
+                output.sources = Some(parsed_sources);
                 if control_flow.is_break() {
                     return Ok(());
                 }
@@ -547,8 +551,9 @@ fn make_contract_output<'gcx>(
 
     let mut evm = EvmOutput::default();
     if output_selection.contains(OutputSelectionFlags::METHOD_IDENTIFIERS) {
+        let method_identifiers = evm.method_identifiers.insert(FxIndexMap::default());
         for function in gcx.interface_functions(contract_id) {
-            evm.method_identifiers.insert(
+            method_identifiers.insert(
                 gcx.item_signature(function.id.into()).to_string(),
                 alloy_primitives::hex::encode(function.selector),
             );

@@ -172,6 +172,30 @@ impl MirPass for LateCheckElim {
             if selected.is_some_and(DenseBitSet::is_empty) {
                 return false;
             }
+            // Only folds of selected branches with a reverting arm are kept, so without one
+            // and without a check to remove, the elimination cannot change anything.
+            if let Some(selected) = selected
+                && !func.instructions().any(|inst| {
+                    matches!(
+                        func.inst(inst).kind,
+                        InstKind::ICall {
+                            function: Callee::Builtin(Builtin::Check { .. } | Builtin::Require(_)),
+                            ..
+                        }
+                    )
+                })
+                && !selected.iter().any(|block| {
+                    let Some(Terminator::Branch { then_block, else_block, .. }) =
+                        func.blocks[block].terminator
+                    else {
+                        return false;
+                    };
+                    leads_to_revert(func, then_block, &reverting)
+                        || leads_to_revert(func, else_block, &reverting)
+                })
+            {
+                return false;
+            }
             let mut eliminator = CheckEliminator::new(None);
             eliminator.cfg = Some(Rc::clone(analyses.cfg()));
             let changed =
@@ -469,6 +493,8 @@ struct CheckEliminator<'a> {
     trip_bounds: FxHashMap<ValueId, Range>,
     range_undo: Vec<(ValueId, Option<Range>)>,
     relation_undo: Vec<Relation>,
+    /// Scratch states for relation searches, reused across queries.
+    relation_seen: FxHashSet<(ValueId, bool)>,
 }
 
 impl<'a> CheckEliminator<'a> {
@@ -630,7 +656,8 @@ impl<'a> CheckEliminator<'a> {
 
         let mut folds = Vec::new();
         let mut checks = DenseBitSet::new_empty(func.num_insts());
-        let mut stack = vec![Walk::Enter(BlockId::ENTRY)];
+        let mut stack = Vec::new();
+        stack.push(Walk::Enter(BlockId::ENTRY));
         while let Some(item) = stack.pop() {
             match item {
                 Walk::Exit { range_mark, relation_mark } => {
@@ -736,12 +763,10 @@ impl<'a> CheckEliminator<'a> {
         let mut uses = index_vec![0usize; func.num_values()];
         for block in &func.blocks {
             for &inst in &block.instructions {
-                for value in func.inst(inst).operands() {
-                    uses[value] += 1;
-                }
+                func.inst(inst).kind.visit_operands(|value| uses[value] += 1);
             }
             if let Some(term) = &block.terminator {
-                term.for_each_operand(|value| uses[value] += 1);
+                term.visit_operands(|value| uses[value] += 1);
             }
         }
         let mut consumed_conditions = FxHashMap::<BlockId, SmallVec<[ValueId; 2]>>::default();
@@ -1228,22 +1253,52 @@ impl<'a> CheckEliminator<'a> {
         if !index.contains_key(&start) {
             return false;
         }
-        // A bounded implication search: equality is bidirectional, <= carries
-        // order, and one strict edge makes the complete path strict. Disequality
-        // is not transitive. Exhausting the budget only misses an optimization.
+        let mut seen = std::mem::take(&mut self.relation_seen);
+        seen.clear();
+        let found = self.search_relations(start, end, needs_strict, equality_only, &mut seen);
+        self.relation_seen = seen;
+        if let Some(found) = found {
+            return found;
+        }
+        // A sum bounded by a difference is below that difference's minuend,
+        // which the edges above could not express because the difference
+        // relates the offset rather than the sum.
+        match relation {
+            Relation::Lt(sum, limit) => self.sum_stays_below(func, sum, Some(limit)),
+            // `a <= a + b` needs only that the sum cannot wrap.
+            Relation::Le(base, sum) => {
+                matches!(inst_kind(func, sum), Some(&InstKind::Add(x, y)) if x == base || y == base)
+                    && self.sum_stays_below(func, sum, None)
+            }
+            Relation::Eq(..) | Relation::Ne(..) => false,
+        }
+    }
+
+    /// A bounded implication search: equality is bidirectional, <= carries
+    /// order, and one strict edge makes the complete path strict. Disequality
+    /// is not transitive. Exhausting the budget only misses an optimization.
+    /// Returns `None` when the search space is exhausted without a decision.
+    fn search_relations(
+        &self,
+        start: ValueId,
+        end: ValueId,
+        needs_strict: bool,
+        equality_only: bool,
+        seen: &mut FxHashSet<(ValueId, bool)>,
+    ) -> Option<bool> {
         const MAX_RELATION_STATES: usize = 128;
+        let index = self.relation_index.as_ref().expect("relation index was just built");
         let mut pending = SmallVec::<[_; 8]>::new();
         pending.push((start, false));
-        let mut seen = FxHashSet::default();
         while let Some((value, strict)) = pending.pop() {
             if value == end && (!needs_strict || strict) {
-                return true;
+                return Some(true);
             }
             if !seen.insert((value, strict)) {
                 continue;
             }
             if seen.len() >= MAX_RELATION_STATES {
-                return false;
+                return Some(false);
             }
             for &fact in index.get(&value).into_iter().flatten() {
                 if !self.relations.contains(&fact) && !self.universal_relations.contains(&fact) {
@@ -1261,18 +1316,7 @@ impl<'a> CheckEliminator<'a> {
                 }
             }
         }
-        // A sum bounded by a difference is below that difference's minuend,
-        // which the edges above could not express because the difference
-        // relates the offset rather than the sum.
-        match relation {
-            Relation::Lt(sum, limit) => self.sum_stays_below(func, sum, Some(limit)),
-            // `a <= a + b` needs only that the sum cannot wrap.
-            Relation::Le(base, sum) => {
-                matches!(inst_kind(func, sum), Some(&InstKind::Add(x, y)) if x == base || y == base)
-                    && self.sum_stays_below(func, sum, None)
-            }
-            Relation::Eq(..) | Relation::Ne(..) => false,
-        }
+        None
     }
 
     // === Evaluation ===

@@ -23,6 +23,10 @@ use solar_sema::{
 };
 use std::{borrow::Cow, path::PathBuf, sync::Arc};
 
+mod scope;
+
+pub(crate) use scope::validate_rename_scope;
+
 newtype_index! {
     /// A file-local import alias in the rename index.
     struct ImportAliasId;
@@ -64,6 +68,8 @@ pub(crate) struct RenameCandidate {
     pub(crate) analyzed_contents: FxHashMap<Url, Arc<String>>,
     pub(crate) conflicting_contents: bool,
     pub(crate) requires_yul_validation: bool,
+    /// Whether unknown callers could make this candidate's edits incomplete.
+    pub(crate) requires_complete_workspace: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -93,10 +99,9 @@ impl OccurrenceIndex {
     fn rebuild(&mut self, occurrences: &[RenameOccurrence]) {
         // `normalize_occurrences` orders the global list by URI and range before these
         // per-file indexes are populated, so the entries are already start-sorted.
-        debug_assert!(self.entries.windows(2).all(|pair| {
-            let lhs = occurrences[pair[0]].location.range;
-            let rhs = occurrences[pair[1]].location.range;
-            (lhs.start, lhs.end, pair[0]) <= (rhs.start, rhs.end, pair[1])
+        debug_assert!(self.entries.is_sorted_by_key(|&entry| {
+            let range = occurrences[entry].location.range;
+            (range.start, range.end, entry)
         }));
 
         self.prefix_max_end.clear();
@@ -533,6 +538,11 @@ impl RenameIndex {
                 RenameTarget::Symbol(symbol_id) => self.yul_symbol_targets.contains(&symbol_id),
                 RenameTarget::ImportAlias(_) | RenameTarget::MappingName(_) => false,
             }),
+            requires_complete_workspace: targets.iter().any(|target| match *target {
+                RenameTarget::Symbol(symbol_id) => !declarations[symbol_id].rename_is_local,
+                // Aliases can be re-exported, and mapping names can appear in getter calls.
+                RenameTarget::ImportAlias(_) | RenameTarget::MappingName(_) => true,
+            }),
         })
     }
 
@@ -654,7 +664,7 @@ impl RenameIndex {
                 RenameTarget::Symbol(symbol_id) => symbols.push(symbol_id),
                 RenameTarget::ImportAlias(alias_id) => {
                     if let Some(targets) = self.alias_symbols.get(&alias_id) {
-                        symbols.extend(targets.iter().copied());
+                        symbols.extend_from_slice(targets);
                     }
                 }
                 RenameTarget::MappingName(_) => {}

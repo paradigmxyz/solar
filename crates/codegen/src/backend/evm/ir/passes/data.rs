@@ -14,7 +14,7 @@ use crate::{
         data_copy_cost, data_copy_gas, data_copy_is_profitable,
         ir::{
             BlockId, Data, DataId, DataRef, Instruction, Module, PushValue,
-            default_instruction_stack_effect, immediate_materialization_cost,
+            immediate_materialization_cost,
         },
         op::{self, WORD_BYTES},
     },
@@ -269,9 +269,6 @@ fn find_run(
 ) -> Option<(Bytes, Rewrite)> {
     let (data, end) = literal_store_run(instructions, start)?;
     let instructions = &instructions[start..end];
-    if !instructions.iter().all(Instruction::has_canonical_stack_effect) {
-        return None;
-    }
     let old_size = instructions.iter().map(|inst| instruction_size_lower_bound(gcx, inst)).sum();
     let old_gas = instructions.iter().map(|inst| static_gas(gcx, inst)).sum();
     Some((data, Rewrite { block, start, end, old_size, old_gas }))
@@ -284,7 +281,7 @@ pub(super) fn literal_store_run(
 ) -> Option<(Bytes, usize)> {
     let [value, dup, store, ..] = instructions.get(start..)? else { return None };
     let first = value.concrete_immediate()?;
-    if dup.as_evm_opcode() != Some(op::DUP2) || store.as_evm_opcode() != Some(op::MSTORE) {
+    if dup.as_stack_op() != Some(op::StackOp::Dup(2)) || store.as_evm_opcode() != Some(op::MSTORE) {
         return None;
     }
 
@@ -293,9 +290,9 @@ pub(super) fn literal_store_run(
     while let Some(window) = instructions.get(end..end + 6) {
         let [offset, dup, add, value, swap, store] = window else { unreachable!() };
         if offset.concrete_immediate() != Some(U256::from(words * WORD_BYTES))
-            || dup.as_evm_opcode() != Some(op::DUP2)
+            || dup.as_stack_op() != Some(op::StackOp::Dup(2))
             || add.as_evm_opcode() != Some(op::ADD)
-            || swap.as_evm_opcode() != Some(op::SWAP1)
+            || swap.as_stack_op() != Some(op::StackOp::Swap(1))
             || store.as_evm_opcode() != Some(op::MSTORE)
         {
             break;
@@ -525,12 +522,20 @@ fn scan_data_references(
     let mut references = DataReferences::new(module);
     let mut stack = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
+        // The stack starts empty, so without a data push no slot can hold a data address.
+        let has_data = block.instructions.iter().any(|inst| inst.pushed_data().is_some());
         for (index, inst) in block.instructions.iter().enumerate() {
             visit(block_id, index, &block.instructions);
-            track_data_reference(module, inst, &mut stack, &mut references);
+            if has_data {
+                track_data_reference(module, inst, &mut stack, &mut references);
+            } else if inst.opcode == op::CODESIZE {
+                references.layout_observable = true;
+            }
         }
-        mark_stack_data_unsafe(&stack, &mut references.subslice_safe);
-        stack.clear();
+        if has_data {
+            mark_stack_data_unsafe(&stack, &mut references.subslice_safe);
+            stack.clear();
+        }
     }
     references
 }
@@ -596,12 +601,7 @@ fn track_data_reference(
         mark_stack_data_unsafe(stack, &mut references.subslice_safe);
     }
 
-    let Some(effect) = inst.metadata.stack.or_else(|| default_instruction_stack_effect(inst))
-    else {
-        mark_stack_data_unsafe(stack, &mut references.subslice_safe);
-        stack.clear();
-        return;
-    };
+    let effect = inst.stack_effect();
     let inputs = usize::from(effect.inputs);
     ensure_stack_depth(stack, inputs);
     let first_input = stack.len() - inputs;

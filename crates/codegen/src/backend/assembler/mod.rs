@@ -99,7 +99,7 @@ pub(in crate::backend) struct PreparedAssembly {
 }
 
 /// Relocating assembler for finalized EVM IR.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) gcx: Gcx<'gcx>,
     /// Artifact whose labels are being laid out.
@@ -108,6 +108,8 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) program: ir::Module,
     /// Whether `program` already has explicit EVM IR terminators.
     pub(in crate::backend) program_is_finalized: bool,
+    /// Pass history at the shared input to gas-first and size-rescue outlining.
+    pub(in crate::backend) outlining: Option<ir::OutliningCheckpoint>,
     /// Block currently receiving emitted instructions.
     pub(in crate::backend) current_block: Option<ir::BlockId>,
     /// Source span attached to newly emitted EVM IR operations.
@@ -163,6 +165,7 @@ impl<'gcx> Assembler<'gcx> {
             artifact_kind: ArtifactKind::Runtime,
             program: ir::Module::new(sym::asm),
             program_is_finalized: false,
+            outlining: None,
             current_block: None,
             current_source_spans: DebugSpans::new(),
             current_modifier_depth: 0,
@@ -189,6 +192,7 @@ impl<'gcx> Assembler<'gcx> {
         self.artifact_kind = ArtifactKind::Runtime;
         self.program.clear();
         self.program_is_finalized = false;
+        self.outlining = None;
         self.current_block = None;
         self.current_source_spans.clear();
         self.current_modifier_depth = 0;
@@ -279,7 +283,7 @@ impl<'gcx> Assembler<'gcx> {
         capture_debug_info: bool,
     ) -> AssembledCode {
         let prepared = self.prepare(capture_evm_ir, capture_debug_info);
-        let result = self.assemble_prepared(&prepared, &[]);
+        let result = self.assemble_owned(prepared, &[]);
         self.clear();
         result
     }
@@ -289,13 +293,28 @@ impl<'gcx> Assembler<'gcx> {
         prepared: &PreparedAssembly,
         deferred_values: &[(DeferredConst, U256)],
     ) -> AssembledCode {
-        self.push_values = prepared.push_values.clone();
-        self.immutable_pushes = prepared.immutable_pushes.clone();
-        self.next_label = prepared.next_label.clone();
-        self.deferred_values.clone_from(&prepared.deferred_values);
+        self.assemble_owned(prepared.clone(), deferred_values)
+    }
+
+    fn assemble_owned(
+        &mut self,
+        prepared: PreparedAssembly,
+        deferred_values: &[(DeferredConst, U256)],
+    ) -> AssembledCode {
+        let PreparedAssembly {
+            mut program,
+            evm_ir,
+            push_values,
+            immutable_pushes,
+            next_label,
+            deferred_values: prepared_deferred_values,
+        } = prepared;
+        self.push_values = push_values;
+        self.immutable_pushes = immutable_pushes;
+        self.next_label = next_label;
+        self.deferred_values = prepared_deferred_values;
         self.deferred_values.extend(deferred_values.iter().copied());
 
-        let mut program = prepared.program.clone();
         for inst in &mut program.instructions {
             if let AsmInstKind::PushDeferred(id) = inst.kind() {
                 let value = self
@@ -307,8 +326,7 @@ impl<'gcx> Assembler<'gcx> {
             }
         }
 
-        let evm_ir = prepared.evm_ir.as_ref().map(|module| {
-            let mut module = module.clone();
+        let evm_ir = evm_ir.map(|mut module| {
             for block in &mut module.blocks {
                 for inst in &mut block.instructions {
                     if let Some(id) = inst.deferred_push() {
@@ -771,7 +789,7 @@ mod tests {
         assert_eq!(op::stack_io(op::ADD), Some((2, 1)));
         assert_eq!(op::stack_io(op::MSTORE), Some((2, 0)));
         assert_eq!(op::stack_io(op::CALLVALUE), Some((0, 1)));
-        assert_eq!(op::stack_io(op::CALLF), None);
+        assert_eq!(op::stack_io(0x0c), None);
         solar_interface::enter(|| {
             assert_eq!(op::from_ir_symbol(solar_interface::kw::Add), Some(op::ADD));
         });

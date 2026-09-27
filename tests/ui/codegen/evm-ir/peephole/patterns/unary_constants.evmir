@@ -63,12 +63,6 @@ bb11:
   jumpi
   stop
 
-// Canonical explicit stack metadata still permits folding.
-bb12:
-  push 7 !metadata(stack=0->1)
-  iszero !metadata(stack=1->1)
-  stop
-
 // Symbolic and deferred values are not literal words.
 bb14:
   push bb100

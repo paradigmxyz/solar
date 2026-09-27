@@ -247,7 +247,8 @@ fn push_leaf(
 fn address_key(func: &Function, address: ValueId) -> Option<(Vec<ValueId>, u64)> {
     let mut base = Vec::new();
     let mut offset = 0u64;
-    let mut pending = vec![address];
+    let mut pending = Vec::new();
+    pending.push(address);
     while let Some(value) = pending.pop() {
         if let Some(constant) = func.value_u64(value) {
             offset = offset.checked_add(constant)?;

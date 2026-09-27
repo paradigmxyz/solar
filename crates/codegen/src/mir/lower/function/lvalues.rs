@@ -164,7 +164,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
     ) -> Option<LValuePlace<'gcx>> {
         let expr = expr.peel_parens();
-        if let ExprKind::Call(callee, arguments, _) = &expr.kind
+        if let Some((callee, arguments, _)) = expr.as_call()
             && arguments.is_empty()
             && self.cx.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0)
             && let ExprKind::Member(receiver, _) = &callee.kind

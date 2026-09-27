@@ -193,9 +193,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             if let Some(terminator) = &block.terminator {
                 let point = block.instructions.len() * 2;
-                for value in terminator.operands() {
+                terminator.visit_operands(|value| {
                     Self::extend_spill_live_range(&mut ranges, colorable, value, block_id, point);
-                }
+                });
             }
             let point = block.instructions.len() * 2 + 1;
             for value in liveness.live_out(block_id) {
@@ -344,7 +344,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if let Some(term) =
                     func.blocks.get(*block_id).and_then(|block| block.terminator.as_ref())
                 {
-                    for operand in term.operands() {
+                    term.visit_operands(|operand| {
                         if Some(operand) != own_source {
                             Self::add_spill_interference(
                                 &mut interferences,
@@ -353,7 +353,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                                 operand,
                             );
                         }
-                    }
+                    });
                 }
             }
         }
@@ -418,18 +418,18 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if matches!(func.inst(inst_id).kind, InstKind::Phi(_)) {
                     continue;
                 }
-                for operand in func.inst(inst_id).kind.operands() {
+                func.inst(inst_id).kind.visit_operands(|operand| {
                     if definitions[operand].is_some_and(|definition| definition != block_id) {
                         reloaded.insert(operand);
                     }
-                }
+                });
             }
             if let Some(terminator) = &func.blocks[block_id].terminator {
-                for operand in terminator.operands() {
+                terminator.visit_operands(|operand| {
                     if definitions[operand].is_some_and(|definition| definition != block_id) {
                         reloaded.insert(operand);
                     }
-                }
+                });
             }
         }
         reloaded

@@ -103,7 +103,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.constant_storage_bytes(expr).is_some()
             }
             TyKind::Struct(struct_id) => {
-                let ExprKind::Call(callee, args, _) = &expr.peel_parens().kind else {
+                let Some((callee, args, _)) = expr.peel_parens().as_call() else {
                     return false;
                 };
                 let Some(hir::Res::Item(hir::ItemId::Struct(id))) =
@@ -177,9 +177,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(())
             }
             TyKind::Struct(struct_id) => {
-                let ExprKind::Call(callee, args, _) = &expr.peel_parens().kind else {
-                    return None;
-                };
+                let (callee, args, _) = expr.peel_parens().as_call()?;
                 let hir::Res::Item(hir::ItemId::Struct(id)) = self.cx.gcx.resolved_expr(callee)?
                 else {
                     return None;
@@ -298,7 +296,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Ternary(condition, then_expr, else_expr) => {
                 self.storage_access_ternary(condition, then_expr, else_expr)
             }
-            ExprKind::Call(callee, arguments, _)
+            ExprKind::Call(callee, arguments)
                 if arguments.is_empty()
                     && self.cx.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0) =>
             {

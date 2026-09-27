@@ -41,7 +41,7 @@ impl OpcodeTraits {
     }
 }
 
-/// Legacy-bytecode availability of an EVM operation.
+/// Availability of an EVM operation across EVM versions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Availability {
     /// Available in every supported EVM version.
@@ -52,8 +52,6 @@ pub(crate) enum Availability {
     SlotNum,
     /// Gated by [`EvmVersion::has_extended_stack_ops`].
     ExtendedStackOps,
-    /// Only valid inside EOF containers, never in legacy bytecode.
-    Eof,
 }
 
 macro_rules! opcode_mnemonic {
@@ -96,12 +94,9 @@ macro_rules! opcode_availability {
     (extended_stack_ops) => {
         Availability::ExtendedStackOps
     };
-    (eof) => {
-        Availability::Eof
-    };
 }
 
-/// Maps a row's gas class name to its [`GasTier`]; a literal is a fixed price.
+/// Maps a row's gas class name to its [`GasTier`].
 macro_rules! opcode_gas {
     (zero) => {
         GasTier::Zero
@@ -178,9 +173,6 @@ macro_rules! opcode_gas {
     (selfdestruct) => {
         GasTier::SelfDestruct
     };
-    ($gas:literal) => {
-        GasTier::Fixed($gas)
-    };
 }
 
 macro_rules! opcode_result_bits {
@@ -215,7 +207,7 @@ macro_rules! opcodes {
             pub(crate) opcode: u8,
             /// Canonical textual mnemonic.
             pub(crate) mnemonic: &'static str,
-            /// Number of stack items consumed and produced, when fixed.
+            /// Number of stack items consumed and produced, unless an immediate operand decides it.
             pub(crate) stack_io: Option<(u8, u8)>,
             /// Declarative operation properties.
             pub(crate) traits: OpcodeTraits,
@@ -225,7 +217,7 @@ macro_rules! opcodes {
             pub(crate) input_bits: &'static [u16],
             /// Gas class in the fork schedule.
             pub(crate) gas: GasTier,
-            /// Legacy-bytecode availability.
+            /// Availability across EVM versions.
             pub(crate) availability: Availability,
         }
 
@@ -456,32 +448,16 @@ opcodes! {
     0xa2 => LOG2 => log2 => stack_io(4, 0) => traits() => gas(log2) => available(legacy);
     0xa3 => LOG3 => log3 => stack_io(5, 0) => traits() => gas(log3) => available(legacy);
     0xa4 => LOG4 => log4 => stack_io(6, 0) => traits() => gas(log4) => available(legacy);
-    0xd0 => DATALOAD => dataload => stack_io(1, 1) => traits() => gas(4) => available(eof);
-    0xd1 => DATALOADN => dataloadn => stack_io(0, 1) => traits() => gas(verylow) => available(eof);
-    0xd2 => DATASIZE => datasize => stack_io(0, 1) => traits() => gas(base) => available(eof);
-    0xd3 => DATACOPY => datacopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(eof);
-    0xe0 => RJUMP => rjump => stack_io(0, 0) => traits() => gas(base) => available(eof);
-    0xe1 => RJUMPI => rjumpi => stack_io(1, 0) => traits() => gas(4) => available(eof);
-    0xe2 => RJUMPV => rjumpv => stack_io(1, 0) => traits() => gas(4) => available(eof);
-    0xe3 => CALLF => callf => stack_io(_, _) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(low) => available(eof);
-    0xe4 => RETF => retf => stack_io(_, _) => traits() => gas(verylow) => available(eof);
-    0xe5 => JUMPF => jumpf => stack_io(_, _) => traits() => gas(low) => available(eof);
-    0xe6 => DUPN => dupn => stack_io(0, 1) => traits() => gas(verylow) => available(extended_stack_ops);
-    0xe7 => SWAPN => swapn => stack_io(0, 0) => traits() => gas(verylow) => available(extended_stack_ops);
-    0xe8 => EXCHANGE => exchange => stack_io(0, 0) => traits() => gas(verylow) => available(extended_stack_ops);
-    0xec => EOFCREATE => eofcreate => stack_io(4, 1) => traits(WRITES_STORAGE) => gas(create) => available(eof);
-    0xee => RETURNCONTRACT => returncontract => stack_io(2, 0) => traits() => gas(zero) => available(eof);
+    0xe6 => DUPN => dupn => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
+    0xe7 => SWAPN => swapn => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
+    0xe8 => EXCHANGE => exchange => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
     0xf0 => CREATE => create => stack_io(3, 1) => traits(WRITES_STORAGE) => gas(create) => available(legacy) => result_bits(160);
     0xf1 => CALL => call => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
     0xf2 => CALLCODE => callcode => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
     0xf3 => RETURN => r#return => stack_io(2, 0) => traits(TERMINAL) => gas(zero) => available(legacy);
     0xf4 => DELEGATECALL => delegatecall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
     0xf5 => CREATE2 => create2 => stack_io(4, 1) => traits(WRITES_STORAGE) => gas(create) => available(since Constantinople) => result_bits(160);
-    0xf7 => RETURNDATALOAD => returndataload => stack_io(1, 1) => traits() => gas(verylow) => available(eof);
-    0xf8 => EXTCALL => extcall => stack_io(4, 1) => traits(WRITES_STORAGE) => gas(call) => available(eof);
-    0xf9 => EXTDELEGATECALL => extdelegatecall => stack_io(3, 1) => traits(WRITES_STORAGE) => gas(call) => available(eof);
     0xfa => STATICCALL => staticcall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(since Byzantium) => result_bits(1) => input_bits(256, 160);
-    0xfb => EXTSTATICCALL => extstaticcall => stack_io(3, 1) => traits() => gas(call) => available(eof);
     0xfd => REVERT => revert => stack_io(2, 0) => traits(TERMINAL) => gas(zero) => available(since Byzantium);
     0xfe => INVALID => invalid => stack_io(0, 0) => traits(TERMINAL) => gas(zero) => available(legacy);
     0xff => SELFDESTRUCT => selfdestruct => stack_io(1, 0) => traits(TERMINAL) => gas(selfdestruct) => available(legacy) => input_bits(160);
@@ -506,7 +482,7 @@ impl OpDef {
         self.traits.contains(OpcodeTraits::TERMINAL)
     }
 
-    /// Returns whether this operation is available in legacy bytecode for `evm_version`.
+    /// Returns whether this operation is available for `evm_version`.
     #[must_use]
     pub(crate) fn is_available(self, evm_version: EvmVersion) -> bool {
         match self.availability {
@@ -514,7 +490,6 @@ impl OpDef {
             Availability::Since(version) => evm_version >= version,
             Availability::SlotNum => evm_version.has_slot_num(),
             Availability::ExtendedStackOps => evm_version.has_extended_stack_ops(),
-            Availability::Eof => false,
         }
     }
 
@@ -822,7 +797,7 @@ pub(crate) const fn is_terminal(op: u8) -> bool {
     }
 }
 
-/// Returns whether an opcode is available in legacy bytecode for `evm_version`.
+/// Returns whether an opcode is available for `evm_version`.
 #[must_use]
 pub(crate) fn is_available(opcode: u8, evm_version: EvmVersion) -> bool {
     match definition(opcode) {
@@ -904,10 +879,6 @@ pub(crate) const fn is_unaffected_by_preceding_push(op: u8) -> bool {
                 | MSIZE
                 | TLOAD
                 | PUSH0
-                | DATALOAD
-                | DATALOADN
-                | DATASIZE
-                | RETURNDATALOAD
         )
 }
 
@@ -991,7 +962,9 @@ mod tests {
             }
             assert!(def.result_bits <= 256);
             assert!(def.input_bits.iter().all(|&bits| bits <= 256));
-            assert!(def.input_bits.len() <= usize::from(def.stack_io.unwrap_or_default().0));
+            assert!(
+                def.input_bits.len() <= usize::from(def.stack_io.map_or(0, |(inputs, _)| inputs))
+            );
             if def.result_bits != 256 || !def.input_bits.is_empty() {
                 write!(table, " bits={:?}/{}", def.input_bits, def.result_bits).unwrap();
             }

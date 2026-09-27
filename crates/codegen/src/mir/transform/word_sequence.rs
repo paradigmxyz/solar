@@ -291,17 +291,17 @@ fn run(func: &mut Function, target: Target) -> bool {
             if let Some((recipe, _, dead)) = best {
                 // Remove dead single-use producers; insert recipe children; retain the root.
                 for old in std::iter::once(inst).chain(dead.iter().copied()) {
-                    for operand in func.inst(old).operands() {
+                    func.inst(old).visit_operands(|operand| {
                         let count = &mut uses[operand];
                         *count -= 1;
-                    }
+                    });
                 }
                 let inserted = recipe.materialize(func, inst);
                 uses.resize(func.num_values(), 0);
                 for new in inserted.iter().copied().chain(std::iter::once(inst)) {
-                    for operand in func.inst(new).operands() {
+                    func.inst(new).visit_operands(|operand| {
                         uses[operand] += 1;
-                    }
+                    });
                 }
                 for &old in &dead {
                     seen.remove(&old);

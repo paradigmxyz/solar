@@ -357,7 +357,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn prepare_revert_payload(&mut self, expr: &hir::Expr<'_>) -> Option<RevertPayload> {
-        if let ExprKind::Call(callee, args, _) = &expr.kind
+        if let Some((callee, args, _)) = expr.peel_parens().as_call()
             && let Some(hir::Res::Item(hir::ItemId::Error(error_id))) =
                 self.cx.gcx.resolved_expr(callee)
         {
@@ -455,7 +455,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_emit(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
-        let ExprKind::Call(callee, args, _) = &expr.kind else {
+        let Some((callee, args, _)) = expr.peel_parens().as_call() else {
             return self.cx.report_unsupported(expr.span, "event emission");
         };
         let Some(hir::Res::Item(hir::ItemId::Event(event_id))) = self.cx.gcx.resolved_expr(callee)
@@ -650,7 +650,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return None;
         }
 
-        let ExprKind::Call(callee, args, _) = &variable.initializer?.peel_parens().kind else {
+        let ExprKind::Call(callee, args) = &variable.initializer?.peel_parens().kind else {
             return None;
         };
         if self.cx.gcx.resolved_builtin(callee) != Some(Builtin::AbiEncodePacked) {
@@ -662,9 +662,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         let StmtKind::Return(Some(expr)) = &next?.kind else { return None };
-        let ExprKind::Call(callee, hash_args, _) = &expr.peel_parens().kind else {
-            return None;
-        };
+        let (callee, hash_args, _) = expr.peel_parens().as_call()?;
         match (self.cx.gcx.resolved_builtin(callee), hash_args.kind, self.returns.as_slice()) {
             (Some(Builtin::Keccak256), hir::CallArgsKind::Unnamed([arg]), [_])
                 if self.cx.gcx.resolved_variable(arg) == Some(id) =>

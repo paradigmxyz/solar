@@ -192,7 +192,7 @@
 //!
 //! A plan never mutates the live model while it is being searched. The selected
 //! action list is validated once on scratch state, applied once to the live
-//! model, emitted once, and followed by the instruction's declared stack effect.
+//! model, emitted once, and followed by the instruction's stack effect.
 //! Anonymous words are not treated as interchangeable MIR values, and failed
 //! bounded local searches fall back to the established emitter. Complete edge
 //! shuffles require an exact final layout. Phi lowering checks that an edge is

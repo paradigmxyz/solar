@@ -27,7 +27,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let may_need_code_size_rescue = self.gcx.sess.opts.optimization.is_gas();
         let mut code_size_rescue = false;
         let mut gas_first_result = None;
-        loop {
+        {
             let mut preserve_caller_stack =
                 !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None);
             let mut runtime_stack_args = true;
@@ -67,7 +67,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 break;
             }
-
+        }
+        // Both outlining policies share the same scheduled and structurally simplified input.
+        if may_need_code_size_rescue && runtime_code_size_limit.is_some() {
+            self.asm.prepare_outlining();
+            if self.gcx.dcx().has_errors().is_err() {
+                return GeneratedCode::default();
+            }
+        }
+        let mut original = (may_need_code_size_rescue && runtime_code_size_limit.is_some())
+            .then(|| self.asm.clone());
+        loop {
             self.asm.set_enable_size_outlining(code_size_rescue);
 
             let result =
@@ -80,6 +90,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             {
                 gas_first_result = Some(result);
                 code_size_rescue = true;
+                self.asm = original.take().expect("size rescue retains scheduled EVM IR");
                 continue;
             }
             let result = if code_size_rescue

@@ -98,7 +98,7 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
         let condition =
             block.instructions.get(condition_end.wrapping_sub(1)).map(|inst| inst.opcode);
         let inverse = block.instructions.get(condition_end.wrapping_sub(1)).and_then(|inst| {
-            if !inst.has_canonical_stack_effect() || inst.keeps_with_next() {
+            if inst.keeps_with_next() {
                 return None;
             }
             match inst.as_evm_opcode()? {

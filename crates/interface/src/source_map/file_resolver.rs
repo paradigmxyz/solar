@@ -12,7 +12,7 @@ use std::{
     borrow::Cow,
     io,
     ops::ControlFlow,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::{Arc, OnceLock},
 };
 
@@ -253,12 +253,26 @@ impl<'a> FileResolver<'a> {
         // will only check the path relative to the current file.
         let is_relative = path.starts_with("./") || path.starts_with("../");
         if is_relative {
-            let try_path = if let Some(parent_dir) = parent.and_then(Path::parent) {
-                Cow::Owned(parent_dir.join(path))
+            // Normalize only the import suffix: leading `../` and `./` in an
+            // inline source-unit name are part of its identity.
+            let source_unit = if let Some(parent_dir) = parent.and_then(Path::parent) {
+                let mut source_unit = parent_dir.to_path_buf();
+                for component in path.components() {
+                    match component {
+                        Component::CurDir => {}
+                        Component::ParentDir => {
+                            source_unit.pop();
+                        }
+                        component => source_unit.push(component.as_os_str()),
+                    }
+                }
+                Cow::Owned(source_unit)
             } else {
                 Cow::Borrowed(path)
             };
-            visit(&try_path, ResolutionCandidateKind::RelativeFile)?;
+            let source_unit = self.remap_path(&source_unit, parent);
+            visit(&source_unit, ResolutionCandidateKind::SourceUnit)?;
+            visit(&source_unit, ResolutionCandidateKind::RelativeFile)?;
             return ControlFlow::Continue(());
         }
 
@@ -332,11 +346,6 @@ impl<'a> FileResolver<'a> {
             ResolutionCandidateKind::RelativeFile
             | ResolutionCandidateKind::DirectFile
             | ResolutionCandidateKind::SearchFile => {
-                if matches!(kind, ResolutionCandidateKind::RelativeFile)
-                    && let Some(file) = self.source_map().get_file(&*self.normalize(path))
-                {
-                    return ControlFlow::Break(Ok(file));
-                }
                 let file = match self.try_file(path) {
                     Ok(file) => file,
                     Err(err) => return ControlFlow::Break(Err(err)),
@@ -454,7 +463,9 @@ pub fn apply_import_remappings<'a>(
     let mut longest_prefix = 0;
     let mut longest_context = 0;
     let mut best_match_target = None;
-    let mut unprefixed_path = path;
+    let path_text = path.to_string_lossy();
+    let path_text = sanitize_path(&path_text);
+    let mut unprefixed_path = &*path_text;
     for ImportRemapping { context, prefix, path: target } in remappings {
         let context = &*sanitize_path(context);
         let prefix = &*sanitize_path(prefix);
@@ -472,7 +483,7 @@ pub fn apply_import_remappings<'a>(
             continue;
         }
         // Skip if the prefix does not match.
-        let Ok(up) = path.strip_prefix(prefix) else {
+        let Some(up) = path_text.strip_prefix(prefix) else {
             continue;
         };
         longest_context = context.len();
@@ -481,11 +492,9 @@ pub fn apply_import_remappings<'a>(
         unprefixed_path = up;
     }
     if let Some(best_match_target) = best_match_target {
-        let mut out = PathBuf::from(&*best_match_target);
-        out.push(unprefixed_path);
-        Cow::Owned(out)
+        Cow::Owned(PathBuf::from(format!("{best_match_target}{unprefixed_path}")))
     } else {
-        Cow::Borrowed(unprefixed_path)
+        Cow::Borrowed(path)
     }
 }
 

@@ -382,7 +382,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &user in &block.instructions {
                 let phi = matches!(func.inst(user).kind, InstKind::Phi(_));
-                for operand in func.inst(user).kind.operands() {
+                func.inst(user).kind.visit_operands(|operand| {
                     if let Some((definition, count, blocks, used_in_definition, used_by_phi, _)) =
                         uses.get_mut(&operand)
                     {
@@ -391,7 +391,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         *count += 1;
                         blocks.insert(block_id);
                     }
-                }
+                });
             }
             for operand in block.terminator.iter().flat_map(Terminator::operands) {
                 if let Some((definition, count, blocks, used_in_definition, _, _)) =
@@ -524,7 +524,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn spill_hazard_is_repeated_low_phi(&self, func: &Function) -> bool {
         let inst_blocks = func.inst_blocks();
         let mut loop_analyzer = LoopAnalyzer::new();
-        let loop_info = loop_analyzer.analyze(func);
+        let loop_info = loop_analyzer.analyze_structure(func);
         loop_info.all_loops().any(|loop_info| {
             self.spill_hazard_insts.iter().any(|inst| {
                 inst_blocks.get(inst).is_some_and(|block| loop_info.blocks.contains(*block))
