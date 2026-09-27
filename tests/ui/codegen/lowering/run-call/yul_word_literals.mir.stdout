@@ -26,8 +26,6 @@ fn @builtin() -> i256 [selector=0x44d2c8a8, pure, abi_params=[], abi_returns=[wo
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/yul_word_literals.sol:YulBooleanConditions ===
-@module YulBooleanConditions
 fn @loop() -> i256 [selector=0xa92100cb, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = zext i1 0 to i256
