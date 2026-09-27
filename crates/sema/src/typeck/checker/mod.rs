@@ -375,7 +375,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         return self.gcx.mk_ty_err(err.emit());
                     }
                     self.check_tuple_assign_rhs(lhs, ty, rhs);
-                    ty
+                    self.gcx.mk_ty_tuple(&[])
                 } else if let Some(op) = op {
                     let rhs_ty = self.check_expr(rhs);
                     let result = self.check_binop(None, lhs, ty, rhs, rhs_ty, op, true);
