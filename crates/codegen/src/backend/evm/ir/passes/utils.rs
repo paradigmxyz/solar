@@ -161,13 +161,22 @@ fn remap_terminator_blocks(kind: &mut TerminatorKind, remap: &IndexVec<BlockId, 
     });
 }
 
+// Batches amortize task creation and reuse peephole scratch while leaving work to steal.
+// The 8–256 block sweep and thread-count comparisons are recorded in benches/parallelism.md.
+pub(super) const PARALLEL_BLOCK_CHUNK_SIZE: usize = 64;
+
+// Total live instructions across all blocks in the module. Smaller modules run
+// serially to avoid scheduling overhead; see the 0–65,536 cutoff sweep in benches/parallelism.md.
+const MIN_PARALLEL_BLOCK_INSTRUCTIONS: usize = 4096;
+
 pub(super) fn should_parallelize_blocks(gcx: Gcx<'_>, module: &Module) -> bool {
     gcx.sess.is_parallel()
         && sync::current_thread_has_pending_tasks() != Some(true)
         && !gcx.sess.opts.unstable.print_after_each
         && !gcx.sess.opts.unstable.pass_diff
         && !gcx.sess.opts.unstable.time_passes
-        && module.blocks.iter().map(|block| block.instructions.len()).sum::<usize>() >= 4096
+        && module.blocks.iter().map(|block| block.instructions.len()).sum::<usize>()
+            >= MIN_PARALLEL_BLOCK_INSTRUCTIONS
 }
 
 #[cfg(test)]

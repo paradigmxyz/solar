@@ -35,7 +35,7 @@
 use super::{
     EvmPass,
     compact_pushes::{immediate_materialization_cost, materialize_immediate},
-    utils::{MachineInstKey, should_parallelize_blocks},
+    utils::{MachineInstKey, PARALLEL_BLOCK_CHUNK_SIZE, should_parallelize_blocks},
 };
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue, TerminatorKind},
@@ -52,6 +52,7 @@ use solar_sema::Gcx;
 use std::{
     fmt,
     hash::{Hash, Hasher},
+    sync::atomic::{AtomicBool, Ordering},
 };
 use tracing::trace;
 
@@ -78,7 +79,7 @@ impl EvmPass for Peephole {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        optimize_module::<false>(gcx, module, self.final_cleanup)
+        optimize_module(gcx, module, self.final_cleanup, false)
     }
 }
 
@@ -91,7 +92,7 @@ impl EvmPass for LateWord {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        optimize_module::<true>(gcx, module, false)
+        optimize_module(gcx, module, false, true)
     }
 }
 
@@ -174,49 +175,49 @@ impl fmt::Debug for CleanBlocks {
     }
 }
 
-fn optimize_module<const LATE: bool>(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    final_cleanup: bool,
-) -> bool {
+fn optimize_module(gcx: Gcx<'_>, module: &mut Module, final_cleanup: bool, late: bool) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
     module.peephole_clean.0.resize_with(module.blocks.len(), || None);
     let parallel = should_parallelize_blocks(gcx, module);
     if !parallel {
-        return optimize_blocks::<LATE>(
+        return optimize_blocks(
             evm_version,
             &mut module.blocks,
             &mut module.peephole_clean.0,
             final_cleanup,
+            late,
         );
     }
-    let mut results = vec![false; module.blocks.len().div_ceil(64)];
+    let changed = AtomicBool::new(false);
     sync::scope(true, |scope| {
-        for ((blocks, clean), result) in module
+        for (blocks, clean) in module
             .blocks
-            .chunks_mut(64)
-            .zip(module.peephole_clean.0.chunks_mut(64))
-            .zip(&mut results)
+            .chunks_mut(PARALLEL_BLOCK_CHUNK_SIZE)
+            .zip(module.peephole_clean.0.chunks_mut(PARALLEL_BLOCK_CHUNK_SIZE))
         {
+            let changed = &changed;
             scope.spawn(move |_| {
-                *result = optimize_blocks::<LATE>(evm_version, blocks, clean, final_cleanup);
+                if optimize_blocks(evm_version, blocks, clean, final_cleanup, late) {
+                    changed.store(true, Ordering::Relaxed);
+                }
             });
         }
     });
-    results.into_iter().any(|changed| changed)
+    changed.into_inner()
 }
 
-fn optimize_blocks<const LATE: bool>(
+fn optimize_blocks(
     evm_version: EvmVersion,
     blocks: &mut IndexSlice<BlockId, [Block]>,
     clean: &mut IndexSlice<BlockId, [Option<CleanBlock>]>,
     final_cleanup: bool,
+    late: bool,
 ) -> bool {
     let mut changed = false;
     let mut scratch = Vec::new();
     for (block, clean) in blocks.iter_mut().zip(clean) {
         // The late rules are separate from the cached early and final ones.
-        let recorded = if LATE {
+        let recorded = if late {
             None
         } else {
             clean.as_ref().and_then(|clean| {
@@ -232,13 +233,14 @@ fn optimize_blocks<const LATE: bool>(
         let rewrites = if skip {
             0
         } else {
-            optimize::<LATE>(
+            optimize(
                 evm_version,
                 &mut block.instructions,
                 &mut scratch,
                 block.label,
                 final_cleanup,
                 early_clean,
+                late,
             )
         };
         changed |= rewrites != 0;
@@ -270,7 +272,7 @@ fn optimize_blocks<const LATE: bool>(
             changed = true;
             returned_zero = true;
         }
-        if !LATE && !skip {
+        if !late && !skip {
             if rewrites != 0 || returned_zero {
                 *clean = None;
             } else if early_clean {
@@ -288,13 +290,14 @@ fn optimize_blocks<const LATE: bool>(
     changed
 }
 
-fn optimize<const LATE: bool>(
+fn optimize(
     evm_version: EvmVersion,
     instructions: &mut Vec<Instruction>,
     scratch: &mut Vec<Instruction>,
     block: u32,
     final_cleanup: bool,
     early_clean: bool,
+    late: bool,
 ) -> usize {
     // Inspect the original prefix without copying instructions. Until the first
     // rewrite, this is exactly the optimized prefix the streaming matcher sees.
@@ -303,7 +306,7 @@ fn optimize<const LATE: bool>(
     let first = (1..=instructions.len()).find_map(|end| {
         let mut context = isle::PeepContext::new(&instructions[..end], evm_version)
             .with_final_cleanup(final_cleanup);
-        if early_clean { context.final_rewrite() } else { context.select::<LATE>() }
+        if early_clean { context.final_rewrite() } else { context.select(late) }
             .map(|rewrite| (end, rewrite))
     });
     let Some((end, isle::Rewrite { skip, edit })) = first else { return 0 };
@@ -314,27 +317,28 @@ fn optimize<const LATE: bool>(
     scratch.extend(instructions.drain(end..));
     rewrite(evm_version, instructions, usize::from(skip), edit, block);
     let mut rewrites = 1;
-    while try_peephole::<LATE>(evm_version, instructions, block, final_cleanup) {
+    while try_peephole(evm_version, instructions, block, final_cleanup, late) {
         rewrites += 1;
     }
     for inst in scratch.drain(..) {
         instructions.push(inst);
-        while try_peephole::<LATE>(evm_version, instructions, block, final_cleanup) {
+        while try_peephole(evm_version, instructions, block, final_cleanup, late) {
             rewrites += 1;
         }
     }
     rewrites
 }
 
-fn try_peephole<const LATE: bool>(
+fn try_peephole(
     evm_version: EvmVersion,
     instructions: &mut Vec<Instruction>,
     block: u32,
     final_cleanup: bool,
+    late: bool,
 ) -> bool {
     let Some(isle::Rewrite { skip, edit }) = isle::PeepContext::new(instructions, evm_version)
         .with_final_cleanup(final_cleanup)
-        .select::<LATE>()
+        .select(late)
     else {
         return false;
     };

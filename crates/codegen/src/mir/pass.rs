@@ -625,7 +625,10 @@ impl FunctionAnalyses {
     }
 }
 
-const MIN_PARALLEL_INSTRUCTIONS: usize = 1024;
+// Total allocated instruction IDs across the functions in a batch.
+// Amortizes task creation and analysis transfer without excluding medium-sized modules.
+// Cutoff and thread-count comparisons are recorded in benches/parallelism.md.
+const MIN_PARALLEL_FUNCTION_INSTRUCTIONS: usize = 1024;
 
 #[derive(Clone, Copy)]
 struct FunctionAnalysisRequirements(u8);
@@ -730,7 +733,7 @@ impl ModuleAnalyses {
             let parallel = self.parallel
                 && sync::current_thread_has_pending_tasks() != Some(true)
                 && module.functions.iter().map(Function::num_insts).sum::<usize>()
-                    >= MIN_PARALLEL_INSTRUCTIONS;
+                    >= MIN_PARALLEL_FUNCTION_INSTRUCTIONS;
             Arc::new(MemoryCallSummaries::new(module, parallel))
         }))
     }
@@ -863,38 +866,29 @@ fn run_parallel_function_pass(
         return None;
     }
     let functions = module.functions.len();
-    let mut runnable = module
-        .functions
-        .iter_enumerated()
-        .map(|(id, func)| {
-            !func.blocks.is_empty()
-                && selected.is_none_or(|selected| selected.contains(id))
-                && !cache_key.is_some_and(|key| analyses.function_cached(key, id, functions))
-        })
-        .collect::<Vec<_>>();
-    let work = module
-        .functions
-        .iter()
-        .zip(&runnable)
-        .filter(|(_, runnable)| **runnable)
-        .map(|(func, _)| func.num_insts())
-        .sum::<usize>();
-    if work < MIN_PARALLEL_INSTRUCTIONS || runnable.iter().filter(|&&run| run).count() < 2 {
+    let mut runnable = DenseBitSet::new_empty(functions);
+    let mut work = 0;
+    for (id, func) in module.functions.iter_enumerated() {
+        if !func.blocks.is_empty()
+            && selected.is_none_or(|selected| selected.contains(id))
+            && !cache_key.is_some_and(|key| analyses.function_cached(key, id, functions))
+        {
+            runnable.insert(id);
+            work += func.num_insts();
+        }
+    }
+    if work < MIN_PARALLEL_FUNCTION_INSTRUCTIONS || runnable.count() < 2 {
         return None;
     }
     if requirements.alias()
-        && module.functions.indices().any(|id| {
-            runnable[id.index()]
-                && analyses.alias.get(&id).is_some_and(|alias| Rc::strong_count(alias) != 1)
-        })
+        && runnable
+            .iter()
+            .any(|id| analyses.alias.get(&id).is_some_and(|alias| Rc::strong_count(alias) != 1))
     {
         return None;
     }
     let first_missing = if requirements.alias() {
-        module
-            .functions
-            .indices()
-            .find(|id| runnable[id.index()] && !analyses.alias.contains_key(id))
+        runnable.iter().find(|id| !analyses.alias.contains_key(id))
     } else {
         None
     };
@@ -904,10 +898,10 @@ fn run_parallel_function_pass(
     {
         // Preserve the point at which a serial pass would first build call summaries.
         for id in module.functions.indices().take(first_missing.index()) {
-            if runnable[id.index()] {
+            if runnable.contains(id) {
                 any_changed |=
                     run_function_pass_cached(analyses, module, id, requirements, cache_key, run);
-                runnable[id.index()] = false;
+                runnable.remove(id);
             }
         }
     }
@@ -916,7 +910,7 @@ fn run_parallel_function_pass(
         .functions
         .iter_enumerated()
         .map(|(id, func)| {
-            if !runnable[id.index()] {
+            if !runnable.contains(id) {
                 return None;
             }
             let cfg = requirements.cfg().then(|| {
@@ -1039,7 +1033,7 @@ mod tests {
             let right = func.blocks.push(BasicBlock::new());
             let mut builder = FunctionBuilder::new(&mut func);
             let one = builder.imm(1);
-            for _ in 0..MIN_PARALLEL_INSTRUCTIONS / 2 {
+            for _ in 0..MIN_PARALLEL_FUNCTION_INSTRUCTIONS / 2 {
                 builder.add(one, one);
             }
             builder.branch(one, left, right);
@@ -1087,7 +1081,7 @@ mod tests {
             } else {
                 builder.icall_void(FunctionId::new(0), vec![]);
             }
-            for _ in 0..MIN_PARALLEL_INSTRUCTIONS / 2 {
+            for _ in 0..MIN_PARALLEL_FUNCTION_INSTRUCTIONS / 2 {
                 builder.add(one, one);
             }
             builder.ret([]);

@@ -18,7 +18,10 @@
 //! expose adjacent stack and arithmetic simplifications.
 //! Large modules regenerate disjoint block chunks in parallel.
 
-use super::{EvmPass, utils::should_parallelize_blocks};
+use super::{
+    EvmPass,
+    utils::{PARALLEL_BLOCK_CHUNK_SIZE, should_parallelize_blocks},
+};
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue},
     op,
@@ -30,7 +33,10 @@ use solar_data_structures::{
     sync,
 };
 use solar_sema::Gcx;
-use std::hash::{Hash, Hasher};
+use std::{
+    hash::{Hash, Hasher},
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 pub(super) struct BlockCse;
 
@@ -52,14 +58,18 @@ impl EvmPass for BlockCse {
         if !parallel {
             return run(&mut module.blocks);
         }
-        let mut results = vec![false; module.blocks.len().div_ceil(64)];
+        let changed = AtomicBool::new(false);
         sync::scope(true, |scope| {
-            for (blocks, result) in module.blocks.chunks_mut(64).zip(&mut results) {
-                let run = &run;
-                scope.spawn(move |_| *result = run(blocks));
+            for blocks in module.blocks.chunks_mut(PARALLEL_BLOCK_CHUNK_SIZE) {
+                let (run, changed) = (&run, &changed);
+                scope.spawn(move |_| {
+                    if run(blocks) {
+                        changed.store(true, Ordering::Relaxed);
+                    }
+                });
             }
         });
-        results.into_iter().any(|changed| changed)
+        changed.into_inner()
     }
 }
 
