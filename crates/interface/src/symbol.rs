@@ -626,6 +626,7 @@ pub mod kw {
 /// For example `sym::rustfmt` or `sym::u8`.
 pub mod sym {
     use super::Symbol;
+    use core::fmt::NumBuffer;
 
     #[doc(inline)]
     pub use super::sym_generated::*;
@@ -633,11 +634,12 @@ pub mod sym {
     /// Get the symbol for an integer.
     ///
     /// The first few non-negative integers each have a static symbol and therefore are fast.
-    pub fn integer<N: TryInto<usize> + Copy + itoa::Integer>(n: N) -> Symbol {
-        if let Ok(idx @ 0..=9) = n.try_into() {
-            return Symbol::new(super::SYMBOL_DIGITS_BASE + idx as u32);
+    pub fn integer<N: Into<u128>>(n: N) -> Symbol {
+        let n = n.into();
+        if n <= 9 {
+            return Symbol::new(super::SYMBOL_DIGITS_BASE + n as u32);
         }
-        Symbol::intern(itoa::Buffer::new().format(n))
+        Symbol::intern(n.format_into(&mut NumBuffer::new()))
     }
 }
 
@@ -1336,6 +1338,26 @@ mod tests {
             assert_eq!(Symbol::DUMMY.to_string(), "");
             assert_eq!(Ident::DUMMY.as_str(), "");
             assert_eq!(Ident::DUMMY.to_string(), "");
+        });
+    }
+
+    #[test]
+    fn integer_symbols() {
+        crate::enter(|| {
+            for n in 0_u8..=9 {
+                assert_eq!(sym::integer(n), Symbol::new(SYMBOL_DIGITS_BASE + n as u32));
+            }
+            snapbox::assert_data_eq!(sym::integer(0_u8).as_str(), snapbox::str!["0"]);
+            snapbox::assert_data_eq!(sym::integer(9_u16).as_str(), snapbox::str!["9"]);
+            snapbox::assert_data_eq!(sym::integer(10_u32).as_str(), snapbox::str!["10"]);
+            snapbox::assert_data_eq!(
+                sym::integer(u64::MAX).as_str(),
+                snapbox::str!["18446744073709551615"]
+            );
+            snapbox::assert_data_eq!(
+                sym::integer(u128::MAX).as_str(),
+                snapbox::str!["340282366920938463463374607431768211455"]
+            );
         });
     }
 }

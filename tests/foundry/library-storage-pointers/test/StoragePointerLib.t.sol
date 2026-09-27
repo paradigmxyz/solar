@@ -10,6 +10,17 @@ contract StoragePointersTest {
         c = new StoragePointers();
     }
 
+    function test_recursiveStorage() public {
+        (uint256 child, uint256 mapped, uint256 length) = c.recursive(41);
+        assert(child == 41);
+        assert(mapped == 42);
+        assert(length == 1);
+        (child, mapped, length) = c.recursive(99);
+        assert(child == 99);
+        assert(mapped == 100);
+        assert(length == 2);
+    }
+
     function test_len() public view {
         assert(c.len() == 2);
     }

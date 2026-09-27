@@ -4,7 +4,8 @@
 //! shutdown does not join worker threads, so teardown from fixture setup can otherwise enter the
 //! next measured operation. Rename and quick-fix workloads call the production validation and
 //! edit-building functions synchronously; these CPU benchmarks exclude Tokio task scheduling.
-//! End-to-end request latency belongs in the session benchmarks under `benches/lsp/`.
+//! The separate `lsp_pending` target uses production scheduling for in-process request latency.
+//! Protocol and process latency belongs in the session benchmarks under `benches/lsp/`.
 
 use super::{
     AnalysisBatch, AnalysisResult, AnalysisResultAccumulator, AnalysisTaskOutcome, DiagnosticMap,
@@ -47,6 +48,10 @@ use std::{
     sync::Arc,
     task::{Context, Poll, Waker},
 };
+
+mod pending;
+#[cfg(feature = "bench")]
+pub use pending::BenchmarkPendingRequests;
 
 /// An opaque error returned while preparing an LSP benchmark project.
 #[doc(hidden)]
@@ -417,6 +422,7 @@ impl BenchmarkProject {
         let source = &mut self.files[index].1;
         let updated =
             apply_document_changes(&Rope::from(source.as_str()), vec![edit.change.clone()])
+                .ok_or_else(|| BenchmarkError::new("invalid document change range"))?
                 .to_string();
         *source = updated.clone();
         self.loader.overlays.insert(edit.path.clone(), updated);
@@ -531,7 +537,10 @@ impl BenchmarkDocumentChange {
     #[inline(never)]
     pub fn apply(self) -> Self {
         let Self { contents, changes } = self;
-        Self { contents: apply_document_changes(&contents, changes), changes: Vec::new() }
+        Self {
+            contents: apply_document_changes(&contents, changes).expect("valid benchmark edits"),
+            changes: Vec::new(),
+        }
     }
 }
 

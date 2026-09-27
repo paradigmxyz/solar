@@ -1,7 +1,7 @@
 //! Signature help data collected from compiler analysis.
 
 use crate::{config::SignatureHelpClientOptions, proto};
-use crop::{Rope, RopeSlice};
+use crop::Rope;
 use lsp_types::{
     Documentation, Location, MarkupContent, MarkupKind, ParameterInformation, ParameterLabel,
     Position, Range, SignatureHelp, SignatureInformation, Url,
@@ -122,14 +122,13 @@ impl SignatureHelpIndex {
     pub(crate) fn signature_help<'a>(
         &self,
         uri: &Url,
-        position: Position,
+        cursor: usize,
         positions: &proto::LspPositionIndex<Rope>,
         source: &str,
         statement_boundary: Option<usize>,
         visible_declarations: impl FnOnce(&str) -> Vec<&'a Location>,
         options: SignatureHelpClientOptions,
     ) -> Option<SignatureHelp> {
-        let cursor = positions.text_range(Range::new(position, position)).start;
         let context = call_context_with_boundary(&source[..cursor], statement_boundary)?;
         // Earlier-line edits can change byte offsets while preserving the cached LSP position.
         let open = positions.position_at_byte(context.open)?;
@@ -303,12 +302,10 @@ impl CallSite {
         positions: &proto::LspPositionIndex<Rope>,
         source: &str,
     ) -> bool {
-        let contents = positions.rope();
-        if !valid_text_range(contents, self.callee_range) {
-            return false;
-        }
-        let range = positions.text_range(self.callee_range);
-        if range.start > range.end {
+        let Some(range) = positions.checked_text_range(self.callee_range) else { return false };
+        if positions.position_at_byte(range.start) != Some(self.callee_range.start)
+            || positions.position_at_byte(range.end) != Some(self.callee_range.end)
+        {
             return false;
         }
         // The source and position index belong to the same immutable document snapshot.
@@ -316,34 +313,6 @@ impl CallSite {
             significant_token_slices(current).eq(self.callee_tokens.iter().map(String::as_str))
         })
     }
-}
-
-fn valid_text_range(rope: &Rope, range: Range) -> bool {
-    let start_line = range.start.line as usize;
-    let end_line = range.end.line as usize;
-    if start_line >= rope.line_len() || end_line >= rope.line_len() {
-        return false;
-    }
-    let line = rope.line(start_line);
-    valid_text_column(&line, range.start.character)
-        && if start_line == end_line {
-            valid_text_column(&line, range.end.character)
-        } else {
-            valid_text_column(&rope.line(end_line), range.end.character)
-        }
-}
-
-fn valid_text_column(line: &RopeSlice<'_>, character: u32) -> bool {
-    let character = character as usize;
-    if character > line.utf16_len() {
-        return false;
-    }
-    // Every byte on an ASCII line is a complete UTF-16 code unit.
-    if line.byte_len() == line.utf16_len() {
-        return true;
-    }
-    let byte = line.byte_of_utf16_code_unit(character);
-    line.utf16_code_unit_of_byte(byte) == character
 }
 
 impl CallSignature {
@@ -1293,29 +1262,19 @@ mod tests {
     }
 
     #[test]
-    fn callee_positions_reject_invalid_utf16_columns() {
-        for source in ["", "abc", "abc\n", "abc\r\ndef", "abc\rdef", "é😀x\nabc"] {
-            let rope = Rope::from(source);
-            for line_index in 0..=rope.line_len() {
-                let valid_columns = if line_index < rope.line_len() {
-                    let mut columns = vec![0];
-                    let mut utf16 = 0;
-                    for ch in rope.line(line_index).chars() {
-                        utf16 += ch.len_utf16();
-                        columns.push(utf16 as u32);
-                    }
-                    columns
-                } else {
-                    Vec::new()
+    fn callee_ranges_require_exact_positions() {
+        for ending in ["\n", "\r\n", "\r"] {
+            let source = format!("😀{ending}f{ending}");
+            let positions = proto::LspPositionIndex::from_rope(Rope::from(source.as_str()));
+            for (end, expected) in [(1, true), (2, false), (u32::MAX, false)] {
+                let call = CallSite {
+                    range: Range::default(),
+                    callee_range: Range::new(Position::new(1, 0), Position::new(1, end)),
+                    callee_tokens: vec!["f".into()],
+                    form: CallForm::Regular,
+                    signatures: Vec::new(),
                 };
-                for column in 0..=source.len() as u32 + 1 {
-                    let position = Position::new(line_index as u32, column);
-                    assert_eq!(
-                        valid_text_range(&rope, Range::new(position, position)),
-                        valid_columns.contains(&column),
-                        "{source:?} at {position:?}"
-                    );
-                }
+                assert_eq!(call.matches_current_callee(&positions, &source), expected);
             }
         }
     }

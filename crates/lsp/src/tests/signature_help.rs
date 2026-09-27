@@ -27,6 +27,127 @@ fn request_signature_help(
 }
 
 #[test]
+fn clamps_signature_help_columns_to_the_line_end() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Signature.sol open
+        contract C {
+            function add(uint256 lhs, uint256 rhs) public pure returns (uint256) {
+                return lhs + rhs;
+            }
+
+            function use() public pure {
+                add(1,$1
+                    2);
+            }
+        }
+        "#,
+        "/Signature.sol",
+    );
+    let mut state = fixture.state();
+    let (uri, position) = fixture.marker_location("$1");
+    let expected = request_signature_help(&mut state, uri.clone(), position).unwrap();
+    assert_eq!(expected.active_parameter, Some(1));
+
+    assert_eq!(
+        request_signature_help(&mut state, uri, Position::new(position.line, u32::MAX)),
+        Some(expected)
+    );
+}
+
+#[test]
+fn clamps_signature_help_lines_to_the_document_end() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Signature.sol open
+        contract C {
+            function add(uint256 lhs, uint256 rhs) public pure returns (uint256) {
+                return lhs + rhs;
+            }
+
+            function use() public pure {
+                add(1,$1
+        "#,
+        "/Signature.sol",
+    );
+    let mut state = fixture.state();
+    let (uri, position) = fixture.marker_location("$1");
+    let expected = request_signature_help(&mut state, uri.clone(), position).unwrap();
+    assert_eq!(expected.active_parameter, Some(1));
+
+    for position in [Position::new(99, 0), Position::new(u32::MAX, u32::MAX)] {
+        assert_eq!(
+            request_signature_help(&mut state, uri.clone(), position),
+            Some(expected.clone())
+        );
+    }
+}
+
+#[test]
+fn clamps_signature_help_before_resolving_an_unindexed_call() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Signature.sol open
+        contract C {
+            function foo(uint256 lhs, uint256 rhs) public pure {}
+            function bar(uint256 first, uint256 second) public pure {}
+
+            function use() public pure {
+                foo(1,$1 2);
+            }
+        }
+        "#,
+        "/Signature.sol",
+    );
+    let mut state = fixture.state();
+    let (uri, position) = fixture.marker_location("$1");
+    let original = fixture.project_contents("/Signature.sol");
+    let call_start = original.find("foo(1,").unwrap();
+    let changed = format!("{}bar(1,", &original[..call_start]);
+    let path = VfsPath::from(fixture.project_path("/Signature.sol"));
+    state.vfs.write().set_file_contents(path, Some(Rope::from(changed)));
+
+    // This newly typed callee has no indexed callsite, so signature help resolves its declaration
+    // from the cursor's scope in the previous analysis.
+    let expected = request_signature_help(&mut state, uri.clone(), position).unwrap();
+    assert_eq!(expected.active_parameter, Some(1));
+    for position in [Position::new(position.line, u32::MAX), Position::new(u32::MAX, 0)] {
+        assert_eq!(
+            request_signature_help(&mut state, uri.clone(), position),
+            Some(expected.clone())
+        );
+    }
+}
+
+#[test]
+fn rejects_signature_help_positions_inside_surrogate_pairs() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Signature.sol open
+        contract C {
+            function set(string memory text) public pure {}
+
+            function use() public pure {
+                set(unicode"$1😀");
+            }
+        }
+        "#,
+        "/Signature.sol",
+    );
+    let mut state = fixture.state();
+    let (uri, position) = fixture.marker_location("$1");
+    assert!(request_signature_help(&mut state, uri.clone(), position).is_some());
+    assert_eq!(
+        request_signature_help(
+            &mut state,
+            uri,
+            Position::new(position.line, position.character + 1),
+        ),
+        None
+    );
+}
+
+#[test]
 fn shows_function_signature_and_active_parameter() {
     let fixture = RequestFixture::new(
         r#"

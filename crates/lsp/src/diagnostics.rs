@@ -1,4 +1,4 @@
-use crate::file_operations::file_path_from_url;
+use crate::{file_operations::file_path_from_url, proto::normalize_file_uri};
 use lsp_types::{Diagnostic, PreviousResultId, Range, Url};
 use normalize_path::NormalizePath;
 use solar_interface::data_structures::map::{FxHashMap, FxHashSet};
@@ -363,37 +363,6 @@ impl DiagnosticStore {
     }
 }
 
-pub(crate) fn normalize_file_uri(uri: Url) -> Url {
-    if uri.scheme() != "file" {
-        return uri;
-    }
-
-    let path = uri.path();
-    let is_windows_drive_root = cfg!(windows)
-        && path.len() == 4
-        && path.as_bytes()[0] == b'/'
-        && path.as_bytes()[1].is_ascii_alphabetic()
-        && path.as_bytes()[2] == b':'
-        && path.as_bytes()[3] == b'/';
-    let has_lowercase_windows_drive = cfg!(windows)
-        && path.len() >= 3
-        && path.as_bytes()[0] == b'/'
-        && path.as_bytes()[1].is_ascii_lowercase()
-        && path.as_bytes()[2] == b':';
-    if uri.host_str().is_none()
-        && uri.query().is_none()
-        && uri.fragment().is_none()
-        && path.starts_with('/')
-        && !path.as_bytes().contains(&b'%')
-        && !path.as_bytes().windows(2).any(|bytes| bytes == b"//")
-        && (!path.ends_with('/') || path == "/" || is_windows_drive_root)
-        && !has_lowercase_windows_drive
-    {
-        return uri;
-    }
-    uri.to_file_path().ok().and_then(|path| Url::from_file_path(path).ok()).unwrap_or(uri)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -411,53 +380,6 @@ mod tests {
 
     fn uri(path: &str) -> Url {
         Url::from_file_path(std::env::temp_dir().join("solar-lsp-diagnostics").join(path)).unwrap()
-    }
-
-    fn round_trip_file_uri(uri: Url) -> Url {
-        uri.to_file_path().ok().and_then(|path| Url::from_file_path(path).ok()).unwrap_or(uri)
-    }
-
-    #[test]
-    fn file_uri_fast_path_matches_round_trip_normalization() {
-        let mut uris = vec![
-            uri("src/Canonical.sol"),
-            Url::parse("file:///").unwrap(),
-            Url::parse("file:///tmp/Encoded%20Name.sol").unwrap(),
-            Url::parse("file:///tmp//Repeated.sol").unwrap(),
-            Url::parse("file:///tmp/directory/").unwrap(),
-            Url::parse("file://localhost/tmp/Hosted.sol").unwrap(),
-            Url::parse("file:///tmp/Query.sol?version=1").unwrap(),
-            Url::parse("file:///tmp/Fragment.sol#source").unwrap(),
-        ];
-        if cfg!(windows) {
-            uris.extend([
-                Url::parse("file:///C:/tmp/Canonical.sol").unwrap(),
-                Url::parse("file:///C:/").unwrap(),
-                Url::parse("file:///tmp/NoDrive.sol").unwrap(),
-                Url::parse("file:///C%3A/tmp/EncodedDrive.sol").unwrap(),
-                Url::parse("file://server/share/Hosted.sol").unwrap(),
-            ]);
-        }
-
-        for uri in uris {
-            assert_eq!(normalize_file_uri(uri.clone()), round_trip_file_uri(uri.clone()), "{uri}");
-        }
-    }
-
-    #[test]
-    fn normalize_file_uri_preserves_non_file_uris() {
-        let uri = Url::parse("untitled:/tmp/Virtual.sol").unwrap();
-
-        assert_eq!(normalize_file_uri(uri.clone()), uri);
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn normalize_file_uri_canonicalizes_lowercase_windows_drive() {
-        let lowercase = Url::parse("file:///c:/tmp/Contract.sol").unwrap();
-        let uppercase = Url::parse("file:///C:/tmp/Contract.sol").unwrap();
-
-        assert_eq!(normalize_file_uri(lowercase), uppercase);
     }
 
     #[test]
