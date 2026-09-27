@@ -55,31 +55,6 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
 
     let stem = path.file_stem().unwrap().to_str().unwrap();
     #[rustfmt::skip]
-    if path_contains("/inlineAssembly/") && matches!(
-        stem,
-        | "assign_to_instruction"
-        | "assignment_from_opcode_like"
-        | "assignment_to_opcode_like"
-        | "basefee_reserved_london"
-        | "blobbasefee_reserved_cancun"
-        | "blobhash_reserved_cancun"
-        | "clash_with_reserved_builtin"
-        | "clz_reserved_osaka"
-        | "difficulty_disallowed_function_pre_paris"
-        | "mcopy_reserved_cancun"
-        | "multiple_assign_to_instruction"
-        | "prevrandao_disallowed_function_post_paris"
-        | "reserved_identifiers_constantinople"
-        | "returndatasize_as_variable_post_byzantium"
-        | "returndatasize_as_variable_read_post_byzantium.sol"
-        | "slotnum_reserved_amsterdam"
-        | "tload_reserved_cancun"
-        | "tstore_reserved_cancun"
-    ) {
-        return Err("Yul builtin names are checked after parsing");
-    };
-
-    #[rustfmt::skip]
     if matches!(
         stem,
         // Solc supports unlimited-precision rational arithmetic, while we reject these literals

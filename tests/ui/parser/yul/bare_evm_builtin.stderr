@@ -16,5 +16,23 @@ error: builtin function `gas` must be called
 LL │             g := gas
    ╰╴                 ━━━
 
-error: aborting due to 3 previous errors
+error: unresolved symbol `chainid`
+   ╭▸ ROOT/tests/ui/parser/yul/bare_evm_builtin.sol:LL:CC
+   │
+LL │             id := chainid
+   ╰╴                  ━━━━━━━
+
+error: unresolved symbol `caller`
+   ╭▸ ROOT/tests/ui/parser/yul/bare_evm_builtin.sol:LL:CC
+   │
+LL │             a := caller
+   ╰╴                 ━━━━━━
+
+error: unresolved symbol `gas`
+   ╭▸ ROOT/tests/ui/parser/yul/bare_evm_builtin.sol:LL:CC
+   │
+LL │             g := gas
+   ╰╴                 ━━━
+
+error: aborting due to 6 previous errors
 

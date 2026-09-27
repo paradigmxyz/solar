@@ -1,3 +1,39 @@
+error: expected identifier, found Yul EVM builtin keyword `difficulty`
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
+   │
+LL │         assembly { difficulty := add(difficulty, 1) }
+   ╰╴                   ━━━━━━━━━━
+
+error: builtin function `difficulty` must be called
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
+   │
+LL │         assembly { difficulty := add(difficulty, 1) }
+   ╰╴                                     ━━━━━━━━━━
+
+error: expected identifier, found Yul EVM builtin keyword `difficulty`
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
+   │
+LL │             let difficulty := 1
+   ╰╴                ━━━━━━━━━━
+
+error: expected identifier, found Yul EVM builtin keyword `difficulty`
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
+   │
+LL │             function difficulty() {}
+   ╰╴                     ━━━━━━━━━━
+
+error: expected identifier, found Yul EVM builtin keyword `difficulty`
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
+   │
+LL │             function helper(difficulty) {}
+   ╰╴                            ━━━━━━━━━━
+
+error: expected identifier, found Yul EVM builtin keyword `difficulty`
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
+   │
+LL │             function helper() -> difficulty {}
+   ╰╴                                 ━━━━━━━━━━
+
 error: Yul builtin `prevrandao` requires Paris-compatible EVM
    ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
    │
@@ -6,35 +42,5 @@ LL │             pop(prevrandao())
    │
    ╰ help: compile with `--evm-version paris` or newer
 
-error: builtin function `difficulty` must be called
-   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
-   │
-LL │         assembly { difficulty := 1 }
-   ╰╴                   ━━━━━━━━━━
-
-error: `difficulty` is reserved for a Yul builtin
-   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
-   │
-LL │             let difficulty := 1
-   ╰╴                ━━━━━━━━━━
-
-error: `difficulty` is reserved for a Yul builtin
-   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
-   │
-LL │             function difficulty() {}
-   ╰╴                     ━━━━━━━━━━
-
-error: `difficulty` is reserved for a Yul builtin
-   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
-   │
-LL │             function helper(difficulty) {}
-   ╰╴                            ━━━━━━━━━━
-
-error: `difficulty` is reserved for a Yul builtin
-   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
-   │
-LL │             function helper() -> difficulty {}
-   ╰╴                                 ━━━━━━━━━━
-
-error: aborting due to 6 previous errors
+error: aborting due to 7 previous errors
 

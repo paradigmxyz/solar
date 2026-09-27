@@ -22,23 +22,5 @@ LL │             pop(staticcall(0, 0, 0, 0, 0, 0))
    │
    ╰ help: compile with `--evm-version byzantium` or newer
 
-error: `returndatasize` is reserved for a Yul builtin
-   ╭▸ ROOT/tests/ui/assembly/yul_builtins_byzantium_evm_version.sol:LL:CC
-   │
-LL │             let returndatasize
-   ╰╴                ━━━━━━━━━━━━━━
-
-error: `returndatacopy` is reserved for a Yul builtin
-   ╭▸ ROOT/tests/ui/assembly/yul_builtins_byzantium_evm_version.sol:LL:CC
-   │
-LL │             let returndatacopy
-   ╰╴                ━━━━━━━━━━━━━━
-
-error: `staticcall` is reserved for a Yul builtin
-   ╭▸ ROOT/tests/ui/assembly/yul_builtins_byzantium_evm_version.sol:LL:CC
-   │
-LL │             let staticcall
-   ╰╴                ━━━━━━━━━━
-
-error: aborting due to 6 previous errors
+error: aborting due to 3 previous errors
 

@@ -13,7 +13,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// See: <https://github.com/argotorg/solidity/blob/eff410eb746f202fe756a2473fd0c8a718348457/libyul/ObjectParser.cpp#L50>
     #[instrument(level = "debug", skip_all)]
     pub fn parse_yul_file_object(&mut self) -> PResult<'sess, Object<'ast>> {
-        self.in_yul(|this| {
+        self.in_pure_yul(|this| {
             let docs = this.parse_doc_comments();
             let object = if this.check_keyword(sym::object) {
                 this.parse_yul_object(docs)
@@ -296,6 +296,11 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 // Paths are not allowed in call expressions, but Solc parses them anyway.
                 let ident = self.expect_single_ident_path(path);
                 self.parse_yul_expr_call_with(ident).map(ExprKind::Call)
+            } else if path.segments().len() == 1 && self.is_reserved_yul_expr_ident(*path.first()) {
+                let name = path.first();
+                self.dcx()
+                    .emit_err(path.span(), format!("builtin function `{name}` must be called"));
+                Ok(ExprKind::Path(path))
             } else {
                 self.check_valid_path(&path);
                 Ok(ExprKind::Path(path))
@@ -307,7 +312,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
     /// Parses a Yul function call expression with the given name.
     fn parse_yul_expr_call_with(&mut self, name: Ident) -> PResult<'sess, ExprCall<'ast>> {
-        if name.is_yul_keyword() {
+        if !name.is_yul_builtin() && self.is_reserved_yul_ident(name) {
             self.expected_ident_found_other(name.into(), false).unwrap_err().emit();
         }
         let arguments = self.parse_paren_comma_seq(true, Self::parse_yul_expr)?;
@@ -332,10 +337,23 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulPath
     #[track_caller]
     fn check_valid_path(&mut self, path: &PathSlice) {
-        for &ident in path.segments() {
+        // We allow EVM builtins in any position if multiple segments are present:
+        // https://github.com/argotorg/solidity/issues/16054
+        let first = *path.first();
+        if first.is_yul_keyword()
+            || (path.segments().len() == 1 && self.is_reserved_yul_expr_ident(first))
+        {
+            self.expected_ident_found_other(first.into(), false).unwrap_err().emit();
+        }
+        for &ident in &path.segments()[1..] {
             if ident.is_yul_keyword() {
                 self.expected_ident_found_other(ident.into(), false).unwrap_err().emit();
             }
         }
+    }
+
+    fn is_reserved_yul_expr_ident(&self, ident: Ident) -> bool {
+        self.is_reserved_yul_ident(ident)
+            && !(ident.name == kw::Difficulty && self.sess.opts.evm_version.has_prev_randao())
     }
 }

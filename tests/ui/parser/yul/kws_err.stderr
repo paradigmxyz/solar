@@ -1,16 +1,40 @@
-error: builtin function `number` must be called
+error: expected identifier, found Yul EVM builtin keyword `number`
    ╭▸ ROOT/tests/ui/parser/yul/kws_err.sol:LL:CC
    │
 LL │             number := 0
    ╰╴            ━━━━━━
 
-error: builtin function `number` must be called
+error: expected identifier, found Yul EVM builtin keyword `number`
    ╭▸ ROOT/tests/ui/parser/yul/kws_err.sol:LL:CC
    │
 LL │             number, number := some_call()
    ╰╴            ━━━━━━
 
-error: builtin function `number` must be called
+error: expected identifier, found Yul EVM builtin keyword `number`
+   ╭▸ ROOT/tests/ui/parser/yul/kws_err.sol:LL:CC
+   │
+LL │             number, number := some_call()
+   ╰╴                    ━━━━━━
+
+error: expected identifier, found Yul EVM builtin keyword `number`
+   ╭▸ ROOT/tests/ui/parser/yul/kws_err.sol:LL:CC
+   │
+LL │             let number := 0
+   ╰╴                ━━━━━━
+
+error: unresolved symbol `number`
+   ╭▸ ROOT/tests/ui/parser/yul/kws_err.sol:LL:CC
+   │
+LL │             number := 0
+   ╰╴            ━━━━━━
+
+error: unresolved symbol `number`
+   ╭▸ ROOT/tests/ui/parser/yul/kws_err.sol:LL:CC
+   │
+LL │             number, number := some_call()
+   ╰╴            ━━━━━━
+
+error: unresolved symbol `number`
    ╭▸ ROOT/tests/ui/parser/yul/kws_err.sol:LL:CC
    │
 LL │             number, number := some_call()
@@ -22,11 +46,5 @@ error: unresolved symbol `some_call`
 LL │             number, number := some_call()
    ╰╴                              ━━━━━━━━━
 
-error: `number` is reserved for a Yul builtin
-   ╭▸ ROOT/tests/ui/parser/yul/kws_err.sol:LL:CC
-   │
-LL │             let number := 0
-   ╰╴                ━━━━━━
-
-error: aborting due to 5 previous errors
+error: aborting due to 8 previous errors
 

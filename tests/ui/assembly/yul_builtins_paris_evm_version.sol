@@ -1,7 +1,6 @@
-//@ revisions: london paris parse
+//@ revisions: london paris
 //@[london] compile-flags: --evm-version london
 //@[paris] compile-flags: --evm-version paris
-//@[parse] compile-flags: --stop-after parsing --evm-version london
 // ported-from: test/libsolidity/syntaxTests/inlineAssembly/prevrandao_nobuitin_pre_paris.sol
 // ported-from: test/libsolidity/syntaxTests/inlineAssembly/difficulty_nobuiltin_post_paris.sol
 
@@ -16,26 +15,23 @@ contract C {
     }
 
     function read() external pure returns (uint difficulty) {
-        assembly { difficulty := 1 }
-        //~[london]^ ERROR: builtin function `difficulty` must be called
+        assembly { difficulty := add(difficulty, 1) }
+        //~[london]^ ERROR: expected identifier, found Yul EVM builtin keyword `difficulty`
+        //~[london]| ERROR: builtin function `difficulty` must be called
     }
 
-    function reserved() external pure {
+    function identifiers() external pure {
         assembly {
-            let difficulty := 1
-            //~[london,paris]^ ERROR: `difficulty` is reserved for a Yul builtin
+            let difficulty := 1 //~ ERROR: expected identifier, found Yul EVM builtin keyword `difficulty`
         }
         assembly {
-            function difficulty() {}
-            //~[london,paris]^ ERROR: `difficulty` is reserved for a Yul builtin
+            function difficulty() {} //~ ERROR: expected identifier, found Yul EVM builtin keyword `difficulty`
         }
         assembly {
-            function helper(difficulty) {}
-            //~[london,paris]^ ERROR: `difficulty` is reserved for a Yul builtin
+            function helper(difficulty) {} //~ ERROR: expected identifier, found Yul EVM builtin keyword `difficulty`
         }
         assembly {
-            function helper() -> difficulty {}
-            //~[london,paris]^ ERROR: `difficulty` is reserved for a Yul builtin
+            function helper() -> difficulty {} //~ ERROR: expected identifier, found Yul EVM builtin keyword `difficulty`
         }
     }
 }
