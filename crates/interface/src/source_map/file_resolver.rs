@@ -12,7 +12,7 @@ use std::{
     borrow::Cow,
     io,
     ops::ControlFlow,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::{Arc, OnceLock},
 };
 
@@ -253,12 +253,26 @@ impl<'a> FileResolver<'a> {
         // will only check the path relative to the current file.
         let is_relative = path.starts_with("./") || path.starts_with("../");
         if is_relative {
-            let try_path = if let Some(parent_dir) = parent.and_then(Path::parent) {
-                Cow::Owned(parent_dir.join(path))
+            // Normalize only the import suffix: leading `../` and `./` in an
+            // inline source-unit name are part of its identity.
+            let source_unit = if let Some(parent_dir) = parent.and_then(Path::parent) {
+                let mut source_unit = parent_dir.to_path_buf();
+                for component in path.components() {
+                    match component {
+                        Component::CurDir => {}
+                        Component::ParentDir => {
+                            source_unit.pop();
+                        }
+                        component => source_unit.push(component.as_os_str()),
+                    }
+                }
+                Cow::Owned(source_unit)
             } else {
                 Cow::Borrowed(path)
             };
-            visit(&try_path, ResolutionCandidateKind::RelativeFile)?;
+            let source_unit = self.remap_path(&source_unit, parent);
+            visit(&source_unit, ResolutionCandidateKind::SourceUnit)?;
+            visit(&source_unit, ResolutionCandidateKind::RelativeFile)?;
             return ControlFlow::Continue(());
         }
 
@@ -332,11 +346,6 @@ impl<'a> FileResolver<'a> {
             ResolutionCandidateKind::RelativeFile
             | ResolutionCandidateKind::DirectFile
             | ResolutionCandidateKind::SearchFile => {
-                if matches!(kind, ResolutionCandidateKind::RelativeFile)
-                    && let Some(file) = self.source_map().get_file(&*self.normalize(path))
-                {
-                    return ControlFlow::Break(Ok(file));
-                }
                 let file = match self.try_file(path) {
                     Ok(file) => file,
                     Err(err) => return ControlFlow::Break(Err(err)),

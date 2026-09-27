@@ -52,19 +52,20 @@ Coverage: `tests/ui/typeck/unchecked_as_single_statement.sol`; the upstream
 `unchecked_while_body` parse-only fixture remains excluded from solc parity
 testing.
 
-### PARSE-002: Versioned Yul builtin names remain reserved
+### PARSE-002: Standalone Yul stops after parsing
 
-Status: intentional.
+Status: implementation gap.
 
-Difference: `solar` reserves target-dependent Yul builtin names independently
-of the selected EVM version. This includes `basefee`, `prevrandao`, `mcopy`,
-`blobhash`, `blobbasefee`, `tload`, `tstore`, and `clz`. `solc` allows these
-names to be declared as identifiers on targets where the corresponding builtin
-is unavailable.
+Difference: Solar parses Yul builtin names as identifiers without consulting
+an EVM version. Inline assembly checks reserved names, future-builtin warnings,
+and builtin availability during name resolution. Standalone Yul currently
+stops after parsing, so it does not perform those semantic checks. Yul declarations
+reserve `difficulty` even after Paris, while references to Solidity variables
+named `difficulty` are allowed from Paris onward. The upstream parser-only test
+modes skip builtin-name checks that Solar performs during semantic analysis.
 
-Rationale: `solar` keeps the Yul grammar independent of the target EVM version.
-Builtin calls are parsed uniformly and their availability is validated during
-name resolution, where the selected EVM version is available.
+Rationale: builtin availability is a semantic rule, not part of the grammar.
+Standalone Yul needs semantic analysis before it can enforce the same rules.
 
 Coverage: `tests/ui/parser/yul/cancun_builtin_identifiers.sol` and the
 `tests/ui/assembly/yul_builtins_*_evm_version.sol` fixtures.
@@ -97,20 +98,6 @@ not preserved.
 
 Coverage: `tests/ui/typeck/view_pure_checker/yul_functions.sol` and
 `tests/ui/typeck/view_pure_checker/yul_parity.sol`.
-
-### TYPECK-002: Standalone call-option function values
-
-Status: intentional.
-
-Difference: `solc` permits call options such as `{gas: ...}` and `{value: ...}`
-to form a function value, including when accessing its `.address` or `.selector`
-member. `solar` requires call options to be part of a call expression.
-
-Rationale: `solar` models call options on HIR call expressions and intentionally
-does not represent an option-bearing function value as a separate HIR node.
-
-Coverage: `tests/ui/typeck/function_calls/call_options_standalone.sol` and
-[#1269](https://github.com/paradigmxyz/solar/pull/1269#discussion_r3846737698).
 
 ### TYPECK-003: Inline array literals adopt the expected element type
 

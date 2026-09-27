@@ -496,7 +496,7 @@ impl<'gcx> Visit<'gcx> for CallCollector<'_, 'gcx> {
     }
 
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
-        if let hir::ExprKind::Call(callee, ref args, _) = expr.kind {
+        if let Some((callee, args, _)) = expr.as_call() {
             self.collect_call(callee, args);
         }
         hir::Visit::walk_expr(self, expr)

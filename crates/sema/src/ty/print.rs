@@ -136,6 +136,7 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
 
             TyKind::Slice(..)
             | TyKind::StringLiteral(..)
+            | TyKind::CallOptions(_)
             | TyKind::IntLiteral(..)
             | TyKind::Tuple(_)
             | TyKind::Mapping(..)
@@ -258,9 +259,13 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
             }
 
             // Internal types.
+            TyKind::CallOptions(ty) => {
+                self.print(ty)?;
+                self.buf.write_str(" with call options")
+            }
             TyKind::StringLiteral(utf8, size) => {
                 let kind = if utf8 { "utf8" } else { "bytes" };
-                write!(self.buf, "{kind}_string_literal[{}]", size.bytes())
+                write!(self.buf, "{kind}_string_literal[{}]", size.bytes_raw())
             }
             TyKind::IntLiteral(_, size, _) => {
                 write!(self.buf, "int_literal[{}]", size.bits())

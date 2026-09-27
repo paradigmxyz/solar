@@ -246,7 +246,7 @@ impl<'gcx> Visit<'gcx> for CallGraphBuilder<'gcx> {
             self.enqueue(function);
         }
 
-        if let hir::ExprKind::Call(callee, ref args, options) = expr.kind {
+        if let Some((callee, args, options)) = expr.as_call() {
             let direct = self.collect_call(callee);
             let previous = self.direct_callee;
             if direct {

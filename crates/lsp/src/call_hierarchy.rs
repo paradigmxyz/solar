@@ -591,10 +591,7 @@ fn resolved_source_call<'gcx>(
     gcx: Gcx<'gcx>,
     expr: &hir::Expr<'gcx>,
 ) -> Option<(hir::FunctionId, Span)> {
-    let hir::ExprKind::Call(callee, ..) = expr.kind else {
-        return None;
-    };
-    let callee = callee.peel_parens();
+    let (callee, _, _) = expr.as_call()?;
     if let hir::ExprKind::New(ty) = &callee.kind
         && let TyKind::Fn(function) = gcx.type_of_expr(callee.id)?.kind
         && function.is_creation()

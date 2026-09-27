@@ -70,7 +70,7 @@ impl super::LoweringContext<'_> {
                         } else if let Some(import_scope) = import_scope {
                             // Import all declarations.
                             for (&name, decls) in &import_scope.declarations {
-                                for decl in decls {
+                                for decl in &decls.all {
                                     // Re-span to the import statement.
                                     let mut decl = *decl;
                                     decl.span = import_item.span;
@@ -1122,6 +1122,9 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn declare_yul_function(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
+        if self.check_yul_identifier(function.name).is_err() {
+            return;
+        }
         let res = Res::Item(hir::ItemId::Function(id));
         let _ = self.scopes.current_scope().declare_res(
             self.lcx.sess,
@@ -1180,7 +1183,9 @@ impl<'gcx> ResolveContext<'gcx> {
         );
         let id = self.hir.variables.push(var);
         let res = Res::Item(hir::ItemId::Variable(id));
-        let _ = self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
+        let _ = self.check_yul_identifier(name).and_then(|()| {
+            self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res)
+        });
         id
     }
 
@@ -1280,8 +1285,9 @@ impl<'gcx> ResolveContext<'gcx> {
         );
         let id = self.hir.variables.push(var);
         let res = Res::Item(hir::ItemId::Variable(id));
-        let result =
-            self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
+        let result = self.check_yul_identifier(name).and_then(|()| {
+            self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res)
+        });
         (id, result)
     }
 
@@ -1348,13 +1354,6 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_condition(&mut self, expr: &ast::yul::Expr<'_>) -> &'gcx hir::Expr<'gcx> {
-        match &expr.kind {
-            ast::yul::ExprKind::Lit(lit) if matches!(lit.kind, ast::LitKind::Bool(_)) => {
-                return self.lower_yul_expr(expr);
-            }
-            _ => {}
-        }
-
         // <expr> != 0
         let expr = self.lower_yul_expr(expr);
         let zero = self.yul_number_lit(U256::ZERO, expr.span);
@@ -1390,7 +1389,7 @@ impl<'gcx> ResolveContext<'gcx> {
                     hir::ExprKind::Ident(res),
                     call.name.span,
                 );
-                hir::ExprKind::Call(callee, self.lower_yul_call_args(call.arguments, span), None)
+                hir::ExprKind::Call(callee, self.lower_yul_call_args(call.arguments, span))
             }
             Err(guar) => hir::ExprKind::Err(guar),
         }
@@ -1465,14 +1464,7 @@ impl<'gcx> ResolveContext<'gcx> {
                     .help(format!("compile with `--evm-version {required}` or newer"))
                     .emit());
             }
-            let is_active = match builtin {
-                Builtin::YulDifficulty => !target.has_prev_randao(),
-                Builtin::YulPrevrandao => target.has_prev_randao(),
-                _ => true,
-            };
-            if is_active {
-                return Ok(self.arena.alloc_as_slice(Res::Builtin(builtin)));
-            }
+            return Ok(self.arena.alloc_as_slice(Res::Builtin(builtin)));
         }
         if name.name.as_str().starts_with("verbatim_") {
             return Err(self.dcx().emit_err(name.span, "unsupported verbatim builtin"));
@@ -1505,7 +1497,14 @@ impl<'gcx> ResolveContext<'gcx> {
     fn lower_yul_path_expr_full(&mut self, path: &ast::PathSlice) -> hir::Expr<'gcx> {
         let segments = path.segments();
         let first = segments.first().copied().unwrap();
-        let kind = match self.resolve_yul_paths(first) {
+        let resolved = if segments.len() == 1 && self.is_reserved_yul_name(first) {
+            Err(self
+                .dcx()
+                .emit_err(first.span, format!("builtin function `{first}` must be called")))
+        } else {
+            self.resolve_yul_paths(first)
+        };
+        let kind = match resolved {
             Ok(decls) => hir::ExprKind::Ident(
                 self.arena.alloc_slice_fill_iter(decls.iter().map(|decl| decl.res)),
             ),
@@ -1543,6 +1542,53 @@ impl<'gcx> ResolveContext<'gcx> {
         self.resolver
             .resolve_name_non_local(name, &self.scopes)
             .map_err(self.resolver.emit_resolver_error())
+    }
+
+    fn is_reserved_yul_name(&self, name: Ident) -> bool {
+        let target = self.lcx.sess.opts.evm_version;
+        name.is_reserved_yul_builtin()
+            && Builtin::from_yul_name(name.name).is_some_and(|builtin| {
+                builtin.required_evm_version(target).is_none()
+                    && match builtin {
+                        Builtin::YulDifficulty => !target.has_prev_randao(),
+                        Builtin::YulPrevrandao => target.has_prev_randao(),
+                        _ => true,
+                    }
+            })
+    }
+
+    fn check_yul_identifier(&self, name: Ident) -> Result<(), ErrorGuaranteed> {
+        if !name.is_reserved_yul_builtin() {
+            return Ok(());
+        }
+        let target = self.lcx.sess.opts.evm_version;
+        let future = match Builtin::from_yul_name(name.name) {
+            Some(Builtin::YulPrevrandao) => !target.has_prev_randao(),
+            Some(
+                builtin @ (Builtin::YulBasefee
+                | Builtin::YulBlobbasefee
+                | Builtin::YulBlobhash
+                | Builtin::YulMcopy
+                | Builtin::YulTload
+                | Builtin::YulTstore
+                | Builtin::YulClz
+                | Builtin::YulSlotnum),
+            ) => builtin.required_evm_version(target).is_some(),
+            _ => false,
+        };
+        if !future {
+            return Err(self
+                .dcx()
+                .emit_err(name.span, format!("`{name}` is reserved for a Yul builtin")));
+        }
+        self.dcx()
+            .warn(format!(
+                "`{name}` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier"
+            ))
+            .span(name.span)
+            .code(error_code!(5470))
+            .emit();
+        Ok(())
     }
 
     fn yul_number_lit(&mut self, value: U256, span: Span) -> &'gcx hir::Expr<'gcx> {
@@ -1615,7 +1661,6 @@ impl<'gcx> ResolveContext<'gcx> {
                     span: path.span(),
                 }),
                 self.lower_call_args(args),
-                None,
             ),
             id: self.next_id(),
             span,
@@ -1883,21 +1928,11 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::ExprKind::Binary(lhs, op, rhs) => {
                 hir::ExprKind::Binary(self.lower_expr(lhs), *op, self.lower_expr(rhs))
             }
-            ast::ExprKind::Call(callee, args) => {
-                let (callee, options) = self.lower_call_callee(callee);
-                hir::ExprKind::Call(callee, self.lower_call_args(args), options)
-            }
-            ast::ExprKind::CallOptions(callee, options) => {
-                let callee = self.lower_expr(callee);
-                let _options = self.lower_named_args(options);
-                let options_span = callee.span.shrink_to_hi().with_hi(expr.span.hi());
-                hir::ExprKind::Err(self.sess.dcx.emit_err_span_note(
-                    options_span,
-                    "call options must be part of a call expression",
-                    expr.span,
-                    "this expression is not a function call expression",
-                ))
-            }
+            ast::ExprKind::Call(callee, args) => hir::ExprKind::Call(
+                self.lower_expr(callee.peel_parens()),
+                self.lower_call_args(args),
+            ),
+            ast::ExprKind::CallOptions(..) => self.lower_call_options(expr),
             ast::ExprKind::Delete(expr) => hir::ExprKind::Delete(self.lower_expr(expr)),
             ast::ExprKind::Ident(name) => {
                 match self.resolve_paths(ast::PathSlice::from_ref(name)) {
@@ -1953,37 +1988,25 @@ impl<'gcx> ResolveContext<'gcx> {
         self.arena.alloc_with(|| lit.copy_without_data())
     }
 
-    fn lower_call_callee(
-        &mut self,
-        callee: &ast::Expr<'_>,
-    ) -> (&'gcx hir::Expr<'gcx>, Option<&'gcx hir::CallOptions<'gcx>>) {
+    fn lower_call_options(&mut self, expr: &ast::Expr<'_>) -> hir::ExprKind<'gcx> {
+        let ast::ExprKind::CallOptions(callee, args) = &expr.kind else { unreachable!() };
         let mut inner = callee.peel_parens();
-        let mut options = None;
+        let mut options = hir::CallOptions { span: expr.span, args: self.lower_named_args(args) };
         let mut has_nested_options = false;
-
         while let ast::ExprKind::CallOptions(next, args) = &inner.kind {
-            if options.is_some() {
-                has_nested_options = true;
-            }
-            options =
-                Some(hir::CallOptions { span: inner.span, args: self.lower_named_args(args) });
+            has_nested_options = true;
+            options = hir::CallOptions { span: inner.span, args: self.lower_named_args(args) };
             inner = next.peel_parens();
         }
-
-        let Some(options) = options else {
-            return (self.lower_expr(inner), None);
-        };
-
         if has_nested_options {
             self.sess
                 .dcx
                 .err("function call options have already been set")
-                .span(callee.span)
+                .span(expr.span)
                 .help("combine them into a single `{...}` option")
                 .emit();
         }
-
-        (self.lower_expr(inner), Some(self.arena.alloc(options)))
+        hir::ExprKind::CallOptions(self.lower_expr(inner), self.arena.alloc(options))
     }
 
     fn lower_named_args(&mut self, options: &[ast::NamedArg<'_>]) -> &'gcx [hir::NamedArg<'gcx>] {
@@ -2289,7 +2312,7 @@ impl<'gcx> SymbolResolver<'gcx> {
         name: Ident,
         scopes: &'a SymbolResolverScopes,
     ) -> Option<&'a [Declaration]> {
-        scopes.get(self).find_map(move |scope| scope.resolve(name))
+        scopes.get(self).find_map(move |scope| scope.resolve_unqualified(name))
     }
 
     fn resolve_name_non_local<'a>(
@@ -2299,7 +2322,7 @@ impl<'gcx> SymbolResolver<'gcx> {
     ) -> Result<&'a [Declaration], ResolverError> {
         scopes
             .get_non_local(self)
-            .find_map(move |scope| scope.resolve(name))
+            .find_map(move |scope| scope.resolve_unqualified(name))
             .ok_or_else(|| ResolverError::new(name, ResolverErrorKind::Unresolved))
     }
 
@@ -2408,7 +2431,28 @@ impl fmt::Debug for Declarations {
 const INNER_INLINE_CAPACITY: usize = 1;
 const INNER_FIRST_RESERVE: usize = 4 - INNER_INLINE_CAPACITY;
 
-type DeclarationsInner = SmallVec<[Declaration; INNER_INLINE_CAPACITY]>;
+type DeclarationList = SmallVec<[Declaration; INNER_INLINE_CAPACITY]>;
+
+#[derive(Clone, Default)]
+struct DeclarationsInner {
+    all: DeclarationList,
+    /// Declarations visible to unqualified lookup precede external-only functions.
+    visible: usize,
+}
+
+impl DeclarationsInner {
+    fn push(&mut self, decl: Declaration, visible: bool) {
+        if self.all.len() == self.all.capacity() && self.all.capacity() == INNER_INLINE_CAPACITY {
+            self.all.reserve(INNER_FIRST_RESERVE);
+        }
+        if visible {
+            self.all.insert(self.visible, decl);
+            self.visible += 1;
+        } else {
+            self.all.push(decl);
+        }
+    }
+}
 
 impl Declarations {
     pub(crate) fn new() -> Self {
@@ -2432,20 +2476,25 @@ impl Declarations {
     }
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = (Symbol, &[Declaration])> {
-        self.declarations.iter().map(|(key, values)| (*key, values.as_slice()))
+        self.declarations.iter().map(|(key, values)| (*key, values.all.as_slice()))
     }
 
     pub(crate) fn resolve(&self, name: Ident) -> Option<&[Declaration]> {
-        self.declarations.get(&name.name).map(std::ops::Deref::deref)
+        self.declarations.get(&name.name).map(|decls| decls.all.as_slice())
     }
 
-    pub(crate) fn resolve_cloned(&self, name: Ident) -> Option<DeclarationsInner> {
-        self.declarations.get(&name.name).cloned()
+    fn resolve_unqualified(&self, name: Ident) -> Option<&[Declaration]> {
+        let decls = self.declarations.get(&name.name)?;
+        (decls.visible > 0).then_some(&decls.all[..decls.visible])
+    }
+
+    pub(crate) fn resolve_cloned(&self, name: Ident) -> Option<DeclarationList> {
+        self.declarations.get(&name.name).map(|decls| decls.all.clone())
     }
 
     /// Declares `name => decl` without checking for conflicts.
     pub(crate) fn declare_unchecked(&mut self, name: Symbol, decl: Declaration) {
-        self.declarations.entry(name).or_default().push(decl);
+        self.declarations.entry(name).or_default().push(decl, true);
     }
 
     /// Declares `Ident { name, span } => kind` by converting it to
@@ -2478,21 +2527,23 @@ impl Declarations {
         name: Symbol,
         decl: Declaration,
     ) -> Result<(), Declaration> {
+        let visible = !matches!(decl.res, Res::Item(hir::ItemId::Function(id))
+            if hir.function(id).visibility == ast::Visibility::External);
         match self.declarations.entry(name) {
             IndexEntry::Occupied(entry) => {
                 let declarations = entry.into_mut();
-                if let Some(conflict) = Self::conflicting_declaration(hir, decl, declarations) {
+                if let Some(conflict) = Self::conflicting_declaration(hir, decl, &declarations.all)
+                {
                     return Err(conflict);
                 }
-                if !declarations.contains(&decl) {
-                    if declarations.capacity() == INNER_INLINE_CAPACITY {
-                        declarations.reserve(INNER_FIRST_RESERVE);
-                    }
-                    declarations.push(decl);
+                if !declarations.all.contains(&decl) {
+                    declarations.push(decl, visible);
                 }
             }
             IndexEntry::Vacant(entry) => {
-                entry.insert(SmallVec::from_buf([decl]));
+                let mut declarations = DeclarationsInner::default();
+                declarations.push(decl, visible);
+                entry.insert(declarations);
             }
         }
         Ok(())
