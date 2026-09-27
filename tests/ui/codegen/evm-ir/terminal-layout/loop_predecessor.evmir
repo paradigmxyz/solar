@@ -1,4 +1,7 @@
-//@ compile-flags: -Ogas -Zevm-ir-pipeline=terminal-layout
+//@ revisions: terminal pipeline
+//@[terminal] compile-flags: -Ogas -Zevm-ir-pipeline=terminal-layout
+//@[pipeline] compile-flags: -Osize -Zevm-ir-pipeline=default
+//@[pipeline] filecheck:
 
 @module LoopPredecessor
 
@@ -19,6 +22,10 @@ bb3:
 
 // Moving the cold tail before the loop trace keeps its backedge fallthrough
 // and lets the final stop fall off the bytecode.
+// CHECK-LABEL: @module LoopPredecessor
+// CHECK: {{^[ +]*}}bb4:
+// CHECK: {{^[ +]*}}bb5 [loop]:
+// CHECK: {{^[ +]*}}bb6 [loop]:
 bb4:
   push 4
   jump bb6

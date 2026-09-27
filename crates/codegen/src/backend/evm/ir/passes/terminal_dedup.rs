@@ -1,5 +1,9 @@
 //! Duplicate terminal block elimination.
 //!
+//! Do not schedule sharing in modules containing `PC`: distinct instruction sites must remain
+//! distinct observations, even when their surrounding bodies become identical. Blocks with custom
+//! instruction stack effects are not candidates: sharing must preserve their stack contracts.
+//!
 //! Terminal blocks with identical machine instruction bodies can share one
 //! implementation because execution never returns to their callers. This pass
 //! keeps the first body and redirects later copies to it. CFG simplification
@@ -23,7 +27,11 @@
 //! Shared code keeps source origins but drops function events that disagree between paths. Debug
 //! metadata does not participate in candidate selection or prevent executable-code sharing.
 
-use super::{EvmPass, cfg_simplify::is_direct_jump_label, utils::is_terminal_boundary};
+use super::{
+    EvmPass,
+    cfg_simplify::is_direct_jump_label,
+    utils::{is_terminal_boundary, observes_instruction_position},
+};
 use crate::backend::evm::ir::{
     Block, BlockId, Hotness, Module, PushValue, Terminator, TerminatorKind,
 };
@@ -41,7 +49,7 @@ impl EvmPass for TerminalDedup {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        deduplicate_terminals(gcx, module)
+        !observes_instruction_position(module) && deduplicate_terminals(gcx, module)
     }
 }
 
@@ -129,7 +137,9 @@ fn merge_debug_origins(module: &mut Module, redirects: &[(BlockId, BlockId)]) {
 
 fn terminal_block_key(block: &Block, redirectable: bool) -> Option<TerminalBlockKey> {
     let terminator = &block.terminator.as_ref()?.kind;
-    if !is_terminal_boundary(terminator) && !redirectable {
+    if (!is_terminal_boundary(terminator) && !redirectable)
+        || block.instructions.iter().any(|inst| !inst.has_canonical_stack_effect())
+    {
         return None;
     }
     let instructions = block

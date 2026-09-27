@@ -7,8 +7,9 @@
 //! the earlier structural sweeps.
 //!
 //! The pass runs near the end of the EVM IR pipeline. Each underlying transform retains its own
-//! safety and profitability checks. The conditional preserves the complete cleanup when a late
-//! terminal opportunity exists while avoiding two whole-module analyses on unchanged code.
+//! safety and profitability checks. Final CFG cleanup runs after this pass so sharing cannot
+//! undo its return duplication and branch rewrites. The conditional preserves the complete cleanup
+//! when a late terminal opportunity exists, avoiding two whole-module analyses on unchanged code.
 
 use super::{
     EvmPass, cfg_simplify::CfgSimplify, tail_merge::TailMerge, terminal_dedup::TerminalDedup,
@@ -29,7 +30,7 @@ impl EvmPass for LateStructural {
         }
 
         // terminal_dedup; cfg_simplify; tail_merge
-        let _ = CfgSimplify::FINAL.run_pass(gcx, module);
+        let _ = CfgSimplify::EARLY.run_pass(gcx, module);
         let _ = TailMerge.run_pass(gcx, module);
         true
     }

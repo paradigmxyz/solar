@@ -67,11 +67,10 @@ fn @factory.0() [selector=0x1af91295, abi_wrapper, pure] {
     jumpi v42, bb1, bb12
   bb12:
     v43 = calldataload v31
-    v44 = and v43, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    v45 = shr 96, v44
+    v44 = shr 96, v43
     jump bb5
   bb5:
-    v22 = phi [bb9: 0], [bb12: v45]
+    v22 = phi [bb9: 0], [bb12: v44]
     v10 = and v22, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 128, v10
     returndata 128, 32

@@ -1,4 +1,7 @@
 //@ codegen-matrix: standard
+//@[gas,size] compile-flags: -Zdump=evm-ir-runtime
+//@[gas,size] normalize-stdout-test: "(?s).+" -> ""
+//@[gas,size] filecheck:
 //@ run-call: choose true, 99, 79 => 100
 //@ run-call: choose false, 99, 79 => 80
 //@ run-call-fail: choose true, 100, 79
@@ -73,6 +76,14 @@ contract JoinedRanges {
         return uint256(x);
     }
 
+    // Late CFG cleanup exposes repeated calldata loads; final block CSE reuses them.
+    // CHECK-LABEL: @module JoinedRanges_runtime
+    // CHECK: push 79
+    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: gt
+    // CHECK: push 100
+    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: lt
     function choose(bool choice, uint256 a, uint256 b) external pure returns (uint256) {
         uint256 x;
         if (choice) { require(a < 100); x = a; }

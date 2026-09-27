@@ -344,6 +344,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
     &lower_mcopy::LowerMCopy,
+    // Remove constant branches and empty loops introduced by memory lowering.
+    &sccp::Sccp,
+    &cfg_simplify::CfgSimplify,
     // Carry proved argument widths across calls before simplifying word masks.
     &call_cleanup::CallCleanup,
     // Shared scalar ABI words and wrapper bodies become one CFG before extraction.

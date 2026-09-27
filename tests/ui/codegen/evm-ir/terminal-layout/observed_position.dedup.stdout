@@ -1,0 +1,48 @@
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-layout/observed_position.evmir (before terminal-dedup) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-layout/observed_position.evmir (after terminal-dedup) ===
+  @module ObservedPosition
+  bb0:
+    push 0
+    calldataload
+    indexed_jump bb1, bb3, bb3, bb3
+  bb1:
+    pc
+    push 0
+    mstore
+    push 32
+    push 0
+    jump bb2
+  bb2:
+    return
+  bb3:
+    pc
+    push 0
+    mstore
+    push 32
+    push 0
+    jump bb2
+  
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-layout/observed_position.evmir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-layout/observed_position.evmir (after cfg-simplify) ===
+  @module ObservedPosition
+  bb0:
+    push 0
+    calldataload
+    indexed_jump bb1, bb3, bb3, bb3
+  bb1:
+    pc
+    push 0
+    mstore
+    push 32
+    push 0
+    jump bb2
+  bb2:
+    return
+  bb3:
+    pc
+    push 0
+    mstore
+    push 32
+    push 0
+    jump bb2
+  

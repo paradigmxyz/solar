@@ -12,8 +12,9 @@
 //! fallthroughs remain intact, and no instruction or condition is duplicated.
 //!
 //! All rewrites preserve explicit block identities, instructions, and stack effects. Changing
-//! physical order never splits a block or alters its debug metadata. This pass runs last so
-//! subsequent trace construction cannot undo the chosen loop fallthroughs.
+//! physical order never splits a block or alters its debug metadata. In gas mode, this pass runs
+//! after ordinary trace construction so later trace construction cannot undo its loop fallthroughs.
+//! Size mode skips this pass and may refresh ordinary block layout after local cleanup.
 
 use super::{
     EvmPass,
@@ -37,10 +38,11 @@ impl EvmPass for LoopLayout {
         "loop-layout"
     }
 
+    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
+        gcx.sess.opts.optimization.is_gas()
+    }
+
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        if !gcx.sess.opts.optimization.is_gas() {
-            return false;
-        }
         BlockLayout.run_pass(gcx, module) | place_loop_latches(gcx, module)
     }
 }

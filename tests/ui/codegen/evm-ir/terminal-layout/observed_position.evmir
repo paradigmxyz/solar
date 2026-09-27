@@ -1,20 +1,38 @@
-//@ compile-flags: -Ogas -Zevm-ir-pipeline=terminal-layout
+//@ revisions: layout dedup tail pipeline
+//@[layout] compile-flags: -Ogas -Zevm-ir-pipeline=terminal-layout
+//@[dedup] compile-flags: -Osize -Zevm-ir-pipeline=terminal-dedup,cfg-simplify
+//@[tail] compile-flags: -Osize -Zevm-ir-pipeline=tail-merge,cfg-simplify
+//@[pipeline] compile-flags: -Osize -Zevm-ir-pipeline=default
+//@[pipeline] filecheck:
 
 @module ObservedPosition
 
 // A position-observing module retains its existing order.
 bb0:
-  pc
-  pop
-  push 1
-  indexed_jump bb1, bb3, bb3, bb3
-bb1:
   push 0
+  calldataload
+  indexed_jump bb1, bb3, bb3, bb3
+// Both reachable paths must retain their own PC observation after sharing and cleanup.
+// CHECK-LABEL: @module ObservedPosition
+// CHECK: pc
+// CHECK-NEXT: push 0
+// CHECK-NEXT: mstore
+// CHECK: pc
+// CHECK-NEXT: push 0
+// CHECK-NEXT: mstore
+bb1:
+  pc
+  push 0
+  mstore
+  push 32
   push 0
   jump bb2
 bb2:
   return
 bb3:
+  pc
   push 0
+  mstore
+  push 32
   push 0
   jump bb2
