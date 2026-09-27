@@ -57,21 +57,20 @@ fn @typed(arg0: i256) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_re
     v33 = eq v32, false
     v34 = and v31, v33
     v35 = zext i1 v34 to i256
-    v36 = ne v35, 0
-    jumpi v36, bb9, bb10
+    jumpi v34, bb9, bb10
   bb10:
     jumpi true, bb11, bb12
   bb12:
-    v42 = ptrtoint memptr v8 to i256
-    revert v42, v9
+    v41 = ptrtoint memptr v8 to i256
+    revert v41, v9
   bb11:
     jump bb3
   bb9:
-    v37 = memory_object_data memorybytes, v7
-    v38 = ptrtoint memptr v37 to i256
-    v39 = add v38, 4
-    v40 = make_memory_slice v39, 32
-    v41 = memory_slice_load_word memory, v40, 0
+    v36 = memory_object_data memorybytes, v7
+    v37 = ptrtoint memptr v36 to i256
+    v38 = add v37, 4
+    v39 = make_memory_slice v38, 32
+    v40 = memory_slice_load_word memory, v39, 0
     jump bb3
   bb7:
     v18 = memory_object_data memorybytes, v7
@@ -96,8 +95,8 @@ fn @typed(arg0: i256) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_re
     v6 = abi_decode [u256], v5
     jump bb3
   bb3:
-    v43 = phi [bb1: v6], [bb7: 1], [bb9: 2], [bb11: 3]
-    ret v43
+    v42 = phi [bb1: v6], [bb7: 1], [bb9: 2], [bb11: 3]
+    ret v42
 }
 
 fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
@@ -113,18 +112,17 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     v6 = gt v5, arg1
     v7 = or v4, v6
     v8 = zext i1 v7 to i256
-    v9 = ne v8, 0
-    jumpi v9, bb3, bb2
+    jumpi v7, bb3, bb2
   bb2:
-    v10 = add v2, v3
-    v11 = mload v10
-    v12 = gt v11, 0xffffffffffffffff
-    v13 = sub arg1, v5
-    v14 = gt v11, v13
-    v15 = or v12, v14
-    v16 = zext i1 v15 to i256
-    v17 = eq v16, 0
-    ret v17
+    v9 = add v2, v3
+    v10 = mload v9
+    v11 = gt v10, 0xffffffffffffffff
+    v12 = sub arg1, v5
+    v13 = gt v10, v12
+    v14 = or v11, v13
+    v15 = zext i1 v14 to i256
+    v16 = eq v15, 0
+    ret v16
   bb3:
     ret false
 }

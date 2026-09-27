@@ -670,6 +670,9 @@ impl IntScalar {
     }
 
     fn checked_pow(self, r: Self) -> Result<Self, EE> {
+        if r.data.is_zero() {
+            return Self::checked(BigInt::one());
+        }
         if self.data.is_zero() {
             return Ok(self);
         }

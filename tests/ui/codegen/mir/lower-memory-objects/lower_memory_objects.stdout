@@ -94,8 +94,7 @@
 -     v2 = memory_object_len memorybytes, v1
 +     v0 = ptrtoint memptr arg0 to i256
 +     v1 = inttoptr i256 v0 to memptr
-+     v3 = ptrtoint memptr v1 to i256
-+     v2 = mload v3
++     v2 = mload v0
       ret v2
   }
   
@@ -121,8 +120,7 @@
 +     v3 = ptrtoint memptr v0 to i256
 +     v4 = add v3, 32
 +     v1 = inttoptr i256 v4 to memptr
-+     v5 = ptrtoint memptr v1 to i256
-+     mstore v5, 0
++     mstore v4, 0
       ret v1
   }
   

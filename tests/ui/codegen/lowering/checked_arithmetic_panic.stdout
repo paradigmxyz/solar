@@ -95,8 +95,7 @@ fn @pow(arg0: i256, arg1: i256) -> i256 [selector=0x2e4c697f, pure, abi_params=[
     v26 = gt v18, 0
     v27 = and v26, v25
     v28 = zext i1 v27 to i256
-    v29 = ne v28, 0
-    jumpi v29, bb4, bb6
+    jumpi v27, bb4, bb6
   bb6:
     jump bb1
   bb4:

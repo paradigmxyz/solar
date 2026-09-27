@@ -1,6 +1,6 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/clz.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/clz.mir (after egraph) ===
-  @module ClzInstSimplify
+  @module Clz
   types:
     struct0: {i256, i256, i256}
     struct1: {i256, i256, i256, i256, i256}

@@ -1,3 +1,5 @@
+use alloy_primitives::hex;
+use digest_io::IoWrapper;
 use sha2::{Digest, Sha256};
 use std::{
     env, fs, io,
@@ -40,18 +42,18 @@ fn contract_sha256(workspace: &Path, manifest_dir: &Path) -> String {
     collect_rust_files(&manifest_dir.join("src"), &mut files);
     files.sort();
 
-    let mut hasher = Sha256::new();
+    let mut hasher = IoWrapper(Sha256::new());
     for path in files {
         println!("cargo::rerun-if-changed={}", path.display());
         let relative = path.strip_prefix(workspace).unwrap();
         let mut file = fs::File::open(&path).unwrap();
         let length = file.metadata().unwrap().len();
-        hasher.update(relative.to_string_lossy().as_bytes());
-        hasher.update([0]);
-        hasher.update(length.to_le_bytes());
+        hasher.0.update(relative.to_string_lossy().as_bytes());
+        hasher.0.update([0]);
+        hasher.0.update(length.to_le_bytes());
         assert_eq!(io::copy(&mut file, &mut hasher).unwrap(), length);
     }
-    format!("{:x}", hasher.finalize())
+    hex::encode(hasher.0.finalize())
 }
 
 fn collect_rust_files(directory: &Path, files: &mut Vec<PathBuf>) {

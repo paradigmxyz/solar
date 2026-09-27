@@ -13,18 +13,18 @@ fn @lastWord() [selector=0x3955f902, abi_wrapper, pure] {
 
 fn @lastWord2() [selector=0x97f495a8, abi_wrapper, pure] {
   bb0:
-    v15 = icall @decode_calldata_slice, 4
-    v16 = calldataload v15
-    v17 = add v15, 32
-    v0 = icall @_last, v17, v16
-    v4 = eq v16, 0
+    v14 = icall @decode_calldata_slice, 4
+    v15 = calldataload v14
+    v16 = add v14, 32
+    v0 = icall @_last, v16, v15
+    v4 = eq v15, 0
     jumpi v4, bb1, bb2
   bb2:
-    v8 = sub v16, 1
-    v9 = add v17, 1
-    v11 = icall @_last, v9, v8
-    v12 = xor v0, v11
-    mstore 128, v12
+    v7 = sub v15, 1
+    v8 = add v16, 1
+    v10 = icall @_last, v8, v7
+    v11 = xor v0, v10
+    mstore 128, v11
     returndata 128, 32
   bb1:
     revert 0, 0

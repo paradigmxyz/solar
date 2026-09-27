@@ -66,7 +66,7 @@ def substitute(tree, bindings):
 
 def extractor_definitions():
     definitions = {}
-    for form, _ in forms((ISLE / "extractors.isle").read_text()):
+    for form, _ in forms((ISLE / "mir/extractors.isle").read_text()):
         if form[0] == "extractor":
             _, (name, *params), body = form
             definitions[name] = (params, body)
@@ -145,7 +145,7 @@ class Context:
         self.bindings = opcode_bindings(
             selection_source
             if selection_source is not None
-            else (ISLE / "select.isle").read_text()
+            else (ISLE / "mir-to-evm/select.isle").read_text()
         )
         self.fresh_id = 0
         self.memory = MemoryAddresses(self)
@@ -155,7 +155,7 @@ class Context:
             opcode = name[3:].lower()
             declarations = [
                 form[3][1:]
-                for form, _ in forms((ISLE / "prelude.isle").read_text())
+                for form, _ in forms((ISLE / "mir/prelude.isle").read_text())
                 if form[:3] == ("type", "Op", "extern")
             ]
             shapes = {
@@ -172,7 +172,7 @@ class Context:
             # schema-generated field names/types before applying the model.
             declarations = [
                 form[3][1:]
-                for form, _ in forms((ISLE / "prelude.isle").read_text())
+                for form, _ in forms((ISLE / "mir/prelude.isle").read_text())
                 if form[:3] == ("type", "Op", "extern")
             ]
             shapes = {
@@ -405,7 +405,6 @@ class Context:
             )
             return shift
         if name in (
-            "is_const",
             "differ",
             "has_bitwise_shifting",
             "has_self_balance",

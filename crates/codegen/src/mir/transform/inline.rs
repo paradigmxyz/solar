@@ -11,6 +11,10 @@
 //! with a header guard and no other exit receive that weight. Conditional calls and
 //! unknown loop bounds retain the ordinary per-invocation estimate; size mode keeps
 //! its existing growth policy. These are profitability estimates, never legality facts.
+//! Tiny check wrappers containing a semantic check and an optional boolean
+//! negation also inline before check lowering. This exposes the guard to caller
+//! analyses without duplicating arbitrary control flow or allocation. Ordinary
+//! size limits and lifetime pricing still decide whether cloning is profitable.
 //! Tiny forwarding wrappers may return one call result or forward a void call.
 //! Both forms contain only that call and its internal return, so inlining exposes
 //! the original call exactly once without cloning the callee body. Shared void
@@ -41,8 +45,12 @@
 //! over the loop's trip count (ten iterations when none is computable) and the
 //! expected executions, repays the deposited copy; sites outside loops and
 //! callees shared by more than eight sites keep the call. Read-only loops are eligible after
-//! loop-idiom lowering when their bounded MIR shape replaces the original scalar loop;
-//! writes and shared phi helpers remain excluded. This is a bounded profitability
+//! loop-idiom lowering when their bounded MIR shape replaces the original scalar loop.
+//! A phi-free helper with one return may also call a nonreturning failure helper.
+//! Such calls stay on their original paths: caller values never survive them.
+//! Keep more complex call-containing helpers shared rather than duplicating their
+//! diamonds under the scalar leaf cost estimate.
+//! Other writes and shared phi helpers remain excluded. This is a bounded profitability
 //! estimate, not a promise that the scheduler will emit no spills.
 //! A separate gas-only late adapter accepts frameless wrappers with one returning
 //! call followed by at most five physical address/load/store operations. It clones
@@ -453,6 +461,8 @@ struct MirInlineSummary {
     estimated_code_size: usize,
     internal_frame_size: u64,
     has_icall: bool,
+    /// Calls on returning paths require a separate call/frame stack estimate.
+    has_returning_icall: bool,
     has_phi: bool,
     phi_stack_peak: Option<usize>,
     has_external_call: bool,
@@ -460,6 +470,7 @@ struct MirInlineSummary {
     has_immutable_write: bool,
     has_log: bool,
     has_control_flow: bool,
+    is_check_wrapper: bool,
     /// Whether the body contains a back edge; a loop cloned into a loop nests
     /// its carried words inside the caller's.
     has_loop: bool,
@@ -828,7 +839,7 @@ impl MirInliner {
             && (site.loop_depth == 0
                 || summary.phi_stack_peak.is_none()
                 || summary.has_loop
-                || summary.has_icall
+                || summary.has_returning_icall
                 || summary.internal_frame_size != 0
                 || summary.has_reference_return
                 || call_count > Self::MAX_HOT_LEAF_CALL_SITES)
@@ -871,7 +882,7 @@ impl MirInliner {
                     && !summary.is_transparent_forwarder
                     && !self.memory_wrappers_only)
                 || (!single_call && summary.void_forwarder_adds_args)
-                || summary.has_control_flow)
+                || (summary.has_control_flow && !summary.is_check_wrapper))
         {
             return false;
         }
@@ -1119,6 +1130,32 @@ fn is_small_literal_return(func: &Function) -> bool {
     }
 }
 
+/// A direct call whose callee cannot resume the caller. Keep tail-call chains
+/// conservative; this local test only accepts bodies with explicit message exits.
+fn is_terminal_call(module: &Module, kind: &InstKind) -> bool {
+    let InstKind::ICall { function: Callee::Function(callee), .. } = kind else {
+        return false;
+    };
+    let callee = module.function(*callee);
+    !callee.blocks.is_empty()
+        && callee.blocks.iter().all(|block| {
+            matches!(
+                block.terminator,
+                Some(
+                    Terminator::Jump(_)
+                        | Terminator::Branch { .. }
+                        | Terminator::Switch { .. }
+                        | Terminator::Revert { .. }
+                        | Terminator::RevertReturndata
+                        | Terminator::Stop
+                        | Terminator::Invalid
+                        | Terminator::ReturnData { .. }
+                        | Terminator::SelfDestruct { .. }
+                )
+            )
+        })
+}
+
 fn summarize_function(
     gcx: Gcx<'_>,
     module: &Module,
@@ -1141,6 +1178,7 @@ fn summarize_function(
             .any(|ty| matches!(ty, MirType::MemoryObject(_) | MirType::Slice(_))),
         is_transparent_forwarder: is_transparent_forwarder(module, func),
         is_small_literal_return: is_small_literal_return(func),
+        is_check_wrapper: is_check_wrapper(func),
         is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
         has_function_selector: func.attributes.is_function_pointer_dispatcher,
         is_pure: func.attributes.state_mutability == StateMutability::Pure,
@@ -1157,6 +1195,8 @@ fn summarize_function(
             match kind {
                 InstKind::ICall { function: Callee::Function(_), args } => {
                     summary.has_icall = true;
+                    summary.has_returning_icall |=
+                        peak != PeakAnalysis::Scalars || !is_terminal_call(module, kind);
                     if summary.is_transparent_forwarder && func.return_components().is_empty() {
                         summary.void_forwarder_adds_args = args.len() > func.params.len();
                     }
@@ -1262,12 +1302,17 @@ fn summarize_function(
         && summary.return_count != 0
         && summary.internal_frame_size == 0
         && !summary.has_reference_return
-        && !summary.has_icall
+        && (!summary.has_icall
+            || (peak == PeakAnalysis::Scalars
+                && !summary.has_phi
+                && summary.return_count == 1
+                && !summary.has_returning_icall))
         && func.instructions().all(|inst| {
-            matches!(
-                func.inst(inst).kind.effect_kind(),
-                EffectKind::Pure | EffectKind::MemoryRead | EffectKind::EnvironmentRead
-            )
+            is_terminal_call(module, &func.inst(inst).kind)
+                || matches!(
+                    func.inst(inst).kind.effect_kind(),
+                    EffectKind::Pure | EffectKind::MemoryRead | EffectKind::EnvironmentRead
+                )
         })
     {
         summary.phi_stack_peak = Some(scalar_stack_peak(func));
@@ -1413,6 +1458,36 @@ fn is_immutable_word_leaf(func: &Function) -> bool {
         }
     }
     has_immutable
+}
+
+/// A semantic check has one returning path and no allocation on that path.
+/// Keep the exception narrow: no other calls, memory effects, or computations.
+fn is_check_wrapper(func: &Function) -> bool {
+    if func.attributes.no_inline
+        || func.blocks.len() != 1
+        || func.internal_frame_size != 0
+        || !func.return_components().is_empty()
+    {
+        return false;
+    }
+    let block = &func.blocks[BlockId::ENTRY];
+    if !matches!(&block.terminator, Some(Terminator::Return { values }) if values.is_empty()) {
+        return false;
+    }
+    let call = match block.instructions.as_slice() {
+        [call] => *call,
+        [negation, call]
+            if matches!(func.inst(*negation).kind, InstKind::Eq(lhs, rhs)
+                if func.value_u64(lhs) == Some(0) || func.value_u64(rhs) == Some(0)) =>
+        {
+            *call
+        }
+        _ => return false,
+    };
+    matches!(
+        func.inst(call).kind,
+        InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. }
+    )
 }
 
 fn is_transparent_forwarder(module: &Module, func: &Function) -> bool {

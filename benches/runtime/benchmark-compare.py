@@ -961,7 +961,7 @@ def perf_link(
     head = os.environ.get("BENCHMARK_PR_HEAD_SHA")
     if not base or not head:
         return label
-    query = {"base": base[:8], "head": head[:8]}
+    query = {"base": base, "head": head}
     if benchmark is not None:
         query["benchmark"] = benchmark
         section = "artifacts"

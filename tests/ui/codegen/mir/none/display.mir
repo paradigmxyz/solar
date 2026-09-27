@@ -52,3 +52,20 @@ fn @over.load.5() -> i256 {
   bb0:
     ret 1
 }
+
+// CHECK-LABEL: fn @boolean_ops(
+// CHECK: = and arg0, arg1
+// CHECK: = or
+// CHECK: = xor
+// CHECK: jumpi
+fn @boolean_ops(arg0: i1, arg1: i1) -> i1 {
+  bb0:
+    v0 = and arg0, arg1
+    v1 = or v0, arg1
+    v2 = xor v1, arg0
+    jumpi v2, bb1, bb2
+  bb1:
+    ret v1
+  bb2:
+    ret v0
+}

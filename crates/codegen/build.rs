@@ -4,14 +4,27 @@ use std::{env, fs, path::PathBuf};
 
 /// Rule sets and the ISLE files each one is compiled from, prelude first.
 const RULE_SETS: &[(&str, &[&str])] = &[
-    ("select", &["prelude.isle", "evm_prelude.isle", "select.isle"]),
-    ("stack_select", &["prelude.isle", "extractors.isle", "stack_select.isle"]),
-    ("egraph", &["prelude.isle", "extractors.isle", "egraph.isle", "word.isle"]),
+    ("select", &["mir/prelude.isle", "evm-ir/prelude.isle", "mir-to-evm/select.isle"]),
+    ("stack_select", &["mir/prelude.isle", "mir/extractors.isle", "mir-to-evm/stack_select.isle"]),
+    ("egraph", &["mir/prelude.isle", "mir/extractors.isle", "mir/egraph.isle", "mir/word.isle"]),
     (
         "word_sequence",
-        &["prelude.isle", "extractors.isle", "word_sequence_prelude.isle", "word_sequence.isle"],
+        &[
+            "mir/prelude.isle",
+            "mir/extractors.isle",
+            "mir/word_sequence_prelude.isle",
+            "mir/word_sequence.isle",
+        ],
     ),
-    ("peephole", &["evm_prelude.isle", "peephole.isle", "stack_peephole.isle", "late_word.isle"]),
+    (
+        "peephole",
+        &[
+            "evm-ir/prelude.isle",
+            "evm-ir/peephole.isle",
+            "evm-ir/stack_peephole.isle",
+            "evm-ir/late_word.isle",
+        ],
+    ),
 ];
 
 fn main() {
@@ -25,6 +38,7 @@ fn main() {
             prefix: manifest_dir.display().to_string(),
             name: "solar-codegen".into(),
         }],
+        ..Default::default()
     };
     for (name, files) in RULE_SETS {
         let inputs: Vec<PathBuf> = files.iter().map(|file| isle_dir.join(file)).collect();

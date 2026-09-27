@@ -1468,7 +1468,7 @@ fn case_test_costs(
             let mut cost =
                 equality_test_cost_with_ordered(value, ordered, table_target_width, cleanup_on_hit);
             if coalesce_case_targets && cleanup_on_hit {
-                refine_coalesced_equality_test(&mut cost, value, table_target_width);
+                refine_coalesced_equality_test(&mut cost, table_target_width);
             }
             cost
         })
@@ -1494,25 +1494,28 @@ fn equality_test_cost_with_ordered(
         ordered
     };
     if cleanup_on_hit {
-        // Invert the comparison and branch over POP, PUSH<label>, JUMP, JUMPDEST.
-        cost.code_size += 1 + 1 + MIN_LABEL_PUSH_LEN + 1 + JUMPDEST_LEN;
-        cost.max_code_size += 1 + 1 + max_label_push_len(table_target_width) + 1 + JUMPDEST_LEN;
-        cost.hit_gas += VERY_LOW_GAS + POP_GAS + VERY_LOW_GAS + JUMP_GAS;
-        cost.miss_gas += VERY_LOW_GAS + JUMPDEST_GAS;
+        // SUB branches on a miss at the same cost as EQ. Zero needs no ISZERO.
+        if value.is_zero() {
+            cost.code_size -= 1;
+            cost.max_code_size -= 1;
+            cost.hit_gas -= VERY_LOW_GAS;
+            cost.miss_gas -= VERY_LOW_GAS;
+        }
+        // Branch over POP, PUSH<label>, JUMP, JUMPDEST.
+        cost.code_size += 1 + MIN_LABEL_PUSH_LEN + 1 + JUMPDEST_LEN;
+        cost.max_code_size += 1 + max_label_push_len(table_target_width) + 1 + JUMPDEST_LEN;
+        cost.hit_gas += POP_GAS + VERY_LOW_GAS + JUMP_GAS;
+        cost.miss_gas += JUMPDEST_GAS;
     }
     cost
 }
 
-fn refine_coalesced_equality_test(cost: &mut TestCost, value: U256, table_target_width: usize) {
-    // Peephole folds `EQ; ISZERO` to `SUB`, then CFG simplification coalesces
-    // the single-predecessor case target into the equality guard.
-    let folded_comparison = usize::from(!value.is_zero());
-    cost.code_size = cost.code_size.saturating_sub(MIN_DEFAULT_JUMP_LEN + folded_comparison);
-    cost.max_code_size = cost
-        .max_code_size
-        .saturating_sub(max_default_jump_len(table_target_width) + folded_comparison);
-    cost.hit_gas = cost.hit_gas.saturating_sub(DEFAULT_JUMP_GAS + folded_comparison * VERY_LOW_GAS);
-    cost.miss_gas = cost.miss_gas.saturating_sub(folded_comparison * VERY_LOW_GAS);
+fn refine_coalesced_equality_test(cost: &mut TestCost, table_target_width: usize) {
+    // CFG simplification coalesces the single-predecessor case target into the guard.
+    cost.code_size = cost.code_size.saturating_sub(MIN_DEFAULT_JUMP_LEN);
+    cost.max_code_size =
+        cost.max_code_size.saturating_sub(max_default_jump_len(table_target_width));
+    cost.hit_gas = cost.hit_gas.saturating_sub(DEFAULT_JUMP_GAS);
 }
 
 fn ordered_test_cost(value: U256, evm_version: EvmVersion, table_target_width: usize) -> TestCost {
@@ -1655,9 +1658,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_operand(func, entries[mid].value_id);
         self.asm.emit_op(op::GT);
         self.scheduler.instruction_executed_untracked(2);
-        self.emit_push_label(left_label);
-        self.asm.emit_op(op::JUMPI);
-        self.scheduler.instruction_executed(1, None);
+        self.emit_conditional_jump(left_label, false);
 
         self.emit_binary_mir_switch(func, &entries[mid..], default, false, leaf_size);
 
@@ -1889,9 +1890,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.stack.push_unknown();
         self.asm.emit_op(op::GT);
         self.scheduler.instruction_executed_untracked(2);
-        self.emit_push_label(in_range);
-        self.asm.emit_op(op::JUMPI);
-        self.scheduler.instruction_executed(1, None);
+        self.emit_conditional_jump(in_range, false);
 
         let indexed_stack = self.scheduler.stack.clone();
         self.emit_stack_op(StackOp::Pop);
@@ -1922,28 +1921,21 @@ impl<'gcx> EvmCodegen<'gcx> {
         target: BlockId,
         miss: Option<Label>,
     ) {
+        // dup selector; [push value; eq/sub]; jumpi [iszero] condition, target/next
         self.emit_stack_op(StackOp::Dup(1));
-        if value.is_some_and(|value| value.is_zero())
-            && self.gcx.sess.opts.optimization != OptimizationMode::None
-        {
-            self.asm.emit_op(op::ISZERO);
-            self.scheduler.instruction_executed_untracked(1);
-        } else {
+        let compare_zero = value.is_some_and(|value| value.is_zero())
+            && self.gcx.sess.opts.optimization != OptimizationMode::None;
+        if !compare_zero {
             self.emit_operand(func, value_id);
-            self.asm.emit_op(op::EQ);
+            // A miss needs only nonzero, so subtraction avoids EQ followed by ISZERO.
+            self.asm.emit_op(if self.emitting_entry { op::EQ } else { op::SUB });
             self.scheduler.instruction_executed_untracked(2);
         }
         if self.emitting_entry {
-            self.emit_push_label(self.block_labels[&target]);
-            self.asm.emit_op(op::JUMPI);
-            self.scheduler.instruction_executed(1, None);
+            self.emit_conditional_jump(self.block_labels[&target], compare_zero);
         } else {
-            self.asm.emit_op(op::ISZERO);
-            self.scheduler.instruction_executed_untracked(1);
             let next = miss.unwrap_or_else(|| self.asm.new_label());
-            self.emit_push_label(next);
-            self.asm.emit_op(op::JUMPI);
-            self.scheduler.instruction_executed(1, None);
+            self.emit_conditional_jump(next, false);
 
             let next_stack = self.scheduler.stack.clone();
             self.emit_stack_op(StackOp::Pop);
@@ -2732,13 +2724,10 @@ mod tests {
         );
         let without_cleanup =
             lowering_cost(&values, values.len(), EvmVersion::Cancun, SwitchDefault::Jump, 2, false);
-        assert_eq!(with_cleanup.code_size, without_cleanup.code_size + values.len() * 6 + 1);
-        assert_eq!(
-            with_cleanup.max_code_size,
-            without_cleanup.max_code_size + values.len() * 7 + 1
-        );
-        assert_eq!(with_cleanup.hit_gas_sum, without_cleanup.hit_gas_sum + 88);
-        assert_eq!(with_cleanup.miss_gas, without_cleanup.miss_gas + 18);
+        assert_eq!(with_cleanup.code_size, without_cleanup.code_size + values.len() * 5);
+        assert_eq!(with_cleanup.max_code_size, without_cleanup.max_code_size + values.len() * 6);
+        assert_eq!(with_cleanup.hit_gas_sum, without_cleanup.hit_gas_sum + 46);
+        assert_eq!(with_cleanup.miss_gas, without_cleanup.miss_gas + 3);
     }
 
     #[test]
@@ -2756,10 +2745,10 @@ mod tests {
         };
         let separate = cost(false);
         let coalesced = cost(true);
-        assert_eq!(separate.code_size, coalesced.code_size + 8);
-        assert_eq!(separate.max_code_size, coalesced.max_code_size + 10);
-        assert_eq!(separate.hit_gas_sum, coalesced.hit_gas_sum + 31);
-        assert_eq!(separate.miss_gas, coalesced.miss_gas + 6);
+        assert_eq!(separate.code_size, coalesced.code_size + 6);
+        assert_eq!(separate.max_code_size, coalesced.max_code_size + 8);
+        assert_eq!(separate.hit_gas_sum, coalesced.hit_gas_sum + 22);
+        assert_eq!(separate.miss_gas, coalesced.miss_gas);
     }
 
     #[test]
@@ -2783,7 +2772,7 @@ mod tests {
             false,
         );
         assert_eq!(source_order.code_size, sorted.code_size);
-        assert_eq!(source_order.hit_gas_sum, sorted.hit_gas_sum + 6);
+        assert_eq!(source_order.hit_gas_sum, sorted.hit_gas_sum + 12);
     }
 
     #[test]
@@ -2825,9 +2814,9 @@ mod tests {
             bucket_lowering_cost(&values, 4, EvmVersion::Cancun, SwitchDefault::Jump, 2, false);
         assert_eq!(
             with_cleanup.code_size,
-            without_cleanup.code_size + 12 + 2 + JUMPDEST_LEN + 1 + MIN_DEFAULT_JUMP_LEN
+            without_cleanup.code_size + 9 + 2 + JUMPDEST_LEN + 1 + MIN_DEFAULT_JUMP_LEN
         );
-        assert_eq!(with_cleanup.hit_gas_sum, without_cleanup.hit_gas_sum + 32);
+        assert_eq!(with_cleanup.hit_gas_sum, without_cleanup.hit_gas_sum + 23);
     }
 
     #[test]

@@ -58,9 +58,9 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
     jump bb1
   bb1:
     v3 = phi [bb0: v2], [bb3: v3]
-    v4 = phi [bb0: memorybytes 96], [bb3: v20]
+    v4 = phi [bb0: memorybytes 96], [bb3: v19]
     v5 = phi [bb0: v1], [bb3: v5]
-    v6 = phi [bb0: 0], [bb3: v21]
+    v6 = phi [bb0: 0], [bb3: v20]
     v7 = phi [bb0: 0], [bb3: v7]
     v8 = memory_object_len memoryarray, v5
     v9 = lt v6, v8
@@ -68,10 +68,10 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
   bb5:
     jump bb2
   bb2:
-    v22 = keccak256_bytes v4
-    v23 = insert_value struct1, undef struct1, 0, v22
-    v24 = insert_value struct1, v23, 1, v3
-    ret v24
+    v21 = keccak256_bytes v4
+    v22 = insert_value struct1, undef struct1, 0, v21
+    v23 = insert_value struct1, v22, 1, v3
+    ret v23
   bb4:
     v10 = memory_object_len memoryarray, v5
     v11 = lt v6, v10
@@ -79,22 +79,21 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
     icall panic_if<0x32>, v12
     v13 = memory_object_load_element memoryarray<1>, v5, v6
     v14 = inttoptr i256 v13 to memorybytes
-    v15 = ptrtoint memorybytes v14 to i256
-    v16 = eq v15, 0
-    jumpi v16, bb7, bb8
+    v15 = eq v13, 0
+    jumpi v15, bb7, bb8
   bb7:
-    v17 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v17, 0
-    v18 = ptrtoint memorybytes v17 to i256
-    memory_object_store_element memoryarray<1>, v5, v6, v18
+    v16 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v16, 0
+    v17 = ptrtoint memorybytes v16 to i256
+    memory_object_store_element memoryarray<1>, v5, v6, v17
     jump bb8
   bb8:
-    v19 = phi [bb4: v14], [bb7: v17]
-    v20 = icall concat<memorybytes, memorybytes>, v4, v19
+    v18 = phi [bb4: v14], [bb7: v16]
+    v19 = icall concat<memorybytes, memorybytes>, v4, v18
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v21 = checked_add u256, v6, 1
+    v20 = checked_add u256, v6, 1
     jump bb1
 }

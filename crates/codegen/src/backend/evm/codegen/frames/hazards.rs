@@ -312,7 +312,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     InstKind::Add(first, second) => {
                         derive(*first, visiting, memo).or_else(|| derive(*second, visiting, memo))
                     }
-                    InstKind::Sub(base, _) => derive(*base, visiting, memo),
+                    InstKind::Sub(base, _)
+                    | InstKind::IntToPtr(base)
+                    | InstKind::PtrToInt(base, 256)
+                    | InstKind::Bitcast(base) => derive(*base, visiting, memo),
                     InstKind::And(first, second) if aligned_mask(*second) => {
                         derive(*first, visiting, memo)
                     }

@@ -1,11 +1,13 @@
 //! ISLE rewrite rules for the e-graph pass.
 //!
-//! The rules live in `isle/egraph.isle` and `isle/word.isle`. The instruction vocabulary they match
-//! on is generated from the MIR operation schema into `isle/prelude.isle`, and
+//! The rules live in `isle/mir/egraph.isle` and `isle/mir/word.isle`. The instruction vocabulary
+//! they match on is generated from the MIR operation schema into `isle/mir/prelude.isle`, and
 //! `build.rs` compiles both into Rust. This module implements the extractors
-//! and constructors the rules call.
+//! and constructors the rules call. Root operations and nested definitions expose
+//! constants on the right of declared commutative pairs and comparisons, using
+//! the same canonicalization as e-graph insertion and materialization.
 
-use super::{OperandViews, same_value};
+use super::{OperandViews, canonical_operands, same_value};
 use crate::{
     backend::evm::op,
     mir::{
@@ -83,12 +85,14 @@ impl<'a> RuleContext<'a> {
 
     /// Appends every equivalent instruction the rules can build for `op`.
     pub(super) fn rewrite(&mut self, op: &Op, alternatives: &mut Vec<Op>) {
-        generated::constructor_rewrite(self, op, alternatives);
+        let op = canonical_operands(self.func, *op);
+        generated::constructor_rewrite(self, &op, alternatives);
     }
 
     /// Returns the value `op` is equal to, when a rule applies.
     pub(super) fn simplify(&mut self, op: &Op) -> Option<ValueId> {
-        generated::constructor_simplify(self, op)
+        let op = canonical_operands(self.func, *op);
+        generated::constructor_simplify(self, &op)
     }
 
     fn has_const(&self, value: ValueId, expected: U256) -> bool {
@@ -124,11 +128,10 @@ pub(in crate::mir::transform) fn max_bits_with_args(
     depth: u32,
     argument_bits: &impl Fn(ArgIdx) -> u32,
 ) -> u32 {
-    if func.value_ty(value) == Some(crate::mir::MirType::I1) {
-        return 1;
-    }
-    if func.value_ty(value) == Some(crate::mir::MirType::I160) {
-        return 160;
+    if let Some(crate::mir::MirType::Int(bits)) = func.value_ty(value)
+        && bits.get() < 256
+    {
+        return bits.get();
     }
     if let Some(constant) = func.value_u256(value) {
         return constant.bit_len() as u32;
@@ -140,23 +143,15 @@ pub(in crate::mir::transform) fn max_bits_with_args(
         return 256;
     }
     let Some(kind) = defining_kind(func, value) else { return 256 };
+    if let Some(definition) = kind.evm_opcode().and_then(op::definition)
+        && definition.result_bits < 256
+    {
+        return u32::from(definition.result_bits);
+    }
     let bits = |value| max_bits_with_args(func, value, depth - 1, argument_bits);
     let shift = |shift| func.value_u256(shift).map(|shift| shift.min(U256::from(256)).to::<u32>());
     match *kind {
         InstKind::Zext(value) => bits(value),
-        InstKind::Ne(..)
-        | InstKind::Lt(..)
-        | InstKind::Gt(..)
-        | InstKind::SLt(..)
-        | InstKind::SGt(..)
-        | InstKind::Eq(..) => 1,
-        InstKind::Byte(..) => 8,
-        InstKind::Address
-        | InstKind::Caller
-        | InstKind::Origin
-        | InstKind::Coinbase
-        | InstKind::Create(..)
-        | InstKind::Create2(..) => 160,
         InstKind::And(a, b) => {
             let a = bits(a);
             if a == 0 { 0 } else { a.min(bits(b)) }
@@ -225,13 +220,6 @@ pub(in crate::mir::transform) fn is_bool_value(func: &Function, value: ValueId) 
     func.value_ty(value) == Some(crate::mir::MirType::I1)
 }
 
-/// Returns whether `value` fits in an address, including a widened i160.
-fn is_clean_address(func: &Function, value: ValueId) -> bool {
-    func.value_ty(value) == Some(crate::mir::MirType::I160)
-        || matches!(defining_kind(func, value), Some(InstKind::Zext(inner))
-            if func.value_ty(*inner) == Some(crate::mir::MirType::I160))
-}
-
 fn has_known_sign_bit(func: &Function, value: ValueId) -> bool {
     if let Some(value) = func.value_u256(value) {
         return value.bit(255);
@@ -257,6 +245,7 @@ impl generated::Context for RuleContext<'_> {
             .find(|&&(operand, _)| operand == value)
             .map(|&(_, op)| op)
             .or_else(|| defining_kind(self.func, value).map(InstKind::op))
+            .map(|op| canonical_operands(self.func, op))
     }
 
     fn iconst(&mut self, value: Value) -> Option<U256> {
@@ -304,16 +293,12 @@ impl generated::Context for RuleContext<'_> {
         matches!(defining_kind(self.func, value), Some(InstKind::Address)).then_some(())
     }
 
-    fn is_const(&mut self, value: Value) -> bool {
-        self.func.value_u256(value).is_some()
-    }
-
     fn is_zero_or_one(&mut self, value: Value) -> bool {
         self.has_const(value, U256::ZERO) || self.has_const(value, U256::from(1))
     }
 
     fn masks_clean_address(&mut self, mask: U256, value: Value) -> bool {
-        mask == UINT160_MASK && is_clean_address(self.func, value)
+        mask == UINT160_MASK && max_bits(self.func, value, MAX_BITS_DEPTH) <= 160
     }
 
     fn below_const(&mut self, value: Value, bound: U256) -> bool {

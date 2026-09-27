@@ -101,19 +101,18 @@ fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[
     icall panic_if<0x32>, v28
     v29 = memory_object_load_element memoryarray<1>, v0, 0
     v30 = inttoptr i256 v29 to memoryarray
-    v31 = ptrtoint memoryarray v30 to i256
-    v32 = eq v31, 0
-    jumpi v32, bb4, bb5
+    v31 = eq v29, 0
+    jumpi v31, bb4, bb5
   bb4:
-    v33 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v33, 0
-    v34 = ptrtoint memoryarray v33 to i256
-    memory_object_store_element memoryarray<1>, v0, 0, v34
+    v32 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v32, 0
+    v33 = ptrtoint memoryarray v32 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v33
     jump bb5
   bb5:
-    v35 = phi [bb3: v30], [bb4: v33]
-    v36 = memory_object_len memoryarray, v35
-    ret v36
+    v34 = phi [bb3: v30], [bb4: v32]
+    v35 = memory_object_len memoryarray, v34
+    ret v35
   bb2:
     v3 = ptrtoint memoryarray 96 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v3

@@ -521,8 +521,8 @@ impl Target {
 
     /// Cost of the generic Select emitter, excluding initial operand placement.
     pub(crate) fn select(self, normalize_condition: bool) -> Cost {
-        // dup false; dup true; sub; mul; swap1; pop; add
-        let sequence = [op::DUP1, op::DUP1, op::SUB, op::MUL, op::SWAP1, op::POP, op::ADD]
+        // dup3; swap1; sub; mul; add.
+        let sequence = [op::DUP3, op::SWAP1, op::SUB, op::MUL, op::ADD]
             .into_iter()
             .map(|opcode| self.opcode(opcode))
             .sum::<Cost>();
@@ -741,8 +741,8 @@ mod tests {
     #[test]
     fn select_prices_the_emitted_sequence() {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
-        assert_eq!(target.select(false), Cost::new(22, 7));
-        assert_eq!(target.select(true), Cost::new(25, 8));
+        assert_eq!(target.select(false), Cost::new(17, 5));
+        assert_eq!(target.select(true), Cost::new(20, 6));
     }
 
     #[test]

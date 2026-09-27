@@ -12,7 +12,9 @@
 use crate::mir::{
     BlockId, Function, InstId, InstKind, Module, StorageAlias, ValueId,
     analysis::{Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Liveness, Location},
-    pass::{AnalysisManager, LivenessAnalysis, MirPass, run_function_pass_with_alias},
+    pass::{
+        AnalysisManager, LivenessAnalysis, MirPass, run_selected_function_pass_with_alias_and_cfg,
+    },
     utils as mir_utils,
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
@@ -32,11 +34,22 @@ impl MirPass for StorageLoadCse {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass_with_alias(module, analyses, |func, analyses| {
-            let mut cse = StorageLoadCseCx::new();
-            cse.alias = Some(Rc::clone(analyses.alias()));
-            cse.run_to_fixpoint(func) != 0
-        })
+        let mut selected = DenseBitSet::new_empty(module.functions.len());
+        for (id, func) in module.functions.iter_enumerated() {
+            if func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::SLoad(..))) {
+                selected.insert(id);
+            }
+        }
+        run_selected_function_pass_with_alias_and_cfg(
+            module,
+            analyses,
+            &selected,
+            |func, analyses| {
+                let mut cse = StorageLoadCseCx::new();
+                cse.alias = Some(Rc::clone(analyses.alias()));
+                cse.run_to_fixpoint(func) != 0
+            },
+        )
     }
 }
 

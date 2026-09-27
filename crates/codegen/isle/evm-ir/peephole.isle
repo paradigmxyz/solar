@@ -297,7 +297,7 @@
 (decl pure protected_mask_profitable () bool)
 (extern constructor protected_mask_profitable protected_mask_profitable)
 
-;; PUSH c; [DUPn]; GT/LT; ISZERO => PUSH c±1; [DUPn]; LT/GT.
+;; PUSH c; independent operands; compare; ISZERO => PUSH c±1; operands; opposite compare.
 ;; Reject wrapping bounds, protected windows, and larger materializations.
 (decl invert_comparison (u8 U256 u8) Window)
 (extern extractor invert_comparison invert_comparison)

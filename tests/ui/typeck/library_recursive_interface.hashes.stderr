@@ -1,0 +1,38 @@
+error: recursive types cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/library_recursive_interface.sol:LL:CC
+   │
+LL │     function memoryParameter(Node memory) public {}
+   ╰╴                             ━━━━
+
+error: recursive types cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/library_recursive_interface.sol:LL:CC
+   │
+LL │     function memoryReturn() external returns (Node memory) {}
+   ╰╴                                              ━━━━
+
+error: types containing internal function pointers cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/library_recursive_interface.sol:LL:CC
+   │
+LL │     function recursiveInternal(Bad storage) public {}
+   ╰╴                               ━━━
+
+error: types containing internal function pointers cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/library_recursive_interface.sol:LL:CC
+   │
+LL │     function nestedInternal(Outer storage) external {}
+   ╰╴                            ━━━━━
+
+error: types containing internal function pointers cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/library_recursive_interface.sol:LL:CC
+   │
+LL │     function internalParameter(function() internal) public {}
+   ╰╴                               ━━━━━━━━━━━━━━━━━━━
+
+error: types containing internal function pointers cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/library_recursive_interface.sol:LL:CC
+   │
+LL │     function internalReturn() external returns (function() internal) {}
+   ╰╴                                                ━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 6 previous errors
+

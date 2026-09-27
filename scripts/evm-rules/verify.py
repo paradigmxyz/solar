@@ -33,11 +33,11 @@ def main():
         nargs="*",
         type=Path,
         default=[
-            ISLE / "word.isle",
-            ISLE / "word_sequence.isle",
-            ISLE / "stack_select.isle",
-            ISLE / "stack_peephole.isle",
-            ISLE / "late_word.isle",
+            ISLE / "mir/word.isle",
+            ISLE / "mir/word_sequence.isle",
+            ISLE / "mir-to-evm/stack_select.isle",
+            ISLE / "evm-ir/stack_peephole.isle",
+            ISLE / "evm-ir/late_word.isle",
         ],
     )
     verify.add_argument("--timeout-ms", type=int, default=5000)
@@ -236,11 +236,13 @@ def main():
             b"".join(p.read_bytes() for p in implementation)
         ).hexdigest(),
         selection_sha256=hashlib.sha256(
-            (ISLE / "select.isle").read_bytes()
+            (ISLE / "mir-to-evm/select.isle").read_bytes()
         ).hexdigest(),
-        prelude_sha256=hashlib.sha256((ISLE / "prelude.isle").read_bytes()).hexdigest(),
+        prelude_sha256=hashlib.sha256(
+            (ISLE / "mir/prelude.isle").read_bytes()
+        ).hexdigest(),
         extractors_sha256=hashlib.sha256(
-            (ISLE / "extractors.isle").read_bytes()
+            (ISLE / "mir/extractors.isle").read_bytes()
         ).hexdigest(),
     )
     # These implementations remain trusted; record the exact versions reviewed

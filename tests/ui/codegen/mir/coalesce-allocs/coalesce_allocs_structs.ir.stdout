@@ -8,23 +8,23 @@ fn @combine() [selector=0xd9171e32, abi_wrapper, pure] {
     jumpi v19, bb4, bb5
   bb5:
     v0 = alloc raw, exact, uninitialized, infallible, 96 !metadata(deferred_alloc)
-    v43 = mload 64 !metadata(memory=scratch)
-    v45 = add v43, 128
-    mstore 64, v45 !metadata(memory=scratch)
-    mstore v43, arg0
-    v25 = add v43, 32
+    v41 = mload 64 !metadata(memory=scratch)
+    v42 = add v41, 128
+    mstore 64, v42 !metadata(memory=scratch)
+    mstore v41, arg0
+    v25 = add v41, 32
     mstore v25, 1
-    v42 = add v43, 64
-    mstore v42, 2
-    v27 = add v43, 96
+    v40 = add v41, 64
+    mstore v40, 2
+    v27 = add v41, 96
     mstore v27, arg0
-    v38 = ptrtoint memptr v0 to i256
-    mstore v38, v43
-    v29 = add v38, 32
-    mstore v29, v42
-    v31 = add v38, 64
+    v37 = ptrtoint memptr v0 to i256
+    mstore v37, v41
+    v29 = add v37, 32
+    mstore v29, v40
+    v31 = add v37, 64
     mstore v31, 3
-    v7 = mload v43
+    v7 = mload v41
     v14 = add v7, arg0
     v15 = lt v14, v7
     jumpi v15, bb1, bb2

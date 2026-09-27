@@ -39,6 +39,19 @@
       ret v1
   }
   
+  fn @through_relay(arg0: i256) -> i256 [selector=0x00000003] {
+    bb0:
+      v0 = icall @relay, arg0, 0
+      ret v0
+  }
+  
+  fn @relay(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = icall @outer, arg0, arg1
++     v0 = icall @outer, arg0, 0
+      ret v0
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/specialize/nonleaf_constant.mir (before dead-arg-elim) ===
 + // === ROOT/tests/ui/codegen/mir/specialize/nonleaf_constant.mir (after dead-arg-elim) ===
   @module NonLeafConstant
@@ -79,5 +92,20 @@
       v0 = icall @inner, arg0
       v1 = add v0, arg1
       ret v1
+  }
+  
+  fn @through_relay(arg0: i256) -> i256 [selector=0x00000003] {
+    bb0:
+-     v0 = icall @relay, arg0, 0
++     v0 = icall @relay, arg0
+      ret v0
+  }
+  
+- fn @relay(arg0: i256, arg1: i256) -> i256 {
++ fn @relay(arg0: i256) -> i256 {
+    bb0:
+-     v0 = icall @outer, arg0, 0
++     v0 = icall @outer, arg0
+      ret v0
   }
   

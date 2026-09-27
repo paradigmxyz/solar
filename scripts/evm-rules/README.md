@@ -1,10 +1,12 @@
 # Verified EVM word rewrites
 
 This is an offline search and SMT verification lane for the **actual ISLE source
-compiled into the optimizer**. It currently gates `word.isle`, `word_sequence.isle` and
-`stack_select.isle`, plus the physical rules in `stack_peephole.isle` and
-`late_word.isle`. CI also verifies `egraph.isle` with
-the larger budgets described below. The compiler itself has no solver dependency.
+compiled into the optimizer**. Under `crates/codegen/isle/`, it checks MIR
+rewrites in `mir/word.isle` and `mir/word_sequence.isle`, lowering rules in
+`mir-to-evm/stack_select.isle`, and physical EVM IR rules in
+`evm-ir/stack_peephole.isle` and `evm-ir/late_word.isle`. CI also verifies
+`mir/egraph.isle` with the larger budgets described below. The compiler itself
+has no solver dependency.
 
 ```sh
 uv run scripts/evm-rules/test.py
@@ -85,7 +87,7 @@ bash .github/scripts/run_evm_proofs.sh
 PROOF_AUDIT=true bash .github/scripts/run_evm_proofs.sh target/evm-audit
 
 # Reuse the same cache for a selected file or shard.
-uv run scripts/evm-rules/verify.py verify crates/codegen/isle/word.isle \
+uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/word.isle \
   --cache-dir target/evm-proof-cache --shard-index 0 --shard-count 4 \
   --output target/evm-rules/selected.json --artifacts target/evm-rules/selected
 ```
@@ -143,7 +145,7 @@ five-second limit per strategy per query and fails on every exhausted query.
 Word verification has an optional, explicit cvc5 fallback:
 
 ```sh
-uv run scripts/evm-rules/verify.py verify crates/codegen/isle/egraph.isle \
+uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/egraph.isle \
   --fallback-solver cvc5 --output target/evm-rules/legacy.json \
   --artifacts target/evm-rules/legacy-smt
 ```
@@ -174,7 +176,7 @@ For word queries that remain incomplete, opt into an additional budget for
 proving every output bit separately:
 
 ```sh
-uv run scripts/evm-rules/verify.py verify crates/codegen/isle/egraph.isle \
+uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/egraph.isle \
   --fallback-solver cvc5 --bit-partition-timeout-ms 120000 \
   --bit-partition-jobs 4 \
   --output target/evm-rules/legacy-bits.json \
@@ -364,7 +366,7 @@ decisions remain unchanged in both cases.
 An audit of the older rules is available explicitly:
 
 ```sh
-uv run scripts/evm-rules/verify.py verify crates/codegen/isle/egraph.isle \
+uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/egraph.isle \
   --timeout-ms 1000 --output target/evm-rules/audit.json
 ```
 

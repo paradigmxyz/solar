@@ -73,3 +73,9 @@ name = "lsp_diagnostic"
 path = "benches/lsp_diagnostic.rs"
 harness = false
 required-features = ["bench"]
+
+[[bench]]
+name = "lsp_pending"
+path = "benches/lsp_pending.rs"
+harness = false
+required-features = ["bench"]

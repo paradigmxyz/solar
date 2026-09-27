@@ -33,3 +33,25 @@ bb4:
   dup 1
   push 4
   stop
+
+// Cold computations retain the transfer-cost check at the default gas run count.
+bb5 [cold]:
+  push 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  push 192
+  mstore
+  push 5
+  stop
+bb6 [cold]:
+  push 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  push 192
+  mstore
+  push 6
+  stop
+
+// Cold literals retain the same transfer-cost check without a computation run.
+bb7 [cold]:
+  push 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  pop
+  push 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  pop
+  stop

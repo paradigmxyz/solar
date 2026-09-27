@@ -62,49 +62,47 @@ fn @roundTrip(arg0: i256, arg1: calldataslice) -> i256 [selector=0x00746047, pur
     icall panic_if<0x32>, v66
     v67 = memory_object_load_element memoryarray<1>, v63, 0
     v68 = inttoptr i256 v67 to memoryarray
-    v69 = ptrtoint memoryarray v68 to i256
-    v70 = eq v69, 0
-    jumpi v70, bb4, bb5
+    v69 = eq v67, 0
+    jumpi v69, bb4, bb5
   bb4:
-    v71 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v71, 0
-    v72 = ptrtoint memoryarray v71 to i256
-    memory_object_store_element memoryarray<1>, v63, 0, v72
+    v70 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v70, 0
+    v71 = ptrtoint memoryarray v70 to i256
+    memory_object_store_element memoryarray<1>, v63, 0, v71
     jump bb5
   bb5:
-    v73 = phi [bb3: v68], [bb4: v71]
-    v74 = memory_object_len memoryarray, v73
-    v75 = lt 0, v74
-    v76 = eq v75, false
-    icall panic_if<0x32>, v76
-    v77 = memory_object_load_element memoryarray<1>, v73, 0
-    v78 = checked_add u256, v61, v77
-    v79 = memory_object_load_field memorystruct<2>, v60, 1
-    v80 = inttoptr i256 v79 to memoryarray
-    v81 = memory_object_len memoryarray, v80
-    v82 = lt 1, v81
-    v83 = eq v82, false
-    icall panic_if<0x32>, v83
-    v84 = memory_object_load_element memoryarray<1>, v80, 1
-    v85 = inttoptr i256 v84 to memoryarray
-    v86 = ptrtoint memoryarray v85 to i256
-    v87 = eq v86, 0
-    jumpi v87, bb6, bb7
+    v72 = phi [bb3: v68], [bb4: v70]
+    v73 = memory_object_len memoryarray, v72
+    v74 = lt 0, v73
+    v75 = eq v74, false
+    icall panic_if<0x32>, v75
+    v76 = memory_object_load_element memoryarray<1>, v72, 0
+    v77 = checked_add u256, v61, v76
+    v78 = memory_object_load_field memorystruct<2>, v60, 1
+    v79 = inttoptr i256 v78 to memoryarray
+    v80 = memory_object_len memoryarray, v79
+    v81 = lt 1, v80
+    v82 = eq v81, false
+    icall panic_if<0x32>, v82
+    v83 = memory_object_load_element memoryarray<1>, v79, 1
+    v84 = inttoptr i256 v83 to memoryarray
+    v85 = eq v83, 0
+    jumpi v85, bb6, bb7
   bb6:
-    v88 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v88, 0
-    v89 = ptrtoint memoryarray v88 to i256
-    memory_object_store_element memoryarray<1>, v80, 1, v89
+    v86 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v86, 0
+    v87 = ptrtoint memoryarray v86 to i256
+    memory_object_store_element memoryarray<1>, v79, 1, v87
     jump bb7
   bb7:
-    v90 = phi [bb5: v85], [bb6: v88]
-    v91 = memory_object_len memoryarray, v90
-    v92 = lt 0, v91
-    v93 = eq v92, false
-    icall panic_if<0x32>, v93
-    v94 = memory_object_load_element memoryarray<1>, v90, 0
-    v95 = checked_add u256, v78, v94
-    ret v95
+    v88 = phi [bb5: v84], [bb6: v86]
+    v89 = memory_object_len memoryarray, v88
+    v90 = lt 0, v89
+    v91 = eq v90, false
+    icall panic_if<0x32>, v91
+    v92 = memory_object_load_element memoryarray<1>, v88, 0
+    v93 = checked_add u256, v77, v92
+    ret v93
   bb2:
     v25 = mul v23, 32
     v26 = add v2, v25

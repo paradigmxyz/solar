@@ -14,9 +14,8 @@
 
 use self::{
     stack::{
-        MAX_STACK_ACCESS, OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, SpillSlot,
-        StackScheduler, TargetSlot, cross_block_values, is_cross_block_recomputable_kind,
-        is_rematerializable_leaf,
+        OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, SpillSlot, StackScheduler,
+        TargetSlot, cross_block_values, is_cross_block_recomputable_kind, is_rematerializable_leaf,
         layout::{
             GlobalStackPlan, StackPhiBranch, StackPhiEdge, StackPhiPlan, planned_entry_carries,
         },
@@ -1099,10 +1098,10 @@ RETURN
             let function = &module.functions[function];
             let liveness = Liveness::compute(function);
             codegen.scheduler.stack.push(dest);
-            for _ in 0..MAX_STACK_ACCESS - 2 {
+            for _ in 0..16 - 2 {
                 codegen.scheduler.stack.push_unknown();
             }
-            assert_eq!(codegen.scheduler.stack.find(dest), Some(MAX_STACK_ACCESS - 2));
+            assert_eq!(codegen.scheduler.stack.find(dest), Some(16 - 2));
 
             codegen.emit_data_copy(
                 function,
@@ -1114,7 +1113,7 @@ RETURN
                 1,
             );
 
-            assert_eq!(codegen.scheduler.stack.find(dest), Some(MAX_STACK_ACCESS - 2));
+            assert_eq!(codegen.scheduler.stack.find(dest), Some(16 - 2));
         });
     }
 
@@ -1190,16 +1189,26 @@ RETURN
 
     #[test]
     fn label_push_extends_the_scheduler_peak() {
-        with_codegen(CompileOpts::default(), |mut codegen| {
-            for _ in 0..MAX_STACK_DEPTH {
-                codegen.scheduler.stack.push_unknown();
-            }
+        for conditional in [None, Some(false), Some(true)] {
+            with_codegen(CompileOpts::default(), |mut codegen| {
+                for _ in 0..MAX_STACK_DEPTH {
+                    codegen.scheduler.stack.push_unknown();
+                }
 
-            let label = codegen.asm.new_label();
-            codegen.emit_push_label(label);
+                let label = codegen.asm.new_label();
+                if let Some(invert) = conditional {
+                    codegen.emit_conditional_jump(label, invert);
+                } else {
+                    codegen.emit_push_label(label);
+                }
 
-            assert_eq!(codegen.scheduler.stack.max_depth(), MAX_STACK_DEPTH + 1);
-        });
+                assert_eq!(codegen.scheduler.stack.max_depth(), MAX_STACK_DEPTH + 1);
+                assert_eq!(
+                    codegen.scheduler.stack.depth(),
+                    MAX_STACK_DEPTH - usize::from(conditional.is_some())
+                );
+            });
+        }
     }
 
     #[test]
@@ -1268,7 +1277,7 @@ RETURN
         assert!(EvmCodegen::stack_arg_site_eligible(&function, true, computed));
 
         with_codegen(CompileOpts::default(), |mut codegen| {
-            codegen.emit_raw_stack_arg(&function, calldata_size, None, None, 0);
+            codegen.emit_raw_stack_arg(&function, calldata_size, None, None, 0, false);
             assert_eq!(codegen.asm.assemble().bytecode, [op::CALLDATASIZE]);
         });
     }
@@ -1313,12 +1322,9 @@ RETURN
         let value = ValueId::from_usize(0);
         let call = InstKind::ICall {
             function: Callee::Function(FunctionId::from_usize(0)),
-            args: vec![value; MAX_STACK_ACCESS].into(),
+            args: vec![value; 16].into(),
         };
-        assert_eq!(
-            EvmCodegen::instruction_transient_growth(&call, MAX_STACK_ACCESS),
-            MAX_STACK_ACCESS
-        );
+        assert_eq!(EvmCodegen::instruction_transient_growth(&call, 16), 16);
 
         let add = InstKind::Add(value, value);
         assert_eq!(EvmCodegen::instruction_transient_growth(&add, 2), 1);
@@ -1344,15 +1350,19 @@ RETURN
         let mut function = Function::new(Ident::DUMMY);
         let join = function.alloc_block();
         let mut phi = StackPhiPlan::default();
-        phi.entries.insert(join, (0..MAX_STACK_ACCESS).map(ValueId::from_usize).collect());
+        phi.entries.insert(join, (0..16).map(ValueId::from_usize).collect());
         let resident = GlobalStackPlan {
-            entries: FxHashMap::from_iter([(join, vec![ValueId::from_usize(MAX_STACK_ACCESS)])]),
+            entries: FxHashMap::from_iter([(join, vec![ValueId::from_usize(16)])]),
             aliases: FxHashMap::default(),
             terminal_sensitive: true,
         };
 
-        assert!(!phi.merge_resident(&function, &resident));
-        assert_eq!(phi.entries[&join].len(), MAX_STACK_ACCESS);
+        assert!(!phi.merge_resident(
+            &function,
+            &resident,
+            EvmVersion::Osaka.reachable_stack_depth()
+        ));
+        assert_eq!(phi.entries[&join].len(), 16);
     }
 
     #[test]

@@ -76,6 +76,10 @@ pub(crate) fn did_change_text_document(
             };
             apply_document_changes(contents, params.content_changes)
         };
+        let Some(new_contents) = new_contents else {
+            error!(?path, "invalid DidChangeTextDocument range");
+            return ControlFlow::Continue(());
+        };
 
         let changed = state.vfs.write().set_file_contents_with_version(
             path,
@@ -130,7 +134,7 @@ pub(crate) fn did_save_text_document(
     params: DidSaveTextDocumentParams,
 ) -> NotifyResult {
     state.reindex_if_invalidated();
-    if let Ok(path) = params.text_document.uri.to_file_path() {
+    if let Ok(path) = proto::normalize_file_uri(params.text_document.uri).to_file_path() {
         state.run_flychecks_on_save(path);
     }
 
@@ -281,10 +285,13 @@ pub(crate) fn did_change_workspace_folders(
         .event
         .removed
         .into_iter()
-        .filter_map(|workspace| workspace.uri.to_file_path().ok())
+        .filter_map(|workspace| proto::normalize_file_uri(workspace.uri).to_file_path().ok())
         .collect::<Vec<_>>();
-    let added_paths =
-        params.event.added.into_iter().filter_map(|workspace| workspace.uri.to_file_path().ok());
+    let added_paths = params
+        .event
+        .added
+        .into_iter()
+        .filter_map(|workspace| proto::normalize_file_uri(workspace.uri).to_file_path().ok());
 
     let previous_roots = state.config.workspace_roots().to_vec();
     {

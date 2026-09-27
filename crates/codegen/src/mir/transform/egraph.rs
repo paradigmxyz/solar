@@ -2,8 +2,11 @@
 //!
 //! This is an acyclic e-graph in the style of Cranelift's mid-end. Pure
 //! instructions become nodes over the canonical values of their operands.
+//! Constants stay on the right of commutative operations and comparisons,
+//! reversing comparison predicates when needed. Matching, node insertion, and
+//! final materialization share this ordering; equal-rank operands retain theirs.
 //! Nodes are hash-consed within dominator scopes, so an expression that already
-//! has a dominating definition reuses it. The rules in `isle/egraph.isle` run
+//! has a dominating definition reuses it. The rules in `isle/mir/egraph.isle` run
 //! on every new node: `simplify` merges the node's class into an existing
 //! value and `rewrite` adds an equivalent node to the class. New nodes only
 //! reference classes that already exist, so no rebuild or fixpoint is needed.
@@ -516,6 +519,7 @@ impl<'a> Builder<'a> {
         }
         let kind = inst.kind.op();
         let op = kind.map_values(|value| self.resolve(value));
+        let op = canonical_operands(self.func, op);
 
         // An equal expression with a dominating definition: reuse it.
         let key = (canonical(op), ty);
@@ -564,6 +568,7 @@ impl<'a> Builder<'a> {
                 }
                 for next in alternatives.drain(..) {
                     let next = next.map_values(|value| self.resolve(value));
+                    let next = canonical_operands(self.func, next);
                     if !nodes.as_slice().contains(&next)
                         && nodes.len() < node_limit
                         && next
@@ -895,7 +900,10 @@ impl<'a> Builder<'a> {
         // %r = <cheapest node over canonical operands>
         let name = self.func.name;
         for (home, best) in cheapest {
-            let kind = best.into_kind().expect("nodes are complete instructions");
+            let best = best.map_values(|value| resolve_replacement(value, &self.merged));
+            let kind = canonical_operands(self.func, best)
+                .into_kind()
+                .expect("nodes are complete instructions");
             let inst = self.func.inst_mut(home);
             if inst.kind != kind {
                 tracing::trace!(
@@ -1234,8 +1242,27 @@ fn is_node(kind: &InstKind) -> bool {
     )
 }
 
+/// Keeps constants on the right without reassociating or adding nodes.
+fn canonical_operands(func: &Function, op: Op) -> Op {
+    let is_const = |value| func.value_u256(value).is_some();
+    // op(constant, value, rest) => op(value, constant, rest)
+    let op = op.canonicalize_commutative_by_key(is_const);
+    let swap = |a, b| is_const(a) && !is_const(b);
+    match op {
+        // constant < value => value > constant
+        Op::Lt { a, b } if swap(a, b) => Op::Gt { a: b, b: a },
+        // constant > value => value < constant
+        Op::Gt { a, b } if swap(a, b) => Op::Lt { a: b, b: a },
+        // signed(constant) < signed(value) => signed(value) > signed(constant)
+        Op::SLt { a, b } if swap(a, b) => Op::SGt { a: b, b: a },
+        // signed(constant) > signed(value) => signed(value) < signed(constant)
+        Op::SGt { a, b } if swap(a, b) => Op::SLt { a: b, b: a },
+        other => other,
+    }
+}
+
 /// Orders commutative operands and flips reversed comparisons so equal
-/// expressions share one key. The surviving instruction keeps its own form.
+/// expressions share one key, independently of emitted operand order.
 fn canonical(op: Op) -> Op {
     match op.canonicalize_commutative() {
         Op::Gt { a, b } => Op::Lt { a: b, b: a },

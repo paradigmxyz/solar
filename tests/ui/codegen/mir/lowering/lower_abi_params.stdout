@@ -45,38 +45,37 @@
 +     v22 = gt v20, v9
 +     v23 = or v21, v22
 +     v24 = zext i1 v23 to i256
-+     v25 = ne v24, 0
-+     jumpi v25, bb4, bb7
++     jumpi v23, bb4, bb7
 +   bb7:
-+     v26 = calldataload v19
-+     v27 = add v19, 32
-+     v28 = mul v26, 32
-+     v29 = eq 32, 0
-+     v30 = div v28, 32
-+     v31 = eq v30, v26
-+     v32 = or v29, v31
-+     v33 = zext i1 v32 to i256
-+     v34 = eq v33, 0
-+     jumpi v34, bb8, bb9
++     v25 = calldataload v19
++     v26 = add v19, 32
++     v27 = mul v25, 32
++     v28 = eq 32, 0
++     v29 = div v27, 32
++     v30 = eq v29, v25
++     v31 = or v28, v30
++     v32 = zext i1 v31 to i256
++     v33 = eq v32, 0
++     jumpi v33, bb8, bb9
 +   bb9:
-+     v35 = add v28, 32
-+     v36 = lt v35, v28
-+     jumpi v36, bb8, bb10
++     v34 = add v27, 32
++     v35 = lt v34, v27
++     jumpi v35, bb8, bb10
 +   bb10:
-+     v37 = alloc memoryarray<1>, exact, uninitialized, panic, v35
-+     set_memory_object_len memoryarray, v37, v26
-+     v38 = sub v9, v27
-+     v39 = shr 5, v38
-+     v40 = gt v26, v39
-+     jumpi v40, bb4, bb11
++     v36 = alloc memoryarray<1>, exact, uninitialized, panic, v34
++     set_memory_object_len memoryarray, v36, v25
++     v37 = sub v9, v26
++     v38 = shr 5, v37
++     v39 = gt v25, v38
++     jumpi v39, bb4, bb11
 +   bb11:
-+     v41 = make_calldata_slice v27, v28
-+     memory_object_copy_from_slice memoryarray, v37, v41
-+     v42 = ptrtoint memoryarray v37 to i256
-+     memory_object_store_field memorystruct<3>, v17, 0, v42
-+     v43 = add v12, 32
-+     v44 = calldataload v43
-+     memory_object_store_field memorystruct<3>, v17, 1, v44
++     v40 = make_calldata_slice v26, v27
++     memory_object_copy_from_slice memoryarray, v36, v40
++     v41 = ptrtoint memoryarray v36 to i256
++     memory_object_store_field memorystruct<3>, v17, 0, v41
++     v42 = add v12, 32
++     v43 = calldataload v42
++     memory_object_store_field memorystruct<3>, v17, 1, v43
 +     memory_object_store_field memorystruct<3>, v17, 2, v12
 +     jump bb1
 +   bb1:
@@ -92,9 +91,9 @@
       v8 = add v4, v7
 -     ret v8
 +     mstore 128, v8
-+     v45 = add 128, 32
-+     v46 = sub v45, 128
-+     returndata 128, v46
++     v44 = add 128, 32
++     v45 = sub v44, 128
++     returndata 128, v45
 +   bb8:
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)

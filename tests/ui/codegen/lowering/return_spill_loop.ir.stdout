@@ -183,9 +183,9 @@ bb38:
 bb10 [continuation]:
   dup 1
   mload
-  dup 1
   push 1
-  gt
+  dup 2
+  lt
   push bb40
   jumpi
   push 32
@@ -194,9 +194,9 @@ bb10 [continuation]:
   mload
   push 0
   byte
-  dup 2
   push 2
-  gt
+  dup 3
+  lt
   push bb40
   jumpi
   push 33

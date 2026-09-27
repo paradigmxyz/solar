@@ -48,7 +48,7 @@ fn @dirtyAddress() -> i256 [selector=0x986597e5, pure, abi_params=[], abi_return
 // === ROOT/tests/ui/codegen/lowering/run-call/external_returndata_bounds.sol:ReturnHarness ===
 @module ReturnHarness
 data:
-  ReturnProducer_initcode_0: hex"34600e576102098060125f395ff35b5f5ffd341515603a575f3560e01c80630a39e7bc146035578063986597e5146030578063af36778b14602c57603a565b603e565b6101e0565b6101d1565b5f5ffd5b610240604052604051806101605280610160528060e0528060e0528060e0526040900160405260405180610180528061018052806101005260209001604052604051806101a052806101a0528061012052604090016040526101205180610120526040368237506101205180610120526101005180610100525261010051806101005260e0518060e0525260e0518060e052602090015f81525060e0518060e0525151806101c052806101c05260025f10156101bf57806101c052600b81525060e0518060e0525151806101e052806101e0526002600110156101bf57806101e05260209001601681525060e0518060e05260209001602181525060e0518060e0525151806101405280610140525f60e05191905b8061020052600281106101955760406080015050506040608001818060e052915060208201915081519150818152905060209001506060608001608090036080f35b81806101405260208280610200520281915081019050516020820260800152600181019050610153565b634e487b715f5260326020526024601cfd5b60205f5261010060205260405ff35b5f1973ffffffffffffffffffffffffffffffffffffffff90166080526020608001608090036080f3"
+  ReturnProducer_initcode_0: hex"34600e5761021a8060125f395ff35b5f5ffd341515603a575f3560e01c80630a39e7bc146035578063986597e5146030578063af36778b14602c57603a565b603e565b6101f1565b6101e2565b5f5ffd5b610240604052604051806101005280610100528060e0528060e052604061010051016040526040518061018052806101805260206101805101604052604051806101a052806101a05260406101a05101604052806101c0526040368237506101c051806101c0528152818060e052528060e052602090015f81525060e0518060e05251806101e052506101e051806101e052518061012052806101205280610120525060025f10156101d057600b610120515260e0518060e0525180610100525061010051806101005251806101405280610140528061014052506002600110156101d05760206101405101601681525060e0518060e05260209001602181525060e0518060e0525180610100525061010051806101005251806101605280610160525f60e05191905b8061020052600281106101aa5760406080015050506040608001818060e052915060208201915081519150818152905060209001506060608001608090036080f35b818061016052506020818061020052028201516020820260800152600181019050610168565b634e487b715f5260326020526024601cfd5b60205f5261010060205260405ff35b5f1973ffffffffffffffffffffffffffffffffffffffff90166080526020608001608090036080f3"
 
 fn @check(arg0: memorystruct) -> i256 [pure] {
   bb0:
@@ -82,16 +82,16 @@ fn @staticAggregate() -> i256 [selector=0x9982aedb, abi_params=[], abi_returns=[
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 570, v1
+    v2 = and 587, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy ReturnProducer_initcode_0, v4, 539
+    data_copy ReturnProducer_initcode_0, v4, 556
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 539
+    v7 = add v6, 556
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 539
+    v9 = create 0, v8, 556
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -129,16 +129,16 @@ fn @projectedAggregate() -> i256 [selector=0xec2041b8, abi_params=[], abi_return
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 570, v1
+    v2 = and 587, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy ReturnProducer_initcode_0, v4, 539
+    data_copy ReturnProducer_initcode_0, v4, 556
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 539
+    v7 = add v6, 556
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 539
+    v9 = create 0, v8, 556
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -183,16 +183,16 @@ fn @functionPointerAggregate() -> i256 [selector=0xebe6d175, abi_params=[], abi_
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 570, v1
+    v2 = and 587, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy ReturnProducer_initcode_0, v4, 539
+    data_copy ReturnProducer_initcode_0, v4, 556
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 539
+    v7 = add v6, 556
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 539
+    v9 = create 0, v8, 556
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -235,16 +235,16 @@ fn @dirtyAddressBoundary() -> i256 [selector=0x2986c9cc, abi_params=[], abi_retu
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 570, v1
+    v2 = and 587, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy ReturnProducer_initcode_0, v4, 539
+    data_copy ReturnProducer_initcode_0, v4, 556
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 539
+    v7 = add v6, 556
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 539
+    v9 = create 0, v8, 556
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -283,16 +283,16 @@ fn @truncated() -> i256 [selector=0xfc1dad0b, abi_params=[], abi_returns=[word],
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 570, v1
+    v2 = and 587, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy ReturnProducer_initcode_0, v4, 539
+    data_copy ReturnProducer_initcode_0, v4, 556
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 539
+    v7 = add v6, 556
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 539
+    v9 = create 0, v8, 556
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1

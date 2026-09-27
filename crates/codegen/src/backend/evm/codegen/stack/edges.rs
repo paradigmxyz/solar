@@ -7,8 +7,7 @@
 
 use super::super::{
     BlockId, EvmCodegen, Function, FxHashMap, GLOBAL_STACK_LAYOUT_LIMIT, GlobalStackPlan,
-    MAX_STACK_ACCESS, StackModel, StackPhiBranch, StackPhiEdge, TargetSlot, Terminator, ValueId,
-    op,
+    StackModel, StackPhiBranch, StackPhiEdge, TargetSlot, Terminator, ValueId, op,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -169,13 +168,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             } else {
                 (else_block, then_block, then_layout, true)
             };
-            if invert {
-                self.asm.emit_op(op::ISZERO);
-                self.scheduler.instruction_executed_untracked(1);
-            }
-            self.emit_push_label(self.block_labels[&direct]);
-            self.asm.emit_op(op::JUMPI);
-            self.scheduler.stack.pop();
+            // jumpi [iszero] condition, direct
+            self.emit_conditional_jump(self.block_labels[&direct], invert);
             self.emit_global_branch_cleanup(cleanup_layout);
             if Some(cleanup) != fallthrough {
                 self.emit_push_label(self.block_labels[&cleanup]);
@@ -187,9 +181,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Neither target wants the complete incoming union. Route one edge through a local
         // cleanup label and clean the fallthrough edge inline.
         let then_cleanup = self.asm.new_label();
-        self.emit_push_label(then_cleanup);
-        self.asm.emit_op(op::JUMPI);
-        self.scheduler.stack.pop();
+        self.emit_conditional_jump(then_cleanup, false);
         let union_stack = self.scheduler.stack.clone();
 
         self.emit_global_branch_cleanup(else_layout);
@@ -253,7 +245,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> bool {
         if edge.sources.len() != edge.results.len()
             || edge.sources.is_empty()
-            || edge.sources.len() > MAX_STACK_ACCESS
+            || edge.sources.len() > self.stack_access_limit()
         {
             return false;
         }
@@ -295,14 +287,14 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> bool {
         if edge.sources.len() != edge.results.len()
             || edge.sources.is_empty()
-            || edge.sources.len() > MAX_STACK_ACCESS
+            || edge.sources.len() > self.stack_access_limit()
         {
             return false;
         }
 
         let present =
             Self::stack_phi_source_counts_after_trim(&self.scheduler.stack, &edge.sources);
-        if present.len() > MAX_STACK_ACCESS {
+        if present.len() > self.stack_access_limit() {
             return false;
         }
 
@@ -334,7 +326,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         branch: &StackPhiBranch,
     ) -> bool {
         !branch.union.is_empty()
-            && branch.union.len() <= MAX_STACK_ACCESS
+            && branch.union.len() <= self.stack_access_limit()
             && self.can_emit_stack_phi_value(func, condition)
             && self.can_prepare_stack_phi_branch_edge(func, &branch.then_edge)
             && self.can_prepare_stack_phi_branch_edge(func, &branch.else_edge)
@@ -434,9 +426,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 (&branch.then_edge, else_block, then_block, true)
             } else {
                 let then_cleanup = self.asm.new_label();
-                self.asm.emit_push_label(then_cleanup);
-                self.asm.emit_op(op::JUMPI);
-                self.scheduler.stack.pop();
+                self.emit_conditional_jump(then_cleanup, false);
                 let union_stack = self.scheduler.stack.clone();
 
                 self.emit_stack_phi_edge_layout(func, &branch.else_edge);
@@ -450,12 +440,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::JUMP);
                 return;
             };
-        if invert {
-            self.asm.emit_op(op::ISZERO);
-        }
-        self.emit_push_label(self.block_labels[&direct_block]);
-        self.asm.emit_op(op::JUMPI);
-        self.scheduler.stack.pop();
+        // jumpi [iszero] condition, direct_block
+        self.emit_conditional_jump(self.block_labels[&direct_block], invert);
         self.emit_stack_phi_edge_layout(func, laid_out);
         if fallthrough != Some(laid_out_block) {
             self.emit_push_label(self.block_labels[&laid_out_block]);

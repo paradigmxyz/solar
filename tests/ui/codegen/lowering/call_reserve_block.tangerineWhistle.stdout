@@ -102,17 +102,6 @@ bb9:
   sload
   push 0xffffffffffffffffffffffffffffffffffffffff
   and
-  push 32
-  push 2
-  exp
-  mul
-  push 0x3fa4f245
-  or
-  push 32
-  push 2
-  exp
-  swap 1
-  div
   gas
   push 64
   mload

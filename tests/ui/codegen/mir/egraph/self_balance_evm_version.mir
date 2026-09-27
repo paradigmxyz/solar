@@ -3,7 +3,7 @@
 //@[petersburg] filecheck: --check-prefix=PETERSBURG
 //@[istanbul] compile-flags: --evm-version istanbul -Zmir-pipeline=egraph
 //@[istanbul] filecheck: --check-prefix=ISTANBUL
-@module InstSimplifySelfBalance
+@module SelfBalanceEvmVersion
 
 // PETERSBURG-LABEL: {{^[ +].*}}fn @own_balance{{[( ]}}
 // PETERSBURG: v0 = address

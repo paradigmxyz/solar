@@ -48,22 +48,22 @@ types:
   struct0: {i256, i256}
 
 data:
-  TryCallee_initcode_0: hex"34600e576101758060125f395ff35b5f5ffd5f3560e01c80633fa4f24514604c5780635dfc2e4a146047578063a8aa1b31146043578063a9cc471814603e578063f5e34bfa14603a576050565b6099565b610169565b6070565b61015c565b6054565b5f5ffd5b341515606c57602a6080526020608001608090036080f35b5f5ffd5b60c0604052341515609557600160805260206080016002815260209001608090036080f35b5f5ffd5b610140604052341515610158576040518060e0528060e0528060c0528060c0528060c0526040900160405260c0518060c05260403682375060025f10156101465760c0518060c052600b8152506002600110156101465760c0518060c0526020900160168152505f60c051905b806101005260028110610123576040608001915050608090036080f35b602081806101005202828060c05201516020820260800152600181019050610106565b634e487b715f5260326020526024601cfd5b5f5ffd5b34151561016557005b5f5ffd5b600161017157fe5b5f5ffd"
+  TryCallee_initcode_0: hex"34600e576101708060125f395ff35b5f5ffd5f3560e01c80633fa4f24514604c5780635dfc2e4a146047578063a8aa1b31146043578063a9cc471814603e578063f5e34bfa14603a576050565b6099565b610164565b6070565b610157565b6054565b5f5ffd5b341515606c57602a6080526020608001608090036080f35b5f5ffd5b60c0604052341515609557600160805260206080016002815260209001608090036080f35b5f5ffd5b610140604052341515610153576040518060e0528060e0528060c0528060c052604060e051016040528060c05260403682375060025f10156101415760c0518060c052600b8152506002600110156101415760c0518060c0526020900160168152505f60c051905b80610100526002811061011e576040608001915050608090036080f35b602081806101005202828060c05201516020820260800152600181019050610101565b634e487b715f5260326020526024601cfd5b5f5ffd5b34151561016057005b5f5ffd5b600161016c57fe5b5f5ffd"
 
 fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 422, v1
+    v2 = and 417, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy TryCallee_initcode_0, v4, 391
+    data_copy TryCallee_initcode_0, v4, 386
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 391
+    v7 = add v6, 386
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 391
+    v9 = create 0, v8, 386
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -97,16 +97,16 @@ fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], a
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 422, v1
+    v2 = and 417, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy TryCallee_initcode_0, v4, 391
+    data_copy TryCallee_initcode_0, v4, 386
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 391
+    v7 = add v6, 386
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 391
+    v9 = create 0, v8, 386
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -143,16 +143,16 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 422, v1
+    v2 = and 417, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy TryCallee_initcode_0, v4, 391
+    data_copy TryCallee_initcode_0, v4, 386
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 391
+    v7 = add v6, 386
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 391
+    v9 = create 0, v8, 386
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -195,16 +195,16 @@ fn @liveNoReturn() -> i256 [selector=0x0f81fb69, abi_params=[], abi_returns=[wor
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 422, v1
+    v2 = and 417, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy TryCallee_initcode_0, v4, 391
+    data_copy TryCallee_initcode_0, v4, 386
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 391
+    v7 = add v6, 386
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 391
+    v9 = create 0, v8, 386
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -240,16 +240,16 @@ fn @liveCatch() -> i256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word],
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 422, v1
+    v2 = and 417, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy TryCallee_initcode_0, v4, 391
+    data_copy TryCallee_initcode_0, v4, 386
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 391
+    v7 = add v6, 386
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 391
+    v9 = create 0, v8, 386
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -283,16 +283,16 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 422, v1
+    v2 = and 417, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy TryCallee_initcode_0, v4, 391
+    data_copy TryCallee_initcode_0, v4, 386
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 391
+    v7 = add v6, 386
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 391
+    v9 = create 0, v8, 386
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -331,16 +331,16 @@ fn @liveCreation() -> i256 [selector=0xb217934d, abi_params=[], abi_returns=[wor
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 422, v1
+    v2 = and 417, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy TryCallee_initcode_0, v4, 391
+    data_copy TryCallee_initcode_0, v4, 386
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 391
+    v7 = add v6, 386
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 391
+    v9 = create 0, v8, 386
     v10 = zext i160 v9 to i256
     v11 = eq v10, 0
     v12 = eq v11, false

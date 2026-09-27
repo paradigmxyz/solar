@@ -178,20 +178,19 @@ fn @takeSlice(arg0: calldataslice) -> i256 [selector=0x4f4c8d8b, pure, abi_param
     v3 = lt 5, 0
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
-    v6 = ne v5, 0
-    icall revert_if<empty>, v6
-    v7 = sub 5, 0
-    v8 = add v0, 0
-    v9 = make_calldata_slice v8, v7
-    v10 = calldata_slice_load_word calldata, v9, 0
-    v11 = slice_len v9
-    v12 = lt v11, 32
-    v13 = sub 32, v11
-    v14 = mul 8, v13
-    v15 = shl v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v16 = select v12, v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v17 = and v10, v16
-    ret v17
+    icall revert_if<empty>, v4
+    v6 = sub 5, 0
+    v7 = add v0, 0
+    v8 = make_calldata_slice v7, v6
+    v9 = calldata_slice_load_word calldata, v8, 0
+    v10 = slice_len v8
+    v11 = lt v10, 32
+    v12 = sub 32, v10
+    v13 = mul 8, v12
+    v14 = shl v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v15 = select v11, v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v16 = and v9, v15
+    ret v16
 }
 
 fn @calldataSliceCast() -> i256 [selector=0x93f40587, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {

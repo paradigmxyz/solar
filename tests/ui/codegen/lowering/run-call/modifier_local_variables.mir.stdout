@@ -5,8 +5,7 @@ fn @f(arg0: i256) -> i256 [selector=0x98c3a6c1, pure, abi_params=[bool], abi_ret
     v0 = eq arg0, 0
     v1 = eq v0, false
     v2 = zext i1 v1 to i256
-    v3 = ne v2, 0
-    jumpi v3, bb3, bb4
+    jumpi v1, bb3, bb4
   bb4:
     jump bb5
   bb5:
@@ -16,8 +15,8 @@ fn @f(arg0: i256) -> i256 [selector=0x98c3a6c1, pure, abi_params=[bool], abi_ret
   bb3:
     jump bb2
   bb2:
-    v4 = phi [bb3: 0], [bb6: 3]
+    v3 = phi [bb3: 0], [bb6: 3]
     jump bb1
   bb1:
-    ret v4
+    ret v3
 }

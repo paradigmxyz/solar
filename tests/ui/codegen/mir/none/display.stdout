@@ -34,3 +34,15 @@
       ret 1
   }
   
+  fn @boolean_ops(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+      v0 = and arg0, arg1
+      v1 = or v0, arg1
+      v2 = xor v1, arg0
+      jumpi v2, bb1, bb2
+    bb2:
+      ret v0
+    bb1:
+      ret v1
+  }
+  
