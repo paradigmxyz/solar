@@ -15,25 +15,46 @@ treat them like the output of an unverified optimizer, and benchmark them.
 | Mode     | Rewrites from                                   | Cache (`-Zllm-cache=DIR`)          |
 | -------- | ----------------------------------------------- | ---------------------------------- |
 | `replay` | The cache only                                  | Required; read, never written      |
-| `live`   | The installed rewriter, usually a model         | Optional; read first, then written |
+| `live`   | A model, or a rewriter an embedder installs     | Optional; read first, then written |
 | `script` | Scripted candidates in `-Zllm-script=FILE`      | Optional; read first, then written |
 
 Other flags:
 
 - `-Zllm-rounds=N` (default 6): candidates asked for per function.
 - `-Zllm-samples=N` (default 512): generated inputs each candidate runs on.
-- `-Zllm-model=MODEL`: the model `live` asks.
+- `-Zllm-model=MODEL`: the model `live` asks, such as `gpt-6-astra` (the default), `gpt-6-sol`,
+  or `gpt-6-luna`.
 - `-Zllm-trace`: print every offer, verdict, and decision on stdout. It also compiles contracts
   one at a time, so the transcript is deterministic.
 
-`live` asks the rewriter an embedder installs (see [Embedding](#embedding)), and sends it the
-MIR of every offered function. A typical workflow asks once with a cache and commits what was
-found; later builds replay it without a rewriter or a network, and apply each recorded rewrite
-only after checking it again:
+A typical workflow asks a model once with a cache and commits what it found; later builds replay
+the cache without a model or a network, and apply each recorded rewrite only after checking it
+again:
 
 ```bash
-solar -Zllm-optimize=replay -Zllm-cache=llm-cache src/Token.sol
+cargo install --locked --path crates/solar --features llm
+OPENAI_API_KEY=... solar -Zllm-optimize=live -Zllm-cache=llm-cache --emit=bin src/Token.sol
+solar -Zllm-optimize=replay -Zllm-cache=llm-cache --emit=bin src/Token.sol
 ```
+
+## Live mode
+
+The command line supports `live` when the compiler is built with its `llm` feature, which adds
+the [nanocodex](https://docs.rs/nanocodex) OpenAI client; without it, `live` is an error. The key
+comes from `OPENAI_API_KEY` and goes only to the client. The compiler warns that `live` sends the
+MIR of every offered function to the provider, and ends with a note of the turns, tokens, and
+estimated cost it spent.
+
+Each offered function gets its own agent, whose instructions are the rewriting brief in
+`crates/cli/src/llm/instructions.md`: the syntax and semantics of lowered MIR, what a candidate
+must preserve, the costs, and the reply format. Agents get no tools and a fixed environment, so
+they cannot read files, run commands, or search, and see neither the host's date nor its
+`AGENTS.md`. Each reply must hold one fenced `mir` block or `NO_IMPROVEMENT`; a reply with
+neither gets one reminder.
+
+At most four turns run at once, a turn that takes more than ten minutes fails its session, and no
+turn starts once the estimated spend reaches five dollars. A failed session leaves its function
+with the best candidate so far.
 
 ## What is offered
 
@@ -174,7 +195,8 @@ The fixtures under `tests/ui/codegen/mir/llm-optimize/` use scripts to cover eve
 `solar::codegen::llm` exposes the rewriter interface. An embedder implements `LlmRewriter`, which
 opens an `LlmSession` per function, and installs it with `set_rewriter` before compiling with
 `-Zllm-optimize=live`. `LlmSession::propose` receives the verdict on the previous candidate and
-returns the next candidate or `Proposal::Done`.
+returns the next candidate or `Proposal::Done`. The command line's rewriter in
+`crates/cli/src/llm.rs` is one such implementation.
 
 ## Limits
 
@@ -182,6 +204,8 @@ returns the next candidate or `Proposal::Done`.
   accepted, such as a comparison with a constant the candidate computes rather than states.
   Proving loop-free candidates with the SMT checker in `scripts/evm-rules/` is future work.
 - The interpreter models no storage, calldata, environment, or external calls, so functions that
-  use them are not offered.
+  use them are not offered. On the project archives of the runtime benchmark corpus, about a
+  quarter of internal functions are offered; storage reads, `gas`, paths the tests do not reach,
+  several return values, and calldata account for most of the rest.
 - The cost model sees one stack copy per operand, not the stack scheduler's decisions.
 - `live` sends function MIR to the rewriter's provider.

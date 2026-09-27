@@ -14,6 +14,7 @@ pub use solar_config::{self as config, CompileOpts, LspArgs, UnstableOpts, versi
 mod bytecode;
 mod emit;
 mod ethdebug;
+mod llm;
 mod source_map;
 pub mod standard_json;
 

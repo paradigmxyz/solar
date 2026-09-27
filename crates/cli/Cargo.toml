@@ -49,6 +49,12 @@ tracing-subscriber = { workspace = true, optional = true, features = [
 solar-lsp = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true, features = ["rt", "rt-multi-thread"] }
 
+# llm
+nanocodex = { version = "=0.6.5", optional = true, default-features = false, features = [
+    "openai",
+    "tools",
+] }
+
 tracing-chrome = { version = "0.7", optional = true }
 tracing-tracy = { version = "0.12", optional = true, features = ["demangle"] }
 tracing-samply = { version = "0.1.5", optional = true }
@@ -63,6 +69,8 @@ tikv-jemallocator = { version = "0.7", optional = true }
 [features]
 default = ["mimalloc", "tracing"]
 lsp = ["dep:solar-lsp", "dep:tokio"]
+# Rewrite MIR with a model through `-Zllm-optimize=live`.
+llm = ["dep:nanocodex", "dep:tokio"]
 # Nightly-only features for faster/smaller builds.
 nightly = [
     "solar-config/nightly",
