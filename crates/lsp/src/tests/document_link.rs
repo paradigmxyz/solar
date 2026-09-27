@@ -72,7 +72,7 @@ fn returns_only_successfully_resolved_imports() {
 }
 
 #[test]
-fn equivalent_percent_encoded_uri_returns_document_links() {
+fn equivalent_file_uris_return_document_links() {
     let project = TestProject::from_fixture(
         r#"
         //- /Imports.sol
@@ -89,29 +89,34 @@ fn equivalent_percent_encoded_uri_returns_document_links() {
     ))
     .symbol_tables;
     let canonical_uri = Url::from_file_path(&path).unwrap();
-    let encoded_uri =
-        Url::parse(&canonical_uri.as_str().replacen("Imports.sol", "%49mports.sol", 1)).unwrap();
-
-    assert_ne!(canonical_uri, encoded_uri);
-    assert_eq!(canonical_uri.to_file_path(), encoded_uri.to_file_path());
-
-    let params = DocumentLinkParams {
-        text_document: TextDocumentIdentifier::new(encoded_uri),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    };
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.symbol_tables.store(Arc::new(tables));
-    let mut request = std::pin::pin!(crate::handlers::document_links(&mut state, params));
-    let waker = Waker::noop();
-    let mut context = Context::from_waker(waker);
-    let std::task::Poll::Ready(response) = request.as_mut().poll(&mut context) else {
-        panic!("document-link request should be ready");
-    };
+    for spelling in ["%49mports.sol", "nested%2F..%2FImports.sol"] {
+        let encoded_uri =
+            Url::parse(&canonical_uri.as_str().replacen("Imports.sol", spelling, 1)).unwrap();
 
-    let links = response.unwrap().unwrap();
-    assert_eq!(links.len(), 1);
-    assert_eq!(links[0].target, Some(Url::from_file_path(project.path("/Target.sol")).unwrap()));
+        assert_ne!(canonical_uri, encoded_uri);
+        assert_eq!(crate::proto::vfs_path(&canonical_uri), crate::proto::vfs_path(&encoded_uri));
+
+        let params = DocumentLinkParams {
+            text_document: TextDocumentIdentifier::new(encoded_uri),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let mut request = std::pin::pin!(crate::handlers::document_links(&mut state, params));
+        let waker = Waker::noop();
+        let mut context = Context::from_waker(waker);
+        let std::task::Poll::Ready(response) = request.as_mut().poll(&mut context) else {
+            panic!("document-link request should be ready");
+        };
+
+        let links = response.unwrap().unwrap();
+        assert_eq!(links.len(), 1);
+        assert_eq!(
+            links[0].target,
+            Some(Url::from_file_path(project.path("/Target.sol")).unwrap())
+        );
+    }
 }
 
 #[test]

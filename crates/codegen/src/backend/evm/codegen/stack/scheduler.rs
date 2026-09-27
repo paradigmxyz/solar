@@ -95,7 +95,7 @@
 //! for CFG policy or stable cross-block spill placement.
 
 use super::{
-    model::{MAX_STACK_ACCESS, MAX_STACK_DEPTH, StackModel},
+    model::{MAX_STACK_DEPTH, StackModel},
     shuffler::{ShuffleResult, StackShuffler, TargetSlot},
     spill::{SpillManager, SpillSlot},
 };
@@ -212,7 +212,7 @@ const MAX_OPERAND_SEARCH_RETAINED_BYTES: usize = 2 * 1024 * 1024;
 type PlannedActions = SmallVec<[PlannedAction; 8]>;
 
 // Keep the 17-word `SWAP16` window plus a ternary's three pushes inline.
-const SEARCH_STACK_INLINE_CAPACITY: usize = MAX_STACK_ACCESS + 4;
+const SEARCH_STACK_INLINE_CAPACITY: usize = 20;
 
 /// A search layout hashed with one word per slot, including anonymous slots.
 #[derive(Clone, Debug, Default, PartialEq, Eq, derive_more::Deref, derive_more::DerefMut)]
@@ -1811,7 +1811,7 @@ impl StackScheduler {
         let max_swap = stack.len().saturating_sub(1).min(max_stack_access);
         let mut deep_values = SmallVec::<[ValueId; 8]>::new();
         for depth in 1..=max_swap {
-            if depth > MAX_STACK_ACCESS {
+            if StackOp::Swap(depth as u8).single_byte_evm_opcode().is_none() {
                 let Some(value) = stack[depth] else { continue };
                 if !required_counts.contains_key(&value) || deep_values.contains(&value) {
                     continue;
@@ -2904,11 +2904,11 @@ mod tests {
         let mut scheduler = StackScheduler::new();
 
         scheduler.stack.push(deep);
-        for i in 0..MAX_STACK_ACCESS {
+        for i in 0..16 {
             scheduler.stack.push(ValueId::from_usize(100 + i));
         }
 
-        assert_eq!(scheduler.stack.find(deep), Some(MAX_STACK_ACCESS));
+        assert_eq!(scheduler.stack.find(deep), Some(16));
         assert!(!scheduler.can_emit_value(deep, &func));
 
         scheduler.spills.allocate(deep);
@@ -2931,7 +2931,7 @@ mod tests {
         let target = ValueId::from_usize(0);
         let mut scheduler = StackScheduler::for_evm_version(EvmVersion::Amsterdam);
         scheduler.stack.push(target);
-        for i in 0..MAX_STACK_ACCESS {
+        for i in 0..16 {
             scheduler.stack.push(ValueId::from_usize(100 + i));
         }
 
@@ -3524,7 +3524,7 @@ mod tests {
         };
         assert_eq!(func.blocks[BlockId::ENTRY].instructions.len(), BIG_BLOCK_INSTRUCTIONS + 2);
 
-        let middle = (0..MAX_STACK_ACCESS - 3)
+        let middle = (0..16 - 3)
             .map(|i| {
                 func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(
                     1000 + i,
@@ -3533,12 +3533,12 @@ mod tests {
             .collect::<Vec<_>>();
         let trailing =
             func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(2000))));
-        let mut goal = Vec::with_capacity(MAX_STACK_ACCESS);
+        let mut goal = Vec::with_capacity(16);
         goal.push(first);
         goal.extend(middle);
         goal.push(penultimate);
         goal.push(trailing);
-        assert_eq!(goal.len(), MAX_STACK_ACCESS);
+        assert_eq!(goal.len(), 16);
         let operands = goal.iter().rev().copied().collect::<Vec<_>>();
 
         let tail = (0..64)
@@ -3856,13 +3856,13 @@ mod tests {
         let target = ValueId::from_usize(0);
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(target);
-        for i in 0..MAX_STACK_ACCESS {
+        for i in 0..16 {
             let filler = func.alloc_value(Value::Immediate(Immediate::I256(
                 alloy_primitives::U256::from(100 + i),
             )));
             scheduler.stack.push(filler);
         }
-        assert_eq!(scheduler.stack.find(target), Some(MAX_STACK_ACCESS));
+        assert_eq!(scheduler.stack.find(target), Some(16));
 
         let plan = scheduler
             .plan_operands(&[target], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
@@ -3950,12 +3950,12 @@ mod tests {
             context,
         );
 
-        assert!(actions.iter().any(|action| {
-            action.op == ScheduledOp::Stack(StackOp::Swap(MAX_STACK_ACCESS as u8 + 1))
-        }));
-        assert!(actions.iter().any(|action| {
-            action.op == ScheduledOp::Stack(StackOp::Swap(MAX_STACK_ACCESS as u8 + 2))
-        }));
+        assert!(
+            actions.iter().any(|action| { action.op == ScheduledOp::Stack(StackOp::Swap(17)) })
+        );
+        assert!(
+            actions.iter().any(|action| { action.op == ScheduledOp::Stack(StackOp::Swap(18)) })
+        );
     }
 
     #[test]
@@ -3994,13 +3994,13 @@ mod tests {
             func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::I256)));
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(target);
-        for value in 0..=MAX_STACK_ACCESS {
+        for value in 0..=16 {
             let filler = func.alloc_value(Value::Immediate(Immediate::I256(
                 alloy_primitives::U256::from(value),
             )));
             scheduler.stack.push(filler);
         }
-        assert_eq!(scheduler.stack.find(target), Some(MAX_STACK_ACCESS + 1));
+        assert_eq!(scheduler.stack.find(target), Some(16 + 1));
 
         assert!(
             scheduler
@@ -4035,14 +4035,14 @@ mod tests {
         scheduler.spills.allocate(target);
         scheduler.spills.mark_reloadable(target);
         scheduler.stack.push(target);
-        for value in 0..MAX_STACK_ACCESS {
+        for value in 0..16 {
             let filler = func.alloc_value(Value::Immediate(Immediate::I256(
                 alloy_primitives::U256::from(value),
             )));
             scheduler.stack.push(filler);
         }
         scheduler.stack.push(top);
-        assert_eq!(scheduler.stack.find(target), Some(MAX_STACK_ACCESS + 1));
+        assert_eq!(scheduler.stack.find(target), Some(16 + 1));
 
         assert!(
             scheduler
@@ -4075,7 +4075,7 @@ mod tests {
         scheduler.spills.allocate(target);
         scheduler.spills.mark_reloadable(target);
         scheduler.stack.push(target);
-        for value in 0..MAX_STACK_ACCESS - 2 {
+        for value in 0..16 - 2 {
             let filler = func.alloc_value(Value::Immediate(Immediate::I256(
                 alloy_primitives::U256::from(value),
             )));
@@ -4084,7 +4084,7 @@ mod tests {
         scheduler.stack.push(surplus);
         scheduler.stack.push(surplus);
         scheduler.stack.push(top);
-        assert_eq!(scheduler.stack.find(target), Some(MAX_STACK_ACCESS + 1));
+        assert_eq!(scheduler.stack.find(target), Some(16 + 1));
 
         assert!(
             scheduler
@@ -4123,7 +4123,7 @@ mod tests {
                 .is_none()
         );
 
-        for value in 0..=MAX_STACK_ACCESS {
+        for value in 0..=16 {
             let filler = func.alloc_value(Value::Immediate(Immediate::I256(
                 alloy_primitives::U256::from(value + 1),
             )));
@@ -4158,7 +4158,7 @@ mod tests {
 
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(target);
-        for value in 0..MAX_STACK_ACCESS {
+        for value in 0..16 {
             let filler = func.alloc_value(Value::Immediate(Immediate::I256(
                 alloy_primitives::U256::from(value + 100),
             )));
@@ -4310,13 +4310,13 @@ mod tests {
         let target = func.alloc_param(MirType::I256);
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(target);
-        for value in 0..MAX_STACK_ACCESS {
+        for value in 0..16 {
             let filler = func.alloc_value(Value::Immediate(Immediate::I256(
                 alloy_primitives::U256::from(value),
             )));
             scheduler.stack.push(filler);
         }
-        assert_eq!(scheduler.stack.find(target), Some(MAX_STACK_ACCESS));
+        assert_eq!(scheduler.stack.find(target), Some(16));
 
         let plan = scheduler
             .plan_operands(
@@ -4405,10 +4405,10 @@ mod tests {
         );
 
         scheduler.stack.push(value);
-        for index in 0..MAX_STACK_ACCESS {
+        for index in 0..16 {
             scheduler.stack.push(ValueId::from_usize(100 + index));
         }
-        assert_eq!(scheduler.stack.find(value), Some(MAX_STACK_ACCESS));
+        assert_eq!(scheduler.stack.find(value), Some(16));
         assert_eq!(
             scheduler.ensure_on_top(value, &func),
             [ScheduledOp::RematerializeNullary(crate::backend::evm::op::CALLVALUE)]
@@ -4534,7 +4534,7 @@ mod tests {
         let filler = func.alloc_param(MirType::I256);
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(resident);
-        for _ in 0..MAX_STACK_ACCESS - 1 {
+        for _ in 0..16 - 1 {
             scheduler.stack.push(filler);
         }
         assert!(
@@ -4672,12 +4672,12 @@ mod tests {
         let liveness = Liveness::compute(&func);
         let mut scheduler = StackScheduler::for_evm_version(EvmVersion::Amsterdam);
         scheduler.stack.push(a);
-        for _ in 0..=MAX_STACK_ACCESS {
+        for _ in 0..=16 {
             scheduler.stack.push(sum);
         }
 
         let ops = scheduler.drop_dead_values(&liveness, BlockId::ENTRY, 0);
-        assert_eq!(ops, [StackOp::Swap((MAX_STACK_ACCESS + 1) as u8), StackOp::Pop]);
+        assert_eq!(ops, [StackOp::Swap(17), StackOp::Pop]);
         assert!(scheduler.stack.find(a).is_none());
     }
 

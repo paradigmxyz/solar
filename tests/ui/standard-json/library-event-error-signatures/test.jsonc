@@ -1,0 +1,18 @@
+// CHECK: "userdoc": {
+// CHECK: "f(C,L.Kind,L.S)": {
+// CHECK: "E(address,uint8,(address,uint8,uint256))": {
+// CHECK: "F(address,uint8,(address,uint8,uint256))": [
+// CHECK: "devdoc": {
+// CHECK: "f(C,L.Kind,L.S)": {
+// CHECK: "E(address,uint8,(address,uint8,uint256))": {
+// CHECK: "F(address,uint8,(address,uint8,uint256))": [
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "A.sol": {
+        "L": ["abi", "evm.methodIdentifiers", "userdoc", "devdoc"]
+      }
+    }
+  }
+}

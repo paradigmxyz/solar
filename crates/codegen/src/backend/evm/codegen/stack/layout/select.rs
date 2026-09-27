@@ -17,7 +17,7 @@
 use super::super::super::{
     BlockId, CanonicalArgValues, CfgInfo, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function,
     FunctionId, FxHashMap, FxHashSet, GLOBAL_STACK_LAYOUT_LIMIT, GlobalStackPlan, InstKind,
-    Liveness, LoopAnalyzer, MAX_STACK_ACCESS, Module, OnceCell, OperandCostModel, OptimizationMode,
+    Liveness, LoopAnalyzer, Module, OnceCell, OperandCostModel, OptimizationMode,
     ResidentSearchContext, ScheduleCost, StackOp, StackPhiPlan, Terminator, Value, ValueId,
 };
 use crate::target::Target;
@@ -164,7 +164,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         }
                     }
                 }
-                if live_count >= MAX_STACK_ACCESS {
+                if live_count >= self.stack_access_limit() {
                     for &value in values {
                         if live.contains(value) && matches!(func.value(value), Value::Arg(_)) {
                             frame_required.insert(value);

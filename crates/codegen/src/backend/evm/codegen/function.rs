@@ -210,7 +210,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             });
         let mut stack_phi_sources = stack_phi_plan.edge_sources();
         if required_stack_plan {
-            if !stack_phi_plan.merge_resident(func, &global_stack_plan) {
+            if !stack_phi_plan.merge_resident(func, &global_stack_plan, self.stack_access_limit()) {
                 // Selection preflights this exact composition. If a future transform invalidates
                 // that proof, regenerate the runtime with the ordinary frame-backed convention
                 // instead of emitting a partial stack ABI or panicking.
@@ -229,7 +229,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .or_else(|| self.compute_loop_bound_stack_layout(func, liveness, &stack_phi_plan))
             // Phi layouts own their incoming stack on planned joins. Adopt the layout only when
             // that composition is proven, mirroring the resident arm.
-            && stack_phi_plan.merge_resident(func, &plan)
+            && stack_phi_plan.merge_resident(func, &plan, self.stack_access_limit())
         {
             global_stack_plan = plan;
             // An early spill store can be omitted only when every physical successor layout
@@ -535,14 +535,20 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // Only values still needed past the clobber are pinned: a phi
                 // source or an operand the copy itself consumes has its last
                 // recorded use in this block at or before it, and reloading it
-                // would only deepen the stack with a dead word.
+                // would only deepen the stack with a dead word. A value this
+                // block defines at or after the clobber has no word to hold
+                // yet: free-memory-pointer loads reserve a reloadable slot
+                // before their definition stores them, and reloading one here
+                // would read a slot nothing has stored.
                 if self.spill_hazard_insts.contains(&inst_id) {
+                    let pending = &block.instructions[inst_idx..];
                     let at_risk: Vec<ValueId> = self
                         .scheduler
                         .spills
                         .reloadable_values()
                         .filter(|&value| {
                             liveness.is_used_at_or_after(value, block_id, inst_idx + 1)
+                                && !matches!(func.value(value), Value::Inst(def) if pending.contains(def))
                         })
                         .collect();
                     for value in at_risk {

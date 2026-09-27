@@ -3,9 +3,9 @@
 use super::super::{
     ArgIdx, BlockId, CanonicalArgValues, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function,
     FunctionId, FxHashMap, GLOBAL_STACK_LAYOUT_LIMIT, GlobalStackPlan, InstKind, LazyStackArgPlan,
-    Liveness, MAX_STACK_ACCESS, Module, OptimizationMode, SpillSlot, StackArgRetentionPlan,
-    StackArgUseInfo, StackModel, StackOp, StackScheduler, StaticCallEntry, StaticCallStackWord,
-    TargetSlot, Terminator, U256, ValueId, WORD_BYTES, op, rematerializable_nullary_value,
+    Liveness, Module, OptimizationMode, SpillSlot, StackArgRetentionPlan, StackArgUseInfo,
+    StackModel, StackOp, StackScheduler, StaticCallEntry, StaticCallStackWord, TargetSlot,
+    Terminator, U256, ValueId, WORD_BYTES, op, rematerializable_nullary_value,
 };
 use crate::mir::Callee;
 
@@ -377,7 +377,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if self.disabled_stack_only_functions.contains(func_id) {
                 continue;
             }
-            if mask.count() > MAX_STACK_ACCESS {
+            if mask.count() > self.stack_access_limit() {
                 continue;
             }
             let func = &module.functions[func_id];
@@ -462,6 +462,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         spill_slot: Option<SpillSlot>,
         caller_stack: Option<&StackModel>,
         words_above: usize,
+        recover_inaccessible: bool,
     ) {
         if let Some(op) = Self::always_rematerializable_op(func, val) {
             self.asm.emit_op(op);
@@ -478,9 +479,15 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         if let Some(depth) = caller_stack.and_then(|stack| stack.find(val)) {
             let dup = depth + words_above + 1;
+            if recover_inaccessible
+                && dup > self.stack_access_limit()
+                && self.recover_lost_internal_stack_value(val)
+            {
+                return;
+            }
             assert!(
-                dup <= MAX_STACK_ACCESS,
-                "resident caller argument exceeded DUP16 reach at an internal call"
+                dup <= self.stack_access_limit(),
+                "resident caller argument exceeded DUP reach at an internal call"
             );
             self.asm.emit_stack_op(StackOp::Dup(dup as u8));
             return;
@@ -558,7 +565,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .find(value)
                     .expect("non-resident stack argument disappeared in the callee prologue");
                 if depth != 0 {
-                    assert!(depth <= MAX_STACK_ACCESS, "stack argument exceeded SWAP16 reach");
+                    assert!(
+                        depth <= self.stack_access_limit(),
+                        "stack argument exceeded SWAP reach"
+                    );
                     self.asm.emit_stack_op(StackOp::Swap(depth as u8));
                     incoming.swap(depth as u8);
                 }
@@ -607,7 +617,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let depth = self.scheduler.stack.find(value).unwrap_or_else(|| {
             panic!("stack argument {value:?} was lost before frame materialization")
         });
-        assert!(depth < MAX_STACK_ACCESS, "stack argument exceeded DUP16 reach");
+        assert!(depth < self.stack_access_limit(), "stack argument exceeded DUP reach");
         self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
 
         let addr = self.static_frame_addr(
@@ -653,7 +663,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Gives resident arguments a frame fallback before an emission stage can bury their last
-    /// stack copy beyond `DUP16` reach. `transient_growth` bounds the words pushed before the stage
+    /// stack copy beyond `DUP` reach. `transient_growth` bounds the words pushed before the stage
     /// reaches a resident operand, or the one result left by an ordinary MIR instruction.
     pub(in crate::backend::evm::codegen) fn materialize_deep_stack_args(
         &mut self,
@@ -664,7 +674,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         if transient_growth == 0 {
             return;
         }
-        let materialize_depth = MAX_STACK_ACCESS.saturating_sub(transient_growth);
+        let materialize_depth = self.stack_access_limit().saturating_sub(transient_growth);
         let mut disabled_residency = false;
         loop {
             let entry = self.scheduler.stack.iter().enumerate().find_map(|(depth, value)| {

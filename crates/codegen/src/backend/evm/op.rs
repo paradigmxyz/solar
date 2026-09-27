@@ -205,7 +205,7 @@ macro_rules! opcodes {
         $(
             #[doc = concat!("Opcode byte for `", stringify!($constant), "`.")]
             #[allow(dead_code)]
-            pub(crate) const $constant: u8 = $opcode;
+            pub const $constant: u8 = $opcode;
         )*
 
         /// Declarative metadata for one EVM operation.
@@ -263,7 +263,7 @@ macro_rules! opcodes {
 
         /// Returns the canonical mnemonic for an opcode.
         #[must_use]
-        pub(crate) const fn mnemonic(opcode: u8) -> Option<&'static str> {
+        pub const fn mnemonic(opcode: u8) -> Option<&'static str> {
             match definition(opcode) {
                 Some(definition) => Some(definition.mnemonic),
                 None => None,
