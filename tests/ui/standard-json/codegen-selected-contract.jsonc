@@ -4,6 +4,7 @@
 // CHECK: "message": "code generation is experimental"
 // CHECK: "contracts": {
 // CHECK: "Selected": {
+// CHECK-NOT: "methodIdentifiers"
 // CHECK: "bytecode": {
 // CHECK: "deployedBytecode": {
 // CHECK-NOT: "Dependency"
