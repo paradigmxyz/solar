@@ -765,12 +765,7 @@ impl<'a> CheckEliminator<'a> {
         relevant: &DenseBitSet<ValueId>,
     ) -> IndexVec<BlockId, Facts> {
         const MAX_ROUNDS: usize = 8;
-        let mut definitions = index_vec![None; func.num_insts()];
-        for (block, body) in func.blocks.iter_enumerated() {
-            for &inst in &body.instructions {
-                definitions[inst] = Some(block);
-            }
-        }
+        let definitions = func.inst_block_table();
         // A predicate consumed only by this branch cannot be queried after the edge.
         // Preserve its operand facts, but do not copy the dead predicate's own range
         // through every later block. Single-use ISZERO chains have the same property.
@@ -1957,7 +1952,7 @@ fn monotone_phi_candidates(
     if cyclic.is_empty() {
         return candidates;
     }
-    let definitions = func.inst_blocks();
+    let definitions = func.inst_block_table();
     let dominators = cfg.dominators();
     for header in cyclic.iter() {
         for &inst in &func.blocks[header].instructions {
@@ -1990,7 +1985,7 @@ fn monotone_phi_candidates(
             if !const_of(func, step).is_some_and(|step| !step.is_zero()) {
                 continue;
             }
-            let Some(&home) = definitions.get(next_inst) else { continue };
+            let Some(home) = definitions[*next_inst] else { continue };
             candidates.push(MonotonePhi { header, value, initial, next, step, home, decreasing });
         }
     }

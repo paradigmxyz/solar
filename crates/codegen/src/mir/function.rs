@@ -423,6 +423,18 @@ impl Function {
         inst_blocks
     }
 
+    /// Returns the block containing each placed instruction, indexed by instruction.
+    #[must_use]
+    pub(crate) fn inst_block_table(&self) -> IndexVec<InstId, Option<BlockId>> {
+        let mut inst_blocks = IndexVec::from_vec(vec![None; self.instructions.len()]);
+        for (block_id, block) in self.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                inst_blocks[inst_id] = Some(block_id);
+            }
+        }
+        inst_blocks
+    }
+
     /// Returns true if the block contains any phi instruction.
     #[must_use]
     pub(crate) fn block_has_phi(&self, block: BlockId) -> bool {
