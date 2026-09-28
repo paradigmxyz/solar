@@ -9,13 +9,16 @@
 //!
 //! # Model
 //!
-//! Values are 256-bit words. Typed values keep the clean bits their types promise because every
-//! operation computes them as the backend's instructions do: word operations and casts evaluate
-//! through [`eval_inst`], so folding and execution share one definition of each opcode. `select`
-//! picks an operand, and the phis at the start of a block read their incoming values for the edge
-//! taken, all before any of them is assigned.
+//! Each instruction runs by the [`Semantics`] its operation schema row declares, so the
+//! interpreter lists no operations of its own. Values are 256-bit words. Typed values keep the
+//! clean bits their types promise because every operation computes them as the backend's
+//! instructions do: word operations and casts evaluate through [`eval_semantics`], which
+//! computes opcodes with the opcode table's word semantics, so folding and execution share one
+//! definition of each opcode. `select` picks an operand, and the phis at the start of a block
+//! read their incoming values for the edge taken, all before any of them is assigned.
 //!
-//! Memory is byte-addressed EVM memory. An access with a nonzero length grows memory to the word
+//! Memory is byte-addressed EVM memory, on which the memory opcodes run: `MLOAD`, `MSTORE`,
+//! `MSTORE8`, `MCOPY`, and `KECCAK256`. An access with a nonzero length grows memory to the word
 //! containing its last byte, and a zero-length access ignores its offset. `mcopy` behaves as if it
 //! copied through a buffer, and `keccak256` hashes the bytes it reads. Bytes that no run has
 //! written hold deterministic pseudo-random contents derived from a seed unless the caller set
@@ -31,15 +34,20 @@
 //! A run has a fuel budget, one unit per operation and per copied, hashed, or returned word, and a
 //! call depth. Memory ends at [`MEMORY_LIMIT`], past which the EVM runs out of gas under any block
 //! gas limit. Exceeding a limit ends the run with [`Outcome::Limit`]. Operations outside
-//! [`supports`] and [`supports_terminator`] end it with [`Outcome::Unsupported`]: storage,
-//! calldata, code, the environment, external calls, logs, `msize`, frame addresses, allocations,
-//! and every semantic operation. The interpreter relies on the validator only for the existence
+//! [`supports`] and [`supports_terminator`] end it with [`Outcome::Unsupported`]: opcodes on
+//! storage, calldata, code, the environment, external calls, logs, and `msize`, and operations
+//! that declare no semantics, such as frame addresses, allocations, and every semantic
+//! operation. The interpreter relies on the validator only for the existence
 //! of the instructions, values, and blocks a function names, and checks the rest as it runs, so a
 //! value used before its definition or a phi missing an edge also ends a run as unsupported.
 
-use crate::mir::{
-    ArgIdx, BlockId, Callee, Function, FunctionId, InstId, InstKind, MirPhase, Module, Terminator,
-    Value, ValueId, utils::eval::eval_inst,
+use crate::{
+    backend::evm::op,
+    mir::{
+        ArgIdx, BlockId, Callee, Function, FunctionId, InstId, InstKind, MirPhase, Module,
+        Semantics, Terminator, Value, ValueId,
+        utils::eval::{eval_inst, eval_semantics},
+    },
 };
 use alloy_primitives::{U256, keccak256};
 use smallvec::SmallVec;
@@ -56,6 +64,9 @@ pub(crate) const MEMORY_LIMIT: u64 = 1 << 24;
 
 /// Bytes per memory word.
 const WORD_BYTES: u64 = 32;
+
+/// The opcodes a run executes on its memory, besides the pure opcodes it evaluates.
+const MEMORY_OPCODES: [u8; 5] = [op::MLOAD, op::MSTORE, op::MSTORE8, op::MCOPY, op::KECCAK256];
 
 /// How an execution ended.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -141,21 +152,17 @@ pub(crate) trait Meter {
 
 impl Meter for () {}
 
-/// Returns whether [`Machine::run`] executes an instruction of this kind: word operations and
-/// casts, `select`, phis, memory reads, writes, copies and hashes, and calls to functions.
+/// Returns whether [`Machine::run`] executes an instruction of this kind: lowered operations
+/// whose declared semantics are word operations and casts, `select`, phis, memory opcodes, and
+/// calls to functions.
 pub(crate) fn supports(kind: &InstKind) -> bool {
     if !kind.op_def().phases.contains(MirPhase::Lowered) {
         return false;
     }
-    match kind {
-        InstKind::Phi(_)
-        | InstKind::Select(..)
-        | InstKind::MLoad(_)
-        | InstKind::MStore(..)
-        | InstKind::MStore8(..)
-        | InstKind::MCopy(..)
-        | InstKind::Keccak256(..) => true,
-        InstKind::ICall { function, .. } => matches!(function, Callee::Function(_)),
+    match kind.semantics() {
+        Some(Semantics::Phi(_) | Semantics::Select(..)) => true,
+        Some(Semantics::Opcode(opcode, _)) if MEMORY_OPCODES.contains(&opcode) => true,
+        Some(Semantics::Call(callee, _)) => matches!(callee, Callee::Function(_)),
         _ => matches!(eval_inst(kind, |_| Ok::<_, Infallible>(U256::ZERO)), Ok(Some(_))),
     }
 }
@@ -502,54 +509,41 @@ impl<'a> Run<'_, 'a> {
         self.burn(1)?;
         let instruction = body.inst(inst);
         let mnemonic = instruction.kind.op_def().mnemonic;
-        // `supports` in full costs an evaluation per step; the arms below and `eval_inst` decide
-        // the rest the same way.
+        // `supports` in full costs an evaluation per step; the arms below and `eval_semantics`
+        // decide the rest the same way.
         if !instruction.kind.op_def().phases.contains(MirPhase::Lowered) {
             return ControlFlow::Break(Outcome::Unsupported(mnemonic));
         }
+        let Some(semantics) = instruction.kind.semantics() else {
+            return ControlFlow::Break(Outcome::Unsupported(mnemonic));
+        };
         let frame = self.frames.last().expect("a run always has a frame");
         let entry = frame.entry;
         meter.instruction(body, inst, &|value| frame.word(value));
-        let result = match &instruction.kind {
-            InstKind::Phi(_) => {
+        let result = match semantics {
+            Semantics::Phi(_) => {
                 return ControlFlow::Break(Outcome::Unsupported("phi after other instructions"));
             }
-            InstKind::Select(condition, if_true, if_false) => {
-                let condition = frame.read(*condition)?;
-                frame.read(if condition.is_zero() { *if_false } else { *if_true })?
+            Semantics::Select(condition, if_true, if_false) => {
+                let condition = frame.read(condition)?;
+                frame.read(if condition.is_zero() { if_false } else { if_true })?
             }
-            &InstKind::MLoad(offset) => {
-                let offset = frame.read(offset)?;
-                limit(self.memory.load(offset))?
+            Semantics::Opcode(opcode, operands) if MEMORY_OPCODES.contains(&opcode) => {
+                let operands = frame.read_all(&operands)?;
+                match self.memory_opcode(opcode, &operands)? {
+                    Some(word) => word,
+                    None => return ControlFlow::Continue(()),
+                }
             }
-            &InstKind::MStore(offset, value) => {
-                let (offset, value) = (frame.read(offset)?, frame.read(value)?);
-                return limit(self.memory.store(offset, value));
-            }
-            &InstKind::MStore8(offset, value) => {
-                let (offset, value) = (frame.read(offset)?, frame.read(value)?);
-                return limit(self.memory.store8(offset, value));
-            }
-            &InstKind::MCopy(dest, src, len) => {
-                let (dest, src, len) = (frame.read(dest)?, frame.read(src)?, frame.read(len)?);
-                self.burn_words(len)?;
-                return limit(self.memory.copy(dest, src, len));
-            }
-            &InstKind::Keccak256(offset, len) => {
-                let (offset, len) = (frame.read(offset)?, frame.read(len)?);
-                self.burn_words(len)?;
-                let bytes = limit(self.memory.read(offset, len))?;
-                U256::from_be_bytes(keccak256(bytes).0)
-            }
-            InstKind::ICall { function: Callee::Function(callee), args } => {
+            Semantics::Call(Callee::Function(callee), args) => {
                 let args = frame.read_all(args)?.into_iter().collect();
                 let Some(callee) = self.machine.body(*callee) else {
                     return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
                 };
                 return self.call(callee, args, instruction.result());
             }
-            InstKind::ICall { .. } => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
-            kind => match eval_inst(kind, |value| frame.word(value).ok_or(())) {
+            Semantics::Call(..) => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
+            semantics => match eval_semantics(semantics, |value| frame.word(value).ok_or(())) {
                 Ok(Some(word)) => word,
                 Ok(None) => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
                 Err(()) => {
@@ -565,6 +559,39 @@ impl<'a> Run<'_, 'a> {
         }
         self.frame().values[value] = Some(result);
         ControlFlow::Continue(())
+    }
+
+    /// Runs a memory opcode on its operand words, returning its result when it has one.
+    fn memory_opcode(
+        &mut self,
+        opcode: u8,
+        operands: &[U256],
+    ) -> ControlFlow<Outcome, Option<U256>> {
+        ControlFlow::Continue(match (opcode, operands) {
+            (op::MLOAD, &[offset]) => Some(limit(self.memory.load(offset))?),
+            (op::MSTORE, &[offset, value]) => {
+                limit(self.memory.store(offset, value))?;
+                None
+            }
+            (op::MSTORE8, &[offset, value]) => {
+                limit(self.memory.store8(offset, value))?;
+                None
+            }
+            (op::MCOPY, &[dest, src, len]) => {
+                self.burn_words(len)?;
+                limit(self.memory.copy(dest, src, len))?;
+                None
+            }
+            (op::KECCAK256, &[offset, len]) => {
+                self.burn_words(len)?;
+                let bytes = limit(self.memory.read(offset, len))?;
+                Some(U256::from_be_bytes(keccak256(bytes).0))
+            }
+            _ => {
+                let mnemonic = op::mnemonic(opcode).unwrap_or("opcode");
+                return ControlFlow::Break(Outcome::Unsupported(mnemonic));
+            }
+        })
     }
 
     fn terminator(
