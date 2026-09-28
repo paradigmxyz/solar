@@ -14,14 +14,14 @@ use solar_data_structures::{
     map::FxHashSet,
 };
 use solar_sema::Gcx;
-use std::hash::Hasher;
+use std::hash::{Hash, Hasher};
 
 /// The machine-level identity shared by transforms that compare instructions.
 ///
 /// `keep_with_next` is part of the identity: sharing one copy of two otherwise equal instructions
 /// must not drop one copy's constraint on the boundary that follows it. The small fields share
 /// one word so the suffix and outlining tables hash them together.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) struct MachineInstKey(u64, Option<PushValue>);
 
 impl MachineInstKey {
@@ -48,7 +48,7 @@ impl MachineInstKey {
 
     /// Feeds this key to `hasher` as whole words. Equal keys feed equal words, and the value's
     /// kind in the free top bytes of the first word keeps different keys' words distinct.
-    pub(super) fn hash_words(self, hasher: &mut impl Hasher) {
+    fn hash_words(self, hasher: &mut impl Hasher) {
         match self.1 {
             None => hasher.write_u64(self.0),
             Some(PushValue::Immediate(value)) => {
@@ -70,6 +70,12 @@ impl MachineInstKey {
                 hasher.write_u64(data.id.index() as u64 | u64::from(data.offset) << 32);
             }
         }
+    }
+}
+
+impl Hash for MachineInstKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.hash_words(state);
     }
 }
 
