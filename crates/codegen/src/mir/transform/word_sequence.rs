@@ -74,14 +74,13 @@ fn legal(op: &Op, target: Target) -> bool {
             op::definition(opcode).is_some_and(|def| def.is_available(target.evm_version()))
         });
     }
-    op.into_kind().is_some_and(|kind| kind.effect_kind() == EffectKind::Pure)
-        && select::opcode_lowering(op).is_some_and(|lowering| {
-            matches!(
-                lowering,
-                select::OpcodeLowering::Unary { .. } | select::OpcodeLowering::Binary { .. }
-            ) && op::definition(lowering.opcode())
-                .is_some_and(|def| def.is_available(target.evm_version()))
-        })
+    select::opcode_lowering(op).is_some_and(|lowering| {
+        matches!(
+            lowering,
+            select::OpcodeLowering::Unary { .. } | select::OpcodeLowering::Binary { .. }
+        ) && op::definition(lowering.opcode())
+            .is_some_and(|def| def.is_available(target.evm_version()))
+    }) && op.into_kind().is_some_and(|kind| kind.effect_kind() == EffectKind::Pure)
 }
 
 fn removable(func: &Function, inst: &Instruction, target: Target) -> bool {
