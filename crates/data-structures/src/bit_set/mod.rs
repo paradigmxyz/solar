@@ -218,7 +218,7 @@ impl<T: BitSetIndex> DenseBitSet<T> {
     /// Is the set empty?
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.words.iter().all(|a| *a == 0)
+        words_are_zero(&self.words)
     }
 
     /// Insert `elem`. Returns whether the set has changed.
@@ -289,7 +289,7 @@ impl<T: BitSetIndex> DenseBitSet<T> {
 
             let remaining = start_word_index + 1..end_word_index;
             if remaining.start <= remaining.end {
-                self.words[remaining].iter().any(|&w| w != 0)
+                !words_are_zero(&self.words[remaining])
                     || self.words[end_word_index] & (end_mask | (end_mask - 1)) != 0
             } else {
                 false
@@ -370,17 +370,17 @@ impl<T: BitSetIndex> DenseBitSet<T> {
 impl<T: BitSetIndex> BitRelations<DenseBitSet<T>> for DenseBitSet<T> {
     fn union(&mut self, other: &DenseBitSet<T>) -> bool {
         assert_eq!(self.domain_size, other.domain_size);
-        update_words(&mut self.words, &other.words, |a, b| a | b)
+        union_words(&mut self.words, &other.words)
     }
 
     fn subtract(&mut self, other: &DenseBitSet<T>) -> bool {
         assert_eq!(self.domain_size, other.domain_size);
-        update_words(&mut self.words, &other.words, |a, b| a & !b)
+        subtract_words(&mut self.words, &other.words)
     }
 
     fn intersect(&mut self, other: &DenseBitSet<T>) -> bool {
         assert_eq!(self.domain_size, other.domain_size);
-        update_words(&mut self.words, &other.words, |a, b| a & b)
+        intersect_words(&mut self.words, &other.words)
     }
 }
 
@@ -836,10 +836,9 @@ impl<T: BitSetIndex> BitRelations<ChunkedBitSet<T>> for ChunkedBitSet<T> {
 
                     // If we reach here, `self_chunk_words` is definitely changing.
                     let self_chunk_words = Rc::make_mut(self_chunk_words);
-                    let has_changed = update_words(
+                    let has_changed = union_words(
                         &mut self_chunk_words[0..num_words],
                         &other_chunk_words[0..num_words],
-                        op,
                     );
                     debug_assert!(has_changed);
                     *self_chunk_ones_count =
@@ -913,10 +912,9 @@ impl<T: BitSetIndex> BitRelations<ChunkedBitSet<T>> for ChunkedBitSet<T> {
                     }
 
                     let self_chunk_words = Rc::make_mut(self_chunk_words);
-                    let has_changed = update_words(
+                    let has_changed = subtract_words(
                         &mut self_chunk_words[0..num_words],
                         &other_chunk_words[0..num_words],
-                        op,
                     );
                     debug_assert!(has_changed);
                     *self_chunk_ones_count =
@@ -962,10 +960,9 @@ impl<T: BitSetIndex> BitRelations<ChunkedBitSet<T>> for ChunkedBitSet<T> {
                     }
 
                     let self_chunk_words = Rc::make_mut(self_chunk_words);
-                    let has_changed = update_words(
+                    let has_changed = intersect_words(
                         &mut self_chunk_words[0..num_words],
                         &other_chunk_words[0..num_words],
-                        op,
                     );
                     debug_assert!(has_changed);
                     *self_chunk_ones_count =
@@ -1134,6 +1131,40 @@ where
         changed |= old_val ^ new_val;
     }
     changed != 0
+}
+
+// Non-generic word operations, so each operation is compiled once rather than once per set type
+// and index type.
+
+/// Sets `lhs |= rhs`, returning whether `lhs` changed.
+#[inline]
+fn union_words(lhs: &mut [Word], rhs: &[Word]) -> bool {
+    update_words(lhs, rhs, |a, b| a | b)
+}
+
+/// Sets `lhs &= !rhs`, returning whether `lhs` changed.
+#[inline]
+fn subtract_words(lhs: &mut [Word], rhs: &[Word]) -> bool {
+    update_words(lhs, rhs, |a, b| a & !b)
+}
+
+/// Sets `lhs &= rhs`, returning whether `lhs` changed.
+#[inline]
+fn intersect_words(lhs: &mut [Word], rhs: &[Word]) -> bool {
+    update_words(lhs, rhs, |a, b| a & b)
+}
+
+/// Returns whether no bit is set.
+#[inline]
+fn words_are_zero(words: &[Word]) -> bool {
+    words.iter().all(|&word| word == 0)
+}
+
+/// Returns whether bit `elem` is set, treating bits past the end as unset.
+#[inline]
+fn words_contain(words: &[Word], elem: usize) -> bool {
+    let (word_index, mask) = word_index_and_mask_usize(elem);
+    words.get(word_index).is_some_and(|word| (word & mask) != 0)
 }
 
 /// Returns true if a call to [`update_words`] would modify `lhs`, i.e.
@@ -1418,8 +1449,7 @@ impl<T: BitSetIndex> GrowableBitSet<T> {
 
     #[inline]
     pub fn contains(&self, elem: T) -> bool {
-        let (word_index, mask) = word_index_and_mask(elem);
-        self.bit_set.words.get(word_index).is_some_and(|word| (word & mask) != 0)
+        words_contain(&self.bit_set.words, elem.index())
     }
 
     #[inline]
@@ -1452,19 +1482,18 @@ impl<T: BitSetIndex> From<DenseBitSet<T>> for GrowableBitSet<T> {
 impl<T: BitSetIndex> BitRelations<Self> for GrowableBitSet<T> {
     fn union(&mut self, other: &Self) -> bool {
         self.ensure(other.bit_set.domain_size);
-        update_words(&mut self.bit_set.words, &other.bit_set.words, |a, b| a | b)
+        union_words(&mut self.bit_set.words, &other.bit_set.words)
     }
 
     fn subtract(&mut self, other: &Self) -> bool {
         let len = self.bit_set.words.len().min(other.bit_set.words.len());
-        update_words(&mut self.bit_set.words[..len], &other.bit_set.words[..len], |a, b| a & !b)
+        subtract_words(&mut self.bit_set.words[..len], &other.bit_set.words[..len])
     }
 
     fn intersect(&mut self, other: &Self) -> bool {
         let len = self.bit_set.words.len().min(other.bit_set.words.len());
-        let changed =
-            update_words(&mut self.bit_set.words[..len], &other.bit_set.words[..len], |a, b| a & b);
-        let truncated = self.bit_set.words[len..].iter().any(|word| *word != 0);
+        let changed = intersect_words(&mut self.bit_set.words[..len], &other.bit_set.words[..len]);
+        let truncated = !words_are_zero(&self.bit_set.words[len..]);
         self.bit_set.words[len..].fill(0);
         changed || truncated
     }
@@ -1602,7 +1631,7 @@ impl<R: BitSetIndex, C: BitSetIndex> BitMatrix<R, C> {
         assert!(write.index() < self.num_rows);
         assert_eq!(with.domain_size(), self.num_columns);
         let (write_start, write_end) = self.range(write);
-        update_words(&mut self.words[write_start..write_end], &with.words, |a, b| a | b)
+        union_words(&mut self.words[write_start..write_end], &with.words)
     }
 
     /// Sets every cell in `row` to true.
@@ -1673,8 +1702,7 @@ pub struct BitMatrixRow<'a, C> {
 impl<'a, C: BitSetIndex> BitMatrixRow<'a, C> {
     /// Returns `true` if `column` is in the row.
     pub fn contains(&self, column: C) -> bool {
-        let (word_index, mask) = word_index_and_mask(column);
-        self.words.get(word_index).is_some_and(|word| (word & mask) != 0)
+        words_contain(self.words, column.index())
     }
 
     /// Returns the number of columns in the row.
@@ -1711,17 +1739,17 @@ impl<C: BitSetIndex> From<BitMatrixRow<'_, C>> for DenseBitSet<C> {
 impl<T: BitSetIndex> BitRelations<BitMatrixRow<'_, T>> for DenseBitSet<T> {
     fn union(&mut self, other: &BitMatrixRow<'_, T>) -> bool {
         assert_eq!(self.domain_size, other.num_columns);
-        update_words(&mut self.words, other.words, |a, b| a | b)
+        union_words(&mut self.words, other.words)
     }
 
     fn subtract(&mut self, other: &BitMatrixRow<'_, T>) -> bool {
         assert_eq!(self.domain_size, other.num_columns);
-        update_words(&mut self.words, other.words, |a, b| a & !b)
+        subtract_words(&mut self.words, other.words)
     }
 
     fn intersect(&mut self, other: &BitMatrixRow<'_, T>) -> bool {
         assert_eq!(self.domain_size, other.num_columns);
-        update_words(&mut self.words, other.words, |a, b| a & b)
+        intersect_words(&mut self.words, other.words)
     }
 }
 
