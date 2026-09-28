@@ -28,7 +28,7 @@ from evm_rules.discovery import (
     read_seeds,
 )
 from evm_rules.expr import MASK, MODULUS, SIGN, Cond, Expr, Unsupported, concrete, holds
-from evm_rules.isle import ISLE, Context, Rule, forms, rule_sources
+from evm_rules.isle import ISLE, ROOT, Context, Rule, forms, rule_sources
 from evm_rules.late import execute as execute_late
 from evm_rules.lean import (
     COMMANDS,
@@ -504,6 +504,29 @@ class SemanticsTests(unittest.TestCase):
         )
         self.assertEqual(result["status"], "counterexample")
         self.assertTrue(result["replayed"])
+
+    def test_compiler_opcode_table(self):
+        """Every pure opcode of the compiler's table agrees with both word models.
+
+        The Lean model's `EXP` raises its base to the exponent's natural number, which
+        `#guard` cannot evaluate for large exponents, so those rows check the Python
+        model alone.
+        """
+        table = ROOT / "crates/codegen/src/backend/evm/op/word.snap"
+        lines = table.read_text().splitlines()
+        self.assertGreater(len(lines), 0)
+        for line in lines:
+            evaluation, result = line.split(" -> ")
+            op, *args = evaluation.split()
+            values = [int(a, 16) for a in args]
+            expected = int(result, 16)
+            with self.subTest(line=line):
+                if op == "exp" and values[1] > 256:
+                    self.assertEqual(
+                        concrete(expression(op, *values), {}), expected & MASK
+                    )
+                else:
+                    self.assert_evaluation(op, values, expected)
 
 
 class EnvironmentTests(unittest.TestCase):
