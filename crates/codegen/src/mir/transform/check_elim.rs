@@ -574,7 +574,7 @@ impl<'a> CheckEliminator<'a> {
         }
         let mut proven = Vec::new();
         let (mut folds, mut checks) =
-            self.collect_folds(func, &cfg, &preds, &facts, &candidates, &mut proven);
+            self.collect_folds(func, &cfg, &preds, &facts, &candidates, &mut proven, selected);
         if !proven.is_empty() {
             // The invariant is available wherever the phi is: attach it to the
             // header's entry facts and index it for transitive queries.
@@ -597,7 +597,8 @@ impl<'a> CheckEliminator<'a> {
             self.relation_index = None;
             self.reverse_index = None;
             self.strict_lower_bounds = None;
-            (folds, checks) = self.collect_folds(func, &cfg, &preds, &facts, &[], &mut Vec::new());
+            (folds, checks) =
+                self.collect_folds(func, &cfg, &preds, &facts, &[], &mut Vec::new(), selected);
         }
         if let Some((selected, reverting)) = selected {
             folds.retain(|&(block, keep)| {
@@ -639,7 +640,9 @@ impl<'a> CheckEliminator<'a> {
     /// Walks the dominator tree, recording edge and check facts. Returns branch folds and
     /// proven passing checks to remove.
     /// `candidates` whose update is proven wrap-free in its defining block's
-    /// scope are appended to `proven`.
+    /// scope are appended to `proven`. With `selected`, only branches the caller
+    /// could keep folded are evaluated; evaluation records no facts.
+    #[allow(clippy::too_many_arguments)]
     fn collect_folds(
         &mut self,
         func: &Function,
@@ -648,6 +651,7 @@ impl<'a> CheckEliminator<'a> {
         facts: &IndexVec<BlockId, Facts>,
         candidates: &[MonotonePhi],
         proven: &mut Vec<MonotonePhi>,
+        selected: Option<(&DenseBitSet<BlockId>, &FxHashSet<FunctionId>)>,
     ) -> (Vec<(BlockId, BlockId)>, DenseBitSet<InstId>) {
         enum Walk {
             Enter(BlockId),
@@ -720,6 +724,11 @@ impl<'a> CheckEliminator<'a> {
                     if let Some(Terminator::Branch { condition, then_block, else_block }) =
                         func.blocks[block].terminator.as_ref()
                         && then_block != else_block
+                        && selected.is_none_or(|(selected, reverting)| {
+                            selected.contains(block)
+                                && (leads_to_revert(func, *then_block, reverting)
+                                    || leads_to_revert(func, *else_block, reverting))
+                        })
                         && let Some(truth) = self.eval_truth(func, *condition, MAX_DEPTH)
                     {
                         folds.push((block, if truth { *then_block } else { *else_block }));
