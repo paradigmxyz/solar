@@ -98,26 +98,40 @@ jobs:
           chmod +x "$RUNNER_TEMP/solx/solx"
           "$RUNNER_TEMP/solx/solx" --version
 
+      - name: Restore oksolc build
+        id: oksolc-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: target/oksolc/zig-out/bin/oksolc
+          key: oksolc-v1-${{ runner.os }}-${{ runner.arch }}-zig-0.16.0-ReleaseFast-baseline-${{ env.OKSOLC_REVISION }}-${{ hashFiles('.github/oksolc/package-lock.json') }}
+
       - name: Checkout oksolc
+        if: steps.oksolc-cache.outputs.cache-hit != 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: okcontract/oksolc
           ref: ${{ env.OKSOLC_REVISION }}
           path: target/oksolc
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Install Zig
+        if: steps.oksolc-cache.outputs.cache-hit != 'true'
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.16.0
 
       - name: Build oksolc
+        if: steps.oksolc-cache.outputs.cache-hit != 'true'
         working-directory: target/oksolc
         run: |
           set -euo pipefail
-          npm install --global "typescript@$(cat src/cli/browser/typescript-version)" "bun@$(cat src/cli/browser/bun-version)"
-          zig build build-cli -Doptimize=ReleaseFast -j4
-          zig-out/bin/oksolc --version
+          npm ci --prefix "$GITHUB_WORKSPACE/.github/oksolc"
+          export PATH="$GITHUB_WORKSPACE/.github/oksolc/node_modules/.bin:$PATH"
+          zig build build-cli -Doptimize=ReleaseFast -Dcpu=baseline -j4
+
+      - name: Check oksolc
+        run: target/oksolc/zig-out/bin/oksolc --version
 
       - name: Build Solar
         run: |

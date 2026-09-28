@@ -50,7 +50,10 @@ runs it only on pushes to main. Its measurements appear alongside solc in the Ma
 Pass `--oksolc PATH` to include [oksolc](https://github.com/okcontract/oksolc) with the same
 compilation, gas, runtime checks, and artifacts. CI builds revision
 `c4c4bee13526a888107fee3ec11bebeed96d4010` with Zig 0.16.0 in ReleaseFast mode and runs it on
-main, PRs, and manual runs. Oksolc uses `standard-json --no-cache --parallel --jobs 8 -`:
+main, PRs, and manual runs. CI caches the executable by revision, Zig version, locked npm tools, OS, architecture,
+and build settings, skipping its shallow checkout and build on a cache hit. The build targets
+the baseline CPU for its architecture so the cached executable works across runners.
+Oksolc uses `standard-json --no-cache --parallel --jobs 8 -`:
 eight workers match Solar's default, and disabling its persistent cache keeps repeated samples
 measuring compilation. Use `--oksolc-jobs N` to change its worker count locally. Inputs retain
 their settings; unsupported inputs remain failures. The website discovers compiler columns and
