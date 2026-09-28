@@ -97,7 +97,7 @@
 use super::{
     model::{MAX_STACK_DEPTH, StackModel},
     shuffler::{ShuffleResult, StackShuffler, TargetSlot},
-    spill::{SpillManager, SpillSlot},
+    spill::{SharedSpillManager, SpillSlot},
 };
 use crate::{
     backend::evm::{
@@ -105,7 +105,10 @@ use crate::{
         ir::{ImmediateMaterialization, immediate_materialization_cost},
         op::StackOp,
     },
-    mir::{ArgIdx, BlockId, Function, InstKind, OpTraits, Value, ValueId, analysis::Liveness},
+    mir::{
+        ArgIdx, BlockId, EffectKind, Function, InstKind, OpTraits, Value, ValueId,
+        analysis::Liveness,
+    },
     target::{Cost, StackCosts, Target},
 };
 use smallvec::SmallVec;
@@ -130,7 +133,11 @@ pub(crate) const fn is_rematerializable_leaf(value: &Value) -> bool {
 
 /// Returns the opcode for a stable nullary read that is cheaper to re-emit than preserve.
 pub(crate) fn rematerializable_nullary_opcode(kind: &InstKind) -> Option<u8> {
-    if kind.op_def().traits.contains(OpTraits::REMATERIALIZABLE)
+    // The rematerializable nullary reads are environment reads; pure rematerializable
+    // operations are arithmetic, which never lowers to a nullary opcode.
+    let def = kind.op_def();
+    if def.traits.contains(OpTraits::REMATERIALIZABLE)
+        && def.effect != EffectKind::Pure
         && let Some(OpcodeLowering::Nullary { opcode }) = opcode_lowering(&kind.op())
     {
         Some(opcode)
@@ -237,7 +244,7 @@ pub(crate) struct StackScheduler {
     /// Current stack state.
     pub stack: StackModel,
     /// Spill slots and their current reloadability.
-    pub spills: SpillManager,
+    pub spills: SharedSpillManager,
     /// Target used to cost logical stack operations before assembly lowers them.
     evm_version: EvmVersion,
     /// Gas mode may select wider edge permutations; size mode preserves existing sharing choices.
@@ -707,7 +714,7 @@ impl StackScheduler {
         Self {
             wide_permutations: true,
             stack: StackModel::new(),
-            spills: SpillManager::new(),
+            spills: SharedSpillManager::new(),
             evm_version,
             stack_only_values: DenseBitSet::new_empty(0),
             ops: Vec::new(),
@@ -1017,8 +1024,9 @@ impl StackScheduler {
             }
             expansions += 1;
 
-            let stack = state.stack.clone();
+            // Each state is expanded at most once, and nothing reads its stack afterwards.
             let cost = state.cost;
+            let stack = std::mem::take(&mut states[state_idx].stack);
             for action in self.operand_search_actions(&stack, &goal, &preserve_counts, context) {
                 if states.len() >= MAX_OPERAND_SEARCH_CREATED_STATES
                     || visited.len() >= MAX_OPERAND_SEARCH_VISITED_STATES

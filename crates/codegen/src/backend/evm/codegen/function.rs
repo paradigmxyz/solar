@@ -115,8 +115,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         let block_local_liveness =
             self.emitting_entry.then(|| Liveness::compute_block_local_for_codegen(func)).flatten();
         let whole_function_liveness = block_local_liveness.is_none();
-        let liveness = block_local_liveness.unwrap_or_else(|| Liveness::compute(func));
-        let liveness = &liveness;
+        let liveness =
+            block_local_liveness.map_or_else(|| self.function_liveness(func_id, func), Rc::new);
+        let liveness = &*liveness;
         let cross_block_live = OnceCell::new();
         let mut function_returns = FxHashSet::default();
 
@@ -149,15 +150,20 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut stack_phi_plan =
             phi_plan.as_deref().map_or_else(StackPhiPlan::default, StackPhiPlan::clone);
         let resident_stack_plan = self.resident_stack_plan(func_id).cloned();
-        let existing_stack_only_values = self.stack_only_values(func_id, true);
-        let hazard_recomputable =
-            cross_block_values(func, |value| !existing_stack_only_values.contains(&value));
-        let hazard_cross_block_values = self.spill_hazard_cross_block_values(
-            func,
-            liveness,
-            &cross_block_live,
-            &hazard_recomputable,
-        );
+        // Without a forwarding-buffer clobber no value needs a successor after one.
+        let hazard_cross_block_values = if self.spill_hazard_insts.is_empty() {
+            Vec::new()
+        } else {
+            let existing_stack_only_values = self.stack_only_values(func_id, true);
+            let hazard_recomputable =
+                cross_block_values(func, |value| !existing_stack_only_values.contains(&value));
+            self.spill_hazard_cross_block_values(
+                func,
+                liveness,
+                &cross_block_live,
+                &hazard_recomputable,
+            )
+        };
         let resident_carries_hazards = resident_stack_plan.as_ref().is_some_and(|plan| {
             self.stack_plan_carries_spill_hazards(func, liveness, plan, &hazard_cross_block_values)
         });

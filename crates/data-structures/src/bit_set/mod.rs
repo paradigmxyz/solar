@@ -1634,6 +1634,95 @@ impl<R: BitSetIndex, C: BitSetIndex> BitMatrix<R, C> {
         let (start, end) = self.range(row);
         count_ones(&self.words[start..end])
     }
+
+    /// Borrows `row` as a set of columns.
+    pub fn row(&self, row: R) -> BitMatrixRow<'_, C> {
+        assert!(row.index() < self.num_rows);
+        let (start, end) = self.range(row);
+        BitMatrixRow {
+            num_columns: self.num_columns,
+            words: &self.words[start..end],
+            marker: PhantomData,
+        }
+    }
+
+    /// Replaces the bits of `row` with `with`, and returns `true` if anything changed.
+    pub fn replace_row(&mut self, row: R, with: &DenseBitSet<C>) -> bool {
+        assert!(row.index() < self.num_rows);
+        assert_eq!(with.domain_size(), self.num_columns);
+        let (start, end) = self.range(row);
+        let words = &mut self.words[start..end];
+        if *words == *with.words {
+            return false;
+        }
+        words.copy_from_slice(&with.words);
+        true
+    }
+}
+
+/// A borrowed row of a [`BitMatrix`], viewed as a set of columns.
+///
+/// Queries outside the column domain report absence.
+#[derive(Clone, Copy)]
+pub struct BitMatrixRow<'a, C> {
+    num_columns: usize,
+    words: &'a [Word],
+    marker: PhantomData<C>,
+}
+
+impl<'a, C: BitSetIndex> BitMatrixRow<'a, C> {
+    /// Returns `true` if `column` is in the row.
+    pub fn contains(&self, column: C) -> bool {
+        let (word_index, mask) = word_index_and_mask(column);
+        self.words.get(word_index).is_some_and(|word| (word & mask) != 0)
+    }
+
+    /// Returns the number of columns in the row.
+    pub fn count(&self) -> usize {
+        count_ones(self.words)
+    }
+
+    /// Iterates over the columns in the row, in ascending order.
+    pub fn iter(&self) -> BitIter<'a, C> {
+        BitIter::new(self.words)
+    }
+}
+
+impl<'a, C: BitSetIndex> IntoIterator for BitMatrixRow<'a, C> {
+    type Item = C;
+    type IntoIter = BitIter<'a, C>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<C: BitSetIndex> From<BitMatrixRow<'_, C>> for DenseBitSet<C> {
+    fn from(row: BitMatrixRow<'_, C>) -> Self {
+        DenseBitSet {
+            domain_size: row.num_columns,
+            words: WordVec::from_slice(row.words),
+            marker: PhantomData,
+        }
+    }
+}
+
+// dense REL matrix row
+impl<T: BitSetIndex> BitRelations<BitMatrixRow<'_, T>> for DenseBitSet<T> {
+    fn union(&mut self, other: &BitMatrixRow<'_, T>) -> bool {
+        assert_eq!(self.domain_size, other.num_columns);
+        update_words(&mut self.words, other.words, |a, b| a | b)
+    }
+
+    fn subtract(&mut self, other: &BitMatrixRow<'_, T>) -> bool {
+        assert_eq!(self.domain_size, other.num_columns);
+        update_words(&mut self.words, other.words, |a, b| a & !b)
+    }
+
+    fn intersect(&mut self, other: &BitMatrixRow<'_, T>) -> bool {
+        assert_eq!(self.domain_size, other.num_columns);
+        update_words(&mut self.words, other.words, |a, b| a & b)
+    }
 }
 
 impl<R: BitSetIndex, C: BitSetIndex> fmt::Debug for BitMatrix<R, C> {
