@@ -71,29 +71,6 @@ pub trait BitRelations<Rhs> {
     fn intersect(&mut self, other: &Rhs) -> bool;
 }
 
-#[inline]
-fn inclusive_start_end<T: BitSetIndex>(
-    range: impl RangeBounds<T>,
-    domain: usize,
-) -> Option<(usize, usize)> {
-    // Both start and end are inclusive.
-    let start = match range.start_bound().cloned() {
-        Bound::Included(start) => start.index(),
-        Bound::Excluded(start) => start.index() + 1,
-        Bound::Unbounded => 0,
-    };
-    let end = match range.end_bound().cloned() {
-        Bound::Included(end) => end.index(),
-        Bound::Excluded(end) => end.index().checked_sub(1)?,
-        Bound::Unbounded => domain - 1,
-    };
-    assert!(end < domain);
-    if start > end {
-        return None;
-    }
-    Some((start, end))
-}
-
 macro_rules! bit_relations_inherent_impls {
     () => {
         /// Sets `self = self | other` and returns `true` if `self` changed
@@ -1101,108 +1078,6 @@ impl<T: BitSetIndex> fmt::Debug for ChunkedBitSet<T> {
     }
 }
 
-/// Sets `lhs[i] = op(lhs[i], rhs[i])` for each index `i` in both
-/// slices. The slices must have the same length.
-///
-/// Returns true if at least one bit in `lhs` was changed.
-///
-/// ## Warning
-/// Some bitwise operations (e.g. union-not, xor) can set output bits that were
-/// unset in in both inputs. If this happens in the last word/chunk of a bitset,
-/// it can cause the bitset to contain out-of-domain values, which need to
-/// be cleared with `clear_excess_bits_in_final_word`. This also makes the
-/// "changed" return value unreliable, because the change might have only
-/// affected excess bits.
-#[inline]
-fn update_words<Op>(lhs: &mut [Word], rhs: &[Word], op: Op) -> bool
-where
-    Op: Fn(Word, Word) -> Word,
-{
-    assert_eq!(lhs.len(), rhs.len());
-    let mut changed = 0;
-    for (lhs_slot, &rhs_val) in iter::zip(lhs, rhs) {
-        let old_val = *lhs_slot;
-        let new_val = op(old_val, rhs_val);
-        *lhs_slot = new_val;
-        // This is essentially equivalent to a != with changed being a bool, but
-        // in practice this code gets auto-vectorized by the compiler for most
-        // operators. Using != here causes us to generate quite poor code as the
-        // compiler tries to go back to a boolean on each loop iteration.
-        changed |= old_val ^ new_val;
-    }
-    changed != 0
-}
-
-// Non-generic word operations, so each operation is compiled once rather than once per set type
-// and index type.
-
-/// Sets `lhs |= rhs`, returning whether `lhs` changed.
-#[inline]
-fn union_words(lhs: &mut [Word], rhs: &[Word]) -> bool {
-    update_words(lhs, rhs, |a, b| a | b)
-}
-
-/// Sets `lhs &= !rhs`, returning whether `lhs` changed.
-#[inline]
-fn subtract_words(lhs: &mut [Word], rhs: &[Word]) -> bool {
-    update_words(lhs, rhs, |a, b| a & !b)
-}
-
-/// Sets `lhs &= rhs`, returning whether `lhs` changed.
-#[inline]
-fn intersect_words(lhs: &mut [Word], rhs: &[Word]) -> bool {
-    update_words(lhs, rhs, |a, b| a & b)
-}
-
-/// Returns whether no bit is set.
-#[inline]
-fn words_are_zero(words: &[Word]) -> bool {
-    words.iter().all(|&word| word == 0)
-}
-
-/// Returns whether bit `elem` is set, treating bits past the end as unset.
-#[inline]
-fn words_contain(words: &[Word], elem: usize) -> bool {
-    let (word_index, mask) = word_index_and_mask_usize(elem);
-    words.get(word_index).is_some_and(|word| (word & mask) != 0)
-}
-
-/// Returns true if a call to [`update_words`] would modify `lhs`, i.e.
-/// `lhs[i] != op(lhs[i], rhs[i])` for some `i`.
-#[inline]
-fn would_modify_words<Op>(lhs: &[Word], rhs: &[Word], op: Op) -> bool
-where
-    Op: Fn(Word, Word) -> Word,
-{
-    assert_eq!(lhs.len(), rhs.len());
-
-    // To make codegen more vectorizer-friendly, we traverse each slice in larger
-    // "subchunks", and only consider an early return at subchunk boundaries.
-    // These subchunks are smaller than full `ChunkedBitSet` chunks, so that
-    // we still have some chance of stopping early.
-    const SUBCHUNK_LEN: usize = 64 / size_of::<Word>();
-    let (lhs_chunks, lhs_tail) = lhs.as_chunks::<SUBCHUNK_LEN>();
-    let (rhs_chunks, rhs_tail) = rhs.as_chunks::<SUBCHUNK_LEN>();
-
-    let would_modify_subchunk = |lhs_chunk: &[Word], rhs_chunk: &[Word]| {
-        let mut changed = 0;
-        for (&old_val, &rhs_val) in iter::zip(lhs_chunk, rhs_chunk) {
-            let new_val = op(old_val, rhs_val);
-            // Set `changed` to a non-zero value if any bits changed.
-            // This gives better SIMD codegen than using an actual boolean.
-            changed |= old_val ^ new_val;
-        }
-        changed != 0
-    };
-
-    for (lhs_chunk, rhs_chunk) in iter::zip(lhs_chunks, rhs_chunks) {
-        if would_modify_subchunk(lhs_chunk, rhs_chunk) {
-            return true;
-        }
-    }
-    would_modify_subchunk(lhs_tail, rhs_tail)
-}
-
 /// A bitset with a mixed representation, using `DenseBitSet` for small and
 /// medium bitsets, and `ChunkedBitSet` for large bitsets, i.e. those with
 /// enough bits for at least two chunks. This is a good choice for many bitsets
@@ -1983,4 +1858,129 @@ fn max_bit(word: Word) -> usize {
 #[inline]
 fn count_ones(words: &[Word]) -> usize {
     words.iter().map(|word| word.count_ones() as usize).sum()
+}
+
+#[inline]
+fn inclusive_start_end<T: BitSetIndex>(
+    range: impl RangeBounds<T>,
+    domain: usize,
+) -> Option<(usize, usize)> {
+    // Both start and end are inclusive.
+    let start = match range.start_bound().cloned() {
+        Bound::Included(start) => start.index(),
+        Bound::Excluded(start) => start.index() + 1,
+        Bound::Unbounded => 0,
+    };
+    let end = match range.end_bound().cloned() {
+        Bound::Included(end) => end.index(),
+        Bound::Excluded(end) => end.index().checked_sub(1)?,
+        Bound::Unbounded => domain - 1,
+    };
+    assert!(end < domain);
+    if start > end {
+        return None;
+    }
+    Some((start, end))
+}
+
+/// Sets `lhs[i] = op(lhs[i], rhs[i])` for each index `i` in both
+/// slices. The slices must have the same length.
+///
+/// Returns true if at least one bit in `lhs` was changed.
+///
+/// ## Warning
+/// Some bitwise operations (e.g. union-not, xor) can set output bits that were
+/// unset in in both inputs. If this happens in the last word/chunk of a bitset,
+/// it can cause the bitset to contain out-of-domain values, which need to
+/// be cleared with `clear_excess_bits_in_final_word`. This also makes the
+/// "changed" return value unreliable, because the change might have only
+/// affected excess bits.
+#[inline]
+fn update_words<Op>(lhs: &mut [Word], rhs: &[Word], op: Op) -> bool
+where
+    Op: Fn(Word, Word) -> Word,
+{
+    assert_eq!(lhs.len(), rhs.len());
+    let mut changed = 0;
+    for (lhs_slot, &rhs_val) in iter::zip(lhs, rhs) {
+        let old_val = *lhs_slot;
+        let new_val = op(old_val, rhs_val);
+        *lhs_slot = new_val;
+        // This is essentially equivalent to a != with changed being a bool, but
+        // in practice this code gets auto-vectorized by the compiler for most
+        // operators. Using != here causes us to generate quite poor code as the
+        // compiler tries to go back to a boolean on each loop iteration.
+        changed |= old_val ^ new_val;
+    }
+    changed != 0
+}
+
+// Non-generic word operations, so each operation is compiled once rather than once per set type
+// and index type.
+
+/// Sets `lhs |= rhs`, returning whether `lhs` changed.
+#[inline]
+fn union_words(lhs: &mut [Word], rhs: &[Word]) -> bool {
+    update_words(lhs, rhs, |a, b| a | b)
+}
+
+/// Sets `lhs &= !rhs`, returning whether `lhs` changed.
+#[inline]
+fn subtract_words(lhs: &mut [Word], rhs: &[Word]) -> bool {
+    update_words(lhs, rhs, |a, b| a & !b)
+}
+
+/// Sets `lhs &= rhs`, returning whether `lhs` changed.
+#[inline]
+fn intersect_words(lhs: &mut [Word], rhs: &[Word]) -> bool {
+    update_words(lhs, rhs, |a, b| a & b)
+}
+
+/// Returns whether no bit is set.
+#[inline]
+fn words_are_zero(words: &[Word]) -> bool {
+    words.iter().all(|&word| word == 0)
+}
+
+/// Returns whether bit `elem` is set, treating bits past the end as unset.
+#[inline]
+fn words_contain(words: &[Word], elem: usize) -> bool {
+    let (word_index, mask) = word_index_and_mask_usize(elem);
+    words.get(word_index).is_some_and(|word| (word & mask) != 0)
+}
+
+/// Returns true if a call to [`update_words`] would modify `lhs`, i.e.
+/// `lhs[i] != op(lhs[i], rhs[i])` for some `i`.
+#[inline]
+fn would_modify_words<Op>(lhs: &[Word], rhs: &[Word], op: Op) -> bool
+where
+    Op: Fn(Word, Word) -> Word,
+{
+    assert_eq!(lhs.len(), rhs.len());
+
+    // To make codegen more vectorizer-friendly, we traverse each slice in larger
+    // "subchunks", and only consider an early return at subchunk boundaries.
+    // These subchunks are smaller than full `ChunkedBitSet` chunks, so that
+    // we still have some chance of stopping early.
+    const SUBCHUNK_LEN: usize = 64 / size_of::<Word>();
+    let (lhs_chunks, lhs_tail) = lhs.as_chunks::<SUBCHUNK_LEN>();
+    let (rhs_chunks, rhs_tail) = rhs.as_chunks::<SUBCHUNK_LEN>();
+
+    let would_modify_subchunk = |lhs_chunk: &[Word], rhs_chunk: &[Word]| {
+        let mut changed = 0;
+        for (&old_val, &rhs_val) in iter::zip(lhs_chunk, rhs_chunk) {
+            let new_val = op(old_val, rhs_val);
+            // Set `changed` to a non-zero value if any bits changed.
+            // This gives better SIMD codegen than using an actual boolean.
+            changed |= old_val ^ new_val;
+        }
+        changed != 0
+    };
+
+    for (lhs_chunk, rhs_chunk) in iter::zip(lhs_chunks, rhs_chunks) {
+        if would_modify_subchunk(lhs_chunk, rhs_chunk) {
+            return true;
+        }
+    }
+    would_modify_subchunk(lhs_tail, rhs_tail)
 }
