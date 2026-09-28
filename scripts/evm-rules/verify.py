@@ -265,6 +265,8 @@ def main():
             "crates/codegen/src/backend/evm/ir/passes/peephole.rs",
             "crates/codegen/src/backend/evm/ir/passes/peephole/isle.rs",
             "crates/codegen/src/backend/evm/op.rs",
+            "crates/codegen/src/backend/evm/op/word.rs",
+            "crates/codegen/src/mir/semantics.rs",
         )
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

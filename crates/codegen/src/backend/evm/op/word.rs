@@ -245,3 +245,54 @@ pub(crate) fn i256_mod(mut first: Word, mut second: Word) -> Word {
 
     if first_sign == Sign::Minus { two_compl(remainder) } else { remainder }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backend::evm::op::{definition, eval};
+    use std::fmt::Write as _;
+
+    /// Every pure opcode's results on boundary words. `scripts/evm-rules/test.py` checks each
+    /// line against the rule checker's independent integer and SMT word models.
+    #[test]
+    fn boundary_results() {
+        let words = [
+            Word::ZERO,
+            Word::from(1),
+            Word::from(0x1f),
+            Word::from(0x20),
+            Word::from(0xff),
+            Word::from(0x100),
+            Word::ONE << 255,
+            Word::MAX,
+        ];
+        let modular = [Word::ZERO, Word::from(1), Word::from(0x100), Word::ONE << 255, Word::MAX];
+        let mut table = String::new();
+        for opcode in u8::MIN..=u8::MAX {
+            let Some(definition) = definition(opcode).filter(|definition| definition.is_pure())
+            else {
+                continue;
+            };
+            let inputs = definition.stack_io.map_or(0, |(inputs, _)| usize::from(inputs));
+            let domain: &[Word] = if inputs == 3 { &modular } else { &words };
+            let mut operands = vec![0; inputs];
+            loop {
+                let values = operands.iter().map(|&index| domain[index]).collect::<Vec<_>>();
+                let result = eval(opcode, &values).expect("pure opcodes evaluate");
+                write!(table, "{}", definition.mnemonic).unwrap();
+                for value in &values {
+                    write!(table, " {value:#x}").unwrap();
+                }
+                writeln!(table, " -> {result:#x}").unwrap();
+                // Advances to the next operand tuple, the last operand fastest.
+                let Some(position) = operands.iter().rposition(|&index| index + 1 < domain.len())
+                else {
+                    break;
+                };
+                operands[position] += 1;
+                operands[position + 1..].fill(0);
+            }
+        }
+        snapbox::assert_data_eq!(table, snapbox::file!["word.snap"]);
+    }
+}
