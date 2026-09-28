@@ -416,7 +416,9 @@ fn contract_output_name(gcx: Gcx<'_>, id: ContractId) -> String {
 
 fn has_mir_dump(gcx: Gcx<'_>) -> bool {
     gcx.sess.opts.unstable.dump.as_ref().is_some_and(|dump| {
-        dump.kinds.iter().any(|kind| matches!(kind, DumpKind::Mir | DumpKind::MirCfg))
+        dump.kinds
+            .iter()
+            .any(|kind| matches!(kind, DumpKind::Mir | DumpKind::MirCfg | DumpKind::MirFinal))
     })
 }
 
@@ -475,6 +477,9 @@ fn dump_mir_contract(
     }
     if dump.kinds.contains(&DumpKind::MirCfg) {
         write_mir_dump_contract(writer, gcx, id, module, DumpKind::MirCfg, first)?;
+    }
+    if dump.kinds.contains(&DumpKind::MirFinal) {
+        write_mir_dump_contract(writer, gcx, id, module, DumpKind::MirFinal, first)?;
     }
     Ok(())
 }
@@ -536,7 +541,9 @@ fn write_mir_dump_contract(
     writeln!(writer, "// === {name} ===")
         .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
     match kind {
-        DumpKind::Mir => write_highlighted(writer, module.to_string(), Syntax::Ir),
+        DumpKind::Mir | DumpKind::MirFinal => {
+            write_highlighted(writer, module.to_string(), Syntax::Ir)
+        }
         DumpKind::MirCfg => writeln!(writer, "{}", module.to_dot()),
         _ => unreachable!("checked by caller"),
     }

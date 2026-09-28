@@ -375,6 +375,7 @@ impl Dump {
                 kind,
                 DumpKind::Mir
                     | DumpKind::MirCfg
+                    | DumpKind::MirFinal
                     | DumpKind::EvmIr
                     | DumpKind::EvmIrRuntime
                     | DumpKind::DisasmDeploy
@@ -415,6 +416,8 @@ str_enum! {
         Mir,
         /// Print MIR CFGs in DOT format.
         MirCfg,
+        /// Print the final MIR the backend compiles, which `mir` prints only when optimizing.
+        MirFinal,
         /// Print creation EVM IR.
         EvmIr,
         /// Print runtime EVM IR.
