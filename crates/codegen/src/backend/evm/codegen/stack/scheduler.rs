@@ -213,6 +213,7 @@ const MAX_OPERAND_SEARCH_CREATED_STATES: usize = 4096;
 const MAX_OPERAND_SEARCH_VISITED_STATES: usize = 4096;
 const MAX_OPERAND_SEARCH_OPEN_STATES: usize = 2048;
 const MAX_OPERAND_SEARCH_RETAINED_BYTES: usize = 2 * 1024 * 1024;
+const MAX_RETAINED_VISITED_CAPACITY: usize = 256;
 
 type PlannedActions = SmallVec<[PlannedAction; 8]>;
 
@@ -607,6 +608,36 @@ struct OperandSearchState {
     parent: Option<(usize, PlannedAction)>,
 }
 
+/// Operand-search buffers reused by the searches on one thread.
+#[derive(Default)]
+struct OperandSearchScratch {
+    states: Vec<OperandSearchState>,
+    queue: BinaryHeap<OperandSearchQueueEntry>,
+    visited: FxHashMap<SearchStack, [u32; 3]>,
+}
+
+thread_local! {
+    static OPERAND_SEARCH_SCRATCH: Cell<OperandSearchScratch> = Cell::default();
+}
+
+/// Returns the cleared buffers to the thread's scratch when a search ends.
+struct OperandSearchScratchGuard(OperandSearchScratch);
+
+impl Drop for OperandSearchScratchGuard {
+    fn drop(&mut self) {
+        let mut scratch = std::mem::take(&mut self.0);
+        scratch.states.clear();
+        scratch.queue.clear();
+        // Clearing a table costs time proportional to its capacity, and most searches are small.
+        if scratch.visited.capacity() > MAX_RETAINED_VISITED_CAPACITY {
+            scratch.visited = FxHashMap::default();
+        } else {
+            scratch.visited.clear();
+        }
+        OPERAND_SEARCH_SCRATCH.set(scratch);
+    }
+}
+
 #[derive(Clone, Debug)]
 struct OperandSearchQueueEntry {
     priority: [u32; 3],
@@ -988,10 +1019,9 @@ impl StackScheduler {
         }
         let expansion_limit = MAX_OPERAND_SEARCH_EXPANSIONS.min(budget.remaining_expansions);
         let start_state = OperandSearchState { stack: start.stack, cost: start.cost, parent: None };
-        let mut states = Vec::new();
+        let mut scratch = OperandSearchScratchGuard(OPERAND_SEARCH_SCRATCH.take());
+        let OperandSearchScratch { states, queue, visited } = &mut scratch.0;
         states.push(start_state);
-        let mut queue = BinaryHeap::new();
-        let mut visited = FxHashMap::default();
         let mut serial = 0usize;
         let start_key = states[0].cost.key(optimization);
         let priority = self.operand_search_priority_parts(
@@ -1023,7 +1053,7 @@ impl StackScheduler {
                 continue;
             }
             if Self::operand_goal_reached(&state.stack, &goal, &preserve_counts) {
-                let plan = Self::operand_plan_from_search_state(&states, state_idx);
+                let plan = Self::operand_plan_from_search_state(states, state_idx);
                 #[cfg(test)]
                 self.operand_search_stats.set(OperandSearchStats {
                     expansions,
@@ -2106,10 +2136,10 @@ impl StackScheduler {
                 if (missing || accessible) && !surplus_copy_can_help {
                     continue;
                 }
-                if let Some((_, cost)) = context.required_operand(value).materialize {
-                    if cost.cmp_for(rearrange, optimization).is_lt() {
-                        rearrange = cost;
-                    }
+                if let Some((_, cost)) = context.required_operand(value).materialize
+                    && cost.cmp_for(rearrange, optimization).is_lt()
+                {
+                    rearrange = cost;
                 }
             }
             remaining = remaining.plus(rearrange);
