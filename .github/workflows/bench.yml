@@ -28,6 +28,7 @@ env:
   RUSTC_WRAPPER: "sccache"
   SOLC_VERSION: ${{ inputs.solc_version || '0.8.37' }}
   SOLX_VERSION: '0.1.8'
+  OKSOLC_REVISION: c4c4bee13526a888107fee3ec11bebeed96d4010
 
 jobs:
   codegen-runtime:
@@ -96,6 +97,27 @@ jobs:
           echo "2f6b8feb6a28ac6297a2c0c5afa936e4c013e7175ca88a9bf8e435e61fa1a226  $RUNNER_TEMP/solx/solx" | sha256sum --check
           chmod +x "$RUNNER_TEMP/solx/solx"
           "$RUNNER_TEMP/solx/solx" --version
+
+      - name: Checkout oksolc
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: okcontract/oksolc
+          ref: ${{ env.OKSOLC_REVISION }}
+          path: target/oksolc
+          persist-credentials: false
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.16.0
+
+      - name: Build oksolc
+        working-directory: target/oksolc
+        run: |
+          set -euo pipefail
+          npm install --global "typescript@$(cat src/cli/browser/typescript-version)" "bun@$(cat src/cli/browser/bun-version)"
+          zig build build-cli -Doptimize=ReleaseFast -j4
+          zig-out/bin/oksolc --version
 
       - name: Build Solar
         run: |
@@ -231,6 +253,7 @@ jobs:
           args=(
             --verbose
             --solar target/release/solar-head
+            --oksolc target/oksolc/zig-out/bin/oksolc
             --mode runtime compile-time
             --suite all
             --compile-repeats 5

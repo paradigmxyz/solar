@@ -338,6 +338,7 @@ class FailureHandlingTests(unittest.TestCase):
             ([], {"solar"}),
             (["--solc", "solc"], {"solar", "solc"}),
             (["--solx", "solx"], {"solar", "solx"}),
+            (["--oksolc", "oksolc"], {"solar", "oksolc"}),
             (["--solc", "solc", "--solx", "solx"], {"solar", "solc", "solx"}),
         ):
             with self.subTest(flags=flags):
@@ -355,7 +356,10 @@ class FailureHandlingTests(unittest.TestCase):
         }
         reference = {
             **entry,
-            "compilers": {"solc": {"status": "ok", "input_fingerprint": "same"}},
+            "compilers": {
+                name: {"status": "ok", "input_fingerprint": "same"}
+                for name in ("solc", "solx", "oksolc")
+            },
         }
         with (
             tempfile.TemporaryDirectory() as directory,
@@ -393,7 +397,101 @@ class FailureHandlingTests(unittest.TestCase):
         self.assertEqual(
             [spec.compiler_id for spec in run_case.call_args.args[1]], ["solar"]
         )
-        self.assertEqual(set(document["results"][0]["compilers"]), {"solar", "solc"})
+        self.assertEqual(
+            set(document["results"][0]["compilers"]),
+            {"solar", "solc", "solx", "oksolc"},
+        )
+
+    def test_live_oksolc_with_saved_references(self) -> None:
+        case = benchmark.TEST_CASES[0]
+        for jobs in (1, 8):
+            with (
+                self.subTest(jobs=jobs),
+                tempfile.TemporaryDirectory() as directory,
+                mock.patch.object(
+                    benchmark, "find_binary", side_effect=lambda path, _: Path(path)
+                ),
+                mock.patch.object(
+                    benchmark, "binary_version", return_value=("test", "")
+                ),
+                mock.patch.object(
+                    benchmark,
+                    "run",
+                    return_value=mock.Mock(
+                        returncode=1,
+                        stdout="",
+                        stderr="InternalFailure",
+                        peak_rss_bytes=None,
+                    ),
+                ) as run,
+            ):
+                root = Path(directory)
+                references = root / "reference.json"
+                references.write_text(
+                    json.dumps(
+                        {
+                            "results": [
+                                {
+                                    "test_id": case.test_id,
+                                    "suite": case.suite,
+                                    "gas_profile": "smoke",
+                                    "compilers": {
+                                        "oksolc": {
+                                            "status": "ok",
+                                            "label": "cached",
+                                            "input_fingerprint": benchmark.compiler_input(
+                                                case, None
+                                            )[2],
+                                        }
+                                    },
+                                }
+                            ]
+                        }
+                    )
+                )
+                output = root / "results.json"
+                self.assertEqual(
+                    benchmark.main(
+                        [
+                            "--solar",
+                            "solar",
+                            "--oksolc",
+                            "oksolc",
+                            "--oksolc-jobs",
+                            str(jobs),
+                            "--reference-results",
+                            str(references),
+                            "--tests",
+                            case.test_id,
+                            "--allow-failures",
+                            "--artifacts",
+                            str(root / "artifacts"),
+                            "--output",
+                            str(output),
+                        ]
+                    ),
+                    0,
+                )
+                commands = [call.args[0] for call in run.call_args_list]
+                expected = [
+                    "oksolc",
+                    "standard-json",
+                    "--no-cache",
+                    "--parallel",
+                    "--jobs",
+                    str(jobs),
+                    "-",
+                ]
+                self.assertEqual(
+                    [cmd for cmd in commands if cmd[0] == "oksolc"],
+                    [expected, expected],
+                )
+                compiler = json.loads(output.read_text())["results"][0]["compilers"][
+                    "oksolc"
+                ]
+                self.assertEqual(compiler["status"], "failed")
+                self.assertEqual(compiler["error"], "InternalFailure")
+                self.assertEqual(compiler["label"], "oksolc test")
 
     def test_saved_reference_results_preserve_solc_version_filter(self) -> None:
         case = next(

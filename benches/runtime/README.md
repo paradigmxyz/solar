@@ -46,6 +46,17 @@ The default runs only our compiler. Pass `--solc PATH` to record a two-compiler 
 Pass `--solx PATH` to include [solx](https://github.com/NomicFoundation/solx) as a separate compiler,
 with its own compilation, gas, runtime checks, and artifacts. CI pins solx 0.1.8 and installs and
 runs it only on pushes to main. Its measurements appear alongside solc in the Markdown report.
+
+Pass `--oksolc PATH` to include [oksolc](https://github.com/okcontract/oksolc) with the same
+compilation, gas, runtime checks, and artifacts. CI builds revision
+`c4c4bee13526a888107fee3ec11bebeed96d4010` with Zig 0.16.0 in ReleaseFast mode and runs it on
+main, PRs, and manual runs. Oksolc uses `standard-json --no-cache --parallel --jobs 8 -`:
+eight workers match Solar's default, and disabling its persistent cache keeps repeated samples
+measuring compilation. Use `--oksolc-jobs N` to change its worker count locally. Inputs retain
+their settings; unsupported inputs remain failures. The website discovers compiler columns and
+artifact choices from the uploaded results, so oksolc appears in the overview and artifact
+permalinks posted in the PR comment, even when the base run has no oksolc data.
+
 Reference compiler failures remain in the raw results but do not produce report warnings or
 trigger PR comments. Failures from our compiler and result mismatches involving it still do.
 
@@ -55,9 +66,11 @@ runtime claims, so successful runtime comparisons are marked as skipped unless a
 matching reference result is supplied. Runtime helpers use our compiler unless a live
 solc comparison is explicitly selected.
 
-Pass `--reference-results PATH` to reuse matching solc and solx results from a prior
-run without discovering or running either compiler. This option cannot be combined
-with `--solc` or `--solx`; choose saved results or live reference compilers.
+Pass `--reference-results PATH` to reuse matching solc, solx, and oksolc results from a prior
+run without discovering or running those compilers. This option cannot be combined
+with `--solc` or `--solx`. Add `--oksolc PATH` to measure oksolc live alongside saved
+references; live results take precedence over saved oksolc data. CI uses this combination
+so PRs include oksolc before a main baseline with oksolc exists.
 The benchmark copies reference compile, gas, and runtime data only when the input fingerprint
 matches, then performs the normal cross-compiler runtime checks. PR CI uses the exact-base result
 as the reference, so solc runs on the base revision instead of repeating unchanged work on the PR.
@@ -104,7 +117,7 @@ single-run reports.
 Inputs may be directories containing `results.json` or JSON paths. Artifacts default to
 `artifacts/` beside each JSON. Use `--baseline-artifacts` and `--artifacts` for other paths.
 Add `--tests factorial counter` to select cases, `--artifact mir` for MIR diffs, or
-`--artifact evm-ir disasm bytecode` for backend output. `--compiler solc` or `--compiler solx`
+`--artifact evm-ir disasm bytecode` for backend output. `--compiler solc`, `--compiler solx`, or `--compiler oksolc`
 inspects that reference compiler. Solx artifacts include creation and runtime LLVM IR
 before and after optimization (`*.unoptimized.ll` and `*.optimized.ll`); use
 `--compiler solx --artifact llvm-ir` to compare them.
