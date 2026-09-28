@@ -129,6 +129,10 @@ the serial local path. Debug printing, pass diffs, and pass timing use that path
 too. The defaults should be revisited when the workload mix, pass costs, or
 scheduler changes.
 
+The later [standalone queue-guard comparison](queue-guard.md) covers all
+projects and reports the guard's mixed results separately from these cutoff
+measurements.
+
 ## Repeating the comparison
 
 Use `compile_perf.py build NAME --features asm` for each proposed setting, then
