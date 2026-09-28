@@ -54,10 +54,11 @@ impl<'gcx> Gcx<'gcx> {
 
     fn function_abi(self, id: hir::FunctionId) -> json::Function {
         let f = self.hir.function(id);
+        let in_library = f.contract.is_some_and(|id| self.hir.contract(id).kind.is_library());
         json::Function {
             name: f.name.unwrap_or_default().to_string(),
-            inputs: f.parameters.iter().map(|&p| self.var_param_abi(p)).collect(),
-            outputs: f.returns.iter().map(|&p| self.var_param_abi(p)).collect(),
+            inputs: f.parameters.iter().map(|&p| self.var_param_abi(p, in_library)).collect(),
+            outputs: f.returns.iter().map(|&p| self.var_param_abi(p, in_library)).collect(),
             state_mutability: json_state_mutability(f.state_mutability),
         }
     }
@@ -75,29 +76,29 @@ impl<'gcx> Gcx<'gcx> {
         let e = self.hir.error(id);
         json::Error {
             name: e.name.to_string(),
-            inputs: e.parameters.iter().map(|&p| self.var_param_abi(p)).collect(),
+            inputs: e.parameters.iter().map(|&p| self.var_param_abi(p, false)).collect(),
         }
     }
 
-    fn var_param_abi(self, id: hir::VariableId) -> json::Param {
+    fn var_param_abi(self, id: hir::VariableId, in_library: bool) -> json::Param {
         let v = self.hir.variable(id);
         let ty = self.type_of_item(id.into());
-        self.param_abi(ty, v.name.unwrap_or_default().to_string())
+        self.param_abi(ty, v.name.unwrap_or_default().to_string(), in_library)
     }
 
-    fn param_abi(self, ty: Ty<'gcx>, name: String) -> json::Param {
+    fn param_abi(self, ty: Ty<'gcx>, name: String, in_library: bool) -> json::Param {
         let ty = ty.peel_refs();
         let struct_id = ty.visit(&mut |ty| match ty.kind {
             TyKind::Struct(id) => ControlFlow::Break(id),
             _ => ControlFlow::Continue(()),
         });
         json::Param {
-            ty: self.print_abi_param_ty(ty),
+            ty: self.print_abi_param_ty(ty, in_library),
             name,
             components: match struct_id {
                 ControlFlow::Break(id) => self
                     .item_fields(id)
-                    .map(|(ty, f)| self.param_abi(ty, self.item_name(f).to_string()))
+                    .map(|(ty, f)| self.param_abi(ty, self.item_name(f).to_string(), in_library))
                     .collect(),
                 ControlFlow::Continue(()) => vec![],
             },
@@ -106,14 +107,17 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     fn event_param_abi(self, id: hir::VariableId) -> json::EventParam {
-        let json::Param { ty, name, components, internal_type } = self.var_param_abi(id);
+        let json::Param { ty, name, components, internal_type } = self.var_param_abi(id, false);
         let indexed = self.hir.variable(id).indexed;
         json::EventParam { ty, name, components, internal_type, indexed }
     }
 
-    fn print_abi_param_ty(self, ty: Ty<'gcx>) -> String {
+    fn print_abi_param_ty(self, ty: Ty<'gcx>, in_library: bool) -> String {
         let mut s = String::new();
-        TyAbiPrinter::new(self, &mut s, TyAbiPrinterMode::Abi).print(ty).unwrap();
+        TyAbiPrinter::new(self, &mut s, TyAbiPrinterMode::Abi)
+            .with_in_library(in_library)
+            .print(ty)
+            .unwrap();
         s
     }
 
