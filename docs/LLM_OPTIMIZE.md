@@ -136,6 +136,11 @@ interface is a few words the tests can generate:
   `selfdestruct` and `revert_returndata`, with no `undef` values;
 - in a module that never reads `msize`, since a candidate may touch memory its original does not.
 
+The interpreter runs each instruction by the semantics its operation schema row declares
+(`crates/codegen/src/mir/semantics.rs`), computing pure opcodes with the opcode table's word
+semantics, the same definitions constant folding uses. Supporting another operation means
+declaring its semantics and, for a new kind of state such as storage, modeling that state.
+
 A function whose generated inputs rarely finish, leave a reachable block unfinished, or leave a
 decision always true or always false, is not offered either: its candidates could not be tested. `-Zllm-trace` prints the reason for every
 function that is not offered.
