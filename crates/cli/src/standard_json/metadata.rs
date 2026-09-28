@@ -47,13 +47,11 @@ pub(super) struct Metadata<'a, 'input, 'gcx> {
 
 impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
     pub(super) fn new(gcx: Gcx<'gcx>, settings: &'a Settings<'input>) -> Self {
-        let contracts = IndexVec::from_vec(
-            (0..gcx.hir.contract_ids().len()).map(|_| Default::default()).collect(),
-        );
-        let sources =
-            IndexVec::from_vec((0..gcx.hir.source_ids().len()).map(|_| OnceLock::new()).collect());
+        let contracts =
+            std::iter::repeat_n(OnceLock::new(), gcx.hir.contract_ids().len()).collect();
+        let sources = std::iter::repeat_n(OnceLock::new(), gcx.hir.source_ids().len()).collect();
         let referenced_sources =
-            IndexVec::from_vec((0..gcx.hir.source_ids().len()).map(|_| OnceLock::new()).collect());
+            std::iter::repeat_n(OnceLock::new(), gcx.hir.source_ids().len()).collect();
         Self { gcx, settings, contracts, sources, referenced_sources }
     }
 
