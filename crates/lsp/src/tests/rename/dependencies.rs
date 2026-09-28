@@ -5,6 +5,9 @@ use lsp_types::{RenameParams, WorkspaceFolder};
 #[cfg(unix)]
 use std::{fs, os::unix::fs::symlink};
 
+mod nested_repositories;
+mod repository_grants;
+
 async fn assert_dependency_rename_rejected(state: &mut GlobalState, params: RenameParams) {
     let prepared = handlers::prepare_rename(state, params.text_document_position.clone()).await;
     let renamed = handlers::rename(state, params).await;
