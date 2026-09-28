@@ -85,7 +85,14 @@ fn legal(op: &Op, target: Target) -> bool {
 }
 
 fn removable(func: &Function, inst: &Instruction, target: Target) -> bool {
-    let scalar_select = match inst.kind.op() {
+    // Selects and legal operations are pure, so other instructions need no view.
+    if inst.kind.effect_kind() != EffectKind::Pure
+        || inst.metadata.effect().is_some_and(|effect| effect != EffectKind::Pure)
+    {
+        return false;
+    }
+    let op = inst.kind.op();
+    let scalar_select = match op {
         Op::Select { true_val, false_val, .. } => {
             [inst.result_ty, func.value_ty(true_val), func.value_ty(false_val)]
                 .into_iter()
@@ -93,8 +100,7 @@ fn removable(func: &Function, inst: &Instruction, target: Target) -> bool {
         }
         _ => false,
     };
-    inst.metadata.effect().is_none_or(|effect| effect == EffectKind::Pure)
-        && (legal(&inst.kind.op(), target) || scalar_select)
+    scalar_select || legal(&op, target)
 }
 
 fn operation_cost(
