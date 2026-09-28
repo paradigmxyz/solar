@@ -57,7 +57,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 use solar_sema::Gcx;
-use std::{cell::OnceCell, collections::hash_map::Entry as StdEntry, rc::Rc};
+use std::{cell::OnceCell, rc::Rc};
 
 mod stack;
 pub(super) use stack::{
