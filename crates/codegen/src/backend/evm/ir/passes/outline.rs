@@ -116,8 +116,9 @@ fn may_share_pushes(gcx: Gcx<'_>) -> bool {
 ///
 /// A share of `n` runs of `size` bytes saves fewer than `n * (size - transfer bytes)` bytes,
 /// while its transfers cost at least `n` times the gas of two pushes, two jumps, and two
-/// labels. Every candidate is a closed run of whitelisted instructions, so the largest closed
-/// run from each start bounds the size of every candidate.
+/// labels. Every candidate is a closed run of whitelisted instructions, and every site of a
+/// profitable share starts with the same shortest closed prefix that is large enough. Sharing
+/// is possible only if two starts have equal prefixes, which hashes can rule out.
 fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
     if !gcx.sess.opts.optimization.is_gas() {
         return true;
@@ -134,6 +135,7 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
         )
     };
     let mut metrics = Vec::new();
+    let mut prefixes = FxHashSet::default();
     for block in &module.blocks {
         if block.metadata.in_loop {
             continue;
@@ -148,7 +150,7 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
             }
             let mut delta = 0i32;
             let mut run_size = 0usize;
-            for &metric in &metrics[start..] {
+            for (end, &metric) in metrics.iter().enumerate().skip(start) {
                 let Some(((reads, pops, pushes), size)) = metric else { break };
                 if i32::from(reads) > delta {
                     break;
@@ -156,7 +158,14 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
                 delta = delta - i32::from(pops) + i32::from(pushes);
                 run_size += size;
                 if profitable(run_size) {
-                    return true;
+                    let mut hasher = FxHasher::default();
+                    for inst in &block.instructions[start..=end] {
+                        MachineInstKey::new(inst).hash(&mut hasher);
+                    }
+                    if !prefixes.insert(hasher.finish()) {
+                        return true;
+                    }
+                    break;
                 }
             }
         }
