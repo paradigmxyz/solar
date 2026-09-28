@@ -346,8 +346,16 @@ fn compile(
                     .as_ref()
                     .map(|metadata| |contract_id| metadata.runtime_data(contract_id));
                 let runtime_data = runtime_data.as_ref().map(|data| data as &RuntimeDataFn<'_>);
-                let metadata_contracts =
-                    contract_metadata.as_ref().filter(|_| gcx.sess.is_parallel()).map(|_| {
+                let emit = |bytecode_contracts| {
+                    crate::emit::emit_requested(
+                        compiler,
+                        bytecode_contracts,
+                        runtime_data,
+                        debug_info_contracts,
+                    )
+                };
+                let bytecodes = if gcx.sess.is_parallel() {
+                    let metadata_contracts = contract_metadata.as_ref().map(|_| {
                         requested_metadata_contracts(
                             gcx,
                             output_selection,
@@ -355,26 +363,23 @@ fn compile(
                             *metadata,
                         )
                     });
-                // Metadata does not depend on bytecode, so compute it while codegen leaves
-                // workers idle.
-                let (bytecodes, ()) = gcx.sess.join(
-                    || {
-                        crate::emit::emit_requested(
-                            compiler,
-                            bytecode_contracts,
-                            runtime_data,
-                            debug_info_contracts,
+                    // Metadata does not depend on bytecode, so compute it while codegen leaves
+                    // workers idle.
+                    gcx.sess
+                        .join(
+                            || emit(bytecode_contracts),
+                            || {
+                                if let (Some(contract_metadata), Some(contracts)) =
+                                    (&contract_metadata, &metadata_contracts)
+                                {
+                                    contract_metadata.precompute(contracts);
+                                }
+                            },
                         )
-                    },
-                    || {
-                        if let (Some(contract_metadata), Some(contracts)) =
-                            (&contract_metadata, &metadata_contracts)
-                        {
-                            contract_metadata.precompute(contracts);
-                        }
-                    },
-                );
-                let bytecodes = bytecodes?;
+                        .0
+                } else {
+                    emit(bytecode_contracts)
+                }?;
 
                 gcx.dcx().has_errors()?;
 
