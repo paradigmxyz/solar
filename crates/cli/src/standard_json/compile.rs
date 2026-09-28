@@ -356,13 +356,12 @@ fn compile(
                 };
                 let bytecodes = if gcx.sess.is_parallel()
                     && let Some(contract_metadata) = &contract_metadata
-                {
-                    let metadata_contracts = requested_metadata_contracts(
+                    && let Some(metadata_contracts) = requested_metadata_contracts(
                         gcx,
                         output_selection,
                         &bytecode_contracts,
                         *metadata,
-                    );
+                    ) {
                     // Metadata does not depend on bytecode, so compute it while codegen leaves
                     // workers idle.
                     gcx.sess
@@ -787,28 +786,39 @@ fn requested_bytecode_contracts(
     contracts
 }
 
-/// Returns the contracts whose metadata is requested directly or hashed into their bytecode.
+/// Returns the contracts whose metadata is requested directly or hashed into their bytecode,
+/// or `None` if no contracts need metadata.
 fn requested_metadata_contracts(
     gcx: solar_sema::Gcx<'_>,
     output_selection: &OutputSelection<'_>,
     bytecode_contracts: &ContractSelection,
     metadata: MetadataSettings,
-) -> Vec<ContractId> {
+) -> Option<Vec<ContractId>> {
+    let requests_metadata = output_selection.requests_metadata();
+    let hashes_metadata = metadata.append_cbor
+        && metadata.bytecode_hash.value != MetadataHash::None
+        && !bytecode_contracts.is_empty();
+    if !requests_metadata && !hashes_metadata {
+        return None;
+    }
     let mut contracts = ContractSelection::empty(gcx);
-    if metadata.append_cbor && metadata.bytecode_hash.value != MetadataHash::None {
+    if hashes_metadata {
         contracts.union_with(bytecode_contracts);
     }
-    for (contract_id, contract) in gcx.hir.contracts_enumerated() {
-        let source = gcx.hir.source(contract.source);
-        let source_name = standard_json_source_name(&source.file.name);
-        if output_selection
-            .contract(&source_name, contract.name.as_str())
-            .contains(OutputSelectionFlags::METADATA)
-        {
-            contracts.insert(contract_id);
+    if requests_metadata {
+        for (contract_id, contract) in gcx.hir.contracts_enumerated() {
+            let source = gcx.hir.source(contract.source);
+            let source_name = standard_json_source_name(&source.file.name);
+            if output_selection
+                .contract(&source_name, contract.name.as_str())
+                .contains(OutputSelectionFlags::METADATA)
+            {
+                contracts.insert(contract_id);
+            }
         }
     }
-    contracts.into_iter(gcx).collect()
+    let contracts = contracts.into_iter(gcx).collect::<Vec<_>>();
+    (!contracts.is_empty()).then_some(contracts)
 }
 
 fn requested_debug_info_contracts(
