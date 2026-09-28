@@ -208,20 +208,23 @@ impl LoopOptimizer {
             .filter(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
             .count();
         let mut seen = DenseBitSet::new_empty(func.num_values());
+        let mut visit = |operand| {
+            if Self::is_carried_operand(func, loop_data, inst_blocks, operand)
+                && seen.insert(operand)
+            {
+                count += 1;
+            }
+        };
         for block in loop_data.blocks.iter() {
             let block = &func.blocks[block];
-            for operand in block
-                .instructions
-                .iter()
-                .filter(|&&inst_id| !matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-                .flat_map(|&inst_id| func.inst(inst_id).kind.operands())
-                .chain(block.terminator.iter().flat_map(Terminator::operands))
-            {
-                if Self::is_carried_operand(func, loop_data, inst_blocks, operand)
-                    && seen.insert(operand)
-                {
-                    count += 1;
+            for &inst_id in &block.instructions {
+                let kind = &func.inst(inst_id).kind;
+                if !matches!(kind, InstKind::Phi(_)) {
+                    kind.visit_operands(&mut visit);
                 }
+            }
+            if let Some(term) = &block.terminator {
+                term.visit_operands(&mut visit);
             }
         }
         count

@@ -1066,8 +1066,15 @@ impl InstKind {
     /// Returns whether `value` is an operand of this instruction, without collecting them.
     #[must_use]
     pub(crate) fn reads(&self, value: ValueId) -> bool {
+        self.any_operand(|operand| operand == value)
+    }
+
+    /// Returns whether any operand of this instruction satisfies `predicate`, without collecting
+    /// them.
+    #[must_use]
+    pub(crate) fn any_operand(&self, mut predicate: impl FnMut(ValueId) -> bool) -> bool {
         let mut found = false;
-        self.visit_operands(|operand| found |= operand == value);
+        self.visit_operands(|operand| found = found || predicate(operand));
         found
     }
 

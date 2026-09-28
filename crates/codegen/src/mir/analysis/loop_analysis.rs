@@ -370,8 +370,9 @@ impl LoopAnalyzer {
                         continue;
                     }
 
-                    let operands = inst.kind.operands();
-                    if operands.iter().all(|&op| invariant_values.contains(op)) {
+                    let mut invariant = true;
+                    inst.kind.visit_operands(|op| invariant &= invariant_values.contains(op));
+                    if invariant {
                         loop_info.invariant_insts.insert(inst_id);
                         if let Some(result) = func.inst_result_value(inst_id) {
                             invariant_values.insert(result);
