@@ -168,12 +168,15 @@ fn pack_terminal_traces(gcx: Gcx<'_>, module: &Module, state: &mut RunState) {
             let block = state.order[position];
             let next = state.order.get(position + 1).copied();
             let block_offset = offset + size;
-            size += estimated_block_size(
+            // Past the first 256 bytes, only whether a trace fits in 32 bytes matters.
+            let limit = if offset > 0xff { 32usize.saturating_sub(size) } else { usize::MAX };
+            size += estimated_block_size_up_to(
                 gcx,
                 &module.blocks[block],
                 next,
                 state.references[block] != 0,
                 module.code_follows,
+                limit,
             );
             references += state.references[block];
             position += 1;
@@ -312,6 +315,29 @@ pub(super) fn estimated_block_size(
             .terminator
             .as_ref()
             .map_or(0, |term| estimated_terminator_size(gcx, &term.kind, next, code_follows))
+}
+
+/// Returns [`estimated_block_size`] when it is at most `limit`, and otherwise some larger size.
+fn estimated_block_size_up_to(
+    gcx: Gcx<'_>,
+    block: &Block,
+    next: Option<BlockId>,
+    addressed: bool,
+    code_follows: bool,
+    limit: usize,
+) -> usize {
+    let mut size = usize::from(addressed)
+        + block
+            .terminator
+            .as_ref()
+            .map_or(0, |term| estimated_terminator_size(gcx, &term.kind, next, code_follows));
+    for inst in &block.instructions {
+        if size > limit {
+            break;
+        }
+        size += estimated_instruction_size(gcx, inst);
+    }
+    size
 }
 
 fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
