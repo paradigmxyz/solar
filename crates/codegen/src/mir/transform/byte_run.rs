@@ -352,7 +352,8 @@ fn byte_read(func: &Function, inst: InstId) -> Option<(Vec<ValueId>, u64, ValueI
 ///
 /// A memory read expands the EVM memory high-water mark even when its value is
 /// discarded, and a later `msize` observes that. Functions containing one keep
-/// their reads, matching the rule dead code elimination applies.
+/// their reads, matching the rule dead code elimination applies. Returns whether
+/// anything was removed.
 fn sweep_dead(func: &mut Function) -> bool {
     let observes_msize =
         func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize));

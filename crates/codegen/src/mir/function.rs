@@ -582,7 +582,8 @@ impl Function {
         }
     }
 
-    /// Annotates storage-alias metadata for state-access instructions.
+    /// Annotates storage-alias metadata for state-access instructions and returns whether any
+    /// metadata changed.
     pub(crate) fn annotate_storage_aliases(
         &mut self,
         scope: super::utils::StorageAliasScope,
