@@ -12,7 +12,7 @@ use crate::{
 use alloy_primitives::{B256, Bytes};
 use either::Either;
 use solar_ast::TypeSize;
-use solar_config::{EvmVersion, OptimizationMode};
+use solar_config::{DumpKind, EvmVersion, OptimizationMode};
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     index::IndexVec,
@@ -160,7 +160,7 @@ impl ContractSelection {
 ///
 /// Contracts in `contracts` retain bytecode in the returned artifact.
 /// Contracts in `capture_mir` retain built MIR under `-O none` when no explicit pipeline is
-/// configured and final MIR otherwise.
+/// configured and `-Zdump=mir-final` is absent, and final MIR otherwise.
 /// Contracts in `capture_evm_ir` retain their final EVM IR in the returned artifact.
 /// Values returned by `runtime_data` are emitted as trailing runtime program data.
 /// Contracts in `capture_debug_info` retain final instruction locations.
@@ -481,9 +481,17 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
         let runtime_data =
             captures.runtime_data.filter(|_| needs_backend).map(|data| data(contract_id));
         append_runtime_data(&mut module, runtime_data.as_ref());
+        let final_mir = gcx
+            .sess
+            .opts
+            .unstable
+            .dump
+            .as_ref()
+            .is_some_and(|dump| dump.kinds.contains(&DumpKind::MirFinal));
         let capture_built = capture_mir
             && matches!(gcx.sess.opts.optimization, OptimizationMode::None)
-            && gcx.sess.opts.unstable.mir_pipeline.is_none();
+            && gcx.sess.opts.unstable.mir_pipeline.is_none()
+            && !final_mir;
         let built_mir = (capture_built && needs_backend).then(|| module.clone());
         let codegen = if needs_backend {
             module.set_debug_info_tracked(captures.debug_info.contains(contract_id));
