@@ -147,8 +147,9 @@ impl DataPool {
         if self.entries.len() >= MAX_DATA_SUBSTRING_ENTRIES {
             return Placement::New;
         }
+        let mut finder = NeedleFinder::new(data);
         for entry in &self.entries {
-            if let Some(offset) = memmem::find(&entry.bytes, data) {
+            if let Some(offset) = finder.find(&entry.bytes) {
                 return Placement::Existing(DataRef::new(entry.id, data_offset(offset)));
             }
         }
@@ -438,11 +439,12 @@ fn find_data(
     needle: &Data,
     needle_id: DataId,
 ) -> Option<DataRef> {
+    let mut finder = NeedleFinder::new(&needle.bytes);
     data.iter_enumerated().find_map(|(id, known)| {
         if sources[id] >= needle_id {
             return None;
         }
-        let offset = memmem::find(&known.bytes, &needle.bytes)?;
+        let offset = finder.find(&known.bytes)?;
         let end = offset + needle.bytes.len();
         let compatible = known
             .library_relocations
@@ -640,6 +642,27 @@ fn data_copy_is_bounded(module: &Module, data: DataRef, size: usize) -> bool {
     module.data.get(data.id).is_some_and(|entry| {
         (data.offset as usize).checked_add(size).is_some_and(|end| end <= entry.bytes.len())
     })
+}
+
+/// Finds one needle in several haystacks, building the long-haystack searcher that
+/// [`memmem::find`] would build for each at most once.
+struct NeedleFinder<'n> {
+    needle: &'n [u8],
+    finder: Option<memmem::Finder<'n>>,
+}
+
+impl<'n> NeedleFinder<'n> {
+    fn new(needle: &'n [u8]) -> Self {
+        Self { needle, finder: None }
+    }
+
+    fn find(&mut self, haystack: &[u8]) -> Option<usize> {
+        // `memmem::find` uses Rabin-Karp below this haystack length.
+        if haystack.len() < 64 {
+            return memmem::find(haystack, self.needle);
+        }
+        self.finder.get_or_insert_with(|| memmem::Finder::new(self.needle)).find(haystack)
+    }
 }
 
 fn data_offset(offset: usize) -> u32 {
