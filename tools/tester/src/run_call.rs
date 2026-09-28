@@ -9,7 +9,7 @@ use evm2::{
     evm::{AccountInfo, InMemoryDB},
 };
 use serde_json::Value;
-use std::path::Path;
+use std::{cell::Cell, path::Path, rc::Rc};
 use ui_test::{
     CommentParser, Errored, Revisioned,
     build_manager::BuildManager,
@@ -17,6 +17,8 @@ use ui_test::{
     per_test_config::TestConfig,
     spanned::{Span, Spanned},
 };
+
+mod oracle;
 
 const CALLER: Address = Address::repeat_byte(0x22);
 
@@ -59,6 +61,8 @@ struct Outcome {
     success: bool,
     output: Vec<u8>,
     stop: String,
+    /// What the call did, when the MIR interpreter checks it.
+    trace: Option<oracle::Trace>,
 }
 
 struct ResolvedCall<'a> {
@@ -119,8 +123,15 @@ impl RunCall {
         }
     }
 
-    fn run(&self, output: &[u8], test_path: &Path, spec_id: SpecId) -> Result<(), String> {
+    fn run(
+        &self,
+        output: &[u8],
+        config: &TestConfig,
+        build_manager: &BuildManager,
+        spec_id: SpecId,
+    ) -> Result<(), String> {
         let artifacts = parse_artifacts(output)?;
+        let test_path = config.status.path();
         let call =
             resolve_call(&artifacts, test_path, &self.call, &self.expected, &self.settings, false)?;
         let setup = setup_call(call.artifact, call.function)?;
@@ -128,7 +139,7 @@ impl RunCall {
             &call.artifact.bytecode,
             &call.constructor_args,
             setup,
-            call.input,
+            &call.input,
             call.gas_limit.unwrap_or_else(|| default_gas_limit(spec_id)),
             call.value,
             spec_id,
@@ -149,7 +160,7 @@ impl RunCall {
                 hex::display(call.expected)
             ));
         }
-        Ok(())
+        check_mir(config, build_manager, &self.call, &call, &actual)
     }
 }
 
@@ -176,8 +187,15 @@ impl RunCallFail {
         }
     }
 
-    fn run(&self, output: &[u8], test_path: &Path, spec_id: SpecId) -> Result<(), String> {
+    fn run(
+        &self,
+        output: &[u8],
+        config: &TestConfig,
+        build_manager: &BuildManager,
+        spec_id: SpecId,
+    ) -> Result<(), String> {
         let artifacts = parse_artifacts(output)?;
+        let test_path = config.status.path();
         let call =
             resolve_call(&artifacts, test_path, &self.call, &self.expected, &self.settings, true)?;
         let setup = setup_call(call.artifact, call.function)?;
@@ -185,7 +203,7 @@ impl RunCallFail {
             &call.artifact.bytecode,
             &call.constructor_args,
             setup,
-            call.input,
+            &call.input,
             call.gas_limit.unwrap_or_else(|| default_gas_limit(spec_id)),
             call.value,
             spec_id,
@@ -205,7 +223,7 @@ impl RunCallFail {
                 hex::display(call.expected)
             ));
         }
-        Ok(())
+        check_mir(config, build_manager, &self.call, &call, &actual)
     }
 }
 
@@ -220,10 +238,10 @@ macro_rules! impl_flag {
                 &self,
                 config: &TestConfig,
                 output: &std::process::Output,
-                _build_manager: &BuildManager,
+                build_manager: &BuildManager,
             ) -> Result<(), Errored> {
                 let spec_id = spec_id(config).map_err(|message| flag_error(Self::NAME, message))?;
-                self.run(&output.stdout, config.status.path(), spec_id)
+                self.run(&output.stdout, config, build_manager, spec_id)
                     .map_err(|message| flag_error(Self::NAME, message))
             }
 
@@ -236,6 +254,29 @@ macro_rules! impl_flag {
 
 impl_flag!(RunCall);
 impl_flag!(RunCallFail);
+
+/// Checks the call against the MIR interpreter when that check is enabled.
+fn check_mir(
+    config: &TestConfig,
+    build_manager: &BuildManager,
+    directive: &str,
+    call: &ResolvedCall<'_>,
+    actual: &Outcome,
+) -> Result<(), String> {
+    let Some(trace) = &actual.trace else { return Ok(()) };
+    let name = display_call(directive, call.function);
+    let evm_version = evm_version(config)?
+        .parse()
+        .map_err(|error| format!("unsupported EVM version for the MIR interpreter: {error}"))?;
+    let call = oracle::Call {
+        contract: &call.artifact.name,
+        name: &name,
+        input: &call.input,
+        value: call.value,
+        evm_version,
+    };
+    oracle::check(config, build_manager, &call, trace)
+}
 
 fn parse_call(args: &str) -> Result<ParsedCall<'_>, String> {
     let (call_and_settings, expected) = split_expected(args).unwrap_or((args, ""));
@@ -689,7 +730,7 @@ fn execute(
     initcode: &[u8],
     constructor_args: &[u8],
     setup: Option<Vec<u8>>,
-    input: Vec<u8>,
+    input: &[u8],
     gas_limit: u64,
     value: U256,
     spec_id: SpecId,
@@ -736,8 +777,19 @@ fn execute(
             ));
         }
     }
-    transact(&mut evm, nonce, TxKind::Call(contract), Bytes::from(input), gas_limit, value)
-        .map(outcome)
+    let before = oracle::enabled().then(|| oracle::Chain::capture(&evm, contract));
+    let heap_start = Rc::new(Cell::new(None));
+    if before.is_some() {
+        evm.set_inspector(oracle::HeapStart(heap_start.clone()));
+    }
+    let input = Bytes::copy_from_slice(input);
+    let result = transact(&mut evm, nonce, TxKind::Call(contract), input, gas_limit, value)?;
+    let trace = before.map(|before| {
+        evm.clear_inspector();
+        let (stop, output, logs) = (result.stop, &result.output, &result.logs);
+        oracle::Trace::new(before, &evm, stop, output, logs, heap_start.get())
+    });
+    Ok(Outcome { trace, ..outcome(result) })
 }
 
 fn transact(
@@ -770,10 +822,12 @@ fn outcome(result: TxResult) -> Outcome {
         success: result.status,
         output: result.output.into(),
         stop: format!("{:?}", result.stop),
+        trace: None,
     }
 }
 
-fn spec_id(config: &TestConfig) -> Result<SpecId, String> {
+/// Returns the EVM version the test compiles for.
+fn evm_version(config: &TestConfig) -> Result<&str, String> {
     let flags = config.comments().flat_map(|comments| &comments.compile_flags);
     let mut version = None;
     let mut expects_value = false;
@@ -790,7 +844,11 @@ fn spec_id(config: &TestConfig) -> Result<SpecId, String> {
     if expects_value {
         return Err("`--evm-version` requires a value".to_owned());
     }
-    match version.unwrap_or("osaka") {
+    Ok(version.unwrap_or("osaka"))
+}
+
+fn spec_id(config: &TestConfig) -> Result<SpecId, String> {
+    match evm_version(config)? {
         "homestead" => Ok(SpecId::HOMESTEAD),
         "tangerineWhistle" => Ok(SpecId::TANGERINE),
         "spuriousDragon" => Ok(SpecId::SPURIOUS_DRAGON),
