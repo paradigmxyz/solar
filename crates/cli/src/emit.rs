@@ -480,6 +480,16 @@ fn dump_mir_contract(
     }
     if dump.kinds.contains(&DumpKind::MirFinal) {
         write_mir_dump_contract(writer, gcx, id, module, DumpKind::MirFinal, first)?;
+        let artifact = &artifacts[&id];
+        for frame in &artifact.runtime_dynamic_frames {
+            let restores = if frame.restores_free_memory { "restores" } else { "keeps" };
+            writeln!(
+                writer,
+                "// frame @{}: {} bytes, {restores} the free memory pointer",
+                frame.function, frame.size
+            )
+            .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+        }
     }
     Ok(())
 }

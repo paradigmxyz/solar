@@ -2,7 +2,7 @@
 
 use crate::{
     EvmCodegen,
-    backend::evm::{DebugInfo, EvmArtifact, ir},
+    backend::evm::{DebugInfo, DynamicFrame, EvmArtifact, ir},
     link::{
         ContractBytecodes, EmbeddedBytecodes, LibraryRelocation, LibraryTable, QualifiedName,
         RelocatableBytecode,
@@ -47,8 +47,11 @@ pub struct ContractArtifact {
     /// Unresolved library addresses in the runtime bytecode.
     pub runtime_link_references: Vec<LibraryReference>,
     /// Captured MIR, built under `-O none` when no explicit pipeline is configured and
-    /// post-pipeline otherwise.
+    /// `-Zdump=mir-final` is absent, and post-pipeline otherwise.
     pub mir: Option<Module>,
+    /// Runtime internal calls whose frames take memory at the free memory pointer, captured
+    /// with post-pipeline MIR.
+    pub runtime_dynamic_frames: Vec<DynamicFrame>,
     /// Final deployment-prefix EVM IR immediately before byte emission.
     pub deployment_evm_ir: Option<ir::Module>,
     /// Final runtime EVM IR immediately before byte emission.
@@ -637,6 +640,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             deployment_link_references,
             runtime_link_references,
             mir,
+            runtime_dynamic_frames: artifact.runtime_dynamic_frames,
             deployment_evm_ir: artifact.deployment_evm_ir,
             runtime_evm_ir: artifact.runtime_evm_ir,
             deployment_debug_info: artifact.deployment_debug_info,

@@ -99,7 +99,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.pending_runtime.take().expect("module must be scheduled first");
         debug_assert_eq!(module.phase(), MirPhase::Lowered);
         let mut libraries = module.libraries.clone();
-        let runtime_code = self.assemble_runtime_code(bytecodes, &mut libraries);
+        let runtime_code = self.assemble_runtime_code(module, bytecodes, &mut libraries);
         let runtime_len = runtime_code.bytecode.len();
         let immutable_refs = std::mem::take(&mut self.runtime_immutable_refs);
 
@@ -186,6 +186,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             runtime_evm_ir: runtime_code.evm_ir,
             deployment_debug_info: deploy_code.debug_info,
             runtime_debug_info: runtime_code.debug_info,
+            runtime_dynamic_frames: runtime_code.dynamic_frames,
         }
     }
 
@@ -557,6 +558,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             library_relocations: result.library_relocations,
             evm_ir: result.evm_ir,
             debug_info: result.debug_info,
+            dynamic_frames: Vec::new(),
         }
     }
 }
