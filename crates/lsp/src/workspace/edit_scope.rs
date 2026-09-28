@@ -34,6 +34,14 @@ struct ProjectSources {
     remappings: Vec<PathBuf>,
 }
 
+/// Why an edit cannot be authorized by the workspace ownership policy.
+#[derive(Debug)]
+pub(crate) enum WorkspaceEditError {
+    Dependency,
+    OutsideWorkspace,
+    UnresolvedPath,
+}
+
 impl WorkspaceEditScope {
     pub(crate) fn new(workspace_roots: &[PathBuf], workspaces: &[Workspace]) -> Self {
         let unrestricted = workspace_roots.is_empty()
@@ -163,12 +171,20 @@ impl WorkspaceEditScope {
         Self { unrestricted: self.unrestricted, sources, dependencies }
     }
 
-    pub(crate) fn allows(&self, path: &Path) -> bool {
-        self.unrestricted
-            || (self.sources.iter().any(|root| path.starts_with(root))
-                && !self.dependencies.iter().any(|dependency| {
-                    is_import_only_path_in_root(path, &dependency.path, dependency.sources.iter())
-                }))
+    pub(crate) fn check(&self, path: &Path) -> Result<(), WorkspaceEditError> {
+        if self.unrestricted {
+            return Ok(());
+        }
+        // External libraries and remappings remain dependencies even outside all source roots.
+        if self.dependencies.iter().any(|dependency| {
+            is_import_only_path_in_root(path, &dependency.path, dependency.sources.iter())
+        }) {
+            return Err(WorkspaceEditError::Dependency);
+        }
+        if !self.sources.iter().any(|root| path.starts_with(root)) {
+            return Err(WorkspaceEditError::OutsideWorkspace);
+        }
+        Ok(())
     }
 }
 
