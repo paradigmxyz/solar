@@ -9,9 +9,9 @@
 
 use super::{CfgInfo, MemoryCallSummaries};
 use crate::mir::{
-    AbiType, AddressCallKind, ArgIdx, BlockId, Builtin, Callee, FrameMode, FrameSlotKind, Function,
-    ImmutableId, InstId, InstKind, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, RequireKind,
-    SliceLocation, StorageAlias, Terminator, Value, ValueId,
+    AbiType, AddressCallKind, ArgIdx, BlockId, Builtin, Callee, EffectKind, FrameMode,
+    FrameSlotKind, Function, ImmutableId, InstId, InstKind, MemoryObjectKind, MemoryObjectLayout,
+    MemoryRegion, RequireKind, SliceLocation, StorageAlias, Terminator, Value, ValueId,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
 };
 use smallvec::SmallVec;
@@ -1043,6 +1043,26 @@ impl AliasAnalysis {
     /// Computes instruction ModRef effects after applying value replacements.
     #[must_use]
     pub(crate) fn instruction_mod_ref_with_replacements(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        replacements: &FxHashMap<ValueId, ValueId>,
+    ) -> ModRef {
+        let kind = &func.inst(inst_id).kind;
+        // Pure operations access no memory or state.
+        if kind.effect_kind() == EffectKind::Pure {
+            let effects = ModRef { observes_gas: kind.observes_gas(), ..ModRef::default() };
+            debug_assert_eq!(
+                effects,
+                self.operation_mod_ref(func, inst_id, replacements),
+                "pure operation with a memory footprint"
+            );
+            return effects;
+        }
+        self.operation_mod_ref(func, inst_id, replacements)
+    }
+
+    fn operation_mod_ref(
         &self,
         func: &Function,
         inst_id: InstId,
