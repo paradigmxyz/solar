@@ -225,8 +225,20 @@ impl CfgSimplifyStats {
 
 #[must_use]
 pub(super) fn remove_unreachable_blocks(func: &mut Function) -> usize {
-    let cfg = CfgInfo::new(func);
-    let order = func.blocks.indices().filter(|&block| cfg.is_reachable(block)).collect::<Vec<_>>();
+    if func.blocks.is_empty() {
+        return 0;
+    }
+    let mut reachable = DenseBitSet::new_empty(func.blocks.len());
+    let mut stack = vec![BlockId::ENTRY];
+    while let Some(block) = stack.pop() {
+        if reachable.insert(block)
+            && let Some(term) = &func.blocks[block].terminator
+        {
+            term.for_each_successor(|successor| stack.push(successor));
+        }
+    }
+    let order =
+        func.blocks.indices().filter(|&block| reachable.contains(block)).collect::<Vec<_>>();
     let removed = func.blocks.len() - order.len();
     if removed != 0 {
         retain_blocks(func, &order);
