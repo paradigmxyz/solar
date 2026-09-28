@@ -36,7 +36,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         if !has_phis {
             return;
         }
-        let liveness = Liveness::compute(func);
+        // Only an edge from a block with other successors needs liveness.
+        let liveness = OnceCell::new();
 
         let mut splits: Vec<(BlockId, BlockId)> = Vec::new();
         for (block_id, block) in func.blocks.iter_enumerated() {
@@ -50,9 +51,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let Some(terminator) = func.blocks[pred].terminator.as_ref() else { continue };
                     let successors = terminator.successors();
                     if terminator.operands().contains(&dst)
-                        || successors
-                            .iter()
-                            .any(|&succ| succ != block_id && liveness.live_in(succ).contains(dst))
+                        || successors.iter().any(|&succ| {
+                            succ != block_id
+                                && liveness
+                                    .get_or_init(|| Liveness::compute(func))
+                                    .live_in(succ)
+                                    .contains(dst)
+                        })
                     {
                         splits.push((pred, block_id));
                     }
