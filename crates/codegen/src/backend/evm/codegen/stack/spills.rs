@@ -1003,9 +1003,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut live = DenseBitSet::new_empty(slots);
         loop {
             let mut changed = false;
-            for block in (0..range.len()).rev() {
+            for (block, events) in events.iter().enumerate().rev() {
                 block_live(&mut live, &live_in, block);
-                for (_, event) in events[block].iter().rev() {
+                for (_, event) in events.iter().rev() {
                     match event {
                         Event::Store(index) => {
                             live.remove(stores[*index].slot.offset as usize);
@@ -1023,9 +1023,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let mut dead = FxHashSet::default();
-        for block in 0..range.len() {
+        for (block, events) in events.iter().enumerate() {
             block_live(&mut live, &live_in, block);
-            for (_, event) in events[block].iter().rev() {
+            for (_, event) in events.iter().rev() {
                 match event {
                     Event::Store(index) if !live.remove(stores[*index].slot.offset as usize) => {
                         dead.insert(*index);
