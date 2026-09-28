@@ -26,6 +26,11 @@
 //! Enumerating all substrings is potentially quadratic, so the implementation cuts runs at unique
 //! instructions, hashes slices from prefix tables, and applies a module-wide candidate budget.
 //! Large modules shorten the maximum considered run rather than allowing unbounded compile time.
+//! In gas mode, a module-wide screen bounds the largest closed whitelisted run and the widest
+//! push first. When neither could repay its transfer gas over the expected executions, the pass
+//! builds no run tables. Machine runs are skipped only when no push can be shared either, since
+//! a rejected store run keeps its literal from becoming a push share.
+//!
 //! Outlining runs before late CFG/CSE/DCE cleanup, which removes jump thunks and redundancies
 //! exposed by sharing; assembly remains responsible only for final label offsets and push widths.
 
@@ -77,10 +82,117 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
         "analyzing machine instruction outlines"
     );
     let mut state = RunState::default();
-    outline_machine_runs(gcx, module, &mut state)
+    // A rejected machine run can veto a push share, so skip runs only when no push can share.
+    let pushes = may_share_pushes(gcx);
+    let runs = pushes || may_share_machine_runs(gcx, module);
+    (runs && outline_machine_runs(gcx, module, &mut state))
         | ((gcx.sess.opts.optimization.is_size() || module.enable_size_outlining)
             && outline_parametric_machine_runs(gcx, module, &mut state))
-        | outline_repeated_pushes(gcx, module, &mut state)
+        | (pushes && outline_repeated_pushes(gcx, module, &mut state))
+}
+
+/// Byte length of the widest push, `PUSH32` and its immediate.
+const MAX_PUSH_LEN: usize = 33;
+
+/// Returns whether any repeated push could repay its call and return gas in gas mode.
+///
+/// A share of `n` pushes of at most [`MAX_PUSH_LEN`] bytes saves fewer than
+/// `n * (MAX_PUSH_LEN - site bytes)` bytes, while its transfers cost `n` times the transfer gas.
+fn may_share_pushes(gcx: Gcx<'_>) -> bool {
+    if !gcx.sess.opts.optimization.is_gas() {
+        return true;
+    }
+    let target = Target::new(gcx);
+    let (site_bytes, _, transfer_gas) = push_share_costs(target);
+    sharing_improves_lifetime(
+        MAX_PUSH_LEN.saturating_sub(site_bytes),
+        1,
+        transfer_gas,
+        target.expected_executions(),
+    )
+}
+
+/// Returns whether gas mode could share some closed machine run outside loops.
+///
+/// A share of `n` runs of `size` bytes saves fewer than `n * (size - transfer bytes)` bytes,
+/// while its transfers cost at least `n` times the gas of two pushes, two jumps, and two
+/// labels. Every candidate is a closed run of whitelisted instructions, so the largest closed
+/// run from each start bounds the size of every candidate.
+fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
+    if !gcx.sess.opts.optimization.is_gas() {
+        return true;
+    }
+    let target = Target::new(gcx);
+    let transfer_size = transfer_size(target);
+    let transfer_gas = transfer_gas(target);
+    let profitable = |size: usize| {
+        sharing_improves_lifetime(
+            size.saturating_sub(transfer_size),
+            1,
+            transfer_gas,
+            target.expected_executions(),
+        )
+    };
+    let mut metrics = Vec::new();
+    for block in &module.blocks {
+        if block.metadata.in_loop {
+            continue;
+        }
+        metrics.clear();
+        metrics.extend(block.instructions.iter().map(|inst| {
+            whitelisted_effect(inst).map(|effect| (effect, instruction_size_lower_bound(gcx, inst)))
+        }));
+        for start in 0..metrics.len() {
+            if !is_split_point(&block.instructions, start) {
+                continue;
+            }
+            let mut delta = 0i32;
+            let mut run_size = 0usize;
+            for &metric in &metrics[start..] {
+                let Some(((reads, pops, pushes), size)) = metric else { break };
+                if i32::from(reads) > delta {
+                    break;
+                }
+                delta = delta - i32::from(pops) + i32::from(pushes);
+                run_size += size;
+                if profitable(run_size) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Returns the bytes of one call site:
+///
+/// push2 return
+/// push2 body
+/// jump
+/// jumpdest
+fn transfer_size(target: Target) -> usize {
+    (target.opcode(op::PUSH2).bytes * 2
+        + target.opcode(op::JUMP).bytes
+        + target.opcode(op::JUMPDEST).bytes) as usize
+}
+
+/// Returns the gas of one call and return, excluding the shared body's rotations.
+fn transfer_gas(target: Target) -> u32 {
+    target.opcode_gas(op::PUSH2) * 2
+        + target.opcode_gas(op::JUMP) * 2
+        + target.opcode_gas(op::JUMPDEST) * 2
+}
+
+/// Returns the per-site bytes, shared body bytes, and transfer gas of a push share.
+fn push_share_costs(target: Target) -> (usize, usize, u32) {
+    // The shared body around the push:
+    // jumpdest
+    // swap1
+    // jump
+    let body_bytes = (target.opcode(op::JUMPDEST).bytes
+        + target.opcode(op::SWAP1).bytes
+        + target.opcode(op::JUMP).bytes) as usize;
+    (transfer_size(target), body_bytes, transfer_gas(target) + target.opcode_gas(op::SWAP1))
 }
 
 fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
@@ -102,9 +214,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     }
     let max_run_length = max_machine_run_length(repeated_instructions);
     let target = Target::new(gcx);
-    let transfer_size = (target.opcode(op::PUSH2).bytes * 2
-        + target.opcode(op::JUMP).bytes
-        + target.opcode(op::JUMPDEST).bytes) as usize;
+    let transfer_size = transfer_size(target);
     let shuffle_size = target.opcode(op::SWAP1).bytes as usize;
 
     let mut candidates = FxHashMap::<RunSlice<'_>, SmallVec<[Site; 2]>>::default();
@@ -234,9 +344,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         // not make the calls cold, even when every site is outside a loop.
         if gcx.sess.opts.optimization.is_gas() {
             let saved_bytes = free.len() * (run_size - site_size) - stub_size;
-            let transfer_gas = target.opcode_gas(op::PUSH2) * 2
-                + target.opcode_gas(op::JUMP) * 2
-                + target.opcode_gas(op::JUMPDEST) * 2
+            let transfer_gas = transfer_gas(target)
                 + target.opcode_gas(op::SWAP1)
                     * u32::from(first.outputs.saturating_add(first.inputs));
             if !sharing_improves_lifetime(
@@ -658,25 +766,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     }
 
     let target = Target::new(gcx);
-    // Each site:
-    // push2 return
-    // push2 body
-    // jump
-    // jumpdest
-    let site_bytes = (2 * target.opcode(op::PUSH2).bytes
-        + target.opcode(op::JUMP).bytes
-        + target.opcode(op::JUMPDEST).bytes) as usize;
-    // The shared body around the push:
-    // jumpdest
-    // swap1
-    // jump
-    let body_bytes = (target.opcode(op::JUMPDEST).bytes
-        + target.opcode(op::SWAP1).bytes
-        + target.opcode(op::JUMP).bytes) as usize;
-    let transfer_gas = target.opcode_gas(op::PUSH2) * 2
-        + target.opcode_gas(op::JUMP) * 2
-        + target.opcode_gas(op::JUMPDEST) * 2
-        + target.opcode_gas(op::SWAP1);
+    let (site_bytes, body_bytes, transfer_gas) = push_share_costs(target);
     const MIN_SAVING: usize = 8;
     let mut values: Vec<_> = sites
         .iter()
