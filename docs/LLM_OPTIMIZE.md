@@ -76,6 +76,28 @@ reasoning included: Claude's thinking blocks, and DeepSeek's `reasoning_content`
 requests mark the brief and the newest prompt for prompt caching, so a turn rereads the
 conversation from the cache.
 
+While `live` works, every conversation reports on stderr: each round, the model's reasoning
+(marked `┆`) and reply (marked `│`) as they stream in, how long each turn took and what it used,
+each verdict, and what the pass keeps. Lines name the module and function, so conversations that
+run at once interleave by whole lines, and a request sent again says why. Nothing is printed when
+`--error-format` is machine-readable. A short conversation reads:
+
+```text
+llm-optimize Triangle @sumBelow: costs 8019 gas, 43 bytes; asking opencode/deepseek-v4.1-flash for something cheaper
+llm-optimize Triangle @sumBelow: round 1
+  Triangle @sumBelow ┆ The loop adds 0 through n - 1, an arithmetic series.
+  Triangle @sumBelow │ ```mir
+  Triangle @sumBelow │ fn @sumBelow(arg0: i256) -> i256 [pure] {
+  ...
+llm-optimize Triangle @sumBelow: replied in 41.3 s using 5062 tokens, an estimated $0.0049
+llm-optimize Triangle @sumBelow: accepted at 72 gas, 28 bytes
+llm-optimize Triangle @sumBelow: round 2
+  Triangle @sumBelow │ NO_IMPROVEMENT
+llm-optimize Triangle @sumBelow: replied in 9.8 s using 1320 tokens, an estimated $0.0006
+llm-optimize Triangle @sumBelow: the model has nothing cheaper
+llm-optimize Triangle @sumBelow: keeps a rewrite at 72 gas, 28 bytes, down from 8019 gas, 43 bytes
+```
+
 `-Zllm-effort` sets how much the model reasons, in its provider's terms: nanocodex's thinking
 level for OpenAI, adaptive thinking at that `output_config.effort` for Anthropic (`none` turns
 thinking off), and `reasoning_effort` for OpenCode Zen. Without it, the model reasons as its
@@ -242,7 +264,8 @@ The fixtures under `tests/ui/codegen/mir/llm-optimize/` use scripts to cover eve
 `solar::codegen::llm` exposes the rewriter interface. An embedder implements `LlmRewriter`, which
 opens an `LlmSession` per function, and installs it with `set_rewriter` before compiling with
 `-Zllm-optimize=live`. `LlmSession::propose` receives the verdict on the previous candidate and
-returns the next candidate or `Proposal::Done`. The command line's rewriter in
+returns the next candidate or `Proposal::Done`; `LlmSession::finish` hears the verdict the last
+candidate got, when no proposal heard it, and the cost of the rewrite the pass keeps. The command line's rewriter in
 `crates/cli/src/llm.rs` is one such implementation, which the command line and
 `solar::cli::standard_json::compile_standard_json` install only when no rewriter is installed.
 

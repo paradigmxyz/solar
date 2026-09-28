@@ -21,24 +21,32 @@
 //! once the estimated spend reaches five dollars or the conversations have used ten million
 //! tokens, which bounds a model without known prices. Keys go nowhere but their provider's client.
 //! When compilation ends, a note reports turns, tokens, and the estimated cost.
+//!
+//! While it works, every conversation reports on stderr through `console`: each round, the
+//! model's reasoning and reply as they stream in, what each turn used, and each verdict.
 
 use solar_config::LlmOptimizeMode;
 use solar_interface::{Result, Session};
 
 #[cfg(feature = "llm")]
+use console::Voice;
+#[cfg(feature = "llm")]
 use http::ChatClient;
 #[cfg(feature = "llm")]
 use nanocodex::{
     AgentEvents, Model, Nanocodex, OpenAi, Thinking, Tools, UsdAmount, agent::ExecutionEnvironment,
+    oai::events::AgentEventKind,
 };
 #[cfg(feature = "llm")]
 use provider::Provider;
+#[cfg(feature = "llm")]
+use serde_json::Value;
 #[cfg(feature = "llm")]
 use solar_codegen::llm::{
     CostReport, LlmError, LlmRewriter, LlmSession, RewriteRequest, Verdict, set_rewriter,
 };
 #[cfg(feature = "llm")]
-use solar_config::LlmEffort;
+use solar_config::{ErrorFormat, LlmEffort};
 #[cfg(feature = "llm")]
 use std::{
     fmt::Write,
@@ -47,16 +55,19 @@ use std::{
         atomic::{AtomicU64, Ordering},
         mpsc,
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 #[cfg(feature = "llm")]
 use tokio::{runtime::Runtime, sync::Semaphore};
 #[cfg(feature = "llm")]
-use wire::Transcript;
+use wire::{Delta, Transcript};
 
 #[cfg(any(feature = "llm", test))]
 use solar_codegen::llm::Proposal;
 
+#[cfg(any(feature = "llm", test))]
+#[cfg_attr(not(feature = "llm"), allow(dead_code))]
+mod console;
 #[cfg(feature = "llm")]
 mod http;
 #[cfg(any(feature = "llm", test))]
@@ -233,6 +244,8 @@ impl Installed {
         let shared = Arc::new(Shared {
             runtime: runtime.handle().clone(),
             provider,
+            label: unstable.llm_model.clone().unwrap_or_else(|| "the default OpenAI model".into()),
+            console: sess.opts.error_format == ErrorFormat::Human,
             backend,
             turns: Arc::new(Semaphore::new(MAX_TURNS)),
             asked: AtomicU64::new(0),
@@ -272,6 +285,10 @@ impl Installed {
 struct Shared {
     runtime: tokio::runtime::Handle,
     provider: Provider,
+    /// The model as `-Zllm-model` names it.
+    label: String,
+    /// Whether conversations report on stderr.
+    console: bool,
     backend: Backend,
     turns: Arc<Semaphore>,
     asked: AtomicU64,
@@ -361,23 +378,49 @@ impl LlmRewriter for Rewriter {
                         builder.build().map_err(|error| error.to_string())
                     })?
                     .map_err(LlmError::new)?;
-                Box::new(AgentChat { runtime: shared.runtime.clone(), agent, _events: events })
+                Box::new(AgentChat { runtime: shared.runtime.clone(), agent, events: Some(events) })
             }
             Backend::Chat { client, model, effort } => Box::new(HttpChat {
                 transcript: Transcript::new(client.protocol(), model.clone(), *effort),
                 client: Arc::clone(client),
             }),
         };
-        let best = request.baseline;
-        Ok(Box::new(Conversation { shared, chat, request: request.clone(), best }))
+        let voice =
+            Arc::new(Voice::new(shared.console, &request.module_name, &request.function_name));
+        voice.say(format_args!(
+            "costs {}; asking {} for something cheaper",
+            request.baseline, shared.label
+        ));
+        Ok(Box::new(Conversation {
+            shared,
+            chat,
+            best: request.baseline,
+            request: request.clone(),
+            voice,
+            round: 0,
+        }))
     }
+}
+
+/// A turn's reply and what it used.
+#[cfg(feature = "llm")]
+struct Turn {
+    text: String,
+    tokens: u64,
+    /// What it cost in nano-USD, when that is known.
+    nano_usd: Option<u64>,
 }
 
 /// One conversation's exchanges with its model.
 #[cfg(feature = "llm")]
 trait Chat: Send {
-    /// Sends `prompt` and returns the reply, recording the turn in `shared`.
-    fn turn(&mut self, shared: &Shared, prompt: String) -> Result<String, LlmError>;
+    /// Sends `prompt` and returns the reply, streaming it to `voice` as it arrives.
+    fn turn(
+        &mut self,
+        shared: &Shared,
+        prompt: String,
+        voice: &Arc<Voice>,
+    ) -> Result<Turn, LlmError>;
 }
 
 /// A conversation held by a nanocodex agent, which keeps its history.
@@ -385,26 +428,56 @@ trait Chat: Send {
 struct AgentChat {
     runtime: tokio::runtime::Handle,
     agent: Nanocodex,
-    /// Kept open so the agent can publish its events.
-    _events: AgentEvents,
+    /// The agent's events, which each turn reads while it runs.
+    events: Option<AgentEvents>,
 }
 
 #[cfg(feature = "llm")]
 impl Chat for AgentChat {
-    fn turn(&mut self, shared: &Shared, prompt: String) -> Result<String, LlmError> {
-        let (agent, turns) = (self.agent.clone(), Arc::clone(&shared.turns));
-        let result = shared
-            .run(async move {
-                let _permit = turns.acquire_owned().await;
-                agent.prompt(prompt).await?.await
-            })?
-            .map_err(|error| LlmError::new(error.to_string()))?;
+    fn turn(
+        &mut self,
+        shared: &Shared,
+        prompt: String,
+        voice: &Arc<Voice>,
+    ) -> Result<Turn, LlmError> {
+        let Some(mut events) = self.events.take() else {
+            return Err(LlmError::new("an earlier turn lost the agent's events"));
+        };
+        let (agent, turns, voice) =
+            (self.agent.clone(), Arc::clone(&shared.turns), Arc::clone(voice));
+        let (result, events) = shared.run(async move {
+            let _permit = turns.acquire_owned().await;
+            let result = async {
+                let turn = agent.prompt(prompt).await?;
+                // The reply streams in until the event that ends the turn.
+                while let Some(event) = events.recv().await {
+                    let delta = match event.kind {
+                        AgentEventKind::AssistantDelta => Delta::Reply,
+                        AgentEventKind::ReasoningSummaryDelta => Delta::Reasoning,
+                        kind if kind.is_terminal() => break,
+                        _ => continue,
+                    };
+                    if let Ok(payload) = serde_json::from_str::<Value>(event.payload.get())
+                        && let Some(text) = payload["text"].as_str()
+                    {
+                        voice.stream(&delta(text.to_string()));
+                    }
+                }
+                turn.await
+            }
+            .await;
+            (result, events)
+        })?;
+        self.events = Some(events);
+        let result = result.map_err(|error| LlmError::new(error.to_string()))?;
         let usage = result.usage();
-        shared.record(
-            usage.map_or(0, |usage| usage.total_tokens()),
-            usage.and_then(|usage| usage.estimated_cost()).map(|cost| cost.amount().nano_usd()),
-        );
-        Ok(result.into_final_message())
+        Ok(Turn {
+            tokens: usage.map_or(0, |usage| usage.total_tokens()),
+            nano_usd: usage
+                .and_then(|usage| usage.estimated_cost())
+                .map(|cost| cost.amount().nano_usd()),
+            text: result.into_final_message(),
+        })
     }
 }
 
@@ -427,19 +500,28 @@ struct HttpChat {
 
 #[cfg(feature = "llm")]
 impl Chat for HttpChat {
-    fn turn(&mut self, shared: &Shared, prompt: String) -> Result<String, LlmError> {
+    fn turn(
+        &mut self,
+        shared: &Shared,
+        prompt: String,
+        voice: &Arc<Voice>,
+    ) -> Result<Turn, LlmError> {
         self.transcript.push_prompt(&prompt);
         let body = self.transcript.request(INSTRUCTIONS);
-        let (client, turns) = (Arc::clone(&self.client), Arc::clone(&shared.turns));
+        let reply = self.transcript.reply_stream();
+        let (client, turns, voice) =
+            (Arc::clone(&self.client), Arc::clone(&shared.turns), Arc::clone(voice));
         let reply = shared
             .run(async move {
                 let _permit = turns.acquire_owned().await;
-                client.send(&body).await
+                client
+                    .send(&body, reply, |delta| voice.stream(&delta), |note| voice.say(note))
+                    .await
             })?
             .map_err(LlmError::new)?;
         let (text, usage) = self.transcript.push_reply(&reply).map_err(LlmError::new)?;
-        shared.record(usage.total(), self.client.prices.map(|prices| prices.cost(usage)));
-        Ok(text)
+        let nano_usd = self.client.prices.map(|prices| prices.cost(usage));
+        Ok(Turn { text, tokens: usage.total(), nano_usd })
     }
 }
 
@@ -450,36 +532,93 @@ struct Conversation {
     chat: Box<dyn Chat>,
     request: RewriteRequest,
     best: CostReport,
+    /// Where the conversation reports.
+    voice: Arc<Voice>,
+    /// Candidates asked for so far.
+    round: usize,
 }
 
 #[cfg(feature = "llm")]
 impl LlmSession for Conversation {
     fn propose(&mut self, verdict: Option<&Verdict>) -> Result<Proposal, LlmError> {
-        let prompt = match verdict {
-            None => first_prompt(&self.request),
-            Some(verdict) => {
-                if let Verdict::Accepted { cost } = verdict {
-                    self.best = *cost;
-                }
-                verdict_prompt(verdict, self.best)
-            }
-        };
-        if let Some(proposal) = extract(&self.turn(prompt)?) {
-            return Ok(proposal);
+        let proposal = self.ask(verdict);
+        match &proposal {
+            Ok(Proposal::Candidate(_)) => {}
+            Ok(Proposal::Done) => self.voice.say("the model has nothing cheaper"),
+            Err(error) => self.voice.say(format_args!("stopped: {error}")),
         }
-        extract(&self.turn(FORMAT_REMINDER.to_string())?)
-            .ok_or_else(|| LlmError::new("the model's reply held no candidate"))
+        proposal
+    }
+
+    fn finish(&mut self, verdict: Option<&Verdict>, kept: Option<CostReport>) {
+        if let Some(verdict) = verdict {
+            self.hear(verdict);
+        }
+        match kept {
+            Some(cost) => self.voice.say(format_args!(
+                "keeps a rewrite at {cost}, down from {}",
+                self.request.baseline
+            )),
+            None => self.voice.say("keeps the function as it was"),
+        }
     }
 }
 
 #[cfg(feature = "llm")]
 impl Conversation {
+    /// Asks for the next candidate after `verdict`.
+    fn ask(&mut self, verdict: Option<&Verdict>) -> Result<Proposal, LlmError> {
+        let prompt = match verdict {
+            None => first_prompt(&self.request),
+            Some(verdict) => {
+                self.hear(verdict);
+                verdict_prompt(verdict, self.best)
+            }
+        };
+        self.round += 1;
+        self.voice.say(format_args!("round {}", self.round));
+        if let Some(proposal) = extract(&self.turn(prompt)?) {
+            return Ok(proposal);
+        }
+        self.voice.say("the reply held no candidate; reminding the model of the format");
+        extract(&self.turn(FORMAT_REMINDER.to_string())?)
+            .ok_or_else(|| LlmError::new("the model's reply held no candidate"))
+    }
+
+    /// Reports a verdict and keeps the cost to beat.
+    fn hear(&mut self, verdict: &Verdict) {
+        match verdict {
+            Verdict::Accepted { cost } => {
+                self.best = *cost;
+                self.voice.say(format_args!("accepted at {cost}"));
+            }
+            Verdict::Rejected { stage, reason, counterexample } => {
+                let mut message = format!("rejected at {stage}: {reason}");
+                if let Some(input) = counterexample {
+                    let _ = write!(message, "; input {input}");
+                }
+                self.voice.say(message);
+            }
+        }
+    }
+
     /// Sends `prompt` and returns the reply, unless the budget is spent.
     fn turn(&mut self, prompt: String) -> Result<String, LlmError> {
         if !self.shared.affordable() {
             return Err(LlmError::new("the conversations spent their budget"));
         }
-        self.chat.turn(&self.shared, prompt)
+        let start = Instant::now();
+        let turn = self.chat.turn(&self.shared, prompt, &self.voice);
+        self.voice.flush();
+        let Turn { text, tokens, nano_usd } = turn?;
+        self.shared.record(tokens, nano_usd);
+        let mut message =
+            format!("replied in {:.1} s using {tokens} tokens", start.elapsed().as_secs_f64());
+        if let Some(nano_usd) = nano_usd {
+            let _ = write!(message, ", an estimated {}", UsdAmount::from_nano_usd(nano_usd));
+        }
+        self.voice.say(message);
+        Ok(text)
     }
 }
 
