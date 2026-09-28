@@ -17,7 +17,10 @@ use solar_sema::{
     Gcx,
     hir::{ContractId, SourceId},
 };
-use std::sync::{LazyLock, OnceLock};
+use std::{
+    cmp::Reverse,
+    sync::{LazyLock, OnceLock},
+};
 
 const INVALID: u8 = 0xfe;
 const IPFS_MULTIHASH_LEN: usize = 34;
@@ -68,7 +71,10 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
             }
         }
         // Hash every source before building contract metadata, which blocks on missing hashes.
-        sources.iter().collect::<Vec<_>>().into_par_iter().for_each(|source_id| {
+        // Start with the largest sources, one task each, so no large source starts last.
+        let mut sources = sources.iter().collect::<Vec<_>>();
+        sources.sort_unstable_by_key(|&id| Reverse(self.gcx.hir.source(id).file.src.len()));
+        sources.into_par_iter().with_max_len(1).for_each(|source_id| {
             self.source(source_id);
         });
         contracts.par_iter().for_each(|&contract_id| {
