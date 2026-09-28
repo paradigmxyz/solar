@@ -59,6 +59,30 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
         Self { gcx, settings, contracts, sources, referenced_sources }
     }
 
+    /// Computes the metadata of `contracts` in parallel, hashing each referenced source once.
+    pub(super) fn precompute(&self, contracts: &[ContractId]) {
+        self.gcx.sess.join(
+            || {
+                let mut sources = DenseBitSet::new_empty(self.sources.len());
+                for &contract_id in contracts {
+                    for &source_id in
+                        self.referenced_sources(self.gcx.hir.contract(contract_id).source)
+                    {
+                        sources.insert(source_id);
+                    }
+                }
+                sources.iter().collect::<Vec<_>>().into_par_iter().for_each(|source_id| {
+                    self.source(source_id);
+                });
+            },
+            || {
+                contracts.par_iter().for_each(|&contract_id| {
+                    self.json(contract_id);
+                });
+            },
+        );
+    }
+
     pub(super) fn json(&self, contract_id: ContractId) -> &str {
         self.contracts[contract_id].get_or_init(|| metadata_json(self, contract_id))
     }
@@ -78,28 +102,6 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
             MetadataHash::None => push_cbor_metadata(&mut data, "", hash),
         }
         data.into()
-    }
-
-    /// Computes the metadata of `contracts` in parallel, hashing each referenced source once.
-    pub(super) fn precompute(&self, contracts: &[ContractId]) {
-        let mut sources = DenseBitSet::new_empty(self.sources.len());
-        for &contract_id in contracts {
-            for &source_id in self.referenced_sources(self.gcx.hir.contract(contract_id).source) {
-                sources.insert(source_id);
-            }
-        }
-        self.gcx.sess.join(
-            || {
-                sources.iter().collect::<Vec<_>>().into_par_iter().for_each(|source_id| {
-                    self.source(source_id);
-                });
-            },
-            || {
-                contracts.par_iter().for_each(|&contract_id| {
-                    self.json(contract_id);
-                });
-            },
-        );
     }
 
     fn source(&self, source_id: SourceId) -> &Value {
