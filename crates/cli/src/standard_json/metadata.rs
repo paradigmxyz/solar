@@ -13,7 +13,7 @@ use solar_sema::{
     Gcx,
     hir::{ContractId, SourceId},
 };
-use std::sync::OnceLock;
+use std::sync::{LazyLock, OnceLock};
 
 const INVALID: u8 = 0xfe;
 const IPFS_MULTIHASH_LEN: usize = 34;
@@ -370,23 +370,25 @@ fn bzzr1_hash(input: &[u8]) -> [u8; 32] {
 
 fn bzzr1_chunk(input: &[u8], force_higher: bool) -> [u8; 32] {
     let hash = if input.len() == 0x1000 && !force_higher {
-        bmt_hash(input)
+        bmt_hash(input, input.len())
     } else {
         let mut padded = [0; 0x1000];
-        if input.len() < 0x1000 {
+        let len = if input.len() < 0x1000 {
             padded[..input.len()].copy_from_slice(input);
+            input.len()
         } else {
             let mut represented = 0x1000;
             while represented * (0x1000 / 32) < input.len() {
                 represented *= 0x1000 / 32;
             }
-            for (output, chunk) in
-                padded.as_chunks_mut::<32>().0.iter_mut().zip(input.chunks(represented))
-            {
+            let children = input.chunks(represented);
+            let len = children.len() * 32;
+            for (output, chunk) in padded.as_chunks_mut::<32>().0.iter_mut().zip(children) {
                 output.copy_from_slice(&bzzr1_chunk(chunk, represented > 0x1000));
             }
-        }
-        bmt_hash(&padded)
+            len
+        };
+        bmt_hash(&padded, len)
     };
     let mut value = [0; 40];
     value[..8].copy_from_slice(&(input.len() as u64).to_le_bytes());
@@ -394,15 +396,30 @@ fn bzzr1_chunk(input: &[u8], force_higher: bool) -> [u8; 32] {
     keccak256(value).into()
 }
 
-fn bmt_hash(input: &[u8]) -> [u8; 32] {
+/// Hashes a power-of-two BMT span whose bytes from `len` onward are zero.
+fn bmt_hash(input: &[u8], len: usize) -> [u8; 32] {
+    if len == 0 {
+        return bmt_zero_hash(input.len());
+    }
     if input.len() <= 64 {
         return keccak256(input).into();
     }
     let middle = input.len() / 2;
     let mut value = [0; 64];
-    value[..32].copy_from_slice(&bmt_hash(&input[..middle]));
-    value[32..].copy_from_slice(&bmt_hash(&input[middle..]));
+    value[..32].copy_from_slice(&bmt_hash(&input[..middle], len.min(middle)));
+    value[32..].copy_from_slice(&bmt_hash(&input[middle..], len.saturating_sub(middle)));
     keccak256(value).into()
+}
+
+fn bmt_zero_hash(len: usize) -> [u8; 32] {
+    static HASHES: LazyLock<[[u8; 32]; 7]> = LazyLock::new(|| {
+        let mut hashes = [keccak256([0; 64]).0; 7];
+        for level in 1..hashes.len() {
+            hashes[level] = keccak256([hashes[level - 1], hashes[level - 1]].as_flattened()).0;
+        }
+        hashes
+    });
+    HASHES[(len.trailing_zeros() - 6) as usize]
 }
 
 #[cfg(test)]

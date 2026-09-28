@@ -3,8 +3,8 @@
 use super::super::{
     BlockId, CfgInfo, CopyDest, CopySource, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function,
     FunctionId, FxHashMap, FxHashSet, IndexVec, InstKind, Liveness, OnceCell, OptimizationMode,
-    ParallelCopy, ScheduledOp, SmallVec, SpillSlot, SpillStore, StackOp, StdEntry, Terminator,
-    U256, Value, ValueId, cross_block_values, index_vec, ir, is_cross_block_recomputable_kind,
+    ParallelCopy, ScheduledOp, SmallVec, SpillSlot, SpillStore, StackOp, Terminator, U256, Value,
+    ValueId, cross_block_values, index_vec, ir, is_cross_block_recomputable_kind,
     is_rematerializable_leaf, op, rematerializable_nullary_value,
 };
 use solar_data_structures::bit_set::BitMatrix;
@@ -22,6 +22,10 @@ pub(in crate::backend::evm::codegen) struct SpillColor {
 
 type SpillInterferences = FxHashMap<ValueId, SmallVec<[ValueId; 4]>>;
 
+/// One value's live range in each block where it needs its slot, sorted by block.
+pub(in crate::backend::evm::codegen) type SpillLiveRanges =
+    SmallVec<[(BlockId, SpillLiveRange); 2]>;
+
 impl SpillColor {
     pub(in crate::backend::evm::codegen) fn new(value_count: usize) -> Self {
         Self { values: DenseBitSet::new_empty(value_count), ranges: FxHashMap::default() }
@@ -30,7 +34,7 @@ impl SpillColor {
     pub(in crate::backend::evm::codegen) fn accepts(
         &self,
         value: ValueId,
-        ranges: &FxHashMap<BlockId, SpillLiveRange>,
+        ranges: &[(BlockId, SpillLiveRange)],
         interferences: &SpillInterferences,
     ) -> bool {
         interferences
@@ -48,10 +52,10 @@ impl SpillColor {
     pub(in crate::backend::evm::codegen) fn insert(
         &mut self,
         value: ValueId,
-        ranges: &FxHashMap<BlockId, SpillLiveRange>,
+        ranges: &[(BlockId, SpillLiveRange)],
     ) {
         self.values.insert(value);
-        for (&block, &range) in ranges {
+        for &(block, range) in ranges {
             self.ranges.entry(block).or_default().push(range);
         }
     }
@@ -162,8 +166,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         liveness: &Liveness,
         colorable: &DenseBitSet<ValueId>,
         recomputable: &DenseBitSet<ValueId>,
-    ) -> IndexVec<ValueId, FxHashMap<BlockId, SpillLiveRange>> {
-        let mut ranges = index_vec![FxHashMap::default(); func.num_values()];
+    ) -> IndexVec<ValueId, SpillLiveRanges> {
+        let mut ranges = index_vec![SpillLiveRanges::new(); func.num_values()];
         let mut operands = SmallVec::<[ValueId; 8]>::new();
 
         for (block_id, block) in func.blocks.iter_enumerated() {
@@ -218,7 +222,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         colorable: &DenseBitSet<ValueId>,
         recomputable: &DenseBitSet<ValueId>,
-        ranges: &mut IndexVec<ValueId, FxHashMap<BlockId, SpillLiveRange>>,
+        ranges: &mut IndexVec<ValueId, SpillLiveRanges>,
     ) {
         let mut required = ranges.clone();
         let mut operands = SmallVec::<[ValueId; 8]>::new();
@@ -234,7 +238,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     continue;
                 }
                 let mut grew = false;
-                for (&block, &range) in &value_required {
+                for &(block, range) in &value_required {
                     grew |= Self::merge_spill_live_range(&mut required[operand], block, range);
                 }
                 if grew && recomputable.contains(operand) {
@@ -244,7 +248,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         for value in colorable.iter() {
-            for (&block, &range) in &required[value] {
+            for &(block, range) in &required[value] {
                 Self::merge_spill_live_range(&mut ranges[value], block, range);
             }
         }
@@ -252,22 +256,23 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Unions `range` into a value's interval for `block`, reporting whether it grew.
     fn merge_spill_live_range(
-        ranges: &mut FxHashMap<BlockId, SpillLiveRange>,
+        ranges: &mut SpillLiveRanges,
         block: BlockId,
         range: SpillLiveRange,
     ) -> bool {
-        match ranges.entry(block) {
-            StdEntry::Occupied(mut entry) => {
+        match ranges.binary_search_by_key(&block, |&(block, _)| block) {
+            Ok(index) => {
+                let current = &mut ranges[index].1;
                 let merged = SpillLiveRange {
-                    start: entry.get().start.min(range.start),
-                    end: entry.get().end.max(range.end),
+                    start: current.start.min(range.start),
+                    end: current.end.max(range.end),
                 };
-                let grew = merged != *entry.get();
-                entry.insert(merged);
+                let grew = merged != *current;
+                *current = merged;
                 grew
             }
-            StdEntry::Vacant(entry) => {
-                entry.insert(range);
+            Err(index) => {
+                ranges.insert(index, (block, range));
                 true
             }
         }
@@ -378,8 +383,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Widens a value's range in `block`, which is its last block: blocks are walked in order.
     fn extend_spill_live_range(
-        ranges: &mut IndexVec<ValueId, FxHashMap<BlockId, SpillLiveRange>>,
+        ranges: &mut IndexVec<ValueId, SpillLiveRanges>,
         colorable: &DenseBitSet<ValueId>,
         value: ValueId,
         block: BlockId,
@@ -388,13 +394,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         if !colorable.contains(value) {
             return;
         }
-        ranges[value]
-            .entry(block)
-            .and_modify(|range| {
+        let ranges = &mut ranges[value];
+        match ranges.last_mut() {
+            Some((last, range)) if *last == block => {
                 range.start = range.start.min(point);
                 range.end = range.end.max(point);
-            })
-            .or_insert(SpillLiveRange { start: point, end: point });
+            }
+            last => {
+                debug_assert!(last.is_none_or(|(last, _)| *last < block));
+                ranges.push((block, SpillLiveRange { start: point, end: point }));
+            }
+        }
     }
 
     /// Returns values directly consumed outside their defining block. Phi inputs are edge uses:

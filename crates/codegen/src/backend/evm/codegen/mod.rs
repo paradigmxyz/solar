@@ -1670,22 +1670,21 @@ RETURN
         let value1 = ValueId::from_usize(1);
         let interferences = FxHashMap::default();
         let mut color = SpillColor::new(2);
-        color
-            .insert(value0, &FxHashMap::from_iter([(block0, SpillLiveRange { start: 2, end: 4 })]));
+        color.insert(value0, &[(block0, SpillLiveRange { start: 2, end: 4 })]);
 
         assert!(color.accepts(
             value1,
-            &FxHashMap::from_iter([(block0, SpillLiveRange { start: 5, end: 7 })]),
+            &[(block0, SpillLiveRange { start: 5, end: 7 })],
             &interferences,
         ));
         assert!(!color.accepts(
             value1,
-            &FxHashMap::from_iter([(block0, SpillLiveRange { start: 4, end: 7 })]),
+            &[(block0, SpillLiveRange { start: 4, end: 7 })],
             &interferences,
         ));
         assert!(color.accepts(
             value1,
-            &FxHashMap::from_iter([(block1, SpillLiveRange { start: 2, end: 4 })]),
+            &[(block1, SpillLiveRange { start: 2, end: 4 })],
             &interferences,
         ));
     }
