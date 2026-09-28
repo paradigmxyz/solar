@@ -159,13 +159,13 @@ fn source_metadata(metadata: &Metadata<'_, '_, '_>, source_id: SourceId) -> Valu
         value.insert("content".into(), json!(content));
     } else {
         let swarm = bzzr1_hash(content.as_bytes());
-        let ipfs = ipfs_hash(content.as_bytes());
+        let mut ipfs = String::from("dweb:/ipfs/");
+        bs58::encode(ipfs_hash(content.as_bytes()))
+            .onto(&mut ipfs)
+            .expect("base58 encoding into a string cannot fail");
         value.insert(
             "urls".into(),
-            json!([
-                format!("bzz-raw://{}", alloy_primitives::hex::encode(swarm)),
-                format!("dweb:/ipfs/{}", bs58::encode(ipfs).into_string()),
-            ]),
+            json!([format!("bzz-raw://{}", alloy_primitives::hex::display(swarm)), ipfs]),
         );
     }
     Value::Object(value)
