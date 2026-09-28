@@ -1,3 +1,5 @@
+//! Shared source fixtures and compiler adapters for Solidity compiler benchmarks.
+
 #![allow(clippy::disallowed_methods)]
 
 use flate2::read::GzDecoder;
