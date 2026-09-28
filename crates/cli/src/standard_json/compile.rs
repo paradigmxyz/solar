@@ -14,6 +14,7 @@ use crate::{
     bytecode::MaybeHexBytecode,
     ethdebug::{EthdebugCompilation, make_ethdebug_compilation, make_ethdebug_program},
 };
+use rayon::prelude::*;
 use serde_json::json;
 use solar_codegen::{ContractArtifact, ContractSelection, ImmutableReference, RuntimeDataFn};
 use solar_config::{
@@ -367,27 +368,37 @@ fn compile(
                 });
                 let compilation_id = compilation.as_ref().map(EthdebugCompilation::id);
 
-                for (contract_id, contract) in gcx.hir.contracts_enumerated() {
-                    let source = gcx.hir.source(contract.source);
-                    let source_name = standard_json_source_name(&source.file.name);
-                    let contract_name = contract.name.as_str();
-                    let contract_selection = output_selection.contract(&source_name, contract_name);
-                    let contract_output = make_contract_output(
-                        gcx,
-                        contract_id,
-                        contract_selection,
-                        bytecodes.as_ref(),
-                        contract_metadata.as_ref(),
-                        compilation_id,
-                        source_map_encoder.as_ref(),
-                    );
-                    if !contract_output.is_empty() {
-                        output
-                            .contracts
-                            .entry(source_name)
-                            .or_default()
-                            .insert(contract_name.to_string(), contract_output);
-                    }
+                let contract_outputs = gcx
+                    .hir
+                    .par_contracts_enumerated()
+                    .filter_map(|(contract_id, contract)| {
+                        let source = gcx.hir.source(contract.source);
+                        let source_name = standard_json_source_name(&source.file.name);
+                        let contract_name = contract.name.as_str();
+                        let contract_selection =
+                            output_selection.contract(&source_name, contract_name);
+                        let contract_output = make_contract_output(
+                            gcx,
+                            contract_id,
+                            contract_selection,
+                            bytecodes.as_ref(),
+                            contract_metadata.as_ref(),
+                            compilation_id,
+                            source_map_encoder.as_ref(),
+                        );
+                        (!contract_output.is_empty()).then_some((
+                            source_name,
+                            contract_name,
+                            contract_output,
+                        ))
+                    })
+                    .collect::<Vec<_>>();
+                for (source_name, contract_name, contract_output) in contract_outputs {
+                    output
+                        .contracts
+                        .entry(source_name)
+                        .or_default()
+                        .insert(contract_name.to_string(), contract_output);
                 }
 
                 if let Some(compilation) = compilation {
