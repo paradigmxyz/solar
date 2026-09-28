@@ -79,8 +79,10 @@ conversation from the cache.
 While `live` works, every conversation reports on stderr: each round, the model's reasoning
 (marked `┆`) and reply (marked `│`) as they stream in, how long each turn took and what it used,
 each verdict, and what the pass keeps. Lines name the module and function, so conversations that
-run at once interleave by whole lines, and a request sent again says why. Nothing is printed when
-`--error-format` is machine-readable. A short conversation reads:
+run at once interleave by whole lines, and a request sent again says why. A function whose
+rewrite `-Zllm-cache` already holds says so and is not sent to the model; build without the cache,
+or delete the function's entry, to ask again. Nothing is printed when `--error-format` is
+machine-readable. A short conversation reads:
 
 ```text
 llm-optimize Triangle @sumBelow: costs 8019 gas, 43 bytes; asking opencode/deepseek-v4.1-flash for something cheaper
@@ -265,7 +267,8 @@ The fixtures under `tests/ui/codegen/mir/llm-optimize/` use scripts to cover eve
 opens an `LlmSession` per function, and installs it with `set_rewriter` before compiling with
 `-Zllm-optimize=live`. `LlmSession::propose` receives the verdict on the previous candidate and
 returns the next candidate or `Proposal::Done`; `LlmSession::finish` hears the verdict the last
-candidate got, when no proposal heard it, and the cost of the rewrite the pass keeps. The command line's rewriter in
+candidate got, when no proposal heard it, and the cost of the rewrite the pass keeps.
+`LlmRewriter::cached` hears about a function whose cached rewrite the pass keeps instead of asking. The command line's rewriter in
 `crates/cli/src/llm.rs` is one such implementation, which the command line and
 `solar::cli::standard_json::compile_standard_json` install only when no rewriter is installed.
 

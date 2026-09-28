@@ -557,3 +557,30 @@ note: `llm-optimize` asked OpenCode Zen 2 turns using 2400 tokens, an estimated 
     assert_eq!(requests.len(), 4);
     assert_eq!(requests[0].body, requests[2].body);
 }
+
+#[cfg(feature = "llm")]
+#[test]
+fn cached_rewrites_skip_the_model() {
+    let dir = tempfile::tempdir().unwrap();
+    let cache = format!("-Zllm-cache={}", dir.path().display());
+    let (url, requests) = serve(chat_reply, 0, true);
+    let endpoint = format!("-Zllm-endpoint={url}");
+    let model = "-Zllm-model=opencode/deepseek-v4.1-flash";
+    let live = ["-Zllm-optimize=live", model, &endpoint, &cache];
+    let first = build(&live, Some("OPENCODE_ZEN_API_KEY"));
+    let asked = requests.lock().unwrap().len();
+    assert!(asked > 0);
+    // The second build finds the rewrite in the cache and asks nothing, which it says.
+    let second = build(&live, Some("OPENCODE_ZEN_API_KEY"));
+    assert_eq!(requests.lock().unwrap().len(), asked);
+    assert_eq!(runtime(&second), runtime(&first));
+    assert_data_eq!(
+        String::from_utf8_lossy(&second.stderr).into_owned(),
+        str![[r#"
+warning: `-Zllm-optimize=live` sends the MIR of offered functions to OpenCode Zen
+
+llm-optimize Triangle @sumBelow: reuses its cached rewrite at 72 gas, 28 bytes, down from 7540 gas, 43 bytes, without asking opencode/deepseek-v4.1-flash
+
+"#]]
+    );
+}
