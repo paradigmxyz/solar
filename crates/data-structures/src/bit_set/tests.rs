@@ -812,13 +812,12 @@ fn matrix_rows() {
     matrix.insert(idx(1), idx(70));
 
     let row = matrix.row(idx(1));
-    assert_eq!(row.domain_size(), 100);
     assert_eq!(row.count(), 2);
     assert!(row.contains(idx(70)));
     assert!(!row.contains(idx(4)));
     assert!(!row.contains(idx(1000)));
     assert_eq!(row.into_iter().map(|i| i.index()).collect::<Vec<_>>(), [3, 70]);
-    assert!(matrix.row(idx(0)).is_empty());
+    assert_eq!(matrix.row(idx(0)).count(), 0);
 
     let mut set = DenseBitSet::from(matrix.row(idx(1)));
     assert_eq!(set.iter().map(|i| i.index()).collect::<Vec<_>>(), [3, 70]);
@@ -831,7 +830,7 @@ fn matrix_rows() {
     assert!(!matrix.replace_row(idx(2), &set));
     assert_eq!(matrix.iter(idx(2)).map(|i| i.index()).collect::<Vec<_>>(), [99]);
     assert!(matrix.replace_row(idx(1), &DenseBitSet::new_empty(100)));
-    assert!(matrix.row(idx(1)).is_empty());
+    assert_eq!(matrix.row(idx(1)).count(), 0);
 }
 
 #[test]

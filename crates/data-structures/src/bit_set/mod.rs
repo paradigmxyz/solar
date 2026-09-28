@@ -1671,11 +1671,6 @@ pub struct BitMatrixRow<'a, C> {
 }
 
 impl<'a, C: BitSetIndex> BitMatrixRow<'a, C> {
-    /// Returns the number of columns in the row's domain.
-    pub fn domain_size(&self) -> usize {
-        self.num_columns
-    }
-
     /// Returns `true` if `column` is in the row.
     pub fn contains(&self, column: C) -> bool {
         let (word_index, mask) = word_index_and_mask(column);
@@ -1685,11 +1680,6 @@ impl<'a, C: BitSetIndex> BitMatrixRow<'a, C> {
     /// Returns the number of columns in the row.
     pub fn count(&self) -> usize {
         count_ones(self.words)
-    }
-
-    /// Returns `true` if the row is empty.
-    pub fn is_empty(&self) -> bool {
-        self.words.iter().all(|&word| word == 0)
     }
 
     /// Iterates over the columns in the row, in ascending order.
@@ -1707,12 +1697,6 @@ impl<'a, C: BitSetIndex> IntoIterator for BitMatrixRow<'a, C> {
     }
 }
 
-impl<C: BitSetIndex> fmt::Debug for BitMatrixRow<'_, C> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_set().entries(self.iter()).finish()
-    }
-}
-
 impl<C: BitSetIndex> From<BitMatrixRow<'_, C>> for DenseBitSet<C> {
     fn from(row: BitMatrixRow<'_, C>) -> Self {
         DenseBitSet {
@@ -1720,12 +1704,6 @@ impl<C: BitSetIndex> From<BitMatrixRow<'_, C>> for DenseBitSet<C> {
             words: WordVec::from_slice(row.words),
             marker: PhantomData,
         }
-    }
-}
-
-impl<C: BitSetIndex> From<BitMatrixRow<'_, C>> for GrowableBitSet<C> {
-    fn from(row: BitMatrixRow<'_, C>) -> Self {
-        Self::from(DenseBitSet::from(row))
     }
 }
 

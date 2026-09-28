@@ -42,10 +42,7 @@ use crate::mir::{
     utils,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{
-    bit_set::{DenseBitSet, GrowableBitSet},
-    map::FxHashMap,
-};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Removes masks covered by bounds proved across every direct caller.
 pub(crate) struct CallCleanup;
@@ -399,7 +396,7 @@ fn masks_live_across_calls(func: &Function) -> DenseBitSet<ValueId> {
     }
     let liveness = Liveness::compute_live_sets(func);
     for (id, block) in func.blocks.iter_enumerated() {
-        let mut live = GrowableBitSet::from(liveness.live_out(id));
+        let mut live = DenseBitSet::from(liveness.live_out(id));
         if let Some(term) = &block.terminator {
             term.visit_operands(|value| {
                 live.insert(value);

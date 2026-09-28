@@ -403,7 +403,7 @@ enum AddressState {
     Resolved(Option<MemoryAddress>),
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Default)]
 struct PointerProvenance {
     allocations: FxHashMap<InstId, AllocationProvenance>,
     /// Grows on demand, since transforms may add values after construction.
@@ -493,7 +493,7 @@ impl PointerProvenance {
 ///
 /// One instance is an immutable snapshot of a function. Recompute it after a
 /// transform mutates definitions or CFG edges.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct AliasAnalysis {
     /// Pointer-provenance facts, built on first use: many pass invocations
     /// construct the analysis but never issue a memory query (pure or

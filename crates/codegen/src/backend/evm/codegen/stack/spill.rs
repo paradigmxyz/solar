@@ -27,8 +27,7 @@ pub(crate) struct SpillSlot {
 /// Manages memory slots for spilled MIR values.
 #[derive(Clone, Debug)]
 pub(crate) struct SpillManager {
-    /// Map from value to its spill slot.
-    /// Grows on demand.
+    /// Each value's spill slot, grown on demand.
     slots: IndexVec<ValueId, Option<SpillSlot>>,
     /// Values whose reserved spill slot can be loaded at the current program point.
     reloadable: GrowableBitSet<ValueId>,

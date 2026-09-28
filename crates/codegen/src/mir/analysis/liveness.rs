@@ -21,13 +21,10 @@ use solar_data_structures::{
 use std::collections::VecDeque;
 
 #[cfg(test)]
-use solar_data_structures::bit_set::GrowableBitSet;
-
-#[cfg(test)]
 #[derive(Clone, Debug)]
 struct LivenessInfo {
-    live_before: GrowableBitSet<ValueId>,
-    live_after: GrowableBitSet<ValueId>,
+    live_before: DenseBitSet<ValueId>,
+    live_after: DenseBitSet<ValueId>,
 }
 
 /// Liveness analysis results for a function.
@@ -269,7 +266,7 @@ impl Liveness {
     #[cfg(test)]
     fn live_at_inst(&self, func: &Function, block_id: BlockId, inst_idx: usize) -> LivenessInfo {
         let block = &func.blocks[block_id];
-        let mut live = GrowableBitSet::from(self.live_out(block_id));
+        let mut live = DenseBitSet::from(self.live_out(block_id));
 
         if let Some(term) = &block.terminator {
             let mut term_uses = SmallVec::<[ValueId; 8]>::new();
