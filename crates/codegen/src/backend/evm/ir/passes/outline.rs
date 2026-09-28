@@ -26,10 +26,10 @@
 //! Enumerating all substrings is potentially quadratic, so the implementation cuts runs at unique
 //! instructions, hashes slices from prefix tables, and applies a module-wide candidate budget.
 //! Large modules shorten the maximum considered run rather than allowing unbounded compile time.
-//! In gas mode, a module-wide screen bounds the largest closed whitelisted run and the widest
-//! push first. When neither could repay its transfer gas over the expected executions, the pass
-//! builds no run tables. Machine runs are skipped only when no push can be shared either, since
-//! a rejected store run keeps its literal from becoming a push share.
+//! In gas mode, a module-wide screen first asks whether the widest push, or a closed whitelisted
+//! prefix that occurs at two starts, could repay its transfer gas over the expected executions.
+//! When neither could, the pass builds no run tables. Machine runs are skipped only when no push
+//! can be shared either, since a rejected store run keeps its literal from becoming a push share.
 //!
 //! Outlining runs before late CFG/CSE/DCE cleanup, which removes jump thunks and redundancies
 //! exposed by sharing; assembly remains responsible only for final label offsets and push widths.
@@ -460,7 +460,18 @@ fn outline_parametric_machine_runs(
 
     let hashes = RunHashes::new(module, ParamInstKey::new);
     let mut candidates = FxHashMap::<RunSlice<'_>, SmallVec<[ParamSite; 2]>>::default();
+    let mut metrics = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
+        // Overlapping candidate windows revisit each instruction, so classify it once.
+        metrics.clear();
+        metrics.extend(block.instructions.iter().enumerate().map(|(index, inst)| {
+            hashes
+                .repeats(block_id, index)
+                .then(|| {
+                    whitelisted_effect(inst).map(|effect| (effect, parameterizable_push(inst)))
+                })
+                .flatten()
+        }));
         for start in 0..block.instructions.len() {
             if !is_split_point(&block.instructions, start) {
                 continue;
@@ -469,13 +480,9 @@ fn outline_parametric_machine_runs(
             let mut inputs = 0i32;
             let mut immediate_pushes = 0usize;
             let limit = block.instructions.len().min(start + MAX_RUN_LENGTH);
-            for end in start..limit {
-                if !hashes.repeats(block_id, end) {
-                    break;
-                }
-                let inst = &block.instructions[end];
-                let Some((reads, pops, pushes)) = whitelisted_effect(inst) else { break };
-                if parameterizable_push(inst) {
+            for (end, &metric) in metrics.iter().enumerate().take(limit).skip(start) {
+                let Some(((reads, pops, pushes), parameter)) = metric else { break };
+                if parameter {
                     immediate_pushes += 1;
                 }
                 inputs = inputs.max(i32::from(reads) - delta);
