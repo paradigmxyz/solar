@@ -1,6 +1,6 @@
 llm-optimize Replay @main: not offered: is the dispatch entry
-llm-optimize Replay @pow2: replayed, from 613 gas, 21 bytes to 52 gas, 21 bytes
-llm-optimize Replay @identity: the cached rewrite is rejected at equivalence: the original returns 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, but the candidate returns 0x0
+llm-optimize Replay @pow2: replayed, from 929 gas, 21 bytes to 52 gas, 21 bytes
+llm-optimize Replay @identity: the cached rewrite is rejected at equivalence: the original returns 0x2, but the candidate returns 0x3
 llm-optimize Replay @absent: no cached rewrite
 - // === ROOT/tests/ui/codegen/mir/llm-optimize/replay.mir (before llm-optimize) ===
 + // === ROOT/tests/ui/codegen/mir/llm-optimize/replay.mir (after llm-optimize) ===

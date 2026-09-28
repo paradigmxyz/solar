@@ -71,8 +71,8 @@ interface is a few words the tests can generate:
   `selfdestruct` and `revert_returndata`, with no `undef` values;
 - in a module that never reads `msize`, since a candidate may touch memory its original does not.
 
-A function whose generated inputs rarely finish, or leave a reachable block unexecuted, is not
-offered either: its candidates could not be tested. `-Zllm-trace` prints the reason for every
+A function whose generated inputs rarely finish, leave a reachable block unfinished, or leave a
+decision always true or always false, is not offered either: its candidates could not be tested. `-Zllm-trace` prints the reason for every
 function that is not offered.
 
 ## Candidate text
@@ -99,8 +99,10 @@ Each candidate goes through these stages, and the verdict names the one that rej
 4. **Equivalence.** The interpreter runs the original and the candidate on the same inputs. The
    candidate must end the same way (return the same words, revert or return the same data,
    stop, or reach `invalid`), write only memory bytes the original writes, and, when the
-   original returns, leave those bytes the same. Every reachable block of the candidate must run
-   on some input.
+   original returns, leave those bytes the same. The inputs must exercise the candidate: every
+   reachable block must run to its end, and every decision must come out both ways, on some
+   input. Decisions are comparisons and the `and`, `or`, and `xor` of booleans, which is how
+   if-converted code combines comparisons without branching.
 5. **Cost.** The target cost model prices the candidate, which must beat the best so far: by at
    least one stack copy of lifetime gas in gas builds, and in bytes, then gas, in size builds.
 
@@ -110,12 +112,14 @@ Its metadata is empty, and its debug information is marked as intentionally drop
 ### Inputs
 
 Inputs come from a seed derived from the candidate text, so a rerun makes the same decisions.
-Arguments mix width boundaries, constants from the original and their neighbors, small numbers,
-addresses near the free memory pointer, repeated arguments to exercise aliasing, and random
-words, masked to their types. A candidate that adds a constant is also run with that constant in
-each argument. Memory holds seeded garbage, except for the zero word at `0x60`, a free memory
-pointer from `0x80` up, which is sometimes unaligned, and small words at pointer arguments, which
-keep loops over memory short.
+Constants come from the function and every function it can call, with their neighbors and
+left-aligned forms for `bytesN` comparisons. Arguments mix powers of two, their neighbors, and
+their negations; constants; small numbers; addresses near the free memory pointer; repeated
+arguments to exercise aliasing; and random words, masked to their types. Probes then put each
+constant in each argument, and a candidate that adds a constant is also run with it. Memory holds
+seeded garbage, except for the zero word at `0x60`, a free memory pointer from `0x80` up, which
+is sometimes unaligned, and the objects at pointer arguments: a small length, which keeps loops
+over memory short, then flags and constants.
 
 Memory writes must stay within the original's because the backend keeps call frames and spill
 slots in memory no function addresses, and callers may keep scratch words across a call. A
@@ -124,7 +128,9 @@ candidate that uses scratch space its original does not is rejected, even when i
 ### Cost model
 
 A function costs the bytes of its reachable code and the average gas of the calls on inputs its
-original returns on, including callees and memory growth. Each operation is priced by the target
+original returns on, including callees and memory growth. Probes, and inputs that grow memory by
+more than 64 KiB because an argument acts as a far pointer, exercise the code but do not price
+it. Each operation is priced by the target
 cost model, with dynamic work sized from the values the run computed. Each operand costs a push
 for an immediate or one stack copy otherwise, which stands in for stack scheduling. Accepted
 rewrites can still lose to the stack scheduler, so compare them with the runtime benchmarks.
@@ -202,8 +208,13 @@ returns the next candidate or `Proposal::Done`. The command line's rewriter in
 ## Limits
 
 - Testing is not proof. A candidate that differs only on inputs no generator reaches is
-  accepted, such as a comparison with a constant the candidate computes rather than states.
-  Proving loop-free candidates with the SMT checker in `scripts/evm-rules/` is future work.
+  accepted. Over the project archives of the runtime benchmark corpus, one single-site mutant of
+  each of the 2,044 offered functions (a changed operation, operand order, constant, or branch,
+  or a deleted store) was checked: 2,014 fail equivalence. Of the 30 that pass, 25 are
+  equivalent, mostly dead stores and range-checked sign extensions, and 5 change a constant
+  whose effect shows only on rare inputs, such as a bound one exact value reaches or a slice
+  that ends just past the free memory pointer. Proving loop-free candidates with the SMT checker
+  in `scripts/evm-rules/` is future work.
 - The interpreter models no storage, calldata, environment, or external calls, so functions that
   use them are not offered. On the project archives of the runtime benchmark corpus, about a
   quarter of internal functions are offered; storage reads, `gas`, paths the tests do not reach,

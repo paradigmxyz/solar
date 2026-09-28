@@ -45,7 +45,7 @@ llm-optimize Rejections @pressure: offered at 60 gas, 24 bytes
 llm-optimize Rejections @pressure: round 1: rejected at constraints: keeps 3 values live at once, more than the original's 2, which the stack may not hold
 llm-optimize Rejections @pressure: round 2: nothing cheaper
 llm-optimize Rejections @coverage: offered at 63 gas, 24 bytes
-llm-optimize Rejections @coverage: round 1: rejected at equivalence: block 1 of the candidate, counting from zero in the order written, never runs in tests
+llm-optimize Rejections @coverage: round 1: rejected at equivalence: block 1 of the candidate, counting from zero in the order written, never runs to its end in tests
 llm-optimize Rejections @coverage: round 2: nothing cheaper
 llm-optimize Rejections @costlier: offered at 52 gas, 21 bytes
 llm-optimize Rejections @costlier: round 1: rejected at cost: costs 61 gas, 25 bytes, which does not beat 52 gas, 21 bytes
