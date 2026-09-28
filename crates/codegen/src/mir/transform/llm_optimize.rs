@@ -286,6 +286,7 @@ impl<'gcx> Optimizer<'gcx> {
         let baseline = tests.baseline();
         self.trace(module, Some(id), format_args!("offered at {baseline}"));
         let request = RewriteRequest {
+            module_name: module.name.to_string(),
             function_name: original.name.to_string(),
             function_text: canonical.to_string(),
             context: callees(original, module.functions.len())
@@ -308,9 +309,13 @@ impl<'gcx> Optimizer<'gcx> {
         };
         let mut best = None::<Accepted>;
         let mut verdict = None;
+        // Whether the session has heard `verdict`.
+        let mut heard = true;
         let mut rejections = 0;
         for round in 1..=self.rounds {
-            let text = match session.propose(verdict.as_ref()) {
+            let proposal = session.propose(verdict.as_ref());
+            heard = true;
+            let text = match proposal {
                 Ok(Proposal::Candidate(text)) => text,
                 Ok(Proposal::Done) => {
                     self.trace(module, Some(id), format_args!("round {round}: nothing cheaper"));
@@ -328,6 +333,7 @@ impl<'gcx> Optimizer<'gcx> {
                     let message = format_args!("round {round}: accepted at {}", accepted.cost);
                     self.trace(module, Some(id), message);
                     verdict = Some(Verdict::Accepted { cost: accepted.cost });
+                    heard = false;
                     best = Some(accepted);
                     rejections = 0;
                 }
@@ -339,6 +345,7 @@ impl<'gcx> Optimizer<'gcx> {
                     );
                     self.trace(module, Some(id), message);
                     verdict = Some(Verdict::Rejected { stage, reason, counterexample });
+                    heard = false;
                     rejections += 1;
                     if rejections == MAX_REJECTIONS {
                         let message = format!("stopped after {MAX_REJECTIONS} rejections in a row");
@@ -348,6 +355,7 @@ impl<'gcx> Optimizer<'gcx> {
                 }
             }
         }
+        session.finish(verdict.as_ref().filter(|_| !heard), best.as_ref().map(|best| best.cost));
         best
     }
 

@@ -7,14 +7,18 @@
 //! `retry-after`, or two seconds and then twice as long each time, but never more than a minute;
 //! any other failure ends the turn with the provider's message. The key travels in a request
 //! header marked sensitive and nowhere else.
+//!
+//! Replies stream in as server-sent events, each piece passed on as it arrives; once a reply has
+//! begun, a failure ends the turn rather than sending the request again. A server that ignores
+//! the request to stream sends its reply whole, which is shown whole.
 
 use super::{
     provider::{Prices, Provider},
-    wire::{ANTHROPIC_VERSION, Protocol},
+    wire::{ANTHROPIC_VERSION, Delta, Protocol, ReplyStream, SseParser},
 };
 use reqwest::{
-    Client, RequestBuilder, StatusCode,
-    header::{HeaderValue, RETRY_AFTER},
+    Client, RequestBuilder, Response, StatusCode,
+    header::{CONTENT_TYPE, HeaderValue, RETRY_AFTER},
 };
 use serde_json::Value;
 use std::time::Duration;
@@ -77,8 +81,15 @@ impl ChatClient {
         self.protocol
     }
 
-    /// Sends `body` and returns the provider's reply.
-    pub(super) async fn send(&self, body: &Value) -> Result<Value, String> {
+    /// Sends `body`, passing each piece of the reply to `on_delta` as it streams in, and returns
+    /// the whole reply, which `reply` assembles. `on_retry` hears why the request is sent again.
+    pub(super) async fn send(
+        &self,
+        body: &Value,
+        reply: ReplyStream,
+        on_delta: impl Fn(Delta),
+        on_retry: impl Fn(String),
+    ) -> Result<Value, String> {
         let name = self.provider.name();
         let mut wait = FIRST_RETRY;
         let mut attempt = 1;
@@ -88,10 +99,7 @@ impl ChatClient {
             };
             let pause = match self.request().json(body).send().await {
                 Ok(response) if response.status().is_success() => {
-                    return response
-                        .json::<Value>()
-                        .await
-                        .map_err(|error| format!("{name} sent an unreadable reply: {error}"));
+                    return self.read(response, reply, on_delta).await;
                 }
                 Ok(response) => {
                     let status = response.status();
@@ -102,23 +110,77 @@ impl ChatClient {
                         .and_then(|value| value.trim().parse().ok())
                         .map(Duration::from_secs);
                     let text = response.text().await.unwrap_or_default();
+                    let answer = format!("{name} answered {status}: {}", message(&text));
                     match retry(after).filter(|_| retryable(status)) {
-                        Some(pause) => pause,
-                        None => {
-                            return Err(format!("{name} answered {status}: {}", message(&text)));
+                        Some(pause) => {
+                            on_retry(format!(
+                                "{answer}; sending again in {:.1} s",
+                                pause.as_secs_f64()
+                            ));
+                            pause
                         }
+                        None => return Err(answer),
                     }
                 }
                 Err(error) => {
+                    let failure = format!("cannot reach {name}: {error}");
                     match retry(None).filter(|_| error.is_connect() || error.is_timeout()) {
-                        Some(pause) => pause,
-                        None => return Err(format!("cannot reach {name}: {error}")),
+                        Some(pause) => {
+                            on_retry(format!(
+                                "{failure}; trying again in {:.1} s",
+                                pause.as_secs_f64()
+                            ));
+                            pause
+                        }
+                        None => return Err(failure),
                     }
                 }
             };
             tokio::time::sleep(pause).await;
             wait = (wait * 2).min(MAX_RETRY);
             attempt += 1;
+        }
+    }
+
+    /// Reads a reply as it streams in.
+    async fn read(
+        &self,
+        mut response: Response,
+        mut reply: ReplyStream,
+        on_delta: impl Fn(Delta),
+    ) -> Result<Value, String> {
+        let name = self.provider.name();
+        let streamed = response
+            .headers()
+            .get(CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.starts_with("text/event-stream"));
+        if !streamed {
+            let whole = response
+                .json::<Value>()
+                .await
+                .map_err(|error| format!("{name} sent an unreadable reply: {error}"))?;
+            reply.deltas_of(&whole).into_iter().for_each(&on_delta);
+            return Ok(whole);
+        }
+        let mut parser = SseParser::default();
+        loop {
+            let chunk = response
+                .chunk()
+                .await
+                .map_err(|error| format!("the reply from {name} broke off: {error}"))?;
+            let events = match chunk {
+                Some(chunk) => parser.push(&chunk),
+                None => {
+                    if let Some(event) = std::mem::take(&mut parser).finish() {
+                        reply.read(&event)?.into_iter().for_each(&on_delta);
+                    }
+                    return reply.finish();
+                }
+            };
+            for event in events {
+                reply.read(&event)?.into_iter().for_each(&on_delta);
+            }
         }
     }
 

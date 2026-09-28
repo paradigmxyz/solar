@@ -31,12 +31,21 @@ pub trait LlmSession: Send {
     /// Proposes the next candidate. `verdict` judges the previous proposal, and is `None` before
     /// the first one.
     fn propose(&mut self, verdict: Option<&Verdict>) -> Result<Proposal, LlmError>;
+
+    /// Hears how the session ended: `verdict` judges the last proposal when no later call to
+    /// [`propose`](Self::propose) heard it, and `kept` is the cost of the best candidate, when
+    /// one beat the original.
+    fn finish(&mut self, verdict: Option<&Verdict>, kept: Option<CostReport>) {
+        let _ = (verdict, kept);
+    }
 }
 
 /// What a rewriter is asked to improve.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct RewriteRequest {
+    /// The name of the module holding the function, usually its contract's.
+    pub module_name: String,
     /// The function's name, as its text spells it after `fn @`.
     pub function_name: String,
     /// The function as candidate text: lowered MIR without metadata.
