@@ -103,7 +103,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: target/oksolc/zig-out/bin/oksolc
-          key: oksolc-v1-${{ runner.os }}-${{ runner.arch }}-zig-0.16.0-ReleaseFast-baseline-${{ env.OKSOLC_REVISION }}-${{ hashFiles('.github/oksolc/package-lock.json') }}
+          key: oksolc-cli-v2-${{ runner.os }}-${{ runner.arch }}-zig-0.16.0-ReleaseFast-baseline-${{ env.OKSOLC_REVISION }}
 
       - name: Checkout oksolc
         if: steps.oksolc-cache.outputs.cache-hit != 'true'
@@ -126,8 +126,16 @@ jobs:
         working-directory: target/oksolc
         run: |
           set -euo pipefail
-          npm ci --prefix "$GITHUB_WORKSPACE/.github/oksolc"
-          export PATH="$GITHUB_WORKSPACE/.github/oksolc/node_modules/.bin:$PATH"
+          # The benchmarks do not use the embedded browser UI.
+          python3 - <<'PYBUILD'
+          from pathlib import Path
+          path = Path("build.zig")
+          source = path.read_text()
+          browser = '@import("build_support/browser.zig").build(b, cli_module);'
+          assert source.count(browser) == 1, "oksolc browser build hook changed"
+          source = source.replace(browser, 'cli_module.addAnonymousImport("browser_app", .{ .root_source_file = b.addWriteFiles().add("app.js", "") });')
+          path.write_text(source)
+          PYBUILD
           zig build build-cli -Doptimize=ReleaseFast -Dcpu=baseline -j4
 
       - name: Check oksolc
