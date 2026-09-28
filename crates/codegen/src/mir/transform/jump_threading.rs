@@ -296,21 +296,20 @@ impl JumpThreader {
             if other_block == block_id {
                 continue;
             }
+            let mut found = false;
             for &inst_id in &block.instructions {
-                if func
-                    .inst(inst_id)
+                func.inst(inst_id)
                     .kind
-                    .operands()
-                    .iter()
-                    .any(|&operand| results.contains(operand))
-                {
+                    .visit_operands(|operand| found |= results.contains(operand));
+                if found {
                     return true;
                 }
             }
-            if let Some(term) = &block.terminator
-                && term.operands().iter().any(|&operand| results.contains(operand))
-            {
-                return true;
+            if let Some(term) = &block.terminator {
+                term.visit_operands(|operand| found |= results.contains(operand));
+                if found {
+                    return true;
+                }
             }
         }
 
@@ -336,10 +335,6 @@ impl JumpThreader {
                     continue;
                 }
             }
-            if Self::block_results_have_external_uses(func, block_id) {
-                continue;
-            }
-
             let Some(term) = &func.blocks[block_id].terminator else {
                 continue;
             };
@@ -348,6 +343,7 @@ impl JumpThreader {
                 continue;
             }
 
+            let start = rewrites.len();
             for pred in predecessors {
                 if pred == block_id || Self::successor_count(func, pred, block_id) != 1 {
                     continue;
@@ -360,6 +356,10 @@ impl JumpThreader {
                     continue;
                 }
                 rewrites.push((pred, block_id, target));
+            }
+            // Only a block with a threadable edge needs the whole-function use scan.
+            if rewrites.len() != start && Self::block_results_have_external_uses(func, block_id) {
+                rewrites.truncate(start);
             }
         }
 
@@ -395,9 +395,7 @@ impl JumpThreader {
             else {
                 continue;
             };
-            if term.successors().iter().any(|&target| func.block_has_phi(target))
-                || Self::block_results_have_external_uses(func, block)
-            {
+            if term.successors().iter().any(|&target| func.block_has_phi(target)) {
                 continue;
             }
             let mut replacements = FxHashMap::default();
@@ -412,6 +410,7 @@ impl JumpThreader {
             }
             if replacements.len() != func.blocks[block].instructions.len()
                 || replacements.values().any(|value| replacements.contains_key(value))
+                || Self::block_results_have_external_uses(func, block)
             {
                 continue;
             }

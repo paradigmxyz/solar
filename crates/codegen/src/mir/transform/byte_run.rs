@@ -107,6 +107,15 @@ fn run_function(func: &mut Function) -> (bool, bool) {
     // A dead use of an extracted byte would hide the run behind a use count the
     // shape does not really have, so drop unused pure instructions first.
     let swept = sweep_dead(func);
+    // Both rewrites need at least two single-byte word reads.
+    if func
+        .instructions()
+        .filter(|&inst| is_byte_leaf(func, &func.inst(inst).kind))
+        .nth(1)
+        .is_none()
+    {
+        return (false, swept);
+    }
     let uses = super::egraph::use_counts(func);
     let mut changed = false;
     for block in func.blocks.indices().collect::<Vec<_>>() {
@@ -224,6 +233,26 @@ fn collect(
         }
         _ => false,
     }
+}
+
+/// Whether an instruction extracts the low byte of an `mload`: a possible run leaf.
+fn is_byte_leaf(func: &Function, kind: &InstKind) -> bool {
+    let word = match *kind {
+        InstKind::Byte(index, word) if func.value_u64(index) == Some(0) => word,
+        InstKind::And(first, second) => {
+            let (word, mask) = match (func.value_u256(second), func.value_u256(first)) {
+                (Some(mask), _) => (first, mask),
+                (None, Some(mask)) => (second, mask),
+                (None, None) => return false,
+            };
+            if mask != U256::from(0xffu64) {
+                return false;
+            }
+            word
+        }
+        _ => return false,
+    };
+    matches!(*func.value(word), Value::Inst(inst) if matches!(func.inst(inst).kind, InstKind::MLoad(_)))
 }
 
 /// Records one `mload` whose low byte the run combines.

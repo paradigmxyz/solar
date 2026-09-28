@@ -501,6 +501,27 @@ impl MirInliner {
         }
 
         let mut call_counts = self.call_counts(module);
+        // A constant leaf is a shared pure single-block callee, and a hot leaf
+        // is called from a loop. Without either, no site can be accepted.
+        let possible = match self.mode {
+            InlineMode::ConstantLeaves => module.functions.iter_enumerated().any(|(id, func)| {
+                call_counts.get(&id).is_some_and(|&count| count > 1)
+                    && func.blocks.len() == 1
+                    && func.attributes.state_mutability == StateMutability::Pure
+            }),
+            InlineMode::HotLeaves => module.functions.iter().any(|func| {
+                func.instructions().any(|inst| {
+                    matches!(
+                        func.inst(inst).kind,
+                        InstKind::ICall { function: Callee::Function(_), .. }
+                    )
+                }) && has_back_edge(func)
+            }),
+            InlineMode::Normal | InlineMode::TinyLeaves | InlineMode::SingleUse => true,
+        };
+        if !possible {
+            return stats;
+        }
         // Keep the initial candidate set stable as inlining removes call sites.
         let memory_wrappers = if self.memory_wrappers_only {
             module
@@ -622,11 +643,15 @@ impl MirInliner {
                     }
                 }
 
-                let callee = module.function(site.callee).clone();
                 let old_size =
                     summaries.get(&caller_id).map(|s| s.estimated_code_size).unwrap_or_default();
-                let caller = module.function_mut(caller_id);
-                if inline_call(caller, site.block, site.inst_index, &callee) {
+                // A self-call is never inlineable, so the caller and callee are distinct.
+                let [caller, callee] = module
+                    .functions
+                    .raw
+                    .get_disjoint_mut([caller_id.index(), site.callee.index()])
+                    .expect("caller and callee are distinct functions");
+                if inline_call(caller, site.block, site.inst_index, callee) {
                     stats.inlined += 1;
                     if self.mode == InlineMode::SingleUse && call_count == 1 {
                         stats.consumed.push(site.callee);
@@ -654,6 +679,7 @@ impl MirInliner {
                     if let Some(count) = call_counts.get_mut(&site.callee) {
                         *count = count.saturating_sub(1);
                     }
+                    let callee = module.function(site.callee);
                     for inst in callee.instructions() {
                         if let InstKind::ICall { function: Callee::Function(function), .. } =
                             callee.inst(inst).kind
@@ -662,7 +688,7 @@ impl MirInliner {
                         }
                     }
                     if let Some(calls) = &mut artifact_calls {
-                        calls.inline(caller_id, site.callee, &callee);
+                        calls.inline(caller_id, site.callee, callee);
                     }
                     cursor = (site.block.index(), 0);
                 } else {
@@ -1592,10 +1618,11 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
     let target = Target::new(gcx);
     let seq =
         |codes: &[u8]| codes.iter().map(|&code| target.opcode(code)).fold(Cost::ZERO, Cost::plus);
-    if select::opcode_lowering(&kind.op()).is_some()
-        && !matches!(kind, InstKind::ICall { .. } | InstKind::LoadImmutable(_))
-    {
-        return (target.op(&kind.op(), |_| None), 1);
+    if !matches!(kind, InstKind::ICall { .. } | InstKind::LoadImmutable(_)) {
+        let op = kind.op();
+        if select::opcode_lowering(&op).is_some() {
+            return (target.op(&op, |_| None), 1);
+        }
     }
     let code = match kind {
         InstKind::Ne(..) => seq(&[op::EQ, op::ISZERO]),

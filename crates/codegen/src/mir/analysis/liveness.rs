@@ -114,7 +114,30 @@ impl Liveness {
         //
         // live_out(B) = union over S in succ(B) of live_in(S) | phi operands S takes from B
         // live_in(B) = block_uses(B) | (live_out(B) - block_defs(B))
-        let mut worklist: VecDeque<BlockId> = func.blocks.indices().rev().collect();
+        // Seed the worklist in postorder, so successors settle before their predecessors even
+        // when transforms append blocks in the middle of the CFG. Unreachable blocks follow.
+        let mut worklist = VecDeque::with_capacity(num_blocks);
+        let mut seen = DenseBitSet::new_empty(num_blocks);
+        let successors = |block: BlockId| {
+            func.blocks[block].terminator.as_ref().map(Terminator::successors).unwrap_or_default()
+        };
+        let mut stack = Vec::new();
+        if num_blocks != 0 {
+            seen.insert(BlockId::ENTRY);
+            stack.push((BlockId::ENTRY, successors(BlockId::ENTRY)));
+        }
+        while let Some((block, succs)) = stack.last_mut() {
+            let block = *block;
+            if let Some(succ) = succs.pop() {
+                if seen.insert(succ) {
+                    stack.push((succ, successors(succ)));
+                }
+            } else {
+                worklist.push_back(block);
+                stack.pop();
+            }
+        }
+        worklist.extend(func.blocks.indices().rev().filter(|&block| !seen.contains(block)));
         let mut queued = DenseBitSet::new_filled(num_blocks);
         let mut new_live_out = DenseBitSet::new_empty(num_values);
         let mut new_live_in = DenseBitSet::new_empty(num_values);
