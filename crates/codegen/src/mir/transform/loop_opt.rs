@@ -255,13 +255,19 @@ impl LoopOptimizer {
     ) -> isize {
         let reads_outside_closure = |value: ValueId, block: BlockId| {
             let block = &func.blocks[block];
-            block
-                .instructions
-                .iter()
-                .filter(|&&inst_id| !closure_set.contains(inst_id))
-                .flat_map(|&inst_id| func.inst(inst_id).kind.operands())
-                .chain(block.terminator.iter().flat_map(Terminator::operands))
-                .any(|operand| operand == value)
+            let mut found = false;
+            for &inst_id in &block.instructions {
+                if !closure_set.contains(inst_id) {
+                    func.inst(inst_id).kind.visit_operands(|operand| found |= operand == value);
+                    if found {
+                        return true;
+                    }
+                }
+            }
+            if let Some(term) = &block.terminator {
+                term.visit_operands(|operand| found |= operand == value);
+            }
+            found
         };
         let mut delta = 0isize;
         for &inst_id in closure {
