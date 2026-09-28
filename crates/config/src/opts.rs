@@ -2,8 +2,8 @@
 
 use crate::{
     ColorChoice, CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, HumanEmitterKind,
-    ImportRemapping, Language, LibraryAddress, LlmOptimizeMode, OptimizationMode, RevertStrings,
-    SwitchLowering, Threads,
+    ImportRemapping, Language, LibraryAddress, LlmEffort, LlmOptimizeMode, OptimizationMode,
+    RevertStrings, SwitchLowering, Threads,
 };
 use std::{num::NonZeroUsize, path::PathBuf};
 
@@ -486,9 +486,21 @@ pub struct UnstableOpts {
     )]
     pub llm_script: Option<PathBuf>,
 
-    /// Model that `-Zllm-optimize=live` asks.
+    /// Model that `-Zllm-optimize=live` asks, as `PROVIDER/MODEL` with provider `openai`,
+    /// `anthropic`, or `opencode`; a model without a provider is an OpenAI one.
     #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "MODEL"))]
     pub llm_model: Option<String>,
+
+    /// Base URL of the API `-Zllm-optimize=live` asks, replacing its provider's.
+    #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "URL"))]
+    pub llm_endpoint: Option<String>,
+
+    /// Reasoning effort `-Zllm-optimize=live` asks the model for.
+    #[cfg_attr(
+        feature = "clap",
+        arg(long, value_enum, require_equals = true, value_name = "EFFORT")
+    )]
+    pub llm_effort: Option<LlmEffort>,
 
     /// Candidates `llm-optimize` asks for per function (default: 6).
     #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "N"))]

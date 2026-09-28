@@ -274,6 +274,8 @@ impl Session {
             ("llm-trace", unstable.llm_trace, None),
             ("llm-script", unstable.llm_script.is_some(), Some(LlmOptimizeMode::Script)),
             ("llm-model", unstable.llm_model.is_some(), Some(LlmOptimizeMode::Live)),
+            ("llm-endpoint", unstable.llm_endpoint.is_some(), Some(LlmOptimizeMode::Live)),
+            ("llm-effort", unstable.llm_effort.is_some(), Some(LlmOptimizeMode::Live)),
         ];
         for (flag, set, required) in requirements {
             if !set {

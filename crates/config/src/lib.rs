@@ -286,6 +286,26 @@ str_enum! {
     }
 }
 
+str_enum! {
+    /// How much a model reasons before it replies to `-Zllm-optimize=live`.
+    #[strum(serialize_all = "kebab-case")]
+    #[non_exhaustive]
+    pub enum LlmEffort {
+        /// No reasoning.
+        None,
+        /// Low effort.
+        Low,
+        /// Medium effort.
+        Medium,
+        /// High effort.
+        High,
+        /// Extra-high effort.
+        Xhigh,
+        /// The most the model allows.
+        Max,
+    }
+}
+
 impl OptimizationMode {
     /// Returns whether codegen should favor bytecode size over runtime gas (`-O size`).
     #[inline]

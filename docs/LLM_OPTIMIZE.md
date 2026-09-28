@@ -22,8 +22,11 @@ Other flags:
 
 - `-Zllm-rounds=N` (default 6): candidates asked for per function.
 - `-Zllm-samples=N` (default 512): generated inputs each candidate runs on.
-- `-Zllm-model=MODEL`: the model `live` asks, such as `gpt-6-astra` (the default), `gpt-6-sol`,
-  or `gpt-6-luna`.
+- `-Zllm-model=PROVIDER/MODEL`: the model `live` asks, such as `gpt-6-astra` (the default),
+  `anthropic/claude-opus-5-5`, or `opencode/deepseek-v4.1-flash`; see [Live mode](#live-mode).
+- `-Zllm-endpoint=URL`: the API base URL `live` asks instead of the provider's, such as a proxy.
+- `-Zllm-effort=EFFORT`: how much the model reasons: `none`, `low`, `medium`, `high`, `xhigh`,
+  or `max`.
 - `-Zllm-trace`: print every offer, verdict, and decision on stdout. It also compiles contracts
   one at a time, so the transcript is deterministic.
 
@@ -37,24 +40,62 @@ OPENAI_API_KEY=... solar -Zllm-optimize=live -Zllm-cache=llm-cache --emit=bin sr
 solar -Zllm-optimize=replay -Zllm-cache=llm-cache --emit=bin src/Token.sol
 ```
 
+Other providers' models take the same flags:
+
+```bash
+ANTHROPIC_API_KEY=... solar -Zllm-optimize=live -Zllm-model=anthropic/claude-opus-5-5 \
+  -Zllm-effort=high -Zllm-cache=llm-cache --emit=bin src/Token.sol
+OPENCODE_ZEN_API_KEY=... solar -Zllm-optimize=live -Zllm-model=opencode/deepseek-v4.1-flash \
+  -Zllm-cache=llm-cache --emit=bin src/Token.sol
+```
+
 ## Live mode
 
-The command line supports `live` when the compiler is built with its `llm` feature, which adds
-the [nanocodex](https://docs.rs/nanocodex) OpenAI client; without it, `live` is an error. The key
-comes from `OPENAI_API_KEY` and goes only to the client. The compiler warns that `live` sends the
-MIR of every offered function to the provider, and ends with a note of the turns, tokens, and
-estimated cost it spent.
+The command line supports `live` when the compiler is built with its `llm` feature; without it,
+`live` is an error. `-Zllm-model` picks the provider and the model:
 
-Each offered function gets its own agent, whose instructions are the rewriting brief in
+| `-Zllm-model`           | API                                                                    | Key                    |
+| ----------------------- | ---------------------------------------------------------------------- | ---------------------- |
+| `MODEL`, `openai/MODEL` | OpenAI's Responses API, through [nanocodex](https://docs.rs/nanocodex) | `OPENAI_API_KEY`       |
+| `anthropic/MODEL`       | Anthropic's Messages API at `https://api.anthropic.com/v1`             | `ANTHROPIC_API_KEY`    |
+| `opencode/MODEL`        | OpenCode Zen's chat completions at `https://opencode.ai/zen/v1`        | `OPENCODE_ZEN_API_KEY` |
+
+The key goes only to the provider's client. `-Zllm-endpoint` replaces the base URL, for a proxy or
+another server that speaks the same API. The compiler warns that `live` sends the MIR of every
+offered function to the provider, and ends with a note of the turns, tokens, and estimated cost it
+spent.
+
+Each offered function gets its own conversation, which opens with the rewriting brief in
 `crates/cli/src/llm/instructions.md`: the syntax and semantics of lowered MIR, what a candidate
-must preserve, the costs, and the reply format. Agents get no tools and a fixed environment, so
-they cannot read files, run commands, or search, and see neither the host's date nor its
-`AGENTS.md`. Each reply must hold one fenced `mir` block or `NO_IMPROVEMENT`; a reply with
-neither gets one reminder.
+must preserve, the costs, and the reply format. Models get no tools, so they cannot read files,
+run commands, or search; OpenAI agents also get a fixed environment, so they see neither the
+host's date nor its `AGENTS.md`. Each reply must hold one fenced `mir` block or
+`NO_IMPROVEMENT`; a reply with neither gets one reminder. Anthropic and OpenCode Zen take the
+whole conversation with every request, and each reply goes back as the provider sent it,
+reasoning included: Claude's thinking blocks, and DeepSeek's `reasoning_content`. Anthropic
+requests mark the brief and the newest prompt for prompt caching, so a turn rereads the
+conversation from the cache.
+
+`-Zllm-effort` sets how much the model reasons, in its provider's terms: nanocodex's thinking
+level for OpenAI, adaptive thinking at that `output_config.effort` for Anthropic (`none` turns
+thinking off), and `reasoning_effort` for OpenCode Zen. Without it, the model reasons as its
+provider defaults. The compiler knows two models' efforts and prices, and rejects an effort
+either model does not take:
+
+| Model                          | Efforts                                 | Price per million tokens                               |
+| ------------------------------ | --------------------------------------- | ------------------------------------------------------ |
+| `anthropic/claude-opus-5-5`    | `low`, `medium`, `high`, `xhigh`, `max` | $4 input, $20 output, $5 cache write, $0.20 cache read |
+| `opencode/deepseek-v4.1-flash` | `low`, `high`, `max`                    | $0.30 input, $1.20 output, $0.006 cache read           |
+
+nanocodex prices OpenAI's models. Any other model is asked all the same, and the note reports its
+tokens without a cost.
 
 At most four turns run at once, a turn that takes more than ten minutes fails its session, and no
-turn starts once the estimated spend reaches five dollars. A failed session leaves its function
-with the best candidate so far.
+turn starts once the estimated spend reaches five dollars or the conversations have used ten
+million tokens, which bounds a model without known prices. Anthropic and OpenCode Zen requests
+that meet a rate limit, an overloaded or failing server, or a failed connection are sent up to
+four times, waiting between tries as long as the provider asks, or two seconds and then twice as
+long each time. A failed session leaves its function with the best candidate so far.
 
 ## What is offered
 

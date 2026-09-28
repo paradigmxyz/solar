@@ -9,6 +9,16 @@ use solar::{
 };
 use std::sync::{Arc, Mutex};
 
+#[cfg(feature = "llm")]
+use snapbox::{assert_data_eq, str};
+#[cfg(feature = "llm")]
+use std::{
+    io::{BufRead, BufReader, Read, Write},
+    net::{TcpListener, TcpStream},
+    process::{Command, Output},
+    thread,
+};
+
 const SOURCE: &str = include_str!("../../../../tests/ui/codegen/mir/llm-optimize/triangle.sol");
 
 /// `sumBelow` as `n * (n + 1) / 2`: wrong by `n`.
@@ -109,4 +119,297 @@ fn embedded_rewriter() {
     assert!(cost.gas > 0 && cost.bytes > 0);
     assert!(runtime(&plain).as_str().is_some_and(|code| !code.is_empty()));
     assert_ne!(runtime(&rewritten), runtime(&plain));
+}
+
+/// The compiler, built with the features the tests run with.
+#[cfg(feature = "llm")]
+const SOLAR: &str = env!("CARGO_BIN_EXE_solar");
+/// The directory holding `triangle.sol`.
+#[cfg(feature = "llm")]
+const FIXTURES: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/ui/codegen/mir/llm-optimize");
+
+/// A request the stand-in provider received.
+#[cfg(feature = "llm")]
+struct Request {
+    path: String,
+    headers: Vec<(String, String)>,
+    body: Value,
+}
+
+#[cfg(feature = "llm")]
+impl Request {
+    fn header(&self, name: &str) -> Option<&str> {
+        self.headers.iter().find(|(header, _)| header == name).map(|(_, value)| value.as_str())
+    }
+
+    fn messages(&self) -> &[Value] {
+        self.body["messages"].as_array().unwrap()
+    }
+}
+
+/// Plays a provider on a local port: the first `limited` requests hear that the rate limit is
+/// reached, and the others get `reply` of their body. Returns the API base URL and the requests,
+/// kept before they are answered.
+#[cfg(feature = "llm")]
+fn serve(reply: fn(&Value) -> Value, limited: usize) -> (String, Arc<Mutex<Vec<Request>>>) {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/v1", listener.local_addr().unwrap());
+    let requests = Arc::new(Mutex::new(Vec::new()));
+    let seen = Arc::clone(&requests);
+    thread::spawn(move || {
+        for mut stream in listener.incoming().flatten() {
+            let Some(request) = read_request(&mut stream) else { continue };
+            let mut seen = seen.lock().unwrap();
+            let (status, body) = if seen.len() < limited {
+                (
+                    "429 Too Many Requests\r\nretry-after: 0",
+                    json!({"error": {"message": "slow down"}}),
+                )
+            } else {
+                ("200 OK", reply(&request.body))
+            };
+            seen.push(request);
+            drop(seen);
+            let body = serde_json::to_vec(&body).unwrap();
+            let head = format!(
+                "HTTP/1.1 {status}\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\
+                 connection: close\r\n\r\n",
+                body.len()
+            );
+            let _ = stream.write_all(head.as_bytes()).and_then(|()| stream.write_all(&body));
+        }
+    });
+    (url, requests)
+}
+
+#[cfg(feature = "llm")]
+fn read_request(stream: &mut TcpStream) -> Option<Request> {
+    let mut reader = BufReader::new(stream);
+    let mut line = String::new();
+    reader.read_line(&mut line).ok()?;
+    let path = line.split_whitespace().nth(1)?.to_string();
+    let mut headers = Vec::new();
+    loop {
+        line.clear();
+        reader.read_line(&mut line).ok()?;
+        let Some((name, value)) = line.trim_end().split_once(':') else { break };
+        headers.push((name.to_ascii_lowercase(), value.trim().to_string()));
+    }
+    let length = headers.iter().find(|(name, _)| name == "content-length")?.1.parse().ok()?;
+    let mut body = vec![0; length];
+    reader.read_exact(&mut body).ok()?;
+    Some(Request { path, headers, body: serde_json::from_slice(&body).ok()? })
+}
+
+/// The stand-in model: the right closed form when first asked about `sumBelow`, and no
+/// improvement otherwise.
+#[cfg(feature = "llm")]
+fn answer(messages: &[Value], prompt: &str) -> String {
+    let prompts = messages.iter().filter(|message| message["role"] == "user").count();
+    if prompts == 1 && prompt.contains("fn @sumBelow") {
+        format!("The loop sums an arithmetic series.\n```mir\n{RIGHT}```")
+    } else {
+        "NO_IMPROVEMENT".into()
+    }
+}
+
+/// Anthropic's reply to a Messages request, with a reasoning block before the text.
+#[cfg(feature = "llm")]
+fn anthropic_reply(body: &Value) -> Value {
+    let messages = body["messages"].as_array().unwrap();
+    let prompt = messages.last().unwrap()["content"][0]["text"].as_str().unwrap();
+    json!({
+        "id": "msg_test",
+        "type": "message",
+        "role": "assistant",
+        "model": body["model"],
+        "content": [
+            {"type": "thinking", "thinking": "", "signature": "sig"},
+            {"type": "text", "text": answer(messages, prompt)},
+        ],
+        "stop_reason": "end_turn",
+        "usage": {
+            "input_tokens": 1000,
+            "output_tokens": 200,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+        },
+    })
+}
+
+/// A chat completions reply, with DeepSeek's reasoning field.
+#[cfg(feature = "llm")]
+fn chat_reply(body: &Value) -> Value {
+    let messages = body["messages"].as_array().unwrap();
+    let prompt = messages.last().unwrap()["content"].as_str().unwrap();
+    json!({
+        "id": "chat_test",
+        "object": "chat.completion",
+        "model": body["model"],
+        "choices": [{
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": answer(messages, prompt),
+                "reasoning_content": "thought",
+            },
+            "finish_reason": "stop",
+        }],
+        "usage": {"prompt_tokens": 1000, "completion_tokens": 200, "total_tokens": 1200},
+    })
+}
+
+/// Compiles `triangle.sol` for gas with `args`, giving the compiler only the key in `key`.
+#[cfg(feature = "llm")]
+fn build(args: &[&str], key: Option<&str>) -> Output {
+    let mut command = Command::new(SOLAR);
+    command.current_dir(FIXTURES).args(["triangle.sol", "-O", "gas", "--emit=bin-runtime"]);
+    command.args(["--threads", "1", "--evm-version", "cancun", "--allow", "2264", "-Zui-testing"]);
+    command.args(args);
+    for variable in ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENCODE_ZEN_API_KEY"] {
+        command.env_remove(variable);
+    }
+    if let Some(key) = key {
+        command.env(key, "test-key");
+    }
+    command.output().unwrap()
+}
+
+/// The runtime bytecode of a successful build.
+#[cfg(feature = "llm")]
+fn runtime(output: &Output) -> Value {
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let output = serde_json::from_slice::<Value>(&output.stdout).unwrap();
+    let [contract] = &output["contracts"].as_object().unwrap().values().collect::<Vec<_>>()[..]
+    else {
+        panic!("expected one contract: {output}");
+    };
+    contract["bin-runtime"].clone()
+}
+
+/// Asks `model` at a local stand-in for its provider, returning the build and the requests.
+#[cfg(feature = "llm")]
+fn ask(model: &str, effort: &str, key: &str, reply: fn(&Value) -> Value) -> (Output, Vec<Request>) {
+    let (url, requests) = serve(reply, 0);
+    let model = format!("-Zllm-model={model}");
+    let endpoint = format!("-Zllm-endpoint={url}");
+    let effort = format!("-Zllm-effort={effort}");
+    let output = build(&["-Zllm-optimize=live", &model, &endpoint, &effort], Some(key));
+    let requests = std::mem::take(&mut *requests.lock().unwrap());
+    (output, requests)
+}
+
+#[cfg(feature = "llm")]
+#[test]
+fn anthropic_rewrites() {
+    let plain = runtime(&build(&[], None));
+    let (output, requests) =
+        ask("anthropic/claude-opus-5-5", "high", "ANTHROPIC_API_KEY", anthropic_reply);
+    assert_ne!(runtime(&output), plain);
+    assert_data_eq!(
+        String::from_utf8_lossy(&output.stderr).into_owned(),
+        str![[r#"
+warning: `-Zllm-optimize=live` sends the MIR of offered functions to Anthropic
+
+note: `llm-optimize` asked Anthropic 2 turns using 2400 tokens, an estimated $0.016
+
+
+"#]]
+    );
+
+    let first = &requests[0];
+    assert_eq!(first.path, "/v1/messages");
+    assert_eq!(first.header("x-api-key"), Some("test-key"));
+    assert_eq!(first.header("anthropic-version"), Some("2023-06-01"));
+    assert_eq!(first.body["model"], "claude-opus-5-5");
+    assert_eq!(first.body["thinking"], json!({"type": "adaptive"}));
+    assert_eq!(first.body["output_config"], json!({"effort": "high"}));
+    assert_eq!(first.body["system"][0]["cache_control"], json!({"type": "ephemeral"}));
+    // The verdict on the rewrite follows the reply it answers, reasoning block and all, and only
+    // the newest prompt is a cache breakpoint.
+    let verdict = requests.iter().find(|request| request.messages().len() == 3).unwrap();
+    let [first_prompt, reply, verdict] = verdict.messages() else { unreachable!() };
+    assert!(first_prompt["content"][0].get("cache_control").is_none());
+    assert_eq!(
+        reply["content"][0],
+        json!({"type": "thinking", "thinking": "", "signature": "sig"})
+    );
+    assert!(verdict["content"][0]["text"].as_str().unwrap().starts_with("Accepted"));
+    assert_eq!(verdict["content"][0]["cache_control"], json!({"type": "ephemeral"}));
+}
+
+#[cfg(feature = "llm")]
+#[test]
+fn opencode_rewrites() {
+    let plain = runtime(&build(&[], None));
+    let (output, requests) =
+        ask("opencode/deepseek-v4.1-flash", "max", "OPENCODE_ZEN_API_KEY", chat_reply);
+    assert_ne!(runtime(&output), plain);
+    assert_data_eq!(
+        String::from_utf8_lossy(&output.stderr).into_owned(),
+        str![[r#"
+warning: `-Zllm-optimize=live` sends the MIR of offered functions to OpenCode Zen
+
+note: `llm-optimize` asked OpenCode Zen 2 turns using 2400 tokens, an estimated $0.00108
+
+
+"#]]
+    );
+
+    let first = &requests[0];
+    assert_eq!(first.path, "/v1/chat/completions");
+    assert_eq!(first.header("authorization"), Some("Bearer test-key"));
+    assert_eq!(first.body["model"], "deepseek-v4.1-flash");
+    assert_eq!(first.body["reasoning_effort"], "max");
+    assert_eq!(first.messages()[0]["role"], "system");
+    // The verdict on the rewrite follows the reply it answers, with the reasoning behind it.
+    let verdict = requests.iter().find(|request| request.messages().len() == 4).unwrap();
+    let [_, _, reply, verdict] = verdict.messages() else { unreachable!() };
+    assert_eq!(reply["reasoning_content"], "thought");
+    assert!(verdict["content"].as_str().unwrap().starts_with("Accepted"));
+}
+
+#[cfg(feature = "llm")]
+#[test]
+fn chat_provider_errors() {
+    let live = ["-Zllm-optimize=live", "-Zllm-model=opencode/deepseek-v4.1-flash"];
+    let missing_key = build(&live, None);
+    assert!(!missing_key.status.success());
+    assert_data_eq!(
+        String::from_utf8_lossy(&missing_key.stderr).into_owned(),
+        str![[r#"
+error: `-Zllm-optimize=live` with OpenCode Zen requires `OPENCODE_ZEN_API_KEY`
+
+
+"#]]
+    );
+    let medium =
+        build(&[&live[..], &["-Zllm-effort=medium"]].concat(), Some("OPENCODE_ZEN_API_KEY"));
+    assert!(!medium.status.success());
+    assert_data_eq!(
+        String::from_utf8_lossy(&medium.stderr).into_owned(),
+        str![[r#"
+error: `deepseek-v4.1-flash` does not take `-Zllm-effort=medium`
+   │
+   ╰ note: it takes `low`, `high`, `max`
+
+
+"#]]
+    );
+}
+
+#[cfg(feature = "llm")]
+#[test]
+fn chat_provider_retries() {
+    let plain = runtime(&build(&[], None));
+    let (url, requests) = serve(chat_reply, 2);
+    let endpoint = format!("-Zllm-endpoint={url}");
+    let live = ["-Zllm-optimize=live", "-Zllm-model=opencode/deepseek-v4.1-flash", &endpoint];
+    let output = build(&live, Some("OPENCODE_ZEN_API_KEY"));
+    // Two rate-limited attempts precede the conversation, which goes on as if they never happened.
+    assert_ne!(runtime(&output), plain);
+    let requests = requests.lock().unwrap();
+    assert_eq!(requests.len(), 4);
+    assert_eq!(requests[0].body, requests[2].body);
 }
