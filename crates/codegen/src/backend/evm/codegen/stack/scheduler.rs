@@ -130,13 +130,9 @@ pub(crate) const fn is_rematerializable_leaf(value: &Value) -> bool {
 
 /// Returns the opcode for a stable nullary read that is cheaper to re-emit than preserve.
 pub(crate) fn rematerializable_nullary_opcode(kind: &InstKind) -> Option<u8> {
-    if !kind.op_def().traits.contains(OpTraits::REMATERIALIZABLE) {
-        return None;
-    }
-    // Only operations without operands lower to nullary opcodes; skip selection for the rest.
-    let mut has_operands = false;
-    kind.visit_operands(|_| has_operands = true);
-    if !has_operands && let Some(OpcodeLowering::Nullary { opcode }) = opcode_lowering(&kind.op()) {
+    if kind.op_def().traits.contains(OpTraits::REMATERIALIZABLE)
+        && let Some(OpcodeLowering::Nullary { opcode }) = opcode_lowering(&kind.op())
+    {
         Some(opcode)
     } else {
         None
