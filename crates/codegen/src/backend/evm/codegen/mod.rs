@@ -675,10 +675,7 @@ mod tests {
     };
     use crate::{
         backend::{Backend, evm::disasm::disassemble},
-        mir::{
-            Callee, DataRef, FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value,
-            utils as mir_utils,
-        },
+        mir::{Callee, DataRef, FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value},
     };
     use solar_config::{CompileOpts, EvmVersion};
     use solar_interface::{Ident, Session, sym};
@@ -1152,7 +1149,6 @@ RETURN
         constant.blocks[BlockId::ENTRY].instructions.push(inst);
         assert_eq!(EvmCodegen::constant_memory_high_water_mark(&constant), 0x60);
         assert!(EvmCodegen::function_may_observe_free_memory_slot(&constant));
-        assert!(mir_utils::is_memory_inst(&constant.inst(inst).kind));
 
         let mut dynamic = Function::new(Ident::DUMMY);
         let dest = dynamic.alloc_param(MirType::I256);

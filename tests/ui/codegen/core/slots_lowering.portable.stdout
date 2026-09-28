@@ -93,7 +93,7 @@ fn @load(arg0: i256) -> i256 [inline_assembly, view] {
   bb2:
     mstore 0, 0
     v5 = add arg0, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
-    v6 = sload v5 !metadata(storage=offset(v3, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
+    v6 = sload v5 !metadata(storage=offset(arg0, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
     ret v6
   bb1:
     tail_call @_outOfBounds
@@ -107,7 +107,7 @@ fn @store(arg0: i256, arg1: i256) [inline_assembly] {
   bb2:
     mstore 0, 0
     v5 = add arg0, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
-    sstore v5, arg1 !metadata(storage=offset(v3, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
+    sstore v5, arg1 !metadata(storage=offset(arg0, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
     ret
   bb1:
     tail_call @_outOfBounds

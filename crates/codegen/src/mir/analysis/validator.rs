@@ -170,6 +170,29 @@ impl<'a> Validator<'a> {
                 });
             }
         }
+        // A storage alias names its base slot like an operand, so the base must stay defined.
+        for (block, body) in func.blocks.iter_enumerated() {
+            for &id in body.instructions.iter().filter(|id| id.index() < func.num_insts()) {
+                let alias = func.inst(id).metadata.storage_alias();
+                let Some(base) = alias.and_then(|alias| alias.symbolic_base()) else { continue };
+                let defined = base.index() < func.num_values()
+                    && match func.value(base) {
+                        Value::Inst(defining) => seen.contains(*defining),
+                        Value::Arg(index) => index.index() < num_args,
+                        Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => true,
+                    };
+                if !defined {
+                    self.emit_at_inst(
+                        format_args!(
+                            "storage alias names v{}, which the function does not define",
+                            base.index()
+                        ),
+                        block,
+                        id,
+                    );
+                }
+            }
+        }
         self.error_count == errors_before
     }
 
@@ -2127,6 +2150,36 @@ error: [bb1] predecessor bb0 is listed more than once
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
 error: function has no entry block
+
+
+"#]]
+            );
+        });
+    }
+
+    #[test]
+    fn storage_alias_base_must_be_defined() {
+        with_session(|sess| {
+            let mut module = Module::new(Ident::DUMMY);
+            let mut function = make_func();
+            let (removed, store) = {
+                let mut builder = FunctionBuilder::new(&mut function);
+                let slot = builder.add_param(MirType::I256);
+                let removed = builder.add(slot, slot);
+                builder.sstore(slot, slot);
+                builder.ret([]);
+                (removed, builder.func().blocks[BlockId::ENTRY].instructions[1])
+            };
+            // The alias still names the `add` a pass deleted.
+            function.blocks[BlockId::ENTRY].instructions.remove(0);
+            let alias = crate::mir::StorageAlias::Offset { base: removed, offset: U256::ONE };
+            function.inst_mut(store).metadata.set_storage_alias(Some(alias));
+            module.add_function(function);
+            assert!(validate_phase(&sess.dcx, &module, MirPhase::Semantic).is_err());
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [fn0] [bb0, inst1] storage alias names v1, which the function does not define
 
 
 "#]]
