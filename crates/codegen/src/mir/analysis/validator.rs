@@ -162,6 +162,29 @@ impl<'a> Validator<'a> {
                 });
             }
         }
+        // A storage alias names its base slot like an operand, so the base must stay defined.
+        for (block, body) in func.blocks.iter_enumerated() {
+            for &id in body.instructions.iter().filter(|id| id.index() < func.num_insts()) {
+                let alias = func.inst(id).metadata.storage_alias();
+                let Some(base) = alias.and_then(|alias| alias.symbolic_base()) else { continue };
+                let defined = base.index() < func.num_values()
+                    && match func.value(base) {
+                        Value::Inst(defining) => seen.contains(*defining),
+                        Value::Arg(index) => index.index() < num_args,
+                        Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => true,
+                    };
+                if !defined {
+                    self.emit_at_inst(
+                        format_args!(
+                            "storage alias names v{}, which the function does not define",
+                            base.index()
+                        ),
+                        block,
+                        id,
+                    );
+                }
+            }
+        }
         self.error_count == errors_before
     }
 

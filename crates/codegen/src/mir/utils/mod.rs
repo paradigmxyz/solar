@@ -358,25 +358,6 @@ pub(crate) fn u256_to_u64(value: U256) -> Option<u64> {
     value.try_into().ok()
 }
 
-/// Returns true for instructions whose operands derive memory metadata.
-pub(crate) fn is_memory_inst(kind: &InstKind) -> bool {
-    matches!(
-        kind,
-        InstKind::MLoad(_)
-            | InstKind::MStore(_, _)
-            | InstKind::MStore8(_, _)
-            | InstKind::MemoryZero(_, _)
-            | InstKind::MCopy(_, _, _)
-            | InstKind::CalldataCopy(_, _, _)
-            | InstKind::DataCopy(_, _, _)
-            | InstKind::CodeCopy(_, _, _)
-            | InstKind::ReturnDataCopy(_, _, _)
-            | InstKind::ExtCodeCopy(_, _, _, _)
-            | InstKind::Keccak256(_, _)
-            | InstKind::MappingSlotMemory(_, _)
-    )
-}
-
 fn replace_inst_operands(
     inst: &mut Instruction,
     replacements: &FxHashMap<ValueId, ValueId>,
