@@ -232,6 +232,8 @@ struct StackPhiPlanner<'a> {
     loops: Vec<Loop>,
     header_results: FxHashMap<BlockId, Vec<ValueId>>,
     definitions: IndexVec<ValueId, Option<BlockId>>,
+    /// Instruction results that are cheaper to keep than to recompute.
+    carriable: DenseBitSet<ValueId>,
     /// Functions whose every exit aborts; a tail call into one never returns to the words a
     /// carried stack leaves beneath it.
     cold_functions: &'a DenseBitSet<FunctionId>,
@@ -309,10 +311,14 @@ impl<'a> StackPhiPlanner<'a> {
         let loops = loop_info.all_loops().cloned().collect();
 
         let mut definitions = index_vec![None; func.num_values()];
+        let mut carriable = DenseBitSet::new_empty(func.num_values());
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 if let Some(value) = func.inst_result_value(inst_id) {
                     definitions[value] = Some(block_id);
+                    if rematerializable_nullary_value(func, value).is_none() {
+                        carriable.insert(value);
+                    }
                 }
             }
         }
@@ -322,6 +328,7 @@ impl<'a> StackPhiPlanner<'a> {
             loops,
             header_results: FxHashMap::default(),
             definitions,
+            carriable,
             cold_functions,
         };
         planner.collect_header_results();
@@ -1178,11 +1185,7 @@ impl<'a> StackPhiPlanner<'a> {
     /// Whether a layout may carry `value`: an instruction result that is cheaper to keep than
     /// to recompute.
     fn carriable(&self, value: ValueId) -> bool {
-        matches!(
-            self.func.value(value),
-            crate::mir::Value::Inst(_)
-                if rematerializable_nullary_value(self.func, value).is_none()
-        )
+        self.carriable.contains(value)
     }
 
     /// The words `pred` places for `block`'s layout: a phi result comes from its incoming
