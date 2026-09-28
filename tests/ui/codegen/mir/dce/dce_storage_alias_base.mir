@@ -1,0 +1,16 @@
+//@compile-flags: -Zmir-pipeline=dce
+//@filecheck:
+// A storage alias names its base slot without using it, so deleting the base's
+// last use drops the alias instead of leaving it naming a deleted value.
+@module DceStorageAliasBase
+// CHECK-LABEL: {{^[ +].*}}fn @store{{[( ]}}
+// CHECK: - [[BASE:v[0-9]+]] = add arg0, 1
+// CHECK: - sstore {{v[0-9]+}}, arg1 !metadata(storage=offset([[BASE]], 1))
+// CHECK: + sstore {{v[0-9]+}}, arg1{{$}}
+fn @store(arg0: i256, arg1: i256) {
+  bb0:
+    v1 = add arg0, 1
+    v2 = add arg0, 2
+    sstore v2, arg1 !metadata(storage=offset(v1, 1))
+    stop
+}

@@ -467,6 +467,22 @@ impl StorageAlias {
         }
     }
 
+    /// Returns this alias with its symbolic base renamed by `f`.
+    #[must_use]
+    pub(crate) fn map_base(self, f: impl FnOnce(&mut ValueId)) -> Self {
+        match self {
+            Self::Slot(_) => self,
+            Self::Symbolic(mut value) => {
+                f(&mut value);
+                Self::Symbolic(value)
+            }
+            Self::Offset { mut base, offset } => {
+                f(&mut base);
+                Self::Offset { base, offset }
+            }
+        }
+    }
+
     /// Returns this alias advanced by a constant slot offset.
     #[must_use]
     pub(crate) fn offset_by(self, offset: U256) -> Self {
@@ -943,6 +959,10 @@ impl Instruction {
         });
         if changed {
             self.invalidate_operand_metadata();
+        } else if let Some(alias) = self.metadata.storage_alias() {
+            // A storage alias names its base slot like an operand, and an equivalent base keeps
+            // it true.
+            self.metadata.set_storage_alias(Some(alias.map_base(&mut f)));
         }
     }
 
