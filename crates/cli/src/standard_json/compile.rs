@@ -354,27 +354,21 @@ fn compile(
                         debug_info_contracts,
                     )
                 };
-                let bytecodes = if gcx.sess.is_parallel() {
-                    let metadata_contracts = contract_metadata.as_ref().map(|_| {
-                        requested_metadata_contracts(
-                            gcx,
-                            output_selection,
-                            &bytecode_contracts,
-                            *metadata,
-                        )
-                    });
+                let bytecodes = if gcx.sess.is_parallel()
+                    && let Some(contract_metadata) = &contract_metadata
+                {
+                    let metadata_contracts = requested_metadata_contracts(
+                        gcx,
+                        output_selection,
+                        &bytecode_contracts,
+                        *metadata,
+                    );
                     // Metadata does not depend on bytecode, so compute it while codegen leaves
                     // workers idle.
                     gcx.sess
                         .join(
                             || emit(bytecode_contracts),
-                            || {
-                                if let (Some(contract_metadata), Some(contracts)) =
-                                    (&contract_metadata, &metadata_contracts)
-                                {
-                                    contract_metadata.precompute(contracts);
-                                }
-                            },
+                            || contract_metadata.precompute(&metadata_contracts),
                         )
                         .0
                 } else {
