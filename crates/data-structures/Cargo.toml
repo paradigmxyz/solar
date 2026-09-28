@@ -30,7 +30,6 @@ oxc_index.workspace = true
 indexmap.workspace = true
 parking_lot.workspace = true
 rayon.workspace = true
-rayon-core.workspace = true
 rustc-hash.workspace = true
 smallvec.workspace = true
 

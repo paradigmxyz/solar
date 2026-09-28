@@ -30,29 +30,23 @@
 //! constants. Deferring this rewrite preserves earlier outlining opportunities;
 //! doing it in MIR can turn a shareable run into two smaller inline copies that
 //! occupy more bytes overall. Matching is bounded to 24 instructions per tail.
-//! Large modules process disjoint block chunks in parallel, each with its own rewrite buffer.
 
 use super::{
     EvmPass,
     compact_pushes::{immediate_materialization_cost, materialize_immediate},
-    utils::{MachineInstKey, PARALLEL_BLOCK_CHUNK_SIZE, should_parallelize_blocks},
+    utils::MachineInstKey,
 };
 use crate::backend::evm::{
-    ir::{Block, BlockId, Instruction, Module, PushValue, TerminatorKind},
+    ir::{BlockId, Instruction, Module, PushValue, TerminatorKind},
     op,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
-use solar_data_structures::{
-    index::{IndexSlice, IndexVec},
-    map::FxHasher,
-    sync,
-};
+use solar_data_structures::{index::IndexVec, map::FxHasher};
 use solar_sema::Gcx;
 use std::{
     fmt,
     hash::{Hash, Hasher},
-    sync::atomic::{AtomicBool, Ordering},
 };
 use tracing::trace;
 
@@ -79,7 +73,7 @@ impl EvmPass for Peephole {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        optimize_module(gcx, module, self.final_cleanup, false)
+        optimize_module::<false>(gcx, module, self.final_cleanup)
     }
 }
 
@@ -92,7 +86,7 @@ impl EvmPass for LateWord {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        optimize_module(gcx, module, false, true)
+        optimize_module::<true>(gcx, module, false)
     }
 }
 
@@ -155,6 +149,16 @@ fn clean_hash(instructions: &[Instruction]) -> u64 {
     hasher.finish()
 }
 
+impl CleanBlocks {
+    /// Returns whether the block was recorded clean with exactly these contents, and if so,
+    /// whether the final rules were included.
+    fn recorded(&self, block: BlockId, instructions: &[Instruction]) -> Option<bool> {
+        let clean = self.0.get(block)?.as_ref()?;
+        (clean.len as usize == instructions.len() && clean.hash == clean_hash(instructions))
+            .then_some(clean.final_cleanup)
+    }
+}
+
 impl Clone for CleanBlocks {
     fn clone(&self) -> Self {
         Self::default()
@@ -175,57 +179,19 @@ impl fmt::Debug for CleanBlocks {
     }
 }
 
-fn optimize_module(gcx: Gcx<'_>, module: &mut Module, final_cleanup: bool, late: bool) -> bool {
-    let evm_version = gcx.sess.opts.evm_version;
-    module.peephole_clean.0.resize_with(module.blocks.len(), || None);
-    let parallel = should_parallelize_blocks(gcx, module);
-    if !parallel {
-        return optimize_blocks(
-            evm_version,
-            &mut module.blocks,
-            &mut module.peephole_clean.0,
-            final_cleanup,
-            late,
-        );
-    }
-    let changed = AtomicBool::new(false);
-    sync::scope(true, |scope| {
-        for (blocks, clean) in module
-            .blocks
-            .chunks_mut(PARALLEL_BLOCK_CHUNK_SIZE)
-            .zip(module.peephole_clean.0.chunks_mut(PARALLEL_BLOCK_CHUNK_SIZE))
-        {
-            let changed = &changed;
-            scope.spawn(move |_| {
-                if optimize_blocks(evm_version, blocks, clean, final_cleanup, late) {
-                    changed.store(true, Ordering::Relaxed);
-                }
-            });
-        }
-    });
-    changed.into_inner()
-}
-
-fn optimize_blocks(
-    evm_version: EvmVersion,
-    blocks: &mut IndexSlice<BlockId, [Block]>,
-    clean: &mut IndexSlice<BlockId, [Option<CleanBlock>]>,
+fn optimize_module<const LATE: bool>(
+    gcx: Gcx<'_>,
+    module: &mut Module,
     final_cleanup: bool,
-    late: bool,
 ) -> bool {
+    let evm_version = gcx.sess.opts.evm_version;
     let mut changed = false;
     let mut scratch = Vec::new();
-    for (block, clean) in blocks.iter_mut().zip(clean) {
+    let clean = &mut module.peephole_clean;
+    clean.0.resize_with(module.blocks.len(), || None);
+    for (block_id, block) in module.blocks.iter_mut_enumerated() {
         // The late rules are separate from the cached early and final ones.
-        let recorded = if late {
-            None
-        } else {
-            clean.as_ref().and_then(|clean| {
-                (clean.len as usize == block.instructions.len()
-                    && clean.hash == clean_hash(&block.instructions))
-                .then_some(clean.final_cleanup)
-            })
-        };
+        let recorded = if LATE { None } else { clean.recorded(block_id, &block.instructions) };
         let skip = recorded.is_some_and(|recorded_final| recorded_final || !final_cleanup);
         let early_clean = final_cleanup && recorded == Some(false);
         // Dead stack traffic before a terminator that cannot observe it is dead-code
@@ -233,14 +199,13 @@ fn optimize_blocks(
         let rewrites = if skip {
             0
         } else {
-            optimize(
+            optimize::<LATE>(
                 evm_version,
                 &mut block.instructions,
                 &mut scratch,
                 block.label,
                 final_cleanup,
                 early_clean,
-                late,
             )
         };
         changed |= rewrites != 0;
@@ -272,14 +237,14 @@ fn optimize_blocks(
             changed = true;
             returned_zero = true;
         }
-        if !late && !skip {
+        if !LATE && !skip {
             if rewrites != 0 || returned_zero {
-                *clean = None;
+                clean.0[block_id] = None;
             } else if early_clean {
                 // The same contents are now clean under the final rules as well.
-                clean.as_mut().unwrap().final_cleanup = true;
+                clean.0[block_id].as_mut().unwrap().final_cleanup = true;
             } else {
-                *clean = Some(CleanBlock {
+                clean.0[block_id] = Some(CleanBlock {
                     final_cleanup,
                     len: block.instructions.len() as u32,
                     hash: clean_hash(&block.instructions),
@@ -290,14 +255,13 @@ fn optimize_blocks(
     changed
 }
 
-fn optimize(
+fn optimize<const LATE: bool>(
     evm_version: EvmVersion,
     instructions: &mut Vec<Instruction>,
     scratch: &mut Vec<Instruction>,
     block: u32,
     final_cleanup: bool,
     early_clean: bool,
-    late: bool,
 ) -> usize {
     // Inspect the original prefix without copying instructions. Until the first
     // rewrite, this is exactly the optimized prefix the streaming matcher sees.
@@ -306,7 +270,7 @@ fn optimize(
     let first = (1..=instructions.len()).find_map(|end| {
         let mut context = isle::PeepContext::new(&instructions[..end], evm_version)
             .with_final_cleanup(final_cleanup);
-        if early_clean { context.final_rewrite() } else { context.select(late) }
+        if early_clean { context.final_rewrite() } else { context.select::<LATE>() }
             .map(|rewrite| (end, rewrite))
     });
     let Some((end, isle::Rewrite { skip, edit })) = first else { return 0 };
@@ -317,28 +281,27 @@ fn optimize(
     scratch.extend(instructions.drain(end..));
     rewrite(evm_version, instructions, usize::from(skip), edit, block);
     let mut rewrites = 1;
-    while try_peephole(evm_version, instructions, block, final_cleanup, late) {
+    while try_peephole::<LATE>(evm_version, instructions, block, final_cleanup) {
         rewrites += 1;
     }
     for inst in scratch.drain(..) {
         instructions.push(inst);
-        while try_peephole(evm_version, instructions, block, final_cleanup, late) {
+        while try_peephole::<LATE>(evm_version, instructions, block, final_cleanup) {
             rewrites += 1;
         }
     }
     rewrites
 }
 
-fn try_peephole(
+fn try_peephole<const LATE: bool>(
     evm_version: EvmVersion,
     instructions: &mut Vec<Instruction>,
     block: u32,
     final_cleanup: bool,
-    late: bool,
 ) -> bool {
     let Some(isle::Rewrite { skip, edit }) = isle::PeepContext::new(instructions, evm_version)
         .with_final_cleanup(final_cleanup)
-        .select(late)
+        .select::<LATE>()
     else {
         return false;
     };

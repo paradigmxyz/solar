@@ -3,11 +3,7 @@
 //! Transformation pipelines follow rustc MIR's pass-manager shape: passes
 //! implement [`MirPass`] and pipelines are slices of trait-object references.
 //! [`ModuleAnalyses`] caches per-function CFG and alias analyses and module
-//! call summaries between the passes of one pipeline run. Large function-local
-//! passes may run in parallel. Each worker owns its analysis snapshots; the
-//! coordinator restores caches and invalidates facts in function order after
-//! the join. A serial prefix preserves the point at which an alias-aware pass
-//! first builds call summaries, including changes made by preceding functions.
+//! call summaries between the passes of one pipeline run.
 //!
 //! # Usage
 //!
@@ -26,9 +22,8 @@ use crate::mir::{
     pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff, run_passes_inner},
     transform::*,
 };
-use either::Either;
 use smallvec::SmallVec;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap, sync};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::diagnostics::ErrorGuaranteed;
 use std::{any::TypeId, rc::Rc, sync::Arc};
 
@@ -499,28 +494,18 @@ fn run_function_pass_with(
     requirements: FunctionAnalysisRequirements,
     run: &(impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync),
 ) -> bool {
-    run_function_pass_with_cache(module, analyses, None, requirements, None, run)
+    run_function_pass_with_cache(module, analyses, requirements, None, run)
 }
 
 fn run_function_pass_with_cache(
     module: &mut Module,
     analyses: &mut ModuleAnalyses,
-    selected: Option<&DenseBitSet<FunctionId>>,
     requirements: FunctionAnalysisRequirements,
     cache_key: Option<TypeId>,
     run: &(impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync),
 ) -> bool {
-    if let Some(changed) =
-        run_parallel_function_pass(module, analyses, selected, requirements, cache_key, run)
-    {
-        return changed;
-    }
-    let functions = match selected {
-        Some(selected) => Either::Left(selected.iter()),
-        None => Either::Right(module.functions.indices()),
-    };
     let mut changed = false;
-    for func_id in functions {
+    for func_id in module.functions.indices() {
         if module.functions[func_id].blocks.is_empty() {
             continue;
         }
@@ -539,10 +524,10 @@ pub(crate) fn run_selected_function_pass(
     selected: &DenseBitSet<FunctionId>,
     run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
 ) -> bool {
-    run_function_pass_with_cache(
+    run_selected_function_pass_with(
         module,
         analyses,
-        Some(selected),
+        selected,
         FunctionAnalysisRequirements::CFG,
         None,
         &run,
@@ -557,10 +542,10 @@ pub(crate) fn run_selected_function_pass_with_alias_and_cfg(
     selected: &DenseBitSet<FunctionId>,
     run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
 ) -> bool {
-    run_function_pass_with_cache(
+    run_selected_function_pass_with(
         module,
         analyses,
-        Some(selected),
+        selected,
         FunctionAnalysisRequirements::ALL,
         None,
         &run,
@@ -577,10 +562,10 @@ pub(crate) fn run_selected_function_pass_cached<P: 'static>(
     selected: &DenseBitSet<FunctionId>,
     run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
 ) -> bool {
-    run_function_pass_with_cache(
+    run_selected_function_pass_with(
         module,
         analyses,
-        Some(selected),
+        selected,
         FunctionAnalysisRequirements::CFG,
         Some(TypeId::of::<P>()),
         &run,
@@ -595,14 +580,34 @@ pub(crate) fn run_selected_function_pass_without_analyses_cached<P: 'static>(
     selected: &DenseBitSet<FunctionId>,
     run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
 ) -> bool {
-    run_function_pass_with_cache(
+    run_selected_function_pass_with(
         module,
         analyses,
-        Some(selected),
+        selected,
         FunctionAnalysisRequirements::NONE,
         Some(TypeId::of::<P>()),
         &run,
     )
+}
+
+fn run_selected_function_pass_with(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    selected: &DenseBitSet<FunctionId>,
+    requirements: FunctionAnalysisRequirements,
+    cache_key: Option<TypeId>,
+    run: &(impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync),
+) -> bool {
+    let mut changed = false;
+    for func_id in selected.iter() {
+        if module.functions[func_id].blocks.is_empty() {
+            continue;
+        }
+        changed |=
+            run_function_pass_cached(analyses, module, func_id, requirements, cache_key, run);
+    }
+    analyses.preserved_by_pass = true;
+    changed
 }
 
 /// Per-function analysis snapshots handed to a pass run.
@@ -624,11 +629,6 @@ impl FunctionAnalyses {
         self.cfg.as_ref().expect("function pass must request CFG analysis")
     }
 }
-
-// Total allocated instruction IDs across the functions in a batch.
-// Amortizes task creation and analysis transfer without excluding medium-sized modules.
-// Cutoff and thread-count comparisons are recorded in benches/parallelism.md.
-const MIN_PARALLEL_FUNCTION_INSTRUCTIONS: usize = 1024;
 
 #[derive(Clone, Copy)]
 struct FunctionAnalysisRequirements(u8);
@@ -662,7 +662,6 @@ pub struct ModuleAnalyses {
     call_summaries: Option<Arc<MemoryCallSummaries>>,
     preserved_by_pass: bool,
     call_summaries_preserved: bool,
-    pub(crate) parallel: bool,
 }
 
 impl ModuleAnalyses {
@@ -729,13 +728,9 @@ impl ModuleAnalyses {
     /// Returns the module call summaries, computing them on first use. A pass that changes
     /// the module drops them unless it calls [`Self::preserve_call_summaries`].
     pub(crate) fn call_summaries(&mut self, module: &Module) -> Arc<MemoryCallSummaries> {
-        Arc::clone(self.call_summaries.get_or_insert_with(|| {
-            let parallel = self.parallel
-                && sync::current_thread_has_pending_tasks() != Some(true)
-                && module.functions.iter().map(Function::num_insts).sum::<usize>()
-                    >= MIN_PARALLEL_FUNCTION_INSTRUCTIONS;
-            Arc::new(MemoryCallSummaries::new(module, parallel))
-        }))
+        Arc::clone(
+            self.call_summaries.get_or_insert_with(|| Arc::new(MemoryCallSummaries::new(module))),
+        )
     }
 
     /// Declares that the running pass leaves the module call summaries valid.
@@ -854,133 +849,11 @@ fn run_function_pass_cached(
     changed
 }
 
-fn run_parallel_function_pass(
-    module: &mut Module,
-    analyses: &mut ModuleAnalyses,
-    selected: Option<&DenseBitSet<FunctionId>>,
-    requirements: FunctionAnalysisRequirements,
-    cache_key: Option<TypeId>,
-    run: &(impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync),
-) -> Option<bool> {
-    if !analyses.parallel || sync::current_thread_has_pending_tasks() == Some(true) {
-        return None;
-    }
-    let functions = module.functions.len();
-    let mut runnable = DenseBitSet::new_empty(functions);
-    let mut work = 0;
-    for (id, func) in module.functions.iter_enumerated() {
-        if !func.blocks.is_empty()
-            && selected.is_none_or(|selected| selected.contains(id))
-            && !cache_key.is_some_and(|key| analyses.function_cached(key, id, functions))
-        {
-            runnable.insert(id);
-            work += func.num_insts();
-        }
-    }
-    if work < MIN_PARALLEL_FUNCTION_INSTRUCTIONS || runnable.count() < 2 {
-        return None;
-    }
-    if requirements.alias()
-        && runnable
-            .iter()
-            .any(|id| analyses.alias.get(&id).is_some_and(|alias| Rc::strong_count(alias) != 1))
-    {
-        return None;
-    }
-    let first_missing = if requirements.alias() {
-        runnable.iter().find(|id| !analyses.alias.contains_key(id))
-    } else {
-        None
-    };
-    let mut any_changed = false;
-    if analyses.call_summaries.is_none()
-        && let Some(first_missing) = first_missing
-    {
-        // Preserve the point at which a serial pass would first build call summaries.
-        for id in module.functions.indices().take(first_missing.index()) {
-            if runnable.contains(id) {
-                any_changed |=
-                    run_function_pass_cached(analyses, module, id, requirements, cache_key, run);
-                runnable.remove(id);
-            }
-        }
-    }
-    let summaries = first_missing.map(|_| analyses.call_summaries(module));
-    let jobs = module
-        .functions
-        .iter_enumerated()
-        .map(|(id, func)| {
-            if !runnable.contains(id) {
-                return None;
-            }
-            let cfg = requirements.cfg().then(|| {
-                analyses.cfg.remove(&id).map_or_else(|| CfgInfo::new(func), Rc::unwrap_or_clone)
-            });
-            let alias = requirements.alias().then(|| {
-                analyses.alias.remove(&id).map_or_else(
-                    || AliasAnalysis::empty_with_summaries(Arc::clone(summaries.as_ref().unwrap())),
-                    |alias| Rc::try_unwrap(alias).expect("checked unique alias snapshot"),
-                )
-            });
-            Some((alias, cfg))
-        })
-        .collect::<Vec<_>>();
-    let mut results = (0..functions).map(|_| None).collect::<Vec<_>>();
-    sync::scope(true, |scope| {
-        for ((func, job), result) in module.functions.iter_mut().zip(jobs).zip(&mut results) {
-            if let Some((alias, cfg)) = job {
-                scope.spawn(move |_| {
-                    let bundle =
-                        FunctionAnalyses { alias: alias.map(Rc::new), cfg: cfg.map(Rc::new) };
-                    let insts_before = func.num_insts();
-                    let changed = run(func, &bundle);
-                    let (keep_alias, keep_cfg) = if changed {
-                        bundle.cfg.as_ref().map_or((false, false), |cfg| {
-                            verified_preservation(func, cfg, insts_before)
-                        })
-                    } else {
-                        (true, true)
-                    };
-                    let cfg = bundle.cfg.filter(|_| keep_cfg).map(Rc::unwrap_or_clone);
-                    let alias = bundle.alias.filter(|_| keep_alias).map(|alias| {
-                        if changed {
-                            alias.clear_cached_addresses();
-                        }
-                        Rc::try_unwrap(alias)
-                            .expect("function pass must release its alias snapshot")
-                    });
-                    *result = Some((changed, keep_alias, cfg, alias));
-                });
-            }
-        }
-    });
-    for (id, result) in module.functions.indices().zip(results) {
-        if let Some((changed, keep_alias, cfg, alias)) = result {
-            if changed {
-                analyses.retain(id, keep_alias, false);
-                any_changed = true;
-            }
-            if let Some(cfg) = cfg {
-                analyses.cfg.insert(id, Rc::new(cfg));
-            }
-            if let Some(alias) = alias {
-                analyses.alias.insert(id, Rc::new(alias));
-            }
-            analyses.record_function_result(id, functions, cache_key, changed);
-        }
-    }
-    analyses.preserved_by_pass = true;
-    Some(any_changed)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{
-        BasicBlock, BlockId, FunctionBuilder, InstKind, Terminator, analysis::AddressSpace,
-    };
+    use crate::mir::{BasicBlock, BlockId, FunctionBuilder, Terminator};
     use solar_interface::Ident;
-    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
     fn cfg_preservation_uses_snapshot() {
@@ -1021,89 +894,5 @@ mod tests {
         func.blocks[BlockId::ENTRY].terminator =
             Some(Terminator::Branch { condition, then_block: left, else_block: left });
         assert_eq!(verified_preservation(&func, &cfg, func.num_insts()), (true, false));
-    }
-
-    #[test]
-    fn parallel_pass_keeps_cfg_and_no_change_cache() {
-        let mut module = Module::new(Ident::DUMMY);
-        let mut analyses = ModuleAnalyses { parallel: true, ..Default::default() };
-        for _ in 0..2 {
-            let mut func = Function::new(Ident::DUMMY);
-            let left = func.blocks.push(BasicBlock::new());
-            let right = func.blocks.push(BasicBlock::new());
-            let mut builder = FunctionBuilder::new(&mut func);
-            let one = builder.imm(1);
-            for _ in 0..MIN_PARALLEL_FUNCTION_INSTRUCTIONS / 2 {
-                builder.add(one, one);
-            }
-            builder.branch(one, left, right);
-            let id = module.add_function(func);
-            analyses.cfg(id, &module.functions[id]);
-            // Reordered edges preserve the cached CFG's original successor order.
-            module.functions[id].blocks[BlockId::ENTRY].terminator =
-                Some(Terminator::Branch { condition: one, then_block: right, else_block: left });
-        }
-        let calls = AtomicUsize::new(0);
-        let run = |func: &mut Function, bundle: &FunctionAnalyses| {
-            calls.fetch_add(1, Ordering::Relaxed);
-            assert_eq!(
-                bundle.cfg().successors(BlockId::ENTRY),
-                &[BlockId::new(1), BlockId::new(2)]
-            );
-            assert_eq!(func.blocks.len(), 3);
-            false
-        };
-        let key = Some(TypeId::of::<AtomicUsize>());
-        for _ in 0..2 {
-            assert!(!run_function_pass_with_cache(
-                &mut module,
-                &mut analyses,
-                None,
-                FunctionAnalysisRequirements::CFG,
-                key,
-                &run
-            ));
-        }
-        assert_eq!(calls.load(Ordering::Relaxed), 2);
-        assert_eq!(analyses.cfg.len(), 2);
-    }
-
-    #[test]
-    fn parallel_pass_preserves_lazy_call_summary_timing() {
-        let mut module = Module::new(Ident::DUMMY);
-        let mut analyses = ModuleAnalyses { parallel: true, ..Default::default() };
-        for index in 0..2 {
-            let mut func = Function::new(Ident::DUMMY);
-            let mut builder = FunctionBuilder::new(&mut func);
-            let one = builder.imm(1);
-            if index == 0 {
-                builder.mstore(one, one);
-            } else {
-                builder.icall_void(FunctionId::new(0), vec![]);
-            }
-            for _ in 0..MIN_PARALLEL_FUNCTION_INSTRUCTIONS / 2 {
-                builder.add(one, one);
-            }
-            builder.ret([]);
-            module.add_function(func);
-        }
-        analyses.alias.insert(
-            FunctionId::new(0),
-            Rc::new(AliasAnalysis::new(&module.functions[FunctionId::new(0)])),
-        );
-        let changed = run_function_pass_with_alias(&mut module, &mut analyses, |func, bundle| {
-            let first = func.instructions().next().unwrap();
-            if let InstKind::MStore(address, value) = func.inst(first).kind {
-                // Rewrite the callee before the caller first requests its effects.
-                func.inst_mut(first).kind = InstKind::SStore(address, value);
-                true
-            } else {
-                let effects = bundle.alias().instruction_mod_ref(func, first);
-                assert!(effects.writes_space(AddressSpace::Storage));
-                assert!(!effects.writes_space(AddressSpace::Memory));
-                false
-            }
-        });
-        assert!(changed);
     }
 }

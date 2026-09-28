@@ -4615,7 +4615,6 @@ dependencies = [
  "oxc_index",
  "parking_lot",
  "rayon",
- "rayon-core",
  "rustc-hash",
  "smallvec",
 ]

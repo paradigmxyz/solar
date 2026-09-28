@@ -2,7 +2,6 @@ pub use parking_lot::{
     MappedMutexGuard, MappedRwLockReadGuard, MappedRwLockWriteGuard, Mutex, RwLock,
     RwLockReadGuard, RwLockWriteGuard,
 };
-pub use rayon_core::current_thread_has_pending_tasks;
 
 /// Executes the given expressions in parallel.
 #[macro_export]

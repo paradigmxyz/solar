@@ -2558,7 +2558,7 @@ mod tests {
         FunctionBuilder::new(&mut tail_caller).tail_call(observer, vec![]);
         let tail_caller = module.add_function(tail_caller);
 
-        let summaries = Arc::new(MemoryCallSummaries::new(&module, false));
+        let summaries = Arc::new(MemoryCallSummaries::new(&module));
         let caller = &module.functions[caller];
         let conservative = AliasAnalysis::new(caller).instruction_mod_ref(caller, call);
         assert!(conservative.observes_memory_size());

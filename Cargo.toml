@@ -181,7 +181,6 @@ thiserror = ">=1"
 arc-swap = "1.9"
 parking_lot = "0.12"
 rayon = "1.8"
-rayon-core = "1.13"
 
 # tracing
 tracing-subscriber = "0.3"
