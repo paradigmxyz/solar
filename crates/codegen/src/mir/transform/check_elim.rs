@@ -765,7 +765,12 @@ impl<'a> CheckEliminator<'a> {
         relevant: &DenseBitSet<ValueId>,
     ) -> IndexVec<BlockId, Facts> {
         const MAX_ROUNDS: usize = 8;
-        let definitions = func.inst_blocks();
+        let mut definitions = index_vec![None; func.num_insts()];
+        for (block, body) in func.blocks.iter_enumerated() {
+            for &inst in &body.instructions {
+                definitions[inst] = Some(block);
+            }
+        }
         // A predicate consumed only by this branch cannot be queried after the edge.
         // Preserve its operand facts, but do not copy the dead predicate's own range
         // through every later block. Single-use ISZERO chains have the same property.
@@ -841,7 +846,7 @@ impl<'a> CheckEliminator<'a> {
                             cx.ranges.remove(value);
                         }
                         let available = |value| match func.value(value) {
-                            Value::Inst(inst) => definitions.get(inst).is_some_and(|&home| {
+                            Value::Inst(inst) => definitions[*inst].is_some_and(|home| {
                                 home != block && cfg.dominators().dominates(home, block)
                             }),
                             _ => true,
