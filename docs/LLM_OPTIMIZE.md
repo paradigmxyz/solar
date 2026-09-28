@@ -196,7 +196,8 @@ The fixtures under `tests/ui/codegen/mir/llm-optimize/` use scripts to cover eve
 opens an `LlmSession` per function, and installs it with `set_rewriter` before compiling with
 `-Zllm-optimize=live`. `LlmSession::propose` receives the verdict on the previous candidate and
 returns the next candidate or `Proposal::Done`. The command line's rewriter in
-`crates/cli/src/llm.rs` is one such implementation.
+`crates/cli/src/llm.rs` is one such implementation, which the command line and
+`solar::cli::standard_json::compile_standard_json` install only when no rewriter is installed.
 
 ## Limits
 
