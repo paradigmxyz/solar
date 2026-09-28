@@ -1063,6 +1063,14 @@ impl InstKind {
         out
     }
 
+    /// Returns whether `value` is an operand of this instruction, without collecting them.
+    #[must_use]
+    pub(crate) fn reads(&self, value: ValueId) -> bool {
+        let mut found = false;
+        self.visit_operands(|operand| found |= operand == value);
+        found
+    }
+
     /// Returns the mnemonic for this instruction.
     #[must_use]
     pub(crate) const fn mnemonic(&self) -> &'static str {

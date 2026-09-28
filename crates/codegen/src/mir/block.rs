@@ -210,6 +210,14 @@ impl Terminator {
         }
     }
 
+    /// Returns whether `value` is an operand of this terminator, without collecting them.
+    #[must_use]
+    pub(crate) fn reads(&self, value: ValueId) -> bool {
+        let mut found = false;
+        self.visit_operands(|operand| found |= operand == value);
+        found
+    }
+
     /// Returns the successor blocks of this terminator.
     #[must_use]
     pub(crate) fn successors(&self) -> SmallVec<[BlockId; 2]> {
