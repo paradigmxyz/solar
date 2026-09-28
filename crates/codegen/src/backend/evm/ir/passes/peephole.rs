@@ -44,10 +44,7 @@ use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_data_structures::map::{FxHashMap, FxHasher};
 use solar_sema::Gcx;
-use std::{
-    fmt,
-    hash::{Hash, Hasher},
-};
+use std::{fmt, hash::Hasher};
 use tracing::trace;
 
 mod isle;
@@ -140,7 +137,7 @@ pub(crate) struct CleanBlocks(FxHashMap<(u32, u64), bool>);
 fn clean_key(instructions: &[Instruction]) -> (u32, u64) {
     let mut hasher = FxHasher::default();
     for inst in instructions {
-        MachineInstKey::new(inst).hash(&mut hasher);
+        MachineInstKey::new(inst).hash_words(&mut hasher);
     }
     (instructions.len() as u32, hasher.finish())
 }

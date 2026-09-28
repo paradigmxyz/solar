@@ -14,6 +14,7 @@ use solar_data_structures::{
     map::FxHashSet,
 };
 use solar_sema::Gcx;
+use std::hash::Hasher;
 
 /// The machine-level identity shared by transforms that compare instructions.
 ///
@@ -43,6 +44,32 @@ impl MachineInstKey {
             0,
         ]);
         Self(operation, inst.value)
+    }
+
+    /// Feeds this key to `hasher` as whole words. Equal keys feed equal words, and the value's
+    /// kind in the free top bytes of the first word keeps different keys' words distinct.
+    pub(super) fn hash_words(self, hasher: &mut impl Hasher) {
+        match self.1 {
+            None => hasher.write_u64(self.0),
+            Some(PushValue::Immediate(value)) => {
+                hasher.write_u64(self.0 | 1 << 48);
+                for &limb in value.as_limbs() {
+                    hasher.write_u64(limb);
+                }
+            }
+            Some(PushValue::Library(library)) => {
+                hasher.write_u64(self.0 | 2 << 48);
+                hasher.write_u64(library.index() as u64);
+            }
+            Some(PushValue::Block(block)) => {
+                hasher.write_u64(self.0 | 3 << 48);
+                hasher.write_u64(block.index() as u64);
+            }
+            Some(PushValue::Data(data)) => {
+                hasher.write_u64(self.0 | 4 << 48);
+                hasher.write_u64(data.id.index() as u64 | u64::from(data.offset) << 32);
+            }
+        }
     }
 }
 
