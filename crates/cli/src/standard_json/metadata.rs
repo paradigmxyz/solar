@@ -88,12 +88,18 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
                 sources.insert(source_id);
             }
         }
-        sources.iter().collect::<Vec<_>>().into_par_iter().for_each(|source_id| {
-            self.source(source_id);
-        });
-        contracts.par_iter().for_each(|&contract_id| {
-            self.json(contract_id);
-        });
+        self.gcx.sess.join(
+            || {
+                sources.iter().collect::<Vec<_>>().into_par_iter().for_each(|source_id| {
+                    self.source(source_id);
+                });
+            },
+            || {
+                contracts.par_iter().for_each(|&contract_id| {
+                    self.json(contract_id);
+                });
+            },
+        );
     }
 
     fn source(&self, source_id: SourceId) -> &Value {

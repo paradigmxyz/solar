@@ -346,14 +346,15 @@ fn compile(
                     .as_ref()
                     .map(|metadata| |contract_id| metadata.runtime_data(contract_id));
                 let runtime_data = runtime_data.as_ref().map(|data| data as &RuntimeDataFn<'_>);
-                let metadata_contracts = contract_metadata.as_ref().map(|_| {
-                    requested_metadata_contracts(
-                        gcx,
-                        output_selection,
-                        &bytecode_contracts,
-                        *metadata,
-                    )
-                });
+                let metadata_contracts =
+                    contract_metadata.as_ref().filter(|_| gcx.sess.is_parallel()).map(|_| {
+                        requested_metadata_contracts(
+                            gcx,
+                            output_selection,
+                            &bytecode_contracts,
+                            *metadata,
+                        )
+                    });
                 // Metadata does not depend on bytecode, so compute it while codegen leaves
                 // workers idle.
                 let (bytecodes, ()) = gcx.sess.join(
