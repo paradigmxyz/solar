@@ -171,6 +171,7 @@ fn synthesize_unique_layout(
     }
     removed.sort_unstable();
     let pop = StackOp::Pop.metrics(evm_version)?;
+    let swap = StackOp::Swap(1).metrics(evm_version)?;
     let mut best = None::<(Vec<StackOp>, (usize, usize, usize))>;
     'orders: loop {
         let mut current = source.clone();
@@ -185,9 +186,10 @@ fn synthesize_unique_layout(
             }
             ops.push(StackOp::Pop);
             current.remove(0);
-            // Costs only grow and every remaining removal needs a `POP`, so no order sharing
-            // this prefix can beat `best`, and a prefix without a lowering makes every such
-            // order invalid. Skip them all.
+            // Costs only grow, every remaining removal needs a `POP`, and a `SWAP` must come
+            // next unless the top is removed next or the layout is final. No order sharing this
+            // prefix can beat `best` then, and a prefix without a lowering makes every such order
+            // invalid. Skip them all.
             let cost =
                 ops[start..].iter().try_fold(prefix_cost, |(instructions, gas, size), op| {
                     let metrics = op.metrics(evm_version)?;
@@ -198,13 +200,18 @@ fn synthesize_unique_layout(
                     ))
                 });
             let pops = removed.len() - index - 1;
+            let swaps = usize::from(if pops == 0 {
+                current.as_slice() != target_values.as_slice()
+            } else {
+                !removed[index + 1..].contains(&current[0])
+            });
             match cost {
                 Some(cost)
                     if best.as_ref().is_none_or(|(_, best_cost)| {
                         let bound = (
-                            cost.0 + pops * pop.instruction_count,
-                            cost.1 + pops * pop.static_gas,
-                            cost.2 + pops * pop.assembled_len,
+                            cost.0 + pops * pop.instruction_count + swaps * swap.instruction_count,
+                            cost.1 + pops * pop.static_gas + swaps * swap.static_gas,
+                            cost.2 + pops * pop.assembled_len + swaps * swap.assembled_len,
                         );
                         bound < *best_cost
                     }) =>
