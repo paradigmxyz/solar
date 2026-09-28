@@ -84,7 +84,7 @@ impl InstKind {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::ValueId;
+    use crate::mir::{Semantics, ValueId};
     use std::fmt::Write as _;
 
     #[test]
@@ -99,6 +99,8 @@ mod tests {
                     let (pops, pushes) = definition.stack_io.unwrap();
                     assert_eq!(usize::from(pops), arity, "{name}");
                     assert_eq!(pushes != 0, kind.op_def().result.produces_value(), "{name}");
+                    let declared = Semantics::Opcode(lowering.opcode(), kind.operands());
+                    assert_eq!(kind.semantics(), Some(declared), "{name}");
                     writeln!(
                         output,
                         "{name}: {lowering:?}, {} ({pops} -> {pushes})",
