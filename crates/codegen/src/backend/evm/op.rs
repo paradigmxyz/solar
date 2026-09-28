@@ -1,9 +1,15 @@
 //! EVM opcode definitions and metadata.
+//!
+//! Each row of the table declares an opcode's mnemonic, stack effect, traits, gas class, and
+//! availability. Pure opcodes also name their word semantics in `word`, which `eval`
+//! dispatches through for every tool that computes opcode results.
 
 use crate::target::GasTier;
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_interface::Symbol;
+
+pub(crate) mod word;
 
 /// Number of bytes in an EVM word.
 pub(crate) const WORD_BYTES: usize = 32;
@@ -188,6 +194,31 @@ macro_rules! opcode_result_bits {
     };
 }
 
+/// Applies a row's word semantics to operands in pop order.
+macro_rules! opcode_eval {
+    ($inputs:tt => $operands:ident) => {
+        None
+    };
+    (1 => $operands:ident, $eval:ident) => {
+        match *$operands {
+            [a] => Some(word::$eval(a)),
+            _ => None,
+        }
+    };
+    (2 => $operands:ident, $eval:ident) => {
+        match *$operands {
+            [a, b] => Some(word::$eval(a, b)),
+            _ => None,
+        }
+    };
+    (3 => $operands:ident, $eval:ident) => {
+        match *$operands {
+            [a, b, c] => Some(word::$eval(a, b, c)),
+            _ => None,
+        }
+    };
+}
+
 macro_rules! opcodes {
     ($(
         $opcode:literal => $constant:ident => $mnemonic:ident
@@ -196,7 +227,8 @@ macro_rules! opcodes {
             => gas($gas:tt)
             => available($($availability:tt)+)
             $(=> result_bits($result_bits:literal))?
-            $(=> input_bits($($input_bits:literal),*))?;
+            $(=> input_bits($($input_bits:literal),*))?
+            $(=> eval($eval:ident))?;
     )*) => {
         $(
             #[doc = concat!("Opcode byte for `", stringify!($constant), "`.")]
@@ -307,37 +339,48 @@ macro_rules! opcodes {
                 None => None,
             }
         }
+
+        /// Computes a pure opcode's result from its operands in pop order.
+        ///
+        /// Returns `None` for an opcode without word semantics or a wrong number of operands.
+        #[must_use]
+        pub(crate) fn eval(opcode: u8, operands: &[U256]) -> Option<U256> {
+            match opcode {
+                $($opcode => opcode_eval!($inputs => operands $(, $eval)?),)*
+                _ => None,
+            }
+        }
     };
 }
 
 opcodes! {
     0x00 => STOP => stop => stack_io(0, 0) => traits(TERMINAL) => gas(zero) => available(legacy);
-    0x01 => ADD => add => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy);
-    0x02 => MUL => mul => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(low) => available(legacy);
-    0x03 => SUB => sub => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy);
-    0x04 => DIV => div => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
-    0x05 => SDIV => sdiv => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
-    0x06 => MOD => mod => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
-    0x07 => SMOD => smod => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
-    0x08 => ADDMOD => addmod => stack_io(3, 1) => traits(PURE) => gas(mid) => available(legacy);
-    0x09 => MULMOD => mulmod => stack_io(3, 1) => traits(PURE) => gas(mid) => available(legacy);
-    0x0a => EXP => exp => stack_io(2, 1) => traits(PURE) => gas(exp) => available(legacy);
-    0x0b => SIGNEXTEND => signextend => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
-    0x10 => LT => lt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1);
-    0x11 => GT => gt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1);
-    0x12 => SLT => slt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1);
-    0x13 => SGT => sgt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1);
-    0x14 => EQ => eq => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy) => result_bits(1);
-    0x15 => ISZERO => iszero => stack_io(1, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1);
-    0x16 => AND => and => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy);
-    0x17 => OR => or => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy);
-    0x18 => XOR => xor => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy);
-    0x19 => NOT => not => stack_io(1, 1) => traits(PURE) => gas(verylow) => available(legacy);
-    0x1a => BYTE => byte => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(8);
-    0x1b => SHL => shl => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(since Constantinople);
-    0x1c => SHR => shr => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(since Constantinople);
-    0x1d => SAR => sar => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(since Constantinople);
-    0x1e => CLZ => clz => stack_io(1, 1) => traits(PURE) => gas(low) => available(since Osaka) => result_bits(9);
+    0x01 => ADD => add => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy) => eval(add);
+    0x02 => MUL => mul => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(low) => available(legacy) => eval(mul);
+    0x03 => SUB => sub => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => eval(sub);
+    0x04 => DIV => div => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy) => eval(div);
+    0x05 => SDIV => sdiv => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy) => eval(sdiv);
+    0x06 => MOD => mod => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy) => eval(rem);
+    0x07 => SMOD => smod => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy) => eval(smod);
+    0x08 => ADDMOD => addmod => stack_io(3, 1) => traits(PURE) => gas(mid) => available(legacy) => eval(addmod);
+    0x09 => MULMOD => mulmod => stack_io(3, 1) => traits(PURE) => gas(mid) => available(legacy) => eval(mulmod);
+    0x0a => EXP => exp => stack_io(2, 1) => traits(PURE) => gas(exp) => available(legacy) => eval(exp);
+    0x0b => SIGNEXTEND => signextend => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy) => eval(signextend);
+    0x10 => LT => lt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1) => eval(lt);
+    0x11 => GT => gt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1) => eval(gt);
+    0x12 => SLT => slt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1) => eval(slt);
+    0x13 => SGT => sgt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1) => eval(sgt);
+    0x14 => EQ => eq => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy) => result_bits(1) => eval(eq);
+    0x15 => ISZERO => iszero => stack_io(1, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1) => eval(iszero);
+    0x16 => AND => and => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy) => eval(and);
+    0x17 => OR => or => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy) => eval(or);
+    0x18 => XOR => xor => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy) => eval(xor);
+    0x19 => NOT => not => stack_io(1, 1) => traits(PURE) => gas(verylow) => available(legacy) => eval(not);
+    0x1a => BYTE => byte => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(8) => eval(byte);
+    0x1b => SHL => shl => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(since Constantinople) => eval(shl);
+    0x1c => SHR => shr => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(since Constantinople) => eval(shr);
+    0x1d => SAR => sar => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(since Constantinople) => eval(sar);
+    0x1e => CLZ => clz => stack_io(1, 1) => traits(PURE) => gas(low) => available(since Osaka) => result_bits(9) => eval(clz);
     0x20 => KECCAK256 => keccak256 => stack_io(2, 1) => traits() => gas(keccak) => available(legacy);
     0x30 => ADDRESS => address => stack_io(0, 1) => traits() => gas(base) => available(legacy) => result_bits(160);
     0x31 => BALANCE => balance => stack_io(1, 1) => traits() => gas(balance) => available(legacy) => input_bits(160);
@@ -1021,5 +1064,20 @@ mod tests {
             isle_prelude(),
             snapbox::file!["../../../isle/evm-ir/prelude.isle"]
         );
+    }
+
+    #[test]
+    fn pure_opcodes_have_word_semantics() {
+        for opcode in u8::MIN..=u8::MAX {
+            let Some(definition) = definition(opcode) else { continue };
+            let (inputs, outputs) = definition.stack_io.unwrap_or_default();
+            let operands = vec![U256::ZERO; usize::from(inputs)];
+            let name = definition.mnemonic;
+            assert_eq!(eval(opcode, &operands).is_some(), definition.is_pure(), "{name}");
+            if definition.is_pure() {
+                assert_eq!(outputs, 1, "{name}");
+                assert_eq!(eval(opcode, &operands[1..]), None, "{name}");
+            }
+        }
     }
 }
