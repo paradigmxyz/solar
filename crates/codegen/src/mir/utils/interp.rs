@@ -7,6 +7,11 @@
 //! part of code generation: the `llm-optimize` pass runs an original function and a candidate
 //! replacement on the same inputs and compares what they do.
 //!
+//! [`Machine::transact`] executes a whole transaction instead: the module's dispatch entry on
+//! calldata, with zeroed memory and a [`Host`] answering what the contract reads from its context,
+//! such as the caller or a storage slot's value before the transaction. The UI test runner checks
+//! it against an EVM running the compiled bytecode.
+//!
 //! # Model
 //!
 //! Each instruction runs by the [`Semantics`] its operation schema row declares, so the
@@ -25,9 +30,18 @@
 //! them, so a function reading memory it does not own sees garbage, as it could on chain.
 //!
 //! Internal calls and tail calls run the callee on the same memory, and a call's result is the
-//! value the callee returns. The backend passes further results through a memory buffer of its
-//! own, so a callee returning several values is unsupported. `revert`, `returndata`, `stop`, and
-//! `invalid` end the whole execution wherever they run, as they end the transaction.
+//! value the callee returns. The backend passes further results through a buffer of its own that
+//! the word at `0x20` points to, so a function run alone may not call a callee returning several
+//! values. A transaction places that buffer at the top of memory, where nothing else reaches,
+//! and reuses it: callers read the results right after the call. `revert`, `returndata`, `stop`,
+//! and `invalid` end the whole execution wherever they run, as they end the transaction.
+//!
+//! A transaction follows the backend's conventions for external entries: the free memory pointer
+//! starts at the heap start the host reports, and argument `i` of an external entry is the calldata
+//! word at `4 + 32 * i`. It also reads calldata, persistent and transient storage, and the context
+//! values its host provides, and records the logs it emits. It makes no calls, so its return data
+//! is always empty. Returning from the dispatch entry stops the transaction, as the backend's
+//! `STOP` does.
 //!
 //! # Limits
 //!
@@ -35,22 +49,26 @@
 //! call depth. Memory ends at [`MEMORY_LIMIT`], past which the EVM runs out of gas under any block
 //! gas limit. Exceeding a limit ends the run with [`Outcome::Limit`]. Operations outside
 //! [`supports`] and [`supports_terminator`] end it with [`Outcome::Unsupported`]: opcodes on
-//! storage, calldata, code, the environment, external calls, logs, and `msize`, and operations
-//! that declare no semantics, such as frame addresses, allocations, and every semantic
-//! operation. The interpreter relies on the validator only for the existence
+//! storage, calldata, code, the environment, external calls, logs, and `msize`, allocations, and
+//! operations that declare no semantics, such as frame addresses and every semantic operation. A
+//! transaction runs the storage, calldata, context, and log opcodes and places the allocations the
+//! backend would place, but not `gas`, calls, or contract creation. The interpreter relies on the
+//! validator only for the existence
 //! of the instructions, values, and blocks a function names, and checks the rest as it runs, so a
 //! value used before its definition or a phi missing an edge also ends a run as unsupported.
 
 use crate::{
     backend::evm::op,
     mir::{
-        ArgIdx, BlockId, Callee, Function, FunctionId, InstId, InstKind, MirPhase, Module,
-        Semantics, Terminator, Value, ValueId,
+        AllocationKind, ArgIdx, BlockId, Callee, DataRef, Function, FunctionId, InstId, InstKind,
+        MirPhase, Module, Semantics, Terminator, Value, ValueId,
+        memory::EvmMemoryLayout,
         utils::eval::{eval_inst, eval_semantics},
     },
 };
 use alloy_primitives::{U256, keccak256};
 use smallvec::SmallVec;
+use solar_config::EvmVersion;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
@@ -68,6 +86,39 @@ const WORD_BYTES: u64 = 32;
 /// The opcodes a run executes on its memory, besides the pure opcodes it evaluates.
 const MEMORY_OPCODES: [u8; 5] = [op::MLOAD, op::MSTORE, op::MSTORE8, op::MCOPY, op::KECCAK256];
 
+/// The opcodes whose values a transaction asks its [`Host`] for.
+const HOST_OPCODES: [u8; 21] = [
+    op::ADDRESS,
+    op::BALANCE,
+    op::ORIGIN,
+    op::CALLER,
+    op::CALLVALUE,
+    op::CODESIZE,
+    op::GASPRICE,
+    op::EXTCODESIZE,
+    op::EXTCODEHASH,
+    op::BLOCKHASH,
+    op::COINBASE,
+    op::TIMESTAMP,
+    op::NUMBER,
+    op::PREVRANDAO,
+    op::GASLIMIT,
+    op::CHAINID,
+    op::SELFBALANCE,
+    op::BASEFEE,
+    op::BLOBHASH,
+    op::BLOBBASEFEE,
+    op::SLOTNUM,
+];
+
+/// Where a transaction places the multi-return buffer the backend keeps in memory of its own:
+/// three quarters of [`MEMORY_LIMIT`], which no execution within a block's gas reaches.
+const MULTI_RETURN_BUFFER: u64 = MEMORY_LIMIT / 4 * 3;
+
+/// Where a transaction starts placing the allocations the backend places itself, below the
+/// multi-return buffer.
+const ALLOCATION_REGION: u64 = MEMORY_LIMIT / 2;
+
 /// How an execution ended.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Outcome {
@@ -79,7 +130,8 @@ pub(crate) enum Outcome {
     ReturnData(Vec<u8>),
     /// Execution stopped the transaction.
     Stop,
-    /// Execution reached `INVALID`.
+    /// Execution reached `INVALID`, or another exceptional halt that consumes all gas and
+    /// returns nothing.
     Invalid,
     /// Execution exceeded a limit before it ended.
     Limit(Limit),
@@ -152,6 +204,43 @@ pub(crate) trait Meter {
 
 impl Meter for () {}
 
+/// Answers what a transaction reads from its context and cannot know itself.
+pub trait Host {
+    /// Returns what `opcode` reads for these operands from the transaction's context or the
+    /// chain's state, such as `CALLER`, `TIMESTAMP`, or `BALANCE`, or `None` when the host does
+    /// not model it.
+    fn read(&mut self, opcode: u8, operands: &[U256]) -> Option<U256>;
+
+    /// Returns the value a persistent storage slot of the running contract holds before the
+    /// transaction.
+    fn storage(&mut self, slot: U256) -> U256;
+
+    /// Returns where the free memory pointer starts: the heap start the backend's layout chose,
+    /// which programs can observe only by exposing an address.
+    fn free_memory_start(&mut self) -> U256 {
+        U256::from(EvmMemoryLayout::HEAP_START)
+    }
+}
+
+/// An event a transaction logged.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Log {
+    /// The topics, in order.
+    pub topics: Vec<U256>,
+    /// The data.
+    pub data: Vec<u8>,
+}
+
+/// What one transaction did.
+pub(crate) struct TransactionExecution {
+    /// How it ended. Returning from the dispatch entry is a [`Outcome::Stop`].
+    pub(crate) outcome: Outcome,
+    /// The persistent storage slots it wrote, with their final values.
+    pub(crate) storage: FxHashMap<U256, U256>,
+    /// The events it logged, in order.
+    pub(crate) logs: Vec<Log>,
+}
+
 /// Returns whether [`Machine::run`] executes an instruction of this kind: lowered operations
 /// whose declared semantics are word operations and casts, `select`, phis, memory opcodes, and
 /// calls to functions.
@@ -180,10 +269,11 @@ pub(crate) fn mix64(value: u64) -> u64 {
     z ^ (z >> 31)
 }
 
-/// Byte-addressed EVM memory whose unwritten bytes derive from a seed.
+/// Byte-addressed EVM memory whose unwritten bytes derive from a seed, or are zero.
 #[derive(Clone, Debug)]
 pub(crate) struct Memory {
-    seed: u64,
+    /// The seed of unwritten bytes, which are zero without one.
+    seed: Option<u64>,
     /// Materialized words by word index.
     words: FxHashMap<u64, [u8; 32]>,
     /// Bytes a run wrote, as a mask per word index.
@@ -195,7 +285,12 @@ pub(crate) struct Memory {
 impl Memory {
     /// Creates memory of `size` words whose contents derive from `seed`.
     pub(crate) fn new(seed: u64, size: u64) -> Self {
-        Self { seed, words: FxHashMap::default(), written: FxHashMap::default(), size }
+        Self { seed: Some(seed), words: FxHashMap::default(), written: FxHashMap::default(), size }
+    }
+
+    /// Creates empty memory whose bytes are zero, as a transaction starts with.
+    pub(crate) fn zeroed() -> Self {
+        Self { seed: None, words: FxHashMap::default(), written: FxHashMap::default(), size: 0 }
     }
 
     /// Sets the word at byte `offset` before a run, without counting it as written or growing
@@ -269,9 +364,10 @@ impl Memory {
 
     fn seeded(&self, word: u64) -> [u8; 32] {
         let mut bytes = [0; 32];
+        let Some(seed) = self.seed else { return bytes };
         for (index, chunk) in bytes.as_chunks_mut::<8>().0.iter_mut().enumerate() {
             let lane = mix64(word.wrapping_mul(4).wrapping_add(index as u64));
-            *chunk = mix64(self.seed ^ lane).to_be_bytes();
+            *chunk = mix64(seed ^ lane).to_be_bytes();
         }
         bytes
     }
@@ -313,6 +409,15 @@ impl Memory {
     fn read(&mut self, offset: U256, len: U256) -> Result<Vec<u8>, Limit> {
         let Some(offset) = self.access(offset, len)? else { return Ok(Vec::new()) };
         Ok((0..len.to::<u64>()).map(|index| self.byte(offset + index)).collect())
+    }
+
+    /// Writes `bytes` at `offset`, growing memory over them.
+    fn write(&mut self, offset: U256, bytes: &[u8]) -> Result<(), Limit> {
+        let Some(offset) = self.access(offset, U256::from(bytes.len()))? else { return Ok(()) };
+        for (index, &byte) in bytes.iter().enumerate() {
+            self.write_byte(offset + index as u64, byte);
+        }
+        Ok(())
     }
 
     fn copy(&mut self, dest: U256, src: U256, len: U256) -> Result<(), Limit> {
@@ -360,10 +465,59 @@ impl<'a> Machine<'a> {
             frames: Vec::new(),
             visited: DenseBitSet::new_empty(0),
             outcomes: IndexVec::new(),
+            transaction: None,
         };
         let ControlFlow::Break(outcome) = run.execute(function, args, meter);
         let Run { memory, fuel, visited, outcomes, .. } = run;
         Execution { outcome, memory, fuel, visited, outcomes }
+    }
+
+    /// Runs the module's dispatch entry as a transaction with `calldata` on `evm_version`, asking
+    /// `host` for its context, within `limits`.
+    pub(crate) fn transact(
+        &self,
+        calldata: &[u8],
+        host: &mut dyn Host,
+        evm_version: EvmVersion,
+        limits: Limits,
+    ) -> TransactionExecution {
+        let Some(entry) = self.module.dispatch_entry() else {
+            return TransactionExecution {
+                outcome: Outcome::Unsupported("module without a dispatch entry"),
+                storage: FxHashMap::default(),
+                logs: Vec::new(),
+            };
+        };
+        // mstore 0x40, heap start
+        let mut memory = Memory::zeroed();
+        memory.set(EvmMemoryLayout::FMP_SLOT, host.free_memory_start());
+        let mut run = Run {
+            machine: self,
+            memory,
+            limits,
+            fuel: 0,
+            frames: Vec::new(),
+            visited: DenseBitSet::new_empty(0),
+            outcomes: IndexVec::new(),
+            transaction: Some(Transaction {
+                calldata,
+                host,
+                evm_version,
+                storage: FxHashMap::default(),
+                transient: FxHashMap::default(),
+                logs: Vec::new(),
+                allocations: ALLOCATION_REGION,
+            }),
+        };
+        let ControlFlow::Break(outcome) = run.execute(entry, &[], &mut ());
+        let outcome = match outcome {
+            // return [] => stop
+            Outcome::Return(values) if values.is_empty() => Outcome::Stop,
+            Outcome::Return(_) => Outcome::Unsupported("dispatch entry returning values"),
+            outcome => outcome,
+        };
+        let transaction = run.transaction.expect("a transaction keeps its context");
+        TransactionExecution { outcome, storage: transaction.storage, logs: transaction.logs }
     }
 
     fn body(&self, id: FunctionId) -> Option<&'a Function> {
@@ -422,8 +576,23 @@ impl<'a> Frame<'a> {
     }
 }
 
+/// The context of a run that executes a whole transaction.
+struct Transaction<'t> {
+    calldata: &'t [u8],
+    host: &'t mut dyn Host,
+    /// The EVM version the module targets, which decides what `revert` does.
+    evm_version: EvmVersion,
+    /// The persistent storage slots the transaction wrote.
+    storage: FxHashMap<U256, U256>,
+    /// Transient storage, which every transaction starts empty.
+    transient: FxHashMap<U256, U256>,
+    logs: Vec<Log>,
+    /// The next free byte of the region holding the allocations the backend places itself.
+    allocations: u64,
+}
+
 /// One execution in progress.
-struct Run<'m, 'a> {
+struct Run<'m, 'a, 't> {
     machine: &'m Machine<'a>,
     memory: Memory,
     limits: Limits,
@@ -431,9 +600,10 @@ struct Run<'m, 'a> {
     frames: Vec<Frame<'a>>,
     visited: DenseBitSet<BlockId>,
     outcomes: IndexVec<InstId, u8>,
+    transaction: Option<Transaction<'t>>,
 }
 
-impl<'a> Run<'_, 'a> {
+impl<'a> Run<'_, 'a, '_> {
     fn execute(
         &mut self,
         function: FunctionId,
@@ -490,7 +660,20 @@ impl<'a> Run<'_, 'a> {
         if self.frames.len() >= self.limits.depth {
             return ControlFlow::Break(Outcome::Limit(Limit::Depth));
         }
-        if args.len() != body.params.len() || body.arg_indices().count() != body.params.len() {
+        let external = self.transaction.is_some() && body.is_external_entry();
+        let args = match &self.transaction {
+            // arg i = calldataload 4 + 32 * i
+            Some(transaction) if external && args.is_empty() => body
+                .arg_indices()
+                .map(|index| {
+                    let offset = 4 + index.index() as u64 * WORD_BYTES;
+                    calldata_word(transaction.calldata, U256::from(offset))
+                })
+                .collect(),
+            _ => args,
+        };
+        let params = if external { body.arg_indices().count() } else { body.params.len() };
+        if args.len() != params || body.arg_indices().count() != args.len() {
             return ControlFlow::Break(Outcome::Unsupported("call with mismatched arguments"));
         }
         if body.blocks.is_empty() {
@@ -535,6 +718,15 @@ impl<'a> Run<'_, 'a> {
                     None => return ControlFlow::Continue(()),
                 }
             }
+            Semantics::Opcode(opcode, operands)
+                if self.transaction.is_some() && !op::is_pure(opcode) =>
+            {
+                let operands = frame.read_all(&operands)?;
+                match self.transaction_opcode(opcode, &operands)? {
+                    Some(word) => word,
+                    None => return ControlFlow::Continue(()),
+                }
+            }
             Semantics::Call(Callee::Function(callee), args) => {
                 let args = frame.read_all(args)?.into_iter().collect();
                 let Some(callee) = self.machine.body(*callee) else {
@@ -543,6 +735,14 @@ impl<'a> Run<'_, 'a> {
                 return self.call(callee, args, instruction.result());
             }
             Semantics::Call(..) => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
+            Semantics::DataCopy(data, dest, len) => {
+                let (dest, len) = (frame.read(dest)?, frame.read(len)?);
+                return self.data_copy(data, dest, len);
+            }
+            Semantics::Allocate(size, kind, _) if self.transaction.is_some() => {
+                let size = frame.read(size)?;
+                self.allocate(size, kind)?
+            }
             semantics => match eval_semantics(semantics, |value| frame.word(value).ok_or(())) {
                 Ok(Some(word)) => word,
                 Ok(None) => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
@@ -594,6 +794,128 @@ impl<'a> Run<'_, 'a> {
         })
     }
 
+    /// Runs an opcode on a transaction's context, returning its result when it has one.
+    fn transaction_opcode(
+        &mut self,
+        opcode: u8,
+        operands: &[U256],
+    ) -> ControlFlow<Outcome, Option<U256>> {
+        let unsupported = || Outcome::Unsupported(op::mnemonic(opcode).unwrap_or("opcode"));
+        // Operations on memory come first, while no borrow of the context is live.
+        match (opcode, operands) {
+            (op::CALLDATACOPY, &[dest, offset, len]) => {
+                self.burn_words(len)?;
+                let calldata = self.transaction.as_ref().map_or(&[][..], |tx| tx.calldata);
+                let bytes = (0..len.to::<u64>())
+                    .map(|index| calldata_byte(calldata, offset, index))
+                    .collect::<Vec<_>>();
+                limit(self.memory.write(dest, &bytes))?;
+                return ControlFlow::Continue(None);
+            }
+            (op::LOG0..=op::LOG4, &[offset, len, ref topics @ ..]) => {
+                self.burn_words(len)?;
+                let data = limit(self.memory.read(offset, len))?;
+                let Some(transaction) = &mut self.transaction else {
+                    return ControlFlow::Break(unsupported());
+                };
+                transaction.logs.push(Log { topics: topics.to_vec(), data });
+                return ControlFlow::Continue(None);
+            }
+            _ => {}
+        }
+        let Some(transaction) = &mut self.transaction else {
+            return ControlFlow::Break(unsupported());
+        };
+        ControlFlow::Continue(match (opcode, operands) {
+            (op::CALLDATALOAD, &[offset]) => Some(calldata_word(transaction.calldata, offset)),
+            (op::CALLDATASIZE, &[]) => Some(U256::from(transaction.calldata.len())),
+            (op::SLOAD, &[slot]) => Some(match transaction.storage.get(&slot) {
+                Some(&value) => value,
+                None => transaction.host.storage(slot),
+            }),
+            (op::SSTORE, &[slot, value]) => {
+                transaction.storage.insert(slot, value);
+                None
+            }
+            (op::TLOAD, &[slot]) => {
+                Some(transaction.transient.get(&slot).copied().unwrap_or_default())
+            }
+            (op::TSTORE, &[slot, value]) => {
+                transaction.transient.insert(slot, value);
+                None
+            }
+            // The transaction makes no calls, so its return data stays empty.
+            (op::RETURNDATASIZE, &[]) => Some(U256::ZERO),
+            // Copying past the end of the return data halts.
+            (op::RETURNDATACOPY, &[_, offset, len]) => {
+                if !offset.is_zero() || !len.is_zero() {
+                    return ControlFlow::Break(Outcome::Invalid);
+                }
+                None
+            }
+            _ if HOST_OPCODES.contains(&opcode) => match transaction.host.read(opcode, operands) {
+                Some(word) => Some(word),
+                None => return ControlFlow::Break(unsupported()),
+            },
+            _ => return ControlFlow::Break(unsupported()),
+        })
+    }
+
+    /// Copies `len` bytes of the constant data at `data` to memory at `dest`.
+    fn data_copy(&mut self, data: DataRef, dest: U256, len: U256) -> ControlFlow<Outcome> {
+        self.burn_words(len)?;
+        // Another contract's bytecode is known only once final assembly links it in.
+        let Some(bytes) = self.machine.module.data.get(data.id).and_then(|data| data.bytes.known())
+        else {
+            return ControlFlow::Break(Outcome::Unsupported("datacopy of unlinked data"));
+        };
+        let start = data.offset as usize;
+        // The backend copies from where it placed the data in the code, so the bytes past its end
+        // are whatever follows it there.
+        let Some(bytes) = bytes.get(start..start.saturating_add(len.to::<usize>())) else {
+            return ControlFlow::Break(Outcome::Unsupported("datacopy past its data"));
+        };
+        limit(self.memory.write(dest, bytes))
+    }
+
+    /// Places an allocation whose placement the backend decides in the region the transaction
+    /// owns. Such an allocation runs at most once per call and its address never escapes, so
+    /// any fresh region serves. A fresh region is zero, as a zeroed allocation needs, and its
+    /// alignment and failure rules cannot matter for a size that fits.
+    fn allocate(&mut self, size: U256, kind: &AllocationKind) -> ControlFlow<Outcome, U256> {
+        let Some(transaction) = &mut self.transaction else {
+            return ControlFlow::Break(Outcome::Unsupported("alloc"));
+        };
+        if !matches!(kind, AllocationKind::Raw) || size > U256::from(MEMORY_LIMIT) {
+            return ControlFlow::Break(Outcome::Unsupported("alloc"));
+        }
+        // address = next free byte, rounded up to a word after the region
+        let address = transaction.allocations;
+        let end = address + size.to::<u64>().next_multiple_of(WORD_BYTES);
+        if end > MULTI_RETURN_BUFFER {
+            return ControlFlow::Break(Outcome::Limit(Limit::Memory));
+        }
+        transaction.allocations = end;
+        ControlFlow::Continue(U256::from(address))
+    }
+
+    /// Publishes the results after the first of a call returning several values the way the
+    /// backend does: result `k` at `buffer + 32 * k`, with `buffer` in the word at `0x20`.
+    fn publish_multi_return(&mut self, values: &[U256]) -> ControlFlow<Outcome> {
+        if self.transaction.is_none() {
+            // Further results pass through a memory buffer the backend owns.
+            return ControlFlow::Break(Outcome::Unsupported("call returning several values"));
+        }
+        // mstore buffer + 32 * k, result k
+        // mstore 0x20, buffer
+        for (index, &value) in values.iter().enumerate().skip(1) {
+            let offset = U256::from(MULTI_RETURN_BUFFER + index as u64 * WORD_BYTES);
+            limit(self.memory.store(offset, value))?;
+        }
+        let slot = U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
+        limit(self.memory.store(slot, U256::from(MULTI_RETURN_BUFFER)))
+    }
+
     fn terminator(
         &mut self,
         body: &'a Function,
@@ -629,15 +951,13 @@ impl<'a> Run<'_, 'a> {
             Terminator::Return { values } => {
                 let values = frame.read_all(values)?.into_iter().collect::<SmallVec<_>>();
                 let frame = self.frames.pop().expect("a run always has a frame");
-                let Some(caller) = self.frames.last_mut() else {
+                if self.frames.is_empty() {
                     return ControlFlow::Break(Outcome::Return(values));
-                };
-                // Further results pass through a memory buffer the backend owns.
-                if values.len() > 1 {
-                    return ControlFlow::Break(Outcome::Unsupported(
-                        "call returning several values",
-                    ));
                 }
+                if values.len() > 1 {
+                    self.publish_multi_return(&values)?;
+                }
+                let caller = self.frame();
                 if let Some(result) = frame.result {
                     let Some(&value) = values.first() else {
                         return ControlFlow::Break(Outcome::Unsupported("call without a result"));
@@ -648,6 +968,13 @@ impl<'a> Run<'_, 'a> {
             }
             &Terminator::Revert { offset, size } => {
                 let (offset, size) = (frame.read(offset)?, frame.read(size)?);
+                // `REVERT` is an undefined opcode before Byzantium, so it halts.
+                if let Some(transaction) = &self.transaction
+                    && op::definition(op::REVERT)
+                        .is_some_and(|revert| !revert.is_available(transaction.evm_version))
+                {
+                    return ControlFlow::Break(Outcome::Invalid);
+                }
                 self.burn_words(size)?;
                 ControlFlow::Break(Outcome::Revert(limit(self.memory.read(offset, size))?))
             }
@@ -709,6 +1036,23 @@ impl<'a> Run<'_, 'a> {
         }
         ControlFlow::Continue(())
     }
+}
+
+/// Returns the calldata word at `offset`, padded with zero bytes past the end.
+fn calldata_word(calldata: &[u8], offset: U256) -> U256 {
+    U256::from_be_bytes(std::array::from_fn::<u8, 32, _>(|index| {
+        calldata_byte(calldata, offset, index as u64)
+    }))
+}
+
+/// Returns byte `index` of the calldata word read at `offset`, zero past the end.
+fn calldata_byte(calldata: &[u8], offset: U256, index: u64) -> u8 {
+    let Ok(offset) = usize::try_from(offset) else { return 0 };
+    offset
+        .checked_add(index as usize)
+        .and_then(|position| calldata.get(position))
+        .copied()
+        .unwrap_or_default()
 }
 
 /// Ends a run whose memory access exceeded its limit.
@@ -989,5 +1333,135 @@ fn @storage(arg0: i256) -> i256 {
             let outcome = run(module, id("storage"), U256::ZERO).outcome;
             assert_eq!(outcome, Outcome::Unsupported("sload"));
         });
+    }
+
+    /// Answers `CALLVALUE` and slot 7, and nothing else.
+    struct TestHost;
+
+    impl Host for TestHost {
+        fn read(&mut self, opcode: u8, _: &[U256]) -> Option<U256> {
+            (opcode == op::CALLVALUE).then_some(U256::from(5))
+        }
+
+        fn storage(&mut self, slot: U256) -> U256 {
+            if slot == U256::from(7) { U256::from(100) } else { U256::ZERO }
+        }
+    }
+
+    fn transact(source: &str, calldata: &[u8]) -> TransactionExecution {
+        transact_on(source, calldata, EvmVersion::default())
+    }
+
+    fn transact_on(source: &str, calldata: &[u8], evm_version: EvmVersion) -> TransactionExecution {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let module = parse_module(&sess, source).unwrap();
+            Machine::new(&module).transact(calldata, &mut TestHost, evm_version, LIMITS)
+        })
+    }
+
+    #[test]
+    fn transactions() {
+        let context = transact(
+            "@module Tx
+@phase lowered
+@types
+  struct0: {i256, i256}
+
+fn @pair(arg0: i256) -> struct0 {
+  bb0:
+    v0 = add arg0, 1
+    ret arg0, v0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldataload 0
+    v2 = sload 7
+    v3 = add v2, v1
+    sstore 7, v3
+    tstore 1, v3
+    v4 = tload 1
+    v5 = icall @pair, v4
+    v6 = mload 32
+    v7 = add v6, 32
+    v8 = mload v7
+    mstore 0, v8
+    log1 0, 32, v0
+    v9 = calldatasize
+    v10 = calldataload 1
+    v11 = returndatasize
+    mstore 32, v9
+    mstore 64, v10
+    mstore 96, v11
+    returndata 0, 128
+}
+",
+            &U256::from(3).to_be_bytes::<32>(),
+        );
+        let words = [104, 32, 3 << 8, 0].map(|word| U256::from(word).to_be_bytes::<32>());
+        assert_eq!(context.outcome, Outcome::ReturnData(words.concat()));
+        assert_eq!(
+            context.storage.into_iter().collect::<Vec<_>>(),
+            [(U256::from(7), U256::from(103))]
+        );
+        let log = Log { topics: vec![U256::from(5)], data: words[0].to_vec() };
+        assert_eq!(context.logs, [log]);
+
+        let module = "@module Tx
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldatasize
+    switch v0, default bb1, [0 => bb2, 1 => bb3]
+  bb1:
+    ret
+  bb2:
+    returndatacopy 0, 0, 1
+    stop
+  bb3:
+    v1 = caller
+    stop
+}
+";
+        assert_eq!(transact(module, &[0, 0]).outcome, Outcome::Stop);
+        assert_eq!(transact(module, &[]).outcome, Outcome::Invalid);
+        assert_eq!(transact(module, &[0]).outcome, Outcome::Unsupported("caller"));
+
+        let module = "@module Tx
+@phase lowered
+@data
+  literal_0: hex\"0102\"
+
+fn @echo() [selector=0x00000001, abi_wrapper] {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32 !metadata(deferred_alloc)
+    datacopy literal_0, v0, 2
+    v1 = mload v0
+    v2 = eq arg0, 0
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 0, arg0
+    mstore 32, v1
+    returndata 0, 64
+}
+
+fn @entry() [entry] {
+  bb0:
+    tail_call @echo
+}
+";
+        // An external entry reads its argument from calldata after the selector.
+        let calldata = [&[0, 0, 0, 1][..], &U256::from(42).to_be_bytes::<32>()].concat();
+        let data = U256::from(0x0102) << 240;
+        let words = [U256::from(42), data].map(|word| word.to_be_bytes::<32>());
+        assert_eq!(transact(module, &calldata).outcome, Outcome::ReturnData(words.concat()));
+        // `REVERT` does not exist before Byzantium.
+        assert_eq!(transact(module, &[0, 0, 0, 1]).outcome, Outcome::Revert(Vec::new()));
+        let outcome = transact_on(module, &[0, 0, 0, 1], EvmVersion::Homestead).outcome;
+        assert_eq!(outcome, Outcome::Invalid);
     }
 }
