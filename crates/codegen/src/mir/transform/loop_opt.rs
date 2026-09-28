@@ -92,7 +92,12 @@ impl MirPass for Licm {
                 let mut optimizer = LoopOptimizer::with_limits(3, 8);
                 optimizer.hoist_cheap = hoist_cheap;
                 optimizer.alias = Some(Rc::clone(analyses.alias()));
-                optimizer.optimize(func, Rc::clone(analyses.cfg())).instructions_hoisted != 0
+                let changed =
+                    optimizer.optimize(func, Rc::clone(analyses.cfg())).instructions_hoisted != 0;
+                if optimizer.annotated_aliases {
+                    analyses.note_unreported_edit();
+                }
+                changed
             },
         )
     }
@@ -133,6 +138,8 @@ struct LoopOptimizer {
     hoist_cheap: bool,
     stats: LoopOptStats,
     alias: Option<Rc<AliasAnalysis>>,
+    /// Whether storage-alias annotation changed metadata, which is not reported as a change.
+    annotated_aliases: bool,
 }
 
 impl Default for LoopOptimizer {
@@ -143,6 +150,7 @@ impl Default for LoopOptimizer {
             hoist_cheap: false,
             stats: LoopOptStats::default(),
             alias: None,
+            annotated_aliases: false,
         }
     }
 }
@@ -162,13 +170,15 @@ impl LoopOptimizer {
             hoist_cheap: false,
             stats: LoopOptStats::default(),
             alias: None,
+            annotated_aliases: false,
         }
     }
 
     /// Runs loop-invariant code motion on a function.
     fn optimize(&mut self, func: &mut Function, cfg: Rc<CfgInfo>) -> &LoopOptStats {
         self.stats = LoopOptStats::default();
-        func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
+        self.annotated_aliases |=
+            func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
         if self.alias.is_none() {
             self.alias = Some(Rc::new(AliasAnalysis::new(func)));
         }

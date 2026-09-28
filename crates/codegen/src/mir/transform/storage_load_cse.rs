@@ -45,7 +45,11 @@ impl MirPass for StorageLoadCse {
             |func, analyses| {
                 let mut cse = StorageLoadCseCx::new();
                 cse.alias = Some(Rc::clone(analyses.alias()));
-                cse.run_to_fixpoint(func) != 0
+                let changed = cse.run_to_fixpoint(func) != 0;
+                if cse.annotated_aliases {
+                    analyses.note_unreported_edit();
+                }
+                changed
             },
         )
     }
@@ -57,6 +61,8 @@ struct StorageLoadCseCx {
     /// Number of storage loads eliminated.
     eliminated_count: usize,
     alias: Option<Rc<AliasAnalysis>>,
+    /// Whether storage-alias annotation changed metadata, which is not reported as a change.
+    annotated_aliases: bool,
 }
 
 struct RunState {
@@ -83,7 +89,8 @@ impl StorageLoadCseCx {
 
     fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
         self.eliminated_count = 0;
-        func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
+        self.annotated_aliases |=
+            func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
         if self.alias.is_none() {
             self.alias = Some(Rc::new(AliasAnalysis::new(func)));
         }
