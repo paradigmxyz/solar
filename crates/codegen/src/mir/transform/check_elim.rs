@@ -798,6 +798,7 @@ impl<'a> CheckEliminator<'a> {
         let mut cx = Self::new(self.immutable_ranges);
         cx.universal_relations.clone_from(&self.universal_relations);
         let mut pending = cfg.reachable().clone();
+        let mut visited = DenseBitSet::new_empty(func.blocks.len());
         for _ in 0..MAX_ROUNDS {
             let mut changed = false;
             for &block in cfg.rpo() {
@@ -874,6 +875,10 @@ impl<'a> CheckEliminator<'a> {
                     }
                 }
                 let entry = merged.unwrap_or_default();
+                // The exit facts depend only on the entry facts.
+                if !visited.insert(block) && entries[block] == entry {
+                    continue;
+                }
                 cx.ranges.clone_from(&entry.ranges);
                 cx.relations.clone_from(&entry.relations);
                 cx.strict_lower_bounds = None;
