@@ -1,10 +1,10 @@
 llm-optimize Loops @main: not offered: is the dispatch entry
-llm-optimize Loops @sum: offered at 8569 gas, 43 bytes
+llm-optimize Loops @sum: offered at 10796 gas, 43 bytes
 llm-optimize Loops @sum: round 1: accepted at 82 gas, 31 bytes
 llm-optimize Loops @sum: round 2: accepted at 74 gas, 28 bytes
 llm-optimize Loops @sum: round 3: rejected at cost: costs 72 gas, 28 bytes, which does not beat 74 gas, 28 bytes
 llm-optimize Loops @sum: round 4: nothing cheaper
-llm-optimize Loops @sum: rewritten from 8569 gas, 43 bytes to 74 gas, 28 bytes
+llm-optimize Loops @sum: rewritten from 10796 gas, 43 bytes to 74 gas, 28 bytes
 - // === ROOT/tests/ui/codegen/mir/llm-optimize/loops.mir (before llm-optimize) ===
 + // === ROOT/tests/ui/codegen/mir/llm-optimize/loops.mir (after llm-optimize) ===
   @module Loops

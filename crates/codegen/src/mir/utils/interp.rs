@@ -2,7 +2,8 @@
 //!
 //! [`Machine::run`] executes one function of a lowered module on concrete arguments and memory,
 //! following internal calls into the rest of the module, and reports how the run ended, the
-//! memory it left behind, and the blocks of the function it visited. It is a testing oracle, not
+//! memory it left behind, the blocks of the function it completed, and whether each value of that
+//! function was ever zero and ever nonzero. It is a testing oracle, not
 //! part of code generation: the `llm-optimize` pass runs an original function and a candidate
 //! replacement on the same inputs and compares what they do.
 //!
@@ -104,8 +105,12 @@ pub(crate) struct Execution {
     pub(crate) memory: Memory,
     /// The fuel it spent.
     pub(crate) fuel: u64,
-    /// The blocks of the function under test it entered, before any tail call left it.
+    /// The blocks of the function under test whose terminators it reached, before any tail call
+    /// left it. A block that a call inside it never returns from is not complete.
     pub(crate) visited: DenseBitSet<BlockId>,
+    /// For each instruction of the function under test, whether its result was ever zero (bit 0)
+    /// and ever nonzero (bit 1).
+    pub(crate) outcomes: IndexVec<InstId, u8>,
 }
 
 /// Observes every operation an execution runs, for example to price it.
@@ -347,9 +352,11 @@ impl<'a> Machine<'a> {
             fuel: 0,
             frames: Vec::new(),
             visited: DenseBitSet::new_empty(0),
+            outcomes: IndexVec::new(),
         };
         let ControlFlow::Break(outcome) = run.execute(function, args, meter);
-        Execution { outcome, memory: run.memory, fuel: run.fuel, visited: run.visited }
+        let Run { memory, fuel, visited, outcomes, .. } = run;
+        Execution { outcome, memory, fuel, visited, outcomes }
     }
 
     fn body(&self, id: FunctionId) -> Option<&'a Function> {
@@ -416,6 +423,7 @@ struct Run<'m, 'a> {
     fuel: u64,
     frames: Vec<Frame<'a>>,
     visited: DenseBitSet<BlockId>,
+    outcomes: IndexVec<InstId, u8>,
 }
 
 impl<'a> Run<'_, 'a> {
@@ -429,9 +437,9 @@ impl<'a> Run<'_, 'a> {
             return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
         };
         self.visited = DenseBitSet::new_empty(body.blocks.len());
+        self.outcomes = index_vec![0; body.num_insts()];
         self.call(body, args.iter().copied().collect(), None)?;
         self.frame().entry = true;
-        self.visited.insert(BlockId::ENTRY);
         loop {
             let frame = self.frame();
             let (body, block, next) = (frame.body, frame.block, frame.next);
@@ -500,6 +508,7 @@ impl<'a> Run<'_, 'a> {
             return ControlFlow::Break(Outcome::Unsupported(mnemonic));
         }
         let frame = self.frames.last().expect("a run always has a frame");
+        let entry = frame.entry;
         meter.instruction(body, inst, &|value| frame.word(value));
         let result = match &instruction.kind {
             InstKind::Phi(_) => {
@@ -551,6 +560,9 @@ impl<'a> Run<'_, 'a> {
         let Some(value) = instruction.result() else {
             return ControlFlow::Break(Outcome::Unsupported("result without a value"));
         };
+        if entry {
+            self.outcomes[inst] |= if result.is_zero() { 1 } else { 2 };
+        }
         self.frame().values[value] = Some(result);
         ControlFlow::Continue(())
     }
@@ -567,6 +579,9 @@ impl<'a> Run<'_, 'a> {
         };
         let frame = self.frames.last().expect("a run always has a frame");
         meter.terminator(body, block, &|value| frame.word(value));
+        if frame.entry {
+            self.visited.insert(block);
+        }
         match terminator {
             &Terminator::Jump(target) => self.enter(target, meter),
             &Terminator::Branch { condition, then_block, else_block } => {
@@ -640,7 +655,7 @@ impl<'a> Run<'_, 'a> {
         let Some(block) = body.blocks.get(target) else {
             return ControlFlow::Break(Outcome::Unsupported("jump to an unknown block"));
         };
-        let mut incoming = SmallVec::<[(ValueId, U256); 8]>::new();
+        let mut incoming = SmallVec::<[(InstId, ValueId, U256); 8]>::new();
         for &inst in &block.instructions {
             let instruction = body.inst(inst);
             let InstKind::Phi(inputs) = &instruction.kind else { break };
@@ -650,17 +665,20 @@ impl<'a> Run<'_, 'a> {
                 return ControlFlow::Break(Outcome::Unsupported("phi without an input"));
             };
             meter.instruction(body, inst, &|value| frame.word(value));
-            incoming.push((result, frame.read(value)?));
+            incoming.push((inst, result, frame.read(value)?));
         }
         self.burn(incoming.len() as u64)?;
         let frame = self.frame();
         frame.next = incoming.len();
-        for (result, value) in incoming {
+        let entry = frame.entry;
+        for &(_, result, value) in &incoming {
             frame.values[result] = Some(value);
         }
         frame.block = target;
-        if frame.entry {
-            self.visited.insert(target);
+        if entry {
+            for (inst, _, value) in incoming {
+                self.outcomes[inst] |= if value.is_zero() { 1 } else { 2 };
+            }
         }
         ControlFlow::Continue(())
     }
@@ -830,9 +848,16 @@ fn @storage(arg0: i256) -> i256 {
             assert_eq!(run(module, id("sum"), U256::from(10)).outcome, returned(55));
             // The phis of a block read their inputs before any of them is assigned.
             assert_eq!(run(module, id("swap"), U256::from(3)).outcome, returned(21));
-            let visited = run(module, id("sum"), U256::ZERO).visited;
-            let blocks = visited.iter().map(BlockId::index).collect::<Vec<_>>();
+            let execution = run(module, id("sum"), U256::ZERO);
+            let blocks = execution.visited.iter().map(BlockId::index).collect::<Vec<_>>();
             assert_eq!(blocks, [0, 1, 3]);
+            // `v2 = lt v0, arg0` only ever came out false, and both ways over ten iterations.
+            let compare = InstId::from_usize(2);
+            assert_eq!(execution.outcomes[compare], 1);
+            assert_eq!(run(module, id("sum"), U256::from(10)).outcomes[compare], 3);
+            // A block counts once its terminator runs: the call to `@fail` never returns.
+            let visited = run(module, id("calls"), U256::from(30)).visited;
+            assert_eq!(visited.iter().map(BlockId::index).collect::<Vec<_>>(), [0]);
         });
     }
 
