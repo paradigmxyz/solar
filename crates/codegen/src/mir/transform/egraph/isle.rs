@@ -14,7 +14,6 @@ use crate::{
         ArgIdx, BlockId, Function, Immediate, InstKind, MemoryObjectKind, MemoryObjectLayout,
         MirType, Op, Value as MirValue, ValueId,
         memory::{EvmMemoryLayout, MemoryLayoutPolicy},
-        utils::eval::eval_opcode,
     },
     target::Target,
 };
@@ -557,15 +556,15 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn u256_shl(&mut self, shift: U256, value: U256) -> U256 {
-        eval_opcode(op::SHL, &[shift, value]).expect("SHL has word semantics") & self.integer_mask()
+        op::eval(op::SHL, &[shift, value]).expect("SHL has word semantics") & self.integer_mask()
     }
 
     fn u256_shr(&mut self, shift: U256, value: U256) -> U256 {
-        eval_opcode(op::SHR, &[shift, value]).expect("SHR has word semantics")
+        op::eval(op::SHR, &[shift, value]).expect("SHR has word semantics")
     }
 
     fn u256_byte(&mut self, index: U256, value: U256) -> U256 {
-        eval_opcode(op::BYTE, &[index, value]).expect("BYTE has word semantics")
+        op::eval(op::BYTE, &[index, value]).expect("BYTE has word semantics")
     }
 
     fn in_current_block(&mut self, value: Value) -> bool {
