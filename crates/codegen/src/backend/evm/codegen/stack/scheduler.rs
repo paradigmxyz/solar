@@ -343,11 +343,32 @@ impl OperandCostModel {
 
 #[derive(Clone, Copy)]
 struct OperandPlanningContext<'a> {
-    func: &'a Function,
     required_counts: &'a FxHashMap<ValueId, usize>,
+    /// The entries of `required_counts` in its iteration order.
+    required: &'a [RequiredOperand],
     optimization: OptimizationMode,
     evm_version: EvmVersion,
     cost_model: OperandCostModel,
+}
+
+impl OperandPlanningContext<'_> {
+    fn required_operand(&self, value: ValueId) -> &RequiredOperand {
+        self.required
+            .iter()
+            .find(|operand| operand.value == value)
+            .expect("every goal value is required")
+    }
+}
+
+/// Stack-independent facts about one value that an operand plan must place.
+#[derive(Clone, Copy)]
+struct RequiredOperand {
+    value: ValueId,
+    count: usize,
+    /// A fresh materialization of the value and its cost.
+    materialize: Option<(ScheduledOp, ScheduleCost)>,
+    /// A fresh materialization that dominates `DUP1` for an extra copy.
+    preferred_copy: Option<ScheduledOp>,
 }
 
 /// Estimated cost of an operand preparation plan.
@@ -906,9 +927,10 @@ impl StackScheduler {
                 *reachable += usize::from(depth <= max_stack_access);
             }
         }
-        let inaccessible_required = required_counts.keys().any(|&value| {
-            self.materialize_operand(value, func).is_none()
-                && stack_counts.get(&value).is_none_or(|&(_, reachable)| reachable == 0)
+        let required = self.required_operands(&required_counts, func, evm_version, cost_model);
+        let inaccessible_required = required.iter().any(|operand| {
+            operand.materialize.is_none()
+                && stack_counts.get(&operand.value).is_none_or(|&(_, reachable)| reachable == 0)
         });
         let inaccessible_dead_copy = goal.iter().any(|&value| {
             !preserve_counts.contains_key(&value)
@@ -937,8 +959,8 @@ impl StackScheduler {
             cost: ScheduleCost::default(),
         };
         let context = OperandPlanningContext {
-            func,
             required_counts: &required_counts,
+            required: &required,
             optimization,
             evm_version,
             cost_model,
@@ -1805,8 +1827,14 @@ impl StackScheduler {
         preserve_counts: &FxHashMap<ValueId, usize>,
         context: OperandPlanningContext<'_>,
     ) -> SmallVec<[PlannedAction; 24]> {
-        let OperandPlanningContext { func, required_counts, optimization, evm_version, cost_model } =
-            context;
+        let OperandPlanningContext {
+            required_counts,
+            required,
+            optimization,
+            evm_version,
+            cost_model,
+            ..
+        } = context;
         let max_stack_access = evm_version.reachable_stack_depth();
         let mut actions = SmallVec::<[PlannedAction; 24]>::new();
         if (matches!(optimization, OptimizationMode::Gas) || cost_model.needs_headroom(stack.len()))
@@ -1834,18 +1862,13 @@ impl StackScheduler {
         }
 
         if stack.len() < MAX_STACK_DEPTH {
-            for (&value, &required) in required_counts {
+            let duplicate_cost =
+                ScheduleCost::of_op(&ScheduledOp::Stack(StackOp::Dup(1)), evm_version, cost_model);
+            for &RequiredOperand { value, count: required, materialize, preferred_copy } in required
+            {
                 let current = stack.iter().filter(|&&slot| slot == Some(value)).count();
-                let materialize = self.materialize_operand(value, func);
-                let cheap_surplus_materialization = materialize.as_ref().is_some_and(|op| {
-                    let materialize_cost = ScheduleCost::of_op(op, evm_version, cost_model);
-                    let duplicate_cost = ScheduleCost::of_op(
-                        &ScheduledOp::Stack(StackOp::Dup(1)),
-                        evm_version,
-                        cost_model,
-                    );
-                    materialize_cost.cmp_for(duplicate_cost, optimization).is_lt()
-                });
+                let cheap_surplus_materialization = materialize
+                    .is_some_and(|(_, cost)| cost.cmp_for(duplicate_cost, optimization).is_lt());
                 let cheap_surplus_copy_can_help = matches!(optimization, OptimizationMode::Gas)
                     && preserve_counts.contains_key(&value)
                     && cheap_surplus_materialization;
@@ -1853,14 +1876,21 @@ impl StackScheduler {
                     && let Some(depth) =
                         stack.iter().take(max_stack_access).position(|&slot| slot == Some(value))
                 {
-                    let op = self.copy_or_materialize(
-                        value,
-                        func,
-                        (depth + 1) as u8,
-                        optimization,
-                        evm_version,
-                        cost_model,
-                    );
+                    // Same choice as `copy_or_materialize`, from the cached materializations.
+                    let duplicate = ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8));
+                    let op = preferred_copy
+                        .or_else(|| {
+                            materialize
+                                .filter(|(_, cost)| {
+                                    cost.cmp_for(
+                                        ScheduleCost::of_op(&duplicate, evm_version, cost_model),
+                                        optimization,
+                                    )
+                                    .is_lt()
+                                })
+                                .map(|(op, _)| op)
+                        })
+                        .unwrap_or(duplicate);
                     actions.push(PlannedAction { op, pushed: Some(value) });
                 }
             }
@@ -1870,11 +1900,11 @@ impl StackScheduler {
                     continue;
                 }
                 let current = stack.iter().filter(|&&slot| slot == Some(value)).count();
-                let required = required_counts.get(&value).copied().unwrap_or_default();
+                let operand = context.required_operand(value);
                 let accessible =
                     stack.iter().take(max_stack_access).any(|&slot| slot == Some(value));
-                if (current < required || !accessible)
-                    && let Some(op) = self.materialize_operand(value, func)
+                if (current < operand.count || !accessible)
+                    && let Some((op, _)) = operand.materialize
                 {
                     actions.push(PlannedAction { op, pushed: Some(value) });
                 }
@@ -2015,14 +2045,14 @@ impl StackScheduler {
         preserve_counts: &FxHashMap<ValueId, usize>,
         context: OperandPlanningContext<'_>,
     ) -> ScheduleCost {
-        let OperandPlanningContext { func, required_counts, optimization, evm_version, cost_model } =
+        let OperandPlanningContext { required, optimization, evm_version, cost_model, .. } =
             context;
         let max_stack_access = evm_version.reachable_stack_depth();
 
         let mut remaining = ScheduleCost::default();
         let mut missing_counts = SmallVec::<[(ValueId, usize); 8]>::new();
         let mut total_missing = 0usize;
-        for (&value, &required) in required_counts {
+        for &RequiredOperand { value, count: required, materialize, .. } in required {
             let current = stack.iter().filter(|&&slot| slot == Some(value)).count();
             let missing = required.saturating_sub(current);
             if missing == 0 {
@@ -2032,9 +2062,7 @@ impl StackScheduler {
             total_missing += missing;
 
             let duplicate = ScheduleCost::stack_op(StackOp::Dup(1), evm_version);
-            let materialize = self
-                .materialize_operand(value, func)
-                .map(|op| ScheduleCost::of_op(&op, evm_version, cost_model));
+            let materialize = materialize.map(|(_, cost)| cost);
             let subsequent = materialize
                 .filter(|cost| cost.cmp_for(duplicate, optimization).is_lt())
                 .unwrap_or(duplicate);
@@ -2078,8 +2106,7 @@ impl StackScheduler {
                 if (missing || accessible) && !surplus_copy_can_help {
                     continue;
                 }
-                if let Some(op) = self.materialize_operand(value, func) {
-                    let cost = ScheduleCost::of_op(&op, evm_version, cost_model);
+                if let Some((_, cost)) = context.required_operand(value).materialize {
                     if cost.cmp_for(rearrange, optimization).is_lt() {
                         rearrange = cost;
                     }
@@ -2088,8 +2115,7 @@ impl StackScheduler {
             remaining = remaining.plus(rearrange);
         } else if total_missing == 0 && !Self::operand_goal_reached(stack, goal, preserve_counts) {
             let mut cheapest = None;
-            let mut consider = |op: ScheduledOp| {
-                let cost = ScheduleCost::of_op(&op, evm_version, cost_model);
+            let mut consider = |cost: ScheduleCost| {
                 if cheapest.is_none_or(|old: ScheduleCost| cost.cmp_for(old, optimization).is_lt())
                 {
                     cheapest = Some(cost);
@@ -2099,13 +2125,21 @@ impl StackScheduler {
             if let Some(&top) = stack.first()
                 && stack.iter().take(max_stack_access + 1).skip(1).any(|&slot| slot != top)
             {
-                consider(ScheduledOp::Stack(StackOp::Swap(1)));
+                consider(ScheduleCost::of_op(
+                    &ScheduledOp::Stack(StackOp::Swap(1)),
+                    evm_version,
+                    cost_model,
+                ));
             }
             if (matches!(optimization, OptimizationMode::Gas)
                 || cost_model.needs_headroom(stack.len()))
                 && Self::operand_pop_can_help(stack, goal, preserve_counts, max_stack_access)
             {
-                consider(ScheduledOp::Stack(StackOp::Pop));
+                consider(ScheduleCost::of_op(
+                    &ScheduledOp::Stack(StackOp::Pop),
+                    evm_version,
+                    cost_model,
+                ));
             }
             for &value in goal {
                 let accessible =
@@ -2113,9 +2147,9 @@ impl StackScheduler {
                 let surplus_copy_can_help = matches!(optimization, OptimizationMode::Gas)
                     && preserve_counts.contains_key(&value);
                 if (!accessible || surplus_copy_can_help)
-                    && let Some(op) = self.materialize_operand(value, func)
+                    && let Some((_, cost)) = context.required_operand(value).materialize
                 {
-                    consider(op);
+                    consider(cost);
                 }
             }
             if let Some(cheapest) = cheapest {
@@ -2243,6 +2277,27 @@ impl StackScheduler {
             crate::mir::Value::Inst(_) => None,
             _ => None,
         }
+    }
+
+    /// Collects the stack-independent facts of each required value, in the map's iteration order.
+    fn required_operands(
+        &self,
+        required_counts: &FxHashMap<ValueId, usize>,
+        func: &Function,
+        evm_version: EvmVersion,
+        cost_model: OperandCostModel,
+    ) -> SmallVec<[RequiredOperand; 8]> {
+        required_counts
+            .iter()
+            .map(|(&value, &count)| RequiredOperand {
+                value,
+                count,
+                materialize: self
+                    .materialize_operand(value, func)
+                    .map(|op| (op, ScheduleCost::of_op(&op, evm_version, cost_model))),
+                preferred_copy: self.preferred_copy_materialization(value, func),
+            })
+            .collect()
     }
 
     fn rematerialize_nullary(value: ValueId, func: &Function) -> Option<ScheduledOp> {
@@ -2694,9 +2749,15 @@ mod tests {
         for &value in &goal {
             *required_counts.entry(value).or_default() += 1;
         }
-        let context = OperandPlanningContext {
+        let required = scheduler.required_operands(
+            &required_counts,
             func,
+            evm_version,
+            OperandCostModel::DIRECT,
+        );
+        let context = OperandPlanningContext {
             required_counts: &required_counts,
+            required: &required,
             optimization,
             evm_version,
             cost_model: OperandCostModel::DIRECT,
@@ -3832,9 +3893,15 @@ mod tests {
                         for &value in &goal {
                             *required_counts.entry(value).or_default() += 1;
                         }
+                        let required = scheduler.required_operands(
+                            &required_counts,
+                            &func,
+                            EvmVersion::Shanghai,
+                            OperandCostModel::DIRECT,
+                        );
                         let context = OperandPlanningContext {
-                            func: &func,
                             required_counts: &required_counts,
+                            required: &required,
                             optimization,
                             evm_version: EvmVersion::Shanghai,
                             cost_model: OperandCostModel::DIRECT,
@@ -3943,9 +4010,15 @@ mod tests {
 
         let goal = [second, first];
         let required_counts = FxHashMap::from_iter([(first, 1), (second, 1)]);
+        let required = scheduler.required_operands(
+            &required_counts,
+            &func,
+            EvmVersion::Amsterdam,
+            OperandCostModel::DIRECT,
+        );
         let context = OperandPlanningContext {
-            func: &func,
             required_counts: &required_counts,
+            required: &required,
             optimization: OptimizationMode::Gas,
             evm_version: EvmVersion::Amsterdam,
             cost_model: OperandCostModel::DIRECT,
