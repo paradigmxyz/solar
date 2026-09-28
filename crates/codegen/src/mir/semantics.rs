@@ -10,13 +10,15 @@
 //! - `word(value)`, `low_bits(value, bits)`, and `sign_extend(value, from, to)`: casts.
 //! - `not_equal(a, b)`, `select(condition, if_true, if_false)`, `phi(incoming)`, `call(callee,
 //!   args)`, and `checked(op, arithmetic, lhs, rhs)`.
+//! - `allocate(size, kind, semantics)`: a fresh memory region, and `data_copy(data, dest, size)`:
+//!   constant data copied to memory.
 //!
 //! [`InstKind::semantics`] returns one instruction's declaration. Tools interpret it instead of
 //! classifying operations themselves: constant folding evaluates the word operations
 //! (`utils::eval`), and the interpreter (`utils::interp`) adds memory and calls. An operation
 //! without a declaration has no interpretation. That covers the semantic operations that later
 //! passes expand, and the placeholders whose values the backend's layout decides, such as frame
-//! addresses, allocations, and immutables.
+//! addresses, immutables, and library addresses.
 //!
 //! Instruction selection picks opcodes on its own, in `isle/mir-to-evm/select.isle`, and a test
 //! checks that it picks each declared opcode. The interpreter therefore gives an operation the
@@ -24,7 +26,10 @@
 //!
 //! [`InstKind::semantics`]: super::InstKind::semantics
 
-use super::{ArithmeticKind, BlockId, Callee, CheckedOp, ValueId};
+use super::{
+    AllocationKind, AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef,
+    ValueId,
+};
 use smallvec::SmallVec;
 
 /// What one MIR operation computes.
@@ -50,6 +55,13 @@ pub(crate) enum Semantics<'a> {
     /// The checked arithmetic operation on the operands, which panics when its result does not
     /// fit the arithmetic type or its divisor is zero.
     Checked(CheckedOp, ArithmeticKind, ValueId, ValueId),
+    /// The address of a fresh memory region of the operand's size, of this kind and with these
+    /// alignment, initialization, and failure rules. Lowering bumps the free memory pointer for
+    /// it, except for the allocations it defers to the backend, which places them in its layout.
+    Allocate(ValueId, &'a AllocationKind, AllocationSemantics),
+    /// The constant data at the reference, copied to memory at the first operand for the second
+    /// operand's byte count.
+    DataCopy(DataRef, ValueId, ValueId),
 }
 
 /// Constructors for the `#[semantics(...)]` declarations of the operation schema, which bind an
@@ -104,6 +116,20 @@ pub(super) mod declare {
         rhs: &ValueId,
     ) -> Semantics<'static> {
         Semantics::Checked(*op, *arithmetic, *lhs, *rhs)
+    }
+
+    /// A fresh memory region.
+    pub(crate) fn allocate<'a>(
+        size: &ValueId,
+        kind: &'a AllocationKind,
+        semantics: &AllocationSemantics,
+    ) -> Semantics<'a> {
+        Semantics::Allocate(*size, kind, *semantics)
+    }
+
+    /// Constant data copied to memory.
+    pub(crate) fn data_copy(data: &DataRef, dest: &ValueId, size: &ValueId) -> Semantics<'static> {
+        Semantics::DataCopy(*data, *dest, *size)
     }
 }
 
