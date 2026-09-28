@@ -1017,8 +1017,9 @@ impl StackScheduler {
             }
             expansions += 1;
 
-            let stack = state.stack.clone();
+            // Each state is expanded at most once, and nothing reads its stack afterwards.
             let cost = state.cost;
+            let stack = std::mem::take(&mut states[state_idx].stack);
             for action in self.operand_search_actions(&stack, &goal, &preserve_counts, context) {
                 if states.len() >= MAX_OPERAND_SEARCH_CREATED_STATES
                     || visited.len() >= MAX_OPERAND_SEARCH_VISITED_STATES
