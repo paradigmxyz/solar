@@ -5,10 +5,14 @@ use super::{
     data::{MetadataHash, Settings, optimizer_settings},
 };
 use alloy_primitives::{Bytes, keccak256};
+use rayon::prelude::*;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use solar_config::{RevertStrings, version::SEMVER_VERSION};
-use solar_data_structures::{bit_set::GrowableBitSet, index::IndexVec};
+use solar_data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    index::IndexVec,
+};
 use solar_sema::{
     Gcx,
     hir::{ContractId, SourceId},
@@ -74,6 +78,28 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
             MetadataHash::None => push_cbor_metadata(&mut data, "", hash),
         }
         data.into()
+    }
+
+    /// Computes the metadata of `contracts` in parallel, hashing each referenced source once.
+    pub(super) fn precompute(&self, contracts: &[ContractId]) {
+        let mut sources = DenseBitSet::new_empty(self.sources.len());
+        for &contract_id in contracts {
+            for &source_id in self.referenced_sources(self.gcx.hir.contract(contract_id).source) {
+                sources.insert(source_id);
+            }
+        }
+        self.gcx.sess.join(
+            || {
+                sources.iter().collect::<Vec<_>>().into_par_iter().for_each(|source_id| {
+                    self.source(source_id);
+                });
+            },
+            || {
+                contracts.par_iter().for_each(|&contract_id| {
+                    self.json(contract_id);
+                });
+            },
+        );
     }
 
     fn source(&self, source_id: SourceId) -> &Value {

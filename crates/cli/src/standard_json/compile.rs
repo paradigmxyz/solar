@@ -3,9 +3,9 @@
 use super::{
     data::{
         BytecodeOutput, CompilerInput, CompilerOutput, ContractOutput, DebugInfoComponent,
-        DebugSettings, EthdebugOutput, EvmOutput, FxIndexMap, MetadataHash, OffsetLength,
-        OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings, SourceOutput,
-        StandardJsonReadCallback, optimizer_settings, print_standard_json_stats,
+        DebugSettings, EthdebugOutput, EvmOutput, FxIndexMap, MetadataHash, MetadataSettings,
+        OffsetLength, OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings,
+        SourceOutput, StandardJsonReadCallback, optimizer_settings, print_standard_json_stats,
         strip_json_comments,
     },
     metadata::Metadata,
@@ -346,12 +346,35 @@ fn compile(
                     .as_ref()
                     .map(|metadata| |contract_id| metadata.runtime_data(contract_id));
                 let runtime_data = runtime_data.as_ref().map(|data| data as &RuntimeDataFn<'_>);
-                let bytecodes = crate::emit::emit_requested(
-                    compiler,
-                    bytecode_contracts,
-                    runtime_data,
-                    debug_info_contracts,
-                )?;
+                let metadata_contracts =
+                    contract_metadata.as_ref().filter(|_| gcx.sess.is_parallel()).map(|_| {
+                        requested_metadata_contracts(
+                            gcx,
+                            output_selection,
+                            &bytecode_contracts,
+                            *metadata,
+                        )
+                    });
+                // Metadata does not depend on bytecode, so compute it while codegen leaves
+                // workers idle.
+                let (bytecodes, ()) = gcx.sess.join(
+                    || {
+                        crate::emit::emit_requested(
+                            compiler,
+                            bytecode_contracts,
+                            runtime_data,
+                            debug_info_contracts,
+                        )
+                    },
+                    || {
+                        if let (Some(contract_metadata), Some(contracts)) =
+                            (&contract_metadata, &metadata_contracts)
+                        {
+                            contract_metadata.precompute(contracts);
+                        }
+                    },
+                );
+                let bytecodes = bytecodes?;
 
                 gcx.dcx().has_errors()?;
 
@@ -763,6 +786,30 @@ fn requested_bytecode_contracts(
         }
     }
     contracts
+}
+
+/// Returns the contracts whose metadata is requested directly or hashed into their bytecode.
+fn requested_metadata_contracts(
+    gcx: solar_sema::Gcx<'_>,
+    output_selection: &OutputSelection<'_>,
+    bytecode_contracts: &ContractSelection,
+    metadata: MetadataSettings,
+) -> Vec<ContractId> {
+    let mut contracts = ContractSelection::empty(gcx);
+    if metadata.append_cbor && metadata.bytecode_hash.value != MetadataHash::None {
+        contracts.union_with(bytecode_contracts);
+    }
+    for (contract_id, contract) in gcx.hir.contracts_enumerated() {
+        let source = gcx.hir.source(contract.source);
+        let source_name = standard_json_source_name(&source.file.name);
+        if output_selection
+            .contract(&source_name, contract.name.as_str())
+            .contains(OutputSelectionFlags::METADATA)
+        {
+            contracts.insert(contract_id);
+        }
+    }
+    contracts.into_iter(gcx).collect()
 }
 
 fn requested_debug_info_contracts(
