@@ -1,6 +1,5 @@
 //@ compile-flags: -Osize
 //@ run-call: run 32 => 141
-// run-call-mir: skip `escape` stores the address of an object it allocates above its frame
 
 contract DiscardedMemoryReturnEscape {
     uint256 private escaped;

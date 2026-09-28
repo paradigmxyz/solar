@@ -42,17 +42,14 @@ run a zero-argument `setUp()` if the contract defines one.
 With `SOLAR_RUN_CALL_MIR` set, every `run-call` and `run-call-fail` directive also
 runs through the MIR interpreter (`solar_codegen::interpret`) on the final MIR of
 the called contract, which the runner obtains by compiling the test again with
-`-Zdump=mir-final`. The interpreter starts from the storage, balances, and code
-the EVM held just before the call, and must end the same way, return the same
-data, emit the same logs, and write the same storage. A disagreement fails the
-test: it is a bug in the backend or in the interpreter. Calls the interpreter
-cannot run are skipped: calls to other contracts, contract creation, `gas`, and
-deployed code that is not the compiled runtime, such as a contract with
-immutables.
-
-A test whose calls observe something the backend decides and the interpreter
-does not model, such as the address of an object a recursive function allocates
-above its frame, opts out with a `// run-call-mir: skip <reason>` comment.
+`-Zdump=mir-final`, along with the frames the backend takes from the heap for
+internal calls. The interpreter starts from the storage, balances, code, and
+heap start the EVM had just before the call, and must end the same way, return
+the same data, emit the same logs, and write the same storage. A disagreement
+fails the test: it is a bug in the backend or in the interpreter. Calls the
+interpreter cannot run are skipped: calls to other contracts, contract creation,
+`gas`, and deployed code that is not the compiled runtime, such as a contract
+with immutables.
 
 `SOLAR_RUN_CALL_MIR=1` reports only disagreements. Any other value names a file
 that receives one line per call, `checked`, `skipped` with the reason, or

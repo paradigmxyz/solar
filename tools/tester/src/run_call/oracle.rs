@@ -8,13 +8,12 @@
 //! skipped, and so is one the EVM ends by running out of gas or stack, which the interpreter does
 //! not model.
 //!
+//! The dump also reports the frames the backend takes from the heap for internal calls, which the
+//! interpreter takes the same way, so allocations get the addresses they get on chain.
+//!
 //! With `SOLAR_RUN_CALL_MIR=1`, only a disagreement is reported, as a test failure. Any other
 //! value names a file that also receives one line per call: `checked`, `skipped` with the reason,
 //! or `mismatch`.
-//!
-//! A test whose calls observe something the backend decides and the interpreter does not model,
-//! such as the address of an object a recursive function allocates on top of its frame, opts out
-//! with a `// run-call-mir: skip <reason>` comment.
 
 use super::CALLER;
 use alloy_primitives::{Address, B256, Log, U256, hex};
@@ -26,14 +25,14 @@ use evm2::{
 };
 use solar_codegen::{
     backend::evm::op,
-    interpret::{self, Host, Outcome},
+    interpret::{self, HeapFrame, Host, Outcome},
 };
 use solar_config::EvmVersion;
 use std::{
     cell::Cell,
     collections::HashMap,
-    fs::{File, OpenOptions},
-    io::{Read, Write},
+    fs::OpenOptions,
+    io::Write,
     process::Command,
     rc::Rc,
     sync::{Arc, Mutex},
@@ -43,16 +42,18 @@ use ui_test::{build_manager::BuildManager, per_test_config::TestConfig};
 /// The environment variable that enables the check.
 const VARIABLE: &str = "SOLAR_RUN_CALL_MIR";
 
-/// The comment that opts a test out of the check, followed by the reason.
-const OPT_OUT: &str = "// run-call-mir: skip ";
+/// The comment introducing a heap frame in a dump.
+const FRAME: &str = "// frame @";
 
 /// What a compiler command dumped, or why it could not.
 type Dumps = Arc<Result<Dump, String>>;
 
-/// The final MIR modules and runtime bytecode of each contract a compiler command built.
+/// The final MIR modules, heap frames, and runtime bytecode of each contract a compiler command
+/// built.
 #[derive(Default)]
 struct Dump {
     modules: HashMap<String, String>,
+    frames: HashMap<String, HashMap<String, HeapFrame>>,
     runtimes: HashMap<String, Vec<u8>>,
 }
 
@@ -164,6 +165,7 @@ struct EvmHost<'a> {
     value: U256,
     block: BlockEnv<BaseEvmTypes>,
     heap_start: Option<U256>,
+    frames: Option<&'a HashMap<String, HeapFrame>>,
 }
 
 impl EvmHost<'_> {
@@ -221,6 +223,10 @@ impl Host for EvmHost<'_> {
     fn free_memory_start(&mut self) -> U256 {
         self.heap_start.unwrap_or(U256::from(0x80))
     }
+
+    fn heap_frame(&mut self, function: &str) -> Option<HeapFrame> {
+        self.frames?.get(function).copied()
+    }
 }
 
 /// Runs `call` on its contract's MIR and checks that it agrees with `trace`, the EVM's run.
@@ -231,14 +237,6 @@ pub(super) fn check(
     trace: &Trace,
 ) -> Result<(), String> {
     let report = |status: &str, detail: &str| record(config, call.name, status, detail);
-    let mut source = String::new();
-    if let Ok(mut file) = File::open(config.status.path()) {
-        let _ = file.read_to_string(&mut source);
-    }
-    if let Some(reason) = source.lines().find_map(|line| line.trim().strip_prefix(OPT_OUT)) {
-        report("skipped", reason);
-        return Ok(());
-    }
     let expected = match trace.stop {
         stop if stop.is_success() => Outcome::Success(trace.output.clone()),
         InstrStop::Revert => Outcome::Revert(trace.output.clone()),
@@ -274,7 +272,8 @@ pub(super) fn check(
     }
     let block = BlockEnv::<BaseEvmTypes>::default();
     let heap_start = trace.heap_start;
-    let mut host = EvmHost { chain: &trace.before, value: call.value, block, heap_start };
+    let frames = dump.frames.get(call.contract);
+    let mut host = EvmHost { chain: &trace.before, value: call.value, block, heap_start, frames };
     let execution = interpret::transact(module, call.input, &mut host, call.evm_version);
     if let Outcome::Unsupported(reason) = &execution.outcome {
         report("skipped", reason);
@@ -420,7 +419,17 @@ fn dump_command(command: &Command) -> Command {
     dump
 }
 
-/// Runs a dump command and splits its output into modules and runtime bytecode by contract.
+/// Parses a heap frame line after its `// frame @` prefix: `name: size bytes, restores the free
+/// memory pointer`, or `keeps` it.
+fn parse_frame(line: &str) -> Option<(String, HeapFrame)> {
+    let (function, rest) = line.split_once(": ")?;
+    let size = rest.split_whitespace().next()?.parse().ok()?;
+    let restores_free_memory = rest.contains("restores the free memory pointer");
+    Some((function.to_owned(), HeapFrame { size, restores_free_memory }))
+}
+
+/// Runs a dump command and splits its output into modules, heap frames, and runtime bytecode by
+/// contract.
 fn run_dump(mut command: Command) -> Result<Dump, String> {
     let output = command.output().map_err(|error| format!("cannot run the compiler: {error}"))?;
     if !output.status.success() {
@@ -444,7 +453,10 @@ fn run_dump(mut command: Command) -> Result<Dump, String> {
                 }
             }
             break;
-        } else if let Some((_, text)) = &mut current {
+        } else if let Some((contract, text)) = &mut current {
+            if let Some((function, frame)) = line.strip_prefix(FRAME).and_then(parse_frame) {
+                dump.frames.entry(contract.clone()).or_default().insert(function, frame);
+            }
             text.push_str(line);
             text.push('\n');
         }
