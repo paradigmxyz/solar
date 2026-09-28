@@ -218,13 +218,13 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// range covers every point an operand can be read at. Rebuilding is transitive and passes
     /// through values that never own a slot themselves, so the requirement propagates over the
     /// whole recomputable operand graph and only lands on the colorable values at the end.
+    /// Values that are only recomputable collect ranges too, but no caller reads them.
     fn extend_recomputed_operand_ranges(
         func: &Function,
         colorable: &DenseBitSet<ValueId>,
         recomputable: &DenseBitSet<ValueId>,
-        ranges: &mut IndexVec<ValueId, SpillLiveRanges>,
+        required: &mut IndexVec<ValueId, SpillLiveRanges>,
     ) {
-        let mut required = ranges.clone();
         let mut operands = SmallVec::<[ValueId; 8]>::new();
         let mut worklist: Vec<ValueId> =
             recomputable.iter().filter(|&value| !required[value].is_empty()).collect();
@@ -244,12 +244,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if grew && recomputable.contains(operand) {
                     worklist.push(operand);
                 }
-            }
-        }
-
-        for value in colorable.iter() {
-            for &(block, range) in &required[value] {
-                Self::merge_spill_live_range(&mut ranges[value], block, range);
             }
         }
     }
