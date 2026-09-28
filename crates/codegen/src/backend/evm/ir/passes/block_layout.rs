@@ -245,6 +245,10 @@ fn terminal_packing_budget(
         let mut offsets = IndexVec::from_vec(vec![usize::MAX; module.blocks.len()]);
         let mut offset = 0;
         for (position, &block_id) in state.order.iter().enumerate() {
+            // Offsets only grow, and targets from here on cannot fit in one-byte entries.
+            if offset >= 0xff {
+                break;
+            }
             offsets[block_id] = offset;
             let block = &module.blocks[block_id];
             let next = state.order.get(position + 1).copied();
