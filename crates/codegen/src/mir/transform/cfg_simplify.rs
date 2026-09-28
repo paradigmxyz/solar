@@ -722,13 +722,15 @@ impl CfgSimplifier {
 
     /// Eliminates empty blocks that only contain an unconditional jump.
     fn eliminate_empty_blocks(&mut self, func: &mut Function) {
+        // Only a forwarder consults the CFG. Eliminating one contracts it into its target, which
+        // changes neither reachability nor dominance among the other blocks, so one snapshot
+        // answers every round; the eliminated block is never a forwarder again.
+        let snapshot = OnceCell::new();
         let mut eliminated = true;
         while eliminated {
             eliminated = false;
 
-            // Only a forwarder consults the CFG, and nothing changes before it does.
-            let cfg = OnceCell::new();
-            let cfg = || cfg.get_or_init(|| CfgInfo::new(func));
+            let cfg = || snapshot.get_or_init(|| CfgInfo::new(func));
             let block_ids = func.blocks.indices();
             for block_id in block_ids {
                 if !self.is_empty_forwarder(func, block_id)
