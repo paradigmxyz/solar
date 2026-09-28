@@ -20,15 +20,27 @@ use smallvec::SmallVec;
 
 /// Evaluates an instruction whose declared semantics compute a word.
 ///
+/// Returns `Ok(None)` when the instruction declares no semantics; see [`eval_semantics`].
+pub(crate) fn eval_inst<E>(
+    kind: &InstKind,
+    get: impl FnMut(ValueId) -> Result<U256, E>,
+) -> Result<Option<U256>, E> {
+    match kind.semantics() {
+        Some(semantics) => eval_semantics(semantics, get),
+        None => Ok(None),
+    }
+}
+
+/// Evaluates declared semantics that compute a word from operand words alone.
+///
 /// Returns `Ok(None)` before reading any operand when the semantics are not a word computation,
 /// and `Ok(None)` when this instance computes no value: a cast with invalid widths, checked
 /// arithmetic that panics, or a zero checked modulus. Operand lookup errors pass through
 /// unchanged.
-pub(crate) fn eval_inst<E>(
-    kind: &InstKind,
+pub(crate) fn eval_semantics<E>(
+    semantics: Semantics<'_>,
     mut get: impl FnMut(ValueId) -> Result<U256, E>,
 ) -> Result<Option<U256>, E> {
-    let Some(semantics) = kind.semantics() else { return Ok(None) };
     Ok(match semantics {
         Semantics::Opcode(opcode, operands) => {
             // Other opcodes read memory, storage, or the environment.
