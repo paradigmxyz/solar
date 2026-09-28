@@ -4,6 +4,8 @@ use normalize_path::NormalizePath;
 use solar_interface::data_structures::map::{FxHashMap, FxHashSet};
 use std::{borrow::Cow, path::PathBuf};
 
+pub(crate) mod presentation;
+
 pub(crate) type DiagnosticMap = FxHashMap<Url, Vec<Diagnostic>>;
 pub(crate) type AnalyzedDocuments = FxHashMap<Url, Option<i64>>;
 
