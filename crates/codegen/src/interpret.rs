@@ -16,7 +16,7 @@ use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_interface::{ColorChoice, Session, source_map::FileName};
 
-pub use crate::mir::utils::interp::{Host, Log};
+pub use crate::mir::utils::interp::{HeapFrame, Host, Log};
 
 /// The bounds of one transaction, well past what the tests execute.
 const LIMITS: Limits = Limits { fuel: 10_000_000, depth: 1024 };
