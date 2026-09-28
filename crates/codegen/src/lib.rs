@@ -30,6 +30,8 @@ pub use link::{
 
 pub mod llm;
 
+pub mod interpret;
+
 mod ir_parse;
 mod source_info;
 
