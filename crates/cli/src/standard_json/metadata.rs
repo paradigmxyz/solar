@@ -453,6 +453,15 @@ mod tests {
             alloy_primitives::hex::encode(bzzr1_hash(&[0; 4097])),
             "c082943c4cb8a97c67947f290f5421cf4c61d021eb303c8df77de6fe208df516"
         );
+        // Nonzero data with partial chunks, up to three tree levels.
+        for (len, expected) in [
+            (5000, "709a516189f2fb91e52bd09e07eb8eba21eff0f7881a9227c6e5569cddf807d3"),
+            (3 * 4096 + 100, "9b1e9758713ee3f99d86501c8def8b0a3bd650e9ad2466be27578f80782cf726"),
+            (130 * 4096 + 17, "39cdea97dc669a2f4d779d9c0ece6ce64d87273a3eb10a9baa7cde54716ec418"),
+        ] {
+            let input = (0..len).map(|i| (i % 251) as u8).collect::<Vec<_>>();
+            assert_eq!(alloy_primitives::hex::encode(bzzr1_hash(&input)), expected, "{len}");
+        }
     }
 
     #[test]
