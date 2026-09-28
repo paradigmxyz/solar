@@ -7,6 +7,7 @@ use super::super::{
     U256, Value, ValueId, cross_block_values, index_vec, ir, is_cross_block_recomputable_kind,
     is_rematerializable_leaf, op, rematerializable_nullary_value,
 };
+use solar_data_structures::bit_set::BitMatrix;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::backend::evm::codegen) struct SpillLiveRange {
@@ -946,49 +947,65 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
-        let mut events = FxHashMap::<ir::BlockId, Vec<(usize, Event)>>::default();
+        // Blocks and slot offsets are dense within the function, so the dataflow indexes both.
+        let range = self.function_ir_block_start..self.asm.block_count();
+        let local = |block: ir::BlockId| {
+            block.index().checked_sub(range.start).filter(|&index| index < range.len())
+        };
+        let slots = stores
+            .iter()
+            .map(|store| store.slot.offset)
+            .chain(loads.iter().map(|(slot, ..)| slot.offset))
+            .max()
+            .map_or(0, |offset| offset as usize + 1);
+        let mut events = (0..range.len()).map(|_| Vec::new()).collect::<Vec<_>>();
         for (index, store) in stores.iter().enumerate() {
-            events.entry(store.block).or_default().push((store.range.start, Event::Store(index)));
+            if let Some(block) = local(store.block) {
+                events[block].push((store.range.start, Event::Store(index)));
+            }
         }
         for (slot, block, index) in loads {
-            events.entry(block).or_default().push((index, Event::Load(slot)));
+            if let Some(block) = local(block) {
+                events[block].push((index, Event::Load(slot)));
+            }
         }
-        for events in events.values_mut() {
+        for events in &mut events {
             events.sort_unstable_by_key(|&(index, _)| index);
         }
 
-        let range = self.function_ir_block_start..self.asm.block_count();
-        let mut successors = FxHashMap::<ir::BlockId, Vec<ir::BlockId>>::default();
+        let mut successors = (0..range.len()).map(|_| Vec::new()).collect::<Vec<_>>();
         for (source, target) in self.asm.dataflow_edges(range.clone(), function_returns) {
-            successors.entry(source).or_default().push(target);
+            if let Some(source) = local(source)
+                && let Some(target) = local(target)
+            {
+                successors[source].push(target);
+            }
         }
-        let blocks = range.map(ir::BlockId::from_usize).collect::<Vec<_>>();
-        let mut live_in = FxHashMap::<ir::BlockId, FxHashSet<SpillSlot>>::default();
+        // The slots live into a block, before its own events, with the values leaving it.
+        let block_live =
+            |live: &mut DenseBitSet<usize>, live_in: &BitMatrix<usize, usize>, block: usize| {
+                live.clear();
+                for &successor in &successors[block] {
+                    live.union(&live_in.row(successor));
+                }
+            };
+        let mut live_in = BitMatrix::<usize, usize>::new(range.len(), slots);
+        let mut live = DenseBitSet::new_empty(slots);
         loop {
             let mut changed = false;
-            for &block in blocks.iter().rev() {
-                let mut live = successors
-                    .get(&block)
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|successor| live_in.get(successor))
-                    .flatten()
-                    .copied()
-                    .collect::<FxHashSet<_>>();
-                for (_, event) in events.get(&block).into_iter().flatten().rev() {
+            for block in (0..range.len()).rev() {
+                block_live(&mut live, &live_in, block);
+                for (_, event) in events[block].iter().rev() {
                     match event {
                         Event::Store(index) => {
-                            live.remove(&stores[*index].slot);
+                            live.remove(stores[*index].slot.offset as usize);
                         }
                         Event::Load(slot) => {
-                            live.insert(*slot);
+                            live.insert(slot.offset as usize);
                         }
                     }
                 }
-                if live_in.get(&block) != Some(&live) {
-                    live_in.insert(block, live);
-                    changed = true;
-                }
+                changed |= live_in.replace_row(block, &live);
             }
             if !changed {
                 break;
@@ -996,23 +1013,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let mut dead = FxHashSet::default();
-        for &block in &blocks {
-            let mut live = successors
-                .get(&block)
-                .into_iter()
-                .flatten()
-                .filter_map(|successor| live_in.get(successor))
-                .flatten()
-                .copied()
-                .collect::<FxHashSet<_>>();
-            for (_, event) in events.get(&block).into_iter().flatten().rev() {
+        for block in 0..range.len() {
+            block_live(&mut live, &live_in, block);
+            for (_, event) in events[block].iter().rev() {
                 match event {
-                    Event::Store(index) if !live.remove(&stores[*index].slot) => {
+                    Event::Store(index) if !live.remove(stores[*index].slot.offset as usize) => {
                         dead.insert(*index);
                     }
                     Event::Store(_) => {}
                     Event::Load(slot) => {
-                        live.insert(*slot);
+                        live.insert(slot.offset as usize);
                     }
                 }
             }
