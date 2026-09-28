@@ -16,16 +16,27 @@
 //! This runs after physical stack scheduling, where repeated expressions and redundant constant
 //! memory traffic are visible. Peephole cleanup follows it because removing a computation can
 //! expose adjacent stack and arithmetic simplifications.
+//! Large modules regenerate disjoint block chunks in parallel.
 
-use super::EvmPass;
+use super::{
+    EvmPass,
+    utils::{PARALLEL_BLOCK_CHUNK_SIZE, should_parallelize_blocks},
+};
 use crate::backend::evm::{
-    ir::{Instruction, Module, PushValue},
+    ir::{Block, BlockId, Instruction, Module, PushValue},
     op,
 };
 use smallvec::SmallVec;
-use solar_data_structures::map::{FxHashMap, FxHasher};
+use solar_data_structures::{
+    index::IndexSlice,
+    map::{FxHashMap, FxHasher},
+    sync,
+};
 use solar_sema::Gcx;
-use std::hash::{Hash, Hasher};
+use std::{
+    hash::{Hash, Hasher},
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 pub(super) struct BlockCse;
 
@@ -35,12 +46,30 @@ impl EvmPass for BlockCse {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let mut changed = false;
         let stack_access_limit = gcx.sess.opts.evm_version.reachable_stack_depth();
-        for block in &mut module.blocks {
-            changed |= regenerate_block(&mut block.instructions, stack_access_limit);
+        let run = |blocks: &mut IndexSlice<BlockId, [Block]>| {
+            let mut changed = false;
+            for block in blocks {
+                changed |= regenerate_block(&mut block.instructions, stack_access_limit);
+            }
+            changed
+        };
+        let parallel = should_parallelize_blocks(gcx, module);
+        if !parallel {
+            return run(&mut module.blocks);
         }
-        changed
+        let changed = AtomicBool::new(false);
+        sync::scope(true, |scope| {
+            for blocks in module.blocks.chunks_mut(PARALLEL_BLOCK_CHUNK_SIZE) {
+                let (run, changed) = (&run, &changed);
+                scope.spawn(move |_| {
+                    if run(blocks) {
+                        changed.store(true, Ordering::Relaxed);
+                    }
+                });
+            }
+        });
+        changed.into_inner()
     }
 }
 
