@@ -272,10 +272,28 @@ impl CfgSimplifier {
     /// no phis and a terminal block has no successors, so no phi inputs
     /// elsewhere can mention it.
     fn deduplicate_terminal_blocks(&mut self, func: &mut Function) {
+        // Equal keys imply equal terminator mnemonics and block lengths, so only
+        // blocks sharing that shape with another candidate need a key.
+        let shape = |block_id: BlockId| {
+            let block = &func.blocks[block_id];
+            let term = block.terminator.as_ref()?;
+            let mut has_successor = false;
+            term.for_each_successor(|_| has_successor = true);
+            (!block.predecessors.is_empty()
+                && !matches!(term, Terminator::Invalid)
+                && !has_successor)
+                .then(|| (term.mnemonic(), block.instructions.len()))
+        };
+        let mut shapes = FxHashMap::<_, usize>::default();
+        for block_id in func.blocks.indices() {
+            if let Some(shape) = shape(block_id) {
+                *shapes.entry(shape).or_default() += 1;
+            }
+        }
         let mut kept: FxHashMap<CanonBlock, BlockId> = FxHashMap::default();
         let mut merges: Vec<(BlockId, BlockId)> = Vec::new();
         for block_id in func.blocks.indices() {
-            if func.blocks[block_id].predecessors.is_empty() {
+            if shape(block_id).is_none_or(|shape| shapes[&shape] < 2) {
                 continue;
             }
             let Some(canon) = Self::canonicalize_terminal_block(func, block_id) else {
