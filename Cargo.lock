@@ -5724,6 +5724,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "solar-codegen",
  "solar-config",
  "strum 0.28.0",
  "tempfile",

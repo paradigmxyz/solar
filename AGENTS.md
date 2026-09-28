@@ -457,7 +457,10 @@ Common file-level UI directives:
 - `//@ run-call-fail: fail()`: Like `run-call`, but require the call to fail.
   Add `=> 0x...` to check exact revert data. Both directives use the EVM version
   selected by `--evm-version`. Calls to functions named `test*` run a
-  zero-argument `setUp()` first when the contract defines it.
+  zero-argument `setUp()` first when the contract defines it. With
+  `SOLAR_RUN_CALL_MIR` set, both also run on the contract's final MIR through
+  the MIR interpreter, which must agree with the EVM (see
+  `tools/tester/README.md`).
 - `//@ filecheck: ...`: Run LLVM FileCheck against the generated `.stdout` file
   after the UI test. Arguments after `filecheck:` are passed directly to
   FileCheck, for example `--check-prefix=ABI` or
