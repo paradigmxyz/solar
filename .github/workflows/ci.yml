@@ -93,7 +93,7 @@ jobs:
 
   test:
     if: github.event_name != 'schedule'
-    name: test ${{ matrix.os }} ${{ matrix.rust }}
+    name: test ${{ matrix.os }} ${{ matrix.rust }}${{ matrix.features && format(' ({0})', matrix.features) || '' }}
     runs-on: depot-${{ matrix.os }}
     timeout-minutes: 30
     permissions:
@@ -109,6 +109,10 @@ jobs:
             rust: "1.98" # MSRV
           - os: "ubuntu-latest"
             rust: "nightly"
+          # Run both nightly configurations in parallel.
+          - os: "ubuntu-latest"
+            rust: "nightly"
+            features: "nightly"
         exclude:
           - os: "macos-latest"
             rust: ${{ github.event_name == 'push' && 'none' || 'stable' }}
@@ -164,17 +168,14 @@ jobs:
           cache-on-failure: true
           cache-targets: false
       - name: build
-        run: cargo build
+        run: cargo build --features "${{ matrix.features || '' }}"
       - name: test
-        run: cargo nextest run --profile ci --workspace
+        run: cargo nextest run --profile ci --workspace --features "${{ matrix.features || '' }}"
       - name: test C API
         if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
         run: ./crates/capi/test
-      - name: test --features nightly
-        if: matrix.rust == 'nightly'
-        run: cargo nextest run --profile ci --workspace --features nightly
       - name: doctest
-        run: cargo test --doc --workspace
+        run: cargo test --doc --workspace --features "${{ matrix.features || '' }}"
 
   python:
     if: github.event_name != 'schedule'
