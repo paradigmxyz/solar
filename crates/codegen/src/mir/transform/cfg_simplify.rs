@@ -40,6 +40,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
+use std::cell::OnceCell;
 
 /// Function pass for CFG simplification.
 pub(crate) struct CfgSimplify;
@@ -695,15 +696,19 @@ impl CfgSimplifier {
         while eliminated {
             eliminated = false;
 
-            let cfg = CfgInfo::new(func);
+            // Only a forwarder consults the CFG, and nothing changes before it does.
+            let cfg = OnceCell::new();
+            let cfg = || cfg.get_or_init(|| CfgInfo::new(func));
             let block_ids = func.blocks.indices();
             for block_id in block_ids {
-                if func.blocks[block_id].predecessors.is_empty() && cfg.is_reachable(block_id) {
+                if !self.is_empty_forwarder(func, block_id)
+                    || (func.blocks[block_id].predecessors.is_empty()
+                        && cfg().is_reachable(block_id))
+                {
                     continue;
                 }
 
-                if self.is_empty_forwarder(func, block_id)
-                    && !self.is_loop_preheader_forwarder(func, block_id, &cfg)
+                if !self.is_loop_preheader_forwarder(func, block_id, cfg())
                     && self.forwarder_elimination_preserves_phis(func, block_id)
                 {
                     self.eliminate_forwarder(func, block_id);
