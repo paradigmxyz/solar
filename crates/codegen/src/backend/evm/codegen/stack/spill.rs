@@ -12,6 +12,10 @@
 
 use crate::{backend::evm::op::WORD_BYTES, mir::ValueId};
 use solar_data_structures::{bit_set::GrowableBitSet, index::IndexVec};
+use std::{
+    ops::{Deref, DerefMut},
+    rc::Rc,
+};
 
 /// A slot in memory where a spilled value is stored.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -233,6 +237,35 @@ impl SpillManager {
 impl Default for SpillManager {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// A spill manager shared between scheduler copies until one of them changes it.
+///
+/// Planning explores copies of the scheduler that only read spill state, so copying the manager
+/// up front would be wasted.
+#[derive(Clone, Debug)]
+pub(crate) struct SharedSpillManager(Rc<SpillManager>);
+
+impl SharedSpillManager {
+    /// Creates a new, unshared spill manager.
+    #[must_use]
+    pub(crate) fn new() -> Self {
+        Self(Rc::new(SpillManager::new()))
+    }
+}
+
+impl Deref for SharedSpillManager {
+    type Target = SpillManager;
+
+    fn deref(&self) -> &SpillManager {
+        &self.0
+    }
+}
+
+impl DerefMut for SharedSpillManager {
+    fn deref_mut(&mut self) -> &mut SpillManager {
+        Rc::make_mut(&mut self.0)
     }
 }
 

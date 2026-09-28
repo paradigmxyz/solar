@@ -97,7 +97,7 @@
 use super::{
     model::{MAX_STACK_DEPTH, StackModel},
     shuffler::{ShuffleResult, StackShuffler, TargetSlot},
-    spill::{SpillManager, SpillSlot},
+    spill::{SharedSpillManager, SpillSlot},
 };
 use crate::{
     backend::evm::{
@@ -237,7 +237,7 @@ pub(crate) struct StackScheduler {
     /// Current stack state.
     pub stack: StackModel,
     /// Spill slots and their current reloadability.
-    pub spills: SpillManager,
+    pub spills: SharedSpillManager,
     /// Target used to cost logical stack operations before assembly lowers them.
     evm_version: EvmVersion,
     /// Gas mode may select wider edge permutations; size mode preserves existing sharing choices.
@@ -707,7 +707,7 @@ impl StackScheduler {
         Self {
             wide_permutations: true,
             stack: StackModel::new(),
-            spills: SpillManager::new(),
+            spills: SharedSpillManager::new(),
             evm_version,
             stack_only_values: DenseBitSet::new_empty(0),
             ops: Vec::new(),
