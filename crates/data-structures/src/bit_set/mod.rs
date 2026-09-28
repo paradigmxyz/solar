@@ -1731,7 +1731,7 @@ impl<R: BitSetIndex, C: BitSetIndex> SparseBitMatrix<R, C> {
         }
 
         self.ensure_row(write);
-        let Some((read_row, write_row)) = pick2_mut(&mut self.rows, read.index(), write.index())
+        let Ok([read_row, write_row]) = self.rows.get_disjoint_mut([read.index(), write.index()])
         else {
             unreachable!()
         };
@@ -1826,20 +1826,6 @@ fn chunk_index<T: BitSetIndex>(elem: T) -> usize {
 fn chunk_word_index_and_mask<T: BitSetIndex>(elem: T) -> (usize, Word) {
     let chunk_elem = elem.index() % CHUNK_BITS;
     word_index_and_mask_usize(chunk_elem)
-}
-
-fn pick2_mut<T>(slice: &mut [T], idx_1: usize, idx_2: usize) -> Option<(&mut T, &mut T)> {
-    if idx_1 == idx_2 || idx_1 >= slice.len() || idx_2 >= slice.len() {
-        return None;
-    }
-
-    if idx_1 < idx_2 {
-        let (left, right) = slice.split_at_mut(idx_2);
-        Some((&mut left[idx_1], &mut right[0]))
-    } else {
-        let (left, right) = slice.split_at_mut(idx_1);
-        Some((&mut right[0], &mut left[idx_2]))
-    }
 }
 
 fn clear_excess_bits_in_final_word(domain_size: usize, words: &mut [Word]) {
