@@ -1,4 +1,6 @@
-use super::workspace_edit::{validated_code_actions, validated_rename_workspace_edit};
+use super::workspace_edit::{
+    check_edit_scope, validated_code_actions, validated_rename_workspace_edit,
+};
 use crate::{
     config::Config,
     diagnostics::PullReport,
@@ -12,9 +14,10 @@ use crate::{
     natspec_completion::{self, NatSpecCompletionResult},
     progress::send_progress,
     proto::normalize_file_uri,
-    rename::{RenameCandidate, validate_rename_scope},
+    rename::RenameCandidate,
     symbols::{CompletionContext, CompletionItemData, SymbolTables},
     vfs::{Vfs, VfsPath},
+    workspace::WorkspaceEditError,
 };
 use arc_swap::ArcSwap;
 use async_lsp::{ClientSocket, ErrorCode, ResponseError};
@@ -994,6 +997,28 @@ pub(crate) fn rename(
 
 fn rename_task_failed(error: tokio::task::JoinError) -> ResponseError {
     ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("rename task failed: {error}"))
+}
+
+fn validate_rename_scope(
+    candidate: &RenameCandidate,
+    config: &Config,
+) -> Result<(), ResponseError> {
+    let uris =
+        candidate.locations.chunk_by(|a, b| a.uri == b.uri).map(|locations| &locations[0].uri);
+    check_edit_scope(uris, config).map_err(|error| {
+        let message = match error {
+            WorkspaceEditError::Dependency => {
+                "cannot rename this symbol because it would modify dependency files"
+            }
+            WorkspaceEditError::OutsideWorkspace => {
+                "cannot rename this symbol because it would modify files outside the workspace"
+            }
+            WorkspaceEditError::UnresolvedPath => {
+                "cannot rename this symbol because its file paths could not be verified"
+            }
+        };
+        request_failed(message)
+    })
 }
 
 fn ensure_rename_coverage(
