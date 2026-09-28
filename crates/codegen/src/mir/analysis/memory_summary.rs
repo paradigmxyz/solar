@@ -402,22 +402,11 @@ impl MemoryCallSummaries {
     /// Computes summaries to a monotone fixpoint over the module call graph.
     #[must_use]
     pub(crate) fn new(module: &Module) -> Self {
+        let calls = CallGraphInfo::new(module);
         let mut targets = DenseBitSet::new_empty(module.functions.len());
-        for func in &module.functions {
-            for inst in func.instructions() {
-                if let InstKind::ICall { function: Callee::Function(function), .. } =
-                    func.inst(inst).kind
-                    && module.functions.get(function).is_some()
-                {
-                    targets.insert(function);
-                }
-            }
-            for block in &func.blocks {
-                if let Some(Terminator::TailCall { function, .. }) = &block.terminator
-                    && module.functions.get(*function).is_some()
-                {
-                    targets.insert(*function);
-                }
+        for caller in module.functions.indices() {
+            for callee in calls.callees(caller) {
+                targets.insert(callee);
             }
         }
         if targets.is_empty() {
@@ -432,7 +421,6 @@ impl MemoryCallSummaries {
                 targets.contains(id).then(|| (parameter_sources(func), AliasAnalysis::new(func)))
             })
             .collect::<IndexVec<FunctionId, _>>();
-        let calls = CallGraphInfo::new(module);
         let mut local = index_vec![None; module.functions.len()];
         for func_id in &targets {
             let func = &module.functions[func_id];
@@ -444,28 +432,12 @@ impl MemoryCallSummaries {
         }
         let mut summaries = local.clone();
 
+        // Ascending callers per target, each listed once.
         let mut callers = index_vec![Vec::new(); module.functions.len()];
         for caller in &targets {
-            let func = &module.functions[caller];
-            for inst_id in func.instructions() {
-                if let InstKind::ICall { function: Callee::Function(function), .. } =
-                    func.inst(inst_id).kind
-                    && let Some(function_callers) = callers.get_mut(function)
-                {
-                    function_callers.push(caller);
-                }
+            for callee in calls.callees(caller) {
+                callers[callee].push(caller);
             }
-            for block in &func.blocks {
-                if let Some(Terminator::TailCall { function, .. }) = &block.terminator
-                    && let Some(function_callers) = callers.get_mut(*function)
-                {
-                    function_callers.push(caller);
-                }
-            }
-        }
-        for function_callers in &mut callers {
-            function_callers.sort_unstable();
-            function_callers.dedup();
         }
 
         let mut worklist = targets.iter().collect::<VecDeque<_>>();
