@@ -1,19 +1,38 @@
 use super::*;
-use crate::handlers;
-use lsp_types::{RenameParams, WorkspaceFolder};
+use crate::{handlers, test_support::MarkedProject};
+use async_lsp::ClientSocket;
+use lsp_types::{
+    DidOpenTextDocumentParams, RenameParams, TextDocumentIdentifier, TextDocumentItem,
+    TextDocumentPositionParams, WorkspaceFolder,
+};
 
 #[cfg(unix)]
 use std::{fs, os::unix::fs::symlink};
 
 async fn assert_dependency_rename_rejected(state: &mut GlobalState, params: RenameParams) {
-    let prepared = handlers::prepare_rename(state, params.text_document_position.clone()).await;
+    assert_rename_rejected(
+        state,
+        params,
+        "cannot rename this symbol because it would modify dependency files",
+    )
+    .await;
+}
+
+async fn assert_rename_rejected(
+    state: &mut GlobalState,
+    params: RenameParams,
+    message: &'static str,
+) {
+    let prepared = tokio::time::timeout(
+        super::super::ASYNC_TEST_TIMEOUT,
+        handlers::prepare_rename(state, params.text_document_position.clone()),
+    )
+    .await
+    .unwrap();
     let renamed = handlers::rename(state, params).await;
     for error in [prepared.unwrap_err(), renamed.unwrap_err()] {
         assert_eq!(error.code, ErrorCode::REQUEST_FAILED);
-        snapbox::assert_data_eq!(
-            error.message,
-            "cannot rename this symbol because it would modify dependency files",
-        );
+        snapbox::assert_data_eq!(error.message, message);
     }
 }
 
@@ -719,8 +738,8 @@ async fn rejects_source_root_symlinks_into_remapping_only_dependencies() {
 
 #[cfg(unix)]
 #[tokio::test]
-async fn rejects_dangling_dependency_links_but_allows_unsaved_files() {
-    for link in [false, true] {
+async fn rejects_dangling_links_but_allows_unsaved_files() {
+    for target in [None, Some("/lib/dep/Missing.sol"), Some("/scratch/Missing.sol")] {
         let fixture = RequestFixture::new(
             r#"
             //- /foundry.toml
@@ -730,16 +749,17 @@ async fn rejects_dangling_dependency_links_but_allows_unsaved_files() {
             "/src/New.sol",
         );
         fs::remove_file(fixture.project_path("/src/New.sol")).unwrap();
-        if link {
-            symlink(
-                fixture.project_path("/lib/dep/Missing.sol"),
-                fixture.project_path("/src/New.sol"),
-            )
-            .unwrap();
+        if let Some(target) = target {
+            symlink(fixture.project_path(target), fixture.project_path("/src/New.sol")).unwrap();
         }
         let (mut state, params) = fixture.rename_state_and_params("$1", "Renamed");
-        if link {
-            assert_dependency_rename_rejected(&mut state, params).await;
+        if target.is_some() {
+            assert_rename_rejected(
+                &mut state,
+                params,
+                "cannot rename this symbol because its file paths could not be verified",
+            )
+            .await;
         } else {
             assert!(
                 handlers::prepare_rename(&mut state, params.text_document_position.clone())
@@ -814,6 +834,112 @@ async fn keeps_dependency_locals_read_only() {
                 assert_eq!(edits.len(), if marker == "$2" { 2 } else { 1 });
                 assert!(edits.iter().all(|edit| edit.new_text == "renamed"));
             }
+        }
+    }
+}
+
+#[tokio::test]
+async fn reports_open_files_outside_the_workspace() {
+    for unsaved in [false, true] {
+        let marked = MarkedProject::from_fixture(
+            r#"
+            //- /ws/foundry.toml
+            //- /scratch/Scratch.sol
+            contract Scratch {
+                function value() public pure returns (uint256) {
+                    uint256 $1local = 1;
+                    return local;
+                }
+            }
+            "#,
+        );
+        let project = marked.project();
+        let source = "/scratch/Scratch.sol";
+        let contents = project.read_file(source);
+        let uri = Url::from_file_path(project.path(source)).unwrap();
+        if unsaved {
+            project.remove_file(source);
+        }
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(project.config_with_roots(&["/ws"]));
+        assert!(
+            handlers::did_open_text_document(
+                &mut state,
+                DidOpenTextDocumentParams {
+                    text_document: TextDocumentItem::new(
+                        uri.clone(),
+                        "solidity".into(),
+                        1,
+                        contents,
+                    ),
+                },
+            )
+            .is_continue()
+        );
+        let params = RenameParams {
+            text_document_position: TextDocumentPositionParams::new(
+                TextDocumentIdentifier::new(uri),
+                marked.marker("$1").position(),
+            ),
+            new_name: "renamed".into(),
+            work_done_progress_params: Default::default(),
+        };
+        assert_rename_rejected(
+            &mut state,
+            params,
+            "cannot rename this symbol because it would modify files outside the workspace",
+        )
+        .await;
+    }
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn distinguishes_outside_symlinks_from_dependencies() {
+    for (source, target, dependency) in [
+        ("/ws/src/Scratch.sol", "/scratch/Target.sol", false),
+        ("/scratch/Scratch.sol", "/ws/src/Target.sol", false),
+        ("/scratch/Scratch.sol", "/ws/lib/dep/Target.sol", true),
+        ("/ws/lib/dep/Scratch.sol", "/scratch/Target.sol", true),
+    ] {
+        let fixture = RequestFixture::new(
+            &format!(
+                r#"
+                //- /ws/foundry.toml
+                //- {source} open
+                contract Scratch {{
+                    function value() public pure returns (uint256) {{
+                        uint256 $1local = 1;
+                        return local;
+                    }}
+                }}
+                //- {target}
+                contract Target {{}}
+                "#,
+            ),
+            source,
+        );
+        fs::remove_file(fixture.project_path(source)).unwrap();
+        symlink(fixture.project_path(target), fixture.project_path(source)).unwrap();
+        let (mut state, params) = fixture.rename_state_and_params("$1", "renamed");
+        let (_, mut config) = negotiate_capabilities(InitializeParams {
+            workspace_folders: Some(vec![WorkspaceFolder {
+                uri: Url::from_file_path(fixture.project_path("/ws")).unwrap(),
+                name: "ws".into(),
+            }]),
+            ..Default::default()
+        });
+        config.rediscover_workspaces();
+        state.config = Arc::new(config);
+        if dependency {
+            assert_dependency_rename_rejected(&mut state, params).await;
+        } else {
+            assert_rename_rejected(
+                &mut state,
+                params,
+                "cannot rename this symbol because it would modify files outside the workspace",
+            )
+            .await;
         }
     }
 }
