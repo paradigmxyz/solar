@@ -157,7 +157,10 @@ impl<'a> Validator<'a> {
                     self.emit_at_inst("instruction appears more than once", block, id);
                 }
                 let inst = func.inst(id);
-                for value in inst.kind.operands().into_iter().chain(inst.result()) {
+                inst.kind.visit_operands(|value| {
+                    self.validate_value_reference(func, value, num_args, block);
+                });
+                if let Some(value) = inst.result() {
                     self.validate_value_reference(func, value, num_args, block);
                 }
             }
@@ -550,7 +553,7 @@ impl<'a> Validator<'a> {
                         }
                     }
                     kind => {
-                        for &operand in kind.operands().iter() {
+                        kind.visit_operands(|operand| {
                             if let Some((def, def_index)) =
                                 self.live_definition(func, &def_location_of, operand, block_id)
                             {
@@ -577,7 +580,7 @@ impl<'a> Validator<'a> {
                                     );
                                 }
                             }
-                        }
+                        });
                     }
                 }
             }
@@ -755,14 +758,11 @@ impl<'a> Validator<'a> {
     /// Checks constant widths and aggregate operands against their declared types.
     fn validate_value_types(&mut self, module: &Module, func: &Function) {
         self.validate_return_abi(module, func);
-        let mut values = SmallVec::<[ValueId; 8]>::new();
         for block in &func.blocks {
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
-                values.clear();
-                inst.kind.collect_operands(&mut values);
-                values.extend(inst.result());
-                for &value in &values {
+                inst.kind.visit_operands(|value| self.validate_live_value_type(func, value));
+                if let Some(value) = inst.result() {
                     self.validate_live_value_type(func, value);
                 }
             }
@@ -785,18 +785,17 @@ impl<'a> Validator<'a> {
         for (block, body) in func.blocks.iter_enumerated() {
             for &id in &body.instructions {
                 let inst = func.inst(id);
-                let operands = inst.kind.operands();
                 let mut has_struct_value = false;
-                for ty in
-                    operands.iter().filter_map(|&value| func.value_ty(value)).chain(inst.result_ty)
-                {
-                    if let MirType::Struct(ty) = ty {
+                let mut check_struct = |ty| {
+                    if let Some(MirType::Struct(ty)) = ty {
                         has_struct_value = true;
                         if module.struct_types.get(ty).is_none() {
                             self.emit(format_args!("undefined struct type `struct{}`", ty.index()));
                         }
                     }
-                }
+                };
+                inst.kind.visit_operands(|value| check_struct(func.value_ty(value)));
+                check_struct(inst.result_ty);
                 match &inst.kind {
                     InstKind::Phi(incoming) => {
                         for &(_, value) in incoming {
@@ -888,7 +887,7 @@ impl<'a> Validator<'a> {
                                 id,
                             );
                         }
-                        for &value in &operands {
+                        for value in inst.kind.operands() {
                             if matches!(func.value_ty(value), Some(MirType::Struct(_))) {
                                 self.emit_at_inst(
                                     "instruction cannot consume a struct value",
@@ -1470,24 +1469,26 @@ fn first_non_word_type(func: &Function) -> Option<MirType> {
     {
         return Some(ty);
     }
-    let mut operands = SmallVec::<[ValueId; 8]>::new();
     let value_type = |value| func.value_ty(value).filter(|&ty| non_word(ty));
+    let find = |found: &mut Option<MirType>, value| {
+        if found.is_none() {
+            *found = value_type(value);
+        }
+    };
+    let mut found = None;
     for block in &func.blocks {
         for &inst_id in &block.instructions {
             let inst = func.inst(inst_id);
-            operands.clear();
-            inst.kind.collect_operands(&mut operands);
-            if let Some(ty) = operands.iter().copied().chain(inst.result()).find_map(value_type) {
-                return Some(ty);
+            inst.kind.visit_operands(|value| find(&mut found, value));
+            if let Some(value) = inst.result() {
+                find(&mut found, value);
+            }
+            if found.is_some() {
+                return found;
             }
         }
-        let mut found = None;
         if let Some(term) = &block.terminator {
-            term.visit_operands(|value| {
-                if found.is_none() {
-                    found = value_type(value);
-                }
-            });
+            term.visit_operands(|value| find(&mut found, value));
         }
         if found.is_some() {
             return found;
