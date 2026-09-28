@@ -643,11 +643,15 @@ impl MirInliner {
                     }
                 }
 
-                let callee = module.function(site.callee).clone();
                 let old_size =
                     summaries.get(&caller_id).map(|s| s.estimated_code_size).unwrap_or_default();
-                let caller = module.function_mut(caller_id);
-                if inline_call(caller, site.block, site.inst_index, &callee) {
+                // A self-call is never inlineable, so the caller and callee are distinct.
+                let [caller, callee] = module
+                    .functions
+                    .raw
+                    .get_disjoint_mut([caller_id.index(), site.callee.index()])
+                    .expect("caller and callee are distinct functions");
+                if inline_call(caller, site.block, site.inst_index, callee) {
                     stats.inlined += 1;
                     if self.mode == InlineMode::SingleUse && call_count == 1 {
                         stats.consumed.push(site.callee);
@@ -675,6 +679,7 @@ impl MirInliner {
                     if let Some(count) = call_counts.get_mut(&site.callee) {
                         *count = count.saturating_sub(1);
                     }
+                    let callee = module.function(site.callee);
                     for inst in callee.instructions() {
                         if let InstKind::ICall { function: Callee::Function(function), .. } =
                             callee.inst(inst).kind
@@ -683,7 +688,7 @@ impl MirInliner {
                         }
                     }
                     if let Some(calls) = &mut artifact_calls {
-                        calls.inline(caller_id, site.callee, &callee);
+                        calls.inline(caller_id, site.callee, callee);
                     }
                     cursor = (site.block.index(), 0);
                 } else {
