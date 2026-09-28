@@ -47,12 +47,16 @@ tracing-subscriber = { workspace = true, optional = true, features = [
 
 # LSP
 solar-lsp = { workspace = true, optional = true }
-tokio = { workspace = true, optional = true, features = ["rt", "rt-multi-thread"] }
+tokio = { workspace = true, optional = true, features = ["rt", "rt-multi-thread", "time"] }
 
 # llm
 nanocodex = { version = "=0.6.5", optional = true, default-features = false, features = [
     "openai",
     "tools",
+] }
+reqwest = { version = "0.13", optional = true, default-features = false, features = [
+    "json",
+    "rustls-no-provider",
 ] }
 
 tracing-chrome = { version = "0.7", optional = true }
@@ -66,11 +70,14 @@ libc.workspace = true
 
 tikv-jemallocator = { version = "0.7", optional = true }
 
+[dev-dependencies]
+snapbox.workspace = true
+
 [features]
 default = ["mimalloc", "tracing"]
 lsp = ["dep:solar-lsp", "dep:tokio"]
 # Rewrite MIR with a model through `-Zllm-optimize=live`.
-llm = ["dep:nanocodex", "dep:tokio"]
+llm = ["dep:nanocodex", "dep:reqwest", "dep:tokio"]
 # Nightly-only features for faster/smaller builds.
 nightly = [
     "solar-config/nightly",

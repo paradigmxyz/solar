@@ -50,6 +50,7 @@ alloy-primitives.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
+snapbox.workspace = true
 solar-tester.workspace = true
 tempfile.workspace = true
 
