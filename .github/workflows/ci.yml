@@ -31,7 +31,7 @@ jobs:
       contents: read
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
+        uses: tempoxyz/gh-actions/actions/secure-runner@a8467566cf2204e895d40f6baf19435c8bc7f921 # 2026-09-28T07-41-23Z-a8467566
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -116,7 +116,7 @@ jobs:
             rust: ${{ github.event_name == 'push' && 'none' || 'stable' }}
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
+        uses: tempoxyz/gh-actions/actions/secure-runner@a8467566cf2204e895d40f6baf19435c8bc7f921 # 2026-09-28T07-41-23Z-a8467566
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -149,7 +149,7 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
       - name: Install nextest
-        uses: tempoxyz/gh-actions/vendor/taiki-e/install-action@117919c943b804057be733b0c4034c5542e58959 # 2026-09-23T05-09-41Z-117919c9
+        uses: tempoxyz/gh-actions/vendor/taiki-e/install-action@a8467566cf2204e895d40f6baf19435c8bc7f921 # 2026-09-28T07-41-23Z-a8467566
         with:
           tool: nextest@0.9.140
           checksum: true
@@ -186,7 +186,7 @@ jobs:
       contents: read
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
+        uses: tempoxyz/gh-actions/actions/secure-runner@a8467566cf2204e895d40f6baf19435c8bc7f921 # 2026-09-28T07-41-23Z-a8467566
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -228,7 +228,7 @@ jobs:
       FANDANGO_FOUNDRY_FUZZ_RUNS: ${{ github.event_name == 'schedule' && '256' || '64' }}
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
+        uses: tempoxyz/gh-actions/actions/secure-runner@a8467566cf2204e895d40f6baf19435c8bc7f921 # 2026-09-28T07-41-23Z-a8467566
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -272,7 +272,7 @@ jobs:
       contents: read
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
+        uses: tempoxyz/gh-actions/actions/secure-runner@a8467566cf2204e895d40f6baf19435c8bc7f921 # 2026-09-28T07-41-23Z-a8467566
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -280,7 +280,7 @@ jobs:
         with:
           toolchain: nightly
       - name: Install cargo-hack
-        uses: tempoxyz/gh-actions/vendor/taiki-e/install-action@117919c943b804057be733b0c4034c5542e58959 # 2026-09-23T05-09-41Z-117919c9
+        uses: tempoxyz/gh-actions/vendor/taiki-e/install-action@a8467566cf2204e895d40f6baf19435c8bc7f921 # 2026-09-28T07-41-23Z-a8467566
         with:
           tool: cargo-hack@0.6.45
           checksum: true
@@ -302,7 +302,7 @@ jobs:
       contents: read
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
+        uses: tempoxyz/gh-actions/actions/secure-runner@a8467566cf2204e895d40f6baf19435c8bc7f921 # 2026-09-28T07-41-23Z-a8467566
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -329,7 +329,7 @@ jobs:
       contents: read
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
+        uses: tempoxyz/gh-actions/actions/secure-runner@a8467566cf2204e895d40f6baf19435c8bc7f921 # 2026-09-28T07-41-23Z-a8467566
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -344,7 +344,7 @@ jobs:
       contents: read
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
+        uses: tempoxyz/gh-actions/actions/secure-runner@a8467566cf2204e895d40f6baf19435c8bc7f921 # 2026-09-28T07-41-23Z-a8467566
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -370,7 +370,7 @@ jobs:
       contents: read
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
+        uses: tempoxyz/gh-actions/actions/secure-runner@a8467566cf2204e895d40f6baf19435c8bc7f921 # 2026-09-28T07-41-23Z-a8467566
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -396,7 +396,7 @@ jobs:
       contents: read
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
+        uses: tempoxyz/gh-actions/actions/secure-runner@a8467566cf2204e895d40f6baf19435c8bc7f921 # 2026-09-28T07-41-23Z-a8467566
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -423,7 +423,7 @@ jobs:
             build-mode: none
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@8bef8f477c4d4e0fb45c1770ff49dfb3a27c5e57 # 2026-09-27T07-47-26Z-8bef8f47
+        uses: tempoxyz/gh-actions/actions/secure-runner@a8467566cf2204e895d40f6baf19435c8bc7f921 # 2026-09-28T07-41-23Z-a8467566
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -440,7 +440,7 @@ jobs:
 
   deny:
     if: github.event_name != 'schedule'
-    uses: tempoxyz/gh-actions/.github/workflows/rust-deny.yml@5840979a7c849cbe541c67431ec7315cd6396e3b
+    uses: tempoxyz/gh-actions/.github/workflows/rust-deny.yml@a8467566cf2204e895d40f6baf19435c8bc7f921 # 2026-09-28T07-41-23Z-a8467566
     permissions:
       contents: read
       id-token: write
