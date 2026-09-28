@@ -48,7 +48,7 @@ memory_zero: -
 msize: opcode(MSIZE)
 fmp: -
 set_fmp: -
-alloc: -
+alloc: allocate(size, kind, semantics)
 memory_object_len: -
 set_memory_object_len: -
 memory_object_data: -
@@ -87,7 +87,7 @@ frame_load: -
 frame_store: -
 constructor_args_base: -
 constructor_args_end: -
-datacopy: -
+datacopy: data_copy(data, dest, size)
 datasize: -
 codesize: opcode(CODESIZE)
 codecopy: opcode(CODECOPY)

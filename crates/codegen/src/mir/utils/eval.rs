@@ -85,7 +85,11 @@ pub(crate) fn eval_semantics<E>(
                 if matches!(builtin, Builtin::CheckedAddMod) { op::ADDMOD } else { op::MULMOD };
             op::eval(opcode, &[get(a)?, get(b)?, modulus])
         }
-        Semantics::Select(..) | Semantics::Phi(_) | Semantics::Call(..) => None,
+        Semantics::Select(..)
+        | Semantics::Phi(_)
+        | Semantics::Call(..)
+        | Semantics::Allocate(..)
+        | Semantics::DataCopy(..) => None,
     })
 }
 

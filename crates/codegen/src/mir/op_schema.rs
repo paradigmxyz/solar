@@ -1538,6 +1538,7 @@ define_mir_ops! {
         category = Some("abstract allocation")
     )]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
+    #[semantics(allocate(size, kind, semantics))]
     Alloc {
         /// Requested byte count.
         size: ValueId,
@@ -2211,6 +2212,7 @@ define_mir_ops! {
         category = None
     )]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[semantics(data_copy(data, dest, size))]
     DataCopy(data: DataRef, dest: ValueId, size: ValueId),
     /// Byte length of deferred module data, such as another contract's
     /// bytecode, plus an addend, rounded down to a multiple of 32 when aligned.
