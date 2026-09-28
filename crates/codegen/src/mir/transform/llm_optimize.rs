@@ -244,20 +244,24 @@ impl<'gcx> Optimizer<'gcx> {
         let baseline = tests.baseline();
         let key = Cache::key(self.target, &canonical);
         let digest = |accepted: &Accepted| keccak256(format!("{key}\n{}", accepted.text));
+        let request = self.rewriter.as_ref().map(|_| self.request(module, id, &tests, &canonical));
         let cached = match self.replay(module, id, &tests, &key, &canonical) {
             Replay::Accepted(accepted) => {
+                if let (Some(rewriter), Some(request)) = (&self.rewriter, &request) {
+                    rewriter.cached(request, accepted.cost);
+                }
                 return Some(Rewrite { digest: digest(&accepted), function: accepted.function });
             }
             Replay::Rejected => true,
             Replay::Missing => false,
         };
-        let Some(rewriter) = &self.rewriter else {
+        let (Some(rewriter), Some(request)) = (&self.rewriter, request) else {
             if !cached {
                 self.trace(module, Some(id), "no cached rewrite");
             }
             return None;
         };
-        let best = self.ask(rewriter.as_ref(), module, id, &tests, &canonical)?;
+        let best = self.ask(rewriter.as_ref(), module, id, &tests, &request)?;
         self.trace(module, Some(id), format_args!("rewritten from {baseline} to {}", best.cost));
         if self.record
             && let Some(cache) = &self.cache
@@ -272,20 +276,16 @@ impl<'gcx> Optimizer<'gcx> {
         Some(Rewrite { digest: digest(&best), function: best.function })
     }
 
-    /// Asks `rewriter` for candidates replacing function `id` until it has nothing cheaper, the
-    /// rounds run out, or it fails, and returns the best that passed every check.
-    fn ask(
+    /// What a rewriter is told about function `id`, whose candidate text is `canonical`.
+    fn request(
         &self,
-        rewriter: &dyn LlmRewriter,
         module: &Module,
         id: FunctionId,
         tests: &Tests<'_>,
         canonical: &str,
-    ) -> Option<Accepted> {
+    ) -> RewriteRequest {
         let original = module.function(id);
-        let baseline = tests.baseline();
-        self.trace(module, Some(id), format_args!("offered at {baseline}"));
-        let request = RewriteRequest {
+        RewriteRequest {
             module_name: module.name.to_string(),
             function_name: original.name.to_string(),
             function_text: canonical.to_string(),
@@ -297,10 +297,24 @@ impl<'gcx> Optimizer<'gcx> {
             objective: self.target.optimization(),
             optimizer_runs: self.target.expected_executions(),
             evm_version: self.target.evm_version(),
-            baseline,
+            baseline: tests.baseline(),
             vocabulary: self.vocabulary.clone(),
-        };
-        let mut session = match rewriter.session(&request) {
+        }
+    }
+
+    /// Asks `rewriter` for candidates replacing function `id` until it has nothing cheaper, the
+    /// rounds run out, or it fails, and returns the best that passed every check.
+    fn ask(
+        &self,
+        rewriter: &dyn LlmRewriter,
+        module: &Module,
+        id: FunctionId,
+        tests: &Tests<'_>,
+        request: &RewriteRequest,
+    ) -> Option<Accepted> {
+        let baseline = tests.baseline();
+        self.trace(module, Some(id), format_args!("offered at {baseline}"));
+        let mut session = match rewriter.session(request) {
             Ok(session) => session,
             Err(error) => {
                 self.trace(module, Some(id), format_args!("the rewriter failed: {error}"));

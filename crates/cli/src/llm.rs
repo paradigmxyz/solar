@@ -400,6 +400,14 @@ impl LlmRewriter for Rewriter {
             round: 0,
         }))
     }
+
+    fn cached(&self, request: &RewriteRequest, cost: CostReport) {
+        let voice = Voice::new(self.0.console, &request.module_name, &request.function_name);
+        voice.say(format_args!(
+            "reuses its cached rewrite at {cost}, down from {}, without asking {}",
+            request.baseline, self.0.label
+        ));
+    }
 }
 
 /// A turn's reply and what it used.

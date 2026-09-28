@@ -24,6 +24,12 @@ static REWRITER: RwLock<Option<Arc<dyn LlmRewriter>>> = RwLock::new(None);
 pub trait LlmRewriter: Send + Sync {
     /// Opens a rewriting session for one function.
     fn session(&self, request: &RewriteRequest) -> Result<Box<dyn LlmSession>, LlmError>;
+
+    /// Hears that the function `request` describes keeps the rewrite the cache recorded for it,
+    /// at `cost`, so no session asks about it.
+    fn cached(&self, request: &RewriteRequest, cost: CostReport) {
+        let _ = (request, cost);
+    }
 }
 
 /// One conversation about rewriting one function.
