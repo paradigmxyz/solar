@@ -37,12 +37,12 @@ use super::{
     utils::MachineInstKey,
 };
 use crate::backend::evm::{
-    ir::{BlockId, Instruction, Module, PushValue, TerminatorKind},
+    ir::{Instruction, Module, PushValue, TerminatorKind},
     op,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
-use solar_data_structures::{index::IndexVec, map::FxHasher};
+use solar_data_structures::map::{FxHashMap, FxHasher};
 use solar_sema::Gcx;
 use std::{
     fmt,
@@ -125,37 +125,29 @@ const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 ///
 /// Matching reads only each instruction's opcode, encoding, value, stack operation, and
 /// `keep_with_next` flag, and no other metadata, so equal keys produce the same result. The final
-/// rules extend the early ones, so contents clean under them are clean under both.
+/// rules extend the early ones, so contents clean under them are clean under both. Records are
+/// keyed by contents rather than by block, so they survive block reordering and removal and cover
+/// every block with equal contents.
 /// Module clones start without the cache, and it never affects module equality.
 ///
 /// NOTE: Records hold a hash of the keys rather than a copy, which would retain every clean
-/// block's contents a second time for the module's lifetime. A collision between the recorded
-/// and the current contents of one block at equal length would skip a rewrite; the result stays
-/// deterministic.
+/// block's contents a second time for the module's lifetime. A collision between recorded and
+/// current contents of equal length would skip a rewrite; the result stays deterministic.
 #[derive(Default)]
-pub(crate) struct CleanBlocks(IndexVec<BlockId, Option<CleanBlock>>);
+pub(crate) struct CleanBlocks(FxHashMap<(u32, u64), bool>);
 
-struct CleanBlock {
-    final_cleanup: bool,
-    len: u32,
-    hash: u64,
-}
-
-fn clean_hash(instructions: &[Instruction]) -> u64 {
+/// Returns the length and hash of the keys of `instructions`.
+fn clean_key(instructions: &[Instruction]) -> (u32, u64) {
     let mut hasher = FxHasher::default();
     for inst in instructions {
         MachineInstKey::new(inst).hash(&mut hasher);
     }
-    hasher.finish()
+    (instructions.len() as u32, hasher.finish())
 }
 
 impl CleanBlocks {
-    /// Returns whether the block was recorded clean with exactly these contents, and if so,
-    /// whether the final rules were included.
-    fn recorded(&self, block: BlockId, instructions: &[Instruction]) -> Option<bool> {
-        let clean = self.0.get(block)?.as_ref()?;
-        (clean.len as usize == instructions.len() && clean.hash == clean_hash(instructions))
-            .then_some(clean.final_cleanup)
+    pub(in crate::backend::evm::ir) fn clear(&mut self) {
+        self.0.clear();
     }
 }
 
@@ -188,10 +180,10 @@ fn optimize_module<const LATE: bool>(
     let mut changed = false;
     let mut scratch = Vec::new();
     let clean = &mut module.peephole_clean;
-    clean.0.resize_with(module.blocks.len(), || None);
-    for (block_id, block) in module.blocks.iter_mut_enumerated() {
+    for block in &mut module.blocks {
         // The late rules are separate from the cached early and final ones.
-        let recorded = if LATE { None } else { clean.recorded(block_id, &block.instructions) };
+        let key = (!LATE).then(|| clean_key(&block.instructions));
+        let recorded = key.and_then(|key| clean.0.get(&key).copied());
         let skip = recorded.is_some_and(|recorded_final| recorded_final || !final_cleanup);
         let early_clean = final_cleanup && recorded == Some(false);
         // Dead stack traffic before a terminator that cannot observe it is dead-code
@@ -208,8 +200,15 @@ fn optimize_module<const LATE: bool>(
                 early_clean,
             )
         };
+        // The unchanged contents are clean under these rules, and under the final rules as well
+        // when they were already clean under the early ones.
+        if let Some(key) = key
+            && !skip
+            && rewrites == 0
+        {
+            *clean.0.entry(key).or_default() |= final_cleanup;
+        }
         changed |= rewrites != 0;
-        let mut returned_zero = false;
         // mstore(offset, value); return(offset, 32)
         // -> mstore(0, value); return(0, 32)
         if final_cleanup
@@ -235,21 +234,6 @@ fn optimize_module<const LATE: bool>(
             offset.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
             returned.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
             changed = true;
-            returned_zero = true;
-        }
-        if !LATE && !skip {
-            if rewrites != 0 || returned_zero {
-                clean.0[block_id] = None;
-            } else if early_clean {
-                // The same contents are now clean under the final rules as well.
-                clean.0[block_id].as_mut().unwrap().final_cleanup = true;
-            } else {
-                clean.0[block_id] = Some(CleanBlock {
-                    final_cleanup,
-                    len: block.instructions.len() as u32,
-                    hash: clean_hash(&block.instructions),
-                });
-            }
         }
     }
     changed
