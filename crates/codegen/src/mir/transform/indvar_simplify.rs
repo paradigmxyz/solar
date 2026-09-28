@@ -507,13 +507,13 @@ impl IndVarSimplifier {
     ) -> bool {
         let mut pending = Vec::new();
         pending.push(iv);
-        let mut visited = FxHashSet::default();
+        let mut visited = DenseBitSet::new_empty(func.num_values());
         while let Some(value) = pending.pop() {
             if !visited.insert(value) {
                 continue;
             }
-            for (block_id, block) in func.blocks.iter_enumerated() {
-                let in_loop = loop_data.blocks.contains(block_id);
+            for block_id in loop_data.blocks.iter() {
+                let block = &func.blocks[block_id];
                 if block.terminator.as_ref().is_some_and(|term| term.operands().contains(&value)) {
                     return false;
                 }
@@ -526,7 +526,7 @@ impl IndVarSimplifier {
                         continue;
                     }
                     let Some(result) = func.inst_result_value(inst_id) else { return false };
-                    if !in_loop || matches!(inst.kind, InstKind::Phi(_)) {
+                    if matches!(inst.kind, InstKind::Phi(_)) {
                         return false;
                     }
                     if addresses.contains(&result) {
@@ -539,7 +539,23 @@ impl IndVarSimplifier {
                 }
             }
         }
-        true
+        // Outside the loop, only the exit test and the update may read any of them.
+        func.blocks
+            .iter_enumerated()
+            .filter(|&(block_id, _)| !loop_data.blocks.contains(block_id))
+            .all(|(_, block)| {
+                let mut found = false;
+                if let Some(term) = &block.terminator {
+                    term.visit_operands(|operand| found |= visited.contains(operand));
+                }
+                for &inst_id in &block.instructions {
+                    if inst_id != condition && Some(inst_id) != update {
+                        func.inst(inst_id)
+                            .visit_operands(|operand| found |= visited.contains(operand));
+                    }
+                }
+                !found
+            })
     }
 
     /// Removes the counter phi and its update once nothing else reads either: the plain
