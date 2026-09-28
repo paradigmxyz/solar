@@ -105,7 +105,10 @@ use crate::{
         ir::{ImmediateMaterialization, immediate_materialization_cost},
         op::StackOp,
     },
-    mir::{ArgIdx, BlockId, Function, InstKind, OpTraits, Value, ValueId, analysis::Liveness},
+    mir::{
+        ArgIdx, BlockId, EffectKind, Function, InstKind, OpTraits, Value, ValueId,
+        analysis::Liveness,
+    },
     target::{Cost, StackCosts, Target},
 };
 use smallvec::SmallVec;
@@ -130,9 +133,20 @@ pub(crate) const fn is_rematerializable_leaf(value: &Value) -> bool {
 
 /// Returns the opcode for a stable nullary read that is cheaper to re-emit than preserve.
 pub(crate) fn rematerializable_nullary_opcode(kind: &InstKind) -> Option<u8> {
-    if kind.op_def().traits.contains(OpTraits::REMATERIALIZABLE)
-        && let Some(OpcodeLowering::Nullary { opcode }) = opcode_lowering(&kind.op())
-    {
+    let def = kind.op_def();
+    if !def.traits.contains(OpTraits::REMATERIALIZABLE) {
+        return None;
+    }
+    // The rematerializable nullary reads are environment reads; the pure rematerializable
+    // operations are arithmetic over operands, which never lowers to a nullary opcode.
+    if def.effect == EffectKind::Pure {
+        debug_assert!(
+            !matches!(opcode_lowering(&kind.op()), Some(OpcodeLowering::Nullary { .. })),
+            "pure nullary rematerializable operation"
+        );
+        return None;
+    }
+    if let Some(OpcodeLowering::Nullary { opcode }) = opcode_lowering(&kind.op()) {
         Some(opcode)
     } else {
         None
