@@ -151,6 +151,6 @@ pub fn set_rewriter(rewriter: Option<Arc<dyn LlmRewriter>>) {
 }
 
 /// Returns the installed rewriter.
-pub(crate) fn rewriter() -> Option<Arc<dyn LlmRewriter>> {
+pub fn rewriter() -> Option<Arc<dyn LlmRewriter>> {
     REWRITER.read().unwrap_or_else(PoisonError::into_inner).clone()
 }

@@ -6,4 +6,7 @@ mod lint;
 mod debug_outputs;
 
 #[cfg(feature = "cli")]
+mod llm;
+
+#[cfg(feature = "cli")]
 mod lsp;

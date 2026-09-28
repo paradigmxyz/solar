@@ -64,8 +64,12 @@ const FORMAT_REMINDER: &str = "Your reply held no candidate. Reply with exactly 
                                line `NO_IMPROVEMENT`.";
 
 /// Installs the rewriter `-Zllm-optimize=live` asks, returning it for [`Installed::finish`].
+///
+/// A rewriter an embedder installed first stays in place.
 pub(crate) fn install(sess: &Session) -> Result<Option<Installed>> {
-    if sess.opts.unstable.llm_optimize != Some(LlmOptimizeMode::Live) {
+    if sess.opts.unstable.llm_optimize != Some(LlmOptimizeMode::Live)
+        || solar_codegen::llm::rewriter().is_some()
+    {
         return Ok(None);
     }
     #[cfg(feature = "llm")]
