@@ -6,11 +6,15 @@
 //! that observe program-data layout through `CODESIZE`, because appending data would change the
 //! observed final byte.
 
-use super::{EvmPass, data::literal_store_run, utils::instruction_size_lower_bound};
+use super::{
+    EvmPass,
+    data::{literal_store_bytes, literal_store_words},
+    utils::instruction_size_lower_bound,
+};
 use crate::{
     backend::evm::{
         ir::{BlockId, Data, DataRef, Instruction, Metadata, Module},
-        op::{self, WORD_BYTES},
+        op,
     },
     mir::lower::data_copy_cost,
 };
@@ -98,10 +102,11 @@ fn find_run(
     instructions: &[Instruction],
     start: usize,
 ) -> Option<Rewrite> {
-    let (data, end) = literal_store_run(instructions, start)?;
-    if data.len() < 2 * WORD_BYTES {
+    let (words, end) = literal_store_words(instructions, start)?;
+    if words < 2 {
         return None;
     }
+    let data = literal_store_bytes(instructions, start, end);
 
     let old_size = instructions[start..end]
         .iter()

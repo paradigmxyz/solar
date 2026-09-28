@@ -276,12 +276,18 @@ fn find_run(
 }
 
 /// Returns the bytes and exclusive end of a consecutive literal `MSTORE` run.
-pub(super) fn literal_store_run(
+fn literal_store_run(instructions: &[Instruction], start: usize) -> Option<(Bytes, usize)> {
+    let (_, end) = literal_store_words(instructions, start)?;
+    Some((literal_store_bytes(instructions, start, end), end))
+}
+
+/// Returns the word count and exclusive end of a consecutive literal `MSTORE` run.
+pub(super) fn literal_store_words(
     instructions: &[Instruction],
     start: usize,
-) -> Option<(Bytes, usize)> {
+) -> Option<(usize, usize)> {
     let [value, dup, store, ..] = instructions.get(start..)? else { return None };
-    let first = value.concrete_immediate()?;
+    value.concrete_immediate()?;
     if dup.as_stack_op() != Some(op::StackOp::Dup(2)) || store.as_evm_opcode() != Some(op::MSTORE) {
         return None;
     }
@@ -304,14 +310,20 @@ pub(super) fn literal_store_run(
         words += 1;
         end += 6;
     }
-    let mut data = Vec::with_capacity(words * WORD_BYTES);
+    Some((words, end))
+}
+
+/// Returns the bytes stored by the literal `MSTORE` run from `start` to `end`.
+pub(super) fn literal_store_bytes(instructions: &[Instruction], start: usize, end: usize) -> Bytes {
+    let first = instructions[start].concrete_immediate().unwrap();
+    let mut data = Vec::with_capacity((end - start + 3) / 6 * WORD_BYTES);
     data.extend_from_slice(&first.to_be_bytes::<WORD_BYTES>());
     for window in instructions[start + 3..end].as_chunks::<6>().0 {
         data.extend_from_slice(
             &window[3].concrete_immediate().unwrap().to_be_bytes::<WORD_BYTES>(),
         );
     }
-    Some((data.into(), end))
+    data.into()
 }
 
 fn rewrite_improvement(
