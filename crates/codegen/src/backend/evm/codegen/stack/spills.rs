@@ -77,14 +77,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         let cross_block_live =
             cross_block_live.get_or_init(|| Self::cross_block_live_values(func, liveness));
         let values = Self::cross_block_spill_values(func, cross_block_live);
+        let recomputable =
+            cross_block_values(func, |value| !self.scheduler.is_stack_only_value(value));
 
         // Coloring minimizes the local frame, which reduces memory expansion in gas mode. It is
         // deliberately disabled in size mode because renumbering spill addresses disturbed
         // downstream block sharing and regressed aggregate CI bytecode despite smaller frames.
         if self.gcx.sess.opts.optimization.is_gas() {
             let colorable = cross_block_live;
-            let recomputable =
-                cross_block_values(func, |value| !self.scheduler.is_stack_only_value(value));
             let ranges = Self::spill_live_ranges(func, liveness, colorable, &recomputable);
             let interferences =
                 Self::parallel_phi_interferences(func, liveness, colorable, &self.block_copies);
@@ -114,7 +114,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
-        self.preallocate_spill_metadata(func, &values);
+        self.preallocate_spill_metadata(&values, &recomputable);
 
         // A free-memory-pointer load cannot be recomputed after the pointer moves. Reserve stable
         // slots for cross-block values, including direct uses that liveness does not carry. Size
@@ -129,9 +129,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    fn preallocate_spill_metadata(&mut self, func: &Function, values: &DenseBitSet<ValueId>) {
-        let recomputable =
-            cross_block_values(func, |value| !self.scheduler.is_stack_only_value(value));
+    fn preallocate_spill_metadata(
+        &mut self,
+        values: &DenseBitSet<ValueId>,
+        recomputable: &DenseBitSet<ValueId>,
+    ) {
         for val in values {
             if recomputable.contains(val) {
                 self.scheduler.spills.mark_recomputable(val);
