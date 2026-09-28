@@ -170,9 +170,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         for (id, callee) in std::mem::take(&mut self.pending_frame_size_consts) {
             // frame_extent = frame_size + heap_guard
-            let extent = U256::from(self.emitted_frame_size(module, callee))
-                + U256::from(heap_guard(callee));
-            self.asm.set_deferred_const(id, extent);
+            let extent = self.emitted_frame_size(module, callee) + heap_guard(callee);
+            self.dynamic_frame_extents.insert(callee, extent);
+            self.asm.set_deferred_const(id, U256::from(extent));
         }
     }
 
