@@ -1618,10 +1618,11 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
     let target = Target::new(gcx);
     let seq =
         |codes: &[u8]| codes.iter().map(|&code| target.opcode(code)).fold(Cost::ZERO, Cost::plus);
-    if select::opcode_lowering(&kind.op()).is_some()
-        && !matches!(kind, InstKind::ICall { .. } | InstKind::LoadImmutable(_))
-    {
-        return (target.op(&kind.op(), |_| None), 1);
+    if !matches!(kind, InstKind::ICall { .. } | InstKind::LoadImmutable(_)) {
+        let op = kind.op();
+        if select::opcode_lowering(&op).is_some() {
+            return (target.op(&op, |_| None), 1);
+        }
     }
     let code = match kind {
         InstKind::Ne(..) => seq(&[op::EQ, op::ISZERO]),
