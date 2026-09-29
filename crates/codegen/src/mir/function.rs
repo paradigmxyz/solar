@@ -9,12 +9,13 @@ use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
-    fmt::{self, FmtIteratorExt},
+    fmt::FmtIteratorExt,
     index::IndexVec,
     map::{FxHashMap, StdEntry},
 };
 use solar_interface::{Ident, Span, Symbol};
 use solar_sema::hir::{StateMutability, Visibility};
+use std::fmt;
 
 /// A function in the MIR.
 #[derive(Clone, Debug)]

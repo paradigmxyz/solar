@@ -2,9 +2,9 @@ use super::{Gcx, Recursiveness, print::TySolcPrinter};
 use crate::{builtins::Builtin, hir};
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, StateMutability, TypeSize};
-use solar_data_structures::{Interned, bit_set::GrowableBitSet, fmt};
+use solar_data_structures::{Interned, bit_set::GrowableBitSet};
 use solar_interface::diagnostics::ErrorGuaranteed;
-use std::{borrow::Borrow, hash::Hash, ops::ControlFlow};
+use std::{borrow::Borrow, fmt, hash::Hash, ops::ControlFlow};
 
 /// An interned type.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]

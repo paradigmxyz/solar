@@ -10,13 +10,13 @@ use alloy_primitives::Bytes;
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
-    fmt::{self, FmtIteratorExt},
+    fmt::FmtIteratorExt,
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
 use solar_interface::{Ident, Symbol, sym};
 use solar_sema::hir::VariableId;
-use std::{borrow::Cow, sync::Arc};
+use std::{borrow::Cow, fmt, sync::Arc};
 
 /// A named immutable declared by a MIR module.
 #[derive(Clone, Copy, Debug)]

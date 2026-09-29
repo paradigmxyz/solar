@@ -4,11 +4,11 @@ use crate::{BytePos, CharPos, Span};
 use arc_swap::ArcSwapOption;
 use once_map::OnceMap;
 use solar_data_structures::{
-    fmt,
     map::FxBuildHasher,
     sync::{MappedRwLockReadGuard, RwLock, RwLockReadGuard},
 };
 use std::{
+    fmt,
     io::{self, Read},
     ops::Range,
     path::{Path, PathBuf},
