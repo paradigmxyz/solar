@@ -284,10 +284,7 @@ impl DiagnosticStore {
     }
 
     fn replace(&mut self, owner: DiagnosticOwner, diagnostics: DiagnosticMap) -> FxHashSet<Url> {
-        let mut affected_uris =
-            FxHashSet::with_capacity_and_hasher(diagnostics.len(), Default::default());
-        affected_uris.extend(diagnostics.keys().cloned());
-
+        let mut affected_uris = diagnostics.keys().cloned().collect::<FxHashSet<_>>();
         let previous = if diagnostics.is_empty() {
             self.diagnostics.remove(&owner)
         } else {
