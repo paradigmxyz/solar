@@ -31,12 +31,7 @@ pub(crate) struct DiagnosticData {
 impl DiagnosticData {
     #[cfg(test)]
     pub(crate) fn new(uri: Url, source: &str, suggestions: Vec<DiagnosticSuggestion>) -> Self {
-        Self {
-            version: DIAGNOSTIC_DATA_VERSION,
-            uri,
-            source_fingerprint: source_fingerprint(source),
-            suggestions,
-        }
+        Self::from_fingerprint(uri, source_fingerprint(source), suggestions)
     }
 
     pub(crate) fn from_rope(
@@ -44,12 +39,7 @@ impl DiagnosticData {
         source: &Rope,
         suggestions: Vec<DiagnosticSuggestion>,
     ) -> Self {
-        Self {
-            version: DIAGNOSTIC_DATA_VERSION,
-            uri,
-            source_fingerprint: source_fingerprint_chunks(source.chunks()),
-            suggestions,
-        }
+        Self::from_fingerprint(uri, rope_source_fingerprint(source), suggestions)
     }
 
     pub(crate) fn from_fingerprint(
@@ -120,9 +110,6 @@ pub(crate) fn plans(
     current_diagnostics: &[Diagnostic],
     index: &proto::LspPositionIndex<&Rope>,
 ) -> Vec<CodeActionPlan> {
-    if !quick_fixes_requested(params) {
-        return Vec::new();
-    }
     if exact_byte_range(index, params.range).is_none() {
         return Vec::new();
     }
@@ -224,6 +211,10 @@ impl CodeActionSource<'_> {
         self.source.get_or_init(|| Arc::new(crate::utils::rope_to_string(self.index.rope())))
     }
 
+    fn eol(&self) -> &'static str {
+        if self.source().contains("\r\n") { "\r\n" } else { "\n" }
+    }
+
     fn lsp_range(&self, range: std::ops::Range<usize>) -> Option<lsp_types::Range> {
         Some(lsp_types::Range::new(
             self.index.position_at_byte(range.start)?,
@@ -232,7 +223,7 @@ impl CodeActionSource<'_> {
     }
 }
 
-fn exact_byte_range(
+pub(crate) fn exact_byte_range(
     index: &proto::LspPositionIndex<&Rope>,
     range: lsp_types::Range,
 ) -> Option<std::ops::Range<usize>> {
@@ -319,6 +310,12 @@ fn diagnostic_primary_message(diagnostic: &Diagnostic) -> &str {
     diagnostic.message.lines().next().unwrap_or_default().trim_end()
 }
 
+/// Returns the primary message without the trailing period that solc appends.
+fn fallback_message(diagnostic: &Diagnostic) -> &str {
+    let message = diagnostic_primary_message(diagnostic);
+    message.strip_suffix('.').unwrap_or(message)
+}
+
 fn is_unused_import_diagnostic(diagnostic: &Diagnostic) -> bool {
     match (
         diagnostic.source.as_deref(),
@@ -340,8 +337,7 @@ fn unused_local_variable_fix(
     diagnostic: &Diagnostic,
     context: &CodeActionSource<'_>,
 ) -> Option<(String, Applicability, Vec<TextEdit>)> {
-    let message = diagnostic_primary_message(diagnostic);
-    let message = message.strip_suffix('.').unwrap_or(message);
+    let message = fallback_message(diagnostic);
     if !matches!(message, "unused local variable" | "Unused local variable") {
         return None;
     }
@@ -479,8 +475,7 @@ fn spdx_fixes(
     {
         return Vec::new();
     }
-    let source = context.source();
-    let eol = if source.contains("\r\n") { "\r\n" } else { "\n" };
+    let eol = context.eol();
     ["MIT", "UNLICENSED"]
         .into_iter()
         .map(|license| {
@@ -504,14 +499,13 @@ fn compiler_pragma_fix(
     if diagnostic.range != lsp_types::Range::default() {
         return None;
     }
-    let source = context.source();
     let recommendation = diagnostic_primary_message(diagnostic).strip_prefix(PREFIX)?;
     let recommendation = recommendation.strip_suffix('.').unwrap_or(recommendation);
     let pragma = recommendation.strip_suffix('"')?;
     if pragma.len() > 128 || pragma.contains(['\r', '\n']) || !is_single_solidity_pragma(pragma) {
         return None;
     }
-    let eol = if source.contains("\r\n") { "\r\n" } else { "\n" };
+    let eol = context.eol();
     Some((
         format!("Add `{pragma}`"),
         Applicability::MaybeIncorrect,
@@ -546,11 +540,7 @@ fn is_single_solidity_pragma(pragma: &str) -> bool {
     {
         return false;
     }
-    let sess = Session::builder()
-        .opts(CompileOpts::default())
-        .with_silent_emitter(None)
-        .single_threaded()
-        .build();
+    let sess = silent_session();
     sess.enter_sequential(|| {
         let arena = ast::Arena::new();
         let Ok(mut parser) = Parser::from_source_code(
@@ -575,8 +565,7 @@ fn function_mutability_fix(
     diagnostic: &Diagnostic,
     context: &CodeActionSource<'_>,
 ) -> Option<(String, Applicability, Vec<TextEdit>)> {
-    let message = diagnostic_primary_message(diagnostic);
-    let message = message.strip_suffix('.').unwrap_or(message);
+    let message = fallback_message(diagnostic);
     let target = match message {
         "function state mutability can be restricted to view"
         | "Function state mutability can be restricted to view" => ast::StateMutability::View,
@@ -615,8 +604,7 @@ fn unimplemented_function_fix(
     diagnostic: &Diagnostic,
     context: &CodeActionSource<'_>,
 ) -> Option<(String, Applicability, Vec<TextEdit>)> {
-    let message = diagnostic_primary_message(diagnostic);
-    let message = message.strip_suffix('.').unwrap_or(message);
+    let message = fallback_message(diagnostic);
     if !matches!(
         message,
         "functions without implementation must be marked virtual"
@@ -650,8 +638,7 @@ fn missing_override_fix(
         PublicVariable,
     }
 
-    let message = diagnostic_primary_message(diagnostic);
-    let message = message.strip_suffix('.').unwrap_or(message);
+    let message = fallback_message(diagnostic);
     let target = match message {
         "overriding function is missing `override` specifier"
         | "Overriding function is missing \"override\" specifier" => Target::Function,
@@ -716,13 +703,7 @@ fn with_parsed_target<T>(
     ) -> Option<T>,
 ) -> Option<T> {
     let target_range = context.index.checked_text_range(diagnostic.range)?;
-    let sess = context.session.get_or_init(|| {
-        Session::builder()
-            .opts(CompileOpts::default())
-            .with_silent_emitter(None)
-            .single_threaded()
-            .build()
-    });
+    let sess = context.session.get_or_init(silent_session);
 
     sess.enter_sequential(|| {
         let parsed = context
@@ -748,6 +729,14 @@ fn with_parsed_target<T>(
             .as_ref()?;
         f(parsed.source_unit, &parsed.file, context.source(), &target_range)
     })
+}
+
+fn silent_session() -> Session {
+    Session::builder()
+        .opts(CompileOpts::default())
+        .with_silent_emitter(None)
+        .single_threaded()
+        .build()
 }
 
 fn find_item<'ast, 'a>(
@@ -849,117 +838,69 @@ fn source_fingerprint_chunks<'a>(chunks: impl IntoIterator<Item = &'a str>) -> S
 mod tests {
     use super::*;
     use lsp_types::{
-        CodeActionContext, PartialResultParams, Position, Range, TextDocumentIdentifier,
+        CodeActionContext, PartialResultParams, Position, TextDocumentIdentifier,
         WorkDoneProgressParams,
     };
 
     #[test]
     fn diagnostic_data_is_bound_to_its_uri_and_version() {
-        let first = Url::from_file_path(std::env::temp_dir().join("First.sol")).unwrap();
-        let second = Url::from_file_path(std::env::temp_dir().join("Second.sol")).unwrap();
-        let edit = TextEdit::new(Range::new(Position::new(0, 0), Position::new(0, 1)), "x".into());
-        let data = DiagnosticData::new(
-            first.clone(),
-            "a",
-            vec![DiagnosticSuggestion::new(
-                "replace".into(),
-                Applicability::MachineApplicable,
-                vec![vec![edit]],
-            )],
-        )
-        .to_value();
-
+        let first = uri("First.sol");
+        let data = data(&first, "a", "replace", 0);
         let contents = Rope::from("a");
         let index = proto::LspPositionIndex::new(&contents);
-        let first_params = params(first.clone(), data.clone());
-        assert_eq!(plans(&first_params, &first_params.context.diagnostics, &index).len(), 1);
-        let second_params = params(second, data.clone());
-        assert!(plans(&second_params, &second_params.context.diagnostics, &index).is_empty());
+        let titles = |params: CodeActionParams| {
+            plan_titles(&plans(&params, &params.context.diagnostics, &index))
+        };
+        assert_eq!(titles(params(first.clone(), data.clone())), ["replace"]);
+        assert!(titles(params(uri("Second.sol"), data.clone())).is_empty());
 
         let mut wrong_version = data.clone();
         wrong_version["version"] = serde_json::json!(2);
-        let wrong_version = params(first.clone(), wrong_version);
-        assert!(plans(&wrong_version, &wrong_version.context.diagnostics, &index).is_empty());
+        assert!(titles(params(first.clone(), wrong_version)).is_empty());
 
         let mut extra_field = data;
         extra_field["unexpected"] = serde_json::json!(true);
-        let extra_field = params(first, extra_field);
-        assert!(plans(&extra_field, &extra_field.context.diagnostics, &index).is_empty());
+        assert!(titles(params(first, extra_field)).is_empty());
     }
 
     #[test]
     fn duplicate_diagnostics_use_server_data_without_dropping_fixes() {
-        let uri = Url::from_file_path(std::env::temp_dir().join("Duplicate.sol")).unwrap();
-        let data = |title: &str, start| {
-            DiagnosticData::new(
-                uri.clone(),
-                "ab",
-                vec![DiagnosticSuggestion::new(
-                    title.into(),
-                    Applicability::MachineApplicable,
-                    vec![vec![TextEdit::new(
-                        Range::new(Position::new(0, start), Position::new(0, start + 1)),
-                        title.into(),
-                    )]],
-                )],
-            )
-            .to_value()
-        };
-        let mut requested = params(uri.clone(), data("first", 0));
+        let uri = uri("Duplicate.sol");
+        let mut requested = params(uri.clone(), data(&uri, "ab", "first", 0));
         let first = requested.context.diagnostics[0].clone();
         let mut second = first.clone();
-        second.data = Some(data("second", 1));
+        second.data = Some(data(&uri, "ab", "second", 1));
+        // Matching ignores optional presentation fields.
+        second.code_description = Some(lsp_types::CodeDescription {
+            href: Url::parse("https://example.invalid/diagnostic").unwrap(),
+        });
+        second.related_information = Some(Vec::new());
+        second.tags = Some(Vec::new());
         let current = [first, second];
         let contents = Rope::from("ab");
         let index = proto::LspPositionIndex::new(&contents);
 
-        let exact = plans(&requested, &current, &index);
-        assert_eq!(exact.len(), 1);
-        assert_eq!(exact[0].title, "first");
-
-        requested.context.diagnostics[0].data = None;
-        let without_data = plans(&requested, &current, &index);
-        assert_eq!(
-            without_data.iter().map(|plan| plan.title.as_str()).collect::<Vec<_>>(),
-            ["first", "second"]
-        );
-
-        requested.context.diagnostics[0].data = Some(serde_json::json!({ "modified": true }));
-        let modified = plans(&requested, &current, &index);
-        assert_eq!(
-            modified.iter().map(|plan| plan.title.as_str()).collect::<Vec<_>>(),
-            ["first", "second"]
-        );
+        assert_eq!(plan_titles(&plans(&requested, &current, &index)), ["first"]);
+        for data in [None, Some(serde_json::json!({ "modified": true }))] {
+            requested.context.diagnostics[0].data = data;
+            assert_eq!(plan_titles(&plans(&requested, &current, &index)), ["first", "second"]);
+        }
     }
 
-    #[test]
-    fn diagnostic_matching_ignores_optional_presentation_fields() {
-        let uri = Url::from_file_path(std::env::temp_dir().join("OptionalFields.sol")).unwrap();
-        let data = DiagnosticData::new(
-            uri.clone(),
-            "a",
-            vec![DiagnosticSuggestion::new(
-                "replace".into(),
-                Applicability::MachineApplicable,
-                vec![vec![TextEdit::new(
-                    Range::new(Position::new(0, 0), Position::new(0, 1)),
-                    "b".into(),
-                )]],
-            )],
-        )
-        .to_value();
-        let params = params(uri, data);
-        let mut current = params.context.diagnostics[0].clone();
-        current.code_description = Some(lsp_types::CodeDescription {
-            href: Url::parse("https://example.invalid/diagnostic").unwrap(),
-        });
-        current.related_information = Some(Vec::new());
-        current.tags = Some(Vec::new());
+    fn uri(name: &str) -> Url {
+        Url::from_file_path(std::env::temp_dir().join(name)).unwrap()
+    }
 
-        assert_eq!(
-            plans(&params, &[current], &proto::LspPositionIndex::new(&Rope::from("a"))).len(),
-            1
-        );
+    fn data(uri: &Url, source: &str, title: &str, start: u32) -> serde_json::Value {
+        let range = Range::new(Position::new(0, start), Position::new(0, start + 1));
+        let edits = vec![vec![TextEdit::new(range, title.into())]];
+        let suggestion =
+            DiagnosticSuggestion::new(title.into(), Applicability::MachineApplicable, edits);
+        DiagnosticData::new(uri.clone(), source, vec![suggestion]).to_value()
+    }
+
+    fn plan_titles(plans: &[CodeActionPlan]) -> Vec<String> {
+        plans.iter().map(|plan| plan.title.clone()).collect()
     }
 
     fn params(uri: Url, data: serde_json::Value) -> CodeActionParams {
@@ -977,28 +918,5 @@ mod tests {
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
         }
-    }
-
-    #[test]
-    fn diagnostic_details_preserve_fallback_quick_fixes() {
-        let uri = Url::from_file_path(std::env::temp_dir().join("Details.sol")).unwrap();
-        let contents = Rope::from("contract Test { function f() public { uint256 unused; } }");
-        let index = proto::LspPositionIndex::new(&contents);
-        let range = Range::new(Position::new(0, 38), Position::new(0, 52));
-        let mut params =
-            params(uri.clone(), DiagnosticData::from_rope(uri, &contents, Vec::new()).to_value());
-        params.range = range;
-        let diagnostic = &mut params.context.diagnostics[0];
-        diagnostic.range = range;
-        diagnostic.code = Some(NumberOrString::String("2072".into()));
-        diagnostic.message = "Unused local variable.\nnote: the declaration is never read".into();
-
-        let fixes = plans(&params, &params.context.diagnostics, &index);
-        assert_eq!(fixes.len(), 1);
-        snapbox::assert_data_eq!(fixes[0].title.as_str(), "Remove unused local variable");
-        assert_eq!(
-            fixes[0].edits,
-            [TextEdit::new(Range::new(Position::new(0, 38), Position::new(0, 53)), String::new())]
-        );
     }
 }

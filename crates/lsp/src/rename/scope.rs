@@ -19,7 +19,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub(crate) fn validate_rename_scope(
+/// Validates that a rename may edit every candidate location and knows all of its references.
+pub(crate) fn validate_rename(
     candidate: &RenameCandidate,
     config: &Config,
 ) -> Result<(), ResponseError> {
@@ -36,7 +37,14 @@ pub(crate) fn validate_rename_scope(
             }
         };
         ResponseError::new(ErrorCode::REQUEST_FAILED, message)
-    })
+    })?;
+    if candidate.requires_complete_workspace && config.may_omit_source_files() {
+        return Err(ResponseError::new(
+            ErrorCode::REQUEST_FAILED,
+            "cannot rename this symbol because workspace indexing may omit source files",
+        ));
+    }
+    Ok(())
 }
 
 fn check_rename_scope(
