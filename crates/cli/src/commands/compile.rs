@@ -136,7 +136,7 @@ pub(crate) fn run_compiler_session_with(
         }
         finish_session(compiler.gcx().sess, result)
     });
-    if compiler.sess().opts.unstable.skip_gcx_drop.unwrap_or(true) {
+    if !compiler.sess().opts.unstable.drop_gcx {
         std::mem::forget(compiler);
     }
     result
