@@ -14,7 +14,6 @@ use solar_sema::{Gcx, hir::ContractId};
 use crate::mir::Module;
 
 pub(crate) use data::data_copy_cost;
-pub use data::{ContractBytecodes, resolve_contract_code};
 
 /// Lowers a contract from HIR to MIR.
 ///
@@ -22,8 +21,8 @@ pub use data::{ContractBytecodes, resolve_contract_code};
 /// code generation phase started; a lowering bail-out is only reported when it
 /// had not.
 ///
-/// The bytecode of contracts that this contract creates stays deferred until
-/// [`resolve_contract_code`] supplies it.
+/// The bytecode of contracts that this contract creates stays deferred data that
+/// the backend links in during final assembly.
 pub fn lower_contract(gcx: Gcx<'_>, contract_id: ContractId, sema_errored: bool) -> Module {
     contract::lower(gcx, contract_id, sema_errored)
 }

@@ -1,21 +1,21 @@
 //! MIR module (top-level container).
 
 use super::{
-    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, DataId, DataRef, Disambiguator,
-    Function, FunctionId, ImmutableId, MangledSymbol, MirType, StructId, StructType, Terminator,
-    ValueId,
+    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, Data, DataId, DataRef,
+    Disambiguator, Function, FunctionId, ImmutableId, MangledSymbol, MirType, StructId, StructType,
+    Terminator, ValueId,
 };
-use crate::link::{LibraryRelocation, LibraryTable};
+use crate::link::{ContractCode, LibraryRelocation, LibraryTable};
 use alloy_primitives::Bytes;
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     fmt::{self, FmtIteratorExt},
     index::{IndexVec, index_vec},
-    map::{FxHashMap, FxIndexMap},
+    map::FxHashMap,
 };
 use solar_interface::{Ident, Symbol, sym};
-use solar_sema::hir::{ContractId, VariableId};
+use solar_sema::hir::VariableId;
 use std::{borrow::Cow, sync::Arc};
 
 /// A named immutable declared by a MIR module.
@@ -27,41 +27,6 @@ pub(crate) struct Immutable {
     pub(crate) ty: super::ValueLayout,
     /// The source variable, when this module was lowered from Solidity.
     pub(crate) variable_id: Option<VariableId>,
-}
-
-/// One constant byte string and its optional display name.
-#[derive(Clone, Debug)]
-struct Data {
-    bytes: Bytes,
-    name: Option<Symbol>,
-    emit_in_runtime: bool,
-    library_relocations: Vec<LibraryRelocation>,
-    /// Whether the bytes are supplied later, before final assembly.
-    deferred: bool,
-}
-
-impl Data {
-    fn deferred(name: Option<Symbol>) -> Self {
-        Self {
-            bytes: Bytes::new(),
-            name,
-            emit_in_runtime: false,
-            library_relocations: Vec::new(),
-            deferred: true,
-        }
-    }
-}
-
-/// Bits that bound the length of any module data, checked when deferred data is resolved.
-pub(crate) const DATA_SIZE_BITS: u32 = 32;
-
-/// Bytecode of another contract that a module embeds as data.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct ContractCode {
-    /// The embedded contract.
-    pub(crate) contract: ContractId,
-    /// Whether this is the creation bytecode rather than the runtime bytecode.
-    pub(crate) creation: bool,
 }
 
 /// The representation contract of a MIR module.
@@ -132,11 +97,11 @@ pub struct Module {
     /// Named immutable declarations indexed by their stable MIR identifiers.
     immutables: IndexVec<ImmutableId, Immutable>,
     /// Constant byte strings embedded in generated code.
-    data: IndexVec<DataId, Data>,
+    pub(crate) data: IndexVec<DataId, Data>,
     /// Exact data lookup used before the final subslice-packing pass.
     data_index: FxHashMap<Bytes, DataId>,
     /// Deferred data for embedded contract bytecode, in allocation order.
-    contract_codes: FxIndexMap<ContractCode, DataId>,
+    contract_codes: FxHashMap<ContractCode, DataId>,
     /// Whether this is an interface (no bytecode generation).
     pub(crate) is_interface: bool,
     /// Whether this module was lowered from a library.
@@ -206,7 +171,7 @@ impl Module {
             data: IndexVec::new(),
             data_index: FxHashMap::default(),
             libraries: LibraryTable::default(),
-            contract_codes: FxIndexMap::default(),
+            contract_codes: FxHashMap::default(),
             is_interface: false,
             is_library: false,
             phase: MirPhase::Semantic,
@@ -491,11 +456,6 @@ impl Module {
         self.immutables.iter_enumerated()
     }
 
-    /// Returns library relocation offsets in a data blob.
-    pub(crate) fn data_library_relocations(&self, id: DataId) -> &[LibraryRelocation] {
-        &self.data[id].library_relocations
-    }
-
     /// Adds a declaration with library relocations without interning it as literal data.
     pub(crate) fn add_linked_data(
         &mut self,
@@ -506,60 +466,23 @@ impl Module {
         if offsets.is_empty() {
             return self.add_data(bytes, name);
         }
-        self.data.push(Data {
-            bytes,
-            name,
-            emit_in_runtime: false,
-            library_relocations: offsets,
-            deferred: false,
-        })
+        self.data.push(Data { library_relocations: offsets, ..Data::new(bytes, name) })
     }
 
-    /// Interns another contract's bytecode, whose bytes are resolved before final assembly.
+    /// Interns another contract's bytecode, which final assembly links in.
     pub(crate) fn intern_contract_code(&mut self, code: ContractCode, name: Symbol) -> DataRef {
-        let id = *self
-            .contract_codes
-            .entry(code)
-            .or_insert_with(|| self.data.push(Data::deferred(Some(name))));
+        let id = match self.contract_codes.get(&code) {
+            Some(&id) => id,
+            None => self.add_contract_code(code, Some(name)),
+        };
         DataRef::new(id, 0)
     }
 
-    /// Adds data whose bytes are resolved before final assembly.
-    pub(crate) fn add_deferred_data(&mut self, name: Option<Symbol>) -> DataId {
-        self.data.push(Data::deferred(name))
-    }
-
-    /// Returns whether data still waits for its bytes.
-    pub(crate) fn data_is_deferred(&self, id: DataId) -> bool {
-        self.data[id].deferred
-    }
-
-    /// Returns all data that still waits for its bytes.
-    pub(crate) fn iter_deferred_data(&self) -> impl Iterator<Item = DataId> + '_ {
-        self.data.iter_enumerated().filter_map(|(id, data)| data.deferred.then_some(id))
-    }
-
-    /// Returns the data of embedded contract bytecode, in allocation order.
-    pub(crate) fn contract_codes(&self) -> impl Iterator<Item = (DataId, ContractCode)> + '_ {
-        self.contract_codes.iter().map(|(&code, &id)| (id, code))
-    }
-
-    /// Supplies the bytes of deferred data.
-    pub(crate) fn resolve_deferred_data(
-        &mut self,
-        id: DataId,
-        bytes: Bytes,
-        library_relocations: Vec<LibraryRelocation>,
-    ) {
-        let data = &mut self.data[id];
-        assert!(std::mem::take(&mut data.deferred), "data{} is not deferred", id.index());
-        assert!(!bytes.is_empty(), "contract bytecode must not be empty");
-        assert!(
-            u64::try_from(bytes.len()).is_ok_and(|len| len >> DATA_SIZE_BITS == 0),
-            "data length exceeds {DATA_SIZE_BITS} bits"
-        );
-        data.bytes = bytes;
-        data.library_relocations = library_relocations;
+    /// Adds deferred data for another contract's bytecode, which final assembly links in.
+    pub(crate) fn add_contract_code(&mut self, code: ContractCode, name: Option<Symbol>) -> DataId {
+        let id = self.data.push(Data { deferred: Some(code), ..Data::new(Bytes::new(), name) });
+        self.contract_codes.insert(code, id);
+        id
     }
 
     /// Interns constant data and returns its stable identifier.
@@ -585,40 +508,9 @@ impl Module {
     }
 
     fn push_data(&mut self, data: Bytes, name: Option<Symbol>, emit_in_runtime: bool) -> DataId {
-        let id = self.data.push(Data {
-            bytes: data.clone(),
-            name,
-            emit_in_runtime,
-            library_relocations: Vec::new(),
-            deferred: false,
-        });
+        let id = self.data.push(Data { emit_in_runtime, ..Data::new(data.clone(), name) });
         self.data_index.entry(data).or_insert(id);
         id
-    }
-
-    pub(crate) fn data_name(&self, id: DataId) -> Option<Symbol> {
-        self.data[id].name
-    }
-
-    pub(crate) fn data_is_emitted_in_runtime(&self, id: DataId) -> bool {
-        self.data[id].emit_in_runtime
-    }
-
-    /// Returns constant data if the identifier is allocated.
-    #[must_use]
-    pub(crate) fn get_data(&self, id: DataId) -> Option<&Bytes> {
-        self.data.get(id).map(|data| &data.bytes)
-    }
-
-    /// Returns the number of constant data entries.
-    #[must_use]
-    pub(crate) fn data_count(&self) -> usize {
-        self.data.len()
-    }
-
-    /// Returns all constant data entries.
-    pub(crate) fn iter_data(&self) -> impl Iterator<Item = (DataId, &Bytes)> {
-        self.data.iter_enumerated().map(|(id, data)| (id, &data.bytes))
     }
 
     /// Returns an iterator over all functions.
@@ -645,30 +537,13 @@ impl Module {
             }
             if !self.data.is_empty() {
                 writeln!(f, "data:")?;
-                for (id, data) in self.iter_data() {
-                    if let Some(name) = self.data_name(id) {
+                for (id, data) in self.data.iter_enumerated() {
+                    if let Some(name) = data.name {
                         write!(f, "  {}", crate::utils::display_data_name(name, id.index()))?;
                     } else {
                         write!(f, "  {}", id.index())?;
                     }
-                    if self.data_is_deferred(id) {
-                        writeln!(f, ": deferred")?;
-                        continue;
-                    }
-                    write!(f, ": hex\"")?;
-                    for byte in data {
-                        write!(f, "{byte:02x}")?;
-                    }
-                    write!(f, "\"")?;
-                    let offsets = self.data_library_relocations(id);
-                    if !offsets.is_empty() {
-                        write!(
-                            f,
-                            " library_relocations [{}]",
-                            offsets.iter().map(|reloc| reloc.display(&self.libraries)).format(", ")
-                        )?;
-                    }
-                    writeln!(f)?;
+                    writeln!(f, ": {}", data.display_contents(&self.libraries))?;
                 }
                 writeln!(f)?;
             }

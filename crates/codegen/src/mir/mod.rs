@@ -62,7 +62,8 @@ mod function;
 pub(crate) use function::{Function, FunctionAttributes};
 
 mod module;
-pub(crate) use module::{ContractCode, DATA_SIZE_BITS, LoweredModule};
+pub(crate) use crate::link::{Data, DataId, DataRef, DataSize};
+pub(crate) use module::LoweredModule;
 pub use module::{MirPhase, Module};
 
 mod builtin;
@@ -104,21 +105,6 @@ newtype_index! {
     /// A unique identifier for an immutable in the MIR module.
     pub(crate) struct ImmutableId;
 
-    /// A unique identifier for constant data in the MIR module.
-    pub(crate) struct DataId;
-}
-
-/// A relocatable reference to a byte within a MIR data entry.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct DataRef {
-    pub(crate) id: DataId,
-    pub(crate) offset: u32,
-}
-
-impl DataRef {
-    pub(crate) const fn new(id: DataId, offset: u32) -> Self {
-        Self { id, offset }
-    }
 }
 
 impl BlockId {

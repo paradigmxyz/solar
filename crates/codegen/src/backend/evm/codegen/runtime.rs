@@ -1,10 +1,11 @@
 //! Runtime emission, retry policies, and whole-program stack limits.
 
 use super::{
-    ArtifactKind, BlockId, CallGraphInfo, DenseBitSet, EvmCodegen, FunctionId, GeneratedCode,
-    IndexVec, Liveness, MAX_STACK_DEPTH, MirPhase, Module, OptimizationMode, Terminator, index_vec,
-    run_pipeline,
+    ArtifactKind, Assembler, BlockId, CallGraphInfo, DenseBitSet, EmbeddedBytecodes, EvmCodegen,
+    FunctionId, GeneratedCode, IndexVec, LibraryTable, Liveness, MAX_STACK_DEPTH, MirPhase, Module,
+    OptimizationMode, Terminator, index_vec, run_pipeline,
 };
+use crate::backend::assembler::AssembledCode;
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Runs the canonical MIR optimization pipeline on the module.
@@ -64,55 +65,62 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Optimizes and assembles the scheduled runtime code.
+    /// Runs the EVM IR pipeline over the scheduled runtime code.
     ///
-    /// The assembler's deferred data must be resolved.
-    pub(super) fn assemble_runtime_code(&mut self) -> GeneratedCode {
-        let runtime_code_size_limit = self.gcx.sess.opts.evm_version.runtime_code_size_limit();
-        let may_need_code_size_rescue = self.gcx.sess.opts.optimization.is_gas();
-        let mut code_size_rescue = false;
-        let mut gas_first_result = None;
-        // Both outlining policies share the same scheduled and structurally simplified input.
-        if may_need_code_size_rescue && runtime_code_size_limit.is_some() {
+    /// In gas mode, also returns the scheduled runtime to retry with size outlining if the
+    /// linked runtime exceeds EIP-170. Both policies share the same structurally simplified input.
+    pub(super) fn optimize_runtime_code(&mut self) -> Option<Assembler<'gcx>> {
+        let may_need_code_size_rescue = self.gcx.sess.opts.optimization.is_gas()
+            && self.gcx.sess.opts.evm_version.runtime_code_size_limit().is_some();
+        if may_need_code_size_rescue {
             self.asm.prepare_outlining();
-            if self.gcx.dcx().has_errors().is_err() {
-                return GeneratedCode::default();
-            }
         }
-        let mut original = (may_need_code_size_rescue && runtime_code_size_limit.is_some())
-            .then(|| self.asm.clone());
-        loop {
-            self.asm.set_enable_size_outlining(code_size_rescue);
+        let size_rescue = may_need_code_size_rescue.then(|| self.asm.clone());
+        self.asm.optimize();
+        size_rescue
+    }
 
-            let result =
-                self.asm.assemble_with_captures(self.capture_evm_ir, self.capture_debug_info);
-            if may_need_code_size_rescue
-                && !code_size_rescue
-                && let Some(limit) = runtime_code_size_limit
-                && result.bytecode.len() > limit
-                && result.bytecode.len() <= limit * 2
-            {
-                gas_first_result = Some(result);
-                code_size_rescue = true;
-                self.asm = original.take().expect("size rescue retains scheduled EVM IR");
-                continue;
+    /// Links embedded bytecode into the optimized runtime code and assembles it, retrying with
+    /// size outlining when the gas-first runtime exceeds EIP-170 by at most twice the limit.
+    pub(super) fn assemble_runtime_code(
+        &mut self,
+        size_rescue: Option<Assembler<'gcx>>,
+        bytecodes: &EmbeddedBytecodes,
+        libraries: &mut LibraryTable,
+    ) -> GeneratedCode {
+        let mut result = self.link_and_assemble(bytecodes, libraries);
+        if let Some(mut asm) = size_rescue
+            && let Some(limit) = self.gcx.sess.opts.evm_version.runtime_code_size_limit()
+            && result.bytecode.len() > limit
+            && result.bytecode.len() <= limit * 2
+        {
+            asm.set_enable_size_outlining(true);
+            self.asm = asm;
+            self.asm.optimize();
+            let rescued = self.link_and_assemble(bytecodes, libraries);
+            if rescued.bytecode.len() <= limit {
+                result = rescued;
             }
-            let result = if code_size_rescue
-                && result.bytecode.len()
-                    > runtime_code_size_limit.expect("code-size rescue requires a size limit")
-            {
-                gas_first_result.take().expect("code-size rescue must retain the gas-first runtime")
-            } else {
-                result
-            };
-            self.runtime_immutable_refs = result.immutable_refs;
-            return GeneratedCode {
-                bytecode: result.bytecode,
-                library_relocations: result.library_relocations,
-                evm_ir: result.evm_ir,
-                debug_info: result.debug_info,
-            };
         }
+        self.runtime_immutable_refs = result.immutable_refs;
+        GeneratedCode {
+            bytecode: result.bytecode,
+            library_relocations: result.library_relocations,
+            evm_ir: result.evm_ir,
+            debug_info: result.debug_info,
+        }
+    }
+
+    fn link_and_assemble(
+        &mut self,
+        bytecodes: &EmbeddedBytecodes,
+        libraries: &mut LibraryTable,
+    ) -> AssembledCode {
+        self.asm.link(bytecodes, libraries);
+        let prepared = self.asm.lower(self.capture_evm_ir, self.capture_debug_info);
+        let result = self.asm.assemble_owned(prepared, &[]);
+        self.asm.clear();
+        result
     }
 
     fn reset_runtime_codegen(&mut self, module: &Module) {

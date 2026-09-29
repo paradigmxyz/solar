@@ -1047,6 +1047,7 @@ symbols! {
         constructor_args_base,
         constructor_args_end,
         continuation,
+        creation,
         creationCode,
         custom_error,
         data,

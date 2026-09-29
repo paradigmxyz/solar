@@ -4,7 +4,7 @@ use super::{self as ir};
 use crate::{
     backend::{
         assembler::{
-            ArtifactKind, Assembler, DataSize, DeferredAllocResolution, DeferredConst, Label,
+            ArtifactKind, Assembler, DeferredAllocResolution, DeferredConst, Label,
             assembly::DeferredAlloc,
         },
         evm::{
@@ -13,9 +13,7 @@ use crate::{
         },
     },
     link::LibraryId,
-    mir::{
-        DataRef as MirDataRef, ImmutableId, Module as MirModule, TypeSize, memory::EvmMemoryLayout,
-    },
+    mir::{ImmutableId, Module as MirModule, TypeSize, memory::EvmMemoryLayout},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -130,62 +128,24 @@ impl<'gcx> Assembler<'gcx> {
     pub(crate) fn load_data(&mut self, module: &MirModule) {
         assert!(self.program.data.is_empty(), "EVM IR data must be empty before loading MIR data");
         self.program.libraries = module.libraries.clone();
-        self.program.data = module
-            .iter_data()
-            .map(|(id, data)| ir::Data {
-                bytes: data.clone(),
-                library_relocations: module.data_library_relocations(id).to_vec(),
-                name: module.data_name(id),
-                emit_in_runtime: self.artifact_kind == ArtifactKind::Runtime
-                    && module.data_is_emitted_in_runtime(id),
-            })
-            .collect();
-        self.deferred_data
-            .extend(module.iter_deferred_data().map(|id| ir::DataId::from_usize(id.index())));
-    }
-
-    /// Supplies loaded data that was deferred, and the lengths pushed for it, from `module`.
-    pub(crate) fn resolve_deferred_data(&mut self, module: &MirModule) {
-        self.program.libraries = module.libraries.clone();
-        for id in self.deferred_data.drain() {
-            let mir_id = crate::mir::DataId::from_usize(id.index());
-            assert!(!module.data_is_deferred(mir_id), "data{} is still deferred", id.index());
-            let data = &mut self.program.data[id];
-            data.bytes = module.get_data(mir_id).expect("loaded data exists").clone();
-            data.library_relocations = module.data_library_relocations(mir_id).to_vec();
-        }
-        for (size, deferred) in std::mem::take(&mut self.deferred_data_sizes) {
-            let value = size.value(self.program.data[size.data].bytes.len());
-            self.set_deferred_const(deferred, value);
+        self.program.data = module.data.clone();
+        // Only the runtime artifact ends with the runtime's trailing data.
+        if self.artifact_kind != ArtifactKind::Runtime {
+            for data in &mut self.program.data {
+                data.emit_in_runtime = false;
+            }
         }
     }
 
     /// Emits a relocatable constant-data address push.
-    pub(crate) fn emit_push_data(&mut self, data: MirDataRef) {
-        self.push_ir_instruction(ir::Instruction::push_data(ir::DataRef::new(
-            ir::DataId::from_usize(data.id.index()),
-            data.offset,
-        )));
+    pub(crate) fn emit_push_data(&mut self, data: ir::DataRef) {
+        self.push_ir_instruction(ir::Instruction::push_data(data));
     }
 
-    /// Emits the byte length of constant data from its offset, plus `addend`, rounded down to
-    /// a multiple of 32 when `aligned` is set.
-    pub(crate) fn emit_push_data_size(&mut self, data: MirDataRef, addend: u64, aligned: bool) {
-        let size = DataSize {
-            data: ir::DataId::from_usize(data.id.index()),
-            offset: data.offset,
-            addend,
-            aligned,
-        };
-        if self.deferred_data.contains(&size.data) {
-            // push_deferred data_size(data) + addend[, aligned]
-            let deferred =
-                *self.deferred_data_sizes.entry(size).or_insert_with(|| self.next_deferred.next());
-            self.emit_push_deferred(deferred);
-        } else {
-            // push data_size(data) + addend[, aligned]
-            self.emit_push(size.value(self.program.data[size.data].bytes.len()));
-        }
+    /// Emits a size derived from a data length, which final assembly supplies.
+    pub(crate) fn emit_push_data_size(&mut self, size: ir::DataSize) {
+        // push_data_size data, addend[, aligned]
+        self.push_ir_instruction(ir::Instruction::push_data_size(size));
     }
 
     /// Returns optimistic and block-layout byte sizes for the entry trace through
@@ -625,7 +585,6 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     pub(in crate::backend) fn finish_evm_ir(&mut self) -> Option<(ir::Module, Vec<Option<Label>>)> {
-        assert!(self.deferred_data.is_empty(), "EVM IR passes require resolved data");
         self.debug_assert_dataflow_relocations_sorted();
         let mut module = std::mem::take(&mut self.program);
         self.current_block = None;

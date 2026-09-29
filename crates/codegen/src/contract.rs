@@ -3,7 +3,10 @@
 use crate::{
     EvmCodegen,
     backend::evm::{DebugInstruction, EvmArtifact, ir},
-    link::{Library, LibraryRelocation, LibraryTable, RelocatableBytecode},
+    link::{
+        ContractBytecodes, EmbeddedBytecodes, Library, LibraryRelocation, LibraryTable,
+        RelocatableBytecode,
+    },
     mir::{Module, lower, pass::run_pipeline},
 };
 use alloy_primitives::Bytes;
@@ -493,8 +496,8 @@ fn finish_contract(
     artifacts: &IndexVec<ContractId, OnceLock<ContractArtifact>>,
     scheduled: ScheduledContract<'_>,
 ) -> Result<ContractArtifact> {
-    let ScheduledContract { mut module, codegen, mut built_mir } = scheduled;
-    let child_bytecodes = graph.dependencies[contract_id]
+    let ScheduledContract { module, codegen, built_mir } = scheduled;
+    let children = graph.dependencies[contract_id]
         .iter()
         .map(|dependency| {
             let artifact = artifacts[dependency]
@@ -505,7 +508,7 @@ fn finish_contract(
                 library_relocations(&artifact.deployment_link_references, &mut libraries);
             let runtime_relocations =
                 library_relocations(&artifact.runtime_link_references, &mut libraries);
-            let bytecodes = lower::ContractBytecodes {
+            let bytecodes = ContractBytecodes {
                 deployment: RelocatableBytecode {
                     bytes: artifact.deployment.clone(),
                     relocations: deployment_relocations,
@@ -519,14 +522,10 @@ fn finish_contract(
             };
             (dependency, bytecodes)
         })
-        .collect::<FxHashMap<_, _>>();
-    lower::resolve_contract_code(&mut module, &child_bytecodes);
-    if let Some(built_mir) = &mut built_mir {
-        lower::resolve_contract_code(built_mir, &child_bytecodes);
-    }
+        .collect::<EmbeddedBytecodes>();
     let artifact = match codegen {
         Some(mut codegen) => {
-            let artifact = codegen.finish_module(&module);
+            let artifact = codegen.finish_module(&module, &children);
             gcx.dcx().has_errors()?;
             artifact
         }

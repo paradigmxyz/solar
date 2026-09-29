@@ -133,7 +133,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
         let bytes = self.parser.parse_data_bytes()?;
         let library_relocations = self.parser.parse_data_library_relocations(&bytes)?;
-        module.data.push(Data { bytes, name, emit_in_runtime: false, library_relocations });
+        module.data.push(Data {
+            bytes,
+            name,
+            emit_in_runtime: false,
+            library_relocations,
+            deferred: None,
+        });
         Ok(())
     }
 
@@ -281,7 +287,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::push => match self.parse_push_value(module)? {
                 PushValue::Immediate(value) => Instruction::push_value(value),
                 PushValue::Block(block) => Instruction::push_block(block),
-                PushValue::Data(_) | PushValue::Library(_) => {
+                PushValue::Data(_) | PushValue::DataSize(_) | PushValue::Library(_) => {
                     unreachable!("ordinary push parser only produces immediates and blocks")
                 }
             },

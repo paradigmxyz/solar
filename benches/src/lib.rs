@@ -4,8 +4,7 @@
 
 use flate2::read::GzDecoder;
 use solar::{
-    codegen::{self, Backend, EvmCodegen, RelocatableBytecode},
-    data_structures::map::FxHashMap,
+    codegen::{self, EvmCodegen, RelocatableBytecode},
     parse::interface::{Result, Session},
     sema::{Compiler as SemaCompiler, CompilerRef},
 };
@@ -194,7 +193,7 @@ fn codegen_source(compiler: &mut CompilerRef<'_>, source: &Source) -> Result {
 
 fn codegen_contracts(compiler: &mut CompilerRef<'_>) -> Result {
     let gcx = compiler.gcx();
-    let mut bytecodes = FxHashMap::default();
+    let mut bytecodes = codegen::EmbeddedBytecodes::default();
     for contract_id in gcx.hir.contract_ids() {
         if !gcx.hir.contract(contract_id).can_be_deployed() {
             continue;
@@ -209,25 +208,29 @@ fn codegen_contracts(compiler: &mut CompilerRef<'_>) -> Result {
 fn ensure_contract_bytecode(
     gcx: solar::sema::Gcx<'_>,
     contract_id: solar::sema::hir::ContractId,
-    bytecodes: &mut FxHashMap<solar::sema::hir::ContractId, codegen::mir::lower::ContractBytecodes>,
+    bytecodes: &mut codegen::EmbeddedBytecodes,
 ) -> Result {
     if bytecodes.contains_key(&contract_id) {
         return Ok(());
     }
     // Valid code cannot have recursive creation dependencies; seed the entry
     // so an unexpected cycle terminates instead of recursing forever.
-    bytecodes.insert(contract_id, codegen::mir::lower::ContractBytecodes::default());
+    bytecodes.insert(contract_id, codegen::ContractBytecodes::default());
     for dep in gcx.contract_bytecode_dependencies(contract_id).iter() {
         ensure_contract_bytecode(gcx, dep, bytecodes)?;
     }
     let mut module =
         codegen::mir::lower::lower_contract(gcx, contract_id, gcx.dcx().has_errors().is_err());
     gcx.dcx().has_errors()?;
-    codegen::mir::lower::resolve_contract_code(&mut module, bytecodes);
-    let artifact = EvmCodegen::new(gcx).lower_module(&mut module);
+    let mut evm = EvmCodegen::new(gcx);
+    let artifact = if evm.schedule_module(&mut module) {
+        evm.finish_module(&module, bytecodes)
+    } else {
+        Default::default()
+    };
     bytecodes.insert(
         contract_id,
-        codegen::mir::lower::ContractBytecodes {
+        codegen::ContractBytecodes {
             deployment: RelocatableBytecode {
                 libraries: artifact.libraries.clone(),
                 bytes: artifact.deployment.clone().into(),

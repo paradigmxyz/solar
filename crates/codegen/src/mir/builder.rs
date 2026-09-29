@@ -1240,7 +1240,8 @@ impl<'a> FunctionBuilder<'a> {
         aligned: bool,
     ) -> ValueId {
         // result = data_size data, addend[, aligned]
-        self.emit_inst(InstKind::DataSize(data, addend, aligned), Some(MirType::I256))
+        let size = crate::mir::DataSize { data, addend, aligned };
+        self.emit_inst(InstKind::DataSize(size), Some(MirType::I256))
     }
 
     /// Emits a calldatacopy whose destination is proven to be in the heap.

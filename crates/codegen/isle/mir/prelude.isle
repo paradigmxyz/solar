@@ -21,6 +21,7 @@
 (type FrameMode (primitive FrameMode))
 (type FrameSlotKind (primitive FrameSlotKind))
 (type DataRef (primitive DataRef))
+(type DataSize (primitive DataSize))
 (type ImmutableId (primitive ImmutableId))
 (type LibraryId (primitive LibraryId))
 
@@ -115,7 +116,7 @@
   (ConstructorArgsBase)
   (ConstructorArgsEnd)
   (DataCopy (data DataRef) (dest Value) (size Value))
-  (DataSize (data DataRef) (addend u64) (aligned bool))
+  (DataSize (size DataSize))
   (CodeSize)
   (CodeCopy (dest Value) (offset Value) (size Value))
   (ExtCodeSize (addr Value))

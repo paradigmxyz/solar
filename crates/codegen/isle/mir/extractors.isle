@@ -276,8 +276,8 @@
 (decl datacopy (DataRef Value Value) Value)
 (extractor (datacopy data dest size) (inst (Op.DataCopy data dest size)))
 
-(decl datasize (DataRef u64 bool) Value)
-(extractor (datasize data addend aligned) (inst (Op.DataSize data addend aligned)))
+(decl datasize (DataSize) Value)
+(extractor (datasize size) (inst (Op.DataSize size)))
 
 (decl codesize () Value)
 (extractor (codesize) (inst (Op.CodeSize)))

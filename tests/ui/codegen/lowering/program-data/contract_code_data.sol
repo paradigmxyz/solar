@@ -17,9 +17,9 @@ contract CodeTarget {
 
 // MIR-LABEL: contract_code_data.sol:CodeFactory ===
 // MIR: data:
-// MIR: CodeTarget_initcode_0: hex"
-// MIR: CodeTarget_runtime_code_[[RUNTIME:[0-9]+]]: hex"
-// MIR-NOT: CodeTarget_initcode_1:
+// MIR: CodeTarget_initcode_0: deferred creation [[TARGET:[0-9]+]]
+// MIR: CodeTarget_runtime_code_1: deferred runtime [[TARGET]]
+// MIR-NOT: CodeTarget_initcode_2:
 // OPT-LABEL: contract_code_data.sol:CodeFactory (runtime) ===
 // OPT: @module CodeFactory_runtime
 // OPT: push_data CodeTarget_initcode_0+{{[0-9]+}}
@@ -39,7 +39,7 @@ contract CodeFactory {
 
     // MIR-LABEL: fn @runtimeCodeMatches{{[( ]}}
     // MIR: data_copy CodeTarget_initcode_0,
-    // MIR: data_copy CodeTarget_runtime_code_[[RUNTIME]],
+    // MIR: data_copy CodeTarget_runtime_code_1,
     function runtimeCodeMatches() external returns (bool) {
         CodeTarget deployed = new CodeTarget();
         return keccak256(type(CodeTarget).runtimeCode) == address(deployed).codehash;

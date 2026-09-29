@@ -42,11 +42,11 @@ fn @constructor() [constructor, payable] {
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ConstructorCallvalue ===
 @module ConstructorCallvalue
 data:
-  ExplicitNonpayable_initcode_0: hex"6069380380606960c03960c001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405234151560585760c060c0606938030160208201915081119050605457605c565b5f5ffd5b5f5ffd5b60038060665f395ff35f5ffd"
-  ImplicitNonpayable_initcode_1: hex"34600d5760038060115f395ff35b5f5ffd5f5ffd"
-  SyntheticNonpayable_initcode_2: hex"60c060405234151560125760015f556016565b5f5ffd5b60038060205f395ff35f5ffd"
-  InheritedNonpayable_initcode_3: hex"60c0604052341515600e576012565b5f5ffd5b600380601c5f395ff35f5ffd"
-  ExplicitPayable_initcode_4: hex"60c0604052600380600e5f395ff35f5ffd"
+  ExplicitNonpayable_initcode_0: deferred creation 0
+  ImplicitNonpayable_initcode_1: deferred creation 1
+  SyntheticNonpayable_initcode_2: deferred creation 2
+  InheritedNonpayable_initcode_3: deferred creation 4
+  ExplicitPayable_initcode_4: deferred creation 5
 
 fn @rejectsExplicit() -> i256 [selector=0x90887b1f, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:

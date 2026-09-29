@@ -2,7 +2,7 @@
 @module ValidateData
 data:
   0: hex"aabb"
-  1: deferred
+  1: deferred creation 0
 
 fn @dynamic(arg0: i256) {
   bb0:

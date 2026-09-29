@@ -18,7 +18,7 @@ contract Child {
 
 // MIR-LABEL: contract_creation_data_dedup.sol:Factory ===
 // MIR: data:
-// MIR: Child_initcode_0: hex"
+// MIR: Child_initcode_0: deferred creation
 // MIR-NOT: Child_initcode_1:
 // OPT-LABEL: contract_creation_data_dedup.sol:Factory (runtime) ===
 // OPT: @module Factory_runtime

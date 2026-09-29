@@ -28,7 +28,7 @@ use alloy_primitives::Bytes;
 
 use super::{
     AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AddressCallKind, AllocationKind,
-    AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, EffectKind,
+    AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, DataSize, EffectKind,
     FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstructionMetadata,
     MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, PackedPart, RevertKind, SliceLocation,
     StorageLayoutRef, StructId, ValueId, ValueLayout, typing,
@@ -500,6 +500,7 @@ attributes! {
     AllocationKind,
     AllocationSemantics,
     DataRef,
+    DataSize,
     FrameMode,
     FrameSlotKind,
     FunctionId,
@@ -2131,7 +2132,7 @@ define_mir_ops! {
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     DataCopy(data: DataRef, dest: ValueId, size: ValueId),
     /// Byte length of constant module data from its offset to its end, plus
-    /// `addend`, rounded down to a multiple of 32 when `aligned` is set.
+    /// an addend, rounded down to a multiple of 32 when aligned.
     ///
     /// The length of deferred data, such as another contract's bytecode, is
     /// only known when the data is resolved before final assembly. Folding
@@ -2147,7 +2148,7 @@ define_mir_ops! {
         category = None
     )]
     #[operand_types(func => Some(smallvec![]))]
-    DataSize(data: DataRef, addend: u64, aligned: bool),
+    DataSize(size: DataSize),
     /// Get code size: `codesize()`
     #[mir_op(
         mnemonic = "codesize",

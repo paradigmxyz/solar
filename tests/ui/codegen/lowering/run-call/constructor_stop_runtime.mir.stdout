@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopRuntime ===
 @module ConstructorStopRuntime
 data:
-  ConstructorStopAlways_initcode_0: hex"60c060405234151560105760015f55005b5f5ffd603280601d5f395ff3341515601c575f3560e01c80633fa4f24514601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
-  ConstructorStopConditional_initcode_1: hex"60b638038060b660e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405234151560765760e08060c0528060c05260e060b638030160208201116072578060c05251600290101560725760015f5560e0511515607057607a565b005b5f5ffd5b5f5ffd5b60328060845f395ff3341515601c575f3560e01c80633fa4f24514601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
+  ConstructorStopAlways_initcode_0: deferred creation 1
+  ConstructorStopConditional_initcode_1: deferred creation 2
 
 fn @unconditional() -> i256 [selector=0x7d06b8f6, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:

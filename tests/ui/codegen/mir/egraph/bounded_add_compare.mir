@@ -1,7 +1,7 @@
 //@ compile-flags: -Zmir-pipeline=egraph
 @module BoundedAddCompare
 data:
-  child_0: deferred
+  child_0: deferred creation 0
 
 fn @masked(arg0: i256) -> i1 {
   bb0:

@@ -70,6 +70,7 @@ fn materialize_constant_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
             name: Some(sym::literal),
             emit_in_runtime: false,
             library_relocations: Vec::new(),
+            deferred: None,
         });
         let data = DataRef::new(id, 0);
         prepared.push((rewrite.block, rewrite.start, rewrite.end, size, data));

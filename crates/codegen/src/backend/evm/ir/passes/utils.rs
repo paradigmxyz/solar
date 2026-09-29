@@ -69,6 +69,12 @@ impl MachineInstKey {
                 hasher.write_u64(self.0 | 4 << 48);
                 hasher.write_u64(data.id.index() as u64 | u64::from(data.offset) << 32);
             }
+            Some(PushValue::DataSize(size)) => {
+                hasher.write_u64(self.0 | 5 << 48);
+                hasher.write_u64(size.data.id.index() as u64 | u64::from(size.data.offset) << 32);
+                hasher.write_u64(size.addend);
+                hasher.write_u64(u64::from(size.aligned));
+            }
         }
     }
 }

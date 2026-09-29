@@ -13,7 +13,7 @@ use crate::{
     backend::evm::{
         data_copy_cost, data_copy_gas, data_copy_is_profitable,
         ir::{
-            BlockId, Data, DataId, DataRef, Instruction, Module, PushValue,
+            BlockId, Data, DataId, DataRef, DataSize, Instruction, Module, PushValue,
             immediate_materialization_cost,
         },
         op::{self, WORD_BYTES},
@@ -23,7 +23,7 @@ use crate::{
 };
 use alloy_primitives::{Bytes, U256};
 use memchr::memmem;
-use solar_data_structures::{index::IndexVec, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_interface::sym;
 use solar_sema::Gcx;
 
@@ -126,15 +126,19 @@ impl Improvement {
 
 impl DataPool {
     fn new(data: &IndexVec<DataId, Data>) -> Self {
+        // Relocated and deferred bytes are not final, so constants never share them.
+        let literal = |(_, data): &(DataId, &Data)| {
+            data.library_relocations.is_empty() && data.deferred.is_none()
+        };
         Self {
             entries: data
                 .iter_enumerated()
-                .filter(|(_, data)| data.library_relocations.is_empty())
+                .filter(literal)
                 .map(|(id, data)| PoolEntry { id, bytes: data.bytes.clone() })
                 .collect(),
             exact: data
                 .iter_enumerated()
-                .filter(|(_, data)| data.library_relocations.is_empty())
+                .filter(literal)
                 .map(|(id, data)| (data.bytes.clone(), DataRef::new(id, 0)))
                 .collect(),
         }
@@ -165,6 +169,7 @@ impl DataPool {
             name: Some(sym::literal),
             emit_in_runtime: false,
             library_relocations: Vec::new(),
+            deferred: None,
         });
         self.entries.push(PoolEntry { id, bytes: bytes.clone() });
         self.exact.insert(bytes, DataRef::new(id, 0));
@@ -347,6 +352,11 @@ fn is_profitable(gcx: Gcx<'_>, improvement: Improvement) -> bool {
     data_copy_is_profitable(gcx.sess.opts.optimization, improvement.runtime_gas, improvement.bytes)
 }
 
+/// Shares storage between data entries after deferred data is linked in.
+pub(in crate::backend) fn pack_linked_data(module: &mut Module) -> bool {
+    pack_existing_data(module, true)
+}
+
 fn pack_existing_data(module: &mut Module, allow_subslices: bool) -> bool {
     if module.data.is_empty() {
         return false;
@@ -392,7 +402,8 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
     for old_id in referenced {
         let data = &module.data[old_id];
         let key = (data.bytes.clone(), data.library_relocations.clone());
-        let data_ref = if data.emit_in_runtime {
+        // Deferred bytes are not known yet, so they are never shared.
+        let data_ref = if data.emit_in_runtime || data.deferred.is_some() {
             let id = packed.push(data.clone());
             sources.push(old_id);
             DataRef::new(id, 0)
@@ -400,6 +411,7 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
             DataRef::new(id, 0)
         } else if let Some(data_ref) = (allow_subslices
             && references.subslice_safe[old_id]
+            && !references.sized.contains(old_id)
             && module.data.len() < MAX_DATA_SUBSTRING_ENTRIES)
             .then(|| find_data(&packed, &sources, data, old_id))
             .flatten()
@@ -435,11 +447,14 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
     module.data = ordered;
     for block in &mut module.blocks {
         for inst in &mut block.instructions {
-            if let Some(PushValue::Data(data)) = &mut inst.value {
-                let base = remap[&data.id];
-                data.id = base.id;
-                data.offset = data.offset.checked_add(base.offset).expect("data offset overflow");
-            }
+            let data = match &mut inst.value {
+                Some(PushValue::Data(data)) => data,
+                Some(PushValue::DataSize(size)) => &mut size.data,
+                _ => continue,
+            };
+            let base = remap[&data.id];
+            data.id = base.id;
+            data.offset = data.offset.checked_add(base.offset).expect("data offset overflow");
         }
     }
     true
@@ -453,7 +468,7 @@ fn find_data(
 ) -> Option<DataRef> {
     let mut finder = NeedleFinder::new(&needle.bytes);
     data.iter_enumerated().find_map(|(id, known)| {
-        if sources[id] >= needle_id {
+        if sources[id] >= needle_id || known.deferred.is_some() {
             return None;
         }
         let offset = finder.find(&known.bytes)?;
@@ -474,11 +489,14 @@ enum DataStackValue {
     Unknown,
     Immediate(usize),
     Data(DataRef),
+    Size(DataSize),
 }
 
 struct DataReferences {
     counts: IndexVec<DataId, usize>,
     subslice_safe: IndexVec<DataId, bool>,
+    /// Data whose length a `push_data_size` observes, so it cannot become another's subslice.
+    sized: DenseBitSet<DataId>,
     layout_observable: bool,
 }
 
@@ -487,6 +505,7 @@ impl DataReferences {
         Self {
             counts: IndexVec::from_vec(vec![0; module.data.len()]),
             subslice_safe: IndexVec::from_vec(vec![true; module.data.len()]),
+            sized: DenseBitSet::new_empty(module.data.len()),
             layout_observable: false,
         }
     }
@@ -568,6 +587,12 @@ fn track_data_reference(
         stack.push(DataStackValue::Data(data));
         return;
     }
+    if let Some(size) = inst.pushed_data_size() {
+        references.counts[size.data.id] += 1;
+        references.sized.insert(size.data.id);
+        stack.push(DataStackValue::Size(size));
+        return;
+    }
     if let Some(value) = inst.concrete_immediate() {
         stack.push(
             usize::try_from(value).map_or(DataStackValue::Unknown, DataStackValue::Immediate),
@@ -623,11 +648,11 @@ fn track_data_reference(
         let DataStackValue::Data(data) = value else { continue };
         let bounded = inst.opcode == op::CODECOPY
             && index == 1
-            && matches!(
-                stack.get(stack.len() - 3),
-                Some(DataStackValue::Immediate(size))
-                    if data_copy_is_bounded(module, *data, *size)
-            );
+            && match stack.get(stack.len() - 3) {
+                Some(DataStackValue::Immediate(size)) => data_copy_is_bounded(module, *data, *size),
+                Some(DataStackValue::Size(size)) => size.is_length_of(*data),
+                _ => false,
+            };
         if !bounded {
             references.subslice_safe[data.id] = false;
         }

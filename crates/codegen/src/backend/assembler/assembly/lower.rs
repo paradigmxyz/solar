@@ -1,12 +1,15 @@
 //! Lowering from block EVM IR to its finalized layout-linear form.
 
 use super::{AsmInst, AsmInstKind, Program, indexed_jump};
-use crate::backend::{
-    assembler::{ArtifactKind, Assembler, Label, PreparedAssembly},
-    evm::{
-        ir::{self, BlockId},
-        op,
+use crate::{
+    backend::{
+        assembler::{ArtifactKind, Assembler, Label, OptimizedProgram, PreparedAssembly},
+        evm::{
+            ir::{self, BlockId},
+            op,
+        },
     },
+    link::{EmbeddedBytecodes, LibraryTable},
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 
@@ -29,46 +32,72 @@ impl Assembler<'_> {
         self.program_is_finalized = true;
     }
 
+    /// Runs the EVM IR pipeline over the emitted program and keeps the result for
+    /// [`Self::link`] and [`Self::lower`].
     #[tracing::instrument(
         name = "evm_ir_pipeline",
         level = "debug",
         skip_all,
         fields(program = %self.program.name()),
     )]
-    pub(in crate::backend) fn prepare(
+    pub(in crate::backend) fn optimize(&mut self) {
+        let Some((mut program, labels)) = self.finish_evm_ir() else { return };
+
+        ir::builder::resolve_known_deferred_constants(&mut program, &self.deferred_values);
+
+        let input_is_valid = cfg!(debug_assertions) && ir::verify::Verifier::is_valid(&program);
+        let errors_before = self.gcx.dcx().err_count();
+        let _changed = if let Some(checkpoint) = self.outlining.take() {
+            checkpoint.resume(self.gcx, &mut program)
+        } else {
+            ir::run_pipeline(self.gcx, &mut program, None)
+        };
+        let mut failed = self.gcx.dcx().err_count() != errors_before;
+        if !failed {
+            debug_assert!(
+                !input_is_valid || ir::verify::Verifier::is_valid(&program),
+                "EVM IR pipeline invalidated a valid module"
+            );
+            let _legalized = ir::legalize_shifts(self.gcx, &mut program);
+            failed = self.gcx.dcx().err_count() != errors_before;
+        }
+        if !failed {
+            ir::verify::Verifier::new(self.gcx).verify_after_legalization(&program);
+            failed = self.gcx.dcx().err_count() != errors_before;
+        }
+        self.optimized = Some(OptimizedProgram { program, labels, failed });
+    }
+
+    /// Links embedded contract bytecode into the optimized program's deferred data,
+    /// interning its libraries into `libraries`.
+    pub(in crate::backend) fn link(
+        &mut self,
+        bytecodes: &EmbeddedBytecodes,
+        libraries: &mut LibraryTable,
+    ) {
+        if let Some(optimized) = &mut self.optimized
+            && optimized.program.link(bytecodes, libraries)
+        {
+            // Linked bytes can now share storage with other data.
+            let _changed = ir::pack_linked_data(&mut optimized.program);
+        }
+    }
+
+    /// Lowers the optimized program to primitive assembly.
+    pub(in crate::backend) fn lower(
         &mut self,
         capture_evm_ir: bool,
         capture_debug_info: bool,
     ) -> PreparedAssembly {
-        let Some((mut ir_program, mut labels)) = self.finish_evm_ir() else {
+        let Some(OptimizedProgram { program: mut ir_program, mut labels, failed }) =
+            self.optimized.take()
+        else {
             return PreparedAssembly::default();
         };
-
-        ir::builder::resolve_known_deferred_constants(&mut ir_program, &self.deferred_values);
-
-        let input_is_valid = cfg!(debug_assertions) && ir::verify::Verifier::is_valid(&ir_program);
+        if failed {
+            return failed_preparation(ir_program, capture_evm_ir);
+        }
         let errors_before = self.gcx.dcx().err_count();
-        let _changed = if let Some(checkpoint) = self.outlining.take() {
-            checkpoint.resume(self.gcx, &mut ir_program)
-        } else {
-            ir::run_pipeline(self.gcx, &mut ir_program, None)
-        };
-        if self.gcx.dcx().err_count() != errors_before {
-            return failed_preparation(ir_program, capture_evm_ir);
-        }
-        debug_assert!(
-            !input_is_valid || ir::verify::Verifier::is_valid(&ir_program),
-            "EVM IR pipeline invalidated a valid module"
-        );
-        let _legalized = ir::legalize_shifts(self.gcx, &mut ir_program);
-        if self.gcx.dcx().err_count() != errors_before {
-            return failed_preparation(ir_program, capture_evm_ir);
-        }
-        ir::verify::Verifier::new(self.gcx).verify_after_legalization(&ir_program);
-        if self.gcx.dcx().err_count() != errors_before {
-            return failed_preparation(ir_program, capture_evm_ir);
-        }
-
         let program = lower_evm_ir(self, &mut ir_program, &mut labels, capture_debug_info);
         validate_program_evm_version(self, &program);
         if self.gcx.dcx().err_count() != errors_before {
@@ -91,6 +120,16 @@ impl Assembler<'_> {
             next_label: std::mem::take(&mut self.next_label),
             deferred_values: std::mem::take(&mut self.deferred_values),
         }
+    }
+
+    /// Optimizes and lowers a program that embeds no contract bytecode.
+    pub(in crate::backend) fn prepare(
+        &mut self,
+        capture_evm_ir: bool,
+        capture_debug_info: bool,
+    ) -> PreparedAssembly {
+        self.optimize();
+        self.lower(capture_evm_ir, capture_debug_info)
     }
 }
 
@@ -374,7 +413,9 @@ fn lower_instruction(
         } else if let Some(data) = inst.pushed_data() {
             AsmInst::push_data(program.push_data_ref(data))
         } else {
-            unreachable!("push must have one immediate, block, or data operand")
+            unreachable!(
+                "push must have one immediate, block, or data operand; sizes are linked first"
+            )
         }
     } else if let Some(stack_op) = inst.as_stack_op() {
         match stack_op

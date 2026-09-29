@@ -196,7 +196,8 @@ bb18:
   mstore
   push 255
   push 256
-  dup 1
+  push 64
+  mload
   dup 2
   dup 2
   add

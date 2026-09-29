@@ -27,8 +27,8 @@ types:
   struct0: {i256, i256, i256}
 
 data:
-  GasReceiver_initcode_0: hex"34600d5760238060115f395ff35b5f5ffd361515600957600d565b5f5ffd5b5f5fa05f5fa05f5fa05f5fa05f5fa05f5fa05f5fa0"
-  RevertReceiver_initcode_1: hex"34600d57601c8060115f395ff35b5f5ffd361515600957600d565b5f5ffd5b63deadbeef60e01b5f5260045ffd"
+  GasReceiver_initcode_0: deferred creation 0
+  RevertReceiver_initcode_1: deferred creation 1
 
 fn @constructor() [constructor] {
   bb0:

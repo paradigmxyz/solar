@@ -472,9 +472,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             InstKind::DataCopy(data, dest, size) => {
                 self.emit_data_copy(func, *data, *dest, *size, liveness, block, inst_idx);
             }
-            InstKind::DataSize(data, addend, aligned) => {
-                // push data_size(data) + addend[, aligned]
-                self.asm.emit_push_data_size(*data, *addend, *aligned);
+            InstKind::DataSize(size) => {
+                // push_data_size data, addend[, aligned]
+                self.asm.emit_push_data_size(*size);
                 self.scheduler.instruction_executed(0, result_value);
             }
 
@@ -965,12 +965,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
 
         if let Value::Inst(size_inst) = *func.value(size)
-            && let InstKind::DataSize(size_data, addend, aligned) = func.inst(size_inst).kind
+            && let InstKind::DataSize(data_size) = func.inst(size_inst).kind
         {
             // Data packing can only bound a copy whose size is pushed at the copy, so
             // materialize the deferred length here instead of reusing a stack copy.
-            // push data_size(data) + addend[, aligned]
-            self.asm.emit_push_data_size(size_data, addend, aligned);
+            // push_data_size data, addend[, aligned]
+            self.asm.emit_push_data_size(data_size);
             self.scheduler.stack.push(size);
         } else {
             self.emit_value(func, size);

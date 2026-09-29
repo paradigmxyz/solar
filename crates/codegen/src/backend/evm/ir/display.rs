@@ -21,25 +21,11 @@ impl Module {
             }
             for (id, data) in self.data.iter_enumerated() {
                 if let Some(name) = data.name {
-                    write!(f, "@data {} hex\"", crate::utils::display_data_name(name, id.index()))?;
+                    write!(f, "@data {}", crate::utils::display_data_name(name, id.index()))?;
                 } else {
-                    write!(f, "@data {} hex\"", id.index())?;
+                    write!(f, "@data {}", id.index())?;
                 }
-                for byte in &data.bytes {
-                    write!(f, "{byte:02x}")?;
-                }
-                write!(f, "\"")?;
-                if !data.library_relocations.is_empty() {
-                    write!(
-                        f,
-                        " library_relocations [{}]",
-                        data.library_relocations
-                            .iter()
-                            .map(|reloc| reloc.display(&self.libraries))
-                            .format(", ")
-                    )?;
-                }
-                writeln!(f)?;
+                writeln!(f, " {}", data.display_contents(&self.libraries))?;
             }
             Ok(())
         })
@@ -207,6 +193,12 @@ fn display_push_value<'a>(module: &'a Module, value: &'a PushValue) -> impl fmt:
             "{}",
             crate::utils::display_data_ref(module.data[data.id].name, data.id.index(), data.offset,)
         ),
+        PushValue::DataSize(size) => {
+            let data = size.data;
+            let name = module.data[data.id].name;
+            let data = crate::utils::display_data_ref(name, data.id.index(), data.offset);
+            write!(f, "{data}{}", size.display_operands())
+        }
     })
 }
 

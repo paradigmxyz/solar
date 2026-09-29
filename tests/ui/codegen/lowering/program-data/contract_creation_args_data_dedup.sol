@@ -20,7 +20,7 @@ contract ChildWithArg {
 
 // MIR-LABEL: contract_creation_args_data_dedup.sol:FactoryWithArgs ===
 // MIR: data:
-// MIR: ChildWithArg_initcode_0: hex"
+// MIR: ChildWithArg_initcode_0: deferred creation
 // MIR-NOT: ChildWithArg_initcode_1:
 // OPT-LABEL: contract_creation_args_data_dedup.sol:FactoryWithArgs (runtime) ===
 // OPT: @module FactoryWithArgs_runtime

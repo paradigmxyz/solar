@@ -32,7 +32,7 @@ use crate::{
     backend::assembler::{
         ArtifactKind, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
     },
-    link::LibraryRelocation,
+    link::{EmbeddedBytecodes, LibraryRelocation, LibraryTable},
     mir::{
         ArgIdx, BlockId, EffectKind, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
         InstKind, MemoryRegion, MirPhase, MirType, Module, Terminator, Value, ValueId,
@@ -370,8 +370,8 @@ pub struct EvmCodegen<'gcx> {
     /// Leaf helpers whose sole returned word is derived from the free-memory pointer.
     /// Their callers may safely use the result as a dynamic forwarding-buffer base.
     heap_pointer_return_functions: DenseBitSet<FunctionId>,
-    /// Internal-call facts of a module scheduled for later completion.
-    call_graph: Option<CallGraphInfo>,
+    /// Runtime code of a scheduled module, waiting for embedded bytecode to be linked in.
+    pending_runtime: Option<PendingRuntime<'gcx>>,
     /// Whether the current function has canonical cross-block argument layouts.
     global_stack_active: bool,
     /// Calldata words physically identical to arguments in the active global
@@ -462,7 +462,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             function_ir_block_start: 0,
             spill_hazard_insts: FxHashSet::default(),
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
-            call_graph: None,
+            pending_runtime: None,
             global_stack_active: false,
             global_stack_aliases: FxHashMap::default(),
             runtime_immutable_refs: Vec::new(),
@@ -615,6 +615,13 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 }
 
+/// Runtime code whose EVM IR pipeline has run in the assembler, waiting for embedded bytecode.
+struct PendingRuntime<'gcx> {
+    call_graph: CallGraphInfo,
+    /// Scheduled runtime to retry with size outlining if the linked runtime exceeds EIP-170.
+    size_rescue: Option<Assembler<'gcx>>,
+}
+
 /// The artifact produced by the EVM backend.
 #[derive(Clone, Debug, Default)]
 pub struct EvmArtifact {
@@ -647,7 +654,7 @@ impl crate::backend::Backend for EvmCodegen<'_> {
         if !self.schedule_module(module) {
             return EvmArtifact::default();
         }
-        self.finish_module(module)
+        self.finish_module(module, &EmbeddedBytecodes::default())
     }
 }
 

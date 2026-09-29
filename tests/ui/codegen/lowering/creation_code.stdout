@@ -8,7 +8,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
 // === ROOT/tests/ui/codegen/lowering/creation_code.sol:CreationCodeFactory ===
 @module CreationCodeFactory
 data:
-  CreationCodeChild_initcode_0: hex"6069380380606960c03960c001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405234151560585760c060c0606938030160208201915081119050605457605c565b5f5ffd5b5f5ffd5b60038060665f395ff35f5ffd"
+  CreationCodeChild_initcode_0: deferred creation 0
 
 fn @creationCode() -> memorybytes [selector=0x7213edad, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:

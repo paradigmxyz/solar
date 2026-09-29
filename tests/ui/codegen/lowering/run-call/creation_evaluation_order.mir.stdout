@@ -8,7 +8,7 @@ fn @constructor(arg0: i256) [constructor, payable, abi_params=[u256]] {
 // === ROOT/tests/ui/codegen/lowering/run-call/creation_evaluation_order.sol:CreationEvaluationOrder ===
 @module CreationEvaluationOrder
 data:
-  CreationEvaluationOrderChild_initcode_0: hex"605f380380605f60c03960c001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405260c060c0605f38030160208201915081119050604e576052565b5f5ffd5b600380605c5f395ff35f5ffd"
+  CreationEvaluationOrderChild_initcode_0: deferred creation 0
 
 fn @valueOpt() -> i256 {
   bb0:

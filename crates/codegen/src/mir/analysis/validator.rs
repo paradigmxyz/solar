@@ -1183,10 +1183,10 @@ impl<'a> Validator<'a> {
     ) {
         let (mnemonic, data, size) = match &func.inst(inst_id).kind {
             InstKind::DataCopy(data, _, size) => ("data_copy", data, Some(size)),
-            InstKind::DataSize(data, ..) => ("data_size", data, None),
+            InstKind::DataSize(size) => ("data_size", &size.data, None),
             _ => return,
         };
-        let Some(bytes) = module.get_data(data.id) else {
+        let Some(bytes) = module.data.get(data.id).map(|data| &data.bytes) else {
             self.emit_at_inst(
                 format_args!("{mnemonic} references nonexistent data{}", data.id.index()),
                 block_id,
@@ -1211,11 +1211,11 @@ impl<'a> Validator<'a> {
         };
         // The length of deferred data is only known through its own `data_size`.
         if let Value::Inst(size) = func.value(*size)
-            && func.inst(*size).kind == InstKind::DataSize(*data, 0, false)
+            && matches!(func.inst(*size).kind, InstKind::DataSize(size) if size.is_length_of(*data))
         {
             return;
         }
-        if module.data_is_deferred(data.id) {
+        if module.data[data.id].deferred.is_some() {
             self.emit_at_inst(
                 "data_copy size of deferred data must be its `data_size`",
                 block_id,

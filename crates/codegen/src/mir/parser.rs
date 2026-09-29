@@ -36,13 +36,16 @@
 use super::{
     AbiEncodeMode, AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamType,
     AbiType, AddressCallKind, AllocationAlignment, AllocationFailure, AllocationInitialization,
-    AllocationKind, AllocationSemantics, BlockId, DataId, DataRef, Disambiguator, EffectKind,
-    FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, Immediate, ImmutableId,
-    InstId, InstKind, Instruction, InstructionMetadata, MangledSymbol, MemoryObjectKind,
-    MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField, StorageLayout,
-    StorageLayoutRef, StructId, StructType, Terminator, Value, ValueId,
+    AllocationKind, AllocationSemantics, BlockId, DataId, DataRef, DataSize, Disambiguator,
+    EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, Immediate,
+    ImmutableId, InstId, InstKind, Instruction, InstructionMetadata, MangledSymbol,
+    MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField,
+    StorageLayout, StorageLayoutRef, StructId, StructType, Terminator, Value, ValueId,
 };
-use crate::mir::{AbiWordValidator, Callee, MirType, SliceLocation, TypeSize};
+use crate::{
+    link::ContractCode,
+    mir::{AbiWordValidator, Callee, MirType, SliceLocation, TypeSize},
+};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_ast::{
@@ -57,7 +60,7 @@ use solar_interface::{
     BytePos, Ident, Result, Session, Span, Symbol, kw, source_map::SourceFile, sym,
 };
 use solar_parse::{PErr, PResult};
-use solar_sema::hir;
+use solar_sema::hir::{self, ContractId};
 
 // =============================================================================
 // Public API
@@ -319,20 +322,32 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 && self.parser.look_ahead(1).kind == TokenKind::At)
         {
             let (id, name) = self.parser.parse_data_id()?;
-            let expected = U256::from(module.data_count());
+            let expected = U256::from(module.data.len());
             if id != expected {
                 return Err(self.parser.error(format!("expected data ID {expected}, found {id}")));
             }
             self.parser.expect(TokenKind::Colon)?;
             if self.parser.eat_keyword(sym::deferred) {
-                module.add_deferred_data(name);
+                let creation = if self.parser.eat_keyword(sym::creation) {
+                    true
+                } else {
+                    self.parser.expect_keyword(sym::runtime)?;
+                    false
+                };
+                let span = self.parser.token().span;
+                let contract = self.parser.parse_uint()?;
+                let Ok(contract) = usize::try_from(contract) else {
+                    return Err(self.parser.error_at(span, "contract ID exceeds the index limit"));
+                };
+                let contract = ContractId::from_usize(contract);
+                module.add_contract_code(ContractCode { contract, creation }, name);
                 continue;
             }
             let bytes = self.parser.parse_data_bytes()?;
             let offsets = self.parser.parse_data_library_relocations(&bytes)?;
             module.add_linked_data(bytes, name, offsets);
         }
-        self.data_sizes = module.iter_data().map(|(_, data)| data.len()).collect();
+        self.data_sizes = module.data.iter().map(|data| data.bytes.len()).collect();
         Ok(())
     }
 
@@ -2074,7 +2089,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         aligned = true;
                     }
                 }
-                (InstKind::DataSize(data, addend, aligned), Some(MirType::I256))
+                (InstKind::DataSize(DataSize { data, addend, aligned }), Some(MirType::I256))
             }
             sym::storeimmutable => {
                 let (id, _) = self.parse_immutable_ref()?;
