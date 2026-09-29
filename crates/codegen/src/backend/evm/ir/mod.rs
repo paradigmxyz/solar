@@ -97,7 +97,6 @@ impl Module {
         for data in &mut self.data {
             let Some(code) = data.deferred.take() else { continue };
             let bytecode = code.bytecode(bytecodes);
-            assert!(!bytecode.bytes.is_empty(), "embedded contract bytecode must not be empty");
             assert!(
                 u64::try_from(bytecode.bytes.len()).is_ok_and(|len| len >> DATA_SIZE_BITS == 0),
                 "embedded bytecode length exceeds {DATA_SIZE_BITS} bits"

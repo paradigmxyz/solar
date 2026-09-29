@@ -548,8 +548,12 @@ fn scan_data_references(
     let mut references = DataReferences::new(module);
     let mut stack = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
-        // The stack starts empty, so without a data push no slot can hold a data address.
-        let has_data = block.instructions.iter().any(|inst| inst.pushed_data().is_some());
+        // The stack starts empty, so without a data push no slot can hold a data address
+        // or size.
+        let has_data = block
+            .instructions
+            .iter()
+            .any(|inst| inst.pushed_data().is_some() || inst.pushed_data_size().is_some());
         for (index, inst) in block.instructions.iter().enumerate() {
             visit(block_id, index, &block.instructions);
             if has_data {

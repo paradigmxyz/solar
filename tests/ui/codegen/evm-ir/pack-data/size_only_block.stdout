@@ -1,0 +1,11 @@
+- // === ROOT/tests/ui/codegen/evm-ir/pack-data/size_only_block.evmir (before pack-data) ===
++ // === ROOT/tests/ui/codegen/evm-ir/pack-data/size_only_block.evmir (after pack-data) ===
+  @module size_only_block
+  bb0:
+    push_data_size child_0
+    push 0
+    mstore
+    stop
+  
+  @data child_0 deferred creation "child.sol":"Child"
+  
