@@ -257,7 +257,7 @@ impl ManifestDiscovery<'_, '_> {
             let policy_pruned = if source_corridor {
                 // A synthetic corridor is open only for custom exclusion checks. Built-in,
                 // hidden, and nested-repository rules still apply to its siblings below.
-                self.policy.should_prune_directory(workspace_root, &path, &path)
+                self.policy.should_prune_source_directory(workspace_root, &path, &path)
             } else if let Some(source_root) = source_root {
                 self.policy.should_prune_source_directory(workspace_root, source_root, &path)
             } else {

@@ -1095,7 +1095,7 @@ fn line_content_end(contents: &Rope, line: usize) -> usize {
 
 pub(crate) fn resolve_completion_item(
     state: &mut GlobalState,
-    item: CompletionItem,
+    mut item: CompletionItem,
 ) -> impl Future<Output = Result<CompletionItem, ResponseError>> + use<> {
     let options = state.config.completion_options();
     let request = if options.resolve_documentation {
@@ -1107,14 +1107,15 @@ pub(crate) fn resolve_completion_item(
         None
     };
     async move {
-        let Some((data, latest_analysis)) = request else { return Ok(item) };
-        let symbol_tables = latest_analysis.await?;
-        let resolved = symbol_tables.load().resolve_completion_item(
-            item,
-            data,
-            options.markdown_documentation,
-        );
-        Ok(resolved)
+        if let Some((data, latest_analysis)) = request {
+            let symbol_tables = latest_analysis.await?;
+            symbol_tables.load().resolve_completion_item(
+                &mut item,
+                &data,
+                options.markdown_documentation,
+            );
+        }
+        Ok(item)
     }
 }
 

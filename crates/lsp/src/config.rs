@@ -1482,8 +1482,11 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
         for (directory, pruned) in
             [("generated", true), ("node_modules", false), (".hidden", false)]
         {
-            let prunes =
-                config.index_policy().should_prune_directory(&root, &root, &root.join(directory));
+            let prunes = config.index_policy().should_prune_source_directory(
+                &root,
+                &root,
+                &root.join(directory),
+            );
             assert_eq!(prunes, pruned, "{directory}");
         }
     }
