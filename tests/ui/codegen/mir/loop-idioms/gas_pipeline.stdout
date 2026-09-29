@@ -108,24 +108,24 @@ fn @allowed() [selector=0x5bae29a6, abi_wrapper, pure] {
     v42 = ptrtoint memptr v28 to i256
     v19 = mload v42
     v38 = add v42, 32
-    v45 = add v38, v19
     jump bb1
   bb1:
-    v43 = phi [bb8: v38], [bb3: v44]
-    v5 = lt v43, v45
+    v3 = phi [bb8: 0], [bb3: v21]
+    v5 = lt v3, v19
     jumpi v5, bb4, bb2
   bb2:
     mstore 0, 1
     returndata 0, 32
   bb4:
-    v40 = mload v43
+    v39 = add v38, v3
+    v40 = mload v39
     v41 = byte 0, v40
     v13 = shr v41, arg1
     v14 = and v13, 1
     v15 = eq v14, 0
     jumpi v15, bb5, bb3
   bb3:
-    v44 = add v43, 1
+    v21 = add v3, 1
     jump bb1
   bb5:
     mstore 0, 0
