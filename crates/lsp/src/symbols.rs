@@ -301,7 +301,10 @@ impl SymbolTables {
                             | hir::VarKind::FunctionReturn
                     )
                 ),
-                has_definition: item_has_definition(gcx, item_id),
+                has_definition: !matches!(
+                    item_id,
+                    ItemId::Function(id) if gcx.hir.function(id).body.is_none()
+                ),
                 has_getter_completion: matches!(
                     item_id,
                     ItemId::Variable(id) if gcx.hir.variable(id).getter.is_some()
@@ -495,7 +498,8 @@ impl SymbolTables {
             if let Some(count) = reference_counts.and_then(|counts| counts[index]) {
                 let argument =
                     (count > 0).then(|| serde_json::json!({ "uri": uri, "position": position }));
-                push(format_reference_title(count), "solar.showReferences", argument);
+                let title = format!("{count} reference{}", if count == 1 { "" } else { "s" });
+                push(title, "solar.showReferences", argument);
             }
 
             if options.selectors
@@ -1050,7 +1054,10 @@ impl SymbolTables {
         {
             return filtered_completion_items(items, context.prefix);
         }
-        if let Some(items) = self.builtin_member_completion_items(context.member_receiver) {
+        if let Some(items) = context
+            .member_receiver
+            .and_then(|receiver| self.builtin_member_completions.get(receiver))
+        {
             return filtered_completion_items(items, context.prefix);
         }
 
@@ -1825,10 +1832,6 @@ impl SymbolTables {
                 (proto::range_size_key(range), range.start, range.end, index)
             })?;
         Some(&self.member_completions[index].items)
-    }
-
-    fn builtin_member_completion_items(&self, receiver: Option<&str>) -> Option<&[CompletionItem]> {
-        self.builtin_member_completions.get(receiver?).map(Vec::as_slice)
     }
 
     fn receiver_member_completion_items(
@@ -2757,10 +2760,6 @@ fn sort_and_dedup_locations(locations: &mut Vec<Location>) {
     locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
 }
 
-fn format_reference_title(count: usize) -> String {
-    format!("{count} reference{}", if count == 1 { "" } else { "s" })
-}
-
 fn format_selector_title(selector: [u8; 4]) -> String {
     let mut title = String::from("0x");
     for byte in selector {
@@ -2961,13 +2960,6 @@ fn variable_symbol_kind(variable: &hir::Variable<'_>) -> SymbolKind {
         | VarKind::FunctionTyReturn
         | VarKind::Statement
         | VarKind::TryCatch => SymbolKind::VARIABLE,
-    }
-}
-
-fn item_has_definition(gcx: Gcx<'_>, item_id: ItemId) -> bool {
-    match item_id {
-        ItemId::Function(id) => gcx.hir.function(id).body.is_some(),
-        _ => true,
     }
 }
 

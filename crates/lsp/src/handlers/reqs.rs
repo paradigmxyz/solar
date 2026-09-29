@@ -1145,12 +1145,8 @@ fn completion_input_from_line_prefix(line_prefix: &str) -> CompletionInput {
 fn start_of_trailing_ident(s: &str) -> usize {
     s.char_indices()
         .rev()
-        .find(|(_, ch)| !is_completion_ident_char(*ch))
+        .find(|&(_, ch)| ch != '_' && ch != '$' && !ch.is_ascii_alphanumeric())
         .map_or(0, |(idx, ch)| idx + ch.len_utf8())
-}
-
-fn is_completion_ident_char(ch: char) -> bool {
-    ch == '_' || ch == '$' || ch.is_ascii_alphanumeric()
 }
 
 #[cfg(test)]

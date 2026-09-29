@@ -136,11 +136,6 @@ impl IndexedFile {
             (Some(_), None) | (None, Some(_)) => false,
         }
     }
-
-    fn mark_source_ambiguous(&mut self) {
-        self.source = None;
-        self.syntax_fingerprint = OnceLock::new();
-    }
 }
 
 struct SemanticItem {
@@ -225,7 +220,8 @@ impl NatSpecCompletionIndex {
                 Entry::Occupied(mut entry) => {
                     let current = entry.get_mut();
                     if !current.has_same_syntax(&incoming) {
-                        current.mark_source_ambiguous();
+                        current.source = None;
+                        current.syntax_fingerprint = OnceLock::new();
                     }
                     // A declaration indexed by only one analysis is ambiguous.
                     for (key, semantics) in &mut current.entries {

@@ -803,7 +803,11 @@ impl RenameIndex {
     }
 
     fn normalize_occurrences(&mut self) {
-        self.occurrences.sort_by(|a, b| compare_locations(&a.location, &b.location));
+        self.occurrences.sort_by(|a, b| {
+            let (a, b) = (&a.location, &b.location);
+            (a.uri.as_str(), proto::range_key(a.range))
+                .cmp(&(b.uri.as_str(), proto::range_key(b.range)))
+        });
         let mut normalized = Vec::<RenameOccurrence>::with_capacity(self.occurrences.len());
         for occurrence in self.occurrences.drain(..) {
             if let Some(previous) = normalized.last_mut()
@@ -926,8 +930,4 @@ fn equal_names<I: Idx>(
     target: fn(I) -> RenameTarget,
 ) -> Vec<RenameTarget> {
     names.indices().filter(|&candidate| names[id] == names[candidate]).map(target).collect()
-}
-
-fn compare_locations(a: &Location, b: &Location) -> std::cmp::Ordering {
-    (a.uri.as_str(), proto::range_key(a.range)).cmp(&(b.uri.as_str(), proto::range_key(b.range)))
 }

@@ -269,19 +269,10 @@ impl AnalysisBatchInputs {
 }
 
 impl AnalysisCommitState {
-    fn begin_external_refresh(&mut self) {
-        self.external_refresh.get_or_insert_default();
-    }
-
     fn record_external_diagnostics_change(&mut self, changed: bool) {
         if changed && let Some(diagnostics_changed) = &mut self.external_refresh {
             *diagnostics_changed = true;
         }
-    }
-
-    fn fail_external_refresh(&mut self) -> RefreshRequests {
-        let diagnostics = self.external_refresh.as_mut().is_some_and(mem::take);
-        RefreshRequests { diagnostics, inlay_hints: false }
     }
 
     fn finish_external_refresh(
@@ -1265,7 +1256,7 @@ impl GlobalState {
         // after debounce and scheduler wait complete.
         let progress = self.analysis_progress.reserve(version);
         if refresh_pull_results {
-            commit.begin_external_refresh();
+            commit.external_refresh.get_or_insert_default();
             // Keep invalidation even if a later request cancels the debounced worker.
             commit.cached_output = None;
         }
@@ -1643,14 +1634,10 @@ impl GlobalState {
             *version += 1;
             *version
         };
-        self.cancel_flycheck(owner);
-        version
-    }
-
-    fn cancel_flycheck(&mut self, owner: &DiagnosticOwner) {
         if let Some(cancel) = self.flycheck_cancels.remove(owner) {
             let _ = cancel.send(());
         }
+        version
     }
 
     fn snapshot(&self) -> GlobalStateSnapshot {
@@ -1937,7 +1924,10 @@ fn handle_analysis_failure(
     }
 
     tracing::warn!(%error, version, "workspace indexing task failed");
-    let refresh_requests = commit.fail_external_refresh();
+    let refresh_requests = RefreshRequests {
+        diagnostics: commit.external_refresh.as_mut().is_some_and(mem::take),
+        inlay_hints: false,
+    };
     commit.cache_invalidated = true;
     commit.cached_output = None;
     commit.discovery_pending = false;
