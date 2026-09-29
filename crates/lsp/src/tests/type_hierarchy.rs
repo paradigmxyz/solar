@@ -278,6 +278,19 @@ fn callable_edges_are_direct_and_keep_overloads_separate() {
                 $8run(address(0));
             }
         }
+
+        type Amount is uint256;
+
+        contract C {
+            struct Data { uint256 value; }
+            enum Choice { A }
+
+            function $9choose(Base value) internal {}
+            function $10choose(Leaf value) internal {}
+            function $11inspect(Data memory value) internal {}
+            function $12inspect(Choice value) internal {}
+            function $13inspect(Amount value) internal {}
+        }
         "#,
         "/Overrides.sol",
     );
@@ -290,36 +303,12 @@ fn callable_edges_are_direct_and_keep_overloads_separate() {
     assert_eq!(supertypes(&fixture, "$6"), ["Middle.run(address)"]);
     assert_eq!(subtypes(&fixture, "$3"), ["Leaf.run(uint256)"]);
     assert_eq!(subtypes(&fixture, "$4"), ["Leaf.run(address)"]);
-}
-
-#[test]
-fn canonical_names_keep_user_defined_parameter_types_distinct() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Names.sol
-        type Amount is uint256;
-        contract First {}
-        contract Second {}
-
-        contract C {
-            struct Data { uint256 value; }
-            enum Choice { A }
-
-            function $1choose(First value) internal {}
-            function $2choose(Second value) internal {}
-            function $3inspect(Data memory value) internal {}
-            function $4inspect(Choice value) internal {}
-            function $5inspect(Amount value) internal {}
-        }
-        "#,
-        "/Names.sol",
-    );
-
+    // Canonical names keep user-defined parameter types distinct.
     assert_eq!(
-        ["$1", "$2", "$3", "$4", "$5"].map(|marker| prepared(&fixture, marker).name),
+        ["$9", "$10", "$11", "$12", "$13"].map(|marker| prepared(&fixture, marker).name),
         [
-            "C.choose(contract First)",
-            "C.choose(contract Second)",
+            "C.choose(contract Base)",
+            "C.choose(contract Leaf)",
             "C.inspect(struct C.Data)",
             "C.inspect(enum C.Choice)",
             "C.inspect(Amount)",
@@ -409,13 +398,7 @@ fn incompatible_compile_contexts_exclude_nodes_and_incident_edges_in_both_orders
         let result = results.finish();
         assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
         let tables = result.symbol_tables;
-        let item = |uri: &Url, line, character| {
-            tables
-                .prepare_type_hierarchy(uri, Position::new(line, character))
-                .unwrap()
-                .pop()
-                .unwrap()
-        };
+        let item = |uri: &Url, line, character| item_at(&tables, uri, line, character);
 
         // `Shared`, its `Base` reference, its getter, `inspect`, and its `Value` reference.
         for (line, character) in [(1, 10), (1, 20), (2, 20), (3, 14), (3, 22)] {
@@ -502,18 +485,14 @@ fn conflicting_request_files_cannot_leak_external_targets() {
         let clean =
             analyze_tables(&conflict_path, "import \"./Left.sol\";\ncontract Uses is Left {}\n");
         let conflict_uri = fixture.project().uri("/Conflict.sol");
-        let echoed_uses = clean
-            .prepare_type_hierarchy(&conflict_uri, Position::new(1, 10))
-            .unwrap()
-            .pop()
-            .unwrap();
+        let echoed_uses = item_at(&clean, &conflict_uri, 1, 10);
         assert_eq!(fixture.type_hierarchy_supertypes(echoed_uses.clone()), None);
         assert_eq!(fixture.type_hierarchy_subtypes(echoed_uses), None);
     }
 }
 
 #[test]
-fn requests_reject_a_different_published_analysis_epoch() {
+fn requests_reject_superseded_analysis() {
     let project = TestProject::new();
     let path = project.path("/Hierarchy.sol");
     let old_tables = analyze_tables(
@@ -525,12 +504,18 @@ fn requests_reject_a_different_published_analysis_epoch() {
         "contract New {}\ncontract SuperNew {}\ncontract SuperChild is SuperNew {}\ncontract SubBase {}\ncontract SubNew is SubBase {}\n",
     );
     let uri = project.uri("/Hierarchy.sol");
+
+    // Analysis superseded before the requests are polled.
+    let mut state = state_with(Config::default());
+    let requests = hierarchy_requests(&mut state, old_tables.clone(), &uri, (2, 10), (3, 10));
+    state.mark_analysis_pending_for_test();
+    assert_content_modified(requests);
+
     let mut state = state_with(Config::default());
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
     let mut requests = hierarchy_requests(&mut state, old_tables, &uri, (2, 10), (3, 10));
-    let mut context = Context::from_waker(Waker::noop());
     for request in &mut requests {
-        assert!(request.as_mut().poll(&mut context).is_pending());
+        assert_polls(true, request.as_mut());
     }
 
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
@@ -539,20 +524,6 @@ fn requests_reject_a_different_published_analysis_epoch() {
     assert!(!snapshot.publish_symbol_tables(1, Default::default()));
 
     // A new publication must not retarget an old request.
-    assert_content_modified(requests);
-}
-
-#[test]
-fn requests_reject_analysis_superseded_before_they_are_polled() {
-    let project = TestProject::new();
-    let path = project.path("/Hierarchy.sol");
-    let tables = analyze_tables(&path, "contract Base {}\ncontract Child is Base {}\n");
-    let uri = project.uri("/Hierarchy.sol");
-    let mut state = state_with(Config::default());
-    let requests = hierarchy_requests(&mut state, tables, &uri, (1, 10), (0, 10));
-
-    state.mark_analysis_pending_for_test();
-
     assert_content_modified(requests);
 }
 
@@ -582,8 +553,7 @@ fn echoed_items_follow_current_source_identity() {
     };
     let old_tables = analyze_both(project.read_file("/Other.sol"));
     let uri = project.uri("/Hierarchy.sol");
-    let old_item =
-        old_tables.prepare_type_hierarchy(&uri, Position::new(1, 10)).unwrap().pop().unwrap();
+    let old_item = item_at(&old_tables, &uri, 1, 10);
 
     let renamed = analyze_tables(&hierarchy_path, "contract Base {}\ncontract New is Base {}\n");
     assert_eq!(renamed.type_hierarchy_supertypes(&old_item), None);
@@ -608,11 +578,9 @@ fn hierarchy_requests(
     (super_line, super_character): (u32, u32),
     (sub_line, sub_character): (u32, u32),
 ) -> [HierarchyRequest; 3] {
-    let item = |line, character| {
-        tables.prepare_type_hierarchy(uri, Position::new(line, character)).unwrap().pop().unwrap()
-    };
-    let supertypes = from_json(json!({ "item": item(super_line, super_character) }));
-    let subtypes = from_json(json!({ "item": item(sub_line, sub_character) }));
+    let supertypes =
+        from_json(json!({ "item": item_at(&tables, uri, super_line, super_character) }));
+    let subtypes = from_json(json!({ "item": item_at(&tables, uri, sub_line, sub_character) }));
     state.symbol_tables.store(Arc::new(tables));
     let prepare = request_params(uri, Position::new(0, 10), json!({}));
     [
@@ -623,11 +591,8 @@ fn hierarchy_requests(
 }
 
 fn assert_content_modified(requests: [HierarchyRequest; 3]) {
-    let mut context = Context::from_waker(Waker::noop());
-    for mut request in requests {
-        let Poll::Ready(Err(error)) = request.as_mut().poll(&mut context) else {
-            panic!("superseded requests should return an error");
-        };
+    for request in requests {
+        let error = expect_ready(request).expect_err("superseded requests should return an error");
         assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
     }
 }
@@ -659,6 +624,10 @@ fn assert_item(item: &TypeHierarchyItem, name: &str, kind: SymbolKind) {
     assert_eq!(item.detail, None);
     assert!(item.range.start <= item.selection_range.start);
     assert!(item.selection_range.end <= item.range.end);
+}
+
+fn item_at(tables: &SymbolTables, uri: &Url, line: u32, character: u32) -> TypeHierarchyItem {
+    tables.prepare_type_hierarchy(uri, Position::new(line, character)).unwrap().pop().unwrap()
 }
 
 fn analyze_tables(path: &Path, source: &str) -> SymbolTables {
