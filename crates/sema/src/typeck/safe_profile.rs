@@ -272,9 +272,17 @@ impl<'gcx> Visit<'gcx> for Scan<'gcx> {
     }
 
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
-        // A call to `Math.wrappingAdd`, `wrappingSub` or `wrappingMul`.
+        // A call to `Math.wrappingAdd`, `wrappingSub` or `wrappingMul` is reported as the call.
         if let Some((callee, _, _)) = expr.as_call()
             && let Some(function) = self.gcx.resolved_function(callee)
+            && is_wrapping(self.gcx, function)
+        {
+            self.record(Violation::Wrapping, expr.span);
+            self.seen.insert(callee.span);
+        }
+        // Any other reference takes the operation as a value, which a function pointer may call:
+        // trusted, its body is never scanned.
+        if let Some(function) = self.gcx.resolved_function(expr)
             && is_wrapping(self.gcx, function)
         {
             self.record(Violation::Wrapping, expr.span);
