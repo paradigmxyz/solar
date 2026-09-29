@@ -10,6 +10,7 @@ use lsp_types::{
 };
 use snapbox::str;
 use std::{
+    path::{Path, PathBuf},
     sync::{Arc, atomic::Ordering},
     task::{Context, Poll, Waker},
     time::Duration,
@@ -43,18 +44,9 @@ async fn remappings_change_refreshes_import_definitions() {
         "/lib/old/Target.sol:0:0 contract OldTarget {}\n"
     );
 
-    std::fs::write(fixture.project_path("/remappings.txt"), "pkg/=lib/new/\n").unwrap();
-    let remappings_uri = Url::from_file_path(fixture.project_path("/remappings.txt")).unwrap();
-    let _ = crate::handlers::did_change_watched_files(
-        &mut state,
-        DidChangeWatchedFilesParams {
-            changes: vec![FileEvent { uri: remappings_uri, typ: FileChangeType::CHANGED }],
-        },
-    );
-    tokio::time::timeout(Duration::from_secs(5), state.latest_analysis())
-        .await
-        .expect("analysis after remappings change should finish")
-        .unwrap();
+    let remappings = fixture.project_path("/remappings.txt");
+    std::fs::write(&remappings, "pkg/=lib/new/\n").unwrap();
+    refresh(&mut state, Some((remappings, FileChangeType::CHANGED))).await;
 
     assert_eq!(
         fixture.query_in(&mut state, Query::Definition, "$1").await,
@@ -203,13 +195,61 @@ $4 /nested/Target.sol:0:0 contract NestedTarget {}
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn import_only_source_watcher_changes_refresh_auto_detected_remappings() {
-    check_import_only_watcher_refreshes_auto_detected_remappings("/lib/pkg/src/Target.sol").await;
+async fn import_only_changes_refresh_auto_detected_remappings() {
+    // Watch the created file or package directory, or reindex manually without an event.
+    for event_path in [Some("/lib/pkg/src/Target.sol"), Some("/lib/pkg"), None] {
+        let fixture = RequestFixture::new_allowing_diagnostics(
+            r#"
+            //- /foundry.toml
+
+            //- /src/Main.sol open
+            import "pkg/$1Target.sol";
+            "#,
+            "/src/Main.sol",
+        );
+        let mut state = fixture.state_with_workspace_analysis();
+        assert!(!state.config.supports_watched_file_dynamic_registration());
+        let target = fixture.project_path("/lib/pkg/src/Target.sol");
+        let event_path = event_path.map(|path| fixture.project_path(path));
+        let event = |typ| event_path.clone().map(|path| (path, typ));
+        assert_eq!(fixture.query_in(&mut state, Query::Definition, "$1").await, "<none>\n");
+
+        std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+        std::fs::write(&target, "contract Target {}\n").unwrap();
+        refresh(&mut state, event(FileChangeType::CREATED)).await;
+        assert_eq!(
+            fixture.query_in(&mut state, Query::Definition, "$1").await,
+            "/lib/pkg/src/Target.sol:0:0 contract Target {}\n"
+        );
+
+        if event_path.as_ref() == Some(&target) {
+            std::fs::remove_file(&target).unwrap();
+        } else {
+            std::fs::remove_dir_all(fixture.project_path("/lib/pkg")).unwrap();
+        }
+        refresh(&mut state, event(FileChangeType::DELETED)).await;
+        assert_eq!(fixture.query_in(&mut state, Query::Definition, "$1").await, "<none>\n");
+    }
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn import_only_package_watcher_changes_refresh_auto_detected_remappings() {
-    check_import_only_watcher_refreshes_auto_detected_remappings("/lib/pkg").await;
+/// Sends a watched-file event, or reindexes without one, and waits for the resulting analysis.
+async fn refresh(state: &mut GlobalState, event: Option<(PathBuf, FileChangeType)>) {
+    if let Some((path, typ)) = event {
+        watch(state, &path, typ);
+    } else {
+        state.reindex();
+    }
+    tokio::time::timeout(Duration::from_secs(5), state.latest_analysis())
+        .await
+        .expect("analysis should finish")
+        .unwrap();
+}
+
+fn watch(state: &mut GlobalState, path: &Path, typ: FileChangeType) {
+    let uri = Url::from_file_path(path).unwrap();
+    let changes = vec![FileEvent { uri, typ }];
+    let _ =
+        crate::handlers::did_change_watched_files(state, DidChangeWatchedFilesParams { changes });
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -241,112 +281,10 @@ async fn external_compile_only_library_events_do_not_force_rediscovery() {
     std::fs::write(&target, "contract Target {}\n").unwrap();
     let version = state.analysis_version.load(Ordering::Acquire);
 
-    let _ = crate::handlers::did_change_watched_files(
-        &mut state,
-        DidChangeWatchedFilesParams {
-            changes: vec![FileEvent {
-                uri: Url::from_file_path(target).unwrap(),
-                typ: FileChangeType::CREATED,
-            }],
-        },
-    );
+    watch(&mut state, &target, FileChangeType::CREATED);
 
     assert_eq!(state.analysis_version.load(Ordering::Acquire), version);
     state.analysis_scheduler.tasks.lock().cancel();
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn manual_reindex_refreshes_auto_detected_remappings() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-
-        //- /src/Main.sol open
-        import "pkg/$1Target.sol";
-        "#,
-        "/src/Main.sol",
-    );
-    let mut state = fixture.state_with_workspace_analysis();
-    let package = fixture.project_path("/lib/pkg");
-    let target = package.join("src/Target.sol");
-    assert!(!state.config.supports_watched_file_dynamic_registration());
-    assert_eq!(fixture.query_in(&mut state, Query::Definition, "$1").await, "<none>\n");
-
-    std::fs::create_dir_all(target.parent().unwrap()).unwrap();
-    std::fs::write(&target, "contract Target {}\n").unwrap();
-    state.reindex();
-    tokio::time::timeout(Duration::from_secs(5), state.latest_analysis())
-        .await
-        .expect("manual analysis after package creation should finish")
-        .unwrap();
-
-    assert_eq!(
-        fixture.query_in(&mut state, Query::Definition, "$1").await,
-        "/lib/pkg/src/Target.sol:0:0 contract Target {}\n"
-    );
-
-    std::fs::remove_dir_all(package).unwrap();
-    state.reindex();
-    tokio::time::timeout(Duration::from_secs(5), state.latest_analysis())
-        .await
-        .expect("manual analysis after package deletion should finish")
-        .unwrap();
-
-    assert_eq!(fixture.query_in(&mut state, Query::Definition, "$1").await, "<none>\n");
-}
-
-async fn check_import_only_watcher_refreshes_auto_detected_remappings(created_path: &str) {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-
-        //- /src/Main.sol open
-        import "pkg/$1Target.sol";
-        "#,
-        "/src/Main.sol",
-    );
-    let mut state = fixture.state_with_workspace_analysis();
-    let target = fixture.project_path("/lib/pkg/src/Target.sol");
-
-    assert_eq!(fixture.query_in(&mut state, Query::Definition, "$1").await, "<none>\n");
-
-    std::fs::create_dir_all(target.parent().unwrap()).unwrap();
-    std::fs::write(&target, "contract Target {}\n").unwrap();
-    let event_path = fixture.project_path(created_path);
-    let event_uri = Url::from_file_path(&event_path).unwrap();
-    let _ = crate::handlers::did_change_watched_files(
-        &mut state,
-        DidChangeWatchedFilesParams {
-            changes: vec![FileEvent { uri: event_uri.clone(), typ: FileChangeType::CREATED }],
-        },
-    );
-    tokio::time::timeout(Duration::from_secs(5), state.latest_analysis())
-        .await
-        .expect("analysis after import-only creation should finish")
-        .unwrap();
-
-    assert_eq!(
-        fixture.query_in(&mut state, Query::Definition, "$1").await,
-        "/lib/pkg/src/Target.sol:0:0 contract Target {}\n"
-    );
-
-    if event_path == target {
-        std::fs::remove_file(&target).unwrap();
-    } else {
-        std::fs::remove_dir_all(&event_path).unwrap();
-    }
-    let _ = crate::handlers::did_change_watched_files(
-        &mut state,
-        DidChangeWatchedFilesParams {
-            changes: vec![FileEvent { uri: event_uri, typ: FileChangeType::DELETED }],
-        },
-    );
-    tokio::time::timeout(Duration::from_secs(5), state.latest_analysis())
-        .await
-        .expect("analysis after import-only deletion should finish")
-        .unwrap();
-
-    assert_eq!(fixture.query_in(&mut state, Query::Definition, "$1").await, "<none>\n");
 }
 
 #[test]
