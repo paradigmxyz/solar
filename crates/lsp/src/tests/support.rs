@@ -647,16 +647,8 @@ pub(super) fn rename_output(root: &Path, response: Option<WorkspaceEdit>) -> Str
         let path = uri.to_file_path().unwrap();
         let display_path = display_path(root, &path);
         for edit in edits {
-            writeln!(
-                output,
-                "{display_path}:{}:{}-{}:{} -> {}",
-                edit.range.start.line,
-                edit.range.start.character,
-                edit.range.end.line,
-                edit.range.end.character,
-                edit.new_text,
-            )
-            .unwrap();
+            writeln!(output, "{display_path}:{} -> {}", range_output(edit.range), edit.new_text)
+                .unwrap();
         }
     }
     output
@@ -945,26 +937,15 @@ fn prepare_rename_output(response: Option<PrepareRenameResponse>) -> String {
         PrepareRenameResponse::RangeWithPlaceholder { range, .. } => range,
         PrepareRenameResponse::DefaultBehavior { .. } => return "<default>\n".to_string(),
     };
-    format!(
-        "{}:{}-{}:{}\n",
-        range.start.line, range.start.character, range.end.line, range.end.character
-    )
+    format!("{}\n", range_output(range))
 }
 
 fn document_highlight_output(response: Option<Vec<DocumentHighlight>>) -> String {
     let Some(highlights) = response else { return "<none>\n".to_string() };
     let mut output = String::new();
     for highlight in highlights {
-        writeln!(
-            output,
-            "{}:{}-{}:{} {}",
-            highlight.range.start.line,
-            highlight.range.start.character,
-            highlight.range.end.line,
-            highlight.range.end.character,
-            document_highlight_kind(highlight.kind),
-        )
-        .unwrap();
+        let kind = document_highlight_kind(highlight.kind);
+        writeln!(output, "{} {kind}", range_output(highlight.range)).unwrap();
     }
     output
 }
