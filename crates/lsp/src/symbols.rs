@@ -3139,103 +3139,61 @@ mod tests {
     }
 
     #[test]
-    fn document_symbols_are_nested_by_parent_and_ordered_by_source() {
+    fn document_and_workspace_symbols_follow_parents_and_queries() {
         let uri = parse_uri("file:///workspace/src/Contract.sol");
         let tables = sample_tables(&uri, &parse_uri("file:///workspace/src/Other.sol"));
 
+        // Document symbols are nested by parent and ordered by source.
         let symbols = tables.document_symbols(&uri);
-
-        assert_eq!(symbols.iter().map(|symbol| symbol.name.as_str()).collect::<Vec<_>>(), ["C"]);
-        assert_eq!(symbols[0].kind, SymbolKind::CLASS);
+        assert_eq!(outline(&symbols), [("C", SymbolKind::CLASS)]);
         assert_eq!(symbols[0].selection_range, range(0, 0, 0, 1));
-
-        let contract_children = symbols[0].children.as_ref().unwrap();
+        let contract_children = symbols[0].children.as_deref().unwrap();
         assert_eq!(
-            contract_children.iter().map(|symbol| symbol.name.as_str()).collect::<Vec<_>>(),
-            ["x", "S", "constructor", "f"]
+            outline(contract_children),
+            [
+                ("x", SymbolKind::PROPERTY),
+                ("S", SymbolKind::STRUCT),
+                ("constructor", SymbolKind::CONSTRUCTOR),
+                ("f", SymbolKind::METHOD),
+            ]
         );
-        assert_eq!(contract_children[0].kind, SymbolKind::PROPERTY);
-        assert_eq!(contract_children[1].kind, SymbolKind::STRUCT);
-        assert_eq!(contract_children[2].kind, SymbolKind::CONSTRUCTOR);
-        assert_eq!(contract_children[3].kind, SymbolKind::METHOD);
-
-        let struct_children = contract_children[1].children.as_ref().unwrap();
+        let struct_children = contract_children[1].children.as_deref().unwrap();
+        assert_eq!(outline(struct_children), [("field", SymbolKind::PROPERTY)]);
+        let function_children = contract_children[3].children.as_deref().unwrap();
         assert_eq!(
-            struct_children.iter().map(|symbol| symbol.name.as_str()).collect::<Vec<_>>(),
-            ["field"]
+            outline(function_children),
+            [("arg", SymbolKind::VARIABLE), ("local", SymbolKind::VARIABLE)]
         );
-        assert_eq!(struct_children[0].kind, SymbolKind::PROPERTY);
 
-        let function_children = contract_children[3].children.as_ref().unwrap();
-        assert_eq!(
-            function_children.iter().map(|symbol| symbol.name.as_str()).collect::<Vec<_>>(),
-            ["arg", "local"]
-        );
-        assert!(function_children.iter().all(|symbol| symbol.kind == SymbolKind::VARIABLE));
-    }
-
-    #[test]
-    fn workspace_symbols_filter_by_query_and_include_container_names() {
-        let uri = parse_uri("file:///workspace/src/Contract.sol");
-        let other_uri = parse_uri("file:///workspace/src/Other.sol");
-        let tables = sample_tables(&uri, &other_uri);
-
+        // Workspace symbols filter by query and include container names.
         let symbols = tables.workspace_symbols("f");
-
         assert_eq!(
-            symbols.iter().map(|symbol| symbol.name.as_str()).collect::<Vec<_>>(),
-            ["field", "f", "OtherFunction"]
+            symbols
+                .iter()
+                .map(|symbol| (symbol.name.as_str(), symbol.kind, symbol.container_name.as_deref()))
+                .collect::<Vec<_>>(),
+            [
+                ("field", SymbolKind::PROPERTY, Some("S")),
+                ("f", SymbolKind::METHOD, Some("C")),
+                ("OtherFunction", SymbolKind::FUNCTION, None),
+            ]
         );
-        assert_eq!(symbols[0].container_name.as_deref(), Some("S"));
-        assert_eq!(symbols[0].kind, SymbolKind::PROPERTY);
-        assert_eq!(symbols[1].container_name.as_deref(), Some("C"));
-        assert_eq!(symbols[1].kind, SymbolKind::METHOD);
-        assert_eq!(symbols[2].container_name, None);
-        assert_eq!(symbols[2].kind, SymbolKind::FUNCTION);
-
-        let symbols = tables.workspace_symbols("OTHER");
-        assert_eq!(
-            symbols.iter().map(|symbol| symbol.name.as_str()).collect::<Vec<_>>(),
-            ["OtherFunction"]
-        );
+        assert_eq!(workspace_names(&tables, "OTHER"), ["OtherFunction"]);
     }
 
     #[test]
     fn workspace_symbols_search_corpus_respects_name_boundaries_and_unicode() {
         let uri = parse_uri("file:///workspace/src/Contract.sol");
         let mut tables = SymbolTables::default();
-        push(&mut tables, &uri, "Alpha", SymbolKind::FUNCTION, 0, 0, None);
-        push(&mut tables, &uri, "Alphabet", SymbolKind::FUNCTION, 1, 0, None);
-        push(&mut tables, &uri, "ALPHA", SymbolKind::FUNCTION, 2, 0, None);
-        push(&mut tables, &uri, "Éclair", SymbolKind::FUNCTION, 3, 0, None);
-        for index in 0..WORKSPACE_SEARCH_CORPUS_THRESHOLD {
-            push(
-                &mut tables,
-                &uri,
-                &format!("Unrelated{index}"),
-                SymbolKind::FUNCTION,
-                (index + 4) as u32,
-                0,
-                None,
-            );
+        let names = ["Alpha", "Alphabet", "ALPHA", "Éclair"].map(String::from);
+        let unrelated =
+            (0..WORKSPACE_SEARCH_CORPUS_THRESHOLD).map(|index| format!("Unrelated{index}"));
+        for (line, name) in names.into_iter().chain(unrelated).enumerate() {
+            push(&mut tables, &uri, &name, SymbolKind::FUNCTION, line as u32, 0, None);
         }
 
-        assert_eq!(
-            tables
-                .workspace_symbols("ha")
-                .iter()
-                .map(|symbol| symbol.name.as_str())
-                .collect::<Vec<_>>(),
-            ["Alpha", "Alphabet", "ALPHA"]
-        );
-        assert_eq!(
-            tables
-                .workspace_symbols("ÉC")
-                .iter()
-                .map(|symbol| symbol.name.as_str())
-                .collect::<Vec<_>>(),
-            ["Éclair"]
-        );
+        assert_eq!(workspace_names(&tables, "ha"), ["Alpha", "Alphabet", "ALPHA"]);
+        assert_eq!(workspace_names(&tables, "ÉC"), ["Éclair"]);
         assert!(tables.workspace_symbols("pha\0bet").is_empty());
     }
 
@@ -3360,6 +3318,14 @@ mod tests {
 
     fn parse_uri(uri: &str) -> Url {
         Url::parse(uri).unwrap()
+    }
+
+    fn outline(symbols: &[DocumentSymbol]) -> Vec<(&str, SymbolKind)> {
+        symbols.iter().map(|symbol| (symbol.name.as_str(), symbol.kind)).collect()
+    }
+
+    fn workspace_names(tables: &SymbolTables, query: &str) -> Vec<String> {
+        tables.workspace_symbols(query).into_iter().map(|symbol| symbol.name).collect()
     }
 
     fn range(start_line: u32, start_col: u32, end_line: u32, end_col: u32) -> Range {
