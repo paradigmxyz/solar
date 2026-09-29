@@ -10,8 +10,8 @@ use crate::{config::negotiate_capabilities, handlers};
 use async_lsp::{ClientSocket, ResponseError};
 use lsp_types::{
     DidChangeTextDocumentParams, DidOpenTextDocumentParams, GotoDefinitionParams,
-    GotoDefinitionResponse, Hover, HoverParams, InitializeParams, TextDocumentItem, Url,
-    WorkspaceFolder,
+    GotoDefinitionResponse, Hover, HoverParams, InitializeParams, TextDocumentItem,
+    TextDocumentPositionParams, Url, WorkspaceFolder,
 };
 use solar_config::Threads;
 use std::{
@@ -78,8 +78,12 @@ impl BenchmarkPendingRequests {
     pub async fn hover(
         &mut self,
         change: DidChangeTextDocumentParams,
-        params: HoverParams,
+        position: TextDocumentPositionParams,
     ) -> (Duration, Option<Hover>) {
+        let params = HoverParams {
+            text_document_position_params: position,
+            work_done_progress_params: Default::default(),
+        };
         self.measure(change, |state| handlers::hover(state, params)).await
     }
 
@@ -87,8 +91,13 @@ impl BenchmarkPendingRequests {
     pub async fn definition(
         &mut self,
         change: DidChangeTextDocumentParams,
-        params: GotoDefinitionParams,
+        position: TextDocumentPositionParams,
     ) -> (Duration, Option<GotoDefinitionResponse>) {
+        let params = GotoDefinitionParams {
+            text_document_position_params: position,
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        };
         self.measure(change, |state| handlers::goto_definition(state, params)).await
     }
 
@@ -148,10 +157,25 @@ mod tests {
     use super::*;
     use crate::{global_state::benchmark::BenchmarkProject, test_support::TestProject};
     use lsp_types::{
-        TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
+        Position, TextDocumentContentChangeEvent, TextDocumentIdentifier,
         VersionedTextDocumentIdentifier,
     };
     use solar_config::CompileOpts;
+
+    fn full_change(uri: &Url, version: i32, text: &str) -> DidChangeTextDocumentParams {
+        DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier::new(uri.clone(), version),
+            content_changes: vec![TextDocumentContentChangeEvent {
+                range: None,
+                range_length: None,
+                text: text.into(),
+            }],
+        }
+    }
+
+    fn position_params(uri: &Url, position: Position) -> TextDocumentPositionParams {
+        TextDocumentPositionParams::new(TextDocumentIdentifier::new(uri.clone()), position)
+    }
 
     #[tokio::test(flavor = "current_thread")]
     async fn pending_benchmark_returns_edited_responses_and_drains_workers() {
@@ -159,70 +183,39 @@ mod tests {
         let before = "contract C {\nfunction before() public pure returns (uint256) { return 1; }\nfunction after_() public pure returns (uint256) { return 2; }\nfunction call() public pure returns (uint256) { return before(); }\n}\n";
         let after = before.replace("return before();", "return after_();");
         project.write_file("/Main.sol", before);
-        let baseline = BenchmarkProject::from_sources(
-            CompileOpts { base_path: Some(project.root().to_path_buf()), ..Default::default() },
-            [(PathBuf::from("Main.sol"), before.into())],
-        )
-        .unwrap();
-        let (uri, position) = baseline.unique_anchor("Main.sol", "before();").unwrap();
-        let mut requests =
-            BenchmarkPendingRequests::new(project.root().to_path_buf(), uri.clone(), before.into())
-                .await;
-        let params = TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier::new(uri.clone()),
-            position,
+        let prepare = |source: &str| {
+            BenchmarkProject::from_sources(
+                CompileOpts { base_path: Some(project.root().to_path_buf()), ..Default::default() },
+                [(PathBuf::from("Main.sol"), source.into())],
+            )
+            .unwrap()
         };
-        let baseline = baseline.analyze();
-        let old_hover = baseline.symbol_tables.hover(&uri, position);
-        let old_definition = baseline.symbol_tables.goto_definition(&uri, position);
-        let updated = BenchmarkProject::from_sources(
-            CompileOpts { base_path: Some(project.root().to_path_buf()), ..Default::default() },
-            [(PathBuf::from("Main.sol"), after.clone())],
-        )
-        .unwrap()
-        .analyze();
-        let new_hover = updated.symbol_tables.hover(&uri, position);
-        let new_definition = updated.symbol_tables.goto_definition(&uri, position);
+        let baseline = prepare(before);
+        let (uri, position) = baseline.unique_anchor("Main.sol", "before();").unwrap();
+        let (old_hover, old_definition) = baseline.analyze().navigation(&uri, position);
+        let (new_hover, new_definition) = prepare(&after).analyze().navigation(&uri, position);
         assert!(new_hover.is_some());
         assert!(new_definition.is_some());
         assert_ne!(old_hover, new_hover);
         assert_ne!(old_definition, new_definition);
 
+        let mut requests =
+            BenchmarkPendingRequests::new(project.root().to_path_buf(), uri.clone(), before.into())
+                .await;
         for (index, source) in [after.as_str(), before, after.as_str()].into_iter().enumerate() {
-            let change = DidChangeTextDocumentParams {
-                text_document: VersionedTextDocumentIdentifier::new(uri.clone(), index as i32 + 2),
-                content_changes: vec![TextDocumentContentChangeEvent {
-                    range: None,
-                    range_length: None,
-                    text: source.into(),
-                }],
-            };
-            if index == 1 {
-                let (elapsed, response) = requests
-                    .definition(
-                        change,
-                        GotoDefinitionParams {
-                            text_document_position_params: params.clone(),
-                            work_done_progress_params: Default::default(),
-                            partial_result_params: Default::default(),
-                        },
-                    )
-                    .await;
-                assert!(!elapsed.is_zero());
+            let change = full_change(&uri, index as i32 + 2, source);
+            let elapsed = if index == 1 {
+                let (elapsed, response) =
+                    requests.definition(change, position_params(&uri, position)).await;
                 assert_eq!(response, old_definition);
+                elapsed
             } else {
-                let (elapsed, response) = requests
-                    .hover(
-                        change,
-                        HoverParams {
-                            text_document_position_params: params.clone(),
-                            work_done_progress_params: Default::default(),
-                        },
-                    )
-                    .await;
-                assert!(!elapsed.is_zero());
+                let (elapsed, response) =
+                    requests.hover(change, position_params(&uri, position)).await;
                 assert_eq!(response, new_hover);
-            }
+                elapsed
+            };
+            assert!(!elapsed.is_zero());
             let tasks = requests.state.analysis_scheduler.tasks.lock();
             assert!(tasks.worker.is_none());
             assert!(tasks.coordinator.is_none());
@@ -241,23 +234,7 @@ mod tests {
             BenchmarkPendingRequests::new(project.root().to_path_buf(), uri.clone(), source.into())
                 .await;
         requests
-            .hover(
-                DidChangeTextDocumentParams {
-                    text_document: VersionedTextDocumentIdentifier::new(uri.clone(), 2),
-                    content_changes: vec![TextDocumentContentChangeEvent {
-                        range: None,
-                        range_length: None,
-                        text: source.into(),
-                    }],
-                },
-                HoverParams {
-                    text_document_position_params: TextDocumentPositionParams {
-                        text_document: TextDocumentIdentifier::new(uri),
-                        position: lsp_types::Position::new(0, 9),
-                    },
-                    work_done_progress_params: Default::default(),
-                },
-            )
+            .hover(full_change(&uri, 2, source), position_params(&uri, Position::new(0, 9)))
             .await;
     }
 }
