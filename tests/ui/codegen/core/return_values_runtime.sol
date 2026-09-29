@@ -7,6 +7,9 @@
 //@ run-call: account 0xffffffffffffffffffffffff1234567890123456789012345678901234567890 => 0x1234567890123456789012345678901234567890
 //@ run-call: flag true => false
 //@ run-call: flag false => true
+//@ run-call: dirtyAccount 0xffffffffffffffffffffffff1234567890123456789012345678901234567890 => 0x1234567890123456789012345678901234567890
+//@ run-call: dirtyFlag 2 => true
+//@ run-call: dirtyFlag 0 => false
 //@ run-call: hash 0x0102030405060708091011121314151617181920212223242526272829303132 => 0x0102030405060708091011121314151617181920212223242526272829303132
 //@ run-call: blob 0x010203 => 0x010203
 //@ run-call: blob 0x => 0x
@@ -17,7 +20,8 @@
 
 // Each `Return.abiEncoded` overload ends the call with its argument encoded
 // as the single result of a function returning that type: an address is
-// cleaned to its width and a boolean to one bit. A fallback function's output
+// cleaned to its width and a boolean to one bit, even when assembly left it
+// dirty. A fallback function's output
 // is raw bytes, so `Return.raw` ends a call to it with exactly its argument,
 // and any encoding may end it too. A call through an internal function
 // pointer ends the call it is made in.
@@ -38,6 +42,22 @@ contract Test {
 
     function flag(bool value) public pure returns (bool) {
         Return.abiEncoded(!value);
+    }
+
+    function dirtyAccount(uint256 value) public pure returns (address) {
+        address account_;
+        assembly {
+            account_ := value
+        }
+        Return.abiEncoded(account_);
+    }
+
+    function dirtyFlag(uint256 value) public pure returns (bool) {
+        bool flag_;
+        assembly {
+            flag_ := value
+        }
+        Return.abiEncoded(flag_);
     }
 
     function hash(bytes32 value) public pure returns (bytes32) {
