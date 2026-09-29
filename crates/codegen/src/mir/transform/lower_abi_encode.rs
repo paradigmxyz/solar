@@ -1524,10 +1524,16 @@ fn encode_dynamic_body(
     helpers: &EncodeHelpers,
 ) -> ValueId {
     if let Some(location) = encoded_view_location(builder.func(), ty, value) {
+        // A view's layout names the location it reads. A calldata array under a memory layout
+        // is an external function's returned input instead, which only its top-level decode
+        // checked.
+        let checked = location == SliceLocation::Calldata
+            && matches!(ty, AbiType::DynamicArray { location: SliceLocation::Memory, .. });
+        let input = EncodedInput { location, checked };
         // tail = encode_encoded(ty, value.ptr, value.len)
         let data = builder.slice_ptr(value);
         let len = builder.slice_len(value);
-        return encode_encoded(builder, ty, data, len, dest, location, helpers);
+        return encode_encoded(builder, ty, data, len, dest, input, helpers);
     }
     match ty {
         AbiType::Bytes(location) => {
@@ -1612,13 +1618,23 @@ fn encode_dynamic_body(
     }
 }
 
+/// Where [`encode_encoded`] reads an ABI encoding, and whether it checks what it reads.
+#[derive(Clone, Copy)]
+struct EncodedInput {
+    location: SliceLocation,
+    /// Calldata that only its top-level decode checked: every tail and word below it is checked
+    /// as it is read, as solc's encoder checks calldata. A view's decode validated all of it.
+    checked: bool,
+}
+
 /// The location of the ABI encoding that `value`, the dynamic aggregate of type `ty`, is a
 /// `@custom:solar-view` of, when it is one, for [`encode_encoded`].
 ///
 /// A dynamic aggregate held in a memory or calldata slice is a view, except for a calldata
 /// argument that [`encode_dynamic_body`] encodes from its slice while checking its offsets and
-/// lengths against the calldata size: a dynamic array of words or of byte strings. Other calldata
-/// aggregates are copied to memory before an encoding takes them.
+/// lengths against the calldata size: a dynamic array of words or of byte strings. An encoding's
+/// other calldata arguments are copied to memory before it takes them, but an external function
+/// returns a calldata array as it arrived, which [`encode_encoded`] then reads as checked input.
 fn encoded_view_location(func: &Function, ty: &AbiType, value: ValueId) -> Option<SliceLocation> {
     if !ty.is_dynamic() || matches!(ty, AbiType::Bytes(_)) {
         return None;
@@ -1644,16 +1660,19 @@ fn encoded_view_location(func: &Function, ty: &AbiType, value: ValueId) -> Optio
 /// The decode that made the view validated every word of it, and nothing can change them while
 /// the view is read, so words are copied as they are, with no cleanup. The output is the
 /// canonical encoding the copying decode's objects would have: every value's tail follows the
-/// heads it belongs to in order, whatever offsets the input used.
+/// heads it belongs to in order, whatever offsets the input used. A calldata array that an
+/// external function returns reaches here as its input held it, with only its own span checked,
+/// so its `input` is checked: every tail and word below it is checked as it is read.
 fn encode_encoded(
     builder: &mut FunctionBuilder<'_>,
     ty: &AbiType,
     data: ValueId,
     len: ValueId,
     dest: ValueId,
-    location: SliceLocation,
+    input: EncodedInput,
     helpers: &EncodeHelpers,
 ) -> ValueId {
+    let location = input.location;
     match ty {
         AbiType::Bytes(_) => {
             // tail = encode_bytes(slice(data, len))
@@ -1673,12 +1692,12 @@ fn encode_encoded(
             // tail = encode_encoded_elements(element, data, len, dest + 32)
             builder.mstore(dest, len);
             let heads = offset_ptr(builder, dest, 32);
-            encode_encoded_elements(builder, element, data, len, heads, location, helpers)
+            encode_encoded_elements(builder, element, data, len, heads, input, helpers)
         }
         AbiType::FixedArray { element, len } => {
             // tail = encode_encoded_elements(element, data, len, dest)
             let count = builder.imm(*len);
-            encode_encoded_elements(builder, element, data, count, dest, location, helpers)
+            encode_encoded_elements(builder, element, data, count, dest, input, helpers)
         }
         AbiType::Tuple(fields) => {
             let head_size = fields.iter().map(AbiType::head_size).sum::<u64>();
@@ -1693,12 +1712,15 @@ fn encode_encoded(
                     let relative = builder.sub(tail, dest);
                     builder.mstore(head, relative);
                     let (field_data, field_len) =
-                        encoded_value(builder, field, data, source, location);
-                    tail = encode_encoded(
-                        builder, field, field_data, field_len, tail, location, helpers,
-                    );
+                        encoded_value(builder, field, data, source, input, helpers);
+                    tail =
+                        encode_encoded(builder, field, field_data, field_len, tail, input, helpers);
                 } else {
+                    // checked: validate_calldata_words(field at source)
                     // copy(head, source, head_size(field))
+                    if input.checked {
+                        validate_calldata_words(builder, field, source, helpers);
+                    }
                     let size = builder.imm(field.head_size());
                     builder.copy_slice_data(location, head, source, size);
                 }
@@ -1712,21 +1734,57 @@ fn encode_encoded(
 
 /// The slice, as [`encode_encoded`] takes it, of the dynamic value of type `ty` whose offset
 /// from `base` the head at `head` holds.
+///
+/// Checked input has its offset and length checked as solc checks a calldata tail access, as
+/// [`encode_calldata_bytes_array`] does, and reverts where solc's encoder reverts.
 fn encoded_value(
     builder: &mut FunctionBuilder<'_>,
     ty: &AbiType,
     base: ValueId,
     head: ValueId,
-    location: SliceLocation,
+    input: EncodedInput,
+    helpers: &EncodeHelpers,
 ) -> (ValueId, ValueId) {
     // position = base + load(head)
-    let offset = load_slice_word(builder, head, location);
+    let offset = load_slice_word(builder, head, input.location);
+    if input.checked {
+        // revert InvalidCalldataAccessOffset
+        //   unless slt(offset, calldatasize - base - (first_size - 1))
+        // The value's first word, or a struct's head, must start inside calldata.
+        let first_size = match ty {
+            AbiType::Bytes(_) | AbiType::DynamicArray { .. } => 32,
+            _ => ty.head_size(),
+        };
+        let calldata_size = builder.calldatasize();
+        let available = builder.sub(calldata_size, base);
+        let slack = builder.imm(first_size.saturating_sub(1));
+        let bound = builder.sub(available, slack);
+        let valid_offset = builder.slt(offset, bound);
+        let invalid_offset = builder.eq_zero(valid_offset);
+        builder.revert_if(invalid_offset, RevertReason::InvalidCalldataAccessOffset);
+    }
     let position = builder.add(base, offset);
     match ty {
         AbiType::Bytes(_) | AbiType::DynamicArray { .. } => {
             // slice = (position + 32, load(position))
-            let len = load_slice_word(builder, position, location);
+            let len = load_slice_word(builder, position, input.location);
             let data = offset_ptr(builder, position, 32);
+            if input.checked {
+                // revert InvalidCalldataAccessLength if len >= 2**64
+                // revert InvalidCalldataAccessStride if sgt(data, calldatasize - len * stride)
+                let invalid_length = builder.exceeds_bits(len, 64, helpers.has_bitwise_shifting);
+                builder.revert_if(invalid_length, RevertReason::InvalidCalldataAccessLength);
+                let stride = match ty {
+                    AbiType::DynamicArray { element, .. } => element.head_size(),
+                    _ => 1,
+                };
+                let stride = builder.imm(stride);
+                let bytes = builder.mul(len, stride);
+                let calldata_size = builder.calldatasize();
+                let limit = builder.sub(calldata_size, bytes);
+                let short_tail = builder.sgt(data, limit);
+                builder.revert_if(short_tail, RevertReason::InvalidCalldataAccessStride);
+            }
             (data, len)
         }
         _ => {
@@ -1745,14 +1803,24 @@ fn encode_encoded_elements(
     heads: ValueId,
     count: ValueId,
     dest: ValueId,
-    location: SliceLocation,
+    input: EncodedInput,
     helpers: &EncodeHelpers,
 ) -> ValueId {
+    let location = input.location;
     let head_size = builder.imm(element.head_size());
     let bytes = builder.mul(count, head_size);
     let end = builder.add(dest, bytes);
     if !element.is_dynamic() {
+        // checked: for index in 0..count:
+        //   validate_calldata_words(element at heads + index * head_size)
         // copy(dest, heads, count * head_size)
+        if input.checked && has_word_validators(element) {
+            builder.counted_loop(count, |builder, index| {
+                let offset = builder.mul(index, head_size);
+                let source = builder.add(heads, offset);
+                validate_calldata_words(builder, element, source, helpers);
+            });
+        }
         builder.copy_slice_data(location, dest, heads, bytes);
         return end;
     }
@@ -1783,9 +1851,10 @@ fn encode_encoded_elements(
     builder.switch_to_block(body);
     let relative = builder.sub(tail, dest);
     builder.mstore(head, relative);
-    let (element_data, element_len) = encoded_value(builder, element, heads, source, location);
+    let (element_data, element_len) =
+        encoded_value(builder, element, heads, source, input, helpers);
     let next_tail =
-        encode_encoded(builder, element, element_data, element_len, tail, location, helpers);
+        encode_encoded(builder, element, element_data, element_len, tail, input, helpers);
     let one = builder.imm(1);
     let next_remaining = builder.sub(remaining, one);
     let next_source = offset_ptr(builder, source, 32);
@@ -1799,6 +1868,65 @@ fn encode_encoded_elements(
 
     builder.switch_to_block(done);
     tail
+}
+
+/// Reverts unless every word of the static value of type `ty` at `source` in calldata is
+/// canonical, as solc's encoder checks each calldata word it reads, for checked input.
+fn validate_calldata_words(
+    builder: &mut FunctionBuilder<'_>,
+    ty: &AbiType,
+    source: ValueId,
+    helpers: &EncodeHelpers,
+) {
+    match ty {
+        AbiType::Word(None) => {}
+        AbiType::Word(Some(_)) | AbiType::Function => {
+            // revert unless canonical(calldataload source)
+            let validator = match ty {
+                AbiType::Word(Some(validator)) => *validator,
+                _ => AbiWordValidator::from_layout(crate::mir::ValueLayout::Function)
+                    .expect("function words have a validator"),
+            };
+            let word = builder.calldataload(source);
+            let valid = validator.condition(builder, word, helpers.has_bitwise_shifting);
+            builder.revert_if_zero(valid, RevertReason::Empty);
+        }
+        AbiType::FixedArray { element, len } => {
+            if !has_word_validators(element) {
+                return;
+            }
+            // for index in 0..len: validate_calldata_words(element at source + index * size)
+            let count = builder.imm(*len);
+            let stride = builder.imm(element.head_size());
+            builder.counted_loop(count, |builder, index| {
+                let offset = builder.mul(index, stride);
+                let element_source = builder.add(source, offset);
+                validate_calldata_words(builder, element, element_source, helpers);
+            });
+        }
+        AbiType::Tuple(fields) => {
+            let mut offset = 0;
+            for field in fields {
+                let field_source = offset_ptr(builder, source, offset);
+                validate_calldata_words(builder, field, field_source, helpers);
+                offset += field.head_size();
+            }
+        }
+        AbiType::Bytes(_) | AbiType::DynamicArray { .. } => {
+            unreachable!("a static ABI value holds no dynamic parts")
+        }
+    }
+}
+
+/// Whether the static ABI type `ty` holds a word that must be canonical.
+fn has_word_validators(ty: &AbiType) -> bool {
+    match ty {
+        AbiType::Word(validator) => validator.is_some(),
+        AbiType::Function => true,
+        AbiType::FixedArray { element, .. } => has_word_validators(element),
+        AbiType::Tuple(fields) => fields.iter().any(has_word_validators),
+        AbiType::Bytes(_) | AbiType::DynamicArray { .. } => false,
+    }
 }
 
 fn effective_slice_location(
