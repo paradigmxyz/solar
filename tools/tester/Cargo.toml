@@ -30,7 +30,6 @@ tempfile.workspace = true
 ui_test = { git = "https://github.com/DaniPopes/ui_test", branch = "fork", version = "0.30.5" }
 
 [dev-dependencies]
-cfg-if.workspace = true
 serde = { workspace = true, features = ["derive"] }
 toml_edit = { workspace = true, features = ["serde"] }
 
