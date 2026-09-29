@@ -13,7 +13,7 @@ use crate::{
     hir::{self, ExprKind, Visit},
     ty::{Gcx, Ty, TyKind},
 };
-use solar_data_structures::Never;
+use solar_data_structures::{Never, map::FxHashSet};
 use solar_interface::{Span, source_map::FileName};
 use std::ops::ControlFlow;
 
@@ -49,11 +49,24 @@ impl<'gcx> CodeViews<'gcx> {
 
     /// Whether `ty` holds a `CodeView`, as itself, an element, or a field.
     fn holds_view(&self, ty: Ty<'gcx>) -> bool {
+        self.holds_view_in(ty, &mut FxHashSet::default())
+    }
+
+    /// [`Self::holds_view`], looking into each struct once: a struct that contains itself holds a
+    /// view only through its other fields, which the first visit searches.
+    fn holds_view_in(&self, ty: Ty<'gcx>, structs: &mut FxHashSet<hir::StructId>) -> bool {
         match ty.peel_refs().kind {
             _ if self.is_view(ty) => true,
-            TyKind::Array(element, _) | TyKind::DynArray(element) => self.holds_view(element),
+            TyKind::Array(element, _) | TyKind::DynArray(element) => {
+                self.holds_view_in(element, structs)
+            }
             TyKind::Struct(id) => {
-                self.gcx.struct_field_types(id).iter().any(|&field| self.holds_view(field))
+                structs.insert(id)
+                    && self
+                        .gcx
+                        .struct_field_types(id)
+                        .iter()
+                        .any(|&field| self.holds_view_in(field, structs))
             }
             _ => false,
         }

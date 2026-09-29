@@ -8,6 +8,15 @@ contract Test {
         CodeView section;
     }
 
+    struct Node {
+        Node[] children;
+    }
+
+    struct Tree {
+        Tree[] children;
+        CodeView section;
+    }
+
     function made(uint256 word) public pure returns (CodeView) {
         return CodeView.wrap(word); //~ ERROR: a `CodeView` can only be made by `Code`
     }
@@ -24,6 +33,16 @@ contract Test {
     function decodedInside(bytes memory data) public pure returns (uint256) {
         Holder memory holder = abi.decode(data, (Holder)); //~ ERROR: a `CodeView` can only be made by `Code`
         return Code.length(holder.section);
+    }
+
+    // A struct that contains itself cannot be decoded, and holds a view only through a field.
+    function decodedNode(bytes memory data) public pure returns (uint256) {
+        return abi.decode(data, (Node)).children.length; //~ ERROR: decoding type not supported
+    }
+
+    function decodedTree(bytes memory data) public pure returns (uint256) {
+        return abi.decode(data, (Tree)).children.length; //~ ERROR: decoding type not supported
+        //~^ ERROR: a `CodeView` can only be made by `Code`
     }
 
     // The module's own functions are how a view is made and read.

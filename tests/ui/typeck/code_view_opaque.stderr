@@ -1,3 +1,15 @@
+error: decoding type not supported
+   ╭▸ ROOT/tests/ui/typeck/code_view_opaque.sol:LL:CC
+   │
+LL │         return abi.decode(data, (Node)).children.length;
+   ╰╴                                 ━━━━ found `struct Test.Node memory`
+
+error: decoding type not supported
+   ╭▸ ROOT/tests/ui/typeck/code_view_opaque.sol:LL:CC
+   │
+LL │         return abi.decode(data, (Tree)).children.length;
+   ╰╴                                 ━━━━ found `struct Test.Tree memory`
+
 error: a `CodeView` can only be made by `Code`
    ╭▸ ROOT/tests/ui/typeck/code_view_opaque.sol:LL:CC
    │
@@ -33,5 +45,14 @@ LL │         Holder memory holder = abi.decode(data, (Holder));
    ├ note: a decoded view could hold a range nobody checked
    ╰ help: use `Code.slice`
 
-error: aborting due to 4 previous errors
+error: a `CodeView` can only be made by `Code`
+   ╭▸ ROOT/tests/ui/typeck/code_view_opaque.sol:LL:CC
+   │
+LL │         return abi.decode(data, (Tree)).children.length;
+   │                                  ━━━━
+   │
+   ├ note: a decoded view could hold a range nobody checked
+   ╰ help: use `Code.slice`
+
+error: aborting due to 7 previous errors
 
