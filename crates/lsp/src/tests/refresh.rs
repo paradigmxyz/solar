@@ -343,11 +343,7 @@ async fn external_refresh_intent_survives_failed_analysis() {
     let task = tokio::spawn(async { panic!("test analysis failure") });
     state.monitor_analysis_task(failed_version, task, progress);
     wait_for_analysis(&state).await;
-    {
-        let commit = state.analysis_commit.lock();
-        let refresh = commit.external_refresh.as_ref().expect("external refresh intent");
-        assert!(!refresh.diagnostics_changed);
-    }
+    assert_eq!(state.analysis_commit.lock().external_refresh, Some(false));
     harness.expect_refreshes(true, false).await;
 
     let recovery_version = begin(&mut state, Vec::new(), AnalysisTrigger::Document);

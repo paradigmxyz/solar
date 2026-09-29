@@ -570,50 +570,38 @@ pub(crate) fn goto_definition(
     state: &mut GlobalState,
     params: GotoDefinitionParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
+    let (uri, position) = position_params(params.text_document_position_params);
+    let latest_analysis = latest_navigation_analysis_for_uri(state, &uri);
     let analysis_revision = state.analysis_revision();
-    let import_request = import_definition_request(
-        state,
-        &params.text_document.uri,
-        params.position,
-        &analysis_revision,
-    );
+    let import_request = import_definition_request(state, &uri, position, &analysis_revision);
     let config = state.config.clone();
     let vfs = state.vfs.clone();
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
         let symbol_tables = symbol_tables.load();
+        let symbol_definition = || symbol_tables.goto_definition(&uri, position);
         let response = match import_request {
-            None => symbol_tables.goto_definition(&params.text_document.uri, params.position),
+            None => symbol_definition(),
             Some(ImportDefinitionRequest::Current { importer, contents, vfs_content_revision }) => {
                 if !analysis_revision.is_current(vfs_content_revision) {
                     return Ok(None);
                 }
                 let Some(context) = config.import_resolution_context(&importer) else {
-                    return Ok(
-                        symbol_tables.goto_definition(&params.text_document.uri, params.position)
-                    );
+                    return Ok(symbol_definition());
                 };
-                if let Some(response) =
-                    symbol_tables.import_definition(&params.text_document.uri, params.position)
-                {
-                    return Ok(Some(response));
-                }
-                let Some(import_request) = parse_import_definition_request(
-                    importer,
-                    contents,
-                    params.position,
-                    overlay_paths(&vfs.read()),
-                    vfs_content_revision,
-                ) else {
-                    return Ok(
-                        symbol_tables.goto_definition(&params.text_document.uri, params.position)
-                    );
-                };
-                import_request.resolve(context)
+                symbol_tables.import_definition(&uri, position).or_else(|| {
+                    match parse_import_definition_request(
+                        importer,
+                        contents,
+                        position,
+                        overlay_paths(&vfs.read()),
+                        vfs_content_revision,
+                    ) {
+                        Some(import_request) => import_request.resolve(context),
+                        None => symbol_definition(),
+                    }
+                })
             }
             Some(ImportDefinitionRequest::Parsed(import_request)) => {
                 if !analysis_revision.is_current(import_request.vfs_content_revision) {
@@ -624,7 +612,7 @@ pub(crate) fn goto_definition(
                     return Ok(None);
                 };
                 symbol_tables
-                    .import_definition(&params.text_document.uri, params.position)
+                    .import_definition(&uri, position)
                     .or_else(|| import_request.resolve(context))
             }
         };
@@ -822,17 +810,16 @@ pub(crate) fn hover(
 
 pub(crate) fn prepare_rename(
     state: &mut GlobalState,
-    mut params: TextDocumentPositionParams,
+    params: TextDocumentPositionParams,
 ) -> impl Future<Output = Result<Option<PrepareRenameResponse>, ResponseError>> + use<> {
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis =
-        latest_navigation_analysis_with_config_for_uri(state, &params.text_document.uri);
+    let (uri, position) = position_params(params);
+    let latest_analysis = latest_navigation_analysis_with_config_for_uri(state, &uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let (symbol_tables, config) = latest_analysis.await?;
-        let candidate =
-            symbol_tables.load().rename_candidate(&params.text_document.uri, params.position);
-        let Some(candidate) = candidate else { return Ok(None) };
+        let Some(candidate) = symbol_tables.load().rename_candidate(&uri, position) else {
+            return Ok(None);
+        };
         tokio::task::spawn_blocking(move || {
             validate_rename(&candidate, &config)?;
             Ok(Some(PrepareRenameResponse::Range(candidate.range)))
@@ -846,8 +833,8 @@ pub(crate) fn rename(
     state: &mut GlobalState,
     params: RenameParams,
 ) -> impl Future<Output = Result<Option<WorkspaceEdit>, ResponseError>> + use<> {
-    let RenameParams { text_document_position: mut params_position, new_name, .. } = params;
-    params_position.text_document.uri = normalize_file_uri(params_position.text_document.uri);
+    let RenameParams { text_document_position, new_name, .. } = params;
+    let (uri, position) = position_params(text_document_position);
     let (invalid_name, invalid_yul_name) = if is_ident(&new_name) {
         let name = state.sess.intern(&new_name);
         (name.is_reserved(false), name.is_reserved(true))
@@ -857,7 +844,7 @@ pub(crate) fn rename(
     let latest_analysis = if invalid_name {
         None
     } else {
-        latest_navigation_analysis_with_config_for_uri(state, &params_position.text_document.uri)
+        latest_navigation_analysis_with_config_for_uri(state, &uri)
     };
     let vfs = state.vfs.clone();
     let document_changes = state.config.client.workspace_edit_document_changes;
@@ -868,10 +855,9 @@ pub(crate) fn rename(
 
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let (symbol_tables, config) = latest_analysis.await?;
-        let candidate = symbol_tables
-            .load()
-            .rename_candidate(&params_position.text_document.uri, params_position.position);
-        let Some(candidate) = candidate else { return Ok(None) };
+        let Some(candidate) = symbol_tables.load().rename_candidate(&uri, position) else {
+            return Ok(None);
+        };
         if candidate.requires_yul_validation && invalid_yul_name {
             return Err(ResponseError::new(ErrorCode::INVALID_PARAMS, "invalid rename name"));
         }
@@ -904,17 +890,14 @@ pub(crate) fn signature_help(
     state: &mut GlobalState,
     params: SignatureHelpParams,
 ) -> impl Future<Output = Result<Option<SignatureHelp>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let response = state.cached_vfs_path(&params.text_document.uri).and_then(|path| {
+    let (uri, position) = position_params(params.text_document_position_params);
+    let response = state.cached_vfs_path(&uri).and_then(|path| {
         let source = state.vfs.read().get_file_source(&path)?;
-        let cursor = source
-            .positions()
-            .text_range(lsp_types::Range::new(params.position, params.position))?
-            .start;
+        let cursor =
+            source.positions().text_range(lsp_types::Range::new(position, position))?.start;
         let statement_boundary = Some(source.statement_boundary(cursor));
         state.symbol_tables.load().signature_help(
-            &params.text_document.uri,
+            &uri,
             cursor,
             source.positions(),
             &source.source(),
@@ -931,28 +914,25 @@ pub(crate) fn completion(
 ) -> impl Future<Output = Result<Option<CompletionResponse>, ResponseError>> + use<> {
     let trigger_character =
         params.context.as_ref().and_then(|context| context.trigger_character.as_deref());
-    let mut params = params.text_document_position;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let source = state
-        .cached_vfs_path(&params.text_document.uri)
-        .and_then(|path| state.vfs.read().get_file_source(&path));
+    let (uri, position) = position_params(params.text_document_position);
+    let source =
+        state.cached_vfs_path(&uri).and_then(|path| state.vfs.read().get_file_source(&path));
     if let Some(source) = source {
         let contents = source.contents();
         let cursor = source
             .positions()
-            .checked_text_range(lsp_types::Range::new(params.position, params.position))
+            .checked_text_range(lsp_types::Range::new(position, position))
             .map(|range| range.start);
         if let NatSpecCompletionResult::Claimed(target) =
             natspec_completion::target(contents, cursor)
         {
-            let uri = &params.text_document.uri;
             let items = target.map_or_else(Vec::new, |target| {
                 let semantics = state
-                    .natspec_semantics_are_usable(uri)
+                    .natspec_semantics_are_usable(&uri)
                     .then(|| {
                         let symbol_tables = state.symbol_tables.load();
                         symbol_tables
-                            .natspec_semantics(uri, target.source_fingerprint(), target.key())
+                            .natspec_semantics(&uri, target.source_fingerprint(), target.key())
                             .cloned()
                     })
                     .flatten();
@@ -961,13 +941,8 @@ pub(crate) fn completion(
             return ready(Ok(Some(CompletionResponse::Array(items))));
         }
         if let Some(cursor) = cursor
-            && let Some(response) = import_completion(
-                state,
-                &params.text_document.uri,
-                cursor,
-                contents,
-                &source.source(),
-            )
+            && let Some(response) =
+                import_completion(state, &uri, cursor, contents, &source.source())
         {
             return ready(Ok(Some(response)));
         }
@@ -975,12 +950,11 @@ pub(crate) fn completion(
     if matches!(trigger_character, Some("/" | "*" | "\"" | "'")) {
         return ready(Ok(Some(CompletionResponse::Array(Vec::new()))));
     }
-    let input = completion_input(state, &params.text_document.uri, params.position);
+    let input = completion_input(state, &uri, position);
     let context = input.as_ref().map(CompletionInput::context).unwrap_or_default();
     let options = state.config.completion_options();
     let symbol_tables = state.symbol_tables.load();
-    let mut items =
-        symbol_tables.completion_items(&params.text_document.uri, params.position, context);
+    let mut items = symbol_tables.completion_items(&uri, position, context);
     if !options.resolve_documentation {
         symbol_tables.resolve_completion_items(&mut items, options.markdown_documentation);
     }
