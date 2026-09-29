@@ -30,7 +30,7 @@ METRICS = {
     "total_gas": "runtime gas",
     "runtime_size": "runtime bytes",
     "bytecode_size": "creation bytes",
-    "deploy_gas": "deployment gas",
+    "deploy_gas": "creation gas",
     "compile_time_seconds": "compile seconds",
     "peak_rss_bytes": "peak RSS bytes",
 }
@@ -770,7 +770,7 @@ def baseline_regression_details(
             and solar_deploy_gas > base_solar_deploy_gas
         ):
             details.append(
-                f"{test_id} solar deployment gas regressed vs previous Solar run: "
+                f"{test_id} solar creation gas regressed vs previous Solar run: "
                 f"{base_solar_deploy_gas:,} -> {solar_deploy_gas:,} "
                 f"({absolute_delta(solar_deploy_gas, base_solar_deploy_gas)}, "
                 f"{pct_increase(solar_deploy_gas, base_solar_deploy_gas)} worse)"
@@ -1605,7 +1605,7 @@ def pr_comment(
             else f"No significant benchmark changes against `{base_ref}`."
         )
         lines.extend(["", "### Overview", "", "| Metric | Change |", "| --- | ---: |"])
-        metrics = ("total_gas", "runtime_size", "bytecode_size")
+        metrics = ("total_gas", "deploy_gas", "runtime_size", "bytecode_size")
         for name in metrics:
             values = comparison["summary"][name]
             change = (
@@ -1634,8 +1634,8 @@ def pr_comment(
                     "",
                     f"### Changed benchmarks vs `{base_ref}`",
                     "",
-                    "| Benchmark | Runtime gas | Runtime bytes | Creation bytes |",
-                    "| --- | ---: | ---: | ---: |",
+                    "| Benchmark | Runtime gas | Creation gas | Runtime bytes | Creation bytes |",
+                    "| --- | ---: | ---: | ---: | ---: |",
                     *changed,
                 ]
             )

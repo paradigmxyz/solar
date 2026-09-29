@@ -1176,7 +1176,7 @@ class RunComparisonTests(unittest.TestCase):
     def test_pr_comment_lists_only_changed_benchmarks_against_baseline(self):
         before = [self.fixture("changed"), self.fixture("unchanged")]
         after = [
-            self.fixture("changed", runtime_size=110, bytecode_size=60),
+            self.fixture("changed", runtime_size=110, bytecode_size=60, deploy_gas=75),
             self.fixture("unchanged"),
         ]
         for row in after:
@@ -1189,9 +1189,9 @@ class RunComparisonTests(unittest.TestCase):
         self.assertEqual(
             comment.split("### Changed benchmarks", 1)[1].split("[![", 1)[0],
             " vs `main`\n\n"
-            "| Benchmark | Runtime gas | Runtime bytes | Creation bytes |\n"
-            "| --- | ---: | ---: | ---: |\n"
-            "| changed | ~0% | ❌ +10.00% | ✅ -50.00% |\n\n",
+            "| Benchmark | Runtime gas | Creation gas | Runtime bytes | Creation bytes |\n"
+            "| --- | ---: | ---: | ---: | ---: |\n"
+            "| changed | ~0% | ❌ +50.00% | ❌ +10.00% | ✅ -50.00% |\n\n",
         )
 
     def test_detailed_overview_omits_counts(self):
@@ -1204,7 +1204,7 @@ class RunComparisonTests(unittest.TestCase):
                 "| runtime gas | ~0% |",
                 "| runtime bytes | ~0% |",
                 "| creation bytes | ~0% |",
-                "| deployment gas | ~0% |",
+                "| creation gas | ~0% |",
                 "| compile seconds | ~0% |",
                 "| peak RSS bytes | ~0% |",
             ],
@@ -1400,6 +1400,7 @@ class RunComparisonTests(unittest.TestCase):
                 "### Overview\n\n"
                 "| Metric | Change |\n| --- | ---: |\n"
                 "| runtime gas | ~0% |\n"
+                "| creation gas | ~0% |\n"
                 "| runtime bytes | ~0% |\n"
                 "| creation bytes | ~0% |\n\n"
                 "Equal-weight geometric means; lower is better.\n\n"
