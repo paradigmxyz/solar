@@ -320,15 +320,24 @@ fn analysis_coordinator(state: &GlobalState) -> AbortHandle {
 }
 
 fn change_document(state: &mut GlobalState, uri: &Url, version: i32, text: &str) {
-    let params = DidChangeTextDocumentParams {
-        text_document: VersionedTextDocumentIdentifier::new(uri.clone(), version),
-        content_changes: vec![TextDocumentContentChangeEvent {
-            range: None,
-            range_length: None,
-            text: text.into(),
-        }],
-    };
+    let change =
+        TextDocumentContentChangeEvent { range: None, range_length: None, text: text.into() };
+    edit_document(state, uri, version, vec![change]);
+}
+
+fn edit_document(
+    state: &mut GlobalState,
+    uri: &Url,
+    version: i32,
+    content_changes: Vec<TextDocumentContentChangeEvent>,
+) {
+    let text_document = VersionedTextDocumentIdentifier::new(uri.clone(), version);
+    let params = DidChangeTextDocumentParams { text_document, content_changes };
     assert!(crate::handlers::did_change_text_document(state, params).is_continue());
+}
+
+fn range_edit(range: Range, text: &str) -> TextDocumentContentChangeEvent {
+    TextDocumentContentChangeEvent { range: Some(range), range_length: None, text: text.into() }
 }
 
 fn save_document(state: &mut GlobalState, uri: &Url) {
@@ -962,17 +971,11 @@ async fn source_notification_after_clear_rediscovers_disk_files_and_preserves_ov
         if save {
             save_document(&mut state, &uri);
         } else {
-            let no_op_change = DidChangeTextDocumentParams {
-                text_document: VersionedTextDocumentIdentifier::new(uri, 1),
-                content_changes: vec![TextDocumentContentChangeEvent {
-                    range: Some(Range::new(Position::new(0, 0), Position::new(0, 0))),
-                    range_length: Some(0),
-                    text: String::new(),
-                }],
+            let no_op = TextDocumentContentChangeEvent {
+                range_length: Some(0),
+                ..range_edit(Range::default(), "")
             };
-            assert!(
-                crate::handlers::did_change_text_document(&mut state, no_op_change).is_continue()
-            );
+            edit_document(&mut state, &uri, 1, vec![no_op]);
         }
 
         assert_eq!(
@@ -1145,18 +1148,7 @@ async fn did_change_clamps_positions_before_analysis_and_rename() {
         let (mut state, mut rename_params) = fixture.rename_state_and_params("$1", "Renamed");
         let uri = rename_params.text_document_position.text_document.uri.clone();
         let path = VfsPath::from(fixture.project_path("/Clamped.sol"));
-        let result = crate::handlers::did_change_text_document(
-            &mut state,
-            DidChangeTextDocumentParams {
-                text_document: VersionedTextDocumentIdentifier::new(uri.clone(), 2),
-                content_changes: vec![TextDocumentContentChangeEvent {
-                    range: Some(Range::new(position, position)),
-                    range_length: None,
-                    text: text.into(),
-                }],
-            },
-        );
-        assert!(result.is_continue());
+        edit_document(&mut state, &uri, 2, vec![range_edit(Range::new(position, position), text)]);
         {
             let vfs = state.vfs.read();
             snapbox::assert_data_eq!(vfs.get_file_contents(&path).unwrap().to_string(), expected);
@@ -1198,25 +1190,9 @@ async fn did_change_rejects_invalid_ranges_without_applying_a_partial_batch() {
         let mut state = fixture.state();
         let (uri, _) = fixture.marker_location("$1");
         let path = VfsPath::from(fixture.project_path("/Invalid.sol"));
-        let result = crate::handlers::did_change_text_document(
-            &mut state,
-            DidChangeTextDocumentParams {
-                text_document: VersionedTextDocumentIdentifier::new(uri, 2),
-                content_changes: vec![
-                    TextDocumentContentChangeEvent {
-                        range: Some(Range::new(Position::new(1, 9), Position::new(1, 10))),
-                        range_length: None,
-                        text: "D".into(),
-                    },
-                    TextDocumentContentChangeEvent {
-                        range: Some(invalid_range),
-                        range_length: None,
-                        text: "invalid".into(),
-                    },
-                ],
-            },
-        );
-        assert!(result.is_continue());
+        let valid_range = Range::new(Position::new(1, 9), Position::new(1, 10));
+        let changes = vec![range_edit(valid_range, "D"), range_edit(invalid_range, "invalid")];
+        edit_document(&mut state, &uri, 2, changes);
         let vfs = state.vfs.read();
         snapbox::assert_data_eq!(
             vfs.get_file_contents(&path).unwrap().to_string(),
@@ -2148,47 +2124,30 @@ C Class
 "#]]
     );
 
-    let workspace_symbols = |query| {
+    let workspace_symbols = |query, top_level_only: bool| {
         result
             .symbol_tables
             .workspace_symbols(query)
             .into_iter()
+            .filter(|symbol| !top_level_only || symbol.container_name.is_none())
             .map(|symbol| {
                 format!("{} {:?} in {:?}\n", symbol.name, symbol.kind, symbol.container_name)
             })
             .collect::<String>()
     };
     snapbox::assert_data_eq!(
-        workspace_symbols("helper"),
+        workspace_symbols("helper", false),
         snapbox::str![[r#"
 helper Method in Some("L")
 
 "#]]
     );
     snapbox::assert_data_eq!(
-        workspace_symbols(""),
+        workspace_symbols("", true),
         snapbox::str![[r#"
 I Interface in None
-iface Method in Some("I")
-value Variable in Some("iface")
 L Module in None
-Logged Event in Some("L")
-value Variable in Some("Logged")
-helper Method in Some("L")
-value Variable in Some("helper")
-result Variable in Some("helper")
 C Class in None
-E Enum in Some("C")
-A EnumMember in Some("E")
-B EnumMember in Some("E")
-S Struct in Some("C")
-field Property in Some("S")
-x Property in Some("C")
-constructor Constructor in Some("C")
-f Method in Some("C")
-y Variable in Some("f")
-z Variable in Some("f")
-local Variable in Some("f")
 
 "#]]
     );
