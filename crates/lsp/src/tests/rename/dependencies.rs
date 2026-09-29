@@ -20,6 +20,17 @@ async fn check_report(
     assert_data_eq!(rename_report(state, params, &fixture.project_path("/")).await, expected);
 }
 
+/// Checks the report of renaming `marker` to `Renamed` with the given workspace `roots`.
+async fn check_marker(
+    fixture: &RequestFixture,
+    marker: &str,
+    roots: &[&str],
+    expected: impl IntoData,
+) {
+    let (mut state, params) = fixture.rename_state_with_roots(marker, "Renamed", roots);
+    check_report(fixture, &mut state, params, expected).await;
+}
+
 fn check_allowed_each(
     fixture: &str,
     path: &str,
@@ -57,8 +68,7 @@ async fn rejects_renaming_dependency_declarations_and_override_families() {
             fixture.set_open_file_contents("/lib/dep/src/IDep.sol", &contents);
         }
         for marker in ["$1", "$2", "$3", "$4", "$5"] {
-            let (mut state, params) = fixture.rename_state_and_params(marker, "renamed");
-            check_report(&fixture, &mut state, params, DEPENDENCY).await;
+            check_marker(&fixture, marker, &["/"], DEPENDENCY).await;
         }
     }
 }
@@ -107,8 +117,7 @@ contract Impl is $1IDep {{
             "/src/Impl.sol",
         );
         for marker in ["$1", "$2"] {
-            let (mut state, params) = fixture.rename_state_and_params(marker, "renamed");
-            check_report(&fixture, &mut state, params, DEPENDENCY).await;
+            check_marker(&fixture, marker, &["/"], DEPENDENCY).await;
         }
     }
 }
@@ -149,8 +158,7 @@ async fn protects_dependencies_outside_or_above_workspace_roots() {
     ] {
         let fixture = RequestFixture::new(fixture, path);
         for marker in markers {
-            let (mut state, params) = fixture.rename_state_with_roots(marker, "Renamed", &[root]);
-            check_report(&fixture, &mut state, params, DEPENDENCY).await;
+            check_marker(&fixture, marker, &[root], DEPENDENCY).await;
         }
     }
 }
@@ -188,15 +196,7 @@ async fn discovered_dependency_cannot_grant_sources_in_another_projects_library(
             let (mut state, params) = fixture.rename_state_and_params(marker, "Renamed");
             // Exercise real manifest discovery, not a manually synthesized workspace list.
             assert_eq!(state.config.workspaces().len(), 3);
-            let dependency = state
-                .config
-                .workspaces()
-                .iter()
-                .find(|workspace| {
-                    workspace.compile_opts().base_path.as_ref()
-                        == Some(&fixture.project_path("/c/vendor/dep"))
-                })
-                .expect("the remapped dependency manifest is discovered");
+            let dependency = workspace_at(&state.config, &fixture.project_path("/c/vendor/dep"));
             assert!(
                 dependency.import_source_roots().contains(&fixture.project_path("/a/vendor/owned"))
             );
@@ -413,12 +413,10 @@ async fn allows_dependency_projects_explicitly_opened_as_workspace_roots() {
         "/src/Impl.sol",
     );
     for marker in ["$1", "$2"] {
-        let (mut state, params) =
-            fixture.rename_state_with_roots(marker, "Renamed", &["/", "/lib/dep"]);
-        check_report(
+        check_marker(
             &fixture,
-            &mut state,
-            params,
+            marker,
+            &["/", "/lib/dep"],
             str![[r#"
 /lib/dep/src/Owned.sol:0:9-0:14 -> Renamed
 /src/Impl.sol:0:8-0:13 -> Renamed
@@ -505,29 +503,15 @@ async fn allows_first_party_library_directories_inside_sources() {
         "#,
         "/src/lib/Math.sol",
     );
-    for use_default_excludes in [true, false] {
+    for (use_default_excludes, expected) in
+        [(true, INCOMPLETE), (false, "/src/lib/Math.sol:0:8-0:12 -> Numbers\n")]
+    {
         let (mut state, params) = fixture.rename_state_and_params("$1", "Numbers");
-        let initialize = InitializeParams {
-            workspace_folders: Some(vec![WorkspaceFolder {
-                uri: Url::from_file_path(fixture.project_path("/")).unwrap(),
-                name: "fixture".into(),
-            }]),
-            initialization_options: Some(serde_json::json!({
-                "indexing": { "useDefaultExcludes": use_default_excludes },
-            })),
-            ..Default::default()
-        };
-        let (_, mut config) = negotiate_capabilities(initialize);
-        config.rediscover_workspaces();
+        let options = json!({ "indexing": { "useDefaultExcludes": use_default_excludes } });
+        let config = config_with_options(fixture.project().initialize_params(), options);
         assert_eq!(config.may_omit_source_files(), use_default_excludes);
         state.config = Arc::new(config);
-
-        if use_default_excludes {
-            check_report(&fixture, &mut state, params, INCOMPLETE).await;
-        } else {
-            check_report(&fixture, &mut state, params, "/src/lib/Math.sol:0:8-0:12 -> Numbers\n")
-                .await;
-        }
+        check_report(&fixture, &mut state, params, expected).await;
     }
 }
 
@@ -555,8 +539,7 @@ async fn rejects_source_symlinks_into_dependencies() {
             ("/src/IDep.sol".to_owned(), format!("{dependency}/IDep.sol"))
         };
         symlink(fixture.project_path(&target), fixture.project_path(&link)).unwrap();
-        let (mut state, params) = fixture.rename_state_and_params("$1", "Renamed");
-        check_report(&fixture, &mut state, params, DEPENDENCY).await;
+        check_marker(&fixture, "$1", &["/"], DEPENDENCY).await;
     }
 }
 
@@ -607,18 +590,12 @@ async fn rejects_dangling_links_but_allows_unsaved_files() {
         if let Some(target) = target {
             symlink(fixture.project_path(target), fixture.project_path("/src/New.sol")).unwrap();
         }
-        let (mut state, params) = fixture.rename_state_and_params("$1", "Renamed");
-        if target.is_some() {
-            check_report(
-                &fixture,
-                &mut state,
-                params,
-                "cannot rename this symbol because its file paths could not be verified\n",
-            )
-            .await;
+        let expected = if target.is_some() {
+            "cannot rename this symbol because its file paths could not be verified\n"
         } else {
-            check_report(&fixture, &mut state, params, "/src/New.sol:0:9-0:12 -> Renamed\n").await;
-        }
+            "/src/New.sol:0:9-0:12 -> Renamed\n"
+        };
+        check_marker(&fixture, "$1", &["/"], expected).await;
     }
 }
 
@@ -648,12 +625,7 @@ async fn keeps_dependency_locals_read_only() {
     );
     let state = |marker: &str, complete: bool| {
         let (state, params) = fixture.rename_state_and_params(marker, "renamed");
-        assert!(!state.config.may_omit_source_files());
-        let mut analyzed_config = (*state.config).clone();
-        if !complete {
-            analyzed_config.mark_analysis_source_files_incomplete();
-        }
-        state.analysis_commit.lock().analysis_config = Some(Arc::new(analyzed_config));
+        publish_analysis_config(&state, complete);
         (state, params)
     };
     for complete in [true, false] {
@@ -710,8 +682,7 @@ async fn reports_open_files_outside_the_workspace() {
         if unsaved {
             std::fs::remove_file(fixture.project_path("/scratch/Scratch.sol")).unwrap();
         }
-        let (mut state, params) = fixture.rename_state_with_roots("$1", "renamed", &["/ws"]);
-        check_report(&fixture, &mut state, params, OUTSIDE).await;
+        check_marker(&fixture, "$1", &["/ws"], OUTSIDE).await;
     }
 }
 
@@ -727,7 +698,6 @@ async fn distinguishes_outside_symlinks_from_dependencies() {
         let fixture = scratch_fixture(source, target);
         fs::remove_file(fixture.project_path(source)).unwrap();
         symlink(fixture.project_path(target), fixture.project_path(source)).unwrap();
-        let (mut state, params) = fixture.rename_state_with_roots("$1", "renamed", &["/ws"]);
-        check_report(&fixture, &mut state, params, message).await;
+        check_marker(&fixture, "$1", &["/ws"], message).await;
     }
 }
