@@ -6,34 +6,6 @@ use crate::{
 use std::fmt::Write as _;
 
 #[tokio::test(flavor = "current_thread")]
-async fn rejects_rename_with_unindexed_callers() {
-    let marked = MarkedProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        //- /src/Counter.sol
-        contract Counter {
-            function $1increment() public {}
-        }
-        //- /test/Counter.t.sol
-        import "../src/Counter.sol";
-        contract CounterTest {
-            function run(Counter counter) public { counter.increment(); }
-        }
-        "#,
-    );
-    let mut state = coverage_state(&marked, false);
-    let params = rename_at(&marked, "$1", "increase");
-    let report = within("rename", rename_report(&mut state, params, marked.project().root())).await;
-    snapbox::assert_data_eq!(
-        report,
-        "cannot rename this symbol because workspace indexing may omit source files\n"
-    );
-    let unchanged = rename_at(&marked, "$1", "increment");
-    assert!(handlers::rename(&mut state, unchanged).await.unwrap().is_none());
-}
-
-#[tokio::test(flavor = "current_thread")]
 async fn incomplete_coverage_distinguishes_locals_from_named_arguments() {
     let marked = MarkedProject::from_fixture(
         r#"
@@ -42,7 +14,7 @@ async fn incomplete_coverage_distinguishes_locals_from_named_arguments() {
         //- /src/Counter.sol
         contract Counter {
             mapping(address $1owner => uint256) public balances;
-            function increase(uint256 $2amount) public pure returns (uint256 $3result) {
+            function $6increase(uint256 $2amount) public pure returns (uint256 $3result) {
                 uint256 $4local = amount;
                 result = local;
             }
@@ -77,6 +49,8 @@ $4:
 $5:
 /src/Counter.sol:7:58-7:64 -> renamed
 /src/Counter.sol:7:75-7:81 -> renamed
+$6:
+cannot rename this symbol because workspace indexing may omit source files
 
 "#]],
         ),
@@ -99,14 +73,21 @@ $4:
 $5:
 /src/Counter.sol:7:58-7:64 -> renamed
 /src/Counter.sol:7:75-7:81 -> renamed
+$6:
+/src/Counter.sol:2:13-2:21 -> renamed
+/src/Counter.sol:7:17-7:25 -> renamed
+/test/Counter.t.sol:3:23-3:31 -> renamed
 
 "#]],
         ),
     ] {
         let mut state = coverage_state(&marked, complete);
+        // Renaming to the current name is a no-op even when callers may be unindexed.
+        let unchanged = rename_at(&marked, "$6", "increase");
+        assert!(handlers::rename(&mut state, unchanged).await.unwrap().is_none());
         settle(&state).await;
         let mut output = String::new();
-        for marker in ["$1", "$2", "$3", "$4", "$5"] {
+        for marker in ["$1", "$2", "$3", "$4", "$5", "$6"] {
             let params = rename_at(&marked, marker, "renamed");
             let report = rename_report(&mut state, params, marked.project().root()).await;
             write!(output, "{marker}:\n{report}").unwrap();
@@ -137,10 +118,7 @@ async fn rename_coverage_uses_the_analyzed_config_after_merging_batches() {
     let mut output = String::new();
     for marker in ["$1", "$2", "$3"] {
         let (mut state, params) = fixture.rename_state_and_params(marker, "renamed");
-        assert!(!state.config.may_omit_source_files());
-        let mut analyzed_config = (*state.config).clone();
-        analyzed_config.mark_analysis_source_files_incomplete();
-        state.analysis_commit.lock().analysis_config = Some(Arc::new(analyzed_config));
+        publish_analysis_config(&state, false);
         let report = rename_report(&mut state, params, &fixture.project_path("/")).await;
         write!(output, "{marker}:\n{report}").unwrap();
     }

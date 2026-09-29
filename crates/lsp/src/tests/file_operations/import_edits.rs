@@ -64,21 +64,6 @@ fn assert_import_literal_round_trips(literal: &str, expected: &[u8]) {
     assert_eq!(actual.as_ref(), expected);
 }
 
-/// Applies a rewritten import on disk and checks that it resolves to the moved target.
-fn assert_moved_import_resolves(
-    project: &TestProject,
-    importer: &Path,
-    new_text: &str,
-    target: &Path,
-    renamed: &Path,
-) {
-    fs::rename(target, renamed).unwrap();
-    fs::write(importer, format!("import {new_text};\n")).unwrap();
-    let links = analyze_project(project).document_links(importer);
-    assert_eq!(links.len(), 1);
-    assert_eq!(links[0].target.as_ref().unwrap().to_file_path().unwrap(), renamed);
-}
-
 fn single_import_index(
     importer: PathBuf,
     end: u32,
@@ -304,7 +289,12 @@ fn rename_file_escapes_import_bytes() {
         assert_import_literal_round_trips(&edit.new_text, format!("./{name}").as_bytes());
         if on_disk {
             let importer = project.path("/src/Importer.sol");
-            assert_moved_import_resolves(&project, &importer, &edit.new_text, &target, &renamed);
+            assert_moved_import_resolves(
+                &project,
+                [&importer; 2],
+                &edit.new_text,
+                [&target, &renamed],
+            );
         }
     }
 }
@@ -350,7 +340,7 @@ fn rename_file_preserves_non_utf8_import_bytes() {
         let edits = analyze_project(&project).import_rename_edits(&moves);
         let edit = edits.first_edit().unwrap();
         assert_eq!(edit.new_text, r#""./Renamed-\xFE.sol""#);
-        assert_moved_import_resolves(&project, &importer, &edit.new_text, &target, &renamed);
+        assert_moved_import_resolves(&project, [&importer; 2], &edit.new_text, [&target, &renamed]);
     }
 }
 

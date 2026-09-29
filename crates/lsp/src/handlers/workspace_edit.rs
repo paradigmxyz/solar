@@ -234,75 +234,47 @@ mod tests {
 
     #[test]
     fn rename_validation_checks_every_occurrence_in_each_file() {
-        let project = TestProject::from_fixture("//- /A.sol\n//- /B.sol\n");
-        let first = Url::from_file_path(project.path("/A.sol")).unwrap();
-        let second = Url::from_file_path(project.path("/B.sol")).unwrap();
-        let sources = [
-            (first.clone(), "😀 target\r\ntarget\rtarget\n"),
-            (second.clone(), "target\n😀 target\n"),
-        ];
-        let vfs = Arc::new(RwLock::new(Vfs::default()));
-        for (uri, source) in &sources {
-            vfs.write().set_file_contents_with_version(
-                proto::vfs_path(uri).unwrap(),
-                Some(Rope::from(*source)),
-                Some(7),
-            );
+        let mut project = TestProject::new();
+        let sources =
+            [("/A.sol", "😀 target\r\ntarget\rtarget\n"), ("/B.sol", "target\n😀 target\n")];
+        for (path, source) in sources {
+            project.open_file(path, source);
         }
+        let vfs = Arc::new(RwLock::new(project.vfs()));
+        let (first, second) = (project.uri("/A.sol"), project.uri("/B.sol"));
         let range =
             |line, start| Range::new(Position::new(line, start), Position::new(line, start + 6));
-        let locations = vec![
-            Location::new(first.clone(), range(0, 3)),
-            Location::new(first.clone(), range(1, 0)),
-            Location::new(first.clone(), range(2, 0)),
-            Location::new(second.clone(), range(0, 0)),
-            Location::new(second.clone(), range(1, 3)),
-        ];
+        let occurrences =
+            [(&first, 0, 3), (&first, 1, 0), (&first, 2, 0), (&second, 0, 0), (&second, 1, 3)];
+        let locations = occurrences
+            .map(|(uri, line, start)| Location::new(uri.clone(), range(line, start)))
+            .to_vec();
         let mut candidate = RenameCandidate {
             old_name: "target".into(),
             range: locations[0].range,
             locations,
             analyzed_contents: sources
                 .into_iter()
-                .map(|(uri, source)| (uri, Arc::new(source.into())))
+                .map(|(path, source)| (project.uri(path), Arc::new(source.into())))
                 .collect(),
             conflicting_contents: false,
             requires_yul_validation: false,
             requires_complete_workspace: true,
         };
-        let expected = HashMap::from([
-            (
-                first,
-                vec![
-                    TextEdit::new(range(0, 3), "new".into()),
-                    TextEdit::new(range(1, 0), "new".into()),
-                    TextEdit::new(range(2, 0), "new".into()),
-                ],
-            ),
-            (
-                second,
-                vec![
-                    TextEdit::new(range(0, 0), "new".into()),
-                    TextEdit::new(range(1, 3), "new".into()),
-                ],
-            ),
-        ]);
-        let edit =
+        let validate = |candidate: &RenameCandidate| {
             validated_rename_workspace_edit(candidate.clone(), "new".into(), vfs.clone(), false)
-                .unwrap();
-        assert_eq!(edit.changes, Some(expected));
+        };
+        let edit = |line, start| TextEdit::new(range(line, start), "new".into());
+        let expected = HashMap::from([
+            (first, vec![edit(0, 3), edit(1, 0), edit(2, 0)]),
+            (second, vec![edit(0, 0), edit(1, 3)]),
+        ]);
+        assert_eq!(validate(&candidate).unwrap().changes, Some(expected));
 
         // A bad later occurrence must reject the whole edit, including a split surrogate.
         for invalid in [range(1, 1), range(1, 2), range(3, 0)] {
             candidate.locations.last_mut().unwrap().range = invalid;
-            let error = validated_rename_workspace_edit(
-                candidate.clone(),
-                "new".into(),
-                vfs.clone(),
-                false,
-            )
-            .unwrap_err();
-            assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
+            assert_eq!(validate(&candidate).unwrap_err().code, ErrorCode::CONTENT_MODIFIED);
         }
     }
 

@@ -1,7 +1,6 @@
 use super::*;
 use lsp_types::DocumentChanges;
 use snapbox::str;
-use std::{sync::mpsc, task::Wake};
 
 mod coverage;
 mod dependencies;
@@ -743,28 +742,21 @@ fn in_flight_rename_response_keeps_the_validated_version() {
     change(&mut state, &uri, 7, contents.as_str());
     assert_eq!(state.vfs.read().get_file_version(&path), Some(7));
 
-    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+    let runtime = single_blocking_worker_runtime();
     let _entered = runtime.enter();
-    let mut rename = Box::pin(crate::handlers::rename(&mut state, params));
+    let rename = crate::handlers::rename(&mut state, params);
     let vfs = Arc::clone(&state.vfs);
     let vfs_guard = vfs.write();
-    let (wake_tx, wake_rx) = mpsc::channel();
-    let waker = Waker::from(Arc::new(CompletionWaker(wake_tx)));
-    let mut context = Context::from_waker(&waker);
-
-    assert!(rename.as_mut().poll(&mut context).is_pending());
-    assert_eq!(wake_rx.try_recv(), Err(mpsc::TryRecvError::Empty));
+    let rename = start_request(rename);
     drop(vfs_guard);
-    wake_rx.recv_timeout(Duration::from_secs(5)).expect("rename validation task should complete");
+    // The only blocking worker runs this after the rename validation task completes.
+    runtime.block_on(tokio::task::spawn_blocking(|| {})).unwrap();
 
     let changed_contents = format!("// changed while rename was in flight\n{contents}");
     change(&mut state, &uri, 8, changed_contents);
     assert_eq!(state.vfs.read().get_file_version(&path), Some(8));
 
-    let Poll::Ready(response) = rename.as_mut().poll(&mut context) else {
-        panic!("completed rename task should make the handler ready");
-    };
-    let edit = response.unwrap().unwrap();
+    let edit = expect_ready(rename).unwrap().unwrap();
     assert!(edit.changes.is_none());
     let Some(DocumentChanges::Edits(edits)) = edit.document_changes else {
         panic!("expected versioned document edits");
@@ -973,16 +965,14 @@ fn rejects_conflicting_source_snapshots_across_analysis_batches() {
     }
 }
 
-struct CompletionWaker(mpsc::Sender<()>);
-
-impl Wake for CompletionWaker {
-    fn wake(self: Arc<Self>) {
-        self.wake_by_ref();
+/// Publishes the current config as the analysis config, marked incomplete unless `complete`.
+fn publish_analysis_config(state: &GlobalState, complete: bool) {
+    assert!(!state.config.may_omit_source_files());
+    let mut config = (*state.config).clone();
+    if !complete {
+        config.mark_analysis_source_files_incomplete();
     }
-
-    fn wake_by_ref(self: &Arc<Self>) {
-        let _ = self.0.send(());
-    }
+    state.analysis_commit.lock().analysis_config = Some(Arc::new(config));
 }
 
 /// Renders the rename edits, or the request error that prepare-rename must share.
