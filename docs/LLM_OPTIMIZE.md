@@ -222,9 +222,12 @@ A function costs the bytes of its reachable code and the average gas of the call
 original returns on, including callees and memory growth. Probes, and inputs that grow memory by
 more than 64 KiB because an argument acts as a far pointer, exercise the code but do not price
 it. Each operation is priced by the target cost model, with dynamic work sized from the values
-the run computed. Each operand costs a push for an immediate or one stack copy otherwise, which
-stands in for stack scheduling. Accepted rewrites can still lose to the stack scheduler, so
-compare them with the runtime benchmarks.
+the run computed. Storage accesses are priced by the slot's state: an `SLOAD` or `SSTORE` is cold
+at a run's first access to its slot and warm after, and an `SSTORE` costs what the value the slot
+held when the run began, holds now, and receives make it cost, without refunds. Each operand
+costs a push for an immediate or one stack copy otherwise, which stands in for stack scheduling.
+Accepted rewrites can still lose to the stack scheduler, so compare them with the runtime
+benchmarks.
 
 ## Sessions
 

@@ -344,6 +344,8 @@ impl Target {
     pub(crate) const MEMORY_WORD_GAS: u64 = 3;
     /// Divisor of the quadratic memory charge, `words² / 512` (`G_quaddivisor`).
     pub(crate) const MEMORY_QUADRATIC_DIVISOR: u64 = 512;
+    /// Gas of an `SSTORE` that makes a zero slot nonzero (`G_sset`).
+    const SSTORE_SET_GAS: u32 = 20_000;
 
     /// The model of the session's EVM version, objective, and optimizer runs.
     pub(crate) fn new(gcx: Gcx<'_>) -> Self {
@@ -613,6 +615,37 @@ impl Target {
         memory_gas(to_words).saturating_sub(memory_gas(from_words))
     }
 
+    /// Gas of one `SSTORE` writing `new` to a slot that holds `current` and held `original` when
+    /// the transaction began, before refunds. Since Istanbul, EIP-2200 charges a warm read for a
+    /// write that changes nothing or rewrites a slot the transaction already changed, and the set
+    /// or reset price for the first change; since Berlin, EIP-2929 adds the cold access surcharge
+    /// to the first access of a slot. Earlier versions charge the set price for a write that makes
+    /// a zero slot nonzero and the reset price for every other write.
+    pub(crate) fn sstore_gas(
+        self,
+        original: U256,
+        current: U256,
+        new: U256,
+        warmth: Warmth,
+    ) -> u32 {
+        if !since(self.evm_version, EvmVersion::Istanbul) {
+            return if current.is_zero() && !new.is_zero() {
+                Self::SSTORE_SET_GAS
+            } else {
+                GasTier::SStore.gas(self.evm_version)
+            };
+        }
+        let gas = if current == new || original != current {
+            GasTier::SLoad.gas_at(self.evm_version, Warmth::Warm)
+        } else if original.is_zero() {
+            Self::SSTORE_SET_GAS
+        } else {
+            GasTier::SStore.gas_at(self.evm_version, Warmth::Warm)
+        };
+        let cold = since(self.evm_version, EvmVersion::Berlin) && warmth == Warmth::Cold;
+        gas + if cold { GasTier::COLD_SLOAD_GAS } else { 0 }
+    }
+
     /// Deployment-lifetime gas of `cost`: expected executions of its runtime
     /// gas plus the deposit of its bytes.
     pub(crate) fn lifetime_gas(self, cost: Cost) -> u128 {
@@ -759,6 +792,30 @@ mod tests {
         let load = InstKind::SLoad(slot).op();
         assert_eq!(target.op_at(&load, |_| None, Warmth::Warm), Cost::new(100, 1));
         assert_eq!(target.op(&load, |_| None), Cost::new(2100, 1));
+    }
+
+    #[test]
+    fn storage_writes_follow_the_fork_schedule() {
+        let (zero, one, two) = (U256::ZERO, U256::from(1), U256::from(2));
+        let gas = |version, original, current, new, warmth| {
+            let target = Target::with(version, OptimizationMode::Gas, 200);
+            target.sstore_gas(original, current, new, warmth)
+        };
+        // Before Istanbul: set when a zero slot becomes nonzero, reset otherwise.
+        assert_eq!(gas(EvmVersion::Petersburg, zero, zero, one, Warmth::Cold), 20_000);
+        assert_eq!(gas(EvmVersion::Petersburg, one, one, one, Warmth::Warm), 5000);
+        assert_eq!(gas(EvmVersion::Petersburg, one, one, zero, Warmth::Warm), 5000);
+        // Istanbul: EIP-2200 net metering.
+        assert_eq!(gas(EvmVersion::Istanbul, one, one, one, Warmth::Cold), 800);
+        assert_eq!(gas(EvmVersion::Istanbul, zero, zero, one, Warmth::Cold), 20_000);
+        assert_eq!(gas(EvmVersion::Istanbul, one, one, two, Warmth::Cold), 5000);
+        assert_eq!(gas(EvmVersion::Istanbul, one, two, zero, Warmth::Warm), 800);
+        // Berlin on: EIP-2929 access surcharges.
+        assert_eq!(gas(EvmVersion::Osaka, zero, zero, one, Warmth::Cold), 22_100);
+        assert_eq!(gas(EvmVersion::Osaka, one, one, two, Warmth::Cold), 5000);
+        assert_eq!(gas(EvmVersion::Osaka, one, one, two, Warmth::Warm), 2900);
+        assert_eq!(gas(EvmVersion::Osaka, one, one, one, Warmth::Cold), 2200);
+        assert_eq!(gas(EvmVersion::Osaka, one, two, zero, Warmth::Warm), 100);
     }
 
     #[test]

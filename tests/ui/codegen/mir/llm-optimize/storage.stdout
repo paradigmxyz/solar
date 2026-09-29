@@ -1,13 +1,13 @@
 llm-optimize Storage @main: not offered: is the dispatch entry
-llm-optimize Storage @credit: offered at 10727 gas, 79 bytes
+llm-optimize Storage @credit: offered at 10841 gas, 79 bytes
 llm-optimize Storage @credit: round 1: rejected at equivalence: the original logs 1 event, but the candidate 0 events
   on arg0 = 0x1, arg1 = 0x6, free memory pointer 0x120, storage slot 0xada5013122d395ba3c54772283fb069b10426056ef8ca54750cb9bb552a59e7d = 0x0
 llm-optimize Storage @credit: round 2: rejected at equivalence: the candidate writes storage slot 0x1, which the original never writes
   on arg0 = 0x1, arg1 = 0x6, free memory pointer 0x120, storage slot 0xada5013122d395ba3c54772283fb069b10426056ef8ca54750cb9bb552a59e7d = 0x0
-llm-optimize Storage @credit: round 3: accepted at 8624 gas, 77 bytes
+llm-optimize Storage @credit: round 3: accepted at 10738 gas, 77 bytes
 llm-optimize Storage @credit: round 4: nothing cheaper
-llm-optimize Storage @credit: rewritten from 10727 gas, 79 bytes to 8624 gas, 77 bytes
-llm-optimize Storage @move: offered at 14428 gas, 65 bytes
+llm-optimize Storage @credit: rewritten from 10841 gas, 79 bytes to 10738 gas, 77 bytes
+llm-optimize Storage @move: offered at 10694 gas, 65 bytes
 llm-optimize Storage @move: round 1: rejected at equivalence: storage slot 0x9d868fc88e7d6872a904ce4661fcd01be6bc23c03007de2284ba5641fe220170, which held 0xd1f1595cabb37581fc31c4bc222fb09fa97365f8ffe1c0e8c8d50305c34f7155, ends as 0xd1f1595cabb37581fc31c4bc222fb09fa97365f8ffe1c0e8c8d50305c34f7155 in the original but 0xa3e2b2b95766eb03f8638978445f613f52e6cbf1ffc381d191aa060b869ee2aa in the candidate
   on arg0 = 0x706acb55c44bdce158e2f06fb8c404913fc7e46c, arg1 = 0xd1f1595cabb37581fc31c4bc222fb09fa97365f8ffe1c0e8c8d50305c34f7155, free memory pointer 0x11d, `caller` = 0x706acb55c44bdce158e2f06fb8c404913fc7e46c, storage slot 0x9d868fc88e7d6872a904ce4661fcd01be6bc23c03007de2284ba5641fe220170 = 0xd1f1595cabb37581fc31c4bc222fb09fa97365f8ffe1c0e8c8d50305c34f7155
 llm-optimize Storage @move: round 2: nothing cheaper
