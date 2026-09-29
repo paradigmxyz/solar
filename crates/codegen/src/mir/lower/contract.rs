@@ -423,6 +423,7 @@ pub(super) fn declaration(
         no_inline: false,
         preserves_array_elements: false,
         returns_param_elements: false,
+        cleans_address_elements: false,
         array_element_bits: Default::default(),
         array_return_element_bits: None,
     };
