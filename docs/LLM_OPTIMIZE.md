@@ -168,9 +168,11 @@ Each candidate goes through these stages, and the verdict names the one that rej
 
 1. **Parse.** The candidate grammar above, with diagnostics kept out of the compilation.
 2. **Constraints.** The signature, operations the interpreter runs and the target EVM version
-   has, callees, and `switch` cases that are distinct constants. After dead code elimination,
-   the candidate may not keep more values live at once than the original, a bound on the stack
-   pressure the cost model cannot see.
+   has, callees, tail calls, and `switch` cases that are distinct constants. A candidate tail
+   calls only as `lower-evm-shaped` does: to a function that never returns and is not
+   recursive, from code the constructor does not run. After dead code elimination, the candidate
+   may not keep more values live at once than the original, a bound on the stack pressure the
+   cost model cannot see.
 3. **Validation.** The MIR validator checks the candidate's body in place of the original's.
 4. **Equivalence.** The interpreter runs the original and the candidate on the same inputs. The
    candidate must end the same way (return the same words, revert or return the same data,

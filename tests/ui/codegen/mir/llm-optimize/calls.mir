@@ -1,6 +1,6 @@
 //@ compile-flags: -Zmir-pipeline=llm-optimize -Zllm-optimize=script -Zllm-trace --evm-version=cancun
 //@ compile-flags: -Zllm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/calls.script
-// Internal calls and tail calls run in the tests, so a candidate may drop them. Functions the
+// Internal calls run in the tests, so a candidate may drop them. Functions the
 // tests cannot run, such as ones reading the remaining gas or the contract's own code, or whose
 // results pass through memory the backend owns, are not offered.
 @module Calls
@@ -39,7 +39,8 @@ fn @twice(arg0: i256) -> i256 {
 
 fn @forward(arg0: i256) -> i256 {
   bb0:
-    tail_call @increment, arg0
+    v0 = icall @increment, arg0
+    ret v0
 }
 
 fn @gas_left(arg0: i256) -> i256 {

@@ -55,7 +55,8 @@ llm-optimize Calls @framed: not offered: uses `internal_frame_addr`
   
   fn @forward(arg0: i256) -> i256 {
     bb0:
-      tail_call @increment, arg0
+      v0 = icall @increment, arg0
+      ret v0
   }
   
   fn @gas_left(arg0: i256) -> i256 {

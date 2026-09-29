@@ -25,9 +25,9 @@
 //!    a model cannot be trusted to state it.
 //! 2. Constraints: the candidate keeps the name, parameters, and return type, uses only operations
 //!    the interpreter runs and the target EVM version has, calls only what the original calls, tail
-//!    calls only as `lower-evm-shaped` would, switches on distinct constants, and keeps no more
-//!    values live at once than the original. The live values bound the stack pressure the
-//!    function-level cost model cannot see.
+//!    calls only as `lower-evm-shaped` would, to functions that never return, switches on distinct
+//!    constants, and keeps no more values live at once than the original. The live values bound the
+//!    stack pressure the function-level cost model cannot see.
 //! 3. Validation: the MIR validator checks the candidate's body in place of the original's.
 //! 4. Equivalence: [`equivalence`] runs it against the original on generated inputs, with seeded
 //!    storage and context; it must end the same way, write only memory and storage the original
@@ -547,10 +547,18 @@ fn constraints(
                                 cannot do; call and return instead"
                         .into());
                 }
+                let name = module.function(*function).name;
                 if !is_tail_callable(module, &graph, *function) {
-                    let name = module.function(*function).name;
                     return Err(format!(
                         "tail calls `@{name}`, which is recursive or an entry point; call it \
+                         instead"
+                    ));
+                }
+                // The backend never expects a tail call's target back, and a returning callee
+                // leaves its results where its own caller would read them.
+                if module.returning_functions().contains(*function) {
+                    return Err(format!(
+                        "tail calls `@{name}`, which returns; call it and return its results \
                          instead"
                     ));
                 }

@@ -136,7 +136,7 @@ impl<'a> Validator<'a> {
             self.validate_value_types(module, func);
             self.validate_memory_object_types(func);
         }
-        self.validate_function_phase(phase, func);
+        self.validate_function_phase(module, phase, func);
     }
 
     /// Checks arena references before any operation can query operand types.
@@ -1399,7 +1399,7 @@ impl<'a> Validator<'a> {
         }
     }
 
-    fn validate_function_phase(&mut self, phase: MirPhase, func: &Function) {
+    fn validate_function_phase(&mut self, module: &Module, phase: MirPhase, func: &Function) {
         if phase == MirPhase::Lowered && func.is_external_entry() && !func.attributes.is_abi_wrapper
         {
             self.emit("external entry has no explicit ABI implementation");
@@ -1433,6 +1433,28 @@ impl<'a> Validator<'a> {
                 if matches!(block.terminator, Some(crate::mir::Terminator::RevertReturndata)) {
                     self.emit_at_block(
                         "returndata bubbling survives the `lowered` phase boundary",
+                        block_id,
+                    );
+                }
+                // The backend jumps to a tail call's target and never expects it back: an
+                // internal function returns its results where its own caller reads them, not
+                // where this function's caller does. `lower-evm-shaped` forms tail calls only
+                // to functions that never return, and an external entry's return ends the
+                // transaction.
+                if let Some(Terminator::TailCall { function, .. }) = block.terminator
+                    && let Some(callee) = module.functions.get(function)
+                    && !callee.is_external_entry()
+                    && self
+                        .returning_functions
+                        .as_ref()
+                        .is_some_and(|returning| returning.contains(function))
+                {
+                    self.emit_at_block(
+                        format_args!(
+                            "tail call to returning function `{}` survives the `lowered` phase \
+                             boundary",
+                            callee.name
+                        ),
                         block_id,
                     );
                 }
@@ -1874,24 +1896,26 @@ error: [fn0] tail_call targets nonexistent function fn98
     }
 
     #[test]
-    fn phase_boundary_checks_tail_call_results() {
+    fn phase_boundary_rejects_returning_tail_calls() {
         for mode in 0..3 {
             with_session(|sess| {
                 let mut module = Module::new(Ident::DUMMY);
                 let mut callee = make_func();
                 callee.set_return_type(MirType::I256);
-                // ret 0
-                let mut builder = FunctionBuilder::new(&mut callee);
-                let zero = builder.imm(0);
-                builder.ret([zero]);
+                // stop
+                FunctionBuilder::new(&mut callee).stop();
                 let callee = module.add_function(callee);
                 let mut caller = make_func();
                 caller.set_return_type(MirType::I256);
                 // tail_call callee
                 FunctionBuilder::new(&mut caller).tail_call(callee, Vec::new());
-                let caller = module.add_function(caller);
+                module.add_function(caller);
                 assert!(module.advance_phase(&sess.dcx, MirPhase::Lowered).is_ok());
-                module.functions[caller].set_return_type(MirType::Void);
+                // stop -> ret 0
+                let function = &mut module.functions[callee];
+                let zero = function.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
+                function.blocks[BlockId::ENTRY].terminator =
+                    Some(Terminator::Return { values: smallvec::smallvec![zero] });
                 match mode {
                     0 => validate(&sess.dcx, &module),
                     1 => assert!(module.advance_phase(&sess.dcx, MirPhase::Lowered).is_err()),
@@ -1900,7 +1924,7 @@ error: [fn0] tail_call targets nonexistent function fn98
                 assert_data_eq!(
                     sess.emitted_diagnostics().unwrap().to_string(),
                     str![[r#"
-error: [fn1] tail_call to `.0` returns 1 value(s), caller signature expects 0
+error: [fn1] [bb0] tail call to returning function `.0` survives the `lowered` phase boundary
 
 
 "#]]
