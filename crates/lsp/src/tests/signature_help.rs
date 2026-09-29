@@ -423,11 +423,25 @@ fn shows_signatures_despite_analysis_errors() {
                 return callbacks.callback($4 value);
             }
         }
+
+        contract First {
+            function select(uint256 value) external pure {}
+        }
+
+        contract Second {
+            function select(address value) external pure {}
+        }
+
+        contract C {
+            function use(First first) public {
+                first.select($5
+            }
+        }
         "#,
     );
 
     fixture.check_signature_help(
-        &["$1", "$2", "$3", "$4"],
+        &["$1", "$2", "$3", "$4", "$5"],
         str![[r#"
 $1:
 <none>
@@ -441,62 +455,13 @@ $3 $4:
 active signature=Some(0) parameter=Some(0)
 callback(uint256 value) returns (uint256)
   9..22
-
-"#]],
-    );
-}
-
-#[test]
-fn shows_help_for_incomplete_calls_on_initial_analysis() {
-    for (source, expected) in [
-        (
-            r#"
-            contract C {
-                function target(uint256 amount, address account)
-                    internal
-                    view
-                    returns (uint256)
-                {
-                    return amount + uint256(uint160(account));
-                }
-
-                function use() public view returns (uint256) {
-                    return target(1, $1
-            "#,
-            str![[r#"
-active signature=Some(0) parameter=Some(1)
-function target(uint256 amount, address account) internal view returns (uint256)
-  16..30
-  32..47
-
-"#]],
-        ),
-        (
-            r#"
-            contract A {
-                function select(uint256 value) external pure {}
-            }
-
-            contract B {
-                function select(address value) external pure {}
-            }
-
-            contract C {
-                function use(A a) public {
-                    a.select($1
-                }
-            }
-            "#,
-            str![[r#"
+$5:
 active signature=Some(0) parameter=Some(0)
 function select(uint256 value) external pure
   16..29
 
 "#]],
-        ),
-    ] {
-        incomplete_signature_fixture(source).check_signature_help(&["$1"], expected);
-    }
+    );
 }
 
 #[test]
@@ -711,23 +676,36 @@ fn clamps_positions_and_rejects_surrogate_pairs() {
 }
 
 #[test]
-fn clamps_signature_help_lines_to_the_document_end() {
+fn shows_incomplete_calls_on_initial_analysis_and_clamps_lines_to_the_document_end() {
     let fixture = incomplete_signature_fixture(
         r#"
         contract C {
-            function add(uint256 lhs, uint256 rhs) public pure returns (uint256) {
-                return lhs + rhs;
+            function target(uint256 amount, address account)
+                internal
+                view
+                returns (uint256)
+            {
+                return amount + uint256(uint160(account));
             }
 
-            function use() public pure {
-                add(1,$1
+            function use() public view returns (uint256) {
+                return target(1, $1
         "#,
+    );
+    fixture.check_signature_help(
+        &["$1"],
+        str![[r#"
+active signature=Some(0) parameter=Some(1)
+function target(uint256 amount, address account) internal view returns (uint256)
+  16..30
+  32..47
+
+"#]],
     );
     let mut state = fixture.state();
     let (uri, position) = fixture.marker_location("$1");
     let expected = signature_help_at(&mut state, uri.clone(), position).unwrap();
     assert_eq!(expected.active_parameter, Some(1));
-
     for position in [Position::new(99, 0), Position::new(u32::MAX, u32::MAX)] {
         assert_eq!(signature_help_at(&mut state, uri.clone(), position), Some(expected.clone()));
     }
