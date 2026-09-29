@@ -352,16 +352,6 @@ checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 
 [[package]]
 name = "annotate-snippets"
-version = "0.11.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "710e8eae58854cdc1790fcb56cca04d712a17be849eeb81da2a724bf4bae2bc4"
-dependencies = [
- "anstyle",
- "unicode-width",
-]
-
-[[package]]
-name = "annotate-snippets"
 version = "0.12.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f211a51805bc641f3ad5b7664c77d2547af685cc33b4cd8d31964027a46f13f1"
@@ -1385,7 +1375,7 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf9468729b8cbcea668e36183cb69d317348c2e08e994829fb56ebfdfbaac34"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2079,7 +2069,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2688,7 +2678,7 @@ checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
 dependencies = [
  "hermit-abi",
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3158,7 +3148,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4024,7 +4014,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4190,7 +4180,7 @@ version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8050abb251097357e24aff63ba2c52a6309ecb7d23a5474023df960a02694d8"
 dependencies = [
- "annotate-snippets 0.12.16",
+ "annotate-snippets",
  "base64",
  "encoding_rs_io",
  "granit-parser",
@@ -4640,7 +4630,7 @@ dependencies = [
 name = "solar-interface"
 version = "0.2.0"
 dependencies = [
- "annotate-snippets 0.12.16",
+ "annotate-snippets",
  "anstream",
  "anstyle",
  "arc-swap",
@@ -4660,7 +4650,7 @@ dependencies = [
  "solar-data-structures",
  "solar-macros",
  "tempfile",
- "thiserror 2.0.20",
+ "thiserror 1.0.69",
  "tracing",
  "tracing-subscriber",
  "unicode-width",
@@ -4697,7 +4687,7 @@ dependencies = [
  "solar-parse",
  "solar-sema",
  "tempfile",
- "thiserror 2.0.20",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-util",
  "toml_edit",
@@ -4802,19 +4792,6 @@ dependencies = [
  "tempfile",
  "toml_edit",
  "ui_test",
-]
-
-[[package]]
-name = "spanned"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "118662960e1508d35b4162b0f0e41828e6d8e3c7c07da7d959c18e803528d1a2"
-dependencies = [
- "annotate-snippets 0.11.5",
- "anyhow",
- "bstr",
- "color-eyre",
- "colored 3.1.1",
 ]
 
 [[package]]
@@ -4996,7 +4973,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -5429,9 +5406,9 @@ checksum = "2896d95c02a80c6d6a5d6e953d479f5ddf2dfdb6a244441010e373ac0fb88971"
 [[package]]
 name = "ui_test"
 version = "0.30.7"
-source = "git+https://github.com/DaniPopes/ui_test?branch=fork#9feec8c3371b6975bb98423d321531581289e735"
+source = "git+https://github.com/DaniPopes/ui_test?branch=main#ef1228e17c1eff666f737710fef9ac7f502b6f35"
 dependencies = [
- "annotate-snippets 0.12.16",
+ "annotate-snippets",
  "anyhow",
  "bstr",
  "cargo-platform",
@@ -5448,7 +5425,6 @@ dependencies = [
  "rustfix",
  "serde",
  "serde_json",
- "spanned",
 ]
 
 [[package]]
@@ -5708,7 +5684,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
