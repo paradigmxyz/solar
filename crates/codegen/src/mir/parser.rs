@@ -512,13 +512,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 if let Some(idx) = self.try_parse_block_header()? {
                     let bid = self.define_block(&mut builder, idx)?;
                     builder.switch_to_block(bid);
-                    current_block = Some(bid);
+                    current_block = Some((bid, idx));
                     continue;
                 }
 
                 // Not a block header — must be an instruction or terminator.
-                current_block
+                let (block, label) = current_block
                     .ok_or_else(|| self.parser.error("instruction outside of any block"))?;
+                if builder.func().blocks[block].terminator.is_some() {
+                    return Err(self
+                        .parser
+                        .error(format!("block `bb{label}` continues after its terminator")));
+                }
                 self.parse_instruction_or_terminator(&mut builder)?;
             }
 
