@@ -84,10 +84,6 @@ impl ProjectFixture {
         &self.files
     }
 
-    pub(crate) fn markers(&self) -> &FxHashMap<String, Vec<FixtureMarker>> {
-        &self.markers
-    }
-
     pub(crate) fn marker(&self, name: &str) -> &FixtureMarker {
         let name = normalize_marker_name(name);
         let markers = self.markers.get(name).unwrap_or_else(|| panic!("missing marker `${name}`"));

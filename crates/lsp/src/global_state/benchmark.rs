@@ -15,7 +15,6 @@ use crate::{
     config::{Config, negotiate_capabilities},
     diagnostics::{AnalyzedDocuments, DiagnosticOwner, DiagnosticStore, PullReport},
     handlers,
-    project_fixture::ProjectFixture,
     symbols::CompletionContext,
     utils::apply_document_changes,
     vfs::VfsPath,
@@ -190,7 +189,6 @@ pub struct BenchmarkProject {
     opts: CompileOpts,
     files: Vec<(PathBuf, String)>,
     loader: InMemoryFileLoader,
-    markers: FxHashMap<String, Vec<(PathBuf, Position)>>,
 }
 
 impl BenchmarkProject {
@@ -239,45 +237,7 @@ impl BenchmarkProject {
 
         let loader_sources = files.iter().cloned().collect();
         let loader = InMemoryFileLoader::new(root.clone(), loader_sources);
-        Ok(Self { root, opts, files, loader, markers: FxHashMap::default() })
-    }
-
-    /// Prepare a stable multi-file project from the fixture format shared with LSP tests.
-    pub fn from_fixture(name: &str, fixture: &str) -> Result<Self, BenchmarkError> {
-        if name.is_empty() {
-            return Err(BenchmarkError::new("benchmark fixture name cannot be empty"));
-        }
-        let fixture_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/fixtures");
-        let root = resolve_relative_path(&fixture_root, Path::new(name))?;
-        let fixture = ProjectFixture::try_parse(fixture)
-            .map_err(|error| BenchmarkError::new(error.to_string()))?;
-        let sources = fixture
-            .files()
-            .iter()
-            .filter_map(|file| {
-                let path = Path::new(file.path());
-                (path.extension().is_some_and(|extension| extension == "sol")).then(|| {
-                    let relative = path.strip_prefix("/").expect("fixture paths start with `/`");
-                    (relative.to_path_buf(), file.text().to_string())
-                })
-            })
-            .collect::<Vec<_>>();
-        let opts = CompileOpts { base_path: Some(root), ..Default::default() };
-        let mut project = Self::from_sources(opts, sources)?;
-        for (name, markers) in fixture.markers() {
-            let resolved = markers
-                .iter()
-                .map(|marker| {
-                    let relative = Path::new(marker.path())
-                        .strip_prefix("/")
-                        .expect("fixture paths start with `/`");
-                    let (path, _) = project.source(relative)?;
-                    Ok((path.clone(), marker.position()))
-                })
-                .collect::<Result<Vec<_>, BenchmarkError>>()?;
-            project.markers.insert(name.clone(), resolved);
-        }
-        Ok(project)
+        Ok(Self { root, opts, files, loader })
     }
 
     /// Load a Foundry project's manifest, primary sources, and import dependencies.
@@ -342,7 +302,7 @@ impl BenchmarkProject {
 
         let root = root.normalize();
         let loader = InMemoryFileLoader::new(root.clone(), loader_sources);
-        Ok(Self { root, opts, files, loader, markers: FxHashMap::default() })
+        Ok(Self { root, opts, files, loader })
     }
 
     /// The number of primary Solidity source files in this project.
@@ -371,20 +331,6 @@ impl BenchmarkProject {
         let (path, source) = self.source(relative_path.as_ref())?;
         let start = unique_offset(source, needle, path)?;
         Ok((file_url(path)?, position_at(source, start)))
-    }
-
-    /// Resolve one fixture `$N` marker to its LSP URI and UTF-16 position.
-    pub fn marker(&self, name: &str) -> Result<(Url, Position), BenchmarkError> {
-        let name = name.strip_prefix('$').unwrap_or(name);
-        let markers = self
-            .markers
-            .get(name)
-            .ok_or_else(|| BenchmarkError::new(format!("missing benchmark marker `${name}`")))?;
-        if markers.len() != 1 {
-            return Err(BenchmarkError::new(format!("benchmark marker `${name}` is ambiguous")));
-        }
-        let (path, position) = &markers[0];
-        Ok((file_url(path)?, *position))
     }
 
     /// Create a validated LSP range edit replacing one unique source substring.
@@ -443,14 +389,14 @@ impl BenchmarkProject {
 
     /// Consume this prepared project and run the production compiler analysis pipeline.
     pub fn analyze(self) -> BenchmarkAnalysis {
-        let Self { root, opts, files, loader, markers: _ } = self;
+        let Self { root, opts, files, loader } = self;
         let default_uri = files.first().and_then(|(path, _)| Url::from_file_path(path).ok());
         analyze_files(root, opts, files, loader, default_uri)
     }
 
     /// Analyze each primary file as an independent production analysis batch.
     pub fn analyze_file_batches(self) -> Vec<BenchmarkAnalysis> {
-        let Self { root, opts, files, loader, markers: _ } = self;
+        let Self { root, opts, files, loader } = self;
         files
             .into_iter()
             .map(|(path, source)| {
@@ -1738,41 +1684,6 @@ mod tests {
         let analysis = project.analyze();
 
         assert_eq!(analysis.diagnostic_count(), 0, "{}", analysis.diagnostic_fingerprint());
-    }
-
-    #[test]
-    fn fixture_projects_support_relative_imports_and_markers() {
-        let project = BenchmarkProject::from_fixture(
-            "relative-imports",
-            r#"
-                //- /src/Imported.sol
-                contract Imported {}
-
-                //- /src/Main.sol
-                import "./Imported.sol";
-                contract $12Main is Imported {}
-            "#,
-        )
-        .unwrap();
-        assert_eq!(project.file_count(), 2);
-        let (uri, position) = project.marker("$12").unwrap();
-        assert!(uri.path().ends_with("/src/Main.sol"));
-        assert_eq!(position, Position::new(1, 9));
-        let analysis = project.analyze();
-        assert_eq!(analysis.diagnostic_count(), 0, "{}", analysis.diagnostic_fingerprint());
-    }
-
-    #[test]
-    fn invalid_fixtures_return_errors() {
-        for fixture in [
-            "contract BeforeMarker {}",
-            "//-\ncontract MissingPath {}",
-            "//- /Unknown.sol unsupported\ncontract Unknown {}",
-            // Markers must target primary sources.
-            "//- /src/Main.sol\ncontract Main {}\n//- /foundry.toml\n$0[profile.default]",
-        ] {
-            assert!(BenchmarkProject::from_fixture("invalid", fixture).is_err());
-        }
     }
 
     #[test]
