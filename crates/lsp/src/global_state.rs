@@ -2085,24 +2085,16 @@ fn dependency_watch_roots(config: &Config) -> FxHashSet<PathBuf> {
         if let Some(base_path) = base_path {
             roots.insert(base_path.normalize());
         }
-        roots.extend(
-            opts.include_paths
-                .iter()
-                .filter_map(|path| resolve_dependency_watch_root(base_path, path)),
-        );
-        roots.extend(opts.import_remappings.iter().filter_map(|remapping| {
-            resolve_dependency_watch_root(base_path, Path::new(&remapping.path))
+        roots.extend(opts.include_paths.iter().filter_map(|path| {
+            if path.is_absolute() {
+                Some(path.normalize())
+            } else {
+                base_path.map(|base_path| base_path.join(path).normalize())
+            }
         }));
+        roots.extend(workspace.import_remapping_paths());
     }
     roots
-}
-
-fn resolve_dependency_watch_root(base_path: Option<&Path>, path: &Path) -> Option<PathBuf> {
-    if path.is_absolute() {
-        Some(path.normalize())
-    } else {
-        base_path.map(|base_path| base_path.join(path).normalize())
-    }
 }
 
 fn watched_file_specs(config: &Config, analysis_paths: &AnalysisPathIndex) -> Vec<WatchedFileSpec> {
