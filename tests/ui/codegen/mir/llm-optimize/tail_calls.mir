@@ -1,0 +1,63 @@
+//@ compile-flags: -Zmir-pipeline=llm-optimize -Zllm-optimize=script -Zllm-trace --evm-version=cancun
+//@ compile-flags: -Zllm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/tail_calls.script
+// A candidate may tail call only as `lower-evm-shaped` would: the backend passes the arguments
+// in the target's static frame, which recursive functions and entry points lack, and code the
+// constructor runs keeps ordinary calls, since deployment gives each callee a dynamic frame.
+@module TailCalls
+@phase lowered
+fn @constructor() [constructor, abi_wrapper] {
+  bb0:
+    v0 = icall @shared, 7
+    sstore 0, v0
+    stop
+}
+
+fn @main() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = icall @wraps, v0
+    v2 = icall @forwards, v1
+    v3 = icall @shared, v2
+    mstore 0, v3
+    returndata 0, 32
+}
+
+fn @helper(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1
+    ret v0
+}
+
+fn @parity(arg0: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 1
+    v1 = eq v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    ret arg0
+  bb2:
+    v2 = sub arg0, 1
+    v3 = icall @parity, v2
+    ret v3
+}
+
+fn @wraps(arg0: i256) -> i256 {
+  bb0:
+    v0 = mul arg0, 3
+    v1 = icall @helper, v0
+    ret v1
+}
+
+fn @forwards(arg0: i256) -> i256 {
+  bb0:
+    v0 = mul arg0, 3
+    v1 = icall @parity, v0
+    ret v1
+}
+
+fn @shared(arg0: i256) -> i256 {
+  bb0:
+    v0 = mul arg0, 3
+    v1 = icall @helper, v0
+    ret v1
+}

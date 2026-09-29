@@ -24,9 +24,10 @@
 //!    function references, or declarations. The backend trusts metadata such as memory regions, and
 //!    a model cannot be trusted to state it.
 //! 2. Constraints: the candidate keeps the name, parameters, and return type, uses only operations
-//!    the interpreter runs and the target EVM version has, calls only what the original calls,
-//!    switches on distinct constants, and keeps no more values live at once than the original. The
-//!    live values bound the stack pressure the function-level cost model cannot see.
+//!    the interpreter runs and the target EVM version has, calls only what the original calls, tail
+//!    calls only as `lower-evm-shaped` would, switches on distinct constants, and keeps no more
+//!    values live at once than the original. The live values bound the stack pressure the
+//!    function-level cost model cannot see.
 //! 3. Validation: the MIR validator checks the candidate's body in place of the original's.
 //! 4. Equivalence: [`equivalence`] runs it against the original on generated inputs, with seeded
 //!    storage and context; it must end the same way, write only memory and storage the original
@@ -65,7 +66,10 @@ use crate::{
         Value, ValueId,
         analysis::{CallGraphInfo, validate_function_at_phase},
         pass::{MirPass, ModuleAnalyses},
-        transform::dce::DeadCodeEliminator,
+        transform::{
+            dce::DeadCodeEliminator,
+            lower_evm_shaped::{constructor_reachable, is_tail_callable},
+        },
         utils::interp,
     },
     target::{Cost, Target},
@@ -422,7 +426,7 @@ impl<'gcx> Optimizer<'gcx> {
         let original = module.function(id);
         let candidate =
             self.parse(module, text).map_err(|error| Rejection::new(Stage::Parse, error))?;
-        constraints(self.target, module, original, &candidate)
+        constraints(self.target, module, id, &candidate)
             .map_err(|reason| Rejection::new(Stage::Constraints, reason))?;
         let mut function = original.clone();
         function.replace_body(candidate);
@@ -489,13 +493,14 @@ impl<'gcx> Optimizer<'gcx> {
     }
 }
 
-/// Checks what the candidate may be before its body replaces the original's.
+/// Checks what the candidate may be before its body replaces the body of function `id`.
 fn constraints(
     target: Target,
     module: &Module,
-    original: &Function,
+    id: FunctionId,
     candidate: &Function,
 ) -> Result<(), String> {
+    let original = module.function(id);
     if candidate.name != original.name {
         return Err(format!("renames the function to `@{}`", candidate.name));
     }
@@ -533,7 +538,23 @@ fn constraints(
             return Err("ends a block with a terminator the tests cannot run".into());
         }
         match terminator {
-            Terminator::TailCall { function, .. } => callee(*function)?,
+            Terminator::TailCall { function, .. } => {
+                callee(*function)?;
+                // The backend lowers only the tail calls `lower-evm-shaped` forms.
+                let graph = CallGraphInfo::new(module);
+                if constructor_reachable(module, &graph).contains(id) {
+                    return Err("tail calls from code the constructor runs, which deployment \
+                                cannot do; call and return instead"
+                        .into());
+                }
+                if !is_tail_callable(module, &graph, *function) {
+                    let name = module.function(*function).name;
+                    return Err(format!(
+                        "tail calls `@{name}`, which is recursive or an entry point; call it \
+                         instead"
+                    ));
+                }
+            }
             Terminator::Switch { cases, .. } => {
                 let mut seen = FxHashSet::default();
                 for &(case, _) in cases {
