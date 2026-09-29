@@ -1123,24 +1123,13 @@ fn watched_solidity_change_ignores_open_document() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn did_change_clamps_positions_before_analysis_and_rename() {
+    // Position clamping itself is unit-tested in `proto`; cover the first-line and indexed paths.
     for (position, text, expected, rename_position) in [
-        (
-            Position::new(0, 5),
-            "\n// inserted",
-            "//😀\n// inserted\ncontract C {}",
-            Position::new(2, 9),
-        ),
         (
             Position::new(0, u32::MAX),
             "\n// inserted",
             "//😀\n// inserted\ncontract C {}",
             Position::new(2, 9),
-        ),
-        (
-            Position::new(99, 0),
-            "\ncontract Added {}",
-            "//😀\ncontract C {}\ncontract Added {}",
-            Position::new(1, 9),
         ),
         (
             Position::new(u32::MAX, u32::MAX),
@@ -1668,27 +1657,13 @@ fn goto_implementation_finds_unopened_naked_workspace_files() {
     let marked = MarkedProject::from_fixture(
         r#"
         //- /Base.sol open
-        interface Runner {
-            function $1run(uint256 input) external returns (uint256);
-        }
-
+        interface Runner { function $1run() external; }
         //- /First.sol
-        import {Runner} from "./Base.sol";
-
-        contract First is Runner {
-            function run(uint256 input) external pure override returns (uint256) {
-                return input + 1;
-            }
-        }
-
+        import "./Base.sol";
+        contract First is Runner { function run() external {} }
         //- /Second.sol
-        import {Runner} from "./Base.sol";
-
-        contract Second is Runner {
-            function run(uint256 input) external pure override returns (uint256) {
-                return input + 2;
-            }
-        }
+        import "./Base.sol";
+        contract Second is Runner { function run() external {} }
         "#,
     );
     let result = analyze_single_batch(&snapshot(marked.project()));
