@@ -132,7 +132,6 @@ pub(crate) struct ImportBindings {
     symbol_sources: FxHashMap<SymbolId, hir::SourceId>,
     references: Vec<(Span, Vec<SymbolId>)>,
     pub(crate) namespaces: Vec<NamespaceBinding>,
-    pub(crate) namespace_references: Vec<(Span, ImportAliasId)>,
 }
 
 pub(crate) struct NamespaceBinding {
@@ -230,26 +229,6 @@ impl RenameIndex {
                                 *alias,
                                 ast.items[item_id].span,
                             );
-                        } else {
-                            // Follow the compiler's dependency-ordered imports, retaining the
-                            // declaration identity when a plain import re-exports a namespace.
-                            let aliases = bindings
-                                .aliases
-                                .iter()
-                                .filter(|(key, _)| {
-                                    key.source == imported_source_id
-                                        && matches!(
-                                            key.resolution,
-                                            ImportBindingResolution::Namespace(_)
-                                        )
-                                })
-                                .map(|(&key, &id)| {
-                                    (ImportBindingKey { source: source_id, ..key }, id)
-                                })
-                                .collect::<Vec<_>>();
-                            for (key, id) in aliases {
-                                bindings.aliases.entry(key).or_insert(id);
-                            }
                         }
                     }
                     ast::ImportItems::Glob(alias) => self.add_namespace_alias(
@@ -262,41 +241,6 @@ impl RenameIndex {
                     ),
                     ast::ImportItems::Aliases(aliases) => {
                         for &(imported, alias) in aliases.iter() {
-                            if let Some(resolutions) =
-                                gcx.source_path_resolutions(&[imported], imported_source_id, None)
-                                && let Some(resolutions) = resolutions.last()
-                                && let [hir::Res::Namespace(namespace)] = resolutions.as_slice()
-                            {
-                                let key = ImportBindingKey {
-                                    source: imported_source_id,
-                                    resolution: ImportBindingResolution::Namespace(*namespace),
-                                    name: imported.name,
-                                };
-                                if let Some(&id) = bindings.aliases.get(&key) {
-                                    self.push_span_occurrence(
-                                        locations,
-                                        imported.span,
-                                        vec![RenameTarget::ImportAlias(id)],
-                                    );
-                                    bindings.namespace_references.push((imported.span, id));
-                                    if let Some(alias) = alias {
-                                        self.add_namespace_alias(
-                                            locations,
-                                            &mut bindings,
-                                            source_id,
-                                            *namespace,
-                                            alias,
-                                            ast.items[item_id].span,
-                                        );
-                                    } else {
-                                        bindings
-                                            .aliases
-                                            .entry(ImportBindingKey { source: source_id, ..key })
-                                            .or_insert(id);
-                                    }
-                                }
-                                continue;
-                            }
                             let symbols = imported_symbols(
                                 gcx,
                                 imported_source_id,

@@ -1551,16 +1551,6 @@ impl SymbolTables {
                 namespace_symbols.insert(id, symbol_id);
             }
         }
-        for &(span, alias) in &bindings.namespace_references {
-            if let Some(&symbol) = namespace_symbols.get(&alias) {
-                self.push_reference_entry(
-                    locations,
-                    span,
-                    ReferenceTargets::from_buf([symbol]),
-                    DocumentHighlightKind::READ,
-                );
-            }
-        }
         let namespace_symbols = bindings
             .namespace_aliases()
             .filter_map(|(key, alias)| namespace_symbols.get(&alias).map(|&symbol| (key, symbol)))
@@ -2671,16 +2661,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
     ) -> ControlFlow<Never> {
         self.visit_expr(receiver)?;
         let targets = self.symbol_ids_for_expr(expr);
-        // Namespace members are bound in the receiver's source, not the caller's source.
-        let previous_source = self.source;
-        if let Some(Res::Namespace(source)) = self.gcx.resolved_expr(receiver) {
-            self.source = Some(source);
-        }
         self.push_reference_with_kind(ident.span, targets, kind);
-        if let Some(res @ Res::Namespace(_)) = self.gcx.resolved_expr(expr) {
-            self.push_namespace_references(ident.span, &[res]);
-        }
-        self.source = previous_source;
         ControlFlow::Continue(())
     }
 
@@ -2704,19 +2685,6 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
 
     fn push_namespace_references(&mut self, span: Span, resolutions: &[Res]) {
         let Some(source) = self.source else { return };
-        if let Some(path) = SourcePath::resolve(self.gcx, span, source, self.contract) {
-            let targets = self.path_symbol_ids(
-                path.final_source,
-                path.final_ident,
-                resolutions.iter().copied().filter(|res| matches!(res, Res::Namespace(_))),
-            );
-            self.tables.push_reference_entry(
-                self.locations,
-                path.final_ident.span,
-                targets,
-                DocumentHighlightKind::READ,
-            );
-        }
         self.tables.rename.push_namespace_reference(
             self.gcx,
             self.locations,
