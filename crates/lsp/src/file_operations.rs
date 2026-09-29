@@ -290,11 +290,7 @@ impl FileOperationCoordinator {
         let mut apply = Vec::new();
         let mut matched = false;
         self.renames.retain_mut(|transaction| {
-            if transaction
-                .activation
-                .as_ref()
-                .is_some_and(|activation| activation.load(AtomicOrdering::Acquire) != RENAME_ACTIVE)
-            {
+            if transaction.activation.is_some() && !transaction.preparation_is_active() {
                 return true;
             }
             if transaction.watcher.observe(path, typ) {
