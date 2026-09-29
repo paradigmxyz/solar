@@ -1204,16 +1204,15 @@ fn prefers_markdown_documentation(formats: Option<&[MarkupKind]>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::{TestProject, workspace_at};
+    use crate::test_support::{
+        TestProject, from_json, rediscovered_config, with_options, workspace_at,
+    };
     use serde_json::{Value, json};
     use snapbox::{IntoData, assert_data_eq, str};
 
     /// Negotiates like the server, including the pull diagnostic data support read from JSON.
     fn negotiate(capabilities: Value) -> (ServerCapabilities, Config) {
-        let params = serde_json::from_value::<proto::InitializeParams>(
-            json!({ "capabilities": capabilities }),
-        )
-        .unwrap();
+        let params = from_json::<proto::InitializeParams>(json!({ "capabilities": capabilities }));
         let pull_data = params.pull_diagnostic_data_support();
         negotiate_capabilities_with_pull_diagnostic_data(
             params.into_inner(),
@@ -1225,9 +1224,7 @@ mod tests {
     fn discover(project: &TestProject, roots: &[&str], options: Option<Value>) -> Config {
         let mut params = project.initialize_params_with_roots(roots);
         params.initialization_options = options;
-        let (_, mut config) = negotiate_capabilities(params);
-        config.rediscover_workspaces();
-        config
+        rediscovered_config(params)
     }
 
     fn relative(project: &TestProject, path: &Path) -> Option<String> {
@@ -1613,10 +1610,8 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
             "args": ["--json"],
             "output": "solc-json",
         }] });
-        let (_, mut config) = negotiate_capabilities(InitializeParams {
-            initialization_options: Some(options),
-            ..project.initialize_params()
-        });
+        let (_, mut config) =
+            negotiate_capabilities(with_options(project.initialize_params(), options));
         assert!(config.rediscover_workspaces().is_empty());
 
         let path = project.path("/src/Test.sol");

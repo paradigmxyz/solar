@@ -1,11 +1,12 @@
 use crate::{
     LaunchConfig, new_server_service,
-    test_support::{TIMEOUT, TestProject, WireServer},
+    test_support::{TestProject, WireServer, within},
 };
 use lsp_types::Url;
 use serde_json::{Value, json};
 use snapbox::{IntoData, assert_data_eq, str};
 use std::time::Duration;
+
 const SESSION_SOURCE: &str = "/*😀*/ contract Before { function ping() external {} }\n";
 const DIAGNOSTIC_SOURCE: &str = r#"contract Diagnostics {
     function value() external pure returns (uint256) {
@@ -118,9 +119,7 @@ impl RawSession {
         capabilities: &Value,
     ) -> (Self, Value) {
         let mut session = Self::start();
-        let root_uri = Url::from_file_path(project.root()).unwrap();
-        let initialize = session.initialize(profile, &root_uri, capabilities).await;
-        session.notify("initialized", json!({})).await;
+        let initialize = session.initialize(profile, project, capabilities).await;
         (session, initialize)
     }
 
@@ -151,70 +150,37 @@ impl RawSession {
         }
     }
 
+    /// Sends `initialize` and `initialized`, and returns the `initialize` result.
     async fn initialize(
         &mut self,
         profile: &ClientProfile,
-        root_uri: &Url,
+        project: &TestProject,
         capabilities: &Value,
     ) -> Value {
-        self.request(
-            "initialize",
-            json!({
-                "processId": null,
-                "clientInfo": { "name": profile.name, "version": profile.version },
-                "rootUri": root_uri,
-                "capabilities": capabilities,
-                "workspaceFolders": [{
-                    "uri": root_uri,
-                    "name": "compatibility-session",
-                }],
-            }),
-        )
-        .await
+        let root_uri = Url::from_file_path(project.root()).unwrap();
+        let params = json!({
+            "processId": null,
+            "clientInfo": { "name": profile.name, "version": profile.version },
+            "rootUri": root_uri,
+            "capabilities": capabilities,
+            "workspaceFolders": [{ "uri": root_uri, "name": "compatibility-session" }],
+        });
+        let result = self.request("initialize", params).await;
+        self.notify("initialized", json!({})).await;
+        result
     }
 
     async fn open(&mut self, uri: &Url, text: &str) {
-        self.notify(
-            "textDocument/didOpen",
-            json!({
-                "textDocument": {
-                    "uri": uri,
-                    "languageId": "solidity",
-                    "version": 1,
-                    "text": text,
-                },
-            }),
-        )
-        .await;
+        let text_document =
+            json!({ "uri": uri, "languageId": "solidity", "version": 1, "text": text });
+        self.notify("textDocument/didOpen", json!({ "textDocument": text_document })).await;
     }
 
-    async fn change(&mut self, uri: &Url) {
-        self.notify(
-            "textDocument/didChange",
-            json!({
-                "textDocument": { "uri": uri, "version": 2 },
-                "contentChanges": [{
-                    "range": {
-                        "start": { "line": 0, "character": 16 },
-                        "end": { "line": 0, "character": 22 },
-                    },
-                    "rangeLength": 6,
-                    "text": "After",
-                }],
-            }),
-        )
-        .await;
-    }
-
-    async fn replace_document(&mut self, uri: &Url, version: i32, text: &str) {
-        self.notify(
-            "textDocument/didChange",
-            json!({
-                "textDocument": { "uri": uri, "version": version },
-                "contentChanges": [{ "text": text }],
-            }),
-        )
-        .await;
+    /// Applies one content change as version 2 of `uri`.
+    async fn change(&mut self, uri: &Url, change: Value) {
+        let text_document = json!({ "uri": uri, "version": 2 });
+        let params = json!({ "textDocument": text_document, "contentChanges": [change] });
+        self.notify("textDocument/didChange", params).await;
     }
 
     async fn document_request(&mut self, method: &str, uri: &Url) -> Value {
@@ -223,10 +189,6 @@ impl RawSession {
 
     async fn document_notification(&mut self, method: &str, uri: &Url) {
         self.notify(method, json!({ "textDocument": { "uri": uri } })).await;
-    }
-
-    async fn workspace_symbols(&mut self) -> Value {
-        self.request("workspace/symbol", json!({ "query": "" })).await
     }
 
     async fn shutdown(&mut self) {
@@ -320,35 +282,25 @@ fn assert_one_unresolved_diagnostic(
     include_data: bool,
     profile: &str,
 ) {
-    let diagnostics = diagnostics
-        .as_array()
-        .unwrap_or_else(|| panic!("{profile}: diagnostics are not an array: {diagnostics}"));
-    let [diagnostic] = diagnostics.as_slice() else {
-        panic!("{profile}: expected one diagnostic, got {diagnostics:?}");
+    let [diagnostic] = diagnostics.as_array().unwrap().as_slice() else {
+        panic!("{profile}: expected one diagnostic, got {diagnostics}");
     };
-    assert_eq!(
-        diagnostic.get("message").and_then(Value::as_str),
-        Some("unresolved symbol `missingValue`"),
-        "{profile}: unexpected diagnostic: {diagnostic}"
-    );
-    assert_eq!(
-        diagnostic.get("range"),
-        Some(&json!({
-            "start": { "line": 2, "character": 15 },
-            "end": { "line": 2, "character": 27 },
-        })),
-        "{profile}: unexpected diagnostic range"
-    );
-    assert_eq!(diagnostic.get("severity"), Some(&Value::from(1)));
-    assert_eq!(diagnostic.get("source"), Some(&Value::from("solar")));
-    assert_eq!(
-        diagnostic.get("data").is_some(),
-        include_data,
-        "{profile}: unexpected diagnostic data support: {diagnostic}"
-    );
-    if include_data {
-        assert_eq!(diagnostic.pointer("/data/uri").and_then(Value::as_str), Some(uri.as_str()));
-    }
+    // `data` is summarized as its URI in a one-element array when present.
+    let summary = json!({
+        "message": diagnostic["message"],
+        "range": diagnostic["range"],
+        "severity": diagnostic["severity"],
+        "source": diagnostic["source"],
+        "data": diagnostic.get("data").map(|data| [&data["uri"]]),
+    });
+    let expected = json!({
+        "message": "unresolved symbol `missingValue`",
+        "range": { "start": { "line": 2, "character": 15 }, "end": { "line": 2, "character": 27 } },
+        "severity": 1,
+        "source": "solar",
+        "data": include_data.then_some([uri]),
+    });
+    assert_eq!(summary, expected, "{profile}: unexpected diagnostic: {diagnostic}");
 }
 
 fn symbol_names(response: &Value) -> Vec<&str> {
@@ -383,24 +335,18 @@ async fn wait_for_workspace_symbols(
     removed: &str,
     profile: &str,
 ) {
-    let mut observed = Vec::new();
-    let ready = tokio::time::timeout(TIMEOUT, async {
+    let what = format!("{profile}: workspace symbols replacing `{removed}` with `{expected}`");
+    within(&what, async {
         loop {
-            let response = session.workspace_symbols().await;
-            observed = symbol_names(&response).into_iter().map(str::to_owned).collect();
-            if observed.iter().any(|name| name == expected)
-                && observed.iter().all(|name| name != removed)
-            {
+            let response = session.request("workspace/symbol", json!({ "query": "" })).await;
+            let names = symbol_names(&response);
+            if names.contains(&expected) && !names.contains(&removed) {
                 break;
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     })
     .await;
-    assert!(
-        ready.is_ok(),
-        "{profile}: workspace symbols never replaced `{removed}` with `{expected}`; last response: {observed:?}"
-    );
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -448,7 +394,12 @@ async fn client_profiles_complete_a_raw_lsp_session() {
             "{profile_label}: symbol range did not use UTF-16 columns"
         );
 
-        session.change(&document_uri).await;
+        let range = json!({
+            "start": { "line": 0, "character": 16 },
+            "end": { "line": 0, "character": 22 },
+        });
+        let change = json!({ "range": range, "rangeLength": 6, "text": "After" });
+        session.change(&document_uri, change).await;
         let symbols = session.document_request("textDocument/documentSymbol", &document_uri).await;
         assert_symbol_replaced(&symbols, "After", "Before", &profile_label);
         let hover = session
@@ -543,7 +494,7 @@ async fn push_diagnostic_clients_publish_and_clear_without_pull() {
             profile,
         );
 
-        session.replace_document(&document_uri, 2, CLEARED_DIAGNOSTIC_SOURCE).await;
+        session.change(&document_uri, json!({ "text": CLEARED_DIAGNOSTIC_SOURCE })).await;
         session.document_request("textDocument/documentSymbol", &document_uri).await;
         session.wait_for_server_message_count("textDocument/publishDiagnostics", 2).await;
 
@@ -610,7 +561,7 @@ async fn pull_diagnostic_client_refreshes_and_clears_without_push() {
     session.wait_for_server_message_count("workspace/diagnostic/refresh", 1).await;
     assert_eq!(session.server_message_count("textDocument/publishDiagnostics"), 0);
 
-    session.replace_document(&document_uri, 2, CLEARED_DIAGNOSTIC_SOURCE).await;
+    session.change(&document_uri, json!({ "text": CLEARED_DIAGNOSTIC_SOURCE })).await;
     let cleared = session
         .request(
             "textDocument/diagnostic",
@@ -693,13 +644,11 @@ async fn native_diagnostic_on_the_wire(source: &str, pull: bool, pull_data: bool
 #[tokio::test(flavor = "current_thread")]
 async fn did_open_before_initialize_is_not_observable() {
     let project = TestProject::new();
-    let root_uri = Url::from_file_path(project.root()).unwrap();
     let document_uri = project.uri("/Ghost.sol");
     let mut session = RawSession::start();
 
     session.open(&document_uri, "contract Ghost {}\n").await;
-    session.initialize(client_profile("Minimal LSP client"), &root_uri, &json!({})).await;
-    session.notify("initialized", json!({})).await;
+    session.initialize(client_profile("Minimal LSP client"), &project, &json!({})).await;
 
     let symbols = session.document_request("textDocument/documentSymbol", &document_uri).await;
     assert!(

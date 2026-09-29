@@ -4,6 +4,7 @@ use crate::{
     symbols::{SymbolTables, push_symbol_for_test as push},
     test_support::{
         assert_polls, document_params, expect_ready, from_json, request_params, state_with,
+        with_options,
     },
 };
 use lsp_types::{
@@ -78,7 +79,7 @@ fn symbol_requests_read_the_latest_symbol_tables() {
 #[test]
 fn semantic_requests_wait_for_analysis_only_for_file_uris() {
     let file = file_uri("Test.sol");
-    let untitled = parse_uri("untitled:Test.sol");
+    let untitled = Url::parse("untitled:Test.sol").unwrap();
 
     // Type hierarchy follow-ups use the item URI, not the URI stored in its data.
     for (uri, data_uri, pending) in [(&file, &untitled, true), (&untitled, &file, false)] {
@@ -132,11 +133,8 @@ fn latency_sensitive_requests_do_not_wait_for_analysis() {
             "clientCommands": true,
         }),
     ] {
-        let params_with_options = InitializeParams {
-            initialization_options: Some(json!({ "codeLens": code_lens_options })),
-            ..Default::default()
-        };
-        state.config = Arc::new(negotiate_capabilities(params_with_options).1);
+        let params = with_options(Default::default(), json!({ "codeLens": code_lens_options }));
+        state.config = Arc::new(negotiate_capabilities(params).1);
 
         let response = expect_ready(code_lens(&mut state, document_params(&uri))).unwrap();
         assert!(response.is_some_and(|lenses| lenses.is_empty()));
@@ -180,10 +178,6 @@ fn state_with_symbols(params: InitializeParams) -> GlobalState {
     let state = state_with(negotiate_capabilities(params).1);
     state.symbol_tables.store(Arc::new(tables));
     state
-}
-
-fn parse_uri(uri: &str) -> Url {
-    Url::parse(uri).unwrap()
 }
 
 fn file_uri(path: &str) -> Url {

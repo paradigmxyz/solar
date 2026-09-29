@@ -1,8 +1,9 @@
 use super::*;
 use crate::test_support::{
     ClientEvent, ClientHarness, LspPair, MarkedProject, TestProject, assert_request_cancelled,
-    from_json, pause_blocking_pool, quiet_client, single_blocking_worker_runtime, start_request,
-    with_capabilities, with_relative_watchers, within,
+    document_params, from_json, pause_blocking_pool, quiet_client, request_params,
+    single_blocking_worker_runtime, start_request, with_capabilities, with_relative_watchers,
+    within,
 };
 use async_lsp::{
     AnyEvent, AnyNotification, AnyRequest, ErrorCode, LspService, ResponseError, ServerSocket,
@@ -10,13 +11,15 @@ use async_lsp::{
 };
 use lsp_types::{
     CancelParams, CompletionResponse, DidChangeWorkspaceFoldersParams, FileChangeType,
-    InitializeParams, NumberOrString, RegistrationParams, SymbolKind, TextDocumentSaveReason,
-    UnregistrationParams, WorkDoneProgress, WorkDoneProgressCancelParams, WorkDoneProgressEnd,
-    WorkDoneProgressReport, WorkspaceFolder, WorkspaceFoldersChangeEvent, WorkspaceSymbolParams,
-    notification as notif, notification::Notification, request, request::Request,
+    InitializeParams, NumberOrString, Position, Registration, RegistrationParams, SymbolKind,
+    TextDocumentSaveReason, UnregistrationParams, Url, WorkDoneProgress,
+    WorkDoneProgressCancelParams, WorkDoneProgressEnd, WorkDoneProgressReport, WorkspaceFolder,
+    WorkspaceFoldersChangeEvent, WorkspaceSymbolParams, notification as notif,
+    notification::Notification, request, request::Request,
 };
 use serde_json::{Value, json};
 use std::{
+    future::Future,
     ops::ControlFlow,
     path::Path,
     task::{Context, Poll},
@@ -69,22 +72,24 @@ enum WatchedRegistrationClientEvent {
 fn watched_registration_client(
     events: mpsc::UnboundedSender<WatchedRegistrationClientEvent>,
 ) -> Router<mpsc::UnboundedSender<WatchedRegistrationClientEvent>> {
+    fn held<F: FnOnce(oneshot::Sender<()>) -> WatchedRegistrationClientEvent>(
+        events: &mpsc::UnboundedSender<WatchedRegistrationClientEvent>,
+        event: F,
+    ) -> impl Future<Output = Result<(), ResponseError>> + use<F> {
+        let (acknowledge, acknowledged) = oneshot::channel();
+        events.send(event(acknowledge)).unwrap();
+        async move {
+            acknowledged.await.unwrap();
+            Ok(())
+        }
+    }
+
     let mut router = Router::new(events);
     router.request::<request::RegisterCapability, _>(|events, params| {
-        let (acknowledge, acknowledged) = oneshot::channel();
-        events.send(WatchedRegistrationClientEvent::Register(params, acknowledge)).unwrap();
-        async move {
-            acknowledged.await.unwrap();
-            Ok(())
-        }
+        held(events, |acknowledge| WatchedRegistrationClientEvent::Register(params, acknowledge))
     });
     router.request::<request::UnregisterCapability, _>(|events, params| {
-        let (acknowledge, acknowledged) = oneshot::channel();
-        events.send(WatchedRegistrationClientEvent::Unregister(params, acknowledge)).unwrap();
-        async move {
-            acknowledged.await.unwrap();
-            Ok(())
-        }
+        held(events, |acknowledge| WatchedRegistrationClientEvent::Unregister(params, acknowledge))
     });
     router.notification::<notif::LogMessage>(|_, _| ControlFlow::Continue(()));
     router
@@ -124,12 +129,22 @@ async fn next_registration_for_root(
     }
 }
 
-fn watched_registration_watchers(params: &RegistrationParams) -> &[Value] {
+fn watched_id<'a>(id: &'a str, method: &str) -> &'a str {
+    assert!(id.starts_with("solar-watched-files-"));
+    assert_eq!(method, notif::DidChangeWatchedFiles::METHOD);
+    id
+}
+
+fn watched_registration(params: &RegistrationParams) -> &Registration {
     let [registration] = params.registrations.as_slice() else {
         panic!("expected one watched-file registration, got {params:?}")
     };
-    assert_eq!(registration.method, notif::DidChangeWatchedFiles::METHOD);
-    registration.register_options.as_ref().unwrap()["watchers"].as_array().unwrap()
+    watched_id(&registration.id, &registration.method);
+    registration
+}
+
+fn watched_registration_watchers(params: &RegistrationParams) -> &[Value] {
+    watched_registration(params).register_options.as_ref().unwrap()["watchers"].as_array().unwrap()
 }
 
 fn watched_registration_pattern_count(
@@ -137,7 +152,7 @@ fn watched_registration_pattern_count(
     root: &Path,
     pattern: &str,
 ) -> usize {
-    let root_uri = lsp_types::Url::from_file_path(root).unwrap().to_string();
+    let root_uri = Url::from_file_path(root).unwrap().to_string();
     watched_registration_watchers(params)
         .iter()
         .filter(|watcher| {
@@ -161,7 +176,7 @@ fn assert_watched_registration_root(params: &RegistrationParams, root: &Path) {
 }
 
 fn assert_watched_registration_excludes_root(params: &RegistrationParams, root: &Path) {
-    let root_uri = lsp_types::Url::from_file_path(root).unwrap().to_string();
+    let root_uri = Url::from_file_path(root).unwrap().to_string();
     assert!(
         watched_registration_watchers(params)
             .iter()
@@ -171,21 +186,14 @@ fn assert_watched_registration_excludes_root(params: &RegistrationParams, root: 
 }
 
 fn watched_registration_id(params: &RegistrationParams) -> &str {
-    let [registration] = params.registrations.as_slice() else {
-        panic!("expected one watched-file registration, got {params:?}")
-    };
-    assert!(registration.id.starts_with("solar-watched-files-"));
-    assert_eq!(registration.method, notif::DidChangeWatchedFiles::METHOD);
-    &registration.id
+    &watched_registration(params).id
 }
 
 fn watched_unregistration_id(params: &UnregistrationParams) -> &str {
     let [unregistration] = params.unregisterations.as_slice() else {
         panic!("expected one watched-file unregistration, got {params:?}")
     };
-    assert!(unregistration.id.starts_with("solar-watched-files-"));
-    assert_eq!(unregistration.method, notif::DidChangeWatchedFiles::METHOD);
-    &unregistration.id
+    watched_id(&unregistration.id, &unregistration.method)
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -389,7 +397,7 @@ async fn requests_use_one_identity_for_equivalent_file_uris() {
 
     let server = &session.server;
     for spelling in ["%54oken.sol", "/Token.sol", "nested%2F..%2FToken.sol"] {
-        let alias = lsp_types::Url::parse(&format!("{prefix}{spelling}")).unwrap();
+        let alias = Url::parse(&format!("{prefix}{spelling}")).unwrap();
         macro_rules! equivalent_response {
             ($request:ty, $params:expr) => {{
                 let mut params = $params;
@@ -472,26 +480,17 @@ async fn pending_analysis_requests_do_not_block_completion_or_cancellation() {
         |_| Router::new(()),
     );
     let server = &session.server;
-    let text_document = json!({ "textDocument": { "uri": uri } });
+    let mut accepted = async || within("request", accepted_rx.recv()).await.unwrap();
 
-    let document_symbols = start_request(
-        server.request::<request::DocumentSymbolRequest>(from_json(text_document.clone())),
-    );
-    assert_eq!(
-        within("request", accepted_rx.recv()).await.unwrap(),
-        request::DocumentSymbolRequest::METHOD
-    );
+    let document_symbols =
+        start_request(server.request::<request::DocumentSymbolRequest>(document_params(&uri)));
+    assert_eq!(accepted().await, request::DocumentSymbolRequest::METHOD);
     let document_links =
-        start_request(server.request::<request::DocumentLinkRequest>(from_json(text_document)));
-    assert_eq!(
-        within("request", accepted_rx.recv()).await.unwrap(),
-        request::DocumentLinkRequest::METHOD
-    );
+        start_request(server.request::<request::DocumentLinkRequest>(document_params(&uri)));
+    assert_eq!(accepted().await, request::DocumentLinkRequest::METHOD);
 
-    let completion_params =
-        json!({ "textDocument": { "uri": uri }, "position": { "line": 0, "character": 3 } });
-    let completion =
-        start_request(server.request::<request::Completion>(from_json(completion_params)));
+    let completion_params = request_params(&uri, Position::new(0, 3), json!({}));
+    let completion = start_request(server.request::<request::Completion>(completion_params));
     server.notify::<notif::Cancel>(CancelParams { id: NumberOrString::Number(0) }).unwrap();
     server.notify::<notif::Cancel>(CancelParams { id: NumberOrString::Number(1) }).unwrap();
 
@@ -613,7 +612,7 @@ async fn watched_file_reregistration_keeps_latest_workspace_folders() {
         std::fs::create_dir(path).unwrap();
     }
     let workspace_folder = |path: &Path, name: &str| WorkspaceFolder {
-        uri: lsp_types::Url::from_file_path(path).unwrap(),
+        uri: Url::from_file_path(path).unwrap(),
         name: name.into(),
     };
     let initial = workspace_folder(&initial_path, "initial");
@@ -627,17 +626,14 @@ async fn watched_file_reregistration_keeps_latest_workspace_folders() {
     let session = LspPair::spawn(new_router, move |_| watched_registration_client(events_tx));
     session.initialize(watched_initialize_params(&project, "/initial")).await;
 
-    let (params, acknowledge) = next_registration_for_root(&mut events_rx, &initial_path).await;
-    watched_registration_id(&params);
+    let (_, acknowledge) = next_registration_for_root(&mut events_rx, &initial_path).await;
     acknowledge.send(()).unwrap();
 
     let server = &session.server;
     server
         .notify::<notif::DidChangeWorkspaceFolders>(change_folders(stale.clone(), initial))
         .unwrap();
-    let (stale_params, stale_register) =
-        next_registration_for_root(&mut events_rx, &stale_path).await;
-    watched_registration_id(&stale_params);
+    let (_, stale_register) = next_registration_for_root(&mut events_rx, &stale_path).await;
 
     server.notify::<notif::DidChangeWorkspaceFolders>(change_folders(latest, stale)).unwrap();
     stale_register.send(()).unwrap();
@@ -685,7 +681,7 @@ async fn watched_file_reregistration_follows_workspace_root_file_operations() {
     let old_root = project.path("/old");
     let new_root = project.path("/new");
     std::fs::create_dir(&old_root).unwrap();
-    let file_uri = |path: &Path| lsp_types::Url::from_file_path(path).unwrap().to_string();
+    let file_uri = |path: &Path| Url::from_file_path(path).unwrap().to_string();
 
     let (events_tx, mut events_rx) = mpsc::unbounded_channel();
     let session = LspPair::spawn(new_router, move |_| watched_registration_client(events_tx));

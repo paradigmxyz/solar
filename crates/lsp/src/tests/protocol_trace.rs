@@ -3,16 +3,17 @@ use crate::{
     global_state::GlobalState,
     new_router_with_state, new_server_service, new_server_service_with_router,
     protocol_trace::{ProtocolTrace, ProtocolTraceLayer},
-    test_support::{ClientHarness, assert_request_cancelled, start_request, within},
+    test_support::{ClientHarness, assert_request_cancelled, from_json, start_request, within},
 };
-use async_lsp::{AnyEvent, AnyNotification, AnyRequest, LspService, ResponseError, router::Router};
+use async_lsp::{
+    AnyEvent, AnyNotification, AnyRequest, ErrorCode, LspService, ResponseError, router::Router,
+};
 use lsp_types::{
     CancelParams, InitializeParams, InitializeResult, LogTraceParams, NumberOrString,
-    SetTraceParams, TextDocumentIdentifier, TextDocumentSaveReason, TraceValue,
-    WillSaveTextDocumentParams, WorkspaceSymbolParams, notification as notif, request,
-    request::Request,
+    SetTraceParams, TextDocumentSaveReason, TraceValue, WorkspaceSymbolParams,
+    notification as notif, request, request::Request,
 };
-use serde_json::json;
+use serde_json::{Value, json};
 use std::{
     future::Future,
     ops::ControlFlow,
@@ -22,41 +23,23 @@ use std::{
 use tokio::sync::oneshot;
 use tower::{Service, ServiceBuilder};
 
-enum SensitiveTraceRequest {}
+macro_rules! test_request {
+    ($name:ident, $method:literal, $ty:ty) => {
+        enum $name {}
 
-impl Request for SensitiveTraceRequest {
-    type Params = serde_json::Value;
-    type Result = serde_json::Value;
+        impl Request for $name {
+            type Params = $ty;
+            type Result = $ty;
 
-    const METHOD: &'static str = "/workspace/Secret.sol";
+            const METHOD: &'static str = $method;
+        }
+    };
 }
 
-enum SensitiveTraceResultRequest {}
-
-impl Request for SensitiveTraceResultRequest {
-    type Params = serde_json::Value;
-    type Result = serde_json::Value;
-
-    const METHOD: &'static str = "test/sensitiveResult";
-}
-
-enum PendingTraceRequest {}
-
-impl Request for PendingTraceRequest {
-    type Params = ();
-    type Result = ();
-
-    const METHOD: &'static str = "test/pendingTrace";
-}
-
-enum TraceBarrierRequest {}
-
-impl Request for TraceBarrierRequest {
-    type Params = ();
-    type Result = ();
-
-    const METHOD: &'static str = "test/traceBarrier";
-}
+test_request!(SensitiveTraceRequest, "/workspace/Secret.sol", Value);
+test_request!(SensitiveTraceResultRequest, "test/sensitiveResult", Value);
+test_request!(PendingTraceRequest, "test/pendingTrace", ());
+test_request!(TraceBarrierRequest, "test/traceBarrier", ());
 
 struct PendingTraceControl {
     entered: oneshot::Sender<NumberOrString>,
@@ -69,10 +52,9 @@ struct ProtocolTraceTestRouter {
 }
 
 impl Service<AnyRequest> for ProtocolTraceTestRouter {
-    type Response = serde_json::Value;
+    type Response = Value;
     type Error = ResponseError;
-    type Future =
-        Pin<Box<dyn Future<Output = Result<serde_json::Value, ResponseError>> + Send + 'static>>;
+    type Future = Pin<Box<dyn Future<Output = Result<Value, ResponseError>> + Send + 'static>>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.inner.poll_ready(cx)
@@ -82,18 +64,16 @@ impl Service<AnyRequest> for ProtocolTraceTestRouter {
         match &*request.method {
             SensitiveTraceRequest::METHOD => {
                 Box::pin(std::future::ready(Err(ResponseError::new_with_data(
-                    async_lsp::ErrorCode::REQUEST_FAILED,
+                    ErrorCode::REQUEST_FAILED,
                     "error-message-secret",
-                    serde_json::json!({ "token": "error-data-secret" }),
+                    json!({ "token": "error-data-secret" }),
                 ))))
             }
-            SensitiveTraceResultRequest::METHOD => {
-                Box::pin(std::future::ready(Ok(serde_json::json!({
-                    "uri": "file:///workspace/ResultSecret.sol",
-                    "text": "contract ResultSecret {}",
-                    "token": "result-token-secret",
-                }))))
-            }
+            SensitiveTraceResultRequest::METHOD => Box::pin(std::future::ready(Ok(json!({
+                "uri": "file:///workspace/ResultSecret.sol",
+                "text": "contract ResultSecret {}",
+                "token": "result-token-secret",
+            })))),
             PendingTraceRequest::METHOD => {
                 let request_id = request.id.clone();
                 let PendingTraceControl { entered, release } =
@@ -101,12 +81,10 @@ impl Service<AnyRequest> for ProtocolTraceTestRouter {
                 Box::pin(async move {
                     entered.send(request_id).expect("pending trace receiver should be open");
                     release.await.expect("pending trace request should be released");
-                    Ok(serde_json::Value::Null)
+                    Ok(Value::Null)
                 })
             }
-            TraceBarrierRequest::METHOD => {
-                Box::pin(std::future::ready(Ok(serde_json::Value::Null)))
-            }
+            TraceBarrierRequest::METHOD => Box::pin(std::future::ready(Ok(Value::Null))),
             _ => self.inner.call(request),
         }
     }
@@ -173,6 +151,14 @@ async fn pending_trace_harness()
     (harness, request_entered, release_request)
 }
 
+#[track_caller]
+fn response_error<T: std::fmt::Debug>(result: async_lsp::Result<T>) -> ResponseError {
+    match result {
+        Err(async_lsp::Error::Response(error)) => error,
+        result => panic!("expected a response error, got {result:?}"),
+    }
+}
+
 fn trace(message: &str) -> LogTraceParams {
     LogTraceParams { message: message.into(), verbose: None }
 }
@@ -203,14 +189,13 @@ async fn completion_trace_precedes_the_response_on_the_wire() {
     });
     harness.server().request::<request::Initialize>(InitializeParams::default()).await.unwrap();
 
-    let error = harness.server().request::<TraceBarrierRequest>(()).await.unwrap_err();
+    let error = response_error(harness.server().request::<TraceBarrierRequest>(()).await);
     // The client loop handles the trace before the response frame that follows it.
     assert_eq!(
         harness.take_traces(),
         [trace("Server completed request `test/traceBarrier` with an error")]
     );
-    let async_lsp::Error::Response(error) = error else { panic!("expected response error") };
-    assert_eq!(error.code, async_lsp::ErrorCode::METHOD_NOT_FOUND);
+    assert_eq!(error.code, ErrorCode::METHOD_NOT_FOUND);
     harness.exit().await;
 }
 
@@ -218,17 +203,17 @@ async fn completion_trace_precedes_the_response_on_the_wire() {
 async fn set_trace_updates_request_detail_without_tracing_notifications() {
     let mut harness = protocol_trace_harness();
     initialize(&harness, None).await;
-    let will_save = WillSaveTextDocumentParams {
-        text_document: TextDocumentIdentifier {
-            uri: lsp_types::Url::parse("file:///workspace/Secret.sol").unwrap(),
-        },
-        reason: TextDocumentSaveReason::MANUAL,
-    };
+    let text_document = json!({ "uri": "file:///workspace/Secret.sol" });
+    let will_save =
+        json!({ "textDocument": text_document, "reason": TextDocumentSaveReason::MANUAL });
 
     for level in [TraceValue::Messages, TraceValue::Verbose, TraceValue::Messages, TraceValue::Off]
     {
         set_trace(&harness, level);
-        harness.server().notify::<notif::WillSaveTextDocument>(will_save.clone()).unwrap();
+        harness
+            .server()
+            .notify::<notif::WillSaveTextDocument>(from_json(will_save.clone()))
+            .unwrap();
         workspace_symbols(&harness).await;
     }
     harness.probe().await;
@@ -249,11 +234,8 @@ async fn set_trace_updates_request_detail_without_tracing_notifications() {
 async fn set_trace_before_initialize_does_not_emit_server_traces() {
     let mut harness = protocol_trace_test_harness(None);
     set_trace(&harness, TraceValue::Messages);
-    let error = harness.server().request::<TraceBarrierRequest>(()).await.unwrap_err();
-    let async_lsp::Error::Response(error) = error else {
-        panic!("expected a server-not-initialized response, got {error:?}");
-    };
-    assert_eq!(error.code, async_lsp::ErrorCode::SERVER_NOT_INITIALIZED);
+    let error = response_error(harness.server().request::<TraceBarrierRequest>(()).await);
+    assert_eq!(error.code, ErrorCode::SERVER_NOT_INITIALIZED);
 
     initialize(&harness, None).await;
     harness.probe().await;
@@ -353,20 +335,14 @@ async fn verbose_request_traces_report_timing_without_sensitive_data() {
     initialize(&harness, None).await;
     set_trace(&harness, TraceValue::Verbose);
 
-    let error = harness
-        .server()
-        .request::<SensitiveTraceRequest>(json!({
-            "uri": "file:///workspace/Secret.sol",
-            "text": SOURCE_SECRET,
-            "environment": { "API_TOKEN": ENV_SECRET },
-            "query": QUERY_SECRET,
-        }))
-        .await
-        .unwrap_err();
-    let async_lsp::Error::Response(error) = error else {
-        panic!("expected a request-failed response, got {error:?}");
-    };
-    assert_eq!(error.code, async_lsp::ErrorCode::REQUEST_FAILED);
+    let params = json!({
+        "uri": "file:///workspace/Secret.sol",
+        "text": SOURCE_SECRET,
+        "environment": { "API_TOKEN": ENV_SECRET },
+        "query": QUERY_SECRET,
+    });
+    let error = response_error(harness.server().request::<SensitiveTraceRequest>(params).await);
+    assert_eq!(error.code, ErrorCode::REQUEST_FAILED);
     assert_eq!(error.message, ERROR_MESSAGE_SECRET);
     assert_eq!(error.data, Some(json!({ "token": ERROR_DATA_SECRET })));
     let result = harness

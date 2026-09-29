@@ -34,8 +34,7 @@ fn rediscover(state: &mut GlobalState) {
 #[tokio::test(flavor = "current_thread")]
 async fn launch_config_supplies_the_default_forge_path() {
     let config = LaunchConfig::from(LspArgs { stdio: true });
-    let mut state = GlobalState::new(ClientSocket::new_closed()).with_launch_config(config);
-    state.on_initialize(InitializeParams::default()).await.unwrap();
+    let state = initialized_state(config, InitializeParams::default()).await;
     assert_eq!(state.config.forge_path(), Path::new("forge"));
 
     let observed_path = Arc::new(Mutex::new(None::<PathBuf>));
@@ -386,9 +385,8 @@ async fn host_foundry_workspace_config_loader_rejects_invalid_roots_without_pani
         };
         Ok::<_, String>(FoundryWorkspaceConfig::new(root).with_source_roots(["src"]))
     });
-    let mut state = GlobalState::new(ClientSocket::new_closed()).with_launch_config(config);
-    state.on_initialize(project.initialize_params()).await.unwrap();
-    for _ in 0..3 {
+    let mut state = initialized_state(config, project.initialize_params()).await;
+    for _ in 0..2 {
         rediscover(&mut state);
     }
 
