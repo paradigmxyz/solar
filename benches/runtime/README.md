@@ -268,3 +268,104 @@ measure storage writes, reads, and empty, short, and 1 KiB byte echoes through t
 proxy. Runtime checks compare the stored value and returned bytes across compilers.
 Runtime size measures the proxy alone;
 creation size and deployment gas include the helper implementation.
+
+## Reproducing oksolc via-IR failures
+
+These commands reproduce the three full-project failures observed with oksolc
+`c4c4bee13526a888107fee3ec11bebeed96d4010` on Ubuntu 24.04 x86-64. Start from
+[Solar PR #1601](https://github.com/paradigmxyz/solar/pull/1601):
+
+```sh
+git clone --depth 1 --branch dani/bench-oksolc https://github.com/paradigmxyz/solar.git solar-oksolc-repro
+cd solar-oksolc-repro
+```
+
+Install Zig 0.16.0 and uv, and put them on `PATH`. GNU `/usr/bin/time` is needed
+for peak RSS measurements. No Solar build, Foundry, or JavaScript tools are needed.
+Build the same compiler-only executable as CI:
+
+```sh
+mkdir -p target/oksolc-repro/source
+git -C target/oksolc-repro/source init
+git -C target/oksolc-repro/source fetch --depth 1 https://github.com/okcontract/oksolc.git c4c4bee13526a888107fee3ec11bebeed96d4010
+git -C target/oksolc-repro/source checkout --detach FETCH_HEAD
+uv run --no-project --python "$(cat .python-version)" python - <<'PY'
+from pathlib import Path
+path = Path("target/oksolc-repro/source/build.zig")
+source = path.read_text()
+browser = '@import("build_support/browser.zig").build(b, cli_module);'
+assert source.count(browser) == 1, "oksolc browser build hook changed"
+source = source.replace(browser, 'cli_module.addAnonymousImport("browser_app", .{ .root_source_file = b.addWriteFiles().add("app.js", "") });')
+path.write_text(source)
+PY
+zig build --build-file target/oksolc-repro/source/build.zig build-cli \
+  -Doptimize=ReleaseFast -Dcpu=baseline -j4 \
+  --prefix "$PWD/target/oksolc-repro/install"
+```
+
+Generate inputs from the branch's checked-in project archives, changing only
+`settings.viaIR` to `true`. Optimizer settings, EVM targets, source contents, and
+output selections stay unchanged:
+
+```sh
+uv run --no-project --python "$(cat .python-version)" python - <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+sys.path.insert(0, "benches/runtime")
+import benchmark
+
+selected = {"seaport-1.6-project", "solady-0.1.26-project", "openzeppelin-5.6.1-project"}
+root = Path("target/oksolc-repro/inputs")
+root.mkdir(parents=True, exist_ok=True)
+for case in benchmark.TEST_CASES:
+    if case.test_id not in selected:
+        continue
+    text, _, _ = benchmark.compiler_input(case, None)
+    payload = json.loads(text)
+    payload["settings"]["viaIR"] = True
+    text = json.dumps(payload)
+    (root / f"{case.test_id}.json").write_text(text)
+    print(case.test_id, hashlib.sha256(text.encode()).hexdigest())
+PY
+```
+
+Run each compiler request directly, with the persistent compiler cache disabled
+and eight workers. Each input embeds its sources, so no import checkout is needed.
+The OpenZeppelin case reached 53,631,016,960 bytes of peak RSS (about 50 GiB) before
+exiting 137 locally; that exit status alone does not establish why it was killed.
+
+```sh
+mkdir -p target/oksolc-repro/outputs
+for case in seaport-1.6-project solady-0.1.26-project openzeppelin-5.6.1-project; do
+  status=0
+  /usr/bin/time -v -o "target/oksolc-repro/outputs/$case.time.txt" \
+    target/oksolc-repro/install/bin/oksolc standard-json --no-cache --parallel --jobs 8 - \
+    < "target/oksolc-repro/inputs/$case.json" \
+    > "target/oksolc-repro/outputs/$case.json" \
+    2> "target/oksolc-repro/outputs/$case.stderr" || status=$?
+  printf '%s: exit status %s\n' "$case" "$status"
+done
+```
+
+Inspect both stderr and the output JSON's `errors` array: a zero process exit
+status does not mean compilation succeeded. Observed results:
+
+| Input | Sources | EVM target | Optimizer runs | Result |
+| --- | ---: | --- | ---: | --- |
+| `seaport-1.6-project` | 386 | london | 4294967295 | Yul stack-depth error for `var_parameters_offset` |
+| `solady-0.1.26-project` | 208 | paris | 1000 | `error: InternalFailure` |
+| `openzeppelin-5.6.1-project` | 390 | osaka | 200 | Exit 137, empty stdout/stderr, about 50 GiB peak RSS |
+
+Expected input SHA-256 hashes:
+
+```text
+seaport-1.6-project       a0ab0392e351b34cdcf06a9b981e556c41124119dc0333830ee317c23fa5c5c5
+solady-0.1.26-project     c6f7fda591cc00d880fcd21e18da99b4fab4bcd2fc9309cea78b853b62a2f53f
+openzeppelin-5.6.1-project 666aacb77d7fdf356de4fcabc93a230e6daccb642e1857b41c8c727ee2cf33d6
+```
+
+These are full-project reproducers, not reduced cases. Nine of the twelve cases
+that previously failed compilation or helper-contract checks passed after enabling
+via-IR, including all five runtime cases. These three remained unsuccessful.
