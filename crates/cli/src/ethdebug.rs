@@ -218,7 +218,7 @@ pub(crate) fn make_ethdebug_compilation(
         append_length_prefixed(&mut identity, &source.language);
     }
     let digest = alloy_primitives::keccak256(identity.as_bytes());
-    let id = format!("solar-{}", alloy_primitives::hex::encode(digest.as_slice()));
+    let id = format!("solar-{}", alloy_primitives::hex::display(digest));
 
     EthdebugCompilation {
         id: EthdebugId::Text(id),
@@ -278,7 +278,7 @@ pub(crate) fn make_ethdebug_program(
                 // until linking, instead of exposing the backend's placeholder
                 // bytes as an address that can become stale after linking.
                 .filter(|_| !unlinked_arguments.contains(&(instruction.offset as usize + 1)))
-                .map(|argument| format!("0x{}", alloy_primitives::hex::encode(argument)))
+                .map(|argument| format!("0x{}", alloy_primitives::hex::display(argument)))
                 .into_iter()
                 .collect();
             EthdebugInstruction {

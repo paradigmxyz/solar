@@ -102,6 +102,11 @@ impl CallGraphInfo {
         component
     }
 
+    /// Returns the functions `func` calls or tail-calls directly, in ascending order.
+    pub(crate) fn callees(&self, func: FunctionId) -> impl Iterator<Item = FunctionId> + '_ {
+        self.callees.get(&func).into_iter().flatten()
+    }
+
     /// Returns functions reachable from `roots` through MIR call edges.
     #[must_use]
     pub(crate) fn reachable_callees_from(

@@ -138,15 +138,15 @@ impl RunCall {
                 "`{}` failed with {}: 0x{}",
                 display_call(&self.call, call.function),
                 actual.stop,
-                hex::encode(actual.output)
+                hex::display(actual.output)
             ));
         }
         if actual.output != call.expected {
             return Err(format!(
                 "`{}` returned 0x{}, expected 0x{}",
                 display_call(&self.call, call.function),
-                hex::encode(actual.output),
-                hex::encode(call.expected)
+                hex::display(actual.output),
+                hex::display(call.expected)
             ));
         }
         Ok(())
@@ -194,15 +194,15 @@ impl RunCallFail {
             return Err(format!(
                 "`{}` succeeded with 0x{}, expected failure",
                 display_call(&self.call, call.function),
-                hex::encode(actual.output)
+                hex::display(actual.output)
             ));
         }
         if actual.output != call.expected {
             return Err(format!(
                 "`{}` reverted with 0x{}, expected 0x{}",
                 display_call(&self.call, call.function),
-                hex::encode(actual.output),
-                hex::encode(call.expected)
+                hex::display(actual.output),
+                hex::display(call.expected)
             ));
         }
         Ok(())
@@ -710,7 +710,7 @@ fn execute(
         return Err(format!(
             "contract deployment failed with {:?}: 0x{}",
             result.stop,
-            hex::encode(result.output)
+            hex::display(result.output)
         ));
     }
     let contract = result
@@ -732,7 +732,7 @@ fn execute(
             return Err(format!(
                 "`setUp()` failed with {}: 0x{}",
                 result.stop,
-                hex::encode(result.output)
+                hex::display(result.output)
             ));
         }
     }

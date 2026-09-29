@@ -19,7 +19,7 @@ use crate::mir::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
-    bit_set::DenseBitSet,
+    bit_set::{BitMatrix, DenseBitSet},
     index::{IndexVec, index_vec},
     map::FxHashSet,
 };
@@ -402,22 +402,11 @@ impl MemoryCallSummaries {
     /// Computes summaries to a monotone fixpoint over the module call graph.
     #[must_use]
     pub(crate) fn new(module: &Module) -> Self {
+        let calls = CallGraphInfo::new(module);
         let mut targets = DenseBitSet::new_empty(module.functions.len());
-        for func in &module.functions {
-            for inst in func.instructions() {
-                if let InstKind::ICall { function: Callee::Function(function), .. } =
-                    func.inst(inst).kind
-                    && module.functions.get(function).is_some()
-                {
-                    targets.insert(function);
-                }
-            }
-            for block in &func.blocks {
-                if let Some(Terminator::TailCall { function, .. }) = &block.terminator
-                    && module.functions.get(*function).is_some()
-                {
-                    targets.insert(*function);
-                }
+        for caller in module.functions.indices() {
+            for callee in calls.callees(caller) {
+                targets.insert(callee);
             }
         }
         if targets.is_empty() {
@@ -432,7 +421,6 @@ impl MemoryCallSummaries {
                 targets.contains(id).then(|| (parameter_sources(func), AliasAnalysis::new(func)))
             })
             .collect::<IndexVec<FunctionId, _>>();
-        let calls = CallGraphInfo::new(module);
         let mut local = index_vec![None; module.functions.len()];
         for func_id in &targets {
             let func = &module.functions[func_id];
@@ -444,28 +432,12 @@ impl MemoryCallSummaries {
         }
         let mut summaries = local.clone();
 
+        // Ascending callers per target, each listed once.
         let mut callers = index_vec![Vec::new(); module.functions.len()];
         for caller in &targets {
-            let func = &module.functions[caller];
-            for inst_id in func.instructions() {
-                if let InstKind::ICall { function: Callee::Function(function), .. } =
-                    func.inst(inst_id).kind
-                    && let Some(function_callers) = callers.get_mut(function)
-                {
-                    function_callers.push(caller);
-                }
+            for callee in calls.callees(caller) {
+                callers[callee].push(caller);
             }
-            for block in &func.blocks {
-                if let Some(Terminator::TailCall { function, .. }) = &block.terminator
-                    && let Some(function_callers) = callers.get_mut(*function)
-                {
-                    function_callers.push(caller);
-                }
-            }
-        }
-        for function_callers in &mut callers {
-            function_callers.sort_unstable();
-            function_callers.dedup();
         }
 
         let mut worklist = targets.iter().collect::<VecDeque<_>>();
@@ -528,7 +500,7 @@ fn merge_call(
     func: &Function,
     callee: Option<&FunctionMemorySummary>,
     args: &[ValueId],
-    sources: &IndexVec<ValueId, DenseBitSet<ArgIdx>>,
+    sources: &BitMatrix<ValueId, ArgIdx>,
     aa: &AliasAnalysis,
 ) {
     let conservative;
@@ -574,7 +546,7 @@ const fn space_index(space: AddressSpace) -> usize {
 fn local_summary(
     module: &Module,
     func: &Function,
-    sources: &IndexVec<ValueId, DenseBitSet<ArgIdx>>,
+    sources: &BitMatrix<ValueId, ArgIdx>,
     aa: &AliasAnalysis,
 ) -> FunctionMemorySummary {
     if func.blocks.is_empty() {
@@ -808,7 +780,7 @@ fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
 fn observe_sources(
     summary: &mut FunctionMemorySummary,
     func: &Function,
-    sources: &IndexVec<ValueId, DenseBitSet<ArgIdx>>,
+    sources: &BitMatrix<ValueId, ArgIdx>,
     value: ValueId,
 ) {
     if let Value::Arg(index) = func.value(value)
@@ -816,7 +788,9 @@ fn observe_sources(
     {
         summary.observes.insert(*index);
     }
-    summary.observes.union(&sources[value]);
+    for index in sources.iter(value) {
+        summary.observes.insert(index);
+    }
 }
 
 /// Returns whether an instruction reads the free-memory pointer or the memory size directly.
@@ -955,7 +929,7 @@ fn is_nonnegative_offset(func: &Function, value: ValueId) -> bool {
 fn capture_sources(
     summary: &mut FunctionMemorySummary,
     func: &Function,
-    sources: &IndexVec<ValueId, DenseBitSet<ArgIdx>>,
+    sources: &BitMatrix<ValueId, ArgIdx>,
     value: ValueId,
 ) {
     if let Value::Arg(index) = func.value(value)
@@ -963,7 +937,9 @@ fn capture_sources(
     {
         summary.captures.insert(*index);
     }
-    summary.captures.union(&sources[value]);
+    for index in sources.iter(value) {
+        summary.captures.insert(index);
+    }
 }
 
 /// Tracks which parameters a value is derived from.
@@ -971,9 +947,9 @@ fn capture_sources(
 /// Capture summaries follow pointer-preserving computations: a helper can
 /// return an arithmetic or bitwise identity of a pointer parameter. Direct
 /// argument sources are handled lazily while propagating or capturing.
-fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> {
+fn parameter_sources(func: &Function) -> BitMatrix<ValueId, ArgIdx> {
     let params = func.params.len();
-    let mut sources = IndexVec::from_vec(vec![DenseBitSet::new_empty(params); func.num_values()]);
+    let mut sources = BitMatrix::new(func.num_values(), params);
     if params == 0 {
         return sources;
     }
@@ -988,7 +964,7 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> 
             edges.push((operand, result));
             if let Value::Arg(index) = func.value(operand)
                 && index.index() < params
-                && sources[operand].insert(*index)
+                && sources.insert(operand, *index)
                 && queued.insert(operand)
             {
                 worklist.push_back(operand);
@@ -1005,9 +981,8 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> 
 
     while let Some(value) = worklist.pop_front() {
         queued.remove(value);
-        let propagated = sources[value].clone();
         for &user in users.get(value) {
-            if sources[user].union(&propagated) && queued.insert(user) {
+            if sources.union_rows(value, user) && queued.insert(user) {
                 worklist.push_back(user);
             }
         }
