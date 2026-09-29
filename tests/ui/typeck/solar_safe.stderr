@@ -106,6 +106,62 @@ LL │ /// @custom:solar-safe
    ├ note: it runs this through `Base.run` → `Safe.hook`
    ╰ help: write it without assembly, or review it and tag its function `@custom:solar-trusted`
 
+error: `SafeCreation` is tagged `@custom:solar-safe` but runs wrapping arithmetic
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │     uint256 internal inherited = Math.wrappingAdd(1, 1);
+   │                                  ━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this when it is created
+   ╰ help: use checked arithmetic, or review it and tag its contract `@custom:solar-trusted`
+
+error: `SafeCreation` is tagged `@custom:solar-safe` but runs wrapping arithmetic
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │     uint256 private seeded = Math.wrappingSub(1, 2);
+   │                              ━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this when it is created
+   ╰ help: use checked arithmetic, or review it and tag its contract `@custom:solar-trusted`
+
+error: `SafeCreation` is tagged `@custom:solar-safe` but runs wrapping arithmetic
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │     function(uint256, uint256) internal pure returns (uint256) private op = Math.wrappingAdd;
+   │                                                                             ━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this when it is created
+   ╰ help: use checked arithmetic, or review it and tag its contract `@custom:solar-trusted`
+
+error: `SafeCreation` is tagged `@custom:solar-safe` but runs wrapping arithmetic
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ contract SafeCreation is WrappingState, ReviewedState, WrappingBase(Math.wrappingMul(2, 3)) {
+   │                                                                     ━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this when it is created
+   ╰ help: use checked arithmetic, or review it and tag its contract `@custom:solar-trusted`
+
 error: `MemoryOnly` is tagged `@custom:solar-safe` but runs inline assembly
    ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
    │
@@ -156,5 +212,5 @@ LL │ /// @custom:solar-safe everything
    │
    ╰ help: the properties are `memory` and `arithmetic`; naming none requires both
 
-error: aborting due to 13 previous errors
+error: aborting due to 17 previous errors
 
