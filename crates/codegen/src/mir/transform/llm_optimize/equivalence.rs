@@ -12,38 +12,62 @@
 //!   original never writes may belong to another function; a scratch word may be one a caller keeps
 //!   across the call.
 //! - When the original returns, the bytes it wrote must end with the same contents.
+//! - When the original returns or ends the call without reverting, the candidate may only write
+//!   persistent and transient storage slots the original writes, every slot the original writes
+//!   must end with the same value, and both must log the same events in the same order. A write the
+//!   original does not make would also fail in a static call, where the original succeeds.
 //!
-//! The inputs must also exercise the code. Every reachable block must run to its terminator, and
-//! every decision must come out both true and false, on some input: in the original, or the
-//! function is not tested at all, and in the candidate, or it is rejected. Decisions are the
-//! comparisons and the `and`, `or`, and `xor` of boolean words, which is how if-converted code
+//! The inputs must also exercise the code. Every reachable block must run to its terminator, every
+//! decision must come out both true and false, and every other value must come out nonzero, on
+//! some input: in the original, or the function is not tested at all, and in the candidate, or it
+//! is rejected. A revert discards what its run wrote, so a block from which the function can end
+//! without reverting, and each of its values, only count in runs that do not revert. Decisions are
+//! the comparisons and the `and`, `or`, and `xor` of boolean words, which is how if-converted code
 //! combines them. They matter beyond blocks because such code decides without branching: a check
-//! that never comes out true would hide every change to what depends on it.
+//! that never comes out true would hide every change to what depends on it. A value that is zero on
+//! every input hides changes the same way, as on a path the tests only complete with null pointers,
+//! where every field it loads and masks is zero.
 //!
 //! # Inputs
 //!
 //! Constants come from the function and every function it can call, with their neighbors and, for
-//! `bytesN`-style comparisons, their left-aligned forms. Arguments mix powers of two, their
+//! `bytesN`-style comparisons, their left-aligned forms. Arguments mix zero; powers of two, their
 //! neighbors, and their negations; constants; small numbers; words near the free memory pointer;
 //! repeats of earlier arguments for aliasing; and random words, each masked to its type so that it
 //! holds the clean bits the type promises. `memptr` arguments point near the free memory pointer.
-//! Probes then place each constant in each word argument of an earlier input.
+//! Probes then place each constant in each word argument of an earlier input and, for functions
+//! that read storage or their context, make each constant every answer of the world, or half of
+//! them.
 //!
 //! Memory holds seeded garbage except for the zero word at `0x60`, the free memory pointer at
 //! `0x40`, which varies from `0x80` up and is sometimes unaligned, and the objects at pointer
 //! arguments: a small length or a constant, which keeps loops short, followed by small numbers
-//! such as flags, and constants. Memory starts as large as the free memory pointer.
+//! such as flags, and constants. Memory starts as large as the free memory pointer. Its garbage
+//! holds small numbers, addresses near the heap start, and constants as well as random words, so
+//! that chains of loads through pointers reach nested objects.
+//!
+//! Each input also has a world derived from its seed, which answers storage and context reads: a
+//! storage slot or context value is zero, a small number, a constant, one of the input's
+//! arguments, the caller, or a random word, cut to the width the value has on chain, such as 160
+//! bits for addresses. Transient storage is zero more often, as every transaction starts it
+//! empty. The tests answer no reads of code sizes or hashes: a rewrite changes the contract's own
+//! code, and with it what such reads return on chain.
 //!
 //! Testing is not proof: a difference on an input no generator reaches goes unnoticed.
 
 use super::cost::{GasMeter, code_bytes};
 use crate::{
+    backend::evm::op,
     llm::{CostReport, Stage},
     mir::{
-        BlockId, Function, FunctionId, InstId, InstKind, MirType, Module, Value, ValueId,
+        BlockId, Function, FunctionId, InstId, InstKind, MirType, Module, Terminator, Value,
+        ValueId,
         analysis::{CallGraphInfo, CfgInfo},
         memory::EvmMemoryLayout,
-        utils::interp::{Execution, Limit, Limits, MEMORY_LIMIT, Machine, Memory, Outcome, mix64},
+        utils::interp::{
+            self, Execution, Host, Limit, Limits, Log, MEMORY_LIMIT, Machine, Memory, Outcome,
+            mix64,
+        },
     },
     target::Target,
 };
@@ -52,9 +76,9 @@ use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
-    map::FxHashSet,
+    map::{FxHashMap, FxHashSet},
 };
-use std::fmt::Write;
+use std::{fmt::Write, sync::Arc};
 
 /// Runs of the original that must finish before its tests count.
 const MIN_FINISHED_RUNS: usize = 16;
@@ -66,6 +90,8 @@ const DEPTH: usize = 64;
 const MAX_CONSTANT_INPUTS: usize = 64;
 /// The most probes placing the original's constants in its arguments.
 const MAX_PROBES: usize = 512;
+/// The most constants that probes place in the original's storage and context, three probes each.
+const MAX_WORLD_PROBES: usize = 128;
 /// The most words of the object at a pointer argument that inputs seed.
 const OBJECT_WORDS: u64 = 8;
 /// The most memory, in words, a run may grow by and still price the function: 64 KiB. Runs that
@@ -74,6 +100,36 @@ const OBJECT_WORDS: u64 = 8;
 const PRICED_GROWTH_WORDS: u64 = 2048;
 /// The longest payload a report spells out, in bytes.
 const MAX_REPORTED_BYTES: usize = 68;
+/// The most storage and context reads a counterexample lists.
+const MAX_REPORTED_READS: usize = 8;
+
+/// The context reads the tests answer: all a host can answer except the sizes and hashes of code,
+/// which a rewrite changes for the contract's own code.
+const CONTEXT: [u8; 18] = [
+    op::ADDRESS,
+    op::BALANCE,
+    op::ORIGIN,
+    op::CALLER,
+    op::CALLVALUE,
+    op::GASPRICE,
+    op::BLOCKHASH,
+    op::COINBASE,
+    op::TIMESTAMP,
+    op::NUMBER,
+    op::PREVRANDAO,
+    op::GASLIMIT,
+    op::CHAINID,
+    op::SELFBALANCE,
+    op::BASEFEE,
+    op::BLOBHASH,
+    op::BLOBBASEFEE,
+    op::SLOTNUM,
+];
+
+/// Returns whether the tests run an instruction of this kind.
+pub(super) fn runs(kind: &InstKind) -> bool {
+    interp::supports_with_host(kind, &CONTEXT)
+}
 
 /// Why a candidate failed.
 #[derive(Clone, Debug)]
@@ -95,6 +151,17 @@ struct Input {
     args: SmallVec<[U256; 4]>,
     memory: Memory,
     free_memory_pointer: U256,
+    /// The seed of the storage and context the input runs with.
+    world: u64,
+    /// A word the world answers some of its reads with, when the input probes it.
+    focus: Option<Focus>,
+}
+
+/// A word a probe's world answers reads with: every read when `share` is one, half when two.
+#[derive(Clone, Copy, Debug)]
+struct Focus {
+    word: U256,
+    share: u64,
 }
 
 /// A finished run of the original.
@@ -114,6 +181,10 @@ pub(super) struct Tests<'a> {
     id: FunctionId,
     seed: u64,
     constants: FxHashSet<U256>,
+    /// The constants, in order, which inputs and their worlds draw words from.
+    palette: Arc<[U256]>,
+    /// Whether the function or a function it calls reads or writes storage or its context.
+    world: bool,
     references: Vec<Reference>,
     baseline: CostReport,
 }
@@ -132,13 +203,17 @@ impl<'a> Tests<'a> {
         let constants = call_tree_constants(module, id);
         let mut sorted = constants.iter().copied().collect::<Vec<_>>();
         sorted.sort_unstable();
+        let palette = Arc::<[U256]>::from(sorted.clone());
         let mut rng = Rng(seed);
         let machine = Machine::new(module);
         let mut meter = GasMeter::new(target, module);
         let mut references = Vec::new();
         let mut run = |input: Input, probe: bool, references: &mut Vec<Reference>| {
             let limits = Limits { fuel: ORIGINAL_FUEL, depth: DEPTH };
-            let execution = machine.run(id, &input.args, input.memory.clone(), limits, &mut meter);
+            let mut world = World::new(&input, &palette);
+            let memory = input.memory.clone();
+            let execution =
+                machine.run(id, &input.args, memory, Some(&mut world), limits, &mut meter);
             let spent = meter.take();
             match execution.outcome {
                 Outcome::Unsupported(what) => Err(format!("reaches unsupported `{what}`")),
@@ -153,7 +228,7 @@ impl<'a> Tests<'a> {
             }
         };
         for _ in 0..count {
-            run(generate(&mut rng, function, &sorted), false, &mut references)?;
+            run(generate(&mut rng, function, &sorted, &palette), false, &mut references)?;
         }
         if references.len() < MIN_FINISHED_RUNS {
             return Err(format!("finishes only {} of {count} test runs", references.len()));
@@ -174,28 +249,46 @@ impl<'a> Tests<'a> {
                 probes.push(input);
             }
         }
+        // World probes: each constant as every storage and context read of an earlier input, and
+        // as half of them in two more.
+        let world = reads_world(module, id);
+        if world {
+            for (index, &word) in sorted.iter().take(MAX_WORLD_PROBES).enumerate() {
+                for (round, share) in [1, 2, 2].into_iter().enumerate() {
+                    let base = (3 * index + round) % references.len();
+                    let mut input = references[base].input.clone();
+                    input.focus = Some(Focus { word, share });
+                    probes.push(input);
+                }
+            }
+        }
         for input in probes {
             run(input, true, &mut references)?;
         }
-        let mut visited = DenseBitSet::new_empty(function.blocks.len());
-        let mut outcomes = index_vec![0; function.num_insts()];
+        let mut coverage = Coverage::new(module, function);
         for reference in &references {
-            visited.union(&reference.execution.visited);
-            merge_outcomes(&mut outcomes, &reference.execution.outcomes);
+            coverage.add(&reference.execution);
         }
-        if let Some(block) = unvisited(function, &visited) {
-            return Err(format!("never completes block bb{block} in tests"));
+        if let Some((block, runs)) = coverage.unvisited(function) {
+            return Err(format!("never completes block bb{} in {runs}", block.index()));
         }
-        if let Some((inst, block, outcome)) = one_sided(function, &outcomes) {
+        if let Some((inst, block, outcome, runs)) = coverage.one_sided(function) {
             let mnemonic = function.inst(inst).kind.op_def().mnemonic;
             return Err(format!(
-                "never sees its `{mnemonic}` in bb{} come out {outcome} in tests",
+                "never sees its `{mnemonic}` in bb{} come out {outcome} in {runs}",
+                block.index()
+            ));
+        }
+        if let Some((inst, block, runs)) = coverage.never_nonzero(function) {
+            let mnemonic = function.inst(inst).kind.op_def().mnemonic;
+            return Err(format!(
+                "never sees its `{mnemonic}` in bb{} come out nonzero in {runs}",
                 block.index()
             ));
         }
         let gas = average_gas(references.iter().map(|reference| (reference, reference.gas)));
         let baseline = CostReport { gas, bytes: code_bytes(target, module, function) };
-        Ok(Self { target, module, id, seed, constants, references, baseline })
+        Ok(Self { target, module, id, seed, constants, palette, world, references, baseline })
     }
 
     /// The original's cost.
@@ -207,42 +300,46 @@ impl<'a> Tests<'a> {
     pub(super) fn check(&self, candidate: &Function) -> Result<CostReport, Rejection> {
         let machine = Machine::with_replacement(self.module, self.id, candidate);
         let mut meter = GasMeter::new(self.target, self.module);
-        let mut visited = DenseBitSet::new_empty(candidate.blocks.len());
-        let mut outcomes = index_vec![0; candidate.num_insts()];
+        let mut coverage = Coverage::new(self.module, candidate);
         let mut gas = Vec::with_capacity(self.references.len());
         for reference in &self.references {
             let (execution, spent) = self.run_candidate(&machine, &mut meter, reference);
-            compare(&reference.input, &reference.execution, &execution)?;
-            visited.union(&execution.visited);
-            merge_outcomes(&mut outcomes, &execution.outcomes);
+            self.compare(&reference.input, &reference.execution, &execution)?;
+            coverage.add(&execution);
             gas.push(run_gas(self.target, &reference.input, &execution, spent));
         }
         for input in self.constant_inputs(candidate) {
-            let original = Machine::new(self.module);
-            let limits = Limits { fuel: ORIGINAL_FUEL, depth: DEPTH };
-            let execution =
-                original.run(self.id, &input.args, input.memory.clone(), limits, &mut ());
+            let (execution, _) = self.run_original(&input, false);
             if matches!(execution.outcome, Outcome::Limit(_) | Outcome::Unsupported(_)) {
                 continue;
             }
             let reference = Reference { input, execution, gas: 0, priced: false };
             let (candidate_execution, _) = self.run_candidate(&machine, &mut meter, &reference);
-            compare(&reference.input, &reference.execution, &candidate_execution)?;
-            visited.union(&candidate_execution.visited);
-            merge_outcomes(&mut outcomes, &candidate_execution.outcomes);
+            self.compare(&reference.input, &reference.execution, &candidate_execution)?;
+            coverage.add(&candidate_execution);
         }
-        if let Some(block) = unvisited(candidate, &visited) {
+        if let Some((block, runs)) = coverage.unvisited(candidate) {
             let reason = format!(
-                "block {block} of the candidate, counting from zero in the order written, never \
-                 runs to its end in tests"
+                "block {} of the candidate, counting from zero in the order written, never runs \
+                 to its end in {runs}",
+                block.index()
             );
             return Err(Rejection::new(Stage::Equivalence, reason));
         }
-        if let Some((inst, block, outcome)) = one_sided(candidate, &outcomes) {
+        if let Some((inst, block, outcome, runs)) = coverage.one_sided(candidate) {
             let mnemonic = candidate.inst(inst).kind.op_def().mnemonic;
             let reason = format!(
                 "the `{mnemonic}` in block {} of the candidate, counting from zero in the order \
-                 written, never comes out {outcome} in tests",
+                 written, never comes out {outcome} in {runs}",
+                block.index()
+            );
+            return Err(Rejection::new(Stage::Equivalence, reason));
+        }
+        if let Some((inst, block, runs)) = coverage.never_nonzero(candidate) {
+            let mnemonic = candidate.inst(inst).kind.op_def().mnemonic;
+            let reason = format!(
+                "the `{mnemonic}` in block {} of the candidate, counting from zero in the order \
+                 written, never comes out nonzero in {runs}",
                 block.index()
             );
             return Err(Rejection::new(Stage::Equivalence, reason));
@@ -261,12 +358,103 @@ impl<'a> Tests<'a> {
         let fuel = reference.execution.fuel.saturating_mul(4).saturating_add(1_000);
         let limits = Limits { fuel, depth: DEPTH };
         let input = &reference.input;
-        let execution = machine.run(self.id, &input.args, input.memory.clone(), limits, meter);
+        let mut world = World::new(input, &self.palette);
+        let memory = input.memory.clone();
+        let execution = machine.run(self.id, &input.args, memory, Some(&mut world), limits, meter);
         (execution, meter.take())
     }
 
+    /// Runs the original on `input`, and returns what it reads from its world when `record` is
+    /// set.
+    fn run_original(&self, input: &Input, record: bool) -> (Execution, Vec<String>) {
+        let limits = Limits { fuel: ORIGINAL_FUEL, depth: DEPTH };
+        let mut world = World::new(input, &self.palette);
+        world.reads = record.then(Vec::new);
+        let memory = input.memory.clone();
+        let machine = Machine::new(self.module);
+        let execution =
+            machine.run(self.id, &input.args, memory, Some(&mut world), limits, &mut ());
+        (execution, world.reads.unwrap_or_default())
+    }
+
+    /// Compares a candidate's run with the original's on `input`.
+    fn compare(
+        &self,
+        input: &Input,
+        original: &Execution,
+        candidate: &Execution,
+    ) -> Result<(), Rejection> {
+        let fail = |reason: String| Rejection {
+            stage: Stage::Equivalence,
+            reason,
+            counterexample: Some(self.describe(input)),
+        };
+        if original.outcome != candidate.outcome {
+            return Err(fail(format!(
+                "the original {}, but the candidate {}",
+                describe_outcome(&original.outcome),
+                describe_outcome(&candidate.outcome)
+            )));
+        }
+        if let Some(address) = candidate.memory.first_write_outside(&original.memory) {
+            return Err(fail(format!(
+                "the candidate writes memory byte {address:#x}, which the original never writes"
+            )));
+        }
+        if matches!(original.outcome, Outcome::Return(_))
+            && let Some(address) = original.memory.first_difference(&candidate.memory)
+        {
+            let word = address - address % EvmMemoryLayout::WORD_SIZE;
+            return Err(fail(format!(
+                "the word at {word:#x} ends as {:#x} in the original but {:#x} in the candidate",
+                original.memory.word(word),
+                candidate.memory.word(word)
+            )));
+        }
+        if matches!(original.outcome, Outcome::Return(_) | Outcome::ReturnData(_) | Outcome::Stop) {
+            let world = World::new(input, &self.palette);
+            let (original, candidate) = (&original.effects, &candidate.effects);
+            compare_slots("storage", &original.storage, &candidate.storage, |slot| {
+                world.storage_word(slot)
+            })
+            .and_then(|()| {
+                compare_slots(
+                    "transient storage",
+                    &original.transient,
+                    &candidate.transient,
+                    |slot| world.transient_word(slot),
+                )
+            })
+            .and_then(|()| compare_logs(&original.logs, &candidate.logs))
+            .map_err(fail)?;
+        }
+        Ok(())
+    }
+
+    /// Describes `input`: its arguments, its free memory pointer, and the storage and context
+    /// values the original reads on it.
+    fn describe(&self, input: &Input) -> String {
+        let mut text = String::new();
+        for (index, arg) in input.args.iter().enumerate() {
+            let _ = write!(text, "arg{index} = {arg:#x}, ");
+        }
+        let _ = write!(text, "free memory pointer {:#x}", input.free_memory_pointer);
+        let (_, mut reads) = self.run_original(input, true);
+        let mut seen = FxHashSet::default();
+        reads.retain(|read| seen.insert(read.clone()));
+        let omitted = reads.len().saturating_sub(MAX_REPORTED_READS);
+        for read in reads.iter().take(MAX_REPORTED_READS) {
+            let _ = write!(text, ", {read}");
+        }
+        if omitted > 0 {
+            let _ = write!(text, ", and {omitted} more reads");
+        }
+        text
+    }
+
     /// Builds inputs that place each constant the candidate adds, and its neighbors and
-    /// left-aligned form, in each word argument of an existing input.
+    /// left-aligned form, in each word argument of an existing input and, when either function
+    /// reads storage or its context, in half of the world's answers.
     fn constant_inputs(&self, candidate: &Function) -> Vec<Input> {
         let mut added = constants(candidate)
             .into_iter()
@@ -274,58 +462,187 @@ impl<'a> Tests<'a> {
             .collect::<Vec<_>>();
         added.sort_unstable();
         let params = &self.module.function(self.id).params;
+        let world = self.world || uses_world(candidate);
         let mut inputs = Vec::new();
         for (index, &constant) in added.iter().enumerate() {
+            let base = mix64(self.seed ^ index as u64) as usize % self.references.len();
             for (param, &ty) in params.iter().enumerate() {
                 if inputs.len() == MAX_CONSTANT_INPUTS {
                     return inputs;
                 }
-                let base = mix64(self.seed ^ index as u64) as usize % self.references.len();
                 let mut input = self.references[base].input.clone();
                 input.args[param] = mask(constant, ty);
                 inputs.push(input);
+            }
+            for share in [1, 2] {
+                if world && inputs.len() < MAX_CONSTANT_INPUTS {
+                    let mut input = self.references[base].input.clone();
+                    input.focus = Some(Focus { word: constant, share });
+                    inputs.push(input);
+                }
             }
         }
         inputs
     }
 }
 
-/// Compares a candidate's run with the original's on `input`.
-fn compare(input: &Input, original: &Execution, candidate: &Execution) -> Result<(), Rejection> {
-    let fail = |reason: String| Rejection {
-        stage: Stage::Equivalence,
-        reason,
-        counterexample: Some(describe_input(input)),
-    };
-    if original.outcome != candidate.outcome {
-        return Err(fail(format!(
-            "the original {}, but the candidate {}",
-            describe_outcome(&original.outcome),
-            describe_outcome(&candidate.outcome)
-        )));
-    }
-    if let Some(address) = candidate.memory.first_write_outside(&original.memory) {
-        return Err(fail(format!(
-            "the candidate writes memory byte {address:#x}, which the original never writes"
-        )));
-    }
-    if matches!(original.outcome, Outcome::Return(_))
-        && let Some(address) = original.memory.first_difference(&candidate.memory)
-    {
-        let word = address - address % EvmMemoryLayout::WORD_SIZE;
-        return Err(fail(format!(
-            "the word at {word:#x} ends as {:#x} in the original but {:#x} in the candidate",
-            original.memory.word(word),
-            candidate.memory.word(word)
-        )));
-    }
-    Ok(())
+/// What the runs of one function exercised.
+///
+/// A revert discards the memory and storage writes and the logs of its run, so in a block from
+/// which the function can end without reverting, only runs that do not revert count: for running
+/// the block to its end, for its values coming out nonzero, and for its decisions coming out each
+/// way. The exception is a decision's outcome that branches into blocks that always revert, whose
+/// consequence is the revert itself; it counts in every run, as everything in such blocks does.
+struct Coverage {
+    /// The reachable blocks from which a run can end without reverting.
+    succeeding: DenseBitSet<BlockId>,
+    /// The blocks all runs completed, and those runs that did not revert completed.
+    visited: DenseBitSet<BlockId>,
+    succeeded_visited: DenseBitSet<BlockId>,
+    /// Whether each result was ever zero (bit 0) and ever nonzero (bit 1), in every run, and in
+    /// runs that did not revert.
+    outcomes: IndexVec<InstId, u8>,
+    succeeded_outcomes: IndexVec<InstId, u8>,
 }
 
-/// Returns the first reachable block of `function` that `visited` lacks.
-fn unvisited(function: &Function, visited: &DenseBitSet<BlockId>) -> Option<usize> {
+impl Coverage {
+    fn new(module: &Module, function: &Function) -> Self {
+        let blocks = function.blocks.len();
+        Self {
+            succeeding: succeeding_blocks(module, function),
+            visited: DenseBitSet::new_empty(blocks),
+            succeeded_visited: DenseBitSet::new_empty(blocks),
+            outcomes: index_vec![0; function.num_insts()],
+            succeeded_outcomes: index_vec![0; function.num_insts()],
+        }
+    }
+
+    fn add(&mut self, execution: &Execution) {
+        self.visited.union(&execution.visited);
+        merge_outcomes(&mut self.outcomes, &execution.outcomes);
+        if matches!(execution.outcome, Outcome::Return(_) | Outcome::ReturnData(_) | Outcome::Stop)
+        {
+            self.succeeded_visited.union(&execution.visited);
+            merge_outcomes(&mut self.succeeded_outcomes, &execution.outcomes);
+        }
+    }
+
+    /// Returns the runs that count for `block`, as a report names them.
+    fn runs(&self, block: BlockId) -> &'static str {
+        if self.succeeding.contains(block) { "a test that does not revert" } else { "tests" }
+    }
+
+    /// Returns the first reachable block of `function`, in order, that no counting run completed,
+    /// with the runs that count.
+    fn unvisited(&self, function: &Function) -> Option<(BlockId, &'static str)> {
+        let cfg = CfgInfo::new(function);
+        let visited = |block| {
+            let visited = if self.succeeding.contains(block) {
+                &self.succeeded_visited
+            } else {
+                &self.visited
+            };
+            visited.contains(block)
+        };
+        let block = cfg.rpo().iter().copied().filter(|&block| !visited(block)).min()?;
+        Some((block, self.runs(block)))
+    }
+
+    /// Returns the zero and nonzero outcomes of `inst` in `block` that counting runs saw.
+    fn seen(&self, block: BlockId, inst: InstId) -> u8 {
+        let outcomes =
+            if self.succeeding.contains(block) { &self.succeeded_outcomes } else { &self.outcomes };
+        outcomes.get(inst).copied().unwrap_or_default()
+    }
+
+    /// Returns the first decision of `function` that never came out one way in a counting run,
+    /// with its block, the outcome it never had, and the runs that count.
+    fn one_sided(&self, function: &Function) -> Option<(InstId, BlockId, bool, &'static str)> {
+        decisions(function).into_iter().find_map(|(inst, block)| {
+            let mut seen = self.seen(block, inst);
+            // An outcome whose branch always reverts counts in every run.
+            if let Some(Terminator::Branch { condition, then_block, else_block }) =
+                &function.blocks[block].terminator
+                && function.inst(inst).result() == Some(*condition)
+            {
+                let all = self.outcomes.get(inst).copied().unwrap_or_default();
+                if !self.succeeding.contains(*then_block) {
+                    seen |= all & 2;
+                }
+                if !self.succeeding.contains(*else_block) {
+                    seen |= all & 1;
+                }
+            }
+            let runs = self.runs(block);
+            if seen & 2 == 0 {
+                Some((inst, block, true, runs))
+            } else if seen & 1 == 0 {
+                Some((inst, block, false, runs))
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Returns the first value of the reachable blocks of `function`, in order, other than its
+    /// decisions, that never came out nonzero in a counting run, with its block and the runs that
+    /// count.
+    fn never_nonzero(&self, function: &Function) -> Option<(InstId, BlockId, &'static str)> {
+        let decisions =
+            decisions(function).into_iter().map(|(inst, _)| inst).collect::<FxHashSet<_>>();
+        let cfg = CfgInfo::new(function);
+        cfg.rpo().iter().find_map(|&block| {
+            function.blocks[block].instructions.iter().find_map(|&inst| {
+                let value = function.inst(inst).result().is_some() && !decisions.contains(&inst);
+                (value && self.seen(block, inst) & 2 == 0).then(|| (inst, block, self.runs(block)))
+            })
+        })
+    }
+}
+
+/// Returns the blocks of `function` from which a run can end without reverting: by returning, by
+/// ending the call with `returndata` or `stop`, or by tail calling a function that can.
+fn succeeding_blocks(module: &Module, function: &Function) -> DenseBitSet<BlockId> {
     let cfg = CfgInfo::new(function);
-    cfg.rpo().iter().filter(|&&block| !visited.contains(block)).map(|block| block.index()).min()
+    let mut succeeding = DenseBitSet::new_empty(function.blocks.len());
+    for (block, body) in function.blocks.iter_enumerated() {
+        if ends_successfully(module, body.terminator.as_ref(), &mut FxHashSet::default()) {
+            succeeding.insert(block);
+        }
+    }
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for block in function.blocks.indices() {
+            if !succeeding.contains(block)
+                && cfg.successors(block).iter().any(|&successor| succeeding.contains(successor))
+            {
+                changed |= succeeding.insert(block);
+            }
+        }
+    }
+    succeeding
+}
+
+/// Returns whether `terminator` can end a call without reverting, following tail calls into the
+/// functions `visiting` does not hold yet.
+fn ends_successfully(
+    module: &Module,
+    terminator: Option<&Terminator>,
+    visiting: &mut FxHashSet<FunctionId>,
+) -> bool {
+    match terminator {
+        Some(Terminator::Return { .. } | Terminator::ReturnData { .. } | Terminator::Stop) => true,
+        Some(&Terminator::TailCall { function, .. }) => {
+            visiting.insert(function)
+                && module
+                    .function(function)
+                    .blocks
+                    .iter()
+                    .any(|block| ends_successfully(module, block.terminator.as_ref(), visiting))
+        }
+        _ => false,
+    }
 }
 
 /// Adds the outcomes of one run to those of earlier runs.
@@ -335,22 +652,58 @@ fn merge_outcomes(outcomes: &mut IndexVec<InstId, u8>, run: &IndexVec<InstId, u8
     }
 }
 
-/// Returns the first decision of `function` that never came out one way in `outcomes`, with its
-/// block and the outcome it never had.
-fn one_sided(
-    function: &Function,
-    outcomes: &IndexVec<InstId, u8>,
-) -> Option<(InstId, BlockId, bool)> {
-    decisions(function).into_iter().find_map(|(inst, block)| {
-        let seen = outcomes.get(inst).copied().unwrap_or_default();
-        if seen & 2 == 0 {
-            Some((inst, block, true))
-        } else if seen & 1 == 0 {
-            Some((inst, block, false))
-        } else {
-            None
+/// Checks that a candidate writes only the storage slots of one kind the original writes, and
+/// that every slot the original writes ends with the same value, where `before` returns what a
+/// slot held before the run.
+fn compare_slots(
+    kind: &str,
+    original: &FxHashMap<U256, U256>,
+    candidate: &FxHashMap<U256, U256>,
+    before: impl Fn(U256) -> U256,
+) -> Result<(), String> {
+    let outside = candidate.keys().filter(|slot| !original.contains_key(slot)).min();
+    if let Some(slot) = outside {
+        return Err(format!(
+            "the candidate writes {kind} slot {slot:#x}, which the original never writes"
+        ));
+    }
+    let mut slots = original.keys().copied().collect::<Vec<_>>();
+    slots.sort_unstable();
+    for slot in slots {
+        let ends = original[&slot];
+        let candidate_ends = candidate.get(&slot).copied().unwrap_or_else(|| before(slot));
+        if ends != candidate_ends {
+            return Err(format!(
+                "{kind} slot {slot:#x}, which held {:#x}, ends as {ends:#x} in the original but \
+                 {candidate_ends:#x} in the candidate",
+                before(slot)
+            ));
         }
-    })
+    }
+    Ok(())
+}
+
+/// Checks that a candidate logs the events the original logs, in the same order.
+fn compare_logs(original: &[Log], candidate: &[Log]) -> Result<(), String> {
+    for (index, (log, candidate_log)) in original.iter().zip(candidate).enumerate() {
+        if log != candidate_log {
+            return Err(format!(
+                "event {index}, counting from zero, differs: the original logs {}, but the \
+                 candidate {}",
+                describe_log(log),
+                describe_log(candidate_log)
+            ));
+        }
+    }
+    if original.len() != candidate.len() {
+        let events = |count: usize| format!("{count} event{}", if count == 1 { "" } else { "s" });
+        return Err(format!(
+            "the original logs {}, but the candidate {}",
+            events(original.len()),
+            events(candidate.len())
+        ));
+    }
+    Ok(())
 }
 
 /// Returns the decisions in the reachable blocks of `function`, in order: its comparisons, and the
@@ -426,6 +779,25 @@ fn call_tree_constants(module: &Module, id: FunctionId) -> FxHashSet<U256> {
     constants
 }
 
+/// Returns whether function `id` or a function it can call reads or writes storage or its
+/// context, which world probes exercise.
+fn reads_world(module: &Module, id: FunctionId) -> bool {
+    let graph = CallGraphInfo::new(module);
+    uses_world(module.function(id))
+        || graph
+            .reachable_callees_from([id])
+            .iter()
+            .any(|callee| uses_world(module.function(callee)))
+}
+
+/// Returns whether `function` reads or writes storage or its context.
+fn uses_world(function: &Function) -> bool {
+    function.instructions().any(|inst| {
+        let kind = &function.inst(inst).kind;
+        !interp::supports(kind) && runs(kind)
+    })
+}
+
 /// Returns the constants of `function`, with their neighbors and left-aligned forms.
 fn constants(function: &Function) -> FxHashSet<U256> {
     let mut constants = FxHashSet::default();
@@ -443,15 +815,21 @@ fn constants(function: &Function) -> FxHashSet<U256> {
     constants
 }
 
-/// Generates one input for `function`.
-fn generate(rng: &mut Rng, function: &Function, constants: &[U256]) -> Input {
+/// Generates one input for `function`, whose memory garbage draws words from `palette`.
+fn generate(
+    rng: &mut Rng,
+    function: &Function,
+    constants: &[U256],
+    palette: &Arc<[U256]>,
+) -> Input {
     let free_memory_pointer = U256::from(match rng.below(8) {
         0..=4 => EvmMemoryLayout::HEAP_START + 32 * rng.below(16),
         5 | 6 => EvmMemoryLayout::HEAP_START + 32 * rng.below(4096),
         _ => EvmMemoryLayout::HEAP_START + rng.below(512),
     });
     let fmp = free_memory_pointer.to::<u64>();
-    let mut memory = Memory::new(rng.next(), fmp.div_ceil(EvmMemoryLayout::WORD_SIZE));
+    let mut memory = Memory::new(rng.next(), fmp.div_ceil(EvmMemoryLayout::WORD_SIZE))
+        .with_palette(Arc::clone(palette));
     memory.set(EvmMemoryLayout::FMP_SLOT, free_memory_pointer);
     memory.set(EvmMemoryLayout::ZERO_SLOT, U256::ZERO);
     let constant = |rng: &mut Rng| {
@@ -465,12 +843,14 @@ fn generate(rng: &mut Rng, function: &Function, constants: &[U256]) -> Input {
                 1 => U256::from(EvmMemoryLayout::ZERO_SLOT),
                 _ => U256::from(fmp + 32 * rng.below(8)),
             },
-            _ => match rng.below(8) {
-                0 | 1 => boundary(rng),
-                2 | 3 if let Some(constant) = constant(rng) => constant,
-                4 => U256::from(rng.below(65)),
-                5 => U256::from(fmp + 32 * rng.below(8)),
-                6 if !args.is_empty() => {
+            _ => match rng.below(16) {
+                // Zero is the null address, the empty amount, and false, which code checks often.
+                0 => U256::ZERO,
+                1..=4 => boundary(rng),
+                5..=8 if let Some(constant) = constant(rng) => constant,
+                9 | 10 => U256::from(rng.below(65)),
+                11 | 12 => U256::from(fmp + 32 * rng.below(8)),
+                13 | 14 if !args.is_empty() => {
                     let previous = args[rng.below(args.len() as u64) as usize];
                     if rng.below(2) == 0 { previous } else { previous + U256::from(32) }
                 }
@@ -504,7 +884,7 @@ fn generate(rng: &mut Rng, function: &Function, constants: &[U256]) -> Input {
         }
         args.push(value);
     }
-    Input { args, memory, free_memory_pointer }
+    Input { args, memory, free_memory_pointer, world: rng.next(), focus: None }
 }
 
 /// Returns a boundary value: a power of two, a neighbor, or a negation of either, which masking
@@ -525,15 +905,6 @@ fn mask(value: U256, ty: MirType) -> U256 {
         MirType::Int(bits) if bits.get() < 256 => value & (U256::MAX >> (256 - bits.get())),
         _ => value,
     }
-}
-
-fn describe_input(input: &Input) -> String {
-    let mut text = String::new();
-    for (index, arg) in input.args.iter().enumerate() {
-        let _ = write!(text, "arg{index} = {arg:#x}, ");
-    }
-    let _ = write!(text, "free memory pointer {:#x}", input.free_memory_pointer);
-    text
 }
 
 fn describe_outcome(outcome: &Outcome) -> String {
@@ -560,6 +931,129 @@ fn describe_outcome(outcome: &Outcome) -> String {
         Outcome::Limit(Limit::Memory) => "reaches past 16 MiB of memory".into(),
         Outcome::Unsupported(what) => format!("reaches unsupported `{what}`"),
     }
+}
+
+fn describe_log(log: &Log) -> String {
+    let topics = log.topics.iter().map(|topic| format!("{topic:#x}")).collect::<Vec<_>>();
+    let shown = &log.data[..log.data.len().min(MAX_REPORTED_BYTES)];
+    let ellipsis = if shown.len() < log.data.len() { "…" } else { "" };
+    format!("topics [{}] and data 0x{}{ellipsis}", topics.join(", "), hex::encode(shown))
+}
+
+/// The storage and context one input runs with, derived from its seed.
+struct World<'t> {
+    seed: u64,
+    palette: &'t [U256],
+    args: &'t [U256],
+    focus: Option<Focus>,
+    /// What the run read, when recorded for a report.
+    reads: Option<Vec<String>>,
+}
+
+impl<'t> World<'t> {
+    /// Salts the keys of persistent and transient storage slots apart from context reads, and
+    /// the choice of focused reads apart from the words drawn.
+    const STORAGE_SALT: u64 = 0x100;
+    const TRANSIENT_SALT: u64 = 0x101;
+    const FOCUS_SALT: u64 = 0x102;
+
+    fn new(input: &'t Input, palette: &'t [U256]) -> Self {
+        let (seed, args, focus) = (input.world, &input.args[..], input.focus);
+        Self { seed, palette, args, focus, reads: None }
+    }
+
+    /// Returns what persistent storage slot `slot` holds before the run.
+    fn storage_word(&self, slot: U256) -> U256 {
+        self.draw(key(Self::STORAGE_SALT, &[slot]), true)
+    }
+
+    /// Returns what transient storage slot `slot` holds before the run: zero half the time, as
+    /// every transaction starts it empty.
+    fn transient_word(&self, slot: U256) -> U256 {
+        let key = key(Self::TRANSIENT_SALT, &[slot]);
+        if mix64(self.seed ^ key).is_multiple_of(2) { U256::ZERO } else { self.draw(key, true) }
+    }
+
+    /// Returns what context read `opcode` returns for `operands`, cut to the width the value has
+    /// on chain: 160 bits for addresses, 64 for block numbers, times, limits, and prices, and 128
+    /// for amounts of ether.
+    fn context_word(&self, opcode: u8, operands: &[U256]) -> U256 {
+        let bits = match opcode {
+            op::ADDRESS | op::ORIGIN | op::CALLER | op::COINBASE => 160,
+            op::TIMESTAMP
+            | op::NUMBER
+            | op::GASLIMIT
+            | op::CHAINID
+            | op::GASPRICE
+            | op::BASEFEE
+            | op::BLOBBASEFEE
+            | op::SLOTNUM => 64,
+            op::CALLVALUE | op::BALANCE | op::SELFBALANCE => 128,
+            _ => 256,
+        };
+        // Storage may hold the caller, which context values do not draw, keeping draws finite.
+        self.draw(key(u64::from(opcode), operands), false) & (U256::MAX >> (256 - bits))
+    }
+
+    /// Returns the word drawn for `key`: zero, a small number, a constant, an argument, the
+    /// caller when `caller` is set, or a random word, unless the input focuses the read on its
+    /// word.
+    fn draw(&self, key: u64, caller: bool) -> U256 {
+        if let Some(Focus { word, share }) = self.focus
+            && mix64(self.seed ^ key ^ Self::FOCUS_SALT).is_multiple_of(share)
+        {
+            return word;
+        }
+        let pick = mix64(self.seed ^ key);
+        let rest = pick >> 4;
+        let choose = |words: &[U256]| words[(rest % words.len() as u64) as usize];
+        match pick % 16 {
+            0..=3 => U256::ZERO,
+            4 | 5 => U256::from(1 + rest % 64),
+            6..=8 if !self.palette.is_empty() => choose(self.palette),
+            9 | 10 if !self.args.is_empty() => choose(self.args),
+            11 if caller => self.context_word(op::CALLER, &[]),
+            _ => U256::from_limbs(std::array::from_fn(|lane| mix64(pick ^ lane as u64))),
+        }
+    }
+
+    fn record(&mut self, read: impl FnOnce() -> String) {
+        if let Some(reads) = &mut self.reads {
+            reads.push(read());
+        }
+    }
+}
+
+impl Host for World<'_> {
+    fn read(&mut self, opcode: u8, operands: &[U256]) -> Option<U256> {
+        if !CONTEXT.contains(&opcode) {
+            return None;
+        }
+        let word = self.context_word(opcode, operands);
+        self.record(|| {
+            let mnemonic = op::mnemonic(opcode).unwrap_or("opcode");
+            let operands = operands.iter().map(|operand| format!(" {operand:#x}"));
+            format!("`{mnemonic}{}` = {word:#x}", operands.collect::<String>())
+        });
+        Some(word)
+    }
+
+    fn storage(&mut self, slot: U256) -> U256 {
+        let word = self.storage_word(slot);
+        self.record(|| format!("storage slot {slot:#x} = {word:#x}"));
+        word
+    }
+
+    fn transient(&mut self, slot: U256) -> U256 {
+        let word = self.transient_word(slot);
+        self.record(|| format!("transient storage slot {slot:#x} = {word:#x}"));
+        word
+    }
+}
+
+/// Folds `words` into a key salted by `salt`.
+fn key(salt: u64, words: &[U256]) -> u64 {
+    words.iter().flat_map(|word| word.as_limbs()).fold(mix64(salt), |key, &limb| mix64(key ^ limb))
 }
 
 /// A deterministic generator of test inputs.

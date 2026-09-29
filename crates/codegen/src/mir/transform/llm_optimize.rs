@@ -8,13 +8,13 @@
 //! # Sessions
 //!
 //! [`eligibility`] decides which functions are offered: internal, non-recursive functions of a few
-//! words whose every reachable operation the interpreter runs. Each offered function is printed as
-//! candidate text, lowered MIR without metadata, parsed back, and printed again; that fixed point
-//! is what the rewriter sees and what the cache is keyed by, so debug options cannot change which
-//! rewrites apply. A rewriter session then proposes candidates over at most `-Zllm-rounds` rounds.
-//! Each candidate gets a [`Verdict`], and the rewriter is asked for something cheaper than the
-//! best so far, until it has nothing, fails, or is rejected three times in a row. A rewriter
-//! failure never fails the compilation.
+//! words whose every reachable operation the tests run, storage and logs included. Each offered
+//! function is printed as candidate text, lowered MIR without metadata, parsed back, and printed
+//! again; that fixed point is what the rewriter sees and what the cache is keyed by, so debug
+//! options cannot change which rewrites apply. A rewriter session then proposes candidates over at
+//! most `-Zllm-rounds` rounds. Each candidate gets a [`Verdict`], and the rewriter is asked for
+//! something cheaper than the best so far, until it has nothing, fails, or is rejected three times
+//! in a row. A rewriter failure never fails the compilation.
 //!
 //! # Checks
 //!
@@ -28,9 +28,9 @@
 //!    switches on distinct constants, and keeps no more values live at once than the original. The
 //!    live values bound the stack pressure the function-level cost model cannot see.
 //! 3. Validation: the MIR validator checks the candidate's body in place of the original's.
-//! 4. Equivalence: [`equivalence`] runs it against the original on generated inputs; it must end
-//!    the same way, write only memory the original writes, leave that memory the same, and run
-//!    every block.
+//! 4. Equivalence: [`equivalence`] runs it against the original on generated inputs, with seeded
+//!    storage and context; it must end the same way, write only memory and storage the original
+//!    writes, leave them the same, log the same events, and run every block.
 //! 5. Cost: [`cost`] prices it with the target cost model, and it must beat the best so far: by a
 //!    stack copy's lifetime gas when optimizing gas, and in bytes, then gas, for size.
 //!
@@ -515,7 +515,7 @@ fn constraints(
     for inst in candidate.instructions() {
         let kind = &candidate.inst(inst).kind;
         let mnemonic = kind.op_def().mnemonic;
-        if !interp::supports(kind) {
+        if !equivalence::runs(kind) {
             return Err(format!("uses `{mnemonic}`, which the tests cannot run"));
         }
         if let Some(opcode) = kind.evm_opcode()
@@ -583,7 +583,7 @@ fn vocabulary(target: Target) -> String {
         .filter(|&name| {
             InstKind::operand_only(name).is_some_and(|(arity, build)| {
                 let kind = build(&(0..arity).map(ValueId::from_usize).collect::<Vec<_>>());
-                interp::supports(&kind)
+                equivalence::runs(&kind)
                     && kind
                         .evm_opcode()
                         .is_none_or(|opcode| op::is_available(opcode, target.evm_version()))

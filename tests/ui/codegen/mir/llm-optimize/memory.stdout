@@ -1,19 +1,19 @@
 llm-optimize Memory @main: not offered: is the dispatch entry
 llm-optimize Memory @hash_pair: offered at 115 gas, 32 bytes
-llm-optimize Memory @hash_pair: round 1: rejected at equivalence: the original returns 0x5aa6818dfb13d02f194a7c5f86b04077fe16c21e9705732d40b3d4a7ad5f74c, but the candidate returns 0xd5a956ac40258d60c215f7ac2d477c23c4ce69647c0ca537ea3bfd674ce5e283
-  on arg0 = 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1 = 0xfffffffffffffffffffffffffffffffffffffffffffffffffffff00000000001, free memory pointer 0x80
+llm-optimize Memory @hash_pair: round 1: rejected at equivalence: the original returns 0x560020941e86ca9c38b86b682dd03a76586693f814cf90da285cb7cad552ccc2, but the candidate returns 0x29c2a4890b8b4cc7df5fa9527525fca869427da47087b848cd471abfc9e578da
+  on arg0 = 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1 = 0x2e, free memory pointer 0x80
 llm-optimize Memory @hash_pair: round 2: rejected at equivalence: the candidate writes memory byte 0x60, which the original never writes
-  on arg0 = 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1 = 0xfffffffffffffffffffffffffffffffffffffffffffffffffffff00000000001, free memory pointer 0x80
-llm-optimize Memory @hash_pair: round 3: rejected at equivalence: the original returns 0x5aa6818dfb13d02f194a7c5f86b04077fe16c21e9705732d40b3d4a7ad5f74c, but the candidate returns 0xd41997ad0257fd427e8ff85f877b6bd567c785043c9593af9cf969642c2c3dd9
-  on arg0 = 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1 = 0xfffffffffffffffffffffffffffffffffffffffffffffffffffff00000000001, free memory pointer 0x80
+  on arg0 = 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1 = 0x2e, free memory pointer 0x80
+llm-optimize Memory @hash_pair: round 3: rejected at equivalence: the original returns 0x560020941e86ca9c38b86b682dd03a76586693f814cf90da285cb7cad552ccc2, but the candidate returns 0xfe18ffd97d51c555b79fc81d574e4aaccad20f24f6df4d8eef1609ee1963f663
+  on arg0 = 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1 = 0x2e, free memory pointer 0x80
 llm-optimize Memory @hash_pair: stopped after 3 rejections in a row
-llm-optimize Memory @aliasing: offered at 201 gas, 31 bytes
+llm-optimize Memory @aliasing: offered at 83 gas, 31 bytes
 llm-optimize Memory @aliasing: round 1: rejected at equivalence: the original returns 0x2, but the candidate returns 0x1
-  on arg0 = 0xe, arg1 = 0xe, free memory pointer 0x160
+  on arg0 = 0x22f, arg1 = 0x22f, free memory pointer 0x14f
 llm-optimize Memory @aliasing: round 2: nothing cheaper
 llm-optimize Memory @check: offered at 58 gas, 30 bytes
-llm-optimize Memory @check: round 1: rejected at equivalence: the original reverts with 0x0000000000000fffffffffffffffffffffffffffffffffffffffffffffffffff, but the candidate reverts with 0x0000000000000fffffffffffffffffffffffffffffffffffffffffffffffff
-  on arg0 = 0xfffffffffffffffffffffffffffffffffffffffffffffffffff, free memory pointer 0xc0
+llm-optimize Memory @check: round 1: rejected at equivalence: the original reverts with 0xfffffffffffffffffffffffffffff00000000000000000000000000000000001, but the candidate reverts with 0xfffffffffffffffffffffffffffff000000000000000000000000000000000
+  on arg0 = 0xfffffffffffffffffffffffffffff00000000000000000000000000000000001, free memory pointer 0x1500
 llm-optimize Memory @check: round 2: nothing cheaper
 - // === ROOT/tests/ui/codegen/mir/llm-optimize/memory.mir (before llm-optimize) ===
 + // === ROOT/tests/ui/codegen/mir/llm-optimize/memory.mir (after llm-optimize) ===

@@ -3,9 +3,11 @@
 //! [`Machine::run`] executes one function of a lowered module on concrete arguments and memory,
 //! following internal calls into the rest of the module, and reports how the run ended, the
 //! memory it left behind, the blocks of the function it completed, and whether each value of that
-//! function was ever zero and ever nonzero. It is a testing oracle, not
-//! part of code generation: the `llm-optimize` pass runs an original function and a candidate
-//! replacement on the same inputs and compares what they do.
+//! function was ever zero and ever nonzero. With a [`Host`], the run also reads and writes
+//! persistent and transient storage, logs events, and reads the context values the host answers,
+//! and reports what it wrote and logged. It is a testing oracle, not part of code generation: the
+//! `llm-optimize` pass runs an original function and a candidate replacement on the same inputs
+//! and compares what they do.
 //!
 //! [`Machine::transact`] executes a whole transaction instead: the module's dispatch entry on
 //! calldata, with zeroed memory and a [`Host`] answering what the contract reads from its context,
@@ -25,9 +27,11 @@
 //! Memory is byte-addressed EVM memory, on which the memory opcodes run: `MLOAD`, `MSTORE`,
 //! `MSTORE8`, `MCOPY`, and `KECCAK256`. An access with a nonzero length grows memory to the word
 //! containing its last byte, and a zero-length access ignores its offset. `mcopy` behaves as if it
-//! copied through a buffer, and `keccak256` hashes the bytes it reads. Bytes that no run has
-//! written hold deterministic pseudo-random contents derived from a seed unless the caller set
-//! them, so a function reading memory it does not own sees garbage, as it could on chain.
+//! copied through a buffer, and `keccak256` hashes the bytes it reads. Words that no run has
+//! written hold deterministic garbage derived from a seed unless the caller set them, so a
+//! function reading memory it does not own sees garbage, as it could on chain. Besides random
+//! words, garbage holds the small numbers, heap addresses, and constants that programs keep in
+//! memory, so that a function following pointers through it can reach data it accepts.
 //!
 //! Internal calls and tail calls run the callee on the same memory, and a call's result is the
 //! value the callee returns. The backend passes further results through a buffer of its own that
@@ -52,11 +56,12 @@
 //! [`supports`] and [`supports_terminator`] end it with [`Outcome::Unsupported`]: opcodes on
 //! storage, calldata, code, the environment, external calls, logs, and `msize`, allocations, and
 //! operations that declare no semantics, such as frame addresses and every semantic operation. A
-//! transaction runs the storage, calldata, context, and log opcodes and places the allocations the
-//! backend would place, but not `gas`, calls, or contract creation. The interpreter relies on the
-//! validator only for the existence
-//! of the instructions, values, and blocks a function names, and checks the rest as it runs, so a
-//! value used before its definition or a phi missing an edge also ends a run as unsupported.
+//! run with a host also runs the storage, transient storage, and log opcodes and the context reads
+//! its host answers, which [`supports_with_host`] lists. A transaction also runs the calldata and
+//! return data opcodes and places the allocations the backend would place, but not `gas`, calls,
+//! or contract creation. The interpreter relies on the validator only for the existence of the
+//! instructions, values, and blocks a function names, and checks the rest as it runs, so a value
+//! used before its definition or a phi missing an edge also ends a run as unsupported.
 
 use crate::{
     backend::evm::op,
@@ -75,7 +80,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-use std::{convert::Infallible, ops::ControlFlow};
+use std::{convert::Infallible, ops::ControlFlow, sync::Arc};
 
 /// Bytes of memory an execution may use: growing memory to 16 MiB costs about 538 million gas,
 /// more than any block holds.
@@ -87,8 +92,21 @@ const WORD_BYTES: u64 = 32;
 /// The opcodes a run executes on its memory, besides the pure opcodes it evaluates.
 const MEMORY_OPCODES: [u8; 5] = [op::MLOAD, op::MSTORE, op::MSTORE8, op::MCOPY, op::KECCAK256];
 
-/// The opcodes whose values a transaction asks its [`Host`] for.
-const HOST_OPCODES: [u8; 21] = [
+/// The opcodes a run with a [`Host`] executes on persistent and transient storage and its logs.
+const WORLD_OPCODES: [u8; 9] = [
+    op::SLOAD,
+    op::SSTORE,
+    op::TLOAD,
+    op::TSTORE,
+    op::LOG0,
+    op::LOG1,
+    op::LOG2,
+    op::LOG3,
+    op::LOG4,
+];
+
+/// The opcodes whose values a run asks its [`Host`] for.
+pub(crate) const HOST_OPCODES: [u8; 21] = [
     op::ADDRESS,
     op::BALANCE,
     op::ORIGIN,
@@ -175,6 +193,31 @@ pub(crate) struct Execution {
     /// For each instruction of the function under test, whether its result was ever zero (bit 0)
     /// and ever nonzero (bit 1).
     pub(crate) outcomes: IndexVec<InstId, u8>,
+    /// What it did outside memory, which only a run with a [`Host`] can do.
+    pub(crate) effects: Effects,
+}
+
+/// What an execution did outside memory.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Effects {
+    /// The persistent storage slots it wrote, with their final values.
+    pub(crate) storage: FxHashMap<U256, U256>,
+    /// The transient storage slots it wrote, with their final values.
+    pub(crate) transient: FxHashMap<U256, U256>,
+    /// The events it logged, in order.
+    pub(crate) logs: Vec<Log>,
+}
+
+/// An access to a persistent storage slot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct StorageAccess {
+    pub(crate) slot: U256,
+    /// What the slot held when the run started.
+    pub(crate) original: U256,
+    /// What the slot holds before the access.
+    pub(crate) current: U256,
+    /// What an `SSTORE` writes, or `None` for an `SLOAD`.
+    pub(crate) new: Option<U256>,
 }
 
 /// Observes every operation an execution runs, for example to price it.
@@ -201,20 +244,32 @@ pub(crate) trait Meter {
     ) {
         let _ = (function, block, operand);
     }
+
+    /// The `SLOAD` or `SSTORE` [`Self::instruction`] just reported accesses persistent storage.
+    fn storage(&mut self, access: StorageAccess) {
+        let _ = access;
+    }
 }
 
 impl Meter for () {}
 
-/// Answers what a transaction reads from its context and cannot know itself.
+/// Answers what a run reads from its context and cannot know itself.
 pub trait Host {
     /// Returns what `opcode` reads for these operands from the transaction's context or the
     /// chain's state, such as `CALLER`, `TIMESTAMP`, or `BALANCE`, or `None` when the host does
     /// not model it.
     fn read(&mut self, opcode: u8, operands: &[U256]) -> Option<U256>;
 
-    /// Returns the value a persistent storage slot of the running contract holds before the
-    /// transaction.
+    /// Returns the value a persistent storage slot of the running contract holds when the run
+    /// starts, which for a transaction is its value before the transaction.
     fn storage(&mut self, slot: U256) -> U256;
+
+    /// Returns the value a transient storage slot holds when the run starts: zero for a
+    /// transaction, which starts with empty transient storage.
+    fn transient(&mut self, slot: U256) -> U256 {
+        let _ = slot;
+        U256::ZERO
+    }
 
     /// Returns where the free memory pointer starts: the heap start the backend's layout chose,
     /// which programs can observe only by exposing an address.
@@ -253,15 +308,13 @@ pub struct Log {
 pub(crate) struct TransactionExecution {
     /// How it ended. Returning from the dispatch entry is a [`Outcome::Stop`].
     pub(crate) outcome: Outcome,
-    /// The persistent storage slots it wrote, with their final values.
-    pub(crate) storage: FxHashMap<U256, U256>,
-    /// The events it logged, in order.
-    pub(crate) logs: Vec<Log>,
+    /// What it did to storage and its logs.
+    pub(crate) effects: Effects,
 }
 
-/// Returns whether [`Machine::run`] executes an instruction of this kind: lowered operations
-/// whose declared semantics are word operations and casts, `select`, phis, memory opcodes, and
-/// calls to functions.
+/// Returns whether [`Machine::run`] executes an instruction of this kind without a host:
+/// lowered operations whose declared semantics are word operations and casts, `select`, phis,
+/// memory opcodes, and calls to functions.
 pub(crate) fn supports(kind: &InstKind) -> bool {
     if !kind.op_def().phases.contains(MirPhase::Lowered) {
         return false;
@@ -272,6 +325,21 @@ pub(crate) fn supports(kind: &InstKind) -> bool {
         Some(Semantics::Call(callee, _)) => matches!(callee, Callee::Function(_)),
         _ => matches!(eval_inst(kind, |_| Ok::<_, Infallible>(U256::ZERO)), Ok(Some(_))),
     }
+}
+
+/// Returns whether [`Machine::run`] executes an instruction of this kind with a host that
+/// answers the context reads in `context`, a subset of [`HOST_OPCODES`]: what [`supports`]
+/// accepts, persistent and transient storage, and logs.
+pub(crate) fn supports_with_host(kind: &InstKind, context: &[u8]) -> bool {
+    if supports(kind) {
+        return true;
+    }
+    kind.op_def().phases.contains(MirPhase::Lowered)
+        && matches!(
+            kind.semantics(),
+            Some(Semantics::Opcode(opcode, _))
+                if WORLD_OPCODES.contains(&opcode) || context.contains(&opcode)
+        )
 }
 
 /// Returns whether [`Machine::run`] executes this terminator.
@@ -287,11 +355,11 @@ pub(crate) fn mix64(value: u64) -> u64 {
     z ^ (z >> 31)
 }
 
-/// Byte-addressed EVM memory whose unwritten bytes derive from a seed, or are zero.
+/// Byte-addressed EVM memory whose unwritten words hold seeded garbage, or zero.
 #[derive(Clone, Debug)]
 pub(crate) struct Memory {
-    /// The seed of unwritten bytes, which are zero without one.
-    seed: Option<u64>,
+    /// What unwritten words hold, which is zero without it.
+    garbage: Option<Garbage>,
     /// Materialized words by word index.
     words: FxHashMap<u64, [u8; 32]>,
     /// Bytes a run wrote, as a mask per word index.
@@ -300,15 +368,72 @@ pub(crate) struct Memory {
     size: u64,
 }
 
+/// The contents of unwritten memory words, derived from a seed per word.
+///
+/// A word is random, or one of the words programs keep in memory: a small number such as a
+/// length, a flag, or an enum; an address near the heap start; or a word of the palette, such as
+/// the constants of the code under test. A program that loads a word and follows it as a pointer
+/// then reaches more such words, so chains of loads through garbage can end in data it accepts.
+#[derive(Clone, Debug)]
+struct Garbage {
+    seed: u64,
+    palette: Arc<[U256]>,
+}
+
+impl Garbage {
+    /// Words above the heap start that garbage addresses point into: 64 KiB.
+    const ADDRESS_WORDS: u64 = 2048;
+    /// The largest small number garbage holds.
+    const SMALL: u64 = 32;
+
+    fn word(&self, index: u64) -> [u8; 32] {
+        let pick = mix64(self.seed ^ mix64(index.wrapping_mul(4).wrapping_sub(1)));
+        let rest = pick >> 3;
+        let word = match pick % 8 {
+            0 | 1 => U256::from(rest % (Self::SMALL + 1)),
+            2 | 3 => {
+                let offset = WORD_BYTES * (rest % Self::ADDRESS_WORDS);
+                U256::from(EvmMemoryLayout::HEAP_START + offset)
+            }
+            4 if !self.palette.is_empty() => {
+                self.palette[(rest % self.palette.len() as u64) as usize]
+            }
+            _ => {
+                let mut bytes = [0; 32];
+                for (lane, chunk) in bytes.as_chunks_mut::<8>().0.iter_mut().enumerate() {
+                    let lane = mix64(index.wrapping_mul(4).wrapping_add(lane as u64));
+                    *chunk = mix64(self.seed ^ lane).to_be_bytes();
+                }
+                return bytes;
+            }
+        };
+        word.to_be_bytes()
+    }
+}
+
 impl Memory {
     /// Creates memory of `size` words whose contents derive from `seed`.
     pub(crate) fn new(seed: u64, size: u64) -> Self {
-        Self { seed: Some(seed), words: FxHashMap::default(), written: FxHashMap::default(), size }
+        let garbage = Garbage { seed, palette: Arc::from([]) };
+        Self {
+            garbage: Some(garbage),
+            words: FxHashMap::default(),
+            written: FxHashMap::default(),
+            size,
+        }
+    }
+
+    /// Makes some unwritten words hold words of `palette`.
+    pub(crate) fn with_palette(mut self, palette: Arc<[U256]>) -> Self {
+        if let Some(garbage) = &mut self.garbage {
+            garbage.palette = palette;
+        }
+        self
     }
 
     /// Creates empty memory whose bytes are zero, as a transaction starts with.
     pub(crate) fn zeroed() -> Self {
-        Self { seed: None, words: FxHashMap::default(), written: FxHashMap::default(), size: 0 }
+        Self { garbage: None, words: FxHashMap::default(), written: FxHashMap::default(), size: 0 }
     }
 
     /// Sets the word at byte `offset` before a run, without counting it as written or growing
@@ -381,13 +506,7 @@ impl Memory {
     }
 
     fn seeded(&self, word: u64) -> [u8; 32] {
-        let mut bytes = [0; 32];
-        let Some(seed) = self.seed else { return bytes };
-        for (index, chunk) in bytes.as_chunks_mut::<8>().0.iter_mut().enumerate() {
-            let lane = mix64(word.wrapping_mul(4).wrapping_add(index as u64));
-            *chunk = mix64(seed ^ lane).to_be_bytes();
-        }
-        bytes
+        self.garbage.as_ref().map_or([0; 32], |garbage| garbage.word(word))
     }
 
     /// Checks an access of `len` bytes at `offset` against the memory limit and grows memory
@@ -466,12 +585,14 @@ impl<'a> Machine<'a> {
     }
 
     /// Runs `function` on `args` and `memory` within `limits`, reporting each operation to
-    /// `meter`.
+    /// `meter`. With a `host`, the run also reads and writes storage and transient storage, logs
+    /// events, and reads the context values the host answers.
     pub(crate) fn run(
         &self,
         function: FunctionId,
         args: &[U256],
         memory: Memory,
+        host: Option<&mut dyn Host>,
         limits: Limits,
         meter: &mut dyn Meter,
     ) -> Execution {
@@ -483,11 +604,13 @@ impl<'a> Machine<'a> {
             frames: Vec::new(),
             visited: DenseBitSet::new_empty(0),
             outcomes: IndexVec::new(),
+            world: host.map(|host| World { host, effects: Effects::default() }),
             transaction: None,
         };
         let ControlFlow::Break(outcome) = run.execute(function, args, meter);
-        let Run { memory, fuel, visited, outcomes, .. } = run;
-        Execution { outcome, memory, fuel, visited, outcomes }
+        let Run { memory, fuel, visited, outcomes, world, .. } = run;
+        let effects = world.map(|world| world.effects).unwrap_or_default();
+        Execution { outcome, memory, fuel, visited, outcomes, effects }
     }
 
     /// Runs the module's dispatch entry as a transaction with `calldata` on `evm_version`, asking
@@ -502,8 +625,7 @@ impl<'a> Machine<'a> {
         let Some(entry) = self.module.dispatch_entry() else {
             return TransactionExecution {
                 outcome: Outcome::Unsupported("module without a dispatch entry"),
-                storage: FxHashMap::default(),
-                logs: Vec::new(),
+                effects: Effects::default(),
             };
         };
         // mstore 0x40, heap start
@@ -517,13 +639,10 @@ impl<'a> Machine<'a> {
             frames: Vec::new(),
             visited: DenseBitSet::new_empty(0),
             outcomes: IndexVec::new(),
+            world: Some(World { host, effects: Effects::default() }),
             transaction: Some(Transaction {
                 calldata,
-                host,
                 evm_version,
-                storage: FxHashMap::default(),
-                transient: FxHashMap::default(),
-                logs: Vec::new(),
                 allocations: ALLOCATION_REGION,
                 heap_frames: FxHashMap::default(),
             }),
@@ -535,8 +654,8 @@ impl<'a> Machine<'a> {
             Outcome::Return(_) => Outcome::Unsupported("dispatch entry returning values"),
             outcome => outcome,
         };
-        let transaction = run.transaction.expect("a transaction keeps its context");
-        TransactionExecution { outcome, storage: transaction.storage, logs: transaction.logs }
+        let world = run.world.expect("a transaction keeps its world");
+        TransactionExecution { outcome, effects: world.effects }
     }
 
     fn body(&self, id: FunctionId) -> Option<&'a Function> {
@@ -607,17 +726,17 @@ impl<'a> Frame<'a> {
     }
 }
 
+/// What a run with a host reads and changes outside memory.
+struct World<'t> {
+    host: &'t mut dyn Host,
+    effects: Effects,
+}
+
 /// The context of a run that executes a whole transaction.
 struct Transaction<'t> {
     calldata: &'t [u8],
-    host: &'t mut dyn Host,
     /// The EVM version the module targets, which decides what `revert` does.
     evm_version: EvmVersion,
-    /// The persistent storage slots the transaction wrote.
-    storage: FxHashMap<U256, U256>,
-    /// Transient storage, which every transaction starts empty.
-    transient: FxHashMap<U256, U256>,
-    logs: Vec<Log>,
     /// The next free byte of the region holding the allocations the backend places itself.
     allocations: u64,
     /// The heap frame of each called function, as the host reports it.
@@ -633,6 +752,9 @@ struct Run<'m, 'a, 't> {
     frames: Vec<Frame<'a>>,
     visited: DenseBitSet<BlockId>,
     outcomes: IndexVec<InstId, u8>,
+    /// Storage, logs, and context, when the run has a host.
+    world: Option<World<'t>>,
+    /// The transaction a run of the dispatch entry executes, which always has a world.
     transaction: Option<Transaction<'t>>,
 }
 
@@ -751,11 +873,9 @@ impl<'a> Run<'_, 'a, '_> {
                     None => return ControlFlow::Continue(()),
                 }
             }
-            Semantics::Opcode(opcode, operands)
-                if self.transaction.is_some() && !op::is_pure(opcode) =>
-            {
+            Semantics::Opcode(opcode, operands) if self.world.is_some() && !op::is_pure(opcode) => {
                 let operands = frame.read_all(&operands)?;
-                match self.transaction_opcode(opcode, &operands)? {
+                match self.world_opcode(opcode, &operands, meter)? {
                     Some(word) => word,
                     None => return ControlFlow::Continue(()),
                 }
@@ -830,18 +950,24 @@ impl<'a> Run<'_, 'a, '_> {
         })
     }
 
-    /// Runs an opcode on a transaction's context, returning its result when it has one.
-    fn transaction_opcode(
+    /// Runs an opcode on the world outside memory: storage, transient storage, logs, and the
+    /// host's context, and in a transaction also its calldata and return data. Returns its result
+    /// when it has one.
+    fn world_opcode(
         &mut self,
         opcode: u8,
         operands: &[U256],
+        meter: &mut dyn Meter,
     ) -> ControlFlow<Outcome, Option<U256>> {
         let unsupported = || Outcome::Unsupported(op::mnemonic(opcode).unwrap_or("opcode"));
-        // Operations on memory come first, while no borrow of the context is live.
+        // Operations on memory come first, while no borrow of the world is live.
         match (opcode, operands) {
             (op::CALLDATACOPY, &[dest, offset, len]) => {
+                let Some(transaction) = &self.transaction else {
+                    return ControlFlow::Break(unsupported());
+                };
+                let calldata = transaction.calldata;
                 self.burn_words(len)?;
-                let calldata = self.transaction.as_ref().map_or(&[][..], |tx| tx.calldata);
                 let bytes = (0..len.to::<u64>())
                     .map(|index| calldata_byte(calldata, offset, index))
                     .collect::<Vec<_>>();
@@ -851,45 +977,56 @@ impl<'a> Run<'_, 'a, '_> {
             (op::LOG0..=op::LOG4, &[offset, len, ref topics @ ..]) => {
                 self.burn_words(len)?;
                 let data = limit(self.memory.read(offset, len))?;
-                let Some(transaction) = &mut self.transaction else {
+                let Some(world) = &mut self.world else {
                     return ControlFlow::Break(unsupported());
                 };
-                transaction.logs.push(Log { topics: topics.to_vec(), data });
+                world.effects.logs.push(Log { topics: topics.to_vec(), data });
                 return ControlFlow::Continue(None);
             }
             _ => {}
         }
-        let Some(transaction) = &mut self.transaction else {
+        let Some(world) = &mut self.world else {
             return ControlFlow::Break(unsupported());
         };
+        let transaction = self.transaction.as_ref();
         ControlFlow::Continue(match (opcode, operands) {
-            (op::CALLDATALOAD, &[offset]) => Some(calldata_word(transaction.calldata, offset)),
-            (op::CALLDATASIZE, &[]) => Some(U256::from(transaction.calldata.len())),
-            (op::SLOAD, &[slot]) => Some(match transaction.storage.get(&slot) {
-                Some(&value) => value,
-                None => transaction.host.storage(slot),
-            }),
+            (op::CALLDATALOAD, &[offset]) if let Some(transaction) = transaction => {
+                Some(calldata_word(transaction.calldata, offset))
+            }
+            (op::CALLDATASIZE, &[]) if let Some(transaction) = transaction => {
+                Some(U256::from(transaction.calldata.len()))
+            }
+            (op::SLOAD, &[slot]) => {
+                let original = world.host.storage(slot);
+                let current = world.effects.storage.get(&slot).copied().unwrap_or(original);
+                meter.storage(StorageAccess { slot, original, current, new: None });
+                Some(current)
+            }
             (op::SSTORE, &[slot, value]) => {
-                transaction.storage.insert(slot, value);
+                let original = world.host.storage(slot);
+                let current = world.effects.storage.get(&slot).copied().unwrap_or(original);
+                meter.storage(StorageAccess { slot, original, current, new: Some(value) });
+                world.effects.storage.insert(slot, value);
                 None
             }
-            (op::TLOAD, &[slot]) => {
-                Some(transaction.transient.get(&slot).copied().unwrap_or_default())
-            }
+            (op::TLOAD, &[slot]) => Some(match world.effects.transient.get(&slot) {
+                Some(&value) => value,
+                None => world.host.transient(slot),
+            }),
             (op::TSTORE, &[slot, value]) => {
-                transaction.transient.insert(slot, value);
+                world.effects.transient.insert(slot, value);
                 None
             }
             // The transaction makes no calls, so its return data stays empty.
-            (op::RETURNDATASIZE, &[]) => Some(U256::ZERO),
+            (op::RETURNDATASIZE, &[]) if transaction.is_some() => Some(U256::ZERO),
             // Copying past the end of the return data halts.
-            (op::RETURNDATACOPY, &[_, offset, len]) => {
+            (op::RETURNDATACOPY, &[_, offset, len]) if transaction.is_some() => {
                 if !offset.is_zero() || !len.is_zero() {
                     return ControlFlow::Break(Outcome::Invalid);
                 }
                 None
             }
-            _ if HOST_OPCODES.contains(&opcode) => match transaction.host.read(opcode, operands) {
+            _ if HOST_OPCODES.contains(&opcode) => match world.host.read(opcode, operands) {
                 Some(word) => Some(word),
                 None => return ControlFlow::Break(unsupported()),
             },
@@ -942,11 +1079,13 @@ impl<'a> Run<'_, 'a, '_> {
         id: FunctionId,
         callee: &Function,
     ) -> ControlFlow<Outcome, Option<U256>> {
-        let Some(transaction) = &mut self.transaction else { return ControlFlow::Continue(None) };
+        let (Some(transaction), Some(world)) = (&mut self.transaction, &mut self.world) else {
+            return ControlFlow::Continue(None);
+        };
         let heap_frame = *transaction
             .heap_frames
             .entry(id)
-            .or_insert_with(|| transaction.host.heap_frame(&callee.name.to_string()));
+            .or_insert_with(|| world.host.heap_frame(&callee.name.to_string()));
         let Some(heap_frame) = heap_frame else { return ControlFlow::Continue(None) };
         // base = mload 0x40
         // mstore 0x40, base + frame size
@@ -1025,6 +1164,11 @@ impl<'a> Run<'_, 'a, '_> {
                         return ControlFlow::Break(Outcome::Unsupported("call without a result"));
                     };
                     caller.values[result] = Some(value);
+                    if caller.entry
+                        && let &Value::Inst(call) = caller.body.value(result)
+                    {
+                        self.outcomes[call] |= if value.is_zero() { 1 } else { 2 };
+                    }
                 }
                 ControlFlow::Continue(())
             }
@@ -1272,7 +1416,7 @@ fn @storage(arg0: i256) -> i256 {
     }
 
     fn run(module: &Module, function: FunctionId, arg: U256) -> Execution {
-        Machine::new(module).run(function, &[arg], Memory::new(7, 0), LIMITS, &mut ())
+        Machine::new(module).run(function, &[arg], Memory::new(7, 0), None, LIMITS, &mut ())
     }
 
     fn returned(value: u64) -> Outcome {
@@ -1340,7 +1484,10 @@ fn @storage(arg0: i256) -> i256 {
     #[test]
     fn calls_and_halts() {
         with_module(|module, id| {
-            assert_eq!(run(module, id("calls"), U256::from(5)).outcome, returned(20));
+            let execution = run(module, id("calls"), U256::from(5));
+            assert_eq!(execution.outcome, returned(20));
+            // A call's result counts when the callee returns it: `v0 = icall @double, arg0`.
+            assert_eq!(execution.outcomes[InstId::from_usize(0)], 2);
             let payload = U256::from(120).to_be_bytes::<32>().to_vec();
             assert_eq!(run(module, id("calls"), U256::from(30)).outcome, Outcome::Revert(payload));
 
@@ -1350,6 +1497,7 @@ fn @storage(arg0: i256) -> i256 {
                 id("calls"),
                 &[U256::from(5)],
                 Memory::new(7, 0),
+                None,
                 LIMITS,
                 &mut counter,
             );
@@ -1358,8 +1506,14 @@ fn @storage(arg0: i256) -> i256 {
             // A replacement runs in place of its original, including through calls.
             let module_double = module.function(id("double"));
             let replacement = Machine::with_replacement(module, id("double"), module_double);
-            let execution =
-                replacement.run(id("calls"), &[U256::from(5)], Memory::new(7, 0), LIMITS, &mut ());
+            let execution = replacement.run(
+                id("calls"),
+                &[U256::from(5)],
+                Memory::new(7, 0),
+                None,
+                LIMITS,
+                &mut (),
+            );
             assert_eq!(execution.outcome, returned(20));
         });
     }
@@ -1380,6 +1534,19 @@ fn @storage(arg0: i256) -> i256 {
             snapbox::str![
                 "zext inttoptr bitcast add sub mul div sdiv mod smod exp addmod mulmod and or xor not clz shl shr sar byte lt gt slt sgt eq ne mload mstore mstore8 mcopy keccak256 select signextend"
             ]
+        );
+        let mut with_host = Vec::new();
+        for &name in InstKind::MNEMONICS {
+            if let Some((arity, build)) = InstKind::operand_only(name) {
+                let kind = build(&(0..arity).map(ValueId::from_usize).collect::<Vec<_>>());
+                if !supports(&kind) && supports_with_host(&kind, &[op::CALLER]) {
+                    with_host.push(name);
+                }
+            }
+        }
+        snapbox::assert_data_eq!(
+            with_host.join(" "),
+            snapbox::str!["sload sstore tload tstore caller log0 log1 log2 log3 log4"]
         );
         assert!(supports_terminator(&Terminator::Stop));
         assert!(!supports_terminator(&Terminator::RevertReturndata));
@@ -1477,11 +1644,11 @@ fn @entry() [entry] {
         let words = [104, 32, 3 << 8, 0].map(|word| U256::from(word).to_be_bytes::<32>());
         assert_eq!(context.outcome, Outcome::ReturnData(words.concat()));
         assert_eq!(
-            context.storage.into_iter().collect::<Vec<_>>(),
+            context.effects.storage.into_iter().collect::<Vec<_>>(),
             [(U256::from(7), U256::from(103))]
         );
         let log = Log { topics: vec![U256::from(5)], data: words[0].to_vec() };
-        assert_eq!(context.logs, [log]);
+        assert_eq!(context.effects.logs, [log]);
 
         let module = "@module Tx
 @phase lowered
@@ -1537,6 +1704,80 @@ fn @entry() [entry] {
         assert_eq!(transact(module, &[0, 0, 0, 1]).outcome, Outcome::Revert(Vec::new()));
         let outcome = transact_on(module, &[0, 0, 0, 1], EvmVersion::Homestead).outcome;
         assert_eq!(outcome, Outcome::Invalid);
+    }
+
+    /// Records the storage accesses a run reports.
+    #[derive(Default)]
+    struct Accesses(Vec<StorageAccess>);
+
+    impl Meter for Accesses {
+        fn storage(&mut self, access: StorageAccess) {
+            self.0.push(access);
+        }
+    }
+
+    #[test]
+    fn functions_with_a_host() {
+        let source = "@module World
+@phase lowered
+fn @world(arg0: i256) -> i256 {
+  bb0:
+    v0 = sload 7
+    v1 = add v0, arg0
+    sstore 7, v1
+    sstore 8, v0
+    v2 = sload 7
+    tstore 1, v2
+    v3 = tload 1
+    v4 = callvalue
+    mstore 0, v4
+    log2 0, 32, v3, arg0
+    ret v3
+}
+";
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let module = parse_module(&sess, source).unwrap();
+            let id = module.functions.indices().next().unwrap();
+            let machine = Machine::new(&module);
+            let args = [U256::from(3)];
+            let mut accesses = Accesses::default();
+            let host: &mut dyn Host = &mut TestHost;
+            let execution =
+                machine.run(id, &args, Memory::new(7, 0), Some(host), LIMITS, &mut accesses);
+            assert_eq!(execution.outcome, returned(103));
+            let effects = execution.effects;
+            let mut storage = effects.storage.into_iter().collect::<Vec<_>>();
+            storage.sort_unstable();
+            let words = |words: &[u64]| words.iter().map(|&word| U256::from(word)).collect();
+            assert_eq!(
+                storage,
+                [(U256::from(7), U256::from(103)), (U256::from(8), U256::from(100))]
+            );
+            assert_eq!(
+                effects.transient.into_iter().collect::<Vec<_>>(),
+                [(U256::ONE, U256::from(103))]
+            );
+            let data = U256::from(5).to_be_bytes::<32>().to_vec();
+            assert_eq!(effects.logs, [Log { topics: words(&[103, 3]), data }]);
+            // Each access sees what the slot held when the run started and what it holds now.
+            let access = |slot: u64, original: u64, current: u64, new: Option<u64>| StorageAccess {
+                slot: U256::from(slot),
+                original: U256::from(original),
+                current: U256::from(current),
+                new: new.map(U256::from),
+            };
+            let expected = [
+                access(7, 100, 100, None),
+                access(7, 100, 100, Some(103)),
+                access(8, 0, 0, Some(100)),
+                access(7, 100, 103, None),
+            ];
+            assert_eq!(accesses.0, expected);
+            // Without a host, the run stops at its first storage access.
+            let outcome = machine.run(id, &args, Memory::new(7, 0), None, LIMITS, &mut ()).outcome;
+            assert_eq!(outcome, Outcome::Unsupported("sload"));
+        });
     }
 
     #[test]

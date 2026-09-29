@@ -10,12 +10,15 @@
 //! - It is not recursive, takes explicit word parameters (`iN` or `memptr`), and returns at most
 //!   one word: the backend passes further results through a memory buffer of its own.
 //! - It has at most [`MAX_INSTRUCTIONS`] instructions.
-//! - It and every function it can reach use only operations and terminators [`interp::supports`]
-//!   and [`interp::supports_terminator`] accept, no `undef` or error values, and single results.
+//! - It and every function it can reach use only operations the tests run ([`equivalence::runs`])
+//!   and terminators [`interp::supports_terminator`] accepts, no `undef` or error values, and
+//!   single results. The tests run storage, logs, and most context reads, but not calls to other
+//!   contracts, `gas`, or reads of code.
 //!
 //! A module that reads `msize` offers nothing: a candidate may touch memory its original does not,
 //! which `msize` anywhere else would observe.
 
+use super::equivalence;
 use crate::mir::{
     Function, FunctionId, InstKind, MirType, Module, Terminator, Value, analysis::CallGraphInfo,
     utils::interp,
@@ -80,7 +83,7 @@ fn body_exclusion(function: &Function) -> Option<String> {
     }
     for inst in function.instructions() {
         let kind = &function.inst(inst).kind;
-        if !interp::supports(kind) {
+        if !equivalence::runs(kind) {
             return Some(format!("uses `{}`", kind.op_def().mnemonic));
         }
     }

@@ -1,9 +1,9 @@
 llm-optimize Triangle @triangle: not offered: is an external entry
 llm-optimize Triangle @triangles: not offered: is an external entry
-llm-optimize Triangle @sumBelow: offered at 8019 gas, 43 bytes
+llm-optimize Triangle @sumBelow: offered at 7206 gas, 43 bytes
 llm-optimize Triangle @sumBelow: round 1: accepted at 72 gas, 28 bytes
 llm-optimize Triangle @sumBelow: round 2: nothing cheaper
-llm-optimize Triangle @sumBelow: rewritten from 8019 gas, 43 bytes to 72 gas, 28 bytes
+llm-optimize Triangle @sumBelow: rewritten from 7206 gas, 43 bytes to 72 gas, 28 bytes
 llm-optimize Triangle @entry: not offered: is the dispatch entry
 // === ROOT/tests/ui/codegen/mir/llm-optimize/triangle.sol:Triangle ===
 @module Triangle

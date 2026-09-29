@@ -838,7 +838,8 @@ error: expected `fn`
                 .map(|(index, _)| U256::from(mix64(seed ^ (input * 16 + index as u64)) % 512))
                 .collect::<Vec<_>>();
             let memory = Memory::new(seed ^ input, 4);
-            let _ = machine.run(id, &args, memory, Limits { fuel: 10_000, depth: 16 }, &mut ());
+            let limits = Limits { fuel: 10_000, depth: 16 };
+            let _ = machine.run(id, &args, memory, None, limits, &mut ());
         }
         true
     }
