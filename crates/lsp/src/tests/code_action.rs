@@ -12,15 +12,12 @@ use snapbox::{IntoData, assert_data_eq, str};
 use solar_interface::diagnostics::Applicability;
 use std::fmt::Write as _;
 
-const BAD_NAME: &str = "contract Test { uint256 bad_name; }\n";
-
 /// A fallback diagnostic as `(source file, diagnostic range text, origin, code, message)`.
 type FallbackCase<'a> = (&'a str, &'a str, &'a str, Option<&'a str>, &'a str);
 
 #[test]
 fn returns_native_quick_fix_as_legacy_or_versioned_edits() {
-    let project = TestProject::from_fixture(&format!("//- /Test.sol open\n{BAD_NAME}"));
-    let (_, _, diagnostic, params) = native_request(&project);
+    let (project, _, diagnostic, params) = native_request(true);
     for (document_changes, expected) in [
         (
             false,
@@ -52,10 +49,8 @@ fn returns_multipart_suggestion_alternatives_with_utf16_ranges() {
     let contents =
         "contract Test { string emoji = \"😀\"; uint256 bad_name; function bad_func() public {} }";
     project.write_file("/Test.sol", contents);
-    let edit = |name: &str, replacement: &str| {
-        let start = contents.find(name).unwrap();
-        TextEdit::new(lsp_range(contents, start, start + name.len()), replacement.into())
-    };
+    let edit =
+        |name, replacement: &str| TextEdit::new(text_range(contents, name), replacement.into());
     let first = vec![edit("bad_name", "badName"), edit("bad_func", "badFunc")];
     let second = vec![edit("bad_name", "goodName"), edit("bad_func", "goodFunc")];
     let (_, mut diagnostic, mut params) =
@@ -92,10 +87,7 @@ fn mixed_quick_fixes_share_current_syntax_and_preserve_order() {
         let contents = ["// 😀", "contract Test {", first, second, "}", ""].join(eol);
         project.write_file("/Test.sol", &contents);
         project.open_file("/Test.sol", &contents);
-        let range_of = |text: &str| {
-            let start = contents.find(text).unwrap();
-            lsp_range(&contents, start, start + text.len())
-        };
+        let range_of = |text| text_range(&contents, text);
         let (uri, first_diagnostic, mut params) = fallback_request(
             &project,
             range_of(first),
@@ -163,9 +155,28 @@ Close blocks preferred=Some(true)
 }
 
 #[test]
-fn changes_function_mutability_for_solc_2018() {
+fn offers_fallback_fixes_for_known_codes() {
+    // Presentation details after the primary message do not hide the fix.
+    let unused_local = "Unused local variable.\nnote: the declaration is never read";
+    let unused = |source| (source, "uint256 unused", "flycheck", Some("2072"), unused_local);
+    let virtual_source = "contract Test { function value() public returns (uint256); }";
+    let virtual_message = "functions without implementation must be marked virtual";
+    let virtual_target = "function value() public returns (uint256);";
+    let solc_override = "Overriding function is missing \"override\" specifier.";
+    let spdx = "SPDX license identifier not provided in source file. Before publishing, consider adding a comment containing \"SPDX-License-Identifier: <SPDX-License>\" to each source file.";
+    let pragma_message = |version| {
+        format!(
+            "Source file does not specify required compiler version! Consider adding \"pragma solidity {version};\""
+        )
+    };
+    let (pragma_99, pragma_0) = (pragma_message("^0.8.99"), pragma_message("0."));
+    let pragma = |source, message| (source, "", "flycheck", Some("3420"), message);
+    let solar = |source, target| (source, target, "solar", None, "unused import");
+    let plain = "import \"./Unused.sol\" as Unused;\ncontract Test {}\n";
+    let named = "import {Unused, Used} from \"./Types.sol\";\ncontract Test { Used value; }\n";
     check_fallbacks(
         &[
+            // Solc 2018 changes function mutability.
             (
                 "contract Test { function value() public returns (uint256) { return 1; } }",
                 "function value() public returns (uint256) { return 1; }",
@@ -180,26 +191,7 @@ fn changes_function_mutability_for_solc_2018() {
                 Some("2018"),
                 "Function state mutability can be restricted to pure.",
             ),
-        ],
-        str![[r#"
-== function value() public returns (uint256) { return 1; }
-Change state mutability to `view` preferred=Some(true)
-  Test.sol 0:40-0:40 "view "
-== function value() public view returns (uint256) { return 1; }
-Change state mutability to `pure` preferred=Some(true)
-  Test.sol 0:40-0:44 "pure"
-
-"#]],
-    );
-}
-
-#[test]
-fn removes_only_uninitialized_unused_locals_for_solc_2072() {
-    // Presentation details after the primary message do not hide the fix.
-    let message = "Unused local variable.\nnote: the declaration is never read";
-    let unused = |source| (source, "uint256 unused", "flycheck", Some("2072"), message);
-    check_fallbacks(
-        &[
+            // Solc 2072 removes only uninitialized unused locals.
             unused(
                 "contract Test {\n    function value() public pure returns (uint256) {\n        \
                  uint256 unused;\n        return 1;\n    }\n}\n",
@@ -210,47 +202,10 @@ fn removes_only_uninitialized_unused_locals_for_solc_2072() {
             unused(
                 "contract Test { function f() public pure { for (uint256 unused; false;) {} } }",
             ),
-        ],
-        str![[r#"
-== uint256 unused
-Remove unused local variable preferred=Some(true)
-  Test.sol 2:0-3:0 ""
-== uint256 unused
-Remove unused local variable preferred=Some(true)
-  Test.sol 0:43-0:58 ""
-== uint256 unused
-== uint256 unused
-
-"#]],
-    );
-}
-
-#[test]
-fn adds_virtual_to_unimplemented_function_for_solc_5424() {
-    let source = "contract Test { function value() public returns (uint256); }";
-    let message = "functions without implementation must be marked virtual";
-    let target = "function value() public returns (uint256);";
-    check_fallbacks(
-        // Fallback fixes require a diagnostic code.
-        &[
-            (source, target, "solar", Some("5424"), message),
-            (source, target, "solar", None, message),
-        ],
-        str![[r#"
-== function value() public returns (uint256);
-Add `virtual` preferred=Some(true)
-  Test.sol 0:40-0:40 "virtual "
-== function value() public returns (uint256);
-
-"#]],
-    );
-}
-
-#[test]
-fn adds_non_preferred_override_for_solc_9456() {
-    let solc = "Overriding function is missing \"override\" specifier.";
-    check_fallbacks(
-        &[
+            // Solc 5424 adds `virtual`; fallback fixes require a diagnostic code.
+            (virtual_source, virtual_target, "solar", Some("5424"), virtual_message),
+            (virtual_source, virtual_target, "solar", None, virtual_message),
+            // Solc 9456 adds a non-preferred `override`.
             (
                 "contract Test { function value() public returns (uint256) { return 1; } }",
                 "function value() public returns (uint256) { return 1; }",
@@ -263,14 +218,14 @@ fn adds_non_preferred_override_for_solc_9456() {
                 "fallback() external {}",
                 "flycheck",
                 Some("9456"),
-                solc,
+                solc_override,
             ),
             (
                 "contract Test { receive() external payable {} }",
                 "receive() external payable {}",
                 "flycheck",
                 Some("9456"),
-                solc,
+                solc_override,
             ),
             (
                 "contract Test { modifier onlyOwner() { _; } }",
@@ -286,34 +241,8 @@ fn adds_non_preferred_override_for_solc_9456() {
                 Some("9456"),
                 "overriding public state variable is missing `override` specifier",
             ),
-        ],
-        str![[r#"
-== function value() public returns (uint256) { return 1; }
-Add `override` preferred=Some(false)
-  Test.sol 0:40-0:40 "override "
-== fallback() external {}
-Add `override` preferred=Some(false)
-  Test.sol 0:36-0:36 "override "
-== receive() external payable {}
-Add `override` preferred=Some(false)
-  Test.sol 0:43-0:43 "override "
-== modifier onlyOwner() { _; }
-Add `override` preferred=Some(false)
-  Test.sol 0:37-0:37 "override "
-== uint256 public value
-Add `override` preferred=Some(false)
-  Test.sol 0:31-0:31 "override "
-
-"#]],
-    );
-}
-
-#[test]
-fn offers_non_preferred_spdx_alternatives_for_solc_1878() {
-    let message = "SPDX license identifier not provided in source file. Before publishing, consider adding a comment containing \"SPDX-License-Identifier: <SPDX-License>\" to each source file.";
-    check_fallbacks(
-        &[
-            ("contract Test {}\n", "", "flycheck", Some("1878"), message),
+            // Solc 1878 offers non-preferred SPDX alternatives.
+            ("contract Test {}\n", "", "flycheck", Some("1878"), spdx),
             (
                 "contract Test { string constant NOTICE = \"SPDX-License-Identifier:\"; }\n",
                 "",
@@ -321,63 +250,14 @@ fn offers_non_preferred_spdx_alternatives_for_solc_1878() {
                 Some("1878"),
                 "SPDX license identifier not provided in source file.",
             ),
-        ],
-        str![[r#"
-==
-Add `SPDX-License-Identifier: MIT` preferred=Some(false)
-  Test.sol 0:0-0:0 "// SPDX-License-Identifier: MIT\n"
-Add `SPDX-License-Identifier: UNLICENSED` preferred=Some(false)
-  Test.sol 0:0-0:0 "// SPDX-License-Identifier: UNLICENSED\n"
-==
-Add `SPDX-License-Identifier: MIT` preferred=Some(false)
-  Test.sol 0:0-0:0 "// SPDX-License-Identifier: MIT\n"
-Add `SPDX-License-Identifier: UNLICENSED` preferred=Some(false)
-  Test.sol 0:0-0:0 "// SPDX-License-Identifier: UNLICENSED\n"
-
-"#]],
-    );
-}
-
-#[test]
-fn adds_message_derived_pragma_for_solc_3420() {
-    let pragma = |source, version| {
-        let message = format!(
-            "Source file does not specify required compiler version! Consider adding \"pragma solidity {version};\""
-        );
-        (source, message)
-    };
-    let cases = [
-        pragma("contract Test {}\r\n", "^0.8.99"),
-        pragma(
-            "// TODO: add a pragma solidity directive after choosing a version.\ncontract Test {}\n",
-            "^0.8.99",
-        ),
-        pragma("contract Test {}\n", "0."),
-    ];
-    check_fallbacks(
-        &cases
-            .each_ref()
-            .map(|(source, message)| (*source, "", "flycheck", Some("3420"), message.as_str())),
-        str![[r#"
-==
-Add `pragma solidity ^0.8.99;` preferred=Some(false)
-  Test.sol 0:0-0:0 "pragma solidity ^0.8.99;\r\n"
-==
-Add `pragma solidity ^0.8.99;` preferred=Some(false)
-  Test.sol 0:0-0:0 "pragma solidity ^0.8.99;\n"
-==
-
-"#]],
-    );
-}
-
-#[test]
-fn removes_unused_imports() {
-    let solar = |source, target| (source, target, "solar", None, "unused import");
-    let plain = "import \"./Unused.sol\" as Unused;\ncontract Test {}\n";
-    let named = "import {Unused, Used} from \"./Types.sol\";\ncontract Test { Used value; }\n";
-    check_fallbacks(
-        &[
+            // Solc 3420 adds the pragma named by the message.
+            pragma("contract Test {}\r\n", pragma_99.as_str()),
+            pragma(
+                "// TODO: add a pragma solidity directive after choosing a version.\ncontract Test {}\n",
+                pragma_99.as_str(),
+            ),
+            pragma("contract Test {}\n", pragma_0.as_str()),
+            // Unused imports are removed.
             solar(plain, "import \"./Unused.sol\" as Unused;"),
             (
                 plain,
@@ -398,6 +278,56 @@ fn removes_unused_imports() {
             ),
         ],
         str![[r#"
+== function value() public returns (uint256) { return 1; }
+Change state mutability to `view` preferred=Some(true)
+  Test.sol 0:40-0:40 "view "
+== function value() public view returns (uint256) { return 1; }
+Change state mutability to `pure` preferred=Some(true)
+  Test.sol 0:40-0:44 "pure"
+== uint256 unused
+Remove unused local variable preferred=Some(true)
+  Test.sol 2:0-3:0 ""
+== uint256 unused
+Remove unused local variable preferred=Some(true)
+  Test.sol 0:43-0:58 ""
+== uint256 unused
+== uint256 unused
+== function value() public returns (uint256);
+Add `virtual` preferred=Some(true)
+  Test.sol 0:40-0:40 "virtual "
+== function value() public returns (uint256);
+== function value() public returns (uint256) { return 1; }
+Add `override` preferred=Some(false)
+  Test.sol 0:40-0:40 "override "
+== fallback() external {}
+Add `override` preferred=Some(false)
+  Test.sol 0:36-0:36 "override "
+== receive() external payable {}
+Add `override` preferred=Some(false)
+  Test.sol 0:43-0:43 "override "
+== modifier onlyOwner() { _; }
+Add `override` preferred=Some(false)
+  Test.sol 0:37-0:37 "override "
+== uint256 public value
+Add `override` preferred=Some(false)
+  Test.sol 0:31-0:31 "override "
+==
+Add `SPDX-License-Identifier: MIT` preferred=Some(false)
+  Test.sol 0:0-0:0 "// SPDX-License-Identifier: MIT\n"
+Add `SPDX-License-Identifier: UNLICENSED` preferred=Some(false)
+  Test.sol 0:0-0:0 "// SPDX-License-Identifier: UNLICENSED\n"
+==
+Add `SPDX-License-Identifier: MIT` preferred=Some(false)
+  Test.sol 0:0-0:0 "// SPDX-License-Identifier: MIT\n"
+Add `SPDX-License-Identifier: UNLICENSED` preferred=Some(false)
+  Test.sol 0:0-0:0 "// SPDX-License-Identifier: UNLICENSED\n"
+==
+Add `pragma solidity ^0.8.99;` preferred=Some(false)
+  Test.sol 0:0-0:0 "pragma solidity ^0.8.99;\r\n"
+==
+Add `pragma solidity ^0.8.99;` preferred=Some(false)
+  Test.sol 0:0-0:0 "pragma solidity ^0.8.99;\n"
+==
 == import "./Unused.sol" as Unused;
 Remove unused import preferred=Some(true)
   Test.sol 0:0-1:0 ""
@@ -421,8 +351,7 @@ Remove unused import preferred=Some(true)
 
 #[test]
 fn filters_by_requested_kind_and_range() {
-    let project = TestProject::from_fixture(&format!("//- /Test.sol\n{BAD_NAME}"));
-    let (_, _, diagnostic, mut params) = native_request(&project);
+    let (project, _, diagnostic, mut params) = native_request(false);
     let mut state = state(&project, false);
     let Range { start, end } = diagnostic.range;
     let before = Position::new(0, start.character - 1);
@@ -537,13 +466,11 @@ fn range_filtering_keeps_exact_position_validation() {
 
 #[test]
 fn rejects_stale_disk_and_open_document_fingerprints() {
-    let disk = TestProject::from_fixture(&format!("//- /Test.sol\n{BAD_NAME}"));
-    let (_, _, _, disk_params) = native_request(&disk);
+    let (disk, _, _, disk_params) = native_request(false);
     disk.write_file("/Test.sol", "contract Test { uint256 changed; }");
     assert!(authorized_code_actions(&mut state(&disk, false), disk_params).is_empty());
 
-    let open = TestProject::from_fixture(&format!("//- /Test.sol open\n{BAD_NAME}"));
-    let (_, _, _, open_params) = native_request(&open);
+    let (open, _, _, open_params) = native_request(true);
     let mut open_state = state(&open, false);
     set_overlay(&open_state, &open.path("/Test.sol"), "contract Test { uint256 changed; }", 1);
     assert!(authorized_code_actions(&mut open_state, open_params).is_empty());
@@ -551,8 +478,7 @@ fn rejects_stale_disk_and_open_document_fingerprints() {
 
 #[test]
 fn canonicalizes_equivalent_file_uris_before_validating_diagnostic_data() {
-    let project = TestProject::from_fixture(&format!("//- /Test.sol\n{BAD_NAME}"));
-    let (uri, _, diagnostic, mut params) = native_request(&project);
+    let (project, uri, diagnostic, mut params) = native_request(false);
     let encoded = Url::parse(&uri.as_str().replacen("Test.sol", "%54est.sol", 1)).unwrap();
     assert_ne!(uri, encoded);
     assert_eq!(uri.to_file_path(), encoded.to_file_path());
@@ -572,8 +498,7 @@ convert the name to mixedCase preferred=Some(true)
 
 #[test]
 fn selects_current_server_diagnostics_for_the_client_context() {
-    let project = TestProject::from_fixture(&format!("//- /Test.sol\n{BAD_NAME}"));
-    let (uri, _, diagnostic, params) = native_request(&project);
+    let (project, uri, diagnostic, params) = native_request(false);
     let mut state = state(&project, false);
     let fix = str![[r#"
 convert the name to mixedCase preferred=Some(true)
@@ -656,59 +581,48 @@ apply different fix preferred=Some(true)
 
 #[test]
 fn returns_no_literal_action_when_the_client_did_not_advertise_support() {
-    let project = TestProject::from_fixture(&format!("//- /Test.sol\n{BAD_NAME}"));
-    let (uri, _, diagnostic, params) = native_request(&project);
-    let mut state = state_with(project.config());
-    *state.vfs.write() = project.vfs();
+    let (project, uri, diagnostic, params) = native_request(false);
+    let mut state = project.state();
     replace_diagnostics(&state, uri, vec![diagnostic]);
 
     assert!(code_actions(&mut state, params).is_empty());
 }
 
 #[test]
-fn omits_optional_fields_but_keeps_server_owned_fix_data() {
-    let project = TestProject::from_fixture(&format!("//- /Test.sol\n{BAD_NAME}"));
-    let (uri, _, diagnostic, mut params) = native_request(&project);
-    params.context.diagnostics[0].data = None;
-    let mut state = state_with_capabilities(&project, false, false, true, false, false);
-    replace_diagnostics(&state, uri.clone(), vec![diagnostic]);
-
-    let diagnostics = full_pull_report(&state, uri);
-    assert_eq!(diagnostics.len(), 1);
-    assert!(diagnostics[0].data.is_none());
-
-    let response = code_actions(&mut state, params);
-    assert!(action_diagnostics(&response)[0].data.is_none());
-    assert_data_eq!(
-        actions_output(&response),
-        str![[r#"
+fn quick_fixes_follow_pull_diagnostic_data_support() {
+    let (project, uri, diagnostic, mut params) = native_request(false);
+    for (data_support, expected) in [
+        // Without data support, optional fields are omitted but the server keeps the fix data.
+        (
+            false,
+            str![[r#"
 convert the name to mixedCase preferred=None
   Test.sol 0:24-0:32 "badName"
 
-"#]]
-    );
-}
-
-#[test]
-fn pull_only_diagnostic_data_support_preserves_quick_fixes() {
-    let project = TestProject::from_fixture(&format!("//- /Test.sol\n{BAD_NAME}"));
-    let (uri, _, diagnostic, mut params) = native_request(&project);
-    let mut state = state_with_capabilities(&project, false, true, true, false, true);
-    replace_diagnostics(&state, uri.clone(), vec![diagnostic]);
-
-    params.context.diagnostics = full_pull_report(&state, uri);
-    assert!(params.context.diagnostics[0].data.is_some());
-
-    let response = code_actions(&mut state, params);
-    assert!(action_diagnostics(&response)[0].data.is_some());
-    assert_data_eq!(
-        actions_output(&response),
-        str![[r#"
+"#]],
+        ),
+        // Pull-only data support preserves quick fixes.
+        (
+            true,
+            str![[r#"
 convert the name to mixedCase preferred=Some(true)
   Test.sol 0:24-0:32 "badName"
 
-"#]]
-    );
+"#]],
+        ),
+    ] {
+        let mut state =
+            state_with_capabilities(&project, false, data_support, true, false, data_support);
+        replace_diagnostics(&state, uri.clone(), vec![diagnostic.clone()]);
+
+        params.context.diagnostics = full_pull_report(&state, uri.clone());
+        assert_eq!(params.context.diagnostics.len(), 1);
+        assert_eq!(params.context.diagnostics[0].data.is_some(), data_support);
+
+        let response = code_actions(&mut state, params.clone());
+        assert_eq!(action_diagnostics(&response)[0].data.is_some(), data_support);
+        assert_data_eq!(actions_output(&response), expected);
+    }
 }
 
 /// Checks each fallback case with its diagnostic duplicated, which must not duplicate fixes.
@@ -717,8 +631,7 @@ fn check_fallbacks(cases: &[FallbackCase<'_>], expected: impl IntoData) {
     for &(source, target, origin, code, message) in cases {
         let project = TestProject::new();
         project.write_file("/Test.sol", source);
-        let start = source.find(target).unwrap();
-        let range = lsp_range(source, start, start + target.len());
+        let range = text_range(source, target);
         let (_, diagnostic, mut params) = fallback_request(&project, range, origin, code, message);
         params.context.diagnostics.push(diagnostic.clone());
         let response = authorized_code_actions(&mut state(&project, false), params);
@@ -729,12 +642,16 @@ fn check_fallbacks(cases: &[FallbackCase<'_>], expected: impl IntoData) {
     assert_data_eq!(output, expected.into_data().raw());
 }
 
-fn native_request(project: &TestProject) -> (Url, TextEdit, Diagnostic, CodeActionParams) {
-    let contents = project.read_file("/Test.sol");
-    let start = contents.find("bad_name").unwrap();
-    let edit = TextEdit::new(lsp_range(&contents, start, start + 8), "badName".into());
+/// Returns a project with a native mixedCase fix for `bad_name`, and a request for it.
+fn native_request(open: bool) -> (TestProject, Url, Diagnostic, CodeActionParams) {
+    let open = if open { " open" } else { "" };
+    let project = TestProject::from_fixture(&format!(
+        "//- /Test.sol{open}\ncontract Test {{ uint256 bad_name; }}\n"
+    ));
+    let edit =
+        TextEdit::new(text_range(&project.read_file("/Test.sol"), "bad_name"), "badName".into());
     let (uri, mut diagnostic, mut params) = fallback_request(
-        project,
+        &project,
         edit.range,
         "solar",
         Some("mixed-case-variable"),
@@ -748,7 +665,7 @@ fn native_request(project: &TestProject) -> (Url, TextEdit, Diagnostic, CodeActi
         alternatives,
     );
     params.context.diagnostics = vec![diagnostic.clone()];
-    (uri, edit, diagnostic, params)
+    (project, uri, diagnostic, params)
 }
 
 fn fallback_request(
@@ -793,6 +710,11 @@ fn native_data(uri: Url, contents: &str, title: &str, edit: TextEdit) -> Value {
     let suggestion =
         DiagnosticSuggestion::new(title.into(), Applicability::MachineApplicable, vec![vec![edit]]);
     DiagnosticData::new(uri, contents, vec![suggestion]).to_value()
+}
+
+fn text_range(contents: &str, text: &str) -> Range {
+    let start = contents.find(text).unwrap();
+    lsp_range(contents, start, start + text.len())
 }
 
 fn lsp_range(contents: &str, start: usize, end: usize) -> Range {
