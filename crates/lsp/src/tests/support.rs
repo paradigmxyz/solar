@@ -8,16 +8,15 @@ use crate::test_support::{
 };
 use async_lsp::{ClientSocket, ErrorCode, ResponseError};
 use lsp_types::{
-    CodeLens, CodeLensParams, CompletionContext, CompletionItem, CompletionParams,
-    CompletionResponse, CompletionTextEdit, CompletionTriggerKind, DocumentHighlight,
-    DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
-    Documentation, FoldingRange, FoldingRangeKind, FoldingRangeParams, GotoDefinitionParams,
-    GotoDefinitionResponse, Hover, HoverContents, HoverParams, InlayHint, InlayHintKind,
-    InlayHintLabel, InlayHintParams, Location, MarkupKind, ParameterLabel, PartialResultParams,
-    Position, PrepareRenameResponse, Range, ReferenceContext, ReferenceParams, RenameParams,
-    SelectionRange, SelectionRangeParams, SignatureHelp, SignatureHelpParams,
-    TextDocumentIdentifier, TextDocumentPositionParams, TypeHierarchyItem, Url,
-    WorkDoneProgressParams, WorkspaceEdit,
+    CodeLens, CodeLensParams, CompletionContext, CompletionParams, CompletionResponse,
+    CompletionTextEdit, CompletionTriggerKind, DocumentHighlight, DocumentHighlightKind,
+    DocumentHighlightParams, DocumentLink, DocumentLinkParams, Documentation, FoldingRange,
+    FoldingRangeKind, FoldingRangeParams, GotoDefinitionParams, GotoDefinitionResponse, Hover,
+    HoverContents, HoverParams, InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams,
+    Location, MarkupKind, ParameterLabel, PartialResultParams, Position, PrepareRenameResponse,
+    Range, ReferenceContext, ReferenceParams, RenameParams, SelectionRange, SelectionRangeParams,
+    SignatureHelp, SignatureHelpParams, TextDocumentIdentifier, TextDocumentPositionParams,
+    TypeHierarchyItem, Url, WorkDoneProgressParams, WorkspaceEdit,
 };
 use snapbox::{IntoData, assert_data_eq};
 use solar_config::CompileOpts;
@@ -118,105 +117,46 @@ impl RequestFixture {
         (state, params)
     }
 
-    pub(super) fn check_completion(&self, marker: &str, expected: impl IntoData) {
-        let mut state = self.state();
-        let (uri, position) = self.marker_location(marker);
-        let response =
-            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
-                .unwrap()
-                .unwrap();
-        let CompletionResponse::Array(items) = response else {
-            panic!("expected completion array");
-        };
-        assert_data_eq!(completion_output(&items), expected);
+    pub(super) fn check_completions(&self, markers: &[&str], expected: impl IntoData) {
+        self.check_completions_in(&mut self.completion_state(), markers, expected);
     }
 
-    pub(super) fn check_completion_details(&self, marker: &str, expected: impl IntoData) {
-        self.check_completion_details_with_snippets(marker, true, expected);
-    }
-
-    pub(super) fn check_completion_details_with_snippets(
+    pub(super) fn check_completions_in(
         &self,
-        marker: &str,
-        snippet_support: bool,
+        state: &mut GlobalState,
+        markers: &[&str],
         expected: impl IntoData,
     ) {
-        let mut state = self.state_with_completion_snippets(snippet_support);
-        let (uri, position) = self.marker_location(marker);
-        let response =
-            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
-                .unwrap()
-                .unwrap();
-        let CompletionResponse::Array(items) = response else {
-            panic!("expected completion array");
-        };
-        assert_data_eq!(completion_details_output(&items), expected);
+        let requests = markers.iter().map(|&marker| (marker, None)).collect::<Vec<_>>();
+        self.check_completion_requests(state, &requests, expected);
     }
 
-    pub(super) fn check_completion_details_with_trigger(
+    pub(super) fn check_triggered_completions(
         &self,
-        marker: &str,
-        trigger_character: &str,
+        requests: &[(&str, &str)],
         expected: impl IntoData,
     ) {
-        let mut state = self.state_with_completion_snippets(true);
-        let (uri, position) = self.marker_location(marker);
-        let response = expect_ready(crate::handlers::completion(
-            &mut state,
-            completion_params_with_trigger(uri, position, trigger_character),
-        ))
-        .unwrap()
-        .unwrap();
-        let CompletionResponse::Array(items) = response else {
-            panic!("expected completion array");
-        };
-        assert_data_eq!(completion_details_output(&items), expected);
+        let requests =
+            requests.iter().map(|&(marker, trigger)| (marker, Some(trigger))).collect::<Vec<_>>();
+        self.check_completion_requests(&mut self.completion_state(), &requests, expected);
     }
 
-    pub(super) fn check_completion_details_after_change(
+    fn check_completion_requests(
         &self,
-        marker: &str,
-        path: &str,
-        changed_contents: &str,
+        state: &mut GlobalState,
+        requests: &[(&str, Option<&str>)],
         expected: impl IntoData,
     ) {
-        self.check_completion_details_after_changes(
-            marker,
-            path,
-            &[(path, changed_contents)],
-            expected,
-        );
+        let requests = requests.iter().map(|&(marker, trigger)| {
+            let (uri, position) = self.marker_location(marker);
+            (marker.to_string(), uri, position, trigger)
+        });
+        check_completions_at(state, requests, expected);
     }
 
-    pub(super) fn check_completion_after_change(
-        &self,
-        marker: &str,
-        path: &str,
-        contents: &str,
-        expected: impl IntoData,
-    ) {
-        let items = self.completion_after_changes(marker, path, &[(path, contents)]);
-        assert_data_eq!(completion_output(&items), expected);
-    }
-
-    pub(super) fn check_completion_details_after_changes(
-        &self,
-        marker: &str,
-        request_path: &str,
-        changes: &[(&str, &str)],
-        expected: impl IntoData,
-    ) {
-        let items = self.completion_after_changes(marker, request_path, changes);
-        assert_data_eq!(completion_details_output(&items), expected);
-    }
-
-    fn completion_after_changes(
-        &self,
-        marker: &str,
-        request_path: &str,
-        changes: &[(&str, &str)],
-    ) -> Vec<CompletionItem> {
-        let mut state = self.state_with_completion_snippets(true);
+    /// Returns a snippet-capable state whose open files changed after the stored analysis.
+    pub(super) fn completion_state_after_changes(&self, changes: &[(&str, &str)]) -> GlobalState {
+        let state = self.completion_state();
         for &(path, contents) in changes {
             let path = self.marked.project().path(path);
             state.mark_source_analysis_pending_for_test(path.clone());
@@ -225,57 +165,7 @@ impl RequestFixture {
                 Some(crop::Rope::from(contents)),
             );
         }
-        let uri = Url::from_file_path(self.marked.project().path(request_path)).unwrap();
-        let position = self.marked.marker(marker).position();
-        let response =
-            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
-                .unwrap()
-                .unwrap();
-        let CompletionResponse::Array(items) = response else {
-            panic!("expected completion array");
-        };
-        items
-    }
-
-    pub(super) fn check_completion_details_after_deleted_source(
-        &self,
-        marker: &str,
-        request_path: &str,
-        deleted_path: &str,
-        expected: impl IntoData,
-    ) {
-        let mut state = self.state_with_completion_snippets(true);
-        let deleted_path = self.marked.project().path(deleted_path);
-        state.mark_source_analysis_pending_for_test(deleted_path.clone());
-        std::fs::remove_file(deleted_path).unwrap();
-        let uri = Url::from_file_path(self.marked.project().path(request_path)).unwrap();
-        let position = self.marked.marker(marker).position();
-        let response =
-            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
-                .unwrap()
-                .unwrap();
-        let CompletionResponse::Array(items) = response else {
-            panic!("expected completion array");
-        };
-        assert_data_eq!(completion_details_output(&items), expected);
-    }
-
-    pub(super) fn check_completion_details_after_context_change(
-        &self,
-        marker: &str,
-        expected: impl IntoData,
-    ) {
-        let mut state = self.state_with_completion_snippets(true);
-        state.mark_context_analysis_pending_for_test();
-        let (uri, position) = self.marker_location(marker);
-        let response =
-            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
-                .unwrap()
-                .unwrap();
-        let CompletionResponse::Array(items) = response else {
-            panic!("expected completion array");
-        };
-        assert_data_eq!(completion_details_output(&items), expected);
+        state
     }
 
     pub(super) fn check_goto_definition(&self, marker: &str, expected: impl IntoData) {
@@ -594,70 +484,43 @@ impl RequestFixture {
         })
     }
 
-    pub(super) fn check_signature_help(&self, marker: &str, expected: impl IntoData) {
-        let mut state = self.state();
-        let (uri, position) = self.marker_location(marker);
-        self.check_signature_help_in_state(&mut state, uri, position, expected);
+    pub(super) fn check_signature_help(&self, markers: &[&str], expected: impl IntoData) {
+        self.check_signature_help_in(&mut self.state(), markers, expected);
     }
 
-    pub(super) fn check_signature_help_without_label_offsets(
+    pub(super) fn check_signature_help_in(
         &self,
-        marker: &str,
+        state: &mut GlobalState,
+        markers: &[&str],
         expected: impl IntoData,
     ) {
-        let mut state = self.state_with_label_offsets(false);
-        let (uri, position) = self.marker_location(marker);
-        self.check_signature_help_in_state(&mut state, uri, position, expected);
+        let outputs = markers.iter().map(|&marker| {
+            let (uri, position) = self.marker_location(marker);
+            (marker.to_string(), signature_help_output(signature_help_at(state, uri, position)))
+        });
+        assert_data_eq!(marker_outputs(outputs), expected);
     }
 
-    pub(super) fn signature_help_response(&self, marker: &str) -> Option<SignatureHelp> {
-        let mut state = self.state();
-        let (uri, position) = self.marker_location(marker);
-        expect_ready(crate::handlers::signature_help(
-            &mut state,
-            signature_help_params(uri, position),
-        ))
-        .unwrap()
-    }
-
-    pub(super) fn check_signature_help_after_change(
+    /// Returns a state that keeps analyzing `path` as `changed_contents`, which must fail analysis.
+    pub(super) fn signature_help_state_after_change(
         &self,
-        marker: &str,
         path: &str,
         changed_contents: &str,
-        expected: impl IntoData,
-    ) {
+    ) -> GlobalState {
         let path = self.marked.project().path(path);
-        let uri = Url::from_file_path(&path).unwrap();
         let result = analyze(AnalysisBatch::from_files(
             CompileOpts::default(),
             [(path.clone(), changed_contents.to_string())],
         ));
         assert!(!result.diagnostics.is_empty(), "changed source should fail analysis");
 
-        let mut state = self.state();
+        let state = self.state();
         state.vfs.write().set_file_contents(
             crate::vfs::VfsPath::from(path),
             Some(crop::Rope::from(changed_contents)),
         );
         state.symbol_tables.store(Arc::new(result.symbol_tables));
-        let position = self.marked.marker(marker).position();
-        self.check_signature_help_in_state(&mut state, uri, position, expected);
-    }
-
-    fn check_signature_help_in_state(
-        &self,
-        state: &mut GlobalState,
-        uri: Url,
-        position: Position,
-        expected: impl IntoData,
-    ) {
-        let response = expect_ready(crate::handlers::signature_help(
-            state,
-            signature_help_params(uri, position),
-        ))
-        .unwrap();
-        assert_data_eq!(signature_help_output(response), expected);
+        state
     }
 
     pub(super) fn check_inlay_hints_between(
@@ -704,11 +567,9 @@ impl RequestFixture {
         state
     }
 
-    fn state_with_completion_snippets(&self, completion_snippets: bool) -> GlobalState {
-        let mut state = self.state_with_label_offsets(true);
-        if completion_snippets {
-            Arc::make_mut(&mut state.config).enable_completion_snippets();
-        }
+    pub(super) fn completion_state(&self) -> GlobalState {
+        let mut state = self.state();
+        Arc::make_mut(&mut state.config).enable_completion_snippets();
         state
     }
 
@@ -969,15 +830,6 @@ fn read_file(path: &Path) -> Option<String> {
     Some(contents)
 }
 
-fn completion_output(items: &[CompletionItem]) -> String {
-    let mut output = String::new();
-    for item in items {
-        let kind = item.kind.map(|kind| format!("{kind:?}")).unwrap_or_else(|| "UNKNOWN".into());
-        writeln!(output, "{} {kind}", item.label).unwrap();
-    }
-    output
-}
-
 fn code_lens_output(lenses: &[CodeLens]) -> String {
     let mut output = String::new();
     for lens in lenses {
@@ -1001,53 +853,76 @@ fn code_lens_output(lenses: &[CodeLens]) -> String {
     output
 }
 
-fn completion_details_output(items: &[CompletionItem]) -> String {
-    let mut output = String::new();
-    for (index, item) in items.iter().enumerate() {
-        let kind = item.kind.map(|kind| format!("{kind:?}")).unwrap_or_else(|| "<none>".into());
-        let insert_text_format = item
-            .insert_text_format
-            .map(|format| format!("{format:?}"))
-            .unwrap_or_else(|| "<none>".into());
-        let (text_edit, new_text) = match &item.text_edit {
-            Some(CompletionTextEdit::Edit(edit)) => {
-                (format!("edit {}", range_output(edit.range)), edit.new_text.as_str())
-            }
-            Some(CompletionTextEdit::InsertAndReplace(edit)) => (
-                format!(
-                    "insert-and-replace insert={} replace={}",
-                    range_output(edit.insert),
-                    range_output(edit.replace)
-                ),
-                edit.new_text.as_str(),
-            ),
-            None => ("<none>".into(), "<none>"),
-        };
-
-        writeln!(output, "label={}", item.label).unwrap();
-        writeln!(output, "kind={kind}").unwrap();
-        writeln!(output, "detail={}", item.detail.as_deref().unwrap_or("<none>")).unwrap();
-        writeln!(output, "sort_text={}", item.sort_text.as_deref().unwrap_or("<none>")).unwrap();
-        writeln!(output, "text_edit={text_edit}").unwrap();
-        if let Some(edits) = &item.additional_text_edits {
-            for edit in edits {
-                writeln!(
-                    output,
-                    "additional_text_edit={} new_text={:?}",
-                    range_output(edit.range),
-                    edit.new_text
-                )
-                .unwrap();
+fn completion_output(response: CompletionResponse) -> String {
+    let (incomplete, items) = match response {
+        CompletionResponse::Array(items) => (false, items),
+        CompletionResponse::List(list) => (list.is_incomplete, list.items),
+    };
+    let mut output = if incomplete { "incomplete\n".to_string() } else { String::new() };
+    for item in items {
+        let kind = item.kind.map_or_else(|| "<none>".into(), |kind| format!("{kind:?}"));
+        write!(output, "{} {kind}", item.label).unwrap();
+        for (name, value) in
+            [("detail", &item.detail), ("sort", &item.sort_text), ("filter", &item.filter_text)]
+        {
+            if let Some(value) = value {
+                write!(output, " {name}={value:?}").unwrap();
             }
         }
-        writeln!(output, "insert_text_format={insert_text_format}").unwrap();
-        writeln!(output, "new_text:").unwrap();
-        writeln!(output, "{new_text}").unwrap();
-        if index + 1 < items.len() {
+        if let Some(format) = item.insert_text_format {
+            write!(output, " format={format:?}").unwrap();
+        }
+        for edit in item.additional_text_edits.iter().flatten() {
+            write!(output, " additional={}={:?}", range_output(edit.range), edit.new_text).unwrap();
+        }
+        let Some(text_edit) = item.text_edit else {
             writeln!(output).unwrap();
+            continue;
+        };
+        let CompletionTextEdit::Edit(edit) = text_edit else {
+            panic!("unexpected insert-and-replace completion edit");
+        };
+        writeln!(output, " edit={}", range_output(edit.range)).unwrap();
+        for line in edit.new_text.split('\n') {
+            writeln!(output, "|{}{line}", if line.is_empty() { "" } else { " " }).unwrap();
         }
     }
     output
+}
+
+/// Checks completions for `(name, uri, position, trigger)` requests.
+pub(super) fn check_completions_at<'a>(
+    state: &mut GlobalState,
+    requests: impl IntoIterator<Item = (String, Url, Position, Option<&'a str>)>,
+    expected: impl IntoData,
+) {
+    let outputs = requests.into_iter().map(|(name, uri, position, trigger)| {
+        let params = completion_params(uri, position, trigger);
+        let response = expect_ready(crate::handlers::completion(state, params)).unwrap();
+        (name, completion_output(response.unwrap()))
+    });
+    // Keep backslashes from snippet and string escapes out of path normalization.
+    assert_data_eq!(marker_outputs(outputs), expected.raw());
+}
+
+/// Joins per-marker outputs, listing markers with identical output under one header.
+fn marker_outputs(outputs: impl Iterator<Item = (String, String)>) -> String {
+    let mut groups = Vec::<(Vec<String>, String)>::new();
+    for (marker, output) in outputs {
+        match groups.iter_mut().find(|(_, existing)| *existing == output) {
+            Some((markers, _)) => markers.push(marker),
+            None => groups.push((vec![marker], output)),
+        }
+    }
+    if let [(_, output)] = groups.as_slice() {
+        return output.clone();
+    }
+    let mut result = String::new();
+    for (markers, output) in groups {
+        writeln!(result, "{}:", markers.join(" ")).unwrap();
+        result.push_str(&output);
+    }
+    result
 }
 
 fn range_output(range: Range) -> String {
@@ -1190,39 +1065,36 @@ fn signature_help_output(help: Option<SignatureHelp>) -> String {
     )
     .unwrap();
     for signature in help.signatures {
-        writeln!(output, "{}", signature.label).unwrap();
-        if let Some(documentation) = signature.documentation {
-            writeln!(output, "  docs={}", documentation_text(&documentation).replace('\n', " | "))
-                .unwrap();
+        write!(output, "{}", signature.label).unwrap();
+        if let Some(active_parameter) = signature.active_parameter {
+            write!(output, " active={active_parameter}").unwrap();
         }
-        if let Some(parameters) = signature.parameters {
-            for parameter in parameters {
-                match parameter.label {
-                    ParameterLabel::Simple(label) => write!(output, "  {label}").unwrap(),
-                    ParameterLabel::LabelOffsets([start, end]) => {
-                        write!(output, "  {start}..{end}").unwrap()
-                    }
+        writeln!(output).unwrap();
+        if let Some(documentation) = signature.documentation {
+            writeln!(output, "  {}", documentation_output(&documentation)).unwrap();
+        }
+        for parameter in signature.parameters.into_iter().flatten() {
+            match parameter.label {
+                ParameterLabel::Simple(label) => write!(output, "  {label}").unwrap(),
+                ParameterLabel::LabelOffsets([start, end]) => {
+                    write!(output, "  {start}..{end}").unwrap()
                 }
-                if let Some(documentation) = parameter.documentation {
-                    write!(
-                        output,
-                        " docs={}",
-                        documentation_text(&documentation).replace('\n', " | ")
-                    )
-                    .unwrap();
-                }
-                writeln!(output).unwrap();
             }
+            if let Some(documentation) = parameter.documentation {
+                write!(output, " {}", documentation_output(&documentation)).unwrap();
+            }
+            writeln!(output).unwrap();
         }
     }
     output
 }
 
-fn documentation_text(documentation: &Documentation) -> &str {
-    match documentation {
-        Documentation::String(value) => value,
-        Documentation::MarkupContent(content) => &content.value,
-    }
+fn documentation_output(documentation: &Documentation) -> String {
+    let (kind, value) = match documentation {
+        Documentation::String(value) => ("docs", value),
+        Documentation::MarkupContent(content) => ("markdown", &content.value),
+    };
+    format!("{kind}={}", value.replace('\n', " | "))
 }
 
 fn inlay_hint_kind(kind: Option<InlayHintKind>) -> &'static str {
@@ -1245,26 +1117,15 @@ fn display_path(root: &Path, path: &Path) -> String {
     format!("/{}", path.display())
 }
 
-fn completion_params(uri: Url, position: Position) -> CompletionParams {
+fn completion_params(uri: Url, position: Position, trigger: Option<&str>) -> CompletionParams {
     CompletionParams {
         text_document_position: text_document_position(uri, position),
         work_done_progress_params: WorkDoneProgressParams::default(),
         partial_result_params: PartialResultParams::default(),
-        context: None,
-    }
-}
-
-fn completion_params_with_trigger(
-    uri: Url,
-    position: Position,
-    trigger_character: &str,
-) -> CompletionParams {
-    CompletionParams {
-        context: Some(CompletionContext {
+        context: trigger.map(|trigger| CompletionContext {
             trigger_kind: CompletionTriggerKind::TRIGGER_CHARACTER,
-            trigger_character: Some(trigger_character.into()),
+            trigger_character: Some(trigger.into()),
         }),
-        ..completion_params(uri, position)
     }
 }
 
@@ -1332,12 +1193,17 @@ fn document_link_params(uri: Url) -> DocumentLinkParams {
     }
 }
 
-fn signature_help_params(uri: Url, position: Position) -> SignatureHelpParams {
-    SignatureHelpParams {
+pub(super) fn signature_help_at(
+    state: &mut GlobalState,
+    uri: Url,
+    position: Position,
+) -> Option<SignatureHelp> {
+    let params = SignatureHelpParams {
         context: None,
         text_document_position_params: text_document_position(uri, position),
         work_done_progress_params: WorkDoneProgressParams::default(),
-    }
+    };
+    expect_ready(crate::handlers::signature_help(state, params)).unwrap()
 }
 
 fn selection_range_params(uri: Url, positions: Vec<Position>) -> SelectionRangeParams {

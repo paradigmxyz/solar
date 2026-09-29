@@ -2454,18 +2454,12 @@ impl<'gcx> MemberCompletionCollector<'_, 'gcx> {
         receiver: &'gcx hir::Expr<'gcx>,
         member: solar_interface::Ident,
     ) {
-        let Some(source) = self.source else {
-            return;
-        };
-        let Some(receiver_ty) = self.gcx.type_of_expr(receiver.id) else {
-            return;
-        };
+        let Some(source) = self.source else { return };
+        let Some(receiver_ty) = self.gcx.type_of_expr(receiver.id) else { return };
         if receiver_ty.references_error() {
             return;
         }
-        let Some(location) = self.locations.location(member.span) else {
-            return;
-        };
+        let Some(location) = self.locations.location(member.span) else { return };
 
         let items = self.tables.member_completion_items_for_ty(
             self.gcx,
@@ -2497,15 +2491,11 @@ impl<'gcx> hir::Visit<'gcx> for MemberCompletionCollector<'_, 'gcx> {
     }
 
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
-        match expr.kind {
-            hir::ExprKind::Member(receiver, member) => {
-                self.visit_expr(receiver)?;
-                self.push_member_completions(receiver, member);
-            }
-            _ => {
-                hir::Visit::walk_expr(self, expr)?;
-            }
-        }
+        let hir::ExprKind::Member(receiver, member) = expr.kind else {
+            return hir::Visit::walk_expr(self, expr);
+        };
+        self.visit_expr(receiver)?;
+        self.push_member_completions(receiver, member);
         ControlFlow::Continue(())
     }
 }
@@ -2937,12 +2927,10 @@ fn member_completion_item_kind(gcx: Gcx<'_>, member: Member<'_>) -> CompletionIt
     match member.res {
         Some(res) if res.enum_variant_index(&gcx.hir).is_some() => CompletionItemKind::ENUM_MEMBER,
         Some(res) if res.struct_field_index(&gcx.hir).is_some() => CompletionItemKind::FIELD,
-        Some(_) | None => match member.res {
-            Some(Res::Item(item_id)) => completion_item_kind(item_symbol_kind(gcx, item_id)),
-            Some(Res::Namespace(_)) => CompletionItemKind::MODULE,
-            Some(Res::Builtin(_)) => CompletionItemKind::METHOD,
-            Some(Res::Err(_)) | None => CompletionItemKind::FIELD,
-        },
+        Some(Res::Item(item_id)) => completion_item_kind(item_symbol_kind(gcx, item_id)),
+        Some(Res::Namespace(_)) => CompletionItemKind::MODULE,
+        Some(Res::Builtin(_)) => CompletionItemKind::METHOD,
+        Some(Res::Err(_)) | None => CompletionItemKind::FIELD,
     }
 }
 
@@ -2954,8 +2942,9 @@ fn symbol_supports_completion_kind(symbol: &DeclarationSymbol, kind: CompletionI
 fn completion_item_kind(kind: SymbolKind) -> CompletionItemKind {
     match kind {
         SymbolKind::FILE => CompletionItemKind::FILE,
-        SymbolKind::MODULE => CompletionItemKind::MODULE,
-        SymbolKind::NAMESPACE | SymbolKind::PACKAGE => CompletionItemKind::MODULE,
+        SymbolKind::MODULE | SymbolKind::NAMESPACE | SymbolKind::PACKAGE => {
+            CompletionItemKind::MODULE
+        }
         SymbolKind::CLASS => CompletionItemKind::CLASS,
         SymbolKind::METHOD => CompletionItemKind::METHOD,
         SymbolKind::PROPERTY => CompletionItemKind::PROPERTY,
@@ -2966,13 +2955,12 @@ fn completion_item_kind(kind: SymbolKind) -> CompletionItemKind {
         SymbolKind::FUNCTION => CompletionItemKind::FUNCTION,
         SymbolKind::VARIABLE => CompletionItemKind::VARIABLE,
         SymbolKind::CONSTANT => CompletionItemKind::CONSTANT,
-        SymbolKind::STRING => CompletionItemKind::TEXT,
-        SymbolKind::NUMBER => CompletionItemKind::VALUE,
-        SymbolKind::BOOLEAN => CompletionItemKind::VALUE,
-        SymbolKind::ARRAY => CompletionItemKind::VALUE,
-        SymbolKind::OBJECT => CompletionItemKind::VALUE,
-        SymbolKind::KEY => CompletionItemKind::VALUE,
-        SymbolKind::NULL => CompletionItemKind::VALUE,
+        SymbolKind::NUMBER
+        | SymbolKind::BOOLEAN
+        | SymbolKind::ARRAY
+        | SymbolKind::OBJECT
+        | SymbolKind::KEY
+        | SymbolKind::NULL => CompletionItemKind::VALUE,
         SymbolKind::ENUM_MEMBER => CompletionItemKind::ENUM_MEMBER,
         SymbolKind::STRUCT => CompletionItemKind::STRUCT,
         SymbolKind::EVENT => CompletionItemKind::EVENT,
