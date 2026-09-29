@@ -34,73 +34,69 @@ fn serves_open_disk_and_empty_documents_without_waiting_for_analysis() {
 }
 
 #[test]
-fn folds_declarations_and_nested_solidity_blocks() {
-    check(
-        concat!(
-            "contract C {\n",
-            "    function f() external {\n",
-            "        if (true) {\n",
-            "            {\n",
-            "                uint256 x;\n",
-            "            }\n",
-            "        }\n",
-            "    }\n",
-            "}\n",
-        ),
-        str![[r#"
+fn folds_parsed_sources() {
+    for (source, expected) in [
+        // Folds declarations and nested Solidity blocks.
+        (
+            concat!(
+                "contract C {\n",
+                "    function f() external {\n",
+                "        if (true) {\n",
+                "            {\n",
+                "                uint256 x;\n",
+                "            }\n",
+                "        }\n",
+                "    }\n",
+                "}\n",
+            ),
+            str![[r#"
 0:0-8:1 code
 1:4-7:5 code
 2:18-6:9 code
 3:12-5:13 code
 
 "#]],
-    );
-}
-
-#[test]
-fn folds_full_multiline_named_declaration_ranges() {
-    check(
-        concat!(
-            "interface I {\n",
-            "    event Changed(\n",
-            "        uint256 value\n",
-            "    );\n",
-            "\n",
-            "    function read(\n",
-            "        uint256 key\n",
-            "    ) external view returns (\n",
-            "        uint256 value\n",
-            "    );\n",
-            "}\n",
         ),
-        str![[r#"
+        // Folds full multiline named declaration ranges.
+        (
+            concat!(
+                "interface I {\n",
+                "    event Changed(\n",
+                "        uint256 value\n",
+                "    );\n",
+                "\n",
+                "    function read(\n",
+                "        uint256 key\n",
+                "    ) external view returns (\n",
+                "        uint256 value\n",
+                "    );\n",
+                "}\n",
+            ),
+            str![[r#"
 0:0-10:1 code
 1:4-3:6 code
 5:4-9:6 code
 
 "#]],
-    );
-}
-
-#[test]
-fn folds_comments_at_every_nesting_level_and_splits_groups_on_blank_lines() {
-    check(
-        concat!(
-            "// alpha\n",
-            "// beta\n",
-            "\n",
-            "/// gamma\n",
-            "// delta\n",
-            "contract C {\n",
-            "    /* nested\n",
-            "       block */\n",
-            "    function f() external {\n",
-            "        // inner\n",
-            "        // group\n",
-            "    }\n",
-            "}\n",
         ),
-        str![[r#"
+        // Folds comments at every nesting level and splits groups on blank lines.
+        (
+            concat!(
+                "// alpha\n",
+                "// beta\n",
+                "\n",
+                "/// gamma\n",
+                "// delta\n",
+                "contract C {\n",
+                "    /* nested\n",
+                "       block */\n",
+                "    function f() external {\n",
+                "        // inner\n",
+                "        // group\n",
+                "    }\n",
+                "}\n",
+            ),
+            str![[r#"
 0:0-1:7 comment
 3:0-4:8 comment
 5:0-12:1 code
@@ -109,285 +105,54 @@ fn folds_comments_at_every_nesting_level_and_splits_groups_on_blank_lines() {
 9:8-10:16 comment
 
 "#]],
-    );
-}
-
-#[test]
-fn folds_import_groups_and_splits_them_on_blank_lines_or_items() {
-    check(
-        concat!(
-            "import \"a.sol\";\n",
-            "import {A} from \"b.sol\";\n",
-            "// keep this group together\n",
-            "import \"c.sol\";\n",
-            "\n",
-            "import \"d.sol\";\n",
-            "import \"e.sol\";\n",
-            "pragma solidity ^0.8.0;\n",
-            "import \"f.sol\";\n",
-            "import \"g.sol\";\n",
         ),
-        str![[r#"
+        // Folds import groups and splits them on blank lines or items.
+        (
+            concat!(
+                "import \"a.sol\";\n",
+                "import {A} from \"b.sol\";\n",
+                "// keep this group together\n",
+                "import \"c.sol\";\n",
+                "\n",
+                "import \"d.sol\";\n",
+                "import \"e.sol\";\n",
+                "pragma solidity ^0.8.0;\n",
+                "import \"f.sol\";\n",
+                "import \"g.sol\";\n",
+            ),
+            str![[r#"
 0:0-3:15 imports
 5:0-6:15 imports
 8:0-9:15 imports
 
 "#]],
-    );
-}
-
-#[test]
-fn falls_back_to_import_groups_after_parse_errors() {
-    check(
-        concat!("@ invalid\n", "import \"a.sol\";\n", "import \"b.sol\";\n",),
-        str![[r#"
-1:0-2:15 imports
-
-"#]],
-    );
-}
-
-#[test]
-fn lexical_import_fallback_ignores_member_accesses() {
-    check(
-        concat!("uint256 constant X = Foo.import\n", "    + 1;\n", "@ invalid\n",),
-        str![[r#"
-0:0-1:8 code
-
-"#]],
-    );
-}
-
-#[test]
-fn extends_recognized_incomplete_blocks_to_physical_eof() {
-    check(
-        concat!(
-            "contract C {\n",
-            "    function f() external {\n",
-            "        if (true) {\n",
-            "            uint256 x\n",
-            "            // trailing comment\n",
         ),
-        str![[r#"
-0:0-5:0 code
-1:4-5:0 code
-2:18-5:0 code
-
-"#]],
-    );
-}
-
-#[test]
-fn falls_back_to_recognized_blocks_when_parsing_fails() {
-    check(
-        concat!(
-            "@ invalid\n",
-            "contract Broken {\n",
-            "    function f() external {\n",
-            "        if (true) {\n",
-        ),
-        str![[r#"
-1:0-4:0 code
-2:4-4:0 code
-3:18-4:0 code
-
-"#]],
-    );
-}
-
-#[test]
-fn lexical_fallback_recognizes_incomplete_yul_for_post_blocks() {
-    check(
-        concat!(
-            "@ invalid\n",
-            "contract C {\n",
-            "    function f() external {\n",
-            "        assembly {\n",
-            "            for {} 1 {\n",
-            "                let x := 1\n",
-        ),
-        str![[r#"
-1:0-6:0 code
-2:4-6:0 code
-3:17-6:0 code
-4:21-6:0 code
-
-"#]],
-    );
-}
-
-#[test]
-fn lexical_fallback_recognizes_yul_bare_blocks_after_unterminated_statements() {
-    check(
-        concat!(
-            "@ invalid\n",
-            "contract C {\n",
-            "    function f() external {\n",
-            "        assembly {\n",
-            "            let x := 1\n",
-            "            {\n",
-            "                if x {\n",
-            "                    pop(x)\n",
-            "                }\n",
-            "            }\n",
-            "        }\n",
-            "    }\n",
-            "}\n",
-        ),
-        str![[r#"
-1:0-12:1 code
-2:4-11:5 code
-3:17-10:9 code
-5:12-9:13 code
-6:21-8:17 code
-
-"#]],
-    );
-}
-
-#[test]
-fn supplements_descendants_of_a_recovered_unclosed_declaration() {
-    check(
-        concat!("contract C {\n", "    @ invalid\n", "    function f() external {\n", "    }\n",),
-        str![[r#"
-0:0-4:0 code
-2:4-3:5 code
-
-"#]],
-    );
-}
-
-#[test]
-fn lexical_fallback_ignores_call_options_in_single_statement_control_flow() {
-    check(
-        concat!(
-            "@ invalid\n",
-            "contract C {\n",
-            "    function f() external {\n",
-            "        if (true) this.f{\n",
-            "            gas: 1\n",
-            "        }();\n",
-            "    }\n",
-            "}\n",
-        ),
-        str![[r#"
-1:0-7:1 code
-2:4-6:5 code
-
-"#]],
-    );
-}
-
-#[test]
-fn lexical_fallback_does_not_treat_function_types_as_declarations() {
-    check(
-        concat!(
-            "@ invalid\n",
-            "contract C {\n",
-            "    function() external callback = this.f{\n",
-            "        gas: 1\n",
-            "    };\n",
-            "}\n",
-        ),
-        str![[r#"
-1:0-5:1 code
-
-"#]],
-    );
-}
-
-#[test]
-fn supplements_partial_ast_with_recognized_lexical_blocks() {
-    check(
-        concat!(
-            "contract Before {\n",
-            "}\n",
-            "@ invalid\n",
-            "contract After {\n",
-            "    function f() external {\n",
-            "    }\n",
-            "}\n",
-        ),
-        str![[r#"
-0:0-1:1 code
-3:0-6:1 code
-4:4-5:5 code
-
-"#]],
-    );
-}
-
-#[test]
-fn preserves_ast_authority_when_supplementing_parse_errors() {
-    check(
-        concat!(
-            "contract C {\n",
-            "    function target() external {}\n",
-            "    function f() external {\n",
-            "        if (this.target{\n",
-            "            gas: 1\n",
-            "        }()) {\n",
-            "        }\n",
-            "    }\n",
-            "}\n",
-            "@ invalid\n",
-            "contract After {\n",
-            "}\n",
-        ),
-        str![[r#"
-0:0-8:1 code
-2:4-7:5 code
-5:13-6:9 code
-10:0-11:1 code
-
-"#]],
-    );
-}
-
-#[test]
-fn ignores_call_options_inside_contract_headers() {
-    check(
-        concat!(
-            "contract C layout at this.f{\n",
-            "    value: 123\n",
-            "}() {\n",
-            "}\n",
-            "@ invalid\n",
-        ),
-        str![[r#"
-0:0-3:1 code
-
-"#]],
-    );
-}
-
-#[test]
-fn folds_yul_declarations_and_nested_bodies() {
-    check(
-        concat!(
-            "contract C {\n",
-            "    function f() external {\n",
-            "        assembly {\n",
-            "            function y(x) -> r {\n",
-            "                if x {\n",
-            "                    r := x\n",
-            "                }\n",
-            "            }\n",
-            "            {\n",
-            "                let z := 1\n",
-            "            }\n",
-            "            switch x\n",
-            "            case 0 {\n",
-            "                pop(0)\n",
-            "            }\n",
-            "            default {\n",
-            "                pop(1)\n",
-            "            }\n",
-            "        }\n",
-            "    }\n",
-            "}\n",
-        ),
-        str![[r#"
+        // Folds Yul declarations and nested bodies.
+        (
+            concat!(
+                "contract C {\n",
+                "    function f() external {\n",
+                "        assembly {\n",
+                "            function y(x) -> r {\n",
+                "                if x {\n",
+                "                    r := x\n",
+                "                }\n",
+                "            }\n",
+                "            {\n",
+                "                let z := 1\n",
+                "            }\n",
+                "            switch x\n",
+                "            case 0 {\n",
+                "                pop(0)\n",
+                "            }\n",
+                "            default {\n",
+                "                pop(1)\n",
+                "            }\n",
+                "        }\n",
+                "    }\n",
+                "}\n",
+            ),
+            str![[r#"
 0:0-20:1 code
 1:4-19:5 code
 2:17-18:9 code
@@ -398,45 +163,241 @@ fn folds_yul_declarations_and_nested_bodies() {
 15:20-17:13 code
 
 "#]],
-    );
-}
-
-#[test]
-fn ignores_unclassified_braces_during_lexical_fallback() {
-    check(
-        concat!(
-            "@ invalid\n",
-            "import {\n",
-            "    A,\n",
-            "    B\n",
-            "} from \"x.sol\";\n",
-            "foo{\n",
-            "    value: 1\n",
-            "}\n",
-            "\"literal { brace }\"; // comment { brace }\n",
         ),
-        str![[r#"
-1:0-4:15 imports
-
-"#]],
-    );
-}
-
-#[test]
-fn uses_utf16_positions_and_crlf_line_endings() {
-    check(
-        concat!("😀 /* first\r\n", "second */\r\n", "// 一😀\r\n", "// 二😀\r\n",),
-        str![[r#"
+        // Uses UTF-16 positions and CRLF line endings.
+        (
+            concat!("😀 /* first\r\n", "second */\r\n", "// 一😀\r\n", "// 二😀\r\n",),
+            str![[r#"
 0:3-1:9 comment
 2:0-3:6 comment
 
 "#]],
-    );
+        ),
+        // Single-line sources have no folding ranges.
+        ("contract C { function f() external {} }", str![""]),
+    ] {
+        check(source, expected);
+    }
 }
 
 #[test]
-fn single_line_sources_have_no_folding_ranges() {
-    check("contract C { function f() external {} }", str![""]);
+fn recovers_folding_ranges_after_parse_errors() {
+    for (source, expected) in [
+        // Falls back to import groups after parse errors.
+        (
+            concat!("@ invalid\n", "import \"a.sol\";\n", "import \"b.sol\";\n",),
+            str![[r#"
+1:0-2:15 imports
+
+"#]],
+        ),
+        // Lexical import fallback ignores member accesses.
+        (
+            concat!("uint256 constant X = Foo.import\n", "    + 1;\n", "@ invalid\n",),
+            str![[r#"
+0:0-1:8 code
+
+"#]],
+        ),
+        // Extends recognized incomplete blocks to the physical EOF.
+        (
+            concat!(
+                "contract C {\n",
+                "    function f() external {\n",
+                "        if (true) {\n",
+                "            uint256 x\n",
+                "            // trailing comment\n",
+            ),
+            str![[r#"
+0:0-5:0 code
+1:4-5:0 code
+2:18-5:0 code
+
+"#]],
+        ),
+        // Falls back to recognized blocks when parsing fails.
+        (
+            concat!(
+                "@ invalid\n",
+                "contract Broken {\n",
+                "    function f() external {\n",
+                "        if (true) {\n",
+            ),
+            str![[r#"
+1:0-4:0 code
+2:4-4:0 code
+3:18-4:0 code
+
+"#]],
+        ),
+        // Lexical fallback recognizes incomplete Yul `for` post blocks.
+        (
+            concat!(
+                "@ invalid\n",
+                "contract C {\n",
+                "    function f() external {\n",
+                "        assembly {\n",
+                "            for {} 1 {\n",
+                "                let x := 1\n",
+            ),
+            str![[r#"
+1:0-6:0 code
+2:4-6:0 code
+3:17-6:0 code
+4:21-6:0 code
+
+"#]],
+        ),
+        // Lexical fallback recognizes Yul bare blocks after unterminated statements.
+        (
+            concat!(
+                "@ invalid\n",
+                "contract C {\n",
+                "    function f() external {\n",
+                "        assembly {\n",
+                "            let x := 1\n",
+                "            {\n",
+                "                if x {\n",
+                "                    pop(x)\n",
+                "                }\n",
+                "            }\n",
+                "        }\n",
+                "    }\n",
+                "}\n",
+            ),
+            str![[r#"
+1:0-12:1 code
+2:4-11:5 code
+3:17-10:9 code
+5:12-9:13 code
+6:21-8:17 code
+
+"#]],
+        ),
+        // Supplements descendants of a recovered unclosed declaration.
+        (
+            concat!(
+                "contract C {\n",
+                "    @ invalid\n",
+                "    function f() external {\n",
+                "    }\n",
+            ),
+            str![[r#"
+0:0-4:0 code
+2:4-3:5 code
+
+"#]],
+        ),
+        // Lexical fallback ignores call options in single-statement control flow.
+        (
+            concat!(
+                "@ invalid\n",
+                "contract C {\n",
+                "    function f() external {\n",
+                "        if (true) this.f{\n",
+                "            gas: 1\n",
+                "        }();\n",
+                "    }\n",
+                "}\n",
+            ),
+            str![[r#"
+1:0-7:1 code
+2:4-6:5 code
+
+"#]],
+        ),
+        // Lexical fallback does not treat function types as declarations.
+        (
+            concat!(
+                "@ invalid\n",
+                "contract C {\n",
+                "    function() external callback = this.f{\n",
+                "        gas: 1\n",
+                "    };\n",
+                "}\n",
+            ),
+            str![[r#"
+1:0-5:1 code
+
+"#]],
+        ),
+        // Supplements partial AST with recognized lexical blocks.
+        (
+            concat!(
+                "contract Before {\n",
+                "}\n",
+                "@ invalid\n",
+                "contract After {\n",
+                "    function f() external {\n",
+                "    }\n",
+                "}\n",
+            ),
+            str![[r#"
+0:0-1:1 code
+3:0-6:1 code
+4:4-5:5 code
+
+"#]],
+        ),
+        // Preserves AST authority when supplementing parse errors.
+        (
+            concat!(
+                "contract C {\n",
+                "    function target() external {}\n",
+                "    function f() external {\n",
+                "        if (this.target{\n",
+                "            gas: 1\n",
+                "        }()) {\n",
+                "        }\n",
+                "    }\n",
+                "}\n",
+                "@ invalid\n",
+                "contract After {\n",
+                "}\n",
+            ),
+            str![[r#"
+0:0-8:1 code
+2:4-7:5 code
+5:13-6:9 code
+10:0-11:1 code
+
+"#]],
+        ),
+        // Ignores call options inside contract headers.
+        (
+            concat!(
+                "contract C layout at this.f{\n",
+                "    value: 123\n",
+                "}() {\n",
+                "}\n",
+                "@ invalid\n",
+            ),
+            str![[r#"
+0:0-3:1 code
+
+"#]],
+        ),
+        // Ignores unclassified braces during lexical fallback.
+        (
+            concat!(
+                "@ invalid\n",
+                "import {\n",
+                "    A,\n",
+                "    B\n",
+                "} from \"x.sol\";\n",
+                "foo{\n",
+                "    value: 1\n",
+                "}\n",
+                "\"literal { brace }\"; // comment { brace }\n",
+            ),
+            str![[r#"
+1:0-4:15 imports
+
+"#]],
+        ),
+    ] {
+        check(source, expected);
+    }
 }
 
 #[test]
