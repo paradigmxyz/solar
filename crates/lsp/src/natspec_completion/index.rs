@@ -13,6 +13,7 @@ use solar_sema::{
     hir::{self, ItemId},
 };
 use std::{
+    collections::hash_map::Entry,
     fmt::Write,
     path::PathBuf,
     sync::{Arc, OnceLock},
@@ -216,8 +217,7 @@ impl NatSpecCompletionIndex {
     }
 
     pub(crate) fn extend(&mut self, other: Self) {
-        use std::collections::hash_map::Entry;
-        for (uri, mut incoming) in other.by_file {
+        for (uri, incoming) in other.by_file {
             match self.by_file.entry(uri) {
                 Entry::Vacant(entry) => {
                     entry.insert(incoming);
@@ -227,12 +227,18 @@ impl NatSpecCompletionIndex {
                     if !current.has_same_syntax(&incoming) {
                         current.mark_source_ambiguous();
                     }
-                    let current_keys = current.entries.keys().cloned().collect::<FxHashSet<_>>();
-                    let incoming_keys = incoming.entries.keys().cloned().collect::<FxHashSet<_>>();
-                    for key in current_keys.symmetric_difference(&incoming_keys) {
-                        current.entries.insert(key.clone(), IndexedSemantics::Ambiguous);
+                    // A declaration indexed by only one analysis is ambiguous.
+                    for (key, semantics) in &mut current.entries {
+                        if !incoming.entries.contains_key(key) {
+                            *semantics = IndexedSemantics::Ambiguous;
+                        }
                     }
-                    for (key, semantics) in incoming.entries.drain() {
+                    for (key, semantics) in incoming.entries {
+                        let semantics = if current.entries.contains_key(&key) {
+                            semantics
+                        } else {
+                            IndexedSemantics::Ambiguous
+                        };
                         merge_entry(&mut current.entries, key, semantics);
                     }
                 }
@@ -392,7 +398,8 @@ fn source_visible_contract_name(
     candidates.dedup_by_key(|candidate| candidate.name);
     candidates
         .into_iter()
-        .find_map(|candidate| visible_contract_name(gcx, source_id, contract_id, candidate))
+        .find(|candidate| gcx.natspec_contract(candidate.name, source_id) == Some(contract_id))
+        .map(|candidate| candidate.to_string())
 }
 
 fn visible_contract_names_in_source(
@@ -434,22 +441,11 @@ fn visible_contract_names_in_source(
     names
 }
 
-fn visible_contract_name(
-    gcx: Gcx<'_>,
-    source_id: hir::SourceId,
-    contract_id: hir::ContractId,
-    candidate: solar_interface::Ident,
-) -> Option<String> {
-    (gcx.natspec_contract(candidate.name, source_id) == Some(contract_id))
-        .then(|| candidate.to_string())
-}
-
 fn merge_entry(
     entries: &mut FxHashMap<DeclarationKey, IndexedSemantics>,
     key: DeclarationKey,
     incoming: IndexedSemantics,
 ) {
-    use std::collections::hash_map::Entry;
     match entries.entry(key) {
         Entry::Vacant(entry) => {
             entry.insert(incoming);
@@ -494,8 +490,32 @@ mod tests {
         Url::from_file_path(std::env::temp_dir().join("Completion.sol")).unwrap()
     }
 
-    fn uri_path(uri: &Url) -> PathBuf {
-        uri.to_file_path().unwrap()
+    fn test_key() -> DeclarationKey {
+        DeclarationKey {
+            path: DeclarationPath::Source { item_ordinal: 0 },
+            kind: TargetKind::Variable,
+            name: Some(Box::from("value")),
+            header_fingerprint: Box::from("header"),
+        }
+    }
+
+    fn getter(name: Option<&str>) -> NatSpecTargetSemantics {
+        NatSpecTargetSemantics {
+            getter_returns: vec![name.map(Into::into)],
+            inheritdoc_contracts: Vec::new(),
+        }
+    }
+
+    fn index_with(
+        source: &str,
+        semantics: Option<NatSpecTargetSemantics>,
+    ) -> NatSpecCompletionIndex {
+        let mut file = IndexedFile::new(Arc::new(source.into()));
+        file.entries
+            .extend(semantics.map(|semantics| (test_key(), IndexedSemantics::Unique(semantics))));
+        NatSpecCompletionIndex {
+            by_file: [(test_uri().to_file_path().unwrap(), file)].into_iter().collect(),
+        }
     }
 
     #[test]
@@ -514,174 +534,41 @@ mod tests {
 
     #[test]
     fn conflicting_semantics_become_ambiguous() {
-        let key = DeclarationKey {
-            path: DeclarationPath::Source { item_ordinal: 0 },
-            kind: TargetKind::Variable,
-            name: Some(Box::from("value")),
-            header_fingerprint: Box::from("fingerprint"),
-        };
         let mut entries = FxHashMap::default();
-        merge_entry(
-            &mut entries,
-            key.clone(),
-            IndexedSemantics::Unique(NatSpecTargetSemantics {
-                getter_returns: vec![Some("first".into())],
-                inheritdoc_contracts: Vec::new(),
-            }),
-        );
-        merge_entry(
-            &mut entries,
-            key.clone(),
-            IndexedSemantics::Unique(NatSpecTargetSemantics {
-                getter_returns: vec![Some("second".into())],
-                inheritdoc_contracts: Vec::new(),
-            }),
-        );
+        for name in ["first", "second"] {
+            merge_entry(&mut entries, test_key(), IndexedSemantics::Unique(getter(Some(name))));
+        }
+        assert_eq!(entries.get(&test_key()), Some(&IndexedSemantics::Ambiguous));
 
-        assert_eq!(entries.get(&key), Some(&IndexedSemantics::Ambiguous));
+        let mut index = index_with("source", None);
+        index.extend(index_with("source", Some(getter(Some("result")))));
+        assert_eq!(index.get(&test_uri(), &syntax_fingerprint("source"), &test_key()), None);
     }
 
     #[test]
-    fn extending_empty_and_nonempty_semantics_becomes_ambiguous() {
-        let uri = test_uri();
-        let key = DeclarationKey {
-            path: DeclarationPath::Source { item_ordinal: 0 },
-            kind: TargetKind::Variable,
-            name: Some(Box::from("value")),
-            header_fingerprint: Box::from("header"),
-        };
-        let semantics = NatSpecTargetSemantics {
-            getter_returns: vec![Some("result".into())],
-            inheritdoc_contracts: Vec::new(),
-        };
-        let empty_file = IndexedFile::new(Arc::new("source".into()));
-        let populated_file = IndexedFile {
-            source: Some(Arc::new("source".into())),
-            entries: [(key.clone(), IndexedSemantics::Unique(semantics))].into_iter().collect(),
-            ..IndexedFile::default()
-        };
-        let path = uri_path(&uri);
-        let mut index =
-            NatSpecCompletionIndex { by_file: [(path.clone(), empty_file)].into_iter().collect() };
-
-        index.extend(NatSpecCompletionIndex {
-            by_file: [(path, populated_file)].into_iter().collect(),
-        });
-
-        assert_eq!(index.get(&uri, &syntax_fingerprint("source"), &key), None);
-    }
-
-    #[test]
-    fn extending_with_a_new_file_preserves_its_syntax_fingerprint() {
-        let uri = test_uri();
-        let key = DeclarationKey {
-            path: DeclarationPath::Source { item_ordinal: 0 },
-            kind: TargetKind::Variable,
-            name: Some(Box::from("value")),
-            header_fingerprint: Box::from("header"),
-        };
-        let semantics =
-            NatSpecTargetSemantics { getter_returns: vec![None], inheritdoc_contracts: Vec::new() };
-        let mut incoming = NatSpecCompletionIndex::default();
-        incoming.by_file.insert(
-            uri_path(&uri),
-            IndexedFile {
-                source: Some(Arc::new("source".into())),
-                entries: [(key.clone(), IndexedSemantics::Unique(semantics.clone()))]
-                    .into_iter()
-                    .collect(),
-                ..IndexedFile::default()
-            },
-        );
-
-        let mut index = NatSpecCompletionIndex::default();
-        index.extend(incoming);
-
-        assert_eq!(index.get(&uri, &syntax_fingerprint("source"), &key), Some(&semantics));
-        assert_eq!(index.get(&uri, "stale", &key), None);
-    }
-
-    #[test]
-    fn equivalent_file_uri_retrieves_semantics() {
+    fn extending_with_a_new_file_preserves_its_semantics_for_equivalent_uris() {
         let uri = test_uri();
         let equivalent_uri =
             Url::parse(&uri.as_str().replacen("Completion.sol", "%43ompletion.sol", 1)).unwrap();
-        let key = DeclarationKey {
-            path: DeclarationPath::Source { item_ordinal: 0 },
-            kind: TargetKind::Variable,
-            name: Some(Box::from("value")),
-            header_fingerprint: Box::from("header"),
-        };
-        let semantics =
-            NatSpecTargetSemantics { getter_returns: vec![None], inheritdoc_contracts: Vec::new() };
-        let index = NatSpecCompletionIndex {
-            by_file: [(
-                uri_path(&uri),
-                IndexedFile {
-                    source: Some(Arc::new("source".into())),
-                    entries: [(key.clone(), IndexedSemantics::Unique(semantics.clone()))]
-                        .into_iter()
-                        .collect(),
-                    ..IndexedFile::default()
-                },
-            )]
-            .into_iter()
-            .collect(),
-        };
-
         assert_ne!(uri, equivalent_uri);
-        assert_eq!(uri.to_file_path(), equivalent_uri.to_file_path());
-        assert_eq!(
-            index.get(&equivalent_uri, &syntax_fingerprint("source"), &key),
-            Some(&semantics)
-        );
+        let mut index = NatSpecCompletionIndex::default();
+        index.extend(index_with("source", Some(getter(None))));
+
+        let fingerprint = syntax_fingerprint("source");
+        assert_eq!(index.get(&equivalent_uri, &fingerprint, &test_key()), Some(&getter(None)));
+        assert_eq!(index.get(&uri, "stale", &test_key()), None);
     }
 
     #[test]
-    fn extending_identical_sources_keeps_fingerprint_lazy() {
-        let uri = test_uri();
-        let path = uri_path(&uri);
-        let mut index = NatSpecCompletionIndex {
-            by_file: [(path.clone(), IndexedFile::new(Arc::new("contract C {}".into())))]
-                .into_iter()
-                .collect(),
-        };
-
-        index.extend(NatSpecCompletionIndex {
-            by_file: [(path.clone(), IndexedFile::new(Arc::new("contract C {}".into())))]
-                .into_iter()
-                .collect(),
-        });
-
-        assert!(index.by_file[&path].syntax_fingerprint.get().is_none());
-    }
-
-    #[test]
-    fn source_fingerprint_is_computed_lazily() {
-        let file = IndexedFile::new(Arc::new("contract C {}".into()));
-
+    fn source_fingerprints_are_computed_lazily() {
+        let path = test_uri().to_file_path().unwrap();
+        let mut index = index_with("contract C {}", None);
+        index.extend(index_with("contract C {}", None));
+        assert_eq!(index.get(&test_uri(), "unused", &test_key()), None);
+        let file = &index.by_file[&path];
         assert!(file.syntax_fingerprint.get().is_none());
+
         assert_eq!(file.syntax_fingerprint(), Some(syntax_fingerprint("contract C {}").as_ref()));
         assert!(file.syntax_fingerprint.get().is_some());
-    }
-
-    #[test]
-    fn missing_semantics_do_not_compute_source_fingerprint() {
-        let uri = test_uri();
-        let path = uri_path(&uri);
-        let key = DeclarationKey {
-            path: DeclarationPath::Source { item_ordinal: 0 },
-            kind: TargetKind::Variable,
-            name: Some(Box::from("value")),
-            header_fingerprint: Box::from("header"),
-        };
-        let index = NatSpecCompletionIndex {
-            by_file: [(path.clone(), IndexedFile::new(Arc::new("contract C {}".into())))]
-                .into_iter()
-                .collect(),
-        };
-
-        assert_eq!(index.get(&uri, "unused", &key), None);
-        assert!(index.by_file[&path].syntax_fingerprint.get().is_none());
     }
 }

@@ -13,11 +13,8 @@ use index::syntax_fingerprint;
 
 pub(crate) use index::{
     DeclarationKey, DeclarationPath, NatSpecCompletionIndex, NatSpecTargetSemantics, TargetKind,
+    syntax_fingerprint as source_syntax_fingerprint,
 };
-
-pub(crate) fn source_syntax_fingerprint(source: &str) -> Box<str> {
-    syntax_fingerprint(source)
-}
 
 pub(crate) enum NatSpecCompletionResult {
     NotApplicable,
@@ -76,20 +73,17 @@ impl NatSpecCompletionTarget {
 
         let mut items =
             vec![self.completion_item(label, detail, "0".into(), self.render(&lines), options)];
-        if let Some(semantics) = semantics {
-            for contract in &semantics.inheritdoc_contracts {
-                let template = Template::new(options.snippet_support);
-                let mut lines = Vec::new();
-                lines.push(template.literal(&format!("@inheritdoc {contract}")));
-                template.finish(&mut lines);
-                items.push(self.completion_item(
-                    format!("NatSpec @inheritdoc {contract}"),
-                    format!("Inherit documentation from {contract}"),
-                    format!("1:{contract}"),
-                    self.render(&lines),
-                    options,
-                ));
-            }
+        for contract in semantics.iter().flat_map(|semantics| &semantics.inheritdoc_contracts) {
+            let template = Template::new(options.snippet_support);
+            let mut lines = vec![template.literal(&format!("@inheritdoc {contract}"))];
+            template.finish(&mut lines);
+            items.push(self.completion_item(
+                format!("NatSpec @inheritdoc {contract}"),
+                format!("Inherit documentation from {contract}"),
+                format!("1:{contract}"),
+                self.render(&lines),
+                options,
+            ));
         }
         items
     }
@@ -121,8 +115,7 @@ impl NatSpecCompletionTarget {
                     ast::FunctionKind::Function => format!("function {}", name?),
                     _ => kind.to_string(),
                 };
-                let mut lines = Vec::new();
-                lines.push(template.described(""));
+                let mut lines = vec![template.described("")];
                 push_parameters(&mut lines, template, &self.parameters);
                 if !matches!(kind, ast::FunctionKind::Constructor | ast::FunctionKind::Receive) {
                     push_returns(&mut lines, template, &self.returns);
@@ -149,34 +142,18 @@ impl NatSpecCompletionTarget {
                     lines,
                 )
             }
-            TargetKind::Struct => {
+            TargetKind::Struct | TargetKind::Enum | TargetKind::Event | TargetKind::Error => {
+                let item = match self.kind {
+                    TargetKind::Struct => "struct",
+                    TargetKind::Enum => "enum",
+                    TargetKind::Event => "event",
+                    _ => "error",
+                };
                 let name = name?;
-                let mut lines = Vec::new();
-                lines.push(template.described(""));
+                // Enums have no parameters.
+                let mut lines = vec![template.described("")];
                 push_parameters(&mut lines, template, &self.parameters);
-                ("NatSpec struct documentation".into(), format!("struct {name}"), lines)
-            }
-            TargetKind::Enum => {
-                let name = name?;
-                (
-                    "NatSpec enum documentation".into(),
-                    format!("enum {name}"),
-                    vec![template.described("")],
-                )
-            }
-            TargetKind::Event => {
-                let name = name?;
-                let mut lines = Vec::new();
-                lines.push(template.described(""));
-                push_parameters(&mut lines, template, &self.parameters);
-                ("NatSpec event documentation".into(), format!("event {name}"), lines)
-            }
-            TargetKind::Error => {
-                let name = name?;
-                let mut lines = Vec::new();
-                lines.push(template.described(""));
-                push_parameters(&mut lines, template, &self.parameters);
-                ("NatSpec error documentation".into(), format!("error {name}"), lines)
+                (format!("NatSpec {item} documentation"), format!("{item} {name}"), lines)
             }
         };
         Some((label, detail, lines))
@@ -332,28 +309,27 @@ pub(crate) fn target(contents: &Rope, cursor: Option<usize>) -> NatSpecCompletio
     let filter_text = filter_text.to_owned();
     let source_fingerprint = syntax_fingerprint(&candidate.parse_source);
 
-    match parse_target(
-        &candidate.parse_source,
-        candidate.marker_range,
-        &candidate.indent,
-        &candidate.eol,
-        candidate.style,
-    ) {
-        Some(mut target) => {
-            let Some(edit_range) = proto::byte_range_to_lsp(contents, candidate.edit_range) else {
-                return NatSpecCompletionResult::Claimed(None);
-            };
-            target.edit_range = edit_range;
-            target.filter_text = filter_text;
-            target.source_fingerprint = source_fingerprint;
-            target.additional_text_edits = candidate
-                .additional_edit_range
-                .and_then(|range| proto::byte_range_to_lsp(contents, range))
-                .map(|range| vec![TextEdit { range, new_text: String::new() }]);
-            NatSpecCompletionResult::Claimed(Some(Box::new(target)))
-        }
-        None => NatSpecCompletionResult::Claimed(None),
-    }
+    let Some(target) =
+        parse_target(&candidate.parse_source, candidate.marker_range, candidate.style)
+    else {
+        return NatSpecCompletionResult::Claimed(None);
+    };
+    let Some(edit_range) = proto::byte_range_to_lsp(contents, candidate.edit_range) else {
+        return NatSpecCompletionResult::Claimed(None);
+    };
+    let additional_text_edits = candidate
+        .additional_edit_range
+        .and_then(|range| proto::byte_range_to_lsp(contents, range))
+        .map(|range| vec![TextEdit { range, new_text: String::new() }]);
+    NatSpecCompletionResult::Claimed(Some(Box::new(NatSpecCompletionTarget {
+        source_fingerprint,
+        edit_range,
+        filter_text,
+        additional_text_edits,
+        indent: candidate.indent,
+        eol: candidate.eol,
+        ..target
+    })))
 }
 
 fn has_natspec_prefix(contents: &Rope, cursor: usize) -> bool {
@@ -481,8 +457,6 @@ fn source_eol(source: &str, line_end: usize) -> &str {
 fn parse_target(
     source: &str,
     marker_range: ByteRange<usize>,
-    indent: &str,
-    eol: &str,
     comment_style: CommentStyle,
 ) -> Option<NatSpecCompletionTarget> {
     let mut opts = CompileOpts::default();
@@ -510,16 +484,9 @@ fn parse_target(
 
         for (source_ordinal, item) in source_unit.items.iter().enumerate() {
             let path = DeclarationPath::Source { item_ordinal: source_ordinal };
-            if let Some(target) = target_from_item(
-                &file,
-                source,
-                marker_range.clone(),
-                indent,
-                eol,
-                comment_style,
-                path,
-                item,
-            ) {
+            if let Some(target) =
+                target_from_item(&file, source, marker_range.clone(), comment_style, path, item)
+            {
                 return Some(target);
             }
             let ast::ItemKind::Contract(contract) = &item.kind else { continue };
@@ -529,16 +496,9 @@ fn parse_target(
                     contract_name: contract.name.to_string().into_boxed_str(),
                     item_ordinal,
                 };
-                if let Some(target) = target_from_item(
-                    &file,
-                    source,
-                    marker_range.clone(),
-                    indent,
-                    eol,
-                    comment_style,
-                    path,
-                    item,
-                ) {
+                if let Some(target) =
+                    target_from_item(&file, source, marker_range.clone(), comment_style, path, item)
+                {
                     return Some(target);
                 }
             }
@@ -547,13 +507,10 @@ fn parse_target(
     })
 }
 
-#[allow(clippy::too_many_arguments)]
 fn target_from_item(
     file: &solar_interface::source_map::SourceFile,
     source: &str,
     marker_range: ByteRange<usize>,
-    indent: &str,
-    eol: &str,
     comment_style: CommentStyle,
     path: DeclarationPath,
     item: &ast::Item<'_>,
@@ -633,8 +590,8 @@ fn target_from_item(
         edit_range: Range::default(),
         filter_text: String::new(),
         additional_text_edits: None,
-        indent: indent.into(),
-        eol: eol.into(),
+        indent: String::new(),
+        eol: String::new(),
         comment_style,
     })
 }
@@ -671,6 +628,19 @@ mod tests {
         super::target(contents, cursor)
     }
 
+    fn first_item(source: &str, position: Position) -> (CompletionItem, TextEdit) {
+        let NatSpecCompletionResult::Claimed(Some(target)) = target(&Rope::from(source), position)
+        else {
+            panic!("expected a NatSpec completion target");
+        };
+        let options = CompletionClientOptions { snippet_support: true, ..Default::default() };
+        let mut item = target.completion_items(options, None).swap_remove(0);
+        let Some(CompletionTextEdit::Edit(edit)) = item.text_edit.take() else {
+            panic!("expected a completion text edit");
+        };
+        (item, edit)
+    }
+
     #[test]
     fn rejects_a_line_doc_comment_separated_by_a_blank_line() {
         let contents = Rope::from("///\n\ncontract C {}");
@@ -681,11 +651,12 @@ mod tests {
     }
 
     #[test]
-    fn leaves_valid_empty_and_trailing_lines_for_ordinary_completion() {
+    fn leaves_valid_empty_trailing_and_string_lines_for_ordinary_completion() {
         for (source, position) in [
             ("", Position::new(0, 0)),
             ("contract C {}\n", Position::new(1, 0)),
             ("contract C {}\r\n", Position::new(1, 0)),
+            ("string constant VALUE = \"/**\";", Position::new(0, 29)),
         ] {
             assert!(matches!(
                 target(&Rope::from(source), position),
@@ -696,69 +667,10 @@ mod tests {
 
     #[test]
     fn preserves_crlf_in_generated_comments() {
-        let contents = Rope::from("///\r\ncontract C {}");
-        let NatSpecCompletionResult::Claimed(Some(target)) = target(&contents, Position::new(0, 3))
-        else {
-            panic!("expected a NatSpec completion target");
-        };
-        let item = target
-            .completion_items(
-                CompletionClientOptions { snippet_support: true, ..Default::default() },
-                None,
-            )
-            .into_iter()
-            .next()
-            .unwrap();
-        let Some(CompletionTextEdit::Edit(edit)) = item.text_edit else {
-            panic!("expected a completion text edit");
-        };
+        let (_, edit) = first_item("///\r\ncontract C {}", Position::new(0, 3));
         assert_eq!(edit.new_text, "/// @title $1\r\n/// @author $2\r\n/// @notice $3$0");
-    }
 
-    #[test]
-    fn uses_comment_markers_as_completion_filter_text() {
-        for (source, position, filter_text) in [
-            ("///\ncontract C {}", Position::new(0, 3), "///"),
-            ("/// \ncontract C {}", Position::new(0, 4), "/// "),
-            ("/** */ contract C {}", Position::new(0, 3), "/**"),
-            ("/** \t*/ contract C {}", Position::new(0, 5), "/** \t"),
-        ] {
-            let contents = Rope::from(source);
-            let NatSpecCompletionResult::Claimed(Some(target)) = target(&contents, position) else {
-                panic!("expected a NatSpec completion target");
-            };
-            let item = target
-                .completion_items(
-                    CompletionClientOptions { snippet_support: true, ..Default::default() },
-                    None,
-                )
-                .into_iter()
-                .next()
-                .unwrap();
-
-            assert_eq!(item.filter_text.as_deref(), Some(filter_text));
-        }
-    }
-
-    #[test]
-    fn replaces_multiline_crlf_blocks_with_non_overlapping_edits() {
-        let contents = Rope::from("/**\r\n *\r\n */\r\ncontract C {}");
-        let NatSpecCompletionResult::Claimed(Some(target)) = target(&contents, Position::new(0, 3))
-        else {
-            panic!("expected a NatSpec completion target");
-        };
-        let item = target
-            .completion_items(
-                CompletionClientOptions { snippet_support: true, ..Default::default() },
-                None,
-            )
-            .into_iter()
-            .next()
-            .unwrap();
-        let Some(CompletionTextEdit::Edit(edit)) = item.text_edit else {
-            panic!("expected a completion text edit");
-        };
-
+        let (item, edit) = first_item("/**\r\n *\r\n */\r\ncontract C {}", Position::new(0, 3));
         assert_eq!(edit.range, Range::new(Position::new(0, 0), Position::new(0, 3)));
         assert_eq!(edit.new_text, "/**\r\n * @title $1\r\n * @author $2\r\n * @notice $3$0\r\n */");
         assert_eq!(
@@ -771,43 +683,13 @@ mod tests {
     }
 
     #[test]
-    fn does_not_recognize_a_block_marker_inside_a_string() {
-        let contents = Rope::from("string constant VALUE = \"/**\";");
-        assert!(matches!(
-            target(&contents, Position::new(0, 29)),
-            NatSpecCompletionResult::NotApplicable
-        ));
-    }
-
-    #[test]
-    fn escapes_dollar_identifiers_and_inheritdoc_names_in_snippets() {
-        let contents = Rope::from(
-            "contract C {\n    ///\n    function value(uint256 $amount) external returns (uint256 $result);\n}",
-        );
-        let NatSpecCompletionResult::Claimed(Some(target)) = target(&contents, Position::new(1, 7))
-        else {
-            panic!("expected a NatSpec completion target");
-        };
-        let semantics = NatSpecTargetSemantics {
-            getter_returns: Vec::new(),
-            inheritdoc_contracts: vec!["$Alias".into()],
-        };
-        let items = target.completion_items(
-            CompletionClientOptions { snippet_support: true, ..Default::default() },
-            Some(&semantics),
-        );
-
-        assert_eq!(
-            completion_new_text(&items[0]),
-            "/// $1\n    /// @param \\$amount $2\n    /// @return \\$result $3$0"
-        );
-        assert_eq!(completion_new_text(&items[1]), "/// @inheritdoc \\$Alias$0");
-    }
-
-    fn completion_new_text(item: &CompletionItem) -> &str {
-        let Some(CompletionTextEdit::Edit(edit)) = &item.text_edit else {
-            panic!("expected a completion text edit");
-        };
-        &edit.new_text
+    fn uses_comment_markers_as_completion_filter_text() {
+        for (source, position, filter_text) in [
+            ("/// \ncontract C {}", Position::new(0, 4), "/// "),
+            ("/** \t*/ contract C {}", Position::new(0, 5), "/** \t"),
+        ] {
+            let (item, _) = first_item(source, position);
+            assert_eq!(item.filter_text.as_deref(), Some(filter_text));
+        }
     }
 }

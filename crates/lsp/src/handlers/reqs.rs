@@ -45,7 +45,6 @@ use serde::{Deserialize, Serialize};
 use solar_interface::data_structures::sync::RwLock;
 use solar_parse::lexer::is_ident;
 use std::{
-    fmt::Write,
     future::ready,
     io,
     path::{Path, PathBuf},
@@ -1064,28 +1063,23 @@ pub(crate) fn completion(
             .positions()
             .checked_text_range(lsp_types::Range::new(params.position, params.position))
             .map(|range| range.start);
-        match natspec_completion::target(contents, cursor) {
-            NatSpecCompletionResult::Claimed(target) => {
-                let items = target.map_or_else(Vec::new, |target| {
-                    let semantics = state
-                        .natspec_semantics_are_usable(&params.text_document.uri)
-                        .then(|| {
-                            state
-                                .symbol_tables
-                                .load()
-                                .natspec_semantics(
-                                    &params.text_document.uri,
-                                    target.source_fingerprint(),
-                                    target.key(),
-                                )
-                                .cloned()
-                        })
-                        .flatten();
-                    target.completion_items(state.config.completion_options(), semantics.as_ref())
-                });
-                return ready(Ok(Some(CompletionResponse::Array(items))));
-            }
-            NatSpecCompletionResult::NotApplicable => {}
+        if let NatSpecCompletionResult::Claimed(target) =
+            natspec_completion::target(contents, cursor)
+        {
+            let uri = &params.text_document.uri;
+            let items = target.map_or_else(Vec::new, |target| {
+                let semantics = state
+                    .natspec_semantics_are_usable(uri)
+                    .then(|| {
+                        let symbol_tables = state.symbol_tables.load();
+                        symbol_tables
+                            .natspec_semantics(uri, target.source_fingerprint(), target.key())
+                            .cloned()
+                    })
+                    .flatten();
+                target.completion_items(state.config.completion_options(), semantics.as_ref())
+            });
+            return ready(Ok(Some(CompletionResponse::Array(items))));
         }
         if let Some(cursor) = cursor
             && let Some(response) = import_completion(
@@ -1124,10 +1118,10 @@ fn import_completion(
     let importer = uri.to_file_path().ok()?;
     let import = import_path_at_for_completion(source, cursor_offset)?;
     let prefix_end = cursor_offset.max(import.content_range.start);
-    let raw_path_prefix = source.get(import.content_range.start..prefix_end).map(str::to_owned)?;
+    let raw_path_prefix = source.get(import.content_range.start..prefix_end)?;
     let replacement = import.content_range;
     let delimiter = import.delimiter;
-    let Some(path_prefix) = decode_import_path(&raw_path_prefix) else {
+    let Some(path_prefix) = decode_import_path(raw_path_prefix) else {
         return Some(CompletionResponse::Array(Vec::new()));
     };
     if !(replacement.start..=replacement.end).contains(&cursor_offset) {
@@ -1146,19 +1140,13 @@ fn import_completion(
         .iter()
         .map(|candidate| {
             let import_path = candidate.import_path().to_string();
-            let mut new_text = String::with_capacity(import_path.len());
-            write!(new_text, "{}", solidity_string_contents(import_path.as_bytes(), delimiter))
-                .unwrap();
-            let filter_text = if raw_path_prefix.bytes().any(|byte| matches!(byte, b'\r' | b'\n')) {
-                new_text.clone()
-            } else if let Some(suffix) = import_path.strip_prefix(&path_prefix) {
-                let mut filter_text = String::with_capacity(raw_path_prefix.len() + suffix.len());
-                filter_text.push_str(&raw_path_prefix);
-                write!(filter_text, "{}", solidity_string_contents(suffix.as_bytes(), delimiter))
-                    .unwrap();
-                filter_text
-            } else {
-                new_text.clone()
+            let new_text = solidity_string_contents(import_path.as_bytes(), delimiter).to_string();
+            let filter_text = match import_path.strip_prefix(&path_prefix) {
+                Some(suffix) if !raw_path_prefix.contains(['\r', '\n']) => {
+                    let suffix = solidity_string_contents(suffix.as_bytes(), delimiter);
+                    format!("{raw_path_prefix}{suffix}")
+                }
+                _ => new_text.clone(),
             };
             CompletionItem {
                 label: import_path,
@@ -1177,11 +1165,11 @@ fn import_completion(
         })
         .collect();
 
-    if completion.is_incomplete() {
-        Some(CompletionResponse::List(CompletionList { is_incomplete: true, items }))
+    Some(if completion.is_incomplete() {
+        CompletionResponse::List(CompletionList { is_incomplete: true, items })
     } else {
-        Some(CompletionResponse::Array(items))
-    }
+        CompletionResponse::Array(items)
+    })
 }
 
 fn import_completion_edit_ranges(
@@ -1265,26 +1253,23 @@ impl CompletionInput {
 fn completion_input(state: &GlobalState, uri: &Url, position: Position) -> Option<CompletionInput> {
     let path = crate::proto::vfs_path(uri)?;
     let vfs = state.vfs.read();
-    let line = line_at(vfs.get_file_contents(&path)?, position.line as usize)?;
-    let line_prefix = line_prefix_at(&line, position)?;
-    Some(completion_input_from_line_prefix(line_prefix))
+    let contents = vfs.get_file_contents(&path)?;
+    let line = position.line as usize;
+    let line = (line < contents.line_len()).then(|| contents.line(line).to_string())?;
+    Some(completion_input_from_line_prefix(line_prefix_at(&line, position)))
 }
 
-fn line_at(contents: &Rope, line: usize) -> Option<String> {
-    (line < contents.line_len()).then(|| contents.line(line).to_string())
-}
-
-fn line_prefix_at(contents: &str, position: Position) -> Option<&str> {
+fn line_prefix_at(contents: &str, position: Position) -> &str {
     let line = contents.strip_suffix('\r').unwrap_or(contents);
     let target = position.character as usize;
     let mut utf16 = 0;
     for (idx, ch) in line.char_indices() {
         if utf16 >= target {
-            return Some(&line[..idx]);
+            return &line[..idx];
         }
         utf16 += ch.len_utf16();
     }
-    Some(line)
+    line
 }
 
 fn completion_input_from_line_prefix(line_prefix: &str) -> CompletionInput {
