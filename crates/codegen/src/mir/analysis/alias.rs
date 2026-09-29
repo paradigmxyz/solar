@@ -15,11 +15,7 @@ use crate::mir::{
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
 };
 use smallvec::SmallVec;
-use solar_data_structures::{
-    bit_set::DenseBitSet,
-    index::IndexVec,
-    map::{FxHashMap, FxHashSet},
-};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use std::{
     cell::{OnceCell, RefCell},
     collections::VecDeque,
@@ -397,11 +393,21 @@ struct AllocationProvenance {
     unique: bool,
 }
 
+/// Memoized address resolution of one value.
+#[derive(Clone, Copy, Debug, Default)]
+enum AddressState {
+    #[default]
+    Unresolved,
+    /// Resolution is in progress further up the recursion.
+    Visiting,
+    Resolved(Option<MemoryAddress>),
+}
+
 #[derive(Debug, Default)]
 struct PointerProvenance {
     allocations: FxHashMap<InstId, AllocationProvenance>,
-    addresses: RefCell<FxHashMap<ValueId, Option<MemoryAddress>>>,
-    visiting: RefCell<FxHashSet<ValueId>>,
+    /// Grows on demand, since transforms may add values after construction.
+    addresses: RefCell<IndexVec<ValueId, AddressState>>,
 }
 
 impl PointerProvenance {
@@ -429,11 +435,15 @@ impl PointerProvenance {
         }
         let cfg = CfgInfo::new(func);
         let cyclic = cfg.cyclic_blocks();
-        let block_resets = func
+        // The index of each block's first instruction that may reset the FMP.
+        let first_resets = func
             .blocks
             .iter()
             .map(|block| {
-                block.instructions.iter().any(|&inst| may_reset_fmp(func, inst, call_summaries))
+                block
+                    .instructions
+                    .iter()
+                    .position(|&inst| may_reset_fmp(func, inst, call_summaries))
             })
             .collect::<IndexVec<BlockId, _>>();
 
@@ -444,7 +454,7 @@ impl PointerProvenance {
         let mut worklist = VecDeque::from([BlockId::ENTRY]);
         reachable.insert(BlockId::ENTRY);
         while let Some(block) = worklist.pop_front() {
-            let out = poisoned.contains(block) || block_resets[block];
+            let out = poisoned.contains(block) || first_resets[block].is_some();
             let Some(terminator) = &func.blocks[block].terminator else { continue };
             for successor in terminator.successors() {
                 let mut changed = reachable.insert(successor);
@@ -459,10 +469,11 @@ impl PointerProvenance {
 
         let mut allocations = FxHashMap::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
-            let mut reset = poisoned.contains(block_id);
-            for &inst_id in &block.instructions {
+            let entry_fresh = reachable.contains(block_id) && !poisoned.contains(block_id);
+            for (index, &inst_id) in block.instructions.iter().enumerate() {
                 if is_allocation(inst_id) {
-                    let fresh = reachable.contains(block_id) && !reset;
+                    let fresh =
+                        entry_fresh && first_resets[block_id].is_none_or(|first| index <= first);
                     allocations.insert(
                         inst_id,
                         AllocationProvenance {
@@ -471,15 +482,10 @@ impl PointerProvenance {
                         },
                     );
                 }
-                reset |= may_reset_fmp(func, inst_id, call_summaries);
             }
         }
 
-        Self {
-            allocations,
-            addresses: RefCell::new(FxHashMap::default()),
-            visiting: RefCell::new(FxHashSet::default()),
-        }
+        Self { allocations, addresses: RefCell::default() }
     }
 }
 
@@ -537,7 +543,6 @@ impl AliasAnalysis {
     pub(crate) fn clear_cached_addresses(&self) {
         if let Some(provenance) = self.provenance.get() {
             provenance.addresses.borrow_mut().clear();
-            provenance.visiting.borrow_mut().clear();
         }
         self.escaping_values.borrow_mut().take();
     }
@@ -1702,14 +1707,24 @@ impl AliasAnalysis {
         value: ValueId,
         depth: usize,
     ) -> Option<MemoryAddress> {
-        if let Some(cached) = self.provenance(func).addresses.borrow().get(&value).copied() {
-            return cached;
-        }
-        if depth > 8 {
-            return Some(MemoryAddress::symbolic(value, self.pointer_region(func, value, 0)));
-        }
-        if !self.provenance(func).visiting.borrow_mut().insert(value) {
-            return Some(MemoryAddress::symbolic(value, self.pointer_region(func, value, 0)));
+        let provenance = self.provenance(func);
+        {
+            let mut addresses = provenance.addresses.borrow_mut();
+            if addresses.len() <= value.index() {
+                addresses
+                    .resize(func.num_values().max(value.index() + 1), AddressState::Unresolved);
+            }
+            match addresses[value] {
+                AddressState::Resolved(address) => return address,
+                AddressState::Unresolved if depth <= 8 => addresses[value] = AddressState::Visiting,
+                AddressState::Unresolved | AddressState::Visiting => {
+                    drop(addresses);
+                    return Some(MemoryAddress::symbolic(
+                        value,
+                        self.pointer_region(func, value, 0),
+                    ));
+                }
+            }
         }
         let address = (|| match func.value(value) {
             Value::Immediate(immediate) => {
@@ -1783,8 +1798,7 @@ impl AliasAnalysis {
                 _ => Some(MemoryAddress::symbolic(value, self.pointer_region(func, value, 0))),
             },
         })();
-        self.provenance(func).visiting.borrow_mut().remove(&value);
-        self.provenance(func).addresses.borrow_mut().insert(value, address);
+        provenance.addresses.borrow_mut()[value] = AddressState::Resolved(address);
         address
     }
 

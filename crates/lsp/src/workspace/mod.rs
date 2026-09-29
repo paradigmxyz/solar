@@ -33,7 +33,7 @@ mod foundry;
 pub(crate) mod index_policy;
 pub(crate) mod manifest;
 
-pub(crate) use edit_scope::WorkspaceEditScope;
+pub(crate) use edit_scope::{WorkspaceEditError, WorkspaceEditScope};
 
 #[derive(Debug)]
 pub(crate) struct FoundryConfigContext<'a> {

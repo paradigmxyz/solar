@@ -92,7 +92,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     //   at least twice module-wide. Runs are cut at any instruction that does not, which ends them
     //   at the unique pushes that separate most straight-line code.
     // - A run's hash comes from a per-block prefix table, so it costs the same whatever the run's
-    //   length. Equality still compares instructions, so the grouping is exactly as before.
+    //   length. Equality compares interned instruction IDs, preserving exact grouping.
     // - Large modules use shorter runs so candidate storage stays bounded. Longer repeated
     //   sequences can still be outlined in chunks.
     let hashes = RunHashes::new(module, MachineInstKey::new);
@@ -107,7 +107,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         + target.opcode(op::JUMPDEST).bytes) as usize;
     let shuffle_size = target.opcode(op::SWAP1).bytes as usize;
 
-    let mut candidates = FxHashMap::<MachineInstSlice<'_>, SmallVec<[Site; 2]>>::default();
+    let mut candidates = FxHashMap::<RunSlice<'_>, SmallVec<[Site; 2]>>::default();
     let mut metrics = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
         if gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop {
@@ -156,9 +156,10 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                     && (closed || open_size_run)
                     && is_split_point(&block.instructions, end + 1)
                 {
-                    let key = MachineInstSlice {
+                    let key = RunSlice {
                         hash: hashes.range(block_id, start, end),
-                        insts: &block.instructions[start..=end],
+                        ids: &hashes.ids
+                            [hashes.starts[block_id] + start..=hashes.starts[block_id] + end],
                     };
                     candidates.entry(key).or_default().push(Site {
                         block: block_id,
@@ -178,7 +179,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     }
     groups.sort_unstable_by_key(|(key, sites)| {
         let first = sites[0];
-        (std::cmp::Reverse(key.insts.len()), first.block.index(), first.start)
+        (std::cmp::Reverse(key.ids.len()), first.block.index(), first.start)
     });
     let mut claimed = FxHashMap::<BlockId, DenseBitSet<usize>>::default();
     let mut chosen = Vec::new();
@@ -341,8 +342,7 @@ fn outline_parametric_machine_runs(
     const MAX_PARAMETERS: usize = 8;
 
     let hashes = RunHashes::new(module, ParamInstKey::new);
-    let mut candidates =
-        FxHashMap::<ParamMachineInstSlice<'_>, SmallVec<[ParamSite; 2]>>::default();
+    let mut candidates = FxHashMap::<RunSlice<'_>, SmallVec<[ParamSite; 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
         for start in 0..block.instructions.len() {
             if !is_split_point(&block.instructions, start) {
@@ -374,10 +374,10 @@ fn outline_parametric_machine_runs(
                 {
                     continue;
                 }
-                let instructions = &block.instructions[start..=end];
-                let key = ParamMachineInstSlice {
+                let key = RunSlice {
                     hash: hashes.range(block_id, start, end),
-                    insts: instructions,
+                    ids: &hashes.ids
+                        [hashes.starts[block_id] + start..=hashes.starts[block_id] + end],
                 };
                 candidates.entry(key).or_default().push(ParamSite {
                     block: block_id,
@@ -395,7 +395,7 @@ fn outline_parametric_machine_runs(
     }
     groups.sort_unstable_by_key(|(key, sites)| {
         let first = sites[0];
-        (std::cmp::Reverse(key.insts.len()), first.block.index(), first.start)
+        (std::cmp::Reverse(key.ids.len()), first.block.index(), first.start)
     });
 
     let mut claimed = FxHashMap::<BlockId, DenseBitSet<usize>>::default();
@@ -924,12 +924,13 @@ struct ParamEdit {
 ///
 /// `prefix[i + 1] = prefix[i] * BASE + hash(inst[i])`, so the run `[start, end]`
 /// hashes to `prefix[end + 1] - prefix[start] * BASE^len`. Equal instruction
-/// sequences always produce equal hashes, which is all the map needs: equality
-/// still compares the instructions themselves.
+/// sequences always produce equal hashes. Equality compares interned instruction IDs,
+/// retaining exact machine identity without decoding each instruction again.
 ///
 /// The blocks share flat tables. Block `b`'s instructions start at `starts[b]`, and its
 /// prefixes, which hold one more entry, at `starts[b] + b`.
 struct RunHashes {
+    ids: Vec<usize>,
     starts: IndexVec<BlockId, usize>,
     prefixes: Vec<u64>,
     repeats: DenseBitSet<usize>,
@@ -967,11 +968,11 @@ impl RunHashes {
 
         let mut prefixes = Vec::with_capacity(total + module.blocks.len());
         let mut repeats = DenseBitSet::new_empty(total);
-        let mut ids = ids.iter().enumerate();
+        let mut id_iter = ids.iter().enumerate();
         for block in &module.blocks {
             let mut last = 0u64;
             prefixes.push(last);
-            for (index, &id) in ids.by_ref().take(block.instructions.len()) {
+            for (index, &id) in id_iter.by_ref().take(block.instructions.len()) {
                 if counts[id] >= 2 {
                     repeats.insert(index);
                 }
@@ -986,7 +987,7 @@ impl RunHashes {
             powers.push(powers[index].wrapping_mul(Self::BASE));
         }
 
-        Self { starts, prefixes, repeats, powers }
+        Self { ids, starts, prefixes, repeats, powers }
     }
 
     /// Whether this instruction occurs more than once in the module. A run that
@@ -1006,26 +1007,13 @@ impl RunHashes {
     }
 }
 
-#[derive(Clone, Copy)]
-struct MachineInstSlice<'a> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct RunSlice<'a> {
     hash: u64,
-    insts: &'a [Instruction],
+    ids: &'a [usize],
 }
 
-impl PartialEq for MachineInstSlice<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.insts.len() == other.insts.len()
-            && self
-                .insts
-                .iter()
-                .zip(other.insts)
-                .all(|(a, b)| MachineInstKey::new(a) == MachineInstKey::new(b))
-    }
-}
-
-impl Eq for MachineInstSlice<'_> {}
-
-impl Hash for MachineInstSlice<'_> {
+impl Hash for RunSlice<'_> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write_u64(self.hash);
     }
@@ -1045,31 +1033,6 @@ impl ParamInstKey {
         } else {
             Self::Exact(MachineInstKey::new(inst))
         }
-    }
-}
-
-#[derive(Clone, Copy)]
-struct ParamMachineInstSlice<'a> {
-    hash: u64,
-    insts: &'a [Instruction],
-}
-
-impl PartialEq for ParamMachineInstSlice<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.insts.len() == other.insts.len()
-            && self
-                .insts
-                .iter()
-                .zip(other.insts)
-                .all(|(a, b)| ParamInstKey::new(a) == ParamInstKey::new(b))
-    }
-}
-
-impl Eq for ParamMachineInstSlice<'_> {}
-
-impl Hash for ParamMachineInstSlice<'_> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write_u64(self.hash);
     }
 }
 

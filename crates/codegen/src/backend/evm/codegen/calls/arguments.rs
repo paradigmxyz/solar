@@ -3,9 +3,9 @@
 use super::super::{
     ArgIdx, BlockId, CanonicalArgValues, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function,
     FunctionId, FxHashMap, GLOBAL_STACK_LAYOUT_LIMIT, GlobalStackPlan, InstKind, LazyStackArgPlan,
-    Liveness, Module, OptimizationMode, SpillSlot, StackArgRetentionPlan, StackArgUseInfo,
-    StackModel, StackOp, StackScheduler, StaticCallEntry, StaticCallStackWord, TargetSlot,
-    Terminator, U256, ValueId, WORD_BYTES, op, rematerializable_nullary_value,
+    Module, OptimizationMode, SpillSlot, StackArgRetentionPlan, StackArgUseInfo, StackModel,
+    StackOp, StackScheduler, StaticCallEntry, StaticCallStackWord, TargetSlot, Terminator, U256,
+    ValueId, WORD_BYTES, op, rematerializable_nullary_value,
 };
 use crate::mir::Callee;
 
@@ -141,7 +141,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             let has_phis =
                 func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::Phi(_)));
-            let liveness = (func.blocks.len() != 1 || has_phis).then(|| Liveness::compute(func));
+            let liveness =
+                (func.blocks.len() != 1 || has_phis).then(|| self.function_liveness(func_id, func));
             let plan = if let Some(liveness) = &liveness {
                 let phi_plan = func
                     .blocks
