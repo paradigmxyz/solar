@@ -73,7 +73,7 @@ impl EvmPass for Peephole {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        optimize_module::<false>(gcx, module, self.final_cleanup)
+        optimize_module(gcx, module, false, self.final_cleanup)
     }
 }
 
@@ -86,7 +86,7 @@ impl EvmPass for LateWord {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        optimize_module::<true>(gcx, module, false)
+        optimize_module(gcx, module, true, false)
     }
 }
 
@@ -171,18 +171,14 @@ impl fmt::Debug for CleanBlocks {
     }
 }
 
-fn optimize_module<const LATE: bool>(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    final_cleanup: bool,
-) -> bool {
+fn optimize_module(gcx: Gcx<'_>, module: &mut Module, late: bool, final_cleanup: bool) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
     let mut changed = false;
     let mut scratch = Vec::new();
     let clean = &mut module.peephole_clean;
     for block in &mut module.blocks {
         // The late rules are separate from the cached early and final ones.
-        let key = (!LATE).then(|| clean_key(&block.instructions));
+        let key = (!late).then(|| clean_key(&block.instructions));
         let recorded = key.and_then(|key| clean.0.get(&key).copied());
         let skip = recorded.is_some_and(|recorded_final| recorded_final || !final_cleanup);
         let early_clean = final_cleanup && recorded == Some(false);
@@ -191,11 +187,12 @@ fn optimize_module<const LATE: bool>(
         let rewrites = if skip {
             0
         } else {
-            optimize::<LATE>(
+            optimize(
                 evm_version,
                 &mut block.instructions,
                 &mut scratch,
                 block.label,
+                late,
                 final_cleanup,
                 early_clean,
             )
@@ -239,11 +236,12 @@ fn optimize_module<const LATE: bool>(
     changed
 }
 
-fn optimize<const LATE: bool>(
+fn optimize(
     evm_version: EvmVersion,
     instructions: &mut Vec<Instruction>,
     scratch: &mut Vec<Instruction>,
     block: u32,
+    late: bool,
     final_cleanup: bool,
     early_clean: bool,
 ) -> usize {
@@ -254,7 +252,7 @@ fn optimize<const LATE: bool>(
     let first = (1..=instructions.len()).find_map(|end| {
         let mut context = isle::PeepContext::new(&instructions[..end], evm_version)
             .with_final_cleanup(final_cleanup);
-        if early_clean { context.final_rewrite() } else { context.select::<LATE>() }
+        if early_clean { context.final_rewrite() } else { context.select(late) }
             .map(|rewrite| (end, rewrite))
     });
     let Some((end, isle::Rewrite { skip, edit })) = first else { return 0 };
@@ -265,27 +263,28 @@ fn optimize<const LATE: bool>(
     scratch.extend(instructions.drain(end..));
     rewrite(evm_version, instructions, usize::from(skip), edit, block);
     let mut rewrites = 1;
-    while try_peephole::<LATE>(evm_version, instructions, block, final_cleanup) {
+    while try_peephole(evm_version, instructions, block, late, final_cleanup) {
         rewrites += 1;
     }
     for inst in scratch.drain(..) {
         instructions.push(inst);
-        while try_peephole::<LATE>(evm_version, instructions, block, final_cleanup) {
+        while try_peephole(evm_version, instructions, block, late, final_cleanup) {
             rewrites += 1;
         }
     }
     rewrites
 }
 
-fn try_peephole<const LATE: bool>(
+fn try_peephole(
     evm_version: EvmVersion,
     instructions: &mut Vec<Instruction>,
     block: u32,
+    late: bool,
     final_cleanup: bool,
 ) -> bool {
     let Some(isle::Rewrite { skip, edit }) = isle::PeepContext::new(instructions, evm_version)
         .with_final_cleanup(final_cleanup)
-        .select::<LATE>()
+        .select(late)
     else {
         return false;
     };
