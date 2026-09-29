@@ -426,6 +426,8 @@ pub struct EvmCodegen<'gcx> {
     capture_mir: bool,
     capture_evm_ir: bool,
     capture_debug_info: bool,
+    /// Whether the MIR pipeline runs before code generation; MIR input has already run it.
+    run_pipeline: bool,
 }
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -500,6 +502,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             capture_mir: false,
             capture_evm_ir: false,
             capture_debug_info: false,
+            run_pipeline: true,
         }
     }
 
@@ -633,6 +636,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Controls whether modules without an external entry still run the MIR pipeline.
     pub(crate) fn set_capture_mir(&mut self, capture: bool) {
         self.capture_mir = capture;
+    }
+
+    /// Controls whether the MIR pipeline runs before code generation.
+    pub(crate) fn set_run_pipeline(&mut self, run: bool) {
+        self.run_pipeline = run;
     }
 }
 
