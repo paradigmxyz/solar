@@ -7,9 +7,14 @@
 //! modules' portable bodies, which other compilers compile as written; this compiler resolves the
 //! same imports to its own modules and never reads the files, and a standard JSON input that
 //! carries an exact copy of a module is accepted without a warning.
+//!
+//! The paths are predictable, so a tree prepared with a symbolic link at one of them, such as
+//! `solar:core/v1` pointing elsewhere, would have the export write outside the directory. No
+//! component below the directory may be a symbolic link; the directory itself is the user's
+//! choice.
 
 use crate::args::ExportCoreArgs;
-use std::process::ExitCode;
+use std::{fs, io, path::Path, process::ExitCode};
 
 pub(crate) fn run(args: ExportCoreArgs) -> ExitCode {
     match export(&args.dir) {
@@ -24,16 +29,32 @@ pub(crate) fn run(args: ExportCoreArgs) -> ExitCode {
     }
 }
 
-/// Writes every module under `dir`.
-fn export(dir: &std::path::Path) -> std::io::Result<()> {
+/// Writes every module under `dir`, refusing to write through a symbolic link below it.
+fn export(dir: &Path) -> io::Result<()> {
+    fs::create_dir_all(dir)?;
     for module in solar_sema::core::MODULES {
-        let path = dir.join(module.path);
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
+        let mut path = dir.to_path_buf();
+        let mut components = Path::new(module.path).components().peekable();
+        while let Some(component) = components.next() {
+            path.push(component);
+            let is_file = components.peek().is_none();
+            match fs::symlink_metadata(&path) {
+                Ok(metadata) if metadata.file_type().is_symlink() => return Err(symlink(&path)),
+                Ok(_) => {}
+                Err(err) if err.kind() == io::ErrorKind::NotFound && !is_file => {
+                    fs::create_dir(&path)?;
+                }
+                Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+                Err(err) => return Err(err),
+            }
         }
-        std::fs::write(path, module.source)?;
+        fs::write(&path, module.source)?;
     }
     Ok(())
+}
+
+fn symlink(path: &Path) -> io::Error {
+    io::Error::other(format!("refusing to write through the symbolic link `{}`", path.display()))
 }
 
 #[cfg(test)]
@@ -50,5 +71,41 @@ mod tests {
             assert_eq!(std::fs::read(dir.join(module.path)).unwrap(), module.source.as_bytes());
         }
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// A link at a module's directory or at the module itself is not followed, so nothing outside
+    /// the export directory is written.
+    #[cfg(unix)]
+    #[test]
+    #[allow(clippy::disallowed_methods)]
+    fn refuses_symbolic_links() {
+        let root =
+            std::env::temp_dir().join(format!("solar-export-core-links-{}", std::process::id()));
+        let (dir, outside) = (root.join("export"), root.join("outside"));
+        fs::create_dir_all(&dir).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+
+        std::os::unix::fs::symlink(&outside, dir.join("solar:core")).unwrap();
+        let err = export(&dir).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            format!(
+                "refusing to write through the symbolic link `{}`",
+                dir.join("solar:core").display()
+            )
+        );
+        assert_eq!(fs::read_dir(&outside).unwrap().count(), 0);
+
+        fs::remove_file(dir.join("solar:core")).unwrap();
+        let module = &solar_sema::core::MODULES[0];
+        let path = dir.join(module.path);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let target = outside.join("target");
+        fs::write(&target, "kept").unwrap();
+        std::os::unix::fs::symlink(&target, &path).unwrap();
+        assert!(export(&dir).is_err());
+        assert_eq!(fs::read(&target).unwrap(), b"kept");
+
+        fs::remove_dir_all(root).unwrap();
     }
 }
