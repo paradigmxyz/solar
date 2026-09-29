@@ -1,5 +1,5 @@
 use super::{
-    indexing::{analyze_project, symbol_names},
+    indexing::{analyze_project, host_config, symbol_names},
     *,
 };
 use lsp_types::{CreateFilesParams, DeleteFilesParams, FileCreate, FileDelete};
@@ -385,16 +385,12 @@ async fn watched_flycheck_only_source_change_schedules_analysis() {
         "#,
     );
     let path = project.path("/test/Main.t.sol");
-    let (_, mut config) = crate::config::negotiate_capabilities_with_pull_diagnostic_data(
-        project.initialize_params(),
-        false,
-        &crate::LaunchConfig::default().with_foundry_workspace_configs([
-            crate::FoundryWorkspaceConfig::new(project.root())
-                .with_source_roots(["src"])
-                .with_flycheck_source_roots(["src", "test"]),
-        ]),
-    );
-    config.rediscover_workspaces();
+    let launch_config = crate::LaunchConfig::default().with_foundry_workspace_configs([
+        crate::FoundryWorkspaceConfig::new(project.root())
+            .with_source_roots(["src"])
+            .with_flycheck_source_roots(["src", "test"]),
+    ]);
+    let config = host_config(project.initialize_params(), &launch_config);
     assert!(!config.tracks_source_file(&path));
     assert!(config.tracks_flycheck_file(&path));
     let mut state = state_with(config);
@@ -443,29 +439,9 @@ async fn watched_source_respects_the_most_specific_flycheck_owner() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn unknown_dependency_event_is_deferred_while_analysis_is_pending() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Main.sol
-        contract Main {}
-
-        //- /generated/Dependency.sol
-        contract Dependency {}
-        "#,
-    );
-    let mut state = state_with(config_with_indexing_excludes(&project, &["generated/**"]));
-    state.mark_analysis_pending_for_test();
-    let path = project.path("/generated/Dependency.sol");
-
-    watch_files(&mut state, [(&path, FileChangeType::CHANGED)]);
-
-    assert_eq!(analysis_version(&state), 1);
-    assert_eq!(deferred_event(&state, &path), Some(FileChangeType::CHANGED));
-}
-
-#[test]
-fn did_create_and_delete_defer_a_path_first_learned_by_pending_analysis() {
-    for typ in [FileChangeType::CREATED, FileChangeType::DELETED] {
+async fn source_events_defer_a_path_first_learned_by_pending_analysis() {
+    // Changes arrive as watched-file events, creations and deletions as file operations.
+    for typ in [FileChangeType::CREATED, FileChangeType::CHANGED, FileChangeType::DELETED] {
         let project = TestProject::from_fixture(
             r#"
             //- /Main.sol
@@ -489,6 +465,9 @@ fn did_create_and_delete_defer_a_path_first_learned_by_pending_analysis() {
         if typ == FileChangeType::CREATED {
             project.write_file("/generated/Dependency.sol", "contract Dependency {}");
             create_files(&mut state, &path);
+        } else if typ == FileChangeType::CHANGED {
+            project.write_file("/generated/Dependency.sol", "contract Dependency { uint x; }");
+            watch_files(&mut state, [(&path, typ)]);
         } else {
             std::fs::remove_file(&path).unwrap();
             let files = vec![FileDelete { uri: Url::from_file_path(&path).unwrap().to_string() }];

@@ -66,14 +66,9 @@ async fn foreground_requests_end_the_pending_source_change_debounce() {
 async fn document_symbols_and_diagnostics_retain_the_source_change_debounce() {
     let (_project, mut state, uri) = fixture();
     change(&mut state, &uri, 1, "contract After {}");
-    let mut symbols = std::pin::pin!(crate::handlers::document_symbol(&mut state, params(&uri)));
-    let mut diagnostics = std::pin::pin!(crate::handlers::document_diagnostic(
-        &mut state,
-        document_diagnostic_params(&uri, None),
-    ));
-    let mut cx = Context::from_waker(Waker::noop());
-    assert!(symbols.as_mut().poll(&mut cx).is_pending());
-    assert!(diagnostics.as_mut().poll(&mut cx).is_pending());
+    let _symbols = start_request(crate::handlers::document_symbol(&mut state, params(&uri)));
+    let diagnostics = document_diagnostic_params(&uri, None);
+    let _diagnostics = start_request(crate::handlers::document_diagnostic(&mut state, diagnostics));
     let coordinator = analysis_coordinator(&state);
     let tick = Duration::from_millis(1);
     state.analysis_scheduler.gate.close();
@@ -92,8 +87,7 @@ async fn repeated_foreground_requests_wait_for_one_fresh_analysis() {
     change(&mut state, &uri, 1, "contract After {}");
     let version = analysis_version(&state);
     let coordinator = analysis_coordinator(&state);
-    let mut hover = std::pin::pin!(crate::handlers::hover(&mut state, params(&uri)));
-    let pending = hover.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending();
+    let hover = start_request(crate::handlers::hover(&mut state, params(&uri)));
     for _ in 0..8 {
         request_foreground(&mut state, &uri, "definition");
     }
@@ -113,7 +107,7 @@ async fn repeated_foreground_requests_wait_for_one_fresh_analysis() {
     tokio::time::resume();
 
     let response = within("foreground analysis", hover).await.unwrap();
-    assert!(pending && waiting_at_gate && same_coordinator && debounce_ended);
+    assert!(waiting_at_gate && same_coordinator && debounce_ended);
     assert!(unpublished && old_symbols_visible && unchanged_epoch);
     assert!(response.is_some());
     let tables = state.symbol_tables.load();
@@ -153,7 +147,7 @@ async fn edits_after_foreground_urgency_restart_the_full_debounce() {
     let tables = state.symbol_tables.load();
     assert_eq!(workspace_symbol_names(&tables), ["Latest"]);
     assert_eq!(response, tables.hover(&uri, POSITION));
-    assert_eq!(*state.published_analysis_version.borrow(), analysis_version(&state),);
+    assert_eq!(*state.published_analysis_version.borrow(), analysis_version(&state));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -161,25 +155,21 @@ async fn requests_recheck_freshness_after_analysis_wakes_them() {
     let (_project, mut state, uri) = fixture();
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
     change(&mut state, &uri, 1, "contract Intermediate {}");
-    let mut hover = std::pin::pin!(crate::handlers::hover(&mut state, params(&uri)));
-    let mut diagnostics = std::pin::pin!(crate::handlers::document_diagnostic(
-        &mut state,
-        document_diagnostic_params(&uri, None),
-    ));
-    let mut cx = Context::from_waker(Waker::noop());
-    assert!(hover.as_mut().poll(&mut cx).is_pending());
-    assert!(diagnostics.as_mut().poll(&mut cx).is_pending());
+    let mut hover = start_request(crate::handlers::hover(&mut state, params(&uri)));
+    let diagnostics = document_diagnostic_params(&uri, None);
+    let mut diagnostics =
+        start_request(crate::handlers::document_diagnostic(&mut state, diagnostics));
 
     let mut snapshot = state.snapshot();
     let result = analyze(snapshot.analysis_batches(Vec::new()).pop().unwrap());
     assert!(snapshot.publish_analysis(analysis_version(&state), result));
     change(&mut state, &uri, 2, "contract Latest {}");
 
-    let Poll::Ready(Err(error)) = hover.as_mut().poll(&mut cx) else {
+    let Err(error) = expect_ready(hover.as_mut()) else {
         panic!("a superseded hover must finish without waiting for more edits");
     };
     assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
-    let Poll::Ready(Err(error)) = diagnostics.as_mut().poll(&mut cx) else {
+    let Err(error) = expect_ready(diagnostics.as_mut()) else {
         panic!("a superseded diagnostic request must finish without waiting for more edits");
     };
     assert_eq!(error.code, ErrorCode::SERVER_CANCELLED);
@@ -193,7 +183,7 @@ async fn requests_recheck_freshness_after_analysis_wakes_them() {
     assert!(response.is_some());
     assert_eq!(response, state.symbol_tables.load().hover(&uri, POSITION));
     assert!(state.symbol_tables.load().workspace_symbols("Intermediate").is_empty());
-    assert_eq!(*state.published_analysis_version.borrow(), analysis_version(&state),);
+    assert_eq!(*state.published_analysis_version.borrow(), analysis_version(&state));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -224,10 +214,7 @@ async fn rapid_edits_and_saves_in_a_large_workspace_publish_the_latest_analysis(
             tokio::time::sleep(Duration::from_millis(1)).await;
         }
     }
-    let mut diagnostics = std::pin::pin!(diagnostics);
-    let Poll::Ready(Err(error)) =
-        diagnostics.as_mut().poll(&mut Context::from_waker(Waker::noop()))
-    else {
+    let Err(error) = expect_ready(diagnostics) else {
         panic!("the earlier request must finish despite continued edits");
     };
     assert_eq!(error.code, ErrorCode::SERVER_CANCELLED);
@@ -240,7 +227,7 @@ async fn rapid_edits_and_saves_in_a_large_workspace_publish_the_latest_analysis(
         panic!("expected a full diagnostic report");
     };
     assert!(report.full_document_diagnostic_report.items.is_empty());
-    assert_eq!(*state.published_analysis_version.borrow(), analysis_version(&state),);
+    assert_eq!(*state.published_analysis_version.borrow(), analysis_version(&state));
     let tables = state.symbol_tables.load();
     assert!(tables.workspace_symbols("Intermediate").is_empty());
     assert!(tables.workspace_symbols("Broken").is_empty());
@@ -253,11 +240,8 @@ async fn pending_rename_rejects_a_different_identifier_at_the_same_position() {
     let (_project, mut state, uri) = fixture();
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
     change(&mut state, &uri, 1, "contract Original {}");
-    let mut rename = std::pin::pin!(crate::handlers::rename(&mut state, params(&uri)));
-    let mut prepare = std::pin::pin!(crate::handlers::prepare_rename(&mut state, params(&uri)));
-    let mut cx = Context::from_waker(Waker::noop());
-    assert!(rename.as_mut().poll(&mut cx).is_pending());
-    assert!(prepare.as_mut().poll(&mut cx).is_pending());
+    let rename = start_request(crate::handlers::rename(&mut state, params(&uri)));
+    let prepare = start_request(crate::handlers::prepare_rename(&mut state, params(&uri)));
     change(&mut state, &uri, 2, "contract Replaced {}");
     drop(gate);
     state.prioritize_pending_analysis();

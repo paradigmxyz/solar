@@ -1,5 +1,5 @@
 use super::{
-    indexing::{analysis_result, fail_analysis},
+    indexing::{analysis_result, change_workspace_folders, fail_analysis},
     *,
 };
 use async_lsp::LspService;
@@ -224,9 +224,8 @@ async fn workspace_diagnostics_can_be_cancelled_between_partial_batches() {
     let params =
         json!({ "previousResultIds": [], "partialResultToken": "workspace-cancel-partial" });
     let request = from_json(workspace_request("workspace-mid-stream-cancel", params));
-    let mut response = std::pin::pin!(service.call(request));
+    let response = start_request(service.call(request));
 
-    assert!(response.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
     let partial = within("partial result", progress.recv()).await.unwrap();
     assert_eq!(partial.token, NumberOrString::String("workspace-cancel-partial".into()));
     let partial = from_json::<WorkspaceDiagnosticReportPartialResult>(partial.value);
@@ -369,10 +368,7 @@ async fn removed_workspace_membership_stays_cleared_after_failed_reindex() {
     );
     let previous = pull_ready(&mut state, Vec::new()).1;
 
-    let removed = WorkspaceFolder { uri: project.uri("/removed"), name: "removed".into() };
-    let event = WorkspaceFoldersChangeEvent { added: Vec::new(), removed: vec![removed] };
-    let params = DidChangeWorkspaceFoldersParams { event };
-    assert!(crate::handlers::did_change_workspace_folders(&mut state, params).is_continue());
+    change_workspace_folders(&mut state, &[], &[project.uri("/removed")]);
     fail_analysis(&state, "test workspace reindex failure");
 
     // The stale clearing report keeps the version of the removed open document.
@@ -397,12 +393,9 @@ fn concurrent_workspace_diagnostic_requests_share_the_published_analysis() {
     let scheduler = state.analysis_scheduler.clone();
     let mut router = crate::new_router_with_state(state);
     let request = |id| from_json(workspace_request(id, json!({ "previousResultIds": [] })));
-    let mut first = std::pin::pin!(router.call(request(1)));
-    let mut second = std::pin::pin!(router.call(request(2)));
-    let mut context = Context::from_waker(Waker::noop());
+    let mut first = start_request(router.call(request(1)));
+    let mut second = start_request(router.call(request(2)));
 
-    assert!(first.as_mut().poll(&mut context).is_pending());
-    assert!(second.as_mut().poll(&mut context).is_pending());
     let tasks = scheduler.tasks.lock();
     assert!(tasks.coordinator.is_none());
     assert!(tasks.worker.is_none());
@@ -413,10 +406,7 @@ fn concurrent_workspace_diagnostic_requests_share_the_published_analysis() {
     assert!(snapshot.publish_analysis(requested_version, result));
 
     for request in [&mut first, &mut second] {
-        let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
-            panic!("workspace diagnostic should finish after publication");
-        };
-        let response = from_json(response.unwrap());
+        let response = from_json(expect_ready(request.as_mut()).unwrap());
         assert_eq!(
             reports(response).0,
             [
@@ -432,11 +422,9 @@ async fn invalidation_returns_retryable_server_cancellation() {
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.mark_analysis_pending_for_test();
     let params = workspace_diagnostic_params(Vec::new());
-    let mut request = std::pin::pin!(crate::handlers::workspace_diagnostic(&mut state, params));
-    let mut cx = Context::from_waker(Waker::noop());
-    assert!(request.as_mut().poll(&mut cx).is_pending());
+    let mut request = start_request(crate::handlers::workspace_diagnostic(&mut state, params));
     state.mark_analysis_pending_for_test();
-    let Poll::Ready(Err(error)) = request.as_mut().poll(&mut cx) else {
+    let Err(error) = expect_ready(request.as_mut()) else {
         panic!("invalidation must cancel the diagnostic pull without publication");
     };
     assert_eq!(error.code, ErrorCode::SERVER_CANCELLED);
