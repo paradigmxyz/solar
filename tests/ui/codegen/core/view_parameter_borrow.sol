@@ -37,6 +37,35 @@ contract Test {
         other[0] = 0x01;
     }
 
+    // A view decoded from a view parameter reads the parameter's bytes too,
+    // and so does one decoded from a slice of it.
+    /// @custom:solar-view data
+    function decodedThroughOther(bytes memory data, bytes memory other) internal pure returns (bytes1) {
+        /// @custom:solar-view
+        (bytes memory inner) = abi.decode(data, (bytes));
+        other[64] = 0x01; //~ ERROR: this may change bytes that the view `inner` still reads
+        return inner[0];
+    }
+
+    /// @custom:solar-view data
+    function decodedSliceThroughOther(bytes memory data, bytes memory other) internal pure returns (bytes1) {
+        /// @custom:solar-view
+        bytes memory tail = Bytes.slice(data, 4, data.length - 4);
+        /// @custom:solar-view
+        (bytes memory inner) = abi.decode(tail, (bytes));
+        other[68] = 0x01; //~ ERROR: this may change bytes that the view `inner` still reads
+        return inner[0];
+    }
+
+    /// @custom:solar-view data
+    function decodedFresh(bytes memory data) internal pure returns (bytes1 first, bytes memory out) {
+        /// @custom:solar-view
+        (bytes memory inner) = abi.decode(data, (bytes));
+        out = new bytes(2);
+        out[0] = 0x01;
+        first = inner[0];
+    }
+
     struct Pair {
         uint256 a;
         bytes b;
@@ -70,6 +99,8 @@ contract Test {
         write(b);
         keep(b);
         (bytes1 first, ) = fresh(b);
+        (bytes1 decoded, ) = decodedFresh(b);
+        first ^= decoded ^ decodedThroughOther(b, c) ^ decodedSliceThroughOther(b, c);
         return (throughOther(b, c), first ^ afterLastRead(b, c), pointer());
     }
 

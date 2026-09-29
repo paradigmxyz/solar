@@ -701,11 +701,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Binds the `@custom:solar-view` parameter `id` to `value`, the slice of its bytes. The
     /// function reads the bytes where the caller keeps them, so none of its writes may reach
     /// memory that existed when it was entered while it still reads them; bytes in calldata need
-    /// no borrow.
+    /// no borrow. A memory parameter is its own root, which the views decoded from it borrow.
     pub(super) fn bind_view_parameter(&mut self, id: VariableId, value: ValueId) {
         self.views.insert(id, value);
-        self.view_roots.insert(value, None);
-        if self.builder.func().value_slice_location(value) == Some(SliceLocation::Memory) {
+        let memory = self.builder.func().value_slice_location(value) == Some(SliceLocation::Memory);
+        self.view_roots.insert(value, memory.then_some(value));
+        if memory {
             self.push_view_borrow(id, value, value);
         }
     }
@@ -1173,6 +1174,21 @@ impl FunctionFacts {
         // Where the view is made: an instruction, or the entry for a view parameter, which reads
         // memory that exists when the function is entered.
         let (def, payload, origin) = match *func.value(view) {
+            // A view decoded from a view parameter reads the parameter's bytes, where the caller
+            // keeps them.
+            Value::Inst(def)
+                if let source = self.function.resolve(borrow.source)
+                    && matches!(func.value(source), Value::Arg(_))
+                    && func.value_slice_location(source).is_some() =>
+            {
+                let Some(&position) = self.positions.get(&def) else { return };
+                let start = MemoryAddress::symbolic(source, MemoryRegion::Heap);
+                (
+                    Some((def, position)),
+                    MemoryLocation::new(start, LocationSize::Unknown),
+                    Origin::Entry,
+                )
+            }
             Value::Inst(def) => {
                 let Some(&position) = self.positions.get(&def) else { return };
                 let source = self.function.resolve(borrow.source);
