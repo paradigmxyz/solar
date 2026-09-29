@@ -364,10 +364,13 @@ impl RequestFixture {
         assert_data_eq!(code_lens_output(&self.code_lenses(path, false)), expected);
     }
 
+    /// Checks the exact serialized protocol form, one compact JSON lens per line.
     pub(super) fn check_code_lenses_json(&self, path: &str, expected: impl IntoData) {
-        let output = serde_json::to_string_pretty(&self.code_lenses(path, true))
-            .unwrap()
-            .replace(self.path_uri(path).as_str(), &format!("file://{path}"));
+        let mut output = String::new();
+        for lens in self.code_lenses(path, true) {
+            writeln!(output, "{}", serde_json::to_string(&lens).unwrap()).unwrap();
+        }
+        let output = output.replace(self.path_uri(path).as_str(), &format!("file://{path}"));
         assert_data_eq!(output, expected);
     }
 

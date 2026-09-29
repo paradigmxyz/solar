@@ -115,141 +115,15 @@ fn snapshots_complete_command_protocol() {
         "/Protocol.sol",
     );
 
-    fixture.check_code_lenses_json(
-        "/Protocol.sol",
-        str![[r#"
-[
-  {
-    "range": {
-      "start": {
-        "line": 0,
-        "character": 9
-      },
-      "end": {
-        "line": 0,
-        "character": 13
-      }
-    },
-    "command": {
-      "title": "1 reference",
-      "command": "solar.showReferences",
-      "arguments": [
-        {
-          "position": {
-            "character": 9,
-            "line": 0
-          },
-          "uri": "file:///Protocol.sol"
-        }
-      ]
-    }
-  },
-  {
-    "range": {
-      "start": {
-        "line": 0,
-        "character": 9
-      },
-      "end": {
-        "line": 0,
-        "character": 13
-      }
-    },
-    "command": {
-      "title": "1 derived contract",
-      "command": "solar.showTypeHierarchy",
-      "arguments": [
-        {
-          "direction": "subtypes",
-          "position": {
-            "character": 9,
-            "line": 0
-          },
-          "uri": "file:///Protocol.sol"
-        }
-      ]
-    }
-  },
-  {
-    "range": {
-      "start": {
-        "line": 1,
-        "character": 9
-      },
-      "end": {
-        "line": 1,
-        "character": 14
-      }
-    },
-    "command": {
-      "title": "0 references",
-      "command": ""
-    }
-  },
-  {
-    "range": {
-      "start": {
-        "line": 1,
-        "character": 9
-      },
-      "end": {
-        "line": 1,
-        "character": 14
-      }
-    },
-    "command": {
-      "title": "1 base contract",
-      "command": "solar.showTypeHierarchy",
-      "arguments": [
-        {
-          "direction": "supertypes",
-          "position": {
-            "character": 9,
-            "line": 1
-          },
-          "uri": "file:///Protocol.sol"
-        }
-      ]
-    }
-  },
-  {
-    "range": {
-      "start": {
-        "line": 2,
-        "character": 13
-      },
-      "end": {
-        "line": 2,
-        "character": 19
-      }
-    },
-    "command": {
-      "title": "0 references",
-      "command": ""
-    }
-  },
-  {
-    "range": {
-      "start": {
-        "line": 2,
-        "character": 13
-      },
-      "end": {
-        "line": 2,
-        "character": 19
-      }
-    },
-    "command": {
-      "title": "0xd4b83992",
-      "command": "solar.copySelector",
-      "arguments": [
-        "0xd4b83992"
-      ]
-    }
-  }
-]
-"#]],
-    );
+    fixture.check_code_lenses_json("/Protocol.sol", str![[r#"
+{"range":{"start":{"line":0,"character":9},"end":{"line":0,"character":13}},"command":{"title":"1 reference","command":"solar.showReferences","arguments":[{"position":{"character":9,"line":0},"uri":"file:///Protocol.sol"}]}}
+{"range":{"start":{"line":0,"character":9},"end":{"line":0,"character":13}},"command":{"title":"1 derived contract","command":"solar.showTypeHierarchy","arguments":[{"direction":"subtypes","position":{"character":9,"line":0},"uri":"file:///Protocol.sol"}]}}
+{"range":{"start":{"line":1,"character":9},"end":{"line":1,"character":14}},"command":{"title":"0 references","command":""}}
+{"range":{"start":{"line":1,"character":9},"end":{"line":1,"character":14}},"command":{"title":"1 base contract","command":"solar.showTypeHierarchy","arguments":[{"direction":"supertypes","position":{"character":9,"line":1},"uri":"file:///Protocol.sol"}]}}
+{"range":{"start":{"line":2,"character":13},"end":{"line":2,"character":19}},"command":{"title":"0 references","command":""}}
+{"range":{"start":{"line":2,"character":13},"end":{"line":2,"character":19}},"command":{"title":"0xd4b83992","command":"solar.copySelector","arguments":["0xd4b83992"]}}
+
+"#]]);
 }
 
 #[test]
@@ -344,13 +218,8 @@ fn recomputes_warmed_reference_counts_when_merging_batches() {
 
     assert_data_eq!(lens_titles_at(&first, &uri, position), "1 reference\n");
     assert_data_eq!(lens_titles_at(&second, &uri, position), "2 references\n");
-    for (first, second) in [(first.clone(), second.clone()), (second, first)] {
-        let tables = merge_symbol_tables(first, second);
-        for _ in 0..2 {
-            // The shared caller appears in both batches, but contributes only one location.
-            assert_data_eq!(lens_titles_at(&tables, &uri, position), "2 references\n");
-        }
-    }
+    // The shared caller appears in both batches, but contributes only one location.
+    check_merged_titles(&first, &second, &uri, position, "2 references\n");
 }
 
 #[test]
@@ -382,12 +251,7 @@ fn suppresses_warmed_reference_counts_after_merging_conflicting_callers() {
 
     assert_data_eq!(lens_titles_at(&first, &uri, position), "1 reference\n0xd4b83992\n");
     assert_data_eq!(lens_titles_at(&second, &uri, position), "1 reference\n0xd4b83992\n");
-    for (first, second) in [(first.clone(), second.clone()), (second, first)] {
-        let tables = merge_symbol_tables(first, second);
-        for _ in 0..2 {
-            assert_data_eq!(lens_titles_at(&tables, &uri, position), "0xd4b83992\n");
-        }
-    }
+    check_merged_titles(&first, &second, &uri, position, "0xd4b83992\n");
 }
 
 #[test]
@@ -514,6 +378,22 @@ fn lens_titles_at(tables: &SymbolTables, uri: &Url, position: Position) -> Strin
         }
     }
     output
+}
+
+/// Checks lens titles after merging in both batch orders, including repeated warmed requests.
+fn check_merged_titles(
+    first: &SymbolTables,
+    second: &SymbolTables,
+    uri: &Url,
+    position: Position,
+    expected: &str,
+) {
+    for (first, second) in [(first, second), (second, first)] {
+        let tables = merge_symbol_tables(first.clone(), second.clone());
+        for _ in 0..2 {
+            assert_data_eq!(lens_titles_at(&tables, uri, position), expected);
+        }
+    }
 }
 
 fn analyze_file(marked: &MarkedProject, path: &str) -> SymbolTables {

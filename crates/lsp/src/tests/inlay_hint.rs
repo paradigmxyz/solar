@@ -327,6 +327,8 @@ fn filters_hints_by_requested_range() {
 
 "#]],
     );
+    // Files without stored hints, such as ones outside the analysis, return no hints.
+    fixture.check_inlay_hints("/Unanalyzed.sol", "");
 }
 
 /// Checks all hints in `/Hints.sol`. The exact snapshot also pins error-recovery behavior.

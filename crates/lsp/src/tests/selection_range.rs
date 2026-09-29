@@ -128,12 +128,14 @@ fn uses_cached_utf16_positions_for_crlf_documents() {
 }
 
 #[test]
-fn clamps_positions_past_the_line_end() {
+fn clamps_positions_and_supports_standalone_carriage_returns() {
     let fixture = RequestFixture::new(
-        r#"
-        //- /Clamp.sol open
-        contract C {}
-        "#,
+        concat!(
+            "//- /Clamp.sol open\n",
+            "contract C {}\n",
+            "//- /CarriageReturn.sol open\n",
+            "contract C {}\rcontract D {}",
+        ),
         "/Clamp.sol",
     );
 
@@ -148,15 +150,6 @@ fn clamps_positions_past_the_line_end() {
 
 "#]],
     );
-}
-
-#[test]
-fn supports_standalone_carriage_return_line_endings() {
-    let fixture = RequestFixture::new(
-        concat!("//- /CarriageReturn.sol open\n", "contract C {}\rcontract D {}"),
-        "/CarriageReturn.sol",
-    );
-
     fixture.check_selection_ranges_at(
         "/CarriageReturn.sol",
         vec![Position::new(1, 9)],
@@ -165,28 +158,6 @@ fn supports_standalone_carriage_return_line_endings() {
 0:
   1:9-1:10
   1:0-1:13
-  0:0-1:13
-
-"#]],
-    );
-}
-
-#[test]
-fn treats_non_empty_range_ends_as_exclusive() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /ExclusiveEnd.sol open
-        contract C {}$1
-        contract D {}
-        "#,
-        "/ExclusiveEnd.sol",
-    );
-
-    fixture.check_selection_ranges(
-        &["$1"],
-        str![[r#"
-0:
-  0:13-0:13
   0:0-1:13
 
 "#]],
@@ -215,43 +186,39 @@ fn parses_selection_ranges_on_the_blocking_pool() {
 }
 
 #[test]
-fn falls_back_to_cursor_and_document_for_comments_and_whitespace() {
+fn falls_back_to_cursor_and_document_outside_syntax() {
     let fixture = RequestFixture::new(
         r#"
         //- /Fallback.sol open
         // com$1ment
         $2
-        contract C {}
+        contract C {}$3
+        contract D {}
+
+        //- /Empty.sol open
+        $4
         "#,
         "/Fallback.sol",
     );
 
+    // Non-empty range ends are exclusive, so `$3` is outside the first contract.
     fixture.check_selection_ranges(
-        &["$2", "$1"],
+        &["$2", "$1", "$3"],
         str![[r#"
 0:
   1:0-1:0
-  0:0-2:13
+  0:0-3:13
 1:
   0:6-0:6
-  0:0-2:13
+  0:0-3:13
+2:
+  2:13-2:13
+  0:0-3:13
 
 "#]],
     );
-}
-
-#[test]
-fn returns_one_empty_range_for_an_empty_document() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Empty.sol open
-        $1
-        "#,
-        "/Empty.sol",
-    );
-
     fixture.check_selection_ranges(
-        &["$1"],
+        &["$4"],
         str![[r#"
 0:
   0:0-0:0
