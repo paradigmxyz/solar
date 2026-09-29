@@ -33,7 +33,7 @@ impl Assembler<'_> {
     }
 
     /// Runs the EVM IR pipeline over the emitted program and keeps the result for
-    /// [`Self::link`] and [`Self::lower`].
+    /// [`Self::prepare_linked`].
     #[tracing::instrument(
         name = "evm_ir_pipeline",
         level = "debug",
@@ -51,13 +51,14 @@ impl Assembler<'_> {
     fn run_pipeline(&mut self, program: &mut ir::Module) -> bool {
         let input_is_valid = cfg!(debug_assertions) && ir::verify::Verifier::is_valid(program);
         let errors_before = self.gcx.dcx().err_count();
-        let succeeded = |this: &Self| this.gcx.dcx().err_count() == errors_before;
+        let gcx = self.gcx;
+        let succeeded = || gcx.dcx().err_count() == errors_before;
         let _changed = if let Some(checkpoint) = self.outlining.take() {
             checkpoint.resume(self.gcx, program)
         } else {
             ir::run_pipeline(self.gcx, program, None)
         };
-        if !succeeded(self) {
+        if !succeeded() {
             return false;
         }
         debug_assert!(
@@ -65,11 +66,11 @@ impl Assembler<'_> {
             "EVM IR pipeline invalidated a valid module"
         );
         let _legalized = ir::legalize_shifts(self.gcx, program);
-        if !succeeded(self) {
+        if !succeeded() {
             return false;
         }
         ir::verify::Verifier::new(self.gcx).verify_after_legalization(program);
-        succeeded(self)
+        succeeded()
     }
 
     /// Links embedded contract bytecode into the optimized program's deferred data, interning
@@ -92,7 +93,7 @@ impl Assembler<'_> {
         if ir_program.link(bytecodes, libraries) {
             ir_program.fold_data_sizes();
             // With literal sizes, linked bytes can share storage with other data.
-            let _changed = ir::pack_linked_data(&mut ir_program);
+            let _changed = ir::pack_linked_data(self.gcx, &mut ir_program);
         }
         let errors_before = self.gcx.dcx().err_count();
         let program = lower_evm_ir(self, &mut ir_program, &mut labels, capture_debug_info);

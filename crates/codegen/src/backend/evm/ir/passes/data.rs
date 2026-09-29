@@ -4,17 +4,25 @@
 //! changing code. `pack-data` also finds literal memory-store runs that can become `CODECOPY`,
 //! scores the instruction and data-pool cost in the selected optimization mode, then interns the
 //! accepted bytes. Both passes leave a module alone when `CODESIZE` can observe the changed data
-//! layout. Pooling uses bounded substring search to avoid quadratic compile time on large data
-//! sets. Library relocations must match within a shared range; literal stores never share
-//! relocatable bytes.
+//! layout, or when a data address may reach anything but a `CODECOPY` that stays inside its
+//! entry. The scan tracks each block's stack and follows addresses through a few unconditional
+//! jumps, since shared tails can move a copy into another block. Pooling uses bounded substring
+//! search to avoid quadratic compile time on large data sets. Library relocations must match
+//! within a shared range; literal stores never share relocatable bytes.
+//!
+//! Deferred contract bytecode stays opaque in the pipeline: each deferred entry keeps its own
+//! storage, and a `push_data_size` counts as a reference that bounds a copy of its entry's exact
+//! length. Final assembly links the bytes in, folds the sizes into literals, and runs
+//! `pack-existing-data` once more so linked bytecode can share storage, such as runtime code
+//! inside the creation code that contains it.
 
 use super::{EvmPass, utils::instruction_size_lower_bound};
 use crate::{
     backend::evm::{
         data_copy_cost, data_copy_gas, data_copy_is_profitable,
         ir::{
-            BlockId, Data, DataId, DataRef, DataSize, Instruction, Module, PushValue,
-            immediate_materialization_cost,
+            BlockId, Data, DataId, DataRef, DataSize, Instruction, Module, PushValue, Terminator,
+            TerminatorKind, immediate_materialization_cost,
         },
         op::{self, WORD_BYTES},
     },
@@ -32,6 +40,9 @@ const MAX_DATA_SUBSTRING_ENTRIES: usize = 1024;
 
 /// Bounds rewrites whose local cost does not model lost global code sharing.
 const MAX_SHARED_DATA_COPY_SITES: usize = 4;
+
+/// Bounds the unconditional jumps followed from a block to find where its data addresses are used.
+const MAX_DATA_JUMP_HOPS: usize = 4;
 
 pub(super) struct PackExistingData;
 
@@ -347,8 +358,8 @@ fn is_profitable(gcx: Gcx<'_>, improvement: Improvement) -> bool {
 }
 
 /// Shares storage between data entries after deferred data is linked in.
-pub(in crate::backend) fn pack_linked_data(module: &mut Module) -> bool {
-    pack_existing_data(module, true)
+pub(in crate::backend) fn pack_linked_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
+    PackExistingData.run_pass(gcx, module)
 }
 
 fn pack_existing_data(module: &mut Module, allow_subslices: bool) -> bool {
@@ -563,6 +574,22 @@ fn scan_data_references(
             }
         }
         if has_data {
+            // Shared tails can move a copy behind a jump, so follow data addresses that
+            // survive an unconditional jump into its target with this path's stack.
+            let mut terminator = &block.terminator;
+            for _ in 0..MAX_DATA_JUMP_HOPS {
+                let Some(Terminator { kind: TerminatorKind::Jump(target), .. }) = terminator else {
+                    break;
+                };
+                if !stack.iter().any(|value| matches!(value, DataStackValue::Data(_))) {
+                    break;
+                }
+                let target = &module.blocks[*target];
+                for inst in &target.instructions {
+                    track_data_reference(module, inst, &mut stack, &mut references);
+                }
+                terminator = &target.terminator;
+            }
             mark_stack_data_unsafe(&stack, &mut references.subslice_safe);
             stack.clear();
         }
