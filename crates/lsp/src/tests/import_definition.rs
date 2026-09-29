@@ -1,18 +1,18 @@
-use super::support::RequestFixture;
+use super::{
+    GlobalState,
+    support::{Query, RequestFixture},
+};
 use crate::vfs::VfsPath;
+use async_lsp::ErrorCode;
 use crop::Rope;
 use lsp_types::{
-    DidChangeWatchedFilesParams, FileChangeType, FileEvent, GotoDefinitionParams,
-    GotoDefinitionResponse, InitializeParams, PartialResultParams, Position,
-    TextDocumentIdentifier, TextDocumentPositionParams, Url, WorkDoneProgressParams,
-    WorkspaceFolder,
+    DidChangeWatchedFilesParams, FileChangeType, FileEvent, InitializeParams, Url, WorkspaceFolder,
 };
 use snapbox::str;
 use std::{
-    future::Future,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, atomic::Ordering},
-    task::{Context, Waker},
+    task::{Context, Poll, Waker},
     time::Duration,
 };
 
@@ -39,95 +39,69 @@ async fn remappings_change_refreshes_import_definitions() {
         "/src/Main.sol",
     );
     let mut state = fixture.state();
+    assert_eq!(
+        fixture.query_in(&mut state, Query::Definition, "$1").await,
+        "/lib/old/Target.sol:0:0 contract OldTarget {}\n"
+    );
+
+    let remappings = fixture.project_path("/remappings.txt");
+    std::fs::write(&remappings, "pkg/=lib/new/\n").unwrap();
+    refresh(&mut state, Some((remappings, FileChangeType::CHANGED))).await;
+
+    assert_eq!(
+        fixture.query_in(&mut state, Query::Definition, "$1").await,
+        "/lib/new/Target.sol:0:0 contract NewTarget {}\n"
+    );
+}
+
+/// Starts a definition request at `$1` while analysis is pending, applies `update`, and returns
+/// the completed response.
+fn definition_after(
+    fixture: &RequestFixture,
+    update: impl FnOnce(&mut GlobalState),
+) -> Result<String, ErrorCode> {
+    let mut state = fixture.state();
+    state.mark_analysis_pending_for_test();
     let (uri, position) = fixture.marker_location("$1");
+    let mut request = Query::Definition.request(&mut state, uri, position);
+    let mut context = Context::from_waker(Waker::noop());
+    assert!(request.as_mut().poll(&mut context).is_pending());
 
-    assert_eq!(
-        definition_target(&mut state, uri.clone(), position).await,
-        Some(fixture.project_path("/lib/old/Target.sol"))
-    );
-
-    std::fs::write(fixture.project_path("/remappings.txt"), "pkg/=lib/new/\n").unwrap();
-    let remappings_uri = Url::from_file_path(fixture.project_path("/remappings.txt")).unwrap();
-    let _ = crate::handlers::did_change_watched_files(
-        &mut state,
-        DidChangeWatchedFilesParams {
-            changes: vec![FileEvent { uri: remappings_uri, typ: FileChangeType::CHANGED }],
-        },
-    );
-    tokio::time::timeout(Duration::from_secs(5), state.latest_analysis())
-        .await
-        .expect("analysis after remappings change should finish")
-        .unwrap();
-
-    assert_eq!(
-        definition_target(&mut state, uri, position).await,
-        Some(fixture.project_path("/lib/new/Target.sol"))
-    );
-}
-
-async fn definition_target(
-    state: &mut super::GlobalState,
-    uri: Url,
-    position: Position,
-) -> Option<PathBuf> {
-    let response =
-        crate::handlers::goto_definition(state, goto_params(uri, position)).await.ok()??;
-    let location = match response {
-        GotoDefinitionResponse::Scalar(location) => location,
-        GotoDefinitionResponse::Array(locations) => locations.into_iter().next()?,
-        GotoDefinitionResponse::Link(links) => {
-            let link = links.into_iter().next()?;
-            return link.target_uri.to_file_path().ok();
-        }
+    update(&mut state);
+    let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
+        panic!("definition request should complete after analysis settles");
     };
-    location.uri.to_file_path().ok()
+    response.map(|response| fixture.response_output(response)).map_err(|error| error.code)
 }
 
-fn goto_params(uri: Url, position: Position) -> GotoDefinitionParams {
-    GotoDefinitionParams {
-        text_document_position_params: TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier::new(uri),
-            position,
-        },
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    }
-}
-
-#[test]
-fn import_definition_discards_a_stale_vfs_result() {
-    let fixture = RequestFixture::new(
+fn open_import_fixture() -> RequestFixture {
+    RequestFixture::new(
         r#"
         //- /Main.sol open
         import "./$1Target.sol";
 
         //- /Target.sol
         contract Target {}
+
+        //- /OtherX.sol
+        contract OtherX {}
         "#,
         "/Main.sol",
-    );
-    let mut state = fixture.state();
-    let old_tables = state.symbol_tables.load_full();
-    state.mark_analysis_pending_for_test();
-    let (uri, position) = fixture.marker_location("$1");
-    let params = goto_params(uri, position);
-    let mut request = std::pin::pin!(crate::handlers::goto_definition(&mut state, params));
-    let waker = Waker::noop();
-    let mut context = Context::from_waker(waker);
+    )
+}
 
-    assert!(request.as_mut().poll(&mut context).is_pending());
-
-    state.vfs.write().set_file_contents(
-        VfsPath::from(fixture.project_path("/Main.sol")),
-        Some(Rope::from("import \"./Other.sol\";")),
-    );
-    let mut snapshot = state.snapshot();
-    assert!(snapshot.publish_symbol_tables(1, old_tables));
-
-    let std::task::Poll::Ready(response) = request.as_mut().poll(&mut context) else {
-        panic!("definition request should complete after analysis is published");
-    };
-    assert_eq!(response.unwrap(), None);
+#[test]
+fn import_definition_discards_a_stale_vfs_result() {
+    let fixture = open_import_fixture();
+    let response = definition_after(&fixture, |state| {
+        let old_tables = state.symbol_tables.load_full();
+        state.vfs.write().set_file_contents(
+            VfsPath::from(fixture.project_path("/Main.sol")),
+            Some(Rope::from("import \"./Other.sol\";")),
+        );
+        assert!(state.snapshot().publish_symbol_tables(1, old_tables));
+    });
+    assert_eq!(response.as_deref(), Ok("<none>\n"));
 }
 
 #[test]
@@ -147,118 +121,45 @@ fn import_definition_discards_a_fallback_from_an_old_analysis_epoch() {
         "#,
         "/src/Main.sol",
     );
-    let mut state = fixture.state();
-    state.mark_analysis_pending_for_test();
-    let (uri, position) = fixture.marker_location("$1");
-    let mut request =
-        std::pin::pin!(crate::handlers::goto_definition(&mut state, goto_params(uri, position)));
-    let waker = Waker::noop();
-    let mut context = Context::from_waker(waker);
-
-    assert!(request.as_mut().poll(&mut context).is_pending());
-
-    state.mark_context_analysis_pending_for_test();
-    let mut snapshot = state.snapshot();
-    assert!(snapshot.publish_symbol_tables(2, Default::default()));
-
-    let std::task::Poll::Ready(response) = request.as_mut().poll(&mut context) else {
-        panic!("definition request should complete after analysis is published");
-    };
-    assert_eq!(response.unwrap_err().code, async_lsp::ErrorCode::CONTENT_MODIFIED);
+    let response = definition_after(&fixture, |state| {
+        state.mark_context_analysis_pending_for_test();
+        assert!(state.snapshot().publish_symbol_tables(2, Default::default()));
+    });
+    assert_eq!(response, Err(ErrorCode::CONTENT_MODIFIED));
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn import_definition_discards_the_index_after_current_analysis_fails() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Main.sol open
-        import "./$1Target.sol";
-
-        //- /Target.sol
-        contract Target {}
-        "#,
-        "/Main.sol",
-    );
-    let mut state = fixture.state();
-    state.mark_analysis_pending_for_test();
-    let failed_version = state.analysis_version.load(Ordering::Acquire);
-    let (uri, position) = fixture.marker_location("$1");
-    let mut request =
-        std::pin::pin!(crate::handlers::goto_definition(&mut state, goto_params(uri, position)));
-    let waker = Waker::noop();
-    let mut context = Context::from_waker(waker);
-
-    assert!(request.as_mut().poll(&mut context).is_pending());
-
+    let fixture = open_import_fixture();
     let error = tokio::spawn(async { panic!("test import analysis failure") }).await.unwrap_err();
-    assert!(
-        crate::global_state::handle_analysis_failure(
-            failed_version,
-            error,
-            &state.analysis_version,
-            &state.published_analysis_version,
-            &state.analysis_commit,
-        )
-        .is_some()
-    );
-
-    let std::task::Poll::Ready(response) = request.as_mut().poll(&mut context) else {
-        panic!("definition request should complete after analysis fails");
-    };
-    assert_eq!(response.unwrap(), None);
+    let response = definition_after(&fixture, |state| {
+        let failed_version = state.analysis_version.load(Ordering::Acquire);
+        assert!(
+            crate::global_state::handle_analysis_failure(
+                failed_version,
+                error,
+                &state.analysis_version,
+                &state.published_analysis_version,
+                &state.analysis_commit,
+            )
+            .is_some()
+        );
+    });
+    assert_eq!(response.as_deref(), Ok("<none>\n"));
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn import_definition_does_not_use_the_index_for_an_incomplete_current_literal() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Main.sol open
-        import "./$1Target.sol";
-
-        //- /Target.sol
-        contract Target {}
-        "#,
-        "/Main.sol",
-    );
-    let mut state = fixture.state();
-    state.vfs.write().set_file_contents(
-        VfsPath::from(fixture.project_path("/Main.sol")),
-        Some(Rope::from("import \"./Target.sol")),
-    );
-    let (uri, position) = fixture.marker_location("$1");
-
-    let response =
-        crate::handlers::goto_definition(&mut state, goto_params(uri, position)).await.unwrap();
-
-    assert_eq!(response, None);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn import_definition_discards_an_index_from_an_older_vfs_revision() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Main.sol open
-        import "./$1Target.sol";
-
-        //- /Target.sol
-        contract Target {}
-
-        //- /OtherX.sol
-        contract OtherX {}
-        "#,
-        "/Main.sol",
-    );
-    let mut state = fixture.state();
-    state.vfs.write().set_file_contents(
-        VfsPath::from(fixture.project_path("/Main.sol")),
-        Some(Rope::from("import \"./OtherX.sol\";")),
-    );
-    let (uri, position) = fixture.marker_location("$1");
-
-    let response =
-        crate::handlers::goto_definition(&mut state, goto_params(uri, position)).await.unwrap();
-
-    assert_eq!(response, None);
+async fn import_definition_does_not_use_the_index_for_changed_current_literals() {
+    // An incomplete literal and a literal naming another file both miss the stale index.
+    for contents in ["import \"./Target.sol", "import \"./OtherX.sol\";"] {
+        let fixture = open_import_fixture();
+        let mut state = fixture.state();
+        state.vfs.write().set_file_contents(
+            VfsPath::from(fixture.project_path("/Main.sol")),
+            Some(Rope::from(contents)),
+        );
+        assert_eq!(fixture.query_in(&mut state, Query::Definition, "$1").await, "<none>\n");
+    }
 }
 
 #[test]
@@ -267,82 +168,88 @@ fn resolves_import_literals_from_the_analysis_index() {
         r#"
         //- /Imports.sol
         import "./$1Target.sol";
+        import $2"./Target.sol";
+        import "./nes$4ted/\
+        Tar$3get.sol";
 
         //- /Target.sol
         contract Target {}
-        "#,
-        "/Imports.sol",
-    );
-
-    fixture.check_goto_definition(
-        "$1",
-        str![[r#"
-/Target.sol:0:0 contract Target {}
-
-"#]],
-    );
-}
-
-#[test]
-fn resolves_import_literals_from_the_opening_quote() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Imports.sol
-        import $1"./Target.sol";
-
-        //- /Target.sol
-        contract Target {}
-        "#,
-        "/Imports.sol",
-    );
-
-    fixture.check_goto_definition(
-        "$1",
-        str![[r#"
-/Target.sol:0:0 contract Target {}
-
-"#]],
-    );
-}
-
-#[test]
-fn resolves_import_literals_across_escaped_line_continuations() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Imports.sol
-        import "./nes$2ted/\
-        Tar$1get.sol";
 
         //- /nested/Target.sol
-        contract Target {}
+        contract NestedTarget {}
         "#,
         "/Imports.sol",
     );
 
-    fixture.check_goto_definition(
-        "$1",
+    fixture.check_queries(
+        &[Query::Definition],
+        1..=4,
         str![[r#"
-/nested/Target.sol:0:0 contract Target {}
-
-"#]],
-    );
-    fixture.check_goto_definition(
-        "$2",
-        str![[r#"
-/nested/Target.sol:0:0 contract Target {}
+$1 /Target.sol:0:0 contract Target {}
+$2 /Target.sol:0:0 contract Target {}
+$3 /nested/Target.sol:0:0 contract NestedTarget {}
+$4 /nested/Target.sol:0:0 contract NestedTarget {}
 
 "#]],
     );
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn import_only_source_watcher_changes_refresh_auto_detected_remappings() {
-    check_import_only_watcher_refreshes_auto_detected_remappings("/lib/pkg/src/Target.sol").await;
+async fn import_only_changes_refresh_auto_detected_remappings() {
+    // Watch the created file or package directory, or reindex manually without an event.
+    for event_path in [Some("/lib/pkg/src/Target.sol"), Some("/lib/pkg"), None] {
+        let fixture = RequestFixture::new_allowing_diagnostics(
+            r#"
+            //- /foundry.toml
+
+            //- /src/Main.sol open
+            import "pkg/$1Target.sol";
+            "#,
+            "/src/Main.sol",
+        );
+        let mut state = fixture.state_with_workspace_analysis();
+        assert!(!state.config.supports_watched_file_dynamic_registration());
+        let target = fixture.project_path("/lib/pkg/src/Target.sol");
+        let event_path = event_path.map(|path| fixture.project_path(path));
+        let event = |typ| event_path.clone().map(|path| (path, typ));
+        assert_eq!(fixture.query_in(&mut state, Query::Definition, "$1").await, "<none>\n");
+
+        std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+        std::fs::write(&target, "contract Target {}\n").unwrap();
+        refresh(&mut state, event(FileChangeType::CREATED)).await;
+        assert_eq!(
+            fixture.query_in(&mut state, Query::Definition, "$1").await,
+            "/lib/pkg/src/Target.sol:0:0 contract Target {}\n"
+        );
+
+        if event_path.as_ref() == Some(&target) {
+            std::fs::remove_file(&target).unwrap();
+        } else {
+            std::fs::remove_dir_all(fixture.project_path("/lib/pkg")).unwrap();
+        }
+        refresh(&mut state, event(FileChangeType::DELETED)).await;
+        assert_eq!(fixture.query_in(&mut state, Query::Definition, "$1").await, "<none>\n");
+    }
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn import_only_package_watcher_changes_refresh_auto_detected_remappings() {
-    check_import_only_watcher_refreshes_auto_detected_remappings("/lib/pkg").await;
+/// Sends a watched-file event, or reindexes without one, and waits for the resulting analysis.
+async fn refresh(state: &mut GlobalState, event: Option<(PathBuf, FileChangeType)>) {
+    if let Some((path, typ)) = event {
+        watch(state, &path, typ);
+    } else {
+        state.reindex();
+    }
+    tokio::time::timeout(Duration::from_secs(5), state.latest_analysis())
+        .await
+        .expect("analysis should finish")
+        .unwrap();
+}
+
+fn watch(state: &mut GlobalState, path: &Path, typ: FileChangeType) {
+    let uri = Url::from_file_path(path).unwrap();
+    let changes = vec![FileEvent { uri, typ }];
+    let _ =
+        crate::handlers::did_change_watched_files(state, DidChangeWatchedFilesParams { changes });
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -374,108 +281,10 @@ async fn external_compile_only_library_events_do_not_force_rediscovery() {
     std::fs::write(&target, "contract Target {}\n").unwrap();
     let version = state.analysis_version.load(Ordering::Acquire);
 
-    let _ = crate::handlers::did_change_watched_files(
-        &mut state,
-        DidChangeWatchedFilesParams {
-            changes: vec![FileEvent {
-                uri: Url::from_file_path(target).unwrap(),
-                typ: FileChangeType::CREATED,
-            }],
-        },
-    );
+    watch(&mut state, &target, FileChangeType::CREATED);
 
     assert_eq!(state.analysis_version.load(Ordering::Acquire), version);
     state.analysis_scheduler.tasks.lock().cancel();
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn manual_reindex_refreshes_auto_detected_remappings() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-
-        //- /src/Main.sol open
-        import "pkg/$1Target.sol";
-        "#,
-        "/src/Main.sol",
-    );
-    let mut state = fixture.state_with_workspace_analysis();
-    let (uri, position) = fixture.marker_location("$1");
-    let package = fixture.project_path("/lib/pkg");
-    let target = package.join("src/Target.sol");
-    assert!(!state.config.supports_watched_file_dynamic_registration());
-    assert_eq!(definition_target(&mut state, uri.clone(), position).await, None);
-
-    std::fs::create_dir_all(target.parent().unwrap()).unwrap();
-    std::fs::write(&target, "contract Target {}\n").unwrap();
-    state.reindex();
-    tokio::time::timeout(Duration::from_secs(5), state.latest_analysis())
-        .await
-        .expect("manual analysis after package creation should finish")
-        .unwrap();
-
-    assert_eq!(definition_target(&mut state, uri.clone(), position).await, Some(target));
-
-    std::fs::remove_dir_all(package).unwrap();
-    state.reindex();
-    tokio::time::timeout(Duration::from_secs(5), state.latest_analysis())
-        .await
-        .expect("manual analysis after package deletion should finish")
-        .unwrap();
-
-    assert_eq!(definition_target(&mut state, uri, position).await, None);
-}
-
-async fn check_import_only_watcher_refreshes_auto_detected_remappings(created_path: &str) {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-
-        //- /src/Main.sol open
-        import "pkg/$1Target.sol";
-        "#,
-        "/src/Main.sol",
-    );
-    let mut state = fixture.state_with_workspace_analysis();
-    let (uri, position) = fixture.marker_location("$1");
-    let target = fixture.project_path("/lib/pkg/src/Target.sol");
-
-    assert_eq!(definition_target(&mut state, uri.clone(), position).await, None);
-
-    std::fs::create_dir_all(target.parent().unwrap()).unwrap();
-    std::fs::write(&target, "contract Target {}\n").unwrap();
-    let event_path = fixture.project_path(created_path);
-    let event_uri = Url::from_file_path(&event_path).unwrap();
-    let _ = crate::handlers::did_change_watched_files(
-        &mut state,
-        DidChangeWatchedFilesParams {
-            changes: vec![FileEvent { uri: event_uri.clone(), typ: FileChangeType::CREATED }],
-        },
-    );
-    tokio::time::timeout(Duration::from_secs(5), state.latest_analysis())
-        .await
-        .expect("analysis after import-only creation should finish")
-        .unwrap();
-
-    assert_eq!(definition_target(&mut state, uri.clone(), position).await, Some(target.clone()));
-
-    if event_path == target {
-        std::fs::remove_file(&target).unwrap();
-    } else {
-        std::fs::remove_dir_all(&event_path).unwrap();
-    }
-    let _ = crate::handlers::did_change_watched_files(
-        &mut state,
-        DidChangeWatchedFilesParams {
-            changes: vec![FileEvent { uri: event_uri, typ: FileChangeType::DELETED }],
-        },
-    );
-    tokio::time::timeout(Duration::from_secs(5), state.latest_analysis())
-        .await
-        .expect("analysis after import-only deletion should finish")
-        .unwrap();
-
-    assert_eq!(definition_target(&mut state, uri, position).await, None);
 }
 
 #[test]
@@ -629,7 +438,5 @@ async fn unowned_indexed_import_definitions_do_not_bypass_context() {
         commit.vfs_content_revision = state.vfs.read().content_revision();
         commit.symbol_tables_version = state.analysis_version.load(Ordering::Acquire);
     }
-    let (uri, position) = fixture.marker_location("$1");
-    let response = crate::handlers::goto_definition(&mut state, goto_params(uri, position)).await;
-    assert_eq!(response.unwrap(), None);
+    assert_eq!(fixture.query_in(&mut state, Query::Definition, "$1").await, "<none>\n");
 }

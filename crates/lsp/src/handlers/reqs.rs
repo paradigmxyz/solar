@@ -6,8 +6,8 @@ use crate::{
     formatter::{self, FormatterError},
     global_state::{AnalysisRevision, GlobalState},
     import_resolution::{
-        ImportCandidateKind, ImportResolver, decode_import_path, import_path_at,
-        import_path_at_for_completion,
+        ImportCandidateKind, ImportResolutionContext, ImportResolver, decode_import_path,
+        import_path_at, import_path_at_for_completion,
     },
     natspec_completion::{self, NatSpecCompletionResult},
     progress::send_progress,
@@ -603,30 +603,18 @@ pub(crate) fn goto_definition(
                 {
                     return Ok(Some(response));
                 }
-                let overlay_paths = vfs
-                    .read()
-                    .iter()
-                    .filter_map(|(path, _)| path.as_path().map(Path::to_path_buf))
-                    .collect();
                 let Some(import_request) = parse_import_definition_request(
                     importer,
                     contents,
                     params.position,
-                    overlay_paths,
+                    overlay_paths(&vfs.read()),
                     vfs_content_revision,
                 ) else {
                     return Ok(
                         symbol_tables.goto_definition(&params.text_document.uri, params.position)
                     );
                 };
-                if let Some(target) = ImportResolver::new(context, &import_request.overlay_paths)
-                    .resolve(&import_request.importer, &import_request.raw_path)
-                    && let Ok(uri) = Url::from_file_path(target)
-                {
-                    let location = lsp_types::Location::new(uri, lsp_types::Range::default());
-                    return Ok(Some(GotoDefinitionResponse::Array(vec![location])));
-                }
-                None
+                import_request.resolve(context)
             }
             Some(ImportDefinitionRequest::Parsed(import_request)) => {
                 if !analysis_revision.is_current(import_request.vfs_content_revision) {
@@ -636,19 +624,9 @@ pub(crate) fn goto_definition(
                 else {
                     return Ok(None);
                 };
-                if let Some(response) =
-                    symbol_tables.import_definition(&params.text_document.uri, params.position)
-                {
-                    return Ok(Some(response));
-                }
-                if let Some(target) = ImportResolver::new(context, &import_request.overlay_paths)
-                    .resolve(&import_request.importer, &import_request.raw_path)
-                    && let Ok(uri) = Url::from_file_path(target)
-                {
-                    let location = lsp_types::Location::new(uri, lsp_types::Range::default());
-                    return Ok(Some(GotoDefinitionResponse::Array(vec![location])));
-                }
-                return Ok(None);
+                symbol_tables
+                    .import_definition(&params.text_document.uri, params.position)
+                    .or_else(|| import_request.resolve(context))
             }
         };
         Ok(response)
@@ -665,6 +643,20 @@ struct ParsedImportDefinitionRequest {
     raw_path: String,
     overlay_paths: Vec<PathBuf>,
     vfs_content_revision: u64,
+}
+
+impl ParsedImportDefinitionRequest {
+    fn resolve(&self, context: ImportResolutionContext<'_>) -> Option<GotoDefinitionResponse> {
+        let target = ImportResolver::new(context, &self.overlay_paths)
+            .resolve(&self.importer, &self.raw_path)?;
+        let location =
+            lsp_types::Location::new(Url::from_file_path(target).ok()?, Default::default());
+        Some(GotoDefinitionResponse::Array(vec![location]))
+    }
+}
+
+fn overlay_paths(vfs: &Vfs) -> Vec<PathBuf> {
+    vfs.iter().filter_map(|(path, _)| path.as_path().map(Path::to_path_buf)).collect()
 }
 
 fn import_definition_request(
@@ -706,17 +698,11 @@ fn import_definition_request(
             .ok()
             .map(|contents| Rope::from(contents.as_str()))
     })?;
-    let overlay_paths = state
-        .vfs
-        .read()
-        .iter()
-        .filter_map(|(path, _)| path.as_path().map(Path::to_path_buf))
-        .collect();
     Some(ImportDefinitionRequest::Parsed(parse_import_definition_request(
         importer,
         contents,
         position,
-        overlay_paths,
+        overlay_paths(&state.vfs.read()),
         vfs_content_revision,
     )?))
 }

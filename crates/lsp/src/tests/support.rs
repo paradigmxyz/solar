@@ -6,7 +6,7 @@ use crate::test_support::{
     MarkedProject, type_hierarchy_prepare_params, type_hierarchy_subtypes_params,
     type_hierarchy_supertypes_params,
 };
-use async_lsp::{ClientSocket, ErrorCode};
+use async_lsp::{ClientSocket, ErrorCode, ResponseError};
 use lsp_types::{
     CodeLens, CodeLensParams, CompletionContext, CompletionItem, CompletionParams,
     CompletionResponse, CompletionTextEdit, CompletionTriggerKind, DocumentHighlight,
@@ -26,6 +26,7 @@ use std::{
     future::Future,
     io::Read as _,
     path::Path,
+    pin::Pin,
     sync::Arc,
     task::{Context, Poll, Waker},
 };
@@ -267,43 +268,53 @@ impl RequestFixture {
     }
 
     pub(super) fn check_goto_definition(&self, marker: &str, expected: impl IntoData) {
-        let mut state = self.state();
-        let (uri, position) = self.marker_location(marker);
-        let response =
-            expect_ready(crate::handlers::goto_definition(&mut state, goto_params(uri, position)))
-                .unwrap();
-        assert_data_eq!(self.goto_output(response), expected);
+        assert_data_eq!(self.query_output(Query::Definition, marker), expected);
     }
 
-    pub(super) fn check_goto_declaration(&self, marker: &str, expected: impl IntoData) {
-        let mut state = self.state();
-        let (uri, position) = self.marker_location(marker);
-        let response =
-            expect_ready(crate::handlers::goto_declaration(&mut state, goto_params(uri, position)))
-                .unwrap();
-        assert_data_eq!(self.goto_output(response), expected);
+    /// Checks every query at every numbered marker. Each answer starts with its marker and, when
+    /// several queries are checked, the query label.
+    pub(super) fn check_queries(
+        &self,
+        queries: &[Query],
+        markers: impl IntoIterator<Item = usize>,
+        expected: impl IntoData,
+    ) {
+        let mut output = String::new();
+        for marker in markers {
+            let marker = format!("${marker}");
+            for &query in queries {
+                let label =
+                    if queries.len() == 1 { String::new() } else { format!(" {}:", query.label()) };
+                write!(output, "{marker}{label} {}", self.query_output(query, &marker)).unwrap();
+            }
+        }
+        assert_data_eq!(output, expected);
     }
 
-    pub(super) fn check_goto_implementation(&self, marker: &str, expected: impl IntoData) {
+    fn query_output(&self, query: Query, marker: &str) -> String {
         let mut state = self.state();
         let (uri, position) = self.marker_location(marker);
-        let response = expect_ready(crate::handlers::goto_implementation(
-            &mut state,
-            goto_params(uri, position),
-        ))
-        .unwrap();
-        assert_data_eq!(self.goto_output(response), expected);
+        self.response_output(expect_ready(query.request(&mut state, uri, position)).unwrap())
     }
 
-    pub(super) fn check_goto_type_definition(&self, marker: &str, expected: impl IntoData) {
-        let mut state = self.state();
+    /// Sends a query at a marker to `state` and formats its answer like [`Self::check_queries`].
+    pub(super) async fn query_in(
+        &self,
+        state: &mut GlobalState,
+        query: Query,
+        marker: &str,
+    ) -> String {
         let (uri, position) = self.marker_location(marker);
-        let response = expect_ready(crate::handlers::goto_type_definition(
-            &mut state,
-            goto_params(uri, position),
-        ))
-        .unwrap();
-        assert_data_eq!(self.goto_output(response), expected);
+        self.response_output(query.request(state, uri, position).await.unwrap())
+    }
+
+    pub(super) fn response_output(&self, response: QueryResponse) -> String {
+        match response {
+            QueryResponse::Goto(response) => self.goto_output(response),
+            QueryResponse::Locations(response) => self.locations_output(response),
+            QueryResponse::Highlights(response) => document_highlight_output(response),
+            QueryResponse::Hover(response) => hover_output(response),
+        }
     }
 
     pub(super) fn prepare_type_hierarchy(&self, marker: &str) -> Option<Vec<TypeHierarchyItem>> {
@@ -346,14 +357,10 @@ impl RequestFixture {
         include_declaration: bool,
         expected: impl IntoData,
     ) {
-        let mut state = self.state();
-        let (uri, position) = self.marker_location(marker);
-        let response = expect_ready(crate::handlers::references(
-            &mut state,
-            reference_params(uri, position, include_declaration),
-        ))
-        .unwrap();
-        assert_data_eq!(self.locations_output(response), expected);
+        assert_data_eq!(
+            self.query_output(Query::References(include_declaration), marker),
+            expected
+        );
     }
 
     pub(super) fn check_code_lenses(&self, path: &str, expected: impl IntoData) {
@@ -396,22 +403,7 @@ impl RequestFixture {
     }
 
     pub(super) fn check_document_highlights(&self, marker: &str, expected: impl IntoData) {
-        let mut state = self.state();
-        let (uri, position) = self.marker_location(marker);
-        let response = expect_ready(crate::handlers::document_highlight(
-            &mut state,
-            document_highlight_params(uri, position),
-        ))
-        .unwrap();
-        assert_data_eq!(document_highlight_output(response), expected);
-    }
-
-    pub(super) fn check_hover(&self, marker: &str, expected: impl IntoData) {
-        let mut state = self.state();
-        let (uri, position) = self.marker_location(marker);
-        let response =
-            expect_ready(crate::handlers::hover(&mut state, hover_params(uri, position))).unwrap();
-        assert_data_eq!(hover_output(response), expected);
+        assert_data_eq!(self.query_output(Query::Highlights, marker), expected);
     }
 
     pub(super) fn check_prepare_rename(&self, marker: &str, expected: impl IntoData) {
@@ -884,6 +876,101 @@ impl RequestFixture {
     }
 }
 
+/// A point query request checked by [`RequestFixture::check_queries`].
+#[derive(Clone, Copy, Debug)]
+pub(super) enum Query {
+    Definition,
+    Declaration,
+    Implementation,
+    TypeDefinition,
+    /// References, including the declaration when set.
+    References(bool),
+    Highlights,
+    Hover,
+}
+
+pub(super) enum QueryResponse {
+    Goto(Option<GotoDefinitionResponse>),
+    Locations(Option<Vec<Location>>),
+    Highlights(Option<Vec<DocumentHighlight>>),
+    Hover(Option<Hover>),
+}
+
+type QueryFuture = Pin<Box<dyn Future<Output = Result<QueryResponse, ResponseError>>>>;
+
+impl Query {
+    pub(super) const ALL: [Self; 7] = [
+        Self::Definition,
+        Self::Declaration,
+        Self::Implementation,
+        Self::TypeDefinition,
+        Self::References(true),
+        Self::Highlights,
+        Self::Hover,
+    ];
+
+    pub(super) fn label(self) -> &'static str {
+        match self {
+            Self::Definition => "definition",
+            Self::Declaration => "declaration",
+            Self::Implementation => "implementation",
+            Self::TypeDefinition => "type definition",
+            Self::References(true) => "references",
+            Self::References(false) => "references without declaration",
+            Self::Highlights => "highlights",
+            Self::Hover => "hover",
+        }
+    }
+
+    pub(super) fn request(
+        self,
+        state: &mut GlobalState,
+        uri: Url,
+        position: Position,
+    ) -> QueryFuture {
+        fn boxed<T: 'static>(
+            request: impl Future<Output = Result<T, ResponseError>> + 'static,
+            response: fn(T) -> QueryResponse,
+        ) -> QueryFuture {
+            Box::pin(async move { request.await.map(response) })
+        }
+
+        let goto = goto_params(uri.clone(), position);
+        match self {
+            Self::Definition => {
+                boxed(crate::handlers::goto_definition(state, goto), QueryResponse::Goto)
+            }
+            Self::Declaration => {
+                boxed(crate::handlers::goto_declaration(state, goto), QueryResponse::Goto)
+            }
+            Self::Implementation => {
+                boxed(crate::handlers::goto_implementation(state, goto), QueryResponse::Goto)
+            }
+            Self::TypeDefinition => {
+                boxed(crate::handlers::goto_type_definition(state, goto), QueryResponse::Goto)
+            }
+            Self::References(include_declaration) => boxed(
+                crate::handlers::references(
+                    state,
+                    reference_params(uri, position, include_declaration),
+                ),
+                QueryResponse::Locations,
+            ),
+            Self::Highlights => boxed(
+                crate::handlers::document_highlight(
+                    state,
+                    document_highlight_params(uri, position),
+                ),
+                QueryResponse::Highlights,
+            ),
+            Self::Hover => boxed(
+                crate::handlers::hover(state, hover_params(uri, position)),
+                QueryResponse::Hover,
+            ),
+        }
+    }
+}
+
 fn expect_ready<F: Future>(future: F) -> F::Output {
     let waker = Waker::noop();
     let mut cx = Context::from_waker(waker);
@@ -1099,14 +1186,13 @@ fn hover_output(response: Option<Hover>) -> String {
         panic!("hover response should contain markup");
     };
     assert_eq!(contents.kind, MarkupKind::Markdown);
-    format!(
-        "{}:{}-{}:{}\n{}\n",
-        range.start.line,
-        range.start.character,
-        range.end.line,
-        range.end.character,
-        contents.value,
-    )
+    // Print the leading Solidity code block as a plain signature line.
+    let (signature, documentation) = contents
+        .value
+        .strip_prefix("```solidity\n")
+        .and_then(|value| value.split_once("\n```"))
+        .expect("hover should start with a Solidity code block");
+    format!("{} {signature}{documentation}\n", range_output(range))
 }
 
 fn document_highlight_kind(kind: Option<DocumentHighlightKind>) -> &'static str {

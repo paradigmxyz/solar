@@ -113,21 +113,19 @@ impl OverrideFamilyIndex {
     }
 
     pub(crate) fn descendants(&self, symbol_id: SymbolId) -> Vec<SymbolId> {
-        let mut seen = DenseBitSet::new_empty(self.canonical.len());
-        let mut descendants = DenseBitSet::new_empty(self.canonical.len());
         let Some(&symbol_id) = self.canonical.get(symbol_id) else { return Vec::new() };
+        let mut seen = DenseBitSet::new_empty(self.canonical.len());
         seen.insert(symbol_id);
         let mut pending = self.derived.get(&symbol_id).cloned().unwrap_or_default();
-
-        while let Some(symbol_id) = pending.pop() {
-            if seen.insert(symbol_id) {
-                descendants.insert(symbol_id);
-                if let Some(derived) = self.derived.get(&symbol_id) {
-                    pending.extend_from_slice(derived);
-                }
+        while let Some(derived) = pending.pop() {
+            if seen.insert(derived)
+                && let Some(next) = self.derived.get(&derived)
+            {
+                pending.extend_from_slice(next);
             }
         }
-        descendants.iter().collect()
+        seen.remove(symbol_id);
+        seen.iter().collect()
     }
 }
 
