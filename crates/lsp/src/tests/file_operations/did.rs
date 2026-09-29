@@ -369,56 +369,42 @@ async fn did_delete_and_its_watcher_echo_start_one_epoch() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn watcher_delete_preserves_open_file_for_later_changes() {
-    let project = TestProject::from_fixture("//- /Deleted.sol open\ncontract BeforeDelete {}\n");
-    let deleted = project.path("/Deleted.sol");
-    let mut state = state(&project);
-    fs::remove_file(&deleted).unwrap();
-    let before = version(&state);
+async fn watcher_delete_preserves_open_file_until_the_editor_changes_or_closes_it() {
+    for close in [false, true] {
+        let project = TestProject::from_fixture("//- /Deleted.sol open\ncontract Deleted {}\n");
+        let deleted = project.path("/Deleted.sol");
+        let uri = Url::from_file_path(&deleted).unwrap();
+        let mut state = state(&project);
+        fs::remove_file(&deleted).unwrap();
+        let before = version(&state);
 
-    watch(&mut state, [(&deleted, DELETED)]);
-    assert_eq!(version(&state), before);
-    let params = DidChangeTextDocumentParams {
-        text_document: VersionedTextDocumentIdentifier::new(
-            Url::from_file_path(&deleted).unwrap(),
-            1,
-        ),
-        content_changes: vec![TextDocumentContentChangeEvent {
-            range: None,
-            range_length: None,
-            text: "contract AfterDelete {}".into(),
-        }],
-    };
-    assert!(matches!(
-        handlers::did_change_text_document(&mut state, params),
-        ControlFlow::Continue(())
-    ));
+        watch(&mut state, [(&deleted, DELETED)]);
+        assert_eq!(version(&state), before);
+        assert!(exists(&state, &deleted));
 
-    assert_buffer(&state, &deleted, "contract AfterDelete {}", 1);
-    assert_eq!(version(&state), before + 1);
-    assert!(has_symbol(&analysis(&state).await, "AfterDelete"));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn watcher_delete_preserves_open_file_until_did_close() {
-    let project = TestProject::from_fixture("//- /Deleted.sol open\ncontract Deleted {}\n");
-    let deleted = project.path("/Deleted.sol");
-    let mut state = state(&project);
-    fs::remove_file(&deleted).unwrap();
-    let before = version(&state);
-
-    watch(&mut state, [(&deleted, DELETED)]);
-    assert_eq!(version(&state), before);
-    assert!(exists(&state, &deleted));
-    let text_document = TextDocumentIdentifier::new(Url::from_file_path(&deleted).unwrap());
-    assert!(matches!(
-        handlers::did_close_text_document(&mut state, DidCloseTextDocumentParams { text_document }),
-        ControlFlow::Continue(())
-    ));
-
-    assert_eq!(version(&state), before + 1);
-    assert!(!exists(&state, &deleted));
-    assert!(analysis(&state).await.workspace_symbols("Deleted").is_empty());
+        if close {
+            let text_document = TextDocumentIdentifier::new(uri);
+            let params = DidCloseTextDocumentParams { text_document };
+            let result = handlers::did_close_text_document(&mut state, params);
+            assert!(matches!(result, ControlFlow::Continue(())));
+            assert!(!exists(&state, &deleted));
+            assert!(analysis(&state).await.workspace_symbols("Deleted").is_empty());
+        } else {
+            let params = DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier::new(uri, 1),
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: "contract AfterDelete {}".into(),
+                }],
+            };
+            let result = handlers::did_change_text_document(&mut state, params);
+            assert!(matches!(result, ControlFlow::Continue(())));
+            assert_buffer(&state, &deleted, "contract AfterDelete {}", 1);
+            assert!(has_symbol(&analysis(&state).await, "AfterDelete"));
+        }
+        assert_eq!(version(&state), before + 1);
+    }
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -585,35 +571,34 @@ async fn folder_watcher_delete_followed_by_did_delete_starts_one_epoch() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn did_rename_folder_migrates_open_buffers_before_one_reanalysis() {
-    let (_project, mut state, params, old_file, new_file) = folder_rename(false).await;
-    let before = version(&state);
+async fn did_rename_or_watcher_migrates_open_buffers_before_one_reanalysis() {
+    // Without a prepared rename, the did notification commits it and the watcher echoes are
+    // ignored; with one, the watcher commits it and the did notification is a replay.
+    for watcher_first in [false, true] {
+        let (_project, mut state, params, old_file, new_file) = folder_rename(watcher_first).await;
+        let events = [(&old_file, DELETED), (&new_file, CREATED)];
+        let before = version(&state);
 
-    did_rename(&mut state, &params);
-    assert!(!exists(&state, &old_file));
-    assert_buffer(&state, &new_file, UNSAVED, 12);
-    watch(&mut state, [(&old_file, DELETED), (&new_file, CREATED)]);
+        if watcher_first {
+            watch(&mut state, events);
+        } else {
+            did_rename(&mut state, &params);
+        }
+        assert_eq!(version(&state), before + 1);
+        assert!(!exists(&state, &old_file));
+        assert_buffer(&state, &new_file, UNSAVED, 12);
+        if watcher_first {
+            did_rename(&mut state, &params);
+        } else {
+            watch(&mut state, events);
+        }
 
-    assert_eq!(version(&state), before + 1);
-    assert_buffer(&state, &new_file, UNSAVED, 12);
-    let tables = analysis(&state).await;
-    assert!(tables.workspace_symbols("DiskVersion").is_empty());
-    assert!(has_symbol(&tables, "Unsaved"));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn watcher_can_commit_prepared_rename_before_did_notification() {
-    let (_project, mut state, params, old_file, new_file) = folder_rename(true).await;
-    let before = version(&state);
-
-    watch(&mut state, [(&old_file, DELETED), (&new_file, CREATED)]);
-    assert_eq!(version(&state), before + 1);
-    assert!(!exists(&state, &old_file));
-    assert_buffer(&state, &new_file, UNSAVED, 12);
-
-    did_rename(&mut state, &params);
-    assert_eq!(version(&state), before + 1);
-    assert_buffer(&state, &new_file, UNSAVED, 12);
+        assert_eq!(version(&state), before + 1);
+        assert_buffer(&state, &new_file, UNSAVED, 12);
+        let tables = analysis(&state).await;
+        assert!(tables.workspace_symbols("DiskVersion").is_empty());
+        assert!(has_symbol(&tables, "Unsaved"));
+    }
 }
 
 #[tokio::test(flavor = "current_thread")]
