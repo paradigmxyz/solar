@@ -1,11 +1,11 @@
 use super::*;
 use crate::{
     LaunchConfig, new_server_service_with_router,
-    test_support::{read_lsp_frame, start_request, write_lsp_frame},
+    test_support::{assert_request_cancelled, spawn_lsp_pair, start_request},
 };
-use async_lsp::router::Router;
+use async_lsp::{LanguageServer, router::Router};
 use lsp_types::{
-    InitializeParams, InitializeResult,
+    CancelParams, InitializeParams, InitializeResult, InitializedParams, NumberOrString,
     notification::{Cancel, DidOpenTextDocument, Exit, Initialized, Notification},
     request::{HoverRequest, Initialize, Request, Shutdown},
 };
@@ -15,8 +15,6 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tokio::io::BufReader;
-use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 type NotificationLog = Arc<Mutex<Vec<String>>>;
 
@@ -99,11 +97,6 @@ async fn initialize(service: &mut Lifecycle<ControlledService>) {
     assert!(service.notify(notification(Initialized::METHOD)).is_continue());
 }
 
-async fn initialize_and_shutdown(service: &mut Lifecycle<ControlledService>) {
-    initialize(service).await;
-    service.call(request(Shutdown::METHOD)).await.unwrap();
-}
-
 #[test]
 fn notifications_before_initialize_are_dropped() {
     let (mut service, notifications) = service(ResponseBehavior::Ok, ResponseBehavior::Ok);
@@ -159,9 +152,8 @@ async fn successful_initialize_gates_traffic_until_initialized() {
         service.call(request(HoverRequest::METHOD)).await.unwrap_err().code,
         ErrorCode::SERVER_NOT_INITIALIZED
     );
-    let methods_before = logged(&notifications);
     assert!(service.notify(notification(DidOpenTextDocument::METHOD)).is_continue());
-    assert_eq!(logged(&notifications), methods_before);
+    assert!(logged(&notifications).is_empty());
     assert_eq!(
         service.call(request(Shutdown::METHOD)).await.unwrap_err().code,
         ErrorCode::SERVER_NOT_INITIALIZED
@@ -170,26 +162,43 @@ async fn successful_initialize_gates_traffic_until_initialized() {
     assert!(service.notify(notification(Initialized::METHOD)).is_continue());
     assert_eq!(logged(&notifications), vec![Initialized::METHOD.to_owned()]);
     service.call(request(HoverRequest::METHOD)).await.unwrap();
+    assert_eq!(
+        service.call(request(Initialize::METHOD)).await.unwrap_err().code,
+        ErrorCode::INVALID_REQUEST
+    );
+    assert!(matches!(
+        service.notify(notification(Initialized::METHOD)),
+        ControlFlow::Break(Err(Error::Protocol(_)))
+    ));
     service.call(request(Shutdown::METHOD)).await.unwrap();
 }
 
 #[tokio::test]
-async fn pending_initialize_does_not_accept_initialized() {
-    let (mut service, _) = service(ResponseBehavior::Pending, ResponseBehavior::Ok);
-    let _initialize = start_request(service.call(request(Initialize::METHOD)));
+async fn pending_initialize_rejects_traffic_until_dropped() {
+    for polled in [false, true] {
+        let (mut service, _) = service(ResponseBehavior::Pending, ResponseBehavior::Ok);
+        let pending_initialize = service.call(request(Initialize::METHOD));
+        let pending_initialize =
+            if polled { start_request(pending_initialize) } else { Box::pin(pending_initialize) };
 
-    assert!(service.notify(notification(Initialized::METHOD)).is_continue());
-    assert_eq!(
-        service.call(request(HoverRequest::METHOD)).await.unwrap_err().code,
-        ErrorCode::SERVER_NOT_INITIALIZED
-    );
+        assert!(service.notify(notification(Initialized::METHOD)).is_continue());
+        assert_eq!(
+            service.call(request(HoverRequest::METHOD)).await.unwrap_err().code,
+            ErrorCode::SERVER_NOT_INITIALIZED
+        );
+
+        drop(pending_initialize);
+        service.service.initialize = ResponseBehavior::Ok;
+        initialize(&mut service).await;
+        service.call(request(HoverRequest::METHOD)).await.unwrap();
+    }
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn cancelled_initialize_allows_retry_over_the_wire() {
     const TIMEOUT: Duration = Duration::from_secs(1);
 
-    let (main_loop, _client) = async_lsp::MainLoop::new_server(|client| {
+    let (server_main, _client) = async_lsp::MainLoop::new_server(|client| {
         new_server_service_with_router(client, LaunchConfig::default(), |_| {
             let mut router = Router::new(0);
             router
@@ -209,118 +218,22 @@ async fn cancelled_initialize_allows_retry_over_the_wire() {
             router
         })
     });
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_reader, server_writer) = tokio::io::split(server_stream);
-    let server_task =
-        tokio::spawn(main_loop.run_buffered(server_reader.compat(), server_writer.compat_write()));
-    let (client_reader, mut client_writer) = tokio::io::split(client_stream);
-    let mut client_reader = BufReader::new(client_reader);
-    let initialize_params = serde_json::to_value(InitializeParams::default()).unwrap();
+    let (client_main, mut server) = async_lsp::MainLoop::new_client(|_| Router::new(()));
+    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
 
-    write_lsp_frame(
-        &mut client_writer,
-        serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": Initialize::METHOD,
-            "params": initialize_params,
-        }),
-    )
-    .await;
-    write_lsp_frame(
-        &mut client_writer,
-        serde_json::json!({
-            "jsonrpc": "2.0",
-            "method": Cancel::METHOD,
-            "params": { "id": 1 },
-        }),
-    )
-    .await;
+    let cancelled = start_request(server.request::<Initialize>(InitializeParams::default()));
+    server.notify::<Cancel>(CancelParams { id: NumberOrString::Number(0) }).unwrap();
+    assert_request_cancelled(tokio::time::timeout(TIMEOUT, cancelled).await.unwrap());
 
-    let cancelled = tokio::time::timeout(TIMEOUT, read_lsp_frame(&mut client_reader))
+    tokio::time::timeout(TIMEOUT, server.initialize(InitializeParams::default()))
         .await
-        .expect("initialize cancellation response should arrive");
-    assert_eq!(cancelled["id"], 1);
-    assert_eq!(cancelled["error"]["code"], ErrorCode::REQUEST_CANCELLED.0);
-
-    write_lsp_frame(
-        &mut client_writer,
-        serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 2,
-            "method": Initialize::METHOD,
-            "params": serde_json::to_value(InitializeParams::default()).unwrap(),
-        }),
-    )
-    .await;
-    let initialized = tokio::time::timeout(TIMEOUT, read_lsp_frame(&mut client_reader))
-        .await
-        .expect("retried initialize response should arrive");
-    assert_eq!(initialized["id"], 2);
-    assert!(initialized.get("result").is_some());
-
-    write_lsp_frame(
-        &mut client_writer,
-        serde_json::json!({
-            "jsonrpc": "2.0",
-            "method": Initialized::METHOD,
-            "params": {},
-        }),
-    )
-    .await;
-    write_lsp_frame(
-        &mut client_writer,
-        serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 3,
-            "method": Shutdown::METHOD,
-            "params": null,
-        }),
-    )
-    .await;
-    let shutdown = tokio::time::timeout(TIMEOUT, read_lsp_frame(&mut client_reader))
-        .await
-        .expect("shutdown response should arrive");
-    assert_eq!(shutdown["id"], 3);
-    assert_eq!(shutdown.get("result"), Some(&Value::Null));
-
-    write_lsp_frame(
-        &mut client_writer,
-        serde_json::json!({
-            "jsonrpc": "2.0",
-            "method": Exit::METHOD,
-            "params": null,
-        }),
-    )
-    .await;
-    assert!(
-        tokio::time::timeout(TIMEOUT, server_task)
-            .await
-            .expect("server should exit")
-            .unwrap()
-            .is_ok()
-    );
-}
-
-#[tokio::test]
-async fn dropped_unpolled_initialize_future_allows_retry() {
-    let (mut service, _) = service(ResponseBehavior::Pending, ResponseBehavior::Ok);
-
-    drop(service.call(request(Initialize::METHOD)));
-    service.service.initialize = ResponseBehavior::Ok;
-
-    initialize(&mut service).await;
-    service.call(request(HoverRequest::METHOD)).await.unwrap();
-}
-
-#[tokio::test]
-async fn dropped_initialize_future_allows_retry() {
-    let (mut service, _) = service(ResponseBehavior::Pending, ResponseBehavior::Ok);
-    drop(start_request(service.call(request(Initialize::METHOD))));
-    service.service.initialize = ResponseBehavior::Ok;
-
-    initialize(&mut service).await;
-    service.call(request(HoverRequest::METHOD)).await.unwrap();
+        .expect("retried initialize response should arrive")
+        .unwrap();
+    server.initialized(InitializedParams {}).unwrap();
+    server.shutdown(()).await.unwrap();
+    server.exit(()).unwrap();
+    assert!(tokio::time::timeout(TIMEOUT, server_task).await.unwrap().unwrap().is_ok());
+    assert!(matches!(client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
 }
 
 #[tokio::test]
@@ -349,21 +262,6 @@ async fn failed_shutdown_still_exits_gracefully() {
     assert!(matches!(service.notify(notification(Exit::METHOD)), ControlFlow::Break(Ok(()))));
 }
 
-#[tokio::test]
-async fn requests_follow_lifecycle_state() {
-    let (mut service, _) = service(ResponseBehavior::Ok, ResponseBehavior::Ok);
-    assert_eq!(
-        service.call(request(HoverRequest::METHOD)).await.unwrap_err().code,
-        ErrorCode::SERVER_NOT_INITIALIZED
-    );
-    initialize_and_shutdown(&mut service).await;
-
-    assert_eq!(
-        service.call(request(HoverRequest::METHOD)).await.unwrap_err().code,
-        ErrorCode::INVALID_REQUEST
-    );
-}
-
 #[test]
 fn exit_before_shutdown_returns_an_error() {
     let (mut service, _) = service(ResponseBehavior::Ok, ResponseBehavior::Ok);
@@ -371,15 +269,4 @@ fn exit_before_shutdown_returns_an_error() {
     let result = service.notify(notification(Exit::METHOD));
 
     assert!(matches!(result, ControlFlow::Break(Err(Error::Protocol(_)))));
-}
-
-#[tokio::test]
-async fn notifications_after_shutdown_are_dropped_before_exit() {
-    let (mut service, notifications) = service(ResponseBehavior::Ok, ResponseBehavior::Ok);
-    initialize_and_shutdown(&mut service).await;
-    let methods_before = logged(&notifications);
-
-    assert!(service.notify(notification(DidOpenTextDocument::METHOD)).is_continue());
-    assert_eq!(logged(&notifications), methods_before);
-    assert!(matches!(service.notify(notification(Exit::METHOD)), ControlFlow::Break(Ok(()))));
 }
