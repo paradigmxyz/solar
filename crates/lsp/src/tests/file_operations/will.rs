@@ -1,25 +1,9 @@
-use super::{
-    super::ASYNC_TEST_TIMEOUT, GlobalState, analyze_project, rename_params, state,
-    state_with_config, uri,
-};
-use crate::{config::negotiate_capabilities, handlers, test_support::TestProject, vfs::VfsPath};
-use async_lsp::{ClientSocket, ErrorCode, ResponseError};
-use lsp_types::{
-    CreateFilesParams, DeleteFilesParams, FileDelete, Position, Range, TextEdit, Url, WorkspaceEdit,
-};
-use std::{
-    collections::HashMap,
-    fs,
-    future::Future,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use super::*;
+use crate::{handlers, vfs::VfsPath};
+use lsp_types::{CreateFilesParams, DeleteFilesParams, FileDelete, TextEdit, WorkspaceEdit};
+use std::{collections::HashMap, fs};
 
 type EditResult = Result<Option<WorkspaceEdit>, ResponseError>;
-
-fn block_on<F: Future>(future: F) -> F::Output {
-    tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(future)
-}
 
 fn will_delete(state: &mut GlobalState, path: impl AsRef<Path>) -> EditResult {
     let files = vec![FileDelete { uri: uri(path) }];
@@ -48,7 +32,7 @@ fn assert_one_edit_per_file(edit: EditResult, files: &[PathBuf]) {
 
 #[test]
 fn will_create_returns_no_speculative_edits() {
-    let mut state = GlobalState::new(ClientSocket::new_closed());
+    let mut state = state_with(Config::default());
 
     let edit =
         block_on(handlers::will_create_files(&mut state, CreateFilesParams::default())).unwrap();
@@ -253,7 +237,7 @@ fn will_file_operations_refuse_incomplete_import_edits() {
         ),
         (
             with_src_importer("src", "/src/generated/Importer.sol"),
-            Some(serde_json::json!({ "indexing": { "exclude": ["src/generated/**"] } })),
+            Some(json!({ "indexing": { "exclude": ["src/generated/**"] } })),
             Some("/src/generated/Importer.sol"),
             "/src/Target.sol",
         ),
@@ -299,9 +283,7 @@ fn will_file_operations_refuse_incomplete_import_edits() {
         let project = TestProject::from_fixture(&fixture);
         let mut params = project.initialize_params();
         params.initialization_options = initialization_options;
-        let (_, mut config) = negotiate_capabilities(params);
-        config.rediscover_workspaces();
-        let mut state = state_with_config(&project, config);
+        let mut state = state_with_config(&project, rediscovered_config(params));
         if let Some(importer) = pruned {
             let links = state.symbol_tables.load().document_links(&project.path(importer));
             assert!(links.is_empty(), "pruned importer was unexpectedly analyzed: {importer}");
@@ -334,16 +316,10 @@ async fn will_delete_refuses_import_edits_after_source_load_failure() {
         contract Target {}
         "#,
     );
-    let config = project.config();
+    let mut state = project.state();
     fs::remove_file(project.path("/src/Lost.sol")).unwrap();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
-    *state.vfs.write() = project.vfs();
     state.recompute_for_file_changes(Vec::new(), Vec::new(), false);
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
-        .await
-        .expect("analysis should finish")
-        .unwrap();
+    settle(&state).await;
 
     let files = vec![FileDelete { uri: uri(project.path("/src/Target.sol")) }];
     let edit = handlers::will_delete_files(&mut state, DeleteFilesParams { files }).await.unwrap();

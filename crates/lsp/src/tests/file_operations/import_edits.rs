@@ -1,17 +1,12 @@
-use super::analyze_project;
+use super::*;
 use crate::{
     document_links::{DocumentLinkIndex, ImportEditPlan},
     file_operations::FileMoveBatch,
-    test_support::TestProject,
 };
-use lsp_types::{Position, Range, TextEdit, Url};
+use lsp_types::TextEdit;
 use solar_config::ImportRemapping;
 use solar_parse::lexer::unescape::{StrKind, try_parse_string_literal};
-use std::{
-    collections::HashMap,
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashMap, fs};
 
 #[cfg(unix)]
 use std::{ffi::OsString, os::unix::ffi::OsStringExt};
@@ -52,7 +47,7 @@ fn assert_edits(project: &TestProject, plan: ImportEditPlan, expected: &[Expecte
         .iter()
         .map(|&(importer, start, end, text)| {
             let range = Range::new(Position::new(0, start), Position::new(0, end));
-            let uri = Url::from_file_path(project.path(importer)).unwrap();
+            let uri = project.uri(importer);
             (uri, vec![TextEdit::new(range, text.into())])
         })
         .collect::<HashMap<_, _>>();

@@ -213,7 +213,7 @@ fn recomputes_warmed_reference_counts_when_merging_batches() {
     let project = marked.project();
     let first = analyze_file(&marked, "/First.sol");
     let second = analyze_file(&marked, "/Second.sol");
-    let uri = Url::from_file_path(project.path("/Shared.sol")).unwrap();
+    let uri = project.uri("/Shared.sol");
     let position = marked.marker("$1").position();
 
     assert_data_eq!(lens_titles_at(&first, &uri, position), "1 reference\n");
@@ -246,7 +246,7 @@ fn suppresses_warmed_reference_counts_after_merging_conflicting_callers() {
     let first = analyze_file(&marked, "/Caller.sol");
     project.write_file("/Caller.sol", &contents.replace("Target.target();", "\nTarget.target();"));
     let second = analyze_file(&marked, "/Root.sol");
-    let uri = Url::from_file_path(project.path("/Target.sol")).unwrap();
+    let uri = project.uri("/Target.sol");
     let position = marked.marker("$1").position();
 
     assert_data_eq!(lens_titles_at(&first, &uri, position), "1 reference\n0xd4b83992\n");

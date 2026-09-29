@@ -547,7 +547,7 @@ impl Calls {
     }
 
     fn uri(&self, marker: &str) -> Url {
-        Url::from_file_path(self.0.project().path(self.0.marker(marker).path())).unwrap()
+        self.0.project().uri(self.0.marker(marker).path())
     }
 
     fn prepare_at(

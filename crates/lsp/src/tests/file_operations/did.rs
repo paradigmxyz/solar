@@ -1,47 +1,15 @@
-use super::{
-    super::{ASYNC_TEST_TIMEOUT, diagnostic},
-    GlobalState, SymbolTables, rename_params, state, uri,
-};
-use crate::{
-    diagnostics::{DiagnosticMap, DiagnosticOwner, PullReport},
-    file_operations::WatchedFileAction,
-    handlers,
-    test_support::TestProject,
-    vfs::VfsPath,
-    workspace::WorkspaceKind,
-};
-use async_lsp::{ClientSocket, ErrorCode};
-use crop::Rope;
-use lsp_types::{
-    CreateFilesParams, DeleteFilesParams, DidChangeTextDocumentParams,
-    DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams,
-    DidCloseTextDocumentParams, FileChangeType, FileCreate, FileDelete, FileEvent,
-    InitializedParams, RenameFilesParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
-    Url, VersionedTextDocumentIdentifier, WorkspaceClientCapabilities,
-};
-use std::{
-    fs,
-    ops::ControlFlow,
-    path::{Path, PathBuf},
-    sync::{Arc, atomic::Ordering},
-    time::{Duration, Instant},
-};
+use super::*;
+use crate::{file_operations::WatchedFileAction, handlers, workspace::WorkspaceKind};
+use lsp_types::{CreateFilesParams, DeleteFilesParams, FileCreate, FileDelete, InitializedParams};
+use std::fs;
 
 const CREATED: FileChangeType = FileChangeType::CREATED;
 const DELETED: FileChangeType = FileChangeType::DELETED;
 const EXISTING: &str = "//- /Existing.sol\ncontract Existing {}\n";
 const UNSAVED: &str = "contract Unsaved {}";
 
-fn version(state: &GlobalState) -> usize {
-    state.analysis_version.load(Ordering::Relaxed)
-}
-
 async fn analysis(state: &GlobalState) -> Arc<SymbolTables> {
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
-        .await
-        .expect("analysis should finish")
-        .unwrap()
-        .load_full()
+    settle(state).await.load_full()
 }
 
 fn has_symbol(tables: &Arc<SymbolTables>, name: &str) -> bool {
@@ -50,14 +18,6 @@ fn has_symbol(tables: &Arc<SymbolTables>, name: &str) -> bool {
 
 fn exists(state: &GlobalState, path: impl AsRef<Path>) -> bool {
     state.vfs.read().exists(&VfsPath::from(path.as_ref().to_path_buf()))
-}
-
-fn set_buffer(state: &GlobalState, path: impl AsRef<Path>, text: &str, version: i32) {
-    state.vfs.write().set_file_contents_with_version(
-        VfsPath::from(path.as_ref().to_path_buf()),
-        Some(Rope::from(text)),
-        Some(version),
-    );
 }
 
 fn assert_buffer(state: &GlobalState, path: impl AsRef<Path>, text: &str, version: i32) {
@@ -71,31 +31,16 @@ fn assert_buffer(state: &GlobalState, path: impl AsRef<Path>, text: &str, versio
 
 fn did_create(state: &mut GlobalState, paths: impl IntoIterator<Item = impl AsRef<Path>>) {
     let files = paths.into_iter().map(|path| FileCreate { uri: uri(path) }).collect();
-    let result = handlers::did_create_files(state, CreateFilesParams { files });
-    assert!(matches!(result, ControlFlow::Continue(())));
+    assert!(handlers::did_create_files(state, CreateFilesParams { files }).is_continue());
 }
 
 fn did_delete(state: &mut GlobalState, paths: impl IntoIterator<Item = impl AsRef<Path>>) {
     let files = paths.into_iter().map(|path| FileDelete { uri: uri(path) }).collect();
-    let result = handlers::did_delete_files(state, DeleteFilesParams { files });
-    assert!(matches!(result, ControlFlow::Continue(())));
+    assert!(handlers::did_delete_files(state, DeleteFilesParams { files }).is_continue());
 }
 
 fn did_rename(state: &mut GlobalState, params: &RenameFilesParams) {
-    let result = handlers::did_rename_files(state, params.clone());
-    assert!(matches!(result, ControlFlow::Continue(())));
-}
-
-fn watch(
-    state: &mut GlobalState,
-    events: impl IntoIterator<Item = (impl AsRef<Path>, FileChangeType)>,
-) {
-    let changes = events
-        .into_iter()
-        .map(|(path, typ)| FileEvent { uri: Url::from_file_path(path).unwrap(), typ })
-        .collect();
-    let result = handlers::did_change_watched_files(state, DidChangeWatchedFilesParams { changes });
-    assert!(matches!(result, ControlFlow::Continue(())));
+    assert!(handlers::did_rename_files(state, params.clone()).is_continue());
 }
 
 fn rename_watcher_events(
@@ -125,7 +70,7 @@ async fn folder_rename(
     let (old_folder, new_folder) = (project.path("/old"), project.path("/new"));
     let params = rename_params([(&old_folder, &new_folder)]);
     let mut state = state(&project);
-    set_buffer(&state, old_folder.join("Open.sol"), UNSAVED, 12);
+    set_overlay(&state, &old_folder.join("Open.sol"), UNSAVED, 12);
     if prepare {
         handlers::will_rename_files(&mut state, params.clone()).await.unwrap();
     }
@@ -144,10 +89,10 @@ async fn initialized_indexes_workspace_before_the_first_file_operation() {
         contract Target {}
         "#,
     );
-    let mut state = GlobalState::new(ClientSocket::new_closed());
+    let mut state = state_with(Config::default());
     state.on_initialize(project.initialize_params()).await.unwrap();
     assert!(state.config.workspaces().is_empty());
-    assert!(matches!(state.on_initialized(InitializedParams {}), ControlFlow::Continue(())));
+    assert!(state.on_initialized(InitializedParams {}).is_continue());
 
     let params =
         rename_params([(project.path("/src/Target.sol"), project.path("/src/Renamed.sol"))]);
@@ -160,11 +105,11 @@ async fn did_create_files_rediscovers_files_and_folder_descendants_once() {
     let mut state = state(&project);
     project.write_file("/Direct.sol", "contract Direct {}");
     project.write_file("/created.v2/Nested.sol", "contract Nested {}");
-    let before = version(&state);
+    let before = analysis_version(&state);
 
     did_create(&mut state, [project.path("/Direct.sol"), project.path("/created.v2")]);
 
-    assert_eq!(version(&state), before + 1);
+    assert_eq!(analysis_version(&state), before + 1);
     let tables = analysis(&state).await;
     assert!(has_symbol(&tables, "Direct"));
     assert!(has_symbol(&tables, "Nested"));
@@ -241,12 +186,12 @@ async fn deleting_manifest_directory_with_external_sources_rediscovers_workspace
         "#,
     );
     let mut state = state(&project);
-    let before = version(&state);
+    let before = analysis_version(&state);
     fs::remove_dir_all(project.path("/project")).unwrap();
 
     did_delete(&mut state, [project.path("/project")]);
 
-    assert_eq!(version(&state), before + 1);
+    assert_eq!(analysis_version(&state), before + 1);
     assert!(has_symbol(&analysis(&state).await, "Main"));
 }
 
@@ -262,11 +207,11 @@ async fn deleting_parent_of_missing_candidate_schedules_analysis() {
     let mut state = state(&project);
     let missing = project.path("/generated/Missing.sol");
     state.analysis_commit.lock().analysis_paths.missing_candidates.insert(missing);
-    let before = version(&state);
+    let before = analysis_version(&state);
 
     did_delete(&mut state, [project.path("/generated")]);
 
-    assert_eq!(version(&state), before + 1);
+    assert_eq!(analysis_version(&state), before + 1);
     analysis(&state).await;
 }
 
@@ -284,14 +229,14 @@ async fn excluded_folder_rename_watcher_echo_does_not_schedule_analysis() {
     let (old_root, new_root) =
         (project.path("/node_modules/old"), project.path("/node_modules/new"));
     let mut state = state(&project);
-    let before = version(&state);
+    let before = analysis_version(&state);
 
     let params = rename_params([(&old_root, &new_root)]);
     assert!(handlers::will_rename_files(&mut state, params).await.unwrap().is_none());
     fs::rename(&old_root, &new_root).unwrap();
-    watch(&mut state, rename_watcher_events(&old_root, &new_root, &["Ignored.sol"]));
+    watch_files(&mut state, rename_watcher_events(&old_root, &new_root, &["Ignored.sol"]));
 
-    assert_eq!(version(&state), before);
+    assert_eq!(analysis_version(&state), before);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -301,12 +246,12 @@ async fn delayed_create_after_empty_folder_did_create_is_processed() {
     fs::create_dir(project.path("/created")).unwrap();
     did_create(&mut state, [project.path("/created")]);
     analysis(&state).await;
-    let before = version(&state);
+    let before = analysis_version(&state);
 
     project.write_file("/created/Later.sol", "contract Later {}");
-    watch(&mut state, [(project.path("/created/Later.sol"), CREATED)]);
+    watch_files(&mut state, [(project.path("/created/Later.sol"), CREATED)]);
 
-    assert_eq!(version(&state), before + 1);
+    assert_eq!(analysis_version(&state), before + 1);
     assert!(has_symbol(&analysis(&state).await, "Later"));
 }
 
@@ -325,17 +270,17 @@ async fn did_create_and_its_watcher_echo_start_one_epoch() {
             let created = project.path(created);
             let mut state = state(&project);
             fs::write(&created, contents).unwrap();
-            let before = version(&state);
+            let before = analysis_version(&state);
 
             if watcher_first {
-                watch(&mut state, [(&created, CREATED)]);
+                watch_files(&mut state, [(&created, CREATED)]);
                 did_create(&mut state, [&created]);
             } else {
                 did_create(&mut state, [&created]);
-                watch(&mut state, [(&created, CREATED)]);
+                watch_files(&mut state, [(&created, CREATED)]);
             }
 
-            assert_eq!(version(&state), before + 1);
+            assert_eq!(analysis_version(&state), before + 1);
         }
     }
 }
@@ -347,20 +292,20 @@ async fn did_delete_and_its_watcher_echo_start_one_epoch() {
         let deleted = project.path("/Deleted.sol");
         let mut state = state(&project);
         fs::remove_file(&deleted).unwrap();
-        let before = version(&state);
+        let before = analysis_version(&state);
 
         if watcher_first {
-            watch(&mut state, [(&deleted, DELETED)]);
-            assert_eq!(version(&state), before);
+            watch_files(&mut state, [(&deleted, DELETED)]);
+            assert_eq!(analysis_version(&state), before);
             assert!(exists(&state, &deleted));
             analysis(&state).await;
             did_delete(&mut state, [&deleted]);
         } else {
             did_delete(&mut state, [&deleted]);
-            watch(&mut state, [(&deleted, DELETED)]);
+            watch_files(&mut state, [(&deleted, DELETED)]);
         }
 
-        assert_eq!(version(&state), before + 1);
+        assert_eq!(analysis_version(&state), before + 1);
         assert!(!exists(&state, &deleted));
         assert!(analysis(&state).await.workspace_symbols("Deleted").is_empty());
         let vfs_revision = state.vfs.read().content_revision();
@@ -370,40 +315,28 @@ async fn did_delete_and_its_watcher_echo_start_one_epoch() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn watcher_delete_preserves_open_file_until_the_editor_changes_or_closes_it() {
-    for close in [false, true] {
+    for closed in [false, true] {
         let project = TestProject::from_fixture("//- /Deleted.sol open\ncontract Deleted {}\n");
         let deleted = project.path("/Deleted.sol");
-        let uri = Url::from_file_path(&deleted).unwrap();
+        let uri = project.uri("/Deleted.sol");
         let mut state = state(&project);
         fs::remove_file(&deleted).unwrap();
-        let before = version(&state);
+        let before = analysis_version(&state);
 
-        watch(&mut state, [(&deleted, DELETED)]);
-        assert_eq!(version(&state), before);
+        watch_files(&mut state, [(&deleted, DELETED)]);
+        assert_eq!(analysis_version(&state), before);
         assert!(exists(&state, &deleted));
 
-        if close {
-            let text_document = TextDocumentIdentifier::new(uri);
-            let params = DidCloseTextDocumentParams { text_document };
-            let result = handlers::did_close_text_document(&mut state, params);
-            assert!(matches!(result, ControlFlow::Continue(())));
+        if closed {
+            close(&mut state, &uri);
             assert!(!exists(&state, &deleted));
             assert!(analysis(&state).await.workspace_symbols("Deleted").is_empty());
         } else {
-            let params = DidChangeTextDocumentParams {
-                text_document: VersionedTextDocumentIdentifier::new(uri, 1),
-                content_changes: vec![TextDocumentContentChangeEvent {
-                    range: None,
-                    range_length: None,
-                    text: "contract AfterDelete {}".into(),
-                }],
-            };
-            let result = handlers::did_change_text_document(&mut state, params);
-            assert!(matches!(result, ControlFlow::Continue(())));
+            change(&mut state, &uri, 1, "contract AfterDelete {}");
             assert_buffer(&state, &deleted, "contract AfterDelete {}", 1);
             assert!(has_symbol(&analysis(&state).await, "AfterDelete"));
         }
-        assert_eq!(version(&state), before + 1);
+        assert_eq!(analysis_version(&state), before + 1);
     }
 }
 
@@ -415,7 +348,7 @@ async fn mixed_watcher_batch_preserves_an_unrelated_deleted_open_file() {
     fs::remove_file(&deleted).unwrap();
     project.write_file("/Created.sol", "contract Created {}");
 
-    watch(&mut state, [(deleted.clone(), DELETED), (project.path("/Created.sol"), CREATED)]);
+    watch_files(&mut state, [(deleted.clone(), DELETED), (project.path("/Created.sol"), CREATED)]);
 
     assert!(exists(&state, &deleted));
     let tables = analysis(&state).await;
@@ -452,19 +385,19 @@ async fn folder_create_and_its_watcher_echoes_start_one_epoch() {
             project.write_file(&format!("/created/{path}"), contents);
         }
         let echoes = files.iter().map(|(path, _)| (folder.join(path), CREATED));
-        let before = version(&state);
+        let before = analysis_version(&state);
 
         if watcher_first {
-            watch(&mut state, echoes);
+            watch_files(&mut state, echoes);
             did_create(&mut state, [&folder]);
         } else {
             did_create(&mut state, [&folder]);
             for echo in echoes {
-                watch(&mut state, [echo]);
+                watch_files(&mut state, [echo]);
             }
         }
 
-        assert_eq!(version(&state), before + 1);
+        assert_eq!(analysis_version(&state), before + 1);
     }
 }
 
@@ -474,10 +407,10 @@ async fn folder_create_records_foundry_flycheck_descendants_for_watcher_echoes()
     let mut state = state(&project);
     project.write_file("/created/foundry.toml", "[profile.default]\nsrc = \"src\"\n");
     project.write_file("/created/test/Only.t.sol", "contract OnlyTest {}");
-    let before = version(&state);
+    let before = analysis_version(&state);
 
     did_create(&mut state, [project.path("/created")]);
-    watch(
+    watch_files(
         &mut state,
         [
             (project.path("/created/foundry.toml"), CREATED),
@@ -485,7 +418,7 @@ async fn folder_create_records_foundry_flycheck_descendants_for_watcher_echoes()
         ],
     );
 
-    assert_eq!(version(&state), before + 1);
+    assert_eq!(analysis_version(&state), before + 1);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -496,17 +429,17 @@ async fn folder_create_and_import_only_watcher_echo_start_one_epoch() {
         let target = project.path("/lib/pkg/src/Target.sol");
         let mut state = state(&project);
         project.write_file("/lib/pkg/src/Target.sol", "contract Target {}");
-        let before = version(&state);
+        let before = analysis_version(&state);
 
         if watcher_first {
-            watch(&mut state, [(&target, CREATED)]);
+            watch_files(&mut state, [(&target, CREATED)]);
             did_create(&mut state, [&folder]);
         } else {
             did_create(&mut state, [&folder]);
-            watch(&mut state, [(&target, CREATED)]);
+            watch_files(&mut state, [(&target, CREATED)]);
         }
 
-        assert_eq!(version(&state), before + 1);
+        assert_eq!(analysis_version(&state), before + 1);
     }
 }
 
@@ -515,11 +448,11 @@ async fn unrelated_import_only_folder_create_does_not_schedule_analysis() {
     let project = import_only_project("contract Main {}");
     let mut state = state(&project);
     project.write_file("/lib/pkg/src/Unrelated.sol", "contract Unrelated {}");
-    let before = version(&state);
+    let before = analysis_version(&state);
 
     did_create(&mut state, [project.path("/lib/pkg")]);
 
-    assert_eq!(version(&state), before);
+    assert_eq!(analysis_version(&state), before);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -543,14 +476,14 @@ async fn folder_delete_split_watcher_echoes_do_not_start_another_epoch() {
     let folder = project.path("/deleted");
     let mut state = state(&project);
     fs::remove_dir_all(&folder).unwrap();
-    let before = version(&state);
+    let before = analysis_version(&state);
 
     did_delete(&mut state, [&folder]);
     for path in ["foundry.toml", "remappings.txt", "First.sol", "Second.sol"] {
-        watch(&mut state, [(folder.join(path), DELETED)]);
+        watch_files(&mut state, [(folder.join(path), DELETED)]);
     }
 
-    assert_eq!(version(&state), before + 1);
+    assert_eq!(analysis_version(&state), before + 1);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -561,13 +494,16 @@ async fn folder_watcher_delete_followed_by_did_delete_starts_one_epoch() {
     let folder = project.path("/deleted");
     let mut state = state(&project);
     fs::remove_dir_all(&folder).unwrap();
-    let before = version(&state);
+    let before = analysis_version(&state);
 
-    watch(&mut state, [(folder.join("First.sol"), DELETED), (folder.join("Second.sol"), DELETED)]);
+    watch_files(
+        &mut state,
+        [(folder.join("First.sol"), DELETED), (folder.join("Second.sol"), DELETED)],
+    );
     analysis(&state).await;
     did_delete(&mut state, [&folder]);
 
-    assert_eq!(version(&state), before + 1);
+    assert_eq!(analysis_version(&state), before + 1);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -577,23 +513,23 @@ async fn did_rename_or_watcher_migrates_open_buffers_before_one_reanalysis() {
     for watcher_first in [false, true] {
         let (_project, mut state, params, old_file, new_file) = folder_rename(watcher_first).await;
         let events = [(&old_file, DELETED), (&new_file, CREATED)];
-        let before = version(&state);
+        let before = analysis_version(&state);
 
         if watcher_first {
-            watch(&mut state, events);
+            watch_files(&mut state, events);
         } else {
             did_rename(&mut state, &params);
         }
-        assert_eq!(version(&state), before + 1);
+        assert_eq!(analysis_version(&state), before + 1);
         assert!(!exists(&state, &old_file));
         assert_buffer(&state, &new_file, UNSAVED, 12);
         if watcher_first {
             did_rename(&mut state, &params);
         } else {
-            watch(&mut state, events);
+            watch_files(&mut state, events);
         }
 
-        assert_eq!(version(&state), before + 1);
+        assert_eq!(analysis_version(&state), before + 1);
         assert_buffer(&state, &new_file, UNSAVED, 12);
         let tables = analysis(&state).await;
         assert!(tables.workspace_symbols("DiskVersion").is_empty());
@@ -604,59 +540,59 @@ async fn did_rename_or_watcher_migrates_open_buffers_before_one_reanalysis() {
 #[tokio::test(flavor = "current_thread")]
 async fn split_watcher_echo_after_did_rename_is_ignored() {
     let (_project, mut state, params, old_file, new_file) = folder_rename(true).await;
-    let before = version(&state);
+    let before = analysis_version(&state);
 
     did_rename(&mut state, &params);
     for event in [(&old_file, DELETED), (&new_file, CREATED)] {
         for _ in 0..2 {
-            watch(&mut state, [event]);
+            watch_files(&mut state, [event]);
         }
     }
 
-    assert_eq!(version(&state), before + 1);
+    assert_eq!(analysis_version(&state), before + 1);
     assert_buffer(&state, &new_file, UNSAVED, 12);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn unrelated_create_does_not_end_split_watcher_echo() {
     let (project, mut state, params, old_file, new_file) = folder_rename(true).await;
-    let before = version(&state);
+    let before = analysis_version(&state);
 
     did_rename(&mut state, &params);
-    watch(&mut state, [(&old_file, DELETED)]);
+    watch_files(&mut state, [(&old_file, DELETED)]);
     project.write_file("/other/New.sol", "contract New {}");
     did_create(&mut state, [project.path("/other/New.sol")]);
-    assert_eq!(version(&state), before + 2);
+    assert_eq!(analysis_version(&state), before + 2);
 
-    watch(&mut state, [(&new_file, CREATED)]);
-    assert_eq!(version(&state), before + 2);
+    watch_files(&mut state, [(&new_file, CREATED)]);
+    assert_eq!(analysis_version(&state), before + 2);
     did_rename(&mut state, &params);
-    assert_eq!(version(&state), before + 2);
+    assert_eq!(analysis_version(&state), before + 2);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn split_watcher_events_commit_prepared_rename_once() {
     for reversed in [false, true] {
         let (_project, mut state, params, old_file, new_file) = folder_rename(true).await;
-        let before = version(&state);
+        let before = analysis_version(&state);
         let mut events = [(&old_file, DELETED), (&new_file, CREATED)];
         if reversed {
             events.reverse();
         }
 
-        watch(&mut state, [events[0]]);
-        assert_eq!(version(&state), before);
+        watch_files(&mut state, [events[0]]);
+        assert_eq!(analysis_version(&state), before);
         assert!(exists(&state, &old_file));
-        watch(&mut state, [events[1]]);
-        assert_eq!(version(&state), before + 1);
+        watch_files(&mut state, [events[1]]);
+        assert_eq!(analysis_version(&state), before + 1);
         assert!(!exists(&state, &old_file));
         assert_buffer(&state, &new_file, UNSAVED, 12);
 
         did_rename(&mut state, &params);
         for _ in 0..2 {
-            watch(&mut state, [(&new_file, CREATED)]);
+            watch_files(&mut state, [(&new_file, CREATED)]);
         }
-        assert_eq!(version(&state), before + 1);
+        assert_eq!(analysis_version(&state), before + 1);
     }
 }
 
@@ -677,21 +613,21 @@ async fn partial_watcher_batch_does_not_commit_prepared_rename() {
     handlers::will_rename_files(&mut state, params.clone()).await.unwrap();
     fs::rename(&a, &b).unwrap();
     fs::rename(&x, &y).unwrap();
-    let before = version(&state);
+    let before = analysis_version(&state);
 
-    watch(&mut state, [(a.join("Open.sol"), DELETED), (b.join("Open.sol"), CREATED)]);
-    assert_eq!(version(&state), before);
+    watch_files(&mut state, [(a.join("Open.sol"), DELETED), (b.join("Open.sol"), CREATED)]);
+    assert_eq!(analysis_version(&state), before);
     assert!(exists(&state, a.join("Open.sol")));
     assert!(exists(&state, x.join("Open.sol")));
 
-    watch(&mut state, [(x.join("Open.sol"), DELETED), (y.join("Open.sol"), CREATED)]);
-    assert_eq!(version(&state), before + 1);
+    watch_files(&mut state, [(x.join("Open.sol"), DELETED), (y.join("Open.sol"), CREATED)]);
+    assert_eq!(analysis_version(&state), before + 1);
     for (root, present) in [(&a, false), (&b, true), (&x, false), (&y, true)] {
         assert_eq!(exists(&state, root.join("Open.sol")), present);
     }
 
     did_rename(&mut state, &params);
-    assert_eq!(version(&state), before + 1);
+    assert_eq!(analysis_version(&state), before + 1);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -711,19 +647,17 @@ async fn failed_or_cancelled_will_rename_does_not_leave_a_watcher_transaction() 
         if cancel {
             drop(handlers::will_rename_files(&mut state, params));
         } else {
-            state.vfs.write().set_file_contents(
-                VfsPath::from(project.path("/src/Importer.sol")),
-                Some(Rope::from("import \"../old/Other.sol\";")),
-            );
+            let importer = project.path("/src/Importer.sol");
+            set_overlay(&state, &importer, "import \"../old/Other.sol\";", None);
             let error = handlers::will_rename_files(&mut state, params).await.unwrap_err();
             assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
         }
         let (old, new) = (project.path("/old/Target.sol"), project.path("/new/Target.sol"));
-        let before = version(&state);
+        let before = analysis_version(&state);
 
-        watch(&mut state, [(&old, DELETED), (&new, CREATED)]);
+        watch_files(&mut state, [(&old, DELETED), (&new, CREATED)]);
 
-        assert_eq!(version(&state), before + 1);
+        assert_eq!(analysis_version(&state), before + 1);
         assert!(exists(&state, &old));
         assert!(!exists(&state, &new));
     }
@@ -743,14 +677,14 @@ async fn cross_suffix_watcher_pair_does_not_commit_prepared_rename() {
     let params = rename_params([(project.path("/old"), project.path("/new"))]);
     let mut state = state(&project);
     handlers::will_rename_files(&mut state, params).await.unwrap();
-    let before = version(&state);
+    let before = analysis_version(&state);
 
-    watch(
+    watch_files(
         &mut state,
         [(project.path("/old/A.sol"), DELETED), (project.path("/new/B.sol"), CREATED)],
     );
 
-    assert_eq!(version(&state), before);
+    assert_eq!(analysis_version(&state), before);
     for (path, present) in
         [("/old/A.sol", true), ("/old/B.sol", true), ("/new/A.sol", false), ("/new/B.sol", false)]
     {
@@ -772,8 +706,8 @@ async fn did_rename_replay_does_not_reapply_overlapping_moves() {
             rename_params([(&a, &b), (&b, &c)])
         };
         let mut state = state(&project);
-        set_buffer(&state, &a, "contract UnsavedA {}", 11);
-        set_buffer(&state, &b, "contract UnsavedB {}", 22);
+        set_overlay(&state, &a, "contract UnsavedA {}", 11);
+        set_overlay(&state, &b, "contract UnsavedB {}", 22);
         handlers::will_rename_files(&mut state, params.clone()).await.unwrap();
         if swap {
             fs::rename(&a, &c).unwrap();
@@ -783,12 +717,12 @@ async fn did_rename_replay_does_not_reapply_overlapping_moves() {
             fs::rename(&b, &c).unwrap();
             fs::rename(&a, &b).unwrap();
         }
-        let before = version(&state);
+        let before = analysis_version(&state);
 
         did_rename(&mut state, &params);
         did_rename(&mut state, &params);
 
-        assert_eq!(version(&state), before + 1);
+        assert_eq!(analysis_version(&state), before + 1);
         assert_buffer(&state, &b, "contract UnsavedA {}", 11);
         assert_buffer(&state, if swap { &a } else { &c }, "contract UnsavedB {}", 22);
     }
@@ -805,10 +739,10 @@ async fn file_rename_accepts_percent_encoded_file_uris() {
     assert!(params.files[0].old_uri.contains("%20"));
     assert!(params.files[0].new_uri.contains("%23"));
     let mut state = state(&project);
-    set_buffer(&state, &old_target, "contract UnsavedTarget {}", 9);
+    set_overlay(&state, &old_target, "contract UnsavedTarget {}", 9);
 
     let edit = handlers::will_rename_files(&mut state, params.clone()).await.unwrap().unwrap();
-    let importer = Url::from_file_path(project.path("/src/Importer.sol")).unwrap();
+    let importer = project.uri("/src/Importer.sol");
     assert_eq!(edit.changes.unwrap()[&importer][0].new_text, "\"./Renamed # file.sol\"");
     fs::rename(&old_target, &new_target).unwrap();
     did_rename(&mut state, &params);
@@ -823,7 +757,7 @@ async fn did_rename_migrates_case_only_file_move() {
     let (old_path, new_path) = (project.path("/Case.sol"), project.path("/case.sol"));
     let params = rename_params([(&old_path, &new_path)]);
     let mut state = state(&project);
-    set_buffer(&state, &old_path, "contract UnsavedCase {}", 4);
+    set_overlay(&state, &old_path, "contract UnsavedCase {}", 4);
     handlers::will_rename_files(&mut state, params.clone()).await.unwrap();
     fs::rename(&old_path, &new_path).unwrap();
 
@@ -851,7 +785,7 @@ async fn conflicting_rename_batches_are_rejected() {
         "#,
     );
     let mut state = state(&project);
-    let before = version(&state);
+    let before = analysis_version(&state);
 
     // Conflicting sources, conflicting destinations, and a destination collision that only
     // appears once the folder move expands over the VFS.
@@ -873,7 +807,7 @@ async fn conflicting_rename_batches_are_rejected() {
             assert!(!exists(&state, project.path(path)));
         }
     }
-    assert_eq!(version(&state), before);
+    assert_eq!(analysis_version(&state), before);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -894,11 +828,11 @@ async fn watcher_collision_does_not_suppress_later_did_rename() {
     ]);
     let mut state = state(&project);
     handlers::will_rename_files(&mut state, params.clone()).await.unwrap();
-    set_buffer(&state, &b, "contract UnsavedB {}", 22);
-    let before = version(&state);
+    set_overlay(&state, &b, "contract UnsavedB {}", 22);
+    let before = analysis_version(&state);
 
-    watch(&mut state, [(&a, DELETED), (&b, DELETED), (&destination, CREATED)]);
-    assert_eq!(version(&state), before);
+    watch_files(&mut state, [(&a, DELETED), (&b, DELETED), (&destination, CREATED)]);
+    assert_eq!(analysis_version(&state), before);
     assert!(exists(&state, &a));
     assert!(exists(&state, &b));
     assert!(!exists(&state, &destination));
@@ -906,7 +840,7 @@ async fn watcher_collision_does_not_suppress_later_did_rename() {
     state.vfs.write().set_file_contents(VfsPath::from(b), None);
     did_rename(&mut state, &params);
 
-    assert_eq!(version(&state), before + 1);
+    assert_eq!(analysis_version(&state), before + 1);
     assert!(!exists(&state, &a));
     assert!(exists(&state, &destination));
 }
@@ -930,10 +864,9 @@ async fn did_rename_workspace_root_preserves_foundry_configuration_and_closed_fi
     );
     let (old_root, new_root) = (project.path("/project"), project.path("/renamed"));
     let params = rename_params([(&old_root, &new_root)]);
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config_with_roots(&["/project"]));
+    let mut state = state_with(project.config_with_roots(&["/project"]));
     fs::rename(&old_root, &new_root).unwrap();
-    let before = version(&state);
+    let before = analysis_version(&state);
 
     did_rename(&mut state, &params);
 
@@ -949,10 +882,10 @@ async fn did_rename_workspace_root_preserves_foundry_configuration_and_closed_fi
     );
 
     let files = ["foundry.toml", "src/Main.sol", "lib/Dependency.sol"];
-    watch(&mut state, rename_watcher_events(&old_root, &new_root, &files));
-    assert_eq!(version(&state), before + 1);
+    watch_files(&mut state, rename_watcher_events(&old_root, &new_root, &files));
+    assert_eq!(analysis_version(&state), before + 1);
     did_rename(&mut state, &params);
-    assert_eq!(version(&state), before + 1);
+    assert_eq!(analysis_version(&state), before + 1);
     assert_eq!(
         state.config.workspaces()[0].compile_opts().base_path.as_deref(),
         Some(new_root.as_path())
@@ -964,19 +897,12 @@ async fn workspace_root_rename_advances_epoch_before_watcher_reregistration() {
     let project = TestProject::new();
     let (old_root, new_root) = (project.path("/project"), project.path("/renamed"));
     fs::create_dir(&old_root).unwrap();
-    let mut params = project.initialize_params_with_roots(&["/project"]);
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(true),
-        }),
-        ..Default::default()
-    });
-    let mut state = GlobalState::new(ClientSocket::new_closed());
+    let params = with_relative_watchers(project.initialize_params_with_roots(&["/project"]));
+    let mut state = state_with(Config::default());
     state.on_initialize(params).await.unwrap();
     fs::rename(&old_root, &new_root).unwrap();
     let rename = rename_params([(old_root, new_root)]);
-    let initial_version = state.analysis_version.load(Ordering::Acquire);
+    let initial_version = analysis_version(&state);
     let registration = state.watched_file_registration.clone();
     let desired_specs = registration.desired_specs.lock();
     let analysis_version = state.analysis_version.clone();
@@ -1025,14 +951,14 @@ async fn watcher_can_commit_workspace_root_rename_once() {
     let unsaved = "import \"@lib/Dependency.sol\";\ncontract Unsaved {}";
     let params = rename_params([(&old_root, &new_root)]);
     let mut state = state(&project);
-    set_buffer(&state, &old_main, unsaved, 12);
+    set_overlay(&state, &old_main, unsaved, 12);
     handlers::will_rename_files(&mut state, params.clone()).await.unwrap();
     fs::rename(&old_root, &new_root).unwrap();
-    let before = version(&state);
+    let before = analysis_version(&state);
 
     let files = ["foundry.toml", "src/Main.sol", "lib/Dependency.sol"];
-    watch(&mut state, rename_watcher_events(&old_root, &new_root, &files));
-    assert_eq!(version(&state), before + 1);
+    watch_files(&mut state, rename_watcher_events(&old_root, &new_root, &files));
+    assert_eq!(analysis_version(&state), before + 1);
     assert_eq!(
         state.config.workspaces()[0].compile_opts().base_path.as_deref(),
         Some(new_root.as_path())
@@ -1041,7 +967,7 @@ async fn watcher_can_commit_workspace_root_rename_once() {
     assert_buffer(&state, &new_main, unsaved, 12);
 
     did_rename(&mut state, &params);
-    assert_eq!(version(&state), before + 1);
+    assert_eq!(analysis_version(&state), before + 1);
     let tables = analysis(&state).await;
     assert!(has_symbol(&tables, "Unsaved"));
     assert_eq!(
@@ -1064,16 +990,15 @@ async fn did_rename_replay_does_not_remap_workspace_root_again() {
     );
     let [a, b, c] = ["/A", "/B", "/C"].map(|path| project.path(path));
     let params = rename_params([(&a, &b), (&b, &c)]);
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config_with_roots(&["/A"]));
+    let mut state = state_with(project.config_with_roots(&["/A"]));
     fs::rename(&a, &b).unwrap();
-    let before = version(&state);
+    let before = analysis_version(&state);
 
     did_rename(&mut state, &params);
     did_rename(&mut state, &params);
 
     let tables = analysis(&state).await;
-    assert_eq!(version(&state), before + 1);
+    assert_eq!(analysis_version(&state), before + 1);
     assert_eq!(state.config.workspaces()[0].compile_opts().base_path.as_deref(), Some(b.as_path()));
     assert!(has_symbol(&tables, "Main"));
 }
@@ -1086,8 +1011,8 @@ async fn did_only_rename_round_trip_reapplies_original_payload() {
     let reverse = rename_params([(&b, &a)]);
     let mut state = state(&project);
     state.config = Arc::new(project.config_with_roots(&["/A"]));
-    set_buffer(&state, a.join("Main.sol"), UNSAVED, 12);
-    let before = version(&state);
+    set_overlay(&state, &a.join("Main.sol"), UNSAVED, 12);
+    let before = analysis_version(&state);
 
     fs::rename(&a, &b).unwrap();
     did_rename(&mut state, &forward);
@@ -1097,7 +1022,7 @@ async fn did_only_rename_round_trip_reapplies_original_payload() {
     did_rename(&mut state, &forward);
     did_rename(&mut state, &forward);
 
-    assert_eq!(version(&state), before + 3);
+    assert_eq!(analysis_version(&state), before + 3);
     assert!(!exists(&state, a.join("Main.sol")));
     assert_buffer(&state, b.join("Main.sol"), UNSAVED, 12);
     assert_eq!(state.config.workspaces()[0].compile_opts().base_path.as_deref(), Some(b.as_path()));
@@ -1144,8 +1069,8 @@ async fn did_delete_folder_clears_closed_dependency_diagnostics_by_prefix() {
         contract Keep {}
         "#,
     );
-    let deleted_uri = Url::from_file_path(project.path("/lib/pkg/Dependency.sol")).unwrap();
-    let sibling_uri = Url::from_file_path(project.path("/lib2/Keep.sol")).unwrap();
+    let deleted_uri = project.uri("/lib/pkg/Dependency.sol");
+    let sibling_uri = project.uri("/lib2/Keep.sol");
     let owner =
         DiagnosticOwner::Flycheck { id: "probe".into(), workspace: project.root().to_path_buf() };
     let mut state = state(&project);
@@ -1185,8 +1110,7 @@ async fn did_delete_workspace_root_removes_configuration_and_closed_files() {
         contract Deleted {}
         "#,
     );
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config_with_roots(&["/project"]));
+    let mut state = state_with(project.config_with_roots(&["/project"]));
     fs::remove_dir_all(project.path("/project")).unwrap();
 
     did_delete(&mut state, [project.path("/project")]);

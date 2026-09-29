@@ -771,7 +771,7 @@ fn fallback_request(
     message: &str,
 ) -> (Url, Diagnostic, CodeActionParams) {
     let contents = project.read_file("/Test.sol");
-    let uri = Url::from_file_path(project.path("/Test.sol")).unwrap();
+    let uri = project.uri("/Test.sol");
     let diagnostic = Diagnostic {
         range,
         severity: Some(DiagnosticSeverity::WARNING),

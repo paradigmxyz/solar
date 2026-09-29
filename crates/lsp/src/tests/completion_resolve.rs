@@ -315,7 +315,7 @@ async fn resolves_only_compatible_completion_items_across_analysis_batches() {
             "}\n",
         ),
     );
-    let uri = Url::from_file_path(project.path("/Shared.sol")).unwrap();
+    let uri = project.uri("/Shared.sol");
     let hover_position = marked.marker("$2").position();
     let analyze_context = |directory: &str| {
         let opts = CompileOpts {

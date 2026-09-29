@@ -1,64 +1,34 @@
 use super::*;
-use lsp_types::{
-    DocumentSymbolParams, GotoDefinitionParams, HoverParams, ReferenceContext, ReferenceParams,
-    RenameParams, TextDocumentPositionParams,
-};
+use serde::de::DeserializeOwned;
+
+const POSITION: Position = Position { line: 0, character: 9 };
 
 fn fixture() -> (TestProject, GlobalState, Url) {
     let project = TestProject::from_fixture("//- /Request.sol open\ncontract Before {}\n");
     let result = analyze_single_batch(&snapshot(&project));
     assert!(result.diagnostics.is_empty());
-    let uri = Url::from_file_path(project.path("/Request.sol")).unwrap();
-    let state = project_state(&project);
+    let uri = project.uri("/Request.sol");
+    let state = project.state();
     state.symbol_tables.store(Arc::new(result.symbol_tables));
     (project, state, uri)
 }
 
-fn position(uri: &Url) -> TextDocumentPositionParams {
-    TextDocumentPositionParams {
-        text_document: TextDocumentIdentifier::new(uri.clone()),
-        position: Position::new(0, 9),
-    }
-}
-
-fn hover_params(uri: &Url) -> HoverParams {
-    HoverParams {
-        text_document_position_params: position(uri),
-        work_done_progress_params: Default::default(),
-    }
-}
-
-fn rename_params(uri: &Url) -> RenameParams {
-    RenameParams {
-        text_document_position: position(uri),
-        new_name: "Renamed".into(),
-        work_done_progress_params: Default::default(),
-    }
+/// Builds params for any request at the contract name.
+fn params<T: DeserializeOwned>(uri: &Url) -> T {
+    let extra = json!({ "newName": "Renamed", "context": { "includeDeclaration": true } });
+    request_params(uri, POSITION, extra)
 }
 
 fn request_foreground(state: &mut GlobalState, uri: &Url, method: &str) {
-    let goto = GotoDefinitionParams {
-        text_document_position_params: position(uri),
-        work_done_progress_params: Default::default(),
-        partial_result_params: Default::default(),
-    };
     match method {
-        "hover" => drop(crate::handlers::hover(state, hover_params(uri))),
-        "definition" => drop(crate::handlers::goto_definition(state, goto)),
-        "typeDefinition" => drop(crate::handlers::goto_type_definition(state, goto)),
-        "declaration" => drop(crate::handlers::goto_declaration(state, goto)),
-        "implementation" => drop(crate::handlers::goto_implementation(state, goto)),
-        "references" => drop(crate::handlers::references(
-            state,
-            ReferenceParams {
-                text_document_position: position(uri),
-                context: ReferenceContext { include_declaration: true },
-                work_done_progress_params: Default::default(),
-                partial_result_params: Default::default(),
-            },
-        )),
-        "prepareRename" => drop(crate::handlers::prepare_rename(state, position(uri))),
-        "rename" => drop(crate::handlers::rename(state, rename_params(uri))),
+        "hover" => drop(crate::handlers::hover(state, params(uri))),
+        "definition" => drop(crate::handlers::goto_definition(state, params(uri))),
+        "typeDefinition" => drop(crate::handlers::goto_type_definition(state, params(uri))),
+        "declaration" => drop(crate::handlers::goto_declaration(state, params(uri))),
+        "implementation" => drop(crate::handlers::goto_implementation(state, params(uri))),
+        "references" => drop(crate::handlers::references(state, params(uri))),
+        "prepareRename" => drop(crate::handlers::prepare_rename(state, params(uri))),
+        "rename" => drop(crate::handlers::rename(state, params(uri))),
         _ => unreachable!(),
     }
 }
@@ -76,7 +46,7 @@ async fn foreground_requests_end_the_pending_source_change_debounce() {
         "rename",
     ] {
         let (_project, mut state, uri) = fixture();
-        change_document(&mut state, &uri, 1, "contract After {}");
+        change(&mut state, &uri, 1, "contract After {}");
         let coordinator = analysis_coordinator(&state);
         state.analysis_scheduler.gate.close();
         tokio::time::sleep(state.config.source_change_debounce() / 2).await;
@@ -95,18 +65,11 @@ async fn foreground_requests_end_the_pending_source_change_debounce() {
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn document_symbols_and_diagnostics_retain_the_source_change_debounce() {
     let (_project, mut state, uri) = fixture();
-    change_document(&mut state, &uri, 1, "contract After {}");
-    let mut symbols = std::pin::pin!(crate::handlers::document_symbol(
-        &mut state,
-        DocumentSymbolParams {
-            text_document: TextDocumentIdentifier::new(uri.clone()),
-            work_done_progress_params: Default::default(),
-            partial_result_params: Default::default(),
-        },
-    ));
+    change(&mut state, &uri, 1, "contract After {}");
+    let mut symbols = std::pin::pin!(crate::handlers::document_symbol(&mut state, params(&uri)));
     let mut diagnostics = std::pin::pin!(crate::handlers::document_diagnostic(
         &mut state,
-        document_diagnostic_params(uri, None),
+        document_diagnostic_params(&uri, None),
     ));
     let mut cx = Context::from_waker(Waker::noop());
     assert!(symbols.as_mut().poll(&mut cx).is_pending());
@@ -126,10 +89,10 @@ async fn document_symbols_and_diagnostics_retain_the_source_change_debounce() {
 async fn repeated_foreground_requests_wait_for_one_fresh_analysis() {
     let (_project, mut state, uri) = fixture();
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
-    change_document(&mut state, &uri, 1, "contract After {}");
-    let version = state.analysis_version.load(Ordering::Acquire);
+    change(&mut state, &uri, 1, "contract After {}");
+    let version = analysis_version(&state);
     let coordinator = analysis_coordinator(&state);
-    let mut hover = std::pin::pin!(crate::handlers::hover(&mut state, hover_params(&uri)));
+    let mut hover = std::pin::pin!(crate::handlers::hover(&mut state, params(&uri)));
     let pending = hover.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending();
     for _ in 0..8 {
         request_foreground(&mut state, &uri, "definition");
@@ -145,20 +108,17 @@ async fn repeated_foreground_requests_wait_for_one_fresh_analysis() {
     };
     let unpublished = *state.published_analysis_version.borrow() == 0;
     let old_symbols_visible = !state.symbol_tables.load().workspace_symbols("Before").is_empty();
-    let unchanged_epoch = state.analysis_version.load(Ordering::Acquire) == version;
+    let unchanged_epoch = analysis_version(&state) == version;
     drop(gate);
     tokio::time::resume();
 
-    let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, hover)
-        .await
-        .expect("foreground analysis should finish after the worker gate opens")
-        .unwrap();
+    let response = within("foreground analysis", hover).await.unwrap();
     assert!(pending && waiting_at_gate && same_coordinator && debounce_ended);
     assert!(unpublished && old_symbols_visible && unchanged_epoch);
     assert!(response.is_some());
     let tables = state.symbol_tables.load();
     assert_eq!(workspace_symbol_names(&tables), ["After"]);
-    assert_eq!(response, tables.hover(&uri, position(&uri).position));
+    assert_eq!(response, tables.hover(&uri, POSITION));
     assert_eq!(*state.published_analysis_version.borrow(), version);
 }
 
@@ -166,13 +126,13 @@ async fn repeated_foreground_requests_wait_for_one_fresh_analysis() {
 async fn edits_after_foreground_urgency_restart_the_full_debounce() {
     let (_project, mut state, uri) = fixture();
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
-    change_document(&mut state, &uri, 1, "contract Intermediate {}");
+    change(&mut state, &uri, 1, "contract Intermediate {}");
     let first_coordinator = analysis_coordinator(&state);
-    let hover = crate::handlers::hover(&mut state, hover_params(&uri));
+    let hover = crate::handlers::hover(&mut state, params(&uri));
     let tick = Duration::from_millis(1);
     tokio::time::sleep(tick).await;
 
-    change_document(&mut state, &uri, 2, "contract Latest {}");
+    change(&mut state, &uri, 2, "contract Latest {}");
     let latest_coordinator = analysis_coordinator(&state);
     drop(gate);
     tokio::time::sleep(state.config.source_change_debounce() - tick).await;
@@ -185,37 +145,26 @@ async fn edits_after_foreground_urgency_restart_the_full_debounce() {
 
     tokio::time::sleep(tick * 2).await;
     tokio::time::resume();
-    let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, hover)
-        .await
-        .expect("the earlier foreground request should be invalidated")
-        .unwrap_err();
+    let response = within("the invalidated hover", hover).await.unwrap_err();
     assert_eq!(response.code, ErrorCode::CONTENT_MODIFIED);
-    let response = tokio::time::timeout(
-        ASYNC_TEST_TIMEOUT,
-        crate::handlers::hover(&mut state, hover_params(&uri)),
-    )
-    .await
-    .unwrap()
-    .unwrap();
+    let response =
+        within("request", crate::handlers::hover(&mut state, params(&uri))).await.unwrap();
     assert!(response.is_some());
     let tables = state.symbol_tables.load();
     assert_eq!(workspace_symbol_names(&tables), ["Latest"]);
-    assert_eq!(response, tables.hover(&uri, position(&uri).position));
-    assert_eq!(
-        *state.published_analysis_version.borrow(),
-        state.analysis_version.load(Ordering::Acquire),
-    );
+    assert_eq!(response, tables.hover(&uri, POSITION));
+    assert_eq!(*state.published_analysis_version.borrow(), analysis_version(&state),);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn requests_recheck_freshness_after_analysis_wakes_them() {
     let (_project, mut state, uri) = fixture();
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
-    change_document(&mut state, &uri, 1, "contract Intermediate {}");
-    let mut hover = std::pin::pin!(crate::handlers::hover(&mut state, hover_params(&uri)));
+    change(&mut state, &uri, 1, "contract Intermediate {}");
+    let mut hover = std::pin::pin!(crate::handlers::hover(&mut state, params(&uri)));
     let mut diagnostics = std::pin::pin!(crate::handlers::document_diagnostic(
         &mut state,
-        document_diagnostic_params(uri.clone(), None),
+        document_diagnostic_params(&uri, None),
     ));
     let mut cx = Context::from_waker(Waker::noop());
     assert!(hover.as_mut().poll(&mut cx).is_pending());
@@ -223,8 +172,8 @@ async fn requests_recheck_freshness_after_analysis_wakes_them() {
 
     let mut snapshot = state.snapshot();
     let result = analyze(snapshot.analysis_batches(Vec::new()).pop().unwrap());
-    assert!(snapshot.publish_analysis(state.analysis_version.load(Ordering::Acquire), result));
-    change_document(&mut state, &uri, 2, "contract Latest {}");
+    assert!(snapshot.publish_analysis(analysis_version(&state), result));
+    change(&mut state, &uri, 2, "contract Latest {}");
 
     let Poll::Ready(Err(error)) = hover.as_mut().poll(&mut cx) else {
         panic!("a superseded hover must finish without waiting for more edits");
@@ -234,22 +183,17 @@ async fn requests_recheck_freshness_after_analysis_wakes_them() {
         panic!("a superseded diagnostic request must finish without waiting for more edits");
     };
     assert_eq!(error.code, ErrorCode::SERVER_CANCELLED);
-    let hover = crate::handlers::hover(&mut state, hover_params(&uri));
-    let diagnostics = crate::handlers::document_diagnostic(
-        &mut state,
-        document_diagnostic_params(uri.clone(), None),
-    );
+    let hover = crate::handlers::hover(&mut state, params(&uri));
+    let diagnostics =
+        crate::handlers::document_diagnostic(&mut state, document_diagnostic_params(&uri, None));
     drop(gate);
     state.prioritize_pending_analysis();
-    let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, hover).await.unwrap().unwrap();
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, diagnostics).await.unwrap().unwrap();
+    let response = within("request", hover).await.unwrap();
+    within("request", diagnostics).await.unwrap();
     assert!(response.is_some());
-    assert_eq!(response, state.symbol_tables.load().hover(&uri, position(&uri).position));
+    assert_eq!(response, state.symbol_tables.load().hover(&uri, POSITION));
     assert!(state.symbol_tables.load().workspace_symbols("Intermediate").is_empty());
-    assert_eq!(
-        *state.published_analysis_version.borrow(),
-        state.analysis_version.load(Ordering::Acquire),
-    );
+    assert_eq!(*state.published_analysis_version.borrow(), analysis_version(&state),);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -261,22 +205,20 @@ async fn rapid_edits_and_saves_in_a_large_workspace_publish_the_latest_analysis(
         ));
     }
     let project = TestProject::from_fixture(&source);
-    let uri = Url::from_file_path(project.path("/Request.sol")).unwrap();
-    let mut state = project_state(&project);
-    change_document(&mut state, &uri, 1, "contract Intermediate {}");
+    let uri = project.uri("/Request.sol");
+    let mut state = project.state();
+    change(&mut state, &uri, 1, "contract Intermediate {}");
     state.prioritize_pending_analysis();
-    wait_for_analysis(&state).await;
+    settle(&state).await;
 
     // Keep the ready request unpolled while the editor sends another burst of changes.
-    let diagnostics = crate::handlers::document_diagnostic(
-        &mut state,
-        document_diagnostic_params(uri.clone(), None),
-    );
+    let diagnostics =
+        crate::handlers::document_diagnostic(&mut state, document_diagnostic_params(&uri, None));
     for version in 2..=201 {
         let text = if version % 2 == 0 { "contract Broken {" } else { "contract Latest {}" };
-        change_document(&mut state, &uri, version, text);
+        change(&mut state, &uri, version, text);
         project.write_file("/Request.sol", text);
-        save_document(&mut state, &uri);
+        save(&mut state, &uri);
         if version % 10 == 0 {
             state.prioritize_pending_analysis();
             tokio::time::sleep(Duration::from_millis(1)).await;
@@ -289,21 +231,16 @@ async fn rapid_edits_and_saves_in_a_large_workspace_publish_the_latest_analysis(
         panic!("the earlier request must finish despite continued edits");
     };
     assert_eq!(error.code, ErrorCode::SERVER_CANCELLED);
-    let diagnostics = crate::handlers::document_diagnostic(
-        &mut state,
-        document_diagnostic_params(uri.clone(), None),
-    );
+    let diagnostics =
+        crate::handlers::document_diagnostic(&mut state, document_diagnostic_params(&uri, None));
     state.prioritize_pending_analysis();
-    let report = tokio::time::timeout(ASYNC_TEST_TIMEOUT, diagnostics).await.unwrap().unwrap();
+    let report = within("request", diagnostics).await.unwrap();
     let DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(report)) = report
     else {
         panic!("expected a full diagnostic report");
     };
     assert!(report.full_document_diagnostic_report.items.is_empty());
-    assert_eq!(
-        *state.published_analysis_version.borrow(),
-        state.analysis_version.load(Ordering::Acquire),
-    );
+    assert_eq!(*state.published_analysis_version.borrow(), analysis_version(&state),);
     let tables = state.symbol_tables.load();
     assert!(tables.workspace_symbols("Intermediate").is_empty());
     assert!(tables.workspace_symbols("Broken").is_empty());
@@ -315,20 +252,20 @@ async fn rapid_edits_and_saves_in_a_large_workspace_publish_the_latest_analysis(
 async fn pending_rename_rejects_a_different_identifier_at_the_same_position() {
     let (_project, mut state, uri) = fixture();
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
-    change_document(&mut state, &uri, 1, "contract Original {}");
-    let mut rename = std::pin::pin!(crate::handlers::rename(&mut state, rename_params(&uri)));
-    let mut prepare = std::pin::pin!(crate::handlers::prepare_rename(&mut state, position(&uri)));
+    change(&mut state, &uri, 1, "contract Original {}");
+    let mut rename = std::pin::pin!(crate::handlers::rename(&mut state, params(&uri)));
+    let mut prepare = std::pin::pin!(crate::handlers::prepare_rename(&mut state, params(&uri)));
     let mut cx = Context::from_waker(Waker::noop());
     assert!(rename.as_mut().poll(&mut cx).is_pending());
     assert!(prepare.as_mut().poll(&mut cx).is_pending());
-    change_document(&mut state, &uri, 2, "contract Replaced {}");
+    change(&mut state, &uri, 2, "contract Replaced {}");
     drop(gate);
     state.prioritize_pending_analysis();
-    wait_for_analysis(&state).await;
+    settle(&state).await;
 
-    let error = tokio::time::timeout(ASYNC_TEST_TIMEOUT, rename).await.unwrap().unwrap_err();
+    let error = within("request", rename).await.unwrap_err();
     assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
-    let error = tokio::time::timeout(ASYNC_TEST_TIMEOUT, prepare).await.unwrap().unwrap_err();
+    let error = within("request", prepare).await.unwrap_err();
     assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
 }
 
@@ -336,13 +273,13 @@ async fn pending_rename_rejects_a_different_identifier_at_the_same_position() {
 async fn superseded_requests_wake_without_analysis_publication() {
     let (_project, mut state, uri) = fixture();
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
-    change_document(&mut state, &uri, 1, "contract First {}");
-    let hover = tokio::spawn(crate::handlers::hover(&mut state, hover_params(&uri)));
+    change(&mut state, &uri, 1, "contract First {}");
+    let hover = tokio::spawn(crate::handlers::hover(&mut state, params(&uri)));
     tokio::task::yield_now().await;
     assert!(!hover.is_finished());
 
-    change_document(&mut state, &uri, 2, "contract Second {}");
-    let result = tokio::time::timeout(ASYNC_TEST_TIMEOUT, hover).await;
+    change(&mut state, &uri, 2, "contract Second {}");
+    let result = tokio::time::timeout(TIMEOUT, hover).await;
     assert_eq!(*state.published_analysis_version.borrow(), 0);
     drop(gate);
     let error = result
@@ -360,15 +297,15 @@ async fn pending_rename_rejects_disk_changes_after_analysis_catches_up() {
     project.write_file("/Request.sol", "contract Original {}");
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
     state.recompute_with_disk_files(vec![path.clone()]);
-    let rename = crate::handlers::rename(&mut state, rename_params(&uri));
+    let rename = crate::handlers::rename(&mut state, params(&uri));
     let revision = state.vfs.read().content_revision();
     project.write_file("/Request.sol", "contract Replaced {}");
     state.recompute_with_disk_files(vec![path]);
     drop(gate);
     state.prioritize_pending_analysis();
-    wait_for_analysis(&state).await;
+    settle(&state).await;
     assert_eq!(state.vfs.read().content_revision(), revision);
-    let error = tokio::time::timeout(ASYNC_TEST_TIMEOUT, rename).await.unwrap().unwrap_err();
+    let error = within("request", rename).await.unwrap_err();
     assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
 }
 
@@ -376,10 +313,10 @@ async fn pending_rename_rejects_disk_changes_after_analysis_catches_up() {
 async fn content_identical_edits_preserve_pending_requests() {
     let (_project, mut state, uri) = fixture();
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
-    change_document(&mut state, &uri, 1, "contract Latest {}");
-    let hover = crate::handlers::hover(&mut state, hover_params(&uri));
-    change_document(&mut state, &uri, 2, "contract Latest {}");
+    change(&mut state, &uri, 1, "contract Latest {}");
+    let hover = crate::handlers::hover(&mut state, params(&uri));
+    change(&mut state, &uri, 2, "contract Latest {}");
     drop(gate);
-    let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, hover).await.unwrap().unwrap();
+    let response = within("request", hover).await.unwrap();
     assert!(response.is_some());
 }

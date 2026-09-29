@@ -1,21 +1,7 @@
-use super::{
-    AnalysisBatch, AnalysisResultAccumulator, GlobalState, SymbolTables, analyze,
-    support::RequestFixture,
-};
-use crate::test_support::{
-    TestProject, type_hierarchy_prepare_params, type_hierarchy_subtypes_params,
-    type_hierarchy_supertypes_params,
-};
-use async_lsp::{ClientSocket, ErrorCode, ResponseError};
-use lsp_types::{Position, Range, SymbolKind, SymbolTag, TypeHierarchyItem, Url};
-use serde_json::json;
-use solar_config::{CompileOpts, ImportRemapping};
-use std::{
-    future::Future,
-    pin::Pin,
-    sync::{Arc, atomic::Ordering},
-    task::{Context, Poll, Waker},
-};
+use super::*;
+use lsp_types::{SymbolKind, SymbolTag, TypeHierarchyItem};
+use solar_config::ImportRemapping;
+use std::pin::Pin;
 
 #[test]
 fn contract_edges_are_direct_in_diamonds_and_multilevel_hierarchies() {
@@ -399,7 +385,7 @@ fn incompatible_compile_contexts_exclude_nodes_and_incident_edges_in_both_orders
         enum Value { Item }
         "#,
     );
-    let uri = |path| Url::from_file_path(project.path(path)).unwrap();
+    let uri = |path| project.uri(path);
     let shared_uri = uri("/Shared.sol");
 
     for batches in [
@@ -515,7 +501,7 @@ fn conflicting_request_files_cannot_leak_external_targets() {
         let conflict_path = fixture.project_path("/Conflict.sol");
         let clean =
             analyze_tables(&conflict_path, "import \"./Left.sol\";\ncontract Uses is Left {}\n");
-        let conflict_uri = Url::from_file_path(conflict_path).unwrap();
+        let conflict_uri = fixture.project().uri("/Conflict.sol");
         let echoed_uses = clean
             .prepare_type_hierarchy(&conflict_uri, Position::new(1, 10))
             .unwrap()
@@ -538,8 +524,8 @@ fn requests_reject_a_different_published_analysis_epoch() {
         &path,
         "contract New {}\ncontract SuperNew {}\ncontract SuperChild is SuperNew {}\ncontract SubBase {}\ncontract SubNew is SubBase {}\n",
     );
-    let uri = Url::from_file_path(path).unwrap();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
+    let uri = project.uri("/Hierarchy.sol");
+    let mut state = state_with(Config::default());
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
     let mut requests = hierarchy_requests(&mut state, old_tables, &uri, (2, 10), (3, 10));
     let mut context = Context::from_waker(Waker::noop());
@@ -561,8 +547,8 @@ fn requests_reject_analysis_superseded_before_they_are_polled() {
     let project = TestProject::new();
     let path = project.path("/Hierarchy.sol");
     let tables = analyze_tables(&path, "contract Base {}\ncontract Child is Base {}\n");
-    let uri = Url::from_file_path(path).unwrap();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
+    let uri = project.uri("/Hierarchy.sol");
+    let mut state = state_with(Config::default());
     let requests = hierarchy_requests(&mut state, tables, &uri, (1, 10), (0, 10));
 
     state.mark_analysis_pending_for_test();
@@ -595,7 +581,7 @@ fn echoed_items_follow_current_source_identity() {
         .symbol_tables
     };
     let old_tables = analyze_both(project.read_file("/Other.sol"));
-    let uri = Url::from_file_path(&hierarchy_path).unwrap();
+    let uri = project.uri("/Hierarchy.sol");
     let old_item =
         old_tables.prepare_type_hierarchy(&uri, Position::new(1, 10)).unwrap().pop().unwrap();
 
@@ -625,14 +611,12 @@ fn hierarchy_requests(
     let item = |line, character| {
         tables.prepare_type_hierarchy(uri, Position::new(line, character)).unwrap().pop().unwrap()
     };
-    let supertypes = type_hierarchy_supertypes_params(item(super_line, super_character));
-    let subtypes = type_hierarchy_subtypes_params(item(sub_line, sub_character));
+    let supertypes = from_json(json!({ "item": item(super_line, super_character) }));
+    let subtypes = from_json(json!({ "item": item(sub_line, sub_character) }));
     state.symbol_tables.store(Arc::new(tables));
+    let prepare = request_params(uri, Position::new(0, 10), json!({}));
     [
-        Box::pin(crate::handlers::prepare_type_hierarchy(
-            state,
-            type_hierarchy_prepare_params(uri.clone(), Position::new(0, 10)),
-        )),
+        Box::pin(crate::handlers::prepare_type_hierarchy(state, prepare)),
         Box::pin(crate::handlers::type_hierarchy_supertypes(state, supertypes)),
         Box::pin(crate::handlers::type_hierarchy_subtypes(state, subtypes)),
     ]
@@ -677,10 +661,6 @@ fn assert_item(item: &TypeHierarchyItem, name: &str, kind: SymbolKind) {
     assert!(item.selection_range.end <= item.range.end);
 }
 
-fn analyze_tables(path: &std::path::Path, source: &str) -> SymbolTables {
-    analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.to_path_buf(), source.to_owned())],
-    ))
-    .symbol_tables
+fn analyze_tables(path: &Path, source: &str) -> SymbolTables {
+    analyze_source(path, source).symbol_tables
 }

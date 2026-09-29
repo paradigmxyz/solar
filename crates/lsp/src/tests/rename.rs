@@ -1,19 +1,7 @@
-use super::support::{RequestFixture, rename_output};
-use crate::{config::negotiate_capabilities, global_state::GlobalState};
-use async_lsp::ErrorCode;
-use lsp_types::{
-    DidChangeTextDocumentParams, DocumentChanges, InitializeParams, RenameParams,
-    TextDocumentContentChangeEvent, Url, VersionedTextDocumentIdentifier,
-    WorkspaceClientCapabilities, WorkspaceEditClientCapabilities, WorkspaceFolder,
-};
+use super::*;
+use lsp_types::DocumentChanges;
 use snapbox::str;
-use std::{
-    future::Future,
-    path::Path,
-    sync::{Arc, mpsc},
-    task::{Context, Poll, Wake, Waker},
-    time::Duration,
-};
+use std::{sync::mpsc, task::Wake};
 
 mod coverage;
 mod dependencies;
@@ -748,23 +736,11 @@ fn in_flight_rename_response_keeps_the_validated_version() {
     let uri = params.text_document_position.text_document.uri.clone();
     let path = crate::proto::vfs_path(&uri).unwrap();
 
-    let mut initialize = InitializeParams {
-        workspace_folders: Some(vec![WorkspaceFolder {
-            uri: Url::from_file_path(fixture.project_path("/")).unwrap(),
-            name: "fixture".into(),
-        }]),
-        ..Default::default()
-    };
-    initialize.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        workspace_edit: Some(WorkspaceEditClientCapabilities {
-            document_changes: Some(true),
-            ..Default::default()
-        }),
-        ..Default::default()
-    });
+    let capabilities = json!({ "workspace": { "workspaceEdit": { "documentChanges": true } } });
+    let initialize = with_capabilities(fixture.project().initialize_params(), capabilities);
     state.config = Arc::new(negotiate_capabilities(initialize).1);
 
-    set_document_contents(&mut state, uri.clone(), 7, &contents);
+    change(&mut state, &uri, 7, contents.as_str());
     assert_eq!(state.vfs.read().get_file_version(&path), Some(7));
 
     let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
@@ -782,7 +758,7 @@ fn in_flight_rename_response_keeps_the_validated_version() {
     wake_rx.recv_timeout(Duration::from_secs(5)).expect("rename validation task should complete");
 
     let changed_contents = format!("// changed while rename was in flight\n{contents}");
-    set_document_contents(&mut state, uri.clone(), 8, &changed_contents);
+    change(&mut state, &uri, 8, changed_contents);
     assert_eq!(state.vfs.read().get_file_version(&path), Some(8));
 
     let Poll::Ready(response) = rename.as_mut().poll(&mut context) else {
@@ -1009,29 +985,10 @@ impl Wake for CompletionWaker {
     }
 }
 
-fn set_document_contents(state: &mut GlobalState, uri: Url, version: i32, text: &str) {
-    let result = crate::handlers::did_change_text_document(
-        state,
-        DidChangeTextDocumentParams {
-            text_document: VersionedTextDocumentIdentifier::new(uri, version),
-            content_changes: vec![TextDocumentContentChangeEvent {
-                range: None,
-                range_length: None,
-                text: text.into(),
-            }],
-        },
-    );
-    assert!(result.is_continue());
-}
-
 /// Renders the rename edits, or the request error that prepare-rename must share.
 async fn rename_report(state: &mut GlobalState, params: RenameParams, root: &Path) -> String {
-    let prepared = tokio::time::timeout(
-        super::ASYNC_TEST_TIMEOUT,
-        crate::handlers::prepare_rename(state, params.text_document_position.clone()),
-    )
-    .await
-    .unwrap();
+    let prepare = crate::handlers::prepare_rename(state, params.text_document_position.clone());
+    let prepared = within("prepare rename", prepare).await;
     match (prepared, crate::handlers::rename(state, params).await) {
         (Ok(Some(_)), Ok(edit)) => rename_output(root, edit),
         (Err(prepared), Err(error)) => {

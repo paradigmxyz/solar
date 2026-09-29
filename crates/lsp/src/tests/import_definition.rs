@@ -1,20 +1,5 @@
-use super::{
-    GlobalState,
-    support::{Query, RequestFixture},
-};
-use crate::vfs::VfsPath;
-use async_lsp::ErrorCode;
-use crop::Rope;
-use lsp_types::{
-    DidChangeWatchedFilesParams, FileChangeType, FileEvent, InitializeParams, Url, WorkspaceFolder,
-};
+use super::*;
 use snapbox::str;
-use std::{
-    path::{Path, PathBuf},
-    sync::{Arc, atomic::Ordering},
-    task::{Context, Poll, Waker},
-    time::Duration,
-};
 
 #[tokio::test(flavor = "current_thread")]
 async fn remappings_change_refreshes_import_definitions() {
@@ -95,10 +80,7 @@ fn import_definition_discards_a_stale_vfs_result() {
     let fixture = open_import_fixture();
     let response = definition_after(&fixture, |state| {
         let old_tables = state.symbol_tables.load_full();
-        state.vfs.write().set_file_contents(
-            VfsPath::from(fixture.project_path("/Main.sol")),
-            Some(Rope::from("import \"./Other.sol\";")),
-        );
+        set_overlay(state, &fixture.project_path("/Main.sol"), "import \"./Other.sol\";", None);
         assert!(state.snapshot().publish_symbol_tables(1, old_tables));
     });
     assert_eq!(response.as_deref(), Ok("<none>\n"));
@@ -133,7 +115,7 @@ async fn import_definition_discards_the_index_after_current_analysis_fails() {
     let fixture = open_import_fixture();
     let error = tokio::spawn(async { panic!("test import analysis failure") }).await.unwrap_err();
     let response = definition_after(&fixture, |state| {
-        let failed_version = state.analysis_version.load(Ordering::Acquire);
+        let failed_version = analysis_version(state);
         assert!(
             crate::global_state::handle_analysis_failure(
                 failed_version,
@@ -154,10 +136,7 @@ async fn import_definition_does_not_use_the_index_for_changed_current_literals()
     for contents in ["import \"./Target.sol", "import \"./OtherX.sol\";"] {
         let fixture = open_import_fixture();
         let mut state = fixture.state();
-        state.vfs.write().set_file_contents(
-            VfsPath::from(fixture.project_path("/Main.sol")),
-            Some(Rope::from(contents)),
-        );
+        set_overlay(&state, &fixture.project_path("/Main.sol"), contents, None);
         assert_eq!(fixture.query_in(&mut state, Query::Definition, "$1").await, "<none>\n");
     }
 }
@@ -234,22 +213,12 @@ async fn import_only_changes_refresh_auto_detected_remappings() {
 
 /// Sends a watched-file event, or reindexes without one, and waits for the resulting analysis.
 async fn refresh(state: &mut GlobalState, event: Option<(PathBuf, FileChangeType)>) {
-    if let Some((path, typ)) = event {
-        watch(state, &path, typ);
+    if let Some(event) = event {
+        watch_files(state, [event]);
     } else {
         state.reindex();
     }
-    tokio::time::timeout(Duration::from_secs(5), state.latest_analysis())
-        .await
-        .expect("analysis should finish")
-        .unwrap();
-}
-
-fn watch(state: &mut GlobalState, path: &Path, typ: FileChangeType) {
-    let uri = Url::from_file_path(path).unwrap();
-    let changes = vec![FileEvent { uri, typ }];
-    let _ =
-        crate::handlers::did_change_watched_files(state, DidChangeWatchedFilesParams { changes });
+    settle(state).await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -266,147 +235,113 @@ async fn external_compile_only_library_events_do_not_force_rediscovery() {
         "/workspace/src/Main.sol",
     );
     let mut state = fixture.state_with_workspace_analysis();
-    let workspace = fixture.project_path("/workspace");
-    let (_, mut config) = crate::config::negotiate_capabilities(InitializeParams {
-        workspace_folders: Some(vec![WorkspaceFolder {
-            uri: Url::from_file_path(&workspace).unwrap(),
-            name: "workspace".into(),
-        }]),
-        ..Default::default()
-    });
-    config.rediscover_workspaces();
-    state.config = Arc::new(config);
+    state.config = Arc::new(fixture.project().config_with_roots(&["/workspace"]));
     let target = fixture.project_path("/external/lib/pkg/src/Target.sol");
     std::fs::create_dir_all(target.parent().unwrap()).unwrap();
     std::fs::write(&target, "contract Target {}\n").unwrap();
-    let version = state.analysis_version.load(Ordering::Acquire);
+    let version = analysis_version(&state);
 
-    watch(&mut state, &target, FileChangeType::CREATED);
+    watch_files(&mut state, [(&target, FileChangeType::CREATED)]);
 
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), version);
-    state.analysis_scheduler.tasks.lock().cancel();
+    assert_eq!(analysis_version(&state), version);
+    cancel_analysis(&state);
 }
 
 #[test]
-fn unresolved_import_literals_use_the_deepest_foundry_context() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        auto_detect_remappings = false
-        remappings = ["pkg/=lib/outer/"]
+fn unresolved_import_literals_use_the_owning_foundry_context() {
+    for (fixture, path, expected) in [
+        // The deepest Foundry context wins.
+        (
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            auto_detect_remappings = false
+            remappings = ["pkg/=lib/outer/"]
 
-        //- /lib/outer/Target.sol
-        contract OuterTarget {}
+            //- /lib/outer/Target.sol
+            contract OuterTarget {}
 
-        //- /packages/app/foundry.toml
-        [profile.default]
-        auto_detect_remappings = false
-        remappings = ["pkg/=lib/inner/"]
+            //- /packages/app/foundry.toml
+            [profile.default]
+            auto_detect_remappings = false
+            remappings = ["pkg/=lib/inner/"]
 
-        //- /packages/app/src/Main.sol open
-        import "pkg/$1Target.sol";
+            //- /packages/app/src/Main.sol open
+            import "pkg/$1Target.sol";
 
-        //- /packages/app/lib/inner/Target.sol
-        contract InnerTarget {}
-        "#,
-        "/packages/app/src/Main.sol",
-    );
+            //- /packages/app/lib/inner/Target.sol
+            contract InnerTarget {}
+            "#,
+            "/packages/app/src/Main.sol",
+            "/packages/app/lib/inner/Target.sol:0:0 contract InnerTarget {}\n",
+        ),
+        // External source roots inside an ancestor base use the nested context.
+        (
+            r#"
+            //- /outer/foundry.toml
+            [profile.default]
+            auto_detect_remappings = false
+            remappings = ["pkg/=lib/outer/"]
 
-    fixture.check_goto_definition(
-        "$1",
-        str![[r#"
-/packages/app/lib/inner/Target.sol:0:0 contract InnerTarget {}
+            //- /outer/lib/outer/Target.sol
+            contract OuterTarget {}
 
-"#]],
-    );
-}
+            //- /outer/packages/app/foundry.toml
+            [profile.default]
+            src = "../../shared"
+            auto_detect_remappings = false
+            remappings = ["pkg/=lib/inner/"]
 
-#[test]
-fn external_source_roots_inside_an_ancestor_base_use_the_nested_context() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /outer/foundry.toml
-        [profile.default]
-        auto_detect_remappings = false
-        remappings = ["pkg/=lib/outer/"]
+            //- /outer/shared/Main.sol open
+            import "pkg/$1Target.sol";
 
-        //- /outer/lib/outer/Target.sol
-        contract OuterTarget {}
+            //- /outer/packages/app/lib/inner/Target.sol
+            contract InnerTarget {}
+            "#,
+            "/outer/shared/Main.sol",
+            "/outer/packages/app/lib/inner/Target.sol:0:0 contract InnerTarget {}\n",
+        ),
+        // Out-of-base remapping targets keep their workspace context.
+        (
+            r#"
+            //- /project/foundry.toml
+            [profile.default]
+            auto_detect_remappings = false
+            remappings = ["pkg/=../shared/"]
 
-        //- /outer/packages/app/foundry.toml
-        [profile.default]
-        src = "../../shared"
-        auto_detect_remappings = false
-        remappings = ["pkg/=lib/inner/"]
+            //- /project/src/Main.sol
+            import "pkg/Consumer.sol";
 
-        //- /outer/shared/Main.sol open
-        import "pkg/$1Target.sol";
+            //- /shared/Consumer.sol open
+            import "./$1Target.sol";
 
-        //- /outer/packages/app/lib/inner/Target.sol
-        contract InnerTarget {}
-        "#,
-        "/outer/shared/Main.sol",
-    );
+            //- /shared/Target.sol
+            contract Target {}
+            "#,
+            "/shared/Consumer.sol",
+            "/shared/Target.sol:0:0 contract Target {}\n",
+        ),
+        // Unowned files do not use the first workspace context.
+        (
+            r#"
+            //- /owned/foundry.toml
+            [profile.default]
+            auto_detect_remappings = false
+            remappings = ["pkg/=lib/"]
 
-    fixture.check_goto_definition(
-        "$1",
-        str![[r#"
-/outer/packages/app/lib/inner/Target.sol:0:0 contract InnerTarget {}
+            //- /owned/lib/Target.sol
+            contract Target {}
 
-"#]],
-    );
-}
-
-#[test]
-fn out_of_base_remapping_targets_keep_their_workspace_context() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /project/foundry.toml
-        [profile.default]
-        auto_detect_remappings = false
-        remappings = ["pkg/=../shared/"]
-
-        //- /project/src/Main.sol
-        import "pkg/Consumer.sol";
-
-        //- /shared/Consumer.sol open
-        import "./$1Target.sol";
-
-        //- /shared/Target.sol
-        contract Target {}
-        "#,
-        "/shared/Consumer.sol",
-    );
-
-    fixture.check_goto_definition(
-        "$1",
-        str![[r#"
-/shared/Target.sol:0:0 contract Target {}
-
-"#]],
-    );
-}
-
-#[test]
-fn unowned_import_definitions_do_not_use_the_first_workspace_context() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /owned/foundry.toml
-        [profile.default]
-        auto_detect_remappings = false
-        remappings = ["pkg/=lib/"]
-
-        //- /owned/lib/Target.sol
-        contract Target {}
-
-        //- /unowned/Main.sol open
-        import "pkg/$1Target.sol";
-        "#,
-        "/unowned/Main.sol",
-    );
-
-    fixture.check_goto_definition("$1", "<none>\n");
+            //- /unowned/Main.sol open
+            import "pkg/$1Target.sol";
+            "#,
+            "/unowned/Main.sol",
+            "<none>\n",
+        ),
+    ] {
+        RequestFixture::new_allowing_diagnostics(fixture, path)
+            .check_goto_definition("$1", expected);
+    }
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -429,14 +364,11 @@ async fn unowned_indexed_import_definitions_do_not_bypass_context() {
 
     let mut state = fixture.state();
     let importer = fixture.project_path("/unowned/Main.sol");
-    state.vfs.write().set_file_contents(
-        VfsPath::from(importer.clone()),
-        Some(Rope::from(fixture.project_contents("/unowned/Main.sol"))),
-    );
+    set_overlay(&state, &importer, &fixture.project_contents("/unowned/Main.sol"), None);
     {
         let mut commit = state.analysis_commit.lock();
         commit.vfs_content_revision = state.vfs.read().content_revision();
-        commit.symbol_tables_version = state.analysis_version.load(Ordering::Acquire);
+        commit.symbol_tables_version = analysis_version(&state);
     }
     assert_eq!(fixture.query_in(&mut state, Query::Definition, "$1").await, "<none>\n");
 }

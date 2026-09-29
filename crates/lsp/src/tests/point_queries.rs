@@ -125,7 +125,7 @@ fn analyze_files(
 #[test]
 fn incompatible_contexts_fail_closed_in_both_workspace_orders() {
     let marked = remapped_guard_project();
-    let uri = Url::from_file_path(marked.project().path("/shared/Shared.sol")).unwrap();
+    let uri = marked.project().uri("/shared/Shared.sol");
     let position = |marker| marked.marker(marker).position();
     let left = analyze_roots(&marked, &["/left"]);
     let right = analyze_roots(&marked, &["/right"]);
@@ -161,7 +161,7 @@ fn compatible_contexts_preserve_and_deduplicate_point_queries() {
             "remappings = [\"@auth/=../left/lib/auth/\", \"shared/=../shared/\"]\n",
         ),
     );
-    let uri = Url::from_file_path(marked.project().path("/shared/Shared.sol")).unwrap();
+    let uri = marked.project().uri("/shared/Shared.sol");
     let baseline = analyze_roots(&marked, &["/left"]);
 
     for roots in [["/left", "/right"], ["/right", "/left"]] {
@@ -223,7 +223,7 @@ fn shared_function_hover_compares_inherited_documentation_in_both_orders() {
         }
         "#,
     );
-    let uri = Url::from_file_path(marked.project().path("/shared/Shared.sol")).unwrap();
+    let uri = marked.project().uri("/shared/Shared.sol");
     let left = analyze_roots(&marked, &["/left"]);
     let right = analyze_roots(&marked, &["/right"]);
     for marker in ["$1", "$2"] {
@@ -296,7 +296,7 @@ fn conflicting_target_snapshots_reject_direct_and_projected_targets_in_both_orde
         "#,
     );
     let project = marked.project();
-    let uri = Url::from_file_path(project.path("/Shared.sol")).unwrap();
+    let uri = project.uri("/Shared.sol");
     let current_target = project.read_file("/Types.sol");
     let changed_target = current_target.replace("uint256", "bytes32");
 
@@ -347,7 +347,7 @@ fn compatible_ambiguous_overloads_keep_all_targets_in_both_batch_orders() {
         "#,
     );
     let project = marked.project();
-    let uri = Url::from_file_path(project.path("/Shared.sol")).unwrap();
+    let uri = project.uri("/Shared.sol");
     let position = marked.marker("$1").position();
 
     for paths in [["/left/Main.sol", "/right/Main.sol"], ["/right/Main.sol", "/left/Main.sol"]] {

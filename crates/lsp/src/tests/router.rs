@@ -1,77 +1,32 @@
 use super::*;
 use crate::test_support::{
-    MarkedProject, TestProject, assert_request_cancelled, spawn_lsp_pair, start_request,
+    ClientEvent, ClientHarness, LspPair, MarkedProject, TestProject, assert_request_cancelled,
+    from_json, pause_blocking_pool, quiet_client, single_blocking_worker_runtime, start_request,
+    with_capabilities, with_relative_watchers, within,
 };
-use ::serde::de::DeserializeOwned;
 use async_lsp::{
-    AnyEvent, AnyNotification, AnyRequest, ErrorCode, LanguageServer, LspService, ResponseError,
-    ServerSocket, router::Router,
+    AnyEvent, AnyNotification, AnyRequest, ErrorCode, LspService, ResponseError, ServerSocket,
+    router::Router,
 };
 use lsp_types::{
     CancelParams, CompletionResponse, DidChangeWorkspaceFoldersParams, FileChangeType,
-    InitializeParams, InitializedParams, NumberOrString, ProgressParams, ProgressParamsValue,
-    PublishDiagnosticsParams, RegistrationParams, SymbolKind, TextDocumentSaveReason,
-    UnregistrationParams, WindowClientCapabilities, WorkDoneProgress, WorkDoneProgressCancelParams,
-    WorkDoneProgressCreateParams, WorkDoneProgressEnd, WorkDoneProgressReport, WorkspaceFolder,
-    WorkspaceFoldersChangeEvent, WorkspaceSymbolParams, notification as notif,
-    notification::Notification, request, request::Request,
+    InitializeParams, NumberOrString, RegistrationParams, SymbolKind, TextDocumentSaveReason,
+    UnregistrationParams, WorkDoneProgress, WorkDoneProgressCancelParams, WorkDoneProgressEnd,
+    WorkDoneProgressReport, WorkspaceFolder, WorkspaceFoldersChangeEvent, WorkspaceSymbolParams,
+    notification as notif, notification::Notification, request, request::Request,
 };
 use serde_json::{Value, json};
-use solar_interface::data_structures::sync::RwLock;
 use std::{
     ops::ControlFlow,
     path::Path,
-    sync::Arc,
     task::{Context, Poll},
     time::Duration,
 };
 use tokio::sync::{mpsc, oneshot};
 use tower::Service;
 
-const TIMEOUT: Duration = Duration::from_secs(2);
-
 fn new_router(client: ClientSocket) -> Router<GlobalState> {
     new_router_with_state(GlobalState::new(client))
-}
-
-fn from_json<T: DeserializeOwned>(value: Value) -> T {
-    serde_json::from_value(value).unwrap()
-}
-
-struct Session {
-    server: ServerSocket,
-    server_task: tokio::task::JoinHandle<async_lsp::Result<()>>,
-    client_task: tokio::task::JoinHandle<async_lsp::Result<()>>,
-}
-
-impl Session {
-    fn spawn<S, C>(
-        server: impl FnOnce(ClientSocket) -> S,
-        client: impl FnOnce(ServerSocket) -> C,
-    ) -> Self
-    where
-        S: LspService<Response = Value, Error = ResponseError> + Send + 'static,
-        S::Future: Send + 'static,
-        C: LspService<Response = Value, Error = ResponseError> + Send + 'static,
-        C::Future: Send + 'static,
-    {
-        let (server_main, _client) = async_lsp::MainLoop::new_server(server);
-        let (client_main, server) = async_lsp::MainLoop::new_client(client);
-        let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
-        Self { server, server_task, client_task }
-    }
-
-    async fn initialize(&mut self, params: InitializeParams) {
-        self.server.initialize(params).await.unwrap();
-        self.server.initialized(InitializedParams {}).unwrap();
-    }
-
-    async fn shutdown(mut self) {
-        self.server.shutdown(()).await.unwrap();
-        self.server.exit(()).unwrap();
-        assert!(self.server_task.await.unwrap().is_ok());
-        assert!(matches!(self.client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
-    }
 }
 
 struct ObservedRouter {
@@ -101,35 +56,6 @@ impl LspService for ObservedRouter {
 
     fn emit(&mut self, event: AnyEvent) -> ControlFlow<async_lsp::Result<()>> {
         self.inner.emit(event)
-    }
-}
-
-#[derive(Debug)]
-enum AnalysisClientEvent {
-    Create(WorkDoneProgressCreateParams),
-    Progress(ProgressParams),
-    Diagnostics(PublishDiagnosticsParams),
-}
-
-async fn next_analysis_event(
-    events: &mut mpsc::UnboundedReceiver<AnalysisClientEvent>,
-) -> AnalysisClientEvent {
-    tokio::time::timeout(TIMEOUT, events.recv())
-        .await
-        .expect("analysis client event should arrive")
-        .expect("analysis client event channel should stay open")
-}
-
-async fn next_progress(
-    events: &mut mpsc::UnboundedReceiver<AnalysisClientEvent>,
-    token: &NumberOrString,
-) -> WorkDoneProgress {
-    match next_analysis_event(events).await {
-        AnalysisClientEvent::Progress(ProgressParams {
-            token: actual,
-            value: ProgressParamsValue::WorkDone(value),
-        }) if actual == *token => value,
-        event => panic!("expected progress for {token:?}, got {event:?}"),
     }
 }
 
@@ -165,20 +91,13 @@ fn watched_registration_client(
 }
 
 fn watched_initialize_params(project: &TestProject, root: &str) -> InitializeParams {
-    let mut params = project.initialize_params_with_roots(&[root]);
-    params.capabilities.workspace = Some(from_json(json!({
-        "didChangeWatchedFiles": { "dynamicRegistration": true, "relativePatternSupport": true },
-    })));
-    params
+    with_relative_watchers(project.initialize_params_with_roots(&[root]))
 }
 
 async fn next_watched_registration_event(
     events: &mut mpsc::UnboundedReceiver<WatchedRegistrationClientEvent>,
 ) -> WatchedRegistrationClientEvent {
-    tokio::time::timeout(TIMEOUT, events.recv())
-        .await
-        .expect("watched-file registration request should arrive")
-        .expect("watched-file registration event channel should stay open")
+    within("watched-file registration", events.recv()).await.unwrap()
 }
 
 /// Acknowledges other watched-file traffic until a registration covers the discovered `root`.
@@ -276,7 +195,7 @@ async fn router_dispatches_requests_and_notifications() {
     *state.vfs.write() = project.vfs();
     let mut router = new_router_with_state(state);
     let uri = "file:///workspace/src/Test.sol";
-    let open_uri = lsp_types::Url::from_file_path(project.path("/Test.sol")).unwrap();
+    let open_uri = project.uri("/Test.sol");
     let text_document = json!({ "uri": uri });
     let position = json!({ "line": 0, "character": 0 });
     let range = json!({ "start": position, "end": { "line": 0, "character": 1 } });
@@ -437,10 +356,7 @@ async fn router_dispatches_requests_and_notifications() {
 #[tokio::test(flavor = "current_thread")]
 async fn requests_use_one_identity_for_equivalent_file_uris() {
     async fn response<R: Request>(server: &ServerSocket, params: Value) -> Value {
-        let response = tokio::time::timeout(TIMEOUT, server.request::<R>(from_json(params)))
-            .await
-            .unwrap_or_else(|_| panic!("{} should finish after analysis", R::METHOD))
-            .unwrap();
+        let response = within(R::METHOD, server.request::<R>(from_json(params))).await.unwrap();
         serde_json::to_value(response).unwrap()
     }
 
@@ -459,14 +375,9 @@ async fn requests_use_one_identity_for_equivalent_file_uris() {
     let text = project.read_file("/Token.sol");
     // The opened alias is the only copy of the source, so results prove its identity.
     project.remove_file("/Token.sol");
-    let canonical = lsp_types::Url::from_file_path(project.path("/Token.sol")).unwrap();
+    let canonical = project.uri("/Token.sol");
     let prefix = canonical.as_str().strip_suffix("Token.sol").unwrap();
-    let mut session = Session::spawn(new_router, |_| {
-        let mut router = Router::new(());
-        router.notification::<notif::PublishDiagnostics>(|_, _| ControlFlow::Continue(()));
-        router.notification::<notif::LogMessage>(|_, _| ControlFlow::Continue(()));
-        router
-    });
+    let session = LspPair::spawn(new_router, |_| quiet_client());
     session.initialize(project.initialize_params()).await;
     let opened = format!("{prefix}nested%2F..%2FToken.sol");
     let text_document =
@@ -541,17 +452,17 @@ async fn pending_analysis_requests_do_not_block_completion_or_cancellation() {
             contract C {}
             "#,
     );
-    let uri = lsp_types::Url::from_file_path(project.path("/Completion.sol")).unwrap();
+    let uri = project.uri("/Completion.sol");
     let vfs = project.vfs();
     let mut config = project.config();
     config.enable_completion_snippets();
     let (accepted_tx, mut accepted_rx) = mpsc::unbounded_channel();
 
-    let session = Session::spawn(
+    let session = LspPair::spawn(
         move |client| {
             let request_client = client.clone();
             let mut state = GlobalState::new(client);
-            state.vfs = Arc::new(RwLock::new(vfs));
+            *state.vfs.write() = vfs;
             state.config = Arc::new(config);
             state.mark_analysis_pending_for_test();
             let router =
@@ -567,13 +478,13 @@ async fn pending_analysis_requests_do_not_block_completion_or_cancellation() {
         server.request::<request::DocumentSymbolRequest>(from_json(text_document.clone())),
     );
     assert_eq!(
-        tokio::time::timeout(TIMEOUT, accepted_rx.recv()).await.unwrap().unwrap(),
+        within("request", accepted_rx.recv()).await.unwrap(),
         request::DocumentSymbolRequest::METHOD
     );
     let document_links =
         start_request(server.request::<request::DocumentLinkRequest>(from_json(text_document)));
     assert_eq!(
-        tokio::time::timeout(TIMEOUT, accepted_rx.recv()).await.unwrap().unwrap(),
+        within("request", accepted_rx.recv()).await.unwrap(),
         request::DocumentLinkRequest::METHOD
     );
 
@@ -584,28 +495,20 @@ async fn pending_analysis_requests_do_not_block_completion_or_cancellation() {
     server.notify::<notif::Cancel>(CancelParams { id: NumberOrString::Number(0) }).unwrap();
     server.notify::<notif::Cancel>(CancelParams { id: NumberOrString::Number(1) }).unwrap();
 
-    let response = tokio::time::timeout(TIMEOUT, completion)
-        .await
-        .expect("completion should not wait for analysis")
-        .unwrap();
+    let response = within("completion without analysis", completion).await.unwrap();
     let Some(CompletionResponse::Array(items)) = response else {
         panic!("expected completion items, got {response:?}");
     };
     assert!(items.iter().any(|item| item.label == "NatSpec contract documentation"));
 
-    assert_request_cancelled(tokio::time::timeout(TIMEOUT, document_symbols).await.unwrap());
-    assert_request_cancelled(tokio::time::timeout(TIMEOUT, document_links).await.unwrap());
+    assert_request_cancelled(within("cancellation", document_symbols).await);
+    assert_request_cancelled(within("cancellation", document_links).await);
     session.shutdown().await;
 }
 
 #[test]
 fn reindex_progress_honors_client_cancellation() {
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .max_blocking_threads(1)
-        .build()
-        .unwrap();
-    runtime.block_on(async {
+    single_blocking_worker_runtime().block_on(async {
         let project = TestProject::from_fixture(
             r#"
                 //- /Broken.sol open
@@ -614,39 +517,20 @@ fn reindex_progress_honors_client_cancellation() {
                 }
                 "#,
         );
-        let broken_uri = lsp_types::Url::from_file_path(project.path("/Broken.sol")).unwrap();
+        let broken_uri = project.uri("/Broken.sol");
         let vfs = project.vfs();
-        let mut initialize = project.initialize_params();
-        initialize.capabilities.window =
-            Some(WindowClientCapabilities { work_done_progress: Some(true), ..Default::default() });
-
-        let (events_tx, mut events_rx) = mpsc::unbounded_channel();
-        let mut session = Session::spawn(
-            move |client| {
-                let mut state = GlobalState::new(client);
-                state.vfs = Arc::new(RwLock::new(vfs));
-                new_router_with_state(state)
-            },
-            move |_| {
-                let mut router = Router::new(events_tx);
-                router.request::<request::WorkDoneProgressCreate, _>(|events, params| {
-                    events.send(AnalysisClientEvent::Create(params)).unwrap();
-                    async { Ok(()) }
-                });
-                router.notification::<notif::Progress>(|events, params| {
-                    events.send(AnalysisClientEvent::Progress(params)).unwrap();
-                    ControlFlow::Continue(())
-                });
-                router.notification::<notif::PublishDiagnostics>(|events, params| {
-                    events.send(AnalysisClientEvent::Diagnostics(params)).unwrap();
-                    ControlFlow::Continue(())
-                });
-                router.notification::<notif::LogMessage>(|_, _| ControlFlow::Continue(()));
-                router
-            },
+        let initialize = with_capabilities(
+            project.initialize_params(),
+            json!({ "window": { "workDoneProgress": true } }),
         );
-        session.initialize(initialize).await;
-        let server = &session.server;
+
+        let mut harness = ClientHarness::with_server(move |client| {
+            let state = GlobalState::new(client);
+            *state.vfs.write() = vfs;
+            new_router_with_state(state)
+        });
+        harness.initialize(initialize).await;
+        let server = harness.server().clone();
         let barrier = async |query: &str| {
             let params = WorkspaceSymbolParams { query: query.into(), ..Default::default() };
             server.request::<request::WorkspaceSymbolRequest>(params).await.unwrap();
@@ -666,26 +550,16 @@ fn reindex_progress_honors_client_cancellation() {
         // Process and drain the automatic initialization reindex before testing cancellation.
         barrier("initialization barrier").await;
         while !matches!(
-            next_analysis_event(&mut events_rx).await,
-            AnalysisClientEvent::Diagnostics(params) if params.uri == broken_uri
+            harness.next_event().await,
+            ClientEvent::Diagnostics(params) if params.uri == broken_uri
         ) {}
 
-        let (blocker_started_tx, blocker_started_rx) = std::sync::mpsc::channel();
-        let (release_blocker_tx, release_blocker_rx) = std::sync::mpsc::channel();
-        let blocker = tokio::task::spawn_blocking(move || {
-            blocker_started_tx.send(()).unwrap();
-            release_blocker_rx.recv().unwrap();
-        });
-        blocker_started_rx
-            .recv_timeout(Duration::from_secs(1))
-            .expect("blocking worker should be occupied");
+        let (release_blocker, blocker) = pause_blocking_pool();
 
         reindex().await;
-        let AnalysisClientEvent::Create(create) = next_analysis_event(&mut events_rx).await else {
-            panic!("expected progress creation")
-        };
-        let token = create.token;
-        let WorkDoneProgress::Begin(begin) = next_progress(&mut events_rx, &token).await else {
+        let token = harness.expect_create().await;
+        harness.acknowledge_create();
+        let WorkDoneProgress::Begin(begin) = harness.expect_progress(&token).await else {
             panic!("expected progress begin")
         };
         assert_eq!(begin.title, "Indexing workspace");
@@ -693,7 +567,7 @@ fn reindex_progress_honors_client_cancellation() {
 
         reindex().await;
         assert_eq!(
-            next_progress(&mut events_rx, &token).await,
+            harness.expect_progress(&token).await,
             WorkDoneProgress::Report(WorkDoneProgressReport {
                 cancellable: Some(false),
                 message: Some("Workspace changed, restarting analysis".into()),
@@ -708,25 +582,25 @@ fn reindex_progress_honors_client_cancellation() {
             .unwrap();
         barrier("cancel barrier").await;
         assert_eq!(
-            next_progress(&mut events_rx, &token).await,
+            harness.expect_progress(&token).await,
             WorkDoneProgress::End(WorkDoneProgressEnd { message: None })
         );
 
-        release_blocker_tx.send(()).unwrap();
+        release_blocker.send(()).unwrap();
         blocker.await.unwrap();
         loop {
-            match next_analysis_event(&mut events_rx).await {
-                AnalysisClientEvent::Diagnostics(params)
+            match harness.next_event().await {
+                ClientEvent::Diagnostics(params)
                     if params.uri == broken_uri && !params.diagnostics.is_empty() =>
                 {
                     break;
                 }
-                AnalysisClientEvent::Diagnostics(_) => {}
+                ClientEvent::Diagnostics(_) => {}
                 event => panic!("progress continued after cancellation: {event:?}"),
             }
         }
 
-        session.shutdown().await;
+        harness.shutdown().await;
     });
 }
 
@@ -750,7 +624,7 @@ async fn watched_file_reregistration_keeps_latest_workspace_folders() {
     };
 
     let (events_tx, mut events_rx) = mpsc::unbounded_channel();
-    let mut session = Session::spawn(new_router, move |_| watched_registration_client(events_tx));
+    let session = LspPair::spawn(new_router, move |_| watched_registration_client(events_tx));
     session.initialize(watched_initialize_params(&project, "/initial")).await;
 
     let (params, acknowledge) = next_registration_for_root(&mut events_rx, &initial_path).await;
@@ -814,7 +688,7 @@ async fn watched_file_reregistration_follows_workspace_root_file_operations() {
     let file_uri = |path: &Path| lsp_types::Url::from_file_path(path).unwrap().to_string();
 
     let (events_tx, mut events_rx) = mpsc::unbounded_channel();
-    let mut session = Session::spawn(new_router, move |_| watched_registration_client(events_tx));
+    let session = LspPair::spawn(new_router, move |_| watched_registration_client(events_tx));
     session.initialize(watched_initialize_params(&project, "/old")).await;
 
     let params = reregistration(&mut events_rx, None).await;

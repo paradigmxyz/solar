@@ -485,130 +485,30 @@ pub(crate) fn send_progress(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::spawn_lsp_pair;
-    use async_lsp::{ErrorCode, ResponseError, ServerSocket, router::Router};
-    use std::{ops::ControlFlow, sync::mpsc as std_mpsc};
-    use tokio::sync::{mpsc, oneshot};
+    use crate::test_support::ClientHarness;
+    use std::sync::mpsc as std_mpsc;
 
     const TIMEOUT: Duration = Duration::from_secs(1);
 
-    #[derive(Debug)]
-    enum ClientEvent {
-        Create(WorkDoneProgressCreateParams),
-        Progress(ProgressParams),
+    fn coordinator(
+        harness: &ClientHarness,
+        delay: Duration,
+        create_timeout: Duration,
+    ) -> ProgressCoordinator {
+        ProgressCoordinator::with_timing(harness.client().clone(), true, delay, create_timeout)
     }
 
-    struct MockClient {
-        events: mpsc::UnboundedSender<ClientEvent>,
-        create_ack: Option<oneshot::Receiver<()>>,
-    }
-
-    struct ProgressHarness {
-        client: ClientSocket,
-        server: ServerSocket,
-        events: mpsc::UnboundedReceiver<ClientEvent>,
-        create_ack: Option<oneshot::Sender<()>>,
-        server_task: tokio::task::JoinHandle<async_lsp::Result<()>>,
-        client_task: tokio::task::JoinHandle<async_lsp::Result<()>>,
-    }
-
-    impl ProgressHarness {
-        fn coordinator(&self, delay: Duration, create_timeout: Duration) -> ProgressCoordinator {
-            ProgressCoordinator::with_timing(self.client.clone(), true, delay, create_timeout)
-        }
-
-        fn acknowledge_create(&mut self) {
-            self.create_ack.take().expect("one create acknowledgement").send(()).unwrap();
-        }
-
-        async fn next_event(&mut self) -> ClientEvent {
-            tokio::time::timeout(TIMEOUT, self.events.recv())
-                .await
-                .expect("client event should arrive")
-                .expect("client event channel should stay open")
-        }
-
-        async fn expect_create(&mut self) -> NumberOrString {
-            let ClientEvent::Create(create) = self.next_event().await else {
-                panic!("expected create request")
-            };
-            create.token
-        }
-
-        async fn expect_progress(&mut self, token: &NumberOrString) -> WorkDoneProgress {
-            match self.next_event().await {
-                ClientEvent::Progress(ProgressParams {
-                    token: actual,
-                    value: ProgressParamsValue::WorkDone(value),
-                }) if actual == *token => value,
-                event => panic!("expected progress for {token:?}, got {event:?}"),
-            }
-        }
-
-        /// Starts `version` and waits until the client observes its `begin`.
-        async fn begin(
-            &mut self,
-            coordinator: &ProgressCoordinator,
-            version: usize,
-        ) -> (ProgressTicket, NumberOrString) {
-            let ticket = coordinator.start(version);
-            let token = self.expect_create().await;
-            self.acknowledge_create();
-            assert_eq!(self.expect_progress(&token).await, begin(None));
-            (ticket, token)
-        }
-
-        async fn assert_silent(&mut self) {
-            self.client.request::<req::Shutdown>(()).await.unwrap();
-            assert!(matches!(self.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
-        }
-
-        async fn shutdown(self) {
-            self.server.notify::<notif::Exit>(()).unwrap();
-            assert!(self.server_task.await.unwrap().is_ok());
-            assert!(matches!(self.client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
-        }
-    }
-
-    fn progress_harness() -> ProgressHarness {
-        let (server_main, client) = async_lsp::MainLoop::new_server(|_| {
-            let mut router = Router::new(());
-            router.notification::<notif::Exit>(|_, ()| ControlFlow::Break(Ok(())));
-            router
-        });
-        let (events_tx, events) = mpsc::unbounded_channel();
-        let (create_ack_tx, create_ack_rx) = oneshot::channel();
-        let (client_main, server) = async_lsp::MainLoop::new_client(move |_| {
-            let mut router =
-                Router::new(MockClient { events: events_tx, create_ack: Some(create_ack_rx) });
-            router.request::<req::WorkDoneProgressCreate, _>(|state, params| {
-                state.events.send(ClientEvent::Create(params)).unwrap();
-                let create_ack = state.create_ack.take().expect("one progress create request");
-                async move {
-                    create_ack.await.map_err(|_| {
-                        ResponseError::new(ErrorCode::REQUEST_FAILED, "test create ack dropped")
-                    })?;
-                    Ok(())
-                }
-            });
-            router.request::<req::Shutdown, _>(|_, ()| async { Ok(()) });
-            router.notification::<notif::Progress>(|state, params| {
-                state.events.send(ClientEvent::Progress(params)).unwrap();
-                ControlFlow::Continue(())
-            });
-            router
-        });
-
-        let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
-
-        ProgressHarness {
-            client,
-            server,
-            events,
-            create_ack: Some(create_ack_tx),
-            server_task,
-            client_task,
-        }
+    /// Starts `version` and waits until the client observes its `begin`.
+    async fn start_visible(
+        harness: &mut ClientHarness,
+        coordinator: &ProgressCoordinator,
+        version: usize,
+    ) -> (ProgressTicket, NumberOrString) {
+        let ticket = coordinator.start(version);
+        let token = harness.expect_create().await;
+        harness.acknowledge_create();
+        assert_eq!(harness.expect_progress(&token).await, begin(None));
+        (ticket, token)
     }
 
     fn closed_coordinator(enabled: bool, delay: Duration) -> ProgressCoordinator {
@@ -804,8 +704,8 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn reserved_wave_emits_create_begin_report_end_once_begun() {
-        let mut harness = progress_harness();
-        let coordinator = harness.coordinator(Duration::ZERO, TIMEOUT);
+        let mut harness = ClientHarness::new();
+        let coordinator = coordinator(&harness, Duration::ZERO, TIMEOUT);
         let ticket = coordinator.reserve(7);
         harness.assert_silent().await;
 
@@ -819,13 +719,13 @@ mod tests {
         ticket.finish("done");
         assert_eq!(harness.expect_progress(&token).await, end(Some("done")));
 
-        harness.shutdown().await;
+        harness.exit().await;
     }
 
     #[tokio::test(flavor = "current_thread")]
     async fn cancellation_before_delay_suppresses_creation() {
-        let mut harness = progress_harness();
-        let coordinator = harness.coordinator(Duration::from_millis(10), TIMEOUT);
+        let mut harness = ClientHarness::new();
+        let coordinator = coordinator(&harness, Duration::from_millis(10), TIMEOUT);
         let ticket = coordinator.start(1);
 
         coordinator.cancel(&ticket.guard.as_ref().unwrap().token);
@@ -833,13 +733,13 @@ mod tests {
         harness.assert_silent().await;
 
         assert!(!coordinator.is_active_for_test(1));
-        harness.shutdown().await;
+        harness.exit().await;
     }
 
     #[tokio::test(flavor = "current_thread")]
     async fn cancellation_while_create_is_pending_suppresses_late_begin() {
-        let mut harness = progress_harness();
-        let coordinator = harness.coordinator(Duration::ZERO, TIMEOUT);
+        let mut harness = ClientHarness::new();
+        let coordinator = coordinator(&harness, Duration::ZERO, TIMEOUT);
         let _ticket = coordinator.start(1);
         let token = harness.expect_create().await;
 
@@ -848,14 +748,14 @@ mod tests {
         harness.assert_silent().await;
 
         assert!(!coordinator.is_active_for_test(1));
-        harness.shutdown().await;
+        harness.exit().await;
     }
 
     #[tokio::test(flavor = "current_thread")]
     async fn cancellation_after_begin_sends_one_end_and_suppresses_reports() {
-        let mut harness = progress_harness();
-        let coordinator = harness.coordinator(Duration::ZERO, TIMEOUT);
-        let (ticket, token) = harness.begin(&coordinator, 1).await;
+        let mut harness = ClientHarness::new();
+        let coordinator = coordinator(&harness, Duration::ZERO, TIMEOUT);
+        let (ticket, token) = start_visible(&mut harness, &coordinator, 1).await;
 
         coordinator.cancel(&token);
         assert_eq!(harness.expect_progress(&token).await, end(None));
@@ -864,13 +764,13 @@ mod tests {
         ticket.finish("late finish");
         harness.assert_silent().await;
         assert!(!coordinator.is_active_for_test(1));
-        harness.shutdown().await;
+        harness.exit().await;
     }
 
     #[tokio::test(flavor = "current_thread")]
     async fn replacement_while_create_is_pending_finishes_silently() {
-        let mut harness = progress_harness();
-        let coordinator = harness.coordinator(Duration::ZERO, Duration::from_millis(10));
+        let mut harness = ClientHarness::new();
+        let coordinator = coordinator(&harness, Duration::ZERO, Duration::from_millis(10));
         let first = coordinator.start(1);
         harness.expect_create().await;
         let first_guard = first.guard.as_ref().unwrap();
@@ -891,14 +791,14 @@ mod tests {
 
         assert!(!coordinator.is_active_for_test(2));
         assert!(coordinator.inner.enabled.load(Ordering::Acquire));
-        harness.shutdown().await;
+        harness.exit().await;
     }
 
     #[tokio::test(flavor = "current_thread")]
     async fn replacements_after_begin_reuse_the_visible_wave_and_report_one_restart() {
-        let mut harness = progress_harness();
-        let coordinator = harness.coordinator(Duration::ZERO, TIMEOUT);
-        let (first, token) = harness.begin(&coordinator, 1).await;
+        let mut harness = ClientHarness::new();
+        let coordinator = coordinator(&harness, Duration::ZERO, TIMEOUT);
+        let (first, token) = start_visible(&mut harness, &coordinator, 1).await;
 
         let second = coordinator.start(2);
         assert!(Arc::ptr_eq(first.guard.as_ref().unwrap(), second.guard.as_ref().unwrap()));
@@ -911,6 +811,6 @@ mod tests {
         first.finish("stale");
         latest.finish("done");
         assert_eq!(harness.expect_progress(&token).await, end(Some("done")));
-        harness.shutdown().await;
+        harness.exit().await;
     }
 }

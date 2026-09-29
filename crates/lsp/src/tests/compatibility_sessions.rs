@@ -1,19 +1,11 @@
 use crate::{
     LaunchConfig, new_server_service,
-    test_support::{TestProject, read_lsp_frame, write_lsp_frame},
+    test_support::{TIMEOUT, TestProject, WireServer},
 };
-use async_lsp::ClientSocket;
 use lsp_types::Url;
 use serde_json::{Value, json};
 use snapbox::{IntoData, assert_data_eq, str};
 use std::time::Duration;
-use tokio::{
-    io::{AsyncWriteExt, BufReader, DuplexStream, ReadHalf, WriteHalf},
-    task::JoinHandle,
-};
-use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
-
-const SESSION_TIMEOUT: Duration = Duration::from_secs(5);
 const SESSION_SOURCE: &str = "/*😀*/ contract Before { function ping() external {} }\n";
 const DIAGNOSTIC_SOURCE: &str = r#"contract Diagnostics {
     function value() external pure returns (uint256) {
@@ -109,34 +101,15 @@ fn client_profile(name: &str) -> &'static ClientProfile {
 }
 
 struct RawSession {
-    reader: BufReader<ReadHalf<DuplexStream>>,
-    writer: WriteHalf<DuplexStream>,
+    wire: WireServer,
     next_request_id: u64,
     server_messages: Vec<Value>,
-    server_task: JoinHandle<async_lsp::Result<()>>,
-    _client: ClientSocket,
 }
 
 impl RawSession {
     fn start() -> Self {
-        let (main_loop, client) = async_lsp::MainLoop::new_server(|client| {
-            new_server_service(client, LaunchConfig::default())
-        });
-        let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-        let (server_reader, server_writer) = tokio::io::split(server_stream);
-        let server_task = tokio::spawn(
-            main_loop.run_buffered(server_reader.compat(), server_writer.compat_write()),
-        );
-        let (client_reader, writer) = tokio::io::split(client_stream);
-
-        Self {
-            reader: BufReader::new(client_reader),
-            writer,
-            next_request_id: 1,
-            server_messages: Vec::new(),
-            server_task,
-            _client: client,
-        }
+        let wire = WireServer::spawn(|client| new_server_service(client, LaunchConfig::default()));
+        Self { wire, next_request_id: 1, server_messages: Vec::new() }
     }
 
     async fn start_initialized(
@@ -152,24 +125,18 @@ impl RawSession {
     }
 
     async fn notify(&mut self, method: &str, params: Value) {
-        write_lsp_frame(
-            &mut self.writer,
-            json!({ "jsonrpc": "2.0", "method": method, "params": params }),
-        )
-        .await;
+        self.wire.notify(method, params).await;
     }
 
     async fn request(&mut self, method: &str, params: Value) -> Value {
         let id = Value::from(self.next_request_id);
         self.next_request_id += 1;
-        write_lsp_frame(
-            &mut self.writer,
-            json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params }),
-        )
-        .await;
+        self.wire
+            .send(json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params }))
+            .await;
 
         loop {
-            let message = self.read_message().await;
+            let message = self.wire.recv().await;
             if message.get("method").is_some() {
                 self.handle_server_message(message).await;
                 continue;
@@ -266,14 +233,8 @@ impl RawSession {
         assert!(self.request("shutdown", Value::Null).await.is_null());
     }
 
-    async fn exit(mut self) {
-        self.notify("exit", Value::Null).await;
-        self.writer.shutdown().await.unwrap();
-        let result = tokio::time::timeout(SESSION_TIMEOUT, self.server_task)
-            .await
-            .expect("server loop should stop after `exit`")
-            .expect("server task should not panic");
-        assert!(result.is_ok(), "server loop failed after graceful shutdown: {result:?}");
+    async fn exit(self) {
+        self.wire.exit().await;
     }
 
     async fn handle_server_message(&mut self, message: Value) {
@@ -296,8 +257,7 @@ impl RawSession {
             | "workspace/inlayHint/refresh" => Value::Null,
             _ => panic!("unexpected server request `{method}`: {message}"),
         };
-        write_lsp_frame(&mut self.writer, json!({ "jsonrpc": "2.0", "id": id, "result": result }))
-            .await;
+        self.wire.send(json!({ "jsonrpc": "2.0", "id": id, "result": result })).await;
     }
 
     fn server_messages(&self, method: &str) -> Vec<&Value> {
@@ -330,19 +290,13 @@ impl RawSession {
 
     async fn wait_for_server_message_count(&mut self, method: &str, expected: usize) {
         while self.server_message_count(method) < expected {
-            let message = self.read_message().await;
+            let message = self.wire.recv().await;
             assert!(
                 message.get("method").is_some(),
                 "unexpected response while waiting for server method `{method}`: {message}"
             );
             self.handle_server_message(message).await;
         }
-    }
-
-    async fn read_message(&mut self) -> Value {
-        tokio::time::timeout(SESSION_TIMEOUT, read_lsp_frame(&mut self.reader))
-            .await
-            .expect("LSP message should arrive")
     }
 }
 
@@ -430,7 +384,7 @@ async fn wait_for_workspace_symbols(
     profile: &str,
 ) {
     let mut observed = Vec::new();
-    let ready = tokio::time::timeout(SESSION_TIMEOUT, async {
+    let ready = tokio::time::timeout(TIMEOUT, async {
         loop {
             let response = session.workspace_symbols().await;
             observed = symbol_names(&response).into_iter().map(str::to_owned).collect();
@@ -454,7 +408,7 @@ async fn client_profiles_complete_a_raw_lsp_session() {
     for profile in CLIENT_PROFILES {
         let profile_label = profile.label();
         let project = TestProject::from_fixture(PROJECT_FIXTURE);
-        let document_uri = Url::from_file_path(project.path("/Session.sol")).unwrap();
+        let document_uri = project.uri("/Session.sol");
         let client_capabilities = profile.capabilities();
         let expects_code_action_provider = client_capabilities
             .pointer("/textDocument/codeAction/codeActionLiteralSupport")
@@ -543,7 +497,7 @@ async fn workspace_changes_reload_workspace_symbols_on_the_wire() {
                 session.registered_watched_files(),
                 "{profile_label}: server did not register the manifest watcher"
             );
-            let manifest_uri = Url::from_file_path(project.path("/foundry.toml")).unwrap();
+            let manifest_uri = project.uri("/foundry.toml");
             json!({ "changes": [{ "uri": manifest_uri, "type": 2 }] })
         } else {
             json!({ "settings": {} })
@@ -561,7 +515,7 @@ async fn workspace_changes_reload_workspace_symbols_on_the_wire() {
 async fn push_diagnostic_clients_publish_and_clear_without_pull() {
     for (profile, document_pull) in [("legacy push", false), ("pull without refresh", true)] {
         let project = TestProject::new();
-        let document_uri = Url::from_file_path(project.path("/Diagnostics.sol")).unwrap();
+        let document_uri = project.uri("/Diagnostics.sol");
         let capabilities = diagnostic_client_capabilities(document_pull, false, false);
         let (mut session, initialize) = RawSession::start_initialized(
             client_profile("Minimal LSP client"),
@@ -610,7 +564,7 @@ async fn push_diagnostic_clients_publish_and_clear_without_pull() {
 #[tokio::test(flavor = "current_thread")]
 async fn pull_diagnostic_client_refreshes_and_clears_without_push() {
     let project = TestProject::new();
-    let document_uri = Url::from_file_path(project.path("/Diagnostics.sol")).unwrap();
+    let document_uri = project.uri("/Diagnostics.sol");
     let profile = client_profile("Zed");
     let profile_label = profile.label();
     let (mut session, initialize) =
@@ -692,7 +646,7 @@ source: "solar"
 /// Returns the only native diagnostic for `source`, one field per line.
 async fn native_diagnostic_on_the_wire(source: &str, pull: bool, pull_data: bool) -> String {
     let project = TestProject::new();
-    let document_uri = Url::from_file_path(project.path("/Details.sol")).unwrap();
+    let document_uri = project.uri("/Details.sol");
     let mut capabilities = diagnostic_client_capabilities(pull, pull, pull_data);
     capabilities["textDocument"]["publishDiagnostics"] = json!({
         "relatedInformation": true,
@@ -740,7 +694,7 @@ async fn native_diagnostic_on_the_wire(source: &str, pull: bool, pull_data: bool
 async fn did_open_before_initialize_is_not_observable() {
     let project = TestProject::new();
     let root_uri = Url::from_file_path(project.root()).unwrap();
-    let document_uri = Url::from_file_path(project.path("/Ghost.sol")).unwrap();
+    let document_uri = project.uri("/Ghost.sol");
     let mut session = RawSession::start();
 
     session.open(&document_uri, "contract Ghost {}\n").await;

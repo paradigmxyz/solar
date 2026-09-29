@@ -235,7 +235,7 @@ while [ ! -e "$0.release" ]; do sleep 0.01; done
 printf 'contract Test {}'"#,
     );
     let mut state = formatting_state(&project, &forge, &["/workspace"]);
-    let uri = Url::from_file_path(project.path("/workspace/Test.sol")).unwrap();
+    let uri = project.uri("/workspace/Test.sol");
     let task = tokio::spawn(format(&mut state, &project, "/workspace/Test.sol"));
     let ready = project.path("/fake-forge.ready");
     time::timeout(Duration::from_secs(5), async {
@@ -274,9 +274,7 @@ fn format(
     formatting(
         state,
         DocumentFormattingParams {
-            text_document: TextDocumentIdentifier {
-                uri: Url::from_file_path(project.path(path)).unwrap(),
-            },
+            text_document: TextDocumentIdentifier { uri: project.uri(path) },
             options: FormattingOptions { tab_size: 99, insert_spaces: false, ..Default::default() },
             work_done_progress_params: WorkDoneProgressParams::default(),
         },

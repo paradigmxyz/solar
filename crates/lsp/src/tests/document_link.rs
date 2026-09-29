@@ -121,12 +121,9 @@ fn overlapping_workspaces_prefer_vfs_document_links() {
         [
             (
                 Range::new(Position::new(0, 7), Position::new(0, 28)),
-                Url::from_file_path(project.path("/nested/OverlayLonger.sol")).unwrap(),
+                project.uri("/nested/OverlayLonger.sol"),
             ),
-            (
-                Range::new(Position::new(1, 7), Position::new(1, 18)),
-                Url::from_file_path(project.path("/nested/New.sol")).unwrap(),
-            ),
+            (Range::new(Position::new(1, 7), Position::new(1, 18)), project.uri("/nested/New.sol"),),
         ]
     );
 }
@@ -180,5 +177,5 @@ fn waits_for_requested_analysis_before_returning_document_links() {
     };
     let links = response.unwrap().unwrap();
     assert_eq!(links.len(), 1);
-    assert_eq!(links[0].target, Some(Url::from_file_path(project.path("/New.sol")).unwrap()));
+    assert_eq!(links[0].target, Some(project.uri("/New.sol")));
 }

@@ -1,7 +1,5 @@
 use super::{
-    indexing::{
-        analysis_version, analyze_project, cancel_analysis, settle, state_with, symbol_names, watch,
-    },
+    indexing::{analyze_project, symbol_names},
     *,
 };
 use lsp_types::{CreateFilesParams, DeleteFilesParams, FileCreate, FileDelete};
@@ -57,7 +55,7 @@ async fn watched_unrelated_excluded_sources_and_manifests_do_not_schedule_analys
         let mut state = state_with(config);
         let version = analysis_version(&state);
 
-        watch(&mut state, &[(path, typ)]);
+        watch_files(&mut state, [(path, typ)]);
 
         assert_eq!(analysis_version(&state), version);
         assert!(state.analysis_scheduler.tasks.lock().coordinator.is_none());
@@ -81,9 +79,9 @@ async fn watched_nested_manifest_create_discovers_the_project() {
         .write_file("/packages/app/generated/foundry.toml", "[profile.default]\nsrc = \"src\"\n");
     project.write_file("/packages/app/generated/src/Nested.sol", "contract Nested {}");
 
-    watch(
+    watch_files(
         &mut state,
-        &[(&project.path("/packages/app/generated/foundry.toml"), FileChangeType::CREATED)],
+        [(&project.path("/packages/app/generated/foundry.toml"), FileChangeType::CREATED)],
     );
 
     assert_eq!(symbol_names(&settle(&state).await, "Nested"), ["Nested"]);
@@ -119,9 +117,9 @@ async fn watched_nested_manifest_create_under_external_foundry_roots_discovers_p
     }
 
     let manifests = roots.clone().map(|root| root.join("foundry.toml"));
-    watch(
+    watch_files(
         &mut state,
-        &[(&manifests[0], FileChangeType::CREATED), (&manifests[1], FileChangeType::CREATED)],
+        [(&manifests[0], FileChangeType::CREATED), (&manifests[1], FileChangeType::CREATED)],
     );
     settle(&state).await;
 
@@ -153,22 +151,21 @@ async fn watched_nested_repository_markers_prune_and_restore_nested_projects() {
     assert_eq!(tracked(&state), std::slice::from_ref(&nested_source));
 
     project.write_file("/src/nested/.git", "gitdir: elsewhere");
-    watch(&mut state, &[(&marker, FileChangeType::CREATED)]);
+    watch_files(&mut state, [(&marker, FileChangeType::CREATED)]);
     assert_eq!(analysis_version(&state), 1);
     assert!(tracked(&state).is_empty());
 
     std::fs::remove_file(&marker).unwrap();
-    watch(&mut state, &[(&marker, FileChangeType::DELETED)]);
+    watch_files(&mut state, [(&marker, FileChangeType::DELETED)]);
     assert_eq!(analysis_version(&state), 2);
     assert_eq!(tracked(&state), std::slice::from_ref(&nested_source));
     cancel_analysis(&state);
 
     // The marker events are ignored when nested repositories stay indexed.
-    let mut params = project.initialize_params();
-    params.initialization_options =
-        Some(serde_json::json!({ "indexing": { "excludeNestedRepositories": false } }));
-    let (_, mut config) = negotiate_capabilities(params);
-    config.rediscover_workspaces();
+    let config = config_with_options(
+        project.initialize_params(),
+        json!({ "indexing": { "excludeNestedRepositories": false } }),
+    );
     assert!(
         config
             .watched_file_specs()
@@ -177,7 +174,7 @@ async fn watched_nested_repository_markers_prune_and_restore_nested_projects() {
     );
     project.write_file("/src/nested/.git", "gitdir: elsewhere");
     let mut state = state_with(config);
-    watch(&mut state, &[(&marker, FileChangeType::CREATED)]);
+    watch_files(&mut state, [(&marker, FileChangeType::CREATED)]);
     assert_eq!(analysis_version(&state), 0);
     assert_eq!(tracked(&state), [nested_source]);
 }
@@ -207,14 +204,14 @@ async fn watched_created_directories_under_shallow_roots_discover_projects_and_s
     project.write_file("/packages/app/src/Nested.sol", "contract Nested {}");
     project.write_file("/test/generated/Generated.t.sol", "contract GeneratedTest {}");
 
-    watch(&mut state, &[(&project.path("/packages"), FileChangeType::CREATED)]);
+    watch_files(&mut state, [(&project.path("/packages"), FileChangeType::CREATED)]);
     assert_eq!(analysis_version(&state), 1);
     assert_eq!(
         state.config.tracked_source_files_under(&[project.path("/packages")]),
         [nested_source]
     );
 
-    watch(&mut state, &[(&project.path("/test/generated"), FileChangeType::CREATED)]);
+    watch_files(&mut state, [(&project.path("/test/generated"), FileChangeType::CREATED)]);
     assert_eq!(analysis_version(&state), 2);
     assert!(
         state
@@ -256,7 +253,7 @@ async fn watched_created_source_under_overlapping_root_is_tracked() {
     let path = project.path("/lib/Created.sol");
     project.write_file("/lib/Created.sol", "contract Created {}");
 
-    watch(&mut state, &[(&path, FileChangeType::CREATED)]);
+    watch_files(&mut state, [(&path, FileChangeType::CREATED)]);
 
     assert_eq!(analysis_version(&state), 1);
     assert_eq!(state.config.tracked_source_files_under(&[project.path("/lib")]), [path]);
@@ -283,10 +280,10 @@ async fn watched_directory_topology_under_partitioned_root_is_rediscovered() {
     project.write_file("/README.md", "notes");
     project.write_file("/new/New.sol", "contract New {}");
 
-    watch(&mut state, &[(&project.path("/README.md"), FileChangeType::CREATED)]);
+    watch_files(&mut state, [(&project.path("/README.md"), FileChangeType::CREATED)]);
     assert_eq!(analysis_version(&state), 0);
 
-    watch(&mut state, &[(&project.path("/new"), FileChangeType::CREATED)]);
+    watch_files(&mut state, [(&project.path("/new"), FileChangeType::CREATED)]);
     assert_eq!(analysis_version(&state), 1);
     assert_eq!(
         state.config.tracked_source_files_under(&root),
@@ -294,7 +291,7 @@ async fn watched_directory_topology_under_partitioned_root_is_rediscovered() {
     );
 
     std::fs::remove_dir_all(project.path("/old")).unwrap();
-    watch(&mut state, &[(&project.path("/old"), FileChangeType::DELETED)]);
+    watch_files(&mut state, [(&project.path("/old"), FileChangeType::DELETED)]);
     assert_eq!(analysis_version(&state), 2);
     assert_eq!(state.config.tracked_source_files_under(&root), [project.path("/new/New.sol")]);
     cancel_analysis(&state);
@@ -342,7 +339,7 @@ async fn watched_dependency_and_unresolved_candidate_changes_schedule_analysis()
             let mut state = state_with(config);
             state.snapshot().publish_analysis_output(0, output.into_shared());
 
-            watch(&mut state, &[(&project.path(path), typ)]);
+            watch_files(&mut state, [(&project.path(path), typ)]);
 
             let actual_version = analysis_version(&state);
             cancel_analysis(&state);
@@ -372,7 +369,7 @@ async fn watched_external_source_create_change_and_delete_schedule_analysis() {
             std::fs::remove_file(&path).unwrap();
         }
 
-        watch(&mut state, &[(&path, typ)]);
+        watch_files(&mut state, [(&path, typ)]);
 
         assert_eq!(analysis_version(&state), 1);
         let tracked = state.config.tracked_source_files_under(&[project.path("/shared")]);
@@ -416,7 +413,7 @@ async fn watched_flycheck_only_source_change_schedules_analysis() {
     assert!(config.tracks_flycheck_file(&path));
     let mut state = state_with(config);
 
-    watch(&mut state, &[(&path, FileChangeType::CHANGED)]);
+    watch_files(&mut state, [(&path, FileChangeType::CHANGED)]);
 
     assert_eq!(analysis_version(&state), 1);
     cancel_analysis(&state);
@@ -447,7 +444,7 @@ async fn watched_source_respects_the_most_specific_flycheck_owner() {
     assert!(!config.tracks_flycheck_file(&path));
     let mut state = state_with(config);
 
-    watch(&mut state, &[(&path, FileChangeType::CREATED)]);
+    watch_files(&mut state, [(&path, FileChangeType::CREATED)]);
 
     assert_eq!(analysis_version(&state), 1);
     assert!(
@@ -474,7 +471,7 @@ async fn unknown_dependency_event_is_deferred_while_analysis_is_pending() {
     state.mark_analysis_pending_for_test();
     let path = project.path("/generated/Dependency.sol");
 
-    watch(&mut state, &[(&path, FileChangeType::CHANGED)]);
+    watch_files(&mut state, [(&path, FileChangeType::CHANGED)]);
 
     assert_eq!(analysis_version(&state), 1);
     assert_eq!(deferred_event(&state, &path), Some(FileChangeType::CHANGED));
@@ -540,7 +537,10 @@ async fn source_events_during_initial_discovery_are_replayed_after_policy_is_kno
     project.write_file("/project/node_modules/Ignored.sol", "contract Ignored {}");
     let active = project.path("/project/lib/Active.sol");
     let ignored = project.path("/project/node_modules/Ignored.sol");
-    watch(&mut state, &[(&active, FileChangeType::CREATED), (&ignored, FileChangeType::CREATED)]);
+    watch_files(
+        &mut state,
+        [(&active, FileChangeType::CREATED), (&ignored, FileChangeType::CREATED)],
+    );
 
     assert_eq!(analysis_version(&state), version);
     let ready = discovery_ready(version, discovery, progress);
@@ -572,7 +572,7 @@ async fn source_events_during_discovery_are_deferred_with_existing_workspaces() 
     let path = project.path("/new/Active.sol");
     project.write_file("/new/Active.sol", "contract Active {}");
 
-    watch(&mut state, &[(&path, FileChangeType::CREATED), (&path, FileChangeType::CHANGED)]);
+    watch_files(&mut state, [(&path, FileChangeType::CREATED), (&path, FileChangeType::CHANGED)]);
     assert_eq!(analysis_version(&state), version);
     assert_eq!(deferred_event(&state, &path), Some(FileChangeType::CHANGED));
 
@@ -604,17 +604,17 @@ async fn watched_missing_excluded_dependency_recovers_on_create_and_later_change
     let path = project.path("/generated/Missing.sol");
 
     for typ in [FileChangeType::CHANGED, FileChangeType::DELETED] {
-        watch(&mut state, &[(&path, typ)]);
+        watch_files(&mut state, [(&path, typ)]);
         assert_eq!(analysis_version(&state), 0);
     }
 
     project.write_file("/generated/Missing.sol", "contract Missing {}");
-    watch(&mut state, &[(&path, FileChangeType::CREATED)]);
+    watch_files(&mut state, [(&path, FileChangeType::CREATED)]);
     assert_eq!(analysis_version(&state), 1);
 
     // A change to the created candidate supersedes the pending create analysis.
     project.write_file("/generated/Missing.sol", "contract Missing { uint latest; }");
-    watch(&mut state, &[(&path, FileChangeType::CHANGED)]);
+    watch_files(&mut state, [(&path, FileChangeType::CHANGED)]);
     assert_eq!(analysis_version(&state), 2);
 
     let tables = settle(&state).await;
