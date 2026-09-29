@@ -23,7 +23,7 @@ types:
   struct0: {i256, i256}
 
 data:
-  Callee_initcode_0: deferred creation 0
+  Callee_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/try_shapes.sol":"Callee"
 
 fn @constructor() [constructor] {
   bb0:

@@ -8,7 +8,7 @@ fn @something() [selector=0xa7a0d537, pure, abi_params=[], abi_returns=[], abi_r
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_memory_v2.sol:AbiEncodeCallMemory ===
 @module AbiEncodeCallMemory
 data:
-  AbiEncodeCallMemoryTarget_initcode_0: deferred creation 0
+  AbiEncodeCallMemoryTarget_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_memory_v2.sol":"AbiEncodeCallMemoryTarget"
 
 fn @something() [selector=0xa7a0d537, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:

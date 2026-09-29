@@ -15,7 +15,7 @@ fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[], abi_return
 // === ROOT/tests/ui/codegen/lowering/try_catch_panic.sol:TryCatchPanic ===
 @module TryCatchPanic
 data:
-  TryCatchPanicTarget_initcode_0: deferred creation 0
+  TryCatchPanicTarget_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/try_catch_panic.sol":"TryCatchPanicTarget"
 
 fn @constructor() [constructor] {
   bb0:

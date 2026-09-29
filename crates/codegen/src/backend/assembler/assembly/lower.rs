@@ -42,30 +42,34 @@ impl Assembler<'_> {
     )]
     pub(in crate::backend) fn optimize(&mut self) {
         let Some((mut program, labels)) = self.finish_evm_ir() else { return };
-
         ir::builder::resolve_known_deferred_constants(&mut program, &self.deferred_values);
-
-        let input_is_valid = cfg!(debug_assertions) && ir::verify::Verifier::is_valid(&program);
-        let errors_before = self.gcx.dcx().err_count();
-        let _changed = if let Some(checkpoint) = self.outlining.take() {
-            checkpoint.resume(self.gcx, &mut program)
-        } else {
-            ir::run_pipeline(self.gcx, &mut program, None)
-        };
-        let mut failed = self.gcx.dcx().err_count() != errors_before;
-        if !failed {
-            debug_assert!(
-                !input_is_valid || ir::verify::Verifier::is_valid(&program),
-                "EVM IR pipeline invalidated a valid module"
-            );
-            let _legalized = ir::legalize_shifts(self.gcx, &mut program);
-            failed = self.gcx.dcx().err_count() != errors_before;
-        }
-        if !failed {
-            ir::verify::Verifier::new(self.gcx).verify_after_legalization(&program);
-            failed = self.gcx.dcx().err_count() != errors_before;
-        }
+        let failed = !self.run_pipeline(&mut program);
         self.optimized = Some(OptimizedProgram { program, labels, failed });
+    }
+
+    /// Runs the EVM IR pipeline and legalization, returning whether neither reported an error.
+    fn run_pipeline(&mut self, program: &mut ir::Module) -> bool {
+        let input_is_valid = cfg!(debug_assertions) && ir::verify::Verifier::is_valid(program);
+        let errors_before = self.gcx.dcx().err_count();
+        let succeeded = |this: &Self| this.gcx.dcx().err_count() == errors_before;
+        let _changed = if let Some(checkpoint) = self.outlining.take() {
+            checkpoint.resume(self.gcx, program)
+        } else {
+            ir::run_pipeline(self.gcx, program, None)
+        };
+        if !succeeded(self) {
+            return false;
+        }
+        debug_assert!(
+            !input_is_valid || ir::verify::Verifier::is_valid(program),
+            "EVM IR pipeline invalidated a valid module"
+        );
+        let _legalized = ir::legalize_shifts(self.gcx, program);
+        if !succeeded(self) {
+            return false;
+        }
+        ir::verify::Verifier::new(self.gcx).verify_after_legalization(program);
+        succeeded(self)
     }
 
     /// Links embedded contract bytecode into the optimized program's deferred data,
@@ -76,9 +80,11 @@ impl Assembler<'_> {
         libraries: &mut LibraryTable,
     ) {
         if let Some(optimized) = &mut self.optimized
+            && !optimized.failed
             && optimized.program.link(bytecodes, libraries)
         {
-            // Linked bytes can now share storage with other data.
+            // With literal sizes, linked bytes can share storage with other data.
+            optimized.program.fold_data_sizes();
             let _changed = ir::pack_linked_data(&mut optimized.program);
         }
     }
@@ -97,6 +103,7 @@ impl Assembler<'_> {
         if failed {
             return failed_preparation(ir_program, capture_evm_ir);
         }
+        ir_program.fold_data_sizes();
         let errors_before = self.gcx.dcx().err_count();
         let program = lower_evm_ir(self, &mut ir_program, &mut labels, capture_debug_info);
         validate_program_evm_version(self, &program);
@@ -120,16 +127,6 @@ impl Assembler<'_> {
             next_label: std::mem::take(&mut self.next_label),
             deferred_values: std::mem::take(&mut self.deferred_values),
         }
-    }
-
-    /// Optimizes and lowers a program that embeds no contract bytecode.
-    pub(in crate::backend) fn prepare(
-        &mut self,
-        capture_evm_ir: bool,
-        capture_debug_info: bool,
-    ) -> PreparedAssembly {
-        self.optimize();
-        self.lower(capture_evm_ir, capture_debug_info)
     }
 }
 

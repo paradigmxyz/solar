@@ -19,10 +19,10 @@ types:
   struct0: {i256, i256}
 
 data:
-  TryTarget_initcode_0: deferred creation 0
-  StopsInConstructor_initcode_1: deferred creation 2
-  RevertsInConstructor_initcode_2: deferred creation 3
-  RevertsWithoutArgs_initcode_3: deferred creation 4
+  TryTarget_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol":"TryTarget"
+  StopsInConstructor_initcode_1: deferred creation "ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol":"StopsInConstructor"
+  RevertsInConstructor_initcode_2: deferred creation "ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol":"RevertsInConstructor"
+  RevertsWithoutArgs_initcode_3: deferred creation "ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol":"RevertsWithoutArgs"
 
 fn @constructor() [constructor] {
   bb0:

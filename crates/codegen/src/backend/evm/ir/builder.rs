@@ -38,6 +38,9 @@ impl<'gcx> Assembler<'gcx> {
                 .err("cannot assemble unresolved `push_deferred` instruction")
                 .emit());
         }
+        if module.data.iter().any(|data| data.deferred.is_some()) {
+            return Err(gcx.dcx().err("cannot assemble unlinked deferred program data").emit());
+        }
         debug_assert!(ir::verify::Verifier::is_valid(&module));
 
         // Parsed block labels may be sparse, but assembly indexes labels with a vector.

@@ -30,8 +30,8 @@ types:
   struct1: {i256, i256, i256}
 
 data:
-  LongReturn_initcode_0: deferred creation 3
-  ShortReturn_initcode_1: deferred creation 4
+  LongReturn_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol":"LongReturn"
+  ShortReturn_initcode_1: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol":"ShortReturn"
 
 fn @directOne() -> struct0 [selector=0x6aec8241, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:

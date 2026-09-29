@@ -8,7 +8,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
 // === ROOT/tests/ui/codegen/lowering/creation_code.sol:CreationCodeFactory ===
 @module CreationCodeFactory
 data:
-  CreationCodeChild_initcode_0: deferred creation 0
+  CreationCodeChild_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/creation_code.sol":"CreationCodeChild"
 
 fn @creationCode() -> memorybytes [selector=0x7213edad, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:

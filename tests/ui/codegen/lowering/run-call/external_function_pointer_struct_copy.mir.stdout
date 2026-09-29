@@ -62,7 +62,7 @@ fn @copy(arg0: calldataslice) -> memorystruct [selector=0x0bf8d45f, pure, abi_pa
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_struct_copy.sol:ExternalFunctionPointerStructCopy ===
 @module ExternalFunctionPointerStructCopy
 data:
-  ExternalFunctionPointerStructCopyTarget_initcode_0: deferred creation 0
+  ExternalFunctionPointerStructCopyTarget_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_struct_copy.sol":"ExternalFunctionPointerStructCopyTarget"
 
 fn @constructor() [constructor] {
   bb0:

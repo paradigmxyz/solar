@@ -53,8 +53,8 @@ fn @constructor(arg0: i256) [constructor, abi_params=[address]] {
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_delegated_guard.sol:Deployer ===
 @module Deployer
 data:
-  Impl_initcode_0: deferred creation 0
-  Proxy_initcode_1: deferred creation 1
+  Impl_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/this_call_delegated_guard.sol":"Impl"
+  Proxy_initcode_1: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/this_call_delegated_guard.sol":"Proxy"
 
 fn @deployProxy() -> i256 [selector=0x44882b95, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:

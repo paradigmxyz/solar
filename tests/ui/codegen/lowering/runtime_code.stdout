@@ -8,7 +8,7 @@ fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word
 // === ROOT/tests/ui/codegen/lowering/runtime_code.sol:RuntimeCode ===
 @module RuntimeCode
 data:
-  RuntimeCodeTarget_runtime_code_0: deferred runtime 0
+  RuntimeCodeTarget_runtime_code_0: deferred runtime "ROOT/tests/ui/codegen/lowering/runtime_code.sol":"RuntimeCodeTarget"
 
 fn @runtime() -> i256 [selector=0x54d75aa6, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:

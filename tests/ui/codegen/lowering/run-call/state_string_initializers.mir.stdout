@@ -60,7 +60,7 @@ types:
   struct0: {memorybytes, memorybytes, i256}
 
 data:
-  StateStringInitializers_initcode_0: deferred creation 0
+  StateStringInitializers_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/state_string_initializers.sol":"StateStringInitializers"
 
 fn @deploys() -> i256 [selector=0x225b4d71, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:

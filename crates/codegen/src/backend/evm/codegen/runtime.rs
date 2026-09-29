@@ -5,7 +5,6 @@ use super::{
     FunctionId, GeneratedCode, IndexVec, LibraryTable, Liveness, MAX_STACK_DEPTH, MirPhase, Module,
     OptimizationMode, Terminator, index_vec, run_pipeline,
 };
-use crate::backend::assembler::AssembledCode;
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Runs the canonical MIR optimization pipeline on the module.
@@ -88,7 +87,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         bytecodes: &EmbeddedBytecodes,
         libraries: &mut LibraryTable,
     ) -> GeneratedCode {
-        let mut result = self.link_and_assemble(bytecodes, libraries);
+        let (capture_evm_ir, capture_debug_info) = (self.capture_evm_ir, self.capture_debug_info);
+        let mut result =
+            self.asm.assemble_linked(bytecodes, libraries, capture_evm_ir, capture_debug_info);
         if let Some(mut asm) = size_rescue
             && let Some(limit) = self.gcx.sess.opts.evm_version.runtime_code_size_limit()
             && result.bytecode.len() > limit
@@ -97,7 +98,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             asm.set_enable_size_outlining(true);
             self.asm = asm;
             self.asm.optimize();
-            let rescued = self.link_and_assemble(bytecodes, libraries);
+            let rescued =
+                self.asm.assemble_linked(bytecodes, libraries, capture_evm_ir, capture_debug_info);
             if rescued.bytecode.len() <= limit {
                 result = rescued;
             }
@@ -109,18 +111,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             evm_ir: result.evm_ir,
             debug_info: result.debug_info,
         }
-    }
-
-    fn link_and_assemble(
-        &mut self,
-        bytecodes: &EmbeddedBytecodes,
-        libraries: &mut LibraryTable,
-    ) -> AssembledCode {
-        self.asm.link(bytecodes, libraries);
-        let prepared = self.asm.lower(self.capture_evm_ir, self.capture_debug_info);
-        let result = self.asm.assemble_owned(prepared, &[]);
-        self.asm.clear();
-        result
     }
 
     fn reset_runtime_codegen(&mut self, module: &Module) {

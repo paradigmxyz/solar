@@ -650,6 +650,8 @@ pub struct EvmArtifact {
 impl crate::backend::Backend for EvmCodegen<'_> {
     type Output = EvmArtifact;
 
+    /// Lowers a module that embeds no other contract's bytecode; use
+    /// [`EvmCodegen::schedule_module`] and [`EvmCodegen::finish_module`] otherwise.
     fn lower_module(&mut self, module: &mut Module) -> EvmArtifact {
         if !self.schedule_module(module) {
             return EvmArtifact::default();

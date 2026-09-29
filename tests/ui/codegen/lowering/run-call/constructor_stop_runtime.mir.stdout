@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopRuntime ===
 @module ConstructorStopRuntime
 data:
-  ConstructorStopAlways_initcode_0: deferred creation 1
-  ConstructorStopConditional_initcode_1: deferred creation 2
+  ConstructorStopAlways_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol":"ConstructorStopAlways"
+  ConstructorStopConditional_initcode_1: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol":"ConstructorStopConditional"
 
 fn @unconditional() -> i256 [selector=0x7d06b8f6, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:

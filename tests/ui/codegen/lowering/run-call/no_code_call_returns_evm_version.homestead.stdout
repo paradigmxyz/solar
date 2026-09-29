@@ -27,7 +27,7 @@ types:
   struct0: {i256, i256}
 
 data:
-  NoCodeCallee_initcode_0: deferred creation 3
+  NoCodeCallee_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/no_code_call_returns_evm_version.sol":"NoCodeCallee"
 
 fn @direct() -> i256 [selector=0x222b1407, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:

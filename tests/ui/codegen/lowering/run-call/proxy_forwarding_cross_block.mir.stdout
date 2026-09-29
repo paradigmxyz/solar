@@ -116,11 +116,11 @@ fn @fallback() [fallback] {
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:ForwardingHarness ===
 @module ForwardingHarness
 data:
-  ForwardingImplementation_initcode_0: deferred creation 0
-  FixedRangeProxy_initcode_1: deferred creation 1
-  CrossBlockProxy_initcode_2: deferred creation 2
-  RevertingProducer_initcode_3: deferred creation 4
-  DynamicReturnWrapper_initcode_4: deferred creation 5
+  ForwardingImplementation_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol":"ForwardingImplementation"
+  FixedRangeProxy_initcode_1: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol":"FixedRangeProxy"
+  CrossBlockProxy_initcode_2: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol":"CrossBlockProxy"
+  RevertingProducer_initcode_3: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol":"RevertingProducer"
+  DynamicReturnWrapper_initcode_4: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol":"DynamicReturnWrapper"
 
 fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:

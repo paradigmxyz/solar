@@ -78,7 +78,7 @@ types:
   struct5: {memoryarray, i256, memorybytes}
 
 data:
-  Callee_initcode_0: deferred creation 0
+  Callee_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/dynamic_multi_return.sol":"Callee"
 
 fn @strAndNum() -> struct0 [selector=0x713d228b, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:

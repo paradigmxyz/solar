@@ -386,13 +386,13 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:Deployer ===
 @module Deployer
 data:
-  CreationHelper_initcode_0: deferred creation 0
-  CreationDirect_initcode_1: deferred creation 1
-  CreationModifier_initcode_2: deferred creation 2
-  CreationDerived_initcode_3: deferred creation 4
-  CreationInitializer_initcode_4: deferred creation 5
-  CreationTry_initcode_5: deferred creation 6
-  SharedHelper_initcode_6: deferred creation 8
+  CreationHelper_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol":"CreationHelper"
+  CreationDirect_initcode_1: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol":"CreationDirect"
+  CreationModifier_initcode_2: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol":"CreationModifier"
+  CreationDerived_initcode_3: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol":"CreationDerived"
+  CreationInitializer_initcode_4: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol":"CreationInitializer"
+  CreationTry_initcode_5: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol":"CreationTry"
+  SharedHelper_initcode_6: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol":"SharedHelper"
 
 fn @viaHelper() [selector=0x9c6f4ff5, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:

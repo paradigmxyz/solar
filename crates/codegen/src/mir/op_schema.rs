@@ -2135,7 +2135,7 @@ define_mir_ops! {
     /// an addend, rounded down to a multiple of 32 when aligned.
     ///
     /// The length of deferred data, such as another contract's bytecode, is
-    /// only known when the data is resolved before final assembly. Folding
+    /// only known once the data is linked during final assembly. Folding
     /// the addend and rounding into the operation keeps sizes derived from
     /// the length constant after resolution.
     #[mir_op(

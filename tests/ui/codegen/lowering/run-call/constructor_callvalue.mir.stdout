@@ -42,11 +42,11 @@ fn @constructor() [constructor, payable] {
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ConstructorCallvalue ===
 @module ConstructorCallvalue
 data:
-  ExplicitNonpayable_initcode_0: deferred creation 0
-  ImplicitNonpayable_initcode_1: deferred creation 1
-  SyntheticNonpayable_initcode_2: deferred creation 2
-  InheritedNonpayable_initcode_3: deferred creation 4
-  ExplicitPayable_initcode_4: deferred creation 5
+  ExplicitNonpayable_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol":"ExplicitNonpayable"
+  ImplicitNonpayable_initcode_1: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol":"ImplicitNonpayable"
+  SyntheticNonpayable_initcode_2: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol":"SyntheticNonpayable"
+  InheritedNonpayable_initcode_3: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol":"InheritedNonpayable"
+  ExplicitPayable_initcode_4: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol":"ExplicitPayable"
 
 fn @rejectsExplicit() -> i256 [selector=0x90887b1f, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:

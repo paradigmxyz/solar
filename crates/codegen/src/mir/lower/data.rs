@@ -5,7 +5,7 @@ use crate::{
         ir::immediate_materialization_cost,
         op::{WORD_BYTES, push_len},
     },
-    link::ContractCode,
+    link::{ContractCode, Library},
     mir::{DataRef, FunctionBuilder, Module, ValueId, memory::EvmMemoryLayout},
 };
 use alloy_primitives::U256;
@@ -42,7 +42,8 @@ pub(super) fn contract_code_data(
 ) -> DataRef {
     let kind = if creation { "initcode" } else { "runtime_code" };
     let name = Symbol::intern(&format!("{}_{kind}", gcx.hir.contract(contract_id).name));
-    module.intern_contract_code(ContractCode { contract: contract_id, creation }, name)
+    let contract = Library::of_contract(gcx, contract_id);
+    module.intern_contract_code(ContractCode { contract, creation }, name)
 }
 
 /// Copies constant data and clears its padding through `padded_size`.

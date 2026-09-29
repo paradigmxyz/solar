@@ -84,8 +84,8 @@ pub struct Module {
 }
 
 impl Module {
-    /// Links embedded contract bytecode into deferred data and pushes each size derived from
-    /// a data length as a literal, interning the bytecode's libraries into `libraries`.
+    /// Links embedded contract bytecode into deferred data, interning the bytecode's libraries
+    /// into `libraries`.
     ///
     /// Returns whether any data was linked.
     pub(in crate::backend) fn link(
@@ -109,15 +109,21 @@ impl Module {
         if linked {
             self.libraries = libraries.clone();
         }
+        linked
+    }
+
+    /// Pushes each size derived from a data length as a literal. All data must be linked.
+    pub(in crate::backend) fn fold_data_sizes(&mut self) {
         for block in &mut self.blocks {
             for inst in &mut block.instructions {
                 if let Some(size) = inst.pushed_data_size() {
-                    let value = size.value(self.data[size.data.id].bytes.len());
+                    let data = &self.data[size.data.id];
+                    assert!(data.deferred.is_none(), "data sizes require linked data");
+                    let value = size.value(data.bytes.len());
                     inst.replace_preserving_metadata(Instruction::push_value(value));
                 }
             }
         }
-        linked
     }
 
     /// Lowers this EVM IR module to bytecode, retaining unresolved library addresses.

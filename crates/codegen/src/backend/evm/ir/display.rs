@@ -20,12 +20,8 @@ impl Module {
                 writeln!(f)?;
             }
             for (id, data) in self.data.iter_enumerated() {
-                if let Some(name) = data.name {
-                    write!(f, "@data {}", crate::utils::display_data_name(name, id.index()))?;
-                } else {
-                    write!(f, "@data {}", id.index())?;
-                }
-                writeln!(f, " {}", data.display_contents(&self.libraries))?;
+                let name = crate::utils::display_data_ref(data.name, id.index(), 0);
+                writeln!(f, "@data {name} {}", data.display_contents(&self.libraries))?;
             }
             Ok(())
         })
@@ -194,10 +190,8 @@ fn display_push_value<'a>(module: &'a Module, value: &'a PushValue) -> impl fmt:
             crate::utils::display_data_ref(module.data[data.id].name, data.id.index(), data.offset,)
         ),
         PushValue::DataSize(size) => {
-            let data = size.data;
-            let name = module.data[data.id].name;
-            let data = crate::utils::display_data_ref(name, data.id.index(), data.offset);
-            write!(f, "{data}{}", size.display_operands())
+            let name = module.data[size.data.id].name;
+            write!(f, "{}", crate::utils::display_data_size(name, *size))
         }
     })
 }

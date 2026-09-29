@@ -102,7 +102,7 @@ types:
   struct0: {i256, i256, i256}
 
 data:
-  Mgr_initcode_0: deferred creation 1
+  Mgr_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/spill_store_branch_arm.sol":"Mgr"
 
 fn @constructor() [constructor] {
   bb0:

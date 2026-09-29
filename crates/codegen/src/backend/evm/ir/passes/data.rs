@@ -164,13 +164,7 @@ impl DataPool {
         if let Placement::Existing(data) = placement {
             return data;
         }
-        let id = module.data.push(Data {
-            bytes: bytes.clone(),
-            name: Some(sym::literal),
-            emit_in_runtime: false,
-            library_relocations: Vec::new(),
-            deferred: None,
-        });
+        let id = module.data.push(Data::new(bytes.clone(), Some(sym::literal)));
         self.entries.push(PoolEntry { id, bytes: bytes.clone() });
         self.exact.insert(bytes, DataRef::new(id, 0));
         DataRef::new(id, 0)

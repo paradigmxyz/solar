@@ -8,7 +8,7 @@ fn @ping() [selector=0x5c36b186, abi_params=[], abi_returns=[], abi_return_param
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_call_options.sol:TryCallOptions ===
 @module TryCallOptions
 data:
-  TryCallOptionsTarget_initcode_0: deferred creation 0
+  TryCallOptionsTarget_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/try_catch_call_options.sol":"TryCallOptionsTarget"
 
 fn @constructor() [constructor] {
   bb0:

@@ -4,7 +4,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/creation_options.sol:CreationOptions ===
 @module CreationOptions
 data:
-  CreationOptionsChild_initcode_0: deferred creation 0
+  CreationOptionsChild_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/creation_options.sol":"CreationOptionsChild"
 
 fn @sameShortLiteralSalt() -> i256 [selector=0xae55518d, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:

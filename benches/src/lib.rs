@@ -210,12 +210,13 @@ fn ensure_contract_bytecode(
     contract_id: solar::sema::hir::ContractId,
     bytecodes: &mut codegen::EmbeddedBytecodes,
 ) -> Result {
-    if bytecodes.contains_key(&contract_id) {
+    let key = codegen::Library::of_contract(gcx, contract_id);
+    if bytecodes.contains_key(&key) {
         return Ok(());
     }
     // Valid code cannot have recursive creation dependencies; seed the entry
     // so an unexpected cycle terminates instead of recursing forever.
-    bytecodes.insert(contract_id, codegen::ContractBytecodes::default());
+    bytecodes.insert(key, codegen::ContractBytecodes::default());
     for dep in gcx.contract_bytecode_dependencies(contract_id).iter() {
         ensure_contract_bytecode(gcx, dep, bytecodes)?;
     }
@@ -228,7 +229,7 @@ fn ensure_contract_bytecode(
         Default::default()
     };
     bytecodes.insert(
-        contract_id,
+        key,
         codegen::ContractBytecodes {
             deployment: RelocatableBytecode {
                 libraries: artifact.libraries.clone(),

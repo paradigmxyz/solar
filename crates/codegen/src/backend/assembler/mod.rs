@@ -11,7 +11,7 @@ use crate::{
     backend::evm::{
         DebugFunction, DebugFunctionExit, DebugInstruction, DebugSpans, ir, op, op::WORD_BYTES,
     },
-    link::LibraryRelocation,
+    link::{EmbeddedBytecodes, LibraryRelocation, LibraryTable},
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::U256;
@@ -295,7 +295,29 @@ impl<'gcx> Assembler<'gcx> {
         capture_evm_ir: bool,
         capture_debug_info: bool,
     ) -> AssembledCode {
-        let prepared = self.prepare(capture_evm_ir, capture_debug_info);
+        self.optimize();
+        self.assemble_lowered(capture_evm_ir, capture_debug_info)
+    }
+
+    /// Links embedded contract bytecode into the optimized program, then lowers and
+    /// assembles it and clears the assembler.
+    pub(in crate::backend) fn assemble_linked(
+        &mut self,
+        bytecodes: &EmbeddedBytecodes,
+        libraries: &mut LibraryTable,
+        capture_evm_ir: bool,
+        capture_debug_info: bool,
+    ) -> AssembledCode {
+        self.link(bytecodes, libraries);
+        self.assemble_lowered(capture_evm_ir, capture_debug_info)
+    }
+
+    fn assemble_lowered(
+        &mut self,
+        capture_evm_ir: bool,
+        capture_debug_info: bool,
+    ) -> AssembledCode {
+        let prepared = self.lower(capture_evm_ir, capture_debug_info);
         let result = self.assemble_owned(prepared, &[]);
         self.clear();
         result
@@ -309,7 +331,7 @@ impl<'gcx> Assembler<'gcx> {
         self.assemble_owned(prepared.clone(), deferred_values)
     }
 
-    pub(in crate::backend) fn assemble_owned(
+    fn assemble_owned(
         &mut self,
         prepared: PreparedAssembly,
         deferred_values: &[(DeferredConst, U256)],

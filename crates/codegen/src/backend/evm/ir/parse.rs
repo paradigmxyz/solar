@@ -131,15 +131,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 .parser
                 .error(format!("expected program data ID {}, found {id}", module.data.len())));
         }
+        if self.parser.eat_keyword(sym::deferred) {
+            let code = self.parser.parse_contract_code()?;
+            module.data.push(Data { deferred: Some(code), ..Data::new(Default::default(), name) });
+            return Ok(());
+        }
         let bytes = self.parser.parse_data_bytes()?;
         let library_relocations = self.parser.parse_data_library_relocations(&bytes)?;
-        module.data.push(Data {
-            bytes,
-            name,
-            emit_in_runtime: false,
-            library_relocations,
-            deferred: None,
-        });
+        module.data.push(Data { library_relocations, ..Data::new(bytes, name) });
         Ok(())
     }
 
@@ -297,6 +296,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let (id, offset, _) = self.parser.parse_data_ref()?;
                 let id = self.check_assembly_id("program data", span, id)?;
                 Instruction::push_data(DataRef::new(DataId::from_usize(id as usize), offset))
+            }
+            sym::push_data_size => {
+                let span = self.parser.token().span;
+                let (id, offset, _) = self.parser.parse_data_ref()?;
+                let id = self.check_assembly_id("program data", span, id)?;
+                let data = DataRef::new(DataId::from_usize(id as usize), offset);
+                let (addend, aligned) = self.parser.parse_data_size_operands()?;
+                Instruction::push_data_size(DataSize { data, addend, aligned })
             }
             sym::push_deferred => {
                 let id = self.parse_assembly_id("deferred constant")?;

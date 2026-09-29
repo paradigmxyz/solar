@@ -3,7 +3,7 @@
   @module Parser
   data:
     payload_0: hex"11223344"
-    child_1: deferred creation 0
+    child_1: deferred creation "child.sol":"Child"
   
   immutables:
     fn: u8

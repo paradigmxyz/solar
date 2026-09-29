@@ -1095,14 +1095,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .builder
                 .alloc_value(Value::Immediate(Immediate::for_type(Some(MirType::I160), address)));
         }
-        let contract = self.cx.gcx.hir.contract(contract_id);
-        let source = self.cx.gcx.hir.source(contract.source).file.name.display().to_string();
-
-        let library = self
-            .cx
-            .module
-            .libraries
-            .intern(Library { source: Symbol::intern(&source), name: contract.name.name });
+        let library =
+            self.cx.module.libraries.intern(Library::of_contract(self.cx.gcx, contract_id));
         // result = library_address source:library
         self.builder.library_address(library)
     }

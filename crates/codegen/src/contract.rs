@@ -518,7 +518,7 @@ fn finish_contract(
                     libraries,
                 },
             };
-            (dependency, bytecodes)
+            (Library::of_contract(gcx, dependency), bytecodes)
         })
         .collect::<EmbeddedBytecodes>();
     let artifact = match codegen {

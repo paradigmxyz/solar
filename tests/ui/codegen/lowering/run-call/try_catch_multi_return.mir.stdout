@@ -31,7 +31,7 @@ types:
   struct0: {i256, memorybytes}
 
 data:
-  TryMultiReturnTarget_initcode_0: deferred creation 0
+  TryMultiReturnTarget_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/try_catch_multi_return.sol":"TryMultiReturnTarget"
 
 fn @constructor() [constructor] {
   bb0:

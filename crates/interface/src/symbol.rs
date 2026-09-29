@@ -1214,6 +1214,7 @@ symbols! {
         ptrtoint,
         push,
         push_data,
+        push_data_size,
         push_deferred,
         push_immutable,
         push_library,

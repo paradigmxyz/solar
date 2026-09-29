@@ -42,10 +42,7 @@ use super::{
     MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField,
     StorageLayout, StorageLayoutRef, StructId, StructType, Terminator, Value, ValueId,
 };
-use crate::{
-    link::ContractCode,
-    mir::{AbiWordValidator, Callee, MirType, SliceLocation, TypeSize},
-};
+use crate::mir::{AbiWordValidator, Callee, MirType, SliceLocation, TypeSize};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_ast::{
@@ -60,7 +57,7 @@ use solar_interface::{
     BytePos, Ident, Result, Session, Span, Symbol, kw, source_map::SourceFile, sym,
 };
 use solar_parse::{PErr, PResult};
-use solar_sema::hir::{self, ContractId};
+use solar_sema::hir;
 
 // =============================================================================
 // Public API
@@ -328,19 +325,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             self.parser.expect(TokenKind::Colon)?;
             if self.parser.eat_keyword(sym::deferred) {
-                let creation = if self.parser.eat_keyword(sym::creation) {
-                    true
-                } else {
-                    self.parser.expect_keyword(sym::runtime)?;
-                    false
-                };
-                let span = self.parser.token().span;
-                let contract = self.parser.parse_uint()?;
-                let Ok(contract) = usize::try_from(contract) else {
-                    return Err(self.parser.error_at(span, "contract ID exceeds the index limit"));
-                };
-                let contract = ContractId::from_usize(contract);
-                module.add_contract_code(ContractCode { contract, creation }, name);
+                let code = self.parser.parse_contract_code()?;
+                module.add_contract_code(code, name);
                 continue;
             }
             let bytes = self.parser.parse_data_bytes()?;
@@ -2077,18 +2063,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             sym::data_size => {
                 let data = self.parse_data_ref()?;
-                let mut addend = 0;
-                let mut aligned = false;
-                if self.parser.eat(TokenKind::Comma) {
-                    let value = self.parser.parse_uint()?;
-                    addend = u64::try_from(value).map_err(|_| {
-                        self.parser.error(format!("integer `{value}` does not fit in u64"))
-                    })?;
-                    if self.parser.eat(TokenKind::Comma) {
-                        self.parser.expect_keyword(sym::aligned)?;
-                        aligned = true;
-                    }
-                }
+                let (addend, aligned) = self.parser.parse_data_size_operands()?;
                 (InstKind::DataSize(DataSize { data, addend, aligned }), Some(MirType::I256))
             }
             sym::storeimmutable => {

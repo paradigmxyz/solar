@@ -1,4 +1,4 @@
-use crate::link::{Library, LibraryId, LibraryRelocation, LibraryTable};
+use crate::link::{ContractCode, Library, LibraryId, LibraryRelocation, LibraryTable};
 use alloy_primitives::{Bytes, U256};
 use solar_ast::{
     Arena,
@@ -139,10 +139,42 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a source-qualified library identity.
     pub(crate) fn parse_library(&mut self) -> Result<LibraryId, PErr<'sess>> {
+        let library = self.parse_qualified_name()?;
+        Ok(self.libraries.intern(library))
+    }
+
+    /// Parses embedded contract bytecode: `creation|runtime "source":"name"`.
+    pub(crate) fn parse_contract_code(&mut self) -> Result<ContractCode, PErr<'sess>> {
+        let creation = if self.eat_keyword(sym::creation) {
+            true
+        } else if self.eat_keyword(sym::runtime) {
+            false
+        } else {
+            return Err(self.error("expected `creation` or `runtime`"));
+        };
+        Ok(ContractCode { contract: self.parse_qualified_name()?, creation })
+    }
+
+    /// Parses the operands that follow a data reference in a data size: `[, addend[, aligned]]`.
+    pub(crate) fn parse_data_size_operands(&mut self) -> Result<(u64, bool), PErr<'sess>> {
+        if !self.eat(TokenKind::Comma) {
+            return Ok((0, false));
+        }
+        let value = self.parse_uint()?;
+        let addend = u64::try_from(value)
+            .map_err(|_| self.error(format!("integer `{value}` does not fit in u64")))?;
+        let aligned = self.eat(TokenKind::Comma);
+        if aligned {
+            self.expect_keyword(sym::aligned)?;
+        }
+        Ok((addend, aligned))
+    }
+
+    fn parse_qualified_name(&mut self) -> Result<Library, PErr<'sess>> {
         let source = self.parse_library_component()?;
         self.expect(TokenKind::Colon)?;
         let name = self.parse_library_component()?;
-        Ok(self.libraries.intern(Library { source, name }))
+        Ok(Library { source, name })
     }
 
     fn parse_library_component(&mut self) -> Result<Symbol, PErr<'sess>> {

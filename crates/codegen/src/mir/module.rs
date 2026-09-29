@@ -100,8 +100,6 @@ pub struct Module {
     pub(crate) data: IndexVec<DataId, Data>,
     /// Exact data lookup used before the final subslice-packing pass.
     data_index: FxHashMap<Bytes, DataId>,
-    /// Deferred data for embedded contract bytecode, in allocation order.
-    contract_codes: FxHashMap<ContractCode, DataId>,
     /// Whether this is an interface (no bytecode generation).
     pub(crate) is_interface: bool,
     /// Whether this module was lowered from a library.
@@ -171,7 +169,6 @@ impl Module {
             data: IndexVec::new(),
             data_index: FxHashMap::default(),
             libraries: LibraryTable::default(),
-            contract_codes: FxHashMap::default(),
             is_interface: false,
             is_library: false,
             phase: MirPhase::Semantic,
@@ -471,8 +468,8 @@ impl Module {
 
     /// Interns another contract's bytecode, which final assembly links in.
     pub(crate) fn intern_contract_code(&mut self, code: ContractCode, name: Symbol) -> DataRef {
-        let id = match self.contract_codes.get(&code) {
-            Some(&id) => id,
+        let id = match self.data.iter().position(|data| data.deferred == Some(code)) {
+            Some(index) => DataId::from_usize(index),
             None => self.add_contract_code(code, Some(name)),
         };
         DataRef::new(id, 0)
@@ -480,9 +477,7 @@ impl Module {
 
     /// Adds deferred data for another contract's bytecode, which final assembly links in.
     pub(crate) fn add_contract_code(&mut self, code: ContractCode, name: Option<Symbol>) -> DataId {
-        let id = self.data.push(Data { deferred: Some(code), ..Data::new(Bytes::new(), name) });
-        self.contract_codes.insert(code, id);
-        id
+        self.data.push(Data { deferred: Some(code), ..Data::new(Bytes::new(), name) })
     }
 
     /// Interns constant data and returns its stable identifier.
@@ -538,12 +533,8 @@ impl Module {
             if !self.data.is_empty() {
                 writeln!(f, "data:")?;
                 for (id, data) in self.data.iter_enumerated() {
-                    if let Some(name) = data.name {
-                        write!(f, "  {}", crate::utils::display_data_name(name, id.index()))?;
-                    } else {
-                        write!(f, "  {}", id.index())?;
-                    }
-                    writeln!(f, ": {}", data.display_contents(&self.libraries))?;
+                    let name = crate::utils::display_data_ref(data.name, id.index(), 0);
+                    writeln!(f, "  {name}: {}", data.display_contents(&self.libraries))?;
                 }
                 writeln!(f)?;
             }

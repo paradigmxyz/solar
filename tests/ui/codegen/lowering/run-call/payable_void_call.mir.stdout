@@ -20,7 +20,7 @@ fn @approve(arg0: i256, arg1: i256) [selector=0x095ea7b3, payable, abi_params=[a
 // === ROOT/tests/ui/codegen/lowering/run-call/payable_void_call.sol:Caller ===
 @module Caller
 data:
-  Callee_initcode_0: deferred creation 0
+  Callee_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/payable_void_call.sol":"Callee"
 
 fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:

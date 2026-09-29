@@ -44,7 +44,7 @@ types:
   struct0: {i256, i256}
 
 data:
-  DynamicCallee_initcode_0: deferred creation 1
+  DynamicCallee_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_unused_evm_version.sol":"DynamicCallee"
 
 fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:

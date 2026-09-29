@@ -14,7 +14,7 @@ fn @bad() [selector=0x9c3674fc, pure, abi_params=[], abi_returns=[word], abi_ret
 // === ROOT/tests/ui/codegen/lowering/run-call/try_parenthesized_target.sol:Caller ===
 @module Caller
 data:
-  Target_initcode_0: deferred creation 0
+  Target_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/try_parenthesized_target.sol":"Target"
 
 fn @constructor() [constructor] {
   bb0:

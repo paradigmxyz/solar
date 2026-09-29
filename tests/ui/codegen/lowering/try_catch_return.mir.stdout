@@ -18,7 +18,7 @@ fn @value(arg0: i256) -> i256 [selector=0xc4d47ed1, pure, abi_params=[bool], abi
 // === ROOT/tests/ui/codegen/lowering/try_catch_return.sol:TryCatchReturn ===
 @module TryCatchReturn
 data:
-  TryCatchReturnTarget_initcode_0: deferred creation 0
+  TryCatchReturnTarget_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/try_catch_return.sol":"TryCatchReturnTarget"
 
 fn @constructor() [constructor] {
   bb0:

@@ -240,13 +240,13 @@ fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word],
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgFactory ===
 @module CheckedBaseArgFactory
 data:
-  CheckedBaseArgAdd_initcode_0: deferred creation 2
-  CheckedBaseArgMul_initcode_1: deferred creation 3
-  CheckedBaseArgNegate_initcode_2: deferred creation 5
-  CheckedBaseArgElement_initcode_3: deferred creation 9
-  CheckedBaseArgSub_initcode_4: deferred creation 6
-  CheckedBaseArgExp_initcode_5: deferred creation 7
-  CheckedBaseArgShift_initcode_6: deferred creation 8
+  CheckedBaseArgAdd_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol":"CheckedBaseArgAdd"
+  CheckedBaseArgMul_initcode_1: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol":"CheckedBaseArgMul"
+  CheckedBaseArgNegate_initcode_2: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol":"CheckedBaseArgNegate"
+  CheckedBaseArgElement_initcode_3: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol":"CheckedBaseArgElement"
+  CheckedBaseArgSub_initcode_4: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol":"CheckedBaseArgSub"
+  CheckedBaseArgExp_initcode_5: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol":"CheckedBaseArgExp"
+  CheckedBaseArgShift_initcode_6: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol":"CheckedBaseArgShift"
 
 fn @deployAdd(arg0: i256) -> i256 [selector=0xec1495a8, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:

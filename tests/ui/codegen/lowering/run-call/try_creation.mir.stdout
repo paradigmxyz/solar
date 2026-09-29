@@ -12,7 +12,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[bool]] {
 // === ROOT/tests/ui/codegen/lowering/run-call/try_creation.sol:TryCreation ===
 @module TryCreation
 data:
-  TryCreationChild_initcode_0: deferred creation 0
+  TryCreationChild_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/try_creation.sol":"TryCreationChild"
 
 fn @f(arg0: i256) -> i256 [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
