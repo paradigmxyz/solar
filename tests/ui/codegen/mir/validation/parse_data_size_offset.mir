@@ -1,0 +1,11 @@
+//@compile-flags: -Zmir-pipeline=none
+
+@module DataSizeOffset
+data:
+  0: hex"aabb"
+
+fn @bad() {
+  bb0:
+    v0 = data_size 0+1 //~ ERROR: data size cannot take an offset
+    stop
+}

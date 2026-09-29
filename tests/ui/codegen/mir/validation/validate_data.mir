@@ -46,3 +46,10 @@ fn @deferred_size() {
     data_copy 1, 0, v0
     stop
 }
+
+fn @literal_size() {
+  bb0:
+    v0 = data_size 0
+    //~? ERROR: [fn6] [bb0, inst0] data_size requires deferred data
+    stop
+}

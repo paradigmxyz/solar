@@ -89,9 +89,8 @@ impl Assembler<'_> {
         if failed {
             return failed_preparation(ir_program, capture_evm_ir);
         }
-        let linked = ir_program.link(bytecodes, libraries);
-        ir_program.fold_data_sizes();
-        if linked {
+        if ir_program.link(bytecodes, libraries) {
+            ir_program.fold_data_sizes();
             // With literal sizes, linked bytes can share storage with other data.
             let _changed = ir::pack_linked_data(&mut ir_program);
         }

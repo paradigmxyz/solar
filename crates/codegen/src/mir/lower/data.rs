@@ -6,7 +6,7 @@ use crate::{
         op::{WORD_BYTES, push_len},
     },
     link::{ContractCode, Library},
-    mir::{DataRef, FunctionBuilder, Module, ValueId, memory::EvmMemoryLayout},
+    mir::{DataId, FunctionBuilder, Module, ValueId, memory::EvmMemoryLayout},
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
@@ -39,7 +39,7 @@ pub(super) fn contract_code_data(
     module: &mut Module,
     contract_id: ContractId,
     creation: bool,
-) -> DataRef {
+) -> DataId {
     let kind = if creation { "initcode" } else { "runtime_code" };
     let name = Symbol::intern(&format!("{}_{kind}", gcx.hir.contract(contract_id).name));
     let contract = Library::of_contract(gcx, contract_id);

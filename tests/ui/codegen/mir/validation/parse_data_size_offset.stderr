@@ -1,0 +1,8 @@
+error: data size cannot take an offset
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_data_size_offset.mir:LL:CC
+   │
+LL │     v0 = data_size 0+1
+   ╰╴                   ━
+
+error: aborting due to 1 previous error
+

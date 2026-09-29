@@ -8,5 +8,7 @@ error: [fn3] [bb0, inst0] data_copy size of deferred data must be its `data_size
 
 error: [fn4] [bb0, inst1] data_copy size of deferred data must be its `data_size`
 
-error: aborting due to 5 previous errors
+error: [fn6] [bb0, inst0] data_size requires deferred data
+
+error: aborting due to 6 previous errors
 

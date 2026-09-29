@@ -466,13 +466,12 @@ impl Module {
     }
 
     /// Interns another contract's bytecode, which final assembly links in.
-    pub(crate) fn intern_contract_code(&mut self, code: ContractCode, name: Symbol) -> DataRef {
+    pub(crate) fn intern_contract_code(&mut self, code: ContractCode, name: Symbol) -> DataId {
         let existing = self.data.iter_enumerated().find(|(_, data)| data.deferred == Some(code));
-        let id = match existing {
+        match existing {
             Some((id, _)) => id,
             None => self.add_contract_code(code, Some(name)),
-        };
-        DataRef::new(id, 0)
+        }
     }
 
     /// Adds deferred data for another contract's bytecode, which final assembly links in.
