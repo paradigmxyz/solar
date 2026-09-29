@@ -1,9 +1,17 @@
 use super::{
     AnalysisBatch, AnalysisResultAccumulator, SymbolTables, analyze, snapshot_with_config,
+    support::{Query, RequestFixture},
 };
 use crate::test_support::MarkedProject;
 use lsp_types::{GotoDefinitionResponse, Position, Url};
+use snapbox::{assert_data_eq, str};
 use solar_config::CompileOpts;
+use std::{
+    fmt::Write as _,
+    path::PathBuf,
+    sync::Arc,
+    task::{Context, Poll, Waker},
+};
 
 fn remapped_guard_project() -> MarkedProject {
     MarkedProject::from_fixture(
@@ -61,24 +69,84 @@ fn analyze_roots(marked: &MarkedProject, roots: &[&str]) -> SymbolTables {
     results.finish().symbol_tables
 }
 
+const DEFINITION: usize = 0;
+const TYPE_DEFINITION: usize = 2;
+const HOVER: usize = 3;
+const HIGHLIGHTS: usize = 4;
+
+/// Formats the definition, declaration, type-definition, hover, and highlight answers.
+fn point_queries(tables: &SymbolTables, uri: &Url, position: Position) -> [Option<String>; 5] {
+    fn debug(response: Option<impl std::fmt::Debug>) -> Option<String> {
+        response.map(|response| format!("{response:?}"))
+    }
+    [
+        debug(tables.goto_definition(uri, position)),
+        debug(tables.goto_declaration(uri, position)),
+        debug(tables.goto_type_definition(uri, position)),
+        debug(tables.hover(uri, position)),
+        debug(tables.document_highlights(uri, position)),
+    ]
+}
+
 fn assert_no_point_query(tables: &SymbolTables, uri: &Url, position: Position) {
-    assert_eq!(tables.goto_definition(uri, position), None, "definition");
-    assert_eq!(tables.goto_declaration(uri, position), None, "declaration");
-    assert_eq!(tables.goto_type_definition(uri, position), None, "type definition");
-    assert_eq!(tables.hover(uri, position), None, "hover");
-    assert_eq!(tables.document_highlights(uri, position), None, "document highlights");
+    assert_eq!(point_queries(tables, uri, position), <[Option<String>; 5]>::default());
+}
+
+/// Asserts that `tables` keeps the baseline's declarations but rejects its type definition.
+fn assert_rejects_type_definition(
+    tables: &SymbolTables,
+    baseline: &SymbolTables,
+    uri: &Url,
+    position: Position,
+) {
+    let mut expected = point_queries(baseline, uri, position);
+    assert!(expected[DEFINITION].is_some());
+    assert!(expected[TYPE_DEFINITION].take().is_some());
+    let actual = point_queries(tables, uri, position);
+    assert_eq!(actual[..=TYPE_DEFINITION], expected[..=TYPE_DEFINITION]);
+}
+
+/// Analyzes each file as its own batch, returning the first batch's tables and the merged tables.
+fn analyze_files(
+    files: impl IntoIterator<Item = (PathBuf, String)>,
+    diagnostics: bool,
+) -> (SymbolTables, SymbolTables) {
+    let mut results = AnalysisResultAccumulator::default();
+    let mut first = None;
+    for file in files {
+        let result = analyze(AnalysisBatch::from_files(CompileOpts::default(), [file]));
+        assert_eq!(result.diagnostics.is_empty(), !diagnostics, "{:#?}", result.diagnostics);
+        first.get_or_insert_with(|| result.symbol_tables.clone());
+        results.push(result);
+    }
+    (first.unwrap(), results.finish().symbol_tables)
 }
 
 #[test]
-fn incompatible_remappings_fail_closed_in_both_workspace_orders() {
+fn incompatible_contexts_fail_closed_in_both_workspace_orders() {
     let marked = remapped_guard_project();
     let uri = Url::from_file_path(marked.project().path("/shared/Shared.sol")).unwrap();
+    let position = |marker| marked.marker(marker).position();
+    let left = analyze_roots(&marked, &["/left"]);
+    let right = analyze_roots(&marked, &["/right"]);
+    let left_highlights = left.document_highlights(&uri, position("$5")).unwrap();
+    let right_highlights = right.document_highlights(&uri, position("$5")).unwrap();
+    assert!(left_highlights.len() > right_highlights.len());
 
     for roots in [["/left", "/right"], ["/right", "/left"]] {
         let tables = analyze_roots(&marked, &roots);
+        // Incompatible remappings reject every query at the shared `Guard` references.
         for marker in ["$1", "$2"] {
-            assert_no_point_query(&tables, &uri, marked.marker(marker).position());
+            assert_no_point_query(&tables, &uri, position(marker));
         }
+        // Shared variables keep their source declaration but not their resolved types.
+        for marker in ["$3", "$4"] {
+            assert_rejects_type_definition(&tables, &left, &uri, position(marker));
+        }
+        // A fixed alias keeps its definition, but its occurrences differ between contexts.
+        let position = position("$5");
+        assert_eq!(tables.goto_definition(&uri, position), left.goto_definition(&uri, position));
+        assert_eq!(tables.document_highlights(&uri, position), None);
     }
 }
 
@@ -100,68 +168,12 @@ fn compatible_contexts_preserve_and_deduplicate_point_queries() {
         let tables = analyze_roots(&marked, &roots);
         for marker in ["$1", "$2", "$3", "$4", "$5"] {
             let position = marked.marker(marker).position();
-            let definition = baseline.goto_definition(&uri, position);
-            let Some(GotoDefinitionResponse::Array(locations)) = &definition else {
-                panic!("expected a definition for {marker}");
-            };
-            assert_eq!(locations.len(), 1);
-            assert_eq!(tables.goto_definition(&uri, position), definition);
-            assert_eq!(
-                tables.goto_declaration(&uri, position),
-                baseline.goto_declaration(&uri, position)
-            );
-            assert_eq!(
-                tables.goto_type_definition(&uri, position),
-                baseline.goto_type_definition(&uri, position)
-            );
-            let hover = baseline.hover(&uri, position);
-            assert!(hover.is_some(), "expected hover for {marker}");
-            assert_eq!(tables.hover(&uri, position), hover);
-            let highlights = baseline.document_highlights(&uri, position);
-            assert!(highlights.as_ref().is_some_and(|highlights| !highlights.is_empty()));
-            assert_eq!(tables.document_highlights(&uri, position), highlights);
+            let expected = point_queries(&baseline, &uri, position);
+            for query in [DEFINITION, HOVER, HIGHLIGHTS] {
+                assert!(expected[query].is_some(), "{marker} {query}");
+            }
+            assert_eq!(point_queries(&tables, &uri, position), expected, "{marker}");
         }
-    }
-}
-
-#[test]
-fn shared_variable_type_definitions_compare_resolved_types_in_both_orders() {
-    let marked = remapped_guard_project();
-    let uri = Url::from_file_path(marked.project().path("/shared/Shared.sol")).unwrap();
-    let baseline = analyze_roots(&marked, &["/left"]);
-
-    for roots in [["/left", "/right"], ["/right", "/left"]] {
-        let tables = analyze_roots(&marked, &roots);
-        for marker in ["$3", "$4"] {
-            let position = marked.marker(marker).position();
-            let definition = baseline.goto_definition(&uri, position);
-            assert!(definition.is_some());
-            assert_eq!(tables.goto_definition(&uri, position), definition);
-            assert_eq!(
-                tables.goto_declaration(&uri, position),
-                baseline.goto_declaration(&uri, position)
-            );
-            assert!(baseline.goto_type_definition(&uri, position).is_some());
-            assert_eq!(tables.goto_type_definition(&uri, position), None, "{marker}");
-        }
-    }
-}
-
-#[test]
-fn shared_highlight_targets_reject_incompatible_occurrences_in_both_orders() {
-    let marked = remapped_guard_project();
-    let uri = Url::from_file_path(marked.project().path("/shared/Shared.sol")).unwrap();
-    let position = marked.marker("$5").position();
-    let left = analyze_roots(&marked, &["/left"]);
-    let right = analyze_roots(&marked, &["/right"]);
-    let left_highlights = left.document_highlights(&uri, position).unwrap();
-    let right_highlights = right.document_highlights(&uri, position).unwrap();
-    assert!(left_highlights.len() > right_highlights.len());
-
-    for roots in [["/left", "/right"], ["/right", "/left"]] {
-        let tables = analyze_roots(&marked, &roots);
-        assert_eq!(tables.goto_definition(&uri, position), left.goto_definition(&uri, position));
-        assert_eq!(tables.document_highlights(&uri, position), None);
     }
 }
 
@@ -245,24 +257,15 @@ fn conflicting_source_snapshots_fail_closed_in_both_batch_orders() {
         }
         "#,
     );
-    let project = marked.project();
-    let path = project.path("/Shared.sol");
+    let path = marked.project().path("/Shared.sol");
     let uri = Url::from_file_path(&path).unwrap();
-    let current = project.read_file("/Shared.sol");
+    let current = marked.project().read_file("/Shared.sol");
     // Keep queried ranges identical so rejecting conflicting snapshots cannot rely on offsets.
     let changed = current.replace("address(0)", "address(1)");
 
     for sources in [[&current, &changed], [&changed, &current]] {
-        let mut results = AnalysisResultAccumulator::default();
-        for source in sources {
-            let result = analyze(AnalysisBatch::from_files(
-                CompileOpts::default(),
-                [(path.clone(), source.clone())],
-            ));
-            assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
-            results.push(result);
-        }
-        let tables = results.finish().symbol_tables;
+        let (_, tables) =
+            analyze_files(sources.map(|source| (path.clone(), source.clone())), false);
         for marker in ["$1", "$2"] {
             assert_no_point_query(&tables, &uri, marked.marker(marker).position());
         }
@@ -293,8 +296,7 @@ fn conflicting_target_snapshots_reject_direct_and_projected_targets_in_both_orde
         "#,
     );
     let project = marked.project();
-    let path = project.path("/Shared.sol");
-    let uri = Url::from_file_path(&path).unwrap();
+    let uri = Url::from_file_path(project.path("/Shared.sol")).unwrap();
     let current_target = project.read_file("/Types.sol");
     let changed_target = current_target.replace("uint256", "bytes32");
 
@@ -302,28 +304,20 @@ fn conflicting_target_snapshots_reject_direct_and_projected_targets_in_both_orde
         [("/left/Main.sol", &current_target), ("/right/Main.sol", &changed_target)],
         [("/right/Main.sol", &changed_target), ("/left/Main.sol", &current_target)],
     ] {
-        let mut results = AnalysisResultAccumulator::default();
-        let mut baseline = None;
-        for (entry, target_source) in entries {
+        // Each batch reads the target snapshot written just before it is analyzed.
+        let files = entries.into_iter().map(|(entry, target_source)| {
             project.write_file("/Types.sol", target_source);
-            let result = analyze(AnalysisBatch::from_files(
-                CompileOpts::default(),
-                [(project.path(entry), project.read_file(entry))],
-            ));
-            assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
-            baseline.get_or_insert_with(|| result.symbol_tables.clone());
-            results.push(result);
-        }
-        let baseline = baseline.unwrap();
-        let tables = results.finish().symbol_tables;
+            (project.path(entry), project.read_file(entry))
+        });
+        let (baseline, tables) = analyze_files(files, false);
         assert_no_point_query(&tables, &uri, marked.marker("$1").position());
         for marker in ["$2", "$3"] {
-            let position = marked.marker(marker).position();
-            let definition = baseline.goto_definition(&uri, position);
-            assert!(definition.is_some());
-            assert_eq!(tables.goto_definition(&uri, position), definition);
-            assert!(baseline.goto_type_definition(&uri, position).is_some());
-            assert_eq!(tables.goto_type_definition(&uri, position), None);
+            assert_rejects_type_definition(
+                &tables,
+                &baseline,
+                &uri,
+                marked.marker(marker).position(),
+            );
         }
     }
 }
@@ -357,38 +351,81 @@ fn compatible_ambiguous_overloads_keep_all_targets_in_both_batch_orders() {
     let position = marked.marker("$1").position();
 
     for paths in [["/left/Main.sol", "/right/Main.sol"], ["/right/Main.sol", "/left/Main.sol"]] {
-        let mut results = AnalysisResultAccumulator::default();
-        let mut baseline = None;
-        for path in paths {
-            let result = analyze(AnalysisBatch::from_files(
-                CompileOpts::default(),
-                [(project.path(path), project.read_file(path))],
-            ));
-            // The ambiguous call deliberately produces a diagnostic and two navigation targets.
-            assert!(!result.diagnostics.is_empty());
-            baseline.get_or_insert_with(|| result.symbol_tables.clone());
-            results.push(result);
-        }
-        let baseline = baseline.unwrap();
-        let tables = results.finish().symbol_tables;
-        let definition = baseline.goto_definition(&uri, position);
-        let type_definition = baseline.goto_type_definition(&uri, position);
-        for response in [&definition, &type_definition] {
+        // The ambiguous call deliberately produces a diagnostic and two navigation targets.
+        let files = paths.map(|path| (project.path(path), project.read_file(path)));
+        let (baseline, tables) = analyze_files(files, true);
+        for response in [
+            baseline.goto_definition(&uri, position),
+            baseline.goto_type_definition(&uri, position),
+        ] {
             let Some(GotoDefinitionResponse::Array(locations)) = response else {
                 panic!("expected ambiguous navigation targets");
             };
             assert_eq!(locations.len(), 2);
         }
-        assert_eq!(tables.goto_definition(&uri, position), definition);
-        assert_eq!(
-            tables.goto_declaration(&uri, position),
-            baseline.goto_declaration(&uri, position)
-        );
-        assert_eq!(tables.goto_type_definition(&uri, position), type_definition);
-        assert_eq!(
-            tables.document_highlights(&uri, position),
-            baseline.document_highlights(&uri, position)
-        );
-        assert_eq!(tables.hover(&uri, position), None);
+        let expected = point_queries(&baseline, &uri, position);
+        assert_eq!(expected[HOVER], None);
+        assert_eq!(point_queries(&tables, &uri, position), expected);
     }
+}
+
+#[test]
+fn requests_wait_for_requested_analysis() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Fresh.sol
+        contract C {
+            struct Placeholder { uint256 value; }
+            struct NewType { uint256 value; }
+            NewType $1value;
+            function write() external {
+                value = NewType(1);
+            }
+        }
+        "#,
+        "/Fresh.sol",
+    );
+    let old_tables = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(fixture.project_path("/Fresh.sol"), "contract C {\n    uint256 oldValue;\n}\n".into())],
+    ))
+    .symbol_tables;
+    let (uri, position) = fixture.marker_location("$1");
+    let mut output = String::new();
+    for query in Query::ALL {
+        let mut state = fixture.state();
+        let new_tables = state.symbol_tables.load_full();
+        state.symbol_tables.store(Arc::new(old_tables.clone()));
+        state.mark_analysis_pending_for_test();
+        let mut request = query.request(&mut state, uri.clone(), position);
+        let mut context = Context::from_waker(Waker::noop());
+        assert!(request.as_mut().poll(&mut context).is_pending(), "{query:?}");
+
+        let mut snapshot = state.snapshot();
+        assert!(snapshot.publish_symbol_tables(1, new_tables));
+        assert!(!snapshot.publish_symbol_tables(0, Default::default()));
+        let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
+            panic!("{query:?} request should complete after analysis is published");
+        };
+        write!(output, "{}: {}", query.label(), fixture.response_output(response.unwrap()))
+            .unwrap();
+    }
+    assert_data_eq!(
+        output,
+        str![[r#"
+definition: /Fresh.sol:3:12 NewType value;
+declaration: /Fresh.sol:3:12 NewType value;
+implementation: /Fresh.sol:3:12 NewType value;
+type definition: /Fresh.sol:2:11 struct NewType { uint256 value; }
+references: /Fresh.sol:3:12 NewType value;
+/Fresh.sol:5:8 value = NewType(1);
+highlights: 3:12-3:17 WRITE
+5:8-5:13 WRITE
+hover: 3:12-3:17
+```solidity
+NewType value
+```
+
+"#]]
+    );
 }
