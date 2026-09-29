@@ -554,10 +554,13 @@ impl GlobalState {
         self.diagnostics.write().update_analyzed_document_version(uri, i64::from(version));
     }
 
+    fn tracks_source_or_overlay(&self, path: &Path) -> bool {
+        self.config.tracks_watched_source_file(path)
+            || self.vfs.read().exists(&VfsPath::from(path.to_path_buf()))
+    }
+
     pub(crate) fn source_file_event_is_relevant(&self, path: &Path, include_missing: bool) -> bool {
-        if self.config.tracks_watched_source_file(path)
-            || self.vfs.read().exists(&crate::vfs::VfsPath::from(path.to_path_buf()))
-        {
+        if self.tracks_source_or_overlay(path) {
             return true;
         }
         let commit = self.analysis_commit.lock();
@@ -570,9 +573,7 @@ impl GlobalState {
         path: &Path,
         typ: FileChangeType,
     ) -> SourceFileEventDisposition {
-        if self.config.tracks_watched_source_file(path)
-            || self.vfs.read().exists(&crate::vfs::VfsPath::from(path.to_path_buf()))
-        {
+        if self.tracks_source_or_overlay(path) {
             return SourceFileEventDisposition::Relevant;
         }
 
@@ -1076,9 +1077,7 @@ impl GlobalState {
         let mut deferred_paths = Vec::new();
         let mut still_deferred = FxHashMap::default();
         for (path, typ) in deferred_source_file_events {
-            if !self.config.tracks_watched_source_file(&path)
-                && !self.vfs.read().exists(&crate::vfs::VfsPath::from(path.clone()))
-            {
+            if !self.tracks_source_or_overlay(&path) {
                 still_deferred.insert(path, typ);
                 continue;
             }
@@ -1250,8 +1249,7 @@ impl GlobalState {
         changed_paths: Vec<PathBuf>,
         trigger: AnalysisTrigger,
     ) -> Option<(usize, bool, ProgressTicket)> {
-        let analysis_commit = self.analysis_commit.clone();
-        let mut commit = analysis_commit.lock();
+        let mut commit = self.analysis_commit.lock();
         if matches!(mode, AnalysisMode::IfInvalidated) && !commit.cache_invalidated {
             return None;
         }
@@ -1506,7 +1504,7 @@ impl GlobalState {
             let Ok(uri) = Url::from_file_path(&path) else { return false };
             let analyzed =
                 self.symbol_tables.load().natspec_source_fingerprint(&uri).map(str::to_owned);
-            let vfs_path = crate::vfs::VfsPath::from(path.clone());
+            let vfs_path = VfsPath::from(path.clone());
             let open_contents = self.vfs.read().get_file_contents(&vfs_path).cloned();
             let current = open_contents
                 .map(|contents| contents.to_string())
@@ -1567,29 +1565,23 @@ impl GlobalState {
                     return;
                 }
 
-                match result {
-                    Ok(result) => {
-                        let diagnostics = if result.sources_unchanged
-                            && snapshot.flycheck_sources_match_vfs(&result)
-                        {
-                            result.diagnostics
-                        } else {
-                            // The command analyzed a disk snapshot that no longer describes the
-                            // open VFS. Keep the owner empty instead of publishing ranges from
-                            // an unrelated source revision.
-                            DiagnosticMap::default()
-                        };
-                        snapshot.publish_flycheck_diagnostics(task_owner, version, diagnostics)
+                let diagnostics = match result {
+                    Ok(result)
+                        if result.sources_unchanged
+                            && snapshot.flycheck_sources_match_vfs(&result) =>
+                    {
+                        result.diagnostics
                     }
+                    // The command analyzed a disk snapshot that no longer describes the open VFS.
+                    // Keep the owner empty instead of publishing ranges from an unrelated source
+                    // revision.
+                    Ok(_) => DiagnosticMap::default(),
                     Err(error) => {
                         tracing::warn!(%id, %error, "flycheck failed");
-                        snapshot.publish_flycheck_diagnostics(
-                            task_owner,
-                            version,
-                            DiagnosticMap::default(),
-                        );
+                        DiagnosticMap::default()
                     }
-                }
+                };
+                snapshot.publish_flycheck_diagnostics(task_owner, version, diagnostics);
             });
             self.flycheck_cancels.insert(owner, cancel);
         }
@@ -1645,8 +1637,7 @@ impl GlobalState {
 
     fn begin_flycheck_epoch(&mut self, owner: &DiagnosticOwner) -> usize {
         let version = {
-            let analysis_commit = self.analysis_commit.clone();
-            let _commit = analysis_commit.lock();
+            let _commit = self.analysis_commit.lock();
             let mut versions = self.flycheck_versions.write();
             let version = versions.get(owner).copied().unwrap_or_default() + 1;
             versions.insert(owner.clone(), version);
@@ -2225,13 +2216,11 @@ fn spawn_watched_file_registration_update(
         }
         if let Err(error) = client.register_capability(registration).await {
             tracing::warn!(%error, "failed to register watched-file notifications");
-            if coordinator.generation.load(Ordering::Acquire) == generation {
-                let mut current_specs = coordinator.desired_specs.lock();
-                if current_specs.as_ref() == Some(&desired_specs)
-                    && coordinator.generation.load(Ordering::Acquire) == generation
-                {
-                    *current_specs = None;
-                }
+            let mut current_specs = coordinator.desired_specs.lock();
+            if current_specs.as_ref() == Some(&desired_specs)
+                && coordinator.generation.load(Ordering::Acquire) == generation
+            {
+                *current_specs = None;
             }
             return;
         }
@@ -2246,7 +2235,12 @@ fn spawn_watched_file_registration_update(
             if coordinator.generation.load(Ordering::Acquire) != generation {
                 break;
             }
-            match unregister_watched_file_registration(&mut client, previous_id.clone()).await {
+            let unregistration = Unregistration {
+                id: previous_id.clone(),
+                method: DidChangeWatchedFiles::METHOD.into(),
+            };
+            let params = UnregistrationParams { unregisterations: vec![unregistration] };
+            match client.unregister_capability(params).await {
                 Ok(()) => {
                     coordinator.active_registration_ids.lock().retain(|id| id != &previous_id);
                 }
@@ -2256,16 +2250,6 @@ fn spawn_watched_file_registration_update(
             }
         }
     });
-}
-
-async fn unregister_watched_file_registration(
-    client: &mut ClientSocket,
-    id: String,
-) -> async_lsp::Result<()> {
-    let params = UnregistrationParams {
-        unregisterations: vec![Unregistration { id, method: DidChangeWatchedFiles::METHOD.into() }],
-    };
-    client.unregister_capability(params).await
 }
 
 #[cfg(test)]
@@ -2634,8 +2618,7 @@ impl GlobalStateSnapshot {
             .supports_watched_file_dynamic_registration()
             .then(|| watched_file_specs(&self.config, &analysis_paths));
         let (old_symbol_tables, refresh_requests) = {
-            let analysis_commit = self.analysis_commit.clone();
-            let mut commit = analysis_commit.lock();
+            let mut commit = self.analysis_commit.lock();
             if !self.is_current(version) {
                 return false;
             }
@@ -2651,7 +2634,7 @@ impl GlobalStateSnapshot {
                     .into_iter()
                     .filter(|(path, typ)| {
                         self.config.tracks_watched_source_file(path)
-                            || vfs.exists(&crate::vfs::VfsPath::from(path.clone()))
+                            || vfs.exists(&VfsPath::from(path.clone()))
                             || analysis_paths
                                 .includes(path, *typ == FileChangeType::CREATED || path.exists())
                     })
@@ -2763,8 +2746,7 @@ impl GlobalStateSnapshot {
 
     #[cfg(test)]
     fn publish_diagnostics(&mut self, owner: DiagnosticOwner, diagnostics: DiagnosticMap) -> bool {
-        let analysis_commit = self.analysis_commit.clone();
-        let mut commit = analysis_commit.lock();
+        let mut commit = self.analysis_commit.lock();
         let update = self.diagnostics.write().replace_and_publish_batches(owner, diagnostics);
 
         let refresh_immediately = update.pull_reports_changed && commit.external_refresh.is_none();
@@ -2778,8 +2760,7 @@ impl GlobalStateSnapshot {
         owners: impl IntoIterator<Item = DiagnosticOwner>,
         use_current_versions: bool,
     ) -> bool {
-        let analysis_commit = self.analysis_commit.clone();
-        let mut commit = analysis_commit.lock();
+        let mut commit = self.analysis_commit.lock();
         let mut update = self.diagnostics.write().clear_owners_and_publish_batches(owners);
         if use_current_versions {
             let vfs = self.vfs.read();
@@ -2807,8 +2788,7 @@ impl GlobalStateSnapshot {
         diagnostics: DiagnosticMap,
     ) {
         let pull_reports_changed = {
-            let analysis_commit = self.analysis_commit.clone();
-            let _commit = analysis_commit.lock();
+            let _commit = self.analysis_commit.lock();
             if !self.is_current_flycheck(&owner, version) {
                 return;
             }
@@ -2855,6 +2835,7 @@ where
     });
 }
 
+#[derive(Default)]
 struct AnalysisBatch {
     opts: CompileOpts,
     files: Vec<(PathBuf, Arc<String>)>,
@@ -2866,14 +2847,7 @@ struct AnalysisBatch {
 
 impl AnalysisBatch {
     fn new(opts: CompileOpts) -> Self {
-        Self {
-            opts,
-            files: Vec::new(),
-            preloaded_files: Vec::new(),
-            preloaded_paths: FxHashSet::default(),
-            open_file_versions: FxHashMap::default(),
-            seen_paths: FxHashSet::default(),
-        }
+        Self { opts, ..Default::default() }
     }
 
     #[cfg(any(test, feature = "bench"))]
