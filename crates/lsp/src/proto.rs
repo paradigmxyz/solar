@@ -738,9 +738,10 @@ fn severity(level: Level) -> lsp_types::DiagnosticSeverity {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::apply_document_changes;
+    use crate::{test_support::from_json, utils::apply_document_changes};
     use lsp_types::{Position, Range, TextDocumentContentChangeEvent, Url};
     use serde_json::json;
+    use snapbox::{assert_data_eq, str};
     use solar_interface::{
         diagnostics::{Applicability, DiagMsg, MultiSpan},
         source_map::FileName,
@@ -833,10 +834,9 @@ mod tests {
                 false,
             ),
         ] {
-            let params = serde_json::from_value::<InitializeParams>(
+            let params = from_json::<InitializeParams>(
                 json!({ "capabilities": { "workspace": workspace } }),
-            )
-            .unwrap();
+            );
             let refresh = params.into_inner().capabilities.workspace.and_then(|workspace| {
                 workspace.diagnostic.and_then(|diagnostic| diagnostic.refresh_support)
             });
@@ -1319,9 +1319,9 @@ mod tests {
             .help("use a wider type")
             .span_note(secondary, "related declaration");
         let diagnostic = convert(&source_map, &diagnostic);
-        snapbox::assert_data_eq!(
+        assert_data_eq!(
             diagnostic.message,
-            snapbox::str![[r#"
+            str![[r#"
 mismatched types
 expected `uint8`, found `int_literal[9]`
 note: the value does not fit
@@ -1330,8 +1330,8 @@ help: use a wider type
         );
         let related = diagnostic.related_information.unwrap();
         assert_eq!(related.len(), 2);
-        snapbox::assert_data_eq!(related[0].message.as_str(), "type declared here");
-        snapbox::assert_data_eq!(related[1].message.as_str(), "related declaration");
+        assert_data_eq!(related[0].message.as_str(), "type declared here");
+        assert_data_eq!(related[1].message.as_str(), "related declaration");
         assert_eq!(related[0].location, secondary_location);
         assert_eq!(related[1].location, secondary_location);
 
@@ -1344,9 +1344,9 @@ help: use a wider type
             .span_note(labels, "context without a primary span")
             .span_help(Span::DUMMY, "help without a valid location");
         let diagnostic = convert(&source_map, &diagnostic);
-        snapbox::assert_data_eq!(
+        assert_data_eq!(
             diagnostic.message,
-            snapbox::str![[r#"
+            str![[r#"
 main message
 note: context without a primary span
 help: help without a valid location
@@ -1354,7 +1354,7 @@ help: help without a valid location
         );
         let related = diagnostic.related_information.unwrap();
         assert_eq!(related.len(), 1);
-        snapbox::assert_data_eq!(related[0].message.as_str(), "related label");
+        assert_data_eq!(related[0].message.as_str(), "related label");
         assert_eq!(related[0].location, secondary_location);
     }
 }

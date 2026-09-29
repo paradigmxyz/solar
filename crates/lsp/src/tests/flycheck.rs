@@ -14,18 +14,19 @@ use solar_interface::{
 use std::{io, path::Path, sync::Arc, time::Duration};
 use tokio::sync::oneshot;
 
-const SOURCE: &str = "contract Test { function run() public view {} }";
+const FIXTURE: &str = r#"
+//- /foundry.toml
+[profile.default]
+src = "src"
+
+//- /src/Test.sol
+contract Test { function run() public view {} }
+"#;
 const FAKE_FLYCHECK_TEST: &str = "flycheck_tests::fake_json_emitter";
 
 #[tokio::test(flavor = "current_thread")]
 async fn default_forge_flycheck_uses_selected_profile() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "src"
-        "#,
-    );
+    let project = TestProject::from_fixture(FIXTURE);
     // Libtest accepts `lint --help`, providing a portable successful capability probe.
     let forge = std::env::current_exe().unwrap();
 
@@ -42,9 +43,7 @@ async fn default_forge_flycheck_uses_selected_profile() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn json_emitter_alternatives_become_separate_flycheck_code_actions() {
-    let project = TestProject::new();
-    project.write_file("/foundry.toml", "[profile.default]\nsrc = \"src\"\n");
-    project.write_file("/src/Test.sol", SOURCE);
+    let project = TestProject::from_fixture(FIXTURE);
     let path = project.path("/src/Test.sol");
     let uri = project.uri("/src/Test.sol");
 
