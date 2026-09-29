@@ -40,7 +40,12 @@
 //! module without inline assembly, typed stores and validating decoders wrote every array word,
 //! so no element holds a dirty address and those masks are dropped, along with the mark, so the
 //! helper can merge with the word helper of the same shape. A module with assembly keeps them:
-//! the pointers carry no array identity to bound per array.
+//! the pointers carry no array identity to bound per array. The operations that move raw
+//! address words, such as a copy or a merge's tail, are followed by a call to a helper that only
+//! cleans the array's elements in place, marked by `only_cleans_address_elements`. Such a call
+//! is deleted in a module without assembly, and wherever the array it cleans is bounded to
+//! addresses: by its origin, or for the result of a helper that returns its parameters' words,
+//! by the arrays passed to that helper, and by the words its function and callees store.
 
 use super::egraph::max_bits_with_args;
 use crate::mir::{
@@ -106,7 +111,7 @@ impl MirPass for ElementCleanup {
         }
         // Only assembly can leave an address element's upper bits dirty.
         let clean_addresses = !module.functions.iter().any(|func| func.attributes.inline_assembly);
-        let mut changed = false;
+        let mut changed = remove_address_cleaners(module, clean_addresses, &params, &transitive);
         for (id, func) in module.functions.iter_mut_enumerated() {
             let reading = transitive[id];
             let helper_masks = clean_addresses && func.attributes.cleans_address_elements;
@@ -505,4 +510,82 @@ fn object_bounds(
         bounds.insert(*result, FULL_WIDTH);
     }
     bounds
+}
+
+/// Deletes the calls to helpers that only clean the elements of an `address[]` in place where
+/// the array cannot hold a dirty address. Returns whether any call was deleted.
+fn remove_address_cleaners(
+    module: &mut Module,
+    clean_addresses: bool,
+    params: &FxHashMap<(FunctionId, ArgIdx), u32>,
+    transitive: &IndexVec<FunctionId, u32>,
+) -> bool {
+    let mut cleaners = DenseBitSet::new_empty(module.functions.len());
+    let mut forwarding = FxHashMap::default();
+    for (id, func) in module.functions.iter_enumerated() {
+        if func.attributes.only_cleans_address_elements {
+            cleaners.insert(id);
+        }
+        if func.attributes.returns_param_elements {
+            let arrays = func.params.iter_enumerated().filter(|&(_, &ty)| is_array(ty));
+            forwarding.insert(id, arrays.map(|(index, _)| index.index()).collect::<Vec<_>>());
+        }
+    }
+    if cleaners.is_empty() {
+        return false;
+    }
+    let mut changed = false;
+    for (id, func) in module.functions.iter_mut_enumerated() {
+        let mut calls = func
+            .instructions()
+            .filter(|&inst| {
+                matches!(func.inst(inst).kind, InstKind::ICall {
+                    function: crate::mir::Callee::Function(callee),
+                    ..
+                } if cleaners.contains(callee))
+            })
+            .collect::<Vec<_>>();
+        if !clean_addresses && !calls.is_empty() {
+            let reading = transitive[id];
+            let objects = object_bounds(func, id, params);
+            // The widest word an array can hold where it is cleaned, apart from later stores.
+            let origin = |array: ValueId| {
+                if let Some(&bound) = objects.get(&array) {
+                    return bound;
+                }
+                // result = icall helper(arrays..) -> the words of those arrays and its stores
+                if let Value::Inst(inst) = func.value(array)
+                    && let InstKind::ICall {
+                        function: crate::mir::Callee::Function(callee),
+                        args,
+                        ..
+                    } = &func.inst(*inst).kind
+                    && let Some(indices) = forwarding.get(callee)
+                {
+                    return indices
+                        .iter()
+                        .map(|&index| args.get(index).and_then(|arg| objects.get(arg)))
+                        .map(|bound| bound.copied().unwrap_or(FULL_WIDTH))
+                        .fold(transitive[*callee], u32::max);
+                }
+                FULL_WIDTH
+            };
+            calls.retain(|&inst| {
+                func.inst(inst)
+                    .kind
+                    .operands()
+                    .first()
+                    .is_some_and(|&array| origin(array).max(reading) <= ADDRESS_WIDTH)
+            });
+        }
+        if calls.is_empty() {
+            continue;
+        }
+        // icall_void(clean, array) -> nothing: no element of the array is dirty
+        for block in func.blocks.iter_mut() {
+            block.instructions.retain(|inst| !calls.contains(inst));
+        }
+        changed = true;
+    }
+    changed
 }

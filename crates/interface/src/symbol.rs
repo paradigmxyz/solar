@@ -1057,6 +1057,7 @@ symbols! {
         continuation,
         copy,
         copyInto,
+        core_array_clean_address,
         core_array_copy,
         core_array_copy_address,
         core_array_group_sort,

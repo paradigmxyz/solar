@@ -990,6 +990,8 @@ fn equivalent_attributes(lhs: &Function, rhs: &Function) -> bool {
         // Merging a body whose masks element cleanup may drop with one whose
         // equal masks it must keep would drop them from both.
         && lhs.attributes.cleans_address_elements == rhs.attributes.cleans_address_elements
+        && lhs.attributes.only_cleans_address_elements
+            == rhs.attributes.only_cleans_address_elements
         // A proved element width is part of what callers rely on: merging a body
         // whose address array is proved canonical into one that is not would make
         // its callers re-clean every returned element.

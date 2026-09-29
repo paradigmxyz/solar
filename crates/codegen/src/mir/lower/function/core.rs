@@ -826,7 +826,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             lowerer.lower_core_array_set(operation, order, a, b);
             Some(())
         })?;
-        Some(self.builder.icall(helper, vec![*a, *b], array))
+        let result = self.builder.icall(helper, vec![*a, *b], array);
+        self.clean_set_tails(result, operation, address)?;
+        Some(result)
     }
 
     /// Other builds than gas give each operation one body for every full-word
@@ -866,7 +868,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(())
         })?;
         let flip = self.builder.imm(if signed { U256::from(1) << 255 } else { U256::ZERO });
-        Some(self.builder.icall(helper, vec![a, b, flip], array))
+        let result = self.builder.icall(helper, vec![a, b, flip], array);
+        self.clean_set_tails(result, operation, address)?;
+        Some(result)
     }
 
     /// Lowers every `copy` overload to one helper; addresses get their own, so
@@ -877,10 +881,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         parameter_tys: &[Ty<'gcx>],
     ) -> Option<ValueId> {
         let ([a], [array_ty]) = (operands, parameter_tys) else { return None };
-        let TyKind::DynArray(element) = array_ty.peel_refs().kind else { return None };
+        let addresses = Self::is_address_array(*array_ty)?;
         // Other builds than gas share the word helper with addresses too.
-        let address = matches!(element.kind, TyKind::Elementary(ElementaryType::Address(_)))
-            && self.cx.gcx.sess.opts.optimization.is_gas();
+        let address = addresses && self.cx.gcx.sess.opts.optimization.is_gas();
         let name = if address { sym::core_array_copy_address } else { sym::core_array_copy };
         let array = MirType::MemoryObject(MemoryObjectKind::DynamicArray);
         let helper = self.lazy_helper(name, |this, function| {
@@ -894,7 +897,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             lowerer.builder.ret([copy]);
             Some(())
         })?;
-        Some(self.builder.icall(helper, vec![*a], array))
+        let copy = self.builder.icall(helper, vec![*a], array);
+        // The body assigns each address through its type, which cleans it.
+        if addresses {
+            self.clean_address_elements(copy)?;
+        }
+        Some(copy)
     }
 
     /// Copies a word array as the body's `new` and element loop do: the same
@@ -1464,6 +1472,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.jump(done);
 
         self.builder.switch_to_block(done);
+        // The sort moves raw words and may return early for sorted input; the body assigns
+        // the elements it moves through their type, which cleans them.
+        if addresses {
+            self.clean_address_elements(*input)?;
+        }
         Some(self.builder.imm(U256::ZERO))
     }
 
@@ -1903,6 +1916,74 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let mask = self.builder.imm(U256::MAX >> 96);
         self.builder.and(word, mask)
+    }
+
+    /// Cleans the result of a union or difference of address arrays, whose remaining inputs the
+    /// merge moves with `mcopy` as the raw words they are.
+    fn clean_set_tails(
+        &mut self,
+        result: ValueId,
+        operation: SetOperation,
+        addresses: bool,
+    ) -> Option<()> {
+        if addresses && !matches!(operation, SetOperation::Intersection) {
+            self.clean_address_elements(result)?;
+        }
+        Some(())
+    }
+
+    /// Cleans every element of the `address[]` `array` in place to the address it holds, as the
+    /// module's bodies do by assigning each element through its type. Only inline assembly can
+    /// leave an element dirty, so element cleanup deletes the call in a module without any.
+    fn clean_address_elements(&mut self, array: ValueId) -> Option<()> {
+        let helper = self.lazy_helper(sym::core_array_clean_address, |this, function| {
+            function.attributes.no_inline = true;
+            function.attributes.preserves_array_elements = true;
+            function.attributes.cleans_address_elements = true;
+            function.attributes.only_cleans_address_elements = true;
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            let array =
+                lowerer.builder.add_param(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
+            lowerer.lower_core_array_clean_address(array);
+            Some(())
+        })?;
+        // icall_void(clean, array)
+        self.builder.icall_void(helper, vec![array]);
+        Some(())
+    }
+
+    fn lower_core_array_clean_address(&mut self, array: ValueId) {
+        // start = array + 32; end = start + (len(array) << 5)
+        // header: cursor = phi(start, next); branch lt(cursor, end), body, done
+        // body: mstore cursor, and(mload cursor, 2**160 - 1); next = cursor + 32
+        // done: ret
+        let entry = self.builder.current_block();
+        let length = self.builder.memory_object_len(array, MemoryObjectKind::DynamicArray);
+        let word_size = self.builder.imm(32);
+        let base = self.builder.cast_word(array);
+        let start = self.builder.add(base, word_size);
+        let five = self.builder.imm(5);
+        let bytes = self.builder.shl(five, length);
+        let end = self.builder.add(start, bytes);
+        let header = self.builder.create_block();
+        let body = self.builder.create_block();
+        let done = self.builder.create_block();
+        self.builder.jump(header);
+
+        self.builder.switch_to_block(header);
+        let cursor = self.builder.phi(vec![(entry, start)]);
+        let more = self.builder.lt(cursor, end);
+        self.builder.branch(more, body, done);
+
+        self.builder.switch_to_block(body);
+        let address = self.core_array_word(cursor, true);
+        self.builder.mstore(cursor, address);
+        let next = self.builder.add(cursor, word_size);
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(cursor, body, next);
+
+        self.builder.switch_to_block(done);
+        self.builder.ret([]);
     }
 
     /// Whether a `WordArrays` parameter of type `ty` is an `address[]`, or

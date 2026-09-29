@@ -421,6 +421,7 @@ pub(super) fn declaration(
         preserves_array_elements: false,
         returns_param_elements: false,
         cleans_address_elements: false,
+        only_cleans_address_elements: false,
         array_element_bits: Default::default(),
         array_return_element_bits: None,
     };
