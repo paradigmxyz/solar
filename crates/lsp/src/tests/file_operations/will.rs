@@ -1,96 +1,49 @@
 use super::{
-    super::{AnalysisOutputAccumulator, analyze_cancellable, snapshot_with_config},
-    GlobalState, state,
+    super::ASYNC_TEST_TIMEOUT, GlobalState, analyze_project, rename_params, state,
+    state_with_config, uri,
 };
-use crate::{
-    config::{Config, negotiate_capabilities},
-    test_support::TestProject,
-    vfs::VfsPath,
-};
-use async_lsp::{ClientSocket, ErrorCode};
-use crop::Rope;
+use crate::{config::negotiate_capabilities, handlers, test_support::TestProject, vfs::VfsPath};
+use async_lsp::{ClientSocket, ErrorCode, ResponseError};
 use lsp_types::{
-    CreateFilesParams, DeleteFilesParams, FileDelete, FileRename, Position, Range,
-    RenameFilesParams, TextEdit, Url,
+    CreateFilesParams, DeleteFilesParams, FileDelete, Position, Range, TextEdit, Url, WorkspaceEdit,
 };
-use std::{fs, future::Future, sync::Arc};
+use std::{
+    collections::HashMap,
+    fs,
+    future::Future,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
+
+type EditResult = Result<Option<WorkspaceEdit>, ResponseError>;
 
 fn block_on<F: Future>(future: F) -> F::Output {
     tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(future)
 }
 
-fn state_with_config(project: &TestProject, config: Config) -> GlobalState {
-    let mut outputs = AnalysisOutputAccumulator::default();
-    for batch in snapshot_with_config(config.clone(), project.vfs()).analysis_batches(Vec::new()) {
-        if !batch.files.is_empty() {
-            outputs.push(
-                analyze_cancellable(batch, &Default::default())
-                    .expect("fresh analysis cancellation cannot be cancelled"),
-            );
-        }
-    }
-    let output = outputs.finish();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
-    *state.vfs.write() = project.vfs();
-    state.symbol_tables.store(Arc::new(output.result.symbol_tables));
-    state.analysis_commit.lock().analysis_paths = output.analysis_paths;
-    state
+fn will_delete(state: &mut GlobalState, path: impl AsRef<Path>) -> EditResult {
+    let files = vec![FileDelete { uri: uri(path) }];
+    block_on(handlers::will_delete_files(state, DeleteFilesParams { files }))
 }
 
-fn config_with_initialization_options(
-    project: &TestProject,
-    initialization_options: Option<serde_json::Value>,
-) -> Config {
-    let mut params = project.initialize_params();
-    params.initialization_options = initialization_options;
-    let (_, mut config) = negotiate_capabilities(params);
-    config.rediscover_workspaces();
-    config
+fn will_rename(
+    state: &mut GlobalState,
+    old: impl AsRef<Path>,
+    new: impl AsRef<Path>,
+) -> EditResult {
+    block_on(handlers::will_rename_files(state, rename_params([(old, new)])))
 }
 
-fn assert_will_file_operations_refuse_pruned_importer(
-    project: &TestProject,
-    config: Config,
-    importer: &str,
-    target: &str,
-) {
-    let importer = project.path(importer);
-    let target = project.path(target);
-    let renamed = target.with_file_name("Renamed.sol");
-
-    let mut delete_state = state_with_config(project, config.clone());
-    assert!(
-        delete_state.symbol_tables.load().document_links(&importer).is_empty(),
-        "pruned importer was unexpectedly analyzed: {}",
-        importer.display()
-    );
-    let delete = block_on(crate::handlers::will_delete_files(
-        &mut delete_state,
-        DeleteFilesParams {
-            files: vec![FileDelete { uri: Url::from_file_path(&target).unwrap().to_string() }],
-        },
-    ))
-    .unwrap();
-    assert!(delete.is_none(), "delete returned a partial edit for {}", importer.display());
-
-    let mut rename_state = state_with_config(project, config);
-    assert!(
-        rename_state.symbol_tables.load().document_links(&importer).is_empty(),
-        "pruned importer was unexpectedly analyzed: {}",
-        importer.display()
-    );
-    let rename = block_on(crate::handlers::will_rename_files(
-        &mut rename_state,
-        RenameFilesParams {
-            files: vec![FileRename {
-                old_uri: Url::from_file_path(target).unwrap().to_string(),
-                new_uri: Url::from_file_path(renamed).unwrap().to_string(),
-            }],
-        },
-    ))
-    .unwrap();
-    assert!(rename.is_none(), "rename returned a partial edit for {}", importer.display());
+fn assert_one_edit_per_file(edit: EditResult, files: &[PathBuf]) {
+    let changes = edit.unwrap().unwrap().changes.unwrap();
+    let mut edited = changes
+        .iter()
+        .map(|(uri, edits)| (uri.to_file_path().unwrap(), edits.len()))
+        .collect::<Vec<_>>();
+    edited.sort();
+    let mut expected = files.iter().map(|file| (file.clone(), 1)).collect::<Vec<_>>();
+    expected.sort();
+    assert_eq!(edited, expected);
 }
 
 #[test]
@@ -98,14 +51,13 @@ fn will_create_returns_no_speculative_edits() {
     let mut state = GlobalState::new(ClientSocket::new_closed());
 
     let edit =
-        block_on(crate::handlers::will_create_files(&mut state, CreateFilesParams::default()))
-            .unwrap();
+        block_on(handlers::will_create_files(&mut state, CreateFilesParams::default())).unwrap();
 
     assert!(edit.is_none());
 }
 
 #[test]
-fn will_delete_returns_import_edits_without_mutating_state() {
+fn will_file_operations_return_import_edits_without_mutating_state() {
     let project = TestProject::from_fixture(
         r#"
         //- /src/Importer.sol open
@@ -116,210 +68,251 @@ fn will_delete_returns_import_edits_without_mutating_state() {
         "#,
     );
     let importer = project.path("/src/Importer.sol");
-    let target_uri = Url::from_file_path(project.path("/src/Target.sol")).unwrap();
+    let importer_uri = Url::from_file_path(&importer).unwrap();
+    let target = project.path("/src/Target.sol");
     let mut state = state(&project);
 
-    let edit = block_on(crate::handlers::will_delete_files(
-        &mut state,
-        DeleteFilesParams { files: vec![FileDelete { uri: target_uri.to_string() }] },
-    ))
-    .unwrap()
-    .unwrap();
+    let delete = will_delete(&mut state, &target).unwrap().unwrap();
+    let rename =
+        will_rename(&mut state, &target, project.path("/src/Renamed.sol")).unwrap().unwrap();
 
+    let range = |start, end| Range::new(Position::new(0, start), Position::new(0, end));
     assert_eq!(
-        edit.changes,
-        Some(
-            [(
-                Url::from_file_path(&importer).unwrap(),
-                vec![TextEdit::new(
-                    Range::new(Position::new(0, 0), Position::new(0, 22)),
-                    String::new(),
-                )],
-            )]
-            .into_iter()
-            .collect()
-        )
+        delete.changes,
+        Some(HashMap::from([(
+            importer_uri.clone(),
+            vec![TextEdit::new(range(0, 22), String::new())]
+        )]))
     );
     assert_eq!(
-        state.vfs.read().get_file_contents(&VfsPath::from(importer)).unwrap().to_string(),
+        rename.changes,
+        Some(HashMap::from([(
+            importer_uri,
+            vec![TextEdit::new(range(7, 21), "\"./Renamed.sol\"".into())]
+        )]))
+    );
+    assert!(rename.document_changes.is_none());
+    assert_eq!(
+        state.vfs.read().get_file_contents(&VfsPath::from(importer.clone())).unwrap().to_string(),
         "import \"./Target.sol\";"
     );
+    assert_eq!(
+        state.symbol_tables.load().document_links(&importer)[0].target,
+        Some(Url::from_file_path(target).unwrap())
+    );
 }
 
 #[test]
-fn will_delete_returns_import_edits_without_default_foundry_flycheck_roots() {
-    let project = TestProject::from_fixture(
-        r#"
+fn will_file_operations_edit_every_workspace_importer() {
+    let default_foundry = r#"
         //- /foundry.toml
         [profile.default]
-        src = "src"
-
-        //- /src/Importer.sol open
-        import "./Target.sol";
-
+        //- /checks/Importer.sol
+        import "../src/Target.sol";
         //- /src/Target.sol
         contract Target {}
-        "#,
-    );
-    let importer = project.path("/src/Importer.sol");
-    let mut state = state(&project);
-
-    let edit = block_on(crate::handlers::will_delete_files(
-        &mut state,
-        DeleteFilesParams {
-            files: vec![FileDelete {
-                uri: Url::from_file_path(project.path("/src/Target.sol")).unwrap().to_string(),
-            }],
-        },
-    ))
-    .unwrap()
-    .expect("absent default flycheck roots should not suppress complete import edits");
-
-    assert!(
-        edit.changes
-            .is_some_and(|changes| changes.contains_key(&Url::from_file_path(importer).unwrap()))
-    );
-}
-
-#[test]
-fn file_import_edits_ignore_project_metadata_and_dependency_roots() {
-    for ignored in [".git/config", "lib/Unused.sol", "out/Generated.sol"] {
-        let project = TestProject::from_fixture(
+        "#;
+    let cases = [
+        // Absent default flycheck roots must not suppress complete import edits.
+        (
             r#"
             //- /foundry.toml
             [profile.default]
-            //- /checks/Importer.sol
-            import "../src/Target.sol";
+            src = "src"
+
+            //- /src/Importer.sol open
+            import "./Target.sol";
+
             //- /src/Target.sol
             contract Target {}
             "#,
-        );
-        project.write_file(&format!("/{ignored}"), "contract Ignored {}");
+            None,
+            &["/src/Importer.sol"][..],
+        ),
+        // Project metadata and dependency roots must not suppress project import edits.
+        (default_foundry, Some("/.git/config"), &["/checks/Importer.sol"]),
+        (default_foundry, Some("/lib/Unused.sol"), &["/checks/Importer.sol"]),
+        (default_foundry, Some("/out/Generated.sol"), &["/checks/Importer.sol"]),
+        // Closed Foundry test and script importers.
+        (
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+
+            //- /src/Main.sol
+            import "./Target.sol";
+
+            //- /test/Importer.t.sol
+            import "../src/Target.sol";
+
+            //- /script/Importer.s.sol
+            import "../src/Target.sol";
+
+            //- /src/Target.sol
+            contract Target {}
+            "#,
+            None,
+            &["/src/Main.sol", "/test/Importer.t.sol", "/script/Importer.s.sol"],
+        ),
+    ];
+
+    for (fixture, ignored, importers) in cases {
+        let project = TestProject::from_fixture(fixture);
+        if let Some(ignored) = ignored {
+            project.write_file(ignored, "contract Ignored {}");
+        }
+        let importers = importers.iter().map(|path| project.path(path)).collect::<Vec<_>>();
+        let target = project.path("/src/Target.sol");
         let mut state = state(&project);
-        let uri = Url::from_file_path(project.path("/src/Target.sol")).unwrap();
-        let deleted = block_on(crate::handlers::will_delete_files(
-            &mut state,
-            DeleteFilesParams { files: vec![FileDelete { uri: uri.to_string() }] },
-        ))
-        .unwrap();
-        assert!(deleted.is_some(), "{ignored} must not suppress project import edits");
-        let renamed = block_on(crate::handlers::will_rename_files(
-            &mut state,
-            RenameFilesParams {
-                files: vec![FileRename {
-                    old_uri: uri.to_string(),
-                    new_uri: Url::from_file_path(project.path("/src/Renamed.sol"))
-                        .unwrap()
-                        .to_string(),
-                }],
-            },
-        ))
-        .unwrap();
-        assert!(renamed.is_some(), "{ignored} must not suppress project import edits");
+
+        assert_one_edit_per_file(will_delete(&mut state, &target), &importers);
+        let renamed = project.path("/src/Renamed.sol");
+        assert_one_edit_per_file(will_rename(&mut state, &target, renamed), &importers);
     }
 }
 
 #[test]
-fn will_delete_refuses_partial_import_edits() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "src"
-        remappings = ["@lib/=lib/"]
+fn will_file_operations_refuse_incomplete_import_edits() {
+    let foundry_dependency = |main_import| {
+        format!(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+            remappings = ["@lib/=lib/"]
 
-        //- /src/Main.sol
-        import "@lib/Target.sol";
+            //- /src/Main.sol
+            import "{main_import}";
 
-        //- /lib/Dependency.sol open
-        import "./Target.sol";
+            //- /lib/Dependency.sol open
+            import "./Target.sol";
 
-        //- /lib/Target.sol
-        contract Target {}
-        "#,
-    );
-    let mut state = state(&project);
+            //- /lib/Target.sol
+            contract Target {{}}
+            "#
+        )
+    };
+    let with_src_importer = |src: &str, importer: &str| {
+        let dir = if src == "." { String::new() } else { format!("/{src}") };
+        format!(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "{src}"
 
-    let edit = block_on(crate::handlers::will_delete_files(
-        &mut state,
-        DeleteFilesParams {
-            files: vec![FileDelete {
-                uri: Url::from_file_path(project.path("/lib/Target.sol")).unwrap().to_string(),
-            }],
-        },
-    ))
-    .unwrap();
+            //- {dir}/Main.sol
+            import "./Target.sol";
 
-    assert!(edit.is_none());
-}
+            //- {importer}
+            import "../Target.sol";
 
-#[test]
-fn will_delete_refuses_closed_default_named_source_importers() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "src"
+            //- {dir}/Target.sol
+            contract Target {{}}
+            "#
+        )
+    };
+    // Each case lists an importer that source pruning must omit from analysis, if any.
+    let cases = [
+        // Partial edits that would also rewrite an open dependency.
+        (foundry_dependency("@lib/Target.sol"), None, None, "/lib/Target.sol"),
+        // Open dependencies are never edited.
+        (foundry_dependency("@lib/Dependency.sol"), None, None, "/lib/Target.sol"),
+        // Closed importers in a default-named source folder.
+        (with_src_importer("src", "/src/lib/Library.sol"), None, None, "/src/Target.sol"),
+        // Closed importers in an excluded output folder.
+        (with_src_importer(".", "/out/Generated.sol"), None, None, "/Target.sol"),
+        (
+            with_src_importer("src", "/src/.hidden/Importer.sol"),
+            None,
+            Some("/src/.hidden/Importer.sol"),
+            "/src/Target.sol",
+        ),
+        (
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
 
-        //- /src/Main.sol
-        import "./Target.sol";
+            //- /src/Main.sol
+            import "./Target.sol";
 
-        //- /src/lib/Library.sol
-        import "../Target.sol";
+            //- /src/nested/.git
+            gitdir: elsewhere
 
-        //- /src/Target.sol
-        contract Target {}
-        "#,
-    );
-    let mut state = state(&project);
+            //- /src/nested/Importer.sol
+            import "../Target.sol";
 
-    let edit = block_on(crate::handlers::will_delete_files(
-        &mut state,
-        DeleteFilesParams {
-            files: vec![FileDelete {
-                uri: Url::from_file_path(project.path("/src/Target.sol")).unwrap().to_string(),
-            }],
-        },
-    ))
-    .unwrap();
+            //- /src/Target.sol
+            contract Target {}
+            "#
+            .to_owned(),
+            None,
+            Some("/src/nested/Importer.sol"),
+            "/src/Target.sol",
+        ),
+        (
+            with_src_importer("src", "/src/generated/Importer.sol"),
+            Some(serde_json::json!({ "indexing": { "exclude": ["src/generated/**"] } })),
+            Some("/src/generated/Importer.sol"),
+            "/src/Target.sol",
+        ),
+        (
+            r#"
+            //- /Main.sol
+            import "./Target.sol";
 
-    assert!(edit.is_none());
-}
+            //- /node_modules/Importer.sol
+            import "../Target.sol";
 
-#[test]
-fn will_delete_updates_closed_foundry_test_importers() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "src"
+            //- /Target.sol
+            contract Target {}
+            "#
+            .to_owned(),
+            None,
+            Some("/node_modules/Importer.sol"),
+            "/Target.sol",
+        ),
+        (
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
 
-        //- /src/Main.sol
-        import "./Target.sol";
+            //- /src/Main.sol
+            import "./Target.sol";
 
-        //- /test/Importer.t.sol
-        import "../src/Target.sol";
+            //- /test/node_modules/Importer.t.sol
+            import "../../src/Target.sol";
 
-        //- /src/Target.sol
-        contract Target {}
-        "#,
-    );
-    let mut state = state(&project);
+            //- /src/Target.sol
+            contract Target {}
+            "#
+            .to_owned(),
+            None,
+            Some("/test/node_modules/Importer.t.sol"),
+            "/src/Target.sol",
+        ),
+    ];
 
-    let edit = block_on(crate::handlers::will_delete_files(
-        &mut state,
-        DeleteFilesParams {
-            files: vec![FileDelete {
-                uri: Url::from_file_path(project.path("/src/Target.sol")).unwrap().to_string(),
-            }],
-        },
-    ))
-    .unwrap();
+    for (fixture, initialization_options, pruned, target) in cases {
+        let project = TestProject::from_fixture(&fixture);
+        let mut params = project.initialize_params();
+        params.initialization_options = initialization_options;
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+        let mut state = state_with_config(&project, config);
+        if let Some(importer) = pruned {
+            let links = state.symbol_tables.load().document_links(&project.path(importer));
+            assert!(links.is_empty(), "pruned importer was unexpectedly analyzed: {importer}");
+        }
+        let target = project.path(target);
+        let plan = state.symbol_tables.load().import_delete_edits(&[target.clone()]);
+        assert!(!plan.is_empty(), "{fixture}");
 
-    let changes = edit.unwrap().changes.unwrap();
-    assert_eq!(changes.len(), 2);
-    for path in ["/src/Main.sol", "/test/Importer.t.sol"] {
-        assert_eq!(changes[&Url::from_file_path(project.path(path)).unwrap()].len(), 1);
+        assert!(will_delete(&mut state, &target).unwrap().is_none(), "{fixture}");
+        let renamed = target.with_file_name("Renamed.sol");
+        assert!(will_rename(&mut state, &target, renamed).unwrap().is_none(), "{fixture}");
     }
 }
 
@@ -347,395 +340,15 @@ async fn will_delete_refuses_import_edits_after_source_load_failure() {
     state.config = Arc::new(config);
     *state.vfs.write() = project.vfs();
     state.recompute_for_file_changes(Vec::new(), Vec::new(), false);
-    tokio::time::timeout(super::super::ASYNC_TEST_TIMEOUT, state.latest_analysis())
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
         .await
         .expect("analysis should finish")
         .unwrap();
 
-    let edit = crate::handlers::will_delete_files(
-        &mut state,
-        DeleteFilesParams {
-            files: vec![FileDelete {
-                uri: Url::from_file_path(project.path("/src/Target.sol")).unwrap().to_string(),
-            }],
-        },
-    )
-    .await
-    .unwrap();
+    let files = vec![FileDelete { uri: uri(project.path("/src/Target.sol")) }];
+    let edit = handlers::will_delete_files(&mut state, DeleteFilesParams { files }).await.unwrap();
 
     assert!(edit.is_none());
-}
-
-#[test]
-fn will_delete_refuses_closed_excluded_source_importers() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "."
-
-        //- /Main.sol
-        import "./Target.sol";
-
-        //- /out/Generated.sol
-        import "../Target.sol";
-
-        //- /Target.sol
-        contract Target {}
-        "#,
-    );
-    let mut state = state(&project);
-
-    let edit = block_on(crate::handlers::will_delete_files(
-        &mut state,
-        DeleteFilesParams {
-            files: vec![FileDelete {
-                uri: Url::from_file_path(project.path("/Target.sol")).unwrap().to_string(),
-            }],
-        },
-    ))
-    .unwrap();
-
-    assert!(edit.is_none());
-}
-
-#[test]
-fn will_file_operations_refuse_closed_importers_omitted_by_source_pruning() {
-    let cases = [
-        (
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = "src"
-
-            //- /src/Main.sol
-            import "./Target.sol";
-
-            //- /src/.hidden/Importer.sol
-            import "../Target.sol";
-
-            //- /src/Target.sol
-            contract Target {}
-            "#,
-            None,
-            "/src/.hidden/Importer.sol",
-            "/src/Target.sol",
-        ),
-        (
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = "src"
-
-            //- /src/Main.sol
-            import "./Target.sol";
-
-            //- /src/nested/.git
-            gitdir: elsewhere
-
-            //- /src/nested/Importer.sol
-            import "../Target.sol";
-
-            //- /src/Target.sol
-            contract Target {}
-            "#,
-            None,
-            "/src/nested/Importer.sol",
-            "/src/Target.sol",
-        ),
-        (
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = "src"
-
-            //- /src/Main.sol
-            import "./Target.sol";
-
-            //- /src/generated/Importer.sol
-            import "../Target.sol";
-
-            //- /src/Target.sol
-            contract Target {}
-            "#,
-            Some(serde_json::json!({
-                "indexing": { "exclude": ["src/generated/**"] }
-            })),
-            "/src/generated/Importer.sol",
-            "/src/Target.sol",
-        ),
-        (
-            r#"
-            //- /Main.sol
-            import "./Target.sol";
-
-            //- /node_modules/Importer.sol
-            import "../Target.sol";
-
-            //- /Target.sol
-            contract Target {}
-            "#,
-            None,
-            "/node_modules/Importer.sol",
-            "/Target.sol",
-        ),
-        (
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = "src"
-
-            //- /src/Main.sol
-            import "./Target.sol";
-
-            //- /test/node_modules/Importer.t.sol
-            import "../../src/Target.sol";
-
-            //- /src/Target.sol
-            contract Target {}
-            "#,
-            None,
-            "/test/node_modules/Importer.t.sol",
-            "/src/Target.sol",
-        ),
-    ];
-
-    for (fixture, initialization_options, importer, target) in cases {
-        let project = TestProject::from_fixture(fixture);
-        let config = config_with_initialization_options(&project, initialization_options);
-        assert_will_file_operations_refuse_pruned_importer(&project, config, importer, target);
-    }
-}
-
-#[test]
-fn will_rename_does_not_edit_open_foundry_dependencies() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "src"
-        remappings = ["@lib/=lib/"]
-
-        //- /src/Main.sol
-        import "@lib/Dependency.sol";
-
-        //- /lib/Dependency.sol open
-        import "./Target.sol";
-
-        //- /lib/Target.sol
-        contract Target {}
-        "#,
-    );
-    let mut state = state(&project);
-
-    let edit = block_on(crate::handlers::will_rename_files(
-        &mut state,
-        RenameFilesParams {
-            files: vec![FileRename {
-                old_uri: Url::from_file_path(project.path("/lib/Target.sol")).unwrap().to_string(),
-                new_uri: Url::from_file_path(project.path("/lib/Renamed.sol")).unwrap().to_string(),
-            }],
-        },
-    ))
-    .unwrap();
-
-    assert!(edit.is_none());
-}
-
-#[test]
-fn will_rename_refuses_partial_import_edits() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "src"
-        remappings = ["@lib/=lib/"]
-
-        //- /src/Main.sol
-        import "@lib/Target.sol";
-
-        //- /lib/Dependency.sol open
-        import "./Target.sol";
-
-        //- /lib/Target.sol
-        contract Target {}
-        "#,
-    );
-    let mut state = state(&project);
-
-    let edit = block_on(crate::handlers::will_rename_files(
-        &mut state,
-        RenameFilesParams {
-            files: vec![FileRename {
-                old_uri: Url::from_file_path(project.path("/lib/Target.sol")).unwrap().to_string(),
-                new_uri: Url::from_file_path(project.path("/lib/Renamed.sol")).unwrap().to_string(),
-            }],
-        },
-    ))
-    .unwrap();
-
-    assert!(edit.is_none());
-}
-
-#[test]
-fn will_rename_refuses_closed_default_named_source_importers() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "src"
-
-        //- /src/Main.sol
-        import "./Target.sol";
-
-        //- /src/lib/Library.sol
-        import "../Target.sol";
-
-        //- /src/Target.sol
-        contract Target {}
-        "#,
-    );
-    let mut state = state(&project);
-
-    let edit = block_on(crate::handlers::will_rename_files(
-        &mut state,
-        RenameFilesParams {
-            files: vec![FileRename {
-                old_uri: Url::from_file_path(project.path("/src/Target.sol")).unwrap().to_string(),
-                new_uri: Url::from_file_path(project.path("/src/Renamed.sol")).unwrap().to_string(),
-            }],
-        },
-    ))
-    .unwrap();
-
-    assert!(edit.is_none());
-}
-
-#[test]
-fn will_rename_updates_closed_foundry_script_importers() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "src"
-
-        //- /src/Main.sol
-        import "./Target.sol";
-
-        //- /script/Importer.s.sol
-        import "../src/Target.sol";
-
-        //- /src/Target.sol
-        contract Target {}
-        "#,
-    );
-    let mut state = state(&project);
-
-    let edit = block_on(crate::handlers::will_rename_files(
-        &mut state,
-        RenameFilesParams {
-            files: vec![FileRename {
-                old_uri: Url::from_file_path(project.path("/src/Target.sol")).unwrap().to_string(),
-                new_uri: Url::from_file_path(project.path("/src/Renamed.sol")).unwrap().to_string(),
-            }],
-        },
-    ))
-    .unwrap();
-
-    let changes = edit.unwrap().changes.unwrap();
-    assert_eq!(changes.len(), 2);
-    for path in ["/src/Main.sol", "/script/Importer.s.sol"] {
-        assert_eq!(changes[&Url::from_file_path(project.path(path)).unwrap()].len(), 1);
-    }
-}
-
-#[test]
-fn will_rename_refuses_closed_excluded_source_importers() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "."
-
-        //- /Main.sol
-        import "./Target.sol";
-
-        //- /out/Generated.sol
-        import "../Target.sol";
-
-        //- /Target.sol
-        contract Target {}
-        "#,
-    );
-    let mut state = state(&project);
-
-    let edit = block_on(crate::handlers::will_rename_files(
-        &mut state,
-        RenameFilesParams {
-            files: vec![FileRename {
-                old_uri: Url::from_file_path(project.path("/Target.sol")).unwrap().to_string(),
-                new_uri: Url::from_file_path(project.path("/Renamed.sol")).unwrap().to_string(),
-            }],
-        },
-    ))
-    .unwrap();
-
-    assert!(edit.is_none());
-}
-
-#[test]
-fn will_rename_returns_import_edits_without_mutating_state() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /src/Importer.sol open
-        import "./Target.sol";
-
-        //- /src/Target.sol
-        contract Target {}
-        "#,
-    );
-    let importer = project.path("/src/Importer.sol");
-    let importer_uri = Url::from_file_path(&importer).unwrap();
-    let old_target = project.path("/src/Target.sol");
-    let old_target_uri = Url::from_file_path(&old_target).unwrap();
-    let new_target = project.path("/src/Renamed.sol");
-    let mut state = state(&project);
-
-    let edit = block_on(crate::handlers::will_rename_files(
-        &mut state,
-        RenameFilesParams {
-            files: vec![FileRename {
-                old_uri: old_target_uri.to_string(),
-                new_uri: Url::from_file_path(&new_target).unwrap().to_string(),
-            }],
-        },
-    ))
-    .unwrap()
-    .unwrap();
-
-    assert_eq!(
-        edit.changes,
-        Some(
-            [(
-                importer_uri,
-                vec![TextEdit::new(
-                    Range::new(Position::new(0, 7), Position::new(0, 21)),
-                    "\"./Renamed.sol\"".into(),
-                )],
-            )]
-            .into_iter()
-            .collect()
-        )
-    );
-    assert!(edit.document_changes.is_none());
-    assert_eq!(
-        state.vfs.read().get_file_contents(&VfsPath::from(importer.clone())).unwrap().to_string(),
-        "import \"./Target.sol\";"
-    );
-    assert_eq!(
-        state.symbol_tables.load().document_links(&importer)[0].target,
-        Some(old_target_uri)
-    );
 }
 
 #[test]
@@ -750,33 +363,24 @@ fn will_rename_validates_closed_importer_on_disk_across_workspace_roots() {
         "#,
     );
     let importer = project.path("/one/Importer.sol");
-    let params = RenameFilesParams {
-        files: vec![FileRename {
-            old_uri: Url::from_file_path(project.path("/two/Target.sol")).unwrap().to_string(),
-            new_uri: Url::from_file_path(project.path("/two/Renamed.sol")).unwrap().to_string(),
-        }],
-    };
+    let (old_target, new_target) =
+        (project.path("/two/Target.sol"), project.path("/two/Renamed.sol"));
     let mut state = state(&project);
     state.config = Arc::new(project.config_with_roots(&["/one", "/two"]));
 
-    let edit =
-        block_on(crate::handlers::will_rename_files(&mut state, params.clone())).unwrap().unwrap();
+    let edit = will_rename(&mut state, &old_target, &new_target).unwrap().unwrap();
 
-    let changes = edit.changes.unwrap();
-    let edits = changes.get(&Url::from_file_path(&importer).unwrap()).unwrap();
-    assert_eq!(edits[0].new_text, "\"../two/Renamed.sol\"");
-
-    let old_target = project.path("/two/Target.sol");
-    let new_target = project.path("/two/Renamed.sol");
-    fs::write(&importer, format!("import {};\n", edits[0].new_text)).unwrap();
+    let new_text = &edit.changes.unwrap()[&Url::from_file_path(&importer).unwrap()][0].new_text;
+    assert_eq!(new_text, "\"../two/Renamed.sol\"");
+    fs::write(&importer, format!("import {new_text};\n")).unwrap();
     fs::rename(&old_target, &new_target).unwrap();
-    let tables = super::analyze_project(&project);
+    let tables = analyze_project(&project);
     let links = tables.document_links(&importer);
     assert_eq!(links.len(), 1);
     assert_eq!(links[0].target.as_ref().unwrap().to_file_path().unwrap(), new_target);
 
     fs::write(&importer, "import \"../two/Other.sol\";").unwrap();
-    let error = block_on(crate::handlers::will_rename_files(&mut state, params)).unwrap_err();
+    let error = will_rename(&mut state, &old_target, &new_target).unwrap_err();
     assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
 }
 
@@ -795,174 +399,20 @@ fn will_rename_rewrites_independently_moved_importer_and_target() {
     let moved_importer = project.path("/contracts/nested/Importer.sol");
     let target = project.path("/deps/Target.sol");
     let moved_target = project.path("/vendor/pkg/Target.sol");
-    let params = RenameFilesParams {
-        files: vec![
-            FileRename {
-                old_uri: Url::from_file_path(&importer).unwrap().to_string(),
-                new_uri: Url::from_file_path(&moved_importer).unwrap().to_string(),
-            },
-            FileRename {
-                old_uri: Url::from_file_path(&target).unwrap().to_string(),
-                new_uri: Url::from_file_path(&moved_target).unwrap().to_string(),
-            },
-        ],
-    };
+    let params = rename_params([(&importer, &moved_importer), (&target, &moved_target)]);
     let mut state = state(&project);
 
-    let edit = block_on(crate::handlers::will_rename_files(&mut state, params)).unwrap().unwrap();
+    let edit = block_on(handlers::will_rename_files(&mut state, params)).unwrap().unwrap();
 
-    let changes = edit.changes.unwrap();
-    let edits = changes.get(&Url::from_file_path(&importer).unwrap()).unwrap();
-    assert_eq!(edits[0].new_text, "\"../../vendor/pkg/Target.sol\"");
-
-    fs::write(&importer, format!("import {};\n", edits[0].new_text)).unwrap();
+    let new_text = &edit.changes.unwrap()[&Url::from_file_path(&importer).unwrap()][0].new_text;
+    assert_eq!(new_text, "\"../../vendor/pkg/Target.sol\"");
+    fs::write(&importer, format!("import {new_text};\n")).unwrap();
     fs::create_dir_all(moved_importer.parent().unwrap()).unwrap();
     fs::create_dir_all(moved_target.parent().unwrap()).unwrap();
     fs::rename(importer, &moved_importer).unwrap();
     fs::rename(target, &moved_target).unwrap();
-    let tables = super::analyze_project(&project);
+    let tables = analyze_project(&project);
     let links = tables.document_links(&moved_importer);
     assert_eq!(links.len(), 1);
     assert_eq!(links[0].target.as_ref().unwrap().to_file_path().unwrap(), moved_target);
-}
-
-#[test]
-fn will_rename_rejects_source_changed_since_analysis() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /src/Importer.sol open
-        import "./Target.sol";
-
-        //- /src/Target.sol
-        contract Target {}
-        "#,
-    );
-    let importer = project.path("/src/Importer.sol");
-    let mut state = state(&project);
-    state
-        .vfs
-        .write()
-        .set_file_contents(VfsPath::from(importer), Some(Rope::from("import \"./Other.sol\";")));
-
-    let error = block_on(crate::handlers::will_rename_files(
-        &mut state,
-        RenameFilesParams {
-            files: vec![FileRename {
-                old_uri: Url::from_file_path(project.path("/src/Target.sol")).unwrap().to_string(),
-                new_uri: Url::from_file_path(project.path("/src/Renamed.sol")).unwrap().to_string(),
-            }],
-        },
-    ))
-    .unwrap_err();
-
-    assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
-}
-
-#[test]
-fn will_rename_rejects_conflicting_moves_for_one_source() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /src/Importer.sol open
-        import "./Target.sol";
-
-        //- /src/Target.sol
-        contract Target {}
-        "#,
-    );
-    let target = Url::from_file_path(project.path("/src/Target.sol")).unwrap().to_string();
-    let mut state = state(&project);
-
-    let error = block_on(crate::handlers::will_rename_files(
-        &mut state,
-        RenameFilesParams {
-            files: vec![
-                FileRename {
-                    old_uri: target.clone(),
-                    new_uri: Url::from_file_path(project.path("/src/First.sol"))
-                        .unwrap()
-                        .to_string(),
-                },
-                FileRename {
-                    old_uri: target,
-                    new_uri: Url::from_file_path(project.path("/src/Second.sol"))
-                        .unwrap()
-                        .to_string(),
-                },
-            ],
-        },
-    ))
-    .unwrap_err();
-
-    assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
-}
-
-#[test]
-fn will_rename_rejects_conflicting_moves_to_one_destination() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /src/First.sol open
-        contract First {}
-
-        //- /src/Second.sol open
-        contract Second {}
-        "#,
-    );
-    let destination = Url::from_file_path(project.path("/src/Renamed.sol")).unwrap().to_string();
-    let mut state = state(&project);
-
-    let error = block_on(crate::handlers::will_rename_files(
-        &mut state,
-        RenameFilesParams {
-            files: vec![
-                FileRename {
-                    old_uri: Url::from_file_path(project.path("/src/First.sol"))
-                        .unwrap()
-                        .to_string(),
-                    new_uri: destination.clone(),
-                },
-                FileRename {
-                    old_uri: Url::from_file_path(project.path("/src/Second.sol"))
-                        .unwrap()
-                        .to_string(),
-                    new_uri: destination,
-                },
-            ],
-        },
-    ))
-    .unwrap_err();
-
-    assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
-}
-
-#[test]
-fn will_rename_rejects_expanded_vfs_destination_collision() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /A/x.sol open
-        contract A {}
-
-        //- /B/x.sol open
-        contract B {}
-        "#,
-    );
-    let mut state = state(&project);
-
-    let error = block_on(crate::handlers::will_rename_files(
-        &mut state,
-        RenameFilesParams {
-            files: vec![
-                FileRename {
-                    old_uri: Url::from_file_path(project.path("/A")).unwrap().to_string(),
-                    new_uri: Url::from_file_path(project.path("/out")).unwrap().to_string(),
-                },
-                FileRename {
-                    old_uri: Url::from_file_path(project.path("/B/x.sol")).unwrap().to_string(),
-                    new_uri: Url::from_file_path(project.path("/out/x.sol")).unwrap().to_string(),
-                },
-            ],
-        },
-    ))
-    .unwrap_err();
-
-    assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
 }
