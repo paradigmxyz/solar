@@ -93,6 +93,19 @@ fn presents_all_supported_declarations_and_callable_edges() {
     ] {
         assert_item(&prepared(&fixture, marker), name, kind);
     }
+    // Items use the exact declaration range and the name or keyword as the selection range.
+    let range = |start: (u32, u32), end: (u32, u32)| {
+        Range::new(Position::new(start.0, start.1), Position::new(end.0, end.1))
+    };
+    for (marker, full, selection) in [
+        ("$2", range((2, 0), (4, 1)), range((2, 10), (2, 15))),
+        ("$10", range((16, 4), (16, 53)), range((16, 4), (16, 15))),
+        ("$11", range((17, 4), (17, 35)), range((17, 4), (17, 12))),
+        ("$12", range((18, 4), (18, 42)), range((18, 4), (18, 11))),
+    ] {
+        let item = prepared(&fixture, marker);
+        assert_eq!((item.range, item.selection_range), (full, selection), "marker {marker}");
+    }
     assert_eq!(prepared(&fixture, "$15"), prepared(&fixture, "$9"));
     assert_eq!(prepared(&fixture, "$16"), prepared(&fixture, "$1"));
     assert_eq!(prepared(&fixture, "$17"), prepared(&fixture, "$14"));
@@ -107,34 +120,6 @@ fn presents_all_supported_declarations_and_callable_edges() {
     ] {
         assert_eq!(supertypes(&fixture, derived), [base_name]);
         assert_eq!(subtypes(&fixture, base), [derived_name]);
-    }
-}
-
-#[test]
-fn uses_exact_declaration_and_name_or_keyword_ranges() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Ranges.sol
-        contract $1C {
-            $2constructor() {}
-            $3fallback() external {}
-            $4receive() external payable {}
-        }
-        "#,
-        "/Ranges.sol",
-    );
-
-    let range = |start: (u32, u32), end: (u32, u32)| {
-        Range::new(Position::new(start.0, start.1), Position::new(end.0, end.1))
-    };
-    for (marker, full, selection) in [
-        ("$1", range((0, 0), (4, 1)), range((0, 9), (0, 10))),
-        ("$2", range((1, 4), (1, 20)), range((1, 4), (1, 15))),
-        ("$3", range((2, 4), (2, 26)), range((2, 4), (2, 12))),
-        ("$4", range((3, 4), (3, 33)), range((3, 4), (3, 11))),
-    ] {
-        let item = prepared(&fixture, marker);
-        assert_eq!((item.range, item.selection_range), (full, selection), "marker {marker}");
     }
 }
 

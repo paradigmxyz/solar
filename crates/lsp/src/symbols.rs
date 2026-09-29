@@ -3295,9 +3295,8 @@ mod tests {
         let tables = aggregator.finish();
 
         let links = tables.document_links(&source_path);
-        assert_eq!(links.len(), 1);
-        assert_eq!(links[0].range, link_range);
-        assert_eq!(links[0].target, Some(target));
+        let links = links.into_iter().map(|link| (link.range, link.target)).collect::<Vec<_>>();
+        assert_eq!(links, [(link_range, Some(target))]);
     }
 
     fn sample_tables(uri: &Url, other_uri: &Url) -> SymbolTables {
