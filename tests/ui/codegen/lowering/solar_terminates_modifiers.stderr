@@ -50,6 +50,19 @@ LL │         locked = 0;
    │         ━━━━━━━━━━━
    ╰ help: revert instead, or return from the external call outside the modifier's `_`
 
+error: this call can return from the external call and skip the rest of modifier `lock`
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_terminates_modifiers.sol:LL:CC
+   │
+LL │         f("x");
+   │         ━━━━━━
+   ╰╴
+note: this modifier code would not run
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_terminates_modifiers.sol:LL:CC
+   │
+LL │         locked = 0;
+   │         ━━━━━━━━━━━
+   ╰ help: revert instead, or return from the external call outside the modifier's `_`
+
 error: this returns from the external call and skips the rest of modifier `lock`
    ╭▸ ROOT/tests/ui/codegen/lowering/solar_terminates_modifiers.sol:LL:CC
    │
@@ -63,5 +76,5 @@ LL │         locked = 0;
    │         ━━━━━━━━━━━
    ╰ help: revert instead, or return from the external call outside the modifier's `_`
 
-error: aborting due to 5 previous errors
+error: aborting due to 6 previous errors
 

@@ -14,11 +14,10 @@
 //! pending. The check runs once the contract is lowered: a call's callee can end the call
 //! successfully when it returns from the external call itself, calls one of those operations, or
 //! calls another callee that can, and a tagged function's own exits through untagged callees
-//! count too. Untagged functions that return through inline assembly are left alone, as before
-//! these tags.
-//!
-//! NOTE: the modifier check follows calls, not internal function pointers: a pointer call from a
-//! modifier's `_` to a function that returns from the external call is not reported.
+//! count too. A call through an internal function pointer calls the pointer's dispatcher, which
+//! calls every function the pointer can hold, so the check follows it into each of them; type
+//! checking keeps the operations themselves from being taken as values. Untagged functions that
+//! return through inline assembly are left alone, as before these tags.
 
 use super::*;
 use crate::mir::{Module, Terminator};
