@@ -5,20 +5,24 @@ use solar_sema::{CompilerRef, ParsingContext};
 use std::{ops::ControlFlow, process::ExitCode};
 
 pub(super) fn run(opts: CompileOpts) -> ExitCode {
-    match run_compiler_args(opts) {
+    match run_compiler_args_inner(opts, true) {
         Ok(()) => ExitCode::SUCCESS,
         Err(_) => ExitCode::FAILURE,
     }
 }
 
 pub fn run_compiler_args(opts: CompileOpts) -> Result {
+    run_compiler_args_inner(opts, false)
+}
+
+fn run_compiler_args_inner(opts: CompileOpts, skip_drop: bool) -> Result {
     if opts.standard_json {
-        crate::standard_json::run(opts)
+        crate::standard_json::run(opts, skip_drop)
             .map_err(|_e| solar_interface::diagnostics::ErrorGuaranteed::new_unchecked())?;
         return Ok(());
     }
 
-    run_compiler_with(opts, run_default)
+    run_compiler_with(opts, run_default, skip_drop)
 }
 
 fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
@@ -118,24 +122,31 @@ pub(crate) fn warn_experimental_codegen(sess: &Session, needs_codegen: bool) {
 pub(crate) fn run_compiler_with(
     opts: CompileOpts,
     f: impl FnOnce(&mut CompilerRef<'_>) -> Result + Send,
+    skip_drop: bool,
 ) -> Result {
-    run_compiler_session_with(Session::new(opts), f, true)
+    run_compiler_session_with(Session::new(opts), f, true, skip_drop)
 }
 
 pub(crate) fn run_compiler_session_with(
     sess: Session,
     f: impl FnOnce(&mut CompilerRef<'_>) -> Result + Send,
     finish: bool,
+    skip_drop: bool,
 ) -> Result {
     sess.validate()?;
     let mut compiler = solar_sema::Compiler::new(sess);
-    compiler.enter_mut(|compiler| {
+    let result = compiler.enter_mut(|compiler| {
         let result = f(compiler);
         if !finish {
             return result;
         }
         finish_session(compiler.gcx().sess, result)
-    })
+    });
+    if skip_drop {
+        // The CLI exits after compilation, so let the OS reclaim the context.
+        std::mem::forget(compiler);
+    }
+    result
 }
 
 fn finish_session(sess: &Session, result: Result) -> Result {

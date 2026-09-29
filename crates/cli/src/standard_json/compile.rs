@@ -40,9 +40,19 @@ use std::{
 /// Compiles Standard JSON input and returns Standard JSON output.
 pub fn compile_standard_json(
     input: &str,
+    opts: CompileOpts,
+    read_callback: Option<Arc<dyn StandardJsonReadCallback>>,
+    out: &mut (dyn Write + Send),
+) -> io::Result<()> {
+    compile_standard_json_inner(input, opts, read_callback, out, false)
+}
+
+fn compile_standard_json_inner(
+    input: &str,
     mut opts: CompileOpts,
     read_callback: Option<Arc<dyn StandardJsonReadCallback>>,
     out: &mut (dyn Write + Send),
+    skip_drop: bool,
 ) -> io::Result<()> {
     // Library callers bypass CLI argument conflicts. Only outputSelection may
     // select Standard JSON artifacts; never leak a second CLI-shaped document.
@@ -72,6 +82,7 @@ pub fn compile_standard_json(
                 dcx,
                 &diagnostics,
                 out,
+                skip_drop,
             );
         }
         Err(e) => {
@@ -82,7 +93,7 @@ pub fn compile_standard_json(
     write_empty_standard_json_output(Arc::clone(&source_map), &opts, &diagnostics, out)
 }
 
-pub(crate) fn run(opts: CompileOpts) -> io::Result<()> {
+pub(crate) fn run(opts: CompileOpts, skip_drop: bool) -> io::Result<()> {
     let mut stdout = io::BufWriter::new(io::stdout());
     let mut input = String::new();
     let result = match opts.input.as_slice() {
@@ -92,7 +103,7 @@ pub(crate) fn run(opts: CompileOpts) -> io::Result<()> {
         _ => unreachable!("standard JSON input count is validated during argument parsing"),
     };
     match result {
-        Ok(_) => compile_standard_json(&input, opts, None, &mut stdout)?,
+        Ok(_) => compile_standard_json_inner(&input, opts, None, &mut stdout, skip_drop)?,
         Err(e) => standard_json_error_output(
             format!("failed to read standard JSON input: {e}"),
             &mut stdout,
@@ -194,6 +205,7 @@ fn compile(
     dcx: DiagCtxt,
     diagnostics: &solar_data_structures::sync::RwLock<Vec<solar_interface::diagnostics::Diag>>,
     out: &mut (dyn Write + Send),
+    skip_drop: bool,
 ) -> io::Result<()> {
     let CompilerInput { language, sources, settings } = input;
     // Destructure `Settings` so every recognized field is handled explicitly;
@@ -451,6 +463,7 @@ fn compile(
             result
         },
         false,
+        skip_drop,
     );
 
     output_result
