@@ -210,10 +210,8 @@ impl SignatureHelpIndex {
         for item_id in gcx.hir.item_ids() {
             if let Some(name) = gcx.hir.item(item_id).name()
                 && let Some(signature) = renderer.render_item(item_id)
+                && let Some(location) = locations.location(gcx.hir.item(item_id).span())
             {
-                let Some(location) = locations.location(gcx.hir.item(item_id).span()) else {
-                    continue;
-                };
                 let form = match item_id {
                     ItemId::Contract(_) => CallForm::New,
                     ItemId::Event(_) => CallForm::Event,
