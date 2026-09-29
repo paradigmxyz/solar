@@ -1,4 +1,4 @@
-use crate::proto;
+use crate::{proto, utils::span_range};
 use crop::Rope;
 use lsp_types::{
     CodeActionKind, CodeActionParams, Diagnostic, NumberOrString, Range, TextEdit, Url,
@@ -350,8 +350,8 @@ impl<'ast> Visit<'ast> for UnusedLocalStatementFinder<'_> {
             if let ast::StmtKind::DeclSingle(variable) = &statement.kind
                 && variable.initializer.is_none()
             {
-                let variable_range = local_range(self.file, variable.span);
-                let statement_range = local_range(self.file, statement.span);
+                let variable_range = span_range(self.file, variable.span);
+                let statement_range = span_range(self.file, statement.span);
                 if &variable_range == self.target
                     && self
                         .source
@@ -370,12 +370,12 @@ fn unused_import_fix(diagnostic: &Diagnostic, context: &CodeActionSource<'_>) ->
     with_parsed_target(diagnostic, context, |source_unit, file, source, target| {
         let item = source_unit.items.iter().find(|item| {
             matches!(item.kind, ast::ItemKind::Import(_)) && {
-                let range = local_range(file, item.span);
+                let range = span_range(file, item.span);
                 range.start <= target.start && target.end <= range.end
             }
         })?;
         let ast::ItemKind::Import(import) = &item.kind else { return None };
-        let item_range = local_range(file, item.span);
+        let item_range = span_range(file, item.span);
         let range = if item_range == *target {
             if !matches!(
                 &import.items,
@@ -404,7 +404,7 @@ fn named_import_removal_range(
         .iter()
         .map(|(original, alias)| {
             let end = alias.as_ref().map_or(original.span, |alias| alias.span);
-            local_range(file, original.span.to(end))
+            span_range(file, original.span.to(end))
         })
         .collect::<Vec<_>>();
     let index = ranges.iter().position(|range| range == target)?;
@@ -561,7 +561,7 @@ fn function_mutability_fix(diagnostic: &Diagnostic, context: &CodeActionSource<'
             (Some(current), ast::StateMutability::Pure)
                 if current.data == ast::StateMutability::View =>
             {
-                let range = local_range(file, current.span);
+                let range = span_range(file, current.span);
                 TextEdit::new(context.lsp_range(range)?, target.to_string())
             }
             _ => return None,
@@ -716,7 +716,7 @@ fn find_item<'ast, 'a>(
     target: &std::ops::Range<usize>,
 ) -> Option<&'a ast::Item<'ast>> {
     for item in items {
-        let range = local_range(file, item.span);
+        let range = span_range(file, item.span);
         if range.start <= target.start && target.end <= range.end {
             if let ast::ItemKind::Contract(contract) = &item.kind
                 && let Some(item) = find_item(contract.body, file, target)
@@ -762,10 +762,6 @@ fn keyword_insertion(
     }
     let position = context.index.position_at_byte(position)?;
     Some(TextEdit::new(lsp_types::Range::new(position, position), new_text))
-}
-
-fn local_range(file: &SourceFile, span: solar_interface::Span) -> std::ops::Range<usize> {
-    file.relative_position(span.lo()).to_usize()..file.relative_position(span.hi()).to_usize()
 }
 
 fn kind_contains(requested: &CodeActionKind, action: &CodeActionKind) -> bool {

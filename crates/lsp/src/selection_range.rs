@@ -1,8 +1,8 @@
 //! Syntax-based selection-range construction.
 
 use crate::{
-    folding_range::{checked_span_range, parse_recovering},
     proto,
+    utils::{checked_span_range, parse_recovering},
 };
 use crop::Rope;
 use lsp_types::{Position, Range, SelectionRange};

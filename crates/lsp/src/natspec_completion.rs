@@ -1,12 +1,14 @@
-use crate::{config::CompletionClientOptions, proto};
+use crate::{
+    config::CompletionClientOptions,
+    proto,
+    utils::{parse_recovering, span_range},
+};
 use crop::Rope;
 use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionTextEdit, InsertTextFormat, Range, TextEdit,
 };
-use solar_config::CompileOpts;
-use solar_interface::{Session, source_map::FileName};
-use solar_parse::{Cursor, Parser, ast, lexer::token::RawTokenKind};
-use std::ops::Range as ByteRange;
+use solar_parse::{Cursor, ast, lexer::token::RawTokenKind};
+use std::{ops::Range as ByteRange, sync::Arc};
 
 mod index;
 use index::syntax_fingerprint;
@@ -459,33 +461,12 @@ fn parse_target(
     marker_range: ByteRange<usize>,
     comment_style: CommentStyle,
 ) -> Option<NatSpecCompletionTarget> {
-    let mut opts = CompileOpts::default();
-    opts.unstable.recover_incomplete_input = true;
-    let sess = Session::builder().opts(opts).with_silent_emitter(None).single_threaded().build();
-
-    sess.enter_sequential(|| {
-        let arena = ast::Arena::new();
-        let mut parser = Parser::from_source_code(
-            &sess,
-            &arena,
-            FileName::Custom("lsp-natspec-completion.sol".into()),
-            source,
-        )
-        .ok()?;
-        let source_unit = match parser.parse_file() {
-            Ok(source_unit) => source_unit,
-            Err(error) => {
-                error.emit();
-                return None;
-            }
-        };
-        drop(parser);
-        let file = sess.source_map().files().first()?.clone();
-
-        for (source_ordinal, item) in source_unit.items.iter().enumerate() {
+    let parsed = Arc::new(source.to_owned());
+    parse_recovering("lsp-natspec-completion.sol", parsed, |_, file, source_unit| {
+        for (source_ordinal, item) in source_unit?.items.iter().enumerate() {
             let path = DeclarationPath::Source { item_ordinal: source_ordinal };
             if let Some(target) =
-                target_from_item(&file, source, marker_range.clone(), comment_style, path, item)
+                target_from_item(file, source, marker_range.clone(), comment_style, path, item)
             {
                 return Some(target);
             }
@@ -497,7 +478,7 @@ fn parse_target(
                     item_ordinal,
                 };
                 if let Some(target) =
-                    target_from_item(&file, source, marker_range.clone(), comment_style, path, item)
+                    target_from_item(file, source, marker_range.clone(), comment_style, path, item)
                 {
                     return Some(target);
                 }
@@ -505,6 +486,7 @@ fn parse_target(
         }
         None
     })
+    .flatten()
 }
 
 fn target_from_item(
@@ -518,14 +500,11 @@ fn target_from_item(
     if item.docs.len() != 1 || item.docs[0].kind != comment_style.ast_kind() {
         return None;
     }
-    let local_range = |span: solar_interface::Span| {
-        file.relative_position(span.lo()).to_usize()..file.relative_position(span.hi()).to_usize()
-    };
-    let doc_range = local_range(item.docs[0].span);
+    let doc_range = span_range(file, item.docs[0].span);
     if doc_range != marker_range {
         return None;
     }
-    let item_range = local_range(item.span);
+    let item_range = span_range(file, item.span);
     if !is_adjacent_doc_comment(&source[doc_range.end..item_range.start], comment_style) {
         return None;
     }
