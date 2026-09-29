@@ -1,6 +1,16 @@
 use super::*;
 use std::sync::atomic::AtomicBool;
 
+/// A project whose main source imports a dependency below `/generated`.
+pub(super) const GENERATED_DEPENDENCY: &str = r#"
+    //- /Main.sol
+    import "./generated/Dependency.sol";
+    contract Main is Dependency {}
+
+    //- /generated/Dependency.sol
+    contract Dependency {}
+    "#;
+
 async fn reanalyze(state: &mut GlobalState, changed_paths: Vec<PathBuf>) {
     state.recompute_after_opening_source(changed_paths);
     settle(state).await;
@@ -33,6 +43,11 @@ pub(super) fn analysis_result(
 
 pub(super) fn path_output(analysis_paths: AnalysisPathIndex) -> AnalysisOutput {
     AnalysisOutput { result: analysis_result([], []), analysis_paths }
+}
+
+pub(super) fn workspace_bases(config: &Config) -> Vec<PathBuf> {
+    let workspaces = config.workspaces().iter();
+    workspaces.filter_map(|workspace| workspace.compile_opts().base_path.clone()).collect()
 }
 
 pub(super) fn resolved_paths(paths: impl IntoIterator<Item = PathBuf>) -> AnalysisPathIndex {
@@ -840,16 +855,7 @@ async fn latest_analysis_uses_the_config_published_with_the_analysis() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn unknown_dependency_event_after_cache_clear_starts_recovery() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Main.sol
-        import "./generated/Dependency.sol";
-        contract Main is Dependency {}
-
-        //- /generated/Dependency.sol
-        contract Dependency {}
-        "#,
-    );
+    let project = TestProject::from_fixture(GENERATED_DEPENDENCY);
     let mut state = state_with(config_with_indexing_excludes(&project, &["generated/**"]));
     state.clear_analysis_cache();
     let cleared_version = analysis_version(&state);
@@ -919,14 +925,8 @@ async fn workspace_discovery_router_rejects_stale_and_cancelled_ready_events() {
     };
     let route = |router: &mut Router<GlobalState>| {
         router.event::<DiscoveryStateProbe>(|state, probe| {
-            let roots = state
-                .config
-                .workspaces()
-                .iter()
-                .filter_map(|workspace| workspace.compile_opts().base_path.clone())
-                .collect();
             let pending = state.analysis_commit.lock().discovery_pending;
-            probe.0.send((roots, pending)).unwrap();
+            probe.0.send((workspace_bases(&state.config), pending)).unwrap();
             ControlFlow::Continue(())
         });
     };
@@ -969,16 +969,7 @@ async fn deferred_dependency_change_router_publishes_replacement_analysis() {
         output: AnalysisOutput,
     }
 
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Main.sol
-        import "./generated/Dependency.sol";
-        contract Main is Dependency {}
-
-        //- /generated/Dependency.sol
-        contract Dependency {}
-        "#,
-    );
+    let project = TestProject::from_fixture(GENERATED_DEPENDENCY);
     let config = config_with_indexing_excludes(&project, &["generated/**"]);
     let old_output = analyze_project(&project, &config);
     let dependency = project.path("/generated/Dependency.sol");
@@ -1067,14 +1058,8 @@ fn assert_failed_workspace_folder_change_rolled_back(
     old_root: &Path,
     new_root: &Path,
 ) {
-    let base_paths = state
-        .config
-        .workspaces()
-        .iter()
-        .filter_map(|workspace| workspace.compile_opts().base_path.clone())
-        .collect::<Vec<_>>();
     assert_eq!(state.config.workspace_roots(), [old_root.to_path_buf()]);
-    assert_eq!(base_paths, [old_root.to_path_buf()]);
+    assert_eq!(workspace_bases(&state.config), [old_root.to_path_buf()]);
     assert!(state.config.tracks_source_file(&old_root.join("src/A.sol")));
     assert!(!state.config.tracks_source_file(&new_root.join("src/B.sol")));
     assert!(!state.analysis_commit.lock().discovery_pending);
@@ -1174,65 +1159,13 @@ fn analysis_batches_index_sources_below_overlapping_library_and_manifest_corrido
         let project = TestProject::from_fixture(fixture);
         let config = project.config();
         let lib = project.path("/lib");
-        assert!(!config.workspaces().iter().any(|workspace| {
-            workspace.compile_opts().base_path.as_deref() == Some(lib.as_path())
-        }));
+        assert!(!workspace_bases(&config).contains(&lib));
 
         let mut batches = snapshot_with_config(config, Vfs::default()).analysis_batches(Vec::new());
 
         let expected = vec![(project.path(main), Arc::new("contract Main {}".into()))];
         assert_eq!(batches.pop().unwrap().files, expected);
     }
-}
-
-#[test]
-fn workspace_discovery_rechecks_sources_against_the_owning_workspace_policy() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "."
-
-        //- /nested/foundry.toml
-        [profile.default]
-        src = "src"
-        libs = ["src/vendor"]
-
-        //- /nested/src/Included.sol
-        contract Included {}
-
-        //- /nested/src/generated/Excluded.sol
-        contract Excluded {}
-
-        //- /nested/src/vendor/Dependency.sol
-        contract Dependency {}
-
-        //- /nested/Outside.sol
-        contract Outside {}
-        "#,
-    );
-    let config = config_with_indexing_excludes(&project, &["src/generated/**"]);
-    let nested_root = project.path("/nested");
-    assert!(workspace_at(&config, project.root()).source_files().is_empty());
-    assert_eq!(
-        workspace_at(&config, &nested_root).source_files(),
-        [project.path("/nested/Outside.sol"), project.path("/nested/src/Included.sol")]
-    );
-    assert_eq!(config.index_metrics().eager, 2);
-
-    let batches = snapshot_with_config(config, Vfs::default()).analysis_batches(Vec::new());
-    let batch_at = |root: &Path| {
-        batches.iter().find(|batch| batch.opts.base_path.as_deref() == Some(root)).unwrap()
-    };
-
-    assert!(batch_at(project.root()).files.iter().all(|(path, _)| !path.starts_with(&nested_root)));
-    assert_eq!(
-        batch_at(&nested_root).files,
-        vec![
-            (project.path("/nested/Outside.sol"), Arc::new("contract Outside {}".into())),
-            (project.path("/nested/src/Included.sol"), Arc::new("contract Included {}".into()))
-        ]
-    );
 }
 
 #[test]
@@ -1244,18 +1177,13 @@ fn nested_external_source_and_flycheck_roots_outrank_an_outer_workspace_base() {
         src = "src"
 
         //- /src/Outer.sol
-        contract Outer {}
-
         //- /packages/app/foundry.toml
         [profile.default]
         src = "../../shared"
         test = "../../checks"
 
         //- /shared/Shared.sol
-        contract Shared {}
-
         //- /checks/Nested.t.sol
-        contract NestedTest {}
         "#,
     );
     let config = project.config();
@@ -1292,7 +1220,6 @@ fn discovery_finds_nested_projects_under_flycheck_roots_and_nested_manifests() {
         src = "src"
 
         //- /out/checks/deep/app/src/Check.sol
-        contract Check {}
         "#,
     );
     assert_eq!(
@@ -1312,14 +1239,11 @@ fn discovery_finds_nested_projects_under_flycheck_roots_and_nested_manifests() {
         src = "src"
 
         //- /shared/contracts/first/src/First.sol
-        contract First {}
-
         //- /shared/contracts/first/src/second/foundry.toml
         [profile.default]
         src = "src"
 
         //- /shared/contracts/first/src/second/src/Second.sol
-        contract Second {}
         "#,
     );
     let config = project.config();
@@ -1344,7 +1268,6 @@ fn discovery_and_updates_share_the_most_specific_flycheck_owner() {
         test = "../../src/shared"
 
         //- /src/shared/Shared.t.sol
-        contract SharedTest {}
         "#,
     );
     let mut config = project.config();

@@ -1,5 +1,5 @@
 use super::{
-    indexing::{analyze_project, host_config, symbol_names},
+    indexing::{GENERATED_DEPENDENCY, analyze_project, host_config, symbol_names, workspace_bases},
     *,
 };
 use lsp_types::{CreateFilesParams, DeleteFilesParams, FileCreate, FileDelete};
@@ -87,14 +87,8 @@ async fn watched_nested_manifest_create_under_external_foundry_roots_discovers_p
     );
     let roots =
         ["/shared/contracts/deep/app", "/shared/checks/deep/app"].map(|root| project.path(root));
-    let has_workspace = |config: &Config, root: &Path| {
-        config
-            .workspaces()
-            .iter()
-            .any(|workspace| workspace.compile_opts().base_path.as_deref() == Some(root))
-    };
     let mut state = state_with(project.config());
-    assert!(roots.iter().all(|root| !has_workspace(&state.config, root)));
+    assert!(roots.iter().all(|root| !workspace_bases(&state.config).contains(root)));
     for (root, source) in
         [("/shared/contracts/deep/app", "Source"), ("/shared/checks/deep/app", "Check")]
     {
@@ -109,7 +103,7 @@ async fn watched_nested_manifest_create_under_external_foundry_roots_discovers_p
     );
     settle(&state).await;
 
-    assert!(roots.iter().all(|root| has_workspace(&state.config, root)));
+    assert!(roots.iter().all(|root| workspace_bases(&state.config).contains(root)));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -121,10 +115,7 @@ async fn watched_nested_repository_markers_prune_and_restore_nested_projects() {
         src = "src"
 
         //- /src/Main.sol
-        contract Main {}
-
         //- /src/nested/Nested.sol
-        contract Nested {}
         "#,
     );
     let nested_root = project.path("/src/nested");
@@ -175,12 +166,9 @@ async fn watched_created_directories_under_shallow_roots_discover_projects_and_s
         test = "test"
 
         //- /contracts/Main.sol
-        contract Main {}
-
         //- /node_modules/dependency/foundry.toml
 
         //- /test/node_modules/dependency/Skipped.t.sol
-        contract Skipped {}
         "#,
     );
     let mut state = state_with(project.config());
@@ -255,10 +243,7 @@ async fn watched_directory_topology_under_partitioned_root_is_rediscovered() {
         src = "."
 
         //- /lib/Dependency.sol
-        contract Dependency {}
-
         //- /old/Old.sol
-        contract Old {}
         "#,
     );
     let mut state = state_with(project.config());
@@ -285,14 +270,6 @@ async fn watched_directory_topology_under_partitioned_root_is_rediscovered() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn watched_dependency_and_unresolved_candidate_changes_schedule_analysis() {
-    let excluded_dependency = r#"
-        //- /Main.sol
-        import "./generated/Dependency.sol";
-        contract Main is Dependency {}
-
-        //- /generated/Dependency.sol
-        contract Dependency {}
-        "#;
     let unresolved_candidate = r#"
         //- /foundry.toml
         [profile.default]
@@ -311,7 +288,7 @@ async fn watched_dependency_and_unresolved_candidate_changes_schedule_analysis()
         "#;
     for typ in [FileChangeType::CHANGED, FileChangeType::DELETED] {
         for (fixture, excludes, path) in [
-            (excluded_dependency, &["generated/**"][..], "/generated/Dependency.sol"),
+            (GENERATED_DEPENDENCY, &["generated/**"][..], "/generated/Dependency.sol"),
             (unresolved_candidate, &[], "/lib-one/Dependency.sol"),
         ] {
             let project = TestProject::from_fixture(fixture);
@@ -378,10 +355,7 @@ async fn watched_flycheck_only_source_change_schedules_analysis() {
         test = "test"
 
         //- /src/Main.sol
-        contract Main {}
-
         //- /test/Main.t.sol
-        contract MainTest {}
         "#,
     );
     let path = project.path("/test/Main.t.sol");
@@ -411,8 +385,6 @@ async fn watched_source_respects_the_most_specific_flycheck_owner() {
         test = "."
 
         //- /src/Main.sol
-        contract Main {}
-
         //- /packages/app/foundry.toml
         [profile.default]
         src = "src"
@@ -442,16 +414,7 @@ async fn watched_source_respects_the_most_specific_flycheck_owner() {
 async fn source_events_defer_a_path_first_learned_by_pending_analysis() {
     // Changes arrive as watched-file events, creations and deletions as file operations.
     for typ in [FileChangeType::CREATED, FileChangeType::CHANGED, FileChangeType::DELETED] {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /Main.sol
-            import "./generated/Dependency.sol";
-            contract Main is Dependency {}
-
-            //- /generated/Dependency.sol
-            contract Dependency {}
-            "#,
-        );
+        let project = TestProject::from_fixture(GENERATED_DEPENDENCY);
         let path = project.path("/generated/Dependency.sol");
         if typ == FileChangeType::CREATED {
             project.remove_file("/generated/Dependency.sol");

@@ -290,39 +290,18 @@ fn watched_file_registration_has_global_fallback_patterns() {
 
 #[test]
 fn relative_watched_file_registration_tracks_nested_repository_markers() {
-    let clean = TestProject::from_fixture(
-        r#"
-        //- /workspace/foundry.toml
-        [profile.default]
-        src = "contracts"
-
-        //- /workspace/contracts/Main.sol
-        contract Main {}
-
-        //- /workspace/.git/HEAD
-        "#,
-    );
+    let workspace = "//- /workspace/foundry.toml\n[profile.default]\nsrc = \"contracts\"\n\
+                     //- /workspace/contracts/Main.sol\n";
+    let clean = TestProject::from_fixture(&format!("{workspace}//- /workspace/.git/HEAD\n"));
     let registration = discovered_registration(&clean, &["/workspace"], &[]);
     let source_root = clean.path("/workspace/contracts");
     assert_eq!(spec_kind(&registration, &source_root, "**/.git"), Some(CREATE_DELETE));
     assert!(!has_spec(&registration, &clean.path("/workspace"), ".git"));
 
-    let pruned = TestProject::from_fixture(
-        r#"
-        //- /workspace/foundry.toml
-        [profile.default]
-        src = "contracts"
-
-        //- /workspace/contracts/Main.sol
-        contract Main {}
-
-        //- /workspace/contracts/nested/.git
-        gitdir: elsewhere
-
-        //- /workspace/contracts/nested/Nested.sol
-        contract Nested {}
-        "#,
-    );
+    let pruned = TestProject::from_fixture(&format!(
+        "{workspace}//- /workspace/contracts/nested/.git\ngitdir: elsewhere\n\
+         //- /workspace/contracts/nested/Nested.sol\n"
+    ));
     let registration = discovered_registration(&pruned, &["/workspace"], &[]);
     let marker_root = pruned.path("/workspace/contracts/nested");
     assert_eq!(spec_kind(&registration, &marker_root, ".git"), Some(CREATE_DELETE));
@@ -335,14 +314,10 @@ fn relative_watched_file_registration_tracks_nested_repository_markers() {
         src = "src"
 
         //- /repo/src/Main.sol
-        contract Main {}
-
         //- /repo/src/vendor/.git
         gitdir: elsewhere
 
         //- /repo/src/vendor/Vendor.sol
-        contract Vendor {}
-
         //- /repo/member/.keep
         "#,
     );
@@ -360,21 +335,11 @@ fn relative_watched_file_registration_uses_bounded_roots() {
         src = "contracts"
 
         //- /workspace/contracts/Main.sol
-        contract Main {}
-
         //- /workspace/node_modules/Dependency.sol
-        contract Dependency {}
-
         //- /workspace/out/Generated.sol
-        contract Generated {}
-
         //- /workspace/.hidden/Hidden.sol
-        contract Hidden {}
-
         //- /workspace/nested/.git/HEAD
-
         //- /workspace/nested/Nested.sol
-        contract Nested {}
         "#,
     );
     let workspace_root = project.path("/workspace");
@@ -406,50 +371,21 @@ fn relative_watched_file_registration_partitions_root_sources() {
         src = "."
 
         //- /foundry/Root.sol
-        contract Root {}
-
         //- /foundry/contracts/Main.sol
-        contract Main {}
-
         //- /foundry/contracts/core/Core.sol
-        contract Core {}
-
         //- /foundry/contracts/node_modules/Dependency.sol
-        contract Dependency {}
-
         //- /foundry/contracts/out/Generated.sol
-        contract Generated {}
-
         //- /foundry/contracts/.hidden/Hidden.sol
-        contract Hidden {}
-
         //- /foundry/contracts/vendor/.git/HEAD
-
         //- /foundry/contracts/vendor/Nested.sol
-        contract Nested {}
-
         //- /foundry/lib/Dependency.sol
-        contract Dependency {}
-
         //- /foundry/out/Generated.sol
-        contract Generated {}
-
         //- /foundry/.hidden/Hidden.sol
-        contract Hidden {}
-
         //- /foundry/nested/.git/HEAD
-
         //- /foundry/nested/Nested.sol
-        contract Nested {}
-
         //- /naked/Root.sol
-        contract Root {}
-
         //- /naked/contracts/Main.sol
-        contract Main {}
-
         //- /naked/node_modules/Dependency.sol
-        contract Dependency {}
         "#,
     );
     let foundry = project.path("/foundry");
@@ -487,7 +423,7 @@ fn relative_watched_file_registration_partitions_root_sources() {
 }
 
 #[test]
-fn relative_watched_file_registration_respects_nested_workspace_ownership() {
+fn nested_workspace_policy_owns_discovered_sources_batches_and_watchers() {
     let project = TestProject::from_fixture(
         r#"
         //- /foundry.toml
@@ -512,16 +448,38 @@ fn relative_watched_file_registration_respects_nested_workspace_ownership() {
         contract Dependency {}
         "#,
     );
-    let nested_source_root = project.path("/nested/src");
-    let registration = discovered_registration(&project, &["/"], &["src/generated/**"]);
+    let mut config = relative_watch_config(&project, &["/"], &["src/generated/**"]);
+    config.rediscover_workspaces();
+    let nested_root = project.path("/nested");
+    assert!(workspace_at(&config, project.root()).source_files().is_empty());
+    assert_eq!(
+        workspace_at(&config, &nested_root).source_files(),
+        [project.path("/nested/Outside.sol"), project.path("/nested/src/Included.sol")]
+    );
+    assert_eq!(config.index_metrics().eager, 2);
 
+    let registration = watched_file_registration_params(&config);
+    let nested_source_root = project.path("/nested/src");
     for pattern in ["*", "*.sol", "foundry.toml"] {
         assert!(has_spec(&registration, &nested_source_root, pattern));
     }
-    assert!(has_spec(&registration, &project.path("/nested"), "*.sol"));
+    assert!(has_spec(&registration, &nested_root, "*.sol"));
     for excluded in ["/nested/Outside.sol", "/nested/src/generated", "/nested/src/vendor"] {
         assert!(!has_recursive_spec_covering(&registration, &project.path(excluded)));
     }
+
+    let batches = snapshot_with_config(config, Vfs::default()).analysis_batches(Vec::new());
+    let batch_at = |root: &Path| {
+        batches.iter().find(|batch| batch.opts.base_path.as_deref() == Some(root)).unwrap()
+    };
+    assert!(batch_at(project.root()).files.iter().all(|(path, _)| !path.starts_with(&nested_root)));
+    assert_eq!(
+        batch_at(&nested_root).files,
+        vec![
+            (project.path("/nested/Outside.sol"), Arc::new("contract Outside {}".into())),
+            (project.path("/nested/src/Included.sol"), Arc::new("contract Included {}".into()))
+        ]
+    );
 }
 
 #[test]
@@ -533,7 +491,6 @@ fn relative_watched_file_registration_omits_excluded_source_root() {
         src = "contracts"
 
         //- /contracts/Main.sol
-        contract Main {}
         "#,
     );
     let source_root = project.path("/contracts");
@@ -556,13 +513,8 @@ fn watched_file_specs_add_only_approved_dependency_parents() {
         remappings = ["@mapped/=../mapped/"]
 
         //- /workspace/src/Main.sol
-        contract Main {}
-
         //- /include/pkg/Include.sol
-        contract Include {}
-
         //- /mapped/pkg/Mapped.sol
-        contract Mapped {}
         "#,
     );
     let (_, mut config) =
@@ -627,7 +579,6 @@ fn watched_file_specs_use_indexed_recursive_coverage() {
         src = "src"
 
         //- /workspace/src/Main.sol
-        contract Main {}
         "#,
     );
     let config = project.config_with_roots(&["/workspace"]);
@@ -844,8 +795,6 @@ async fn discovery_refreshes_watched_file_specs_before_analysis() {
         src = "contracts"
 
         //- /contracts/Main.sol
-        contract Main {}
-
         //- /out/generated/.keep
         "#,
     );
