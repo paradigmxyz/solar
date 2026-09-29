@@ -1149,7 +1149,7 @@ mod tests {
             "#,
         );
 
-        let workspace = foundry(&project, "/foundry.toml");
+        let mut workspace = foundry(&project, "/foundry.toml");
         let opts = workspace.compile_opts();
 
         assert_eq!(opts.base_path.as_deref(), Some(project.root()));
@@ -1173,6 +1173,16 @@ mod tests {
                 project.path("/test"),
                 project.path("/script")
             ]
+        );
+
+        // Missing source roots keep the traversal complete and watch their existing parent.
+        refresh(&mut workspace, &WorkspaceIndexPolicy::default());
+        assert!(workspace.source_files_complete());
+        assert_eq!(workspace.source_files(), workspace.flycheck_source_files());
+        assert!(
+            workspace
+                .source_watch_roots()
+                .contains(&SourceWatchRoot::missing_ancestor(&project.path("/")))
         );
     }
 
@@ -1393,31 +1403,6 @@ mod tests {
     }
 
     #[test]
-    fn missing_foundry_source_roots_are_complete_and_watch_their_parent() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = "src"
-
-            //- /src/Main.sol
-            contract Main {}
-            "#,
-        );
-        let mut workspace = foundry(&project, "/foundry.toml");
-
-        refresh(&mut workspace, &WorkspaceIndexPolicy::default());
-
-        assert!(workspace.source_files_complete());
-        assert_eq!(workspace.source_files(), workspace.flycheck_source_files());
-        assert!(
-            workspace
-                .source_watch_roots()
-                .contains(&SourceWatchRoot::missing_ancestor(&project.path("/")))
-        );
-    }
-
-    #[test]
     fn workspace_path_index_uses_most_specific_base_path() {
         let project = TestProject::new();
         let workspaces = [
@@ -1470,13 +1455,15 @@ mod tests {
             foundry(&project, "/first/foundry.toml"),
             foundry(&project, "/nested/second/foundry.toml"),
             foundry(&project, "/nested/third/foundry.toml"),
-            foundry(&project, "/source/foundry.toml"),
+            foundry(&project, "/first/../source/foundry.toml"),
         ];
         let index = WorkspacePathIndex::new(&workspaces);
 
         for (path, expected) in [
             ("/first/Owned.sol", Some(0)),
             ("/external/source/Owned.sol", Some(3)),
+            // Manifest roots and query paths are normalized.
+            ("/external/source/../source/Owned.sol", Some(3)),
             ("/external/source/nested/Owned.sol", Some(1)),
             ("/external/tests/Owned.t.sol", Some(1)),
             ("/external/scripts/Owned.s.sol", Some(1)),
@@ -1492,31 +1479,6 @@ mod tests {
                 "{path}"
             );
         }
-    }
-
-    #[test]
-    fn workspace_path_index_normalizes_import_base_paths() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /container/.keep
-
-            //- /project/foundry.toml
-            "#,
-        );
-        let workspaces = [foundry(&project, "/container/../project/foundry.toml")];
-        let index = WorkspacePathIndex::new(&workspaces);
-
-        assert_eq!(
-            index.workspace_idx_for_import_path(&project.path("/project/test/Owned.t.sol")),
-            Some(0)
-        );
-
-        let non_normalized = project.root().join("project/test/../test/Owned.sol");
-        assert!(!non_normalized.is_normalized());
-        assert_eq!(
-            index.workspace_idx_for_import_path(&non_normalized),
-            index.workspace_idx_for_import_path(&project.path("/project/test/Owned.sol"))
-        );
     }
 
     #[test]

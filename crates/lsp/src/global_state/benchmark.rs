@@ -1502,10 +1502,10 @@ fn diagnostic_line(root: &Path, uri: &Url, diagnostic: &Diagnostic) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
+    use crate::test_support::TestProject;
 
     #[cfg(unix)]
-    use std::os::unix::fs::symlink;
+    use std::{fs, os::unix::fs::symlink};
 
     #[tokio::test]
     async fn rename_workload_matches_handler() {
@@ -1542,15 +1542,11 @@ mod tests {
     #[test]
     fn repeated_analysis_limits_only_benchmark_snapshot_threads() {
         let source = "contract C {}";
-        let temp = tempfile::tempdir().unwrap();
-        let roots = (0..2)
-            .map(|index| {
-                let root = temp.path().join(format!("workspace-{index}"));
-                fs::create_dir(&root).unwrap();
-                fs::write(root.join("Main.sol"), source).unwrap();
-                root
-            })
-            .collect::<Vec<_>>();
+        let project = TestProject::new();
+        let roots = ["/workspace-0", "/workspace-1"].map(|root| {
+            project.write_file(&format!("{root}/Main.sol"), source);
+            project.path(root)
+        });
         for analysis in [
             BenchmarkRepeatedAnalysis::new(source.into()),
             BenchmarkRepeatedAnalysis::from_workspaces(&roots[..1], source),
@@ -1569,14 +1565,13 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn dependency_collection_follows_directory_symlinks_without_cycles() {
-        let temp = tempfile::tempdir().unwrap();
-        let dependency = temp.path().join("vendor/package");
-        fs::create_dir_all(&dependency).unwrap();
-        fs::write(dependency.join("Dependency.sol"), "contract Dependency {}").unwrap();
+        let project = TestProject::new();
+        project.write_file("/vendor/package/Dependency.sol", "contract Dependency {}");
+        let dependency = project.path("/vendor/package");
         symlink(&dependency, dependency.join("cycle")).unwrap();
 
-        let alias = temp.path().join("lib/package");
-        fs::create_dir_all(alias.parent().unwrap()).unwrap();
+        let alias = project.path("/lib/package");
+        fs::create_dir(project.path("/lib")).unwrap();
         symlink(&dependency, &alias).unwrap();
 
         let source_map = SourceMap::empty();
@@ -1659,29 +1654,25 @@ mod tests {
 
     #[test]
     fn foundry_benchmark_corpus_loads_explicit_remapping_targets() {
-        let temp = tempfile::tempdir().unwrap();
-        let root = temp.path();
-        fs::create_dir_all(root.join("src")).unwrap();
-        fs::create_dir_all(root.join("vendor/dep/src")).unwrap();
-        fs::write(
-            root.join("foundry.toml"),
+        let fixture = TestProject::from_fixture(
             r#"
-                [profile.default]
-                src = "src"
-                libs = []
-                auto_detect_remappings = false
-                remappings = ["@dep/=vendor/dep/src/"]
-            "#,
-        )
-        .unwrap();
-        fs::write(
-            root.join("src/Main.sol"),
-            "import \"@dep/Dependency.sol\"; contract Main is Dependency {}",
-        )
-        .unwrap();
-        fs::write(root.join("vendor/dep/src/Dependency.sol"), "contract Dependency {}").unwrap();
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+            libs = []
+            auto_detect_remappings = false
+            remappings = ["@dep/=vendor/dep/src/"]
 
-        let project = BenchmarkProject::from_foundry_manifest(root.join("foundry.toml")).unwrap();
+            //- /src/Main.sol
+            import "@dep/Dependency.sol"; contract Main is Dependency {}
+
+            //- /vendor/dep/src/Dependency.sol
+            contract Dependency {}
+            "#,
+        );
+
+        let project =
+            BenchmarkProject::from_foundry_manifest(fixture.path("/foundry.toml")).unwrap();
         let analysis = project.analyze();
 
         assert_eq!(analysis.diagnostic_count(), 0, "{}", analysis.diagnostic_fingerprint());

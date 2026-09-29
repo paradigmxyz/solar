@@ -181,7 +181,7 @@ pub(crate) enum FormatterError {
 #[cfg(all(test, unix))]
 pub(crate) mod tests {
     use super::*;
-    use crate::test_support::{TestProject, process_exists};
+    use crate::test_support::{TestProject, process_exists, within};
     use std::{
         fs,
         os::unix::fs::{PermissionsExt, symlink},
@@ -324,13 +324,12 @@ printf 'contract Formatted {}'
         let root = project.root().to_path_buf();
         let task =
             tokio::spawn(async move { run(&forge, &root, "", Duration::from_secs(60)).await });
-        time::timeout(Duration::from_secs(5), async {
+        within("the forge pid file", async {
             while !pid_path.exists() {
                 tokio::task::yield_now().await;
             }
         })
-        .await
-        .unwrap();
+        .await;
         let pid = project.read_file("/fake-forge.pid").parse().unwrap();
 
         task.abort();
@@ -346,12 +345,11 @@ printf 'contract Formatted {}'
     }
 
     async fn assert_process_stopped(pid: u32) {
-        let stopped = time::timeout(Duration::from_secs(5), async {
+        within(&format!("process {pid} to stop"), async {
             while process_exists(pid) {
                 tokio::task::yield_now().await;
             }
         })
         .await;
-        assert!(stopped.is_ok(), "process {pid} is still running");
     }
 }

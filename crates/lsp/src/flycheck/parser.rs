@@ -472,7 +472,7 @@ mod tests {
         let project = TestProject::new();
         project.write_file("/src/Test.sol", SOURCE);
         project.write_file("/src/Base.sol", "contract Base {}");
-        let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
+        let uri = project.uri("/src/Test.sol");
         (project, uri)
     }
 
@@ -621,12 +621,12 @@ mod tests {
         .unwrap();
 
         let path = project.path("/actual/Target.sol");
-        let snapshot = SourceSnapshot::from_iter([(path.clone(), Rope::from(contents))]);
+        let snapshot = SourceSnapshot::from_iter([(path, Rope::from(contents))]);
         let diagnostics =
             parse(json.as_bytes(), project.root(), FlycheckOutput::SolcJson, Some(&snapshot))
                 .unwrap();
 
-        let uri = Url::from_file_path(path).unwrap();
+        let uri = project.uri("/actual/Target.sol");
         assert_eq!(diagnostics.keys().collect::<Vec<_>>(), [&uri]);
         assert!(diagnostics[&uri][0].data.is_some());
     }
@@ -799,10 +799,7 @@ no source position is available
             diagnostic.related_information.as_deref(),
             Some(
                 [DiagnosticRelatedInformation {
-                    location: Location::new(
-                        Url::from_file_path(project.path("/src/Base.sol")).unwrap(),
-                        range(0, 9, 13),
-                    ),
+                    location: Location::new(project.uri("/src/Base.sol"), range(0, 9, 13),),
                     message: "base declaration is here".into(),
                 }]
                 .as_slice()
@@ -873,7 +870,7 @@ note: source is unavailable
 note: context without a primary span
 "#]]
         );
-        let base = Url::from_file_path(project.path("/src/Base.sol")).unwrap();
+        let base = project.uri("/src/Base.sol");
         let related = |range, message: &str| DiagnosticRelatedInformation {
             location: Location::new(base.clone(), range),
             message: message.into(),
