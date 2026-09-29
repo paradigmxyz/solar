@@ -557,71 +557,47 @@ impl SymbolTables {
         );
         for (index, entry) in file.entries.iter().enumerate() {
             let position = entry.range.start;
+            // Commands without a client handler, or without a target, only display their title.
+            let mut push = |title, command: &str, argument| {
+                let (command, arguments) = match argument {
+                    Some(argument) if options.client_commands => {
+                        (command.into(), Some(vec![argument]))
+                    }
+                    _ => (String::new(), None),
+                };
+                let command = Some(Command { title, command, arguments });
+                lenses.push(CodeLens { range: entry.range, command, data: None });
+            };
 
             if let Some(count) = reference_counts.and_then(|counts| counts[index]) {
-                let title = format_reference_title(count);
-                let (command, arguments) = if count > 0 && options.client_commands {
-                    (
-                        "solar.showReferences".into(),
-                        Some(vec![serde_json::json!({ "uri": uri, "position": position })]),
-                    )
-                } else {
-                    (String::new(), None)
-                };
-                lenses.push(CodeLens {
-                    range: entry.range,
-                    command: Some(Command { title, command, arguments }),
-                    data: None,
-                });
+                let argument =
+                    (count > 0).then(|| serde_json::json!({ "uri": uri, "position": position }));
+                push(format_reference_title(count), "solar.showReferences", argument);
             }
 
             if options.selectors
                 && let Some(selector) = entry.selector
             {
                 let title = format_selector_title(selector);
-                let arguments =
-                    options.client_commands.then(|| vec![serde_json::Value::String(title.clone())]);
-                lenses.push(CodeLens {
-                    range: entry.range,
-                    command: Some(Command {
-                        title,
-                        command: if options.client_commands { "solar.copySelector" } else { "" }
-                            .into(),
-                        arguments,
-                    }),
-                    data: None,
-                });
+                let argument = Some(serde_json::Value::String(title.clone()));
+                push(title, "solar.copySelector", argument);
             }
 
             if options.inheritance
                 && entry.inheritance
                 && let Some((bases, derived)) = self.type_hierarchy.direct_counts(&entry.symbol_ids)
             {
-                if bases > 0 {
-                    lenses.push(CodeLens {
-                        range: entry.range,
-                        command: Some(inheritance_command(
-                            InheritanceLensKind::Base,
-                            bases,
-                            uri,
-                            position,
-                            options.client_commands,
-                        )),
-                        data: None,
-                    });
-                }
-                if derived > 0 {
-                    lenses.push(CodeLens {
-                        range: entry.range,
-                        command: Some(inheritance_command(
-                            InheritanceLensKind::Derived,
-                            derived,
-                            uri,
-                            position,
-                            options.client_commands,
-                        )),
-                        data: None,
-                    });
+                for (kind, count) in
+                    [(InheritanceLensKind::Base, bases), (InheritanceLensKind::Derived, derived)]
+                {
+                    if count > 0 {
+                        let argument = serde_json::json!({
+                            "uri": uri,
+                            "position": position,
+                            "direction": kind.direction(),
+                        });
+                        push(kind.title(count), "solar.showTypeHierarchy", Some(argument));
+                    }
                 }
             }
         }
@@ -2990,29 +2966,6 @@ impl InheritanceLensKind {
             Self::Derived => "subtypes",
         }
     }
-}
-
-fn inheritance_command(
-    kind: InheritanceLensKind,
-    count: usize,
-    uri: &Url,
-    position: Position,
-    enabled: bool,
-) -> Command {
-    let title = kind.title(count);
-    let (command, arguments) = if enabled {
-        (
-            "solar.showTypeHierarchy".into(),
-            Some(vec![serde_json::json!({
-                "uri": uri,
-                "position": position,
-                "direction": kind.direction(),
-            })]),
-        )
-    } else {
-        (String::new(), None)
-    };
-    Command { title, command, arguments }
 }
 
 fn sort_completion_items(items: &mut [CompletionItem]) {

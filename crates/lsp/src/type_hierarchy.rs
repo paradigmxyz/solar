@@ -6,7 +6,7 @@
 //! IDs; URI/range keys are retained only for node identity across batches and protocol requests.
 
 use crate::{
-    hierarchy::{HierarchyItem, HierarchyKey as NodeKey},
+    hierarchy::{CanonicalSymbols, HierarchyItem, HierarchyKey as NodeKey},
     symbols::{DeclarationSymbol, SymbolId},
 };
 use lsp_types::{TypeHierarchyItem, Url};
@@ -25,8 +25,7 @@ pub(crate) struct TypeHierarchyIndex {
     items_by_symbol: FxHashMap<SymbolId, HierarchyItem>,
     candidate_key_by_symbol: FxHashMap<SymbolId, NodeKey>,
     direct_edges: Vec<HierarchyEdge>,
-    canonical_symbol_by_key: FxHashMap<NodeKey, SymbolId>,
-    canonical_symbol_by_symbol: FxHashMap<SymbolId, SymbolId>,
+    canonical: CanonicalSymbols,
     bases_by_symbol: FxHashMap<SymbolId, Vec<SymbolId>>,
     children_by_symbol: FxHashMap<SymbolId, Vec<SymbolId>>,
 }
@@ -53,13 +52,11 @@ impl TypeHierarchyIndex {
                 .entry(&declaration.location.uri)
                 .or_insert_with(|| Arc::new(declaration.location.uri.clone()))
                 .clone();
-            let selection_range = declaration.name_range;
-            index
-                .candidate_key_by_symbol
-                .insert(symbol_id, NodeKey { uri: uri.clone(), selection_range });
+            let key = NodeKey { uri, selection_range: declaration.name_range };
+            index.candidate_key_by_symbol.insert(symbol_id, key.clone());
             let Some(name) = node_name(gcx, item_id) else { continue };
             let item = HierarchyItem {
-                key: NodeKey { uri, selection_range },
+                key,
                 name,
                 kind: declaration.kind,
                 detail: None,
@@ -123,52 +120,22 @@ impl TypeHierarchyIndex {
             }
         }
         for bases in direct_bases_by_symbol.values_mut() {
-            sort_and_dedup_keys(bases);
+            bases.sort_unstable();
+            bases.dedup();
         }
 
-        // Identical source nodes can be merged only when their compile-context-dependent facts
-        // agree. Otherwise, exclude the node and let endpoint filtering drop its incident edges.
-        let mut incompatible_keys = FxHashSet::default();
-        for (&symbol_id, key) in &self.candidate_key_by_symbol {
-            if conflicting_contents.contains(key.uri.as_ref()) {
-                continue;
-            }
-            if incompatible_keys.contains(key) {
-                continue;
-            }
-            if let Some(&existing) = self.canonical_symbol_by_key.get(key) {
-                let item = self.items_by_symbol.get(&symbol_id);
-                let existing_item = self.items_by_symbol.get(&existing);
-                let bases = direct_bases_by_symbol
-                    .get(&symbol_id)
-                    .map(|bases| bases.as_slice())
-                    .unwrap_or_default();
-                let existing_bases = direct_bases_by_symbol
-                    .get(&existing)
-                    .map(|bases| bases.as_slice())
-                    .unwrap_or_default();
-                if item != existing_item || bases != existing_bases {
-                    self.canonical_symbol_by_key.remove(key);
-                    incompatible_keys.insert(key.clone());
-                }
-            } else {
-                self.canonical_symbol_by_key.insert(key.clone(), symbol_id);
-            }
-        }
-        self.canonical_symbol_by_key
-            .retain(|_, symbol_id| self.items_by_symbol.contains_key(symbol_id));
-        for (&symbol_id, key) in &self.candidate_key_by_symbol {
-            if self.items_by_symbol.contains_key(&symbol_id)
-                && let Some(&canonical) = self.canonical_symbol_by_key.get(key)
-            {
-                self.canonical_symbol_by_symbol.insert(symbol_id, canonical);
-            }
-        }
+        let bases = |symbol| direct_bases_by_symbol.get(&symbol).map_or(&[][..], Vec::as_slice);
+        self.canonical = CanonicalSymbols::new(
+            &self.candidate_key_by_symbol,
+            &self.items_by_symbol,
+            conflicting_contents,
+            |symbol, existing| bases(symbol) == bases(existing),
+        );
 
         for edge in &self.direct_edges {
             if let (Some(&derived), Some(&base)) = (
-                self.canonical_symbol_by_symbol.get(&edge.derived),
-                self.canonical_symbol_by_symbol.get(&edge.base),
+                self.canonical.by_symbol.get(&edge.derived),
+                self.canonical.by_symbol.get(&edge.base),
             ) && derived != base
             {
                 self.bases_by_symbol.entry(derived).or_default().push(base);
@@ -186,7 +153,7 @@ impl TypeHierarchyIndex {
     pub(crate) fn prepare(&self, symbol_ids: &[SymbolId]) -> Option<Vec<TypeHierarchyItem>> {
         let mut symbols = symbol_ids
             .iter()
-            .filter_map(|symbol_id| self.canonical_symbol_by_symbol.get(symbol_id).copied())
+            .filter_map(|symbol_id| self.canonical.by_symbol.get(symbol_id).copied())
             .collect::<Vec<_>>();
         if symbols.is_empty() {
             return None;
@@ -209,13 +176,12 @@ impl TypeHierarchyIndex {
     }
 
     pub(crate) fn direct_counts(&self, symbol_ids: &[SymbolId]) -> Option<(usize, usize)> {
-        let symbol = symbol_ids
-            .iter()
-            .find_map(|symbol_id| self.canonical_symbol_by_symbol.get(symbol_id))?;
+        let symbol =
+            symbol_ids.iter().find_map(|symbol_id| self.canonical.by_symbol.get(symbol_id))?;
         debug_assert!(
             symbol_ids
                 .iter()
-                .filter_map(|symbol_id| self.canonical_symbol_by_symbol.get(symbol_id))
+                .filter_map(|symbol_id| self.canonical.by_symbol.get(symbol_id))
                 .all(|candidate| candidate == symbol)
         );
         let bases = self.bases_by_symbol.get(symbol).map_or(0, Vec::len);
@@ -244,14 +210,13 @@ impl TypeHierarchyIndex {
         // the full comparison below still requires the exact canonical item and opaque data.
         let key =
             NodeKey { uri: Arc::new(item.uri.clone()), selection_range: item.selection_range };
-        let symbol_id = self.canonical_symbol_by_key.get(&key)?;
+        let symbol_id = self.canonical.by_key.get(&key)?;
         let canonical_item = self.items_by_symbol.get(symbol_id)?;
         (canonical_item.matches_type_item(item)).then_some(*symbol_id)
     }
 
     fn invalidate_query_indexes(&mut self) {
-        self.canonical_symbol_by_key.clear();
-        self.canonical_symbol_by_symbol.clear();
+        self.canonical = CanonicalSymbols::default();
         self.bases_by_symbol.clear();
         self.children_by_symbol.clear();
     }
@@ -309,9 +274,4 @@ fn node_name(gcx: Gcx<'_>, item_id: ItemId) -> Option<String> {
 fn sort_and_dedup_symbols(symbols: &mut Vec<SymbolId>, items: &FxHashMap<SymbolId, HierarchyItem>) {
     symbols.sort_unstable_by_key(|symbol| &items[symbol].key);
     symbols.dedup();
-}
-
-fn sort_and_dedup_keys<T: Ord>(keys: &mut Vec<T>) {
-    keys.sort_unstable();
-    keys.dedup();
 }
