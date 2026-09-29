@@ -827,12 +827,20 @@ async fn failed_watched_file_registration_allows_the_same_specs_to_retry() {
     let project = workspace_project();
     let config = relative_watch_config(&project, &["/workspace"], &[]);
     let coordinator = Arc::new(WatchedFileRegistrationCoordinator::default());
+    let client = ClientSocket::new_closed();
     let specs = config.watched_file_specs();
+    // The superseded update exits without touching the latest desired specs.
+    let stale = prepare_watched_file_registration_update(
+        &config,
+        &coordinator,
+        sol_spec(&project, "/stale"),
+    );
     let update =
         prepare_watched_file_registration_update(&config, &coordinator, specs.clone()).unwrap();
     let first_generation = update.generation;
 
-    spawn_watched_file_registration_update(&ClientSocket::new_closed(), &coordinator, Some(update));
+    spawn_watched_file_registration_update(&client, &coordinator, stale);
+    spawn_watched_file_registration_update(&client, &coordinator, Some(update));
     wait_until_idle(&coordinator).await;
 
     let retry = prepare_watched_file_registration_update(&config, &coordinator, specs).unwrap();
