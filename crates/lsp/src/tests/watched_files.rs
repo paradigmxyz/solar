@@ -1,7 +1,10 @@
-use super::*;
-use async_lsp::{ErrorCode, ResponseError};
+use super::{
+    indexing::{analysis_version, cancel_analysis, path_output, state_with},
+    *,
+};
 use lsp_types::{
-    DidChangeWatchedFilesClientCapabilities, RegistrationParams, UnregistrationParams, WatchKind,
+    DidChangeWatchedFilesClientCapabilities, InitializeParams, RegistrationParams,
+    UnregistrationParams, WatchKind,
 };
 
 #[derive(Debug)]
@@ -10,79 +13,130 @@ enum WatchedFileClientEvent {
     Unregister(UnregistrationParams),
 }
 
-async fn next_watched_file_client_event(
-    events: &mut mpsc::UnboundedReceiver<WatchedFileClientEvent>,
-) -> WatchedFileClientEvent {
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, events.recv())
-        .await
-        .expect("watched-file client event should arrive")
-        .expect("watched-file client event channel should stay open")
+/// Scripts client responses to watched-file registration requests by attempt index.
+#[derive(Default)]
+struct ClientScript {
+    fail_register: Option<usize>,
+    fail_unregister: Option<usize>,
+    delay_register: Option<(usize, oneshot::Receiver<()>)>,
 }
 
-fn watched_file_registration_has_spec(
-    params: &RegistrationParams,
-    base: &Path,
-    pattern: &str,
-) -> bool {
-    let base_uri = Url::from_file_path(base).unwrap().to_string();
-    params.registrations.iter().any(|registration| {
-        registration.register_options.as_ref().is_some_and(|options| {
-            options["watchers"].as_array().is_some_and(|watchers| {
-                watchers.iter().any(|watcher| {
-                    watcher["globPattern"]["baseUri"].as_str() == Some(&base_uri)
-                        && watcher["globPattern"]["pattern"].as_str() == Some(pattern)
-                })
-            })
-        })
-    })
+struct RegistrationHarness {
+    client: ClientSocket,
+    server: ServerSocket,
+    coordinator: Arc<WatchedFileRegistrationCoordinator>,
+    config: Config,
+    events: mpsc::UnboundedReceiver<WatchedFileClientEvent>,
+    server_task: tokio::task::JoinHandle<async_lsp::Result<()>>,
+    client_task: tokio::task::JoinHandle<async_lsp::Result<()>>,
 }
 
-fn watched_file_registration_spec_kind(
-    params: &RegistrationParams,
-    base: &Path,
-    pattern: &str,
-) -> Option<u64> {
-    let base_uri = Url::from_file_path(base).unwrap().to_string();
-    params.registrations.iter().find_map(|registration| {
-        registration.register_options.as_ref().and_then(|options| {
-            options["watchers"].as_array().and_then(|watchers| {
-                watchers.iter().find_map(|watcher| {
-                    (watcher["globPattern"]["baseUri"].as_str() == Some(&base_uri)
-                        && watcher["globPattern"]["pattern"].as_str() == Some(pattern))
-                    .then(|| watcher["kind"].as_u64())
-                    .flatten()
-                })
-            })
-        })
-    })
+impl RegistrationHarness {
+    fn new(config: Config, script: ClientScript) -> Self {
+        let (server_main, client) = async_lsp::MainLoop::new_server(|_| {
+            let mut router = Router::new(());
+            router.notification::<notification::Exit>(|_, ()| ControlFlow::Break(Ok(())));
+            router.event::<WatchedFileRegistrationReady>(|_, _| ControlFlow::Continue(()));
+            router
+        });
+        let (events_tx, events) = mpsc::unbounded_channel();
+        let (client_main, server) = async_lsp::MainLoop::new_client(move |_| {
+            let failed = || ResponseError::new(ErrorCode::REQUEST_FAILED, "scripted failure");
+            let mut router = Router::new((events_tx, script, 0, 0));
+            router.request::<request::RegisterCapability, _>(
+                move |(events, script, attempts, _), params| {
+                    events.send(WatchedFileClientEvent::Register(params)).unwrap();
+                    let fail = script.fail_register == Some(*attempts);
+                    let delay = match script.delay_register.take() {
+                        Some((attempt, ack)) if attempt == *attempts => Some(ack),
+                        delay => {
+                            script.delay_register = delay;
+                            None
+                        }
+                    };
+                    *attempts += 1;
+                    async move {
+                        if let Some(ack) = delay {
+                            ack.await.map_err(|_| failed())?;
+                        }
+                        if fail { Err(failed()) } else { Ok(()) }
+                    }
+                },
+            );
+            router.request::<request::UnregisterCapability, _>(
+                move |(events, script, _, attempts), params| {
+                    events.send(WatchedFileClientEvent::Unregister(params)).unwrap();
+                    let fail = script.fail_unregister == Some(*attempts);
+                    *attempts += 1;
+                    async move { if fail { Err(failed()) } else { Ok(()) } }
+                },
+            );
+            router
+        });
+        let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
+        let coordinator = Arc::default();
+        Self { client, server, coordinator, config, events, server_task, client_task }
+    }
+
+    /// Prepares and sends a registration update, returning the ID the client received.
+    async fn register(&mut self, specs: Vec<WatchedFileSpec>) -> (String, RegistrationParams) {
+        let update =
+            prepare_watched_file_registration_update(&self.config, &self.coordinator, specs);
+        spawn_watched_file_registration_update(&self.client, &self.coordinator, update);
+        self.next_registration().await
+    }
+
+    async fn next_event(&mut self) -> WatchedFileClientEvent {
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, self.events.recv()).await.unwrap().unwrap()
+    }
+
+    async fn next_registration(&mut self) -> (String, RegistrationParams) {
+        let WatchedFileClientEvent::Register(params) = self.next_event().await else {
+            panic!("expected watched-file registration")
+        };
+        (params.registrations[0].id.clone(), params)
+    }
+
+    async fn expect_unregistration(&mut self, id: &str) {
+        let WatchedFileClientEvent::Unregister(params) = self.next_event().await else {
+            panic!("expected watched-file unregistration")
+        };
+        assert_eq!(params.unregisterations[0].id, id);
+    }
+
+    async fn wait_for_active(&self, ids: &[&str]) {
+        let deadline = Instant::now() + ASYNC_TEST_TIMEOUT;
+        while *self.coordinator.active_registration_ids.lock() != ids && Instant::now() < deadline {
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(*self.coordinator.active_registration_ids.lock(), ids);
+    }
+
+    async fn shutdown(self) {
+        self.server.notify::<notification::Exit>(()).unwrap();
+        assert!(self.server_task.await.unwrap().is_ok());
+        assert!(matches!(self.client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
+    }
 }
 
-fn watched_file_registration_has_recursive_spec_covering(
-    params: &RegistrationParams,
-    path: &Path,
-) -> bool {
-    params.registrations.iter().any(|registration| {
-        registration.register_options.as_ref().is_some_and(|options| {
-            options["watchers"].as_array().is_some_and(|watchers| {
-                watchers.iter().any(|watcher| {
-                    matches!(
-                        watcher["globPattern"]["pattern"].as_str(),
-                        Some("**/*.sol" | "**/foundry.toml")
-                    ) && watcher["globPattern"]["baseUri"]
-                        .as_str()
-                        .and_then(|uri| Url::parse(uri).ok())
-                        .and_then(|uri| uri.to_file_path().ok())
-                        .is_some_and(|base| path.starts_with(base))
-                })
-            })
-        })
-    })
+async fn wait_until_idle(coordinator: &WatchedFileRegistrationCoordinator) {
+    let deadline = Instant::now() + ASYNC_TEST_TIMEOUT;
+    while coordinator.desired_specs.lock().is_some() && Instant::now() < deadline {
+        tokio::task::yield_now().await;
+    }
+    assert!(coordinator.desired_specs.lock().is_none());
 }
-#[tokio::test(flavor = "current_thread")]
-async fn watched_file_specs_are_prepared_after_the_analysis_commit_unlocks() {
-    let project = TestProject::new();
-    std::fs::create_dir(project.path("/workspace")).unwrap();
-    let mut params = project.initialize_params_with_roots(&["/workspace"]);
+
+fn relative_watch_params(
+    project: &TestProject,
+    roots: &[&str],
+    excludes: &[&str],
+) -> InitializeParams {
+    let mut params = project.initialize_params_with_roots(roots);
+    if !excludes.is_empty() {
+        params.initialization_options =
+            Some(serde_json::json!({ "indexing": { "exclude": excludes } }));
+    }
     params.capabilities.workspace = Some(WorkspaceClientCapabilities {
         did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
             dynamic_registration: Some(true),
@@ -90,25 +144,84 @@ async fn watched_file_specs_are_prepared_after_the_analysis_commit_unlocks() {
         }),
         ..Default::default()
     });
-    let (_, config) = negotiate_capabilities(params);
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
+    params
+}
+
+fn relative_watch_config(project: &TestProject, roots: &[&str], excludes: &[&str]) -> Config {
+    negotiate_capabilities(relative_watch_params(project, roots, excludes)).1
+}
+
+fn discovered_registration(
+    project: &TestProject,
+    roots: &[&str],
+    excludes: &[&str],
+) -> RegistrationParams {
+    let mut config = relative_watch_config(project, roots, excludes);
+    config.rediscover_workspaces();
+    watched_file_registration_params(&config)
+}
+
+fn watchers(params: &RegistrationParams) -> impl Iterator<Item = &serde_json::Value> {
+    params.registrations.iter().flat_map(|registration| {
+        let options = registration.register_options.as_ref();
+        options.and_then(|options| options["watchers"].as_array()).into_iter().flatten()
+    })
+}
+
+/// Returns the watch kind of the relative watcher for `pattern` below `base`, if any.
+fn spec_kind(params: &RegistrationParams, base: &Path, pattern: &str) -> Option<u64> {
+    let base_uri = Url::from_file_path(base).unwrap().to_string();
+    watchers(params).find_map(|watcher| {
+        (watcher["globPattern"]["baseUri"].as_str() == Some(&base_uri)
+            && watcher["globPattern"]["pattern"].as_str() == Some(pattern))
+        .then(|| watcher["kind"].as_u64().unwrap())
+    })
+}
+
+fn has_spec(params: &RegistrationParams, base: &Path, pattern: &str) -> bool {
+    spec_kind(params, base, pattern).is_some()
+}
+
+fn has_recursive_spec_covering(params: &RegistrationParams, path: &Path) -> bool {
+    watchers(params).any(|watcher| {
+        matches!(watcher["globPattern"]["pattern"].as_str(), Some("**/*.sol" | "**/foundry.toml"))
+            && watcher["globPattern"]["baseUri"]
+                .as_str()
+                .and_then(|uri| Url::parse(uri).ok())
+                .and_then(|uri| uri.to_file_path().ok())
+                .is_some_and(|base| path.starts_with(base))
+    })
+}
+
+fn has_desired_spec(specs: &[WatchedFileSpec], base: &Path, pattern: &str) -> bool {
+    specs.iter().any(|spec| spec.base == base && spec.pattern == pattern)
+}
+
+fn sol_spec(project: &TestProject, root: &str) -> Vec<WatchedFileSpec> {
+    vec![WatchedFileSpec::new(project.path(root), "**/*.sol")]
+}
+
+fn workspace_project() -> TestProject {
+    let project = TestProject::new();
+    std::fs::create_dir(project.path("/workspace")).unwrap();
+    project
+}
+
+const CREATE_DELETE: u64 = 5;
+
+#[tokio::test(flavor = "current_thread")]
+async fn watched_file_specs_are_prepared_after_the_analysis_commit_unlocks() {
+    let project = workspace_project();
+    let state = state_with(relative_watch_config(&project, &["/workspace"], &[]));
     state.mark_analysis_pending_for_test();
-    let version = state.analysis_version.load(Ordering::Acquire);
+    let version = analysis_version(&state);
     let mut snapshot = state.snapshot();
-    let output = AnalysisOutput {
-        result: AnalysisResult {
-            analyzed_documents: AnalyzedDocuments::default(),
-            diagnostics: DiagnosticMap::default(),
-            symbol_tables: Default::default(),
-        },
-        analysis_paths: AnalysisPathIndex {
-            resolved_dependencies: FxHashSet::from_iter([
-                project.path("/workspace/deps/Dependency.sol")
-            ]),
-            ..Default::default()
-        },
-    };
+    let output = path_output(AnalysisPathIndex {
+        resolved_dependencies: FxHashSet::from_iter([
+            project.path("/workspace/deps/Dependency.sol")
+        ]),
+        ..Default::default()
+    });
     let desired_specs = state.watched_file_registration.desired_specs.lock();
     let runtime = tokio::runtime::Handle::current();
 
@@ -153,9 +266,8 @@ async fn workspace_folder_changes_normalize_equivalent_uris() {
         contract New {}
         "#,
     );
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    let (_, config) = negotiate_capabilities(project.initialize_params_with_roots(&["/old"]));
-    state.config = Arc::new(config);
+    let mut state =
+        state_with(negotiate_capabilities(project.initialize_params_with_roots(&["/old"])).1);
     let equivalent = |name: &str| WorkspaceFolder {
         uri: Url::parse(&format!(
             "{}/missing%2F..%2F{name}",
@@ -164,23 +276,19 @@ async fn workspace_folder_changes_normalize_equivalent_uris() {
         .unwrap(),
         name: name.into(),
     };
+    let event = WorkspaceFoldersChangeEvent {
+        added: vec![equivalent("new")],
+        removed: vec![equivalent("old")],
+    };
 
     let result = crate::handlers::did_change_workspace_folders(
         &mut state,
-        DidChangeWorkspaceFoldersParams {
-            event: WorkspaceFoldersChangeEvent {
-                added: vec![equivalent("new")],
-                removed: vec![equivalent("old")],
-            },
-        },
+        DidChangeWorkspaceFoldersParams { event },
     );
 
-    assert!(matches!(result, ControlFlow::Continue(())));
+    assert!(result.is_continue());
     assert_eq!(state.config.workspace_roots(), [project.path("/new")]);
-    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
-        .await
-        .expect("workspace-folder analysis should finish")
-        .unwrap();
+    let tables = super::indexing::settle(&state).await;
     let tables = tables.load();
     assert!(tables.workspace_symbols("Old").is_empty());
     let new_uri = Url::from_file_path(project.path("/new/New.sol")).unwrap();
@@ -194,40 +302,21 @@ async fn workspace_folder_change_advances_epoch_before_watcher_reregistration() 
     let new_root = project.path("/new");
     std::fs::create_dir(&old_root).unwrap();
     std::fs::create_dir(&new_root).unwrap();
-    let mut params = project.initialize_params_with_roots(&["/old"]);
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(true),
-        }),
-        ..Default::default()
-    });
-    let (_, config) = negotiate_capabilities(params);
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
-    let initial_version = state.analysis_version.load(Ordering::Acquire);
+    let mut state = state_with(relative_watch_config(&project, &["/old"], &[]));
+    let initial_version = analysis_version(&state);
     let registration = state.watched_file_registration.clone();
     let desired_specs = registration.desired_specs.lock();
     let analysis_version = state.analysis_version.clone();
     let runtime = tokio::runtime::Handle::current();
     let worker = std::thread::spawn(move || {
         let _runtime = runtime.enter();
-        let result = crate::handlers::did_change_workspace_folders(
-            &mut state,
-            DidChangeWorkspaceFoldersParams {
-                event: WorkspaceFoldersChangeEvent {
-                    added: vec![WorkspaceFolder {
-                        uri: Url::from_file_path(new_root).unwrap(),
-                        name: "new".into(),
-                    }],
-                    removed: vec![WorkspaceFolder {
-                        uri: Url::from_file_path(old_root).unwrap(),
-                        name: "old".into(),
-                    }],
-                },
-            },
-        );
-        assert!(matches!(result, ControlFlow::Continue(())));
+        let folder = |uri, name: &str| WorkspaceFolder { uri, name: name.into() };
+        let event = WorkspaceFoldersChangeEvent {
+            added: vec![folder(Url::from_file_path(new_root).unwrap(), "new")],
+            removed: vec![folder(Url::from_file_path(old_root).unwrap(), "old")],
+        };
+        let params = DidChangeWorkspaceFoldersParams { event };
+        assert!(crate::handlers::did_change_workspace_folders(&mut state, params).is_continue());
         state
     });
 
@@ -239,8 +328,7 @@ async fn workspace_folder_change_advances_epoch_before_watcher_reregistration() 
         analysis_version.load(Ordering::Acquire) != initial_version;
 
     drop(desired_specs);
-    let state = worker.join().unwrap();
-    state.analysis_scheduler.tasks.lock().cancel();
+    cancel_analysis(&worker.join().unwrap());
     assert!(
         advanced_before_reregistration,
         "workspace-folder change queued watchers before invalidating the old analysis epoch"
@@ -281,26 +369,10 @@ fn relative_watched_file_registration_tracks_nested_repository_markers() {
         //- /workspace/.git/HEAD
         "#,
     );
-    let mut params = clean.initialize_params_with_roots(&["/workspace"]);
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(true),
-        }),
-        ..Default::default()
-    });
-    let (_, mut config) = negotiate_capabilities(params);
-    config.rediscover_workspaces();
-    let registration = watched_file_registration_params(&config);
-    let workspace_root = clean.path("/workspace");
+    let registration = discovered_registration(&clean, &["/workspace"], &[]);
     let source_root = clean.path("/workspace/contracts");
-
-    assert!(watched_file_registration_has_spec(&registration, &source_root, "**/.git"));
-    assert!(!watched_file_registration_has_spec(&registration, &workspace_root, ".git"));
-    assert_eq!(
-        watched_file_registration_spec_kind(&registration, &source_root, "**/.git"),
-        Some((WatchKind::Create | WatchKind::Delete).bits().into())
-    );
+    assert_eq!(spec_kind(&registration, &source_root, "**/.git"), Some(CREATE_DELETE));
+    assert!(!has_spec(&registration, &clean.path("/workspace"), ".git"));
 
     let pruned = TestProject::from_fixture(
         r#"
@@ -318,29 +390,12 @@ fn relative_watched_file_registration_tracks_nested_repository_markers() {
         contract Nested {}
         "#,
     );
-    let mut params = pruned.initialize_params_with_roots(&["/workspace"]);
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(true),
-        }),
-        ..Default::default()
-    });
-    let (_, mut config) = negotiate_capabilities(params);
-    config.rediscover_workspaces();
-    let registration = watched_file_registration_params(&config);
+    let registration = discovered_registration(&pruned, &["/workspace"], &[]);
     let marker_root = pruned.path("/workspace/contracts/nested");
+    assert_eq!(spec_kind(&registration, &marker_root, ".git"), Some(CREATE_DELETE));
 
-    assert!(watched_file_registration_has_spec(&registration, &marker_root, ".git"));
-    assert_eq!(
-        watched_file_registration_spec_kind(&registration, &marker_root, ".git"),
-        Some((WatchKind::Create | WatchKind::Delete).bits().into())
-    );
-}
-
-#[test]
-fn relative_watched_file_registration_keeps_approved_parent_manifest_marker_roots() {
-    let project = TestProject::from_fixture(
+    // Markers below a parent manifest approved for a member workspace are watched too.
+    let parent = TestProject::from_fixture(
         r#"
         //- /repo/foundry.toml
         [profile.default]
@@ -358,24 +413,9 @@ fn relative_watched_file_registration_keeps_approved_parent_manifest_marker_root
         //- /repo/member/.keep
         "#,
     );
-    let mut params = project.initialize_params_with_roots(&["/repo/member"]);
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(true),
-        }),
-        ..Default::default()
-    });
-    let (_, mut config) = negotiate_capabilities(params);
-    config.rediscover_workspaces();
-    let registration = watched_file_registration_params(&config);
-    let marker_root = project.path("/repo/src/vendor");
-
-    assert!(watched_file_registration_has_spec(&registration, &marker_root, ".git"));
-    assert_eq!(
-        watched_file_registration_spec_kind(&registration, &marker_root, ".git"),
-        Some((WatchKind::Create | WatchKind::Delete).bits().into())
-    );
+    let registration = discovered_registration(&parent, &["/repo/member"], &[]);
+    let marker_root = parent.path("/repo/src/vendor");
+    assert_eq!(spec_kind(&registration, &marker_root, ".git"), Some(CREATE_DELETE));
 }
 
 #[test]
@@ -406,32 +446,22 @@ fn relative_watched_file_registration_uses_bounded_roots() {
     );
     let workspace_root = project.path("/workspace");
     let source_root = project.path("/workspace/contracts");
-    let mut params = project.initialize_params_with_roots(&["/workspace"]);
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(true),
-        }),
-        ..Default::default()
-    });
-    let (_, mut config) = negotiate_capabilities(params);
+    let mut config = relative_watch_config(&project, &["/workspace"], &[]);
+    let assert_bounded = |registration: &RegistrationParams| {
+        assert!(has_spec(registration, &workspace_root, "foundry.toml"));
+        assert!(has_spec(registration, &workspace_root, "remappings.txt"));
+        for pattern in ["**/*.sol", "**/foundry.toml", "**/remappings.txt"] {
+            assert!(!has_spec(registration, &workspace_root, pattern));
+        }
+    };
 
-    let initial = watched_file_registration_params(&config);
-    assert!(watched_file_registration_has_spec(&initial, &workspace_root, "foundry.toml"));
-    assert!(watched_file_registration_has_spec(&initial, &workspace_root, "remappings.txt"));
-    for pattern in ["**/*.sol", "**/foundry.toml", "**/remappings.txt"] {
-        assert!(!watched_file_registration_has_spec(&initial, &workspace_root, pattern));
-    }
+    assert_bounded(&watched_file_registration_params(&config));
 
     config.rediscover_workspaces();
     let discovered = watched_file_registration_params(&config);
-    assert!(watched_file_registration_has_spec(&discovered, &source_root, "**/*.sol"));
-    assert!(watched_file_registration_has_spec(&discovered, &source_root, "**/foundry.toml"));
-    assert!(watched_file_registration_has_spec(&discovered, &workspace_root, "foundry.toml"));
-    assert!(watched_file_registration_has_spec(&discovered, &workspace_root, "remappings.txt"));
-    for pattern in ["**/*.sol", "**/foundry.toml", "**/remappings.txt"] {
-        assert!(!watched_file_registration_has_spec(&discovered, &workspace_root, pattern));
-    }
+    assert_bounded(&discovered);
+    assert!(has_spec(&discovered, &source_root, "**/*.sol"));
+    assert!(has_spec(&discovered, &source_root, "**/foundry.toml"));
 }
 
 #[test]
@@ -489,70 +519,38 @@ fn relative_watched_file_registration_partitions_root_sources() {
         contract Dependency {}
         "#,
     );
-    let foundry_root = project.path("/foundry");
-    let naked_root = project.path("/naked");
-    let mut params = project.initialize_params_with_roots(&["/foundry", "/naked"]);
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(true),
-        }),
-        ..Default::default()
-    });
-    let (_, mut config) = negotiate_capabilities(params);
-    config.rediscover_workspaces();
+    let foundry = project.path("/foundry");
+    let naked = project.path("/naked");
+    let registration = discovered_registration(&project, &["/foundry", "/naked"], &[]);
 
-    let registration = watched_file_registration_params(&config);
-    for root in [&foundry_root, &naked_root] {
-        assert!(watched_file_registration_has_spec(&registration, root, "*"));
-        assert!(watched_file_registration_has_spec(&registration, root, "*.sol"));
-        assert!(!watched_file_registration_has_spec(&registration, root, "**/*.sol"));
-        assert_eq!(watched_file_registration_spec_kind(&registration, root, "*"), Some(5));
-        assert_eq!(watched_file_registration_spec_kind(&registration, root, "*.sol"), Some(2));
+    for root in [&foundry, &naked] {
+        assert_eq!(spec_kind(&registration, root, "*"), Some(CREATE_DELETE));
+        assert_eq!(spec_kind(&registration, root, "*.sol"), Some(2));
+        assert!(!has_spec(&registration, root, "**/*.sol"));
     }
-    assert!(watched_file_registration_has_spec(
-        &registration,
-        &foundry_root.join("contracts"),
-        "*"
-    ));
-    assert!(watched_file_registration_has_spec(
-        &registration,
-        &foundry_root.join("contracts"),
-        "*.sol"
-    ));
-    assert!(watched_file_registration_has_spec(
-        &registration,
-        &foundry_root.join("contracts"),
-        "foundry.toml"
-    ));
-    assert!(watched_file_registration_has_spec(
-        &registration,
-        &foundry_root.join("contracts/core"),
-        "**/*.sol"
-    ));
-    assert!(watched_file_registration_has_spec(
-        &registration,
-        &foundry_root.join("contracts/core"),
-        "**/foundry.toml"
-    ));
-    assert!(watched_file_registration_has_spec(
-        &registration,
-        &naked_root.join("contracts"),
-        "**/*.sol"
-    ));
-    for excluded in [
-        foundry_root.join("lib"),
-        foundry_root.join("out"),
-        foundry_root.join(".hidden"),
-        foundry_root.join("nested"),
-        foundry_root.join("contracts/node_modules"),
-        foundry_root.join("contracts/out"),
-        foundry_root.join("contracts/.hidden"),
-        foundry_root.join("contracts/vendor"),
-        naked_root.join("node_modules"),
+    for (base, pattern) in [
+        ("contracts", "*"),
+        ("contracts", "*.sol"),
+        ("contracts", "foundry.toml"),
+        ("contracts/core", "**/*.sol"),
+        ("contracts/core", "**/foundry.toml"),
     ] {
-        assert!(!watched_file_registration_has_recursive_spec_covering(&registration, &excluded));
+        assert!(has_spec(&registration, &foundry.join(base), pattern));
     }
+    assert!(has_spec(&registration, &naked.join("contracts"), "**/*.sol"));
+    for excluded in [
+        "lib",
+        "out",
+        ".hidden",
+        "nested",
+        "contracts/node_modules",
+        "contracts/out",
+        "contracts/.hidden",
+        "contracts/vendor",
+    ] {
+        assert!(!has_recursive_spec_covering(&registration, &foundry.join(excluded)));
+    }
+    assert!(!has_recursive_spec_covering(&registration, &naked.join("node_modules")));
 }
 
 #[test]
@@ -581,33 +579,15 @@ fn relative_watched_file_registration_respects_nested_workspace_ownership() {
         contract Dependency {}
         "#,
     );
-    let nested_root = project.path("/nested");
     let nested_source_root = project.path("/nested/src");
-    let mut params = project.initialize_params();
-    params.initialization_options = Some(serde_json::json!({
-        "indexing": { "exclude": ["src/generated/**"] }
-    }));
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(true),
-        }),
-        ..Default::default()
-    });
-    let (_, mut config) = negotiate_capabilities(params);
-    config.rediscover_workspaces();
+    let registration = discovered_registration(&project, &["/"], &["src/generated/**"]);
 
-    let registration = watched_file_registration_params(&config);
-    assert!(watched_file_registration_has_spec(&registration, &nested_source_root, "*"));
-    assert!(watched_file_registration_has_spec(&registration, &nested_source_root, "*.sol"));
-    assert!(watched_file_registration_has_spec(&registration, &nested_source_root, "foundry.toml"));
-    assert!(watched_file_registration_has_spec(&registration, &nested_root, "*.sol"));
-    for excluded in [
-        project.path("/nested/Outside.sol"),
-        project.path("/nested/src/generated"),
-        project.path("/nested/src/vendor"),
-    ] {
-        assert!(!watched_file_registration_has_recursive_spec_covering(&registration, &excluded));
+    for pattern in ["*", "*.sol", "foundry.toml"] {
+        assert!(has_spec(&registration, &nested_source_root, pattern));
+    }
+    assert!(has_spec(&registration, &project.path("/nested"), "*.sol"));
+    for excluded in ["/nested/Outside.sol", "/nested/src/generated", "/nested/src/vendor"] {
+        assert!(!has_recursive_spec_covering(&registration, &project.path(excluded)));
     }
 }
 
@@ -624,63 +604,12 @@ fn relative_watched_file_registration_omits_excluded_source_root() {
         "#,
     );
     let source_root = project.path("/contracts");
-    let mut params = project.initialize_params();
-    params.initialization_options = Some(serde_json::json!({
-        "indexing": { "exclude": ["contracts/**"] }
-    }));
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(true),
-        }),
-        ..Default::default()
-    });
-    let (_, mut config) = negotiate_capabilities(params);
-    config.rediscover_workspaces();
+    let registration = discovered_registration(&project, &["/"], &["contracts/**"]);
 
-    let registration = watched_file_registration_params(&config);
     for pattern in ["*.sol", "**/*.sol"] {
-        assert!(!watched_file_registration_has_spec(&registration, &source_root, pattern));
+        assert!(!has_spec(&registration, &source_root, pattern));
     }
-    assert!(!watched_file_registration_has_recursive_spec_covering(&registration, &source_root));
-}
-
-#[test]
-fn watched_file_registration_includes_parent_config_and_external_source_specs() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /repo/foundry.toml
-        [profile.default]
-        src = "../shared/contracts"
-
-        //- /repo/workspace/.keep
-        "#,
-    );
-    let mut params = project.initialize_params_with_roots(&["/repo/workspace", "/shared"]);
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(true),
-        }),
-        ..Default::default()
-    });
-    let (_, mut config) = negotiate_capabilities(params);
-    config.rediscover_workspaces();
-    let [registration] =
-        watched_file_registration_params(&config).registrations.try_into().unwrap();
-    let options = registration.register_options.unwrap();
-    let watchers = options["watchers"].as_array().unwrap();
-    let parent_uri = Url::from_file_path(project.path("/repo")).unwrap().to_string();
-    let external_uri = Url::from_file_path(project.path("/shared/contracts")).unwrap().to_string();
-
-    assert!(watchers.iter().any(|watcher| {
-        watcher["globPattern"]["baseUri"] == parent_uri
-            && watcher["globPattern"]["pattern"] == "foundry.toml"
-    }));
-    assert!(watchers.iter().any(|watcher| {
-        watcher["globPattern"]["baseUri"] == external_uri
-            && watcher["globPattern"]["pattern"] == "**/*.sol"
-    }));
+    assert!(!has_recursive_spec_covering(&registration, &source_root));
 }
 
 #[test]
@@ -745,25 +674,15 @@ fn watched_file_specs_add_only_approved_dependency_parents() {
 
     let specs = watched_file_specs(&config, &analysis_paths);
 
-    for parent in [&workspace_parent, &include_parent, &remapping_parent] {
-        assert_eq!(
-            specs.iter().filter(|spec| spec.base == *parent && spec.pattern == "*.sol").count(),
-            1
-        );
+    let count = |base: &Path, pattern: &str| {
+        specs.iter().filter(|spec| spec.base == base && spec.pattern == pattern).count()
+    };
+    for parent in [&workspace_parent, &include_parent, &remapping_parent, &missing_parent] {
+        assert_eq!(count(parent, "*.sol"), 1);
     }
     assert!(!specs.iter().any(|spec| spec.base == outside_parent));
-    assert_eq!(
-        specs.iter().filter(|spec| spec.base == missing_parent && spec.pattern == "*.sol").count(),
-        1
-    );
-    assert_eq!(
-        specs.iter().filter(|spec| spec.base == include_parent && spec.pattern == "*").count(),
-        1
-    );
-    assert_eq!(
-        specs.iter().filter(|spec| spec.base == include_root && spec.pattern == "*").count(),
-        1
-    );
+    assert_eq!(count(&include_parent, "*"), 1);
+    assert_eq!(count(&include_root, "*"), 1);
 }
 
 #[test]
@@ -787,18 +706,13 @@ fn watched_file_specs_use_indexed_recursive_coverage() {
 
     let specs = watched_file_specs(&config, &analysis_paths);
 
-    assert!(
-        specs.iter().any(|spec| {
-            spec.base == project.path("/workspace/src") && spec.pattern == "**/*.sol"
-        })
-    );
-    assert!(!specs.iter().any(|spec| spec.base == dependency_parent && spec.pattern == "*.sol"));
+    assert!(has_desired_spec(&specs, &project.path("/workspace/src"), "**/*.sol"));
+    assert!(!has_desired_spec(&specs, &dependency_parent, "*.sol"));
 }
 
 #[test]
 fn watched_file_specs_cap_dynamic_dependency_parents() {
-    let project = TestProject::new();
-    std::fs::create_dir(project.path("/workspace")).unwrap();
+    let project = workspace_project();
     let (_, config) = negotiate_capabilities(project.initialize_params_with_roots(&["/workspace"]));
     let dependency_root = project.path("/workspace/deps");
     let analysis_paths = AnalysisPathIndex {
@@ -821,8 +735,7 @@ fn watched_file_specs_cap_dynamic_dependency_parents() {
 
 #[test]
 fn watched_file_specs_prioritize_specific_dependency_parents() {
-    let project = TestProject::new();
-    std::fs::create_dir(project.path("/workspace")).unwrap();
+    let project = workspace_project();
     let (_, config) = negotiate_capabilities(project.initialize_params_with_roots(&["/workspace"]));
     let fallback_root = project.path("/workspace/missing");
     std::fs::create_dir(&fallback_root).unwrap();
@@ -842,7 +755,7 @@ fn watched_file_specs_prioritize_specific_dependency_parents() {
     let specs = watched_file_specs(&config, &analysis_paths);
 
     assert!(
-        specs.iter().any(|spec| spec.base == resolved_parent && spec.pattern == "*.sol"),
+        has_desired_spec(&specs, &resolved_parent, "*.sol"),
         "fallback recovery watchers displaced a specific dependency watcher"
     );
     assert!(
@@ -858,24 +771,11 @@ fn watched_file_specs_prioritize_specific_dependency_parents() {
 
 #[test]
 fn concurrent_watched_file_updates_keep_desired_specs_and_generation_in_sync() {
-    let project = TestProject::new();
-    std::fs::create_dir(project.path("/workspace")).unwrap();
-    let mut params = project.initialize_params_with_roots(&["/workspace"]);
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(true),
-        }),
-        ..Default::default()
-    });
-    let (_, config) = negotiate_capabilities(params);
-    let config = Arc::new(config);
+    let project = workspace_project();
+    let config = Arc::new(relative_watch_config(&project, &["/workspace"], &[]));
     let coordinator = Arc::new(WatchedFileRegistrationCoordinator::default());
     let barrier = Arc::new(Barrier::new(3));
-    let specs = [
-        vec![WatchedFileSpec::new(project.path("/first"), "**/*.sol")],
-        vec![WatchedFileSpec::new(project.path("/second"), "**/*.sol")],
-    ];
+    let specs = [sol_spec(&project, "/first"), sol_spec(&project, "/second")];
 
     let updates = std::thread::scope(|scope| {
         let handles = specs.map(|specs| {
@@ -900,54 +800,48 @@ fn concurrent_watched_file_updates_keep_desired_specs_and_generation_in_sync() {
 #[test]
 fn global_fallback_watched_file_update_ignores_spec_changes() {
     let project = TestProject::new();
-    let mut params = project.initialize_params();
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(false),
-        }),
-        ..Default::default()
-    });
+    let mut params = relative_watch_params(&project, &["/"], &[]);
+    let workspace = params.capabilities.workspace.as_mut().unwrap();
+    workspace.did_change_watched_files.as_mut().unwrap().relative_pattern_support = Some(false);
     let (_, config) = negotiate_capabilities(params);
     let coordinator = WatchedFileRegistrationCoordinator::default();
-    let first_specs = vec![WatchedFileSpec::new(project.path("/first"), "**/*.sol")];
-    let first =
-        prepare_watched_file_registration_update(&config, &coordinator, first_specs).unwrap();
+    let first = prepare_watched_file_registration_update(
+        &config,
+        &coordinator,
+        sol_spec(&project, "/first"),
+    );
+    let first = first.unwrap();
 
     assert!(first.desired_specs.is_empty());
-    let generation = first.generation;
-    let second_specs = vec![WatchedFileSpec::new(project.path("/second"), "**/*.sol")];
-    assert!(
-        prepare_watched_file_registration_update(&config, &coordinator, second_specs).is_none()
+    let second = prepare_watched_file_registration_update(
+        &config,
+        &coordinator,
+        sol_spec(&project, "/second"),
     );
-    assert_eq!(coordinator.generation.load(Ordering::Acquire), generation);
+    assert!(second.is_none());
+    assert_eq!(coordinator.generation.load(Ordering::Acquire), first.generation);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn failed_watched_file_registration_allows_the_same_specs_to_retry() {
-    let project = TestProject::new();
-    std::fs::create_dir(project.path("/workspace")).unwrap();
-    let mut params = project.initialize_params_with_roots(&["/workspace"]);
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(true),
-        }),
-        ..Default::default()
-    });
-    let (_, config) = negotiate_capabilities(params);
+    let project = workspace_project();
+    let config = relative_watch_config(&project, &["/workspace"], &[]);
     let coordinator = Arc::new(WatchedFileRegistrationCoordinator::default());
+    let client = ClientSocket::new_closed();
     let specs = config.watched_file_specs();
+    // The superseded update exits without touching the latest desired specs.
+    let stale = prepare_watched_file_registration_update(
+        &config,
+        &coordinator,
+        sol_spec(&project, "/stale"),
+    );
     let update =
         prepare_watched_file_registration_update(&config, &coordinator, specs.clone()).unwrap();
     let first_generation = update.generation;
 
-    spawn_watched_file_registration_update(&ClientSocket::new_closed(), &coordinator, Some(update));
-    let deadline = Instant::now() + ASYNC_TEST_TIMEOUT;
-    while coordinator.desired_specs.lock().is_some() && Instant::now() < deadline {
-        tokio::task::yield_now().await;
-    }
-    assert!(coordinator.desired_specs.lock().is_none());
+    spawn_watched_file_registration_update(&client, &coordinator, stale);
+    spawn_watched_file_registration_update(&client, &coordinator, Some(update));
+    wait_until_idle(&coordinator).await;
 
     let retry = prepare_watched_file_registration_update(&config, &coordinator, specs).unwrap();
     assert!(retry.generation > first_generation);
@@ -955,337 +849,79 @@ async fn failed_watched_file_registration_allows_the_same_specs_to_retry() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn failed_watched_file_replacement_keeps_the_previous_registration() {
-    let project = TestProject::new();
-    std::fs::create_dir(project.path("/workspace")).unwrap();
-    let mut params = project.initialize_params_with_roots(&["/workspace"]);
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(true),
-        }),
-        ..Default::default()
-    });
-    let (_, config) = negotiate_capabilities(params);
-    let coordinator = Arc::new(WatchedFileRegistrationCoordinator::default());
-    let (server_main, client_socket) = async_lsp::MainLoop::new_server(|_| {
-        let mut router = Router::new(());
-        router.notification::<notification::Exit>(|_, ()| ControlFlow::Break(Ok(())));
-        router.event::<WatchedFileRegistrationReady>(|_, _| ControlFlow::Continue(()));
-        router
-    });
-    let (events_tx, mut events_rx) = mpsc::unbounded_channel();
-    let attempts = Arc::new(AtomicUsize::new(0));
-    let (client_main, server_socket) = async_lsp::MainLoop::new_client(move |_| {
-        let mut router = Router::new((events_tx, attempts));
-        router.request::<request::RegisterCapability, _>(|(events, attempts), params| {
-            events.send(WatchedFileClientEvent::Register(params)).unwrap();
-            let attempt = attempts.fetch_add(1, Ordering::AcqRel);
-            async move {
-                if attempt == 1 {
-                    Err(ResponseError::new(
-                        ErrorCode::REQUEST_FAILED,
-                        "replacement registration failed",
-                    ))
-                } else {
-                    Ok(())
-                }
-            }
-        });
-        router.request::<request::UnregisterCapability, _>(|(events, _), params| {
-            events.send(WatchedFileClientEvent::Unregister(params)).unwrap();
-            async { Ok(()) }
-        });
-        router
-    });
-    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
+    let project = workspace_project();
+    let config = relative_watch_config(&project, &["/workspace"], &[]);
+    let script = ClientScript { fail_register: Some(1), ..Default::default() };
+    let mut harness = RegistrationHarness::new(config, script);
 
-    let first_specs = vec![WatchedFileSpec::new(project.path("/first"), "**/*.sol")];
-    let first =
-        prepare_watched_file_registration_update(&config, &coordinator, first_specs).unwrap();
-    spawn_watched_file_registration_update(&client_socket, &coordinator, Some(first));
-    let WatchedFileClientEvent::Register(first_registration) =
-        next_watched_file_client_event(&mut events_rx).await
-    else {
-        panic!("expected initial watched-file registration")
-    };
-    let first_id = first_registration.registrations[0].id.clone();
+    let (first_id, _) = harness.register(sol_spec(&project, "/first")).await;
+    let (second_id, _) = harness.register(sol_spec(&project, "/second")).await;
+    assert_ne!(second_id, first_id);
 
-    let second_specs = vec![WatchedFileSpec::new(project.path("/second"), "**/*.sol")];
-    let second =
-        prepare_watched_file_registration_update(&config, &coordinator, second_specs.clone())
-            .unwrap();
-    spawn_watched_file_registration_update(&client_socket, &coordinator, Some(second));
-    let WatchedFileClientEvent::Register(second_registration) =
-        next_watched_file_client_event(&mut events_rx).await
-    else {
-        panic!("expected replacement registration before any unregistration")
-    };
-    assert_ne!(second_registration.registrations[0].id, first_id);
+    wait_until_idle(&harness.coordinator).await;
+    assert!(harness.events.try_recv().is_err());
+    assert_eq!(*harness.coordinator.active_registration_ids.lock(), [first_id.as_str()]);
 
-    let deadline = Instant::now() + ASYNC_TEST_TIMEOUT;
-    while coordinator.desired_specs.lock().is_some() && Instant::now() < deadline {
-        tokio::task::yield_now().await;
-    }
-    assert!(coordinator.desired_specs.lock().is_none());
-    assert!(events_rx.try_recv().is_err());
-    assert_eq!(
-        coordinator.active_registration_ids.lock().as_slice(),
-        std::slice::from_ref(&first_id)
-    );
-
-    let retry =
-        prepare_watched_file_registration_update(&config, &coordinator, second_specs).unwrap();
-    spawn_watched_file_registration_update(&client_socket, &coordinator, Some(retry));
-    let WatchedFileClientEvent::Register(retry_registration) =
-        next_watched_file_client_event(&mut events_rx).await
-    else {
-        panic!("expected watched-file registration retry")
-    };
-    let retry_id = retry_registration.registrations[0].id.clone();
-    assert!(matches!(
-        next_watched_file_client_event(&mut events_rx).await,
-        WatchedFileClientEvent::Unregister(params)
-            if params.unregisterations[0].id == first_id
-    ));
-    let deadline = Instant::now() + ASYNC_TEST_TIMEOUT;
-    while *coordinator.active_registration_ids.lock() != [retry_id.clone()]
-        && Instant::now() < deadline
-    {
-        tokio::task::yield_now().await;
-    }
-    assert_eq!(*coordinator.active_registration_ids.lock(), [retry_id]);
-
-    server_socket.notify::<notification::Exit>(()).unwrap();
-    assert!(server_task.await.unwrap().is_ok());
-    assert!(matches!(client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
+    let (retry_id, _) = harness.register(sol_spec(&project, "/second")).await;
+    harness.expect_unregistration(&first_id).await;
+    harness.wait_for_active(&[&retry_id]).await;
+    harness.shutdown().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn superseded_replacement_preserves_previous_registration_until_latest_is_active() {
-    let project = TestProject::new();
-    std::fs::create_dir(project.path("/workspace")).unwrap();
-    let mut params = project.initialize_params_with_roots(&["/workspace"]);
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(true),
-        }),
-        ..Default::default()
-    });
-    let (_, config) = negotiate_capabilities(params);
-    let coordinator = Arc::new(WatchedFileRegistrationCoordinator::default());
-    let (server_main, client_socket) = async_lsp::MainLoop::new_server(|_| {
-        let mut router = Router::new(());
-        router.notification::<notification::Exit>(|_, ()| ControlFlow::Break(Ok(())));
-        router.event::<WatchedFileRegistrationReady>(|_, _| ControlFlow::Continue(()));
-        router
-    });
-    let (events_tx, mut events_rx) = mpsc::unbounded_channel();
+    let project = workspace_project();
+    let config = relative_watch_config(&project, &["/workspace"], &[]);
     let (replacement_ack_tx, replacement_ack_rx) = oneshot::channel();
-    let (client_main, server_socket) = async_lsp::MainLoop::new_client(move |_| {
-        let mut router = Router::new((events_tx, Some(replacement_ack_rx), 0usize));
-        router.request::<request::RegisterCapability, _>(
-            |(events, replacement_ack, attempts), params| {
-                events.send(WatchedFileClientEvent::Register(params)).unwrap();
-                let ack = (*attempts == 1).then(|| replacement_ack.take().unwrap());
-                *attempts += 1;
-                async move {
-                    if let Some(ack) = ack {
-                        ack.await.map_err(|_| {
-                            ResponseError::new(
-                                ErrorCode::REQUEST_FAILED,
-                                "test registration ack dropped",
-                            )
-                        })?;
-                    }
-                    Ok(())
-                }
-            },
-        );
-        router.request::<request::UnregisterCapability, _>(|(events, _, _), params| {
-            events.send(WatchedFileClientEvent::Unregister(params)).unwrap();
-            async { Ok(()) }
-        });
-        router
-    });
-    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
-
+    let script =
+        ClientScript { delay_register: Some((1, replacement_ack_rx)), ..Default::default() };
+    let mut harness = RegistrationHarness::new(config, script);
     let shared_root = project.path("/shared");
-    let first_specs = vec![WatchedFileSpec::new(shared_root.clone(), "**/*.sol")];
-    let first =
-        prepare_watched_file_registration_update(&config, &coordinator, first_specs).unwrap();
-    spawn_watched_file_registration_update(&client_socket, &coordinator, Some(first));
-    let WatchedFileClientEvent::Register(first_registration) =
-        next_watched_file_client_event(&mut events_rx).await
-    else {
-        panic!("expected initial watched-file registration")
-    };
-    let first_id = first_registration.registrations[0].id.clone();
+    let latest_root = project.path("/latest");
 
-    let second_specs = vec![WatchedFileSpec::new(project.path("/stale"), "**/*.sol")];
-    let second =
-        prepare_watched_file_registration_update(&config, &coordinator, second_specs).unwrap();
-    spawn_watched_file_registration_update(&client_socket, &coordinator, Some(second));
-    let WatchedFileClientEvent::Register(second_registration) =
-        next_watched_file_client_event(&mut events_rx).await
-    else {
-        panic!("expected replacement watched-file registration")
-    };
-    let second_id = second_registration.registrations[0].id.clone();
+    let (first_id, _) = harness.register(sol_spec(&project, "/shared")).await;
+    let (second_id, _) = harness.register(sol_spec(&project, "/stale")).await;
     assert_ne!(second_id, first_id);
 
-    let latest_root = project.path("/latest");
+    let third_specs = [&shared_root, &latest_root]
+        .map(|root| WatchedFileSpec::new(root.clone(), "**/*.sol"))
+        .to_vec();
     let third = prepare_watched_file_registration_update(
-        &config,
-        &coordinator,
-        vec![
-            WatchedFileSpec::new(shared_root.clone(), "**/*.sol"),
-            WatchedFileSpec::new(latest_root.clone(), "**/*.sol"),
-        ],
-    )
-    .unwrap();
-    spawn_watched_file_registration_update(&client_socket, &coordinator, Some(third));
+        &harness.config,
+        &harness.coordinator,
+        third_specs,
+    );
+    spawn_watched_file_registration_update(&harness.client, &harness.coordinator, third);
     replacement_ack_tx.send(()).unwrap();
 
-    let WatchedFileClientEvent::Register(third_registration) =
-        next_watched_file_client_event(&mut events_rx).await
-    else {
-        panic!("expected latest registration before any unregistration")
-    };
-    let third_id = third_registration.registrations[0].id.clone();
-    assert!(watched_file_registration_has_spec(&third_registration, &shared_root, "**/*.sol"));
-    assert!(watched_file_registration_has_spec(&third_registration, &latest_root, "**/*.sol"));
-    assert!(matches!(
-        next_watched_file_client_event(&mut events_rx).await,
-        WatchedFileClientEvent::Unregister(params)
-            if params.unregisterations[0].id == first_id
-    ));
-    assert!(matches!(
-        next_watched_file_client_event(&mut events_rx).await,
-        WatchedFileClientEvent::Unregister(params)
-            if params.unregisterations[0].id == second_id
-    ));
-    let deadline = Instant::now() + ASYNC_TEST_TIMEOUT;
-    while *coordinator.active_registration_ids.lock() != [third_id.clone()]
-        && Instant::now() < deadline
-    {
-        tokio::task::yield_now().await;
-    }
-    assert_eq!(*coordinator.active_registration_ids.lock(), [third_id]);
-
-    server_socket.notify::<notification::Exit>(()).unwrap();
-    assert!(server_task.await.unwrap().is_ok());
-    assert!(matches!(client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
+    let (third_id, third_registration) = harness.next_registration().await;
+    assert!(has_spec(&third_registration, &shared_root, "**/*.sol"));
+    assert!(has_spec(&third_registration, &latest_root, "**/*.sol"));
+    harness.expect_unregistration(&first_id).await;
+    harness.expect_unregistration(&second_id).await;
+    harness.wait_for_active(&[&third_id]).await;
+    harness.shutdown().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn failed_unregistration_is_retried_after_the_next_replacement() {
-    let project = TestProject::new();
-    std::fs::create_dir(project.path("/workspace")).unwrap();
-    let mut params = project.initialize_params_with_roots(&["/workspace"]);
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(true),
-        }),
-        ..Default::default()
-    });
-    let (_, config) = negotiate_capabilities(params);
-    let coordinator = Arc::new(WatchedFileRegistrationCoordinator::default());
-    let (server_main, client_socket) = async_lsp::MainLoop::new_server(|_| {
-        let mut router = Router::new(());
-        router.notification::<notification::Exit>(|_, ()| ControlFlow::Break(Ok(())));
-        router.event::<WatchedFileRegistrationReady>(|_, _| ControlFlow::Continue(()));
-        router
-    });
-    let (events_tx, mut events_rx) = mpsc::unbounded_channel();
-    let (client_main, server_socket) = async_lsp::MainLoop::new_client(move |_| {
-        let mut router = Router::new((events_tx, 0usize));
-        router.request::<request::RegisterCapability, _>(|(events, _), params| {
-            events.send(WatchedFileClientEvent::Register(params)).unwrap();
-            async { Ok(()) }
-        });
-        router.request::<request::UnregisterCapability, _>(|(events, attempts), params| {
-            events.send(WatchedFileClientEvent::Unregister(params)).unwrap();
-            let attempt = *attempts;
-            *attempts += 1;
-            async move {
-                if attempt == 0 {
-                    Err(ResponseError::new(
-                        ErrorCode::REQUEST_FAILED,
-                        "first unregistration failed",
-                    ))
-                } else {
-                    Ok(())
-                }
-            }
-        });
-        router
-    });
-    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
+    let project = workspace_project();
+    let config = relative_watch_config(&project, &["/workspace"], &[]);
+    let script = ClientScript { fail_unregister: Some(0), ..Default::default() };
+    let mut harness = RegistrationHarness::new(config, script);
 
-    let first = prepare_watched_file_registration_update(
-        &config,
-        &coordinator,
-        vec![WatchedFileSpec::new(project.path("/first"), "**/*.sol")],
-    )
-    .unwrap();
-    spawn_watched_file_registration_update(&client_socket, &coordinator, Some(first));
-    let WatchedFileClientEvent::Register(first_registration) =
-        next_watched_file_client_event(&mut events_rx).await
-    else {
-        panic!("expected initial watched-file registration")
-    };
-    let first_id = first_registration.registrations[0].id.clone();
+    let (first_id, _) = harness.register(sol_spec(&project, "/first")).await;
+    let (second_id, _) = harness.register(sol_spec(&project, "/second")).await;
+    harness.expect_unregistration(&first_id).await;
 
-    let second = prepare_watched_file_registration_update(
-        &config,
-        &coordinator,
-        vec![WatchedFileSpec::new(project.path("/second"), "**/*.sol")],
-    )
-    .unwrap();
-    spawn_watched_file_registration_update(&client_socket, &coordinator, Some(second));
-    let WatchedFileClientEvent::Register(second_registration) =
-        next_watched_file_client_event(&mut events_rx).await
-    else {
-        panic!("expected second watched-file registration")
-    };
-    let second_id = second_registration.registrations[0].id.clone();
-    assert!(matches!(
-        next_watched_file_client_event(&mut events_rx).await,
-        WatchedFileClientEvent::Unregister(params)
-            if params.unregisterations[0].id == first_id
-    ));
-
-    let third = prepare_watched_file_registration_update(
-        &config,
-        &coordinator,
-        vec![WatchedFileSpec::new(project.path("/third"), "**/*.sol")],
-    )
-    .unwrap();
-    spawn_watched_file_registration_update(&client_socket, &coordinator, Some(third));
-    assert!(matches!(
-        next_watched_file_client_event(&mut events_rx).await,
-        WatchedFileClientEvent::Register(_)
-    ));
-    assert!(matches!(
-        next_watched_file_client_event(&mut events_rx).await,
-        WatchedFileClientEvent::Unregister(params)
-            if params.unregisterations[0].id == first_id
-    ));
-    assert!(matches!(
-        next_watched_file_client_event(&mut events_rx).await,
-        WatchedFileClientEvent::Unregister(params)
-            if params.unregisterations[0].id == second_id
-    ));
-
-    server_socket.notify::<notification::Exit>(()).unwrap();
-    assert!(server_task.await.unwrap().is_ok());
-    assert!(matches!(client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
+    harness.register(sol_spec(&project, "/third")).await;
+    harness.expect_unregistration(&first_id).await;
+    harness.expect_unregistration(&second_id).await;
+    harness.shutdown().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn synchronous_discovery_refreshes_watched_file_specs_before_analysis() {
+async fn discovery_refreshes_watched_file_specs_before_analysis() {
     let project = TestProject::from_fixture(
         r#"
         //- /foundry.toml
@@ -1294,141 +930,60 @@ async fn synchronous_discovery_refreshes_watched_file_specs_before_analysis() {
 
         //- /contracts/Main.sol
         contract Main {}
-        "#,
-    );
-    let mut params = project.initialize_params();
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(true),
-        }),
-        ..Default::default()
-    });
-    let (_, config) = negotiate_capabilities(params);
-    let initial_specs = config.watched_file_specs();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
-    *state.watched_file_registration.desired_specs.lock() = Some(initial_specs);
-
-    state.rediscover_workspaces().unwrap();
-
-    let specs = state.watched_file_registration.desired_specs.lock();
-    assert!(
-        specs
-            .as_ref()
-            .unwrap()
-            .iter()
-            .any(|spec| { spec.base == project.path("/contracts") && spec.pattern == "**/*.sol" })
-    );
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn reregister_watched_files_preserves_missing_candidates() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "src"
-
-        //- /src/Main.sol
-        contract Main {}
 
         //- /out/generated/.keep
         "#,
     );
-    let mut params = project.initialize_params();
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(true),
-        }),
-        ..Default::default()
-    });
-    let (_, mut config) = negotiate_capabilities(params);
-    config.rediscover_workspaces();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
+    let config = relative_watch_config(&project, &["/"], &[]);
+    let initial_specs = config.watched_file_specs();
+    let mut state = state_with(config);
+    *state.watched_file_registration.desired_specs.lock() = Some(initial_specs);
+
+    state.rediscover_workspaces().unwrap();
+
+    let desired_specs = || state.watched_file_registration.desired_specs.lock().clone().unwrap();
+    assert!(has_desired_spec(&desired_specs(), &project.path("/contracts"), "**/*.sol"));
+
+    // Reregistration keeps watchers for missing import candidates.
     let missing_parent = project.path("/out/generated");
-    state
-        .analysis_commit
-        .lock()
-        .analysis_paths
-        .missing_candidates
-        .insert(missing_parent.join("Missing.sol"));
-
+    let mut commit = state.analysis_commit.lock();
+    commit.analysis_paths.missing_candidates.insert(missing_parent.join("Missing.sol"));
+    drop(commit);
     state.reregister_watched_files();
-
-    assert!(
-        state
-            .watched_file_registration
-            .desired_specs
-            .lock()
-            .as_ref()
-            .unwrap()
-            .iter()
-            .any(|spec| spec.base == missing_parent && spec.pattern == "*.sol")
-    );
+    assert!(has_desired_spec(&desired_specs(), &missing_parent, "*.sol"));
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn completed_watcher_registration_rechecks_missing_candidates() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Main.sol
-        import "./generated/Missing.sol";
-        contract Main is Missing {}
+    for symlinked in [false, cfg!(unix)] {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Main.sol
+            import "./generated/Missing.sol";
+            contract Main is Missing {}
 
-        //- /generated/.keep
-        "#,
-    );
-    let mut config = project.config();
-    config.rediscover_workspaces();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
-    let missing = project.path("/generated/Missing.sol");
-    state.analysis_commit.lock().analysis_paths.missing_candidates.insert(missing);
-    project.write_file("/generated/Missing.sol", "contract Missing {}");
-    let previous_version = state.analysis_version.load(Ordering::Acquire);
+            //- /generated/Target.sol
+            contract Missing {}
+            "#,
+        );
+        let mut state = state_with(project.config());
+        let missing = project.path("/generated/Missing.sol");
+        state.analysis_commit.lock().analysis_paths.missing_candidates.insert(missing.clone());
+        if symlinked {
+            #[cfg(unix)]
+            symlink(project.path("/generated/Target.sol"), &missing).unwrap();
+        } else {
+            project.write_file("/generated/Missing.sol", "contract Missing {}");
+        }
+        let previous_version = analysis_version(&state);
 
-    assert!(matches!(
-        state.on_watched_file_registration_ready(WatchedFileRegistrationReady),
-        ControlFlow::Continue(())
-    ));
+        assert!(
+            state.on_watched_file_registration_ready(WatchedFileRegistrationReady).is_continue()
+        );
 
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), previous_version + 1);
-    state.analysis_scheduler.tasks.lock().cancel();
-}
-
-#[cfg(unix)]
-#[tokio::test(flavor = "current_thread")]
-async fn completed_watcher_registration_rechecks_symlinked_missing_candidates() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Main.sol
-        import "./generated/Missing.sol";
-        contract Main is Missing {}
-
-        //- /generated/.keep
-        //- /generated/Target.sol
-        contract Missing {}
-        "#,
-    );
-    let mut config = project.config();
-    config.rediscover_workspaces();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
-    let missing = project.path("/generated/Missing.sol");
-    state.analysis_commit.lock().analysis_paths.missing_candidates.insert(missing.clone());
-    std::os::unix::fs::symlink(project.path("/generated/Target.sol"), missing).unwrap();
-    let previous_version = state.analysis_version.load(Ordering::Acquire);
-
-    assert!(matches!(
-        state.on_watched_file_registration_ready(WatchedFileRegistrationReady),
-        ControlFlow::Continue(())
-    ));
-
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), previous_version + 1);
-    state.analysis_scheduler.tasks.lock().cancel();
+        assert_eq!(analysis_version(&state), previous_version + 1);
+        cancel_analysis(&state);
+    }
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1442,168 +997,67 @@ async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
         //- /repo/workspace/.keep
         "#,
     );
-    let mut params = project.initialize_params_with_roots(&["/repo/workspace", "/shared"]);
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(true),
-        }),
-        ..Default::default()
-    });
-    let (_, config) = negotiate_capabilities(params);
+    let config = relative_watch_config(&project, &["/repo/workspace", "/shared"], &[]);
     let discovery = config.discover_workspaces(&IndexingCancellation::default()).unwrap();
-    let (server_main, client_socket) = async_lsp::MainLoop::new_server(|_| {
-        let mut router = Router::new(());
-        router.notification::<notification::Exit>(|_, ()| ControlFlow::Break(Ok(())));
-        router.event::<WatchedFileRegistrationReady>(|_, _| ControlFlow::Continue(()));
-        router
-    });
-    let (events_tx, mut events_rx) = mpsc::unbounded_channel();
-    let (client_main, server_socket) = async_lsp::MainLoop::new_client(move |_| {
-        let mut router = Router::new(events_tx);
-        router.request::<request::RegisterCapability, _>(|events, params| {
-            events.send(WatchedFileClientEvent::Register(params)).unwrap();
-            async { Ok(()) }
-        });
-        router.request::<request::UnregisterCapability, _>(|events, params| {
-            events.send(WatchedFileClientEvent::Unregister(params)).unwrap();
-            async { Ok(()) }
-        });
-        router
-    });
-    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
-
-    let mut state = GlobalState::new(client_socket);
+    let mut harness = RegistrationHarness::new(config.clone(), ClientScript::default());
+    let mut state = GlobalState::new(harness.client.clone());
     state.config = Arc::new(config);
+    let desired_specs =
+        |state: &GlobalState| state.watched_file_registration.desired_specs.lock().clone().unwrap();
     let (version, progress) = state
         .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
         .unwrap();
 
-    assert!(matches!(
-        state.on_workspace_discovery_ready(WorkspaceDiscoveryReady {
-            version,
-            result: discovery,
-            disk_paths: Vec::new(),
-            progress,
-            cancellation: IndexingCancellation::default(),
-        }),
-        ControlFlow::Continue(())
-    ));
-    state.analysis_scheduler.tasks.lock().cancel();
-    let discovered_specs = state.watched_file_registration.desired_specs.lock().clone().unwrap();
-    assert!(
-        discovered_specs
-            .iter()
-            .any(|spec| { spec.base == project.path("/repo") && spec.pattern == "foundry.toml" })
-    );
-    assert!(discovered_specs.iter().any(|spec| {
-        spec.base == project.path("/shared/contracts") && spec.pattern == "**/*.sol"
-    }));
-    let WatchedFileClientEvent::Register(discovered_registration) =
-        next_watched_file_client_event(&mut events_rx).await
-    else {
-        panic!("expected discovered watched-file registration")
+    let ready = WorkspaceDiscoveryReady {
+        version,
+        result: discovery,
+        disk_paths: Vec::new(),
+        progress,
+        cancellation: IndexingCancellation::default(),
     };
-    let discovered_id = discovered_registration.registrations[0].id.clone();
-    assert!(watched_file_registration_has_spec(
-        &discovered_registration,
-        &project.path("/repo"),
-        "foundry.toml"
-    ));
-    assert!(watched_file_registration_has_spec(
-        &discovered_registration,
-        &project.path("/shared/contracts"),
-        "**/*.sol"
-    ));
+    assert!(state.on_workspace_discovery_ready(ready).is_continue());
+    cancel_analysis(&state);
+    let repo = project.path("/repo");
+    let shared_contracts = project.path("/shared/contracts");
+    let specs = desired_specs(&state);
+    assert!(has_desired_spec(&specs, &repo, "foundry.toml"));
+    assert!(has_desired_spec(&specs, &shared_contracts, "**/*.sol"));
+    let (discovered_id, registration) = harness.next_registration().await;
+    assert!(has_spec(&registration, &repo, "foundry.toml"));
+    assert!(has_spec(&registration, &shared_contracts, "**/*.sol"));
 
     let dependency_parent = project.path("/repo/dependencies");
     let outside_parent = project.path("/outside");
     let missing_parent = project.path("/repo/missing");
-    let output = AnalysisOutput {
-        result: AnalysisResult {
-            analyzed_documents: AnalyzedDocuments::default(),
-            diagnostics: DiagnosticMap::default(),
-            symbol_tables: Default::default(),
-        },
-        analysis_paths: AnalysisPathIndex {
-            resolved_dependencies: FxHashSet::from_iter([
-                dependency_parent.join("Dependency.sol"),
-                outside_parent.join("Outside.sol"),
-            ]),
-            missing_candidates: FxHashSet::from_iter([missing_parent.join("Missing.sol")]),
-            ..Default::default()
-        },
-    };
+    let output = path_output(AnalysisPathIndex {
+        resolved_dependencies: FxHashSet::from_iter([
+            dependency_parent.join("Dependency.sol"),
+            outside_parent.join("Outside.sol"),
+        ]),
+        missing_candidates: FxHashSet::from_iter([missing_parent.join("Missing.sol")]),
+        ..Default::default()
+    });
     assert!(state.snapshot().publish_analysis_output(version, output.into_shared()));
-    let published_specs = state.watched_file_registration.desired_specs.lock().clone().unwrap();
-    assert!(
-        published_specs
-            .iter()
-            .any(|spec| { spec.base == dependency_parent && spec.pattern == "*.sol" })
-    );
-    assert!(
-        !published_specs
-            .iter()
-            .any(|spec| spec.base == dependency_parent && spec.pattern == "**/*.sol")
-    );
-    assert!(!published_specs.iter().any(|spec| spec.base == outside_parent));
-    assert!(!published_specs.iter().any(|spec| spec.base == missing_parent));
-    assert!(
-        published_specs
-            .iter()
-            .any(|spec| spec.base == project.path("/repo") && spec.pattern == "*")
-    );
-    let WatchedFileClientEvent::Register(published_registration) =
-        next_watched_file_client_event(&mut events_rx).await
-    else {
-        panic!("expected analysis watched-file registration")
-    };
-    let published_id = published_registration.registrations[0].id.clone();
+    let specs = desired_specs(&state);
+    assert!(has_desired_spec(&specs, &dependency_parent, "*.sol"));
+    assert!(!has_desired_spec(&specs, &dependency_parent, "**/*.sol"));
+    assert!(!specs.iter().any(|spec| spec.base == outside_parent));
+    assert!(!specs.iter().any(|spec| spec.base == missing_parent));
+    assert!(has_desired_spec(&specs, &repo, "*"));
+    let (published_id, registration) = harness.next_registration().await;
     assert_ne!(published_id, discovered_id);
-    assert!(matches!(
-        next_watched_file_client_event(&mut events_rx).await,
-        WatchedFileClientEvent::Unregister(params)
-            if params.unregisterations[0].id == discovered_id
-    ));
-    assert!(watched_file_registration_has_spec(
-        &published_registration,
-        &dependency_parent,
-        "*.sol"
-    ));
-    assert!(!watched_file_registration_has_spec(
-        &published_registration,
-        &dependency_parent,
-        "**/*.sol"
-    ));
-    assert!(!watched_file_registration_has_spec(&published_registration, &outside_parent, "*.sol"));
-    assert!(!watched_file_registration_has_spec(&published_registration, &missing_parent, "*.sol"));
-    assert!(watched_file_registration_has_spec(
-        &published_registration,
-        &project.path("/repo"),
-        "*"
-    ));
+    harness.expect_unregistration(&discovered_id).await;
+    assert!(has_spec(&registration, &dependency_parent, "*.sol"));
+    assert!(!has_spec(&registration, &dependency_parent, "**/*.sol"));
+    assert!(!has_spec(&registration, &outside_parent, "*.sol"));
+    assert!(!has_spec(&registration, &missing_parent, "*.sol"));
+    assert!(has_spec(&registration, &repo, "*"));
 
     state.clear_analysis_cache();
-    let cleared_specs = state.watched_file_registration.desired_specs.lock().clone().unwrap();
-    assert!(!cleared_specs.iter().any(|spec| spec.base == dependency_parent));
-    let WatchedFileClientEvent::Register(cleared_registration) =
-        next_watched_file_client_event(&mut events_rx).await
-    else {
-        panic!("expected cache-clear watched-file registration")
-    };
-    assert_ne!(cleared_registration.registrations[0].id, published_id);
-    assert!(matches!(
-        next_watched_file_client_event(&mut events_rx).await,
-        WatchedFileClientEvent::Unregister(params)
-            if params.unregisterations[0].id == published_id
-    ));
-    assert!(!watched_file_registration_has_spec(
-        &cleared_registration,
-        &dependency_parent,
-        "**/*.sol"
-    ));
-
-    server_socket.notify::<notification::Exit>(()).unwrap();
-    assert!(server_task.await.unwrap().is_ok());
-    assert!(matches!(client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
+    assert!(!desired_specs(&state).iter().any(|spec| spec.base == dependency_parent));
+    let (cleared_id, registration) = harness.next_registration().await;
+    assert_ne!(cleared_id, published_id);
+    harness.expect_unregistration(&published_id).await;
+    assert!(!has_spec(&registration, &dependency_parent, "**/*.sol"));
+    harness.shutdown().await;
 }

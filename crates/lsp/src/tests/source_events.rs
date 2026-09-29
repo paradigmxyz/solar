@@ -1,8 +1,36 @@
-use super::*;
+use super::{
+    indexing::{
+        analysis_version, analyze_project, cancel_analysis, settle, state_with, symbol_names, watch,
+    },
+    *,
+};
 use lsp_types::{CreateFilesParams, DeleteFilesParams, FileCreate, FileDelete};
 
+fn create_files(state: &mut GlobalState, path: &Path) {
+    let files = vec![FileCreate { uri: Url::from_file_path(path).unwrap().to_string() }];
+    assert!(crate::handlers::did_create_files(state, CreateFilesParams { files }).is_continue());
+}
+
+fn deferred_event(state: &GlobalState, path: &Path) -> Option<FileChangeType> {
+    state.analysis_commit.lock().deferred_source_file_events.get(path).copied()
+}
+
+fn discovery_ready(
+    version: usize,
+    result: WorkspaceDiscoveryResult,
+    progress: ProgressTicket,
+) -> WorkspaceDiscoveryReady {
+    WorkspaceDiscoveryReady {
+        version,
+        result,
+        disk_paths: Vec::new(),
+        progress,
+        cancellation: IndexingCancellation::default(),
+    }
+}
+
 #[tokio::test(flavor = "current_thread")]
-async fn watched_solidity_change_ignores_unrelated_excluded_file() {
+async fn watched_unrelated_excluded_sources_and_manifests_do_not_schedule_analysis() {
     let project = TestProject::from_fixture(
         r#"
         //- /Main.sol
@@ -10,52 +38,28 @@ async fn watched_solidity_change_ignores_unrelated_excluded_file() {
 
         //- /generated/Unrelated.sol
         contract Unrelated {}
-        "#,
-    );
-    let path = project.path("/generated/Unrelated.sol");
-    let uri = Url::from_file_path(path).unwrap();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config_with_indexing_excludes(&project, &["generated/**"]));
-    let version = state.analysis_version.load(Ordering::Acquire);
-
-    let result = crate::handlers::did_change_watched_files(
-        &mut state,
-        DidChangeWatchedFilesParams {
-            changes: vec![FileEvent { uri, typ: FileChangeType::CHANGED }],
-        },
-    );
-
-    assert!(matches!(result, ControlFlow::Continue(())));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), version);
-    assert!(state.analysis_scheduler.tasks.lock().coordinator.is_none());
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn watched_excluded_manifest_events_do_not_schedule_analysis() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Main.sol
-        contract Main {}
 
         //- /node_modules/package/foundry.toml
         [profile.default]
         src = "src"
         "#,
     );
+    let unrelated = project.path("/generated/Unrelated.sol");
+    let manifest = project.path("/node_modules/package/foundry.toml");
+    let excluded = || config_with_indexing_excludes(&project, &["generated/**"]);
+    let cases = [
+        (excluded(), unrelated.as_path(), FileChangeType::CHANGED),
+        (project.config(), &manifest, FileChangeType::CREATED),
+        (project.config(), &manifest, FileChangeType::CHANGED),
+        (project.config(), &manifest, FileChangeType::DELETED),
+    ];
+    for (config, path, typ) in cases {
+        let mut state = state_with(config);
+        let version = analysis_version(&state);
 
-    for typ in [FileChangeType::CREATED, FileChangeType::CHANGED, FileChangeType::DELETED] {
-        let mut state = GlobalState::new(ClientSocket::new_closed());
-        state.config = Arc::new(project.config());
-        let version = state.analysis_version.load(Ordering::Acquire);
-        let uri = Url::from_file_path(project.path("/node_modules/package/foundry.toml")).unwrap();
+        watch(&mut state, &[(path, typ)]);
 
-        let result = crate::handlers::did_change_watched_files(
-            &mut state,
-            DidChangeWatchedFilesParams { changes: vec![FileEvent { uri, typ }] },
-        );
-
-        assert!(matches!(result, ControlFlow::Continue(())));
-        assert_eq!(state.analysis_version.load(Ordering::Acquire), version);
+        assert_eq!(analysis_version(&state), version);
         assert!(state.analysis_scheduler.tasks.lock().coordinator.is_none());
     }
 }
@@ -71,37 +75,18 @@ async fn watched_nested_manifest_create_discovers_the_project() {
         //- /packages/app/generated/.keep
         "#,
     );
-    let mut params = project.initialize_params();
-    params.initialization_options = Some(serde_json::json!({
-        "indexing": { "exclude": ["packages/app/generated/**"] }
-    }));
-    let (_, mut config) = negotiate_capabilities(params);
-    config.rediscover_workspaces();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
-    project.write_file(
-        "/packages/app/generated/foundry.toml",
-        r#"
-        [profile.default]
-        src = "src"
-        "#,
-    );
+    let mut state =
+        state_with(config_with_indexing_excludes(&project, &["packages/app/generated/**"]));
+    project
+        .write_file("/packages/app/generated/foundry.toml", "[profile.default]\nsrc = \"src\"\n");
     project.write_file("/packages/app/generated/src/Nested.sol", "contract Nested {}");
-    let uri = Url::from_file_path(project.path("/packages/app/generated/foundry.toml")).unwrap();
 
-    let result = crate::handlers::did_change_watched_files(
+    watch(
         &mut state,
-        DidChangeWatchedFilesParams {
-            changes: vec![FileEvent { uri, typ: FileChangeType::CREATED }],
-        },
+        &[(&project.path("/packages/app/generated/foundry.toml"), FileChangeType::CREATED)],
     );
 
-    assert!(matches!(result, ControlFlow::Continue(())));
-    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
-        .await
-        .expect("nested manifest analysis should finish")
-        .unwrap();
-    assert!(tables.load().workspace_symbols("Nested").iter().any(|symbol| symbol.name == "Nested"));
+    assert_eq!(symbol_names(&settle(&state).await, "Nested"), ["Nested"]);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -116,52 +101,35 @@ async fn watched_nested_manifest_create_under_external_foundry_roots_discovers_p
         //- /shared/.keep
         "#,
     );
-    let config = project.config();
-    let source_project_root = project.path("/shared/contracts/deep/app");
-    let flycheck_project_root = project.path("/shared/checks/deep/app");
-    assert!(config.workspaces().iter().all(|workspace| {
-        workspace.compile_opts().base_path.as_deref() != Some(&source_project_root)
-            && workspace.compile_opts().base_path.as_deref() != Some(&flycheck_project_root)
-    }));
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
-    project.write_file(
-        "/shared/contracts/deep/app/foundry.toml",
-        "[profile.default]\nsrc = \"src\"\n",
-    );
-    project.write_file("/shared/contracts/deep/app/src/Source.sol", "contract Source {}");
-    project
-        .write_file("/shared/checks/deep/app/foundry.toml", "[profile.default]\nsrc = \"src\"\n");
-    project.write_file("/shared/checks/deep/app/src/Check.sol", "contract Check {}");
-
-    let changes =
-        ["/shared/contracts/deep/app/foundry.toml", "/shared/checks/deep/app/foundry.toml"].map(
-            |path| FileEvent {
-                uri: Url::from_file_path(project.path(path)).unwrap(),
-                typ: FileChangeType::CREATED,
-            },
-        );
-    assert!(matches!(
-        crate::handlers::did_change_watched_files(
-            &mut state,
-            DidChangeWatchedFilesParams { changes: changes.into() },
-        ),
-        ControlFlow::Continue(())
-    ));
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
-        .await
-        .expect("external nested manifest analysis should finish")
-        .unwrap();
-
-    for root in [source_project_root, flycheck_project_root] {
-        assert!(state.config.workspaces().iter().any(|workspace| {
-            workspace.compile_opts().base_path.as_deref() == Some(root.as_path())
-        }));
+    let roots =
+        ["/shared/contracts/deep/app", "/shared/checks/deep/app"].map(|root| project.path(root));
+    let has_workspace = |config: &Config, root: &Path| {
+        config
+            .workspaces()
+            .iter()
+            .any(|workspace| workspace.compile_opts().base_path.as_deref() == Some(root))
+    };
+    let mut state = state_with(project.config());
+    assert!(roots.iter().all(|root| !has_workspace(&state.config, root)));
+    for (root, source) in
+        [("/shared/contracts/deep/app", "Source"), ("/shared/checks/deep/app", "Check")]
+    {
+        project.write_file(&format!("{root}/foundry.toml"), "[profile.default]\nsrc = \"src\"\n");
+        project.write_file(&format!("{root}/src/{source}.sol"), &format!("contract {source} {{}}"));
     }
+
+    let manifests = roots.clone().map(|root| root.join("foundry.toml"));
+    watch(
+        &mut state,
+        &[(&manifests[0], FileChangeType::CREATED), (&manifests[1], FileChangeType::CREATED)],
+    );
+    settle(&state).await;
+
+    assert!(roots.iter().all(|root| has_workspace(&state.config, root)));
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn watched_nested_repository_marker_create_prunes_cached_sources() {
+async fn watched_nested_repository_markers_prune_and_restore_nested_projects() {
     let project = TestProject::from_fixture(
         r#"
         //- /foundry.toml
@@ -178,48 +146,27 @@ async fn watched_nested_repository_marker_create_prunes_cached_sources() {
     let nested_root = project.path("/src/nested");
     let nested_source = project.path("/src/nested/Nested.sol");
     let marker = project.path("/src/nested/.git");
-    let config = project.config();
-    assert_eq!(
-        config.tracked_source_files_under(std::slice::from_ref(&nested_root)),
-        [nested_source]
-    );
+    let tracked = |state: &GlobalState| {
+        state.config.tracked_source_files_under(std::slice::from_ref(&nested_root))
+    };
+    let mut state = state_with(project.config());
+    assert_eq!(tracked(&state), std::slice::from_ref(&nested_source));
+
     project.write_file("/src/nested/.git", "gitdir: elsewhere");
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
+    watch(&mut state, &[(&marker, FileChangeType::CREATED)]);
+    assert_eq!(analysis_version(&state), 1);
+    assert!(tracked(&state).is_empty());
 
-    assert!(matches!(
-        crate::handlers::did_change_watched_files(
-            &mut state,
-            DidChangeWatchedFilesParams {
-                changes: vec![FileEvent {
-                    uri: Url::from_file_path(marker).unwrap(),
-                    typ: FileChangeType::CREATED,
-                }],
-            },
-        ),
-        ControlFlow::Continue(())
-    ));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
-    assert!(state.config.tracked_source_files_under(&[nested_root]).is_empty());
-    state.analysis_scheduler.tasks.lock().cancel();
-}
+    std::fs::remove_file(&marker).unwrap();
+    watch(&mut state, &[(&marker, FileChangeType::DELETED)]);
+    assert_eq!(analysis_version(&state), 2);
+    assert_eq!(tracked(&state), std::slice::from_ref(&nested_source));
+    cancel_analysis(&state);
 
-#[tokio::test(flavor = "current_thread")]
-async fn watched_nested_repository_marker_is_ignored_when_policy_is_disabled() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "src"
-
-        //- /src/nested/Nested.sol
-        contract Nested {}
-        "#,
-    );
+    // The marker events are ignored when nested repositories stay indexed.
     let mut params = project.initialize_params();
-    params.initialization_options = Some(serde_json::json!({
-        "indexing": { "excludeNestedRepositories": false }
-    }));
+    params.initialization_options =
+        Some(serde_json::json!({ "indexing": { "excludeNestedRepositories": false } }));
     let (_, mut config) = negotiate_capabilities(params);
     config.rediscover_workspaces();
     assert!(
@@ -228,272 +175,96 @@ async fn watched_nested_repository_marker_is_ignored_when_policy_is_disabled() {
             .iter()
             .all(|spec| spec.pattern != "**/.git" && spec.pattern != ".git")
     );
-    let marker = project.path("/src/nested/.git");
-    let nested_source = project.path("/src/nested/Nested.sol");
     project.write_file("/src/nested/.git", "gitdir: elsewhere");
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
-
-    assert!(matches!(
-        crate::handlers::did_change_watched_files(
-            &mut state,
-            DidChangeWatchedFilesParams {
-                changes: vec![FileEvent {
-                    uri: Url::from_file_path(marker).unwrap(),
-                    typ: FileChangeType::CREATED,
-                }],
-            },
-        ),
-        ControlFlow::Continue(())
-    ));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), 0);
-    assert_eq!(
-        state.config.tracked_source_files_under(&[project.path("/src/nested")]),
-        [nested_source]
-    );
+    let mut state = state_with(config);
+    watch(&mut state, &[(&marker, FileChangeType::CREATED)]);
+    assert_eq!(analysis_version(&state), 0);
+    assert_eq!(tracked(&state), [nested_source]);
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn watched_nested_repository_marker_delete_restores_nested_project() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-
-        //- /packages/app/.git
-        gitdir: elsewhere
-
-        //- /packages/app/foundry.toml
-        [profile.default]
-        src = "src"
-
-        //- /packages/app/src/Nested.sol
-        contract Nested {}
-        "#,
-    );
-    let packages_root = project.path("/packages");
-    let nested_source = project.path("/packages/app/src/Nested.sol");
-    let marker = project.path("/packages/app/.git");
-    let config = project.config();
-    assert!(config.tracked_source_files_under(std::slice::from_ref(&packages_root)).is_empty());
-    std::fs::remove_file(&marker).unwrap();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
-
-    assert!(matches!(
-        crate::handlers::did_change_watched_files(
-            &mut state,
-            DidChangeWatchedFilesParams {
-                changes: vec![FileEvent {
-                    uri: Url::from_file_path(marker).unwrap(),
-                    typ: FileChangeType::DELETED,
-                }],
-            },
-        ),
-        ControlFlow::Continue(())
-    ));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
-    assert_eq!(state.config.tracked_source_files_under(&[packages_root]), [nested_source]);
-    state.analysis_scheduler.tasks.lock().cancel();
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn watched_created_directory_under_shallow_manifest_root_discovers_nested_project() {
+async fn watched_created_directories_under_shallow_roots_discover_projects_and_sources() {
     let project = TestProject::from_fixture(
         r#"
         //- /foundry.toml
         [profile.default]
         src = "contracts"
+        test = "test"
 
         //- /contracts/Main.sol
         contract Main {}
 
         //- /node_modules/dependency/foundry.toml
-        "#,
-    );
-    let config = project.config();
-    let directory = project.path("/packages");
-    let nested_source = project.path("/packages/app/src/Nested.sol");
-    project.write_file("/packages/app/foundry.toml", "[profile.default]\nsrc = \"src\"\n");
-    project.write_file("/packages/app/src/Nested.sol", "contract Nested {}");
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
-
-    assert!(matches!(
-        crate::handlers::did_change_watched_files(
-            &mut state,
-            DidChangeWatchedFilesParams {
-                changes: vec![FileEvent {
-                    uri: Url::from_file_path(directory).unwrap(),
-                    typ: FileChangeType::CREATED,
-                }],
-            },
-        ),
-        ControlFlow::Continue(())
-    ));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
-    assert_eq!(
-        state.config.tracked_source_files_under(&[project.path("/packages")]),
-        [nested_source]
-    );
-    state.analysis_scheduler.tasks.lock().cancel();
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn watched_created_directory_under_shallow_flycheck_root_discovers_sources() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "src"
-        test = "test"
-
-        //- /src/Main.sol
-        contract Main {}
 
         //- /test/node_modules/dependency/Skipped.t.sol
         contract Skipped {}
         "#,
     );
-    let config = project.config();
-    let directory = project.path("/test/generated");
-    let source = project.path("/test/generated/Generated.t.sol");
+    let mut state = state_with(project.config());
+    let nested_source = project.path("/packages/app/src/Nested.sol");
+    let generated = project.path("/test/generated/Generated.t.sol");
+    project.write_file("/packages/app/foundry.toml", "[profile.default]\nsrc = \"src\"\n");
+    project.write_file("/packages/app/src/Nested.sol", "contract Nested {}");
     project.write_file("/test/generated/Generated.t.sol", "contract GeneratedTest {}");
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
 
-    assert!(matches!(
-        crate::handlers::did_change_watched_files(
-            &mut state,
-            DidChangeWatchedFilesParams {
-                changes: vec![FileEvent {
-                    uri: Url::from_file_path(directory).unwrap(),
-                    typ: FileChangeType::CREATED,
-                }],
-            },
-        ),
-        ControlFlow::Continue(())
-    ));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
+    watch(&mut state, &[(&project.path("/packages"), FileChangeType::CREATED)]);
+    assert_eq!(analysis_version(&state), 1);
+    assert_eq!(
+        state.config.tracked_source_files_under(&[project.path("/packages")]),
+        [nested_source]
+    );
+
+    watch(&mut state, &[(&project.path("/test/generated"), FileChangeType::CREATED)]);
+    assert_eq!(analysis_version(&state), 2);
     assert!(
         state
             .config
             .workspaces()
             .iter()
-            .any(|workspace| workspace.flycheck_source_files().contains(&source))
+            .any(|workspace| workspace.flycheck_source_files().contains(&generated))
     );
-    state.analysis_scheduler.tasks.lock().cancel();
+    cancel_analysis(&state);
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn created_directory_under_overlapping_source_root_schedules_analysis() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "lib"
-        "#,
-    );
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config());
-    let version = state.analysis_version.load(Ordering::Acquire);
-    let path = project.path("/lib/generated");
-    std::fs::create_dir_all(&path).unwrap();
+async fn created_directories_schedule_analysis_only_below_indexed_roots() {
+    let overlapping =
+        TestProject::from_fixture("//- /foundry.toml\n[profile.default]\nsrc = \"lib\"\n");
+    let excluded = TestProject::from_fixture("//- /Main.sol\ncontract Main {}\n");
+    for (project, directory, scheduled) in [
+        (overlapping, "/lib/generated", true),
+        (excluded, "/node_modules/package/generated", false),
+    ] {
+        let path = project.path(directory);
+        std::fs::create_dir_all(&path).unwrap();
+        let mut state = state_with(project.config());
+        let version = analysis_version(&state);
 
-    let result = crate::handlers::did_create_files(
-        &mut state,
-        CreateFilesParams {
-            files: vec![FileCreate { uri: Url::from_file_path(path).unwrap().to_string() }],
-        },
-    );
+        create_files(&mut state, &path);
 
-    assert!(matches!(result, ControlFlow::Continue(())));
-    let actual_version = state.analysis_version.load(Ordering::Acquire);
-    state.analysis_scheduler.tasks.lock().cancel();
-    assert_eq!(actual_version, version + 1);
+        let actual_version = analysis_version(&state);
+        cancel_analysis(&state);
+        assert_eq!(actual_version, version + usize::from(scheduled));
+    }
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn watched_created_source_under_overlapping_root_is_tracked() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "lib"
-        "#,
-    );
-    let config = project.config();
+    let project =
+        TestProject::from_fixture("//- /foundry.toml\n[profile.default]\nsrc = \"lib\"\n");
+    let mut state = state_with(project.config());
     let path = project.path("/lib/Created.sol");
     project.write_file("/lib/Created.sol", "contract Created {}");
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
 
-    let result = crate::handlers::did_change_watched_files(
-        &mut state,
-        DidChangeWatchedFilesParams {
-            changes: vec![FileEvent {
-                uri: Url::from_file_path(&path).unwrap(),
-                typ: FileChangeType::CREATED,
-            }],
-        },
-    );
+    watch(&mut state, &[(&path, FileChangeType::CREATED)]);
 
-    assert!(matches!(result, ControlFlow::Continue(())));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
+    assert_eq!(analysis_version(&state), 1);
     assert_eq!(state.config.tracked_source_files_under(&[project.path("/lib")]), [path]);
-    state.analysis_scheduler.tasks.lock().cancel();
+    cancel_analysis(&state);
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn watched_created_directory_under_partitioned_root_is_rediscovered() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "."
-
-        //- /lib/Dependency.sol
-        contract Dependency {}
-        "#,
-    );
-    let config = project.config();
-    let directory = project.path("/new");
-    let source = project.path("/new/New.sol");
-    let unrelated = project.path("/README.md");
-    project.write_file("/README.md", "notes");
-    project.write_file("/new/New.sol", "contract New {}");
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
-
-    let result = crate::handlers::did_change_watched_files(
-        &mut state,
-        DidChangeWatchedFilesParams {
-            changes: vec![FileEvent {
-                uri: Url::from_file_path(unrelated).unwrap(),
-                typ: FileChangeType::CREATED,
-            }],
-        },
-    );
-    assert!(matches!(result, ControlFlow::Continue(())));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), 0);
-
-    let result = crate::handlers::did_change_watched_files(
-        &mut state,
-        DidChangeWatchedFilesParams {
-            changes: vec![FileEvent {
-                uri: Url::from_file_path(directory).unwrap(),
-                typ: FileChangeType::CREATED,
-            }],
-        },
-    );
-
-    assert!(matches!(result, ControlFlow::Continue(())));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
-    assert_eq!(state.config.tracked_source_files_under(&[project.root().to_path_buf()]), [source]);
-    state.analysis_scheduler.tasks.lock().cancel();
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn watched_deleted_directory_under_partitioned_root_is_rediscovered() {
+async fn watched_directory_topology_under_partitioned_root_is_rediscovered() {
     let project = TestProject::from_fixture(
         r#"
         //- /foundry.toml
@@ -507,87 +278,76 @@ async fn watched_deleted_directory_under_partitioned_root_is_rediscovered() {
         contract Old {}
         "#,
     );
-    let config = project.config();
-    let directory = project.path("/old");
-    std::fs::remove_dir_all(&directory).unwrap();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
+    let mut state = state_with(project.config());
+    let root = [project.root().to_path_buf()];
+    project.write_file("/README.md", "notes");
+    project.write_file("/new/New.sol", "contract New {}");
 
-    let result = crate::handlers::did_change_watched_files(
-        &mut state,
-        DidChangeWatchedFilesParams {
-            changes: vec![FileEvent {
-                uri: Url::from_file_path(directory).unwrap(),
-                typ: FileChangeType::DELETED,
-            }],
-        },
+    watch(&mut state, &[(&project.path("/README.md"), FileChangeType::CREATED)]);
+    assert_eq!(analysis_version(&state), 0);
+
+    watch(&mut state, &[(&project.path("/new"), FileChangeType::CREATED)]);
+    assert_eq!(analysis_version(&state), 1);
+    assert_eq!(
+        state.config.tracked_source_files_under(&root),
+        [project.path("/new/New.sol"), project.path("/old/Old.sol")]
     );
 
-    assert!(matches!(result, ControlFlow::Continue(())));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
-    assert!(state.config.tracked_source_files_under(&[project.root().to_path_buf()]).is_empty());
-    state.analysis_scheduler.tasks.lock().cancel();
+    std::fs::remove_dir_all(project.path("/old")).unwrap();
+    watch(&mut state, &[(&project.path("/old"), FileChangeType::DELETED)]);
+    assert_eq!(analysis_version(&state), 2);
+    assert_eq!(state.config.tracked_source_files_under(&root), [project.path("/new/New.sol")]);
+    cancel_analysis(&state);
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn created_directory_below_default_exclude_does_not_schedule_analysis() {
-    let project = TestProject::from_fixture(
-        r#"
+async fn watched_dependency_and_unresolved_candidate_changes_schedule_analysis() {
+    let excluded_dependency = r#"
         //- /Main.sol
-        contract Main {}
-        "#,
-    );
-    let path = project.path("/node_modules/package/generated");
-    std::fs::create_dir_all(&path).unwrap();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config());
-    let version = state.analysis_version.load(Ordering::Acquire);
+        import "./generated/Dependency.sol";
+        contract Main is Dependency {}
 
-    let result = crate::handlers::did_create_files(
-        &mut state,
-        CreateFilesParams {
-            files: vec![FileCreate { uri: Url::from_file_path(path).unwrap().to_string() }],
-        },
-    );
+        //- /generated/Dependency.sol
+        contract Dependency {}
+        "#;
+    let unresolved_candidate = r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+        libs = ["lib-one", "lib-two"]
 
-    assert!(matches!(result, ControlFlow::Continue(())));
-    let actual_version = state.analysis_version.load(Ordering::Acquire);
-    state.analysis_scheduler.tasks.lock().cancel();
-    assert_eq!(actual_version, version);
-}
+        //- /src/Main.sol
+        import "Dependency.sol";
+        contract Main is Dependency {}
 
-#[tokio::test(flavor = "current_thread")]
-async fn watched_excluded_dependency_change_and_delete_schedule_analysis() {
+        //- /lib-one/Dependency.sol
+        contract Dependency {}
+
+        //- /lib-two/Dependency.sol
+        contract Dependency {}
+        "#;
     for typ in [FileChangeType::CHANGED, FileChangeType::DELETED] {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /Main.sol
-            import "./generated/Dependency.sol";
-            contract Main is Dependency {}
+        for (fixture, excludes, path) in [
+            (excluded_dependency, &["generated/**"][..], "/generated/Dependency.sol"),
+            (unresolved_candidate, &[], "/lib-one/Dependency.sol"),
+        ] {
+            let project = TestProject::from_fixture(fixture);
+            let config = config_with_indexing_excludes(&project, excludes);
+            let output = analyze_project(&project, &config);
+            if typ == FileChangeType::CHANGED {
+                project.write_file(path, "contract Dependency { uint x; }");
+            } else {
+                project.remove_file(path);
+            }
+            let mut state = state_with(config);
+            state.snapshot().publish_analysis_output(0, output.into_shared());
 
-            //- /generated/Dependency.sol
-            contract Dependency {}
-            "#,
-        );
-        let config = config_with_indexing_excludes(&project, &["generated/**"]);
-        let mut batches =
-            snapshot_with_config(config.clone(), project.vfs()).analysis_batches(Vec::new());
-        let output =
-            analyze_cancellable(batches.pop().unwrap(), &IndexingCancellation::default()).unwrap();
-        let mut state = GlobalState::new(ClientSocket::new_closed());
-        state.config = Arc::new(config);
-        state.snapshot().publish_analysis_output(0, output.into_shared());
-        let path = project.path("/generated/Dependency.sol");
-        let uri = Url::from_file_path(path).unwrap();
+            watch(&mut state, &[(&project.path(path), typ)]);
 
-        let result = crate::handlers::did_change_watched_files(
-            &mut state,
-            DidChangeWatchedFilesParams { changes: vec![FileEvent { uri, typ }] },
-        );
-
-        assert!(matches!(result, ControlFlow::Continue(())));
-        assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
-        state.analysis_scheduler.tasks.lock().cancel();
+            let actual_version = analysis_version(&state);
+            cancel_analysis(&state);
+            assert_eq!(actual_version, 1);
+        }
     }
 }
 
@@ -605,33 +365,23 @@ async fn watched_external_source_create_change_and_delete_schedule_analysis() {
         if typ != FileChangeType::CREATED {
             project.write_file("/shared/contracts/External.sol", "contract External {}");
         }
-        let config = project.config_with_roots(&["/project", "/shared"]);
+        let mut state = state_with(project.config_with_roots(&["/project", "/shared"]));
         if typ == FileChangeType::CREATED {
             project.write_file("/shared/contracts/External.sol", "contract External {}");
         } else if typ == FileChangeType::DELETED {
             std::fs::remove_file(&path).unwrap();
         }
-        let mut state = GlobalState::new(ClientSocket::new_closed());
-        state.config = Arc::new(config);
 
-        assert!(matches!(
-            crate::handlers::did_change_watched_files(
-                &mut state,
-                DidChangeWatchedFilesParams {
-                    changes: vec![FileEvent { uri: Url::from_file_path(&path).unwrap(), typ }],
-                },
-            ),
-            ControlFlow::Continue(())
-        ));
+        watch(&mut state, &[(&path, typ)]);
 
-        assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
+        assert_eq!(analysis_version(&state), 1);
         let tracked = state.config.tracked_source_files_under(&[project.path("/shared")]);
         if typ == FileChangeType::DELETED {
             assert!(tracked.is_empty());
         } else {
             assert_eq!(tracked, [path]);
         }
-        state.analysis_scheduler.tasks.lock().cancel();
+        cancel_analysis(&state);
     }
 }
 
@@ -664,23 +414,12 @@ async fn watched_flycheck_only_source_change_schedules_analysis() {
     config.rediscover_workspaces();
     assert!(!config.tracks_source_file(&path));
     assert!(config.tracks_flycheck_file(&path));
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
+    let mut state = state_with(config);
 
-    assert!(matches!(
-        crate::handlers::did_change_watched_files(
-            &mut state,
-            DidChangeWatchedFilesParams {
-                changes: vec![FileEvent {
-                    uri: Url::from_file_path(path).unwrap(),
-                    typ: FileChangeType::CHANGED,
-                }],
-            },
-        ),
-        ControlFlow::Continue(())
-    ));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
-    state.analysis_scheduler.tasks.lock().cancel();
+    watch(&mut state, &[(&path, FileChangeType::CHANGED)]);
+
+    assert_eq!(analysis_version(&state), 1);
+    cancel_analysis(&state);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -706,22 +445,11 @@ async fn watched_source_respects_the_most_specific_flycheck_owner() {
     let path = project.path("/packages/app/Outside.sol");
     project.write_file("/packages/app/Outside.sol", "contract Outside {}");
     assert!(!config.tracks_flycheck_file(&path));
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
+    let mut state = state_with(config);
 
-    assert!(matches!(
-        crate::handlers::did_change_watched_files(
-            &mut state,
-            DidChangeWatchedFilesParams {
-                changes: vec![FileEvent {
-                    uri: Url::from_file_path(&path).unwrap(),
-                    typ: FileChangeType::CREATED,
-                }],
-            },
-        ),
-        ControlFlow::Continue(())
-    ));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
+    watch(&mut state, &[(&path, FileChangeType::CREATED)]);
+
+    assert_eq!(analysis_version(&state), 1);
     assert!(
         state
             .config
@@ -742,106 +470,53 @@ async fn unknown_dependency_event_is_deferred_while_analysis_is_pending() {
         contract Dependency {}
         "#,
     );
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config_with_indexing_excludes(&project, &["generated/**"]));
+    let mut state = state_with(config_with_indexing_excludes(&project, &["generated/**"]));
     state.mark_analysis_pending_for_test();
     let path = project.path("/generated/Dependency.sol");
 
-    let result = crate::handlers::did_change_watched_files(
-        &mut state,
-        DidChangeWatchedFilesParams {
-            changes: vec![FileEvent {
-                uri: Url::from_file_path(&path).unwrap(),
-                typ: FileChangeType::CHANGED,
-            }],
-        },
-    );
+    watch(&mut state, &[(&path, FileChangeType::CHANGED)]);
 
-    assert!(matches!(result, ControlFlow::Continue(())));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
-    assert_eq!(
-        state.analysis_commit.lock().deferred_source_file_events.get(&path),
-        Some(&FileChangeType::CHANGED)
-    );
+    assert_eq!(analysis_version(&state), 1);
+    assert_eq!(deferred_event(&state, &path), Some(FileChangeType::CHANGED));
 }
 
 #[test]
-fn did_create_defers_a_candidate_first_learned_by_pending_analysis() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Main.sol
-        import "./generated/Dependency.sol";
-        contract Main is Dependency {}
-        "#,
-    );
-    let config = config_with_indexing_excludes(&project, &["generated/**"]);
-    let mut batches =
-        snapshot_with_config(config.clone(), project.vfs()).analysis_batches(Vec::new());
-    let output =
-        analyze_cancellable(batches.pop().unwrap(), &IndexingCancellation::default()).unwrap();
-    let path = project.path("/generated/Dependency.sol");
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
-    state.mark_analysis_pending_for_test();
-    let version = state.analysis_version.load(Ordering::Acquire);
-    project.write_file("/generated/Dependency.sol", "contract Dependency {}");
+fn did_create_and_delete_defer_a_path_first_learned_by_pending_analysis() {
+    for typ in [FileChangeType::CREATED, FileChangeType::DELETED] {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Main.sol
+            import "./generated/Dependency.sol";
+            contract Main is Dependency {}
 
-    assert!(matches!(
-        crate::handlers::did_create_files(
-            &mut state,
-            CreateFilesParams {
-                files: vec![FileCreate { uri: Url::from_file_path(&path).unwrap().to_string() }],
-            },
-        ),
-        ControlFlow::Continue(())
-    ));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), version);
-    assert_eq!(
-        state.analysis_commit.lock().deferred_source_file_events.get(&path),
-        Some(&FileChangeType::CREATED)
-    );
-    assert!(!state.snapshot().publish_analysis_output(version, output.into_shared()));
-}
+            //- /generated/Dependency.sol
+            contract Dependency {}
+            "#,
+        );
+        let path = project.path("/generated/Dependency.sol");
+        if typ == FileChangeType::CREATED {
+            project.remove_file("/generated/Dependency.sol");
+        }
+        let config = config_with_indexing_excludes(&project, &["generated/**"]);
+        let output = analyze_project(&project, &config);
+        let mut state = state_with(config);
+        state.mark_analysis_pending_for_test();
+        let version = analysis_version(&state);
 
-#[test]
-fn did_delete_defers_a_dependency_first_learned_by_pending_analysis() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Main.sol
-        import "./generated/Dependency.sol";
-        contract Main is Dependency {}
+        if typ == FileChangeType::CREATED {
+            project.write_file("/generated/Dependency.sol", "contract Dependency {}");
+            create_files(&mut state, &path);
+        } else {
+            std::fs::remove_file(&path).unwrap();
+            let files = vec![FileDelete { uri: Url::from_file_path(&path).unwrap().to_string() }];
+            let params = DeleteFilesParams { files };
+            assert!(crate::handlers::did_delete_files(&mut state, params).is_continue());
+        }
 
-        //- /generated/Dependency.sol
-        contract Dependency {}
-        "#,
-    );
-    let config = config_with_indexing_excludes(&project, &["generated/**"]);
-    let mut batches =
-        snapshot_with_config(config.clone(), project.vfs()).analysis_batches(Vec::new());
-    let output =
-        analyze_cancellable(batches.pop().unwrap(), &IndexingCancellation::default()).unwrap();
-    let path = project.path("/generated/Dependency.sol");
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
-    state.mark_analysis_pending_for_test();
-    let version = state.analysis_version.load(Ordering::Acquire);
-    std::fs::remove_file(&path).unwrap();
-
-    assert!(matches!(
-        crate::handlers::did_delete_files(
-            &mut state,
-            DeleteFilesParams {
-                files: vec![FileDelete { uri: Url::from_file_path(&path).unwrap().to_string() }],
-            },
-        ),
-        ControlFlow::Continue(())
-    ));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), version);
-    assert_eq!(
-        state.analysis_commit.lock().deferred_source_file_events.get(&path),
-        Some(&FileChangeType::DELETED)
-    );
-    assert!(!state.snapshot().publish_analysis_output(version, output.into_shared()));
+        assert_eq!(analysis_version(&state), version);
+        assert_eq!(deferred_event(&state, &path), Some(typ));
+        assert!(!state.snapshot().publish_analysis_output(version, output.into_shared()));
+    }
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -855,8 +530,7 @@ async fn source_events_during_initial_discovery_are_replayed_after_policy_is_kno
         "#,
     );
     let (_, config) = negotiate_capabilities(project.initialize_params_with_roots(&["/project"]));
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
+    let mut state = state_with(config);
     let (version, progress) = state
         .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
         .unwrap();
@@ -864,41 +538,17 @@ async fn source_events_during_initial_discovery_are_replayed_after_policy_is_kno
 
     project.write_file("/project/lib/Active.sol", "contract Active {}");
     project.write_file("/project/node_modules/Ignored.sol", "contract Ignored {}");
-    let result = crate::handlers::did_change_watched_files(
-        &mut state,
-        DidChangeWatchedFilesParams {
-            changes: [
-                project.path("/project/lib/Active.sol"),
-                project.path("/project/node_modules/Ignored.sol"),
-            ]
-            .into_iter()
-            .map(|path| FileEvent {
-                uri: Url::from_file_path(path).unwrap(),
-                typ: FileChangeType::CREATED,
-            })
-            .collect(),
-        },
-    );
+    let active = project.path("/project/lib/Active.sol");
+    let ignored = project.path("/project/node_modules/Ignored.sol");
+    watch(&mut state, &[(&active, FileChangeType::CREATED), (&ignored, FileChangeType::CREATED)]);
 
-    assert!(matches!(result, ControlFlow::Continue(())));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), version);
-    assert!(matches!(
-        state.on_workspace_discovery_ready(WorkspaceDiscoveryReady {
-            version,
-            result: discovery,
-            disk_paths: Vec::new(),
-            progress,
-            cancellation: IndexingCancellation::default(),
-        }),
-        ControlFlow::Continue(())
-    ));
+    assert_eq!(analysis_version(&state), version);
+    let ready = discovery_ready(version, discovery, progress);
+    assert!(state.on_workspace_discovery_ready(ready).is_continue());
 
-    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
-        .await
-        .expect("initial discovery analysis should finish")
-        .unwrap();
-    assert!(tables.load().workspace_symbols("Active").iter().any(|symbol| symbol.name == "Active"));
-    assert!(tables.load().workspace_symbols("Ignored").is_empty());
+    let tables = settle(&state).await;
+    assert_eq!(symbol_names(&tables, "Active"), ["Active"]);
+    assert!(symbol_names(&tables, "Ignored").is_empty());
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -911,13 +561,10 @@ async fn source_events_during_discovery_are_deferred_with_existing_workspaces() 
     );
     let new_root = project.path("/new");
     std::fs::create_dir(&new_root).unwrap();
-    let (_, mut config) =
-        negotiate_capabilities(project.initialize_params_with_roots(&["/existing"]));
-    config.rediscover_workspaces();
+    let mut config = project.config_with_roots(&["/existing"]);
     assert!(!config.workspaces().is_empty());
     config.add_workspaces([new_root.clone()]);
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
+    let mut state = state_with(config);
     let (version, progress) = state
         .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
         .unwrap();
@@ -925,112 +572,24 @@ async fn source_events_during_discovery_are_deferred_with_existing_workspaces() 
     let path = project.path("/new/Active.sol");
     project.write_file("/new/Active.sol", "contract Active {}");
 
-    assert!(matches!(
-        crate::handlers::did_change_watched_files(
-            &mut state,
-            DidChangeWatchedFilesParams {
-                changes: vec![
-                    FileEvent {
-                        uri: Url::from_file_path(&path).unwrap(),
-                        typ: FileChangeType::CREATED,
-                    },
-                    FileEvent {
-                        uri: Url::from_file_path(&path).unwrap(),
-                        typ: FileChangeType::CHANGED,
-                    },
-                ],
-            },
-        ),
-        ControlFlow::Continue(())
-    ));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), version);
-    assert_eq!(
-        state.analysis_commit.lock().deferred_source_file_events.get(&path),
-        Some(&FileChangeType::CHANGED)
-    );
+    watch(&mut state, &[(&path, FileChangeType::CREATED), (&path, FileChangeType::CHANGED)]);
+    assert_eq!(analysis_version(&state), version);
+    assert_eq!(deferred_event(&state, &path), Some(FileChangeType::CHANGED));
 
-    assert!(matches!(
-        state.on_workspace_discovery_ready(WorkspaceDiscoveryReady {
-            version,
-            result: discovery,
-            disk_paths: Vec::new(),
-            progress,
-            cancellation: IndexingCancellation::default(),
-        }),
-        ControlFlow::Continue(())
-    ));
+    let ready = discovery_ready(version, discovery, progress);
+    assert!(state.on_workspace_discovery_ready(ready).is_continue());
     assert_eq!(
         state.config.tracked_source_files_under(std::slice::from_ref(&new_root)),
         std::slice::from_ref(&path)
     );
-    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
-        .await
-        .expect("rediscovered source analysis should finish")
-        .unwrap();
-    assert!(tables.load().workspace_symbols("Active").iter().any(|symbol| symbol.name == "Active"));
-    drop(tables);
+    assert_eq!(symbol_names(&settle(&state).await, "Active"), ["Active"]);
 
     state.recompute_after_source_changes(vec![project.path("/existing/Existing.sol")]);
-    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
-        .await
-        .expect("subsequent analysis should finish")
-        .unwrap();
-    assert!(tables.load().workspace_symbols("Active").iter().any(|symbol| symbol.name == "Active"));
+    assert_eq!(symbol_names(&settle(&state).await, "Active"), ["Active"]);
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn watched_existing_unresolved_candidate_change_and_delete_schedule_analysis() {
-    for typ in [FileChangeType::CHANGED, FileChangeType::DELETED] {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = "src"
-            libs = ["lib-one", "lib-two"]
-
-            //- /src/Main.sol
-            import "Dependency.sol";
-            contract Main is Dependency {}
-
-            //- /lib-one/Dependency.sol
-            contract Dependency {}
-
-            //- /lib-two/Dependency.sol
-            contract Dependency {}
-            "#,
-        );
-        let config = project.config();
-        let mut batches =
-            snapshot_with_config(config.clone(), project.vfs()).analysis_batches(Vec::new());
-        let output =
-            analyze_cancellable(batches.pop().unwrap(), &IndexingCancellation::default()).unwrap();
-        let path = project.path("/lib-one/Dependency.sol");
-        match typ {
-            FileChangeType::CHANGED => {
-                std::fs::write(&path, "contract Dependency { uint x; }").unwrap()
-            }
-            FileChangeType::DELETED => std::fs::remove_file(&path).unwrap(),
-            _ => unreachable!(),
-        }
-        let uri = Url::from_file_path(path).unwrap();
-        let mut state = GlobalState::new(ClientSocket::new_closed());
-        state.config = Arc::new(config);
-        state.snapshot().publish_analysis_output(0, output.into_shared());
-
-        let result = crate::handlers::did_change_watched_files(
-            &mut state,
-            DidChangeWatchedFilesParams { changes: vec![FileEvent { uri, typ }] },
-        );
-
-        assert!(matches!(result, ControlFlow::Continue(())));
-        let actual_version = state.analysis_version.load(Ordering::Acquire);
-        state.analysis_scheduler.tasks.lock().cancel();
-        assert_eq!(actual_version, 1);
-    }
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn watched_missing_excluded_dependency_recovers_only_on_create() {
+async fn watched_missing_excluded_dependency_recovers_on_create_and_later_changes() {
     let project = TestProject::from_fixture(
         r#"
         //- /Main.sol
@@ -1039,90 +598,26 @@ async fn watched_missing_excluded_dependency_recovers_only_on_create() {
         "#,
     );
     let config = config_with_indexing_excludes(&project, &["generated/**"]);
-    let mut batches =
-        snapshot_with_config(config.clone(), project.vfs()).analysis_batches(Vec::new());
-    let output =
-        analyze_cancellable(batches.pop().unwrap(), &IndexingCancellation::default()).unwrap();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
+    let output = analyze_project(&project, &config);
+    let mut state = state_with(config);
     state.snapshot().publish_analysis_output(0, output.into_shared());
     let path = project.path("/generated/Missing.sol");
-    let uri = Url::from_file_path(&path).unwrap();
 
     for typ in [FileChangeType::CHANGED, FileChangeType::DELETED] {
-        let result = crate::handlers::did_change_watched_files(
-            &mut state,
-            DidChangeWatchedFilesParams { changes: vec![FileEvent { uri: uri.clone(), typ }] },
-        );
-        assert!(matches!(result, ControlFlow::Continue(())));
-        assert_eq!(state.analysis_version.load(Ordering::Acquire), 0);
+        watch(&mut state, &[(&path, typ)]);
+        assert_eq!(analysis_version(&state), 0);
     }
 
     project.write_file("/generated/Missing.sol", "contract Missing {}");
-    let result = crate::handlers::did_change_watched_files(
-        &mut state,
-        DidChangeWatchedFilesParams {
-            changes: vec![FileEvent { uri, typ: FileChangeType::CREATED }],
-        },
-    );
-    assert!(matches!(result, ControlFlow::Continue(())));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
+    watch(&mut state, &[(&path, FileChangeType::CREATED)]);
+    assert_eq!(analysis_version(&state), 1);
 
-    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
-        .await
-        .expect("created import candidate should be analyzed")
-        .unwrap();
-    assert!(
-        tables.load().workspace_symbols("Missing").iter().any(|symbol| symbol.name == "Missing")
-    );
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn watched_missing_candidate_change_supersedes_pending_create_analysis() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Main.sol
-        import "./generated/Missing.sol";
-        contract Main is Missing {}
-        "#,
-    );
-    let config = config_with_indexing_excludes(&project, &["generated/**"]);
-    let mut batches =
-        snapshot_with_config(config.clone(), project.vfs()).analysis_batches(Vec::new());
-    let output =
-        analyze_cancellable(batches.pop().unwrap(), &IndexingCancellation::default()).unwrap();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
-    state.snapshot().publish_analysis_output(0, output.into_shared());
-    let path = project.path("/generated/Missing.sol");
-    let uri = Url::from_file_path(&path).unwrap();
-
-    project.write_file("/generated/Missing.sol", "contract Missing {}");
-    assert!(matches!(
-        crate::handlers::did_change_watched_files(
-            &mut state,
-            DidChangeWatchedFilesParams {
-                changes: vec![FileEvent { uri: uri.clone(), typ: FileChangeType::CREATED }],
-            },
-        ),
-        ControlFlow::Continue(())
-    ));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
-
+    // A change to the created candidate supersedes the pending create analysis.
     project.write_file("/generated/Missing.sol", "contract Missing { uint latest; }");
-    assert!(matches!(
-        crate::handlers::did_change_watched_files(
-            &mut state,
-            DidChangeWatchedFilesParams {
-                changes: vec![FileEvent { uri, typ: FileChangeType::CHANGED }],
-            },
-        ),
-        ControlFlow::Continue(())
-    ));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), 2);
+    watch(&mut state, &[(&path, FileChangeType::CHANGED)]);
+    assert_eq!(analysis_version(&state), 2);
 
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
-        .await
-        .expect("replacement dependency analysis should finish")
-        .unwrap();
+    let tables = settle(&state).await;
+    assert_eq!(symbol_names(&tables, "Missing"), ["Missing"]);
+    assert_eq!(symbol_names(&tables, "latest"), ["latest"]);
 }
