@@ -421,10 +421,7 @@ references: /Fresh.sol:3:12 NewType value;
 /Fresh.sol:5:8 value = NewType(1);
 highlights: 3:12-3:17 WRITE
 5:8-5:13 WRITE
-hover: 3:12-3:17
-```solidity
-NewType value
-```
+hover: 3:12-3:17 NewType value
 
 "#]]
     );

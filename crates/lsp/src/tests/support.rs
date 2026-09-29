@@ -1186,14 +1186,13 @@ fn hover_output(response: Option<Hover>) -> String {
         panic!("hover response should contain markup");
     };
     assert_eq!(contents.kind, MarkupKind::Markdown);
-    format!(
-        "{}:{}-{}:{}\n{}\n",
-        range.start.line,
-        range.start.character,
-        range.end.line,
-        range.end.character,
-        contents.value,
-    )
+    // Print the leading Solidity code block as a plain signature line.
+    let (signature, documentation) = contents
+        .value
+        .strip_prefix("```solidity\n")
+        .and_then(|value| value.split_once("\n```"))
+        .expect("hover should start with a Solidity code block");
+    format!("{} {signature}{documentation}\n", range_output(range))
 }
 
 fn document_highlight_kind(kind: Option<DocumentHighlightKind>) -> &'static str {

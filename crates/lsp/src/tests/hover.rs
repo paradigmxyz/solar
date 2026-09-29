@@ -94,114 +94,33 @@ fn shows_declaration_signatures() {
         &[Query::Hover],
         1..=27,
         str![[r#"
-$1 0:8-0:14
-```solidity
-abstract contract Script
-```
-$2 1:8-1:15
-```solidity
-contract Counter
-```
-$3 2:9-2:22
-```solidity
-contract CounterScript is Script
-```
-$4 2:26-2:32
-```solidity
-abstract contract Script
-```
-$5 5:22-5:29
-```solidity
-contract Counter
-```
-$6 9:13-9:16
-```solidity
-function add(uint256 value) public pure
-```
-$7 11:8-11:11
-```solidity
-function add(uint256 value) public pure
-```
-$8 21:43-21:48
-```solidity
-uint256 public override(First, Second) value
-```
-$9 24:82-24:90
-```solidity
-mapping(uint256 bucket => mapping(address account => uint256 amount)) private balances
-```
-$10 26:15-26:23
-```solidity
-mapping(uint256 bucket => mapping(address account => uint256 amount)) private balances
-```
-$11 31:39-31:42
-```solidity
-mapping(address => UserId) private ids
-```
-$12 32:28-32:33
-```solidity
-uint256 public constant LIMIT
-```
-$13 33:22-33:27
-```solidity
-address immutable owner
-```
-$14 34:19-34:25
-```solidity
-uint256 public number
-```
-$15 35:35-35:41
-```solidity
-UserId[] calldata values
-```
-$16 36:24-36:29
-```solidity
-UserId[] memory local
-```
-$17 37:8-37:11
-```solidity
-mapping(address => UserId) private ids
-```
-$18 37:26-37:32
-```solidity
-UserId[] calldata values
-```
-$19 38:8-38:13
-```solidity
-UserId[] memory local
-```
-$20 39:8-39:14
-```solidity
-uint256 public number
-```
-$21 46:15-46:19
-```solidity
-function pick(uint256 value) public pure returns (uint256)
-```
-$22 50:13-50:20
-```solidity
-modifier limited(uint256 amount)
-```
-$23 51:4-51:15
-```solidity
-constructor(uint256 count) payable
-```
-$24 52:4-52:12
-```solidity
-fallback() external payable
-```
-$25 53:4-53:11
-```solidity
-receive() external payable
-```
-$26 60:4-60:15
-```solidity
-constructor(uint256 initial) Base(initial + 1)
-```
-$27 61:13-61:16
-```solidity
-function run(uint256 value) public guarded(value * 2)
-```
+$1 0:8-0:14 abstract contract Script
+$2 1:8-1:15 contract Counter
+$3 2:9-2:22 contract CounterScript is Script
+$4 2:26-2:32 abstract contract Script
+$5 5:22-5:29 contract Counter
+$6 9:13-9:16 function add(uint256 value) public pure
+$7 11:8-11:11 function add(uint256 value) public pure
+$8 21:43-21:48 uint256 public override(First, Second) value
+$9 24:82-24:90 mapping(uint256 bucket => mapping(address account => uint256 amount)) private balances
+$10 26:15-26:23 mapping(uint256 bucket => mapping(address account => uint256 amount)) private balances
+$11 31:39-31:42 mapping(address => UserId) private ids
+$12 32:28-32:33 uint256 public constant LIMIT
+$13 33:22-33:27 address immutable owner
+$14 34:19-34:25 uint256 public number
+$15 35:35-35:41 UserId[] calldata values
+$16 36:24-36:29 UserId[] memory local
+$17 37:8-37:11 mapping(address => UserId) private ids
+$18 37:26-37:32 UserId[] calldata values
+$19 38:8-38:13 UserId[] memory local
+$20 39:8-39:14 uint256 public number
+$21 46:15-46:19 function pick(uint256 value) public pure returns (uint256)
+$22 50:13-50:20 modifier limited(uint256 amount)
+$23 51:4-51:15 constructor(uint256 count) payable
+$24 52:4-52:12 fallback() external payable
+$25 53:4-53:11 receive() external payable
+$26 60:4-60:15 constructor(uint256 initial) Base(initial + 1)
+$27 61:13-61:16 function run(uint256 value) public guarded(value * 2)
 
 "#]],
     );
@@ -361,30 +280,21 @@ fn includes_resolved_natspec_documentation() {
     );
 
     fixture.check_queries(&[Query::Hover], 1..=15, str![[r#"
-$1 14:13-14:20
-```solidity
-event Updated(uint256 indexed value) anonymous
-```
+$1 14:13-14:20 event Updated(uint256 indexed value) anonymous
 
 Emitted after an update.
 
 **@param**
 
 - `value`: The emitted value.
-$2 16:19-16:28
-```solidity
-error Forbidden(address account)
-```
+$2 16:19-16:28 error Forbidden(address account)
 
 The account is forbidden.
 
 **@param**
 
 - `account`: The rejected account.
-$3 19:15-19:21
-```solidity
-function update(uint256 amount) public pure override onlyReady returns (uint256 out)
-```
+$3 19:15-19:21 function update(uint256 amount) public pure override onlyReady returns (uint256 out)
 
 Updates the value.
 
@@ -395,34 +305,22 @@ Updates the value.
 **@return**
 
 - `out`: The stored value.
-$4 4:28-4:34
-```solidity
-uint256 amount
-```
+$4 4:28-4:34 uint256 amount
 
 **@param**
 
 - `amount`: The next value.
-$5 4:84-4:87
-```solidity
-uint256 out
-```
+$5 4:84-4:87 uint256 out
 
 **@return**
 
 - `out`: The stored value.
-$6 9:34-9:39
-```solidity
-uint256 indexed value
-```
+$6 9:34-9:39 uint256 indexed value
 
 **@param**
 
 - `value`: The emitted value.
-$7 18:8-18:14
-```solidity
-function choose(uint256 second, uint256 third) public pure override returns (uint256 secondOut, uint256 thirdOut)
-```
+$7 18:8-18:14 function choose(uint256 second, uint256 third) public pure override returns (uint256 secondOut, uint256 thirdOut)
 
 Chooses a value.
 
@@ -437,10 +335,7 @@ Chooses a value.
 - `secondOut`: The first result.
 
 - `thirdOut`: The second result.
-$8 37:8-37:11
-```solidity
-function set(uint256 value) public pure returns (uint256 result)
-```
+$8 37:8-37:11 function set(uint256 value) public pure returns (uint256 result)
 
 Updates the stored value.
 
@@ -455,26 +350,17 @@ The caller is responsible for choosing the value.
 **@return**
 
 - `result`: The normalized value.
-$9 27:25-27:30
-```solidity
-uint256 value
-```
+$9 27:25-27:30 uint256 value
 
 **@param**
 
 - `value`: The next value.
-$10 27:61-27:67
-```solidity
-uint256 result
-```
+$10 27:61-27:67 uint256 result
 
 **@return**
 
 - `result`: The normalized value.
-$11 38:8-38:12
-```solidity
-function read() public pure returns (uint256, uint256 result, address)
-```
+$11 38:8-38:12 function read() public pure returns (uint256, uint256 result, address)
 
 **@return**
 
@@ -483,40 +369,28 @@ function read() public pure returns (uint256, uint256 result, address)
 - `result`: The named return value.
 
 - The final return value.
-$12 48:18-48:24
-```solidity
-Record public record
-```
+$12 48:18-48:24 Record public record
 
 **@return**
 
 - `value`: The stored value.
 
 - `owner`: The record owner.
-$13 57:27-57:33
-```solidity
-Record public override record
-```
+$13 57:27-57:33 Record public override record
 
 **@return**
 
 - `value`: The first base value.
 
 - `owner`: The second base value.
-$14 75:8-75:14
-```solidity
-function choose(uint256 first, uint256 second) public pure override(FirstChooser, SecondChooser)
-```
+$14 75:8-75:14 function choose(uint256 first, uint256 second) public pure override(FirstChooser, SecondChooser)
 
 **@param**
 
 - `first`: The second contract's left value.
 
 - `second`: The second contract's right value.
-$15 95:8-95:12
-```solidity
-function read(uint256 leafValue) public pure override returns (uint256 leafResult)
-```
+$15 95:8-95:12 function read(uint256 leafValue) public pure override returns (uint256 leafResult)
 
 **@param**
 
@@ -599,45 +473,27 @@ fn skips_invalid_documentation_and_non_symbol_positions() {
         &[Query::Hover],
         1..=11,
         str![[r#"
-$1 0:9-0:10
-```solidity
-contract C
-```
-$2 4:11-4:15
-```solidity
-struct Data
-```
+$1 0:9-0:10 contract C
+$2 4:11-4:15 struct Data
 
 Stored data.
-$3 6:9-6:13
-```solidity
-enum Kind
-```
+$3 6:9-6:13 enum Kind
 
 An available kind.
 $4 <none>
 $5 <none>
-$6 2:9-2:15
-```solidity
-type UserId is uint256
-```
+$6 2:9-2:15 type UserId is uint256
 
 A user ID.
 $7 <none>
 $8 <none>
 $9 <none>
-$10 28:8-28:12
-```solidity
-function read() public pure returns (uint256 first, uint256)
-```
+$10 28:8-28:12 function read() public pure returns (uint256 first, uint256)
 
 **@return**
 
 - The unnamed return value.
-$11 44:8-44:14
-```solidity
-function update(uint256 renamed) public pure override returns (uint256 renamedResult)
-```
+$11 44:8-44:14 function update(uint256 renamed) public pure override returns (uint256 renamedResult)
 
 **@param**
 
@@ -673,14 +529,8 @@ fn preserves_hover_payloads_across_analysis_batches() {
         &[Query::Hover],
         [1, 2],
         str![[r#"
-$1 1:12-1:15
-```solidity
-uint256 one
-```
-$2 1:13-1:16
-```solidity
-function two(address account) external pure returns (address)
-```
+$1 1:12-1:15 uint256 one
+$2 1:13-1:16 function two(address account) external pure returns (address)
 
 "#]],
     );

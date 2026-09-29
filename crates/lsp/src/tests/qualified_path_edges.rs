@@ -25,27 +25,18 @@ fn resolves_namespace_chains_across_comments() {
         1..=3,
         str![[r#"
 $1 definition: /Main.sol:0:25 import "./Middle.sol" as B;
-$1 hover: 2:4-2:5
-```solidity
-import "./Middle.sol" as B;
-```
+$1 hover: 2:4-2:5 import "./Middle.sol" as B;
 $1 references: /Main.sol:0:25 import "./Middle.sol" as B;
 /Main.sol:2:4 B /* A */ . A /* Pos */ . Pos value;
 $1 highlights: 0:25-0:26 WRITE
 2:4-2:5 READ
 $2 definition: /Middle.sol:0:22 import "./Lib.sol" as A;
-$2 hover: 2:16-2:17
-```solidity
-import "./Lib.sol" as A;
-```
+$2 hover: 2:16-2:17 import "./Lib.sol" as A;
 $2 references: /Main.sol:2:16 B /* A */ . A /* Pos */ . Pos value;
 /Middle.sol:0:22 import "./Lib.sol" as A;
 $2 highlights: 2:16-2:17 READ
 $3 definition: /Lib.sol:0:7 struct Pos { uint256 x; }
-$3 hover: 2:30-2:33
-```solidity
-struct Pos
-```
+$3 hover: 2:30-2:33 struct Pos
 $3 references: /Lib.sol:0:7 struct Pos { uint256 x; }
 /Main.sol:2:30 B /* A */ . A /* Pos */ . Pos value;
 $3 highlights: 2:30-2:33 READ
@@ -164,20 +155,11 @@ fn preserves_overload_selection_for_events_and_qualified_reverts() {
         [4, 5, 7],
         str![[r#"
 $4 definition: /Events.sol:1:10 event Hit(uint256 value);
-$4 hover: 7:20-7:23
-```solidity
-event Hit(uint256 value)
-```
+$4 hover: 7:20-7:23 event Hit(uint256 value)
 $5 definition: /Events.sol:2:10 event Hit(address value);
-$5 hover: 8:20-8:23
-```solidity
-event Hit(address value)
-```
+$5 hover: 8:20-8:23 event Hit(address value)
 $7 definition: /Events.sol:3:10 error Failed(uint256 code);
-$7 hover: 9:22-9:28
-```solidity
-error Failed(uint256 code)
-```
+$7 hover: 9:22-9:28 error Failed(uint256 code)
 
 "#]],
     );
@@ -240,15 +222,9 @@ fn distinguishes_inherited_type_qualifier_from_declaring_contract() {
         [3, 4],
         str![[r#"
 $3 definition: /Inherited.sol:1:9 contract Child is Base {}
-$3 hover: 3:4-3:9
-```solidity
-contract Child is Base
-```
+$3 hover: 3:4-3:9 contract Child is Base
 $4 definition: /Inherited.sol:0:23 contract Base { struct S { uint256 field; } }
-$4 hover: 3:10-3:11
-```solidity
-struct S
-```
+$4 hover: 3:10-3:11 struct S
 
 "#]],
     );
@@ -301,10 +277,7 @@ fn deduplicates_qualified_paths_across_analysis_batches() {
             [2],
             str![[r#"
 $2 definition: /Shared.sol:0:22 import "./Lib.sol" as NS;
-$2 hover: 1:18-1:20
-```solidity
-import "./Lib.sol" as NS;
-```
+$2 hover: 1:18-1:20 import "./Lib.sol" as NS;
 $2 references: /Shared.sol:0:22 import "./Lib.sol" as NS;
 /Shared.sol:1:18 contract Shared { NS.Pos value; }
 $2 highlights: 0:22-0:24 WRITE
