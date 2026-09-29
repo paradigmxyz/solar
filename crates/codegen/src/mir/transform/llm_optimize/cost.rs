@@ -13,9 +13,11 @@
 //! - Each operand costs a push for an immediate or one stack copy otherwise. This stands in for
 //!   stack scheduling, which a function-level model cannot see; phis cost nothing.
 //! - `select` costs its emitted sequence, internal calls and returns the call protocol, and each
-//!   jump, branch, and switch case a pushed label, the jump, and the landing. A call whose block
-//!   then returns its result costs what a tail call costs, a jump, and the return nothing: the
-//!   backend jumps to the callee, which returns to the caller's caller.
+//!   jump, branch, and switch case a pushed label, the jump, and the landing. A call to a function
+//!   that returns nothing, which its block's empty return follows, costs a jump, and the return
+//!   nothing: the backend jumps to the callee, which returns to the caller's caller. A call that
+//!   returns values keeps the whole protocol, since the backend returns results where their caller
+//!   reads them.
 //!
 //! The model ranks a candidate against its original, which the same approximations price, and
 //! [`max_live_values`] bounds the stack pressure a candidate may add.
@@ -46,7 +48,7 @@ pub(super) fn code_bytes(target: Target, module: &Module, function: &Function) -
         for &inst in &function.blocks[block].instructions {
             bytes += u64::from(instruction(target, module, function, inst, &immediate).bytes);
         }
-        bytes += u64::from(terminator(target, function, block, None).bytes);
+        bytes += u64::from(terminator(target, module, function, block, None).bytes);
     }
     bytes
 }
@@ -131,12 +133,12 @@ impl Meter for GasMeter<'_> {
         block: BlockId,
         operand: &dyn Fn(ValueId) -> Option<U256>,
     ) {
+        let (target, module) = (self.target, self.module);
         let gas = if matches!(function.blocks[block].terminator, Some(Terminator::Switch { .. })) {
-            u64::from(terminator(self.target, function, block, Some(operand)).gas)
+            u64::from(terminator(target, module, function, block, Some(operand)).gas)
         } else {
-            let target = self.target;
             self.price(function, Site::Terminator(block), || {
-                terminator(target, function, block, None)
+                terminator(target, module, function, block, None)
             })
         };
         self.gas = self.gas.saturating_add(gas);
@@ -190,9 +192,9 @@ fn instruction(
         InstKind::Phi(_) => return Cost::ZERO,
         // Conditions are `i1`, so the emitted sequence needs no normalization.
         InstKind::Select(..) => target.select(false),
-        // icall f, args; ret [result] => tail_call f, args
+        // icall f, args; ret => jump f
         InstKind::ICall { function: Callee::Function(_), .. }
-            if is_tail_position(function, inst) =>
+            if is_tail_position(module, function, inst) =>
         {
             target.jump()
         }
@@ -212,6 +214,7 @@ fn instruction(
 /// decide how many cases a switch compares; without them, every case counts.
 fn terminator(
     target: Target,
+    module: &Module,
     function: &Function,
     block: BlockId,
     run: Option<&dyn Fn(ValueId) -> Option<U256>>,
@@ -243,7 +246,9 @@ fn terminator(
             if matched { cost } else { cost + target.jump() }
         }
         // The call before it returns to the caller's caller.
-        Terminator::Return { .. } if returns_tail_call(function, block) => return Cost::ZERO,
+        Terminator::Return { .. } if returns_tail_call(module, function, block) => {
+            return Cost::ZERO;
+        }
         Terminator::Return { values } => {
             target.internal_return(function.params.len(), values.len())
         }
@@ -264,26 +269,28 @@ fn terminator(
         .fold(control, |cost, operand| cost + operand_cost(target, function, operand))
 }
 
-/// Returns whether instruction `inst` of `function` is a call that its block's return then ends:
-/// the block's last instruction, whose results are exactly what the block returns.
-fn is_tail_position(function: &Function, inst: InstId) -> bool {
+/// Returns whether instruction `inst` of `function` is a call the backend emits as a jump: a call
+/// to a function that returns nothing, which ends a block that then returns nothing.
+fn is_tail_position(module: &Module, function: &Function, inst: InstId) -> bool {
     let Some(block) = function.blocks.iter().find(|block| block.instructions.last() == Some(&inst))
     else {
         return false;
     };
     let Some(Terminator::Return { values }) = &block.terminator else { return false };
-    let instruction = function.inst(inst);
-    matches!(instruction.kind, InstKind::ICall { function: Callee::Function(_), .. })
-        && match (instruction.result(), values.as_slice()) {
-            (None, []) => true,
-            (Some(result), &[value]) => result == value,
-            _ => false,
-        }
+    values.is_empty()
+        && matches!(
+            function.inst(inst).kind,
+            InstKind::ICall { function: Callee::Function(callee), .. }
+                if module.function(callee).return_components().is_empty()
+        )
 }
 
-/// Returns whether `block` of `function` returns what the call ending it returns.
-fn returns_tail_call(function: &Function, block: BlockId) -> bool {
-    function.blocks[block].instructions.last().is_some_and(|&inst| is_tail_position(function, inst))
+/// Returns whether `block` of `function` returns after a call the backend emits as a jump.
+fn returns_tail_call(module: &Module, function: &Function, block: BlockId) -> bool {
+    function.blocks[block]
+        .instructions
+        .last()
+        .is_some_and(|&inst| is_tail_position(module, function, inst))
 }
 
 /// Prices materializing `value` as an operand: a push for an immediate, a stack copy otherwise.

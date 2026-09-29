@@ -228,6 +228,8 @@ the run computed. Storage accesses are priced by the slot's state: an `SLOAD` or
 at a run's first access to its slot and warm after, and an `SSTORE` costs what the value the slot
 held when the run began, holds now, and receives make it cost, without refunds. Each operand
 costs a push for an immediate or one stack copy otherwise, which stands in for stack scheduling.
+An internal call costs the call protocol, except that a call to a function returning nothing,
+which ends a function returning nothing, costs a jump, as the backend forwards it.
 Accepted rewrites can still lose to the stack scheduler, so compare them with the runtime
 benchmarks.
 
