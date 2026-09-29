@@ -37,12 +37,17 @@ import "@lib/Target.sol";
 contract Target {}
 "#;
 
+/// An importer path, the replaced columns on line 0, and the new text.
+type ExpectedEdit = (&'static str, u32, u32, &'static str);
+
+type Move = (&'static str, &'static str);
+
 fn move_batch(moves: impl IntoIterator<Item = (PathBuf, PathBuf)>) -> FileMoveBatch {
     FileMoveBatch::new(moves).unwrap()
 }
 
 /// Asserts that `plan` replaces line 0 of each importer between the given columns.
-fn assert_edits(project: &TestProject, plan: ImportEditPlan, expected: &[(&str, u32, u32, &str)]) {
+fn assert_edits(project: &TestProject, plan: ImportEditPlan, expected: &[ExpectedEdit]) {
     let expected = expected
         .iter()
         .map(|&(importer, start, end, text)| {
@@ -101,7 +106,7 @@ fn single_import_index(
 
 #[test]
 fn rename_edits_rewrite_imports() {
-    let cases: [(&str, &[(&str, &str)], &[(&str, u32, u32, &str)]); _] = [
+    let cases: [(&str, &[Move], &[ExpectedEdit]); _] = [
         (
             IMPORTER_AND_TARGET,
             &[("/src/Target.sol", "/src/Renamed.sol")],
