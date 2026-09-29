@@ -1,13 +1,14 @@
 llm-optimize Calls @main: not offered: is the dispatch entry
 llm-optimize Calls @increment: offered at 52 gas, 21 bytes
 llm-optimize Calls @increment: round 1: nothing cheaper
-llm-optimize Calls @twice: offered at 260 gas, 35 bytes
+llm-optimize Calls @twice: offered at 429 gas, 75 bytes
 llm-optimize Calls @twice: round 1: accepted at 52 gas, 21 bytes
 llm-optimize Calls @twice: round 2: nothing cheaper
-llm-optimize Calls @twice: rewritten from 260 gas, 35 bytes to 52 gas, 21 bytes
-llm-optimize Calls @forward: offered at 67 gas, 6 bytes
-llm-optimize Calls @forward: round 1: rejected at cost: costs 52 gas, 21 bytes, which does not beat 67 gas, 6 bytes
+llm-optimize Calls @twice: rewritten from 429 gas, 75 bytes to 52 gas, 21 bytes
+llm-optimize Calls @forward: offered at 236 gas, 46 bytes
+llm-optimize Calls @forward: round 1: accepted at 52 gas, 21 bytes
 llm-optimize Calls @forward: round 2: nothing cheaper
+llm-optimize Calls @forward: rewritten from 236 gas, 46 bytes to 52 gas, 21 bytes
 llm-optimize Calls @gas_left: not offered: uses `gas`
 llm-optimize Calls @reads_gas: not offered: calls `@gas_left`, which uses `gas`
 llm-optimize Calls @recursive: not offered: is recursive
@@ -55,7 +56,8 @@ llm-optimize Calls @framed: not offered: uses `internal_frame_addr`
   
   fn @forward(arg0: i256) -> i256 {
     bb0:
-      v0 = icall @increment, arg0
+-     v0 = icall @increment, arg0
++     v0 = add arg0, 1
       ret v0
   }
   
