@@ -28,7 +28,7 @@
 //! selects the phi successor. This pass isolates only those copies in a single-successor block.
 
 use crate::mir::{
-    Callee, Function, InstKind, MirPhase, Module, Terminator,
+    Callee, Function, FunctionId, InstKind, MirPhase, Module, Terminator,
     analysis::{CallGraphInfo, Liveness},
     pass::MirPass,
     transform::cfg_simplify::{fold_trivial_phis, remove_unreachable_blocks},
@@ -90,28 +90,11 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
             if !returning.contains(func_id) {
                 nonreturning.insert(func_id);
             }
-            if func.selector.is_none()
-                && !func.attributes.is_receive
-                && !func.attributes.is_fallback
-                && !call_graph.is_recursive(func_id)
-            {
+            if is_tail_callable(module, &call_graph, func_id) {
                 tail_callable.insert(func_id);
             }
         }
-
-        // Deployment emits these bodies with dynamic frames. Even argumentless
-        // callees need the ordinary call to establish a base for locals and spills.
-        let mut constructor_reachable = call_graph.reachable_callees_from(
-            module
-                .functions
-                .iter_enumerated()
-                .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
-        );
-        for (id, func) in module.functions.iter_enumerated() {
-            if func.attributes.is_constructor {
-                constructor_reachable.insert(id);
-            }
-        }
+        let constructor_reachable = constructor_reachable(module, &call_graph);
 
         // Keep reverse edges even when cleanup removes a call: stale edges only
         // cause a redundant visit, and function IDs stay stable through block cleanup.
@@ -259,4 +242,40 @@ fn split_clobbering_phi_edges(func: &mut Function) {
     for (predecessor, successor) in edges {
         split_edge(func, predecessor, successor);
     }
+}
+
+/// Returns whether a tail call may target function `id`: a function with a body, no selector, and
+/// no recursion, which is not a receive or fallback function. The backend passes a tail call's
+/// arguments in its target's static frame, which only such functions get.
+pub(crate) fn is_tail_callable(
+    module: &Module,
+    call_graph: &CallGraphInfo,
+    id: FunctionId,
+) -> bool {
+    let func = module.function(id);
+    !func.blocks.is_empty()
+        && func.selector.is_none()
+        && !func.attributes.is_receive
+        && !func.attributes.is_fallback
+        && !call_graph.is_recursive(id)
+}
+
+/// Returns the constructors and the functions they can reach, which may make no tail calls:
+/// deployment emits their bodies with dynamic frames, and even a callee without arguments needs
+/// the ordinary call to establish a base for its locals and spills.
+pub(crate) fn constructor_reachable(
+    module: &Module,
+    call_graph: &CallGraphInfo,
+) -> DenseBitSet<FunctionId> {
+    let constructors = || {
+        module
+            .functions
+            .iter_enumerated()
+            .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id))
+    };
+    let mut reachable = call_graph.reachable_callees_from(constructors());
+    for id in constructors() {
+        reachable.insert(id);
+    }
+    reachable
 }
