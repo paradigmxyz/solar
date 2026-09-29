@@ -36,13 +36,10 @@ fn begin(state: &mut GlobalState, removed_paths: Vec<PathBuf>, trigger: Analysis
 fn changed_pull_result() -> AnalysisResult {
     let path = std::env::temp_dir().join("Hints.sol");
     let uri = Url::from_file_path(&path).unwrap();
-    let mut result = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(
-            path,
-            "contract C { function target(uint amount) public pure returns (uint) { return amount; } function caller() public pure returns (uint) { return target(1); } }".into(),
-        )],
-    ));
+    let mut result = analyze_source(
+        path,
+        "contract C { function target(uint amount) public pure returns (uint) { return amount; } function caller() public pure returns (uint) { return target(1); } }",
+    );
     assert!(
         !result
             .symbol_tables

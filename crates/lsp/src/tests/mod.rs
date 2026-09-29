@@ -106,6 +106,17 @@ fn analyze_source(path: impl Into<PathBuf>, source: impl Into<String>) -> Analys
     analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path.into(), source.into())]))
 }
 
+/// Analyzes every non-empty batch of `snapshot` and merges the outputs.
+fn analyze_workspace(snapshot: &GlobalStateSnapshot) -> AnalysisOutput {
+    let mut outputs = AnalysisOutputAccumulator::default();
+    for batch in snapshot.analysis_batches(Vec::new()) {
+        if !batch.files.is_empty() {
+            outputs.push(analyze_cancellable(batch, &Default::default()).unwrap());
+        }
+    }
+    outputs.finish()
+}
+
 fn analyze_single_batch(snapshot: &GlobalStateSnapshot) -> AnalysisResult {
     let mut batches = snapshot.analysis_batches(Vec::new());
     assert_eq!(batches.len(), 1);
@@ -193,14 +204,8 @@ fn analysis_result_accumulator_merges_multiple_batches() {
     let two_path = std::env::temp_dir().join("Two.sol");
     let one_uri = Url::from_file_path(&one_path).unwrap();
     let two_uri = Url::from_file_path(&two_path).unwrap();
-    let mut first = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(one_path, "contract One {}".into())],
-    ));
-    let mut second = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(two_path, "contract Two {}".into())],
-    ));
+    let mut first = analyze_source(one_path, "contract One {}");
+    let mut second = analyze_source(two_path, "contract Two {}");
     second.analyzed_documents.insert(one_uri.clone(), Some(7));
     let uri = diagnostic_uri();
     first.diagnostics = diagnostics_for(&uri, "first");
@@ -614,8 +619,7 @@ async fn failed_or_cancelled_analysis_keeps_results_until_save_recovers() {
         let project = TestProject::from_fixture("//- /Old.sol\ncontract Old {}\n");
         let old_tables = analyze_single_batch(&snapshot(&project)).symbol_tables;
         let uri = project.uri("/Old.sol");
-        let mut state = GlobalState::new(ClientSocket::new_closed());
-        state.config = Arc::new(project.config());
+        let mut state = state_with(project.config());
         state.symbol_tables.store(Arc::new(old_tables));
         state
             .snapshot()
@@ -673,8 +677,7 @@ async fn reindex_rediscovers_disk_files_without_preclearing_the_old_index() {
     project.remove_file("/src/Old.sol");
     project.write_file("/src/New.sol", "contract New {}");
 
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
+    let mut state = state_with(config);
     state.symbol_tables.store(Arc::new(old_tables));
     state.reindex();
 
@@ -1099,8 +1102,7 @@ async fn saving_equivalent_file_uri_selects_workspace_flycheck() {
         }),
     );
     let [owner] = config.flycheck_owners().collect::<Vec<_>>().try_into().unwrap();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
+    let mut state = state_with(config);
     let snapshot = state.snapshot();
     let uri = Url::parse(&format!(
         "{}/missing%2F..%2Fworkspace/src/Test.sol",
@@ -1125,8 +1127,7 @@ async fn recomputing_for_removed_files_stales_all_flycheck_owners() {
         src = "src"
         "#,
     );
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config_with_options(
+    let mut state = state_with(config_with_options(
         project.initialize_params_with_roots(&["/first", "/second"]),
         json!({ "flychecks": [{ "id": "slow", "command": "slow" }] }),
     ));
@@ -1174,8 +1175,7 @@ async fn saving_again_cancels_in_flight_flychecks() {
     );
     let first_pid_path = project.path("/first-flycheck-pid.txt");
     let second_pid_path = project.path("/second-flycheck-pid.txt");
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config_with_options(
+    let mut state = state_with(config_with_options(
         project.initialize_params(),
         json!({
             "flychecks": [{
@@ -1229,8 +1229,7 @@ fn flycheck_source_paths(project: &TestProject, saved: &str) -> (Vec<PathBuf>, V
     project.write_file(saved, "contract SavedAfterDiscovery {}\n");
     let [flycheck] = config.flychecks_for_path(&saved_path).try_into().unwrap();
     let source_files = config.workspaces()[0].source_files().to_vec();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
+    let state = state_with(config);
     (source_files, state.snapshot().flycheck_source_paths(&flycheck, &saved_path))
 }
 
@@ -1639,10 +1638,7 @@ fn analysis_batches_share_external_open_files_across_matching_and_overlapping_co
         let overlay_contents = "import \"./Dependency.sol\"; contract Overlay is Dependency {}";
         let overlay = project.path(&format!("{shared}/Overlay.sol"));
         let mut vfs = project.vfs();
-        vfs.set_file_contents(
-            crate::vfs::VfsPath::from(overlay.clone()),
-            Some(crop::Rope::from(overlay_contents)),
-        );
+        vfs.set_file_contents(VfsPath::from(overlay.clone()), Some(overlay_contents.into()));
         let snapshot = snapshot_with_config(project.config_with_roots(&["/"]), vfs);
 
         let batches = snapshot.analysis_batches(Vec::new());
@@ -1706,10 +1702,7 @@ fn analyze_builds_declaration_symbol_table() {
     );
     let path = project.path("/Symbols.sol");
     let uri = Url::from_file_path(&path).unwrap();
-    let result = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path, project.read_file("/Symbols.sol"))],
-    ));
+    let result = analyze_source(path, project.read_file("/Symbols.sol"));
     assert!(result.diagnostics.is_empty());
 
     let declarations = result.symbol_tables.file_declarations(&uri).collect::<Vec<_>>();
@@ -1780,10 +1773,7 @@ fn analyze_builds_lsp_symbol_responses() {
     );
     let path = project.path("/Symbols.sol");
     let uri = Url::from_file_path(&path).unwrap();
-    let result = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path, project.read_file("/Symbols.sol"))],
-    ));
+    let result = analyze_source(path, project.read_file("/Symbols.sol"));
     assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
 
     let mut output = String::new();

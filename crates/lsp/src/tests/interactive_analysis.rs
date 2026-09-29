@@ -293,7 +293,7 @@ async fn superseded_requests_wake_without_analysis_publication() {
 async fn pending_rename_rejects_disk_changes_after_analysis_catches_up() {
     let (project, mut state, uri) = fixture();
     let path = project.path("/Request.sol");
-    state.vfs.write().set_file_contents(path.clone().into(), None);
+    remove_overlay(&state, &path);
     project.write_file("/Request.sol", "contract Original {}");
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
     state.recompute_with_disk_files(vec![path.clone()]);

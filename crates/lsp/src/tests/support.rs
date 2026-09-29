@@ -25,7 +25,7 @@ impl RequestFixture {
         let marked = MarkedProject::from_fixture(fixture);
         let contents = marked.project().read_file(path);
         let path = marked.project().path(path);
-        let result = analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path, contents)]));
+        let result = analyze_source(path, contents);
         Self { marked, result }
     }
 
@@ -58,10 +58,7 @@ impl RequestFixture {
                 .filter(|(open_path, _)| open_path == path)
                 .map_or_else(|| marked.project().read_file(path), |(_, contents)| contents.clone());
             let path = marked.project().path(path);
-            results.push(analyze(AnalysisBatch::from_files(
-                CompileOpts::default(),
-                [(path, contents)],
-            )));
+            results.push(analyze_source(path, contents));
         }
         let result = results.finish();
         assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
@@ -480,10 +477,7 @@ impl RequestFixture {
         changed_contents: &str,
     ) -> GlobalState {
         let path = self.marked.project().path(path);
-        let result = analyze(AnalysisBatch::from_files(
-            CompileOpts::default(),
-            [(path.clone(), changed_contents.to_string())],
-        ));
+        let result = analyze_source(path.clone(), changed_contents);
         assert!(!result.diagnostics.is_empty(), "changed source should fail analysis");
 
         let state = self.state();
@@ -528,16 +522,7 @@ impl RequestFixture {
     }
 
     pub(super) fn state_with_workspace_analysis(&self) -> GlobalState {
-        let mut outputs = AnalysisOutputAccumulator::default();
-        for batch in snapshot(self.marked.project()).analysis_batches(Vec::new()) {
-            if !batch.files.is_empty() {
-                outputs.push(
-                    analyze_cancellable(batch, &Default::default())
-                        .expect("fresh analysis cancellation cannot be cancelled"),
-                );
-            }
-        }
-        let output = outputs.finish();
+        let output = analyze_workspace(&snapshot(self.marked.project()));
         let state = self.state();
         state.symbol_tables.store(Arc::new(output.result.symbol_tables));
         state.analysis_commit.lock().analysis_paths = output.analysis_paths;

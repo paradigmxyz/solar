@@ -1204,7 +1204,7 @@ fn prefers_markdown_documentation(formats: Option<&[MarkupKind]>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::TestProject;
+    use crate::test_support::{TestProject, workspace_at};
     use serde_json::{Value, json};
     use snapbox::{IntoData, assert_data_eq, str};
 
@@ -1228,15 +1228,6 @@ mod tests {
         let (_, mut config) = negotiate_capabilities(params);
         config.rediscover_workspaces();
         config
-    }
-
-    fn workspace_at<'a>(config: &'a Config, project: &TestProject, root: &str) -> &'a Workspace {
-        let root = project.path(root);
-        config
-            .workspaces()
-            .iter()
-            .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(root.as_path()))
-            .unwrap()
     }
 
     fn relative(project: &TestProject, path: &Path) -> Option<String> {
@@ -1667,7 +1658,7 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
         let path = project.path("/checks/New.t.sol");
         project.write_file("/checks/New.t.sol", "contract NewTest {}\n");
         let tracked = |config: &Config, root| {
-            workspace_at(config, &project, root).flycheck_source_files().contains(&path)
+            workspace_at(config, &project.path(root)).flycheck_source_files().contains(&path)
         };
 
         config.add_source_file(path.clone());
@@ -2025,7 +2016,7 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
             config.workspaces().iter().all(|workspace| workspace.kind() == WorkspaceKind::Foundry)
         );
         assert_eq!(
-            workspace_at(&config, &project, "/packages/token").source_roots(),
+            workspace_at(&config, &project.path("/packages/token")).source_roots(),
             ["", "/contracts", "/test", "/script"]
                 .map(|dir| project.path(&format!("/packages/token{dir}")))
         );
@@ -2066,7 +2057,7 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
             ]
         );
         assert_eq!(
-            workspace_at(&config, &project, "/configured").source_roots(),
+            workspace_at(&config, &project.path("/configured")).source_roots(),
             ["", "/contracts", "/test", "/script"]
                 .map(|dir| project.path(&format!("/configured{dir}")))
         );
@@ -2169,11 +2160,11 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
         );
 
         assert_eq!(
-            workspace_at(&config, &project, "/").source_files(),
+            workspace_at(&config, &project.path("/")).source_files(),
             [project.path("/Outer.sol")]
         );
         assert_eq!(
-            workspace_at(&config, &project, "/nested").source_files(),
+            workspace_at(&config, &project.path("/nested")).source_files(),
             [project.path("/nested/Inner.sol")]
         );
         assert_eq!(config.index_metrics().eager, 2);

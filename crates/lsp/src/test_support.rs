@@ -283,6 +283,11 @@ pub(crate) fn set_overlay(
     );
 }
 
+/// Drops the unsaved buffer for `path`.
+pub(crate) fn remove_overlay(state: &GlobalState, path: &Path) {
+    state.vfs.write().set_file_contents(VfsPath::from(path.to_path_buf()), None);
+}
+
 /// A router that stops its main loop on `exit`.
 pub(crate) fn exit_router<S>(state: S) -> Router<S> {
     let mut router = Router::new(state);

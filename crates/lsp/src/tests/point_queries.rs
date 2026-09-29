@@ -1,17 +1,7 @@
-use super::{
-    AnalysisBatch, AnalysisResultAccumulator, SymbolTables, analyze, snapshot_with_config,
-    support::{Query, RequestFixture},
-};
-use crate::test_support::MarkedProject;
-use lsp_types::{GotoDefinitionResponse, Position, Url};
+use super::*;
+use lsp_types::GotoDefinitionResponse;
 use snapbox::{assert_data_eq, str};
-use solar_config::CompileOpts;
-use std::{
-    fmt::Write as _,
-    path::PathBuf,
-    sync::Arc,
-    task::{Context, Poll, Waker},
-};
+use std::fmt::Write as _;
 
 fn remapped_guard_project() -> MarkedProject {
     MarkedProject::from_fixture(
@@ -114,7 +104,7 @@ fn analyze_files(
     let mut results = AnalysisResultAccumulator::default();
     let mut first = None;
     for file in files {
-        let result = analyze(AnalysisBatch::from_files(CompileOpts::default(), [file]));
+        let result = analyze_source(file.0, file.1);
         assert_eq!(result.diagnostics.is_empty(), !diagnostics, "{:#?}", result.diagnostics);
         first.get_or_insert_with(|| result.symbol_tables.clone());
         results.push(result);
@@ -258,7 +248,7 @@ fn conflicting_source_snapshots_fail_closed_in_both_batch_orders() {
         "#,
     );
     let path = marked.project().path("/Shared.sol");
-    let uri = Url::from_file_path(&path).unwrap();
+    let uri = marked.project().uri("/Shared.sol");
     let current = marked.project().read_file("/Shared.sol");
     // Keep queried ranges identical so rejecting conflicting snapshots cannot rely on offsets.
     let changed = current.replace("address(0)", "address(1)");
@@ -385,11 +375,8 @@ fn requests_wait_for_requested_analysis() {
         "#,
         "/Fresh.sol",
     );
-    let old_tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(fixture.project_path("/Fresh.sol"), "contract C {\n    uint256 oldValue;\n}\n".into())],
-    ))
-    .symbol_tables;
+    let old_source = "contract C {\n    uint256 oldValue;\n}\n";
+    let old_tables = analyze_source(fixture.project_path("/Fresh.sol"), old_source).symbol_tables;
     let (uri, position) = fixture.marker_location("$1");
     let mut output = String::new();
     for query in Query::ALL {

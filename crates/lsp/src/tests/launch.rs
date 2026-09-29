@@ -2,11 +2,12 @@ use crate::{
     FoundryWorkspaceConfig, LaunchConfig,
     global_state::GlobalState,
     new_server_service_with_router, proto,
-    test_support::TestProject,
-    workspace::{Workspace, WorkspaceKind},
+    test_support::{TestProject, from_json, workspace_at},
+    workspace::WorkspaceKind,
 };
-use async_lsp::{AnyRequest, ClientSocket, router::Router};
+use async_lsp::{ClientSocket, router::Router};
 use lsp_types::InitializeParams;
+use serde_json::json;
 use solar_config::{EvmVersion, LspArgs};
 use std::{
     io::Read,
@@ -20,7 +21,7 @@ use tower::Service;
 
 async fn initialized_state(config: LaunchConfig, mut params: InitializeParams) -> GlobalState {
     let mut state = GlobalState::new(ClientSocket::new_closed()).with_launch_config(config);
-    params.initialization_options = Some(serde_json::json!({ "flychecks": [] }));
+    params.initialization_options = Some(json!({ "flychecks": [] }));
     state.on_initialize(params).await.unwrap();
     rediscover(&mut state);
     state
@@ -28,15 +29,6 @@ async fn initialized_state(config: LaunchConfig, mut params: InitializeParams) -
 
 fn rediscover(state: &mut GlobalState) {
     let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
-}
-
-fn workspace_at<'a>(state: &'a GlobalState, root: &Path) -> &'a Workspace {
-    state
-        .config
-        .workspaces()
-        .iter()
-        .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(root))
-        .unwrap_or_else(|| panic!("expected a workspace at `{}`", root.display()))
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -59,14 +51,8 @@ async fn launch_config_supplies_the_default_forge_path() {
             });
             router
         });
-    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
-        "id": 1,
-        "method": "initialize",
-        "params": InitializeParams::default(),
-    }))
-    .unwrap();
-
-    service.call(request).await.unwrap();
+    let request = json!({ "id": 1, "method": "initialize", "params": InitializeParams::default() });
+    service.call(from_json(request)).await.unwrap();
 
     assert_eq!(*observed_path.lock().unwrap(), Some(PathBuf::from("/embedded/forge")));
 }
@@ -207,7 +193,7 @@ async fn initialize_applies_host_resolved_foundry_workspace_config() {
         .with_foundry_workspace_config(resolved);
     let state = initialized_state(config, project.initialize_params()).await;
 
-    let workspace = workspace_at(&state, project.root());
+    let workspace = workspace_at(&state.config, project.root());
     assert_eq!(workspace.source_roots(), &[project.path("/custom-src")]);
     assert_eq!(workspace.source_files(), &[project.path("/custom-src/Custom.sol")]);
     assert_eq!(
@@ -226,7 +212,7 @@ async fn initialize_applies_host_resolved_foundry_workspace_config() {
         ["host/=custom-src/"]
     );
     assert_eq!(
-        workspace_at(&state, &project.path("/custom-src/nested")).source_roots(),
+        workspace_at(&state.config, &project.path("/custom-src/nested")).source_roots(),
         &[
             project.path("/custom-src/nested"),
             project.path("/custom-src/nested/src"),
@@ -279,7 +265,7 @@ async fn host_foundry_workspace_configs_match_their_own_roots() {
     let params = project.initialize_params_with_roots(&["/one", "/two", "/three"]);
     let state = initialized_state(config, params).await;
 
-    let source_roots = |root: &str| workspace_at(&state, &project.path(root)).source_roots();
+    let source_roots = |root: &str| workspace_at(&state.config, &project.path(root)).source_roots();
     assert_eq!(source_roots("/one"), [project.path("/one/host-one")]);
     assert_eq!(source_roots("/two"), [project.path("/two/host-two")]);
     assert_eq!(
@@ -325,7 +311,7 @@ async fn host_foundry_workspace_config_loader_covers_new_nested_workspaces_once_
     rediscover(&mut state);
 
     assert_eq!(loads.load(Ordering::Relaxed), 3);
-    let nested = workspace_at(&state, &project.path("/packages/nested"));
+    let nested = workspace_at(&state.config, &project.path("/packages/nested"));
     assert_eq!(nested.source_roots(), &[project.path("/packages/nested/host-src")]);
     assert_eq!(nested.source_files(), &[project.path("/packages/nested/host-src/Host.sol")]);
 }
@@ -361,7 +347,7 @@ async fn host_foundry_workspace_config_loader_refreshes_and_keeps_last_good_disc
     });
     let mut state = initialized_state(config, project.initialize_params()).await;
     let assert_sources = |state: &GlobalState, source: &str, file: &str| {
-        let workspace = workspace_at(state, project.root());
+        let workspace = workspace_at(&state.config, project.root());
         assert_eq!(workspace.source_roots(), &[project.path(source)]);
         assert_eq!(workspace.source_files(), &[project.path(file)]);
     };

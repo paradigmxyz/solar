@@ -1,9 +1,11 @@
-use crate::{LaunchConfig, flycheck, global_state::GlobalState, test_support::TestProject};
-use async_lsp::ClientSocket;
-use lsp_types::{
-    CodeActionContext, CodeActionOrCommand, CodeActionParams, TextDocumentIdentifier,
-    WorkDoneProgressParams,
+use crate::{
+    LaunchConfig, flycheck,
+    global_state::GlobalState,
+    test_support::{TestProject, request_params, with_capabilities, with_options},
 };
+use async_lsp::ClientSocket;
+use lsp_types::{CodeActionOrCommand, Position};
+use serde_json::json;
 use solar_interface::{
     BytePos, ColorChoice, Span,
     diagnostics::{Applicability, Diag, DiagCtxt, JsonEmitter, Level},
@@ -44,28 +46,27 @@ async fn json_emitter_alternatives_become_separate_flycheck_code_actions() {
     project.write_file("/foundry.toml", "[profile.default]\nsrc = \"src\"\n");
     project.write_file("/src/Test.sol", SOURCE);
     let path = project.path("/src/Test.sol");
-    let uri = lsp_types::Url::from_file_path(&path).unwrap();
+    let uri = project.uri("/src/Test.sol");
 
-    let mut params = project.initialize_params();
-    params.capabilities.text_document = Some(
-        serde_json::from_value(serde_json::json!({
-            "codeAction": {
-                "codeActionLiteralSupport": { "codeActionKind": { "valueSet": ["quickfix"] } }
-            },
-            "publishDiagnostics": { "dataSupport": true }
-        }))
-        .unwrap(),
+    let quick_fix = json!({ "codeActionKind": { "valueSet": ["quickfix"] } });
+    let capabilities = json!({ "textDocument": {
+        "codeAction": { "codeActionLiteralSupport": quick_fix },
+        "publishDiagnostics": { "dataSupport": true },
+    } });
+    let params = with_capabilities(project.initialize_params(), capabilities);
+    let params = with_options(
+        params,
+        json!({
+            "flychecks": [{
+                "id": "json-emitter-contract",
+                "command": std::env::current_exe().unwrap(),
+                "args": [
+                    "--ignored", "--exact", FAKE_FLYCHECK_TEST, "--no-capture", "--color", "never"
+                ],
+                "output": "forge-lint-json"
+            }]
+        }),
     );
-    params.initialization_options = Some(serde_json::json!({
-        "flychecks": [{
-            "id": "json-emitter-contract",
-            "command": std::env::current_exe().unwrap(),
-            "args": [
-                "--ignored", "--exact", FAKE_FLYCHECK_TEST, "--no-capture", "--color", "never"
-            ],
-            "output": "forge-lint-json"
-        }]
-    }));
 
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.on_initialize(params).await.unwrap();
@@ -79,14 +80,8 @@ async fn json_emitter_alternatives_become_separate_flycheck_code_actions() {
     let [diagnostic] = diagnostics[&uri].as_slice() else {
         panic!("expected one flycheck diagnostic, got {diagnostics:#?}");
     };
-    let diagnostic = diagnostic.clone();
-    let request = CodeActionParams {
-        text_document: TextDocumentIdentifier::new(uri.clone()),
-        range: diagnostic.range,
-        context: CodeActionContext { diagnostics: vec![diagnostic], ..Default::default() },
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: Default::default(),
-    };
+    let context = json!({ "range": diagnostic.range, "context": { "diagnostics": [diagnostic] } });
+    let request = request_params(&uri, Position::default(), context);
     state.replace_diagnostics_for_test(diagnostics);
 
     let actions = crate::handlers::code_actions(&mut state, request).await.unwrap().unwrap();

@@ -1,19 +1,8 @@
-use super::{
-    GlobalState,
-    support::{RequestFixture, signature_help_at},
-};
-use crate::{config::negotiate_capabilities, vfs::VfsPath};
-use crop::Rope;
-use lsp_types::{
-    InitializeParams, MarkupKind, Position, SignatureHelpClientCapabilities,
-    SignatureInformationSettings, TextDocumentClientCapabilities,
-};
+use super::{support::signature_help_at, *};
 use snapbox::str;
-use std::sync::Arc;
 
 fn set_source(state: &GlobalState, fixture: &RequestFixture, contents: &str) {
-    let path = VfsPath::from(fixture.project_path("/Signature.sol"));
-    state.vfs.write().set_file_contents(path, Some(Rope::from(contents)));
+    set_overlay(state, &fixture.project_path("/Signature.sol"), contents, None);
 }
 
 #[test]
@@ -244,18 +233,11 @@ new uint256[](uint256) returns (uint256[] memory)
 "#]],
     );
     // Clients without label offsets receive parameter text.
-    let mut params = InitializeParams::default();
-    params.capabilities.text_document = Some(TextDocumentClientCapabilities {
-        signature_help: Some(SignatureHelpClientCapabilities {
-            signature_information: Some(SignatureInformationSettings {
-                documentation_format: Some(vec![MarkupKind::Markdown]),
-                parameter_information: None,
-                active_parameter_support: Some(true),
-            }),
-            ..Default::default()
-        }),
-        ..Default::default()
-    });
+    let information =
+        json!({ "documentationFormat": ["markdown"], "activeParameterSupport": true });
+    let params = from_json(json!({ "capabilities": { "textDocument": {
+        "signatureHelp": { "signatureInformation": information },
+    } } }));
     let mut state = fixture.state();
     state.config = Arc::new(negotiate_capabilities(params).1);
     fixture.check_signature_help_in(

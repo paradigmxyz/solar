@@ -1,20 +1,16 @@
 use super::*;
-#[cfg(unix)]
-use crate::formatter::tests::write_executable;
-use crate::{config::negotiate_capabilities, test_support::TestProject};
-use async_lsp::ClientSocket;
-#[cfg(unix)]
-use lsp_types::{
-    DidChangeTextDocumentParams, TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier,
+use crate::test_support::{
+    TestProject, rediscovered_config, request_params, state_with, with_options,
 };
-use lsp_types::{
-    FormattingOptions, Position, Range, TextDocumentIdentifier, WorkDoneProgressParams,
+use lsp_types::{Position, Range};
+use serde_json::json;
+use std::path::Path;
+
+#[cfg(unix)]
+use crate::{
+    formatter::tests::write_executable,
+    test_support::{change, within},
 };
-#[cfg(unix)]
-use std::{ops::ControlFlow, time::Duration};
-use std::{path::Path, sync::Arc};
-#[cfg(unix)]
-use tokio::time;
 
 #[test]
 fn formatting_edits_replace_the_whole_changed_document() {
@@ -238,26 +234,14 @@ printf 'contract Test {}'"#,
     let uri = project.uri("/workspace/Test.sol");
     let task = tokio::spawn(format(&mut state, &project, "/workspace/Test.sol"));
     let ready = project.path("/fake-forge.ready");
-    time::timeout(Duration::from_secs(5), async {
+    within("formatter start", async {
         while !ready.exists() {
             tokio::task::yield_now().await;
         }
     })
-    .await
-    .unwrap();
+    .await;
 
-    let result = crate::handlers::did_change_text_document(
-        &mut state,
-        DidChangeTextDocumentParams {
-            text_document: VersionedTextDocumentIdentifier::new(uri, 2),
-            content_changes: vec![TextDocumentContentChangeEvent {
-                range: None,
-                range_length: None,
-                text: "contract Changed {}".into(),
-            }],
-        },
-    );
-    assert!(matches!(result, ControlFlow::Continue(())));
+    change(&mut state, &uri, 2, "contract Changed {}");
     project.write_file("/fake-forge.release", "");
 
     let error = task.await.unwrap().unwrap_err();
@@ -271,25 +255,14 @@ fn format(
     project: &TestProject,
     path: &str,
 ) -> impl Future<Output = Result<Option<Vec<TextEdit>>, ResponseError>> + use<> {
-    formatting(
-        state,
-        DocumentFormattingParams {
-            text_document: TextDocumentIdentifier { uri: project.uri(path) },
-            options: FormattingOptions { tab_size: 99, insert_spaces: false, ..Default::default() },
-            work_done_progress_params: WorkDoneProgressParams::default(),
-        },
-    )
+    let options = json!({ "options": { "tabSize": 99, "insertSpaces": false } });
+    formatting(state, request_params(&project.uri(path), Position::default(), options))
 }
 
 fn formatting_state(project: &TestProject, forge: &Path, roots: &[&str]) -> GlobalState {
-    let mut params = project.initialize_params_with_roots(roots);
-    params.initialization_options =
-        Some(serde_json::json!({ "forgePath": forge.display().to_string() }));
-    let (_, mut config) = negotiate_capabilities(params);
-    config.rediscover_workspaces();
-
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
+    let options = json!({ "forgePath": forge.display().to_string() });
+    let params = with_options(project.initialize_params_with_roots(roots), options);
+    let state = state_with(rediscovered_config(params));
     *state.vfs.write() = project.vfs();
     state
 }
@@ -300,7 +273,7 @@ fn write_formatter_executable(
     ignores: &[&str],
     formatter: &str,
 ) -> std::path::PathBuf {
-    let config = serde_json::json!({ "fmt": { "ignore": ignores } });
+    let config = json!({ "fmt": { "ignore": ignores } });
     let contents = format!(
         r#"#!/bin/sh
 set -eu

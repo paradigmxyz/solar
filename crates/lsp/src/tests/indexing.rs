@@ -1,5 +1,4 @@
 use super::*;
-use crate::vfs::VfsPath;
 use std::sync::atomic::AtomicBool;
 
 async fn reanalyze(state: &mut GlobalState, changed_paths: Vec<PathBuf>) {
@@ -191,7 +190,7 @@ async fn identical_sources_and_reverted_edits_reuse_analysis_and_initialized_que
 
         // Removing an identical overlay changes its version without changing compiler inputs.
         // The didClose handler explicitly invalidates the cache before reaching this path.
-        state.vfs.write().set_file_contents(VfsPath::from(path.clone()), None);
+        remove_overlay(&state, &path);
         reanalyze(&mut state, Vec::new()).await;
         assert!(reused(&state));
         assert_eq!(state.symbol_tables.load().call_hierarchy_outgoing(&caller).unwrap().len(), 1);
@@ -241,7 +240,7 @@ async fn removing_workspace_batch_inputs_invalidates_the_aggregate() {
     assert_eq!(published.workspace_symbols("").len(), 3);
 
     // The remaining batches are reusable, but the newly empty batch changes the aggregate.
-    state.vfs.write().set_file_contents(VfsPath::from(project.path("/c/Main.sol")), None);
+    remove_overlay(&state, &project.path("/c/Main.sol"));
     reanalyze(&mut state, Vec::new()).await;
     let current = state.symbol_tables.load_full();
     assert!(!Arc::ptr_eq(&published, &current));
@@ -420,7 +419,7 @@ async fn opening_identical_source_rechecks_single_workspace_disk_imports() {
         assert!(Arc::ptr_eq(&published, &state.symbol_tables.load()));
         assert_eq!(state.diagnostics.read().pull_report(&main_uri, None), previous_report);
         // Remove the overlay so opening it again advances the content revision below.
-        state.vfs.write().set_file_contents(VfsPath::from(main.clone()), None);
+        remove_overlay(&state, &main);
 
         // Root text still matches. The import changed without any watcher notification,
         // and equal byte lengths must not substitute for comparing dependency contents.

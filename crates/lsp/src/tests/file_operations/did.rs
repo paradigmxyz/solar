@@ -837,7 +837,7 @@ async fn watcher_collision_does_not_suppress_later_did_rename() {
     assert!(exists(&state, &b));
     assert!(!exists(&state, &destination));
 
-    state.vfs.write().set_file_contents(VfsPath::from(b), None);
+    remove_overlay(&state, &b);
     did_rename(&mut state, &params);
 
     assert_eq!(analysis_version(&state), before + 1);
