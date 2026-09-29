@@ -55,6 +55,32 @@ LL │     function throughOther(bytes memory data, bytes memory other) internal
    │                           ━━━━━━━━━━━━━━━━━
    ╰ help: finish reading the view first, or remove `@custom:solar-view` to read a copy
 
+error: this may change bytes that the view `inner` still reads
+   ╭▸ ROOT/tests/ui/codegen/core/view_parameter_borrow.sol:LL:CC
+   │
+LL │         other[64] = 0x01;
+   │         ━━━━━━━━━━━━━━━━
+   ╰╴
+note: `inner` reads the bytes in place and is read after this
+   ╭▸ ROOT/tests/ui/codegen/core/view_parameter_borrow.sol:LL:CC
+   │
+LL │         (bytes memory inner) = abi.decode(data, (bytes));
+   │          ━━━━━━━━━━━━━━━━━━
+   ╰ help: finish reading the view first, or remove `@custom:solar-view` to read a copy
+
+error: this may change bytes that the view `inner` still reads
+   ╭▸ ROOT/tests/ui/codegen/core/view_parameter_borrow.sol:LL:CC
+   │
+LL │         other[68] = 0x01;
+   │         ━━━━━━━━━━━━━━━━
+   ╰╴
+note: `inner` reads the bytes in place and is read after this
+   ╭▸ ROOT/tests/ui/codegen/core/view_parameter_borrow.sol:LL:CC
+   │
+LL │         (bytes memory inner) = abi.decode(tail, (bytes));
+   │          ━━━━━━━━━━━━━━━━━━
+   ╰ help: finish reading the view first, or remove `@custom:solar-view` to read a copy
+
 error: this may change bytes that the view `values` still reads
    ╭▸ ROOT/tests/ui/codegen/core/view_parameter_borrow.sol:LL:CC
    │
@@ -68,5 +94,5 @@ LL │     function readAfterWrite(uint256[] memory values, bytes memory other) 
    │                             ━━━━━━━━━━━━━━━━━━━━━━━
    ╰ help: finish reading the view first, or remove `@custom:solar-view` to read a copy
 
-error: aborting due to 7 previous errors
+error: aborting due to 9 previous errors
 
