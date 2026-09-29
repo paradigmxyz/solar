@@ -211,6 +211,8 @@ fn removes_only_uninitialized_unused_locals_for_solc_2072() {
                 "contract Test {\n    function value() public pure returns (uint256) {\n        \
                  uint256 unused;\n        return 1;\n    }\n}\n",
             ),
+            // A statement that shares its line keeps the surrounding text.
+            unused("contract Test { function f() public pure { uint256 unused; } }"),
             unused("contract Test { function f() public pure { uint256 unused = 1; } }"),
             unused(
                 "contract Test { function f() public pure { for (uint256 unused; false;) {} } }",
@@ -221,6 +223,9 @@ fn removes_only_uninitialized_unused_locals_for_solc_2072() {
 Remove unused local variable preferred=Some(true)
   Test.sol 2:0-3:0 ""
 == uint256 unused
+Remove unused local variable preferred=Some(true)
+  Test.sol 0:43-0:58 ""
+== uint256 unused
 == uint256 unused
 
 "#]],
@@ -229,18 +234,20 @@ Remove unused local variable preferred=Some(true)
 
 #[test]
 fn adds_virtual_to_unimplemented_function_for_solc_5424() {
+    let source = "contract Test { function value() public returns (uint256); }";
+    let message = "functions without implementation must be marked virtual";
+    let target = "function value() public returns (uint256);";
     check_fallbacks(
-        &[(
-            "contract Test { function value() public returns (uint256); }",
-            "function value() public returns (uint256);",
-            "solar",
-            Some("5424"),
-            "functions without implementation must be marked virtual",
-        )],
+        // Fallback fixes require a diagnostic code.
+        &[
+            (source, target, "solar", Some("5424"), message),
+            (source, target, "solar", None, message),
+        ],
         str![[r#"
 == function value() public returns (uint256);
 Add `virtual` preferred=Some(true)
   Test.sol 0:40-0:40 "virtual "
+== function value() public returns (uint256);
 
 "#]],
     );
