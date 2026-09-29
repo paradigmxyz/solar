@@ -2640,7 +2640,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// `fill(dst, offset, count, value)`.
     fn lower_core_fill(&mut self, operands: &[ValueId]) -> Option<ValueId> {
         let [dst, offset, count, value] = *operands else { return None };
-        let base = self.core_checked_range(dst, offset, Width::Dynamic(count));
+        // The portable loop writes nothing for an empty fill, wherever it starts.
+        // panic(0x32) if count != 0 && misses(length, offset, count)
+        let length = self.core_bytes_len(dst);
+        let misses = self.core_range_misses(length, offset, Width::Dynamic(count));
+        let zero = self.builder.imm(0);
+        let nonempty = self.builder.ne(count, zero);
+        let fails = self.builder.and(nonempty, misses);
+        self.builder.panic_if(fails, PanicCode::ArrayOutOfBounds);
+        // base = data(dst) + offset
+        let data = self.core_bytes_data(dst);
+        let base = self.builder.add(data, offset);
         // pattern = byte(0, value) * 0x0101..01
         let top = self.builder.imm(248);
         let byte = self.builder.shr(top, value);
