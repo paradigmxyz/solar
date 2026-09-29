@@ -267,18 +267,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
         let contract = self.cx.gcx.hir.contract(contract_id);
-        if !self.cx.gcx.contract_bytecode_dependencies(self.cx.contract_id).contains(contract_id) {
-            self.cx
-                .gcx
-                .dcx()
-                .err(format!("codegen is missing creation bytecode for `new {}`", contract.name))
-                .span(ty.span)
-                .note("the deployed contract did not compile or was not lowered first")
-                .emit();
-            return None;
-        }
-        let bytecode =
-            super::super::data::contract_code_data(self.cx.gcx, self.cx.module, contract_id, true);
+        let usage = format!("new {}", contract.name);
+        let bytecode = self.contract_code(ty.span, contract_id, true, &usage)?;
 
         let mut call_value = self.builder.imm(U256::ZERO);
         let mut salt = None;
@@ -340,7 +330,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let encoded = self.builder.abi_encode(Arc::clone(&layout), None, values.into_boxed_slice());
         let static_len = (!layout.types.iter().any(AbiType::is_dynamic))
             .then(|| layout.head_size())
-            .filter(|&len| len.checked_add(31).is_some());
+            .filter(|&len| EvmMemoryLayout::align_word(len).is_some());
         let encoded_len = match static_len {
             Some(len) => self.builder.imm(len),
             None => self.builder.slice_len(encoded),
@@ -363,8 +353,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let total_len = self.builder.checked_add(bytecode_len_value, encoded_len);
             let padding = self.builder.imm(31);
             let rounded_len = self.builder.checked_add(total_len, padding);
-            let mask = self.builder.not(padding);
-            (total_len, self.builder.and(rounded_len, mask))
+            (total_len, self.builder.mask_padded_size(rounded_len))
         };
         let data = self.builder.alloc_raw(allocation_size, AllocationSemantics::INTERNAL);
 

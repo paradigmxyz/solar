@@ -7,14 +7,17 @@ use super::{
 };
 use crate::mir::{
     AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
-    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CheckedOp, ConcatPart, Function,
-    FunctionBuilder, FunctionId, ImmutableId, InstKind, MemoryObjectKind, MemoryObjectLayout,
-    MirType, Module, PackedArraySource, PackedPart, PanicCode, RevertPayload, RevertReason,
-    SliceLocation, Value, ValueId, memory::EvmMemoryLayout,
+    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CheckedOp, ConcatPart, DataRef,
+    Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, MemoryObjectKind,
+    MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart, PanicCode, RevertPayload,
+    RevertReason, SliceLocation, Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, StrKind, TypeSize, UnOpKind};
-use solar_data_structures::map::{FxHashMap, FxHashSet, FxIndexSet, StdEntry};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet, FxIndexSet, StdEntry},
+};
 use solar_interface::{ByteSymbol, Ident, Span, Symbol, kw, sym};
 use solar_sema::{
     Gcx,
@@ -47,6 +50,8 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) module: &'ctx mut Module,
     pub(super) storage: &'ctx StorageLayout<'gcx>,
     pub(super) contract_id: hir::ContractId,
+    /// Contracts whose bytecode this contract embeds.
+    pub(super) bytecode_dependencies: &'gcx DenseBitSet<hir::ContractId>,
     pub(super) function_ids: &'ctx FxHashMap<hir::FunctionId, FunctionId>,
     pub(super) immutable_ids: &'ctx FxHashMap<VariableId, ImmutableId>,
     pub(super) state: &'ctx mut LoweringState,
@@ -65,6 +70,7 @@ impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
             module: &mut *self.module,
             storage: self.storage,
             contract_id: self.contract_id,
+            bytecode_dependencies: self.bytecode_dependencies,
             function_ids: self.function_ids,
             immutable_ids: self.immutable_ids,
             state: &mut *self.state,

@@ -154,9 +154,9 @@ impl<'gcx> Assembler<'gcx> {
             data.bytes = module.get_data(mir_id).expect("loaded data exists").clone();
             data.library_relocations = module.data_library_relocations(mir_id).to_vec();
         }
-        for (size, deferred) in self.deferred_data_sizes.drain() {
+        for (size, deferred) in std::mem::take(&mut self.deferred_data_sizes) {
             let value = size.value(self.program.data[size.data].bytes.len());
-            self.deferred_values.insert(deferred, value);
+            self.set_deferred_const(deferred, value);
         }
     }
 
@@ -179,9 +179,8 @@ impl<'gcx> Assembler<'gcx> {
         };
         if self.deferred_data.contains(&size.data) {
             // push_deferred data_size(data) + addend[, aligned]
-            let next_deferred = &mut self.next_deferred;
             let deferred =
-                *self.deferred_data_sizes.entry(size).or_insert_with(|| next_deferred.next());
+                *self.deferred_data_sizes.entry(size).or_insert_with(|| self.next_deferred.next());
             self.emit_push_deferred(deferred);
         } else {
             // push data_size(data) + addend[, aligned]
@@ -626,6 +625,7 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     pub(in crate::backend) fn finish_evm_ir(&mut self) -> Option<(ir::Module, Vec<Option<Label>>)> {
+        assert!(self.deferred_data.is_empty(), "EVM IR passes require resolved data");
         self.debug_assert_dataflow_relocations_sorted();
         let mut module = std::mem::take(&mut self.program);
         self.current_block = None;

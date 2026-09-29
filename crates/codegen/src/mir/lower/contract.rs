@@ -200,6 +200,7 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId, sema_errored: bool) -
             module: &mut module,
             storage: &storage,
             contract_id,
+            bytecode_dependencies: gcx.contract_bytecode_dependencies(contract_id),
             function_ids: &mir_ids,
             immutable_ids: &immutable_ids,
             state: &mut state,

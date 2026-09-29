@@ -377,16 +377,10 @@ impl ContractQueue {
 /// A contract that is optimized and scheduled, waiting for the bytecode it embeds.
 struct ScheduledContract<'gcx> {
     module: Module,
-    backend: ContractBackend<'gcx>,
+    /// Runtime code waiting for its EVM IR pipeline and assembly, if the contract has code.
+    codegen: Option<Box<EvmCodegen<'gcx>>>,
     /// MIR captured before the optimization pipeline.
     built_mir: Option<Module>,
-}
-
-enum ContractBackend<'gcx> {
-    /// Runtime code waiting for its EVM IR pipeline and assembly.
-    Scheduled(Box<EvmCodegen<'gcx>>),
-    /// The backend already finished or is not needed.
-    Done(Box<EvmArtifact>),
 }
 
 /// Shared state of the contract code generation jobs.
@@ -471,27 +465,23 @@ fn schedule_contract<'gcx>(
         && matches!(gcx.sess.opts.optimization, OptimizationMode::None)
         && gcx.sess.opts.unstable.mir_pipeline.is_none();
     let built_mir = (capture_built && needs_backend).then(|| module.clone());
-    let backend = if needs_backend {
+    let codegen = if needs_backend {
         module.set_debug_info_tracked(captures.debug_info.contains(contract_id));
         let mut codegen = Box::new(EvmCodegen::new(gcx));
         codegen.set_capture_mir(capture_mir && !capture_built);
         codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
         codegen.set_capture_debug_info(captures.debug_info.contains(contract_id));
-        match codegen.schedule_module(&mut module) {
-            Some(artifact) => {
-                gcx.dcx().has_errors()?;
-                ContractBackend::Done(Box::new(artifact))
-            }
-            None => ContractBackend::Scheduled(codegen),
-        }
+        let scheduled = codegen.schedule_module(&mut module);
+        gcx.dcx().has_errors()?;
+        scheduled.then_some(codegen)
     } else {
         if capture_mir && !capture_built {
             let _changed = run_pipeline(gcx, &mut module, None);
             gcx.dcx().has_errors()?;
         }
-        ContractBackend::Done(Box::default())
+        None
     };
-    Ok(ScheduledContract { module, backend, built_mir })
+    Ok(ScheduledContract { module, codegen, built_mir })
 }
 
 /// Supplies the embedded bytecode of a scheduled contract and completes its artifact.
@@ -503,7 +493,7 @@ fn finish_contract(
     artifacts: &IndexVec<ContractId, OnceLock<ContractArtifact>>,
     scheduled: ScheduledContract<'_>,
 ) -> Result<ContractArtifact> {
-    let ScheduledContract { mut module, backend, mut built_mir } = scheduled;
+    let ScheduledContract { mut module, codegen, mut built_mir } = scheduled;
     let child_bytecodes = graph.dependencies[contract_id]
         .iter()
         .map(|dependency| {
@@ -515,35 +505,32 @@ fn finish_contract(
                 library_relocations(&artifact.deployment_link_references, &mut libraries);
             let runtime_relocations =
                 library_relocations(&artifact.runtime_link_references, &mut libraries);
-            (
-                dependency,
-                lower::ContractBytecodes::new(
-                    RelocatableBytecode {
-                        bytes: artifact.deployment.clone(),
-                        relocations: deployment_relocations,
-                        libraries: libraries.clone(),
-                    },
-                    RelocatableBytecode {
-                        bytes: artifact.runtime.clone(),
-                        relocations: runtime_relocations,
-                        libraries,
-                    },
-                ),
-            )
+            let bytecodes = lower::ContractBytecodes {
+                deployment: RelocatableBytecode {
+                    bytes: artifact.deployment.clone(),
+                    relocations: deployment_relocations,
+                    libraries: libraries.clone(),
+                },
+                runtime: RelocatableBytecode {
+                    bytes: artifact.runtime.clone(),
+                    relocations: runtime_relocations,
+                    libraries,
+                },
+            };
+            (dependency, bytecodes)
         })
         .collect::<FxHashMap<_, _>>();
-    let child_bytecode = |dependency| &child_bytecodes[&dependency];
-    lower::resolve_contract_code(&mut module, child_bytecode);
+    lower::resolve_contract_code(&mut module, &child_bytecodes);
     if let Some(built_mir) = &mut built_mir {
-        lower::resolve_contract_code(built_mir, child_bytecode);
+        lower::resolve_contract_code(built_mir, &child_bytecodes);
     }
-    let artifact = match backend {
-        ContractBackend::Scheduled(mut codegen) => {
+    let artifact = match codegen {
+        Some(mut codegen) => {
             let artifact = codegen.finish_module(&module);
             gcx.dcx().has_errors()?;
             artifact
         }
-        ContractBackend::Done(artifact) => *artifact,
+        None => EvmArtifact::default(),
     };
     let capture_mir = captures.mir.contains(contract_id);
     if let Some(limit) = gcx.sess.opts.evm_version.runtime_code_size_limit()

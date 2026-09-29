@@ -469,7 +469,8 @@ impl<'a> FunctionBuilder<'a> {
         self.mask_padded_size(rounded)
     }
 
-    fn mask_padded_size(&mut self, rounded: ValueId) -> ValueId {
+    /// Rounds `rounded` down to a multiple of 32.
+    pub(crate) fn mask_padded_size(&mut self, rounded: ValueId) -> ValueId {
         let mask = self.imm(31);
         let mask = self.not(mask);
         self.and(rounded, mask)

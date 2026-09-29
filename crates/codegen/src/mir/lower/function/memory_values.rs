@@ -232,14 +232,35 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(object)
     }
 
-    pub(super) fn build_bytecode(
-        gcx: Gcx<'_>,
-        module: &mut Module,
-        builder: &mut FunctionBuilder<'_>,
+    /// Returns the deferred data for the creation or runtime bytecode of a contract that
+    /// this contract embeds, reporting `usage` when it is not a bytecode dependency.
+    pub(super) fn contract_code(
+        &mut self,
+        span: Span,
         contract_id: hir::ContractId,
         creation: bool,
-    ) -> ValueId {
-        let code = super::super::data::contract_code_data(gcx, module, contract_id, creation);
+        usage: &str,
+    ) -> Option<DataRef> {
+        if !self.cx.bytecode_dependencies.contains(contract_id) {
+            let kind = if creation { "creation" } else { "runtime" };
+            self.cx
+                .gcx
+                .dcx()
+                .err(format!("codegen is missing {kind} bytecode for `{usage}`"))
+                .span(span)
+                .note("the contract is not a bytecode dependency of the contract being compiled")
+                .emit();
+            return None;
+        }
+        Some(super::super::data::contract_code_data(
+            self.cx.gcx,
+            self.cx.module,
+            contract_id,
+            creation,
+        ))
+    }
+
+    pub(super) fn build_bytecode(builder: &mut FunctionBuilder<'_>, code: DataRef) -> ValueId {
         let word = EvmMemoryLayout::WORD_SIZE;
         // len = data_size code(C)
         // size = data_size code(C), 63, aligned

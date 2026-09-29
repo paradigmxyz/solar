@@ -270,33 +270,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     Builtin::ContractCreationCode | Builtin::ContractRuntimeCode => {
                         // value = bytes(creation_bytecode(C) | runtime_bytecode(C))
                         let creation = builtin == Builtin::ContractCreationCode;
-                        if !self
-                            .cx
-                            .gcx
-                            .contract_bytecode_dependencies(self.cx.contract_id)
-                            .contains(contract_id)
-                        {
-                            let (kind, name) = if creation {
-                                ("creation", "creationCode")
-                            } else {
-                                ("runtime", "runtimeCode")
-                            };
-                            self.cx
-                                .gcx
-                                .dcx()
-                                .err(format!("codegen is missing {kind} bytecode for `{name}`"))
-                                .span(expr.span)
-                                .note("the referenced contract did not compile or was not lowered first")
-                                .emit();
-                            return None;
-                        }
-                        Some(Self::build_bytecode(
-                            self.cx.gcx,
-                            self.cx.module,
-                            &mut self.builder,
-                            contract_id,
-                            creation,
-                        ))
+                        let usage = if creation { "creationCode" } else { "runtimeCode" };
+                        let code = self.contract_code(expr.span, contract_id, creation, usage)?;
+                        Some(Self::build_bytecode(&mut self.builder, code))
                     }
                     _ => unreachable!(),
                 }

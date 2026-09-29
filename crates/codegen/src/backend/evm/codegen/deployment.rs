@@ -17,20 +17,20 @@ struct PreparedDeploymentPrefix {
 impl<'gcx> EvmCodegen<'gcx> {
     /// Optimizes `module` and schedules its runtime code.
     ///
-    /// Returns the final artifact when code generation ends early. Otherwise
-    /// [`Self::finish_module`] completes the artifact once the module's deferred
-    /// data has been resolved.
+    /// Returns whether the module has code to finish. If so, [`Self::finish_module`]
+    /// completes the artifact once the module's deferred data has been resolved.
+    /// Otherwise the artifact is empty.
     #[tracing::instrument(
         name = "evm_codegen",
         level = "debug",
         skip_all,
         fields(module = %module.name),
     )]
-    pub(crate) fn schedule_module(&mut self, module: &mut Module) -> Option<EvmArtifact> {
+    pub(crate) fn schedule_module(&mut self, module: &mut Module) -> bool {
         // Interfaces have no code. An internal-only library keeps its rejecting
         // dispatch stub, like `solc`.
         if module.is_interface {
-            return Some(EvmArtifact::default());
+            return false;
         }
         if let Some(func) = module.functions.iter().find(|func| func.blocks.is_empty()) {
             panic!("cannot codegen MIR function `{}` without an entry block", func.name);
@@ -38,12 +38,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.reset_for_module(module);
         self.run_optimization_passes(module);
         if self.gcx.dcx().has_errors().is_err() {
-            return Some(EvmArtifact::default());
+            return false;
         }
         self.function_return_counts =
             module.functions.iter().map(|func| func.return_components().len()).collect();
         if self.emit_unsupported(module) {
-            return Some(EvmArtifact::default());
+            return false;
         }
         self.immutable_staging_base = immutable_staging_base(module);
         self.immutable_encodings.clear();
@@ -69,7 +69,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         let Ok(lowered) = module.as_lowered(self.gcx.dcx()) else {
-            return Some(EvmArtifact::default());
+            return false;
         };
         let module = &*lowered;
         // Runtime and constructor emission inspect the same final MIR. Compute module-wide facts
@@ -86,7 +86,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // deferred data, such as the bytecode of contracts created at runtime.
         self.schedule_runtime_code(&lowered, &call_graph);
         self.call_graph = Some(call_graph);
-        None
+        true
     }
 
     /// Completes the artifact of a module scheduled by [`Self::schedule_module`].

@@ -223,22 +223,22 @@ fn ensure_contract_bytecode(
     let mut module =
         codegen::mir::lower::lower_contract(gcx, contract_id, gcx.dcx().has_errors().is_err());
     gcx.dcx().has_errors()?;
-    codegen::mir::lower::resolve_contract_code(&mut module, |dependency| &bytecodes[&dependency]);
+    codegen::mir::lower::resolve_contract_code(&mut module, bytecodes);
     let artifact = EvmCodegen::new(gcx).lower_module(&mut module);
     bytecodes.insert(
         contract_id,
-        codegen::mir::lower::ContractBytecodes::new(
-            RelocatableBytecode {
+        codegen::mir::lower::ContractBytecodes {
+            deployment: RelocatableBytecode {
                 libraries: artifact.libraries.clone(),
                 bytes: artifact.deployment.clone().into(),
                 relocations: artifact.deployment_library_relocations.clone(),
             },
-            RelocatableBytecode {
+            runtime: RelocatableBytecode {
                 libraries: artifact.libraries.clone(),
                 bytes: artifact.runtime.clone().into(),
                 relocations: artifact.runtime_library_relocations.clone(),
             },
-        ),
+        },
     );
     black_box(artifact);
     Ok(())

@@ -631,33 +631,6 @@ impl<'a> Validator<'a> {
                         id.index()
                     ));
                 }
-                InstKind::DataSize(data, ..) => match module.get_data(data.id) {
-                    None => self.emit(format_args!(
-                        "inst{} references nonexistent data{}",
-                        inst_id.index(),
-                        data.id.index()
-                    )),
-                    // Deferred data has no known length to offset into.
-                    Some(_) if module.data_is_deferred(data.id) && data.offset != 0 => {
-                        self.emit(format_args!(
-                            "inst{} offsets into deferred data{}",
-                            inst_id.index(),
-                            data.id.index()
-                        ));
-                    }
-                    Some(bytes)
-                        if !module.data_is_deferred(data.id)
-                            && data.offset as usize > bytes.len() =>
-                    {
-                        self.emit(format_args!(
-                            "inst{} data offset {} exceeds data size {}",
-                            inst_id.index(),
-                            data.offset,
-                            bytes.len()
-                        ));
-                    }
-                    Some(_) => {}
-                },
                 InstKind::LoadImmutable(id) => {
                     match (module.get_immutable_type(id), inst.result_ty) {
                         (Some(expected), Some(actual)) if actual != expected.mir_type() => {
@@ -1208,13 +1181,32 @@ impl<'a> Validator<'a> {
         block_id: BlockId,
         inst_id: InstId,
     ) {
-        let InstKind::DataCopy(data, _, size) = &func.inst(inst_id).kind else { return };
+        let (mnemonic, data, size) = match &func.inst(inst_id).kind {
+            InstKind::DataCopy(data, _, size) => ("data_copy", data, Some(size)),
+            InstKind::DataSize(data, ..) => ("data_size", data, None),
+            _ => return,
+        };
         let Some(bytes) = module.get_data(data.id) else {
             self.emit_at_inst(
-                format_args!("data_copy references nonexistent data{}", data.id.index()),
+                format_args!("{mnemonic} references nonexistent data{}", data.id.index()),
                 block_id,
                 inst_id,
             );
+            return;
+        };
+        let Some(size) = size else {
+            // Deferred data stays empty until resolved, so no offset reaches into it.
+            if data.offset as usize > bytes.len() {
+                self.emit_at_inst(
+                    format_args!(
+                        "data_size offset {} exceeds data size {}",
+                        data.offset,
+                        bytes.len()
+                    ),
+                    block_id,
+                    inst_id,
+                );
+            }
             return;
         };
         // The length of deferred data is only known through its own `data_size`.

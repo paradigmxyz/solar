@@ -10,6 +10,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
+use solar_data_structures::map::FxHashMap;
 use solar_interface::Symbol;
 use solar_sema::{Gcx, hir::ContractId};
 use std::borrow::Cow;
@@ -37,19 +38,9 @@ pub(crate) fn data_copy_is_profitable(
 #[derive(Clone, Debug, Default)]
 pub struct ContractBytecodes {
     /// Deployment bytecode, including the initcode prefix.
-    deployment: Option<RelocatableBytecode>,
+    pub deployment: RelocatableBytecode,
     /// Deployed runtime bytecode.
-    runtime: Option<RelocatableBytecode>,
-}
-
-impl ContractBytecodes {
-    /// Creates bytecode metadata from a generated artifact and its relocations.
-    pub fn new(deployment: RelocatableBytecode, runtime: RelocatableBytecode) -> Self {
-        Self {
-            deployment: (!deployment.bytes.is_empty()).then_some(deployment),
-            runtime: (!runtime.bytes.is_empty()).then_some(runtime),
-        }
-    }
+    pub runtime: RelocatableBytecode,
 }
 
 /// Supplies the bytecode of every contract that `module` embeds, remapping its library
@@ -57,15 +48,14 @@ impl ContractBytecodes {
 ///
 /// Lowering leaves embedded contract bytecode deferred so that a contract can be optimized
 /// and scheduled before the contracts it creates have finished code generation.
-pub fn resolve_contract_code<'a>(
+pub fn resolve_contract_code(
     module: &mut Module,
-    mut bytecodes: impl FnMut(ContractId) -> &'a ContractBytecodes,
+    bytecodes: &FxHashMap<ContractId, ContractBytecodes>,
 ) {
     let codes = module.contract_codes().collect::<Vec<_>>();
     for (id, code) in codes {
-        let bytecodes = bytecodes(code.contract);
+        let bytecodes = &bytecodes[&code.contract];
         let bytecode = if code.creation { &bytecodes.deployment } else { &bytecodes.runtime };
-        let bytecode = bytecode.as_ref().expect("embedded contract bytecode must not be empty");
         let relocations = bytecode
             .relocations
             .iter()

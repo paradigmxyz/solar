@@ -2,7 +2,7 @@
 
 use super::{
     BlockId, EvmCodegen, Function, FunctionId, InstId, InstKind, Liveness, SmallVec, StackEffect,
-    StackOp, StackPush, Terminator, ValueId, op,
+    StackOp, StackPush, Terminator, Value, ValueId, op,
     select::{self, OpcodeLowering},
 };
 use crate::{mir::Callee, target::Target};
@@ -964,7 +964,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         let operands = [size, dest];
         self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
 
-        self.emit_value(func, size);
+        if let Value::Inst(size_inst) = *func.value(size)
+            && let InstKind::DataSize(size_data, addend, aligned) = func.inst(size_inst).kind
+        {
+            // Data packing can only bound a copy whose size is pushed at the copy, so
+            // materialize the deferred length here instead of reusing a stack copy.
+            // push data_size(data) + addend[, aligned]
+            self.asm.emit_push_data_size(size_data, addend, aligned);
+            self.scheduler.stack.push(size);
+        } else {
+            self.emit_value(func, size);
+        }
         if !self.block_local_copy_survives(liveness, block, size, 1) {
             self.spill_top_value_if_live(func, liveness, block, inst_idx, size);
         }
