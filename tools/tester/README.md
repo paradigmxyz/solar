@@ -59,6 +59,11 @@ that receives one line per call, `checked`, `skipped` with the reason, or
 SOLAR_RUN_CALL_MIR=target/run-call-mir.log TESTER_MODE=ui cargo test -p solar-compiler --test tests
 ```
 
+To look into a disagreement, run the call by hand with
+[solar-mir-interp](../mir-interp/README.md): pass it the test's
+`-Zdump=mir-final` output and the call, and add `--trace` to see every operation
+the interpreter runs.
+
 ## Compiler artifact comparisons
 
 [compiler-diff](../compiler-diff/README.md) handles local or Sourcify

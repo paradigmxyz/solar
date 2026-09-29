@@ -21,6 +21,7 @@ cargo fmt --all                        # Format
 cargo cl                               # Lint
 cargo run -- file.sol                  # Run compiler
 cargo run -- -Zhelp                    # Unstable flags help
+cargo run -p solar-mir-interp -- f.mir # Run lowered MIR in the MIR interpreter
 ```
 
 Filter UI tests with `cargo uitest <path-substring>` or
