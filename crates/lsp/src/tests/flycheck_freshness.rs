@@ -51,42 +51,40 @@ fn change_document(state: &mut GlobalState, uri: &Url, version: i32, text: &str)
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn completed_flycheck_is_cleared_before_edited_source_analysis() {
+async fn document_changes_keep_or_clear_completed_flycheck_diagnostics() {
     let project = freshness_project();
     let mut state = freshness_state(&project).await;
     let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
     let owner = flycheck_owner(project.path("/"));
     let epoch = state.begin_flycheck_epoch(&owner);
     let stale = diagnostic("warning from the saved source");
-    state.snapshot().publish_flycheck_diagnostics(
-        owner.clone(),
-        epoch,
-        DiagnosticMap::from_iter([(uri.clone(), vec![stale.clone()])]),
-    );
-    assert!(matches!(
-        state.diagnostics.read().pull_report(&uri, None),
-        PullReport::Full { diagnostics, .. } if diagnostics == vec![stale.clone()]
-    ));
+    let publish = |state: &GlobalState| {
+        state.snapshot().publish_flycheck_diagnostics(
+            owner.clone(),
+            epoch,
+            DiagnosticMap::from_iter([(uri.clone(), vec![stale.clone()])]),
+        );
+    };
+    let pulled = |state: &GlobalState| match state.diagnostics.read().pull_report(&uri, None) {
+        PullReport::Full { diagnostics, .. } => diagnostics,
+        _ => panic!("expected a full diagnostic report"),
+    };
+    publish(&state);
 
-    change_document(&mut state, &uri, 2, EDITED_SOURCE);
+    change_document(&mut state, &uri, 2, SOURCE);
+    assert_eq!(pulled(&state), std::slice::from_ref(&stale));
+    assert!(state.snapshot().is_current_flycheck(&owner, epoch));
 
-    state.snapshot().publish_flycheck_diagnostics(
-        owner,
-        epoch,
-        DiagnosticMap::from_iter([(uri.clone(), vec![stale.clone()])]),
-    );
-
-    assert!(matches!(
-        state.diagnostics.read().pull_report(&uri, None),
-        PullReport::Full { diagnostics, .. } if diagnostics.is_empty()
-    ));
+    change_document(&mut state, &uri, 3, EDITED_SOURCE);
+    publish(&state);
+    assert!(pulled(&state).is_empty());
     let reports =
         tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.workspace_diagnostic_reports(Vec::new()))
             .await
             .expect("workspace diagnostics should use the edited source")
             .unwrap();
     let report = reports.iter().find(|report| report.uri == uri).unwrap();
-    assert_eq!(report.version, Some(2));
+    assert_eq!(report.version, Some(3));
     let PullReport::Full { diagnostics, .. } = &report.report else {
         panic!("expected a full workspace diagnostic report");
     };
@@ -99,53 +97,23 @@ async fn completed_flycheck_is_cleared_before_edited_source_analysis() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn identical_document_change_keeps_flycheck_diagnostics_current() {
-    let project = freshness_project();
-    let mut state = freshness_state(&project).await;
-    let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
-    let owner = flycheck_owner(project.path("/"));
-    let epoch = state.begin_flycheck_epoch(&owner);
-    let diagnostic = diagnostic("warning from the unchanged source");
-    state.snapshot().publish_flycheck_diagnostics(
-        owner.clone(),
-        epoch,
-        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic.clone()])]),
-    );
-
-    change_document(&mut state, &uri, 2, SOURCE);
-
-    assert!(matches!(
-        state.diagnostics.read().pull_report(&uri, None),
-        PullReport::Full { diagnostics, .. } if diagnostics == vec![diagnostic]
-    ));
-    assert!(state.snapshot().is_current_flycheck(&owner, epoch));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn dirty_open_document_rejects_disk_flycheck_result() {
+async fn flycheck_results_must_match_open_document_sources() {
     let project = freshness_project();
     let state = freshness_state(&project).await;
     let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
     let path = project.path("/src/Test.sol");
-    let result = crate::flycheck::FlycheckResult {
-        diagnostics: DiagnosticMap::from_iter([(uri, vec![diagnostic("saved warning")])]),
-        sources: [(path, Rope::from("the saved source"))].into_iter().collect(),
-        sources_unchanged: true,
-    };
 
-    assert!(!state.snapshot().flycheck_sources_match_vfs(&result));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn diagnostic_without_snapshot_source_is_rejected() {
-    let project = freshness_project();
-    let state = freshness_state(&project).await;
-    let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
-    let result = crate::flycheck::FlycheckResult {
-        diagnostics: DiagnosticMap::from_iter([(uri, vec![diagnostic("saved warning")])]),
-        sources: Default::default(),
-        sources_unchanged: true,
-    };
-
-    assert!(!state.snapshot().flycheck_sources_match_vfs(&result));
+    for sources in
+        [[(path, Rope::from("the saved source"))].into_iter().collect(), Default::default()]
+    {
+        let result = crate::flycheck::FlycheckResult {
+            diagnostics: DiagnosticMap::from_iter([(
+                uri.clone(),
+                vec![diagnostic("saved warning")],
+            )]),
+            sources,
+            sources_unchanged: true,
+        };
+        assert!(!state.snapshot().flycheck_sources_match_vfs(&result));
+    }
 }

@@ -158,27 +158,17 @@ fn read_remappings_txt(root: &Path) -> Vec<ImportRemapping> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn document_reports_configured_include_paths_directly() {
-        let document = toml_edit::de::from_str::<FoundryDocument>(
-            r#"
-            [profile.default]
-            libs = ["lib", "vendor"]
-            auto_detect_remappings = true
-            remappings = ["@example/=vendor/example/src/"]
-            "#,
-        )
-        .unwrap();
+    fn document(toml: &str) -> FoundryDocument {
+        toml_edit::de::from_str(toml).unwrap()
+    }
 
-        assert_eq!(
-            document.profile_for(None).include_paths(Path::new("workspace")),
-            [PathBuf::from("workspace/lib"), PathBuf::from("workspace/vendor")]
-        );
+    fn workspace_paths(paths: &[&str]) -> Vec<PathBuf> {
+        paths.iter().map(|path| Path::new("workspace").join(path)).collect()
     }
 
     #[test]
     fn selected_profile_overlays_default_profile_fields() {
-        let document = toml_edit::de::from_str::<FoundryDocument>(
+        let document = document(
             r#"
             [profile.default]
             src = "default-src"
@@ -193,124 +183,55 @@ mod tests {
             src = "custom-src"
             remappings = []
             "#,
-        )
-        .unwrap();
+        );
+        let root = Path::new("workspace");
 
         let profile = document.profile_for(Some("custom"));
         assert_eq!(
-            profile.build_source_roots(Path::new("workspace")),
-            [
-                PathBuf::from("workspace/custom-src"),
-                PathBuf::from("workspace/default-test"),
-                PathBuf::from("workspace/default-script"),
-            ]
+            profile.build_source_roots(root),
+            workspace_paths(&["custom-src", "default-test", "default-script"])
         );
-        assert_eq!(
-            profile.include_paths(Path::new("workspace")),
-            [PathBuf::from("workspace/default-libs")]
-        );
+        assert_eq!(profile.include_paths(root), workspace_paths(&["default-libs"]));
         assert_eq!(profile.auto_detect_remappings, Some(false));
         assert_eq!(profile.evm_version(), Some(EvmVersion::Paris));
-    }
-
-    #[test]
-    fn missing_and_default_profiles_use_default_profile() {
-        let document = toml_edit::de::from_str::<FoundryDocument>(
-            r#"
-            [profile.default]
-            src = "default-src"
-
-            [profile.custom]
-            src = "custom-src"
-            "#,
-        )
-        .unwrap();
-
-        let default_roots = document.profile_for(None).build_source_roots(Path::new("workspace"));
-        assert_eq!(
-            document.profile_for(Some("default")).build_source_roots(Path::new("workspace")),
-            default_roots
-        );
-        assert_eq!(
-            document.profile_for(Some("missing")).build_source_roots(Path::new("workspace")),
-            default_roots
-        );
-    }
-
-    #[test]
-    fn legacy_default_profile_remains_supported() {
-        let document = toml_edit::de::from_str::<FoundryDocument>(
-            r#"
-            [default]
-            src = "legacy-src"
-            "#,
-        )
-        .unwrap();
-
-        assert_eq!(
-            document.profile_for(None).build_source_roots(Path::new("workspace")),
-            [
-                PathBuf::from("workspace/legacy-src"),
-                PathBuf::from("workspace/test"),
-                PathBuf::from("workspace/script")
-            ]
-        );
-        assert_eq!(
-            document.profile_for(Some("missing")).build_source_roots(Path::new("workspace")),
-            [
-                PathBuf::from("workspace/legacy-src"),
-                PathBuf::from("workspace/test"),
-                PathBuf::from("workspace/script")
-            ]
-        );
-    }
-
-    #[test]
-    fn unselected_profile_does_not_affect_default_profile_parsing() {
-        let document = toml_edit::de::from_str::<FoundryDocument>(
-            r#"
-            [profile.default]
-            src = "default-src"
-
-            [profile.unselected]
-            evm_version = "future-hardfork"
-            "#,
-        )
-        .unwrap();
-
-        assert_eq!(
-            document.profile_for(None).build_source_roots(Path::new("workspace")),
-            [
-                PathBuf::from("workspace/default-src"),
-                PathBuf::from("workspace/test"),
-                PathBuf::from("workspace/script")
-            ]
-        );
-    }
-
-    #[test]
-    fn explicit_empty_remappings_replace_default_remappings() {
-        let document = toml_edit::de::from_str::<FoundryDocument>(
-            r#"
-            [profile.default]
-            remappings = ["default/=default/src/"]
-
-            [profile.custom]
-            remappings = []
-            "#,
-        )
-        .unwrap();
-        let profile = document.profile_for(Some("custom"));
-
-        assert!(profile.remappings_with_include_paths(Path::new("workspace"), &[]).is_empty());
+        assert!(profile.remappings_with_include_paths(root, &[]).is_empty());
         assert_eq!(
             document
                 .profile_for(Some("missing"))
-                .remappings_with_include_paths(Path::new("workspace"), &[])
+                .remappings_with_include_paths(root, &[])
                 .iter()
                 .map(ToString::to_string)
                 .collect::<Vec<_>>(),
             ["default/=default/src/"]
         );
+    }
+
+    #[test]
+    fn unselected_missing_and_invalid_profiles_use_default_profile() {
+        for (toml, src) in [
+            (
+                r#"
+                [profile.default]
+                src = "default-src"
+
+                [profile.custom]
+                src = "custom-src"
+
+                [profile.invalid]
+                evm_version = "future-hardfork"
+                "#,
+                "default-src",
+            ),
+            ("[default]\nsrc = \"legacy-src\"\n", "legacy-src"),
+        ] {
+            let document = document(toml);
+            for profile in [None, Some("default"), Some("missing"), Some("invalid")] {
+                assert_eq!(
+                    document.profile_for(profile).build_source_roots(Path::new("workspace")),
+                    workspace_paths(&[src, "test", "script"]),
+                    "{profile:?} in {toml}"
+                );
+            }
+        }
     }
 }

@@ -34,45 +34,25 @@ impl ProjectManifest {
         foundry_config: &mut FoundryConfigContext<'_>,
     ) -> io::Result<Option<ManifestDiscoveryResult>> {
         // Keep naked roots shallow, but recurse once a Foundry project boundary is known.
-        let mut manifests = Vec::new();
+        let manifest = find_in_parent_dirs(path, "foundry.toml");
+        let (workspace_root, (source_roots, import_only_roots)) = match &manifest {
+            Some(manifest) => (
+                manifest.parent().unwrap_or(path).to_path_buf(),
+                foundry_index_roots(manifest, approved_roots, foundry_config),
+            ),
+            None => (path.to_path_buf(), Default::default()),
+        };
+        let within_project = manifest.is_some();
+        let entries = match read_dir(path) {
+            Ok(entries) => Some(entries),
+            Err(_) if within_project => None,
+            Err(error) => return Err(error),
+        };
+        let mut manifests = Vec::from_iter(manifest);
         let mut watch_roots = Vec::new();
         let mut marker_watch_roots = Vec::new();
-        if let Some(manifest) = find_in_parent_dirs(path, "foundry.toml") {
-            let workspace_root = manifest.parent().unwrap_or(path).to_path_buf();
-            let (source_roots, import_only_roots) =
-                foundry_index_roots(&manifest, approved_roots, foundry_config);
-            manifests.push(manifest);
-            if let Ok(entries) = read_dir(path)
-                && matches!(
-                    (ManifestDiscovery {
-                        manifests: &mut manifests,
-                        approved_roots,
-                        watch_roots: &mut watch_roots,
-                        marker_watch_roots: &mut marker_watch_roots,
-                        policy,
-                        cancellation,
-                        metrics,
-                        foundry_config,
-                    })
-                    .find_in_child_dirs(
-                        entries,
-                        ManifestTraversal {
-                            within_project: true,
-                            workspace_root: &workspace_root,
-                            traversal_root: path,
-                            watch_root: path,
-                            source_roots: &source_roots,
-                            import_only_roots: &import_only_roots,
-                            corridor_only: false,
-                        },
-                    ),
-                    ManifestTreeState::Cancelled
-                )
-            {
-                return Ok(None);
-            }
-        } else {
-            if matches!(
+        if let Some(entries) = entries
+            && matches!(
                 (ManifestDiscovery {
                     manifests: &mut manifests,
                     approved_roots,
@@ -84,21 +64,21 @@ impl ProjectManifest {
                     foundry_config,
                 })
                 .find_in_child_dirs(
-                    read_dir(path)?,
+                    entries,
                     ManifestTraversal {
-                        within_project: false,
-                        workspace_root: path,
+                        within_project,
+                        workspace_root: &workspace_root,
                         traversal_root: path,
                         watch_root: path,
-                        source_roots: &[],
-                        import_only_roots: &[],
+                        source_roots: &source_roots,
+                        import_only_roots: &import_only_roots,
                         corridor_only: false,
                     },
                 ),
                 ManifestTreeState::Cancelled
-            ) {
-                return Ok(None);
-            }
+            )
+        {
+            return Ok(None);
         }
         Ok(Some((
             manifests.into_iter().map(ProjectManifest::Foundry).collect(),
@@ -111,24 +91,6 @@ impl ProjectManifest {
     ///
     /// Returns a `Vec` of discovered [`ProjectManifest`]s, which is guaranteed to be unique and
     /// sorted.
-    #[cfg(test)]
-    pub(crate) fn discover_all(
-        paths: &[PathBuf],
-        policy: &WorkspaceIndexPolicy,
-        cancellation: &IndexingCancellation,
-        metrics: &mut WorkspaceIndexMetrics,
-    ) -> Option<Vec<Self>> {
-        Self::discover_all_with_watch_roots(
-            paths,
-            paths,
-            policy,
-            cancellation,
-            metrics,
-            &mut FoundryConfigContext::default(),
-        )
-        .map(|(manifests, _, _)| manifests)
-    }
-
     pub(crate) fn discover_all_with_watch_roots(
         paths: &[PathBuf],
         approved_roots: &[PathBuf],
@@ -225,15 +187,9 @@ fn find_in_parent_dirs(path: &Path, target_file_name: &str) -> Option<PathBuf> {
         return Some(path.to_path_buf());
     }
 
-    let mut current = Some(path);
-    while let Some(path) = current {
-        let candidate = path.join(target_file_name);
-        if std::fs::metadata(&candidate).is_ok() {
-            return Some(candidate);
-        }
-        current = path.parent();
-    }
-    None
+    path.ancestors()
+        .map(|path| path.join(target_file_name))
+        .find(|candidate| std::fs::metadata(candidate).is_ok())
 }
 
 struct ManifestDiscovery<'a, 'config> {
@@ -305,7 +261,7 @@ impl ManifestDiscovery<'_, '_> {
             } else if let Some(source_root) = source_root {
                 self.policy.should_prune_source_directory(workspace_root, source_root, &path)
             } else {
-                self.policy.excludes_directory(workspace_root, traversal_root, &path)
+                self.policy.excludes_source_directory(workspace_root, traversal_root, &path)
             };
             if corridor_only && !source_corridor && source_root.is_none()
                 || import_only && !source_corridor
@@ -330,38 +286,27 @@ impl ManifestDiscovery<'_, '_> {
             if (within_project || is_project)
                 && let Ok(children) = read_dir(&path)
             {
-                let nested_index_roots = if is_project {
-                    foundry_index_roots(&manifest, self.approved_roots, self.foundry_config)
-                } else {
-                    Default::default()
+                let nested_index_roots;
+                let nested = ManifestTraversal {
+                    within_project: true,
+                    watch_root: &path,
+                    corridor_only: source_corridor,
+                    ..traversal
                 };
-                let (
-                    nested_workspace_root,
-                    nested_traversal_root,
-                    nested_source_roots,
-                    nested_import_only_roots,
-                ) = if is_project {
-                    (
-                        path.as_path(),
-                        path.as_path(),
-                        nested_index_roots.0.as_slice(),
-                        nested_index_roots.1.as_slice(),
-                    )
-                } else {
-                    (workspace_root, traversal_root, source_roots, import_only_roots)
-                };
-                child_state = self.find_in_child_dirs(
-                    children,
+                let nested = if is_project {
+                    nested_index_roots =
+                        foundry_index_roots(&manifest, self.approved_roots, self.foundry_config);
                     ManifestTraversal {
-                        within_project: true,
-                        workspace_root: nested_workspace_root,
-                        traversal_root: nested_traversal_root,
-                        watch_root: &path,
-                        source_roots: nested_source_roots,
-                        import_only_roots: nested_import_only_roots,
-                        corridor_only: source_corridor,
-                    },
-                );
+                        workspace_root: &path,
+                        traversal_root: &path,
+                        source_roots: &nested_index_roots.0,
+                        import_only_roots: &nested_index_roots.1,
+                        ..nested
+                    }
+                } else {
+                    nested
+                };
+                child_state = self.find_in_child_dirs(children, nested);
             } else if within_project || is_project {
                 self.watch_roots.push(SourceWatchRoot::shallow(path.as_path()));
                 child_state = ManifestTreeState::Partitioned;
@@ -426,102 +371,156 @@ mod tests {
         FoundryWorkspaceConfig, test_support::TestProject, workspace::index_policy::IndexingOptions,
     };
 
-    fn discover_all(paths: &[PathBuf]) -> Vec<ProjectManifest> {
-        ProjectManifest::discover_all(
-            paths,
-            &WorkspaceIndexPolicy::default(),
+    fn discover(
+        project: &TestProject,
+        root: &str,
+        options: IndexingOptions,
+        profile: Option<&str>,
+    ) -> Vec<ProjectManifest> {
+        let paths = [project.path(root)];
+        ProjectManifest::discover_all_with_watch_roots(
+            &paths,
+            &paths,
+            &WorkspaceIndexPolicy::new(options),
             &IndexingCancellation::default(),
             &mut WorkspaceIndexMetrics::default(),
+            &mut FoundryConfigContext::new(profile, &[]),
         )
         .unwrap()
+        .0
+    }
+
+    fn manifests(project: &TestProject, paths: &[&str]) -> Vec<ProjectManifest> {
+        paths.iter().map(|path| ProjectManifest::Foundry(project.path(path))).collect()
     }
 
     #[test]
-    fn naked_root_discovery_is_shallow() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /child/foundry.toml
-
-            //- /container/deep/foundry.toml
-            "#,
-        );
-
-        assert_eq!(
-            discover_all(&[project.root().to_path_buf()]),
-            vec![ProjectManifest::Foundry(project.path("/child/foundry.toml"))],
-        );
-    }
-
-    #[test]
-    fn root_project_recursively_discovers_nested_projects_and_skips_heavy_dirs() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /foundry.toml
-
-            //- /packages/token/foundry.toml
-
-            //- /packages/group/vault/foundry.toml
-
-            //- /.git/dependency/foundry.toml
-
-            //- /cache/dependency/foundry.toml
-
-            //- /lib/dependency/foundry.toml
-
-            //- /node_modules/dependency/foundry.toml
-
-            //- /out/dependency/foundry.toml
-            "#,
-        );
-
-        assert_eq!(
-            discover_all(&[project.root().to_path_buf()]),
-            vec![
-                ProjectManifest::Foundry(project.path("/foundry.toml")),
-                ProjectManifest::Foundry(project.path("/packages/group/vault/foundry.toml")),
-                ProjectManifest::Foundry(project.path("/packages/token/foundry.toml")),
-            ],
-        );
-    }
-
-    #[test]
-    fn root_project_skips_nested_repository_boundaries() {
-        let project = TestProject::from_fixture(
-            r#"
+    fn discovers_manifests_within_index_boundaries() {
+        let nested_repository = r#"
             //- /foundry.toml
 
             //- /nested/.git
             gitdir: elsewhere
 
             //- /nested/foundry.toml
-            "#,
-        );
+            "#;
+        for (fixture, root, expected) in [
+            // Naked roots stay shallow.
+            (
+                r#"
+                //- /child/foundry.toml
 
-        assert_eq!(
-            discover_all(&[project.root().to_path_buf()]),
-            vec![ProjectManifest::Foundry(project.path("/foundry.toml"))],
-        );
-        assert_eq!(
-            discover_all(&[project.path("/nested")]),
-            vec![ProjectManifest::Foundry(project.path("/nested/foundry.toml"))],
-        );
-    }
+                //- /container/deep/foundry.toml
+                "#,
+                "/",
+                &["/child/foundry.toml"][..],
+            ),
+            // Root projects recurse but skip heavy directories.
+            (
+                r#"
+                //- /foundry.toml
 
-    #[test]
-    fn parent_discovery_prefers_nearest_foundry_manifest() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /foundry.toml
+                //- /packages/token/foundry.toml
 
-            //- /child/foundry.toml
-            "#,
-        );
-        let child = project.path("/child");
+                //- /packages/group/vault/foundry.toml
 
-        assert_eq!(
-            discover_all(std::slice::from_ref(&child)),
-            vec![ProjectManifest::Foundry(child.join("foundry.toml"))],
-        );
+                //- /.git/dependency/foundry.toml
+
+                //- /cache/dependency/foundry.toml
+
+                //- /lib/dependency/foundry.toml
+
+                //- /node_modules/dependency/foundry.toml
+
+                //- /out/dependency/foundry.toml
+                "#,
+                "/",
+                &[
+                    "/foundry.toml",
+                    "/packages/group/vault/foundry.toml",
+                    "/packages/token/foundry.toml",
+                ],
+            ),
+            // Nested repositories are boundaries unless they are the root.
+            (nested_repository, "/", &["/foundry.toml"]),
+            (nested_repository, "/nested", &["/nested/foundry.toml"]),
+            // Parent discovery prefers the nearest manifest.
+            (
+                r#"
+                //- /foundry.toml
+
+                //- /child/foundry.toml
+                "#,
+                "/child",
+                &["/child/foundry.toml"],
+            ),
+            // A source root inside a library only opens its own corridor.
+            (
+                r#"
+                //- /foundry.toml
+                [profile.default]
+                src = "lib/contracts"
+
+                //- /lib/contracts/nested/foundry.toml
+
+                //- /lib/dependency/foundry.toml
+                "#,
+                "/",
+                &["/foundry.toml", "/lib/contracts/nested/foundry.toml"],
+            ),
+            // Source roots still skip default-excluded descendants.
+            (
+                r#"
+                //- /foundry.toml
+                [profile.default]
+                src = "src"
+
+                //- /src/nested/foundry.toml
+
+                //- /src/node_modules/dependency/foundry.toml
+                "#,
+                "/",
+                &["/foundry.toml", "/src/nested/foundry.toml"],
+            ),
+            // An import-only corridor does not admit its ancestor manifest.
+            (
+                r#"
+                //- /foundry.toml
+                [profile.default]
+                src = "lib/contracts"
+
+                //- /lib/foundry.toml
+                [profile.default]
+                src = "other"
+
+                //- /lib/contracts/Main.sol
+                contract Main {}
+                "#,
+                "/",
+                &["/foundry.toml"],
+            ),
+            // A source corridor does not admit excluded sibling manifests.
+            (
+                r#"
+                //- /foundry.toml
+                [profile.default]
+                src = ".hidden/contracts"
+
+                //- /.hidden/contracts/nested/foundry.toml
+
+                //- /.hidden/sibling/foundry.toml
+                "#,
+                "/",
+                &["/.hidden/contracts/nested/foundry.toml", "/foundry.toml"],
+            ),
+        ] {
+            let project = TestProject::from_fixture(fixture);
+            assert_eq!(
+                discover(&project, root, IndexingOptions::default(), None),
+                manifests(&project, expected),
+                "{root} in {fixture}"
+            );
+        }
     }
 
     #[test]
@@ -537,70 +536,11 @@ mod tests {
             //- /packages/app/foundry.toml
             "#,
         );
-        let policy = WorkspaceIndexPolicy::new(IndexingOptions {
-            use_default_excludes: false,
-            ..Default::default()
-        });
-        let discovered = ProjectManifest::discover_all(
-            &[project.root().to_path_buf()],
-            &policy,
-            &IndexingCancellation::default(),
-            &mut WorkspaceIndexMetrics::default(),
-        )
-        .unwrap();
+        let options = IndexingOptions { use_default_excludes: false, ..Default::default() };
 
         assert_eq!(
-            discovered,
-            vec![
-                ProjectManifest::Foundry(project.path("/foundry.toml")),
-                ProjectManifest::Foundry(project.path("/packages/app/foundry.toml")),
-            ]
-        );
-    }
-
-    #[test]
-    fn source_root_inside_library_only_opens_its_manifest_corridor() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = "lib/contracts"
-
-            //- /lib/contracts/nested/foundry.toml
-
-            //- /lib/dependency/foundry.toml
-            "#,
-        );
-
-        assert_eq!(
-            discover_all(&[project.root().to_path_buf()]),
-            vec![
-                ProjectManifest::Foundry(project.path("/foundry.toml")),
-                ProjectManifest::Foundry(project.path("/lib/contracts/nested/foundry.toml")),
-            ]
-        );
-    }
-
-    #[test]
-    fn source_root_discovery_skips_default_excluded_descendants() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = "src"
-
-            //- /src/nested/foundry.toml
-
-            //- /src/node_modules/dependency/foundry.toml
-            "#,
-        );
-
-        assert_eq!(
-            discover_all(&[project.root().to_path_buf()]),
-            vec![
-                ProjectManifest::Foundry(project.path("/foundry.toml")),
-                ProjectManifest::Foundry(project.path("/src/nested/foundry.toml")),
-            ]
+            discover(&project, "/", options, None),
+            manifests(&project, &["/foundry.toml", "/packages/app/foundry.toml"])
         );
     }
 
@@ -639,49 +579,22 @@ mod tests {
             .0,
             [project.path("/.hidden/custom-src"), project.path("/test"), project.path("/script")]
         );
-
-        let nested_custom_manifest =
-            project.path("/.hidden/custom-src/nested/.hidden/custom-src/deep/foundry.toml");
-        let paths = [project.root().to_path_buf()];
-        let discovered = ProjectManifest::discover_all_with_watch_roots(
-            &paths,
-            &paths,
-            &WorkspaceIndexPolicy::default(),
-            &IndexingCancellation::default(),
-            &mut WorkspaceIndexMetrics::default(),
-            &mut FoundryConfigContext::new(Some("custom"), &[]),
-        )
-        .unwrap()
-        .0;
         assert_eq!(
-            discovered,
-            vec![
-                ProjectManifest::Foundry(nested_custom_manifest),
-                ProjectManifest::Foundry(project.path("/.hidden/custom-src/nested/foundry.toml")),
-                ProjectManifest::Foundry(project.path("/foundry.toml")),
-            ]
+            discover(&project, "/", IndexingOptions::default(), Some("custom")),
+            manifests(
+                &project,
+                &[
+                    "/.hidden/custom-src/nested/.hidden/custom-src/deep/foundry.toml",
+                    "/.hidden/custom-src/nested/foundry.toml",
+                    "/foundry.toml",
+                ]
+            )
         );
     }
 
     #[test]
     fn host_foundry_index_roots_keep_approved_boundaries() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /workspace/foundry.toml
-
-            //- /workspace/host-src/Inside.sol
-            contract Inside {}
-
-            //- /workspace/host-lib/Dependency.sol
-            contract HostDependency {}
-
-            //- /external/src/Outside.sol
-            contract Outside {}
-
-            //- /external/lib/Dependency.sol
-            contract Dependency {}
-            "#,
-        );
+        let project = TestProject::new();
         let config = FoundryWorkspaceConfig::new(project.path("/workspace"))
             .with_source_roots([project.path("/workspace/host-src"), project.path("/external/src")])
             .with_include_paths([
@@ -697,52 +610,6 @@ mod tests {
                 &mut FoundryConfigContext::new(None, &configs),
             ),
             (vec![project.path("/workspace/host-src")], vec![project.path("/workspace/host-lib")],)
-        );
-    }
-
-    #[test]
-    fn import_only_source_corridor_does_not_admit_ancestor_manifest() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = "lib/contracts"
-
-            //- /lib/foundry.toml
-            [profile.default]
-            src = "other"
-
-            //- /lib/contracts/Main.sol
-            contract Main {}
-            "#,
-        );
-
-        assert_eq!(
-            discover_all(&[project.root().to_path_buf()]),
-            vec![ProjectManifest::Foundry(project.path("/foundry.toml"))]
-        );
-    }
-
-    #[test]
-    fn source_corridor_does_not_admit_excluded_sibling_manifests() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = ".hidden/contracts"
-
-            //- /.hidden/contracts/nested/foundry.toml
-
-            //- /.hidden/sibling/foundry.toml
-            "#,
-        );
-
-        assert_eq!(
-            discover_all(&[project.root().to_path_buf()]),
-            vec![
-                ProjectManifest::Foundry(project.path("/.hidden/contracts/nested/foundry.toml")),
-                ProjectManifest::Foundry(project.path("/foundry.toml")),
-            ]
         );
     }
 }

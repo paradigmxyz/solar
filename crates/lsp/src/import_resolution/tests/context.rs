@@ -1,5 +1,29 @@
 use crate::test_support::TestProject;
 
+/// Asserts the workspace root and `pkg/` remapping target that own imports from `path`.
+fn assert_context(
+    project: &TestProject,
+    roots: &[&str],
+    path: &str,
+    expected: Option<(&str, &str)>,
+) {
+    let config = if roots.is_empty() { project.config() } else { project.config_with_roots(roots) };
+    let context = config.import_resolution_context(&project.path(path)).map(|context| {
+        let remapping = context
+            .compile_opts()
+            .import_remappings
+            .iter()
+            .find(|remapping| remapping.prefix == "pkg/")
+            .unwrap();
+        (context.workspace_root().to_path_buf(), remapping.path.clone())
+    });
+    assert_eq!(
+        context,
+        expected.map(|(root, remapping)| (project.path(root), remapping.to_string())),
+        "{path}"
+    );
+}
+
 #[test]
 fn config_selects_the_deepest_import_resolution_context() {
     let project = TestProject::from_fixture(
@@ -21,34 +45,13 @@ fn config_selects_the_deepest_import_resolution_context() {
         contract Inner {}
         "#,
     );
-    let config = project.config();
 
-    let outer = config.import_resolution_context(&project.path("/src/Outer.sol")).unwrap();
-    let inner = config
-        .import_resolution_context(&project.path("/packages/app/lib/pkg/Overlay.sol"))
-        .unwrap();
-
-    assert_eq!(outer.workspace_root(), project.root());
-    assert_eq!(inner.workspace_root(), project.path("/packages/app"));
-    assert_eq!(
-        outer
-            .compile_opts()
-            .import_remappings
-            .iter()
-            .find(|remapping| remapping.prefix == "pkg/")
-            .unwrap()
-            .path,
-        "lib/outer/src/"
-    );
-    assert_eq!(
-        inner
-            .compile_opts()
-            .import_remappings
-            .iter()
-            .find(|remapping| remapping.prefix == "pkg/")
-            .unwrap()
-            .path,
-        "lib/inner/src/"
+    assert_context(&project, &[], "/src/Outer.sol", Some(("/", "lib/outer/src/")));
+    assert_context(
+        &project,
+        &[],
+        "/packages/app/lib/pkg/Overlay.sol",
+        Some(("/packages/app", "lib/inner/src/")),
     );
 }
 
@@ -66,53 +69,33 @@ fn config_isolates_import_contexts_across_workspace_roots() {
 
         //- /second/foundry.toml
         [profile.default]
+        src = "../shared/contracts"
+        libs = ["../dependencies/packages"]
         auto_detect_remappings = false
         remappings = ["pkg/=lib/second/"]
 
         //- /second/src/Main.sol
         contract Second {}
-        "#,
-    );
-    let config = project.config_with_roots(&["/first", "/second"]);
-
-    let first = config.import_resolution_context(&project.path("/first/src/Main.sol")).unwrap();
-    let second = config.import_resolution_context(&project.path("/second/src/Main.sol")).unwrap();
-
-    assert_eq!(first.workspace_root(), project.path("/first"));
-    assert_eq!(second.workspace_root(), project.path("/second"));
-    assert_eq!(first.compile_opts().import_remappings[0].path, "lib/first/");
-    assert_eq!(second.compile_opts().import_remappings[0].path, "lib/second/");
-}
-
-#[test]
-fn config_owns_external_source_roots_without_falling_back_to_the_first_workspace() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /first/foundry.toml
-        [profile.default]
-        auto_detect_remappings = false
-        remappings = ["pkg/=lib/first/"]
-
-        //- /first/src/Main.sol
-        contract First {}
-
-        //- /second/foundry.toml
-        [profile.default]
-        src = "../shared/contracts"
-        auto_detect_remappings = false
-        remappings = ["pkg/=lib/second/"]
 
         //- /shared/contracts/Main.sol
         contract Shared {}
+
+        //- /dependencies/packages/pkg/Dependency.sol
+        contract Dependency {}
         "#,
     );
-    let config = project.config_with_roots(&["/first", "/second", "/shared"]);
+    let roots = ["/first", "/second", "/shared", "/dependencies"];
 
-    let context =
-        config.import_resolution_context(&project.path("/shared/contracts/Main.sol")).unwrap();
-
-    assert_eq!(context.workspace_root(), project.path("/second"));
-    assert_eq!(context.compile_opts().import_remappings[0].path, "lib/second/");
+    for (path, expected) in [
+        ("/first/src/Main.sol", Some(("/first", "lib/first/"))),
+        ("/second/src/Main.sol", Some(("/second", "lib/second/"))),
+        // External source and import-only roots do not fall back to the first workspace.
+        ("/shared/contracts/Main.sol", Some(("/second", "lib/second/"))),
+        ("/dependencies/packages/pkg/Overlay.sol", Some(("/second", "lib/second/"))),
+        ("/unowned/Overlay.sol", None),
+    ] {
+        assert_context(&project, &roots, path, expected);
+    }
 }
 
 #[test]
@@ -134,48 +117,13 @@ fn config_prefers_a_deeper_external_source_root_over_an_ancestor_base_path() {
         contract Shared {}
         "#,
     );
-    let config = project.config_with_roots(&["/outer"]);
 
-    let context =
-        config.import_resolution_context(&project.path("/outer/shared/Main.sol")).unwrap();
-
-    assert_eq!(context.workspace_root(), project.path("/outer/packages/app"));
-    assert_eq!(context.compile_opts().import_remappings[0].path, "lib/inner/");
-}
-
-#[test]
-fn config_owns_external_import_only_roots_without_cross_project_contamination() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /first/foundry.toml
-        [profile.default]
-        auto_detect_remappings = false
-        remappings = ["pkg/=lib/first/"]
-
-        //- /first/src/Main.sol
-        contract First {}
-
-        //- /second/foundry.toml
-        [profile.default]
-        libs = ["../dependencies/packages"]
-        auto_detect_remappings = false
-        remappings = ["pkg/=lib/second/"]
-
-        //- /second/src/Main.sol
-        contract Second {}
-
-        //- /dependencies/packages/pkg/Dependency.sol
-        contract Dependency {}
-        "#,
+    assert_context(
+        &project,
+        &["/outer"],
+        "/outer/shared/Main.sol",
+        Some(("/outer/packages/app", "lib/inner/")),
     );
-    let config = project.config_with_roots(&["/first", "/second", "/dependencies"]);
-
-    let context = config
-        .import_resolution_context(&project.path("/dependencies/packages/pkg/Overlay.sol"))
-        .unwrap();
-
-    assert_eq!(context.workspace_root(), project.path("/second"));
-    assert_eq!(context.compile_opts().import_remappings[0].path, "lib/second/");
 }
 
 #[test]
@@ -194,33 +142,13 @@ fn config_owns_out_of_base_remapping_targets() {
         contract Dependency {}
         "#,
     );
-    let config = project.config_with_roots(&["/project"]);
 
-    let context =
-        config.import_resolution_context(&project.path("/shared/Dependency.sol")).unwrap();
-
-    assert_eq!(context.workspace_root(), project.path("/project"));
-    assert_eq!(context.compile_opts().import_remappings[0].path, "../shared/");
-}
-
-#[test]
-fn config_does_not_guess_an_import_context_for_an_unowned_path() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /first/foundry.toml
-
-        //- /first/src/Main.sol
-        contract First {}
-
-        //- /second/foundry.toml
-
-        //- /second/src/Main.sol
-        contract Second {}
-        "#,
+    assert_context(
+        &project,
+        &["/project"],
+        "/shared/Dependency.sol",
+        Some(("/project", "../shared/")),
     );
-    let config = project.config_with_roots(&["/first", "/second"]);
-
-    assert!(config.import_resolution_context(&project.path("/unowned/Overlay.sol")).is_none());
 }
 
 #[test]
@@ -243,11 +171,11 @@ fn config_rejects_ambiguous_shared_import_contexts() {
         contract Dependency {}
         "#,
     );
-    let config = project.config_with_roots(&["/first", "/second", "/shared"]);
 
-    assert!(
-        config
-            .import_resolution_context(&project.path("/shared/packages/Dependency.sol"))
-            .is_none()
+    assert_context(
+        &project,
+        &["/first", "/second", "/shared"],
+        "/shared/packages/Dependency.sol",
+        None,
     );
 }

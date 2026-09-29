@@ -1,9 +1,8 @@
 use crate::{LaunchConfig, flycheck, global_state::GlobalState, test_support::TestProject};
 use async_lsp::ClientSocket;
 use lsp_types::{
-    CodeActionClientCapabilities, CodeActionContext, CodeActionKind, CodeActionKindLiteralSupport,
-    CodeActionLiteralSupport, CodeActionOrCommand, CodeActionParams,
-    PublishDiagnosticsClientCapabilities, TextDocumentIdentifier, WorkDoneProgressParams,
+    CodeActionContext, CodeActionOrCommand, CodeActionParams, TextDocumentIdentifier,
+    WorkDoneProgressParams,
 };
 use solar_interface::{
     BytePos, ColorChoice, Span,
@@ -23,9 +22,6 @@ async fn default_forge_flycheck_uses_selected_profile() {
         //- /foundry.toml
         [profile.default]
         src = "src"
-
-        //- /src/Test.sol
-        contract Test {}
         "#,
     );
     // Libtest accepts `lint --help`, providing a portable successful capability probe.
@@ -51,30 +47,21 @@ async fn json_emitter_alternatives_become_separate_flycheck_code_actions() {
     let uri = lsp_types::Url::from_file_path(&path).unwrap();
 
     let mut params = project.initialize_params();
-    let text_document = params.capabilities.text_document.get_or_insert_default();
-    text_document.code_action = Some(CodeActionClientCapabilities {
-        code_action_literal_support: Some(CodeActionLiteralSupport {
-            code_action_kind: CodeActionKindLiteralSupport {
-                value_set: vec![CodeActionKind::QUICKFIX.as_str().into()],
+    params.capabilities.text_document = Some(
+        serde_json::from_value(serde_json::json!({
+            "codeAction": {
+                "codeActionLiteralSupport": { "codeActionKind": { "valueSet": ["quickfix"] } }
             },
-        }),
-        ..Default::default()
-    });
-    text_document.publish_diagnostics = Some(PublishDiagnosticsClientCapabilities {
-        data_support: Some(true),
-        ..Default::default()
-    });
+            "publishDiagnostics": { "dataSupport": true }
+        }))
+        .unwrap(),
+    );
     params.initialization_options = Some(serde_json::json!({
         "flychecks": [{
             "id": "json-emitter-contract",
             "command": std::env::current_exe().unwrap(),
             "args": [
-                "--ignored",
-                "--exact",
-                FAKE_FLYCHECK_TEST,
-                "--no-capture",
-                "--color",
-                "never"
+                "--ignored", "--exact", FAKE_FLYCHECK_TEST, "--no-capture", "--color", "never"
             ],
             "output": "forge-lint-json"
         }]

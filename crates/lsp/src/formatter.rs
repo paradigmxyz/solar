@@ -11,15 +11,6 @@ use std::{
 };
 use tokio::{io::AsyncWriteExt, process::Command, time};
 
-pub(crate) async fn run(
-    forge: &Path,
-    root: &Path,
-    source: &str,
-    timeout: Duration,
-) -> Result<String, FormatterError> {
-    run_with_timeout(forge, root, source, timeout).await
-}
-
 pub(crate) async fn is_ignored(
     forge: &Path,
     path: &Path,
@@ -123,7 +114,7 @@ struct ResolvedFormatterConfig {
     ignore: Vec<String>,
 }
 
-async fn run_with_timeout(
+pub(crate) async fn run(
     forge: &Path,
     root: &Path,
     source: &str,
@@ -188,154 +179,71 @@ pub(crate) enum FormatterError {
 }
 
 #[cfg(all(test, unix))]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::test_support::{TestProject, process_exists};
     use std::{
         fs,
         os::unix::fs::{PermissionsExt, symlink},
-        path::PathBuf,
     };
 
     #[test]
-    fn foundry_ignore_patterns_match_files_and_directories() {
+    fn foundry_ignore_patterns_match_normalized_and_canonical_paths() {
         let project = TestProject::from_fixture(
             r#"
             //- /src/Exact.sol
+
+            //- /src/Dot.sol
+
+            //- /src/Parent.sol
+
+            //- /src/Direct.sol
+
+            //- /src/nested/Nested.sol
+
+            //- /src/Target.sol
+
+            //- /generated/Generated.sol
 
             //- /generated/nested/Generated.sol
 
             //- /vendor/Nested.sol
 
-            //- /src/Formatted.sol
-            "#,
-        );
-        let ignores = ["src/Exact.sol", "generated/**/*.sol", "vendor/"].map(str::to_owned);
-
-        assert!(matches_ignore(&project.path("/src/Exact.sol"), project.root(), &ignores));
-        assert!(matches_ignore(
-            &project.path("/generated/nested/Generated.sol"),
-            project.root(),
-            &ignores
-        ));
-        assert!(matches_ignore(&project.path("/vendor/Nested.sol"), project.root(), &ignores));
-        assert!(!matches_ignore(&project.path("/src/Formatted.sol"), project.root(), &ignores));
-    }
-
-    #[test]
-    fn foundry_ignore_patterns_normalize_dot_components() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /src/Dot.sol
-
-            //- /src/Parent.sol
-
-            //- /src/Formatted.sol
-            "#,
-        );
-        let ignores = ["./src/Dot.sol", "src/../src/Parent.sol"].map(str::to_owned);
-
-        assert!(matches_ignore(&project.path("/src/Dot.sol"), project.root(), &ignores));
-        assert!(matches_ignore(&project.path("/src/Parent.sol"), project.root(), &ignores));
-        assert!(!matches_ignore(&project.path("/src/Formatted.sol"), project.root(), &ignores));
-    }
-
-    #[test]
-    fn foundry_ignore_patterns_canonicalize_symlinked_paths() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /src/Target.sol
-
-            //- /generated/Generated.sol
-
-            //- /generated/nested/Nested.sol
+            //- /workspace/src/Target.sol
             "#,
         );
         symlink(project.path("/src/Target.sol"), project.path("/Alias.sol")).unwrap();
         symlink(project.path("/generated"), project.path("/linked")).unwrap();
-
-        assert!(matches_ignore(
-            &project.path("/Alias.sol"),
-            project.root(),
-            &["src/Target.sol".to_owned()],
-        ));
-        assert!(matches_ignore(
-            &project.path("/generated/Generated.sol"),
-            project.root(),
-            &["linked/Generated.sol".to_owned()],
-        ));
-        assert!(matches_ignore(
-            &project.path("/generated/Generated.sol"),
-            project.root(),
-            &["linked/*.sol".to_owned()],
-        ));
-        assert!(!matches_ignore(
-            &project.path("/generated/nested/Nested.sol"),
-            project.root(),
-            &["linked/*.sol".to_owned()],
-        ));
-        assert!(matches_ignore(
-            &project.path("/generated/nested/Nested.sol"),
-            project.root(),
-            &["linked/*".to_owned()],
-        ));
-        assert!(matches_ignore(
-            &project.path("/linked/Unsaved.sol"),
-            project.root(),
-            &["linked/*.sol".to_owned()],
-        ));
-        assert!(matches_ignore(
-            &project.path("/linked/Unsaved.sol"),
-            project.root(),
-            &["linked/".to_owned()],
-        ));
-    }
-
-    #[test]
-    fn foundry_ignore_patterns_canonicalize_symlinked_roots() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /workspace/src/Target.sol
-            "#,
-        );
         symlink(project.path("/workspace"), project.path("/alias")).unwrap();
+        let ignores = ["src/Exact.sol", "generated/**/*.sol", "vendor/", "./src/Dot.sol"];
 
-        assert!(matches_ignore(
-            &project.path("/alias/src/Target.sol"),
-            &project.path("/alias"),
-            &["src/Target.sol".to_owned()],
-        ));
-    }
-
-    #[test]
-    fn foundry_ignore_patterns_fall_back_for_nonexistent_paths() {
-        let project = TestProject::new();
-
-        assert!(matches_ignore(
-            &project.path("/src/Unsaved.sol"),
-            project.root(),
-            &["src/Unsaved.sol".to_owned()],
-        ));
-        assert!(matches_ignore(
-            &project.path("/src/Unsaved.sol"),
-            project.root(),
-            &["src/*.sol".to_owned()],
-        ));
-    }
-
-    #[test]
-    fn foundry_ignore_globs_do_not_cross_directories() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /src/Direct.sol
-
-            //- /src/nested/Nested.sol
-            "#,
-        );
-        let ignores = ["src/*.sol".to_owned()];
-
-        assert!(matches_ignore(&project.path("/src/Direct.sol"), project.root(), &ignores));
-        assert!(!matches_ignore(&project.path("/src/nested/Nested.sol"), project.root(), &ignores));
+        for (path, root, ignores, expected) in [
+            ("/src/Exact.sol", "/", &ignores[..], true),
+            ("/generated/nested/Generated.sol", "/", &ignores, true),
+            ("/vendor/Nested.sol", "/", &ignores, true),
+            ("/src/Dot.sol", "/", &ignores, true),
+            ("/src/Direct.sol", "/", &ignores, false),
+            ("/src/Parent.sol", "/", &["src/../src/Parent.sol"], true),
+            ("/src/Direct.sol", "/", &["src/*.sol"], true),
+            ("/src/Unsaved.sol", "/", &["src/*.sol"], true),
+            ("/src/Unsaved.sol", "/", &["src/Unsaved.sol"], true),
+            ("/src/nested/Nested.sol", "/", &["src/*.sol"], false),
+            ("/Alias.sol", "/", &["src/Target.sol"], true),
+            ("/generated/Generated.sol", "/", &["linked/Generated.sol"], true),
+            ("/generated/Generated.sol", "/", &["linked/*.sol"], true),
+            ("/generated/nested/Generated.sol", "/", &["linked/*.sol"], false),
+            ("/generated/nested/Generated.sol", "/", &["linked/*"], true),
+            ("/linked/Unsaved.sol", "/", &["linked/*.sol"], true),
+            ("/linked/Unsaved.sol", "/", &["linked/"], true),
+            ("/alias/src/Target.sol", "/alias", &["src/Target.sol"], true),
+        ] {
+            let ignores = ignores.iter().map(|ignore| ignore.to_string()).collect::<Vec<_>>();
+            assert_eq!(
+                matches_ignore(&project.path(path), &project.path(root), &ignores),
+                expected,
+                "{path} with {ignores:?}"
+            );
+        }
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -367,75 +275,55 @@ printf 'contract Formatted {}'
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn missing_forge_reports_io_error() {
+    async fn formatter_failures_report_their_cause() {
         let project = TestProject::new();
+        type Check = fn(&FormatterError) -> bool;
+        for (script, check) in [
+            (
+                None,
+                (|error| matches!(error, FormatterError::Io(error) if error.kind() == io::ErrorKind::NotFound))
+                    as Check,
+            ),
+            (Some("printf 'format failed' >&2\nexit 7"), |error| {
+                matches!(
+                    error,
+                    FormatterError::Failed { status: Some(7), stderr } if stderr == "format failed"
+                )
+            }),
+            (Some("printf '\\377'"), |error| matches!(error, FormatterError::InvalidUtf8(_))),
+        ] {
+            let forge = match script {
+                Some(script) => {
+                    write_executable(&project, "/fake-forge", &format!("#!/bin/sh\n{script}\n"))
+                }
+                None => project.path("/missing-forge"),
+            };
 
-        let error =
-            run(&project.path("/missing-forge"), project.root(), "", Duration::from_secs(30))
-                .await
-                .unwrap_err();
+            let error = run(&forge, project.root(), "", Duration::from_secs(30)).await.unwrap_err();
 
-        assert!(
-            matches!(error, FormatterError::Io(error) if error.kind() == io::ErrorKind::NotFound)
-        );
+            assert!(check(&error), "{script:?}: {error:?}");
+        }
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn nonzero_exit_reports_status_and_stderr() {
-        let project = TestProject::new();
-        let forge = write_executable(
-            &project,
-            "/fake-forge",
-            "#!/bin/sh\nprintf 'format failed' >&2\nexit 7\n",
-        );
-
-        let error = run(&forge, project.root(), "", Duration::from_secs(30)).await.unwrap_err();
-
-        assert!(matches!(
-            error,
-            FormatterError::Failed { status: Some(7), stderr } if stderr == "format failed"
-        ));
-    }
-
-    #[tokio::test(flavor = "current_thread")]
-    async fn invalid_utf8_output_is_rejected() {
-        let project = TestProject::new();
-        let forge = write_executable(&project, "/fake-forge", "#!/bin/sh\nprintf '\\377'\n");
-
-        let error = run(&forge, project.root(), "", Duration::from_secs(30)).await.unwrap_err();
-
-        assert!(matches!(error, FormatterError::InvalidUtf8(_)));
-    }
-
-    #[tokio::test(flavor = "current_thread")]
-    async fn timeout_kills_forge_process() {
+    async fn timeout_and_cancellation_kill_forge_process() {
         let project = TestProject::new();
         let forge = write_executable(
             &project,
             "/fake-forge",
             "#!/bin/sh\nprintf '%s' \"$$\" > \"$0.pid.tmp\"\nmv \"$0.pid.tmp\" \"$0.pid\"\nexec sleep 120\n",
         );
+        let pid_path = project.path("/fake-forge.pid");
 
-        let error =
-            run_with_timeout(&forge, project.root(), "", Duration::from_secs(5)).await.unwrap_err();
+        let error = run(&forge, project.root(), "", Duration::from_secs(5)).await.unwrap_err();
 
         assert!(matches!(error, FormatterError::Timeout));
         assert_process_stopped(project.read_file("/fake-forge.pid").parse().unwrap()).await;
-    }
 
-    #[tokio::test(flavor = "current_thread")]
-    async fn cancellation_kills_forge_process() {
-        let project = TestProject::new();
-        let forge = write_executable(
-            &project,
-            "/fake-forge",
-            "#!/bin/sh\nprintf '%s' \"$$\" > \"$0.pid.tmp\"\nmv \"$0.pid.tmp\" \"$0.pid\"\nexec sleep 120\n",
-        );
+        fs::remove_file(&pid_path).unwrap();
         let root = project.root().to_path_buf();
-        let task = tokio::spawn(async move {
-            run_with_timeout(&forge, &root, "", Duration::from_secs(60)).await
-        });
-        let pid_path = project.path("/fake-forge.pid");
+        let task =
+            tokio::spawn(async move { run(&forge, &root, "", Duration::from_secs(60)).await });
         time::timeout(Duration::from_secs(5), async {
             while !pid_path.exists() {
                 tokio::task::yield_now().await;
@@ -450,12 +338,10 @@ printf 'contract Formatted {}'
         assert_process_stopped(pid).await;
     }
 
-    fn write_executable(project: &TestProject, path: &str, contents: &str) -> PathBuf {
+    pub(crate) fn write_executable(project: &TestProject, path: &str, contents: &str) -> PathBuf {
         project.write_file(path, contents);
         let path = project.path(path);
-        let mut permissions = fs::metadata(&path).unwrap().permissions();
-        permissions.set_mode(0o755);
-        fs::set_permissions(&path, permissions).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
         path
     }
 
