@@ -1,6 +1,7 @@
 use crate::{
     override_index::OverrideFamilyIndex,
     proto,
+    source_paths::{SourcePath, identifiers_in_span},
     symbols::{DeclarationSymbol, SymbolId},
 };
 use lsp_types::{Location, Position, Range, Url};
@@ -13,10 +14,7 @@ use solar_interface::{
         newtype_index,
     },
 };
-use solar_parse::{
-    Lexer,
-    ast::{self, ItemKind, visit::Visit},
-};
+use solar_parse::ast::{self, ItemKind, visit::Visit};
 use solar_sema::{
     Gcx,
     hir::{self, ItemId, VariableId},
@@ -29,7 +27,7 @@ pub(crate) use scope::validate_rename_scope;
 
 newtype_index! {
     /// A file-local import alias in the rename index.
-    struct ImportAliasId;
+    pub(crate) struct ImportAliasId;
 
     /// A named mapping key or value in the rename index.
     struct MappingNameId;
@@ -133,6 +131,14 @@ pub(crate) struct ImportBindings {
     aliases: FxHashMap<ImportBindingKey, ImportAliasId>,
     symbol_sources: FxHashMap<SymbolId, hir::SourceId>,
     references: Vec<(Span, Vec<SymbolId>)>,
+    pub(crate) namespaces: Vec<NamespaceBinding>,
+    pub(crate) namespace_references: Vec<(Span, ImportAliasId)>,
+}
+
+pub(crate) struct NamespaceBinding {
+    pub(crate) id: ImportAliasId,
+    pub(crate) alias: Ident,
+    pub(crate) span: Span,
 }
 
 #[derive(Default)]
@@ -143,6 +149,17 @@ pub(crate) struct MappingBindings {
 impl ImportBindings {
     pub(crate) fn references(&self) -> impl Iterator<Item = (Span, &[SymbolId])> {
         self.references.iter().map(|(span, symbols)| (*span, symbols.as_slice()))
+    }
+
+    pub(crate) fn namespace_aliases(
+        &self,
+    ) -> impl Iterator<Item = ((hir::SourceId, hir::SourceId, Symbol), ImportAliasId)> + '_ {
+        self.aliases.iter().filter_map(|(key, &alias)| match key.resolution {
+            ImportBindingResolution::Namespace(namespace) => {
+                Some(((key.source, namespace, key.name), alias))
+            }
+            ImportBindingResolution::Symbol(_) => None,
+        })
     }
 }
 
@@ -211,7 +228,28 @@ impl RenameIndex {
                                 source_id,
                                 imported_source_id,
                                 *alias,
+                                ast.items[item_id].span,
                             );
+                        } else {
+                            // Follow the compiler's dependency-ordered imports, retaining the
+                            // declaration identity when a plain import re-exports a namespace.
+                            let aliases = bindings
+                                .aliases
+                                .iter()
+                                .filter(|(key, _)| {
+                                    key.source == imported_source_id
+                                        && matches!(
+                                            key.resolution,
+                                            ImportBindingResolution::Namespace(_)
+                                        )
+                                })
+                                .map(|(&key, &id)| {
+                                    (ImportBindingKey { source: source_id, ..key }, id)
+                                })
+                                .collect::<Vec<_>>();
+                            for (key, id) in aliases {
+                                bindings.aliases.entry(key).or_insert(id);
+                            }
                         }
                     }
                     ast::ImportItems::Glob(alias) => self.add_namespace_alias(
@@ -220,9 +258,45 @@ impl RenameIndex {
                         source_id,
                         imported_source_id,
                         *alias,
+                        ast.items[item_id].span,
                     ),
                     ast::ImportItems::Aliases(aliases) => {
                         for &(imported, alias) in aliases.iter() {
+                            if let Some(resolutions) =
+                                gcx.source_path_resolutions(&[imported], imported_source_id, None)
+                                && let Some(resolutions) = resolutions.last()
+                                && let [hir::Res::Namespace(namespace)] = resolutions.as_slice()
+                            {
+                                let key = ImportBindingKey {
+                                    source: imported_source_id,
+                                    resolution: ImportBindingResolution::Namespace(*namespace),
+                                    name: imported.name,
+                                };
+                                if let Some(&id) = bindings.aliases.get(&key) {
+                                    self.push_span_occurrence(
+                                        locations,
+                                        imported.span,
+                                        vec![RenameTarget::ImportAlias(id)],
+                                    );
+                                    bindings.namespace_references.push((imported.span, id));
+                                    if let Some(alias) = alias {
+                                        self.add_namespace_alias(
+                                            locations,
+                                            &mut bindings,
+                                            source_id,
+                                            *namespace,
+                                            alias,
+                                            ast.items[item_id].span,
+                                        );
+                                    } else {
+                                        bindings
+                                            .aliases
+                                            .entry(ImportBindingKey { source: source_id, ..key })
+                                            .or_insert(id);
+                                    }
+                                }
+                                continue;
+                            }
                             let symbols = imported_symbols(
                                 gcx,
                                 imported_source_id,
@@ -682,8 +756,10 @@ impl RenameIndex {
         source: hir::SourceId,
         imported_source: hir::SourceId,
         alias: Ident,
+        import_span: Span,
     ) {
         let Some(alias_id) = self.add_alias(locations, alias) else { return };
+        bindings.namespaces.push(NamespaceBinding { id: alias_id, alias, span: import_span });
         bindings.aliases.insert(
             ImportBindingKey {
                 source,
@@ -740,16 +816,17 @@ impl RenameIndex {
         span: Span,
         symbols: &[SymbolId],
     ) {
-        let identifiers = identifiers_in_span(gcx, span);
-        let Some((&final_ident, qualifiers)) = identifiers.split_last() else { return };
+        let Some(path) = SourcePath::resolve(gcx, span, context.source, context.contract) else {
+            return;
+        };
         let final_targets = symbols
             .iter()
             .filter_map(|&symbol_id| {
                 target_for_ident(
                     context.bindings,
-                    context.source,
+                    path.final_source,
                     symbol_id,
-                    final_ident,
+                    path.final_ident,
                     context.declarations,
                 )
             })
@@ -757,18 +834,10 @@ impl RenameIndex {
         if final_targets.is_empty() {
             return;
         }
-        self.push_span_occurrence(locations, final_ident.span, final_targets);
-        if qualifiers.is_empty() {
-            return;
-        }
-
-        let Some(resolutions) =
-            gcx.source_path_resolutions(&identifiers, context.source, context.contract)
-        else {
-            return;
-        };
-        for (&ident, resolutions) in qualifiers.iter().zip(resolutions) {
-            let targets = resolutions
+        self.push_span_occurrence(locations, path.final_ident.span, final_targets);
+        for qualifier in path.qualifiers {
+            let targets = qualifier
+                .resolutions
                 .into_iter()
                 .filter_map(|resolution| match resolution {
                     hir::Res::Item(item_id) => context
@@ -779,9 +848,9 @@ impl RenameIndex {
                         .and_then(|symbol_id| {
                             target_for_ident(
                                 context.bindings,
-                                context.source,
+                                qualifier.source,
                                 symbol_id,
-                                ident,
+                                qualifier.ident,
                                 context.declarations,
                             )
                         }),
@@ -789,16 +858,16 @@ impl RenameIndex {
                         .bindings
                         .aliases
                         .get(&ImportBindingKey {
-                            source: context.source,
+                            source: qualifier.source,
                             resolution: ImportBindingResolution::Namespace(namespace),
-                            name: ident.name,
+                            name: qualifier.ident.name,
                         })
                         .copied()
                         .map(RenameTarget::ImportAlias),
                     hir::Res::Builtin(_) | hir::Res::Err(_) => None,
                 })
                 .collect();
-            self.push_span_occurrence(locations, ident.span, targets);
+            self.push_span_occurrence(locations, qualifier.ident.span, targets);
         }
     }
 
@@ -960,11 +1029,6 @@ fn target_for_ident(
         return Some(RenameTarget::ImportAlias(alias_id));
     }
     (declarations[symbol_id].name == ident.to_string()).then_some(RenameTarget::Symbol(symbol_id))
-}
-
-fn identifiers_in_span(gcx: Gcx<'_>, span: Span) -> Vec<Ident> {
-    let Ok(source) = gcx.sess.source_map().span_to_snippet(span) else { return Vec::new() };
-    Lexer::with_start_pos(gcx.sess, &source, span.lo()).filter_map(|token| token.ident()).collect()
 }
 
 fn remap_alias_id(alias_id: ImportAliasId, offset: usize) -> ImportAliasId {

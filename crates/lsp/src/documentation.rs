@@ -16,6 +16,16 @@ pub(crate) struct ResolvedDocumentation {
 }
 
 impl ResolvedDocumentation {
+    pub(crate) fn signature(signature: String) -> Self {
+        Self {
+            markdown: MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: format!("```solidity\n{signature}\n```"),
+            },
+            plain_text: signature,
+        }
+    }
+
     pub(crate) fn hover(&self) -> MarkupContent {
         self.markdown.clone()
     }

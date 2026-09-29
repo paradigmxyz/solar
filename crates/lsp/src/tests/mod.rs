@@ -55,6 +55,8 @@ mod interactive_analysis;
 mod point_queries;
 #[path = "protocol_trace.rs"]
 mod protocol_trace_tests;
+mod qualified_path_edges;
+mod qualified_paths;
 mod references;
 mod refresh;
 mod rename;
