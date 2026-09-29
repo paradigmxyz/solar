@@ -89,6 +89,12 @@ inputs the original returns on, and its bytes are the size of its code:
   shifts, and memory words; 5 for `mul`, `div`, `mod`, `sdiv`, `smod`, and `signextend`; 8 for
   `addmod` and `mulmod`; 10 plus 50 per exponent byte for `exp`; 30 plus 6 per word for
   `keccak256`, plus the cost of growing memory;
+- storage costs depend on the slot: an `sload` costs 2,100 gas the first time the call touches a
+  slot and 100 after. An `sstore` that changes a slot the call has not changed yet costs 20,000
+  when the slot was zero and 2,900 otherwise, every other `sstore` costs 100, and each adds 2,100
+  when it is the call's first touch of the slot; refunds do not count. `tload` and `tstore` cost
+  100, and `logN` 375, plus 375 per topic and 8 per byte of data. These are the prices from
+  Berlin on;
 - each constant operand costs a push, and each other operand one stack copy, so values used far
   from their definitions and values kept live across a lot of code cost more;
 - each jump or branch costs about 13 gas and 5 bytes, and each call about 90 gas plus its body;

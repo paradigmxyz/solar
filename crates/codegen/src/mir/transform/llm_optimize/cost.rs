@@ -7,6 +7,9 @@
 //! - An operation costs what [`Target::op`] charges for it. The gas meter sizes dynamic work, such
 //!   as hashed words or exponent bytes, from the values the run computes; bytes come from
 //!   immediates alone.
+//! - A storage access costs what the target charges for the slot's state: a cold `SLOAD` or
+//!   `SSTORE` the first time a run touches a slot and a warm one after, and an `SSTORE` priced by
+//!   the value the slot held when the run started, holds, and receives. Refunds are not counted.
 //! - Each operand costs a push for an immediate or one stack copy otherwise. This stands in for
 //!   stack scheduling, which a function-level model cannot see; phis cost nothing.
 //! - `select` costs its emitted sequence, internal calls and returns the call protocol, and each
@@ -21,13 +24,16 @@ use crate::{
         BlockId, Callee, Function, InstId, InstKind, Module, Terminator, Value, ValueId,
         analysis::{CfgInfo, Liveness},
         memory::EvmMemoryLayout,
-        utils::interp::Meter,
+        utils::interp::{Meter, StorageAccess},
     },
-    target::{Cost, Target},
+    target::{Cost, Target, Warmth},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 
 /// Returns the estimated bytes of the reachable code of `function`.
 pub(super) fn code_bytes(target: Target, module: &Module, function: &Function) -> u64 {
@@ -53,6 +59,8 @@ pub(super) struct GasMeter<'a> {
     module: &'a Module,
     prices: FxHashMap<(usize, Site), u64>,
     gas: u64,
+    /// The storage slots the current run accessed, which later accesses find warm.
+    warm: FxHashSet<U256>,
 }
 
 /// An instruction or a block's terminator.
@@ -64,11 +72,12 @@ enum Site {
 
 impl<'a> GasMeter<'a> {
     pub(super) fn new(target: Target, module: &'a Module) -> Self {
-        Self { target, module, prices: FxHashMap::default(), gas: 0 }
+        Self { target, module, prices: FxHashMap::default(), gas: 0, warm: FxHashSet::default() }
     }
 
-    /// Returns the gas since the last call.
+    /// Returns the gas since the last call, which ends a run.
     pub(super) fn take(&mut self) -> u64 {
+        self.warm.clear();
         std::mem::take(&mut self.gas)
     }
 
@@ -97,10 +106,21 @@ impl Meter for GasMeter<'_> {
                 price
             } else {
                 let op = kind.op();
-                price - u64::from(target.op(&op, static_value).gas)
-                    + u64::from(target.op(&op, operand).gas)
+                // `storage` prices a storage access from the slot's state.
+                let storage = matches!(kind, InstKind::SLoad(_) | InstKind::SStore(..));
+                let run = if storage { 0 } else { u64::from(target.op(&op, operand).gas) };
+                price - u64::from(target.op(&op, static_value).gas) + run
             };
         self.gas = self.gas.saturating_add(gas);
+    }
+
+    fn storage(&mut self, access: StorageAccess) {
+        let warmth = if self.warm.insert(access.slot) { Warmth::Cold } else { Warmth::Warm };
+        let gas = match access.new {
+            None => self.target.opcode_gas_at(op::SLOAD, warmth),
+            Some(new) => self.target.sstore_gas(access.original, access.current, new, warmth),
+        };
+        self.gas = self.gas.saturating_add(u64::from(gas));
     }
 
     fn terminator(

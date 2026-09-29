@@ -1,13 +1,13 @@
 llm-optimize Storage @main: not offered: is the dispatch entry
-llm-optimize Storage @credit: offered at 10724 gas, 78 bytes
+llm-optimize Storage @credit: offered at 10597 gas, 78 bytes
 llm-optimize Storage @credit: round 1: rejected at equivalence: the original logs 1 event, but the candidate 0 events
   on arg0 = 0xc943d489269c8d135eb290f01a36325357cc95e1095cda170bdecd7efb390cd9, arg1 = 0x40, free memory pointer 0x1a0, storage slot 0x39426518f657f7addc7d8fea56a8e87a780af3158d9bf32cabff10ac4fe3d423 = 0x6516787420a45e158926ea5109be0b3ca8818cf42af6890090fc5d910aa993b9
 llm-optimize Storage @credit: round 2: rejected at equivalence: the candidate writes storage slot 0x1, which the original never writes
   on arg0 = 0xc943d489269c8d135eb290f01a36325357cc95e1095cda170bdecd7efb390cd9, arg1 = 0x40, free memory pointer 0x1a0, storage slot 0x39426518f657f7addc7d8fea56a8e87a780af3158d9bf32cabff10ac4fe3d423 = 0x6516787420a45e158926ea5109be0b3ca8818cf42af6890090fc5d910aa993b9
-llm-optimize Storage @credit: round 3: accepted at 8621 gas, 76 bytes
+llm-optimize Storage @credit: round 3: accepted at 10494 gas, 76 bytes
 llm-optimize Storage @credit: round 4: nothing cheaper
-llm-optimize Storage @credit: rewritten from 10724 gas, 78 bytes to 8621 gas, 76 bytes
-llm-optimize Storage @move: offered at 14422 gas, 63 bytes
+llm-optimize Storage @credit: rewritten from 10597 gas, 78 bytes to 10494 gas, 76 bytes
+llm-optimize Storage @move: offered at 13015 gas, 63 bytes
 llm-optimize Storage @move: round 1: rejected at equivalence: storage slot 0x569e75fc77c1a856f6daaf9e69d8a9566ca34aa47f9133711ce065a571af0cfd, which held 0x1b0c0, ends as 0x1b0c0 in the original but 0x36180 in the candidate
   on arg0 = 0x20, arg1 = 0x1b0c0, free memory pointer 0x1b040, `caller` = 0x20, storage slot 0x569e75fc77c1a856f6daaf9e69d8a9566ca34aa47f9133711ce065a571af0cfd = 0x1b0c0
 llm-optimize Storage @move: round 2: nothing cheaper
