@@ -97,8 +97,7 @@ impl Module {
         let mut linked = false;
         for data in &mut self.data {
             let Some(code) = data.deferred.take() else { continue };
-            // @data d deferred creation|runtime C => @data d hex"<bytecode(C)>" library_relocations
-            // [..]
+            // @data d deferred creation C => @data d hex"<code(C)>" library_relocations [..]
             let bytecode = code.bytecode(bytecodes);
             assert!(
                 u32::try_from(bytecode.bytes.len()).is_ok(),
@@ -118,8 +117,7 @@ impl Module {
     pub(in crate::backend) fn fold_data_sizes(&mut self) {
         for block in &mut self.blocks {
             for inst in &mut block.instructions {
-                // push_data_size d, addend[, aligned] => push len(d) + addend, rounded down to 32
-                // if aligned
+                // push_data_size d, addend[, aligned] => push (len(d) + addend) [& ~31]
                 if let Some(size) = inst.pushed_data_size() {
                     let data = &self.data[size.data];
                     assert!(data.deferred.is_none(), "data sizes require linked data");
