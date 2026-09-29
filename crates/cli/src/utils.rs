@@ -14,25 +14,29 @@ use tikv_jemallocator as _;
 
 // Keep the system allocator in tests, where we spawn a ton of processes and any extra startup cost
 // slows down tests massively.
-cfg_if::cfg_if! {
-    if #[cfg(debug_assertions)] {
+std::cfg_select! {
+    debug_assertions => {
         type AllocatorInner = std::alloc::System;
-    } else if #[cfg(feature = "mimalloc")] {
+    }
+    feature = "mimalloc" => {
         type AllocatorInner = mimalloc::MiMalloc;
-    } else if #[cfg(all(feature = "jemalloc", unix))] {
+    }
+    all(feature = "jemalloc", unix) => {
         type AllocatorInner = tikv_jemallocator::Jemalloc;
-    } else {
+    }
+    _ => {
         type AllocatorInner = std::alloc::System;
     }
 }
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "tracy-allocator")] {
+std::cfg_select! {
+    feature = "tracy-allocator" => {
         pub(super) type WrappedAllocator = tracing_tracy::client::ProfiledAllocator<AllocatorInner>;
         pub(super) const fn new_wrapped_allocator() -> WrappedAllocator {
             Allocator::new(AllocatorInner {}, 100)
         }
-    } else {
+    }
+    _ => {
         pub(super) type WrappedAllocator = AllocatorInner;
         pub(super) const fn new_wrapped_allocator() -> WrappedAllocator {
             AllocatorInner {}

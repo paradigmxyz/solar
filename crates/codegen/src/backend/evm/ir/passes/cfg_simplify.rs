@@ -106,9 +106,6 @@ fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) ->
             &mut state.references,
             &mut state.order,
         );
-        if swept {
-            count_references(module, &mut state.references);
-        }
         let coalesced =
             coalesce_blocks(module, &state.references, &mut state.retained, &mut state.order);
         let round = direct || degenerate || redirected || inlined || branches || swept || coalesced;
@@ -579,8 +576,9 @@ fn is_direct_jump_label_through_head(
             }))
 }
 
-/// Removes blocks unreachable from the entry. When none are removed, `references` holds
-/// every block's reference count, as [`count_references`] computes it.
+/// Removes blocks unreachable from the entry. Afterwards, `references` holds every remaining
+/// block's count of pushed labels and terminator edges targeting it, plus the implicit
+/// program-entry edge.
 #[must_use]
 fn remove_unreachable_blocks(
     module: &mut Module,
@@ -623,27 +621,12 @@ fn remove_unreachable_blocks(
     order.clear();
     order.extend(reachable.iter());
     retain_blocks(module, order);
+    // Only reachable blocks were scanned, so the counts already exclude the removed blocks.
+    for (block, &old) in order.iter().enumerate() {
+        references[BlockId::from_usize(block)] = references[old];
+    }
+    references.truncate(order.len());
     true
-}
-
-/// Counts the pushed labels and terminator edges targeting each block, plus the implicit
-/// program-entry edge.
-fn count_references(module: &Module, references: &mut IndexVec<BlockId, usize>) {
-    references.clear();
-    references.resize(module.blocks.len(), 0);
-    if let Some(entry_references) = references.first_mut() {
-        *entry_references = 1;
-    }
-    for block in &module.blocks {
-        for inst in &block.instructions {
-            if let Some(PushValue::Block(target)) = &inst.value {
-                references[*target] += 1;
-            }
-        }
-        if let Some(term) = &block.terminator {
-            term.kind.visit_targets(|target| references[target] += 1);
-        }
-    }
 }
 
 /// Merges each block into its only predecessor, given every block's `references` count.

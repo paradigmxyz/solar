@@ -421,16 +421,9 @@ impl MemoryStoreEliminator {
         let has_precise_reads = func
             .instructions()
             .any(|inst_id| Self::constant_range_read(&func.inst(inst_id).kind).is_some());
-        if has_precise_reads {
-            for block_id in block_ids {
-                self.process_block::<true>(func, block_id, scratch);
-                self.alias().clear_cached_addresses();
-            }
-        } else {
-            for block_id in block_ids {
-                self.process_block::<false>(func, block_id, scratch);
-                self.alias().clear_cached_addresses();
-            }
+        for block_id in block_ids {
+            self.process_block(func, block_id, has_precise_reads, scratch);
+            self.alias().clear_cached_addresses();
         }
         self.remove_cross_block_equal_const_stores(func);
         self.remove_cross_block_overwrites(func);
@@ -829,10 +822,11 @@ impl MemoryStoreEliminator {
         }
     }
 
-    fn process_block<const PRECISE_READS: bool>(
+    fn process_block(
         &mut self,
         func: &mut Function,
         block_id: BlockId,
+        precise_reads: bool,
         scratch: &mut BlockScratch,
     ) {
         let mut mstores = 0;
@@ -977,7 +971,7 @@ impl MemoryStoreEliminator {
                 // Modelling the range (instead of clearing) lets a return-value
                 // slot's dead default-init survive the mapping-hash keccaks and
                 // event logs that sit between it and its real store.
-                kind if PRECISE_READS
+                kind if precise_reads
                     && let Some((offset, size)) = Self::constant_range_read(kind) =>
                 {
                     self.retain_overwritten_disjoint_from_read(

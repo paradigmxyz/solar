@@ -64,12 +64,13 @@ struct StackValue {
 struct FingerprintValue {
     expr: u64,
     span: Option<(usize, usize)>,
+    /// The constant memory address this value holds, when known.
+    address: Option<u64>,
 }
 
 fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usize) -> bool {
-    if !may_regenerate(instructions, stack_access_limit)
-        && !has_repeated_const_memory_addr(instructions)
-    {
+    let track_memory = has_repeated_const_memory_addr(instructions);
+    if !may_regenerate(instructions, stack_access_limit, track_memory) {
         return false;
     }
 
@@ -305,8 +306,15 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
 /// Returns whether a block computes an expression while an equal expression remains within
 /// the target's `DUP` reach. This lightweight symbolic execution avoids rebuilding blocks that
 /// merely repeat opcodes with different operands, which is common in already-optimized EVM IR.
-fn may_regenerate(instructions: &[Instruction], stack_access_limit: usize) -> bool {
-    if !has_repeated_candidate_opcode(instructions) {
+///
+/// With `track_memory`, it also follows the known constant-address stores and reports the first
+/// store or load that the rebuild could forward. Until then, the rebuild sees the same state.
+fn may_regenerate(
+    instructions: &[Instruction],
+    stack_access_limit: usize,
+    track_memory: bool,
+) -> bool {
+    if !track_memory && !has_repeated_candidate_opcode(instructions) {
         return false;
     }
 
@@ -314,11 +322,16 @@ fn may_regenerate(instructions: &[Instruction], stack_access_limit: usize) -> bo
     let mut next_fresh = 0usize;
     let mut memory_epoch = 0u64;
     let mut storage_epoch = 0u64;
+    let mut known_stores = SmallVec::<[(u64, u64); 8]>::new();
 
     for (inst_idx, inst) in instructions.iter().enumerate() {
         if inst.is_encoded_push() {
             let Some(value) = inst.value else {
-                stack.push(FingerprintValue { expr: fresh_hash(&mut next_fresh), span: None });
+                stack.push(FingerprintValue {
+                    expr: fresh_hash(&mut next_fresh),
+                    span: None,
+                    address: None,
+                });
                 continue;
             };
             let expr = push_fingerprint(inst.opcode, inst.encoding, value);
@@ -328,7 +341,9 @@ fn may_regenerate(instructions: &[Instruction], stack_access_limit: usize) -> bo
             {
                 return true;
             }
-            stack.push(FingerprintValue { expr, span: Some((inst_idx, inst_idx + 1)) });
+            let address =
+                inst.concrete_immediate().and_then(|immediate| u64::try_from(immediate).ok());
+            stack.push(FingerprintValue { expr, span: Some((inst_idx, inst_idx + 1)), address });
             continue;
         }
 
@@ -339,7 +354,7 @@ fn may_regenerate(instructions: &[Instruction], stack_access_limit: usize) -> bo
                     let depth = usize::from(depth);
                     ensure_hash_depth(&mut stack, depth, &mut next_fresh);
                     let value = stack[stack.len() - depth];
-                    stack.push(FingerprintValue { expr: value.expr, span: None });
+                    stack.push(FingerprintValue { span: None, ..value });
                 }
                 op::StackOp::Swap(depth) => {
                     let depth = usize::from(depth);
@@ -358,6 +373,41 @@ fn may_regenerate(instructions: &[Instruction], stack_access_limit: usize) -> bo
                 }
             }
             continue;
+        }
+
+        if track_memory {
+            match opcode {
+                op::MSTORE | op::MSTORE8 => {
+                    ensure_hash_depth(&mut stack, 2, &mut next_fresh);
+                    let address = stack[stack.len() - 1].address;
+                    let value = stack[stack.len() - 2].expr;
+                    match address {
+                        Some(address) if opcode == op::MSTORE => {
+                            if known_stores.contains(&(address, value)) {
+                                return true;
+                            }
+                            known_stores.retain(|&mut (slot, _)| {
+                                slot.abs_diff(address) >= op::WORD_BYTES as u64
+                            });
+                            known_stores.push((address, value));
+                        }
+                        Some(address) => known_stores.retain(|&mut (slot, _)| {
+                            slot.abs_diff(address) >= op::WORD_BYTES as u64
+                        }),
+                        None => known_stores.clear(),
+                    }
+                }
+                op::MLOAD => {
+                    ensure_hash_depth(&mut stack, 1, &mut next_fresh);
+                    if let Some(address) = stack[stack.len() - 1].address
+                        && known_stores.iter().any(|&(slot, _)| slot == address)
+                    {
+                        return true;
+                    }
+                }
+                _ if op::writes_memory(opcode) => known_stores.clear(),
+                _ => {}
+            }
         }
 
         if let Some((inputs, read_epoch)) = expression_inputs(opcode, memory_epoch, storage_epoch) {
@@ -381,6 +431,7 @@ fn may_regenerate(instructions: &[Instruction], stack_access_limit: usize) -> bo
             stack.push(FingerprintValue {
                 expr,
                 span: closed_span.map(|(start, _)| (start, inst_idx + 1)),
+                address: None,
             });
             continue;
         }
@@ -396,7 +447,11 @@ fn may_regenerate(instructions: &[Instruction], stack_access_limit: usize) -> bo
         ensure_hash_depth(&mut stack, inputs, &mut next_fresh);
         stack.truncate(stack.len() - inputs);
         for _ in 0..effect.outputs {
-            stack.push(FingerprintValue { expr: fresh_hash(&mut next_fresh), span: None });
+            stack.push(FingerprintValue {
+                expr: fresh_hash(&mut next_fresh),
+                span: None,
+                address: None,
+            });
         }
     }
     false
@@ -454,7 +509,11 @@ fn ensure_hash_depth(stack: &mut Vec<FingerprintValue>, depth: usize, next_fresh
     if missing != 0 {
         stack.splice(
             0..0,
-            (0..missing).map(|_| FingerprintValue { expr: fresh_hash(next_fresh), span: None }),
+            (0..missing).map(|_| FingerprintValue {
+                expr: fresh_hash(next_fresh),
+                span: None,
+                address: None,
+            }),
         );
     }
 }

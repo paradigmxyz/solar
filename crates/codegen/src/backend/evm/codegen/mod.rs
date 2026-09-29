@@ -57,7 +57,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 use solar_sema::Gcx;
-use std::{cell::OnceCell, collections::hash_map::Entry as StdEntry, rc::Rc};
+use std::{cell::OnceCell, rc::Rc};
 
 mod stack;
 pub(super) use stack::{
@@ -359,6 +359,8 @@ pub struct EvmCodegen<'gcx> {
     /// A plan depends only on the function, its whole-function liveness, and the module's cold
     /// functions, so one analysis per function serves both.
     stack_phi_plans: FxHashMap<FunctionId, Rc<StackPhiPlan>>,
+    /// Whole-function liveness by function, shared the same way as `stack_phi_plans`.
+    function_liveness: FxHashMap<FunctionId, Rc<Liveness>>,
     function_ir_block_start: usize,
     /// Whole-calldata-forwarding clobbers (`calldatacopy(0, 0, calldatasize())`
     /// in a proxy) whose write reaches the compiler spill area. Values live
@@ -454,6 +456,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             spill_loads: Vec::new(),
             early_spill_removals: Vec::new(),
             stack_phi_plans: FxHashMap::default(),
+            function_liveness: FxHashMap::default(),
             function_ir_block_start: 0,
             spill_hazard_insts: FxHashSet::default(),
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
@@ -516,6 +519,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.elided_insts.clear();
         self.late_gas_operands.clear();
         self.stack_phi_plans.clear();
+        self.function_liveness.clear();
         self.spill_hazard_insts.clear();
         self.heap_pointer_return_functions.clear_to(module.functions.len());
         self.global_stack_active = false;
@@ -1666,22 +1670,21 @@ RETURN
         let value1 = ValueId::from_usize(1);
         let interferences = FxHashMap::default();
         let mut color = SpillColor::new(2);
-        color
-            .insert(value0, &FxHashMap::from_iter([(block0, SpillLiveRange { start: 2, end: 4 })]));
+        color.insert(value0, &[(block0, SpillLiveRange { start: 2, end: 4 })]);
 
         assert!(color.accepts(
             value1,
-            &FxHashMap::from_iter([(block0, SpillLiveRange { start: 5, end: 7 })]),
+            &[(block0, SpillLiveRange { start: 5, end: 7 })],
             &interferences,
         ));
         assert!(!color.accepts(
             value1,
-            &FxHashMap::from_iter([(block0, SpillLiveRange { start: 4, end: 7 })]),
+            &[(block0, SpillLiveRange { start: 4, end: 7 })],
             &interferences,
         ));
         assert!(color.accepts(
             value1,
-            &FxHashMap::from_iter([(block1, SpillLiveRange { start: 2, end: 4 })]),
+            &[(block1, SpillLiveRange { start: 2, end: 4 })],
             &interferences,
         ));
     }
