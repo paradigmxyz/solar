@@ -359,19 +359,14 @@ pub(crate) fn document_symbol(
     let uri = normalize_file_uri(params.text_document.uri);
     let latest_analysis = latest_analysis_for_uri(state, &uri);
     async move {
-        let Some(latest_analysis) = latest_analysis else {
-            let response = if hierarchical {
-                DocumentSymbolResponse::Nested(Vec::new())
-            } else {
-                DocumentSymbolResponse::Flat(Vec::new())
-            };
-            return Ok(Some(response));
+        let symbol_tables = match latest_analysis {
+            Some(latest_analysis) => latest_analysis.await?.load_full(),
+            None => Default::default(),
         };
-        let symbol_tables = latest_analysis.await?;
         let response = if hierarchical {
-            DocumentSymbolResponse::Nested(symbol_tables.load().document_symbols(&uri))
+            DocumentSymbolResponse::Nested(symbol_tables.document_symbols(&uri))
         } else {
-            DocumentSymbolResponse::Flat(symbol_tables.load().flat_document_symbols(&uri))
+            DocumentSymbolResponse::Flat(symbol_tables.flat_document_symbols(&uri))
         };
         Ok(Some(response))
     }
