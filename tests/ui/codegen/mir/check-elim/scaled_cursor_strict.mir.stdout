@@ -1,0 +1,107 @@
+// === ROOT/tests/ui/codegen/mir/check-elim/scaled_cursor_strict.sol:ScaledCursor ===
+@module ScaledCursor
+fn @past(arg0: memorybytes) -> memorybytes [selector=0x281ed5d8, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    v1 = checked_mul u256, v0, 3
+    v2 = add v1, 63
+    v3 = lt v2, v1
+    icall panic_if<0x41>, v3
+    v4 = not 31
+    v5 = and v2, v4
+    v6 = alloc memorybytes, exact, zeroed, panic, v5
+    set_memory_object_len memorybytes, v6, v1
+    jump bb1
+  bb1:
+    v7 = phi [bb0: arg0], [bb3: v7]
+    v8 = phi [bb0: v6], [bb3: v8]
+    v9 = phi [bb0: 0], [bb3: v23]
+    v10 = phi [bb0: 0], [bb3: v24]
+    v11 = memory_object_len memorybytes, v7
+    v12 = lt v10, v11
+    jumpi v12, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v8
+  bb4:
+    v13 = memory_object_len memorybytes, v7
+    v14 = lt v10, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = memory_object_load_byte memorybytes, v7, v10
+    v17 = shl 248, v16
+    v18 = checked_add u256, v9, 3
+    v19 = memory_object_len memorybytes, v8
+    v20 = lt v18, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = byte 0, v17
+    memory_object_store_byte memorybytes, v8, v18, v22
+    v23 = checked_add u256, v9, 3
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v24 = checked_add u256, v10, 1
+    jump bb1
+}
+
+fn @within(arg0: memorybytes) -> memorybytes [selector=0x47e5e065, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    v1 = checked_mul u256, v0, 3
+    v2 = add v1, 63
+    v3 = lt v2, v1
+    icall panic_if<0x41>, v3
+    v4 = not 31
+    v5 = and v2, v4
+    v6 = alloc memorybytes, exact, zeroed, panic, v5
+    set_memory_object_len memorybytes, v6, v1
+    jump bb1
+  bb1:
+    v7 = phi [bb0: arg0], [bb3: v7]
+    v8 = phi [bb0: v6], [bb3: v8]
+    v9 = phi [bb0: 0], [bb3: v32]
+    v10 = phi [bb0: 0], [bb3: v33]
+    v11 = memory_object_len memorybytes, v7
+    v12 = lt v10, v11
+    jumpi v12, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v8
+  bb4:
+    v13 = memory_object_len memorybytes, v7
+    v14 = lt v10, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = memory_object_load_byte memorybytes, v7, v10
+    v17 = shl 248, v16
+    v18 = memory_object_len memorybytes, v8
+    v19 = lt v9, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = byte 0, v17
+    memory_object_store_byte memorybytes, v8, v9, v21
+    v22 = memory_object_len memorybytes, v7
+    v23 = lt v10, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = memory_object_load_byte memorybytes, v7, v10
+    v26 = shl 248, v25
+    v27 = checked_add u256, v9, 2
+    v28 = memory_object_len memorybytes, v8
+    v29 = lt v27, v28
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = byte 0, v26
+    memory_object_store_byte memorybytes, v8, v27, v31
+    v32 = checked_add u256, v9, 3
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v33 = checked_add u256, v10, 1
+    jump bb1
+}

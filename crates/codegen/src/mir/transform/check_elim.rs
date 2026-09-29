@@ -2315,15 +2315,19 @@ impl<'a> CheckEliminator<'a> {
         }
 
         // A variable-rate output cursor in a bounded builder stays within its
-        // reserved capacity. This proves all three forms emitted by checked
+        // reserved capacity: `cursor + width <= capacity` for a write of up to
+        // the reserved width. This proves all three forms emitted by checked
         // indexing: the addition does not wrap, the end offset is not beyond
-        // the capacity, and the current cursor is strictly inside it while
-        // the input loop guard is true.
+        // the capacity, and an index is strictly inside it while the input loop
+        // guard is true. A strict bound needs one byte more than the index
+        // reaches, so `cursor + width < capacity` asks for `width + 1` bytes.
         if let Some((cursor, width)) = add_with_bounded_width(func, a) {
             if b == cursor && self.scaled_cursor_fits(func, cursor, width, None, depth) {
                 return Some(false);
             }
-            if self.scaled_cursor_fits(func, cursor, width, Some(b), depth) {
+            if let Some(end) = width.checked_add(U256::from(1))
+                && self.scaled_cursor_fits(func, cursor, end, Some(b), depth)
+            {
                 return Some(true);
             }
         }
@@ -2332,7 +2336,7 @@ impl<'a> CheckEliminator<'a> {
         {
             return Some(false);
         }
-        if self.scaled_cursor_fits(func, a, U256::ZERO, Some(b), depth) {
+        if self.scaled_cursor_fits(func, a, U256::from(1), Some(b), depth) {
             return Some(true);
         }
 
