@@ -287,6 +287,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             StmtKind::Revert(expr) => self.lower_revert_payload(expr)?,
             StmtKind::AssemblyBlock(block) => {
+                // Type checking rejects assembly in a scratch block itself; this is the body
+                // a modifier's `_` runs inside one.
+                if let Some(&tag) = self.open_scratch.last() {
+                    self.cx
+                        .gcx
+                        .dcx()
+                        .err("a `@custom:solar-scratch` block cannot contain inline assembly")
+                        .span(stmt.span)
+                        .span_note(tag, "the tag is here")
+                        .note("a modifier's `_` runs the function's body inside the block")
+                        .emit();
+                }
                 self.builder.func_mut().attributes.inline_assembly = true;
                 let previous = std::mem::replace(&mut self.in_inline_assembly, true);
                 let result = self.lower_block(*block);

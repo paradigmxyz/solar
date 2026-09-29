@@ -28,7 +28,8 @@
 //! escapes when it may store a pointer to the block's memory into an object the block did not
 //! allocate, or into older memory. Callees are summarized over the call graph to a fixed point,
 //! and a callee with inline assembly may store anything anywhere. Type checking already rejected
-//! inline assembly in the block. Scalars, such as hashes, lengths, and loaded words, leave the
+//! inline assembly in the block, and lowering rejects the inline assembly of a function body that
+//! a modifier's `_` runs inside it. Scalars, such as hashes, lengths, and loaded words, leave the
 //! block freely.
 //!
 //! NOTE: reading `msize` after the block sees the memory the block used, as it would without
@@ -80,7 +81,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .iter()
             .map(|block| block.terminator.is_none())
             .collect::<Vec<_>>();
-        self.lower_block(block)?;
+        self.open_scratch.push(tag);
+        let lowered = self.lower_block(block);
+        self.open_scratch.pop();
+        lowered?;
         if !self.is_terminated() {
             // set_fmp saved
             self.builder.set_fmp(saved);

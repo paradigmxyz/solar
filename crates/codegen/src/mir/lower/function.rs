@@ -274,6 +274,9 @@ struct FunctionLowerer<'gcx, 'ctx> {
     /// The modifiers whose code after `_` runs once the code being lowered finishes, innermost
     /// last: the first statement of that code and the modifier's name.
     pending_postludes: Vec<(Span, Symbol)>,
+    /// The tags of the `@custom:solar-scratch` blocks the code being lowered runs inside,
+    /// innermost last, including those a modifier's `_` runs the function's body in.
+    open_scratch: Vec<Span>,
 }
 
 /// The lowered `{gas: ..., value: ...}` options of an external call.
@@ -492,6 +495,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             view_roots: FxHashMap::default(),
             forming_view: None,
             pending_postludes: Vec::new(),
+            open_scratch: Vec::new(),
         }
     }
 
