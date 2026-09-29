@@ -13,20 +13,6 @@ fn deferred_event(state: &GlobalState, path: &Path) -> Option<FileChangeType> {
     state.analysis_commit.lock().deferred_source_file_events.get(path).copied()
 }
 
-fn discovery_ready(
-    version: usize,
-    result: WorkspaceDiscoveryResult,
-    progress: ProgressTicket,
-) -> WorkspaceDiscoveryReady {
-    WorkspaceDiscoveryReady {
-        version,
-        result,
-        disk_paths: Vec::new(),
-        progress,
-        cancellation: IndexingCancellation::default(),
-    }
-}
-
 #[tokio::test(flavor = "current_thread")]
 async fn watched_unrelated_excluded_sources_and_manifests_do_not_schedule_analysis() {
     let project = TestProject::from_fixture(
@@ -528,9 +514,7 @@ async fn source_events_during_initial_discovery_are_replayed_after_policy_is_kno
     );
     let (_, config) = negotiate_capabilities(project.initialize_params_with_roots(&["/project"]));
     let mut state = state_with(config);
-    let (version, progress) = state
-        .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
-        .unwrap();
+    let (version, progress) = begin_rediscovery(&mut state);
     let discovery = state.config.discover_workspaces(&IndexingCancellation::default()).unwrap();
 
     project.write_file("/project/lib/Active.sol", "contract Active {}");
@@ -565,9 +549,7 @@ async fn source_events_during_discovery_are_deferred_with_existing_workspaces() 
     assert!(!config.workspaces().is_empty());
     config.add_workspaces([new_root.clone()]);
     let mut state = state_with(config);
-    let (version, progress) = state
-        .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
-        .unwrap();
+    let (version, progress) = begin_rediscovery(&mut state);
     let discovery = state.config.discover_workspaces(&IndexingCancellation::default()).unwrap();
     let path = project.path("/new/Active.sol");
     project.write_file("/new/Active.sol", "contract Active {}");

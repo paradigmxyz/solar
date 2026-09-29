@@ -902,31 +902,7 @@ async fn workspace_root_rename_advances_epoch_before_watcher_reregistration() {
     state.on_initialize(params).await.unwrap();
     fs::rename(&old_root, &new_root).unwrap();
     let rename = rename_params([(old_root, new_root)]);
-    let initial_version = analysis_version(&state);
-    let registration = state.watched_file_registration.clone();
-    let desired_specs = registration.desired_specs.lock();
-    let analysis_version = state.analysis_version.clone();
-    let runtime = tokio::runtime::Handle::current();
-    let worker = std::thread::spawn(move || {
-        let _runtime = runtime.enter();
-        did_rename(&mut state, &rename);
-        state
-    });
-
-    let deadline = Instant::now() + Duration::from_millis(100);
-    while analysis_version.load(Ordering::Acquire) == initial_version && Instant::now() < deadline {
-        std::thread::yield_now();
-    }
-    let advanced_before_reregistration =
-        analysis_version.load(Ordering::Acquire) != initial_version;
-
-    drop(desired_specs);
-    let state = worker.join().unwrap();
-    state.analysis_scheduler.tasks.lock().cancel();
-    assert!(
-        advanced_before_reregistration,
-        "workspace-root rename queued watchers before invalidating the old analysis epoch"
-    );
+    assert_epoch_advances_before_reregistration(state, move |state| did_rename(state, &rename));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1086,16 +1062,8 @@ async fn did_delete_folder_clears_closed_dependency_diagnostics_by_prefix() {
     did_delete(&mut state, [project.path("/lib")]);
 
     analysis(&state).await;
-    let diagnostics = state.diagnostics.read();
-    assert!(matches!(
-        diagnostics.pull_report(&deleted_uri, None),
-        PullReport::Full { diagnostics, .. } if diagnostics.is_empty()
-    ));
-    assert!(matches!(
-        diagnostics.pull_report(&sibling_uri, None),
-        PullReport::Full { diagnostics, .. }
-            if diagnostics == vec![diagnostic("sibling")]
-    ));
+    assert!(pulled_diagnostics(&state, &deleted_uri).is_empty());
+    assert_eq!(pulled_diagnostics(&state, &sibling_uri), [diagnostic("sibling")]);
 }
 
 #[tokio::test(flavor = "current_thread")]

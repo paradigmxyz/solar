@@ -138,6 +138,60 @@ fn cancel_analysis(state: &GlobalState) {
     state.analysis_scheduler.tasks.lock().cancel();
 }
 
+/// Runs `notify` on another thread while the watched-file specs are locked, and checks that it
+/// advances the analysis epoch before it waits to reregister watchers.
+fn assert_epoch_advances_before_reregistration(
+    mut state: GlobalState,
+    notify: impl FnOnce(&mut GlobalState) + Send + 'static,
+) {
+    let initial_version = analysis_version(&state);
+    let registration = state.watched_file_registration.clone();
+    let desired_specs = registration.desired_specs.lock();
+    let version = state.analysis_version.clone();
+    let runtime = tokio::runtime::Handle::current();
+    let worker = std::thread::spawn(move || {
+        let _runtime = runtime.enter();
+        notify(&mut state);
+        state
+    });
+
+    let deadline = Instant::now() + Duration::from_millis(100);
+    while version.load(Ordering::Acquire) == initial_version && Instant::now() < deadline {
+        std::thread::yield_now();
+    }
+    let advanced_before_reregistration = version.load(Ordering::Acquire) != initial_version;
+
+    drop(desired_specs);
+    cancel_analysis(&worker.join().unwrap());
+    assert!(
+        advanced_before_reregistration,
+        "watchers were queued before the old analysis epoch was invalidated"
+    );
+}
+
+fn begin_recompute(
+    state: &mut GlobalState,
+    removed_paths: Vec<PathBuf>,
+    trigger: AnalysisTrigger,
+) -> (usize, ProgressTicket) {
+    state.begin_analysis(AnalysisMode::Recompute, removed_paths, Vec::new(), trigger).unwrap()
+}
+
+fn begin_rediscovery(state: &mut GlobalState) -> (usize, ProgressTicket) {
+    state
+        .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
+        .unwrap()
+}
+
+fn discovery_ready(
+    version: usize,
+    result: WorkspaceDiscoveryResult,
+    progress: ProgressTicket,
+) -> WorkspaceDiscoveryReady {
+    let cancellation = IndexingCancellation::default();
+    WorkspaceDiscoveryReady { version, result, disk_paths: Vec::new(), progress, cancellation }
+}
+
 fn analysis_coordinator(state: &GlobalState) -> AbortHandle {
     state.analysis_scheduler.tasks.lock().coordinator.as_ref().unwrap().1.clone()
 }
@@ -160,6 +214,15 @@ fn diagnostics_for(uri: &Url, message: &str) -> DiagnosticMap {
 
 fn diagnostic_messages(diagnostics: &[Diagnostic]) -> Vec<&str> {
     diagnostics.iter().map(|diagnostic| diagnostic.message.as_str()).collect()
+}
+
+/// Returns the stored diagnostics of `uri`, which must have a full pull report.
+fn pulled_diagnostics(state: &GlobalState, uri: &Url) -> Vec<Diagnostic> {
+    let PullReport::Full { diagnostics, .. } = state.diagnostics.read().pull_report(uri, None)
+    else {
+        panic!("expected a full diagnostic report");
+    };
+    diagnostics
 }
 
 fn diagnostic_uri() -> Url {
@@ -406,9 +469,8 @@ fn replacement_analysis_invalidates_old_worker_before_removed_diagnostics_publis
     let uri = diagnostic_uri();
     let path = uri.to_file_path().unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    let (stale_version, _stale_progress) = state
-        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
-        .unwrap();
+    let (stale_version, _stale_progress) =
+        begin_recompute(&mut state, Vec::new(), AnalysisTrigger::Document);
     state
         .snapshot()
         .publish_diagnostics(DiagnosticOwner::Compiler, diagnostics_for(&uri, "removed"));
@@ -466,9 +528,7 @@ async fn clearing_analysis_cache_publishes_an_empty_snapshot_before_ending_progr
         harness.next_published().await;
     }
 
-    let (_, progress) = state
-        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
-        .unwrap();
+    let (_, progress) = begin_recompute(&mut state, Vec::new(), AnalysisTrigger::Document);
     progress.begin();
     progress.report("Analyzing workspace");
     let token = harness.expect_progress_begin(Some("Analyzing workspace")).await;
@@ -496,9 +556,7 @@ async fn clearing_analysis_cache_suppresses_progress_pending_creation() {
     state.snapshot().publish_diagnostics(DiagnosticOwner::Compiler, diagnostics_for(&uri, "old"));
     harness.next_published().await;
 
-    let (_, progress) = state
-        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
-        .unwrap();
+    let (_, progress) = begin_recompute(&mut state, Vec::new(), AnalysisTrigger::Document);
     progress.begin();
     harness.expect_create().await;
     progress.report("obsolete analysis");
@@ -521,16 +579,14 @@ async fn superseded_analysis_cannot_publish_or_end_latest_progress() {
     let mut harness = ClientHarness::new();
     let mut state = progress_state(&harness);
 
-    let (stale_version, stale_progress) = state
-        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
-        .unwrap();
+    let (stale_version, stale_progress) =
+        begin_recompute(&mut state, Vec::new(), AnalysisTrigger::Document);
     let mut stale_snapshot = state.snapshot();
     stale_progress.begin();
     let token = harness.expect_progress_begin(None).await;
 
-    let (latest_version, latest_progress) = state
-        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
-        .unwrap();
+    let (latest_version, latest_progress) =
+        begin_recompute(&mut state, Vec::new(), AnalysisTrigger::Document);
     let mut latest_snapshot = state.snapshot();
     let WorkDoneProgress::Report(report) = harness.expect_progress(&token).await else {
         panic!("expected replacement report");
@@ -577,10 +633,7 @@ fn clearing_analysis_cache_rejects_older_analysis_results() {
 
     assert!(!stale_snapshot.publish_analysis(1, stale_result));
     assert!(state.symbol_tables.load().workspace_symbols("").is_empty());
-    assert!(matches!(
-        state.diagnostics.read().pull_report(&uri, None),
-        PullReport::Full { diagnostics, .. } if diagnostics.is_empty()
-    ));
+    assert!(pulled_diagnostics(&state, &uri).is_empty());
 }
 
 #[test]
@@ -598,9 +651,7 @@ fn reindex_if_invalidated_is_a_no_op_for_a_current_cache() {
 async fn failed_current_analysis_ends_visible_progress() {
     let mut harness = ClientHarness::new();
     let mut state = progress_state(&harness);
-    let (version, progress) = state
-        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
-        .unwrap();
+    let (version, progress) = begin_recompute(&mut state, Vec::new(), AnalysisTrigger::Document);
     progress.begin();
     let token = harness.expect_progress_begin(None).await;
 
@@ -625,14 +676,8 @@ async fn failed_or_cancelled_analysis_keeps_results_until_save_recovers() {
             .snapshot()
             .publish_diagnostics(DiagnosticOwner::Compiler, diagnostics_for(&uri, "old compiler"));
 
-        let (version, progress) = state
-            .begin_analysis(
-                AnalysisMode::Recompute,
-                Vec::new(),
-                Vec::new(),
-                AnalysisTrigger::Document,
-            )
-            .unwrap();
+        let (version, progress) =
+            begin_recompute(&mut state, Vec::new(), AnalysisTrigger::Document);
         let task = if cancelled {
             let task = tokio::spawn(std::future::pending::<AnalysisTaskOutcome>());
             task.abort();
@@ -645,10 +690,7 @@ async fn failed_or_cancelled_analysis_keeps_results_until_save_recovers() {
         assert_eq!(workspace_symbol_names(&settle(&state).await.load()), ["Old"]);
         assert!(state.analysis_cache_invalidated());
         assert!(!state.natspec_semantics_are_usable(&uri));
-        assert!(matches!(
-            state.diagnostics.read().pull_report(&uri, None),
-            PullReport::Full { diagnostics, .. } if diagnostics == [diagnostic("old compiler")]
-        ));
+        assert_eq!(pulled_diagnostics(&state, &uri), [diagnostic("old compiler")]);
 
         project.write_file("/Old.sol", "contract Recovered {}");
         save(&mut state, &uri);
@@ -1135,29 +1177,22 @@ async fn recomputing_for_removed_files_stales_all_flycheck_owners() {
     let first_owner = flycheck_owner(project.path("/first"));
     let second_owner = flycheck_owner(project.path("/second"));
     let deleted_path = project.path("/first/src/Deleted.sol");
-    let uri = Url::from_file_path(&deleted_path).unwrap();
-    let pulled_messages = |state: &GlobalState| {
-        let PullReport::Full { diagnostics, .. } = state.diagnostics.read().pull_report(&uri, None)
-        else {
-            panic!("expected a full report");
-        };
-        diagnostics.into_iter().map(|diagnostic| diagnostic.message).collect::<Vec<_>>()
-    };
+    let uri = project.uri("/first/src/Deleted.sol");
     snapshot.publish_flycheck_diagnostics(
         second_owner.clone(),
         0,
         diagnostics_for(&uri, "existing"),
     );
-    assert_eq!(pulled_messages(&state), ["existing"]);
+    assert_eq!(diagnostic_messages(&pulled_diagnostics(&state, &uri)), ["existing"]);
 
     state.recompute_for_file_changes(vec![deleted_path.clone()], vec![deleted_path], false);
 
     assert!(!snapshot.is_current_flycheck(&first_owner, 0));
     assert!(!snapshot.is_current_flycheck(&second_owner, 0));
-    assert!(pulled_messages(&state).is_empty());
+    assert!(pulled_diagnostics(&state, &uri).is_empty());
     snapshot.publish_flycheck_diagnostics(first_owner, 0, diagnostics_for(&uri, "stale"));
     snapshot.publish_flycheck_diagnostics(second_owner, 0, diagnostics_for(&uri, "stale other"));
-    assert!(pulled_messages(&state).is_empty());
+    assert!(pulled_diagnostics(&state, &uri).is_empty());
     settle(&state).await;
 }
 

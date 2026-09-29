@@ -41,19 +41,15 @@ async fn document_changes_keep_or_clear_completed_flycheck_diagnostics() {
             DiagnosticMap::from_iter([(uri.clone(), vec![stale.clone()])]),
         );
     };
-    let pulled = |state: &GlobalState| match state.diagnostics.read().pull_report(&uri, None) {
-        PullReport::Full { diagnostics, .. } => diagnostics,
-        _ => panic!("expected a full diagnostic report"),
-    };
     publish(&state);
 
     change(&mut state, &uri, 2, SOURCE);
-    assert_eq!(pulled(&state), std::slice::from_ref(&stale));
+    assert_eq!(pulled_diagnostics(&state, &uri), std::slice::from_ref(&stale));
     assert!(state.snapshot().is_current_flycheck(&owner, epoch));
 
     change(&mut state, &uri, 3, EDITED_SOURCE);
     publish(&state);
-    assert!(pulled(&state).is_empty());
+    assert!(pulled_diagnostics(&state, &uri).is_empty());
     let reports =
         within("workspace diagnostics", state.workspace_diagnostic_reports(Vec::new())).await;
     let reports = reports.unwrap();

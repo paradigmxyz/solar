@@ -30,7 +30,7 @@ fn pull_refresh_state(
 }
 
 fn begin(state: &mut GlobalState, removed_paths: Vec<PathBuf>, trigger: AnalysisTrigger) -> usize {
-    state.begin_analysis(AnalysisMode::Recompute, removed_paths, Vec::new(), trigger).unwrap().0
+    begin_recompute(state, removed_paths, trigger).0
 }
 
 fn changed_pull_result() -> AnalysisResult {
@@ -317,14 +317,8 @@ async fn external_refresh_intent_survives_failed_analysis() {
         .snapshot()
         .publish_diagnostics(DiagnosticOwner::Compiler, diagnostics_for(&uri, "removed"));
 
-    let (failed_version, progress) = state
-        .begin_analysis(
-            AnalysisMode::Recompute,
-            vec![uri.to_file_path().unwrap()],
-            Vec::new(),
-            AnalysisTrigger::External,
-        )
-        .unwrap();
+    let (failed_version, progress) =
+        begin_recompute(&mut state, vec![uri.to_file_path().unwrap()], AnalysisTrigger::External);
     let task = tokio::spawn(async { panic!("test analysis failure") });
     state.monitor_analysis_task(failed_version, task, progress);
     settle(&state).await;

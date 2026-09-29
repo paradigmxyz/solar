@@ -271,37 +271,16 @@ async fn workspace_folder_change_advances_epoch_before_watcher_reregistration() 
     let new_root = project.path("/new");
     std::fs::create_dir(&old_root).unwrap();
     std::fs::create_dir(&new_root).unwrap();
-    let mut state = state_with(relative_watch_config(&project, &["/old"], &[]));
-    let initial_version = analysis_version(&state);
-    let registration = state.watched_file_registration.clone();
-    let desired_specs = registration.desired_specs.lock();
-    let analysis_version = state.analysis_version.clone();
-    let runtime = tokio::runtime::Handle::current();
-    let worker = std::thread::spawn(move || {
-        let _runtime = runtime.enter();
+    let state = state_with(relative_watch_config(&project, &["/old"], &[]));
+    assert_epoch_advances_before_reregistration(state, move |state| {
         let folder = |uri, name: &str| WorkspaceFolder { uri, name: name.into() };
         let event = WorkspaceFoldersChangeEvent {
             added: vec![folder(Url::from_file_path(new_root).unwrap(), "new")],
             removed: vec![folder(Url::from_file_path(old_root).unwrap(), "old")],
         };
         let params = DidChangeWorkspaceFoldersParams { event };
-        assert!(crate::handlers::did_change_workspace_folders(&mut state, params).is_continue());
-        state
+        assert!(crate::handlers::did_change_workspace_folders(state, params).is_continue());
     });
-
-    let deadline = Instant::now() + Duration::from_millis(100);
-    while analysis_version.load(Ordering::Acquire) == initial_version && Instant::now() < deadline {
-        std::thread::yield_now();
-    }
-    let advanced_before_reregistration =
-        analysis_version.load(Ordering::Acquire) != initial_version;
-
-    drop(desired_specs);
-    cancel_analysis(&worker.join().unwrap());
-    assert!(
-        advanced_before_reregistration,
-        "workspace-folder change queued watchers before invalidating the old analysis epoch"
-    );
 }
 
 #[test]
@@ -972,18 +951,13 @@ async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
     state.config = Arc::new(config);
     let desired_specs =
         |state: &GlobalState| state.watched_file_registration.desired_specs.lock().clone().unwrap();
-    let (version, progress) = state
-        .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
-        .unwrap();
+    let (version, progress) = begin_rediscovery(&mut state);
 
-    let ready = WorkspaceDiscoveryReady {
-        version,
-        result: discovery,
-        disk_paths: Vec::new(),
-        progress,
-        cancellation: IndexingCancellation::default(),
-    };
-    assert!(state.on_workspace_discovery_ready(ready).is_continue());
+    assert!(
+        state
+            .on_workspace_discovery_ready(discovery_ready(version, discovery, progress))
+            .is_continue()
+    );
     cancel_analysis(&state);
     let repo = project.path("/repo");
     let shared_contracts = project.path("/shared/contracts");

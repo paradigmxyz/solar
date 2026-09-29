@@ -6,6 +6,15 @@ async fn reanalyze(state: &mut GlobalState, changed_paths: Vec<PathBuf>) {
     settle(state).await;
 }
 
+fn assert_workspace_diagnostics_clean(state: &GlobalState) {
+    for report in state.diagnostics.read().workspace_pull_reports(Vec::new()) {
+        let PullReport::Full { diagnostics, .. } = report.report else {
+            unreachable!("no previous result IDs")
+        };
+        assert!(diagnostics.is_empty());
+    }
+}
+
 pub(super) fn report_version(state: &GlobalState, uri: &Url) -> Option<i64> {
     let reports = state.diagnostics.read().workspace_pull_reports(Vec::new());
     reports.into_iter().find(|report| report.uri == *uri).unwrap().version
@@ -379,12 +388,7 @@ async fn workspace_batch_cache_rechecks_disk_imports_and_resolver_probes() {
         assert_eq!(Arc::ptr_eq(&original_main, &current_main), !edit_main);
         assert!(!Arc::ptr_eq(&original_other, &cached_batch_for_path(&state, &other).unwrap()));
         assert_eq!(symbol_names(&state.symbol_tables, "dependencyChanged"), ["dependencyChanged"]);
-        assert!(state.diagnostics.read().workspace_pull_reports(Vec::new()).into_iter().all(
-            |report| match report.report {
-                PullReport::Full { diagnostics, .. } => diagnostics.is_empty(),
-                PullReport::Unchanged { .. } => unreachable!("no previous result IDs"),
-            }
-        ));
+        assert_workspace_diagnostics_clean(&state);
     }
 }
 
@@ -434,11 +438,7 @@ async fn opening_identical_source_rechecks_single_workspace_disk_imports() {
         assert_eq!(symbol_names(&state.symbol_tables, "modified"), ["modified"]);
         assert_eq!(report_version(&state, &main_uri), Some(7));
         assert_eq!(report_version(&state, &dep_uri), None);
-        let reports = state.diagnostics.read().workspace_pull_reports(Vec::new());
-        assert!(reports.into_iter().all(|report| match report.report {
-            PullReport::Full { diagnostics, .. } => diagnostics.is_empty(),
-            PullReport::Unchanged { .. } => unreachable!("no previous result IDs"),
-        }));
+        assert_workspace_diagnostics_clean(&state);
     }
 }
 
@@ -835,12 +835,6 @@ async fn discovery_cleanup_does_not_remove_analysis_handles_for_the_same_epoch()
     let _ = worker.await;
 }
 
-fn begin_rediscovery(state: &mut GlobalState) -> (usize, ProgressTicket) {
-    state
-        .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
-        .unwrap()
-}
-
 #[tokio::test(flavor = "current_thread")]
 async fn workspace_discovery_router_rejects_stale_and_cancelled_ready_events() {
     struct DiscoveryStateProbe(oneshot::Sender<(Vec<PathBuf>, bool)>);
@@ -893,11 +887,8 @@ async fn workspace_discovery_router_rejects_stale_and_cancelled_ready_events() {
     let ((stale_version, stale_progress), (latest_version, latest_progress), mut published, tables) =
         setup_rx.recv().unwrap();
     let ready = |version, result, progress, cancellation| WorkspaceDiscoveryReady {
-        version,
-        result,
-        disk_paths: Vec::new(),
-        progress,
         cancellation,
+        ..discovery_ready(version, result, progress)
     };
     let probe = || async {
         let (probe_tx, probe_rx) = oneshot::channel();
