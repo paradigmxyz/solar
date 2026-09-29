@@ -49,61 +49,53 @@ async fn watched_unrelated_excluded_sources_and_manifests_do_not_schedule_analys
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn watched_nested_manifest_create_discovers_the_project() {
-    let project = TestProject::from_fixture(
-        r#"
+async fn watched_nested_manifest_creates_discover_projects() {
+    // Below an excluded directory, and below the external source and test roots of a project.
+    let excluded = r#"
         //- /foundry.toml
 
         //- /packages/app/foundry.toml
 
         //- /packages/app/generated/.keep
-        "#,
-    );
-    let mut state =
-        state_with(config_with_indexing_excludes(&project, &["packages/app/generated/**"]));
-    project
-        .write_file("/packages/app/generated/foundry.toml", "[profile.default]\nsrc = \"src\"\n");
-    project.write_file("/packages/app/generated/src/Nested.sol", "contract Nested {}");
-
-    watch_files(
-        &mut state,
-        [(&project.path("/packages/app/generated/foundry.toml"), FileChangeType::CREATED)],
-    );
-
-    assert_eq!(symbol_names(&settle(&state).await, "Nested"), ["Nested"]);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn watched_nested_manifest_create_under_external_foundry_roots_discovers_projects() {
-    let project = TestProject::from_fixture(
-        r#"
+        "#;
+    let external = r#"
         //- /workspace/foundry.toml
         [profile.default]
         src = "../shared/contracts"
         test = "../shared/checks"
 
         //- /shared/.keep
-        "#,
-    );
-    let roots =
-        ["/shared/contracts/deep/app", "/shared/checks/deep/app"].map(|root| project.path(root));
-    let mut state = state_with(project.config());
-    assert!(roots.iter().all(|root| !workspace_bases(&state.config).contains(root)));
-    for (root, source) in
-        [("/shared/contracts/deep/app", "Source"), ("/shared/checks/deep/app", "Check")]
-    {
-        project.write_file(&format!("{root}/foundry.toml"), "[profile.default]\nsrc = \"src\"\n");
-        project.write_file(&format!("{root}/src/{source}.sol"), &format!("contract {source} {{}}"));
+        "#;
+    let external_projects =
+        [("/shared/contracts/deep/app", "Source"), ("/shared/checks/deep/app", "Check")];
+    for (fixture, excludes, projects) in [
+        (
+            excluded,
+            &["packages/app/generated/**"][..],
+            &[("/packages/app/generated", "Nested")][..],
+        ),
+        (external, &[], &external_projects),
+    ] {
+        let project = TestProject::from_fixture(fixture);
+        let mut state = state_with(config_with_indexing_excludes(&project, excludes));
+        let roots = projects.iter().map(|(root, _)| project.path(root)).collect::<Vec<_>>();
+        assert!(roots.iter().all(|root| !workspace_bases(&state.config).contains(root)));
+        for (root, name) in projects {
+            project
+                .write_file(&format!("{root}/foundry.toml"), "[profile.default]\nsrc = \"src\"\n");
+            project.write_file(&format!("{root}/src/{name}.sol"), &format!("contract {name} {{}}"));
+        }
+
+        let manifests =
+            roots.iter().map(|root| (root.join("foundry.toml"), FileChangeType::CREATED));
+        watch_files(&mut state, manifests);
+        let tables = settle(&state).await;
+
+        assert!(roots.iter().all(|root| workspace_bases(&state.config).contains(root)));
+        for (_, name) in projects {
+            assert_eq!(symbol_names(&tables, name), [*name]);
+        }
     }
-
-    let manifests = roots.clone().map(|root| root.join("foundry.toml"));
-    watch_files(
-        &mut state,
-        [(&manifests[0], FileChangeType::CREATED), (&manifests[1], FileChangeType::CREATED)],
-    );
-    settle(&state).await;
-
-    assert!(roots.iter().all(|root| workspace_bases(&state.config).contains(root)));
 }
 
 #[tokio::test(flavor = "current_thread")]
