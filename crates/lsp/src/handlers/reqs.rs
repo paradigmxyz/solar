@@ -189,9 +189,10 @@ pub(crate) fn formatting(
         .to_file_path()
         .map_err(|_| request_failed("document URI is not a file"))
         .and_then(|path| {
-            let Some(root) = state.config.formatter_root_for_path(&path) else {
-                return Err(request_failed("document has no parent directory"));
-            };
+            let root = state
+                .config
+                .formatter_root_for_path(&path)
+                .ok_or_else(|| request_failed("document has no parent directory"))?;
             Ok((
                 VfsPath::from(path.clone()),
                 path,
@@ -210,10 +211,9 @@ pub(crate) fn formatting(
             document_contents(&vfs, &vfs_path, &path).await.map_err(document_read_failed)?;
         let formatted =
             formatter::run(&forge, &root, &source, timeout).await.map_err(formatter_failed)?;
-        let is_current = document_is_current(&vfs, &vfs_path, &path, &source)
-            .await
-            .map_err(document_read_failed)?;
-        if !is_current {
+        let current =
+            document_contents(&vfs, &vfs_path, &path).await.map_err(document_read_failed)?;
+        if current != source {
             return Err(ResponseError::new(
                 ErrorCode::CONTENT_MODIFIED,
                 "document changed during formatting",
@@ -235,20 +235,6 @@ async fn document_contents(
     }
 
     tokio::fs::read_to_string(path).await
-}
-
-async fn document_is_current(
-    vfs: &Arc<RwLock<Vfs>>,
-    vfs_path: &VfsPath,
-    path: &Path,
-    source: &str,
-) -> io::Result<bool> {
-    let contents = { vfs.read().get_file_contents(vfs_path).cloned() };
-    if let Some(contents) = contents {
-        return Ok(contents == source);
-    }
-
-    Ok(tokio::fs::read_to_string(path).await? == source)
 }
 
 fn document_read_failed(error: io::Error) -> ResponseError {
