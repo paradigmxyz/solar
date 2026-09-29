@@ -28,6 +28,15 @@ LL │         return abi.encodeWithSignature("f()", b);
 error: a `ByteBuilder` cannot be stored or encoded
    ╭▸ ROOT/tests/ui/typeck/core_builder_escapes.sol:LL:CC
    │
+LL │         new function(ByteBuilder memory) external[](1)[0](b);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: an external call would copy the builder's capacity, bytes that were never written, as well
+   ╰ help: use what `Buffers.finish` returns instead
+
+error: a `ByteBuilder` cannot be stored or encoded
+   ╭▸ ROOT/tests/ui/typeck/core_builder_escapes.sol:LL:CC
+   │
 LL │     ByteBuilder stored;
    │     ━━━━━━━━━━━
    │
@@ -39,6 +48,24 @@ error: a `ByteBuilder` cannot be stored or encoded
    │
 LL │     function(ByteBuilder memory) external callback;
    │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: an external function type would copy the builder's capacity, bytes that were never written, as well
+   ╰ help: use what `Buffers.finish` returns instead
+
+error: a `ByteBuilder` cannot be stored or encoded
+   ╭▸ ROOT/tests/ui/typeck/core_builder_escapes.sol:LL:CC
+   │
+LL │     function(ByteBuilder memory) external[] callbacks;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: an external function type would copy the builder's capacity, bytes that were never written, as well
+   ╰ help: use what `Buffers.finish` returns instead
+
+error: a `WordBuilder` cannot be stored or encoded
+   ╭▸ ROOT/tests/ui/typeck/core_builder_escapes.sol:LL:CC
+   │
+LL │     mapping(uint256 => function(WordBuilder memory) external) byKey;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    │
    ├ note: an external function type would copy the builder's capacity, bytes that were never written, as well
    ╰ help: use what `Buffers.finish` returns instead
@@ -97,5 +124,14 @@ LL │         try this.give() returns (ByteBuilder memory b) {
    ├ note: a `try` clause would copy the builder's capacity, bytes that were never written, as well
    ╰ help: use what `Buffers.finish` returns instead
 
-error: aborting due to 11 previous errors
+error: a `ByteBuilder` cannot be stored or encoded
+   ╭▸ ROOT/tests/ui/typeck/core_builder_escapes.sol:LL:CC
+   │
+LL │     function nested(function(function(ByteBuilder memory) external) external f) internal {}
+   │                              ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: an external function type would copy the builder's capacity, bytes that were never written, as well
+   ╰ help: use what `Buffers.finish` returns instead
+
+error: aborting due to 15 previous errors
 

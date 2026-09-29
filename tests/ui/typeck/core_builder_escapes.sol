@@ -40,6 +40,19 @@ contract Test {
         } catch {}
     }
 
+    // An external function type that takes or returns a builder encodes it when called,
+    // wherever the type appears.
+    function(ByteBuilder memory) external[] callbacks; //~ ERROR: a `ByteBuilder` cannot be stored or encoded
+
+    mapping(uint256 => function(WordBuilder memory) external) byKey; //~ ERROR: a `WordBuilder` cannot be stored or encoded
+
+    function nested(function(function(ByteBuilder memory) external) external f) internal {} //~ ERROR: a `ByteBuilder` cannot be stored or encoded
+
+    function freshCallback() internal {
+        ByteBuilder memory b = Buffers.create(64);
+        new function(ByteBuilder memory) external[](1)[0](b); //~ ERROR: a `ByteBuilder` cannot be stored or encoded
+    }
+
     // Memory locals and internal parameters are fine, and so is what
     // `finish` returns.
     function kept(ByteBuilder memory b) internal pure returns (ByteBuilder memory) {
