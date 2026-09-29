@@ -117,4 +117,23 @@ contract Test {
             stored = t;
         }
     }
+
+    modifier scratchBody() {
+        /// @custom:solar-scratch
+        {
+            _;
+        }
+    }
+
+    // The modifier's `_` runs the body inside the block, where no inline
+    // assembly may run.
+    function assemblyInBody() external pure scratchBody returns (uint256 x) {
+        assembly { //~ ERROR: a `@custom:solar-scratch` block cannot contain inline assembly
+            x := mload(0x40)
+        }
+    }
+
+    function scratchBodyWithoutAssembly(uint256 x) external pure scratchBody returns (uint256) {
+        return uint256(keccak256(abi.encode(x)));
+    }
 }

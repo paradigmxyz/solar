@@ -1,3 +1,18 @@
+error: a `@custom:solar-scratch` block cannot contain inline assembly
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │ ┏         assembly {
+LL │ ┃             x := mload(0x40)
+LL │ ┃         }
+   │ ┗━━━━━━━━━┛
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ note: a modifier's `_` runs the function's body inside the block
+
 error: memory of a `@custom:solar-scratch` block is used after the block
    ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
    │
@@ -108,5 +123,5 @@ LL │         /// @custom:solar-scratch
    │              ━━━━━━━━━━━━━━━━━━━━
    ╰ help: keep only values past the block, or remove the tag
 
-error: aborting due to 8 previous errors
+error: aborting due to 9 previous errors
 
