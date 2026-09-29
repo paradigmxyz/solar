@@ -242,6 +242,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let code = super::super::data::contract_code_data(gcx, module, contract_id, creation);
         let word = EvmMemoryLayout::WORD_SIZE;
         // len = data_size code(C)
+        // size = data_size code(C), 63, aligned
+        // object = bytes(size, len) !preserves_fmp
         let len = builder.data_size(code, 0, false);
         let size = builder.data_size(code, 2 * word - 1, true);
         let (object, data) =
