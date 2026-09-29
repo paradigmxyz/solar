@@ -63,8 +63,8 @@ The command line supports `live` when the compiler is built with its `llm` featu
 
 The key goes only to the provider's client. `-Zllm-endpoint` replaces the base URL, for a proxy or
 another server that speaks the same API. The compiler warns that `live` sends the MIR of every
-offered function to the provider, and ends with a note of the turns, tokens, and estimated cost it
-spent.
+offered function to the provider, or to the host `-Zllm-endpoint` names, and ends with a note of
+the turns, tokens, and estimated cost it spent.
 
 Each offered function gets its own conversation, which opens with the rewriting brief in
 `crates/cli/src/llm/instructions.md`: the syntax and semantics of lowered MIR, what a candidate
@@ -305,6 +305,21 @@ candidate got, when no proposal heard it, and the cost of the rewrite the pass k
 `LlmRewriter::cached` hears about a function whose cached rewrite the pass keeps instead of asking. The command line's rewriter in
 `crates/cli/src/llm.rs` is one such implementation, which the command line and
 `solar::cli::standard_json::compile_standard_json` install only when no rewriter is installed.
+
+An embedder can also keep that rewriter and carry its requests instead. With the `llm` feature,
+`solar::cli::llm::set_transport` installs a `ChatTransport` that sends every request of the chat
+providers, `anthropic/`, `opencode/`, and `openai-chat/`, in place of the compiler's client, and
+the compiler then reads no key and sends none. `ChatTransport::send` takes a `reqwest::Request`
+with a buffered body and returns the response; a `TransportError` it returns is sent again when
+it is transient, and ends the turn otherwise.
+
+A transport can pay for requests. A gateway that fronts a provider and charges per request with
+the [Machine Payments Protocol](https://mpp.dev) answers an unpaid request with HTTP 402 and a
+payment challenge, which the transport pays, for example from its user's wallet, before sending
+the request again; `-Zllm-endpoint` names the gateway's API base, such as
+`https://gateway.example/anthropic/v1` for an Anthropic route. Without a transport that pays, a
+402 ends the turn. Foundry's `forge optimize` installs such a transport, paid from the Tempo
+account its user signed in with.
 
 ## Limits
 

@@ -14,7 +14,7 @@ pub use solar_config::{self as config, CompileOpts, LspArgs, UnstableOpts, versi
 mod bytecode;
 mod emit;
 mod ethdebug;
-mod llm;
+pub mod llm;
 mod source_map;
 pub mod standard_json;
 
@@ -45,6 +45,10 @@ pub use commands::compile::run_compiler_args;
 use alloy_primitives as _;
 
 use tracing as _;
+
+// The transport tests of the `llm` feature.
+#[cfg(test)]
+use tokio as _;
 
 pub fn main() -> ExitCode {
     signal_handler::install();

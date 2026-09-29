@@ -25,6 +25,11 @@
 //!
 //! While it works, every conversation reports on stderr through [`console`]: each round, the
 //! model's reasoning and reply as they stream in, what each turn used, and each verdict.
+//!
+//! An embedder can send the chat providers' requests itself by installing a [`ChatTransport`]
+//! with [`set_transport`] before compiling: to answer the HTTP 402 challenges of a gateway that
+//! charges its user per request, for example, with the Machine Payments Protocol. The compiler
+//! then reads no key and sends none, since the transport authenticates or pays for each request.
 
 use solar_config::LlmOptimizeMode;
 use solar_interface::{Result, Session};
@@ -50,9 +55,10 @@ use solar_codegen::llm::{
 use solar_config::{ErrorFormat, LlmEffort};
 #[cfg(feature = "llm")]
 use std::{
-    fmt::Write,
+    fmt::{self, Write},
+    pin::Pin,
     sync::{
-        Arc,
+        Arc, PoisonError, RwLock,
         atomic::{AtomicU64, Ordering},
         mpsc,
     },
@@ -101,6 +107,74 @@ const DATE: &str = "2026-01-01";
 const FORMAT_REMINDER: &str = "Your reply held no candidate. Reply with exactly one fenced code \
                                block tagged `mir` holding the whole function, or with the single \
                                line `NO_IMPROVEMENT`.";
+
+/// The transport an embedder installed, which every chat provider sends through.
+#[cfg(feature = "llm")]
+static TRANSPORT: RwLock<Option<Arc<dyn ChatTransport>>> = RwLock::new(None);
+
+/// Sends the requests of the chat providers, `anthropic/`, `opencode/`, and `openai-chat/`, in
+/// place of the compiler's own HTTP client.
+///
+/// An embedder installs one with [`set_transport`] to reach the model its own way, such as
+/// through a gateway that answers each request with an HTTP 402 challenge its user's wallet pays.
+/// With a transport installed, the compiler neither reads nor sends a provider key: the transport
+/// authenticates or pays for every request. The compiler still sends a request again after a
+/// rate limit, an overload, a server error, or a failure the transport calls transient.
+#[cfg(feature = "llm")]
+pub trait ChatTransport: Send + Sync {
+    /// Sends `request` and returns the response to it, whatever its status. The request's body is
+    /// buffered, so it can be cloned to send again.
+    fn send(
+        &self,
+        request: reqwest::Request,
+    ) -> Pin<Box<dyn Future<Output = Result<reqwest::Response, TransportError>> + Send + '_>>;
+}
+
+/// Why a [`ChatTransport`] could not deliver a request.
+#[cfg(feature = "llm")]
+#[derive(Clone, Debug)]
+pub struct TransportError {
+    message: String,
+    transient: bool,
+}
+
+#[cfg(feature = "llm")]
+impl TransportError {
+    /// A failure another try may avoid, such as a dropped connection.
+    pub fn transient(message: impl Into<String>) -> Self {
+        Self { message: message.into(), transient: true }
+    }
+
+    /// A failure another try would repeat, such as a payment the wallet cannot make.
+    pub fn permanent(message: impl Into<String>) -> Self {
+        Self { message: message.into(), transient: false }
+    }
+}
+
+#[cfg(feature = "llm")]
+impl fmt::Display for TransportError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+#[cfg(feature = "llm")]
+impl std::error::Error for TransportError {}
+
+/// Installs the transport the chat providers send through, or removes it with `None`.
+///
+/// A compilation reads it once, when `-Zllm-optimize=live` starts, so install it before
+/// compiling and remove it after.
+#[cfg(feature = "llm")]
+pub fn set_transport(transport: Option<Arc<dyn ChatTransport>>) {
+    *TRANSPORT.write().unwrap_or_else(PoisonError::into_inner) = transport;
+}
+
+/// Returns the installed transport.
+#[cfg(feature = "llm")]
+pub fn transport() -> Option<Arc<dyn ChatTransport>> {
+    TRANSPORT.read().unwrap_or_else(PoisonError::into_inner).clone()
+}
 
 /// Installs the rewriter `-Zllm-optimize=live` asks, returning it for [`Installed::finish`].
 ///
@@ -151,12 +225,29 @@ impl Installed {
             }
             None => (Provider::OpenAi, None),
         };
-        // The key goes to the client alone: never to diagnostics, traces, or the cache.
-        let variable = provider.key_variable();
-        let Ok(key) = std::env::var(variable) else {
-            let message =
-                format!("`-Zllm-optimize=live` with {} requires `{variable}`", provider.name());
-            return Err(sess.dcx.err(message).emit());
+        // An embedder's transport authenticates or pays for requests itself, so no key is read.
+        // Otherwise the key goes to the client alone: never to diagnostics, traces, or the cache.
+        let transport = transport();
+        let key = match (&transport, provider) {
+            (Some(_), Provider::OpenAi) => {
+                return Err(sess
+                    .dcx
+                    .err("an embedder's transport carries only the chat providers")
+                    .help("name `openai-chat/MODEL` to ask OpenAI through its chat completions API")
+                    .emit());
+            }
+            (Some(_), _) => None,
+            (None, _) => {
+                let variable = provider.key_variable();
+                let Ok(key) = std::env::var(variable) else {
+                    let message = format!(
+                        "`-Zllm-optimize=live` with {} requires `{variable}`",
+                        provider.name()
+                    );
+                    return Err(sess.dcx.err(message).emit());
+                };
+                Some(key)
+            }
         };
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
@@ -183,6 +274,7 @@ impl Installed {
                         sess.dcx.err("unsupported `-Zllm-effort`").note(error).emit()
                     })?;
                 let endpoint = unstable.llm_endpoint.clone();
+                let key = key.expect("OpenAI models without a transport have a key");
                 let client = async move {
                     let mut builder = OpenAi::builder(key);
                     if let Some(endpoint) = endpoint {
@@ -224,8 +316,9 @@ impl Installed {
                     .expect("chat providers have a default endpoint")
                     .to_string();
                 let prices = info.map(|info| info.prices);
-                let client =
-                    async move { ChatClient::new(provider, &endpoint, &key, prices).await };
+                let client = async move {
+                    ChatClient::new(provider, &endpoint, key.as_deref(), transport, prices).await
+                };
                 let client = wait(runtime.handle(), client, TURN_TIMEOUT)
                     .map_err(|error| error.to_string())
                     .and_then(|client| client)
@@ -237,10 +330,15 @@ impl Installed {
                 }
             }
         };
-        let warning = format!(
-            "`-Zllm-optimize=live` sends the MIR of offered functions to {}",
-            provider.name()
-        );
+        // A replaced endpoint, such as a gateway, receives the MIR in the provider's place.
+        let recipient = unstable
+            .llm_endpoint
+            .as_deref()
+            .and_then(|endpoint| reqwest::Url::parse(endpoint).ok())
+            .and_then(|url| url.host_str().map(|host| format!("`{host}`")))
+            .unwrap_or_else(|| provider.name().to_string());
+        let warning =
+            format!("`-Zllm-optimize=live` sends the MIR of offered functions to {recipient}");
         sess.dcx.warn(warning).emit();
         let shared = Arc::new(Shared {
             runtime: runtime.handle().clone(),

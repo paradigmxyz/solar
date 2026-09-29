@@ -72,6 +72,7 @@ tikv-jemallocator = { version = "0.7", optional = true }
 
 [dev-dependencies]
 snapbox.workspace = true
+tokio = { workspace = true, features = ["io-util", "macros", "net", "rt-multi-thread", "time"] }
 
 [features]
 default = ["mimalloc", "tracing"]
