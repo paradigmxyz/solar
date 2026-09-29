@@ -27,13 +27,14 @@ plain data and then replay it; we should do the same.
 quarter to a third of a whole-project compile, and the time goes to four
 architectural habits:
 
-1. Local decisions are made by speculation: plan an instruction's operands
-   both ways on a cloned scheduler, simulate the next two instructions, and
-   keep the cheaper start. We call the operand planner about 1.5 times per
-   emitted instruction, and binary operations alone take 10% of the Seaport
-   compile.
+1. Local decisions are made by speculation: plan a binary operation's
+   operands in both orders, replay the next two instructions for each start
+   on a cloned scheduler, and keep the cheaper one. We call the operand
+   planner about 1.5 times per emitted instruction, and binary operations
+   alone take 10% of the Seaport compile.
 2. Decisions made during emission can invalidate earlier ones, so failure is
-   handled by re-emitting the whole runtime with a policy disabled.
+   handled by re-emitting the whole runtime with a function's stack-only
+   convention or a global policy disabled.
 3. Each stack policy (loop phis, live joins, selector globals, resident
    arguments, call-site preservation) brings its own fixpoint and its own
    validation.
@@ -49,7 +50,8 @@ avoids.
 
 **Is it too coupled?** Yes. `EvmCodegen` has 62 fields that mix module,
 runtime-attempt, function, and block state. The stack model and emitted code
-are kept in step by hand at hundreds of call sites. `codegen::stack` and
+are kept in step by hand at hundreds of call sites, and nothing checks that
+they agree. `codegen::stack` and
 `ir::passes` depend on each other. Four separate cost types price stack
 code.
 
@@ -155,16 +157,20 @@ still matters for contracts near the EIP-170 limit.
 The boundary runs in this order.
 
 1. **Lowered MIR.** The pipeline ends with DCE and `evm-inst-schedule`, a
-   dependency-first traversal inside barrier segments. It is the only pass
-   that reorders instructions, and it does not know stack costs.
-2. **Per module.** Phi critical-edge splitting, argument and immediate
-   canonicalization, call-graph analysis, then the runtime retry loop
+   dependency-first traversal inside barrier segments adapted from Venom's
+   DFT pass. It is the only pass that orders instructions within a block for
+   the stack scheduler, and it does not know stack costs; it keeps the
+   producer order of binary operations whose lowering prices both
+   orientations.
+2. **Per module.** Phi critical-edge splitting, argument canonicalization
+   (and immediate canonicalization in size mode), call-graph analysis, then the runtime retry loop
    (`runtime.rs:36`). Each attempt classifies frames, plans calling
    conventions for the whole module (stack argument masks, a subset search
-   over up to 256 resident-argument candidates, stack returns), emits every
-   function body, and then packs and resolves static frames. If a stack-only
-   convention fails or caller stack prefixes overflow, one policy is switched
-   off and the whole runtime is emitted again.
+   over up to 255 resident-argument candidates, stack returns), emits every
+   function body, and then packs and resolves static frames. If a function's
+   stack-only convention fails, that function is disabled; if caller stack
+   prefixes overflow, one of three global policies is switched off. Either way
+   the whole runtime is emitted again.
 3. **Per function** (`generate_function_body`, 936 lines). Liveness, spill
    hazards, phi parallel copies, `StackPhiPlan` (loop phis, live joins with a
    fixpoint of up to 64 rounds, branch phis), `GlobalStackPlan` for selector
@@ -176,8 +182,8 @@ The boundary runs in this order.
    about eight exit mechanisms, falling back to spilling every live-out value.
 5. **Per instruction.** Lazy argument materialization, live-out operand
    spills, ISLE alternatives each planned on a cloned scheduler, operand
-   planning (exact prefix, six linear shapes, one-action and unary plans, a
-   lower-bound-certified greedy walk, bounded A*), a per-arity fallback
+   planning (exact prefix, five linear shapes, gas-only one-action and unary
+   plans, a lower-bound-certified greedy walk, bounded A*), a per-arity fallback
    emitter when planning fails, result spill, and dead-value cleanup.
 6. **EVM IR.** 53 pass invocations, then assembly and, in gas mode, a
    code-size rescue that resumes the pipeline from an outlining checkpoint.
@@ -190,7 +196,7 @@ The boundary runs in this order.
 | Layout direction | backward, loop fixpoint | forward, topological, one pass | backward, loop fixpoint | forward RPO, frozen merge templates | forward DFS | static per edge group | per-instruction local, plus several edge policies |
 | Join choice | Heap-style permutation walk | best predecessor proposal, O(P²) shuffles | permutation walk priced in gas | lexicographic tiebreak | liveness order | sorted union | policies: loop phis ≤ 8 words, live joins ≤ 12, selector globals |
 | Operand shuffling | greedy, capped at 1000 steps | greedy with liveness-driven DUP choice | greedy, both orders for commutative ops | tiered, bounded A* with caches | greedy, both orders | greedy with bounded permutation DFS | tiered, bounded A*, both orders plus two-instruction lookahead |
-| Reordering | none | none | single-use expression sinking | none (separate code sinking) | DFT pass | DAG built, program order used | MIR `evm-inst-schedule` |
+| Reordering | none | none | single-use expression sinking | none (separate code sinking) | stack-aware DFT pass | DAG built, program order used | MIR `evm-inst-schedule`, DFT-derived, stack-blind |
 | Spill decision | Yul rewrite before codegen | found by the shuffler, monotone fixpoint | after solving, up to 100 whole-function re-solves | fixpoint of whole-function replans, up to 64 section rounds | reactive at emission | reactive at emission | preallocated for every cross-block value, reactive within blocks |
 | Spill memory | shared across disjoint call paths | one word per value | per-function region, slot colouring | scratch colouring and arena objects | free list | one word per spill | stable slots with gas-mode colouring |
 | Core size | ~3.2k lines | ~4.5k | ~2.9k | ~10k | ~2.6k | ~2.6k | ~17k non-test lines in `codegen/` |
@@ -216,10 +222,11 @@ The designs that matter for us:
   keyed by the relevant stack window) and a clean plan/replay split. Its cost
   is size: about 10k lines, and whole-section replanning coupled to memory
   placement.
-- **Venom** orders instructions with a stack-aware DFT pass that sorts
-  dependencies by the exit stack order it expects, and flips commutative
-  operations there. Emission is then greedy. This is the cheap alternative to
-  speculative lookahead.
+- **Venom** orders instructions with a DFT pass that sorts dependencies by
+  the exit stack order it expects, and flips commutative operations there.
+  Emission is then greedy. Our `evm-inst-schedule` adopted the traversal but
+  not the stack-order input, which MIR should not carry. Stack-aware ordering
+  in the plan layer is the cheap alternative to speculative lookahead.
 - **Plank** keeps each block a pure function of its dependency graph, entry
   layout, and exit layout. That is the most modular shape, although its
   current layouts and ordering are placeholders.
@@ -240,9 +247,10 @@ decisions made during emission:
   over a default of spilling. A general per-function layout pass would
   replace them.
 - **Instruction order** is chosen in MIR without stack costs, then partly
-  repaired by per-instruction lookahead. A stack-aware ordering step
-  inside the plan (Venom's DFT, or Plank's dependency graph with a real
-  choice function) would make the lookahead unnecessary.
+  repaired by per-instruction lookahead. A stack-aware ordering step inside
+  the plan (Venom's stack-order input, or Plank's dependency graph with a
+  real choice function) could make the lookahead unnecessary without putting
+  stack layouts into MIR.
 - **Switch lowering** reads assembler state and predicts block-layout label
   widths. It belongs after layout, or it should query a narrow interface
   rather than the assembler itself.
@@ -257,23 +265,27 @@ or likely weight:
   next two instructions in both orders for each candidate
   (`planning.rs:183-345`). An instruction with ISLE alternatives repeats this
   per alternative. The function-wide A* budget lives in a `Cell` inside the
-  cloned `StackScheduler` (`scheduler.rs:261`), so work spent on a clone is
-  never charged to the function. The budget does not bound speculation.
+  cloned `StackScheduler` (`scheduler.rs:261`), and by design
+  (`planning.rs:26`) speculation does not consume it, so nothing bounds the
+  total speculative search in a function.
 - **ISLE availability extractors.** `inst_data` checks
   `instructions[..index].contains(inst)` for up to 16 stack words per query
   (`planning/isle.rs:69-84`), which makes those rules quadratic in block
   length. `zero_value` scans every live value on each call.
 - **Whole-runtime retries.** `runtime.rs:36-69` re-emits every function after
   any stack-only failure or caller-stack overflow. Liveness and phi plans are
-  cached across attempts; convention planning, global plans, spill colouring,
-  and emission are not.
+  cached across attempts, except for the block-local `entry` function, whose
+  liveness is computed twice per attempt (`runtime.rs:385`,
+  `function.rs:121`); convention planning, global plans, spill colouring, and
+  emission are not.
 - **Stack model representation.** `StackModel` keeps the top at index 0, so
   every push and pop moves the whole vector; `find` and `contains` are linear
   scans. Search states clone and hash the full stack.
-- **Repeated analyses.** `LoopAnalyzer` runs two to four times per function;
-  `StackPhiPlan` is deep-cloned per body; spill availability clones a hash set
-  per block; the resident-argument subset search rebuilds `CfgInfo` per
-  candidate; call-site preserve-or-drain planning deep-copies the whole
+- **Repeated analyses.** `LoopAnalyzer` runs up to three times per body,
+  from four call sites; `StackPhiPlan` is deep-cloned per body; spill
+  availability clones a hash set per block; the resident-argument subset
+  search hoists one `CfgInfo`, but `GlobalStackPlan::analyze_resident_args`
+  (`global.rs:220`) still builds a new one for each of up to 255 subsets; call-site preserve-or-drain planning deep-copies the whole
   `SpillManager` through `Rc::make_mut`.
 - **Late re-derivation.** `block_cse`, `dce`, `stack_normalize`,
   `reorder_pushes`, the peephole extractors, outlining, and the verifier each
@@ -287,11 +299,15 @@ or likely weight:
   and removes dead stores afterwards. solc SSA-CFG, solx and Sonatina keep
   cross-block values on the stack by default and spill only what cannot be
   reached. This is the most likely cause of the LibString gap.
-- **Liveness is exact at one point.** `Liveness::is_dead_after` is true only at
-  a value's last use (`liveness.rs:355-366`). A copy that survives its last
-  use, for instance because it was too deep to pop then, is never dead again
-  in the block, so it stays until the block exits, and `dce` and
-  `stack_normalize` have to remove it later.
+- **Dead-value cleanup looks at one point.** `drop_dead_values`
+  (`scheduler.rs:2544`) asks `Liveness::is_dead_after`, which is true only at
+  a value's last use or for a value unused in the block
+  (`liveness.rs:355-371`). A copy that survives its last use, for instance
+  because it was too deep to pop then, is never dead again in the block, so
+  it stays until the block exits, and `dce` and `stack_normalize` have to
+  remove it later. The right query already exists:
+  `Liveness::is_used_at_or_after` (`liveness.rs:332`), which
+  `preserved_operands_for` uses.
 - **Cleanup passes repair scheduler output.** `reorder_pushes` removes
   `producer; PUSH; SWAP1`, `dce` removes DUPs whose copy only reaches a POP,
   and `stack_normalize` resynthesizes runs built by concatenating the plan,
@@ -308,17 +324,22 @@ or likely weight:
   functions and per-function fields cleared by hand in `function.rs`.
 - `stack/spills.rs`, `stack/edges.rs` and `stack/layout/select.rs` are
   `impl EvmCodegen` blocks, so the stack subtree is private in name only.
-- The stack model and emitted code are updated separately: about 250 lines
+- The stack model and emitted code are updated separately: about 160–200 lines
   outside the scheduler change the model directly, and about 260 call
-  `self.asm.emit_*`. Only `emit_op_with_effect` checks that they agree.
+  `self.asm.emit_*`. Nothing checks that they agree:
+  `emit_op_with_effect`'s debug assertion compares the depth against its own
+  update, and `ir/verify.rs` checks only physical heights.
 - `ir/passes/stack_normalize.rs` imports `codegen::{StackModel,
-  resynthesize_physical_ops, lowered_stack_cost}` and `mir::ValueId`, while
-  `codegen/stack/scheduler.rs` imports `ir::immediate_materialization_cost`.
-  EVM IR is meant to have no MIR value identities.
+  resynthesize_physical_ops, lowered_stack_cost}` and reuses `mir::ValueId`
+  as a placeholder type for synthetic identities, and `ir/verify.rs` imports
+  `codegen::MAX_STACK_DEPTH`, while `codegen/stack/scheduler.rs` imports
+  `ir::immediate_materialization_cost`. The two layers depend on each other.
 - Four cost types price stack code: `ScheduleCost` with its own objective key,
   `target::Cost`, the `lowered_stack_cost` tuple, and `switch.rs`'s
-  `LoweringCost` with byte literals. `calls/mod.rs:373` uses a unitless
-  literal cost, which the project rules forbid.
+  `LoweringCost` with byte literals. `calls/mod.rs:372` defines a unitless
+  literal cost, and `analyze_resident_subset` uses an unpriced
+  `uses < padding * 2` test (`select.rs:229`); the project rules put such
+  choices in the target cost model.
 - The "plan, apply, retire, drop dead values" sequence is simulated in five
   places (`generate_inst`, `expression_plan`, `binary_window_start`,
   `binary_window`, `plan_static_call_stack`), each with its own
@@ -338,7 +359,10 @@ Functions over 200 lines:
 | `generate_custom_inst` | `codegen/instructions.rs:254` | 260 |
 | `regenerate_block` | `ir/passes/block_cse.rs:71` | 234 |
 | `emit_value_fresh` | `codegen/values.rs:296` | 227 |
+| `outline_machine_runs` | `ir/passes/outline.rs:213` | 225 |
 | `plan_static_call_stack` | `codegen/calls/mod.rs:240` | 224 |
+| `outline_parametric_machine_runs` | `ir/passes/outline.rs:458` | 222 |
+| `emit_icall` | `codegen/calls/mod.rs:28` | 210 |
 
 ## Proposal
 
@@ -351,7 +375,7 @@ lowered MIR function
                         calling convention; plain data, one per function
   -> Emitter            replays the plan into EVM IR through one API that updates the
                         stack model and the instruction stream together
-  -> EVM IR             carries each block's entry layout for later passes
+  -> EVM IR             carries each block's entry shape for later passes
 ```
 
 A `StackPlan` depends only on its MIR function, the target, and its callees'
@@ -365,38 +389,45 @@ benchmark scripts before the next begins.
 
 ### Stage 1: remove repeated work (output unchanged)
 
-- Charge speculative searches to the function budget: keep the budget outside
-  the cloned scheduler, or pass it explicitly to `plan_operands`.
 - Replace `inst_data`'s slice scan with a per-block position map, and cache
   the zero value per function.
 - Store `StackModel` with the top at the end of the vector.
-- Run `LoopAnalyzer` once per function and share it; share `StackPhiPlan`
-  by reference instead of cloning it; represent spill availability as bitsets.
-- Hoist `CfgInfo` out of the resident-argument subset search.
+- Run `LoopAnalyzer` once per function and share it; give each body a
+  copy-on-write overlay of `StackPhiPlan` instead of a deep clone, since
+  bodies change it (`merge_resident`, loop-block inserts); represent spill
+  availability as bitsets.
+- Compute the `entry` function's block-local liveness once per attempt.
+- Pass the hoisted `CfgInfo` from `resident_search_context` into
+  `GlobalStackPlan::analyze_resident_args`.
 - Avoid the `SpillManager` deep copy in call-site planning by planning on a
   read-only view.
-- Cache `plan_operands` results per instruction and start state for the
-  duration of one `prefer_binary_plan` comparison; the same plans are
-  recomputed for the window's shared suffix.
+- Cache `plan_operands` results per instruction, start state, and remaining
+  search budget for the duration of one `prefer_binary_plan` comparison; the
+  same plans are recomputed for the window's shared suffix.
 
 Measure each change against the recorded baseline and require byte-identical
 standard-JSON output over `testdata/projects`, as #1609 does.
 
 ### Stage 2: fix the scheduler's local decisions
 
-- Give liveness a "dead from here on" query (use counts that fall to zero, as
-  in solc SSA-CFG) so a surviving dead copy can be popped at the next
-  opportunity rather than at block exit.
+- Bound speculation: charge speculative searches to a separate
+  per-function budget, or pass the budget to `plan_operands` explicitly.
+  This changes output when the budget runs out, so it belongs here rather
+  than in Stage 1.
+- Make `drop_dead_values` use `Liveness::is_used_at_or_after`, so a
+  surviving dead copy can be popped at the next opportunity rather than at
+  block exit.
 - Make the scheduler emit what `reorder_pushes` and the DUP-to-POP part of
   `dce` produce, then check whether those passes still change anything on the
   corpus before removing them.
 - Merge the operand plan and the following dead-value cleanup into one
   shuffle, so `stack_normalize` sees fewer non-minimal runs.
-- Replace the two-instruction lookahead with an ordering decision: extend
-  `evm-inst-schedule`, or add a block-level ordering step in the plan, that
-  prefers operand orders matching the expected stack, as Venom's DFT does,
-  and flip commutative operations there. Keep the lookahead only if the
-  benchmark shows the ordering step loses gas.
+- Replace the two-instruction lookahead with a block-level ordering step in
+  the backend plan, not in MIR, that feeds the expected stack order into the
+  DFT traversal as Venom does. `evm-inst-schedule` deliberately leaves
+  binary operand orientation to the backend, so the ordering step should
+  choose orientation too. Keep the lookahead only if the benchmark shows the
+  ordering step loses gas.
 
 ### Stage 3: split the god object
 
@@ -445,10 +476,13 @@ one wins on `-Ogas` gas and does not regress `-Osize`.
 
 ### Stage 5: let EVM IR use the plan
 
-- Record each block's entry layout (known values and anonymous words) in EVM
-  IR block metadata, and verify it in `ir/verify.rs`.
+- Extend the existing text-only `BlockMetadata::entry_depth` into a recorded
+  entry shape: depth plus anonymous equivalence classes of entry words, with
+  no MIR value identities, so scheduler layouts stay private as the
+  architecture requires. Verify it in `ir/verify.rs`, and make `tail_merge`,
+  `outline`, and `block_layout` keep it correct when they rewrite blocks.
 - Let `block_cse`, `dce`, `stack_normalize`, the peephole extractors, and
-  outlining start from the recorded layout instead of rebuilding it.
+  outlining start from the recorded shape instead of rebuilding it.
 - Once plans are per function, emit functions in parallel within a module.
 
 ## Risks
