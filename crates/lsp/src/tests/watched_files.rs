@@ -40,16 +40,10 @@ impl RegistrationHarness {
                 move |(events, script, attempts, _), params| {
                     events.send(WatchedFileClientEvent::Register(params)).unwrap();
                     let fail = script.fail_register == Some(*attempts);
-                    let delay = match script.delay_register.take() {
-                        Some((attempt, ack)) if attempt == *attempts => Some(ack),
-                        delay => {
-                            script.delay_register = delay;
-                            None
-                        }
-                    };
+                    let delay = script.delay_register.take_if(|(attempt, _)| attempt == attempts);
                     *attempts += 1;
                     async move {
-                        if let Some(ack) = delay {
+                        if let Some((_, ack)) = delay {
                             ack.await.map_err(|_| failed())?;
                         }
                         if fail { Err(failed()) } else { Ok(()) }
@@ -517,21 +511,7 @@ fn watched_file_specs_add_only_approved_dependency_parents() {
         //- /mapped/pkg/Mapped.sol
         "#,
     );
-    let (_, mut config) =
-        negotiate_capabilities(project.initialize_params_with_roots(&["/workspace"]));
-    config.apply_workspace_discovery(WorkspaceDiscoveryResult {
-        workspaces: vec![
-            crate::workspace::Workspace::load_foundry_bounded(
-                project.path("/workspace/foundry.toml"),
-                &[project.path("/workspace")],
-                &mut crate::workspace::FoundryConfigContext::default(),
-            )
-            .unwrap(),
-        ],
-        manifest_watch_roots: Vec::new(),
-        git_marker_watch_roots: Vec::new(),
-        metrics: Default::default(),
-    });
+    let config = project.config_with_roots(&["/workspace"]);
     let workspace_parent = project.path("/workspace/deps");
     let include_root = project.path("/include");
     let include_parent = project.path("/include/pkg");

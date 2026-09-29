@@ -362,66 +362,53 @@ async fn current_flycheck_refreshes_only_changed_diagnostics() {
     harness.exit().await;
 }
 
-/// Returns a pull-diagnostics state for a Foundry project with one flycheck on `/src/Test.sol`.
-#[cfg(unix)]
-fn flycheck_refresh_state(
-    harness: &ClientHarness,
-    options: Value,
-) -> (TestProject, GlobalState, Url) {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "src"
-
-        //- /src/Test.sol
-        contract Test {}
-        "#,
-    );
-    let path = project.path("/src/Test.sol");
-    let uri = project.uri("/src/Test.sol");
-    let capabilities = json!({
-        "textDocument": { "diagnostic": {} },
-        "workspace": { "diagnostic": { "refreshSupport": true } },
-    });
-    let params = with_capabilities(project.initialize_params(), capabilities);
-    let config = config_with_options(params, options);
-    let [flycheck] = config.flychecks_for_path(&path).try_into().unwrap();
-    let state = harness.state(config);
-    state.snapshot().publish_diagnostics(flycheck.owner(), diagnostics_for(&uri, "stale flycheck"));
-    (project, state, uri)
-}
-
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
-async fn failed_save_flycheck_refreshes_cleared_diagnostics() {
-    let mut harness = ClientHarness::new();
-    let (_project, mut state, uri) = flycheck_refresh_state(
-        &harness,
-        json!({
-            "flychecks": [{ "id": "save-error", "command": "/bin/sh", "args": ["-c", "exit 1"] }]
-        }),
-    );
+async fn failed_or_invalidated_saves_refresh_removed_flycheck_diagnostics() {
+    for invalidated in [false, true] {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
 
-    save(&mut state, &uri);
+            //- /src/Test.sol
+            contract Test {}
+            "#,
+        );
+        let path = project.path("/src/Test.sol");
+        let uri = project.uri("/src/Test.sol");
+        let capabilities = json!({
+            "textDocument": { "diagnostic": {} },
+            "workspace": { "diagnostic": { "refreshSupport": true } },
+        });
+        // A failing flycheck clears its diagnostics; an invalidated cache drops the flycheck.
+        let options = if invalidated {
+            json!({ "forgePath": "/usr/bin/true" })
+        } else {
+            json!({
+                "flychecks": [{ "id": "save-error", "command": "/bin/sh", "args": ["-c", "exit 1"] }]
+            })
+        };
+        let params = with_capabilities(project.initialize_params(), capabilities);
+        let config = config_with_options(params, options);
+        let [flycheck] = config.flychecks_for_path(&path).try_into().unwrap();
+        let mut harness = ClientHarness::new();
+        let mut state = harness.state(config);
+        let diagnostics = diagnostics_for(&uri, "stale flycheck");
+        state.snapshot().publish_diagnostics(flycheck.owner(), diagnostics);
+        if invalidated {
+            state.clear_analysis_cache();
+            harness.expect_no_event().await;
+            project.remove_file("/foundry.toml");
+        }
 
-    harness.expect_refreshes(true, false).await;
-    harness.exit().await;
-}
+        save(&mut state, &uri);
 
-#[cfg(unix)]
-#[tokio::test(flavor = "current_thread")]
-async fn invalidated_save_refreshes_removed_flycheck_diagnostics() {
-    let mut harness = ClientHarness::new();
-    let (project, mut state, uri) =
-        flycheck_refresh_state(&harness, json!({ "forgePath": "/usr/bin/true" }));
-    state.clear_analysis_cache();
-    harness.expect_no_event().await;
-    project.remove_file("/foundry.toml");
-
-    save(&mut state, &uri);
-
-    settle(&state).await;
-    harness.expect_refreshes(true, false).await;
-    harness.exit().await;
+        if invalidated {
+            settle(&state).await;
+        }
+        harness.expect_refreshes(true, false).await;
+        harness.exit().await;
+    }
 }

@@ -313,6 +313,22 @@ async fn identical_sources_and_reverted_edits_reuse_analysis_and_initialized_que
     }
 }
 
+/// Analyzes `/a/Main.sol` and `/b/Other.sol` as separate workspaces, returning both paths.
+async fn two_workspaces() -> (TestProject, GlobalState, PathBuf, PathBuf) {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /a/Main.sol
+        contract Main { uint public original; }
+        //- /b/Other.sol
+        contract Other { uint public stable; }
+        "#,
+    );
+    let mut state = state_with(project.config_with_roots(&["/a", "/b"]));
+    reanalyze(&mut state, Vec::new()).await;
+    let (main, other) = (project.path("/a/Main.sol"), project.path("/b/Other.sol"));
+    (project, state, main, other)
+}
+
 fn cached_batch_for_path(state: &GlobalState, path: &Path) -> Option<Arc<CachedAnalysisBatch>> {
     let commit = state.analysis_commit.lock();
     let cached = commit.cached_output.as_ref()?;
@@ -355,20 +371,9 @@ async fn removing_workspace_batch_inputs_invalidates_the_aggregate() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn editing_one_workspace_reuses_other_workspace_and_current_document_versions() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /a/Main.sol
-        contract Main { uint public original; }
-        //- /b/Other.sol
-        contract Other { uint public stable; }
-        "#,
-    );
-    let main = project.path("/a/Main.sol");
-    let other = project.path("/b/Other.sol");
+    let (project, mut state, main, other) = two_workspaces().await;
     let main_uri = Url::from_file_path(&main).unwrap();
     let other_uri = Url::from_file_path(&other).unwrap();
-    let mut state = state_with(project.config_with_roots(&["/a", "/b"]));
-    reanalyze(&mut state, Vec::new()).await;
     let original_main = cached_batch_for_path(&state, &main).unwrap();
     let original_other = cached_batch_for_path(&state, &other).unwrap();
 
@@ -398,18 +403,7 @@ async fn editing_one_workspace_reuses_other_workspace_and_current_document_versi
 
 #[tokio::test(flavor = "current_thread")]
 async fn workspace_batch_cache_revalidates_config_and_disk_sources() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /a/Main.sol
-        contract Main {}
-        //- /b/Other.sol
-        contract Other {}
-        "#,
-    );
-    let main = project.path("/a/Main.sol");
-    let other = project.path("/b/Other.sol");
-    let mut state = state_with(project.config_with_roots(&["/a", "/b"]));
-    reanalyze(&mut state, Vec::new()).await;
+    let (project, mut state, main, other) = two_workspaces().await;
     let original = cached_batch_for_path(&state, &other).unwrap();
 
     state.config = Arc::new((*state.config).clone());
