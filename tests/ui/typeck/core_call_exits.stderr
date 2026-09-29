@@ -1,3 +1,11 @@
+error: `Return.raw` can only be called directly
+   ╭▸ ROOT/tests/ui/typeck/core_call_exits.sol:LL:CC
+   │
+LL │         function(bytes memory) internal pure f = Return.raw;
+   │                                                  ━━━━━━━━━━
+   │
+   ╰ note: it returns from the external call, which is checked against the entry point and any pending modifier code only where it is called
+
 error: this ends the creation of `Checked` and deploys what it returns as its code
    ╭▸ ROOT/tests/ui/typeck/core_call_exits.sol:LL:CC
    │
@@ -135,5 +143,5 @@ LL │     function answer() public pure returns (bool) {
    │              ━━━━━━
    ╰ help: end the call with a value of the type the function returns
 
-error: aborting due to 11 previous errors
+error: aborting due to 12 previous errors
 

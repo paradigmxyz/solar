@@ -14,9 +14,10 @@
 //!   returns exactly one value of the same ABI type.
 //!
 //! A call through an internal function pointer can reach every function whose value the contract
-//! takes. External calls, including calls to a deployed library's functions, start calls of their
-//! own. Inline assembly that returns is not followed: it declares no output this check could
-//! compare.
+//! takes. The operations themselves can only be called directly: their bodies are the
+//! compiler's, which no check follows, so a pointer to one would end the call unchecked. External
+//! calls, including calls to a deployed library's functions, start calls of their own. Inline
+//! assembly that returns is not followed: it declares no output this check could compare.
 
 use super::safe_profile::describe_path;
 use crate::{
@@ -55,6 +56,12 @@ pub(super) fn check(gcx: Gcx<'_>) {
         .collect::<FxHashSet<_>>();
     if exits.is_empty() {
         return;
+    }
+    for source in gcx.hir.source_ids() {
+        if !is_core_file(&gcx.hir.source(source).file.name) {
+            let mut taken = TakenExits { gcx, exits: &exits, called: FxHashSet::default() };
+            let _ = taken.visit_nested_source(source);
+        }
     }
     let mut collect = Collect { gcx, exits: &exits, current: None, sites: FxHashMap::default() };
     for id in gcx.hir.function_ids() {
@@ -198,6 +205,49 @@ impl<'gcx> Visit<'gcx> for Collect<'gcx, '_> {
                 _ => Output::Raw,
             };
             self.sites.entry(current).or_default().push(Site { span: expr.span, output });
+        }
+        self.walk_expr(expr)
+    }
+}
+
+/// Rejects the operations in `exits` wherever they are taken as values rather than called.
+struct TakenExits<'gcx, 'a> {
+    gcx: Gcx<'gcx>,
+    exits: &'a FxHashSet<hir::FunctionId>,
+    /// The callees of the calls visited so far.
+    called: FxHashSet<hir::ExprId>,
+}
+
+impl<'gcx> Visit<'gcx> for TakenExits<'gcx, '_> {
+    type BreakValue = Never;
+
+    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
+        &self.gcx.hir
+    }
+
+    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
+        if let Some((callee, _, _)) = expr.as_call() {
+            self.called.insert(callee.peel_parens().id);
+        } else if !self.called.contains(&expr.id)
+            && let Some(operation) = self.gcx.resolved_function(expr)
+            && self.exits.contains(&operation)
+        {
+            let function = self.gcx.hir.function(operation);
+            let name = match (function.contract, function.name) {
+                (Some(contract), Some(name)) => {
+                    format!("{}.{name}", self.gcx.hir.contract(contract).name)
+                }
+                _ => "this operation".to_string(),
+            };
+            self.gcx
+                .dcx()
+                .err(format!("`{name}` can only be called directly"))
+                .span(expr.span)
+                .note(
+                    "it returns from the external call, which is checked against the entry \
+                     point and any pending modifier code only where it is called",
+                )
+                .emit();
         }
         self.walk_expr(expr)
     }
