@@ -1,4 +1,4 @@
-use crate::proto;
+use crate::{proto, utils::item_param_source};
 use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel, Position, Range, Url};
 use solar_interface::{
     Symbol,
@@ -7,7 +7,7 @@ use solar_interface::{
 use solar_sema::{
     Gcx,
     builtins::Builtin,
-    hir::{self, CallArgsKind, ExprKind, ItemId, StmtKind, Visit},
+    hir::{self, CallArgsKind, ExprKind, StmtKind, Visit},
     ty::{CallableParamSource, Ty, TyKind},
 };
 use std::ops::ControlFlow;
@@ -242,19 +242,6 @@ impl<'gcx> InlayHintCollector<'_, 'gcx> {
         }
         format!(": {}", ty.display(self.gcx))
     }
-
-    /// Finds the function or constructor declaration that supplies parameter names for a modifier.
-    fn modifier_param_source(
-        &self,
-        modifier: &'gcx hir::Modifier<'gcx>,
-    ) -> Option<CallableParamSource> {
-        let id = match modifier.id {
-            ItemId::Contract(id) => self.gcx.hir.contract(id).ctor?,
-            ItemId::Function(id) => id,
-            _ => return None,
-        };
-        Some(CallableParamSource::Function { id, skips_receiver: false })
-    }
 }
 
 impl<'gcx> Visit<'gcx> for InlayHintCollector<'_, 'gcx> {
@@ -287,7 +274,7 @@ impl<'gcx> Visit<'gcx> for InlayHintCollector<'_, 'gcx> {
         &mut self,
         modifier: &'gcx hir::Modifier<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
-        self.push_parameter_hints(&modifier.args, self.modifier_param_source(modifier));
+        self.push_parameter_hints(&modifier.args, item_param_source(self.gcx, modifier.id));
         hir::Visit::walk_modifier(self, modifier)
     }
 }

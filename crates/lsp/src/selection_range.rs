@@ -1,8 +1,8 @@
 //! Syntax-based selection-range construction.
 
 use crate::{
-    folding_range::{checked_span_range, parse_recovering},
     proto,
+    utils::{checked_span_range, parse_recovering},
 };
 use crop::Rope;
 use lsp_types::{Position, Range, SelectionRange};
@@ -194,22 +194,17 @@ fn selection_range_for_cursor(
         chain.push(document);
     }
 
-    let mut chain = chain.into_iter().rev();
-    let outer = chain.next()?;
-    let mut selection = SelectionRange {
-        range: Range::new(index.position_at_byte(outer.start)?, index.position_at_byte(outer.end)?),
-        parent: None,
-    };
-    for range in chain {
-        selection = SelectionRange {
+    let mut selection = None;
+    for range in chain.into_iter().rev() {
+        selection = Some(SelectionRange {
             range: Range::new(
                 index.position_at_byte(range.start)?,
                 index.position_at_byte(range.end)?,
             ),
-            parent: Some(Box::new(selection)),
-        };
+            parent: selection.map(Box::new),
+        });
     }
-    Some(selection)
+    selection
 }
 
 fn strictly_contains(outer: &ByteRange<usize>, inner: &ByteRange<usize>) -> bool {

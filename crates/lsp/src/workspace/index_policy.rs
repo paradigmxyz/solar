@@ -94,15 +94,6 @@ impl WorkspaceIndexPolicy {
         self.options.exclude_nested_repositories
     }
 
-    pub(crate) fn should_prune_directory(
-        &self,
-        workspace_root: &Path,
-        source_root: &Path,
-        directory: &Path,
-    ) -> bool {
-        self.should_prune_source_directory(workspace_root, source_root, directory)
-    }
-
     pub(crate) fn should_prune_source_directory(
         &self,
         workspace_root: &Path,
@@ -253,7 +244,7 @@ mod tests {
             ("/src", false),
         ] {
             assert_eq!(
-                policy.should_prune_directory(
+                policy.should_prune_source_directory(
                     workspace_root,
                     &source_root,
                     &project.path(directory)

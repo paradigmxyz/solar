@@ -40,7 +40,7 @@ use crate::{
     inlay_hints::InlayHintIndex,
     natspec_completion::{DeclarationKey, NatSpecCompletionIndex, NatSpecTargetSemantics},
     override_index::OverrideFamilyIndex,
-    proto,
+    proto::{self, PositionIndex},
     rename::{
         ImportBindings, MappingBindings, NamespaceBinding, RenameCandidate, RenameIndex,
         RenameReferenceContext,
@@ -48,6 +48,7 @@ use crate::{
     signature_help::SignatureHelpIndex,
     source_paths::SourcePath,
     type_hierarchy::TypeHierarchyIndex,
+    utils::item_param_source,
 };
 
 const COMPLETION_ITEM_DATA_VERSION: u8 = 1;
@@ -68,7 +69,7 @@ pub(crate) struct SymbolTables {
     document_symbol_children: IndexVec<SymbolId, Vec<SymbolId>>,
     workspace_symbol_ids: Vec<SymbolId>,
     workspace_search: OnceLock<WorkspaceSearchCorpus>,
-    symbols_by_key: FxHashMap<SymbolKey, SymbolId>,
+    symbols_by_key: FxHashMap<ItemId, SymbolId>,
     scopes: IndexVec<ScopeId, Scope>,
     global_completions: Vec<CompletionItem>,
     builtin_member_completions: FxHashMap<String, Vec<CompletionItem>>,
@@ -132,12 +133,6 @@ newtype_index! {
     pub(crate) struct ScopeId;
 }
 
-impl SymbolId {
-    pub(crate) fn offset_by(self, offset: usize) -> Self {
-        Self::from_usize(self.index() + offset)
-    }
-}
-
 type TypeDefinitionTargets = SmallVec<[SymbolId; 1]>;
 type ReferenceTargets = SmallVec<[SymbolId; 1]>;
 
@@ -195,11 +190,6 @@ impl CompletionItemData {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-enum SymbolKey {
-    Item(ItemId),
-}
-
 #[derive(Clone, Debug)]
 struct Scope {
     parent: Option<ScopeId>,
@@ -242,70 +232,6 @@ struct SymbolReference {
     location: Location,
     targets: ReferenceTargets,
     kind: DocumentHighlightKind,
-}
-
-/// A start-sorted interval index for point queries.
-#[derive(Clone, Debug)]
-struct PositionIndex<T> {
-    entries: Vec<T>,
-    prefix_max_end: Vec<Position>,
-}
-
-impl<T> Default for PositionIndex<T> {
-    fn default() -> Self {
-        Self { entries: Vec::new(), prefix_max_end: Vec::new() }
-    }
-}
-
-impl<T: Copy> PositionIndex<T> {
-    fn push(&mut self, entry: T) {
-        self.entries.push(entry);
-    }
-
-    fn iter(&self) -> std::slice::Iter<'_, T> {
-        self.entries.iter()
-    }
-
-    fn rebuild(&mut self, range: impl Fn(T) -> Range + Copy) {
-        self.entries.sort_by_key(|&entry| {
-            let range = range(entry);
-            (range.start, range.end)
-        });
-
-        self.prefix_max_end.clear();
-        self.prefix_max_end.reserve(self.entries.len());
-        let mut max_end = None;
-        for &entry in &self.entries {
-            let end = range(entry).end;
-            max_end = Some(max_end.map_or(end, |max_end: Position| max_end.max(end)));
-            self.prefix_max_end.push(max_end.unwrap());
-        }
-    }
-
-    fn candidates_at<'a>(
-        &'a self,
-        position: Position,
-        range: impl Fn(T) -> Range + Copy + 'a,
-    ) -> impl Iterator<Item = T> + 'a {
-        self.candidates_at_with(position, range, proto::range_contains)
-    }
-
-    fn candidates_at_with<'a>(
-        &'a self,
-        position: Position,
-        range: impl Fn(T) -> Range + Copy + 'a,
-        contains: impl Fn(Range, Position) -> bool + 'a,
-    ) -> impl Iterator<Item = T> + 'a {
-        let end = self.entries.partition_point(|&entry| range(entry).start <= position);
-        self.entries[..end]
-            .iter()
-            .copied()
-            .zip(self.prefix_max_end[..end].iter().copied())
-            .rev()
-            .take_while(move |(_, prefix_max_end)| *prefix_max_end >= position)
-            .filter(move |&(entry, _)| contains(range(entry), position))
-            .map(|(entry, _)| entry)
-    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -359,33 +285,34 @@ impl SymbolTables {
                 continue;
             };
 
-            let symbol_id = tables.push_declaration(
-                Some(SymbolKey::Item(item_id)),
-                DeclarationSymbol {
-                    id: tables.declarations.next_idx(),
-                    name,
-                    kind: item_symbol_kind(gcx, item_id),
-                    location,
-                    name_range: name_location.range,
-                    parent: None,
-                    // Input parameters can be referenced by named arguments in other files.
-                    rename_is_local: matches!(
-                        item_id,
-                        ItemId::Variable(id) if matches!(
-                            gcx.hir.variable(id).kind,
-                            hir::VarKind::Statement
-                                | hir::VarKind::TryCatch
-                                | hir::VarKind::FunctionReturn
-                        )
-                    ),
-                    has_definition: item_has_definition(gcx, item_id),
-                    has_getter_completion: matches!(
-                        item_id,
-                        ItemId::Variable(id) if gcx.hir.variable(id).getter.is_some()
-                    ),
-                    documentation: Some(crate::documentation::resolve(gcx, item_id)),
-                },
-            );
+            let symbol_id = tables.push_declaration(DeclarationSymbol {
+                id: tables.declarations.next_idx(),
+                name,
+                kind: item_symbol_kind(gcx, item_id),
+                location,
+                name_range: name_location.range,
+                parent: None,
+                // Input parameters can be referenced by named arguments in other files.
+                rename_is_local: matches!(
+                    item_id,
+                    ItemId::Variable(id) if matches!(
+                        gcx.hir.variable(id).kind,
+                        hir::VarKind::Statement
+                            | hir::VarKind::TryCatch
+                            | hir::VarKind::FunctionReturn
+                    )
+                ),
+                has_definition: !matches!(
+                    item_id,
+                    ItemId::Function(id) if gcx.hir.function(id).body.is_none()
+                ),
+                has_getter_completion: matches!(
+                    item_id,
+                    ItemId::Variable(id) if gcx.hir.variable(id).getter.is_some()
+                ),
+                documentation: Some(crate::documentation::resolve(gcx, item_id)),
+            });
+            tables.symbols_by_key.insert(item_id, symbol_id);
             item_symbols.insert(item_id, symbol_id);
             if item.name().is_some()
                 && !matches!(item_id, ItemId::Function(id) if gcx.hir.function(id).is_yul)
@@ -471,25 +398,25 @@ impl SymbolTables {
         self.override_families.extend(other.override_families, symbol_offset);
         let scope_offset = self.scopes.len();
         for declaration in &mut other.declarations {
-            declaration.id = declaration.id.offset_by(symbol_offset);
-            declaration.parent = declaration.parent.map(|parent| parent.offset_by(symbol_offset));
+            declaration.id += symbol_offset;
+            declaration.parent = declaration.parent.map(|parent| parent + symbol_offset);
         }
         for (symbol_id, mut targets) in other.type_definitions.drain() {
             for target in &mut targets {
-                *target = target.offset_by(symbol_offset);
+                *target += symbol_offset;
             }
-            self.type_definitions.insert(symbol_id.offset_by(symbol_offset), targets);
+            self.type_definitions.insert(symbol_id + symbol_offset, targets);
         }
         for scope in &mut other.scopes {
-            scope.parent = scope.parent.map(|parent| remap_scope_id(parent, scope_offset));
-            scope.member_scope = remap_scope_id(scope.member_scope, scope_offset);
+            scope.parent = scope.parent.map(|parent| parent + scope_offset);
+            scope.member_scope += scope_offset;
             for declaration in &mut scope.declarations {
-                declaration.symbol_id = declaration.symbol_id.offset_by(symbol_offset);
+                declaration.symbol_id += symbol_offset;
             }
         }
         for reference in &mut other.references {
             for target in &mut reference.targets {
-                *target = target.offset_by(symbol_offset);
+                *target += symbol_offset;
             }
         }
 
@@ -497,26 +424,26 @@ impl SymbolTables {
             self.files
                 .entry(uri)
                 .or_default()
-                .extend(symbols.into_iter().map(|symbol_id| symbol_id.offset_by(symbol_offset)));
+                .extend(symbols.into_iter().map(|symbol_id| symbol_id + symbol_offset));
         }
         self.declarations.extend(other.declarations);
         self.scopes.extend(other.scopes);
         self.receiver_member_completions.extend(other.receiver_member_completions.into_iter().map(
             |((scope_id, symbol_id), items)| {
-                (
-                    (remap_scope_id(scope_id, scope_offset), symbol_id.offset_by(symbol_offset)),
-                    items,
-                )
+                ((scope_id + scope_offset, symbol_id + symbol_offset), items)
             },
         ));
-        self.contract_member_completions.extend(other.contract_member_completions.into_iter().map(
-            |((scope, builtin), items)| ((remap_scope_id(scope, scope_offset), builtin), items),
-        ));
+        self.contract_member_completions.extend(
+            other
+                .contract_member_completions
+                .into_iter()
+                .map(|((scope, builtin), items)| ((scope + scope_offset, builtin), items)),
+        );
         self.namespace_completions.extend(
             other
                 .namespace_completions
                 .into_iter()
-                .map(|(scope, namespaces)| (remap_scope_id(scope, scope_offset), namespaces)),
+                .map(|(scope, namespaces)| (scope + scope_offset, namespaces)),
         );
         self.member_completions.extend(other.member_completions);
         self.references.extend(other.references);
@@ -572,7 +499,8 @@ impl SymbolTables {
             if let Some(count) = reference_counts.and_then(|counts| counts[index]) {
                 let argument =
                     (count > 0).then(|| serde_json::json!({ "uri": uri, "position": position }));
-                push(format_reference_title(count), "solar.showReferences", argument);
+                let title = format!("{count} reference{}", if count == 1 { "" } else { "s" });
+                push(title, "solar.showReferences", argument);
             }
 
             if options.selectors
@@ -1077,7 +1005,7 @@ impl SymbolTables {
                     })
                 }));
             } else {
-                highlights.extend(references.iter().filter_map(|&index| {
+                highlights.extend(references.entries.iter().filter_map(|&index| {
                     let reference = &self.references[index];
                     reference.targets.iter().any(|target| targets.contains(target)).then_some(
                         DocumentHighlight {
@@ -1127,7 +1055,10 @@ impl SymbolTables {
         {
             return filtered_completion_items(items, context.prefix);
         }
-        if let Some(items) = self.builtin_member_completion_items(context.member_receiver) {
+        if let Some(items) = context
+            .member_receiver
+            .and_then(|receiver| self.builtin_member_completions.get(receiver))
+        {
             return filtered_completion_items(items, context.prefix);
         }
 
@@ -1208,16 +1139,6 @@ impl SymbolTables {
             .collect()
     }
 
-    pub(crate) fn resolve_completion_item(
-        &self,
-        mut item: CompletionItem,
-        data: CompletionItemData,
-        markdown_documentation: bool,
-    ) -> CompletionItem {
-        self.resolve_completion_item_documentation(&mut item, &data, markdown_documentation);
-        item
-    }
-
     pub(crate) fn resolve_completion_items(
         &self,
         items: &mut [CompletionItem],
@@ -1225,11 +1146,11 @@ impl SymbolTables {
     ) {
         for item in items {
             let Some(data) = CompletionItemData::from_item(item) else { continue };
-            self.resolve_completion_item_documentation(item, &data, markdown_documentation);
+            self.resolve_completion_item(item, &data, markdown_documentation);
         }
     }
 
-    fn resolve_completion_item_documentation(
+    pub(crate) fn resolve_completion_item(
         &self,
         item: &mut CompletionItem,
         data: &CompletionItemData,
@@ -1291,7 +1212,7 @@ impl SymbolTables {
         cache: &mut MemberCompletionCache<'gcx>,
     ) {
         let mut types = IndexVec::from_vec(vec![None; self.declarations.len()]);
-        for (&SymbolKey::Item(item), &symbol) in &self.symbols_by_key {
+        for (&item, &symbol) in &self.symbols_by_key {
             types[symbol] = Some(gcx.type_of_res(Res::Item(item)));
         }
         let mut members = FxHashMap::default();
@@ -1349,16 +1270,9 @@ impl SymbolTables {
         }))
     }
 
-    fn push_declaration(
-        &mut self,
-        key: Option<SymbolKey>,
-        declaration: DeclarationSymbol,
-    ) -> SymbolId {
+    fn push_declaration(&mut self, declaration: DeclarationSymbol) -> SymbolId {
         let id = declaration.id;
         self.files.entry(declaration.location.uri.clone()).or_default().push(id);
-        if let Some(key) = key {
-            self.symbols_by_key.insert(key, id);
-        }
         let pushed_id = self.declarations.push(declaration);
         debug_assert_eq!(id, pushed_id);
         id
@@ -1404,19 +1318,16 @@ impl SymbolTables {
         locations: &proto::LocationConverter,
         cache: &mut MemberCompletionCache<'gcx>,
     ) {
-        let mut collector = MemberCompletionCollector {
-            tables: self,
-            locations,
-            gcx,
-            cache,
-            source: None,
-            contract: None,
-        };
-        for source_id in gcx.hir.source_ids() {
-            collector.source = Some(source_id);
-            collector.contract = None;
-            let _ = collector.visit_nested_source(source_id);
-            collector.source = None;
+        for source in gcx.hir.source_ids() {
+            let mut collector = MemberCompletionCollector {
+                tables: self,
+                locations,
+                gcx,
+                cache,
+                source,
+                contract: None,
+            };
+            let _ = collector.visit_nested_source(source);
         }
     }
 
@@ -1427,7 +1338,7 @@ impl SymbolTables {
     }
 
     fn add_scope_declaration(&mut self, scope: ScopeId, item_id: ItemId) {
-        if let Some(&symbol_id) = self.symbols_by_key.get(&SymbolKey::Item(item_id)) {
+        if let Some(&symbol_id) = self.symbols_by_key.get(&item_id) {
             self.scopes[scope].declarations.push(ScopedDeclaration {
                 symbol_id,
                 name: None,
@@ -1443,7 +1354,7 @@ impl SymbolTables {
         item_id: ItemId,
         span: Span,
     ) {
-        let Some(&symbol_id) = self.symbols_by_key.get(&SymbolKey::Item(item_id)) else { return };
+        let Some(&symbol_id) = self.symbols_by_key.get(&item_id) else { return };
         let available_from = locations
             .location(span)
             .map(|location| location.range.end)
@@ -1468,23 +1379,20 @@ impl SymbolTables {
                 && let Some(name_location) = locations.location(alias.span)
                 && let Ok(signature) = gcx.sess.source_map().span_to_snippet(span)
             {
-                let symbol_id = self.push_declaration(
-                    None,
-                    DeclarationSymbol {
-                        id: self.declarations.next_idx(),
-                        name: alias.to_string(),
-                        kind: SymbolKind::NAMESPACE,
-                        location,
-                        name_range: name_location.range,
-                        parent: None,
-                        rename_is_local: false,
-                        has_definition: true,
-                        has_getter_completion: false,
-                        documentation: Some(
-                            crate::documentation::ResolvedDocumentation::signature(signature),
-                        ),
-                    },
-                );
+                let symbol_id = self.push_declaration(DeclarationSymbol {
+                    id: self.declarations.next_idx(),
+                    name: alias.to_string(),
+                    kind: SymbolKind::NAMESPACE,
+                    location,
+                    name_range: name_location.range,
+                    parent: None,
+                    rename_is_local: false,
+                    has_definition: true,
+                    has_getter_completion: false,
+                    documentation: Some(crate::documentation::ResolvedDocumentation::signature(
+                        signature,
+                    )),
+                });
                 namespace_symbols.insert(id, symbol_id);
             }
         }
@@ -1537,26 +1445,23 @@ impl SymbolTables {
             &self.declarations,
             &mut self.override_families,
         );
-        let mut collector = ReferenceCollector {
-            tables: self,
-            locations,
-            gcx,
-            item_symbols,
-            bindings: &bindings,
-            mapping_bindings: &mapping_bindings,
-            namespace_symbols: &namespace_symbols,
-            source: None,
-            contract: None,
-            in_yul: false,
-        };
-        for source_id in gcx.hir.source_ids() {
-            collector.source = Some(source_id);
-            collector.contract = None;
-            for using in gcx.hir.source(source_id).usings {
+        for source in gcx.hir.source_ids() {
+            let mut collector = ReferenceCollector {
+                tables: self,
+                locations,
+                gcx,
+                item_symbols,
+                bindings: &bindings,
+                mapping_bindings: &mapping_bindings,
+                namespace_symbols: &namespace_symbols,
+                source,
+                contract: None,
+                in_yul: false,
+            };
+            for using in gcx.hir.source(source).usings {
                 collector.visit_using_directive(using);
             }
-            let _ = collector.visit_nested_source(source_id);
-            collector.source = None;
+            let _ = collector.visit_nested_source(source);
         }
     }
 
@@ -1611,21 +1516,18 @@ impl SymbolTables {
         name_range: Range,
         parent: Option<SymbolId>,
     ) -> SymbolId {
-        let pushed_id = self.push_declaration(
-            None,
-            DeclarationSymbol {
-                id: self.declarations.next_idx(),
-                name: name.into(),
-                kind,
-                location: Location { uri: uri.clone(), range: location },
-                name_range,
-                parent,
-                rename_is_local: false,
-                has_definition: true,
-                has_getter_completion: false,
-                documentation: None,
-            },
-        );
+        let pushed_id = self.push_declaration(DeclarationSymbol {
+            id: self.declarations.next_idx(),
+            name: name.into(),
+            kind,
+            location: Location { uri: uri.clone(), range: location },
+            name_range,
+            parent,
+            rename_is_local: false,
+            has_definition: true,
+            has_getter_completion: false,
+            documentation: None,
+        });
         self.rebuild_indexes();
         pushed_id
     }
@@ -1933,10 +1835,6 @@ impl SymbolTables {
         Some(&self.member_completions[index].items)
     }
 
-    fn builtin_member_completion_items(&self, receiver: Option<&str>) -> Option<&[CompletionItem]> {
-        self.builtin_member_completions.get(receiver?).map(Vec::as_slice)
-    }
-
     fn receiver_member_completion_items(
         &self,
         uri: &Url,
@@ -2025,7 +1923,8 @@ impl SymbolTables {
     }
 
     fn symbol_id_for_member_completion(&self, member: Member<'_>) -> Option<SymbolId> {
-        member.res.and_then(|res| self.symbol_id_for_res(res))
+        let Res::Item(item_id) = member.res? else { return None };
+        self.symbols_by_key.get(&item_id).copied()
     }
 
     fn symbol_id_for_getter_member_completion(
@@ -2035,14 +1934,7 @@ impl SymbolTables {
     ) -> Option<SymbolId> {
         let Res::Item(ItemId::Function(function_id)) = member.res? else { return None };
         let variable_id = gcx.hir.function(function_id).gettee?;
-        self.symbols_by_key.get(&SymbolKey::Item(ItemId::Variable(variable_id))).copied()
-    }
-
-    fn symbol_id_for_res(&self, res: Res) -> Option<SymbolId> {
-        match res {
-            Res::Item(item_id) => self.symbols_by_key.get(&SymbolKey::Item(item_id)).copied(),
-            Res::Namespace(_) | Res::Builtin(_) | Res::Err(_) => None,
-        }
+        self.symbols_by_key.get(&ItemId::Variable(variable_id)).copied()
     }
 
     fn rebuild_indexes(&mut self) {
@@ -2109,7 +2001,11 @@ impl SymbolTables {
 
         self.file_member_completions.clear();
         for (index, completion) in self.member_completions.iter().enumerate() {
-            self.file_member_completions.entry(completion.uri.clone()).or_default().push(index);
+            self.file_member_completions
+                .entry(completion.uri.clone())
+                .or_default()
+                .entries
+                .push(index);
         }
         for completions in self.file_member_completions.values_mut() {
             completions.rebuild(|index| self.member_completions[index].range);
@@ -2118,7 +2014,11 @@ impl SymbolTables {
         self.file_references.clear();
         self.symbol_references.clear();
         for (index, reference) in self.references.iter().enumerate() {
-            self.file_references.entry(reference.location.uri.clone()).or_default().push(index);
+            self.file_references
+                .entry(reference.location.uri.clone())
+                .or_default()
+                .entries
+                .push(index);
             for &target in &reference.targets {
                 self.symbol_references.entry(target).or_default().push(index);
             }
@@ -2132,10 +2032,6 @@ impl SymbolTables {
         self.code_lens.rebuild(&self.declarations, self.rename.conflicting_contents());
         self.call_hierarchy.rebuild();
     }
-}
-
-fn remap_scope_id(scope_id: ScopeId, offset: usize) -> ScopeId {
-    ScopeId::from_usize(scope_id.index() + offset)
 }
 
 struct YulVariableCollector<'gcx> {
@@ -2444,7 +2340,7 @@ struct MemberCompletionCollector<'a, 'gcx> {
     tables: &'a mut SymbolTables,
     locations: &'a proto::LocationConverter,
     gcx: Gcx<'gcx>,
-    source: Option<hir::SourceId>,
+    source: hir::SourceId,
     contract: Option<hir::ContractId>,
 }
 
@@ -2454,7 +2350,6 @@ impl<'gcx> MemberCompletionCollector<'_, 'gcx> {
         receiver: &'gcx hir::Expr<'gcx>,
         member: solar_interface::Ident,
     ) {
-        let Some(source) = self.source else { return };
         let Some(receiver_ty) = self.gcx.type_of_expr(receiver.id) else { return };
         if receiver_ty.references_error() {
             return;
@@ -2464,7 +2359,7 @@ impl<'gcx> MemberCompletionCollector<'_, 'gcx> {
         let items = self.tables.member_completion_items_for_ty(
             self.gcx,
             receiver_ty,
-            source,
+            self.source,
             self.contract,
             self.cache,
         );
@@ -2508,7 +2403,7 @@ struct ReferenceCollector<'a, 'gcx> {
     bindings: &'a ImportBindings,
     mapping_bindings: &'a MappingBindings,
     namespace_symbols: &'a FxHashMap<(hir::SourceId, hir::SourceId, Symbol), SymbolId>,
-    source: Option<hir::SourceId>,
+    source: hir::SourceId,
     contract: Option<hir::ContractId>,
     in_yul: bool,
 }
@@ -2524,27 +2419,24 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         targets: ReferenceTargets,
         kind: DocumentHighlightKind,
     ) {
-        if let Some(source) = self.source {
-            if self.in_yul {
-                self.tables.rename.mark_yul_symbols(&targets);
-            }
-            self.tables.rename.push_symbol_reference(
-                self.gcx,
-                self.locations,
-                RenameReferenceContext {
-                    bindings: self.bindings,
-                    source,
-                    contract: self.contract,
-                    item_symbols: self.item_symbols,
-                    declarations: &self.tables.declarations,
-                },
-                span,
-                &targets,
-            );
+        if self.in_yul {
+            self.tables.rename.mark_yul_symbols(&targets);
         }
+        self.tables.rename.push_symbol_reference(
+            self.gcx,
+            self.locations,
+            RenameReferenceContext {
+                bindings: self.bindings,
+                source: self.source,
+                contract: self.contract,
+                item_symbols: self.item_symbols,
+                declarations: &self.tables.declarations,
+            },
+            span,
+            &targets,
+        );
         if !self.in_yul
-            && let Some(source) = self.source
-            && let Some(path) = SourcePath::resolve(self.gcx, span, source, self.contract)
+            && let Some(path) = SourcePath::resolve(self.gcx, span, self.source, self.contract)
         {
             self.tables.push_reference_entry(self.locations, path.final_ident.span, targets, kind);
             for qualifier in path.qualifiers {
@@ -2609,12 +2501,11 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
     }
 
     fn push_namespace_references(&mut self, span: Span, resolutions: &[Res]) {
-        let Some(source) = self.source else { return };
         self.tables.rename.push_namespace_reference(
             self.gcx,
             self.locations,
             self.bindings,
-            source,
+            self.source,
             span,
             resolutions.iter().filter_map(|res| match res {
                 Res::Namespace(source) => Some(*source),
@@ -2661,8 +2552,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
 
     fn push_type_reference(&mut self, ty: &hir::Type<'gcx>) {
         if let TypeKind::Custom(item_id) = ty.kind
-            && let Some(symbol_id) =
-                self.tables.symbols_by_key.get(&SymbolKey::Item(item_id)).copied()
+            && let Some(&symbol_id) = self.tables.symbols_by_key.get(&item_id)
         {
             self.push_reference(ty.span, ReferenceTargets::from_buf([symbol_id]));
         }
@@ -2686,9 +2576,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
             ) {
                 continue;
             }
-            if let Some(symbol_id) =
-                self.tables.symbols_by_key.get(&SymbolKey::Item(param.into())).copied()
-            {
+            if let Some(&symbol_id) = self.tables.symbols_by_key.get(&param.into()) {
                 self.push_reference(arg.name.span, ReferenceTargets::from_buf([symbol_id]));
             }
         }
@@ -2698,22 +2586,13 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         if let hir::ExprKind::New(ty) = &callee.kind
             && let TyKind::Contract(id) = self.gcx.type_of_hir_ty(ty).kind
         {
-            return self.item_param_source(id.into());
+            return item_param_source(self.gcx, id.into());
         }
 
         self.gcx
             .type_of_expr(callee.id)
             .and_then(|ty| self.gcx.callable_signature_of_ty(ty))
             .and_then(|signature| signature.param_source)
-    }
-
-    fn item_param_source(&self, item: ItemId) -> Option<CallableParamSource> {
-        let id = match item {
-            ItemId::Function(id) => id,
-            ItemId::Contract(id) => self.gcx.hir.contract(id).ctor?,
-            _ => return None,
-        };
-        Some(CallableParamSource::Function { id, skips_receiver: false })
     }
 
     fn call_param_ids(&self, source: CallableParamSource) -> &'gcx [VariableId] {
@@ -2776,15 +2655,13 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
         &mut self,
         modifier: &'gcx hir::Modifier<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
-        if let Some(symbol_id) =
-            self.tables.symbols_by_key.get(&SymbolKey::Item(modifier.id)).copied()
-        {
+        if let Some(&symbol_id) = self.tables.symbols_by_key.get(&modifier.id) {
             self.push_reference(
                 modifier.span.with_hi(modifier.args.span.lo()),
                 ReferenceTargets::from_buf([symbol_id]),
             );
         }
-        if let Some(source) = self.item_param_source(modifier.id) {
+        if let Some(source) = item_param_source(self.gcx, modifier.id) {
             self.push_named_arg_references(source, &modifier.args);
         }
         self.visit_call_args(&modifier.args)
@@ -2875,10 +2752,6 @@ fn sort_and_dedup_locations(locations: &mut Vec<Location>) {
     locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
 }
 
-fn format_reference_title(count: usize) -> String {
-    format!("{count} reference{}", if count == 1 { "" } else { "s" })
-}
-
 fn format_selector_title(selector: [u8; 4]) -> String {
     let mut title = String::from("0x");
     for byte in selector {
@@ -2940,31 +2813,21 @@ fn symbol_supports_completion_kind(symbol: &DeclarationSymbol, kind: CompletionI
 }
 
 fn completion_item_kind(kind: SymbolKind) -> CompletionItemKind {
+    // Covers the kinds produced by `item_symbol_kind` and namespace imports.
     match kind {
-        SymbolKind::FILE => CompletionItemKind::FILE,
-        SymbolKind::MODULE | SymbolKind::NAMESPACE | SymbolKind::PACKAGE => {
-            CompletionItemKind::MODULE
-        }
+        SymbolKind::MODULE | SymbolKind::NAMESPACE => CompletionItemKind::MODULE,
         SymbolKind::CLASS => CompletionItemKind::CLASS,
         SymbolKind::METHOD => CompletionItemKind::METHOD,
         SymbolKind::PROPERTY => CompletionItemKind::PROPERTY,
-        SymbolKind::FIELD => CompletionItemKind::FIELD,
         SymbolKind::CONSTRUCTOR => CompletionItemKind::CONSTRUCTOR,
         SymbolKind::ENUM => CompletionItemKind::ENUM,
         SymbolKind::INTERFACE => CompletionItemKind::INTERFACE,
         SymbolKind::FUNCTION => CompletionItemKind::FUNCTION,
         SymbolKind::VARIABLE => CompletionItemKind::VARIABLE,
         SymbolKind::CONSTANT => CompletionItemKind::CONSTANT,
-        SymbolKind::NUMBER
-        | SymbolKind::BOOLEAN
-        | SymbolKind::ARRAY
-        | SymbolKind::OBJECT
-        | SymbolKind::KEY
-        | SymbolKind::NULL => CompletionItemKind::VALUE,
         SymbolKind::ENUM_MEMBER => CompletionItemKind::ENUM_MEMBER,
         SymbolKind::STRUCT => CompletionItemKind::STRUCT,
         SymbolKind::EVENT => CompletionItemKind::EVENT,
-        SymbolKind::OPERATOR => CompletionItemKind::OPERATOR,
         SymbolKind::TYPE_PARAMETER => CompletionItemKind::TYPE_PARAMETER,
         _ => CompletionItemKind::TEXT,
     }
@@ -3089,13 +2952,6 @@ fn variable_symbol_kind(variable: &hir::Variable<'_>) -> SymbolKind {
         | VarKind::FunctionTyReturn
         | VarKind::Statement
         | VarKind::TryCatch => SymbolKind::VARIABLE,
-    }
-}
-
-fn item_has_definition(gcx: Gcx<'_>, item_id: ItemId) -> bool {
-    match item_id {
-        ItemId::Function(id) => gcx.hir.function(id).body.is_some(),
-        _ => true,
     }
 }
 

@@ -18,21 +18,18 @@ pub(crate) fn did_open_text_document(
     params: DidOpenTextDocumentParams,
 ) -> NotifyResult {
     if let Some(path) = proto::vfs_path(&params.text_document.uri) {
-        let disk_path = path.as_path().map(ToOwned::to_owned);
+        let disk_path = path.as_path().to_path_buf();
         let already_exists = state.vfs.read().exists(&path);
         if already_exists {
             error!(?path, "duplicate DidOpenTextDocument");
         }
 
-        let mut vfs = state.vfs.write();
-        vfs.set_file_contents_with_version(
+        state.vfs.write().set_file_contents_with_version(
             path,
             Some(Rope::from(params.text_document.text)),
             Some(params.text_document.version),
         );
-        vfs.mark_clean();
-        drop(vfs);
-        state.recompute_after_opening_source(disk_path.into_iter().collect());
+        state.recompute_after_opening_source(vec![disk_path]);
     }
 
     ControlFlow::Continue(())
@@ -43,7 +40,7 @@ pub(crate) fn did_change_text_document(
     params: DidChangeTextDocumentParams,
 ) -> NotifyResult {
     if let Some(path) = proto::vfs_path(&params.text_document.uri) {
-        let disk_path = path.as_path().map(ToOwned::to_owned);
+        let disk_path = path.as_path().to_path_buf();
         let version = params.text_document.version;
         let new_contents = {
             let vfs = state.vfs.read();
@@ -78,7 +75,7 @@ pub(crate) fn did_change_text_document(
             ),
         };
         if changed {
-            state.recompute_after_source_changes(disk_path.into_iter().collect());
+            state.recompute_after_source_changes(vec![disk_path]);
         } else {
             state.update_analyzed_document_version(params.text_document.uri, version);
             state.reindex_if_invalidated();
@@ -97,9 +94,9 @@ pub(crate) fn did_close_text_document(
             error!(?path, "orphan DidCloseTextDocument");
         }
 
-        let disk_path = path.as_path().map(ToOwned::to_owned);
+        let disk_path = path.as_path().to_path_buf();
         state.vfs.write().set_file_contents(path, None);
-        state.recompute_with_disk_files(disk_path.into_iter().collect());
+        state.recompute_with_disk_files(vec![disk_path]);
     }
 
     ControlFlow::Continue(())
@@ -168,9 +165,7 @@ pub(crate) fn did_change_watched_files(
         let Some(vfs_path) = proto::vfs_path(&event.uri) else {
             continue;
         };
-        let Some(path) = vfs_path.as_path().map(ToOwned::to_owned) else {
-            continue;
-        };
+        let path = vfs_path.as_path().to_path_buf();
         let topology_changed =
             matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED);
 

@@ -1,15 +1,15 @@
 //! Syntax-based folding-range construction.
 
+use crate::utils::{checked_span_range, parse_recovering};
 use crop::Rope;
 use lsp_types::{FoldingRange, FoldingRangeKind, Position};
-use solar_config::CompileOpts;
 use solar_interface::{
-    Session, Span,
+    Span,
     data_structures::{Never, map::FxHashMap},
-    source_map::{FileName, SourceFile},
+    source_map::SourceFile,
 };
 use solar_parse::{
-    Cursor, Parser,
+    Cursor,
     ast::{self, token::Delimiter, visit::Visit},
     lexer::token::RawTokenKind,
 };
@@ -69,14 +69,7 @@ fn collect_comment_ranges(source: &str) -> Vec<Candidate> {
         let end = start + token.len as usize;
         match token.kind {
             RawTokenKind::LineComment { .. } => {
-                if let Some(group) = &mut line_group
-                    && has_one_line_break(&source[group.end..start])
-                {
-                    group.end = end;
-                } else {
-                    flush_line_comment_group(&mut ranges, &mut line_group);
-                    line_group = Some(start..end);
-                }
+                push_line_comment(source, &mut ranges, &mut line_group, start..end);
             }
             RawTokenKind::BlockComment { .. } => {
                 flush_line_comment_group(&mut ranges, &mut line_group);
@@ -111,14 +104,7 @@ fn collect_lexical_info(source: &str, include_fallback: bool) -> LexicalInfo {
         }
         match token.kind {
             RawTokenKind::LineComment { .. } => {
-                if let Some(group) = &mut line_group
-                    && has_one_line_break(&source[group.end..start])
-                {
-                    group.end = end;
-                } else {
-                    flush_line_comment_group(&mut ranges, &mut line_group);
-                    line_group = Some(start..end);
-                }
+                push_line_comment(source, &mut ranges, &mut line_group, start..end);
             }
             RawTokenKind::Whitespace => {}
             RawTokenKind::BlockComment { .. } => {
@@ -152,6 +138,23 @@ fn collect_lexical_info(source: &str, include_fallback: bool) -> LexicalInfo {
         .sort_unstable_by_key(|candidate| (candidate.range.start, Reverse(candidate.range.end)));
     fallback_ranges.dedup_by_key(|candidate| candidate.range.start);
     LexicalInfo { ranges, fallback_ranges, unclosed_braces }
+}
+
+/// Extends the current line-comment group when only one line break separates the comments.
+fn push_line_comment(
+    source: &str,
+    ranges: &mut Vec<Candidate>,
+    line_group: &mut Option<ByteRange<usize>>,
+    comment: ByteRange<usize>,
+) {
+    if let Some(group) = line_group
+        && has_one_line_break(&source[group.end..comment.start])
+    {
+        group.end = comment.end;
+    } else {
+        flush_line_comment_group(ranges, line_group);
+        *line_group = Some(comment);
+    }
 }
 
 fn flush_line_comment_group(
@@ -431,30 +434,6 @@ fn has_one_line_break(text: &str) -> bool {
     line_breaks == 1
 }
 
-/// Parses a standalone source with incomplete-input recovery and silenced diagnostics.
-///
-/// Returns `None` only when the source file cannot be created; `f` receives `None` when parsing
-/// fails.
-pub(crate) fn parse_recovering<T>(
-    name: &str,
-    source: Arc<String>,
-    f: impl for<'ast> FnOnce(&Session, &Arc<SourceFile>, Option<&'ast ast::SourceUnit<'ast>>) -> T,
-) -> Option<T> {
-    let mut opts = CompileOpts::default();
-    opts.unstable.recover_incomplete_input = true;
-    let sess = Session::builder().opts(opts).with_silent_emitter(None).single_threaded().build();
-
-    sess.enter_sequential(|| {
-        let arena = ast::Arena::new();
-        let file =
-            sess.source_map().new_source_file_shared(FileName::Custom(name.into()), source).ok()?;
-        let mut parser = Parser::from_source_file(&sess, &arena, &file);
-        let source_unit = parser.parse_file().map_err(|error| error.emit()).ok();
-        drop(parser);
-        Some(f(&sess, &file, source_unit.as_ref()))
-    })
-}
-
 fn collect_ranges(source: Arc<String>) -> Option<(Arc<SourceFile>, Vec<Candidate>)> {
     parse_recovering("lsp-folding-range.sol", source, |sess, file, source_unit| {
         let has_errors = sess.dcx.has_errors().is_err();
@@ -563,18 +542,7 @@ struct FlatPositionIndex<'a> {
 
 impl<'a> FlatPositionIndex<'a> {
     fn new(source: &'a str, file: Option<&SourceFile>) -> Self {
-        let mut line_starts = Vec::new();
-        line_starts.push(0);
-        let mut previous_cr_end = None;
-        for offset in memchr::memchr2_iter(b'\r', b'\n', source.as_bytes()) {
-            let is_cr = source.as_bytes()[offset] == b'\r';
-            if !is_cr && previous_cr_end == Some(offset) {
-                *line_starts.last_mut().unwrap() = offset + 1;
-            } else {
-                line_starts.push(offset + 1);
-            }
-            previous_cr_end = is_cr.then_some(offset + 1);
-        }
+        let line_starts = crate::proto::line_starts([source], 1);
         let mut multibyte_offsets = Vec::new();
         let mut extra_bytes = 0;
         if let Some(file) = file {
@@ -795,22 +763,6 @@ impl<'a> AstRangeCollector<'a> {
     }
 }
 
-/// Returns the byte range of a non-empty span inside `file`, or `None` for foreign, out-of-bounds,
-/// or non-character-boundary spans.
-pub(crate) fn checked_span_range(file: &SourceFile, span: Span) -> Option<ByteRange<usize>> {
-    if span.is_dummy()
-        || span.lo() >= span.hi()
-        || !file.contains(span.lo())
-        || !file.contains(span.hi())
-    {
-        return None;
-    }
-    let range =
-        file.relative_position(span.lo()).to_usize()..file.relative_position(span.hi()).to_usize();
-    (file.src.is_char_boundary(range.start) && file.src.is_char_boundary(range.end))
-        .then_some(range)
-}
-
 impl<'ast> Visit<'ast> for AstRangeCollector<'_> {
     type BreakValue = Never;
 
@@ -879,7 +831,7 @@ impl<'ast> Visit<'ast> for AstRangeCollector<'_> {
 mod position_tests {
     use super::*;
     use crate::proto::LspPositionIndex;
-    use solar_interface::{BytePos, SourceMap};
+    use solar_interface::{BytePos, SourceMap, source_map::FileName};
 
     #[test]
     fn sparse_comments_match_full_lexing() {

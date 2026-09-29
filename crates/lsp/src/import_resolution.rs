@@ -1,16 +1,14 @@
 use crate::{
     document_links::import_path_from_bytes,
+    utils::{parse_recovering, span_range},
     workspace::{Workspace, WorkspacePathIndex},
 };
 use normalize_path::NormalizePath;
 use solar_config::CompileOpts;
-use solar_interface::{
-    Session,
-    source_map::{FileName, FileResolver, SourceMap},
-};
+use solar_interface::source_map::{FileResolver, SourceMap};
 use solar_parse::{
-    Cursor, Parser,
-    ast::{self, StrKind},
+    Cursor,
+    ast::StrKind,
     lexer::{
         token::{RawLiteralKind, RawTokenKind},
         unescape::try_parse_string_literal,
@@ -22,6 +20,7 @@ use std::{
     fs,
     ops::Range,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 const MAX_IMPORT_CANDIDATES: usize = 256;
@@ -91,29 +90,11 @@ fn may_complete_string(source: &str, cursor: usize) -> bool {
 }
 
 fn parse_import_path(source: &str, cursor: usize) -> Option<ImportPathAt> {
-    let mut opts = CompileOpts::default();
-    opts.unstable.recover_incomplete_input = true;
-    let sess = Session::builder().opts(opts).with_silent_emitter(None).single_threaded().build();
-
-    sess.enter_sequential(|| {
-        let arena = ast::Arena::new();
-        let Ok(mut parser) = Parser::from_source_code(
-            &sess,
-            &arena,
-            FileName::Custom("lsp-import-resolution.sol".into()),
-            source,
-        ) else {
-            return None;
-        };
-        let source_unit = parser.parse_file().map_err(|error| error.emit()).ok()?;
-        drop(parser);
-
-        let files = sess.source_map().files();
-        let file = files.first()?;
-        let (start, end, raw_path) = source_unit.imports().find_map(|(_, import)| {
-            let start = file.relative_position(import.path.span.lo()).to_usize();
-            let end = file.relative_position(import.path.span.hi()).to_usize();
-            (start..end).contains(&cursor).then(|| (start, end, import.path.value.as_str()))
+    let parsed = Arc::new(source.to_owned());
+    parse_recovering("lsp-import-resolution.sol", parsed, |_, file, source_unit| {
+        let (start, end, raw_path) = source_unit?.imports().find_map(|(_, import)| {
+            let range = span_range(file, import.path.span);
+            range.contains(&cursor).then(|| (range.start, range.end, import.path.value.as_str()))
         })?;
         let delimiter = *source.as_bytes().get(start)?;
         let content_start = start.checked_add(1)?;
@@ -127,6 +108,7 @@ fn parse_import_path(source: &str, cursor: usize) -> Option<ImportPathAt> {
         source.get(content_range.clone())?;
         Some(ImportPathAt { raw_path: raw_path.to_owned(), content_range, delimiter })
     })
+    .flatten()
 }
 
 fn recover_unterminated_import_path(

@@ -69,18 +69,16 @@ impl SignatureHelpIndex {
         let mut index = Self::default();
         let mut renderer = SignatureRenderer { gcx, signatures: FxHashMap::default() };
         index.build_callable_catalog(&mut renderer, locations);
-        let mut collector = CallCollector {
-            index: &mut index,
-            renderer: &mut renderer,
-            locations,
-            gcx,
-            source: None,
-            contract: None,
-        };
-        for source_id in gcx.hir.source_ids() {
-            collector.source = Some(source_id);
-            collector.contract = None;
-            let _ = collector.visit_nested_source(source_id);
+        for source in gcx.hir.source_ids() {
+            let mut collector = CallCollector {
+                index: &mut index,
+                renderer: &mut renderer,
+                locations,
+                gcx,
+                source,
+                contract: None,
+            };
+            let _ = collector.visit_nested_source(source);
         }
         for calls in index.calls.values_mut() {
             calls.sort_by_key(|call| proto::range_size_key(call.range));
@@ -345,7 +343,7 @@ struct CallCollector<'a, 'gcx> {
     index: &'a mut SignatureHelpIndex,
     locations: &'a proto::LocationConverter,
     gcx: Gcx<'gcx>,
-    source: Option<hir::SourceId>,
+    source: hir::SourceId,
     contract: Option<hir::ContractId>,
 }
 
@@ -388,12 +386,10 @@ impl<'gcx> CallCollector<'_, 'gcx> {
                 }
             }
             hir::ExprKind::Member(receiver, name) => {
-                if let Some(source) = self.source
-                    && let Some(receiver_ty) = self.gcx.type_of_expr(receiver.id)
-                {
+                if let Some(receiver_ty) = self.gcx.type_of_expr(receiver.id) {
                     for member in self
                         .gcx
-                        .members_of(receiver_ty, source, self.contract)
+                        .members_of(receiver_ty, self.source, self.contract)
                         .filter(|member| member.name == name.name)
                     {
                         let Some(mut callable) = self
@@ -523,12 +519,7 @@ impl<'gcx> SignatureRenderer<'gcx> {
         let callable = gcx.callable_signature_of_ty(gcx.type_of_res(res))?;
         let fallback_name = match res {
             Res::Builtin(builtin) => Some(Cow::Borrowed(builtin.name().as_str_in(gcx.sess))),
-            Res::Item(item_id) => gcx
-                .hir
-                .item(item_id)
-                .name()
-                .map(|name| Cow::Borrowed(name.name.as_str_in(gcx.sess))),
-            Res::Namespace(_) | Res::Err(_) => None,
+            _ => None,
         };
         self.render_callable(callable, Some(res), fallback_name)
     }

@@ -1,6 +1,13 @@
 use crate::proto;
 use crop::Rope;
-use std::mem;
+use solar_config::CompileOpts;
+use solar_interface::{
+    Session, Span,
+    source_map::{FileName, SourceFile},
+};
+use solar_parse::{Parser, ast};
+use solar_sema::{Gcx, hir::ItemId, ty::CallableParamSource};
+use std::{mem, ops::Range as ByteRange, sync::Arc};
 
 /// Applies sequential changes atomically, rejecting malformed ranges without changing the input.
 pub(crate) fn apply_document_changes(
@@ -89,6 +96,60 @@ pub(crate) fn rope_to_string(rope: &Rope) -> String {
         source.push_str(chunk);
     }
     source
+}
+
+/// Parses a standalone source with incomplete-input recovery and silenced diagnostics.
+///
+/// Returns `None` only when the source file cannot be created; `f` receives `None` when parsing
+/// fails.
+pub(crate) fn parse_recovering<T>(
+    name: &str,
+    source: Arc<String>,
+    f: impl for<'ast> FnOnce(&Session, &Arc<SourceFile>, Option<&'ast ast::SourceUnit<'ast>>) -> T,
+) -> Option<T> {
+    let mut opts = CompileOpts::default();
+    opts.unstable.recover_incomplete_input = true;
+    let sess = Session::builder().opts(opts).with_silent_emitter(None).single_threaded().build();
+
+    sess.enter_sequential(|| {
+        let arena = ast::Arena::new();
+        let file =
+            sess.source_map().new_source_file_shared(FileName::Custom(name.into()), source).ok()?;
+        let mut parser = Parser::from_source_file(&sess, &arena, &file);
+        let source_unit = parser.parse_file().map_err(|error| error.emit()).ok();
+        drop(parser);
+        Some(f(&sess, &file, source_unit.as_ref()))
+    })
+}
+
+/// Returns the parameter source of a modifier invocation or base constructor call.
+pub(crate) fn item_param_source(gcx: Gcx<'_>, item: ItemId) -> Option<CallableParamSource> {
+    let id = match item {
+        ItemId::Function(id) => id,
+        ItemId::Contract(id) => gcx.hir.contract(id).ctor?,
+        _ => return None,
+    };
+    Some(CallableParamSource::Function { id, skips_receiver: false })
+}
+
+/// Returns the byte range of `span` relative to `file`.
+pub(crate) fn span_range(file: &SourceFile, span: Span) -> ByteRange<usize> {
+    file.relative_position(span.lo()).to_usize()..file.relative_position(span.hi()).to_usize()
+}
+
+/// Returns the byte range of a non-empty span inside `file`, or `None` for foreign, out-of-bounds,
+/// or non-character-boundary spans.
+pub(crate) fn checked_span_range(file: &SourceFile, span: Span) -> Option<ByteRange<usize>> {
+    if span.is_dummy()
+        || span.lo() >= span.hi()
+        || !file.contains(span.lo())
+        || !file.contains(span.hi())
+    {
+        return None;
+    }
+    let range = span_range(file, span);
+    (file.src.is_char_boundary(range.start) && file.src.is_char_boundary(range.end))
+        .then_some(range)
 }
 
 #[cfg(test)]

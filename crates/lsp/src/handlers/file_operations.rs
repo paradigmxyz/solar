@@ -1,4 +1,4 @@
-use super::workspace_edit::validated_import_workspace_edit;
+use super::{reqs::task_error, workspace_edit::validated_import_workspace_edit};
 use crate::{
     NotifyResult,
     config::Config,
@@ -71,7 +71,7 @@ where
 {
     let latest_analysis = state.latest_analysis_with_config();
     let vfs = state.vfs.clone();
-    let document_changes = state.config.supports_workspace_edit_document_changes();
+    let document_changes = state.config.client.workspace_edit_document_changes;
     async move {
         let (symbol_tables, config) = latest_analysis.await?;
         let plan = plan(&symbol_tables.load());
@@ -82,7 +82,7 @@ where
             validated_import_workspace_edit(plan, vfs, document_changes)
         })
         .await
-        .map_err(file_operation_task_failed)?
+        .map_err(task_error("file-operation"))?
         .map(Some)
     }
 }
@@ -91,7 +91,7 @@ fn watched_paths_under(state: &GlobalState, roots: &[PathBuf]) -> Vec<PathBuf> {
     let mut paths = state.config.file_operation_paths_under(roots);
     paths.extend(state.symbol_tables.load().file_operation_paths_under(roots));
     paths.extend(state.vfs.read().iter().filter_map(|(path, _)| {
-        let path = path.as_path()?;
+        let path = path.as_path();
         roots.iter().any(|root| path.starts_with(root)).then(|| path.to_path_buf())
     }));
     paths.extend(roots.iter().filter(|path| is_watched_path(path)).cloned());
@@ -266,11 +266,9 @@ pub(super) fn reconcile_watched_file_events(
 ) -> Vec<FileEvent> {
     let mut changes = Vec::with_capacity(events.len());
     for event in events {
-        let action = proto::vfs_path(&event.uri)
-            .and_then(|path| path.as_path().map(ToOwned::to_owned))
-            .map_or(WatchedFileAction::Process, |path| {
-                state.file_operations.observe_watcher_event(&path, event.typ)
-            });
+        let action = proto::vfs_path(&event.uri).map_or(WatchedFileAction::Process, |path| {
+            state.file_operations.observe_watcher_event(path.as_path(), event.typ)
+        });
         match action {
             WatchedFileAction::ApplyRenames(moves) => {
                 for moves in moves {
@@ -318,7 +316,7 @@ fn reconcile_workspace_file_operations(
     {
         let mut vfs = state.vfs.write();
         removed_paths.extend(vfs.iter().filter_map(|(path, _)| {
-            let path = path.as_path()?;
+            let path = path.as_path();
             removed_roots.iter().any(|root| path.starts_with(root)).then(|| path.to_path_buf())
         }));
         if let Err(error) = vfs.rename_file_prefixes(&moves) {
@@ -377,8 +375,4 @@ fn workspace_source_edits_are_complete(plan: &ImportEditPlan, config: &Config) -
     let is_workspace_source =
         |uri: &Url| uri.to_file_path().is_ok_and(|path| config.tracks_source_file(&path));
     plan.all_files(is_workspace_source)
-}
-
-fn file_operation_task_failed(error: tokio::task::JoinError) -> ResponseError {
-    ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("file-operation task failed: {error}"))
 }

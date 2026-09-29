@@ -36,7 +36,7 @@ use solar_interface::data_structures::{map::rustc_hash::FxHashMap, sync::Mutex};
 use std::{
     collections::hash_map::Entry,
     mem,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Arc, OnceLock},
 };
 
@@ -138,7 +138,6 @@ pub(crate) struct Vfs {
     data: FxHashMap<VfsPath, Arc<VfsFile>>,
     versions: FxHashMap<VfsPath, i32>,
     content_revision: u64,
-    dirty: bool,
 }
 
 impl Vfs {
@@ -171,7 +170,6 @@ impl Vfs {
             self.versions.remove(&path);
             self.data.remove(&path).is_some()
         };
-        self.dirty = true;
         if contents_changed {
             self.bump_content_revision();
         }
@@ -182,7 +180,6 @@ impl Vfs {
     pub(crate) fn set_file_version(&mut self, path: VfsPath, version: i32) {
         debug_assert!(self.data.contains_key(&path));
         self.versions.insert(path, version);
-        self.dirty = true;
     }
 
     pub(crate) fn get_file_contents(&self, path: &VfsPath) -> Option<&Rope> {
@@ -240,9 +237,8 @@ impl Vfs {
             .into_iter()
             .map(|(path, contents)| {
                 let version = old_versions.remove(&path);
-                let new_path = path
-                    .as_path()
-                    .and_then(|path| moves.map_path(path))
+                let new_path = moves
+                    .map_path(path.as_path())
                     .map_or_else(|| path.clone(), |(_, path)| VfsPath::from(path));
                 (path, new_path, contents, version)
             })
@@ -269,9 +265,8 @@ impl Vfs {
         &self,
         moves: &FileMoveBatch,
     ) -> Result<(), FileMoveError> {
-        moves.validate_mapped_destinations(
-            self.data.keys().filter_map(|path| path.as_path().map(Path::to_path_buf)),
-        )
+        moves
+            .validate_mapped_destinations(self.data.keys().map(|path| path.as_path().to_path_buf()))
     }
 
     /// Removes exact files and directory descendants from the VFS.
@@ -286,27 +281,6 @@ impl Vfs {
         self.record_change(self.data.len() != old_len);
     }
 
-    /// Whether the VFS is dirty or not.
-    ///
-    /// The VFS is considered dirty if a file was modified, changed, or removed.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "VFS dirty state is scaffolded for future incremental analysis"
-        )
-    )]
-    pub(crate) fn is_dirty(&self) -> bool {
-        self.dirty
-    }
-
-    /// Mark the VFS as clean and return whether it was dirty to begin with.
-    pub(crate) fn mark_clean(&mut self) -> bool {
-        let was_dirty = self.dirty;
-        self.dirty = false;
-        was_dirty
-    }
-
     /// Returns an iterator over stored paths and their corresponding contents.
     pub(crate) fn iter(&self) -> impl Iterator<Item = (&VfsPath, &Rope)> {
         self.data.iter().map(|(path, file)| (path, &file.contents))
@@ -314,7 +288,6 @@ impl Vfs {
 
     fn record_change(&mut self, changed: bool) {
         if changed {
-            self.dirty = true;
             self.bump_content_revision();
         }
     }
@@ -326,12 +299,13 @@ impl Vfs {
 }
 
 fn has_file_prefix(path: &VfsPath, prefixes: &[PathBuf]) -> bool {
-    path.as_path().is_some_and(|path| prefixes.iter().any(|prefix| path.starts_with(prefix)))
+    prefixes.iter().any(|prefix| path.as_path().starts_with(prefix))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
 
     type Files<'a> = [(&'a str, &'a str, i32)];
 
@@ -360,7 +334,7 @@ mod tests {
         let mut files = vfs
             .iter()
             .map(|(path, contents)| {
-                let file = path.as_path().unwrap().strip_prefix("/workspace").unwrap();
+                let file = path.as_path().strip_prefix("/workspace").unwrap();
                 (file.display().to_string(), contents.to_string(), vfs.get_file_version(path))
             })
             .collect::<Vec<_>>();
@@ -389,12 +363,10 @@ mod tests {
 
         assert!(insert(&mut vfs, "/workspace/Test.sol", "contract Test {}", 1));
         let revision = vfs.content_revision();
-        vfs.mark_clean();
 
         assert!(!insert(&mut vfs, "/workspace/Test.sol", "contract Test {}", 2));
         assert_eq!(vfs.content_revision(), revision);
         assert_eq!(vfs.get_file_version(&file), Some(2));
-        assert!(vfs.is_dirty());
 
         assert!(insert(&mut vfs, "/workspace/Test.sol", "contract Changed {}", 3));
         assert_eq!(vfs.content_revision(), revision + 1);
@@ -559,7 +531,7 @@ mod tests {
     fn rename_file_prefixes_rejects_expanded_destination_collision_atomically() {
         let initial = [("A/x.sol", "contract A {}", 1), ("B/x.sol", "contract B {}", 2)];
         let mut vfs = workspace_vfs(&initial);
-        vfs.mark_clean();
+        let revision = vfs.content_revision();
 
         let error = vfs
             .rename_file_prefixes(&moves(&[("A", "out"), ("B/x.sol", "out/x.sol")]))
@@ -571,7 +543,7 @@ mod tests {
                 if new_path == Path::new("/workspace/out/x.sol")
         ));
         assert_eq!(files(&vfs), expected(&initial));
-        assert!(!vfs.is_dirty());
+        assert_eq!(vfs.content_revision(), revision);
     }
 
     #[test]

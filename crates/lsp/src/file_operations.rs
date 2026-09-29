@@ -3,8 +3,6 @@
 use lsp_types::{FileChangeType, RenameFilesParams, Url};
 use normalize_path::NormalizePath;
 use std::{
-    error::Error,
-    fmt,
     path::{Path, PathBuf},
     sync::{
         Arc,
@@ -82,9 +80,21 @@ struct FileMove {
     new_path: PathBuf,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub(crate) enum FileMoveError {
+    #[error(
+        "rename source `{}` has conflicting destinations `{}` and `{}`",
+        old_path.display(),
+        first_new_path.display(),
+        second_new_path.display()
+    )]
     ConflictingSource { old_path: PathBuf, first_new_path: PathBuf, second_new_path: PathBuf },
+    #[error(
+        "rename destination `{}` has conflicting sources `{}` and `{}`",
+        new_path.display(),
+        first_old_path.display(),
+        second_old_path.display()
+    )]
     ConflictingDestination { new_path: PathBuf, first_old_path: PathBuf, second_old_path: PathBuf },
 }
 
@@ -647,29 +657,6 @@ pub(crate) fn file_path_from_url(uri: &Url) -> Option<PathBuf> {
         .then(|| crate::proto::normalize_file_uri(uri.clone()).to_file_path().ok())
         .flatten()
 }
-
-impl fmt::Display for FileMoveError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::ConflictingSource { old_path, first_new_path, second_new_path } => write!(
-                f,
-                "rename source `{}` has conflicting destinations `{}` and `{}`",
-                old_path.display(),
-                first_new_path.display(),
-                second_new_path.display()
-            ),
-            Self::ConflictingDestination { new_path, first_old_path, second_old_path } => write!(
-                f,
-                "rename destination `{}` has conflicting sources `{}` and `{}`",
-                new_path.display(),
-                first_old_path.display(),
-                second_old_path.display()
-            ),
-        }
-    }
-}
-
-impl Error for FileMoveError {}
 
 #[cfg(test)]
 mod tests {

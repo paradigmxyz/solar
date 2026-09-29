@@ -1,4 +1,4 @@
-//! Pure in-memory project fixtures shared by tests and benchmarks.
+//! Pure in-memory project fixtures for tests.
 
 use lsp_types::Position;
 use solar_interface::data_structures::map::FxHashMap;

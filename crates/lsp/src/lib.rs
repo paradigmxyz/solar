@@ -329,8 +329,7 @@ mod lifecycle;
 mod natspec_completion;
 mod override_index;
 mod progress;
-#[cfg(any(test, feature = "bench"))]
-#[cfg_attr(all(feature = "bench", not(test)), allow(dead_code))]
+#[cfg(test)]
 mod project_fixture;
 mod proto;
 mod protocol_trace;

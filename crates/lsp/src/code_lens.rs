@@ -77,7 +77,7 @@ impl CodeLensIndex {
 
     pub(crate) fn extend(&mut self, other: Self, symbol_offset: usize) {
         self.candidates.extend(other.candidates.into_iter().map(|mut candidate| {
-            candidate.symbol_id = candidate.symbol_id.offset_by(symbol_offset);
+            candidate.symbol_id += symbol_offset;
             candidate
         }));
         self.entries_by_uri.clear();

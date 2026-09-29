@@ -65,7 +65,7 @@ fn check_rename_scope(
     let resolved = lexical.map_paths(|path| resolve(path).unwrap_or_else(|| path.to_path_buf()));
     for locations in candidate.locations.chunk_by(|a, b| a.uri == b.uri) {
         let path = proto::vfs_path(&locations[0].uri).ok_or(WorkspaceEditError::UnresolvedPath)?;
-        let path = path.as_path().ok_or(WorkspaceEditError::UnresolvedPath)?;
+        let path = path.as_path();
         let lexical_result = lexical.check(path);
         if matches!(lexical_result, Err(WorkspaceEditError::Dependency)) {
             return lexical_result;

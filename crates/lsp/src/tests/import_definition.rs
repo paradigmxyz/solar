@@ -208,7 +208,7 @@ async fn import_only_changes_refresh_auto_detected_remappings() {
             "/src/Main.sol",
         );
         let mut state = fixture.state_with_workspace_analysis();
-        assert!(!state.config.supports_watched_file_dynamic_registration());
+        assert!(!state.config.client.watched_file_dynamic_registration);
         let target = fixture.project_path("/lib/pkg/src/Target.sol");
         let event_path = event_path.map(|path| fixture.project_path(path));
         let event = |typ| event_path.clone().map(|path| (path, typ));

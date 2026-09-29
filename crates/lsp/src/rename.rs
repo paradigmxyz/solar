@@ -1,6 +1,6 @@
 use crate::{
     override_index::OverrideFamilyIndex,
-    proto,
+    proto::{self, PositionIndex},
     source_paths::{SourcePath, identifiers_in_span},
     symbols::{DeclarationSymbol, SymbolId},
 };
@@ -76,37 +76,9 @@ pub(crate) struct RenameIndex {
     family_targets: FxHashMap<SymbolId, Vec<RenameTarget>>,
     yul_symbol_targets: FxHashSet<SymbolId>,
     occurrences: Vec<RenameOccurrence>,
-    file_occurrences: FxHashMap<Url, OccurrenceIndex>,
+    file_occurrences: FxHashMap<Url, PositionIndex<usize>>,
     target_occurrences: FxHashMap<RenameTarget, Vec<usize>>,
     ambiguous_targets: FxHashSet<RenameTarget>,
-}
-
-/// Start-sorted occurrence indexes with a prefix maximum end for point queries.
-#[derive(Clone, Debug, Default)]
-struct OccurrenceIndex {
-    entries: Vec<usize>,
-    prefix_max_end: Vec<Position>,
-}
-
-impl OccurrenceIndex {
-    fn rebuild(&mut self, occurrences: &[RenameOccurrence]) {
-        // `normalize_occurrences` orders the global list by URI and range before these
-        // per-file indexes are populated, so the entries are already start-sorted.
-        debug_assert!(self.entries.is_sorted_by_key(|&entry| {
-            let range = occurrences[entry].location.range;
-            (range.start, range.end, entry)
-        }));
-
-        let mut max_end = Position::default();
-        self.prefix_max_end = self
-            .entries
-            .iter()
-            .map(|&index| {
-                max_end = max_end.max(occurrences[index].location.range.end);
-                max_end
-            })
-            .collect();
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -549,30 +521,28 @@ impl RenameIndex {
         self.family_targets.clear();
         let alias_offset = self.aliases.len();
         let mapping_name_offset = self.mapping_names.len();
-        self.symbol_targets.extend(
-            other.symbol_targets.drain().map(|symbol_id| symbol_id.offset_by(symbol_offset)),
-        );
-        self.yul_symbol_targets.extend(
-            other.yul_symbol_targets.drain().map(|symbol_id| symbol_id.offset_by(symbol_offset)),
-        );
+        self.symbol_targets
+            .extend(other.symbol_targets.drain().map(|symbol_id| symbol_id + symbol_offset));
+        self.yul_symbol_targets
+            .extend(other.yul_symbol_targets.drain().map(|symbol_id| symbol_id + symbol_offset));
         for occurrence in &mut other.occurrences {
             for target in &mut occurrence.targets {
                 *target = match *target {
                     RenameTarget::Symbol(symbol_id) => {
-                        RenameTarget::Symbol(symbol_id.offset_by(symbol_offset))
+                        RenameTarget::Symbol(symbol_id + symbol_offset)
                     }
                     RenameTarget::ImportAlias(alias_id) => {
-                        RenameTarget::ImportAlias(offset_id(alias_id, alias_offset))
+                        RenameTarget::ImportAlias(alias_id + alias_offset)
                     }
                     RenameTarget::MappingName(name_id) => {
-                        RenameTarget::MappingName(offset_id(name_id, mapping_name_offset))
+                        RenameTarget::MappingName(name_id + mapping_name_offset)
                     }
                 };
             }
         }
         for symbols in other.alias_symbols.values_mut() {
             for symbol_id in symbols {
-                *symbol_id = symbol_id.offset_by(symbol_offset);
+                *symbol_id += symbol_offset;
             }
         }
         self.conflicting_contents.extend(other.conflicting_contents);
@@ -587,7 +557,7 @@ impl RenameIndex {
             other
                 .alias_symbols
                 .into_iter()
-                .map(|(alias_id, symbols)| (offset_id(alias_id, alias_offset), symbols)),
+                .map(|(alias_id, symbols)| (alias_id + alias_offset, symbols)),
         );
         self.mapping_names.extend(other.mapping_names);
         self.occurrences.extend(other.occurrences);
@@ -639,8 +609,14 @@ impl RenameIndex {
                 self.target_occurrences.entry(target).or_default().push(index);
             }
         }
-        for occurrences in self.file_occurrences.values_mut() {
-            occurrences.rebuild(&self.occurrences);
+        for index in self.file_occurrences.values_mut() {
+            // `normalize_occurrences` orders the global list by URI and range before these
+            // per-file indexes are populated, so the entries are already start-sorted.
+            debug_assert!(index.entries.is_sorted_by_key(|&entry| {
+                let range = self.occurrences[entry].location.range;
+                (range.start, range.end, entry)
+            }));
+            index.index_sorted(|entry| self.occurrences[entry].location.range);
         }
     }
 
@@ -817,31 +793,21 @@ impl RenameIndex {
     }
 
     fn occurrence_at(&self, uri: &Url, position: Position) -> Option<&RenameOccurrence> {
-        let index = self.file_occurrences.get(uri)?;
-        let end = index
-            .entries
-            .partition_point(|&entry| self.occurrences[entry].location.range.start <= position);
-        let mut best = None;
-        for (&entry, &prefix_max_end) in
-            index.entries[..end].iter().zip(&index.prefix_max_end[..end]).rev()
-        {
-            if prefix_max_end < position {
-                break;
-            }
-            let occurrence = &self.occurrences[entry];
-            if !proto::range_contains(occurrence.location.range, position) {
-                continue;
-            }
-            let key = (proto::range_size_key(occurrence.location.range), entry);
-            if best.as_ref().is_none_or(|(best_key, _)| key < *best_key) {
-                best = Some((key, occurrence));
-            }
-        }
-        best.map(|(_, occurrence)| occurrence)
+        let range = |entry: usize| self.occurrences[entry].location.range;
+        let entry = self
+            .file_occurrences
+            .get(uri)?
+            .candidates_at(position, range)
+            .min_by_key(|&entry| (proto::range_size_key(range(entry)), entry))?;
+        Some(&self.occurrences[entry])
     }
 
     fn normalize_occurrences(&mut self) {
-        self.occurrences.sort_by(|a, b| compare_locations(&a.location, &b.location));
+        self.occurrences.sort_by(|a, b| {
+            let (a, b) = (&a.location, &b.location);
+            (a.uri.as_str(), proto::range_key(a.range))
+                .cmp(&(b.uri.as_str(), proto::range_key(b.range)))
+        });
         let mut normalized = Vec::<RenameOccurrence>::with_capacity(self.occurrences.len());
         for occurrence in self.occurrences.drain(..) {
             if let Some(previous) = normalized.last_mut()
@@ -964,12 +930,4 @@ fn equal_names<I: Idx>(
     target: fn(I) -> RenameTarget,
 ) -> Vec<RenameTarget> {
     names.indices().filter(|&candidate| names[id] == names[candidate]).map(target).collect()
-}
-
-fn offset_id<I: Idx>(id: I, offset: usize) -> I {
-    I::from_usize(id.index() + offset)
-}
-
-fn compare_locations(a: &Location, b: &Location) -> std::cmp::Ordering {
-    (a.uri.as_str(), proto::range_key(a.range)).cmp(&(b.uri.as_str(), proto::range_key(b.range)))
 }
