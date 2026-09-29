@@ -110,40 +110,19 @@ async fn did_create_files_rediscovers_files_and_folder_descendants_once() {
     let mut state = state(&project);
     project.write_file("/Direct.sol", "contract Direct {}");
     project.write_file("/created.v2/Nested.sol", "contract Nested {}");
+    project.write_file("/created.v2/node_modules/Excluded.sol", "contract Excluded {}");
     let before = analysis_version(&state);
 
     did_create(&mut state, [project.path("/Direct.sol"), project.path("/created.v2")]);
 
     assert_eq!(analysis_version(&state), before + 1);
+    // The folder echo scan skips excluded descendants.
+    let mut echo = |path| state.file_operations.observe_watcher_event(&project.path(path), CREATED);
+    assert_eq!(echo("/created.v2/node_modules/Excluded.sol"), WatchedFileAction::Process);
+    assert_eq!(echo("/created.v2/Nested.sol"), WatchedFileAction::Ignore);
     let tables = analysis(&state).await;
     assert!(has_symbol(&tables, "Direct"));
     assert!(has_symbol(&tables, "Nested"));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn folder_create_echo_scan_skips_excluded_descendants() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "src"
-
-        //- /src/Main.sol
-        contract Main {}
-        "#,
-    );
-    let mut state = state(&project);
-    project.write_file("/src/created/Included.sol", "contract Included {}");
-    project.write_file("/src/created/node_modules/Excluded.sol", "contract Excluded {}");
-
-    did_create(&mut state, [project.path("/src/created")]);
-
-    let excluded = project.path("/src/created/node_modules/Excluded.sol");
-    let included = project.path("/src/created/Included.sol");
-    let coordinator = &mut state.file_operations;
-    assert_eq!(coordinator.observe_watcher_event(&excluded, CREATED), WatchedFileAction::Process);
-    assert_eq!(coordinator.observe_watcher_event(&included, CREATED), WatchedFileAction::Ignore);
-    analysis(&state).await;
 }
 
 #[tokio::test(flavor = "current_thread")]
