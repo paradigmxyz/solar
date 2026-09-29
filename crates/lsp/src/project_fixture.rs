@@ -291,7 +291,14 @@ mod tests {
     }
 
     #[test]
-    fn rejects_paths_that_can_escape_the_project_root() {
+    fn rejects_malformed_fixtures_and_paths_that_can_escape_the_project_root() {
+        for fixture in [
+            "contract BeforeMarker {}",
+            "//-\ncontract MissingPath {}",
+            "//- /Unknown.sol unsupported\ncontract Unknown {}",
+        ] {
+            assert!(ProjectFixture::try_parse(fixture).is_err(), "accepted {fixture:?}");
+        }
         for path in [
             "/../Outside.sol",
             "/src/../../Outside.sol",

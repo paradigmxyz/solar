@@ -17,7 +17,7 @@ type FallbackCase<'a> = (&'a str, &'a str, &'a str, Option<&'a str>, &'a str);
 
 #[test]
 fn returns_native_quick_fix_as_legacy_or_versioned_edits() {
-    let (project, _, diagnostic, params) = native_request(true);
+    let (project, uri, diagnostic, params) = native_request(true);
     for (document_changes, expected) in [
         (
             false,
@@ -39,7 +39,7 @@ convert the name to mixedCase preferred=Some(true)
         let response =
             authorized_code_actions(&mut state(&project, document_changes), params.clone());
         assert_eq!(action_diagnostics(&response), std::slice::from_ref(&diagnostic));
-        assert_data_eq!(actions_output(&response), expected);
+        assert_data_eq!(actions_output(&response, &uri), expected);
     }
 }
 
@@ -53,7 +53,7 @@ fn returns_multipart_suggestion_alternatives_with_utf16_ranges() {
         |name, replacement: &str| TextEdit::new(text_range(contents, name), replacement.into());
     let first = vec![edit("bad_name", "badName"), edit("bad_func", "badFunc")];
     let second = vec![edit("bad_name", "goodName"), edit("bad_func", "goodFunc")];
-    let (_, mut diagnostic, mut params) =
+    let (uri, mut diagnostic, mut params) =
         fallback_request(&project, first[0].range, "solar", Some("naming"), "rename declarations");
     set_suggestion(
         &mut diagnostic,
@@ -65,7 +65,7 @@ fn returns_multipart_suggestion_alternatives_with_utf16_ranges() {
 
     let response = authorized_code_actions(&mut state(&project, false), params);
     assert_data_eq!(
-        actions_output(&response),
+        actions_output(&response, &uri),
         str![[r#"
 Rename declarations preferred=Some(false)
   Test.sol 0:45-0:53 "badName"
@@ -106,12 +106,12 @@ fn mixed_quick_fixes_share_current_syntax_and_preserve_order() {
         let mut native = first_diagnostic.clone();
         native.range = native_edit.range;
         native.message = "rename contract".into();
-        native.data = Some(native_data(uri, &contents, "Rename contract", native_edit));
+        native.data = Some(native_data(uri.clone(), &contents, "Rename contract", native_edit));
         params.range = lsp_range(&contents, 0, contents.len());
         params.context.diagnostics = vec![first_diagnostic, native, second_diagnostic];
         let response = authorized_code_actions(&mut state(&project, true), params);
         assert_data_eq!(
-            actions_output(&response),
+            actions_output(&response, &uri),
             str![[r#"
 Change state mutability to `pure` preferred=Some(true)
   Test.sol@Some(0) 2:24-2:24 "pure "
@@ -140,12 +140,12 @@ fn failed_fallback_parse_preserves_native_suggestions() {
     let edit = TextEdit::new(lsp_range(contents, contents.len(), contents.len()), "} }".into());
     let mut native = fallback.clone();
     native.message = "close blocks".into();
-    native.data = Some(native_data(uri, contents, "Close blocks", edit));
+    native.data = Some(native_data(uri.clone(), contents, "Close blocks", edit));
     params.range = lsp_range(contents, 0, contents.len());
     params.context.diagnostics = vec![fallback.clone(), native, fallback];
     let response = authorized_code_actions(&mut state(&project, false), params);
     assert_data_eq!(
-        actions_output(&response),
+        actions_output(&response, &uri),
         str![[r#"
 Close blocks preferred=Some(true)
   Test.sol 1:0-1:0 "} }"
@@ -484,10 +484,10 @@ fn canonicalizes_equivalent_file_uris_before_validating_diagnostic_data() {
     assert_eq!(uri.to_file_path(), encoded.to_file_path());
     params.text_document.uri = encoded;
     let mut state = state(&project, false);
-    replace_diagnostics(&state, uri, vec![diagnostic]);
+    replace_diagnostics(&state, uri.clone(), vec![diagnostic]);
 
     assert_data_eq!(
-        actions_output(&code_actions(&mut state, params)),
+        actions_output(&code_actions(&mut state, params), &uri),
         str![[r#"
 convert the name to mixedCase preferred=Some(true)
   Test.sol 0:24-0:32 "badName"
@@ -514,7 +514,7 @@ convert the name to mixedCase preferred=Some(true)
             action_diagnostics(&response),
             expected.iter().map(|d| (*d).clone()).collect::<Vec<_>>()
         );
-        actions_output(&response)
+        actions_output(&response, &uri)
     };
 
     // Diagnostics outside the current server report are ignored.
@@ -621,7 +621,7 @@ convert the name to mixedCase preferred=Some(true)
 
         let response = code_actions(&mut state, params.clone());
         assert_eq!(action_diagnostics(&response)[0].data.is_some(), data_support);
-        assert_data_eq!(actions_output(&response), expected);
+        assert_data_eq!(actions_output(&response, &uri), expected);
     }
 }
 
@@ -632,12 +632,18 @@ fn check_fallbacks(cases: &[FallbackCase<'_>], expected: impl IntoData) {
         let project = TestProject::new();
         project.write_file("/Test.sol", source);
         let range = text_range(source, target);
-        let (_, diagnostic, mut params) = fallback_request(&project, range, origin, code, message);
+        let (uri, diagnostic, mut params) =
+            fallback_request(&project, range, origin, code, message);
         params.context.diagnostics.push(diagnostic.clone());
         let response = authorized_code_actions(&mut state(&project, false), params);
         assert!(action_diagnostics(&response).iter().all(|action| *action == diagnostic));
-        write!(output, "{}\n{}", format!("== {target}").trim_end(), actions_output(&response))
-            .unwrap();
+        write!(
+            output,
+            "{}\n{}",
+            format!("== {target}").trim_end(),
+            actions_output(&response, &uri)
+        )
+        .unwrap();
     }
     assert_data_eq!(output, expected.into_data().raw());
 }
@@ -807,7 +813,8 @@ fn action_diagnostics(response: &[CodeActionOrCommand]) -> Vec<Diagnostic> {
         .collect()
 }
 
-fn actions_output(response: &[CodeActionOrCommand]) -> String {
+/// Formats the actions, whose edits must all target `uri`.
+fn actions_output(response: &[CodeActionOrCommand], uri: &Url) -> String {
     let mut output = String::new();
     for action in response {
         let CodeActionOrCommand::CodeAction(action) = action else {
@@ -834,7 +841,8 @@ fn actions_output(response: &[CodeActionOrCommand]) -> String {
                 .collect::<Vec<_>>(),
             _ => panic!("expected one form of workspace edit, got {edit:?}"),
         };
-        for (uri, version, edits) in documents {
+        for (document, version, edits) in documents {
+            assert_eq!(document, uri);
             let name = uri.path().rsplit('/').next().unwrap();
             for TextEdit { range, new_text } in edits {
                 let Range { start, end } = range;

@@ -750,7 +750,7 @@ fn in_flight_rename_response_keeps_the_validated_version() {
     let rename = start_request(rename);
     drop(vfs_guard);
     // The only blocking worker runs this after the rename validation task completes.
-    runtime.block_on(tokio::task::spawn_blocking(|| {})).unwrap();
+    runtime.block_on(within("rename validation", tokio::task::spawn_blocking(|| {}))).unwrap();
 
     let changed_contents = format!("// changed while rename was in flight\n{contents}");
     change(&mut state, &uri, 8, changed_contents);

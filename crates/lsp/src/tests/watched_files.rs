@@ -264,22 +264,25 @@ async fn workspace_folder_change_advances_epoch_before_watcher_reregistration() 
 
 #[test]
 fn watched_file_registration_has_global_fallback_patterns() {
-    let [registration] =
-        watched_file_registration_params(&Config::default()).registrations.try_into().unwrap();
-    assert_eq!(registration.id, "solar-watched-files");
-    assert_eq!(registration.method, lsp_types::notification::DidChangeWatchedFiles::METHOD);
+    // Without workspace roots, and for an empty workspace root.
+    for config in [Config::default(), TestProject::new().config()] {
+        let [registration] =
+            watched_file_registration_params(&config).registrations.try_into().unwrap();
+        assert_eq!(registration.id, "solar-watched-files");
+        assert_eq!(registration.method, lsp_types::notification::DidChangeWatchedFiles::METHOD);
 
-    assert_eq!(
-        registration.register_options,
-        Some(serde_json::json!({
-            "watchers": [
-                { "globPattern": "**/*.sol", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
-                { "globPattern": "**/foundry.toml", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
-                { "globPattern": "**/remappings.txt", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
-                { "globPattern": "**/.git", "kind": WatchKind::Create | WatchKind::Delete },
-            ],
-        }))
-    );
+        assert_eq!(
+            registration.register_options,
+            Some(serde_json::json!({
+                "watchers": [
+                    { "globPattern": "**/*.sol", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
+                    { "globPattern": "**/foundry.toml", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
+                    { "globPattern": "**/remappings.txt", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
+                    { "globPattern": "**/.git", "kind": WatchKind::Create | WatchKind::Delete },
+                ],
+            }))
+        );
+    }
 }
 
 #[test]

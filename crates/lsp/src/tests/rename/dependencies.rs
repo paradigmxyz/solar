@@ -679,10 +679,16 @@ fn scratch_fixture(source: &str, target: &str) -> RequestFixture {
 async fn reports_open_files_outside_the_workspace() {
     for unsaved in [false, true] {
         let fixture = scratch_fixture("/scratch/Scratch.sol", "/ws/src/Target.sol");
+        let contents = fixture.project_contents("/scratch/Scratch.sol");
         if unsaved {
             std::fs::remove_file(fixture.project_path("/scratch/Scratch.sol")).unwrap();
         }
-        check_marker(&fixture, "$1", &["/ws"], OUTSIDE).await;
+        // An unanalyzed server must analyze the open buffer before rejecting the rename.
+        let (uri, position) = fixture.marker_location("$1");
+        let mut state = state_with(fixture.project().config_with_roots(&["/ws"]));
+        open(&mut state, &uri, 1, contents);
+        let params = rename_params(&uri, position, "Renamed");
+        check_report(&fixture, &mut state, params, OUTSIDE).await;
     }
 }
 

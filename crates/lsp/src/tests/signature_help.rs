@@ -423,25 +423,11 @@ fn shows_signatures_despite_analysis_errors() {
                 return callbacks.callback($4 value);
             }
         }
-
-        contract First {
-            function select(uint256 value) external pure {}
-        }
-
-        contract Second {
-            function select(address value) external pure {}
-        }
-
-        contract C {
-            function use(First first) public {
-                first.select($5
-            }
-        }
         "#,
     );
 
     fixture.check_signature_help(
-        &["$1", "$2", "$3", "$4", "$5"],
+        &["$1", "$2", "$3", "$4"],
         str![[r#"
 $1:
 <none>
@@ -455,7 +441,31 @@ $3 $4:
 active signature=Some(0) parameter=Some(0)
 callback(uint256 value) returns (uint256)
   9..22
-$5:
+
+"#]],
+    );
+
+    // An unclosed call at the end of the file does not hide the selected overload.
+    let fixture = incomplete_signature_fixture(
+        r#"
+        contract First {
+            function select(uint256 value) external pure {}
+        }
+
+        contract Second {
+            function select(address value) external pure {}
+        }
+
+        contract C {
+            function use(First first) public {
+                first.select($1
+            }
+        }
+        "#,
+    );
+    fixture.check_signature_help(
+        &["$1"],
+        str![[r#"
 active signature=Some(0) parameter=Some(0)
 function select(uint256 value) external pure
   16..29

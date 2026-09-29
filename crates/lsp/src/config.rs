@@ -1674,9 +1674,15 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
         let config = project.config_with_roots(&["/repo/workspace"]);
         let specs = config.watched_file_specs();
 
+        assert!(specs.is_sorted());
         assert!(project.root().ancestors().all(|ancestor| {
             specs.contains(&WatchedFileSpec::new(ancestor.to_path_buf(), "foundry.toml"))
         }));
+        // Outside the project, only the ancestor manifests are watched.
+        assert_eq!(
+            specs.iter().filter(|spec| !spec.base.starts_with(project.root())).count(),
+            project.root().ancestors().count() - 1
+        );
         assert_data_eq!(
             watched_specs(&project, &config),
             str![[r#"

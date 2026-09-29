@@ -4,9 +4,10 @@ use snapbox::str;
 /// Checks all hints in `/Hints.sol`. The exact snapshots also pin error-recovery behavior.
 #[test]
 fn returns_parameter_and_type_hints() {
-    for (fixture, expected) in [
+    for (clean, fixture, expected) in [
         // Returns parameter and type hints for selected callables.
         (
+            true,
             r#"
             //- /Hints.sol
             library L {
@@ -70,6 +71,7 @@ fn returns_parameter_and_type_hints() {
         ),
         // Skips type hints for casts, builtins, and inline assembly.
         (
+            true,
             r#"
             //- /Hints.sol
             type MyUdvt is uint256;
@@ -109,6 +111,7 @@ fn returns_parameter_and_type_hints() {
         ),
         // Skips parameter hints for arguments with matching names.
         (
+            false,
             r#"
             //- /Hints.sol
             contract C {
@@ -139,6 +142,7 @@ fn returns_parameter_and_type_hints() {
         ),
         // Returns parameter hints for Solidity callable forms.
         (
+            true,
             r#"
             //- /Hints.sol
             contract BaseList {
@@ -182,6 +186,7 @@ fn returns_parameter_and_type_hints() {
         ),
         // Uses function type parameter names for variable and struct field calls.
         (
+            false,
             r#"
             //- /Hints.sol
             contract C {
@@ -213,6 +218,7 @@ fn returns_parameter_and_type_hints() {
         ),
         // Prefers selected attached function over colliding struct field.
         (
+            false,
             r#"
             //- /Hints.sol
             struct Holder {
@@ -253,6 +259,7 @@ fn returns_parameter_and_type_hints() {
         ),
         // Uses target parameter names for `abi.encodeCall` arguments.
         (
+            true,
             r#"
             //- /Hints.sol
             interface I {
@@ -264,8 +271,6 @@ fn returns_parameter_and_type_hints() {
                 function caller(address user) public pure {
                     abi.encodeCall(I.target, (1, user));
                     abi.encodeCall(I.single, 1);
-                    abi.encodeCall(I.target, (1, user, 3));
-                    abi.encodeCall(I.target, (, user));
                 }
             }
             "#,
@@ -275,14 +280,35 @@ fn returns_parameter_and_type_hints() {
 6:43 TYPE : bytes memory
 7:33 PARAMETER amount:
 7:35 TYPE : bytes memory
-8:46 TYPE : bytes memory
-9:42 TYPE : bytes memory
+
+"#]],
+        ),
+        // Skips `abi.encodeCall` parameter hints for arity mismatches and tuple holes.
+        (
+            false,
+            r#"
+            //- /Hints.sol
+            interface I {
+                function target(uint256 amount, address account) external returns (uint256);
+            }
+
+            contract C {
+                function caller(address user) public pure {
+                    abi.encodeCall(I.target, (1, user, 3));
+                    abi.encodeCall(I.target, (, user));
+                }
+            }
+            "#,
+            str![[r#"
+5:46 TYPE : bytes memory
+6:42 TYPE : bytes memory
 
 "#]],
         ),
     ] {
-        RequestFixture::new_allowing_diagnostics(fixture, "/Hints.sol")
-            .check_inlay_hints("/Hints.sol", expected);
+        let new =
+            if clean { RequestFixture::new } else { RequestFixture::new_allowing_diagnostics };
+        new(fixture, "/Hints.sol").check_inlay_hints("/Hints.sol", expected);
     }
 }
 

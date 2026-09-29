@@ -24,7 +24,7 @@ fn resolves_definitions_and_references() {
         }
 
         contract C is Base {
-            enum Choice { $4A, B }
+            enum $14Choice { $4A, B }
             struct Data { uint256 field; }
             uint256 public stateValue;
 
@@ -48,7 +48,7 @@ fn resolves_definitions_and_references() {
         "/Navigation.sol",
     );
 
-    fixture.check_queries(&[Query::Definition, Query::References(true)], 1..=13, str![[r#"
+    fixture.check_queries(&[Query::Definition, Query::References(true)], 1..=14, str![[r#"
 $1 definition: /Navigation.sol:0:8 library L {
 $1 references: /Navigation.sol:0:8 library L {
 /Navigation.sol:5:6 using L for uint256;
@@ -87,6 +87,10 @@ $12 references: /Navigation.sol:1:13 function inc(uint256 value) internal pure r
 $13 definition: /Navigation.sol:14:18 enum Choice { A, B }
 $13 references: /Navigation.sol:14:18 enum Choice { A, B }
 /Navigation.sol:27:22 return Choice.A;
+$14 definition: /Navigation.sol:14:9 enum Choice { A, B }
+$14 references: /Navigation.sol:14:9 enum Choice { A, B }
+/Navigation.sol:23:54 function caller(Data memory data) public returns (Choice) {
+/Navigation.sol:27:15 return Choice.A;
 
 "#]]);
     fixture.check_queries(

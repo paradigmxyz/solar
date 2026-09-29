@@ -3,7 +3,9 @@ use crate::{
     global_state::GlobalState,
     new_router_with_state, new_server_service, new_server_service_with_router,
     protocol_trace::{ProtocolTrace, ProtocolTraceLayer},
-    test_support::{ClientHarness, assert_request_cancelled, from_json, start_request, within},
+    test_support::{
+        ClientHarness, WireServer, assert_request_cancelled, from_json, start_request, within,
+    },
 };
 use async_lsp::{
     AnyEvent, AnyNotification, AnyRequest, ErrorCode, LspService, ResponseError, router::Router,
@@ -11,7 +13,7 @@ use async_lsp::{
 use lsp_types::{
     CancelParams, InitializeParams, InitializeResult, LogTraceParams, NumberOrString,
     SetTraceParams, TextDocumentSaveReason, TraceValue, WorkspaceSymbolParams,
-    notification as notif, request, request::Request,
+    notification as notif, notification::Notification, request, request::Request,
 };
 use serde_json::{Value, json};
 use std::{
@@ -176,7 +178,7 @@ fn assert_server_processing_time(trace: &LogTraceParams) {
 
 #[tokio::test(flavor = "current_thread")]
 async fn completion_trace_precedes_the_response_on_the_wire() {
-    let mut harness = ClientHarness::with_server(|client| {
+    let mut wire = WireServer::spawn(|client| {
         let trace = ProtocolTrace::new(client);
         trace.set_level(TraceValue::Messages);
         let mut router = Router::new(());
@@ -187,16 +189,21 @@ async fn completion_trace_precedes_the_response_on_the_wire() {
             .notification::<notif::Exit>(|_, ()| ControlFlow::Break(Ok(())));
         ServiceBuilder::new().layer(ProtocolTraceLayer::new(trace)).service(router)
     });
-    harness.server().request::<request::Initialize>(InitializeParams::default()).await.unwrap();
+    let frame = |id, method, params| json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params });
+    wire.send(frame(1, request::Initialize::METHOD, json!({ "capabilities": {} }))).await;
+    assert_eq!(wire.recv().await["result"], json!({ "capabilities": {} }));
 
-    let error = response_error(harness.server().request::<TraceBarrierRequest>(()).await);
-    // The client loop handles the trace before the response frame that follows it.
+    wire.send(frame(2, TraceBarrierRequest::METHOD, Value::Null)).await;
+    let logged = wire.recv().await;
+    assert_eq!(logged["method"], notif::LogTrace::METHOD);
     assert_eq!(
-        harness.take_traces(),
-        [trace("Server completed request `test/traceBarrier` with an error")]
+        logged["params"]["message"],
+        "Server completed request `test/traceBarrier` with an error"
     );
-    assert_eq!(error.code, ErrorCode::METHOD_NOT_FOUND);
-    harness.exit().await;
+    let response = wire.recv().await;
+    assert_eq!(response["id"], 2);
+    assert_eq!(response["error"]["code"], ErrorCode::METHOD_NOT_FOUND.0);
+    wire.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]

@@ -146,6 +146,35 @@ async fn watched_nested_repository_markers_prune_and_restore_nested_projects() {
     watch_files(&mut state, [(&marker, FileChangeType::CREATED)]);
     assert_eq!(analysis_version(&state), 0);
     assert_eq!(tracked(&state), [nested_source]);
+
+    // Deleting a marker also restores a nested project that manifest discovery skipped.
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+
+        //- /packages/app/.git
+        gitdir: elsewhere
+
+        //- /packages/app/foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /packages/app/src/Nested.sol
+        contract Nested {}
+        "#,
+    );
+    let packages_root = project.path("/packages");
+    let marker = project.path("/packages/app/.git");
+    let tracked = |state: &GlobalState| {
+        state.config.tracked_source_files_under(std::slice::from_ref(&packages_root))
+    };
+    let mut state = state_with(project.config());
+    assert!(tracked(&state).is_empty());
+    std::fs::remove_file(&marker).unwrap();
+    watch_files(&mut state, [(&marker, FileChangeType::DELETED)]);
+    assert_eq!(analysis_version(&state), 1);
+    assert_eq!(tracked(&state), [project.path("/packages/app/src/Nested.sol")]);
+    cancel_analysis(&state);
 }
 
 #[tokio::test(flavor = "current_thread")]

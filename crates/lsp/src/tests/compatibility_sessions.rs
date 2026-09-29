@@ -351,6 +351,33 @@ async fn wait_for_workspace_symbols(
 
 #[tokio::test(flavor = "current_thread")]
 async fn client_profiles_complete_a_raw_lsp_session() {
+    // Pin the fixture capabilities that select the session paths below.
+    let pins = CLIENT_PROFILES.iter().fold(String::new(), |mut pins, profile| {
+        let capabilities = profile.capabilities();
+        let flag = |pointer| capabilities.pointer(pointer).and_then(Value::as_bool);
+        pins += &format!(
+            "{}: watch={:?} pull={} pull_data={:?} publish_data={:?} refresh={:?}\n",
+            profile.label(),
+            flag("/workspace/didChangeWatchedFiles/dynamicRegistration"),
+            capabilities.pointer("/textDocument/diagnostic").is_some(),
+            flag("/textDocument/diagnostic/dataSupport"),
+            flag("/textDocument/publishDiagnostics/dataSupport"),
+            flag("/workspace/diagnostics/refreshSupport"),
+        );
+        pins
+    });
+    assert_data_eq!(
+        pins,
+        str![[r#"
+VS Code vscode-languageclient 10.1.0: watch=Some(true) pull=true pull_data=Some(true) publish_data=Some(true) refresh=Some(true)
+Neovim (Darwin/Windows) 0.12.4: watch=Some(true) pull=true pull_data=Some(true) publish_data=Some(true) refresh=Some(true)
+Neovim (Linux/BSD) 0.12.4: watch=Some(false) pull=true pull_data=Some(true) publish_data=Some(true) refresh=Some(true)
+Zed 1.14.2: watch=Some(true) pull=true pull_data=None publish_data=Some(true) refresh=Some(true)
+Minimal LSP client 3.17: watch=None pull=false pull_data=None publish_data=None refresh=None
+
+"#]]
+    );
+
     for profile in CLIENT_PROFILES {
         let profile_label = profile.label();
         let project = TestProject::from_fixture(PROJECT_FIXTURE);

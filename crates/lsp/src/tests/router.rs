@@ -385,70 +385,84 @@ async fn requests_use_one_identity_for_equivalent_file_uris() {
     project.remove_file("/Token.sol");
     let canonical = project.uri("/Token.sol");
     let prefix = canonical.as_str().strip_suffix("Token.sol").unwrap();
-    let session = LspPair::spawn(new_router, |_| quiet_client());
-    session.initialize(project.initialize_params()).await;
-    let opened = format!("{prefix}nested%2F..%2FToken.sol");
-    let text_document =
-        json!({ "uri": opened, "languageId": "solidity", "version": 1, "text": text });
-    session
-        .server
-        .notify::<notif::DidOpenTextDocument>(from_json(json!({ "textDocument": text_document })))
-        .unwrap();
+    let spellings = ["%54oken.sol", "/Token.sol", "nested%2F..%2FToken.sol"];
+    for opened in spellings {
+        let session = LspPair::spawn(new_router, |_| quiet_client());
+        session.initialize(project.initialize_params()).await;
+        let opened = format!("{prefix}{opened}");
+        let text_document =
+            json!({ "uri": opened, "languageId": "solidity", "version": 1, "text": text });
+        session
+            .server
+            .notify::<notif::DidOpenTextDocument>(from_json(
+                json!({ "textDocument": text_document }),
+            ))
+            .unwrap();
 
-    let server = &session.server;
-    for spelling in ["%54oken.sol", "/Token.sol", "nested%2F..%2FToken.sol"] {
-        let alias = Url::parse(&format!("{prefix}{spelling}")).unwrap();
-        macro_rules! equivalent_response {
-            ($request:ty, $params:expr) => {{
-                let mut params = $params;
-                params["textDocument"] = json!({ "uri": canonical });
-                let expected = response::<$request>(server, params.clone()).await;
-                assert!(!expected.is_null(), "{} should return a result", <$request>::METHOD);
-                if let Some(items) = expected.as_array() {
-                    assert!(!items.is_empty(), "{} should return items", <$request>::METHOD);
-                }
-                params["textDocument"] = json!({ "uri": alias });
-                let actual = response::<$request>(server, params).await;
-                assert_eq!(actual, expected, "{} for {alias}", <$request>::METHOD);
-                actual
-            }};
+        let server = &session.server;
+        for spelling in spellings {
+            let alias = Url::parse(&format!("{prefix}{spelling}")).unwrap();
+            macro_rules! equivalent_response {
+                ($request:ty, $params:expr) => {{
+                    let mut params = $params;
+                    params["textDocument"] = json!({ "uri": canonical });
+                    let expected = response::<$request>(server, params.clone()).await;
+                    assert!(!expected.is_null(), "{} should return a result", <$request>::METHOD);
+                    if let Some(items) = expected.as_array() {
+                        assert!(!items.is_empty(), "{} should return items", <$request>::METHOD);
+                    }
+                    params["textDocument"] = json!({ "uri": alias });
+                    let actual = response::<$request>(server, params).await;
+                    assert_eq!(actual, expected, "{} for {alias}", <$request>::METHOD);
+                    actual
+                }};
+            }
+            let symbols = equivalent_response!(request::DocumentSymbolRequest, json!({}));
+            let names = symbols.as_array().unwrap().iter().map(|symbol| &symbol["name"]);
+            assert_eq!(
+                names.collect::<Vec<_>>(),
+                ["Base", "Token", "value", "callee", "input", "caller"]
+            );
+            let position = marked.marker("$2").position();
+            equivalent_response!(request::HoverRequest, json!({ "position": position }));
+            equivalent_response!(request::GotoDefinition, json!({ "position": position }));
+            equivalent_response!(
+                request::References,
+                json!({ "position": position, "context": { "includeDeclaration": true } })
+            );
+            let argument = marked.marker("$3").position();
+            let completions =
+                equivalent_response!(request::Completion, json!({ "position": argument }));
+            assert!(completions.as_array().unwrap().iter().any(|item| item["label"] == "value"));
+            let signature = equivalent_response!(
+                request::SignatureHelpRequest,
+                json!({ "position": argument })
+            );
+            assert!(!signature["signatures"].as_array().unwrap().is_empty());
+
+            let calls = equivalent_response!(
+                request::CallHierarchyPrepare,
+                json!({ "position": marked.marker("$1").position() })
+            );
+            let outgoing = response::<request::CallHierarchyOutgoingCalls>(
+                server,
+                json!({ "item": calls[0] }),
+            )
+            .await;
+            assert_eq!(outgoing[0]["to"]["name"], "callee");
+
+            let types = equivalent_response!(
+                request::TypeHierarchyPrepare,
+                json!({ "position": marked.marker("$4").position() })
+            );
+            let supertypes =
+                response::<request::TypeHierarchySupertypes>(server, json!({ "item": types[0] }))
+                    .await;
+            assert_eq!(supertypes[0]["name"], "Base");
         }
-        let symbols = equivalent_response!(request::DocumentSymbolRequest, json!({}));
-        assert!(symbols.as_array().unwrap().iter().any(|symbol| symbol["name"] == "Token"));
-        let position = marked.marker("$2").position();
-        equivalent_response!(request::HoverRequest, json!({ "position": position }));
-        equivalent_response!(request::GotoDefinition, json!({ "position": position }));
-        equivalent_response!(
-            request::References,
-            json!({ "position": position, "context": { "includeDeclaration": true } })
-        );
-        let argument = marked.marker("$3").position();
-        let completions =
-            equivalent_response!(request::Completion, json!({ "position": argument }));
-        assert!(completions.as_array().unwrap().iter().any(|item| item["label"] == "value"));
-        let signature =
-            equivalent_response!(request::SignatureHelpRequest, json!({ "position": argument }));
-        assert!(!signature["signatures"].as_array().unwrap().is_empty());
 
-        let calls = equivalent_response!(
-            request::CallHierarchyPrepare,
-            json!({ "position": marked.marker("$1").position() })
-        );
-        let outgoing =
-            response::<request::CallHierarchyOutgoingCalls>(server, json!({ "item": calls[0] }))
-                .await;
-        assert_eq!(outgoing[0]["to"]["name"], "callee");
-
-        let types = equivalent_response!(
-            request::TypeHierarchyPrepare,
-            json!({ "position": marked.marker("$4").position() })
-        );
-        let supertypes =
-            response::<request::TypeHierarchySupertypes>(server, json!({ "item": types[0] })).await;
-        assert_eq!(supertypes[0]["name"], "Base");
+        session.shutdown().await;
     }
-
-    session.shutdown().await;
 }
 
 #[tokio::test(flavor = "current_thread")]

@@ -364,6 +364,7 @@ pub(crate) enum ClientEvent {
 struct ClientState {
     events: mpsc::UnboundedSender<ClientEvent>,
     create_acks: mpsc::UnboundedSender<oneshot::Sender<()>>,
+    created: bool,
 }
 
 impl ClientState {
@@ -382,6 +383,9 @@ impl ClientState {
 }
 
 /// A client that records server messages and answers progress creation only when acknowledged.
+///
+/// The client accepts at most one progress creation; a second one fails the client loop, which
+/// `shutdown` and `exit` report.
 pub(crate) struct ClientHarness {
     pair: LspPair,
     events: mpsc::UnboundedReceiver<ClientEvent>,
@@ -402,9 +406,13 @@ impl ClientHarness {
         let (events_tx, events) = mpsc::unbounded_channel();
         let (create_acks_tx, create_acks) = mpsc::unbounded_channel();
         let pair = LspPair::spawn(server, move |_| {
-            let mut router =
-                Router::new(ClientState { events: events_tx, create_acks: create_acks_tx });
+            let mut router = Router::new(ClientState {
+                events: events_tx,
+                create_acks: create_acks_tx,
+                created: false,
+            });
             router.request::<req::WorkDoneProgressCreate, _>(|state, params| {
+                assert!(!std::mem::replace(&mut state.created, true), "second progress creation");
                 let (ack, acked) = oneshot::channel();
                 state.create_acks.send(ack).unwrap();
                 state.events.send(ClientEvent::Create(params)).unwrap();

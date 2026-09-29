@@ -81,11 +81,13 @@ async fn missing_forge_returns_request_failed() {
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
 async fn formatting_rejects_failed_config_resolution_and_empty_output() {
-    let project = TestProject::from_fixture(OPEN_TEST);
-    for (ignores, message) in [
-        (None, "Forge config resolution failed"),
-        (Some(&[][..]), "Forge formatter returned empty output"),
+    // Empty output is rejected for sources read from disk too.
+    let disk_only = "//- /workspace/Test.sol\ncontract Test {}\n";
+    for (fixture, ignores, message) in [
+        (OPEN_TEST, None, "Forge config resolution failed"),
+        (disk_only, Some(&[][..]), "Forge formatter returned empty output"),
     ] {
+        let project = TestProject::from_fixture(fixture);
         let formatter = ": > \"$0.formatted\"\ncat >/dev/null";
         let forge = write_formatter_executable(&project, ignores, formatter);
         let mut state = formatting_state(&project, &forge, &["/workspace"]);
@@ -116,6 +118,9 @@ async fn formatting_sends_vfs_or_disk_source_with_the_owning_foundry_root() {
 
         //- /outside/src/Test.sol
         contract Test {}
+
+        //- /outside/src/Formatted.sol
+        contract Test { string s = "🚀"; }
         "#,
     );
     let unsaved = "contract Test{string s=\"🚀\";}";
@@ -146,6 +151,8 @@ printf 'contract Test { string s = "🚀"; }'"#,
     }
     let path = crate::vfs::VfsPath::from(project.path("/workspace/nested/Test.sol"));
     assert_eq!(state.vfs.read().get_file_contents(&path).unwrap().to_string(), unsaved);
+    // Unchanged output returns no edits.
+    assert_eq!(format(&mut state, &project, "/outside/src/Formatted.sol").await.unwrap(), None);
 }
 
 #[cfg(unix)]

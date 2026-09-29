@@ -274,6 +274,9 @@ fn analysis_result_accumulator_merges_multiple_batches() {
     let uri = diagnostic_uri();
     first.diagnostics = diagnostics_for(&uri, "first");
     second.diagnostics = diagnostics_for(&uri, "second");
+    let empty = AnalysisResultAccumulator::default().finish();
+    assert!(empty.diagnostics.is_empty());
+    assert!(empty.symbol_tables.workspace_symbols("").is_empty());
     let mut results = AnalysisResultAccumulator::default();
 
     results.push(first);

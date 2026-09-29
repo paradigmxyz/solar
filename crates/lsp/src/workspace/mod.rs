@@ -1140,6 +1140,9 @@ mod tests {
             //- /remappings.txt
             solmate/=lib/solmate/src/
 
+            //- /contracts/Main.sol
+            contract Main {}
+
             //- /foundry.toml
             [profile.default]
             src = "contracts"
@@ -1178,9 +1181,11 @@ mod tests {
             ]
         );
 
-        // Missing source roots keep the traversal complete and watch their existing parent.
+        // Missing test and script roots keep the traversal complete and watch their existing
+        // parent.
         refresh(&mut workspace, &WorkspaceIndexPolicy::default());
         assert!(workspace.source_files_complete());
+        assert_eq!(workspace.source_files(), [project.path("/contracts/Main.sol")]);
         assert_eq!(workspace.source_files(), workspace.flycheck_source_files());
         assert!(
             workspace

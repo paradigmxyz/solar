@@ -279,12 +279,24 @@ NatSpec contract documentation Snippet detail="contract OpenVault" sort="0" filt
 |  */
 
 "#]]);
+
+    // A clean file also falls back to ordinary completion after a closed block comment.
+    let clean = r#"
+        //- /Completion.sol open
+        /** docs */ contract C { function f() external pure { ret$1urn; } }
+        "#;
+    RequestFixture::new(clean, "/Completion.sol").check_completions(
+        &["$1"],
+        str![[r#"
+revert Function
+
+"#]],
+    );
 }
 
 #[test]
 fn completes_inheritdoc_templates() {
-    let fixture = RequestFixture::new(
-        r#"
+    let source = r#"
         //- /Base.sol
         interface Original {
             function value() external view returns (uint256 result);
@@ -330,9 +342,8 @@ fn completes_inheritdoc_templates() {
             ///$5
             function value() external override {}
         }
-        "#,
-        "/Completion.sol",
-    );
+        "#;
+    let fixture = RequestFixture::new(source, "/Completion.sol");
 
     fixture.check_completions(&["$1", "$2", "$3", "$4", "$5"], str![[r#"
 $1:
@@ -365,6 +376,17 @@ NatSpec function documentation Snippet detail="function value" sort="0" filter="
 | /// $1$0
 NatSpec @inheritdoc $Base Snippet detail="Inherit documentation from $Base" sort="1:$Base" filter="///" format=Snippet edit=32:4-32:7
 | /// @inheritdoc \$Base$0
+
+"#]]);
+
+    // Accumulated batch results index the aliased base too.
+    let fixture = RequestFixture::new_in_batches(source, &["/Base.sol", "/Completion.sol"]);
+    fixture.check_completions(&["$3"], str![[r#"
+NatSpec function documentation Snippet detail="function value" sort="0" filter="///" format=Snippet edit=22:4-22:7
+| /// $1
+|     /// @return result $2$0
+NatSpec @inheritdoc Alias Snippet detail="Inherit documentation from Alias" sort="1:Alias" filter="///" format=Snippet edit=22:4-22:7
+| /// @inheritdoc Alias$0
 
 "#]]);
 }

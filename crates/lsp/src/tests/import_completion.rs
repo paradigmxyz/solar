@@ -314,8 +314,7 @@ Extensionless File filter="Extensionless" edit=4:8-4:11
 
 #[test]
 fn completes_imports_from_the_deepest_owning_workspace() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
+    let source = r#"
         //- /owned/foundry.toml
         [profile.default]
         auto_detect_remappings = false
@@ -338,9 +337,9 @@ fn completes_imports_from_the_deepest_owning_workspace() {
         //- /unowned/Main.sol open
         import "./$2";
         contract Main {}
-        "#,
-        "/owned/packages/app/src/Main.sol",
-    );
+        "#;
+    let fixture =
+        RequestFixture::new_allowing_diagnostics(source, "/owned/packages/app/src/Main.sol");
 
     fixture.check_triggered_completions(
         &[("$1", "/")],
@@ -351,7 +350,8 @@ pkg/Inner.sol File filter="pkg/Inner.sol" edit=0:8-0:12
 "#]],
     );
     // Unowned files do not fall back to symbol completion.
-    fixture.check_completions(&["$2"], str![""]);
+    RequestFixture::new_allowing_diagnostics(source, "/unowned/Main.sol")
+        .check_completions(&["$2"], str![""]);
 }
 
 #[test]

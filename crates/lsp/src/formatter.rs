@@ -224,6 +224,7 @@ pub(crate) mod tests {
             ("/src/Dot.sol", "/", &ignores, true),
             ("/src/Direct.sol", "/", &ignores, false),
             ("/src/Parent.sol", "/", &["src/../src/Parent.sol"], true),
+            ("/src/Direct.sol", "/", &["src/../src/Parent.sol"], false),
             ("/src/Direct.sol", "/", &["src/*.sol"], true),
             ("/src/Unsaved.sol", "/", &["src/*.sol"], true),
             ("/src/Unsaved.sol", "/", &["src/Unsaved.sol"], true),

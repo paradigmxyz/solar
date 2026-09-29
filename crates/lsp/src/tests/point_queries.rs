@@ -162,6 +162,15 @@ fn compatible_contexts_preserve_and_deduplicate_point_queries() {
             for query in [DEFINITION, HOVER, HIGHLIGHTS] {
                 assert!(expected[query].is_some(), "{marker} {query}");
             }
+            // The baseline has one definition and at least one highlight.
+            assert!(
+                matches!(
+                    baseline.goto_definition(&uri, position),
+                    Some(GotoDefinitionResponse::Array(locations)) if locations.len() == 1
+                ),
+                "{marker}"
+            );
+            assert!(baseline.document_highlights(&uri, position).is_some_and(|h| !h.is_empty()));
             assert_eq!(point_queries(&tables, &uri, position), expected, "{marker}");
         }
     }

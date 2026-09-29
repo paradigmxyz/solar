@@ -19,6 +19,8 @@ fn contract_edges_are_direct_in_diamonds_and_multilevel_hierarchies() {
     assert_eq!(prepared(&fixture, "$5"), root);
     assert_eq!(root.name, "Root");
 
+    let children = vec![prepared(&fixture, "$2"), prepared(&fixture, "$3")];
+    assert_eq!(fixture.type_hierarchy_subtypes(root.clone()), Some(children));
     assert_eq!(fixture.type_hierarchy_supertypes(prepared(&fixture, "$2")), Some(vec![root]));
     assert!(supertypes(&fixture, "$1").is_empty());
     assert_eq!(supertypes(&fixture, "$3"), ["Root"]);

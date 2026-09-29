@@ -106,23 +106,31 @@ async fn initialized_indexes_workspace_before_the_first_file_operation() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn did_create_files_rediscovers_files_and_folder_descendants_once() {
-    let project = TestProject::from_fixture(EXISTING);
-    let mut state = state(&project);
-    project.write_file("/Direct.sol", "contract Direct {}");
-    project.write_file("/created.v2/Nested.sol", "contract Nested {}");
-    project.write_file("/created.v2/node_modules/Excluded.sol", "contract Excluded {}");
-    let before = analysis_version(&state);
+    // A naked workspace, and a Foundry source root.
+    let foundry = "//- /foundry.toml\n[profile.default]\nsrc = \"src\"\n\n//- /src/Main.sol\n";
+    for (fixture, root) in [(EXISTING, ""), (foundry, "/src")] {
+        let project = TestProject::from_fixture(fixture);
+        let mut state = state(&project);
+        let [direct, folder] = ["Direct.sol", "created.v2"].map(|path| format!("{root}/{path}"));
+        project.write_file(&direct, "contract Direct {}");
+        project.write_file(&format!("{folder}/Nested.sol"), "contract Nested {}");
+        project.write_file(&format!("{folder}/node_modules/Excluded.sol"), "contract Excluded {}");
+        let before = analysis_version(&state);
 
-    did_create(&mut state, [project.path("/Direct.sol"), project.path("/created.v2")]);
+        did_create(&mut state, [project.path(&direct), project.path(&folder)]);
 
-    assert_eq!(analysis_version(&state), before + 1);
-    // The folder echo scan skips excluded descendants.
-    let mut echo = |path| state.file_operations.observe_watcher_event(&project.path(path), CREATED);
-    assert_eq!(echo("/created.v2/node_modules/Excluded.sol"), WatchedFileAction::Process);
-    assert_eq!(echo("/created.v2/Nested.sol"), WatchedFileAction::Ignore);
-    let tables = analysis(&state).await;
-    assert!(has_symbol(&tables, "Direct"));
-    assert!(has_symbol(&tables, "Nested"));
+        assert_eq!(analysis_version(&state), before + 1);
+        // The folder echo scan skips excluded descendants.
+        let mut echo = |path: &str| {
+            let path = project.path(&format!("{folder}/{path}"));
+            state.file_operations.observe_watcher_event(&path, CREATED)
+        };
+        assert_eq!(echo("node_modules/Excluded.sol"), WatchedFileAction::Process);
+        assert_eq!(echo("Nested.sol"), WatchedFileAction::Ignore);
+        let tables = analysis(&state).await;
+        assert!(has_symbol(&tables, "Direct"));
+        assert!(has_symbol(&tables, "Nested"));
+    }
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -277,7 +285,7 @@ async fn did_create_and_its_watcher_echo_start_one_epoch() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn did_delete_and_its_watcher_echo_start_one_epoch() {
-    for watcher_first in [false, true] {
+    for (watcher_first, settle_between) in [(false, false), (true, false), (true, true)] {
         let project = TestProject::from_fixture("//- /Deleted.sol open\ncontract Deleted {}\n");
         let deleted = project.path("/Deleted.sol");
         let mut state = state(&project);
@@ -288,7 +296,9 @@ async fn did_delete_and_its_watcher_echo_start_one_epoch() {
             watch_files(&mut state, [(&deleted, DELETED)]);
             assert_eq!(analysis_version(&state), before);
             assert!(exists(&state, &deleted));
-            analysis(&state).await;
+            if settle_between {
+                analysis(&state).await;
+            }
             did_delete(&mut state, [&deleted]);
         } else {
             did_delete(&mut state, [&deleted]);
@@ -539,6 +549,8 @@ async fn split_watcher_events_commit_prepared_rename_once() {
             watch_files(&mut state, [(&new_file, CREATED)]);
         }
         assert_eq!(analysis_version(&state), before + 1);
+        assert!(!exists(&state, &old_file));
+        assert_buffer(&state, &new_file, UNSAVED, 12);
     }
 }
 

@@ -270,13 +270,16 @@ fn excludes_non_direct_and_non_source_calls() {
                 new AbstractCreated();
                 emit Called();
                 $3target();
-                // Calls without a typed resolution are excluded too.
-                require(true, target(), "extra");
                 assembly {
                     function yulTarget() {}
                     yulTarget()
                 }
                 revert Failed();
+            }
+
+            // Calls without a typed resolution are excluded too.
+            function $4unresolved() external pure {
+                require(true, target(), "extra");
             }
         }
         "#,
@@ -287,6 +290,7 @@ fn excludes_non_direct_and_non_source_calls() {
         tables.call_hierarchy_outgoing(&calls.item(&tables, "$2")),
         Some(vec![outgoing(&calls.item(&tables, "$1"), vec![calls.range("$3", 6)])])
     );
+    assert_eq!(tables.call_hierarchy_outgoing(&calls.item(&tables, "$4")), Some(vec![]));
 }
 
 #[test]
