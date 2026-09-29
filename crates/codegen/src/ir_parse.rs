@@ -1,4 +1,4 @@
-use crate::link::{ContractCode, Library, LibraryId, LibraryRelocation, LibraryTable};
+use crate::link::{ContractCode, LibraryId, LibraryRelocation, LibraryTable, QualifiedName};
 use alloy_primitives::{Bytes, U256};
 use solar_ast::{
     Arena,
@@ -170,11 +170,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok((addend, aligned))
     }
 
-    fn parse_qualified_name(&mut self) -> Result<Library, PErr<'sess>> {
+    fn parse_qualified_name(&mut self) -> Result<QualifiedName, PErr<'sess>> {
         let source = self.parse_library_component()?;
         self.expect(TokenKind::Colon)?;
         let name = self.parse_library_component()?;
-        Ok(Library { source, name })
+        Ok(QualifiedName { source, name })
     }
 
     fn parse_library_component(&mut self) -> Result<Symbol, PErr<'sess>> {

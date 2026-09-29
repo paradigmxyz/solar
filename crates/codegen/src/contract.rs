@@ -4,7 +4,7 @@ use crate::{
     EvmCodegen,
     backend::evm::{DebugInstruction, EvmArtifact, ir},
     link::{
-        ContractBytecodes, EmbeddedBytecodes, Library, LibraryRelocation, LibraryTable,
+        ContractBytecodes, EmbeddedBytecodes, LibraryRelocation, LibraryTable, QualifiedName,
         RelocatableBytecode,
     },
     mir::{Module, lower, pass::run_pipeline},
@@ -518,7 +518,7 @@ fn finish_contract(
                     libraries,
                 },
             };
-            (Library::of_contract(gcx, dependency), bytecodes)
+            (QualifiedName::of_contract(gcx, dependency), bytecodes)
         })
         .collect::<EmbeddedBytecodes>();
     assert_eq!(
@@ -619,7 +619,7 @@ fn library_relocations(
         .iter()
         .map(|reference| LibraryRelocation {
             offset: reference.start,
-            library: libraries.intern(Library {
+            library: libraries.intern(QualifiedName {
                 source: Symbol::intern(&reference.source),
                 name: Symbol::intern(&reference.name),
             }),
@@ -662,7 +662,8 @@ mod tests {
             let mut libraries = LibraryTable::default();
             let relocation = LibraryRelocation {
                 offset: 22,
-                library: libraries.intern(Library { source: sym::literal, name: sym::runtime }),
+                library: libraries
+                    .intern(QualifiedName { source: sym::literal, name: sym::runtime }),
             };
             let references = collect_library_references(&[relocation], &libraries);
             assert_eq!(

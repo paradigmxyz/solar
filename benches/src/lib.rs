@@ -210,7 +210,7 @@ fn ensure_contract_bytecode(
     contract_id: solar::sema::hir::ContractId,
     bytecodes: &mut codegen::EmbeddedBytecodes,
 ) -> Result {
-    let key = codegen::Library::of_contract(gcx, contract_id);
+    let key = codegen::QualifiedName::of_contract(gcx, contract_id);
     if bytecodes.contains_key(&key) {
         return Ok(());
     }

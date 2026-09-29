@@ -1,7 +1,7 @@
 //! Function calls, conversions, and call-target resolution.
 
 use super::*;
-use crate::{link::Library, mir::Immediate};
+use crate::{link::QualifiedName, mir::Immediate};
 
 #[derive(Clone, Copy)]
 pub(super) struct ExternalReturnPlan {
@@ -1096,7 +1096,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .alloc_value(Value::Immediate(Immediate::for_type(Some(MirType::I160), address)));
         }
         let library =
-            self.cx.module.libraries.intern(Library::of_contract(self.cx.gcx, contract_id));
+            self.cx.module.libraries.intern(QualifiedName::of_contract(self.cx.gcx, contract_id));
         // result = library_address source:library
         self.builder.library_address(library)
     }

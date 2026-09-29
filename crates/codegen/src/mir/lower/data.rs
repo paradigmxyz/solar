@@ -5,7 +5,7 @@ use crate::{
         ir::immediate_materialization_cost,
         op::{WORD_BYTES, push_len},
     },
-    link::{ContractCode, Library},
+    link::{ContractCode, QualifiedName},
     mir::{DataId, FunctionBuilder, Module, ValueId, memory::EvmMemoryLayout},
 };
 use alloy_primitives::U256;
@@ -42,7 +42,7 @@ pub(super) fn contract_code_data(
 ) -> DataId {
     let kind = if creation { "initcode" } else { "runtime_code" };
     let name = Symbol::intern(&format!("{}_{kind}", gcx.hir.contract(contract_id).name));
-    let contract = Library::of_contract(gcx, contract_id);
+    let contract = QualifiedName::of_contract(gcx, contract_id);
     module.intern_contract_code(ContractCode { contract, creation }, name)
 }
 
