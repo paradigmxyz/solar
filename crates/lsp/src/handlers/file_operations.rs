@@ -215,7 +215,7 @@ pub(crate) fn did_create_files(state: &mut GlobalState, params: CreateFilesParam
         watched_paths.dedup();
         watched_paths.retain(|path| path.exists());
     }
-    state.file_operations.record_direct_create_events(watched_paths);
+    state.file_operations.record_direct_events(FileChangeType::CREATED, watched_paths, []);
     ControlFlow::Continue(())
 }
 
@@ -268,7 +268,11 @@ pub(crate) fn did_delete_files(state: &mut GlobalState, params: DeleteFilesParam
         deleted_paths.clone(),
         schedule_analysis,
     );
-    state.file_operations.record_direct_delete_events(watched_paths, deleted_paths);
+    state.file_operations.record_direct_events(
+        FileChangeType::DELETED,
+        watched_paths,
+        deleted_paths,
+    );
     ControlFlow::Continue(())
 }
 
