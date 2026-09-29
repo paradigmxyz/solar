@@ -306,9 +306,9 @@ fn will_file_operations_refuse_incomplete_import_edits() {
             let links = state.symbol_tables.load().document_links(&project.path(importer));
             assert!(links.is_empty(), "pruned importer was unexpectedly analyzed: {importer}");
         }
-        let target = project.path(target);
-        let plan = state.symbol_tables.load().import_delete_edits(&[target.clone()]);
+        let plan = state.symbol_tables.load().import_delete_edits(&[project.path(target)]);
         assert!(!plan.is_empty(), "{fixture}");
+        let target = project.path(target);
 
         assert!(will_delete(&mut state, &target).unwrap().is_none(), "{fixture}");
         let renamed = target.with_file_name("Renamed.sol");
