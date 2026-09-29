@@ -174,7 +174,12 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         skip_tests: &[],
         skip_contracts: &[],
         notes: "divergence tracker: transient storage, via-ir profile, ffi gas snapshots",
-        test_fixes: &[],
+        test_fixes: &[TestFix {
+            path: "test/libraries/TickMath.t.sol",
+            before: "        // check lower price of next tick\n        assertEq(TickMath.getTickAtSqrtPrice(priceAtNextTick), nextTick, \"lower price next tick\");\n",
+            after: "        // check lower price of next tick\n        if (nextTick < TickMath.MAX_TICK) {\n            assertEq(TickMath.getTickAtSqrtPrice(priceAtNextTick), nextTick, \"lower price next tick\");\n        }\n",
+            reason: "the inverse excludes MAX_SQRT_PRICE; keep the last tick interval checks but guard its endpoint",
+        }],
     },
 ];
 
