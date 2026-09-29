@@ -106,6 +106,17 @@ impl RequestFixture {
         (self.state(), rename_params(uri, position, new_name))
     }
 
+    pub(super) fn rename_state_with_roots(
+        &self,
+        marker: &str,
+        new_name: &str,
+        roots: &[&str],
+    ) -> (GlobalState, RenameParams) {
+        let (mut state, params) = self.rename_state_and_params(marker, new_name);
+        state.config = Arc::new(self.marked.project().config_with_roots(roots));
+        (state, params)
+    }
+
     pub(super) fn check_completion(&self, marker: &str, expected: impl IntoData) {
         let mut state = self.state();
         let (uri, position) = self.marker_location(marker);
@@ -426,12 +437,30 @@ impl RequestFixture {
     }
 
     pub(super) fn check_rename(&self, marker: &str, new_name: &str, expected: impl IntoData) {
+        assert_data_eq!(self.rename_edits(marker, new_name), expected);
+    }
+
+    /// Checks renames from groups of space-separated markers that must produce equal edits.
+    pub(super) fn check_renames(&self, renames: &[(&str, &str)], expected: impl IntoData) {
+        let mut output = String::new();
+        for &(markers, new_name) in renames {
+            let mut group = markers.split_whitespace();
+            let edits = self.rename_edits(group.next().unwrap(), new_name);
+            for marker in group {
+                assert_eq!(self.rename_edits(marker, new_name), edits, "{marker}");
+            }
+            write!(output, "{markers}:\n{edits}").unwrap();
+        }
+        assert_data_eq!(output, expected);
+    }
+
+    fn rename_edits(&self, marker: &str, new_name: &str) -> String {
         let mut state = self.state();
         let (uri, position) = self.marker_location(marker);
         let response =
             block_on(crate::handlers::rename(&mut state, rename_params(uri, position, new_name)))
                 .unwrap();
-        assert_data_eq!(self.rename_output(response), expected);
+        self.rename_output(response)
     }
 
     pub(super) fn check_rename_error(&self, marker: &str, new_name: &str, expected: ErrorCode) {
@@ -852,36 +881,40 @@ impl RequestFixture {
         )
     }
 
-    fn rename_output(&self, response: Option<WorkspaceEdit>) -> String {
-        let Some(edit) = response else { return "<none>\n".to_string() };
-        assert!(edit.document_changes.is_none());
-        assert!(edit.change_annotations.is_none());
-
-        let mut changes = edit.changes.unwrap_or_default().into_iter().collect::<Vec<_>>();
-        changes.sort_by(|(a, _), (b, _)| a.as_str().cmp(b.as_str()));
-
-        let mut output = String::new();
-        for (uri, mut edits) in changes {
-            edits.sort_by_key(|edit| {
-                (edit.range.start.line, edit.range.start.character, edit.range.end)
-            });
-            let path = uri.to_file_path().unwrap();
-            let display_path = display_path(self.marked.project().root(), &path);
-            for edit in edits {
-                writeln!(
-                    output,
-                    "{display_path}:{}:{}-{}:{} -> {}",
-                    edit.range.start.line,
-                    edit.range.start.character,
-                    edit.range.end.line,
-                    edit.range.end.character,
-                    edit.new_text,
-                )
-                .unwrap();
-            }
-        }
-        output
+    pub(super) fn rename_output(&self, response: Option<WorkspaceEdit>) -> String {
+        rename_output(self.marked.project().root(), response)
     }
+}
+
+pub(super) fn rename_output(root: &Path, response: Option<WorkspaceEdit>) -> String {
+    let Some(edit) = response else { return "<none>\n".to_string() };
+    assert!(edit.document_changes.is_none());
+    assert!(edit.change_annotations.is_none());
+
+    let mut changes = edit.changes.unwrap_or_default().into_iter().collect::<Vec<_>>();
+    changes.sort_by(|(a, _), (b, _)| a.as_str().cmp(b.as_str()));
+
+    let mut output = String::new();
+    for (uri, mut edits) in changes {
+        edits.sort_by_key(|edit| {
+            (edit.range.start.line, edit.range.start.character, edit.range.end)
+        });
+        let path = uri.to_file_path().unwrap();
+        let display_path = display_path(root, &path);
+        for edit in edits {
+            writeln!(
+                output,
+                "{display_path}:{}:{}-{}:{} -> {}",
+                edit.range.start.line,
+                edit.range.start.character,
+                edit.range.end.line,
+                edit.range.end.character,
+                edit.new_text,
+            )
+            .unwrap();
+        }
+    }
+    output
 }
 
 fn expect_ready<F: Future>(future: F) -> F::Output {
