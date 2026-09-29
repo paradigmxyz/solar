@@ -6,8 +6,8 @@ use crate::{
     formatter::{self, FormatterError},
     global_state::{AnalysisRevision, GlobalState},
     import_resolution::{
-        ImportCandidateKind, ImportResolver, decode_import_path, import_path_at,
-        import_path_at_for_completion,
+        ImportCandidateKind, ImportResolutionContext, ImportResolver, decode_import_path,
+        import_path_at, import_path_at_for_completion,
     },
     natspec_completion::{self, NatSpecCompletionResult},
     progress::send_progress,
@@ -624,30 +624,18 @@ pub(crate) fn goto_definition(
                 {
                     return Ok(Some(response));
                 }
-                let overlay_paths = vfs
-                    .read()
-                    .iter()
-                    .filter_map(|(path, _)| path.as_path().map(Path::to_path_buf))
-                    .collect();
                 let Some(import_request) = parse_import_definition_request(
                     importer,
                     contents,
                     params.position,
-                    overlay_paths,
+                    overlay_paths(&vfs.read()),
                     vfs_content_revision,
                 ) else {
                     return Ok(
                         symbol_tables.goto_definition(&params.text_document.uri, params.position)
                     );
                 };
-                if let Some(target) = ImportResolver::new(context, &import_request.overlay_paths)
-                    .resolve(&import_request.importer, &import_request.raw_path)
-                    && let Ok(uri) = Url::from_file_path(target)
-                {
-                    let location = lsp_types::Location::new(uri, lsp_types::Range::default());
-                    return Ok(Some(GotoDefinitionResponse::Array(vec![location])));
-                }
-                None
+                import_request.resolve(context)
             }
             Some(ImportDefinitionRequest::Parsed(import_request)) => {
                 if !analysis_revision.is_current(import_request.vfs_content_revision) {
@@ -657,19 +645,9 @@ pub(crate) fn goto_definition(
                 else {
                     return Ok(None);
                 };
-                if let Some(response) =
-                    symbol_tables.import_definition(&params.text_document.uri, params.position)
-                {
-                    return Ok(Some(response));
-                }
-                if let Some(target) = ImportResolver::new(context, &import_request.overlay_paths)
-                    .resolve(&import_request.importer, &import_request.raw_path)
-                    && let Ok(uri) = Url::from_file_path(target)
-                {
-                    let location = lsp_types::Location::new(uri, lsp_types::Range::default());
-                    return Ok(Some(GotoDefinitionResponse::Array(vec![location])));
-                }
-                return Ok(None);
+                symbol_tables
+                    .import_definition(&params.text_document.uri, params.position)
+                    .or_else(|| import_request.resolve(context))
             }
         };
         Ok(response)
@@ -686,6 +664,20 @@ struct ParsedImportDefinitionRequest {
     raw_path: String,
     overlay_paths: Vec<PathBuf>,
     vfs_content_revision: u64,
+}
+
+impl ParsedImportDefinitionRequest {
+    fn resolve(&self, context: ImportResolutionContext<'_>) -> Option<GotoDefinitionResponse> {
+        let target = ImportResolver::new(context, &self.overlay_paths)
+            .resolve(&self.importer, &self.raw_path)?;
+        let location =
+            lsp_types::Location::new(Url::from_file_path(target).ok()?, Default::default());
+        Some(GotoDefinitionResponse::Array(vec![location]))
+    }
+}
+
+fn overlay_paths(vfs: &Vfs) -> Vec<PathBuf> {
+    vfs.iter().filter_map(|(path, _)| path.as_path().map(Path::to_path_buf)).collect()
 }
 
 fn import_definition_request(
@@ -727,17 +719,11 @@ fn import_definition_request(
             .ok()
             .map(|contents| Rope::from(contents.as_str()))
     })?;
-    let overlay_paths = state
-        .vfs
-        .read()
-        .iter()
-        .filter_map(|(path, _)| path.as_path().map(Path::to_path_buf))
-        .collect();
     Some(ImportDefinitionRequest::Parsed(parse_import_definition_request(
         importer,
         contents,
         position,
-        overlay_paths,
+        overlay_paths(&state.vfs.read()),
         vfs_content_revision,
     )?))
 }
@@ -766,47 +752,53 @@ pub(crate) fn goto_type_definition(
     state: &mut GlobalState,
     params: GotoDefinitionParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response =
-            symbol_tables.load().goto_type_definition(&params.text_document.uri, params.position);
-        Ok(response)
-    }
+    point_query(
+        state,
+        params.text_document_position_params,
+        true,
+        SymbolTables::goto_type_definition,
+    )
 }
 
 pub(crate) fn goto_declaration(
     state: &mut GlobalState,
     params: GotoDefinitionParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response =
-            symbol_tables.load().goto_declaration(&params.text_document.uri, params.position);
-        Ok(response)
-    }
+    point_query(state, params.text_document_position_params, true, SymbolTables::goto_declaration)
 }
 
 pub(crate) fn goto_implementation(
     state: &mut GlobalState,
     params: GotoImplementationParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
+    point_query(
+        state,
+        params.text_document_position_params,
+        true,
+        SymbolTables::goto_implementation,
+    )
+}
+
+/// Answers a position query from the analysis requested before it, prioritizing that analysis
+/// for navigation requests.
+fn point_query<T, F>(
+    state: &GlobalState,
+    mut params: TextDocumentPositionParams,
+    navigation: bool,
+    query: F,
+) -> impl Future<Output = Result<Option<T>, ResponseError>> + use<T, F>
+where
+    F: FnOnce(&SymbolTables, &Url, Position) -> Option<T>,
+{
     params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
+    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    if navigation && latest_analysis.is_some() {
+        state.prioritize_pending_analysis();
+    }
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
-        let response =
-            symbol_tables.load().goto_implementation(&params.text_document.uri, params.position);
-        Ok(response)
+        Ok(query(&symbol_tables.load(), &params.text_document.uri, params.position))
     }
 }
 
@@ -859,19 +851,9 @@ pub(crate) fn references(
     params: ReferenceParams,
 ) -> impl Future<Output = Result<Option<Vec<lsp_types::Location>>, ResponseError>> + use<> {
     let include_declaration = params.context.include_declaration;
-    let mut params = params.text_document_position;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.load().references(
-            &params.text_document.uri,
-            params.position,
-            include_declaration,
-        );
-        Ok(response)
-    }
+    point_query(state, params.text_document_position, true, move |tables, uri, position| {
+        tables.references(uri, position, include_declaration)
+    })
 }
 
 pub(crate) fn code_lens(
@@ -894,31 +876,19 @@ pub(crate) fn document_highlight(
     state: &mut GlobalState,
     params: DocumentHighlightParams,
 ) -> impl Future<Output = Result<Option<Vec<DocumentHighlight>>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response =
-            symbol_tables.load().document_highlights(&params.text_document.uri, params.position);
-        Ok(response)
-    }
+    point_query(
+        state,
+        params.text_document_position_params,
+        false,
+        SymbolTables::document_highlights,
+    )
 }
 
 pub(crate) fn hover(
     state: &mut GlobalState,
     params: HoverParams,
 ) -> impl Future<Output = Result<Option<Hover>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.load().hover(&params.text_document.uri, params.position);
-        Ok(response)
-    }
+    point_query(state, params.text_document_position_params, true, SymbolTables::hover)
 }
 
 pub(crate) fn prepare_rename(
