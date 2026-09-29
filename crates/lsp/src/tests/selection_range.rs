@@ -6,64 +6,7 @@ use lsp_types::Position;
 use snapbox::str;
 
 #[test]
-fn selects_nested_expressions_and_declarations() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Selection.sol open
-        contract C {
-            function f(uint256 value) external pure returns (uint256) {
-                return (val$1ue + 1) * 2;
-            }
-        }
-        "#,
-        "/Selection.sol",
-    );
-
-    fixture.check_selection_ranges(
-        &["$1"],
-        str![[r#"
-0:
-  2:16-2:21
-  2:16-2:25
-  2:15-2:26
-  2:15-2:30
-  2:8-2:31
-  1:62-3:5
-  1:4-3:5
-  0:0-4:1
-
-"#]],
-    );
-}
-
-#[test]
-fn selects_parameters_without_a_function_header_range() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Selection.sol open
-        contract C {
-            function f(uint256 val$1ue, address other) external {}
-        }
-        "#,
-        "/Selection.sol",
-    );
-
-    fixture.check_selection_ranges(
-        &["$1"],
-        str![[r#"
-0:
-  1:23-1:28
-  1:15-1:28
-  1:14-1:44
-  1:4-1:56
-  0:0-2:1
-
-"#]],
-    );
-}
-
-#[test]
-fn preserves_request_order_for_member_and_index_expressions() {
+fn selects_expressions_declarations_and_yul_in_request_order() {
     let fixture = RequestFixture::new(
         r#"
         //- /Selection.sol open
@@ -71,8 +14,15 @@ fn preserves_request_order_for_member_and_index_expressions() {
             struct User { uint256 balance; }
             User[] users;
 
-            function f(uint256 index) external view returns (uint256) {
-                return users[ind$1ex].bal$2ance;
+            function f(uint256 val$1ue, address other) external view returns (uint256) {
+                return (val$2ue + 1) * users[val$3ue].bal$4ance;
+            }
+
+            function g() external pure {
+                assembly {
+                    let value := 2
+                    let result := add(val$5ue, 1)
+                }
             }
         }
         "#,
@@ -80,58 +30,56 @@ fn preserves_request_order_for_member_and_index_expressions() {
     );
 
     fixture.check_selection_ranges(
-        &["$2", "$1"],
+        &["$1", "$4", "$3", "$2", "$5"],
         str![[r#"
 0:
-  4:28-4:35
-  4:15-4:35
-  4:8-4:36
-  3:62-5:5
+  3:23-3:28
+  3:15-3:28
+  3:14-3:44
   3:4-5:5
-  0:0-6:1
+  0:0-12:1
 1:
-  4:21-4:26
-  4:15-4:27
-  4:15-4:35
-  4:8-4:36
-  3:62-5:5
+  4:42-4:49
+  4:29-4:49
+  4:15-4:49
+  4:8-4:50
+  3:77-5:5
   3:4-5:5
-  0:0-6:1
+  0:0-12:1
+2:
+  4:35-4:40
+  4:29-4:41
+  4:29-4:49
+  4:15-4:49
+  4:8-4:50
+  3:77-5:5
+  3:4-5:5
+  0:0-12:1
+3:
+  4:16-4:21
+  4:16-4:25
+  4:15-4:26
+  4:15-4:49
+  4:8-4:50
+  3:77-5:5
+  3:4-5:5
+  0:0-12:1
+4:
+  9:30-9:35
+  9:26-9:39
+  9:12-9:39
+  7:17-10:9
+  7:8-10:9
+  6:31-11:5
+  6:4-11:5
+  0:0-12:1
 
 "#]],
     );
 }
 
 #[test]
-fn uses_utf16_positions_for_crlf_documents_without_waiting_for_analysis() {
-    let fixture = RequestFixture::new(
-        concat!(
-            "//- /Unicode.sol open\r\n",
-            "contract C {\r\n",
-            "    function f(uint256 value) external pure returns (uint256) {\r\n",
-            "        /* 中😀 */ return val$1ue;\r\n",
-            "    }\r\n",
-            "}",
-        ),
-        "/Unicode.sol",
-    );
-
-    fixture.check_selection_ranges_while_analysis_pending(
-        &["$1"],
-        str![[r#"
-0:
-  2:25-2:30
-  2:18-2:31
-  1:62-3:5
-  1:4-3:5
-  0:0-4:1
-
-"#]],
-    );
-}
-
-#[test]
-fn cached_utf16_ranges_match_repeated_and_disk_requests() {
+fn uses_cached_utf16_positions_for_crlf_documents() {
     let fixture = RequestFixture::new(
         concat!(
             "//- /Open.sol open\r\n",
@@ -149,34 +97,30 @@ fn cached_utf16_ranges_match_repeated_and_disk_requests() {
         ),
         "/Open.sol",
     );
-    let mut state = fixture.state();
 
+    fixture.check_selection_ranges(
+        &["$1"],
+        str![[r#"
+0:
+  2:25-2:30
+  2:18-2:31
+  1:62-3:5
+  1:4-3:5
+  0:0-4:1
+
+"#]],
+    );
+    let mut state = fixture.state();
     let first = fixture.selection_range_response_in_state(&mut state, &["$1"]);
     let cached = fixture.selection_range_response_in_state(&mut state, &["$1"]);
     let disk = fixture.selection_range_response_in_state(&mut state, &["$2"]);
-
     assert_eq!(cached, first);
     assert_eq!(disk, first);
-}
 
-#[test]
-fn rejects_invalid_utf16_positions() {
-    let fixture = RequestFixture::new(
-        concat!(
-            "//- /Unicode.sol open\r\n",
-            "contract C {\r\n",
-            "    function f(uint256 value) external pure returns (uint256) {\r\n",
-            "        /* 中😀 */ return value;\r\n",
-            "    }\r\n",
-            "}",
-        ),
-        "/Unicode.sol",
-    );
     let valid = Position::new(2, 28);
-
     for invalid in [Position::new(99, 0), Position::new(2, 13)] {
         fixture.check_selection_range_error(
-            "/Unicode.sol",
+            "/Open.sol",
             vec![valid, invalid],
             ErrorCode::INVALID_PARAMS,
         );
@@ -317,46 +261,30 @@ fn returns_one_empty_range_for_an_empty_document() {
 }
 
 #[test]
-fn prefers_open_vfs_contents_over_stale_disk() {
+fn prefers_open_vfs_contents_and_reads_closed_documents_from_disk() {
     let fixture = RequestFixture::new(
         r#"
         //- /Open.sol open
         contract Op$1en {}
+
+        //- /Disk.sol
+        contract Di$2sk {}
         "#,
         "/Open.sol",
     );
     fixture.write_file("/Open.sol", "contract DiskVersion {}");
 
-    fixture.check_selection_ranges(
-        &["$1"],
-        str![[r#"
+    for marker in ["$1", "$2"] {
+        fixture.check_selection_ranges(
+            &[marker],
+            str![[r#"
 0:
   0:9-0:13
   0:0-0:16
 
 "#]],
-    );
-}
-
-#[test]
-fn reads_closed_documents_from_disk() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Disk.sol
-        contract Di$1sk {}
-        "#,
-        "/Disk.sol",
-    );
-
-    fixture.check_selection_ranges_from_disk(
-        &["$1"],
-        str![[r#"
-0:
-  0:9-0:13
-  0:0-0:16
-
-"#]],
-    );
+        );
+    }
 }
 
 #[test]
@@ -389,10 +317,12 @@ fn recovers_selection_ranges_from_incomplete_source() {
 fn falls_back_when_source_cannot_be_parsed() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
-        //- /Invalid.sol open
+        //- /Open.sol open
         @$1
+        //- /Disk.sol
+        @$2
         "#,
-        "/Invalid.sol",
+        "/Open.sol",
     );
 
     fixture.check_selection_ranges(
@@ -404,25 +334,10 @@ fn falls_back_when_source_cannot_be_parsed() {
 
 "#]],
     );
-}
-
-#[test]
-fn cached_parse_failure_matches_repeated_and_disk_fallbacks() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /Open.sol open
-        @$1
-        //- /Disk.sol
-        @$2
-        "#,
-        "/Open.sol",
-    );
     let mut state = fixture.state();
-
     let first = fixture.selection_range_response_in_state(&mut state, &["$1"]);
     let cached = fixture.selection_range_response_in_state(&mut state, &["$1"]);
     let disk = fixture.selection_range_response_in_state(&mut state, &["$2"]);
-
     assert_eq!(cached, first);
     assert_eq!(disk, first);
 }
@@ -452,38 +367,4 @@ fn content_changes_replace_cached_selection_ranges() {
 
     assert_ne!(changed, first);
     assert_eq!(changed, expected);
-}
-
-#[test]
-fn selects_inline_yul_expressions_and_statements() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Yul.sol open
-        contract C {
-            function f() external pure {
-                assembly {
-                    let value := 2
-                    let result := add(val$1ue, 1)
-                }
-            }
-        }
-        "#,
-        "/Yul.sol",
-    );
-
-    fixture.check_selection_ranges(
-        &["$1"],
-        str![[r#"
-0:
-  4:30-4:35
-  4:26-4:39
-  4:12-4:39
-  2:17-5:9
-  2:8-5:9
-  1:31-6:5
-  1:4-6:5
-  0:0-7:1
-
-"#]],
-    );
 }

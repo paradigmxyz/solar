@@ -357,42 +357,27 @@ impl RequestFixture {
     }
 
     pub(super) fn check_code_lenses(&self, path: &str, expected: impl IntoData) {
-        self.check_code_lenses_with_commands(path, true, expected);
+        assert_data_eq!(code_lens_output(&self.code_lenses(path, true)), expected);
     }
 
     pub(super) fn check_code_lenses_without_commands(&self, path: &str, expected: impl IntoData) {
-        self.check_code_lenses_with_commands(path, false, expected);
+        assert_data_eq!(code_lens_output(&self.code_lenses(path, false)), expected);
     }
 
     pub(super) fn check_code_lenses_json(&self, path: &str, expected: impl IntoData) {
-        let mut state = self.state();
-        Arc::make_mut(&mut state.config).enable_code_lens_client_commands();
-        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
-        let response =
-            expect_ready(crate::handlers::code_lens(&mut state, code_lens_params(uri.clone())))
-                .unwrap()
-                .unwrap_or_default();
-        let output = serde_json::to_string_pretty(&response)
+        let output = serde_json::to_string_pretty(&self.code_lenses(path, true))
             .unwrap()
-            .replace(uri.as_str(), &format!("file://{path}"));
+            .replace(self.path_uri(path).as_str(), &format!("file://{path}"));
         assert_data_eq!(output, expected);
     }
 
-    fn check_code_lenses_with_commands(
-        &self,
-        path: &str,
-        client_commands: bool,
-        expected: impl IntoData,
-    ) {
+    fn code_lenses(&self, path: &str, client_commands: bool) -> Vec<CodeLens> {
         let mut state = self.state();
         if client_commands {
             Arc::make_mut(&mut state.config).enable_code_lens_client_commands();
         }
-        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
-        let response = expect_ready(crate::handlers::code_lens(&mut state, code_lens_params(uri)))
-            .unwrap()
-            .unwrap_or_default();
-        assert_data_eq!(code_lens_output(&response), expected);
+        let params = code_lens_params(self.path_uri(path));
+        expect_ready(crate::handlers::code_lens(&mut state, params)).unwrap().unwrap_or_default()
     }
 
     pub(super) fn check_document_highlights(&self, marker: &str, expected: impl IntoData) {
@@ -452,13 +437,18 @@ impl RequestFixture {
     }
 
     pub(super) fn check_inlay_hints(&self, path: &str, expected: impl IntoData) {
-        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
-        assert_data_eq!(inlay_hint_output(&self.inlay_hints(uri, full_range())), expected);
+        assert_data_eq!(
+            inlay_hint_output(&self.inlay_hints(self.path_uri(path), full_range())),
+            expected
+        );
     }
 
     pub(super) fn check_document_links(&self, path: &str, expected: impl IntoData) {
+        self.check_document_links_at(self.path_uri(path), expected);
+    }
+
+    pub(super) fn check_document_links_at(&self, uri: Url, expected: impl IntoData) {
         let mut state = self.state();
-        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
         let links =
             expect_ready(crate::handlers::document_links(&mut state, document_link_params(uri)))
                 .unwrap()
@@ -467,28 +457,16 @@ impl RequestFixture {
     }
 
     pub(super) fn check_folding_ranges(&self, path: &str, expected: impl IntoData) {
-        let mut state = self.state();
-        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
-        let response =
-            block_on(crate::handlers::folding_range(&mut state, folding_range_params(uri)))
-                .unwrap()
-                .expect("folding-range request should return ranges");
-        assert_data_eq!(folding_range_output(&response), expected);
+        let ranges = self.folding_ranges(self.path_uri(path));
+        let ranges = ranges.expect("folding-range request should return ranges");
+        assert_data_eq!(folding_range_output(&ranges), expected);
     }
 
-    pub(super) fn check_folding_ranges_while_analysis_pending(
-        &self,
-        path: &str,
-        expected: impl IntoData,
-    ) {
+    pub(super) fn folding_ranges(&self, uri: Url) -> Option<Vec<FoldingRange>> {
         let mut state = self.state();
+        // Folding ranges are syntactic and must not wait for analysis.
         state.mark_analysis_pending_for_test();
-        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
-        let response =
-            block_on(crate::handlers::folding_range(&mut state, folding_range_params(uri)))
-                .unwrap()
-                .expect("folding-range request should return ranges");
-        assert_data_eq!(folding_range_output(&response), expected);
+        block_on(crate::handlers::folding_range(&mut state, folding_range_params(uri))).unwrap()
     }
 
     pub(super) fn check_folding_range_uses_blocking_pool(
@@ -496,52 +474,16 @@ impl RequestFixture {
         path: &str,
         expected: impl IntoData,
     ) {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .max_blocking_threads(1)
-            .build()
-            .unwrap();
-        runtime.block_on(async {
-            let (release_worker, worker) = super::pause_blocking_pool();
-            let mut state = self.state();
-            let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
-            let mut request = std::pin::pin!(crate::handlers::folding_range(
-                &mut state,
-                folding_range_params(uri),
-            ));
-            let waker = Waker::noop();
-            let mut cx = Context::from_waker(waker);
-
-            let is_pending = request.as_mut().poll(&mut cx).is_pending();
-            release_worker.send(()).unwrap();
-            assert!(is_pending);
-            let response =
-                request.await.unwrap().expect("folding-range request should return ranges");
-            worker.await.unwrap();
-            assert_data_eq!(folding_range_output(&response), expected);
-        });
-    }
-
-    pub(super) fn check_folding_range_returns_none(&self, uri: Url) {
-        let mut state = self.state();
-        state.mark_analysis_pending_for_test();
+        let params = folding_range_params(self.path_uri(path));
         let response =
-            block_on(crate::handlers::folding_range(&mut state, folding_range_params(uri)))
-                .unwrap();
-        assert_eq!(response, None);
-    }
-
-    pub(super) fn check_missing_folding_range_returns_none(&self, path: &str) {
-        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
-        self.check_folding_range_returns_none(uri);
+            self.on_paused_blocking_pool(|state| crate::handlers::folding_range(state, params));
+        let ranges = response.unwrap().expect("folding-range request should return ranges");
+        assert_data_eq!(folding_range_output(&ranges), expected);
     }
 
     pub(super) fn check_selection_ranges(&self, markers: &[&str], expected: impl IntoData) {
-        let mut state = self.state();
         let (params, positions) = self.selection_range_request(markers);
-        let response =
-            block_on(crate::handlers::selection_range(&mut state, params)).unwrap().unwrap();
-        check_selection_range_response(response, &positions, expected);
+        self.check_selection_range_params(params, &positions, expected);
     }
 
     pub(super) fn selection_range_response_in_state(
@@ -561,33 +503,22 @@ impl RequestFixture {
         expected: impl IntoData,
     ) {
         assert_eq!(positions.len(), normalized_positions.len());
-        let mut state = self.state();
-        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
-        let params = selection_range_params(uri, positions);
-        let response =
-            block_on(crate::handlers::selection_range(&mut state, params)).unwrap().unwrap();
-        check_selection_range_response(response, normalized_positions, expected);
+        let params = selection_range_params(self.path_uri(path), positions);
+        self.check_selection_range_params(params, normalized_positions, expected);
     }
 
-    pub(super) fn check_selection_ranges_from_disk(
+    fn check_selection_range_params(
         &self,
-        markers: &[&str],
-        expected: impl IntoData,
-    ) {
-        self.check_selection_ranges(markers, expected);
-    }
-
-    pub(super) fn check_selection_ranges_while_analysis_pending(
-        &self,
-        markers: &[&str],
+        params: SelectionRangeParams,
+        positions: &[Position],
         expected: impl IntoData,
     ) {
         let mut state = self.state();
+        // Selection ranges are syntactic and must not wait for analysis.
         state.mark_analysis_pending_for_test();
-        let (params, positions) = self.selection_range_request(markers);
         let response =
             block_on(crate::handlers::selection_range(&mut state, params)).unwrap().unwrap();
-        check_selection_range_response(response, &positions, expected);
+        assert_data_eq!(selection_range_output(&response, positions), expected);
     }
 
     pub(super) fn check_selection_range_uses_blocking_pool(
@@ -595,26 +526,10 @@ impl RequestFixture {
         markers: &[&str],
         expected: impl IntoData,
     ) {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .max_blocking_threads(1)
-            .build()
-            .unwrap();
-        runtime.block_on(async {
-            let (release_worker, worker) = super::pause_blocking_pool();
-            let mut state = self.state();
-            let (params, positions) = self.selection_range_request(markers);
-            let mut request = std::pin::pin!(crate::handlers::selection_range(&mut state, params));
-            let waker = Waker::noop();
-            let mut cx = Context::from_waker(waker);
-
-            let is_pending = request.as_mut().poll(&mut cx).is_pending();
-            release_worker.send(()).unwrap();
-            assert!(is_pending);
-            let response = request.await.unwrap().unwrap();
-            worker.await.unwrap();
-            check_selection_range_response(response, &positions, expected);
-        });
+        let (params, positions) = self.selection_range_request(markers);
+        let response =
+            self.on_paused_blocking_pool(|state| crate::handlers::selection_range(state, params));
+        assert_data_eq!(selection_range_output(&response.unwrap().unwrap(), &positions), expected);
     }
 
     pub(super) fn check_selection_range_error(
@@ -624,12 +539,35 @@ impl RequestFixture {
         expected: ErrorCode,
     ) {
         let mut state = self.state();
-        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
-        let params = selection_range_params(uri, positions);
+        let params = selection_range_params(self.path_uri(path), positions);
         let error = block_on(crate::handlers::selection_range(&mut state, params))
             .expect_err("selection-range request should fail");
         assert_eq!(error.code, expected);
         assert!(!error.message.ends_with('.'));
+    }
+
+    /// Runs a request with one paused blocking worker, requiring it to wait for the pool.
+    fn on_paused_blocking_pool<F: Future>(
+        &self,
+        request: impl FnOnce(&mut GlobalState) -> F,
+    ) -> F::Output {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .max_blocking_threads(1)
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let (release_worker, worker) = super::pause_blocking_pool();
+            let mut state = self.state();
+            let mut request = std::pin::pin!(request(&mut state));
+            let is_pending =
+                request.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending();
+            release_worker.send(()).unwrap();
+            assert!(is_pending);
+            let response = request.await;
+            worker.await.unwrap();
+            response
+        })
     }
 
     pub(super) fn check_signature_help(&self, marker: &str, expected: impl IntoData) {
@@ -761,6 +699,10 @@ impl RequestFixture {
         state.symbol_tables.store(Arc::new(self.result.symbol_tables.clone()));
         state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
         state
+    }
+
+    fn path_uri(&self, path: &str) -> Url {
+        Url::from_file_path(self.marked.project().path(path)).unwrap()
     }
 
     pub(super) fn marker_location(&self, marker: &str) -> (Url, Position) {
@@ -1011,7 +953,7 @@ fn selection_range_output(ranges: &[SelectionRange], positions: &[Position]) -> 
     output
 }
 
-fn folding_range_output(ranges: &[FoldingRange]) -> String {
+pub(super) fn folding_range_output(ranges: &[FoldingRange]) -> String {
     let mut output = String::new();
     for range in ranges {
         let kind = match range.kind {
@@ -1022,25 +964,16 @@ fn folding_range_output(ranges: &[FoldingRange]) -> String {
         };
         writeln!(
             output,
-            "{}:{}-{}:{} kind={kind} collapsed_text={:?}",
+            "{}:{}-{}:{} {kind}",
             range.start_line,
             range.start_character.expect("start character should be present"),
             range.end_line,
             range.end_character.expect("end character should be present"),
-            range.collapsed_text,
         )
         .unwrap();
+        assert_eq!(range.collapsed_text, None);
     }
     output
-}
-
-fn check_selection_range_response(
-    response: Vec<SelectionRange>,
-    positions: &[Position],
-    expected: impl IntoData,
-) {
-    assert_eq!(response.len(), positions.len());
-    assert_data_eq!(selection_range_output(&response, positions), expected);
 }
 
 fn range_contains_position(range: Range, position: Position) -> bool {
@@ -1055,8 +988,15 @@ fn range_contains_range(outer: Range, inner: Range) -> bool {
 fn inlay_hint_output(hints: &[InlayHint]) -> String {
     let mut output = String::new();
     for hint in hints {
-        writeln!(output, "{} {}", inlay_hint_kind(hint.kind), inlay_hint_label(&hint.label))
-            .unwrap();
+        writeln!(
+            output,
+            "{}:{} {} {}",
+            hint.position.line,
+            hint.position.character,
+            inlay_hint_kind(hint.kind),
+            inlay_hint_label(&hint.label)
+        )
+        .unwrap();
     }
     output
 }

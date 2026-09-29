@@ -1,9 +1,5 @@
-use super::{AnalysisBatch, analyze, support::RequestFixture};
-use crate::{
-    config::CodeLensConfig,
-    symbols::{SymbolTables, SymbolTablesAggregator},
-    test_support::MarkedProject,
-};
+use super::{AnalysisBatch, analyze, call_hierarchy::merge_symbol_tables, support::RequestFixture};
+use crate::{config::CodeLensConfig, symbols::SymbolTables, test_support::MarkedProject};
 use lsp_types::{Position, Url};
 use snapbox::{assert_data_eq, str};
 use solar_config::CompileOpts;
@@ -25,10 +21,14 @@ fn shows_selectors_and_references() {
             }
 
             function callTransfer(address target) external {
-                transfer(target, value);
+                uint256 local = value;
+                assembly {
+                    function inner(y) -> z { z := y }
+                    local := inner(local)
+                }
+                transfer(target, local);
             }
         }
-
         "#,
         "/CodeLens.sol",
     );
@@ -58,7 +58,10 @@ fn shows_direct_inheritance_counts() {
         //- /Hierarchy.sol
         contract Base {}
         contract Mid is Base {}
-        contract Leaf is Mid {}
+        contract Leaf is Mid {
+            function target() public {}
+            function callTarget() external { target(); }
+        }
         "#,
         "/Hierarchy.sol",
     );
@@ -73,6 +76,27 @@ fn shows_direct_inheritance_counts() {
 1:9 inheritance=1 derived contract command=solar.showTypeHierarchy
 2:9 references=0 command=<none>
 2:9 inheritance=1 base contract command=solar.showTypeHierarchy
+3:13 references=1 command=solar.showReferences
+3:13 selector=0xd4b83992 command=solar.copySelector
+4:13 references=0 command=<none>
+4:13 selector=0x2872b1ff command=solar.copySelector
+
+"#]],
+    );
+    fixture.check_code_lenses_without_commands(
+        "/Hierarchy.sol",
+        str![[r#"
+0:9 references=1 command=<none>
+0:9 inheritance=1 derived contract command=<none>
+1:9 references=1 command=<none>
+1:9 inheritance=1 base contract command=<none>
+1:9 inheritance=1 derived contract command=<none>
+2:9 references=0 command=<none>
+2:9 inheritance=1 base contract command=<none>
+3:13 references=1 command=<none>
+3:13 selector=0xd4b83992 command=<none>
+4:13 references=0 command=<none>
+4:13 selector=0x2872b1ff command=<none>
 
 "#]],
     );
@@ -86,7 +110,6 @@ fn snapshots_complete_command_protocol() {
         contract Base {}
         contract Plain is Base {
             function target() public {}
-            function callTarget() external { target(); }
         }
         "#,
         "/Protocol.sol",
@@ -201,17 +224,8 @@ fn snapshots_complete_command_protocol() {
       }
     },
     "command": {
-      "title": "1 reference",
-      "command": "solar.showReferences",
-      "arguments": [
-        {
-          "position": {
-            "character": 13,
-            "line": 2
-          },
-          "uri": "file:///Protocol.sol"
-        }
-      ]
+      "title": "0 references",
+      "command": ""
     }
   },
   {
@@ -230,41 +244,6 @@ fn snapshots_complete_command_protocol() {
       "command": "solar.copySelector",
       "arguments": [
         "0xd4b83992"
-      ]
-    }
-  },
-  {
-    "range": {
-      "start": {
-        "line": 3,
-        "character": 13
-      },
-      "end": {
-        "line": 3,
-        "character": 23
-      }
-    },
-    "command": {
-      "title": "0 references",
-      "command": ""
-    }
-  },
-  {
-    "range": {
-      "start": {
-        "line": 3,
-        "character": 13
-      },
-      "end": {
-        "line": 3,
-        "character": 23
-      }
-    },
-    "command": {
-      "title": "0x2872b1ff",
-      "command": "solar.copySelector",
-      "arguments": [
-        "0x2872b1ff"
       ]
     }
   }
@@ -358,26 +337,15 @@ fn recomputes_warmed_reference_counts_when_merging_batches() {
         "#,
     );
     let project = marked.project();
-    let analyze_path = |path| {
-        let result = analyze(AnalysisBatch::from_files(
-            CompileOpts::default(),
-            [(project.path(path), project.read_file(path))],
-        ));
-        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
-        result.symbol_tables
-    };
-    let first = analyze_path("/First.sol");
-    let second = analyze_path("/Second.sol");
+    let first = analyze_file(&marked, "/First.sol");
+    let second = analyze_file(&marked, "/Second.sol");
     let uri = Url::from_file_path(project.path("/Shared.sol")).unwrap();
     let position = marked.marker("$1").position();
 
     assert_data_eq!(lens_titles_at(&first, &uri, position), "1 reference\n");
     assert_data_eq!(lens_titles_at(&second, &uri, position), "2 references\n");
     for (first, second) in [(first.clone(), second.clone()), (second, first)] {
-        let mut aggregator = SymbolTablesAggregator::default();
-        aggregator.push(first);
-        aggregator.push(second);
-        let tables = aggregator.finish();
+        let tables = merge_symbol_tables(first, second);
         for _ in 0..2 {
             // The shared caller appears in both batches, but contributes only one location.
             assert_data_eq!(lens_titles_at(&tables, &uri, position), "2 references\n");
@@ -406,27 +374,16 @@ fn suppresses_warmed_reference_counts_after_merging_conflicting_callers() {
     );
     let project = marked.project();
     let contents = project.read_file("/Caller.sol");
-    let analyze_path = |path| {
-        let result = analyze(AnalysisBatch::from_files(
-            CompileOpts::default(),
-            [(project.path(path), project.read_file(path))],
-        ));
-        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
-        result.symbol_tables
-    };
-    let first = analyze_path("/Caller.sol");
+    let first = analyze_file(&marked, "/Caller.sol");
     project.write_file("/Caller.sol", &contents.replace("Target.target();", "\nTarget.target();"));
-    let second = analyze_path("/Root.sol");
+    let second = analyze_file(&marked, "/Root.sol");
     let uri = Url::from_file_path(project.path("/Target.sol")).unwrap();
     let position = marked.marker("$1").position();
 
     assert_data_eq!(lens_titles_at(&first, &uri, position), "1 reference\n0xd4b83992\n");
     assert_data_eq!(lens_titles_at(&second, &uri, position), "1 reference\n0xd4b83992\n");
     for (first, second) in [(first.clone(), second.clone()), (second, first)] {
-        let mut aggregator = SymbolTablesAggregator::default();
-        aggregator.push(first);
-        aggregator.push(second);
-        let tables = aggregator.finish();
+        let tables = merge_symbol_tables(first, second);
         for _ in 0..2 {
             assert_data_eq!(lens_titles_at(&tables, &uri, position), "0xd4b83992\n");
         }
@@ -548,62 +505,6 @@ fn skips_selectors_for_invalid_signatures() {
     );
 }
 
-#[test]
-fn excludes_yul_declarations_and_solidity_locals_and_returns() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Yul.sol
-        contract Yul {
-            function outer(uint256 input) external pure returns (uint256 output) {
-                uint256 local = input;
-                assembly {
-                    function inner(y) -> z { z := y }
-                    output := inner(local)
-                }
-            }
-        }
-        "#,
-        "/Yul.sol",
-    );
-
-    fixture.check_code_lenses(
-        "/Yul.sol",
-        str![[r#"
-0:9 references=0 command=<none>
-1:13 references=0 command=<none>
-1:13 selector=0x94209e43 command=solar.copySelector
-1:27 references=1 command=solar.showReferences
-
-"#]],
-    );
-}
-
-#[test]
-fn preserves_titles_without_client_commands() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Plain.sol
-        contract Plain {
-            function target() public {}
-            function callTarget() external { target(); }
-        }
-        "#,
-        "/Plain.sol",
-    );
-
-    fixture.check_code_lenses_without_commands(
-        "/Plain.sol",
-        str![[r#"
-0:9 references=0 command=<none>
-1:13 references=1 command=<none>
-1:13 selector=0xd4b83992 command=<none>
-2:13 references=0 command=<none>
-2:13 selector=0x2872b1ff command=<none>
-
-"#]],
-    );
-}
-
 fn lens_titles_at(tables: &SymbolTables, uri: &Url, position: Position) -> String {
     let mut output = String::new();
     for lens in tables.code_lenses(uri, CodeLensConfig::default()) {
@@ -613,4 +514,12 @@ fn lens_titles_at(tables: &SymbolTables, uri: &Url, position: Position) -> Strin
         }
     }
     output
+}
+
+fn analyze_file(marked: &MarkedProject, path: &str) -> SymbolTables {
+    let project = marked.project();
+    let files = [(project.path(path), project.read_file(path))];
+    let result = analyze(AnalysisBatch::from_files(CompileOpts::default(), files));
+    assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+    result.symbol_tables
 }

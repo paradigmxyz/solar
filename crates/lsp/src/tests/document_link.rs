@@ -17,13 +17,14 @@ use std::{
 };
 
 #[test]
-fn all_import_forms_use_full_literal_utf16_ranges() {
-    let fixture = RequestFixture::new(
+fn links_resolved_import_forms_with_full_literal_utf16_ranges() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Imports.sol
         /* 😀 */ import "./Plain.sol";
         import * as Glob from "./Glob.sol";
         import {Named as Alias} from "./Named.sol";
+        import "./Missing.sol";
 
         //- /Plain.sol
         contract Plain {}
@@ -49,31 +50,8 @@ fn all_import_forms_use_full_literal_utf16_ranges() {
 }
 
 #[test]
-fn returns_only_successfully_resolved_imports() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /Imports.sol
-        import "./Valid.sol";
-        import "./Missing.sol";
-
-        //- /Valid.sol
-        contract Valid {}
-        "#,
-        "/Imports.sol",
-    );
-
-    fixture.check_document_links(
-        "/Imports.sol",
-        str![[r#"
-0:7..0:20 -> /Valid.sol
-
-"#]],
-    );
-}
-
-#[test]
 fn equivalent_file_uris_return_document_links() {
-    let project = TestProject::from_fixture(
+    let fixture = RequestFixture::new(
         r#"
         //- /Imports.sol
         import "./Target.sol";
@@ -81,41 +59,16 @@ fn equivalent_file_uris_return_document_links() {
         //- /Target.sol
         contract Target {}
         "#,
+        "/Imports.sol",
     );
-    let path = project.path("/Imports.sol");
-    let tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), project.read_file("/Imports.sol"))],
-    ))
-    .symbol_tables;
-    let canonical_uri = Url::from_file_path(&path).unwrap();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.symbol_tables.store(Arc::new(tables));
+    let canonical_uri = Url::from_file_path(fixture.project_path("/Imports.sol")).unwrap();
     for spelling in ["%49mports.sol", "nested%2F..%2FImports.sol"] {
         let encoded_uri =
             Url::parse(&canonical_uri.as_str().replacen("Imports.sol", spelling, 1)).unwrap();
 
         assert_ne!(canonical_uri, encoded_uri);
         assert_eq!(crate::proto::vfs_path(&canonical_uri), crate::proto::vfs_path(&encoded_uri));
-
-        let params = DocumentLinkParams {
-            text_document: TextDocumentIdentifier::new(encoded_uri),
-            work_done_progress_params: WorkDoneProgressParams::default(),
-            partial_result_params: PartialResultParams::default(),
-        };
-        let mut request = std::pin::pin!(crate::handlers::document_links(&mut state, params));
-        let waker = Waker::noop();
-        let mut context = Context::from_waker(waker);
-        let std::task::Poll::Ready(response) = request.as_mut().poll(&mut context) else {
-            panic!("document-link request should be ready");
-        };
-
-        let links = response.unwrap().unwrap();
-        assert_eq!(links.len(), 1);
-        assert_eq!(
-            links[0].target,
-            Some(Url::from_file_path(project.path("/Target.sol")).unwrap())
-        );
+        fixture.check_document_links_at(encoded_uri, "0:7..0:21 -> /Target.sol\n");
     }
 }
 
