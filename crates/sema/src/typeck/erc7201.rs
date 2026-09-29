@@ -5,14 +5,17 @@
 //! the one part of namespaced storage the language cannot type. This compiler checks that part:
 //! an assembly assignment of a constant to the `.slot` of a reference to a namespaced struct must
 //! assign the namespace's location, and no contract may see two structs in one namespace, which
-//! would overlap. Other compilers read the annotation as documentation.
+//! would overlap. A contract sees the namespaced structs it declares or inherits, and those that
+//! the accessors in the code it runs point at, which places a library's or a free function's
+//! struct in the storage of every contract that runs its accessor. Other compilers read the
+//! annotation as documentation.
 //!
 //! An assignment whose value is not a compile-time constant is not checked.
 
 use crate::{
     eval::erc7201_slot,
     hir::{self, ExprKind, ItemId, StmtKind, Visit},
-    ty::Gcx,
+    ty::{Gcx, traced_functions},
 };
 use alloy_primitives::U256;
 use solar_ast::DataLocation;
@@ -49,29 +52,47 @@ pub(super) fn check(gcx: Gcx<'_>) {
     }
 }
 
-/// Rejects two structs in one namespace that a contract declares or inherits.
+/// Rejects two structs in one namespace that a contract declares or inherits, or that the
+/// accessors in the code it runs point at.
 fn check_overlaps(gcx: Gcx<'_>, namespaces: &FxHashMap<hir::StructId, Namespace>) {
     let mut reported = FxHashSet::default();
-    for contract in gcx.hir.contracts() {
+    for contract_id in gcx.hir.contract_ids() {
+        let contract = gcx.hir.contract(contract_id);
+        if contract.kind == hir::ContractKind::Interface {
+            continue;
+        }
+        let declared = contract
+            .linearized_bases
+            .iter()
+            .rev()
+            .flat_map(|&base| gcx.hir.contract(base).items.iter().filter_map(ItemId::as_struct))
+            .filter(|id| namespaces.contains_key(id))
+            .collect::<Vec<_>>();
+        let library = contract.kind == hir::ContractKind::Library;
+        let mut pointed = Pointed { gcx, namespaces, structs: Vec::new() };
+        for &function in traced_functions(gcx, contract_id, library, &|_| false).keys() {
+            let _ = pointed.visit_nested_function(function);
+        }
         let mut seen = FxHashMap::<Symbol, hir::StructId>::default();
-        for &base in contract.linearized_bases.iter().rev() {
-            let items = gcx.hir.contract(base).items.iter().filter_map(ItemId::as_struct);
-            for id in items {
-                let Some(namespace) = namespaces.get(&id) else { continue };
-                let first = *seen.entry(namespace.id).or_insert(id);
-                if first == id || !reported.insert(id) {
-                    continue;
-                }
-                gcx.dcx()
-                    .err(format!("ERC-7201 namespace `{}` is declared twice", namespace.id))
-                    .span(namespace.tag)
-                    .span_note(
-                        namespaces[&first].tag,
-                        format!("`{}` declares it here", gcx.hir.strukt(first).name),
-                    )
-                    .note("both structs would live at the same storage location")
-                    .emit();
+        for &id in declared.iter().chain(&pointed.structs) {
+            let namespace = namespaces[&id];
+            let first = *seen.entry(namespace.id).or_insert(id);
+            if first == id || !reported.insert(id) {
+                continue;
             }
+            let mut err = gcx
+                .dcx()
+                .err(format!("ERC-7201 namespace `{}` is declared twice", namespace.id))
+                .span(namespace.tag)
+                .span_note(
+                    namespaces[&first].tag,
+                    format!("`{}` declares it here", struct_name(gcx, first)),
+                )
+                .note("both structs would live at the same storage location");
+            if !declared.contains(&id) || !declared.contains(&first) {
+                err = err.note(format!("`{}` runs code that uses both", contract.name));
+            }
+            err.emit();
         }
     }
 }
@@ -163,5 +184,44 @@ impl<'gcx> Visit<'gcx> for Accessors<'gcx, '_> {
             }
         }
         self.walk_expr(expr)
+    }
+}
+
+/// Collects the namespaced structs whose storage the accessors in the functions it visits point
+/// at, in the order it reaches them.
+struct Pointed<'gcx, 'a> {
+    gcx: Gcx<'gcx>,
+    namespaces: &'a FxHashMap<hir::StructId, Namespace>,
+    structs: Vec<hir::StructId>,
+}
+
+impl<'gcx> Visit<'gcx> for Pointed<'gcx, '_> {
+    type BreakValue = Never;
+
+    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
+        &self.gcx.hir
+    }
+
+    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
+        // $.slot := location
+        if let ExprKind::Assign(lhs, None, _) = expr.kind
+            && let ExprKind::YulMember(base, member) = lhs.peel_parens().kind
+            && member.name == sym::slot
+            && let Some(id) = storage_struct(self.gcx, base)
+            && self.namespaces.contains_key(&id)
+            && !self.structs.contains(&id)
+        {
+            self.structs.push(id);
+        }
+        self.walk_expr(expr)
+    }
+}
+
+/// The name of the struct `id`, qualified by the contract or library that declares it.
+fn struct_name(gcx: Gcx<'_>, id: hir::StructId) -> String {
+    let strukt = gcx.hir.strukt(id);
+    match strukt.contract {
+        Some(contract) => format!("{}.{}", gcx.hir.contract(contract).name, strukt.name),
+        None => strukt.name.to_string(),
     }
 }

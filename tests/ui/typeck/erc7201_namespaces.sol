@@ -60,6 +60,52 @@ contract Derived is Base {
     }
 }
 
+// A library's accessor places its struct in the storage of every contract that
+// runs it, so two libraries whose structs share a namespace overlap in a
+// contract that runs both.
+library First {
+    /// @custom:storage-location erc7201:example.shared
+    struct Layout {
+        uint256 a;
+    }
+
+    bytes32 private constant LOCATION = bytes32(erc7201("example.shared"));
+
+    function layout() internal pure returns (Layout storage $) {
+        assembly {
+            $.slot := LOCATION
+        }
+    }
+}
+
+library Second {
+    //~v ERROR: ERC-7201 namespace `example.shared` is declared twice
+    /// @custom:storage-location erc7201:example.shared
+    struct Layout {
+        address b;
+    }
+
+    bytes32 private constant LOCATION = bytes32(erc7201("example.shared"));
+
+    function layout() internal pure returns (Layout storage $) {
+        assembly {
+            $.slot := LOCATION
+        }
+    }
+}
+
+contract RunsBoth {
+    function read() external view returns (uint256, address) {
+        return (First.layout().a, Second.layout().b);
+    }
+}
+
+contract RunsOne {
+    function read() external view returns (uint256) {
+        return First.layout().a;
+    }
+}
+
 // Other formulas are not checked.
 contract Custom {
     /// @custom:storage-location custom:example.main
