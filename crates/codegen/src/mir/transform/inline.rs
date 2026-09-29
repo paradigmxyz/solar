@@ -501,27 +501,6 @@ impl MirInliner {
         }
 
         let mut call_counts = self.call_counts(module);
-        // A constant leaf is a shared pure single-block callee, and a hot leaf
-        // is called from a loop. Without either, no site can be accepted.
-        let possible = match self.mode {
-            InlineMode::ConstantLeaves => module.functions.iter_enumerated().any(|(id, func)| {
-                call_counts.get(&id).is_some_and(|&count| count > 1)
-                    && func.blocks.len() == 1
-                    && func.attributes.state_mutability == StateMutability::Pure
-            }),
-            InlineMode::HotLeaves => module.functions.iter().any(|func| {
-                func.instructions().any(|inst| {
-                    matches!(
-                        func.inst(inst).kind,
-                        InstKind::ICall { function: Callee::Function(_), .. }
-                    )
-                }) && has_back_edge(func)
-            }),
-            InlineMode::Normal | InlineMode::TinyLeaves | InlineMode::SingleUse => true,
-        };
-        if !possible {
-            return stats;
-        }
         // Keep the initial candidate set stable as inlining removes call sites.
         let memory_wrappers = if self.memory_wrappers_only {
             module
