@@ -781,127 +781,79 @@ mod tests {
     }
 
     #[test]
-    fn new_prepare_allows_same_rename_payload_again() {
+    fn same_payload_preparations_share_one_replay_guard() {
         let moves = batch(&[("/workspace/A", "/workspace/B")]);
+
+        // The latest activated preparation replaces earlier ones, and a new preparation allows
+        // the same payload again.
         let mut coordinator = FileOperationCoordinator::default();
-
-        coordinator.prepare_rename(moves.clone()).activate();
-        assert!(coordinator.apply_rename(&moves));
-        assert!(!coordinator.apply_rename(&moves));
-
-        coordinator.prepare_rename(moves.clone()).activate();
-        assert!(coordinator.apply_rename(&moves));
-    }
-
-    #[test]
-    fn cancelled_same_payload_prepare_preserves_replay_guard() {
-        let moves = batch(&[("/workspace/A", "/workspace/B")]);
-        let mut coordinator = FileOperationCoordinator::default();
-
-        assert!(coordinator.apply_rename(&moves));
-        assert!(!coordinator.apply_rename(&moves));
-
-        drop(coordinator.prepare_rename(moves.clone()));
-
-        assert!(!coordinator.apply_rename(&moves));
-    }
-
-    #[test]
-    fn cancelled_prepare_does_not_consume_replay_history() {
-        let guarded = batch(&[("/workspace/A", "/workspace/B")]);
-        let mut coordinator = FileOperationCoordinator::default();
-
-        assert!(coordinator.apply_rename(&guarded));
-        for index in 0..RENAME_HISTORY_LIMIT - 1 {
-            let old = format!("/workspace/Old{index}");
-            let new = format!("/workspace/New{index}");
-            assert!(coordinator.apply_rename(&batch(&[(&old, &new)])));
-        }
-        assert!(!coordinator.apply_rename(&guarded));
-
-        drop(coordinator.prepare_rename(guarded.clone()));
-
-        assert!(!coordinator.apply_rename(&guarded));
-    }
-
-    #[test]
-    fn latest_activated_same_payload_prepare_replaces_earlier_lifecycle() {
-        let moves = batch(&[("/workspace/A", "/workspace/B")]);
-        let mut coordinator = FileOperationCoordinator::default();
-
         coordinator.prepare_rename(moves.clone()).activate();
         coordinator.prepare_rename(moves.clone()).activate();
-
         assert!(coordinator.apply_rename(&moves));
         assert!(!coordinator.apply_rename(&moves));
-    }
-
-    #[test]
-    fn did_rename_claims_pending_preparation_before_cancellation() {
-        let moves = batch(&[("/workspace/A", "/workspace/B")]);
-        let mut coordinator = FileOperationCoordinator::default();
-
-        let preparation = coordinator.prepare_rename(moves.clone());
+        coordinator.prepare_rename(moves.clone()).activate();
         assert!(coordinator.apply_rename(&moves));
-        drop(preparation);
 
-        assert!(!coordinator.apply_rename(&moves));
-    }
-
-    #[test]
-    fn did_reuses_prepared_lifecycle_without_external_evidence() {
-        let prepared = batch(&[("/workspace/A", "/workspace/B")]);
+        // The did notification claims one of multiple pending preparations before they settle.
         let mut coordinator = FileOperationCoordinator::default();
-
-        coordinator.prepare_rename(prepared.clone()).activate();
-        assert!(coordinator.apply_rename(&prepared));
-        assert!(!coordinator.apply_rename(&prepared));
-        assert!(coordinator.apply_rename(&batch(&[("/workspace/X", "/workspace/Y")])));
-    }
-
-    #[test]
-    fn did_rename_claims_one_of_multiple_pending_same_payload_preparations() {
-        let moves = batch(&[("/workspace/A", "/workspace/B")]);
-        let mut coordinator = FileOperationCoordinator::default();
-
         let earlier = coordinator.prepare_rename(moves.clone());
         let later = coordinator.prepare_rename(moves.clone());
         assert!(coordinator.apply_rename(&moves));
         earlier.activate();
         drop(later);
-
         assert!(!coordinator.apply_rename(&moves));
-    }
 
-    #[test]
-    fn watcher_claims_one_of_multiple_pending_same_payload_preparations() {
-        let moves = batch(&[("/workspace/A.sol", "/workspace/B.sol")]);
+        // So does the watcher.
         let mut coordinator = FileOperationCoordinator::default();
-
         coordinator.prepare_rename(moves.clone()).activate();
         let later = coordinator.prepare_rename(moves.clone());
         assert_observations(
             &mut coordinator,
             &[
-                ("/workspace/A.sol", DELETED, Ignore),
-                ("/workspace/B.sol", CREATED, WatchedFileAction::ApplyRenames(vec![moves.clone()])),
+                ("/workspace/A", DELETED, Ignore),
+                ("/workspace/B", CREATED, WatchedFileAction::ApplyRenames(vec![moves.clone()])),
             ],
         );
         assert!(coordinator.claim_watched_rename(&moves));
         later.activate();
+        assert!(!coordinator.apply_rename(&moves));
 
+        // A cancelled preparation neither ends the replay guard nor consumes replay history.
+        let mut coordinator = FileOperationCoordinator::default();
+        assert!(coordinator.apply_rename(&moves));
+        for index in 0..RENAME_HISTORY_LIMIT - 1 {
+            let old = format!("/workspace/Old{index}");
+            let new = format!("/workspace/New{index}");
+            assert!(coordinator.apply_rename(&batch(&[(&old, &new)])));
+        }
+        assert!(!coordinator.apply_rename(&moves));
+        drop(coordinator.prepare_rename(moves.clone()));
         assert!(!coordinator.apply_rename(&moves));
     }
 
     #[test]
-    fn opposite_watcher_activity_ends_applied_rename_lifecycle() {
+    fn opposite_activity_ends_applied_replay_guard() {
         let moves = batch(&[("/workspace/A.sol", "/workspace/B.sol")]);
-        let mut coordinator = FileOperationCoordinator::default();
-
-        assert!(coordinator.apply_rename(&moves));
-        assert!(!coordinator.apply_rename(&moves));
-        assert_observations(&mut coordinator, &[("/workspace/A.sol", CREATED, Process)]);
-        assert!(coordinator.apply_rename(&moves));
+        // An opposite watcher event, an opposite direct event, and the reverse did-only rename.
+        let ends: [fn(&mut FileOperationCoordinator); 3] = [
+            |coordinator| {
+                assert_observations(coordinator, &[("/workspace/A.sol", CREATED, Process)]);
+            },
+            |coordinator| coordinator.record_direct_events(CREATED, [path("/workspace/A.sol")], []),
+            |coordinator| {
+                assert!(
+                    coordinator.apply_rename(&batch(&[("/workspace/B.sol", "/workspace/A.sol")]))
+                );
+            },
+        ];
+        for end in ends {
+            let mut coordinator = FileOperationCoordinator::default();
+            assert!(coordinator.apply_rename(&moves));
+            assert!(!coordinator.apply_rename(&moves));
+            end(&mut coordinator);
+            assert!(coordinator.apply_rename(&moves));
+            assert!(!coordinator.apply_rename(&moves));
+        }
     }
 
     #[test]
@@ -945,18 +897,6 @@ mod tests {
                 &[("/workspace/B/Sub/New.sol", CREATED, Process)],
             );
         }
-    }
-
-    #[test]
-    fn reverse_did_only_rename_ends_applied_lifecycle() {
-        let forward = batch(&[("/workspace/A.sol", "/workspace/B.sol")]);
-        let mut coordinator = FileOperationCoordinator::default();
-
-        assert!(coordinator.apply_rename(&forward));
-        assert!(!coordinator.apply_rename(&forward));
-        assert!(coordinator.apply_rename(&batch(&[("/workspace/B.sol", "/workspace/A.sol")])));
-        assert!(coordinator.apply_rename(&forward));
-        assert!(!coordinator.apply_rename(&forward));
     }
 
     #[test]
@@ -1031,21 +971,7 @@ mod tests {
     }
 
     #[test]
-    fn watched_event_history_caps_retained_paths() {
-        let root = path("/workspace");
-        let paths = (0..=WATCHED_EVENT_PATH_LIMIT).map(|idx| root.join(format!("{idx}.sol")));
-        let mut coordinator = FileOperationCoordinator::default();
-
-        coordinator.record_watched_events(CREATED, paths);
-
-        assert_eq!(
-            coordinator.watched_event_paths_under(CREATED, &[root]).len(),
-            WATCHED_EVENT_PATH_LIMIT
-        );
-    }
-
-    #[test]
-    fn watched_event_cap_still_expires_opposite_paths() {
+    fn watched_event_cap_retains_limit_and_still_expires_opposite_paths() {
         let root = path("/workspace");
         let old = root.join("zzzz.sol");
         let deleted = (0..WATCHED_EVENT_PATH_LIMIT)
@@ -1056,18 +982,11 @@ mod tests {
 
         coordinator.record_watched_events(DELETED, deleted);
 
+        assert_eq!(
+            coordinator.watched_event_paths_under(DELETED, &[root]).len(),
+            WATCHED_EVENT_PATH_LIMIT
+        );
         assert!(!coordinator.consume_watched_events(CREATED, &[old]));
-    }
-
-    #[test]
-    fn direct_opposite_event_ends_rename_replay_guard() {
-        let moves = batch(&[("/workspace/A.sol", "/workspace/B.sol")]);
-        let mut coordinator = FileOperationCoordinator::default();
-
-        assert!(coordinator.apply_rename(&moves));
-        assert!(!coordinator.apply_rename(&moves));
-        coordinator.record_direct_events(CREATED, [path("/workspace/A.sol")], []);
-        assert!(coordinator.apply_rename(&moves));
     }
 
     #[test]
