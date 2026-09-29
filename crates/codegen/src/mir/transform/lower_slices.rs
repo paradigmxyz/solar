@@ -35,13 +35,10 @@ impl MirPass for LowerSlices {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let changed = Self::run(module);
         // NOTE: Rewriting a projection of an erased memory object into a load is not reported
         // as a change on its own.
-        if !changed {
-            analyses.note_unreported_module_edit();
-        }
-        changed
+        analyses.note_unreported_module_edit();
+        Self::run(module)
     }
 }
 

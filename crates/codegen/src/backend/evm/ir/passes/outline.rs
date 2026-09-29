@@ -146,7 +146,7 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
         }));
         let mut remaining = metrics.iter().flatten().map(|&(_, size)| size).sum::<usize>();
         for start in 0..metrics.len() {
-            // No later start can reach a profitable size either.
+            // Neither this start nor any later one can reach a profitable size.
             if !profitable(remaining) {
                 break;
             }
