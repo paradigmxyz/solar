@@ -10,9 +10,11 @@
 //! The code a contract runs is what its creation and its entry points reach through internal
 //! calls, as the call graph resolves them for the contract: across its bases, libraries and free
 //! functions, through modifiers and base constructors, to the override a virtual call dispatches
-//! to, and to every function whose value is taken, which a function pointer may call. External
-//! calls, calls to deployed libraries and contract creations run in call frames of their own, with
-//! memory of their own, so they are not part of it. A library's code is all of its functions.
+//! to, and to every function whose value is taken, which a function pointer may call. Its creation
+//! also runs, outside any function, the initializers of its bases' state variables and the
+//! arguments of their inheritance specifiers. External calls, calls to deployed libraries and
+//! contract creations run in call frames of their own, with memory of their own, so they are not
+//! part of it. A library's code is all of its functions.
 //!
 //! Two kinds of code are trusted. The compiler-owned `solar:core/` modules are the primitive layer
 //! the profile builds on, so their bodies are not checked. And `@custom:solar-trusted` marks a
@@ -97,15 +99,25 @@ fn is_trusted(gcx: Gcx<'_>, id: hir::FunctionId) -> bool {
     if is_core_file(&gcx.hir.source(function.source).file.name) {
         return true;
     }
-    let tagged = |doc| {
-        gcx.hir
-            .doc(doc)
-            .ast_comments
-            .iter()
-            .flat_map(|comment| comment.natspec.iter())
-            .any(|natspec| is_tag(natspec, sym::solar_dash_trusted))
-    };
-    tagged(function.doc) || function.contract.is_some_and(|c| tagged(gcx.hir.contract(c).doc))
+    is_tagged_trusted(gcx, function.doc)
+        || function.contract.is_some_and(|contract| is_trusted_contract(gcx, contract))
+}
+
+/// Whether the contract `id` is trusted: declared in a compiler-owned module, or tagged
+/// `@custom:solar-trusted`.
+fn is_trusted_contract(gcx: Gcx<'_>, id: hir::ContractId) -> bool {
+    let contract = gcx.hir.contract(id);
+    is_core_file(&gcx.hir.source(contract.source).file.name) || is_tagged_trusted(gcx, contract.doc)
+}
+
+/// Whether the documentation `doc` has the tag `@custom:solar-trusted`.
+fn is_tagged_trusted(gcx: Gcx<'_>, doc: hir::DocId) -> bool {
+    gcx.hir
+        .doc(doc)
+        .ast_comments
+        .iter()
+        .flat_map(|comment| comment.natspec.iter())
+        .any(|natspec| is_tag(natspec, sym::solar_dash_trusted))
 }
 
 /// Checks the code the contract `id` runs against its profile.
@@ -129,14 +141,22 @@ fn check_contract(gcx: Gcx<'_>, id: hir::ContractId, profile: Profile) {
             .err(format!("`{name}` is tagged `@custom:solar-safe` but runs {what}"))
             .span(finding.span)
             .span_note(profile.tag, "the tag is here")
-            .note(format!("it runs this through {}", findings.path(gcx, finding.function)))
-            .help(match finding.violation {
-                Violation::Assembly => {
+            .note(match finding.function {
+                Some(function) => format!("it runs this through {}", findings.path(gcx, function)),
+                None => "it runs this when it is created".to_string(),
+            })
+            .help(match (finding.violation, finding.function) {
+                (Violation::Assembly, _) => {
                     "write it without assembly, or review it and tag its function \
                      `@custom:solar-trusted`"
                 }
-                Violation::Unchecked | Violation::Wrapping => {
+                (Violation::Unchecked | Violation::Wrapping, Some(_)) => {
                     "use checked arithmetic, or review it and tag its function \
+                     `@custom:solar-trusted`"
+                }
+                // Code outside any function is trusted with the contract that declares it.
+                (Violation::Unchecked | Violation::Wrapping, None) => {
+                    "use checked arithmetic, or review it and tag its contract \
                      `@custom:solar-trusted`"
                 }
             })
@@ -159,8 +179,8 @@ pub(crate) struct Findings {
 pub(crate) struct Finding {
     pub(crate) violation: Violation,
     pub(crate) span: Span,
-    /// The function whose body it is in.
-    pub(crate) function: hir::FunctionId,
+    /// The function whose body it is in, or `None` for the creation code outside any function.
+    pub(crate) function: Option<hir::FunctionId>,
 }
 
 /// What a safe profile rejects.
@@ -213,6 +233,25 @@ pub(crate) fn findings(gcx: Gcx<'_>, id: hir::ContractId) -> Findings {
     let library = gcx.hir.contract(id).kind == hir::ContractKind::Library;
     let reached = traced_functions(gcx, id, library, &|function| is_trusted(gcx, function));
     let mut scan = Scan { gcx, current: None, violations: Vec::new(), seen: FxHashSet::default() };
+    // The creation runs these outside any function, as the call graph traces them.
+    for &base in gcx.hir.contract(id).linearized_bases.iter().rev() {
+        if is_trusted_contract(gcx, base) {
+            continue;
+        }
+        let base = gcx.hir.contract(base);
+        for variable in base.variables() {
+            let variable = gcx.hir.variable(variable);
+            if variable.is_state_variable()
+                && !variable.is_constant()
+                && let Some(initializer) = variable.initializer
+            {
+                let _ = scan.visit_expr(initializer);
+            }
+        }
+        for inheritance in base.bases_args {
+            let _ = scan.visit_modifier(inheritance);
+        }
+    }
     let mut trusted = Vec::new();
     for &function in reached.keys() {
         if is_trusted(gcx, function) {
@@ -233,7 +272,8 @@ pub(crate) fn findings(gcx: Gcx<'_>, id: hir::ContractId) -> Findings {
 /// Scans the bodies of the functions a contract runs for what a safe profile rejects.
 struct Scan<'gcx> {
     gcx: Gcx<'gcx>,
-    /// The function whose body is being scanned.
+    /// The function whose body is being scanned, or `None` for the creation code outside any
+    /// function.
     current: Option<hir::FunctionId>,
     violations: Vec<Finding>,
     seen: FxHashSet<Span>,
@@ -241,10 +281,8 @@ struct Scan<'gcx> {
 
 impl Scan<'_> {
     fn record(&mut self, violation: Violation, span: Span) {
-        if let Some(function) = self.current
-            && self.seen.insert(span)
-        {
-            self.violations.push(Finding { violation, span, function });
+        if self.seen.insert(span) {
+            self.violations.push(Finding { violation, span, function: self.current });
         }
     }
 }

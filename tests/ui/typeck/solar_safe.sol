@@ -96,6 +96,27 @@ contract Safe is Base {
     }
 }
 
+contract WrappingState {
+    uint256 internal inherited = Math.wrappingAdd(1, 1); //~ ERROR: `SafeCreation` is tagged `@custom:solar-safe` but runs wrapping arithmetic
+}
+
+contract WrappingBase {
+    constructor(uint256) {}
+}
+
+/// @custom:solar-trusted
+contract ReviewedState {
+    uint256 internal reviewed = Math.wrappingAdd(2, 2);
+}
+
+// The creation runs the state variable initializers of every base and the
+// arguments of the inheritance specifiers, outside any function.
+/// @custom:solar-safe
+contract SafeCreation is WrappingState, ReviewedState, WrappingBase(Math.wrappingMul(2, 3)) { //~ ERROR: `SafeCreation` is tagged `@custom:solar-safe` but runs wrapping arithmetic
+    uint256 private seeded = Math.wrappingSub(1, 2); //~ ERROR: `SafeCreation` is tagged `@custom:solar-safe` but runs wrapping arithmetic
+    function(uint256, uint256) internal pure returns (uint256) private op = Math.wrappingAdd; //~ ERROR: `SafeCreation` is tagged `@custom:solar-safe` but runs wrapping arithmetic
+}
+
 /// @custom:solar-safe memory
 contract MemoryOnly {
     function f(uint256 a) external pure returns (uint256) {
