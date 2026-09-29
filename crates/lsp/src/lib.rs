@@ -186,10 +186,6 @@ impl FoundryWorkspaceConfig {
         self.evm_version
     }
 
-    fn into_normalized(self) -> Self {
-        self.try_into_normalized().unwrap_or_else(|error| panic!("{error}"))
-    }
-
     fn try_into_normalized(mut self) -> Result<Self, String> {
         if !self.workspace_root.is_absolute() {
             return Err(format!(
@@ -237,7 +233,7 @@ impl LaunchConfig {
     ///
     /// Panics if the workspace root is not absolute.
     pub fn with_foundry_workspace_config(mut self, config: FoundryWorkspaceConfig) -> Self {
-        let config = config.into_normalized();
+        let config = config.try_into_normalized().unwrap_or_else(|error| panic!("{error}"));
         let FoundryWorkspaceConfigSource::Static(configs) =
             &mut self.foundry_workspace_config_source
         else {

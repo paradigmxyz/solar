@@ -1,6 +1,9 @@
 use crate::{
-    FoundryWorkspaceConfig, LaunchConfig, global_state::GlobalState,
-    new_server_service_with_router, proto, test_support::TestProject, workspace::WorkspaceKind,
+    FoundryWorkspaceConfig, LaunchConfig,
+    global_state::GlobalState,
+    new_server_service_with_router, proto,
+    test_support::TestProject,
+    workspace::{Workspace, WorkspaceKind},
 };
 use async_lsp::{AnyRequest, ClientSocket, router::Router};
 use lsp_types::InitializeParams;
@@ -15,24 +18,57 @@ use std::{
 };
 use tower::Service;
 
-#[tokio::test(flavor = "current_thread")]
-async fn lsp_args_use_the_default_launch_configuration() {
-    let config = LaunchConfig::from(LspArgs { stdio: true });
+async fn initialized_state(config: LaunchConfig, mut params: InitializeParams) -> GlobalState {
     let mut state = GlobalState::new(ClientSocket::new_closed()).with_launch_config(config);
+    params.initialization_options = Some(serde_json::json!({ "flychecks": [] }));
+    state.on_initialize(params).await.unwrap();
+    rediscover(&mut state);
+    state
+}
 
-    state.on_initialize(InitializeParams::default()).await.unwrap();
+fn rediscover(state: &mut GlobalState) {
+    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
+}
 
-    assert_eq!(state.config.forge_path(), Path::new("forge"));
+fn workspace_at<'a>(state: &'a GlobalState, root: &Path) -> &'a Workspace {
+    state
+        .config
+        .workspaces()
+        .iter()
+        .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(root))
+        .unwrap_or_else(|| panic!("expected a workspace at `{}`", root.display()))
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn initialize_applies_launch_config_default_forge_path() {
-    let config = LaunchConfig::default().with_default_forge_path("/embedded/forge");
+async fn launch_config_supplies_the_default_forge_path() {
+    let config = LaunchConfig::from(LspArgs { stdio: true });
     let mut state = GlobalState::new(ClientSocket::new_closed()).with_launch_config(config);
-
     state.on_initialize(InitializeParams::default()).await.unwrap();
+    assert_eq!(state.config.forge_path(), Path::new("forge"));
 
-    assert_eq!(state.config.forge_path(), Path::new("/embedded/forge"));
+    let observed_path = Arc::new(Mutex::new(None::<PathBuf>));
+    let server_observed_path = observed_path.clone();
+    let config = LaunchConfig::default().with_default_forge_path("/embedded/forge");
+    let mut service =
+        new_server_service_with_router(ClientSocket::new_closed(), config, move |state| {
+            let mut router = Router::new(state);
+            router.request::<proto::Initialize, _>(move |state, params| {
+                let response = state.on_initialize(params.into_inner());
+                *server_observed_path.lock().unwrap() = Some(state.config.forge_path());
+                response
+            });
+            router
+        });
+    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+        "id": 1,
+        "method": "initialize",
+        "params": InitializeParams::default(),
+    }))
+    .unwrap();
+
+    service.call(request).await.unwrap();
+
+    assert_eq!(*observed_path.lock().unwrap(), Some(PathBuf::from("/embedded/forge")));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -54,12 +90,7 @@ async fn initialize_applies_launch_config_selected_profile_to_workspace_discover
         "#,
     );
     let config = LaunchConfig::default().with_selected_profile("custom");
-    let mut state = GlobalState::new(ClientSocket::new_closed()).with_launch_config(config);
-    let mut params = project.initialize_params();
-    params.initialization_options = Some(serde_json::json!({ "flychecks": [] }));
-
-    state.on_initialize(params).await.unwrap();
-    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
+    let state = initialized_state(config, project.initialize_params()).await;
 
     let workspace = state
         .config
@@ -83,7 +114,7 @@ async fn initialize_applies_launch_config_selected_profile_to_workspace_discover
 }
 
 #[test]
-fn foundry_workspace_config_normalizes_paths_against_root() {
+fn foundry_workspace_config_normalizes_paths_and_replaces_equivalent_roots() {
     let project = TestProject::new();
     let launch_config = LaunchConfig::default().with_foundry_workspace_config(
         FoundryWorkspaceConfig::new(project.path("/workspace/./nested/.."))
@@ -94,7 +125,7 @@ fn foundry_workspace_config_normalizes_paths_against_root() {
                 PathBuf::from("../external/lib/../lib"),
             ]),
     );
-    let config = &launch_config.foundry_workspace_configs()[0];
+    let [config] = launch_config.foundry_workspace_configs() else { panic!("expected one config") };
 
     assert_eq!(config.workspace_root(), project.path("/workspace"));
     assert_eq!(
@@ -106,6 +137,13 @@ fn foundry_workspace_config_normalizes_paths_against_root() {
         config.include_paths(),
         [project.path("/workspace/lib"), project.path("/external/lib")]
     );
+
+    let launch_config = launch_config.with_foundry_workspace_config(
+        FoundryWorkspaceConfig::new(project.path("/workspace"))
+            .with_source_roots([project.path("/workspace/second")]),
+    );
+    let [config] = launch_config.foundry_workspace_configs() else { panic!("expected one config") };
+    assert_eq!(config.source_roots(), [project.path("/workspace/second")]);
 }
 
 #[test]
@@ -113,26 +151,6 @@ fn foundry_workspace_config_normalizes_paths_against_root() {
 fn foundry_workspace_config_rejects_relative_workspace_root() {
     let _ = LaunchConfig::default()
         .with_foundry_workspace_config(FoundryWorkspaceConfig::new("relative/workspace"));
-}
-
-#[test]
-fn launch_config_replaces_lexically_equivalent_foundry_root() {
-    let project = TestProject::new();
-    let launch_config = LaunchConfig::default()
-        .with_foundry_workspace_config(
-            FoundryWorkspaceConfig::new(project.path("/workspace/./nested/.."))
-                .with_source_roots([project.path("/workspace/first")]),
-        )
-        .with_foundry_workspace_config(
-            FoundryWorkspaceConfig::new(project.path("/workspace"))
-                .with_source_roots([project.path("/workspace/second")]),
-        );
-
-    assert_eq!(launch_config.foundry_workspace_configs().len(), 1);
-    assert_eq!(
-        launch_config.foundry_workspace_configs()[0].source_roots(),
-        [project.path("/workspace/second")]
-    );
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -187,19 +205,9 @@ async fn initialize_applies_host_resolved_foundry_workspace_config() {
     let config = LaunchConfig::default()
         .with_selected_profile("custom")
         .with_foundry_workspace_config(resolved);
-    let mut state = GlobalState::new(ClientSocket::new_closed()).with_launch_config(config);
-    let mut params = project.initialize_params();
-    params.initialization_options = Some(serde_json::json!({ "flychecks": [] }));
+    let state = initialized_state(config, project.initialize_params()).await;
 
-    state.on_initialize(params).await.unwrap();
-    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
-
-    let workspace = state
-        .config
-        .workspaces()
-        .iter()
-        .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(project.root()))
-        .unwrap();
+    let workspace = workspace_at(&state, project.root());
     assert_eq!(workspace.source_roots(), &[project.path("/custom-src")]);
     assert_eq!(workspace.source_files(), &[project.path("/custom-src/Custom.sol")]);
     assert_eq!(
@@ -217,17 +225,8 @@ async fn initialize_applies_host_resolved_foundry_workspace_config() {
             .collect::<Vec<_>>(),
         ["host/=custom-src/"]
     );
-    let nested = state
-        .config
-        .workspaces()
-        .iter()
-        .find(|workspace| {
-            workspace.compile_opts().base_path.as_deref()
-                == Some(project.path("/custom-src/nested").as_path())
-        })
-        .unwrap();
     assert_eq!(
-        nested.source_roots(),
+        workspace_at(&state, &project.path("/custom-src/nested")).source_roots(),
         &[
             project.path("/custom-src/nested"),
             project.path("/custom-src/nested/src"),
@@ -277,23 +276,10 @@ async fn host_foundry_workspace_configs_match_their_own_roots() {
             .with_source_roots([project.path("/two/host-two")])
             .with_flycheck_source_roots([project.path("/two/host-two")]),
     ]);
-    let mut state = GlobalState::new(ClientSocket::new_closed()).with_launch_config(config);
-    let mut params = project.initialize_params_with_roots(&["/one", "/two", "/three"]);
-    params.initialization_options = Some(serde_json::json!({ "flychecks": [] }));
+    let params = project.initialize_params_with_roots(&["/one", "/two", "/three"]);
+    let state = initialized_state(config, params).await;
 
-    state.on_initialize(params).await.unwrap();
-    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
-
-    let source_roots = |root: &str| {
-        state
-            .config
-            .workspaces()
-            .iter()
-            .find(|workspace| workspace.compile_opts().base_path == Some(project.path(root)))
-            .unwrap()
-            .source_roots()
-            .to_vec()
-    };
+    let source_roots = |root: &str| workspace_at(&state, &project.path(root)).source_roots();
     assert_eq!(source_roots("/one"), [project.path("/one/host-one")]);
     assert_eq!(source_roots("/two"), [project.path("/two/host-two")]);
     assert_eq!(
@@ -305,59 +291,6 @@ async fn host_foundry_workspace_configs_match_their_own_roots() {
             project.path("/three/script")
         ]
     );
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn host_foundry_workspace_config_loader_refreshes_after_manifest_change() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /old-src/Old.sol
-        contract OldContract {}
-
-        //- /new-src/New.sol
-        contract NewContract {}
-
-        //- /foundry.toml
-        [profile.default]
-        src = "old-src"
-        "#,
-    );
-    let config = LaunchConfig::default().with_foundry_workspace_config_loader(|root| {
-        let mut manifest = String::new();
-        std::fs::File::open(root.join("foundry.toml"))?.read_to_string(&mut manifest)?;
-        let source = if manifest.contains("new-src") { "new-src" } else { "old-src" };
-        Ok::<_, std::io::Error>(
-            FoundryWorkspaceConfig::new(root)
-                .with_source_roots([source])
-                .with_flycheck_source_roots([source]),
-        )
-    });
-    let mut state = GlobalState::new(ClientSocket::new_closed()).with_launch_config(config);
-    let mut params = project.initialize_params();
-    params.initialization_options = Some(serde_json::json!({ "flychecks": [] }));
-
-    state.on_initialize(params).await.unwrap();
-    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
-    let workspace = state
-        .config
-        .workspaces()
-        .iter()
-        .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(project.root()))
-        .unwrap();
-    assert_eq!(workspace.source_roots(), &[project.path("/old-src")]);
-    assert_eq!(workspace.source_files(), &[project.path("/old-src/Old.sol")]);
-
-    project.write_file("/foundry.toml", "[profile.default]\nsrc = \"new-src\"\n");
-    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
-
-    let workspace = state
-        .config
-        .workspaces()
-        .iter()
-        .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(project.root()))
-        .unwrap();
-    assert_eq!(workspace.source_roots(), &[project.path("/new-src")]);
-    assert_eq!(workspace.source_files(), &[project.path("/new-src/New.sol")]);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -383,35 +316,22 @@ async fn host_foundry_workspace_config_loader_covers_new_nested_workspaces_once_
                 .with_flycheck_source_roots([source]),
         )
     });
-    let mut state = GlobalState::new(ClientSocket::new_closed()).with_launch_config(config);
-    let mut params = project.initialize_params();
-    params.initialization_options = Some(serde_json::json!({ "flychecks": [] }));
-
-    state.on_initialize(params).await.unwrap();
-    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
+    let mut state = initialized_state(config, project.initialize_params()).await;
     assert_eq!(loads.load(Ordering::Relaxed), 1);
 
     project.write_file("/packages/nested/foundry.toml", "[profile.default]\nsrc = \"local-src\"\n");
     project.write_file("/packages/nested/host-src/Host.sol", "contract HostContract {}\n");
     project.write_file("/packages/nested/local-src/Local.sol", "contract LocalContract {}\n");
-    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
+    rediscover(&mut state);
 
     assert_eq!(loads.load(Ordering::Relaxed), 3);
-    let nested = state
-        .config
-        .workspaces()
-        .iter()
-        .find(|workspace| {
-            workspace.compile_opts().base_path.as_deref()
-                == Some(project.path("/packages/nested").as_path())
-        })
-        .unwrap();
+    let nested = workspace_at(&state, &project.path("/packages/nested"));
     assert_eq!(nested.source_roots(), &[project.path("/packages/nested/host-src")]);
     assert_eq!(nested.source_files(), &[project.path("/packages/nested/host-src/Host.sol")]);
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn host_foundry_workspace_config_loader_failure_keeps_last_good_discovery() {
+async fn host_foundry_workspace_config_loader_refreshes_and_keeps_last_good_discovery() {
     let project = TestProject::from_fixture(
         r#"
         //- /old-src/Old.sol
@@ -439,25 +359,22 @@ async fn host_foundry_workspace_config_loader_failure_keeps_last_good_discovery(
         let source = if manifest.contains("new-src") { "new-src" } else { "old-src" };
         Ok(FoundryWorkspaceConfig::new(root).with_source_roots([source]))
     });
-    let mut state = GlobalState::new(ClientSocket::new_closed()).with_launch_config(config);
-    let mut params = project.initialize_params();
-    params.initialization_options = Some(serde_json::json!({ "flychecks": [] }));
+    let mut state = initialized_state(config, project.initialize_params()).await;
+    let assert_sources = |state: &GlobalState, source: &str, file: &str| {
+        let workspace = workspace_at(state, project.root());
+        assert_eq!(workspace.source_roots(), &[project.path(source)]);
+        assert_eq!(workspace.source_files(), &[project.path(file)]);
+    };
+    assert_sources(&state, "/old-src", "/old-src/Old.sol");
 
-    state.on_initialize(params).await.unwrap();
-    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
     project.write_file("/foundry.toml", "[profile.default]\nsrc = \"new-src\"\n");
     fail.store(true, Ordering::Relaxed);
-    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
-
-    let workspace = state.config.workspaces().first().unwrap();
-    assert_eq!(workspace.source_roots(), &[project.path("/old-src")]);
-    assert_eq!(workspace.source_files(), &[project.path("/old-src/Old.sol")]);
+    rediscover(&mut state);
+    assert_sources(&state, "/old-src", "/old-src/Old.sol");
 
     fail.store(false, Ordering::Relaxed);
-    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
-    let workspace = state.config.workspaces().first().unwrap();
-    assert_eq!(workspace.source_roots(), &[project.path("/new-src")]);
-    assert_eq!(workspace.source_files(), &[project.path("/new-src/New.sol")]);
+    rediscover(&mut state);
+    assert_sources(&state, "/new-src", "/new-src/New.sol");
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -476,8 +393,7 @@ async fn host_foundry_workspace_config_loader_rejects_invalid_roots_without_pani
     let loader_loads = loads.clone();
     let wrong_root = project.path("/other");
     let config = LaunchConfig::default().with_foundry_workspace_config_loader(move |root| {
-        let load = loader_loads.fetch_add(1, Ordering::Relaxed);
-        let root = match load {
+        let root = match loader_loads.fetch_add(1, Ordering::Relaxed) {
             0 => root.to_path_buf(),
             1 => PathBuf::from("relative"),
             _ => wrong_root.clone(),
@@ -485,40 +401,12 @@ async fn host_foundry_workspace_config_loader_rejects_invalid_roots_without_pani
         Ok::<_, String>(FoundryWorkspaceConfig::new(root).with_source_roots(["src"]))
     });
     let mut state = GlobalState::new(ClientSocket::new_closed()).with_launch_config(config);
-
     state.on_initialize(project.initialize_params()).await.unwrap();
-    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
-    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
-    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
+    for _ in 0..3 {
+        rediscover(&mut state);
+    }
 
     let workspace = state.config.workspaces().first().unwrap();
     assert_eq!(workspace.source_roots(), &[project.path("/src")]);
     assert_eq!(workspace.source_files(), &[project.path("/src/Test.sol")]);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn configured_server_service_applies_launch_default_during_initialize() {
-    let observed_path = Arc::new(Mutex::new(None::<PathBuf>));
-    let server_observed_path = observed_path.clone();
-    let config = LaunchConfig::default().with_default_forge_path("/embedded/forge");
-    let mut service =
-        new_server_service_with_router(ClientSocket::new_closed(), config, move |state| {
-            let mut router = Router::new(state);
-            router.request::<proto::Initialize, _>(move |state, params| {
-                let response = state.on_initialize(params.into_inner());
-                *server_observed_path.lock().unwrap() = Some(state.config.forge_path());
-                response
-            });
-            router
-        });
-    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
-        "id": 1,
-        "method": "initialize",
-        "params": InitializeParams::default(),
-    }))
-    .unwrap();
-
-    service.call(request).await.unwrap();
-
-    assert_eq!(*observed_path.lock().unwrap(), Some(PathBuf::from("/embedded/forge")));
 }

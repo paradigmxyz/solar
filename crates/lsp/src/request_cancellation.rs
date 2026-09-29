@@ -182,45 +182,29 @@ where
 mod tests {
     use super::*;
     use async_lsp::router::Router;
-    use lsp_types::request::{Request, Shutdown};
+    use lsp_types::request::Shutdown;
+    use serde_json::json;
 
     #[tokio::test]
-    async fn completed_requests_are_removed_from_the_registry() {
+    async fn cancellation_tracks_numeric_and_string_request_ids() {
         let mut router = Router::new(());
         router.request::<Shutdown, _>(|_, ()| std::future::ready(Ok(())));
         let mut service = RequestCancellationLayer::new(ClientSocket::new_closed()).layer(router);
         std::future::poll_fn(|cx| service.poll_ready(cx)).await.unwrap();
-        let request = serde_json::from_value(serde_json::json!({
-            "id": 1,
-            "method": Shutdown::METHOD,
-        }))
-        .unwrap();
+        let request = |id: serde_json::Value| {
+            serde_json::from_value::<AnyRequest>(json!({ "id": id, "method": Shutdown::METHOD }))
+                .unwrap()
+        };
 
-        assert_eq!(service.call(request).await.unwrap(), serde_json::Value::Null);
+        assert_eq!(service.call(request(json!(1))).await.unwrap(), json!(null));
         assert_eq!(service.ongoing.len(), 1);
         service.remove_completed();
         assert!(service.ongoing.is_empty());
-    }
 
-    #[tokio::test]
-    async fn cancellation_wins_over_a_ready_response_for_string_ids() {
-        let mut router = Router::new(());
-        router.request::<Shutdown, _>(|_, ()| std::future::ready(Ok(())));
-        let mut service = RequestCancellationLayer::new(ClientSocket::new_closed()).layer(router);
-        std::future::poll_fn(|cx| service.poll_ready(cx)).await.unwrap();
-        let request = serde_json::from_value(serde_json::json!({
-            "id": "request-id",
-            "method": Shutdown::METHOD,
-        }))
-        .unwrap();
-        let response = service.call(request);
-        let cancel = serde_json::from_value(serde_json::json!({
-            "method": notification::Cancel::METHOD,
-            "params": { "id": "request-id" },
-        }))
-        .unwrap();
-
-        assert!(service.notify(cancel).is_continue());
+        let response = service.call(request(json!("request-id")));
+        let cancel =
+            json!({ "method": notification::Cancel::METHOD, "params": { "id": "request-id" } });
+        assert!(service.notify(serde_json::from_value(cancel).unwrap()).is_continue());
         let error = response.await.unwrap_err();
         assert_eq!(error.code, ErrorCode::REQUEST_CANCELLED);
         assert_eq!(error.message, "Client cancelled the request");
