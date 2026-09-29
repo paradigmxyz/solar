@@ -5,24 +5,20 @@ use solar_sema::{CompilerRef, ParsingContext};
 use std::{ops::ControlFlow, process::ExitCode};
 
 pub(super) fn run(opts: CompileOpts) -> ExitCode {
-    match run_compiler_args_inner(opts, true) {
+    match run_compiler_args(opts) {
         Ok(()) => ExitCode::SUCCESS,
         Err(_) => ExitCode::FAILURE,
     }
 }
 
 pub fn run_compiler_args(opts: CompileOpts) -> Result {
-    run_compiler_args_inner(opts, false)
-}
-
-fn run_compiler_args_inner(opts: CompileOpts, skip_drop: bool) -> Result {
     if opts.standard_json {
-        crate::standard_json::run(opts, skip_drop)
+        crate::standard_json::run(opts)
             .map_err(|_e| solar_interface::diagnostics::ErrorGuaranteed::new_unchecked())?;
         return Ok(());
     }
 
-    run_compiler_with(opts, run_default, skip_drop)
+    run_compiler_with(opts, run_default)
 }
 
 fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
@@ -122,16 +118,14 @@ pub(crate) fn warn_experimental_codegen(sess: &Session, needs_codegen: bool) {
 pub(crate) fn run_compiler_with(
     opts: CompileOpts,
     f: impl FnOnce(&mut CompilerRef<'_>) -> Result + Send,
-    skip_drop: bool,
 ) -> Result {
-    run_compiler_session_with(Session::new(opts), f, true, skip_drop)
+    run_compiler_session_with(Session::new(opts), f, true)
 }
 
 pub(crate) fn run_compiler_session_with(
     sess: Session,
     f: impl FnOnce(&mut CompilerRef<'_>) -> Result + Send,
     finish: bool,
-    skip_drop: bool,
 ) -> Result {
     sess.validate()?;
     let mut compiler = solar_sema::Compiler::new(sess);
@@ -142,8 +136,7 @@ pub(crate) fn run_compiler_session_with(
         }
         finish_session(compiler.gcx().sess, result)
     });
-    if skip_drop {
-        // The CLI exits after compilation, so let the OS reclaim the context.
+    if compiler.sess().opts.unstable.skip_gcx_drop.unwrap_or(true) {
         std::mem::forget(compiler);
     }
     result

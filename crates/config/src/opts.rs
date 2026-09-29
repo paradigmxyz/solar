@@ -447,6 +447,11 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub assert_planned_edge_spill_home: bool,
 
+    /// Skip dropping the compiler context after compilation. Enabled by default.
+    /// Library callers can set this to `Some(false)` to reclaim memory between compilations.
+    #[cfg_attr(feature = "clap", arg(long, hide = true, require_equals = true))]
+    pub skip_gcx_drop: Option<bool>,
+
     // ----------------------------------------
     // Please add new options above this point!
     // ----------------------------------------
