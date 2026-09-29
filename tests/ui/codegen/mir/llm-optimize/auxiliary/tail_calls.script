@@ -1,5 +1,5 @@
-Candidates for `tail_calls.mir`: each turns the final call into a tail call, which only `wraps`
-may do. A call its block returns costs what a tail call costs, so `wraps` wins by the work it drops.
+Candidates for `tail_calls.mir`: each tail calls its final callee, which only `ends` may do,
+since only its target never returns. `wraps` then keeps its call and wins by the work it drops.
 
 --- function wraps
 --- candidate
@@ -7,6 +7,13 @@ fn @wraps(arg0: i256) -> i256 {
   bb0:
     v0 = shl 2, arg0
     tail_call @helper, v0
+}
+--- candidate
+fn @wraps(arg0: i256) -> i256 {
+  bb0:
+    v0 = shl 2, arg0
+    v1 = icall @helper, v0
+    ret v1
 }
 
 --- function forwards
@@ -23,4 +30,12 @@ fn @shared(arg0: i256) -> i256 {
   bb0:
     v0 = mul arg0, 3
     tail_call @helper, v0
+}
+
+--- function ends
+--- candidate
+fn @ends(arg0: i256) {
+  bb0:
+    v0 = shl 2, arg0
+    tail_call @finish, v0
 }

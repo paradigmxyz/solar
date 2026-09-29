@@ -128,7 +128,7 @@ impl<'a> Validator<'a> {
             self.validate_value_types(module, func);
             self.validate_memory_object_types(func);
         }
-        self.validate_function_phase(phase, func);
+        self.validate_function_phase(module, phase, func);
     }
 
     /// Checks arena references before any operation can query operand types.
@@ -1372,7 +1372,7 @@ impl<'a> Validator<'a> {
         }
     }
 
-    fn validate_function_phase(&mut self, phase: MirPhase, func: &Function) {
+    fn validate_function_phase(&mut self, module: &Module, phase: MirPhase, func: &Function) {
         if phase == MirPhase::Lowered && func.is_external_entry() && !func.attributes.is_abi_wrapper
         {
             self.emit("external entry has no explicit ABI implementation");
@@ -1406,6 +1406,28 @@ impl<'a> Validator<'a> {
                 if matches!(block.terminator, Some(crate::mir::Terminator::RevertReturndata)) {
                     self.emit_at_block(
                         "returndata bubbling survives the `lowered` phase boundary",
+                        block_id,
+                    );
+                }
+                // The backend jumps to a tail call's target and never expects it back: an
+                // internal function returns its results where its own caller reads them, not
+                // where this function's caller does. `lower-evm-shaped` forms tail calls only
+                // to functions that never return, and an external entry's return ends the
+                // transaction.
+                if let Some(Terminator::TailCall { function, .. }) = block.terminator
+                    && let Some(callee) = module.functions.get(function)
+                    && !callee.is_external_entry()
+                    && self
+                        .returning_functions
+                        .as_ref()
+                        .is_some_and(|returning| returning.contains(function))
+                {
+                    self.emit_at_block(
+                        format_args!(
+                            "tail call to returning function `{}` survives the `lowered` phase \
+                             boundary",
+                            callee.name
+                        ),
                         block_id,
                     );
                 }
