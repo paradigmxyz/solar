@@ -219,8 +219,7 @@ fn ensure_contract_bytecode(
     for dep in gcx.contract_bytecode_dependencies(contract_id).iter() {
         ensure_contract_bytecode(gcx, dep, bytecodes)?;
     }
-    let mut module =
-        codegen::mir::lower::lower_contract(gcx, contract_id, gcx.dcx().has_errors().is_err());
+    let mut module = codegen::mir::lower::lower_contract(gcx, contract_id);
     gcx.dcx().has_errors()?;
     let mut evm = EvmCodegen::new(gcx);
     let artifact = if evm.schedule_module(&mut module) {

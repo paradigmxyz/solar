@@ -171,15 +171,15 @@ pub fn generate_contract_bytecodes(
     runtime_data: Option<&RuntimeDataFn<'_>>,
     capture_debug_info: &ContractSelection,
 ) -> Result<FxHashMap<ContractId, ContractArtifact>> {
+    // The bytecode of a failed compilation is withheld, and lowering reports the
+    // construct that analysis already rejected as a second, misleading error.
+    gcx.dcx().has_errors()?;
     let captures = ContractCaptures {
         bytecode: contracts,
         mir: capture_mir,
         evm_ir: capture_evm_ir,
         runtime_data,
         debug_info: capture_debug_info,
-        // Snapshot this once, before any contract is lowered: a report emitted
-        // by one contract's lowering must not silence another's.
-        sema_errored: gcx.dcx().has_errors().is_err(),
     };
     let mut requested = contracts.clone();
     requested.union_with(capture_mir);
@@ -245,8 +245,6 @@ struct ContractCaptures<'a> {
     evm_ir: &'a ContractSelection,
     runtime_data: Option<&'a RuntimeDataFn<'a>>,
     debug_info: &'a ContractSelection,
-    /// Whether the compilation had already failed when this phase started.
-    sema_errored: bool,
 }
 
 struct ContractGraph {
@@ -454,7 +452,7 @@ fn schedule_contract<'gcx>(
     captures: ContractCaptures<'_>,
     graph: &ContractGraph,
 ) -> Result<ScheduledContract<'gcx>> {
-    let mut module = lower::lower_contract(gcx, contract_id, captures.sema_errored);
+    let mut module = lower::lower_contract(gcx, contract_id);
     gcx.dcx().has_errors()?;
     let capture_mir = captures.mir.contains(contract_id);
     let needs_backend = captures.bytecode.contains(contract_id)

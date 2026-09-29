@@ -16,11 +16,7 @@ use std::ops::ControlFlow;
 use crate::mir::{Function, FunctionAttributes, FunctionBuilder, Module};
 
 /// Builds a typed MIR module from one HIR contract.
-///
-/// `sema_errored` records whether the compilation had already failed when the
-/// code generation phase started, which decides whether a lowering bail-out is
-/// worth reporting.
-pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId, sema_errored: bool) -> Module {
+pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
     let storage = StorageLayout::for_contract(gcx, contract_id);
@@ -204,7 +200,6 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId, sema_errored: bool) -
             function_ids: &mir_ids,
             immutable_ids: &immutable_ids,
             state: &mut state,
-            sema_errored,
             shared_literals: &shared_literals,
             shared_word_literals: &shared_word_literals,
             share_storage_bytes,

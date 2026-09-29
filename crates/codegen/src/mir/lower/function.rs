@@ -58,9 +58,6 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) shared_literals: &'ctx FxIndexSet<ByteSymbol>,
     pub(super) shared_word_literals: &'ctx FxHashSet<ByteSymbol>,
     pub(super) share_storage_bytes: bool,
-    /// Whether the compilation had already failed when the code generation
-    /// phase started.
-    pub(super) sema_errored: bool,
 }
 
 impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
@@ -77,20 +74,11 @@ impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
             shared_literals: self.shared_literals,
             shared_word_literals: self.shared_word_literals,
             share_storage_bytes: self.share_storage_bytes,
-            sema_errored: self.sema_errored,
         }
     }
 
     /// Reports a lowering bail-out and returns `None`.
-    ///
-    /// A bail-out is only worth reporting when the compilation would otherwise
-    /// succeed. After a sema error the bytecode is withheld anyway, and the
-    /// construct that lowering cannot handle is usually the rejected one, so
-    /// reporting it adds a second, misleading error.
     pub(super) fn report_unsupported<T>(&self, span: Span, what: &str) -> Option<T> {
-        if self.sema_errored {
-            return None;
-        }
         self.gcx
             .dcx()
             .err(format!("codegen rewrite does not support this {what} yet"))
