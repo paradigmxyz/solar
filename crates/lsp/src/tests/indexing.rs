@@ -14,6 +14,11 @@ pub(super) async fn settle(state: &GlobalState) -> Arc<ArcSwap<SymbolTables>> {
     tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap()
 }
 
+async fn reanalyze(state: &mut GlobalState, changed_paths: Vec<PathBuf>) {
+    state.recompute_after_opening_source(changed_paths);
+    settle(state).await;
+}
+
 pub(super) fn analysis_version(state: &GlobalState) -> usize {
     state.analysis_version.load(Ordering::Acquire)
 }
@@ -249,8 +254,7 @@ async fn identical_sources_and_reverted_edits_reuse_analysis_and_initialized_que
         let uri = Url::from_file_path(&path).unwrap();
         let source = project.read_file(main);
         let mut state = state_with(project.config_with_roots(roots));
-        state.recompute_after_opening_source(Vec::new());
-        settle(&state).await;
+        reanalyze(&mut state, Vec::new()).await;
         let published = state.symbol_tables.load_full();
         let caller =
             published.prepare_call_hierarchy(&uri, marked.marker("$1").position()).unwrap().pop();
@@ -262,8 +266,7 @@ async fn identical_sources_and_reverted_edits_reuse_analysis_and_initialized_que
             Arc::ptr_eq(&published, &current) && current.call_hierarchy_is_initialized()
         };
 
-        state.recompute_after_opening_source(Vec::new());
-        settle(&state).await;
+        reanalyze(&mut state, Vec::new()).await;
         assert!(reused(&state));
 
         open(&mut state, &uri, 7, source.clone());
@@ -273,34 +276,29 @@ async fn identical_sources_and_reverted_edits_reuse_analysis_and_initialized_que
 
         set_overlay(&state, &path, "contract Edited {}", 8);
         set_overlay(&state, &path, &source, 9);
-        state.recompute_after_opening_source(vec![path.clone()]);
-        settle(&state).await;
+        reanalyze(&mut state, vec![path.clone()]).await;
         assert!(reused(&state));
         assert_eq!(report_version(&state, &uri), Some(9));
 
         // Removing an identical overlay changes its version without changing compiler inputs.
         // The didClose handler explicitly invalidates the cache before reaching this path.
         state.vfs.write().set_file_contents(VfsPath::from(path.clone()), None);
-        state.recompute_after_opening_source(Vec::new());
-        settle(&state).await;
+        reanalyze(&mut state, Vec::new()).await;
         assert!(reused(&state));
         assert_eq!(state.symbol_tables.load().call_hierarchy_outgoing(&caller).unwrap().len(), 1);
         assert_eq!(report_version(&state, &uri), None);
         // An unchanged epoch must retain the refreshed versions in the aggregate cache too.
-        state.recompute_after_opening_source(Vec::new());
-        settle(&state).await;
+        reanalyze(&mut state, Vec::new()).await;
         assert_eq!(report_version(&state, &uri), None);
 
         set_overlay(&state, &path, "contract Edited {}", 10);
-        state.recompute_after_opening_source(vec![path]);
-        settle(&state).await;
+        reanalyze(&mut state, vec![path]).await;
         assert!(!Arc::ptr_eq(&published, &state.symbol_tables.load()));
         assert_eq!(symbol_names(&state.symbol_tables, "Edited"), ["Edited"]);
 
         let edited = state.symbol_tables.load_full();
         state.config = Arc::new((*state.config).clone());
-        state.recompute_after_opening_source(Vec::new());
-        settle(&state).await;
+        reanalyze(&mut state, Vec::new()).await;
         assert!(!Arc::ptr_eq(&edited, &state.symbol_tables.load()));
     }
 }
@@ -318,7 +316,7 @@ fn cached_batch_for_path(state: &GlobalState, path: &Path) -> Option<Arc<CachedA
 #[tokio::test(flavor = "current_thread")]
 async fn removing_workspace_batch_inputs_invalidates_the_aggregate() {
     let project = TestProject::new();
-    let mut state = state_with(project.config_with_roots(&[]));
+    let mut state = GlobalState::new(ClientSocket::new_closed());
     for (root, name) in [("/a", "First"), ("/b", "Second"), ("/c", "Removed")] {
         std::fs::create_dir_all(project.path(root)).unwrap();
         set_overlay(
@@ -329,22 +327,19 @@ async fn removing_workspace_batch_inputs_invalidates_the_aggregate() {
         );
     }
     state.config = Arc::new(project.config_with_roots(&["/a", "/b", "/c"]));
-    state.recompute_after_opening_source(Vec::new());
-    settle(&state).await;
+    reanalyze(&mut state, Vec::new()).await;
     let published = state.symbol_tables.load_full();
     assert_eq!(published.workspace_symbols("").len(), 3);
 
     // The remaining batches are reusable, but the newly empty batch changes the aggregate.
     state.vfs.write().set_file_contents(VfsPath::from(project.path("/c/Main.sol")), None);
-    state.recompute_after_opening_source(Vec::new());
-    settle(&state).await;
+    reanalyze(&mut state, Vec::new()).await;
     let current = state.symbol_tables.load_full();
     assert!(!Arc::ptr_eq(&published, &current));
     assert!(current.workspace_symbols("Removed").is_empty());
     assert_eq!(current.workspace_symbols("").len(), 2);
 
-    state.recompute_after_opening_source(Vec::new());
-    settle(&state).await;
+    reanalyze(&mut state, Vec::new()).await;
     assert!(Arc::ptr_eq(&current, &state.symbol_tables.load()));
 }
 
@@ -363,8 +358,7 @@ async fn editing_one_workspace_reuses_other_workspace_and_current_document_versi
     let main_uri = Url::from_file_path(&main).unwrap();
     let other_uri = Url::from_file_path(&other).unwrap();
     let mut state = state_with(project.config_with_roots(&["/a", "/b"]));
-    state.recompute_after_opening_source(Vec::new());
-    settle(&state).await;
+    reanalyze(&mut state, Vec::new()).await;
     let original_main = cached_batch_for_path(&state, &main).unwrap();
     let original_other = cached_batch_for_path(&state, &other).unwrap();
 
@@ -405,35 +399,30 @@ async fn workspace_batch_cache_revalidates_config_and_disk_sources() {
     let main = project.path("/a/Main.sol");
     let other = project.path("/b/Other.sol");
     let mut state = state_with(project.config_with_roots(&["/a", "/b"]));
-    state.recompute_after_opening_source(Vec::new());
-    settle(&state).await;
+    reanalyze(&mut state, Vec::new()).await;
     let original = cached_batch_for_path(&state, &other).unwrap();
 
     state.config = Arc::new((*state.config).clone());
-    state.recompute_after_opening_source(Vec::new());
-    settle(&state).await;
+    reanalyze(&mut state, Vec::new()).await;
     let reconfigured = cached_batch_for_path(&state, &other).unwrap();
     assert!(!Arc::ptr_eq(&original, &reconfigured));
 
     // A source edit also observes changed disk roots without a watcher notification.
     project.write_file("/b/Other.sol", "contract Other { uint public diskChanged; }");
     set_overlay(&state, &main, "contract Main { uint public edited; }", 1);
-    state.recompute_after_opening_source(vec![main.clone()]);
-    settle(&state).await;
+    reanalyze(&mut state, vec![main.clone()]).await;
     assert!(!Arc::ptr_eq(&reconfigured, &cached_batch_for_path(&state, &other).unwrap()));
     assert_eq!(symbol_names(&state.symbol_tables, "diskChanged"), ["diskChanged"]);
 
     // Reanalysis without a VFS revision must still observe an unnotified disk root change.
     project.write_file("/b/Other.sol", "contract Other { uint public diskOnly; }");
-    state.recompute_after_opening_source(Vec::new());
-    settle(&state).await;
+    reanalyze(&mut state, Vec::new()).await;
     assert_eq!(symbol_names(&state.symbol_tables, "diskOnly"), ["diskOnly"]);
 
     project.write_file("/b/Other.sol", "contract Other { uint public notified; }");
     state.recompute_for_file_changes(vec![other], Vec::new(), false);
     // A new document request may cancel the pending disk worker; invalidation must survive it.
-    state.recompute_after_opening_source(vec![main]);
-    settle(&state).await;
+    reanalyze(&mut state, vec![main]).await;
     assert!(symbol_names(&state.symbol_tables, "diskChanged").is_empty());
     assert_eq!(symbol_names(&state.symbol_tables, "notified"), ["notified"]);
 }
@@ -460,8 +449,7 @@ async fn workspace_batch_cache_rechecks_disk_imports_and_resolver_probes() {
             project.remove_file("/b/lib/Dep.sol");
         }
         let mut state = state_with(project.config_with_roots(&["/a", "/b"]));
-        state.recompute_after_opening_source(Vec::new());
-        settle(&state).await;
+        reanalyze(&mut state, Vec::new()).await;
         let published = state.symbol_tables.load_full();
         let original_main = cached_batch_for_path(&state, &main).unwrap();
         let original_other = cached_batch_for_path(&state, &other).unwrap();
@@ -512,16 +500,14 @@ async fn opening_identical_source_rechecks_single_workspace_disk_imports() {
             project.remove_file("/lib/Dep.sol");
         }
         let mut state = state_with(project.config());
-        state.recompute_after_opening_source(Vec::new());
-        settle(&state).await;
+        reanalyze(&mut state, Vec::new()).await;
         let published = state.symbol_tables.load_full();
         let vfs_revision = state.vfs.read().content_revision();
         let previous_report = state.diagnostics.read().pull_report(&main_uri, None);
 
         // A missing import that remains missing is a reusable observation too.
         set_overlay(&state, &main, &project.read_file("/Main.sol"), 6);
-        state.recompute_after_opening_source(vec![main.clone()]);
-        settle(&state).await;
+        reanalyze(&mut state, vec![main.clone()]).await;
         assert!(Arc::ptr_eq(&published, &state.symbol_tables.load()));
         assert_eq!(state.diagnostics.read().pull_report(&main_uri, None), previous_report);
         // Remove the overlay so opening it again advances the content revision below.
@@ -566,8 +552,7 @@ async fn opening_identical_source_rechecks_retargeted_single_workspace_import() 
     let import_uri = Url::from_file_path(&link).unwrap();
     symlink(project.path("/lib/First.sol"), &link).unwrap();
     let mut state = state_with(project.config());
-    state.recompute_after_opening_source(Vec::new());
-    settle(&state).await;
+    reanalyze(&mut state, Vec::new()).await;
     let published = state.symbol_tables.load_full();
     let declaration = published.declarations().iter().find(|symbol| symbol.name == "Dep").unwrap();
     assert_eq!(declaration.location.uri, import_uri);
@@ -608,8 +593,7 @@ async fn disk_dependency_changes_survive_identical_inputs_and_cache_reuse_attemp
         let source = project.read_file("/Main.sol");
         let mut state = state_with(project.config());
         set_overlay(&state, &main, &source, 1);
-        state.recompute_after_opening_source(Vec::new());
-        settle(&state).await;
+        reanalyze(&mut state, Vec::new()).await;
         let published = state.symbol_tables.load_full();
 
         std::fs::write(&dep, "contract Dep { uint public changed; }").unwrap();
@@ -643,8 +627,7 @@ async fn cached_published_and_retained_symbol_tables_share_storage() {
     );
     let mut state = state_with(project.config());
     *state.vfs.write() = project.vfs();
-    state.recompute_after_opening_source(vec![project.path("/Main.sol")]);
-    settle(&state).await;
+    reanalyze(&mut state, vec![project.path("/Main.sol")]).await;
 
     let published = state.symbol_tables.load_full();
     {
@@ -652,8 +635,7 @@ async fn cached_published_and_retained_symbol_tables_share_storage() {
         let cached = commit.cached_output.as_ref().unwrap();
         assert!(Arc::ptr_eq(&published, &cached.output.result.symbol_tables));
     }
-    state.recompute_after_opening_source(Vec::new());
-    settle(&state).await;
+    reanalyze(&mut state, Vec::new()).await;
     assert!(Arc::ptr_eq(&published, &state.symbol_tables.load()));
 
     // Publication precedes worker cleanup; wait until it releases its symbol references.
