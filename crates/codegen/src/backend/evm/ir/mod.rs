@@ -17,7 +17,7 @@ use super::{
 };
 use crate::{
     backend::assembler::{self, assembly},
-    link::{DATA_SIZE_BITS, EmbeddedBytecodes, LibraryId, LibraryTable, RelocatableBytecode},
+    link::{EmbeddedBytecodes, LibraryId, LibraryTable, RelocatableBytecode},
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::U256;
@@ -25,14 +25,14 @@ use solar_data_structures::{index::IndexVec, newtype_index};
 use solar_interface::{Span, Symbol};
 use std::fmt;
 
+pub(crate) use crate::link::{Data, DataId, DataRef, DataSize};
+
 pub(in crate::backend) mod builder;
 mod display;
 mod parse;
 mod passes;
 pub(crate) use passes::{OutliningCheckpoint, compact_pushes};
 pub(in crate::backend) mod verify;
-
-pub(crate) use crate::link::{Data, DataId, DataRef, DataSize};
 
 pub(crate) use passes::compact_pushes::immediate_materialization_cost;
 pub use passes::{
@@ -97,10 +97,12 @@ impl Module {
         let mut linked = false;
         for data in &mut self.data {
             let Some(code) = data.deferred.take() else { continue };
+            // @data d deferred creation|runtime C => @data d hex"<bytecode(C)>" library_relocations
+            // [..]
             let bytecode = code.bytecode(bytecodes);
             assert!(
-                u64::try_from(bytecode.bytes.len()).is_ok_and(|len| len >> DATA_SIZE_BITS == 0),
-                "embedded bytecode length exceeds {DATA_SIZE_BITS} bits"
+                u32::try_from(bytecode.bytes.len()).is_ok(),
+                "embedded bytecode length exceeds `u32`"
             );
             data.bytes = bytecode.bytes.clone();
             data.library_relocations = bytecode.relocations_in(libraries);
@@ -116,6 +118,8 @@ impl Module {
     pub(in crate::backend) fn fold_data_sizes(&mut self) {
         for block in &mut self.blocks {
             for inst in &mut block.instructions {
+                // push_data_size d, addend[, aligned] => push len(d) + addend, rounded down to 32
+                // if aligned
                 if let Some(size) = inst.pushed_data_size() {
                     let data = &self.data[size.data];
                     assert!(data.deferred.is_none(), "data sizes require linked data");

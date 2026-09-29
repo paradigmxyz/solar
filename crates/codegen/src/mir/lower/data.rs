@@ -5,13 +5,12 @@ use crate::{
         ir::immediate_materialization_cost,
         op::{WORD_BYTES, push_len},
     },
-    link::{ContractCode, QualifiedName},
-    mir::{DataId, FunctionBuilder, Module, ValueId, memory::EvmMemoryLayout},
+    mir::{FunctionBuilder, Module, ValueId, memory::EvmMemoryLayout},
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_interface::Symbol;
-use solar_sema::{Gcx, hir::ContractId};
+use solar_sema::Gcx;
 use std::borrow::Cow;
 
 /// Returns the encoded size and runtime gas of one program-data copy site.
@@ -31,19 +30,6 @@ pub(crate) fn data_copy_is_profitable(
     byte_saving: i128,
 ) -> bool {
     if optimization.is_gas() { runtime_gas_saving > 0 && byte_saving >= 0 } else { byte_saving > 0 }
-}
-
-/// Returns the deferred data for a contract's creation or runtime bytecode.
-pub(super) fn contract_code_data(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    contract_id: ContractId,
-    creation: bool,
-) -> DataId {
-    let kind = if creation { "initcode" } else { "runtime_code" };
-    let name = Symbol::intern(&format!("{}_{kind}", gcx.hir.contract(contract_id).name));
-    let contract = QualifiedName::of_contract(gcx, contract_id);
-    module.intern_contract_code(ContractCode { contract, creation }, name)
 }
 
 /// Copies constant data and clears its padding through `padded_size`.

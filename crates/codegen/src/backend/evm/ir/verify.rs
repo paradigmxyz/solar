@@ -306,13 +306,23 @@ impl<'a> Verifier<'a> {
                         self.error_in_block(block_id, "`push_data_size` must carry a data size");
                         return;
                     };
-                    if size.data.index() >= module.data.len() {
-                        self.error_in_block(
-                            block_id,
-                            format_args!("program data `{}` is out of range", size.data.index()),
-                        );
-                    } else if module.data[size.data].deferred.is_none() {
-                        self.error_in_block(block_id, "`push_data_size` requires deferred data");
+                    match module.data.get(size.data) {
+                        None => {
+                            self.error_in_block(
+                                block_id,
+                                format_args!(
+                                    "program data `{}` is out of range",
+                                    size.data.index()
+                                ),
+                            );
+                        }
+                        Some(data) if data.deferred.is_none() => {
+                            self.error_in_block(
+                                block_id,
+                                "`push_data_size` requires deferred data",
+                            );
+                        }
+                        Some(_) => {}
                     }
                 }
                 encoding if encoding == Instruction::ENCODED_PUSH | Instruction::DATA => {

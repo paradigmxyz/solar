@@ -1199,7 +1199,7 @@ impl<'a> Validator<'a> {
             }
             _ => return,
         };
-        let Some(bytes) = module.data.get(data.id).map(|data| &data.bytes) else {
+        let Some(entry) = module.data.get(data.id) else {
             self.emit_at_inst(
                 format_args!("data_copy references nonexistent data{}", data.id.index()),
                 block_id,
@@ -1213,7 +1213,7 @@ impl<'a> Validator<'a> {
         {
             return;
         }
-        if module.data[data.id].deferred.is_some() {
+        if entry.deferred.is_some() {
             self.emit_at_inst(
                 "data_copy size of deferred data must be its `data_size`",
                 block_id,
@@ -1226,13 +1226,13 @@ impl<'a> Validator<'a> {
             return;
         };
         let end = U256::from(data.offset).checked_add(size);
-        if end.is_none_or(|end| end > U256::from(bytes.len())) {
+        if end.is_none_or(|end| end > U256::from(entry.bytes.len())) {
             self.emit_at_inst(
                 format_args!(
                     "data_copy range {}..{} exceeds data size {}",
                     data.offset,
                     end.map_or_else(|| "overflow".into(), |end| end.to_string()),
-                    bytes.len()
+                    entry.bytes.len()
                 ),
                 block_id,
                 inst_id,

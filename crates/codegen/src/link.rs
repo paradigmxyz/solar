@@ -14,9 +14,6 @@ newtype_index! {
     pub(crate) struct DataId;
 }
 
-/// Bits that bound the length of any program data, checked when deferred data is linked.
-pub(crate) const DATA_SIZE_BITS: u32 = 32;
-
 /// One constant byte string and its optional display name.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Data {
@@ -41,6 +38,11 @@ impl Data {
             library_relocations: Vec::new(),
             deferred: None,
         }
+    }
+
+    /// Creates deferred data for another contract's bytecode, which final assembly links in.
+    pub(crate) fn contract_code(code: ContractCode, name: Option<Symbol>) -> Self {
+        Self { deferred: Some(code), ..Self::new(Bytes::new(), name) }
     }
 
     /// Displays the textual contents: `deferred creation|runtime <contract>`, or the hex bytes
@@ -93,9 +95,9 @@ impl DataSize {
         if self.aligned { size & !U256::from(31) } else { size }
     }
 
-    /// Returns an upper bound on the size, from the bound on any data length.
+    /// Returns an upper bound on the size, from the `u32` bound on any linked data length.
     pub(crate) fn bound(self) -> U256 {
-        U256::from((1u64 << DATA_SIZE_BITS) - 1) + U256::from(self.addend)
+        U256::from(u32::MAX) + U256::from(self.addend)
     }
 
     /// Returns whether this is the exact length of the bytes `data` refers to.

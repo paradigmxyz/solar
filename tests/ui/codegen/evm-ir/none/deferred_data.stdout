@@ -7,7 +7,12 @@
     push_data child_0
     push 0
     codecopy
+    push_data_size child_1
+    push_data child_1
+    push 0
+    codecopy
     stop
   
   @data child_0 deferred creation "child.sol":"Child"
+  @data child_1 deferred runtime "child.sol":"Child"
   

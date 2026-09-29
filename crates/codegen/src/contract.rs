@@ -378,7 +378,8 @@ impl ContractQueue {
 /// A contract that is optimized and scheduled, waiting for the bytecode it embeds.
 struct ScheduledContract<'gcx> {
     module: Module,
-    /// Runtime code waiting for its EVM IR pipeline and assembly, if the contract has code.
+    /// Code generation waiting for linking, runtime assembly, and deployment code, if the
+    /// contract has code.
     codegen: Option<Box<EvmCodegen<'gcx>>>,
     /// MIR captured before the optimization pipeline.
     built_mir: Option<Module>,
@@ -401,11 +402,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
     fn spawn_worker<'scope>(&'scope self, scope: &Scope<'_, 'scope>) {
         scope.spawn(move |scope| match self.queue.pop() {
             ContractJob::Schedule(contract_id) => {
-                let Ok(scheduled) =
-                    schedule_contract(self.gcx, contract_id, self.captures, self.graph)
-                else {
-                    return;
-                };
+                let Ok(scheduled) = self.schedule(contract_id) else { return };
                 *self.scheduled[contract_id].lock() = Some(scheduled);
                 self.release(&scope, contract_id);
             }
@@ -414,16 +411,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
                     .lock()
                     .take()
                     .expect("contract should be scheduled before it finishes");
-                let Ok(artifact) = finish_contract(
-                    self.gcx,
-                    contract_id,
-                    self.captures,
-                    self.graph,
-                    &self.artifacts,
-                    scheduled,
-                ) else {
-                    return;
-                };
+                let Ok(artifact) = self.finish(contract_id, scheduled) else { return };
                 self.artifacts[contract_id]
                     .set(artifact)
                     .expect("contract artifact should only be generated once");
@@ -443,171 +431,167 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             self.spawn_worker(scope);
         }
     }
-}
 
-/// Lowers, optimizes, and schedules a contract whose embedded bytecode stays deferred.
-fn schedule_contract<'gcx>(
-    gcx: Gcx<'gcx>,
-    contract_id: ContractId,
-    captures: ContractCaptures<'_>,
-    graph: &ContractGraph,
-) -> Result<ScheduledContract<'gcx>> {
-    let mut module = lower::lower_contract(gcx, contract_id);
-    gcx.dcx().has_errors()?;
-    let capture_mir = captures.mir.contains(contract_id);
-    let needs_backend = captures.bytecode.contains(contract_id)
-        || captures.evm_ir.contains(contract_id)
-        || captures.debug_info.contains(contract_id)
-        || !graph.dependents[contract_id].is_empty();
-    let runtime_data =
-        captures.runtime_data.filter(|_| needs_backend).map(|data| data(contract_id));
-    append_runtime_data(&mut module, runtime_data.as_ref());
-    let capture_built = capture_mir
-        && matches!(gcx.sess.opts.optimization, OptimizationMode::None)
-        && gcx.sess.opts.unstable.mir_pipeline.is_none();
-    let built_mir = (capture_built && needs_backend).then(|| module.clone());
-    let codegen = if needs_backend {
-        module.set_debug_info_tracked(captures.debug_info.contains(contract_id));
-        let mut codegen = Box::new(EvmCodegen::new(gcx));
-        codegen.set_capture_mir(capture_mir && !capture_built);
-        codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
-        codegen.set_capture_debug_info(captures.debug_info.contains(contract_id));
-        let scheduled = codegen.schedule_module(&mut module);
+    /// Lowers, optimizes, and schedules a contract whose embedded bytecode stays deferred.
+    fn schedule(&self, contract_id: ContractId) -> Result<ScheduledContract<'gcx>> {
+        let Self { gcx, captures, graph, .. } = *self;
+        let mut module = lower::lower_contract(gcx, contract_id);
         gcx.dcx().has_errors()?;
-        scheduled.then_some(codegen)
-    } else {
-        if capture_mir && !capture_built {
-            let _changed = run_pipeline(gcx, &mut module, None);
+        let capture_mir = captures.mir.contains(contract_id);
+        let needs_backend = captures.bytecode.contains(contract_id)
+            || captures.evm_ir.contains(contract_id)
+            || captures.debug_info.contains(contract_id)
+            || !graph.dependents[contract_id].is_empty();
+        let runtime_data =
+            captures.runtime_data.filter(|_| needs_backend).map(|data| data(contract_id));
+        append_runtime_data(&mut module, runtime_data.as_ref());
+        let capture_built = capture_mir
+            && matches!(gcx.sess.opts.optimization, OptimizationMode::None)
+            && gcx.sess.opts.unstable.mir_pipeline.is_none();
+        let built_mir = (capture_built && needs_backend).then(|| module.clone());
+        let codegen = if needs_backend {
+            module.set_debug_info_tracked(captures.debug_info.contains(contract_id));
+            let mut codegen = Box::new(EvmCodegen::new(gcx));
+            codegen.set_capture_mir(capture_mir && !capture_built);
+            codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
+            codegen.set_capture_debug_info(captures.debug_info.contains(contract_id));
+            let scheduled = codegen.schedule_module(&mut module);
             gcx.dcx().has_errors()?;
-        }
-        None
-    };
-    Ok(ScheduledContract { module, codegen, built_mir })
-}
+            scheduled.then_some(codegen)
+        } else {
+            if capture_mir && !capture_built {
+                let _changed = run_pipeline(gcx, &mut module, None);
+                gcx.dcx().has_errors()?;
+            }
+            None
+        };
+        Ok(ScheduledContract { module, codegen, built_mir })
+    }
 
-/// Supplies the embedded bytecode of a scheduled contract and completes its artifact.
-fn finish_contract(
-    gcx: Gcx<'_>,
-    contract_id: ContractId,
-    captures: ContractCaptures<'_>,
-    graph: &ContractGraph,
-    artifacts: &IndexVec<ContractId, OnceLock<ContractArtifact>>,
-    scheduled: ScheduledContract<'_>,
-) -> Result<ContractArtifact> {
-    let ScheduledContract { module, codegen, built_mir } = scheduled;
-    let children = graph.dependencies[contract_id]
-        .iter()
-        .map(|dependency| {
-            let artifact = artifacts[dependency]
-                .get()
-                .expect("dependency artifact should have been generated");
-            let mut libraries = LibraryTable::default();
-            let deployment_relocations =
-                library_relocations(&artifact.deployment_link_references, &mut libraries);
-            let runtime_relocations =
-                library_relocations(&artifact.runtime_link_references, &mut libraries);
-            let bytecodes = ContractBytecodes {
-                deployment: RelocatableBytecode {
-                    bytes: artifact.deployment.clone(),
-                    relocations: deployment_relocations,
-                    libraries: libraries.clone(),
-                },
-                runtime: RelocatableBytecode {
-                    bytes: artifact.runtime.clone(),
-                    relocations: runtime_relocations,
-                    libraries,
-                },
+    /// Supplies the embedded bytecode of a scheduled contract and completes its artifact.
+    fn finish(
+        &self,
+        contract_id: ContractId,
+        scheduled: ScheduledContract<'gcx>,
+    ) -> Result<ContractArtifact> {
+        let Self { gcx, captures, graph, .. } = *self;
+        let ScheduledContract { module, codegen, built_mir } = scheduled;
+        let children = graph.dependencies[contract_id]
+            .iter()
+            .map(|dependency| {
+                let artifact = self.artifacts[dependency]
+                    .get()
+                    .expect("dependency artifact should have been generated");
+                let mut libraries = LibraryTable::default();
+                let deployment_relocations =
+                    library_relocations(&artifact.deployment_link_references, &mut libraries);
+                let runtime_relocations =
+                    library_relocations(&artifact.runtime_link_references, &mut libraries);
+                let bytecodes = ContractBytecodes {
+                    deployment: RelocatableBytecode {
+                        bytes: artifact.deployment.clone(),
+                        relocations: deployment_relocations,
+                        libraries: libraries.clone(),
+                    },
+                    runtime: RelocatableBytecode {
+                        bytes: artifact.runtime.clone(),
+                        relocations: runtime_relocations,
+                        libraries,
+                    },
+                };
+                (QualifiedName::of_contract(gcx, dependency), bytecodes)
+            })
+            .collect::<EmbeddedBytecodes>();
+        assert_eq!(
+            children.len(),
+            graph.dependencies[contract_id].count(),
+            "embedded contracts must have distinct source-qualified names"
+        );
+        let artifact = match codegen {
+            Some(mut codegen) => {
+                let artifact = codegen.finish_module(&module, &children);
+                gcx.dcx().has_errors()?;
+                artifact
+            }
+            None => EvmArtifact::default(),
+        };
+        let capture_mir = captures.mir.contains(contract_id);
+        if let Some(limit) = gcx.sess.opts.evm_version.runtime_code_size_limit()
+            && artifact.runtime.len() > limit
+        {
+            let fork = if gcx.sess.opts.evm_version >= EvmVersion::Amsterdam {
+                EvmVersion::Amsterdam
+            } else {
+                EvmVersion::SpuriousDragon
             };
-            (QualifiedName::of_contract(gcx, dependency), bytecodes)
-        })
-        .collect::<EmbeddedBytecodes>();
-    assert_eq!(
-        children.len(),
-        graph.dependencies[contract_id].count(),
-        "embedded contracts must have distinct source-qualified names"
-    );
-    let artifact = match codegen {
-        Some(mut codegen) => {
-            let artifact = codegen.finish_module(&module, &children);
-            gcx.dcx().has_errors()?;
-            artifact
+            gcx.dcx()
+                .warn(format!(
+                    "contract code size is {} bytes and exceeds {} bytes",
+                    artifact.runtime.len(),
+                    limit
+                ))
+                .code(error_code!(5574))
+                .span(gcx.hir.contract(contract_id).span)
+                .note(format!("the limit was introduced in {fork}"))
+                .note("this contract may not be deployable on Mainnet")
+                .help(
+                    "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries",
+                )
+                .emit();
         }
-        None => EvmArtifact::default(),
-    };
-    let capture_mir = captures.mir.contains(contract_id);
-    if let Some(limit) = gcx.sess.opts.evm_version.runtime_code_size_limit()
-        && artifact.runtime.len() > limit
-    {
-        let fork = if gcx.sess.opts.evm_version >= EvmVersion::Amsterdam {
-            EvmVersion::Amsterdam
-        } else {
-            EvmVersion::SpuriousDragon
-        };
-        gcx.dcx()
-            .warn(format!(
-                "contract code size is {} bytes and exceeds {} bytes",
-                artifact.runtime.len(),
-                limit
-            ))
-            .code(error_code!(5574))
-            .span(gcx.hir.contract(contract_id).span)
-            .note(format!("the limit was introduced in {fork}"))
-            .note("this contract may not be deployable on Mainnet")
-            .help(
-                "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries",
-            )
-            .emit();
-    }
-    if let Some(limit) = gcx.sess.opts.evm_version.initcode_size_limit()
-        && artifact.deployment.len() > limit
-    {
-        let fork = if gcx.sess.opts.evm_version >= EvmVersion::Amsterdam {
-            EvmVersion::Amsterdam
-        } else {
-            EvmVersion::Shanghai
-        };
-        gcx.dcx()
-            .warn(format!(
-                "contract initcode size is {} bytes and exceeds {} bytes",
-                artifact.deployment.len(),
-                limit
-            ))
-            .code(error_code!(3860))
-            .span(gcx.hir.contract(contract_id).span)
-            .note(format!("the limit was introduced in {fork}"))
-            .note("this contract may not be deployable on Mainnet")
-            .help(
-                "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries",
-            )
-            .emit();
-    }
-    let immutable_references = artifact
-        .immutable_references
-        .iter()
-        .map(|reference| ImmutableReference {
-            variable_id: module.immutable(reference.id).variable_id,
-            start: reference.code_offset + 1,
-            type_size: reference.type_size,
-        })
-        .collect();
-    let deployment_link_references =
-        collect_library_references(&artifact.deployment_library_relocations, &artifact.libraries);
-    let runtime_link_references =
-        collect_library_references(&artifact.runtime_library_relocations, &artifact.libraries);
-    let mir = capture_mir.then(|| built_mir.unwrap_or(module));
+        if let Some(limit) = gcx.sess.opts.evm_version.initcode_size_limit()
+            && artifact.deployment.len() > limit
+        {
+            let fork = if gcx.sess.opts.evm_version >= EvmVersion::Amsterdam {
+                EvmVersion::Amsterdam
+            } else {
+                EvmVersion::Shanghai
+            };
+            gcx.dcx()
+                .warn(format!(
+                    "contract initcode size is {} bytes and exceeds {} bytes",
+                    artifact.deployment.len(),
+                    limit
+                ))
+                .code(error_code!(3860))
+                .span(gcx.hir.contract(contract_id).span)
+                .note(format!("the limit was introduced in {fork}"))
+                .note("this contract may not be deployable on Mainnet")
+                .help(
+                    "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries",
+                )
+                .emit();
+        }
+        let immutable_references = artifact
+            .immutable_references
+            .iter()
+            .map(|reference| ImmutableReference {
+                variable_id: module.immutable(reference.id).variable_id,
+                start: reference.code_offset + 1,
+                type_size: reference.type_size,
+            })
+            .collect();
+        let deployment_link_references = collect_library_references(
+            &artifact.deployment_library_relocations,
+            &artifact.libraries,
+        );
+        let runtime_link_references =
+            collect_library_references(&artifact.runtime_library_relocations, &artifact.libraries);
+        let mir = capture_mir.then(|| built_mir.unwrap_or(module));
 
-    Ok(ContractArtifact {
-        deployment: artifact.deployment.into(),
-        runtime: artifact.runtime.into(),
-        immutable_references,
-        deployment_link_references,
-        runtime_link_references,
-        mir,
-        deployment_evm_ir: artifact.deployment_evm_ir,
-        runtime_evm_ir: artifact.runtime_evm_ir,
-        deployment_debug_info: artifact.deployment_debug_info,
-        runtime_debug_info: artifact.runtime_debug_info,
-    })
+        Ok(ContractArtifact {
+            deployment: artifact.deployment.into(),
+            runtime: artifact.runtime.into(),
+            immutable_references,
+            deployment_link_references,
+            runtime_link_references,
+            mir,
+            deployment_evm_ir: artifact.deployment_evm_ir,
+            runtime_evm_ir: artifact.runtime_evm_ir,
+            deployment_debug_info: artifact.deployment_debug_info,
+            runtime_debug_info: artifact.runtime_debug_info,
+        })
+    }
 }
 
 /// Converts named artifact references into identities for embedded bytecode.

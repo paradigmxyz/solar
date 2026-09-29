@@ -266,9 +266,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
-        let contract = self.cx.gcx.hir.contract(contract_id);
-        let usage = format!("new {}", contract.name);
-        let bytecode = self.contract_code(ty.span, contract_id, true, &usage)?;
+        let bytecode = self.contract_code(ty.span, contract_id, true)?;
 
         let mut call_value = self.builder.imm(U256::ZERO);
         let mut salt = None;
@@ -293,7 +291,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
 
-        let (parameters, parameter_names) = contract
+        let (parameters, parameter_names) = self
+            .cx
+            .gcx
+            .hir
+            .contract(contract_id)
             .ctor
             .map(|id| {
                 let constructor = self.cx.gcx.hir.function(id);
@@ -330,7 +332,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let encoded = self.builder.abi_encode(Arc::clone(&layout), None, values.into_boxed_slice());
         let static_len = (!layout.types.iter().any(AbiType::is_dynamic))
             .then(|| layout.head_size())
-            .filter(|&len| EvmMemoryLayout::align_word(len).is_some());
+            .filter(|&len| len.checked_add(31).is_some());
         let encoded_len = match static_len {
             Some(len) => self.builder.imm(len),
             None => self.builder.slice_len(encoded),

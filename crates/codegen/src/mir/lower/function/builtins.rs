@@ -270,8 +270,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     Builtin::ContractCreationCode | Builtin::ContractRuntimeCode => {
                         // value = bytes(creation_bytecode(C) | runtime_bytecode(C))
                         let creation = builtin == Builtin::ContractCreationCode;
-                        let usage = if creation { "creationCode" } else { "runtimeCode" };
-                        let code = self.contract_code(expr.span, contract_id, creation, usage)?;
+                        let code = self.contract_code(expr.span, contract_id, creation)?;
                         Some(Self::build_bytecode(&mut self.builder, code))
                     }
                     _ => unreachable!(),

@@ -133,7 +133,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
         if self.parser.eat_keyword(sym::deferred) {
             let code = self.parser.parse_contract_code()?;
-            module.data.push(Data { deferred: Some(code), ..Data::new(Default::default(), name) });
+            module.data.push(Data::contract_code(code, name));
             return Ok(());
         }
         let bytes = self.parser.parse_data_bytes()?;

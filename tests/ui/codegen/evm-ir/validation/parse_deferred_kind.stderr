@@ -1,0 +1,8 @@
+error: expected `creation` or `runtime`
+   ╭▸ ROOT/tests/ui/codegen/evm-ir/validation/parse_deferred_kind.evmir:LL:CC
+   │
+LL │ @data child_0 deferred initcode "child.sol":"Child"
+   ╰╴                       ━━━━━━━━
+
+error: aborting due to 1 previous error
+

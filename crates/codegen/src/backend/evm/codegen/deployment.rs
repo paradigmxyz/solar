@@ -7,7 +7,7 @@ use super::{
     immutable_push_type_size, immutable_staging_addr, immutable_staging_base,
     immutable_staging_end, op,
 };
-use crate::{backend::assembler::PreparedAssembly, link::LibraryRelocation};
+use crate::{backend::assembler::PreparedAssembly, link::LibraryRelocation, mir::MirPhase};
 
 struct PreparedDeploymentPrefix {
     assembly: PreparedAssembly,
@@ -109,8 +109,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> EvmArtifact {
         let PendingRuntime { call_graph, size_rescue } =
             self.pending_runtime.take().expect("module must be scheduled first");
-        let lowered = module.as_checked_lowered();
-        let module = &*lowered;
+        debug_assert_eq!(module.phase(), MirPhase::Lowered);
         let mut libraries = module.libraries.clone();
         let runtime_code = self.assemble_runtime_code(size_rescue, bytecodes, &mut libraries);
         let runtime_len = runtime_code.bytecode.len();

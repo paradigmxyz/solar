@@ -223,13 +223,6 @@ impl Module {
         Ok(LoweredModule(self))
     }
 
-    /// Returns the lowered view of a module that [`Self::as_lowered`] already accepted and
-    /// that has not changed since.
-    pub(crate) fn as_checked_lowered(&self) -> LoweredModule<'_> {
-        debug_assert_eq!(self.phase, MirPhase::Lowered);
-        LoweredModule(self)
-    }
-
     /// Returns whether all external entries have an explicit ABI implementation.
     pub(crate) fn has_explicit_abi(&self) -> bool {
         self.functions
@@ -476,7 +469,7 @@ impl Module {
 
     /// Adds deferred data for another contract's bytecode, which final assembly links in.
     pub(crate) fn add_contract_code(&mut self, code: ContractCode, name: Option<Symbol>) -> DataId {
-        self.data.push(Data { deferred: Some(code), ..Data::new(Bytes::new(), name) })
+        self.data.push(Data::contract_code(code, name))
     }
 
     /// Interns constant data and returns its stable identifier.
