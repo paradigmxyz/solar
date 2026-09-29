@@ -52,12 +52,13 @@ struct Int256Builder {
 /// `Bytes.copyInto` and `Arrays.truncate`.
 ///
 /// A builder is finished once, after its last append. This compiler rejects
-/// any use of a builder after `finish` emptied it, and any read or write of a
-/// builder's fields outside this module, which could expose bytes that were
-/// never written; other compilers run such code as described above. Since no
-/// code can read a builder's capacity past what was written, this compiler
-/// also leaves the memory behind it as it finds it rather than zeroing it
-/// first; `finish` cuts the result off at what was written.
+/// any use of a builder after `finish` emptied it, any read or write of a
+/// builder's fields outside this module, and any encoding or storing of a
+/// whole builder, all of which could expose bytes that were never written;
+/// other compilers run such code as described above. Since no code can read a
+/// builder's capacity past what was written, this compiler also leaves the
+/// memory behind it as it finds it rather than zeroing it first; `finish` cuts
+/// the result off at what was written.
 library Buffers {
     /// @dev A builder with room for `capacity` bytes before it first grows.
     function create(uint256 capacity) internal pure returns (ByteBuilder memory builder) {

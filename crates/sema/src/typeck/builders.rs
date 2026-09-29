@@ -9,12 +9,19 @@
 //! A builder is also a value of its own, never part of another type: code generation follows
 //! builders as values to reject a use after `finish`, which it could not do through a struct
 //! field, an array element, or a mapping value.
+//!
+//! Encoding or storing a whole builder would copy its capacity as well, bytes that were never
+//! written, so a builder also stays in memory and out of the ABI: no state or storage variable,
+//! no parameter or return value of a public or external function or of an external function
+//! type, no event, error or `try` clause parameter, and no argument of `abi.encode` and its
+//! variants holds one.
 
 use crate::{
     builtins::Builtin,
     hir::{self, ExprKind, Visit},
-    ty::{Gcx, TyKind},
+    ty::{Gcx, Ty, TyKind},
 };
+use solar_ast::DataLocation;
 use solar_data_structures::Never;
 use solar_interface::{Span, source_map::FileName};
 use std::ops::ControlFlow;
@@ -28,11 +35,12 @@ pub(super) fn check(gcx: Gcx<'_>) {
             let _ = BuilderFields { gcx }.visit_nested_source(source);
         }
     }
-    check_nesting(gcx);
+    check_declarations(gcx);
 }
 
-/// Rejects every declaration outside `Buffers` whose type holds a builder inside another type.
-fn check_nesting(gcx: Gcx<'_>) {
+/// Rejects every declaration outside `Buffers` whose type holds a builder inside another type,
+/// or that would store a builder or pass one through the ABI.
+fn check_declarations(gcx: Gcx<'_>) {
     let fields = BuilderFields { gcx };
     for id in gcx.hir.variable_ids() {
         let variable = gcx.hir.variable(id);
@@ -58,7 +66,35 @@ fn check_nesting(gcx: Gcx<'_>) {
                      memory would hide",
                 )
                 .emit();
+        } else if let Some(id) = fields.builder(ty)
+            && let Some(place) = escaping_place(gcx, variable)
+        {
+            fields.report_escape(id, variable.ty.span, place);
+        } else if let Some(id) = fields.external_signature_builder(ty) {
+            fields.report_escape(id, variable.ty.span, "an external function type");
         }
+    }
+}
+
+/// Where a builder declared as `variable` would be stored or encoded, when it would be.
+fn escaping_place(gcx: Gcx<'_>, variable: &hir::Variable<'_>) -> Option<&'static str> {
+    if matches!(variable.data_location, Some(DataLocation::Storage | DataLocation::Calldata))
+        || matches!(variable.kind, hir::VarKind::State | hir::VarKind::Global)
+    {
+        return Some("storage");
+    }
+    match variable.kind {
+        hir::VarKind::Event => Some("an event"),
+        hir::VarKind::Error => Some("an error"),
+        hir::VarKind::TryCatch => Some("a `try` clause"),
+        hir::VarKind::FunctionParam | hir::VarKind::FunctionReturn => {
+            let Some(hir::ItemId::Function(function)) = variable.parent else { return None };
+            let function = gcx.hir.function(function);
+            (function.visibility >= hir::Visibility::Public
+                || function.kind == hir::FunctionKind::Constructor)
+                .then_some("a public or external function")
+        }
+        _ => None,
     }
 }
 
@@ -92,6 +128,39 @@ impl<'gcx> BuilderFields<'gcx> {
             TyKind::Mapping(_, value) => self.holds_builder(value),
             _ => None,
         }
+    }
+
+    /// The builder an external function type `ty` takes or returns, when there is one.
+    fn external_signature_builder(&self, ty: Ty<'gcx>) -> Option<hir::StructId> {
+        let TyKind::Fn(function) = ty.peel_refs().kind else { return None };
+        if !function.is_external() {
+            return None;
+        }
+        function.parameters.iter().chain(function.returns).find_map(|&ty| self.holds_builder(ty))
+    }
+
+    /// The builder `ty` holds, including as a tuple component, when there is one.
+    fn encoded_builder(&self, ty: Ty<'gcx>) -> Option<hir::StructId> {
+        match ty.kind {
+            TyKind::Tuple(components) => {
+                components.iter().find_map(|&component| self.encoded_builder(component))
+            }
+            _ => self.holds_builder(ty),
+        }
+    }
+
+    /// Reports a builder that `place` would store or encode.
+    fn report_escape(&self, id: hir::StructId, span: Span, place: &str) {
+        let name = self.gcx.hir.strukt(id).name;
+        self.gcx
+            .dcx()
+            .err(format!("a `{name}` cannot be stored or encoded"))
+            .span(span)
+            .note(format!(
+                "{place} would copy the builder's capacity, bytes that were never written, as well"
+            ))
+            .help("use what `Buffers.finish` returns instead")
+            .emit();
     }
 
     /// The first type among the `abi.decode` target `types` that holds a builder, with its span.
@@ -152,6 +221,27 @@ impl<'gcx> Visit<'gcx> for BuilderFields<'gcx> {
                     .span(span)
                     .note("a decoded builder could claim bytes that were never written")
                     .emit();
+            }
+            ExprKind::Call(..)
+                if let Some((callee, args, _)) = expr.as_call()
+                    && matches!(
+                        self.gcx.resolved_builtin(callee),
+                        Some(
+                            Builtin::AbiEncode
+                                | Builtin::AbiEncodePacked
+                                | Builtin::AbiEncodeWithSelector
+                                | Builtin::AbiEncodeWithSignature
+                                | Builtin::AbiEncodeCall
+                        )
+                    ) =>
+            {
+                for argument in args.exprs() {
+                    if let Some(ty) = self.gcx.type_of_expr(argument.id)
+                        && let Some(id) = self.encoded_builder(ty)
+                    {
+                        self.report_escape(id, argument.span, "the encoding");
+                    }
+                }
             }
             ExprKind::Call(..)
                 if let Some((callee, _, _)) = expr.as_call()

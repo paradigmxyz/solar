@@ -31,7 +31,7 @@
           },
           "coreModules": {
             "solar:core/v1/Arrays.sol": "0xc12f6a6439b121ea1fd2210d2125828eec3530a23426a5351da021745f0c5236",
-            "solar:core/v1/Buffers.sol": "0x0e4c06e23254a890470d239325e3d24253e11bab2dab935deae033ab1393c3b1",
+            "solar:core/v1/Buffers.sol": "0x61bb9a4fb5c7fbf41a8e8e04bcbbb816433c64cf4d5001271ef440448755d47d",
             "solar:core/v1/Bytes.sol": "0x94321966a8d406bd68c591c44e9db68df2dc58a05e9e5017464c0339d8f07750",
             "solar:core/v1/Strings.sol": "0x80b432972504dca8a04a4b89ef56fe427b3956b9a50afd2728de06c6cb3e5330"
           }
@@ -50,7 +50,7 @@
           },
           "coreModules": {
             "solar:core/v1/Arrays.sol": "0xc12f6a6439b121ea1fd2210d2125828eec3530a23426a5351da021745f0c5236",
-            "solar:core/v1/Buffers.sol": "0x0e4c06e23254a890470d239325e3d24253e11bab2dab935deae033ab1393c3b1",
+            "solar:core/v1/Buffers.sol": "0x61bb9a4fb5c7fbf41a8e8e04bcbbb816433c64cf4d5001271ef440448755d47d",
             "solar:core/v1/Bytes.sol": "0x94321966a8d406bd68c591c44e9db68df2dc58a05e9e5017464c0339d8f07750",
             "solar:core/v1/Strings.sol": "0x80b432972504dca8a04a4b89ef56fe427b3956b9a50afd2728de06c6cb3e5330"
           }
