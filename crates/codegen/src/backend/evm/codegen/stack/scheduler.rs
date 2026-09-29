@@ -259,6 +259,7 @@ pub(crate) struct StackScheduler {
     ops: Vec<ScheduledOp>,
     /// Remaining bounded-search work for this function.
     operand_search_budget: Cell<OperandSearchBudget>,
+    operand_search_scratch: OperandSearchScratch,
     #[cfg(test)]
     operand_search_stats: Cell<OperandSearchStats>,
 }
@@ -607,33 +608,42 @@ struct OperandSearchState {
     parent: Option<(usize, PlannedAction)>,
 }
 
-/// Operand-search buffers reused by the searches on one thread.
+/// Operand-search buffers a scheduler reuses across its searches. A cloned scheduler starts
+/// with empty buffers instead of copying them.
 #[derive(Default)]
-struct OperandSearchScratch {
+struct OperandSearchScratch(Cell<OperandSearchBuffers>);
+
+impl Clone for OperandSearchScratch {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+#[derive(Default)]
+struct OperandSearchBuffers {
     states: Vec<OperandSearchState>,
     queue: BinaryHeap<OperandSearchQueueEntry>,
     visited: FxHashMap<SearchStack, [u32; 3]>,
 }
 
-thread_local! {
-    static OPERAND_SEARCH_SCRATCH: Cell<OperandSearchScratch> = Cell::default();
+/// Lends the scratch buffers to one search and returns them cleared when it ends.
+struct OperandSearchBuffersGuard<'a> {
+    scratch: &'a OperandSearchScratch,
+    buffers: OperandSearchBuffers,
 }
 
-/// Returns the cleared buffers to the thread's scratch when a search ends.
-struct OperandSearchScratchGuard(OperandSearchScratch);
-
-impl Drop for OperandSearchScratchGuard {
+impl Drop for OperandSearchBuffersGuard<'_> {
     fn drop(&mut self) {
-        let mut scratch = std::mem::take(&mut self.0);
-        scratch.states.clear();
-        scratch.queue.clear();
+        let mut buffers = std::mem::take(&mut self.buffers);
+        buffers.states.clear();
+        buffers.queue.clear();
         // Clearing a table costs time proportional to its capacity, and most searches are small.
-        if scratch.visited.capacity() > MAX_RETAINED_VISITED_CAPACITY {
-            scratch.visited = FxHashMap::default();
+        if buffers.visited.capacity() > MAX_RETAINED_VISITED_CAPACITY {
+            buffers.visited = FxHashMap::default();
         } else {
-            scratch.visited.clear();
+            buffers.visited.clear();
         }
-        OPERAND_SEARCH_SCRATCH.set(scratch);
+        self.scratch.0.set(buffers);
     }
 }
 
@@ -770,6 +780,7 @@ impl StackScheduler {
             stack_only_values: DenseBitSet::new_empty(0),
             ops: Vec::new(),
             operand_search_budget: Cell::new(OperandSearchBudget::default()),
+            operand_search_scratch: OperandSearchScratch::default(),
             #[cfg(test)]
             operand_search_stats: Cell::new(OperandSearchStats::default()),
         }
@@ -1013,8 +1024,11 @@ impl StackScheduler {
         }
         let expansion_limit = MAX_OPERAND_SEARCH_EXPANSIONS.min(budget.remaining_expansions);
         let start_state = OperandSearchState { stack: start.stack, cost: start.cost, parent: None };
-        let mut scratch = OperandSearchScratchGuard(OPERAND_SEARCH_SCRATCH.take());
-        let OperandSearchScratch { states, queue, visited } = &mut scratch.0;
+        let mut guard = OperandSearchBuffersGuard {
+            scratch: &self.operand_search_scratch,
+            buffers: self.operand_search_scratch.0.take(),
+        };
+        let OperandSearchBuffers { states, queue, visited } = &mut guard.buffers;
         states.push(start_state);
         let mut serial = 0usize;
         let start_key = states[0].cost.key(optimization);
