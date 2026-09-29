@@ -5,9 +5,12 @@ use solar::{
     codegen::llm::{
         LlmError, LlmRewriter, LlmSession, Proposal, RewriteRequest, Stage, Verdict, set_rewriter,
     },
-    config::{CompileOpts, LlmOptimizeMode, UnstableOpts},
+    config::{CompileOpts, CompilerOutput, EvmVersion, LlmOptimizeMode, UnstableOpts},
 };
-use std::sync::{Arc, Mutex};
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 #[cfg(feature = "llm")]
 use snapbox::{assert_data_eq, str};
@@ -119,6 +122,36 @@ fn embedded_rewriter() {
     assert!(cost.gas > 0 && cost.bytes > 0);
     assert!(runtime(&plain).as_str().is_some_and(|code| !code.is_empty()));
     assert_ne!(runtime(&rewritten), runtime(&plain));
+}
+
+/// An embedder that loads the sources itself gets the command line's outputs, and its rewriter
+/// stays in place.
+#[test]
+fn embedded_sources() {
+    let out = tempfile::tempdir().unwrap();
+    let opts = CompileOpts {
+        evm_version: EvmVersion::Cancun,
+        emit: vec![CompilerOutput::BinRuntime],
+        out_dir: Some(out.path().to_path_buf()),
+        unstable: UnstableOpts { llm_optimize: Some(LlmOptimizeMode::Live), ..Default::default() },
+        ..Default::default()
+    };
+    let verdicts = Arc::new(Mutex::new(Vec::new()));
+    set_rewriter(Some(Arc::new(Rewriter { verdicts: Arc::clone(&verdicts) })));
+    let sess = solar::interface::Session::new(opts);
+    let compiled = solar::cli::run_compiler_with_sources(sess, |pcx| {
+        let file =
+            pcx.sess.source_map().new_source_file(PathBuf::from("triangle.sol"), SOURCE).unwrap();
+        pcx.add_file(file);
+        Ok(())
+    });
+    set_rewriter(None);
+    assert!(compiled.is_ok());
+    assert_eq!(verdicts.lock().unwrap().len(), 2);
+    let combined = std::fs::File::open(out.path().join("combined.json")).unwrap();
+    let combined = serde_json::from_reader::<_, Value>(combined).unwrap();
+    let runtime = &combined["contracts"]["triangle.sol:Triangle"]["bin-runtime"];
+    assert!(runtime.as_str().is_some_and(|code| !code.is_empty()), "{combined:#}");
 }
 
 /// The compiler, built with the features the tests run with.
