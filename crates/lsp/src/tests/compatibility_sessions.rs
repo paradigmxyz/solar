@@ -796,6 +796,46 @@ async fn pull_diagnostic_data_support_is_used_on_the_wire() {
     session.exit().await;
 }
 
+async fn native_diagnostic_on_the_wire(source: &str, pull: bool) -> (Value, Url) {
+    let project = TestProject::new();
+    let root_uri = Url::from_file_path(project.root()).unwrap();
+    let document_uri = Url::from_file_path(project.path("/Details.sol")).unwrap();
+    let mut capabilities = diagnostic_client_capabilities(pull, pull, false);
+    capabilities["textDocument"]["publishDiagnostics"] = json!({
+        "relatedInformation": true,
+        "tagSupport": { "valueSet": [1, 2] },
+    });
+    let mut session = RawSession::start();
+    let initialize =
+        session.initialize(client_profile("Minimal LSP client"), &root_uri, &capabilities).await;
+    assert_eq!(initialize.pointer("/capabilities/diagnosticProvider").is_some(), pull);
+    session.notify("initialized", json!({})).await;
+    session.open(&document_uri, source).await;
+
+    let diagnostics = if pull {
+        let report = session.document_request("textDocument/diagnostic", &document_uri).await;
+        assert_eq!(report["kind"], "full");
+        assert_eq!(session.server_message_count("textDocument/publishDiagnostics"), 0);
+        report["items"].clone()
+    } else {
+        session.document_request("textDocument/documentSymbol", &document_uri).await;
+        session.wait_for_server_message_count("textDocument/publishDiagnostics", 1).await;
+        let publications = session.server_messages("textDocument/publishDiagnostics");
+        assert_eq!(publications.len(), 1);
+        assert_eq!(publications[0]["params"]["uri"], document_uri.as_str());
+        publications[0]["params"]["diagnostics"].clone()
+    };
+    let diagnostics = diagnostics.as_array().unwrap();
+    let [diagnostic] = diagnostics.as_slice() else {
+        panic!("expected one diagnostic, got {diagnostics:?}");
+    };
+    assert_eq!(diagnostic["source"], "solar");
+    assert!(diagnostic.get("data").is_none());
+    session.shutdown().await;
+    session.exit().await;
+    (diagnostic.clone(), document_uri)
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn did_open_before_initialize_is_not_observable() {
     let project = TestProject::new();
@@ -840,4 +880,91 @@ async fn did_open_before_initialize_is_not_observable() {
 
     session.shutdown().await;
     session.exit().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn diagnostic_details_are_preserved_on_the_wire() {
+    for pull in [false, true] {
+        let (diagnostic, _) =
+            native_diagnostic_on_the_wire("contract Details { uint8 x = 300; }\n", pull).await;
+        snapbox::assert_data_eq!(
+            diagnostic["message"].as_str().unwrap(),
+            "mismatched types\nexpected `uint8`, found `int_literal[9]`"
+        );
+        assert_eq!(
+            diagnostic["range"],
+            json!({
+                "start": { "line": 0, "character": 29 },
+                "end": { "line": 0, "character": 32 },
+            })
+        );
+        assert_eq!(diagnostic["severity"], 1);
+        assert_eq!(diagnostic["relatedInformation"], json!([]));
+        assert!(diagnostic.get("tags").is_none());
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn diagnostic_help_and_related_locations_are_preserved_on_the_wire() {
+    for pull in [false, true] {
+        let (diagnostic, uri) = native_diagnostic_on_the_wire(
+            "contract Base { function f() public {} }\ncontract Derived is Base { function f() public override {} }\n",
+            pull,
+        ).await;
+        snapbox::assert_data_eq!(
+            diagnostic["message"].as_str().unwrap(),
+            "cannot override non-virtual function\nhelp: add `virtual` to the base function to allow overriding"
+        );
+        assert_eq!(diagnostic["code"], "4334");
+        assert_eq!(diagnostic["severity"], 1);
+        assert_eq!(
+            diagnostic["range"],
+            json!({
+                "start": { "line": 0, "character": 16 },
+                "end": { "line": 0, "character": 38 },
+            })
+        );
+        let related = diagnostic["relatedInformation"].as_array().unwrap();
+        assert_eq!(related.len(), 1);
+        snapbox::assert_data_eq!(
+            related[0]["message"].as_str().unwrap(),
+            "overriding function is here"
+        );
+        assert_eq!(
+            related[0]["location"],
+            json!({
+                "uri": uri,
+                "range": {
+                    "start": { "line": 1, "character": 27 },
+                    "end": { "line": 1, "character": 58 },
+                },
+            })
+        );
+        assert!(diagnostic.get("tags").is_none());
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn deprecated_diagnostic_tags_are_preserved_on_the_wire() {
+    for pull in [false, true] {
+        let (diagnostic, _) = native_diagnostic_on_the_wire(
+            "contract Details { function f() public view returns (uint256) { return block.difficulty; } }\n",
+            pull,
+        ).await;
+        snapbox::assert_data_eq!(
+            diagnostic["message"].as_str().unwrap(),
+            "since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain"
+        );
+        assert_eq!(diagnostic["code"], "8417");
+        assert_eq!(diagnostic["severity"], 2);
+        assert_eq!(
+            diagnostic["range"],
+            json!({
+                "start": { "line": 0, "character": 71 },
+                "end": { "line": 0, "character": 87 },
+            })
+        );
+        assert_eq!(diagnostic["relatedInformation"], json!([]));
+        assert_eq!(diagnostic["tags"], json!([2]));
+    }
 }

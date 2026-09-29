@@ -10,10 +10,11 @@ use super::{
 use crate::mir::{Builtin, Callee, RequireKind, analysis::CfgInfo};
 use arrayvec::ArrayVec;
 use solar_data_structures::{
-    fmt::{self, FmtIteratorExt},
+    fmt::FmtIteratorExt,
     map::{FxHashMap, FxHashSet},
 };
 use solar_sema::hir;
+use std::fmt;
 
 /// Displays a DOT format CFG for a function.
 pub(crate) fn display_function_dot<'a>(

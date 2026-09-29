@@ -21,8 +21,9 @@ use crate::{
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::U256;
-use solar_data_structures::{fmt, index::IndexVec, newtype_index};
+use solar_data_structures::{index::IndexVec, newtype_index};
 use solar_interface::{Span, Symbol};
+use std::fmt;
 
 pub(in crate::backend) mod builder;
 mod display;

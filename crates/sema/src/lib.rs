@@ -198,7 +198,7 @@ fn dump_hir(gcx: Gcx<'_>, paths: Option<&[String]>) -> Result<()> {
 }
 
 fn fmt_bytes(bytes: usize) -> impl std::fmt::Display {
-    solar_data_structures::fmt::from_fn(move |f| {
+    std::fmt::from_fn(move |f| {
         let mut size = bytes as f64;
         let mut suffix = "B";
         if size >= 1024.0 {
