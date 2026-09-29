@@ -1,11 +1,11 @@
 Candidates for `tail_calls.mir`: each turns the final call into a tail call, which only `wraps`
-may do.
+may do. A call its block returns costs what a tail call costs, so `wraps` wins by the work it drops.
 
 --- function wraps
 --- candidate
 fn @wraps(arg0: i256) -> i256 {
   bb0:
-    v0 = mul arg0, 3
+    v0 = shl 2, arg0
     tail_call @helper, v0
 }
 
