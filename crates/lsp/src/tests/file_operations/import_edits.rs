@@ -339,7 +339,10 @@ fn rename_file_preserves_non_utf8_import_bytes() {
     assert_eq!(links.len(), 1);
     assert_eq!(links[0].target.as_ref().unwrap().to_file_path().unwrap(), target);
 
+    #[cfg(target_os = "linux")]
     let moves = move_batch([(target.clone(), renamed.clone())]);
+    #[cfg(not(target_os = "linux"))]
+    let moves = move_batch([(target, renamed)]);
     let edits = index.rename_edits(&moves);
     let edit = edits.first_edit().unwrap();
 
