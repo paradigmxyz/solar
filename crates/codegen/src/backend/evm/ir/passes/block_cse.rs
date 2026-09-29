@@ -468,7 +468,7 @@ fn has_repeated_candidate_opcode(instructions: &[Instruction]) -> bool {
             inst.deferred_push().is_none()
                 && inst.pushed_value().is_some_and(|value| !value.is_zero())
         } else {
-            EXPRESSION_OPCODES[usize::from(inst.opcode)]
+            expression_inputs(inst.opcode, 0, 0).is_some()
         };
         if candidate {
             let opcode = usize::from(inst.opcode);
@@ -481,17 +481,6 @@ fn has_repeated_candidate_opcode(instructions: &[Instruction]) -> bool {
     }
     false
 }
-
-/// Whether [`expression_inputs`] value-numbers each opcode.
-const EXPRESSION_OPCODES: [bool; 256] = {
-    let mut opcodes = [false; 256];
-    let mut opcode = 0;
-    while opcode < 256 {
-        opcodes[opcode] = expression_inputs(opcode as u8, 0, 0).is_some();
-        opcode += 1;
-    }
-    opcodes
-};
 
 fn push_fingerprint(opcode: u8, encoding: u8, value: PushValue) -> u64 {
     let mut hasher = FxHasher::default();

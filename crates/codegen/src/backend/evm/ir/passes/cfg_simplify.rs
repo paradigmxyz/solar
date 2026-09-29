@@ -356,23 +356,12 @@ fn reserve_to<T>(values: &mut Vec<T>, capacity: usize) {
     }
 }
 
-/// Whether each opcode is terminal, for scans over every instruction.
-const TERMINAL_OPCODES: [bool; 256] = {
-    let mut opcodes = [false; 256];
-    let mut opcode = 0;
-    while opcode < 256 {
-        opcodes[opcode] = op::is_terminal(opcode as u8);
-        opcode += 1;
-    }
-    opcodes
-};
-
 fn truncate_after_terminal(module: &mut Module) -> bool {
     let mut changed = false;
     for block in &mut module.blocks {
         let Some((at, opcode, metadata)) =
             block.instructions.iter().enumerate().find_map(|(at, inst)| {
-                (TERMINAL_OPCODES[usize::from(inst.opcode)] && !inst.is_encoded_push())
+                (!inst.is_encoded_push() && op::is_terminal(inst.opcode))
                     .then(|| (at, inst.opcode, inst.metadata.clone()))
             })
         else {
