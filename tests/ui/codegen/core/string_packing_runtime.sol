@@ -27,6 +27,15 @@
 //@ run-call: unpackSingle 0x0568656c6c6f0000000000000000000000000000000000000000000000000000 => "hello"
 //@ run-call: unpackPair 0x0568656c6c6f05776f726c640000000000000000000000000000000000000000 => "hello", "world"
 //@ run-call: unpackPair 0x0f7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a0f797979797979797979797979797979 => "zzzzzzzzzzzzzzz", "yyyyyyyyyyyyyyy"
+//@ run-call: unpackPair 0x000568656c6c6f00000000000000000000000000000000000000000000000000 => "", "hello"
+//@ run-call: unpackPair 0x0568656c6c6f0000000000000000000000000000000000000000000000000000 => "hello", ""
+//@ run-call: unpackPair 0x0000000000000000000000000000000000000000000000000000000000000000 => "", ""
+//@ run-call: unpackPair 0x1f61616161616161616161616161616161616161616161616161616161616161 => "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", ""
+//@ run-call: unpackSingleWord 0x0161626364ffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x6100000000000000000000000000000000000000000000000000000000000000
+//@ run-call: unpackSingleWord 0x207a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a => 0x7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a00
+//@ run-call: unpackPairWords 0x01610162ffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x6100000000000000000000000000000000000000000000000000000000000000, 0x6200000000000000000000000000000000000000000000000000000000000000
+//@ run-call: unpackFullPairWord 0x1e616161616161616161616161616161616161616161616161616161616161ff => 0x6161616161616161616161616161616161616161616161616161616161610000
+//@ run-call: unpackSecondWord 0x0003626364ffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x6263640000000000000000000000000000000000000000000000000000000000
 
 import {Strings} from "solar:core/v1/Strings.sol";
 
@@ -64,5 +73,37 @@ contract Test {
 
     function unpackPair(bytes32 packed) public pure returns (string memory, string memory) {
         return Strings.unpackTwo(packed);
+    }
+
+    /// The word holding the payload, which the body's `new bytes` zeroes past the payload.
+    function unpackSingleWord(bytes32 packed) public pure returns (bytes32 word) {
+        string memory value = Strings.unpackOne(packed);
+        assembly {
+            word := mload(add(value, 0x20))
+        }
+    }
+
+    function unpackPairWords(bytes32 packed) public pure returns (bytes32 a, bytes32 b) {
+        (string memory x, string memory y) = Strings.unpackTwo(packed);
+        assembly {
+            a := mload(add(x, 0x20))
+            b := mload(add(y, 0x20))
+        }
+    }
+
+    /// The first string takes every byte: the second is empty and has no payload word.
+    function unpackFullPairWord(bytes32 packed) public pure returns (bytes32 a) {
+        (string memory x,) = Strings.unpackTwo(packed);
+        assembly {
+            a := mload(add(x, 0x20))
+        }
+    }
+
+    /// The first string is empty and has no payload word.
+    function unpackSecondWord(bytes32 packed) public pure returns (bytes32 b) {
+        (, string memory y) = Strings.unpackTwo(packed);
+        assembly {
+            b := mload(add(y, 0x20))
+        }
     }
 }
