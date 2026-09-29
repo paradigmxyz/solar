@@ -193,7 +193,17 @@ pub fn generate_contract_bytecodes(
         && !gcx.sess.opts.unstable.print_after_each
         && !gcx.sess.opts.unstable.pass_diff
         && !gcx.sess.opts.unstable.time_passes;
-    let priorities = graph.scheduling_priorities(gcx, parallel);
+    let priorities = if parallel {
+        graph.scheduling_priorities(gcx)
+    } else {
+        // Keep source order, with each contract after the contracts it embeds, so no scheduled
+        // contract waits on another.
+        let mut priorities = IndexVec::from_vec(vec![0; contract_count]);
+        for (rank, &contract_id) in graph.order.iter().rev().enumerate() {
+            priorities[contract_id] = rank as u64 + 1;
+        }
+        priorities
+    };
     let jobs = ContractJobs {
         gcx,
         captures,
@@ -247,6 +257,8 @@ struct ContractGraph {
     dependencies: IndexVec<ContractId, GrowableBitSet<ContractId>>,
     dependents: IndexVec<ContractId, Vec<ContractId>>,
     reachable: DenseBitSet<ContractId>,
+    /// Reachable contracts in source order, each after the contracts it embeds.
+    order: Vec<ContractId>,
 }
 
 impl ContractGraph {
@@ -258,6 +270,7 @@ impl ContractGraph {
             ),
             dependents: IndexVec::from_vec((0..contract_count).map(|_| Vec::new()).collect()),
             reachable: DenseBitSet::new_empty(contract_count),
+            order: Vec::new(),
         };
         let mut visiting = DenseBitSet::new_empty(contract_count);
         for contract_id in contracts.into_iter(gcx) {
@@ -318,6 +331,7 @@ impl ContractGraph {
             self.dependencies[contract_id].insert(dependency);
         }
         self.reachable.insert(contract_id);
+        self.order.push(contract_id);
         visiting.remove(contract_id);
         Ok(())
     }
@@ -326,25 +340,18 @@ impl ContractGraph {
     /// contract waits for the contracts it embeds, so their work is on the path
     /// to every embedding contract. Source-body sizes are a cheap scheduling
     /// estimate; they do not affect what gets compiled.
-    ///
-    /// Sequential runs count each contract once, so embedded contracts still go first and
-    /// finish before the contracts waiting on them pile up, while unrelated contracts keep
-    /// source order for pass debugging output.
-    fn scheduling_priorities(&self, gcx: Gcx<'_>, weighted: bool) -> IndexVec<ContractId, u64> {
+    fn scheduling_priorities(&self, gcx: Gcx<'_>) -> IndexVec<ContractId, u64> {
         let mut costs = IndexVec::from_vec(vec![0u64; self.dependencies.len()]);
         for id in self.reachable.iter() {
-            costs[id] = if weighted {
-                gcx.contract_reachable_functions(id)
-                    .iter()
-                    .map(|function| {
-                        let span = gcx.hir.function(function).body_span;
-                        u64::from(span.hi().to_u32() - span.lo().to_u32())
-                    })
-                    .sum::<u64>()
-                    .max(1)
-            } else {
-                1
-            };
+            costs[id] = gcx
+                .contract_reachable_functions(id)
+                .iter()
+                .map(|function| {
+                    let span = gcx.hir.function(function).body_span;
+                    u64::from(span.hi().to_u32() - span.lo().to_u32())
+                })
+                .sum::<u64>()
+                .max(1);
         }
         let mut priorities = costs.clone();
         let mut remaining = IndexVec::from_vec(self.dependents.iter().map(Vec::len).collect());

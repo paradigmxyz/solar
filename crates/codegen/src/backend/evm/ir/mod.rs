@@ -97,7 +97,8 @@ impl Module {
         let mut linked = false;
         for data in &mut self.data {
             let Some(code) = data.deferred.take() else { continue };
-            // @data d deferred creation C => @data d hex"<code(C)>" library_relocations [..]
+            // @data d deferred creation|runtime C
+            // => @data d hex"<code(C)>" library_relocations [..]
             let bytecode = code.bytecode(bytecodes);
             assert!(
                 u32::try_from(bytecode.bytes.len()).is_ok(),
