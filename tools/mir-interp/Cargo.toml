@@ -1,0 +1,29 @@
+[package]
+name = "solar-mir-interp"
+description = "Runs lowered MIR in the compiler's MIR interpreter"
+homepage = "https://github.com/paradigmxyz/solar/tree/main/tools/mir-interp"
+publish = false
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+alloy-dyn-abi.workspace = true
+alloy-json-abi.workspace = true
+alloy-primitives.workspace = true
+clap = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+solar-codegen.workspace = true
+solar-config = { workspace = true, features = ["clap"] }
+
+[dev-dependencies]
+snapbox.workspace = true
