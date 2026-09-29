@@ -344,8 +344,7 @@ impl OperandCostModel {
 
 #[derive(Clone, Copy)]
 struct OperandPlanningContext<'a> {
-    required_counts: &'a FxHashMap<ValueId, usize>,
-    /// The entries of `required_counts` in its iteration order.
+    /// Every value the plan must place, in the iteration order of its required-count map.
     required: &'a [RequiredOperand],
     optimization: OptimizationMode,
     evm_version: EvmVersion,
@@ -989,13 +988,8 @@ impl StackScheduler {
             actions: PlannedActions::new(),
             cost: ScheduleCost::default(),
         };
-        let context = OperandPlanningContext {
-            required_counts: &required_counts,
-            required: &required,
-            optimization,
-            evm_version,
-            cost_model,
-        };
+        let context =
+            OperandPlanningContext { required: &required, optimization, evm_version, cost_model };
         if let Some(plan) = validate(self.try_goal_directed_operand_plan(
             start.clone(),
             &goal,
@@ -1857,14 +1851,7 @@ impl StackScheduler {
         preserve_counts: &FxHashMap<ValueId, usize>,
         context: OperandPlanningContext<'_>,
     ) -> SmallVec<[PlannedAction; 24]> {
-        let OperandPlanningContext {
-            required_counts,
-            required,
-            optimization,
-            evm_version,
-            cost_model,
-            ..
-        } = context;
+        let OperandPlanningContext { required, optimization, evm_version, cost_model } = context;
         let max_stack_access = evm_version.reachable_stack_depth();
         let mut actions = SmallVec::<[PlannedAction; 24]>::new();
         if (matches!(optimization, OptimizationMode::Gas) || cost_model.needs_headroom(stack.len()))
@@ -1878,7 +1865,9 @@ impl StackScheduler {
         for depth in 1..=max_swap {
             if StackOp::Swap(depth as u8).single_byte_evm_opcode().is_none() {
                 let Some(value) = stack[depth] else { continue };
-                if !required_counts.contains_key(&value) || deep_values.contains(&value) {
+                if !required.iter().any(|operand| operand.value == value)
+                    || deep_values.contains(&value)
+                {
                     continue;
                 }
                 deep_values.push(value);
@@ -1906,21 +1895,14 @@ impl StackScheduler {
                     && let Some(depth) =
                         stack.iter().take(max_stack_access).position(|&slot| slot == Some(value))
                 {
-                    // Same choice as `copy_or_materialize`, from the cached materializations.
-                    let duplicate = ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8));
-                    let op = preferred_copy
-                        .or_else(|| {
-                            materialize
-                                .filter(|(_, cost)| {
-                                    cost.cmp_for(
-                                        ScheduleCost::of_op(&duplicate, evm_version, cost_model),
-                                        optimization,
-                                    )
-                                    .is_lt()
-                                })
-                                .map(|(op, _)| op)
-                        })
-                        .unwrap_or(duplicate);
+                    let op = Self::choose_copy(
+                        preferred_copy,
+                        materialize,
+                        (depth + 1) as u8,
+                        optimization,
+                        evm_version,
+                        cost_model,
+                    );
                     actions.push(PlannedAction { op, pushed: Some(value) });
                 }
             }
@@ -2075,8 +2057,7 @@ impl StackScheduler {
         preserve_counts: &FxHashMap<ValueId, usize>,
         context: OperandPlanningContext<'_>,
     ) -> ScheduleCost {
-        let OperandPlanningContext { required, optimization, evm_version, cost_model, .. } =
-            context;
+        let OperandPlanningContext { required, optimization, evm_version, cost_model } = context;
         let max_stack_access = evm_version.reachable_stack_depth();
 
         let mut remaining = ScheduleCost::default();
@@ -2368,17 +2349,33 @@ impl StackScheduler {
         evm_version: EvmVersion,
         cost_model: OperandCostModel,
     ) -> ScheduledOp {
+        Self::choose_copy(
+            self.preferred_copy_materialization(value, func),
+            self.materialize_operand(value, func)
+                .map(|op| (op, ScheduleCost::of_op(&op, evm_version, cost_model))),
+            depth,
+            optimization,
+            evm_version,
+            cost_model,
+        )
+    }
+
+    /// Prefers `preferred`, then a materialization cheaper than `DUP{depth}`, then the `DUP`.
+    fn choose_copy(
+        preferred: Option<ScheduledOp>,
+        materialize: Option<(ScheduledOp, ScheduleCost)>,
+        depth: u8,
+        optimization: OptimizationMode,
+        evm_version: EvmVersion,
+        cost_model: OperandCostModel,
+    ) -> ScheduledOp {
         let duplicate = ScheduledOp::Stack(StackOp::Dup(depth));
-        self.preferred_copy_materialization(value, func)
+        let duplicate_cost = ScheduleCost::of_op(&duplicate, evm_version, cost_model);
+        preferred
             .or_else(|| {
-                self.materialize_operand(value, func).filter(|materialize| {
-                    ScheduleCost::of_op(materialize, evm_version, cost_model)
-                        .cmp_for(
-                            ScheduleCost::of_op(&duplicate, evm_version, cost_model),
-                            optimization,
-                        )
-                        .is_lt()
-                })
+                materialize
+                    .filter(|(_, cost)| cost.cmp_for(duplicate_cost, optimization).is_lt())
+                    .map(|(op, _)| op)
             })
             .unwrap_or(duplicate)
     }
@@ -2786,7 +2783,6 @@ mod tests {
             OperandCostModel::DIRECT,
         );
         let context = OperandPlanningContext {
-            required_counts: &required_counts,
             required: &required,
             optimization,
             evm_version,
@@ -3930,7 +3926,6 @@ mod tests {
                             OperandCostModel::DIRECT,
                         );
                         let context = OperandPlanningContext {
-                            required_counts: &required_counts,
                             required: &required,
                             optimization,
                             evm_version: EvmVersion::Shanghai,
@@ -4047,7 +4042,6 @@ mod tests {
             OperandCostModel::DIRECT,
         );
         let context = OperandPlanningContext {
-            required_counts: &required_counts,
             required: &required,
             optimization: OptimizationMode::Gas,
             evm_version: EvmVersion::Amsterdam,

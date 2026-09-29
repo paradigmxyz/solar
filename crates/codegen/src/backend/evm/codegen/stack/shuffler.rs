@@ -179,7 +179,6 @@ fn synthesize_unique_layout(
         swap: StackOp::Swap(1).metrics(evm_version)?,
         target: &target_values,
         removed: &removed,
-        used: 0,
         current: source,
         ops: Vec::new(),
         best: None,
@@ -197,9 +196,8 @@ struct RemovalSearch<'a> {
     pop: StackOpMetrics,
     swap: StackOpMetrics,
     target: &'a [ValueId],
+    /// Values to remove; the ones the current prefix has not removed yet are still in `current`.
     removed: &'a [ValueId],
-    /// The removed values already taken by the current prefix, by index.
-    used: u32,
     current: SmallVec<[ValueId; 16]>,
     ops: Vec<StackOp>,
     best: Option<(Vec<StackOp>, (usize, usize, usize))>,
@@ -230,13 +228,11 @@ impl RemovalSearch<'_> {
             }
             return ControlFlow::Continue(());
         }
-        for index in 0..count {
-            if self.used & (1 << index) != 0 {
+        for &value in self.removed {
+            let Some(position) = self.current.iter().position(|&current| current == value) else {
                 continue;
-            }
-            let value = self.removed[index];
+            };
             let start = self.ops.len();
-            let position = self.current.iter().position(|&current| current == value).unwrap();
             if position != 0 {
                 self.ops.push(StackOp::Swap(position as u8));
                 self.current.swap(0, position);
@@ -256,13 +252,11 @@ impl RemovalSearch<'_> {
                         size + metrics.assembled_len,
                     ))
                 });
-            let used = self.used | 1 << index;
             let pops = count - depth - 1;
             let swaps = usize::from(if pops == 0 {
                 self.current.as_slice() != self.target
             } else {
-                !(0..count)
-                    .any(|other| used & (1 << other) == 0 && self.removed[other] == self.current[0])
+                !self.removed.contains(&self.current[0])
             });
             if let Some(cost) = cost
                 && self.best.as_ref().is_none_or(|(_, best_cost)| {
@@ -276,10 +270,7 @@ impl RemovalSearch<'_> {
                     bound < *best_cost
                 })
             {
-                self.used = used;
-                let flow = self.visit(depth + 1, cost);
-                self.used &= !(1 << index);
-                flow?;
+                self.visit(depth + 1, cost)?;
             }
             // Restore the prefix before trying the next value.
             self.current.insert(0, value);
