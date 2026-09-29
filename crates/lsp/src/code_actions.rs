@@ -804,10 +804,9 @@ fn source_fingerprint_chunks<'a>(chunks: impl IntoIterator<Item = &'a str>) -> S
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lsp_types::{
-        CodeActionContext, PartialResultParams, Position, TextDocumentIdentifier,
-        WorkDoneProgressParams,
-    };
+    use crate::test_support::from_json;
+    use lsp_types::Position;
+    use serde_json::json;
 
     #[test]
     fn diagnostic_data_is_bound_to_its_uri_and_version() {
@@ -822,11 +821,11 @@ mod tests {
         assert!(titles(params(uri("Second.sol"), data.clone())).is_empty());
 
         let mut wrong_version = data.clone();
-        wrong_version["version"] = serde_json::json!(2);
+        wrong_version["version"] = json!(2);
         assert!(titles(params(first.clone(), wrong_version)).is_empty());
 
         let mut extra_field = data;
-        extra_field["unexpected"] = serde_json::json!(true);
+        extra_field["unexpected"] = json!(true);
         assert!(titles(params(first, extra_field)).is_empty());
     }
 
@@ -848,7 +847,7 @@ mod tests {
         let index = proto::LspPositionIndex::new(&contents);
 
         assert_eq!(plan_titles(&plans(&requested, &current, &index)), ["first"]);
-        for data in [None, Some(serde_json::json!({ "modified": true }))] {
+        for data in [None, Some(json!({ "modified": true }))] {
             requested.context.diagnostics[0].data = data;
             assert_eq!(plan_titles(&plans(&requested, &current, &index)), ["first", "second"]);
         }
@@ -871,19 +870,14 @@ mod tests {
     }
 
     fn params(uri: Url, data: serde_json::Value) -> CodeActionParams {
-        CodeActionParams {
-            text_document: TextDocumentIdentifier { uri },
-            range: Range::default(),
-            context: CodeActionContext {
-                diagnostics: vec![Diagnostic {
-                    source: Some("solar".into()),
-                    data: Some(data),
-                    ..Diagnostic::new_simple(Range::default(), "diagnostic".into())
-                }],
-                ..Default::default()
-            },
-            work_done_progress_params: WorkDoneProgressParams::default(),
-            partial_result_params: PartialResultParams::default(),
-        }
+        let diagnostic = Diagnostic {
+            source: Some("solar".into()),
+            data: Some(data),
+            ..Diagnostic::new_simple(Range::default(), "diagnostic".into())
+        };
+        let context = json!({ "diagnostics": [diagnostic] });
+        from_json(
+            json!({ "textDocument": { "uri": uri }, "range": Range::default(), "context": context }),
+        )
     }
 }

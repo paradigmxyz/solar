@@ -156,8 +156,9 @@ fn preserves_references_across_analysis_batches() {
         //- /Second.sol
         contract Second {
             uint256 $1value;
-            function write() public {
+            function $5write(address account) public returns (address) {
                 $2value = 1;
+                return account;
             }
         }
         "#,
@@ -165,25 +166,32 @@ fn preserves_references_across_analysis_batches() {
     );
 
     fixture.check_queries(
-        &[Query::References(true), Query::Highlights],
-        1..=4,
+        &[Query::References(true), Query::Highlights, Query::Hover],
+        1..=5,
         str![[r#"
 $1 references: /Second.sol:1:12 uint256 value;
 /Second.sol:3:8 value = 1;
 $1 highlights: 1:12-1:17 WRITE
 3:8-3:13 WRITE
+$1 hover: 1:12-1:17 uint256 value
 $2 references: /Second.sol:1:12 uint256 value;
 /Second.sol:3:8 value = 1;
 $2 highlights: 1:12-1:17 WRITE
 3:8-3:13 WRITE
+$2 hover: 3:8-3:13 uint256 value
 $3 references: /First.sol:1:12 uint256 value;
 /First.sol:3:15 return value;
 $3 highlights: 1:12-1:17 WRITE
 3:15-3:20 READ
+$3 hover: 1:12-1:17 uint256 value
 $4 references: /First.sol:1:12 uint256 value;
 /First.sol:3:15 return value;
 $4 highlights: 1:12-1:17 WRITE
 3:15-3:20 READ
+$4 hover: 3:15-3:20 uint256 value
+$5 references: /Second.sol:2:13 function write(address account) public returns (address) {
+$5 highlights: 2:13-2:18 WRITE
+$5 hover: 2:13-2:18 function write(address account) public returns (address)
 
 "#]],
     );

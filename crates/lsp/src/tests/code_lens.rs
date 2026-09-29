@@ -26,6 +26,14 @@ fn shows_selectors_and_references() {
                 }
                 transfer(target, local);
             }
+
+            // Only public and external functions and getters have selectors.
+            uint256 private hidden;
+            function internalFn() internal {}
+            function privateFn() private {}
+            constructor() {}
+            fallback() external {}
+            receive() external payable {}
         }
         "#,
         "/CodeLens.sol",
@@ -44,6 +52,12 @@ fn shows_selectors_and_references() {
 9:13 references=0 command=<none>
 9:13 selector=0xeec990f2 command=solar.copySelector
 9:34 references=1 command=solar.showReferences
+18:20 references=0 command=<none>
+19:13 references=0 command=<none>
+20:13 references=0 command=<none>
+21:4 references=0 command=<none>
+22:4 references=0 command=<none>
+23:4 references=0 command=<none>
 
 "#]],
     );
@@ -163,20 +177,13 @@ fn merges_reference_counts_for_imported_declarations() {
 
 "#]],
     );
-    fixture.check_references(
-        "$1",
-        false,
+    fixture.check_queries(
+        &[Query::References(false)],
+        [1, 2],
         str![[r#"
-/first/Main.sol:3:8 Base value;
+$1 /first/Main.sol:3:8 Base value;
 /second/Main.sol:3:8 Base value;
-
-"#]],
-    );
-    fixture.check_references(
-        "$2",
-        false,
-        str![[r#"
-/first/Main.sol:4:14 value.ping();
+$2 /first/Main.sol:4:14 value.ping();
 /second/Main.sol:4:14 value.ping();
 
 "#]],
@@ -299,49 +306,6 @@ contract C {
         );
         fixture.check_references("$1", false, "<none>\n");
     }
-}
-
-#[test]
-fn selectors_cover_public_external_functions_and_getters_only() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Selectors.sol
-        contract Selectors {
-            uint256 public value;
-            uint256 private hidden;
-
-            function externalFn(uint256 input) external {}
-            function publicFn() public {}
-            function internalFn() internal {}
-            function privateFn() private {}
-            constructor() {}
-            fallback() external {}
-            receive() external payable {}
-        }
-        "#,
-        "/Selectors.sol",
-    );
-
-    fixture.check_code_lenses(
-        "/Selectors.sol",
-        str![[r#"
-0:9 references=0 command=<none>
-1:19 references=0 command=<none>
-1:19 selector=0x3fa4f245 command=solar.copySelector
-2:20 references=0 command=<none>
-3:13 references=0 command=<none>
-3:13 selector=0x43a389ef command=solar.copySelector
-3:32 references=0 command=<none>
-4:13 references=0 command=<none>
-4:13 selector=0x5e6858dd command=solar.copySelector
-5:13 references=0 command=<none>
-6:13 references=0 command=<none>
-7:4 references=0 command=<none>
-8:4 references=0 command=<none>
-9:4 references=0 command=<none>
-
-"#]],
-    );
 }
 
 #[test]

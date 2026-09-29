@@ -18,48 +18,35 @@ fn groups_direct_calls_and_selects_call_site_endpoints() {
         "#,
     );
     let tables = calls.analyze(&["/Calls.sol"]);
+    assert!(!tables.call_hierarchy_is_initialized());
     let callee = calls.item(&tables, "$1");
+    assert!(tables.call_hierarchy_is_initialized());
+    let cloned_tables = tables.clone();
+    assert!(!cloned_tables.call_hierarchy_is_initialized());
     let caller = calls.item(&tables, "$2");
 
     assert_eq!(calls.prepare_at(&tables, "$3", 0), Some(vec![callee.clone()]));
     // Call ranges are end-exclusive, so the first position after the callee belongs to the body.
     assert_eq!(calls.prepare_at(&tables, "$3", 6), Some(vec![caller.clone()]));
     let repeated = vec![calls.range("$3", 6), calls.range("$4", 6)];
-    assert_eq!(
-        tables.call_hierarchy_outgoing(&caller),
-        Some(vec![
-            outgoing(&callee, repeated.clone()),
-            outgoing(&caller, vec![calls.range("$5", 6)]),
-        ])
-    );
-    assert_eq!(tables.call_hierarchy_incoming(&callee), Some(vec![incoming(&caller, repeated)]));
-}
+    let expected_outgoing = Some(vec![
+        outgoing(&callee, repeated.clone()),
+        outgoing(&caller, vec![calls.range("$5", 6)]),
+    ]);
+    let expected_incoming = Some(vec![incoming(&caller, repeated)]);
+    assert_eq!(tables.call_hierarchy_outgoing(&caller), expected_outgoing);
+    assert_eq!(tables.call_hierarchy_incoming(&callee), expected_incoming);
 
-#[test]
-fn prepares_enclosing_callable_bodies_only() {
-    let calls = Calls::new(
-        r#"
-        //- /Prepare.sol
-        $5contract C {
-            modifier $1guarded() {
-                $2_;
-            }
-
-            function $3f() external {
-                uint256 $4value = 1;
-            }
-        }
-        "#,
-    );
-    let tables = calls.analyze(&["/Prepare.sol"]);
-    let modifier = calls.item(&tables, "$1");
-    let function = calls.item(&tables, "$3");
-
-    assert_eq!(modifier.name, "guarded");
-    assert_eq!(calls.prepare_at(&tables, "$2", 0), Some(vec![modifier]));
-    assert_eq!(function.name, "f");
-    assert_eq!(calls.prepare_at(&tables, "$4", 0), Some(vec![function]));
-    assert_eq!(calls.prepare_at(&tables, "$5", 0), None);
+    // Merging identical analysis contexts neither initializes the index nor duplicates edges.
+    let duplicate = calls.analyze(&["/Calls.sol"]);
+    assert!(!duplicate.call_hierarchy_is_initialized());
+    let tables = merge_symbol_tables(tables, duplicate);
+    assert!(!tables.call_hierarchy_is_initialized());
+    assert_eq!(calls.prepare_at(&tables, "$2", 0), Some(vec![caller.clone()]));
+    assert!(tables.call_hierarchy_is_initialized());
+    assert_eq!(calls.item(&tables, "$1"), callee);
+    assert_eq!(tables.call_hierarchy_outgoing(&caller), expected_outgoing);
+    assert_eq!(tables.call_hierarchy_incoming(&callee), expected_incoming);
 }
 
 #[test]
@@ -67,15 +54,17 @@ fn indexes_modifier_applications_and_arguments() {
     let calls = Calls::new(
         r#"
         //- /Modifiers.sol
-        contract Base {
+        $8contract Base {
             modifier $6baseGuard() { _; }
         }
 
         contract C is Base {
             function $1argument() internal pure returns (uint256) { return 1; }
-            modifier $2guarded(uint256) { _; }
+            modifier $2guarded(uint256) { $9_; }
 
-            function $3caller() external $4guarded($5argument()) Base.$7baseGuard /* gap */ () {}
+            function $3caller() external $4guarded($5argument()) Base.$7baseGuard /* gap */ () {
+                uint256 $10value = 1;
+            }
         }
         "#,
     );
@@ -83,11 +72,18 @@ fn indexes_modifier_applications_and_arguments() {
     let argument = calls.item(&tables, "$1");
     let modifier = calls.item(&tables, "$2");
     let base_modifier = calls.item(&tables, "$6");
+    let caller = calls.item(&tables, "$3");
+
+    // Only enclosing callable bodies prepare an item.
+    assert_eq!((modifier.name.as_str(), caller.name.as_str()), ("guarded", "caller"));
+    assert_eq!(calls.prepare_at(&tables, "$9", 0), Some(vec![modifier.clone()]));
+    assert_eq!(calls.prepare_at(&tables, "$10", 0), Some(vec![caller.clone()]));
+    assert_eq!(calls.prepare_at(&tables, "$8", 0), None);
 
     assert_eq!(calls.prepare_at(&tables, "$4", 0), Some(vec![modifier.clone()]));
     assert_eq!(calls.prepare_at(&tables, "$7", 0), Some(vec![base_modifier.clone()]));
     assert_eq!(
-        tables.call_hierarchy_outgoing(&calls.item(&tables, "$3")),
+        tables.call_hierarchy_outgoing(&caller),
         Some(vec![
             outgoing(&base_modifier, vec![calls.range("$7", 9)]),
             outgoing(&argument, vec![calls.range("$5", 8)]),
@@ -262,10 +258,10 @@ fn excludes_non_direct_and_non_source_calls() {
             event Called();
             error Failed();
 
-            function $1target() internal {}
+            function $1target() internal pure returns (uint256) { return 1; }
 
             function $2caller() external {
-                function() internal pointer = target;
+                function() internal pure returns (uint256) pointer = target;
                 pointer();
                 require(true);
                 address(this).call("");
@@ -274,6 +270,8 @@ fn excludes_non_direct_and_non_source_calls() {
                 new AbstractCreated();
                 emit Called();
                 $3target();
+                // Calls without a typed resolution are excluded too.
+                require(true, target(), "extra");
                 assembly {
                     function yulTarget() {}
                     yulTarget()
@@ -289,61 +287,6 @@ fn excludes_non_direct_and_non_source_calls() {
         tables.call_hierarchy_outgoing(&calls.item(&tables, "$2")),
         Some(vec![outgoing(&calls.item(&tables, "$1"), vec![calls.range("$3", 6)])])
     );
-}
-
-#[test]
-fn excludes_calls_without_typed_resolution() {
-    let calls = Calls::new(
-        r#"
-        //- /Unresolved.sol
-        contract C {
-            function target() internal pure returns (uint256) { return 1; }
-
-            function $1caller() external {
-                require(true, target(), "extra");
-            }
-        }
-        "#,
-    );
-    let tables = calls.analyze(&["/Unresolved.sol"]);
-
-    assert_eq!(tables.call_hierarchy_outgoing(&calls.item(&tables, "$1")), Some(Vec::new()));
-}
-
-#[test]
-fn merges_identical_analysis_contexts_without_duplicate_edges() {
-    let calls = Calls::new(
-        r#"
-        //- /Merged.sol
-        contract C {
-            function $1callee() internal {}
-            function $2caller() external {
-                $3callee();
-            }
-        }
-        "#,
-    );
-    let tables = calls.analyze(&["/Merged.sol"]);
-    assert!(!tables.call_hierarchy_is_initialized());
-    let caller = calls.item(&tables, "$2");
-    assert!(tables.call_hierarchy_is_initialized());
-    let cloned_tables = tables.clone();
-    assert!(!cloned_tables.call_hierarchy_is_initialized());
-    let duplicate = calls.analyze(&["/Merged.sol"]);
-    assert!(!duplicate.call_hierarchy_is_initialized());
-
-    let tables = merge_symbol_tables(tables, duplicate);
-    assert!(!tables.call_hierarchy_is_initialized());
-
-    assert_eq!(calls.prepare_at(&tables, "$2", 0), Some(vec![caller.clone()]));
-    assert!(tables.call_hierarchy_is_initialized());
-    let callee = calls.item(&tables, "$1");
-    let ranges = vec![calls.range("$3", 6)];
-    assert_eq!(
-        tables.call_hierarchy_outgoing(&caller),
-        Some(vec![outgoing(&callee, ranges.clone())])
-    );
-    assert_eq!(tables.call_hierarchy_incoming(&callee), Some(vec![incoming(&caller, ranges)]));
 }
 
 #[test]

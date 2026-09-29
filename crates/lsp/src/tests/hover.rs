@@ -506,32 +506,3 @@ $11 44:8-44:14 function update(uint256 renamed) public pure override returns (ui
 "#]],
     );
 }
-
-#[test]
-fn preserves_hover_payloads_across_analysis_batches() {
-    let fixture = RequestFixture::new_in_batches(
-        r#"
-        //- /First.sol open
-        contract First {
-            uint256 $1one;
-        }
-        //- /Second.sol open
-        contract Second {
-            function $2two(address account) external pure returns (address) {
-                return account;
-            }
-        }
-        "#,
-        &["/First.sol", "/Second.sol"],
-    );
-
-    fixture.check_queries(
-        &[Query::Hover],
-        [1, 2],
-        str![[r#"
-$1 1:12-1:15 uint256 one
-$2 1:13-1:16 function two(address account) external pure returns (address)
-
-"#]],
-    );
-}
