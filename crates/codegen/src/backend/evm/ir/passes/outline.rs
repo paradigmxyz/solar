@@ -118,7 +118,8 @@ fn may_share_pushes(gcx: Gcx<'_>) -> bool {
 /// while its transfers cost at least `n` times the gas of two pushes, two jumps, and two
 /// labels. Every candidate is a closed run of whitelisted instructions, and every site of a
 /// profitable share starts with the same shortest closed prefix that is large enough. Sharing
-/// is possible only if two starts have equal prefixes, which hashes can rule out.
+/// is possible only if two starts have equal prefixes, which hashes can rule out. The screen
+/// shares the outliner's candidate budget and gives up, answering yes, once it is spent.
 fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
     if !gcx.sess.opts.optimization.is_gas() {
         return true;
@@ -136,6 +137,7 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
     };
     let mut metrics = Vec::new();
     let mut prefixes = FxHashSet::default();
+    let mut budget = MAX_MACHINE_RUN_CANDIDATES;
     for block in &module.blocks {
         if block.metadata.in_loop {
             continue;
@@ -161,6 +163,8 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
                 if i32::from(reads) > delta {
                     break;
                 }
+                let Some(left) = budget.checked_sub(1) else { return true };
+                budget = left;
                 delta = delta - i32::from(pops) + i32::from(pushes);
                 run_size += size;
                 if profitable(run_size) {
