@@ -600,8 +600,7 @@ impl BenchmarkDocumentUpdate {
     /// Prepare one open document and a full-content update with the same source text.
     pub fn from_source(source: String) -> Self {
         let (state, path) = open_benchmark_document(&source, "benchmark.sol", 0);
-        let uri = Url::from_file_path(path.as_path().unwrap())
-            .expect("benchmark path should be a file URL");
+        let uri = Url::from_file_path(path.as_path()).expect("benchmark path should be a file URL");
         let params = DidChangeTextDocumentParams {
             text_document: VersionedTextDocumentIdentifier::new(uri, 1),
             content_changes: vec![TextDocumentContentChangeEvent {
@@ -733,7 +732,7 @@ impl BenchmarkCodeActionRequests {
     pub fn new(source: String, whole_document: bool) -> Self {
         let analysis = BenchmarkAnalysis::from_source(source.clone());
         let (mut state, path) = open_benchmark_document(&source, "benchmark.sol", 1);
-        let uri = Url::from_file_path(path.as_path().unwrap()).unwrap();
+        let uri = Url::from_file_path(path.as_path()).unwrap();
         let mut initialize = lsp_types::InitializeParams::default();
         initialize.capabilities.text_document.get_or_insert_default().code_action =
             Some(lsp_types::CodeActionClientCapabilities {
@@ -790,8 +789,8 @@ impl BenchmarkCodeActionRequests {
             self.params.clone(),
             diagnostics,
             self.state.vfs.clone(),
-            self.state.config.supports_workspace_edit_document_changes(),
-            self.state.config.supports_code_action_is_preferred(),
+            self.state.config.client.workspace_edit_document_changes,
+            self.state.config.client.code_action_is_preferred,
             self.state.config.supports_code_action_diagnostic_data(),
         )
     }
@@ -836,7 +835,7 @@ impl BenchmarkRenameRequests {
                 candidate,
                 self.params.new_name.clone(),
                 self.state.vfs.clone(),
-                self.state.config.supports_workspace_edit_document_changes(),
+                self.state.config.client.workspace_edit_document_changes,
             )
             .expect("rename benchmark request should succeed"),
         )

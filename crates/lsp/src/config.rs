@@ -64,29 +64,31 @@ pub(crate) struct Config {
     analysis_source_files_complete: bool,
     flycheck_options: FlycheckInitializationOptions,
     flychecks: Vec<FlycheckConfig>,
-    watched_file_dynamic_registration: bool,
-    watched_file_relative_pattern_support: bool,
-    workspace_edit_document_changes: bool,
-    code_action_literals: bool,
-    code_action_is_preferred: bool,
+    pub(crate) client: ClientSupport,
     diagnostic_delivery: DiagnosticDelivery,
-    publish_diagnostics_related_information: bool,
     publish_diagnostics_tags: Vec<DiagnosticTag>,
     publish_diagnostics_data: bool,
     pull_diagnostics_data: bool,
-    code_lens_refresh_support: bool,
-    diagnostic_refresh_support: bool,
-    inlay_hint_refresh_support: bool,
-    work_done_progress: bool,
-    hierarchical_document_symbol_support: bool,
     completion: CompletionClientOptions,
     signature_help: SignatureHelpClientOptions,
     source_change_debounce: Duration,
-    progress_delay: Duration,
-    progress_create_timeout: Duration,
-    formatter_timeout: Duration,
-    flycheck_timeout: Duration,
     code_lens: CodeLensConfig,
+}
+
+/// Boolean client capabilities negotiated at initialization.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct ClientSupport {
+    pub(crate) watched_file_dynamic_registration: bool,
+    pub(crate) watched_file_relative_patterns: bool,
+    pub(crate) workspace_edit_document_changes: bool,
+    pub(crate) code_action_literals: bool,
+    pub(crate) code_action_is_preferred: bool,
+    publish_diagnostics_related_information: bool,
+    pub(crate) code_lens_refresh: bool,
+    pub(crate) diagnostic_refresh: bool,
+    pub(crate) inlay_hint_refresh: bool,
+    pub(crate) work_done_progress: bool,
+    pub(crate) hierarchical_document_symbols: bool,
 }
 
 pub(crate) struct WorkspaceDiscoveryResult {
@@ -141,28 +143,14 @@ impl Default for Config {
             analysis_source_files_complete: true,
             flycheck_options: FlycheckInitializationOptions::default(),
             flychecks: Vec::new(),
-            watched_file_dynamic_registration: false,
-            watched_file_relative_pattern_support: false,
-            workspace_edit_document_changes: false,
-            code_action_literals: false,
-            code_action_is_preferred: false,
+            client: ClientSupport::default(),
             diagnostic_delivery: DiagnosticDelivery::Push,
-            publish_diagnostics_related_information: false,
             publish_diagnostics_tags: Vec::new(),
             publish_diagnostics_data: false,
             pull_diagnostics_data: false,
-            code_lens_refresh_support: false,
-            diagnostic_refresh_support: false,
-            inlay_hint_refresh_support: false,
-            work_done_progress: false,
-            hierarchical_document_symbol_support: false,
             completion: CompletionClientOptions::default(),
             signature_help: SignatureHelpClientOptions::default(),
             source_change_debounce: DEFAULT_SOURCE_CHANGE_DEBOUNCE,
-            progress_delay: Duration::from_millis(250),
-            progress_create_timeout: Duration::from_secs(1),
-            formatter_timeout: Duration::from_secs(30),
-            flycheck_timeout: Duration::from_secs(30),
             code_lens: CodeLensConfig::default(),
         }
     }
@@ -217,26 +205,6 @@ impl CodeLensConfig {
 }
 
 impl Config {
-    pub(crate) fn supports_watched_file_dynamic_registration(&self) -> bool {
-        self.watched_file_dynamic_registration
-    }
-
-    pub(crate) fn supports_watched_file_relative_patterns(&self) -> bool {
-        self.watched_file_relative_pattern_support
-    }
-
-    pub(crate) fn supports_workspace_edit_document_changes(&self) -> bool {
-        self.workspace_edit_document_changes
-    }
-
-    pub(crate) fn supports_code_action_literals(&self) -> bool {
-        self.code_action_literals
-    }
-
-    pub(crate) fn supports_code_action_is_preferred(&self) -> bool {
-        self.code_action_is_preferred
-    }
-
     pub(crate) fn uses_push_diagnostics(&self) -> bool {
         self.diagnostic_delivery == DiagnosticDelivery::Push
     }
@@ -251,7 +219,7 @@ impl Config {
 
     /// Adapts an outgoing diagnostic without changing the server's cached diagnostic or fix data.
     pub(crate) fn prepare_publish_diagnostic(&self, diagnostic: &mut Diagnostic) {
-        if !self.publish_diagnostics_related_information
+        if !self.client.publish_diagnostics_related_information
             && let Some(related) = diagnostic.related_information.take()
         {
             for information in related {
@@ -277,44 +245,8 @@ impl Config {
         self.supports_publish_diagnostics_data() || self.supports_pull_diagnostics_data()
     }
 
-    pub(crate) fn supports_code_lens_refresh(&self) -> bool {
-        self.code_lens_refresh_support
-    }
-
-    pub(crate) fn supports_diagnostic_refresh(&self) -> bool {
-        self.diagnostic_refresh_support
-    }
-
-    pub(crate) fn supports_inlay_hint_refresh(&self) -> bool {
-        self.inlay_hint_refresh_support
-    }
-
-    pub(crate) fn supports_work_done_progress(&self) -> bool {
-        self.work_done_progress
-    }
-
-    pub(crate) fn supports_hierarchical_document_symbols(&self) -> bool {
-        self.hierarchical_document_symbol_support
-    }
-
     pub(crate) fn source_change_debounce(&self) -> Duration {
         self.source_change_debounce
-    }
-
-    pub(crate) fn progress_delay(&self) -> Duration {
-        self.progress_delay
-    }
-
-    pub(crate) fn progress_create_timeout(&self) -> Duration {
-        self.progress_create_timeout
-    }
-
-    pub(crate) fn formatter_timeout(&self) -> Duration {
-        self.formatter_timeout
-    }
-
-    pub(crate) fn flycheck_timeout(&self) -> Duration {
-        self.flycheck_timeout
     }
 
     pub(crate) fn completion_options(&self) -> CompletionClientOptions {
@@ -1011,42 +943,55 @@ pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
     let workspace = capabilities.workspace.as_ref();
     let text_document = capabilities.text_document.as_ref();
     let watched_files = workspace.and_then(|it| it.did_change_watched_files.as_ref());
-    let watched_file_dynamic_registration =
-        watched_files.and_then(|it| it.dynamic_registration).unwrap_or(false);
-    let watched_file_relative_pattern_support =
-        watched_files.and_then(|it| it.relative_pattern_support).unwrap_or(false);
-    let workspace_edit_document_changes =
-        workspace.and_then(|it| it.workspace_edit.as_ref()?.document_changes).unwrap_or(false);
-    let code_lens_refresh_support =
-        workspace.and_then(|it| it.code_lens.as_ref()?.refresh_support).unwrap_or(false);
-    let diagnostic_refresh_support =
-        workspace.and_then(|it| it.diagnostic.as_ref()?.refresh_support).unwrap_or(false);
+    let code_action = text_document.and_then(|it| it.code_action.as_ref());
+    let publish_diagnostics = text_document.and_then(|it| it.publish_diagnostics.as_ref());
+    let client = ClientSupport {
+        watched_file_dynamic_registration: watched_files
+            .and_then(|it| it.dynamic_registration)
+            .unwrap_or(false),
+        watched_file_relative_patterns: watched_files
+            .and_then(|it| it.relative_pattern_support)
+            .unwrap_or(false),
+        workspace_edit_document_changes: workspace
+            .and_then(|it| it.workspace_edit.as_ref()?.document_changes)
+            .unwrap_or(false),
+        code_action_literals: code_action
+            .is_some_and(|it| it.code_action_literal_support.is_some()),
+        code_action_is_preferred: code_action
+            .and_then(|it| it.is_preferred_support)
+            .unwrap_or(false),
+        publish_diagnostics_related_information: publish_diagnostics
+            .and_then(|it| it.related_information)
+            .unwrap_or(false),
+        code_lens_refresh: workspace
+            .and_then(|it| it.code_lens.as_ref()?.refresh_support)
+            .unwrap_or(false),
+        diagnostic_refresh: workspace
+            .and_then(|it| it.diagnostic.as_ref()?.refresh_support)
+            .unwrap_or(false),
+        inlay_hint_refresh: workspace
+            .and_then(|it| it.inlay_hint.as_ref()?.refresh_support)
+            .unwrap_or(false),
+        work_done_progress: capabilities
+            .window
+            .as_ref()
+            .and_then(|window| window.work_done_progress)
+            .unwrap_or(false),
+        hierarchical_document_symbols: text_document
+            .and_then(|it| it.document_symbol.as_ref()?.hierarchical_document_symbol_support)
+            .unwrap_or(false),
+    };
     let supports_document_diagnostics = text_document.is_some_and(|it| it.diagnostic.is_some());
-    let diagnostic_delivery = if supports_document_diagnostics && diagnostic_refresh_support {
+    let diagnostic_delivery = if supports_document_diagnostics && client.diagnostic_refresh {
         DiagnosticDelivery::Pull
     } else {
         DiagnosticDelivery::Push
     };
-    let inlay_hint_refresh_support =
-        workspace.and_then(|it| it.inlay_hint.as_ref()?.refresh_support).unwrap_or(false);
-    let code_action = text_document.and_then(|it| it.code_action.as_ref());
-    let code_action_literals =
-        code_action.is_some_and(|it| it.code_action_literal_support.is_some());
-    let code_action_is_preferred =
-        code_action.and_then(|it| it.is_preferred_support).unwrap_or(false);
-    let publish_diagnostics = text_document.and_then(|it| it.publish_diagnostics.as_ref());
-    let publish_diagnostics_related_information =
-        publish_diagnostics.and_then(|it| it.related_information).unwrap_or(false);
     let publish_diagnostics_tags = publish_diagnostics
         .and_then(|it| Some(it.tag_support.as_ref()?.value_set.clone()))
         .unwrap_or_default();
     let publish_diagnostics_data =
         publish_diagnostics.and_then(|it| it.data_support).unwrap_or(false);
-    let work_done_progress =
-        capabilities.window.as_ref().and_then(|window| window.work_done_progress).unwrap_or(false);
-    let hierarchical_document_symbol_support = text_document
-        .and_then(|it| it.document_symbol.as_ref()?.hierarchical_document_symbol_support)
-        .unwrap_or(false);
     let completion_item =
         text_document.and_then(|it| it.completion.as_ref()?.completion_item.as_ref());
     let completion = CompletionClientOptions {
@@ -1105,7 +1050,7 @@ pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
                 resolve_provider: Some(false),
                 work_done_progress_options: WorkDoneProgressOptions::default(),
             }),
-            code_action_provider: code_action_literals.then(|| {
+            code_action_provider: client.code_action_literals.then(|| {
                 CodeActionProviderCapability::Options(CodeActionOptions {
                     code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
                     work_done_progress_options: WorkDoneProgressOptions::default(),
@@ -1170,21 +1115,11 @@ pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
                 .clone(),
             index_policy,
             flycheck_options,
-            watched_file_dynamic_registration,
-            watched_file_relative_pattern_support,
-            workspace_edit_document_changes,
-            code_action_literals,
-            code_action_is_preferred,
+            client,
             diagnostic_delivery,
-            publish_diagnostics_related_information,
             publish_diagnostics_tags,
             publish_diagnostics_data,
             pull_diagnostics_data,
-            code_lens_refresh_support,
-            diagnostic_refresh_support,
-            inlay_hint_refresh_support,
-            work_done_progress,
-            hierarchical_document_symbol_support,
             completion,
             signature_help,
             code_lens,
@@ -1328,17 +1263,17 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
             ("publish_data", |_, config| config.supports_publish_diagnostics_data()),
             ("pull_data", |_, config| config.supports_pull_diagnostics_data()),
             ("code_action_data", |_, config| config.supports_code_action_diagnostic_data()),
-            ("diagnostic_refresh", |_, config| config.supports_diagnostic_refresh()),
-            ("inlay_hint_refresh", |_, config| config.supports_inlay_hint_refresh()),
-            ("code_lens_refresh", |_, config| config.supports_code_lens_refresh()),
-            ("watched_files", |_, config| config.supports_watched_file_dynamic_registration()),
-            ("relative_patterns", |_, config| config.supports_watched_file_relative_patterns()),
-            ("document_changes", |_, config| config.supports_workspace_edit_document_changes()),
-            ("code_action_literals", |_, config| config.supports_code_action_literals()),
+            ("diagnostic_refresh", |_, config| config.client.diagnostic_refresh),
+            ("inlay_hint_refresh", |_, config| config.client.inlay_hint_refresh),
+            ("code_lens_refresh", |_, config| config.client.code_lens_refresh),
+            ("watched_files", |_, config| config.client.watched_file_dynamic_registration),
+            ("relative_patterns", |_, config| config.client.watched_file_relative_patterns),
+            ("document_changes", |_, config| config.client.workspace_edit_document_changes),
+            ("code_action_literals", |_, config| config.client.code_action_literals),
             ("code_action_provider", |capabilities, _| capabilities.code_action_provider.is_some()),
-            ("code_action_is_preferred", |_, config| config.supports_code_action_is_preferred()),
-            ("work_done_progress", |_, config| config.supports_work_done_progress()),
-            ("hierarchical_symbols", |_, config| config.supports_hierarchical_document_symbols()),
+            ("code_action_is_preferred", |_, config| config.client.code_action_is_preferred),
+            ("work_done_progress", |_, config| config.client.work_done_progress),
+            ("hierarchical_symbols", |_, config| config.client.hierarchical_document_symbols),
             ("completion_snippets", |_, config| config.completion_options().snippet_support),
             ("completion_markdown", |_, config| config.completion_options().markdown_documentation),
             ("completion_resolve", |_, config| config.completion_options().resolve_documentation),

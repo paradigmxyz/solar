@@ -346,6 +346,7 @@ struct ImportCompletionCache {
 }
 
 const MAX_IMPORT_COMPLETION_CACHE_ENTRIES: usize = 256;
+const FLYCHECK_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct AnalysisTaskKey {
@@ -438,8 +439,8 @@ impl GlobalState {
         let analysis_progress = ProgressCoordinator::with_timing(
             client.clone(),
             false,
-            config.progress_delay(),
-            config.progress_create_timeout(),
+            Duration::from_millis(250),
+            Duration::from_secs(1),
         );
         Self {
             client,
@@ -506,12 +507,8 @@ impl GlobalState {
             let mut cache = self.import_completion_cache.lock();
             if cache.generation != Some(generation) {
                 cache.generation = Some(generation);
-                cache.overlay_paths = self
-                    .vfs
-                    .read()
-                    .iter()
-                    .filter_map(|(path, _)| path.as_path().map(Path::to_path_buf))
-                    .collect();
+                cache.overlay_paths =
+                    self.vfs.read().iter().map(|(path, _)| path.as_path().to_path_buf()).collect();
                 cache.entries.clear();
             }
             if let Some(completion) = cache.entries.get(&key).cloned() {
@@ -703,7 +700,7 @@ impl GlobalState {
             &self.launch_config,
         );
 
-        self.analysis_progress.set_enabled(config.supports_work_done_progress());
+        self.analysis_progress.set_enabled(config.client.work_done_progress);
         self.config = Arc::new(config);
         std::future::ready(Ok(proto::InitializeResponse::new(capabilities)))
     }
@@ -730,7 +727,7 @@ impl GlobalState {
     }
 
     pub(crate) fn reregister_watched_files(&self) {
-        if !self.config.supports_watched_file_dynamic_registration() {
+        if !self.config.client.watched_file_dynamic_registration {
             return;
         }
         let analysis_paths = self.analysis_commit.lock().analysis_paths.clone();
@@ -871,8 +868,8 @@ impl GlobalState {
 
     pub(crate) fn clear_analysis_cache(&mut self) {
         let refresh_code_lenses =
-            self.config.supports_code_lens_refresh() && self.config.code_lens_options().is_active();
-        let compare_inlay_hints = self.config.supports_inlay_hint_refresh();
+            self.config.client.code_lens_refresh && self.config.code_lens_options().is_active();
+        let compare_inlay_hints = self.config.client.inlay_hint_refresh;
         let config = self.config.clone();
         let (old_symbol_tables, refresh_requests) = {
             let Self {
@@ -1550,7 +1547,6 @@ impl GlobalState {
     }
 
     pub(crate) fn run_flychecks_on_save(&mut self, path: PathBuf) {
-        let timeout = self.config.flycheck_timeout();
         for flycheck in self.config.flychecks_for_path(&path) {
             let owner = flycheck.owner();
             let version = self.begin_flycheck_epoch(&owner);
@@ -1560,7 +1556,8 @@ impl GlobalState {
             let (cancel, cancelled) = oneshot::channel();
             let task_owner = owner.clone();
             tokio::spawn(async move {
-                let result = flycheck::run(flycheck, timeout, cancelled, source_paths).await;
+                let result =
+                    flycheck::run(flycheck, FLYCHECK_TIMEOUT, cancelled, source_paths).await;
                 if !snapshot.is_current_flycheck(&task_owner, version) {
                     return;
                 }
@@ -2172,10 +2169,10 @@ fn prepare_watched_file_registration_update(
     coordinator: &WatchedFileRegistrationCoordinator,
     specs: Vec<WatchedFileSpec>,
 ) -> Option<WatchedFileRegistrationUpdate> {
-    if !config.supports_watched_file_dynamic_registration() {
+    if !config.client.watched_file_dynamic_registration {
         return None;
     }
-    let relative_patterns = config.supports_watched_file_relative_patterns();
+    let relative_patterns = config.client.watched_file_relative_patterns;
     let mut current_specs = coordinator.desired_specs.lock();
     if current_specs.as_ref().is_some_and(|current| {
         if relative_patterns { current == &specs } else { current.is_empty() }
@@ -2266,7 +2263,7 @@ fn watched_file_registration_params_with_specs(
     specs: &[WatchedFileSpec],
     registration_id: &str,
 ) -> RegistrationParams {
-    let watchers = if config.supports_watched_file_relative_patterns() {
+    let watchers = if config.client.watched_file_relative_patterns {
         specs
             .iter()
             .filter_map(|spec| {
@@ -2474,8 +2471,7 @@ impl GlobalStateSnapshot {
         result.diagnostics.keys().all(|uri| {
             let Some(path) = proto::vfs_path(uri) else { return true };
             let Some(_current) = vfs.get_file_contents(&path) else { return true };
-            let Some(path) = path.as_path() else { return false };
-            result.sources.contains_key(path)
+            result.sources.contains_key(path.as_path())
         })
     }
 
@@ -2498,11 +2494,10 @@ impl GlobalStateSnapshot {
                 if cancellation.is_cancelled() {
                     return None;
                 }
-                let Some(path_buf) = path.as_path() else { continue };
                 let contents = vfs
                     .get_file_analysis_source(path)
                     .expect("iterated VFS path should retain its source");
-                files.push((path_buf.to_path_buf(), contents, vfs.get_file_version(path)));
+                files.push((path.as_path().to_path_buf(), contents, vfs.get_file_version(path)));
             }
             files
         };
@@ -2611,11 +2606,12 @@ impl GlobalStateSnapshot {
         output: AnalysisOutput<Arc<SymbolTables>>,
     ) -> bool {
         let refresh_code_lenses =
-            self.config.supports_code_lens_refresh() && self.config.code_lens_options().is_active();
+            self.config.client.code_lens_refresh && self.config.code_lens_options().is_active();
         let AnalysisOutput { result, analysis_paths } = output;
         let analysis_watched_file_specs = self
             .config
-            .supports_watched_file_dynamic_registration()
+            .client
+            .watched_file_dynamic_registration
             .then(|| watched_file_specs(&self.config, &analysis_paths));
         let (old_symbol_tables, refresh_requests) = {
             let mut commit = self.analysis_commit.lock();
@@ -2668,7 +2664,7 @@ impl GlobalStateSnapshot {
                 }
             }
             let inlay_hints_changed = commit.external_refresh.is_some()
-                && self.config.supports_inlay_hint_refresh()
+                && self.config.client.inlay_hint_refresh
                 && self.symbol_tables.load().inlay_hints_changed(&new_tables);
             let old_symbol_tables = self.symbol_tables.swap(new_tables);
             commit.analysis_paths = analysis_paths;
@@ -2811,13 +2807,10 @@ fn request_pull_result_refreshes(
     config: &Config,
     requests: RefreshRequests,
 ) {
-    if requests.diagnostics
-        && config.uses_pull_diagnostics()
-        && config.supports_diagnostic_refresh()
-    {
+    if requests.diagnostics && config.uses_pull_diagnostics() && config.client.diagnostic_refresh {
         request_refresh::<WorkspaceDiagnosticRefresh>(client, "diagnostic");
     }
-    if requests.inlay_hints && config.supports_inlay_hint_refresh() {
+    if requests.inlay_hints && config.client.inlay_hint_refresh {
         request_refresh::<InlayHintRefreshRequest>(client, "inlay-hint");
     }
 }

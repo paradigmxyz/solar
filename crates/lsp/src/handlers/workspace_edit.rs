@@ -233,7 +233,7 @@ fn current_file_contents(
         return Some((contents.clone(), vfs.get_file_version(&path)));
     }
     drop(vfs);
-    let contents = source_map.file_loader().load_file(path.as_path()?).ok()?;
+    let contents = source_map.file_loader().load_file(path.as_path()).ok()?;
     Some((Rope::from(contents), None))
 }
 

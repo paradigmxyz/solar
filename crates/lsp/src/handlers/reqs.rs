@@ -49,12 +49,14 @@ use std::{
     io,
     path::{Path, PathBuf},
     sync::Arc,
+    time::Duration,
 };
 use tokio::task::JoinError;
 use tracing::warn;
 
 const WORKSPACE_DIAGNOSTIC_PARTIAL_BATCH_SIZE: usize = 64;
 const WORKSPACE_DIAGNOSTIC_PROGRESS_TITLE: &str = "Workspace diagnostics";
+const FORMATTER_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Debug)]
 enum WorkspaceDiagnosticProgress {}
@@ -193,24 +195,22 @@ pub(crate) fn formatting(
                 .config
                 .formatter_root_for_path(&path)
                 .ok_or_else(|| request_failed("document has no parent directory"))?;
-            Ok((
-                VfsPath::from(path.clone()),
-                path,
-                root,
-                state.config.forge_path(),
-                state.config.formatter_timeout(),
-            ))
+            Ok((VfsPath::from(path.clone()), path, root, state.config.forge_path()))
         });
 
     async move {
-        let (vfs_path, path, root, forge, timeout) = request?;
-        if formatter::is_ignored(&forge, &path, &root, timeout).await.map_err(formatter_failed)? {
+        let (vfs_path, path, root, forge) = request?;
+        if formatter::is_ignored(&forge, &path, &root, FORMATTER_TIMEOUT)
+            .await
+            .map_err(formatter_failed)?
+        {
             return Ok(None);
         }
         let source =
             document_contents(&vfs, &vfs_path, &path).await.map_err(document_read_failed)?;
-        let formatted =
-            formatter::run(&forge, &root, &source, timeout).await.map_err(formatter_failed)?;
+        let formatted = formatter::run(&forge, &root, &source, FORMATTER_TIMEOUT)
+            .await
+            .map_err(formatter_failed)?;
         let current =
             document_contents(&vfs, &vfs_path, &path).await.map_err(document_read_failed)?;
         if current != source {
@@ -358,7 +358,7 @@ pub(crate) fn document_symbol(
     state: &mut GlobalState,
     params: DocumentSymbolParams,
 ) -> impl Future<Output = Result<Option<DocumentSymbolResponse>, ResponseError>> + use<> {
-    let hierarchical = state.config.supports_hierarchical_document_symbols();
+    let hierarchical = state.config.client.hierarchical_document_symbols;
     let uri = normalize_file_uri(params.text_document.uri);
     let analysis = latest_analysis_for_uri(state, &uri);
     let empty = if hierarchical {
@@ -398,9 +398,9 @@ pub(crate) fn code_actions(
 ) -> impl Future<Output = Result<Option<CodeActionResponse>, ResponseError>> + use<> {
     params.text_document.uri = normalize_file_uri(params.text_document.uri);
     let vfs = state.vfs.clone();
-    let document_changes = state.config.supports_workspace_edit_document_changes();
-    let literals = state.config.supports_code_action_literals();
-    let is_preferred = state.config.supports_code_action_is_preferred();
+    let document_changes = state.config.client.workspace_edit_document_changes;
+    let literals = state.config.client.code_action_literals;
+    let is_preferred = state.config.client.code_action_is_preferred;
     let diagnostic_data = state.config.supports_code_action_diagnostic_data();
     let diagnostics = state.code_action_diagnostics(params.text_document.uri.clone(), params.range);
     async move {
@@ -655,7 +655,7 @@ impl ParsedImportDefinitionRequest {
 }
 
 fn overlay_paths(vfs: &Vfs) -> Vec<PathBuf> {
-    vfs.iter().filter_map(|(path, _)| path.as_path().map(Path::to_path_buf)).collect()
+    vfs.iter().map(|(path, _)| path.as_path().to_path_buf()).collect()
 }
 
 fn import_definition_request(
@@ -860,7 +860,7 @@ pub(crate) fn rename(
         latest_navigation_analysis_with_config_for_uri(state, &params_position.text_document.uri)
     };
     let vfs = state.vfs.clone();
-    let document_changes = state.config.supports_workspace_edit_document_changes();
+    let document_changes = state.config.client.workspace_edit_document_changes;
     async move {
         if invalid_name {
             return Err(ResponseError::new(ErrorCode::INVALID_PARAMS, "invalid rename name"));

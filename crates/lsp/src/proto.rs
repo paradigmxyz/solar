@@ -157,7 +157,7 @@ pub(crate) fn normalize_file_uri(uri: lsp_types::Url) -> lsp_types::Url {
         return uri;
     }
     vfs_path(&uri)
-        .and_then(|path| lsp_types::Url::from_file_path(path.as_path()?).ok())
+        .and_then(|path| lsp_types::Url::from_file_path(path.as_path()).ok())
         .unwrap_or(uri)
 }
 
@@ -724,7 +724,7 @@ mod tests {
         }
         for uri in uris {
             let expected = vfs_path(&uri)
-                .and_then(|path| Url::from_file_path(path.as_path()?).ok())
+                .and_then(|path| Url::from_file_path(path.as_path()).ok())
                 .unwrap_or_else(|| uri.clone());
             assert_eq!(normalize_file_uri(uri.clone()), expected, "{uri}");
         }
