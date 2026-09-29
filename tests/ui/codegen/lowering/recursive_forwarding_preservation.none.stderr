@@ -1,4 +1,6 @@
 error: codegen cannot preserve values across a low-memory forwarding buffer in `recurse`
 
-error: aborting due to 1 previous error
+error: codegen cannot preserve values across a low-memory forwarding buffer in `computedForward`
+
+error: aborting due to 2 previous errors
 

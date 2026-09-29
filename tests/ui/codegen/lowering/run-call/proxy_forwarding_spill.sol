@@ -3,6 +3,8 @@
 //@ run-call: FrameForwarding::sweep 7,4096 => 7
 //@ run-call: FrameForwarding::sweep 7,0 => 7
 //@ run-call: Harness::run => 1
+//@ run-call: FrameForwarding::callAfterCopy 7, 4096 => 4104
+//@ run-call: FrameForwarding::callAfterCopy 7, 0 => 8
 //@ run-call: FrameForwarding::run 7, 4096 => 7
 //@ run-call: FrameForwarding::branch 7, 4096, true => 8
 //@ run-call: FrameForwarding::branch 7, 4096, false => 9
@@ -111,5 +113,23 @@ contract FrameForwarding {
             }
         }
         return value;
+    }
+
+    function callAfterCopy(uint256 value, uint256 length) external pure returns (uint256) {
+        return forwardCall(value, length);
+    }
+
+    function forwardCall(uint256 value, uint256 length) internal pure returns (uint256) {
+        assembly { calldatacopy(0x80, calldatasize(), length) }
+        return consume(value, length) + 1;
+    }
+
+    // A second call site makes the callee use stack arguments even without optimization.
+    function consumeDirect(uint256 value, uint256 length) external pure returns (uint256) {
+        return consume(value, length);
+    }
+
+    function consume(uint256 value, uint256 length) internal pure returns (uint256) {
+        unchecked { return value + length; }
     }
 }

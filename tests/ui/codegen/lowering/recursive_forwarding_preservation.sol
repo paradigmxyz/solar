@@ -4,6 +4,7 @@
 //@[gas] compile-flags: -O gas
 //@[size] compile-flags: -O size
 //~[none]? ERROR: codegen cannot preserve values across a low-memory forwarding buffer
+//~[none]? ERROR: codegen cannot preserve values across a low-memory forwarding buffer in `computedForward`
 //~[gas,size]? ERROR: codegen cannot preserve arguments across a low-memory write
 //~[gas,size]? ERROR: codegen cannot preserve arguments across a low-memory write in `copyLoop`
 
@@ -44,5 +45,20 @@ contract RecursiveForwarding {
             }
             total := sub(at, dest)
         }
+    }
+
+    function computed(uint256 value, uint256 length) external pure returns (uint256) {
+        return computedForward(value, length);
+    }
+
+    function computedForward(uint256 value, uint256 length) private pure returns (uint256) {
+        uint256 saved = value * 3;
+        assembly { calldatacopy(0x80, calldatasize(), length) }
+        if (length != 0) return consume(value) + saved;
+        return saved;
+    }
+
+    function consume(uint256 value) private pure returns (uint256) {
+        return value + 1;
     }
 }

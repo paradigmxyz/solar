@@ -89,12 +89,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         let frame_size = self.asm.new_deferred_const();
         self.pending_frame_size_consts.push((frame_size, callee));
 
-        // Spill values that are live after this call BEFORE consuming the
-        // arguments. An argument that is also used later (e.g. a flag passed to
-        // a helper and then stored, as in `tryAdd`) would otherwise be popped by
-        // the arg-store loop below and then lost when the stack is cleared for
-        // the call, leaving it unavailable at its later use.
-        self.spill_live_stack_values(func_id, func, liveness, block, inst_idx);
+        // Spill live values outside the retained caller prefix before consuming arguments.
+        // The argument stores and stack drain would otherwise discard their last copies.
+        self.spill_live_stack_values(
+            func_id,
+            func,
+            liveness,
+            block,
+            inst_idx,
+            &resident_call_values,
+        );
 
         // The dynamic-frame base is an anonymous word kept on the physical stack while arguments
         // are stored. Give any argument that this extra word would bury beyond `DUP` a memory
@@ -604,6 +608,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
+        if self.can_preserve_hazard_caller_stack(func_id) && !self.spill_hazard_insts.is_empty() {
+            for value in self.scheduler.stack.iter().flatten() {
+                if self.scheduler.is_stack_only_value(value)
+                    && matches!(func.value(value), Value::Arg(_))
+                    && liveness.is_used_at_or_after(value, block, inst_idx + 1)
+                    && !resident_call_values.contains(&value)
+                {
+                    resident_call_values.push(value);
+                }
+            }
+        }
         let carries_resident_stack = !resident_call_values.is_empty();
         let caller_stack_plan = (!carries_resident_stack).then(|| {
             self.plan_static_call_stack(
@@ -652,9 +667,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         if !recursive_reentry && caller_stack_plan.is_none() {
-            // The fallback drains the caller stack, so park every value needed after the call
-            // before consuming arguments.
-            self.spill_live_stack_values(func_id, func, liveness, block, inst_idx);
+            // Park live values outside the retained caller prefix before consuming arguments.
+            self.spill_live_stack_values(
+                func_id,
+                func,
+                liveness,
+                block,
+                inst_idx,
+                &resident_call_values,
+            );
         }
 
         let memory_args = args
@@ -1103,6 +1124,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn spill_live_stack_values(
         &mut self,
         func_id: FunctionId,
@@ -1110,13 +1132,22 @@ impl<'gcx> EvmCodegen<'gcx> {
         liveness: &Liveness,
         block: BlockId,
         inst_idx: usize,
+        retained: &[ValueId],
     ) {
         let stack_values: Vec<_> = self.scheduler.stack.iter().flatten().collect();
         for value in stack_values {
-            if !liveness.is_dead_after(value, block, inst_idx) {
+            if !retained.contains(&value) && !liveness.is_dead_after(value, block, inst_idx) {
                 self.materialize_stack_only_home(func_id, func, value);
                 self.spill_value_if_needed(func, value);
             }
         }
+    }
+
+    pub(in crate::backend::evm::codegen) fn can_preserve_hazard_caller_stack(
+        &self,
+        func_id: FunctionId,
+    ) -> bool {
+        self.static_frame_functions.contains(func_id)
+            && !self.recursion_reaching_functions.contains(func_id)
     }
 }

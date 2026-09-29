@@ -92,7 +92,26 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         skip_tests: &[],
         skip_contracts: &[],
         notes: "token/utility library: heavy fuzz coverage of arithmetic edge cases",
-        test_fixes: &[],
+        test_fixes: &[
+            TestFix {
+                path: "src/test/ERC6909.t.sol",
+                before: "    function testTransferFromWithApproval(\n        address sender,\n        address receiver,\n        uint256 id,\n        uint256 mintAmount,\n        uint256 transferAmount\n    ) public {\n        transferAmount = bound(transferAmount, 0, mintAmount);\n",
+                after: "    function testTransferFromWithApproval(\n        address sender,\n        address receiver,\n        uint256 id,\n        uint256 mintAmount,\n        uint256 transferAmount\n    ) public {\n        hevm.assume(sender != address(this));\n        transferAmount = bound(transferAmount, 0, mintAmount);\n",
+                reason: "allowance tests require a sender distinct from the caller, who bypasses allowance checks",
+            },
+            TestFix {
+                path: "src/test/ERC6909.t.sol",
+                before: "    function testFailTransferFromNotAuthorized(\n        address sender,\n        address receiver,\n        uint256 id,\n        uint256 amount\n    ) public {\n        amount = bound(amount, 1, type(uint256).max);\n",
+                after: "    function testFailTransferFromNotAuthorized(\n        address sender,\n        address receiver,\n        uint256 id,\n        uint256 amount\n    ) public {\n        hevm.assume(sender != address(this));\n        amount = bound(amount, 1, type(uint256).max);\n",
+                reason: "allowance tests require a sender distinct from the caller, who bypasses allowance checks",
+            },
+            TestFix {
+                path: "src/test/ERC1155.t.sol",
+                before: "    function testSafeBatchTransferFromToEOA(\n        address to,\n        uint256[] memory ids,\n        uint256[] memory mintAmounts,\n        uint256[] memory transferAmounts,\n        bytes memory mintData,\n        bytes memory transferData\n    ) public {\n        if (to == address(0)) to = address(0xBEEF);\n",
+                after: "    function testSafeBatchTransferFromToEOA(\n        address to,\n        uint256[] memory ids,\n        uint256[] memory mintAmounts,\n        uint256[] memory transferAmounts,\n        bytes memory mintData,\n        bytes memory transferData\n    ) public {\n        hevm.assume(to != address(0xABCD));\n        if (to == address(0)) to = address(0xBEEF);\n",
+                reason: "balance-delta assertions require a receiver distinct from the sender",
+            },
+        ],
     },
     ExternalProject {
         name: "solady",
@@ -510,21 +529,28 @@ fn apply_test_fixes(project: &ResolvedProject, dir: &Path) -> Result<(), String>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
 
     #[test]
     fn test_fixes_are_idempotent() {
         for project in EXTERNAL_PROJECTS {
             let project = ResolvedProject::from_curated(project);
             let dir = tempfile::tempdir().unwrap();
+            let mut files = BTreeMap::<_, (String, String)>::new();
             for fix in project.test_fixes {
-                let path = dir.path().join(fix.path);
+                let (before, after) = files.entry(fix.path).or_default();
+                before.push_str(fix.before);
+                after.push_str(fix.after);
+            }
+            for (file, (before, _)) in &files {
+                let path = dir.path().join(file);
                 fs::create_dir_all(path.parent().unwrap()).unwrap();
-                fs::write(path, fix.before).unwrap();
+                fs::write(path, before).unwrap();
             }
             apply_test_fixes(&project, dir.path()).unwrap();
             apply_test_fixes(&project, dir.path()).unwrap();
-            for fix in project.test_fixes {
-                assert_eq!(fs::read_to_string(dir.path().join(fix.path)).unwrap(), fix.after);
+            for (file, (_, after)) in files {
+                assert_eq!(fs::read_to_string(dir.path().join(file)).unwrap(), after);
             }
         }
     }
@@ -532,11 +558,14 @@ mod tests {
     #[test]
     fn test_fixes_reject_changed_or_repeated_sources() {
         for project in EXTERNAL_PROJECTS {
-            let project = ResolvedProject::from_curated(project);
             let dir = tempfile::tempdir().unwrap();
             for fix in project.test_fixes {
                 let path = dir.path().join(fix.path);
                 fs::create_dir_all(path.parent().unwrap()).unwrap();
+                let project = ResolvedProject {
+                    test_fixes: std::slice::from_ref(fix),
+                    ..ResolvedProject::from_curated(project)
+                };
                 for source in [
                     String::new(),
                     fix.before.repeat(2),

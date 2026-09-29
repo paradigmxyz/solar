@@ -470,7 +470,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             func,
             liveness,
             values,
-            self.preserve_caller_stack,
+            self.preserve_caller_stack
+                || self.current_internal_function.is_some_and(|func_id| {
+                    if !self.can_preserve_hazard_caller_stack(func_id) {
+                        return false;
+                    }
+                    let computed = values
+                        .iter()
+                        .copied()
+                        .filter(|&value| !matches!(func.value(value), Value::Arg(_)))
+                        .collect::<Vec<_>>();
+                    !GlobalStackPlan::values_live_across_calls(func, liveness, &computed)
+                }),
         )?;
         // Phi operands are edge uses, not unchanged target live-ins. Full
         // liveness conservatively includes them at the header; remove those

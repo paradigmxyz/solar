@@ -732,7 +732,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Plans a bounded rotation that keeps computed arguments on the physical
+    /// Plans a bounded rotation that keeps computed and stack-only arguments on the physical
     /// stack while the rest of the caller stack is drained. The resulting
     /// layout matches the existing stack-argument convention: selected
     /// arguments in descending index order above the return address.
@@ -756,7 +756,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         // occurrence independently.
         let mut selected_value_counts = FxHashMap::default();
         for (i, &arg) in args.iter().enumerate() {
-            if mask.contains(i) && matches!(func.value(arg), crate::mir::Value::Inst(_)) {
+            if mask.contains(i)
+                && (matches!(func.value(arg), crate::mir::Value::Inst(_))
+                    || self.scheduler.is_stack_only_value(arg))
+            {
                 *selected_value_counts.entry(arg).or_insert(0usize) += 1;
             }
         }
