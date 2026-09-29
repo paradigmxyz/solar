@@ -1,10 +1,10 @@
 llm-optimize Basics @main: not offered: is the dispatch entry
-llm-optimize Basics @pow2: offered at 929 gas, 21 bytes
+llm-optimize Basics @pow2: offered at 846 gas, 21 bytes
 llm-optimize Basics @pow2: round 1: rejected at constraints: uses `shl`, which byzantium lacks
 llm-optimize Basics @pow2: round 2: nothing cheaper
 llm-optimize Basics @identity: offered at 63 gas, 25 bytes
-llm-optimize Basics @identity: round 1: rejected at equivalence: the original returns 0x2, but the candidate returns 0x3
-  on arg0 = 0x2, free memory pointer 0x140
+llm-optimize Basics @identity: round 1: rejected at equivalence: the original returns 0x1a0, but the candidate returns 0x1a1
+  on arg0 = 0x1a0, free memory pointer 0x140
 llm-optimize Basics @identity: round 2: accepted at 43 gas, 17 bytes
 llm-optimize Basics @identity: round 3: nothing cheaper
 llm-optimize Basics @identity: rewritten from 63 gas, 25 bytes to 43 gas, 17 bytes

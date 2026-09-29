@@ -1,7 +1,8 @@
 //@ compile-flags: -Zmir-pipeline=llm-optimize -Zllm-optimize=script -Zllm-trace --evm-version=cancun
 //@ compile-flags: -Zllm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/calls.script
 // Internal calls and tail calls run in the tests, so a candidate may drop them. Functions the
-// tests cannot run, or whose results pass through memory the backend owns, are not offered.
+// tests cannot run, such as ones reading the remaining gas or the contract's own code, or whose
+// results pass through memory the backend owns, are not offered.
 @module Calls
 @phase lowered
 @types
@@ -12,10 +13,10 @@ fn @main() [entry] {
     v0 = calldataload 0
     v1 = icall @twice, v0
     v2 = icall @forward, v1
-    v3 = icall @storage, v2
-    v4 = icall @reads_storage, v3
+    v3 = icall @gas_left, v2
+    v4 = icall @reads_gas, v3
     v5 = icall @recursive, v4
-    v6 = icall @environment, v5
+    v6 = icall @code_size, v5
     v7 = icall @pair, v6
     v8 = icall @uses_pair, v7
     v9 = icall @framed, v8
@@ -41,15 +42,16 @@ fn @forward(arg0: i256) -> i256 {
     tail_call @increment, arg0
 }
 
-fn @storage(arg0: i256) -> i256 {
+fn @gas_left(arg0: i256) -> i256 {
   bb0:
-    v0 = sload arg0
-    ret v0
+    v0 = gas
+    v1 = add arg0, v0
+    ret v1
 }
 
-fn @reads_storage(arg0: i256) -> i256 {
+fn @reads_gas(arg0: i256) -> i256 {
   bb0:
-    v0 = icall @storage, arg0
+    v0 = icall @gas_left, arg0
     ret v0
 }
 
@@ -65,12 +67,11 @@ fn @recursive(arg0: i256) -> i256 {
     ret v2
 }
 
-fn @environment(arg0: i256) -> i256 {
+fn @code_size(arg0: i256) -> i256 {
   bb0:
-    v0 = caller
-    v1 = zext i160 v0 to i256
-    v2 = add arg0, v1
-    ret v2
+    v0 = codesize
+    v1 = add arg0, v0
+    ret v1
 }
 
 fn @pair(arg0: i256) -> struct0 [return_abi=[i256, i256]] {

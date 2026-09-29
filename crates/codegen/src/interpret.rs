@@ -88,8 +88,8 @@ pub fn transact(
             RunOutcome::Unsupported(what) => Outcome::Unsupported(format!("reaches `{what}`")),
             RunOutcome::Return(_) => Outcome::Unsupported("returns from the entry".into()),
         };
-        let mut storage = execution.storage.into_iter().collect::<Vec<_>>();
+        let mut storage = execution.effects.storage.into_iter().collect::<Vec<_>>();
         storage.sort_unstable();
-        Execution { outcome, logs: execution.logs, storage }
+        Execution { outcome, logs: execution.effects.logs, storage }
     })
 }

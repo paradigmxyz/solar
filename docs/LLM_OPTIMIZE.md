@@ -132,18 +132,24 @@ interface is a few words the tests can generate:
   since the backend passes further results through a memory buffer of its own;
 - at most 256 instructions;
 - only word operations and casts, `select`, phis, `mload`, `mstore`, `mstore8`, `mcopy`,
-  `keccak256`, calls to functions that meet the same conditions, and the terminators other than
-  `selfdestruct` and `revert_returndata`, with no `undef` values;
+  `keccak256`, persistent and transient storage, logs, reads of the call and block context other
+  than code sizes and hashes, calls to functions that meet the same conditions, and the
+  terminators other than `selfdestruct` and `revert_returndata`, with no `undef` values;
 - in a module that never reads `msize`, since a candidate may touch memory its original does not.
 
 The interpreter runs each instruction by the semantics its operation schema row declares
 (`crates/codegen/src/mir/semantics.rs`), computing pure opcodes with the opcode table's word
-semantics, the same definitions constant folding uses. Supporting another operation means
-declaring its semantics and, for a new kind of state such as storage, modeling that state.
+semantics, the same definitions constant folding uses. Storage, transient storage, logs, and
+context reads run against a world the tests derive for each input. Code sizes and hashes stay
+unsupported because a rewrite changes the contract's own code, and so do `gas`, calldata, and
+calls to other contracts.
 
-A function whose generated inputs rarely finish, leave a reachable block unfinished, or leave a
-decision always true or always false, is not offered either: its candidates could not be tested. `-Zllm-trace` prints the reason for every
-function that is not offered.
+A function is not offered either when its generated inputs rarely finish or do not exercise it:
+every reachable block must run to its end, every decision must come out both ways, and every
+other value must come out nonzero, on some input. A revert discards what its run wrote, so in the
+blocks from which the function can end without reverting, only inputs on which it does not revert
+count, except for a decision's outcome that branches into blocks that always revert.
+`-Zllm-trace` prints the reason for every function that is not offered.
 
 ## Candidate text
 
@@ -169,10 +175,14 @@ Each candidate goes through these stages, and the verdict names the one that rej
 4. **Equivalence.** The interpreter runs the original and the candidate on the same inputs. The
    candidate must end the same way (return the same words, revert or return the same data,
    stop, or reach `invalid`), write only memory bytes the original writes, and, when the
-   original returns, leave those bytes the same. The inputs must exercise the candidate: every
-   reachable block must run to its end, and every decision must come out both ways, on some
-   input. Decisions are comparisons and the `and`, `or`, and `xor` of booleans, which is how
-   if-converted code combines comparisons without branching.
+   original returns, leave those bytes the same. When the original ends without reverting, the
+   candidate must also write only the storage and transient storage slots the original writes,
+   leave every slot the original writes with the same value, and log the same events in the same
+   order; a write the original does not make would also fail in a static call. The inputs must
+   exercise the candidate as they exercise the original, under the rules above. Decisions are
+   comparisons and the `and`, `or`, and `xor` of booleans, which is how if-converted code
+   combines comparisons without branching; values must come out nonzero because a path the
+   inputs only complete on null pointers or empty data computes nothing a change would alter.
 5. **Cost.** The target cost model prices the candidate, which must beat the best so far: by at
    least one stack copy of lifetime gas in gas builds, and in bytes, then gas, in size builds.
 
@@ -183,13 +193,24 @@ Its metadata is empty, and its debug information is marked as intentionally drop
 
 Inputs come from a seed derived from the candidate text, so a rerun makes the same decisions.
 Constants come from the function and every function it can call, with their neighbors and
-left-aligned forms for `bytesN` comparisons. Arguments mix powers of two, their neighbors, and
-their negations; constants; small numbers; addresses near the free memory pointer; repeated
-arguments to exercise aliasing; and random words, masked to their types. Probes then put each
-constant in each argument, and a candidate that adds a constant is also run with it. Memory holds
-seeded garbage, except for the zero word at `0x60`, a free memory pointer from `0x80` up, which
-is sometimes unaligned, and the objects at pointer arguments: a small length, which keeps loops
-over memory short, then flags and constants.
+left-aligned forms for `bytesN` comparisons. Arguments mix zero; powers of two, their neighbors,
+and their negations; constants; small numbers; addresses near the free memory pointer; repeated
+arguments to exercise aliasing; and random words, masked to their types. Memory holds seeded
+garbage, except for the zero word at `0x60`, a free memory pointer from `0x80` up, which is
+sometimes unaligned, and the objects at pointer arguments: a small length, which keeps loops over
+memory short, then flags and constants. Garbage words are random, or small numbers, addresses
+near the heap start, and constants, so that a function following pointers through memory reaches
+nested objects.
+
+Each input also has a world derived from its seed, which answers storage, transient storage, and
+context reads: zero, a small number, a constant, one of the input's arguments, the caller, or a
+random word, cut to the width the value has on chain, such as 160 bits for an address or 64 for
+a timestamp. Transient storage is zero more often, as every transaction starts it empty. A slot
+reads the same value throughout a run, and writes are kept until the run ends.
+
+Probes then put each constant in each argument and, for functions that use storage or their
+context, make each constant the world's answer to every read, or to half of them. A candidate that
+adds a constant is also run with it in its arguments and its world.
 
 Memory writes must stay within the original's because the backend keeps call frames and spill
 slots in memory no function addresses, and callers may keep scratch words across a call. A
@@ -200,10 +221,10 @@ candidate that uses scratch space its original does not is rejected, even when i
 A function costs the bytes of its reachable code and the average gas of the calls on inputs its
 original returns on, including callees and memory growth. Probes, and inputs that grow memory by
 more than 64 KiB because an argument acts as a far pointer, exercise the code but do not price
-it. Each operation is priced by the target
-cost model, with dynamic work sized from the values the run computed. Each operand costs a push
-for an immediate or one stack copy otherwise, which stands in for stack scheduling. Accepted
-rewrites can still lose to the stack scheduler, so compare them with the runtime benchmarks.
+it. Each operation is priced by the target cost model, with dynamic work sized from the values
+the run computed. Each operand costs a push for an immediate or one stack copy otherwise, which
+stands in for stack scheduling. Accepted rewrites can still lose to the stack scheduler, so
+compare them with the runtime benchmarks.
 
 ## Sessions
 
@@ -280,16 +301,19 @@ candidate got, when no proposal heard it, and the cost of the rewrite the pass k
 ## Limits
 
 - Testing is not proof. A candidate that differs only on inputs no generator reaches is
-  accepted. Over the project archives of the runtime benchmark corpus, one single-site mutant of
-  each of the 2,044 offered functions (a changed operation, operand order, constant, or branch,
-  or a deleted store) was checked: 2,014 fail equivalence. Of the 30 that pass, 25 are
-  equivalent, mostly dead stores and range-checked sign extensions, and 5 change a constant
-  whose effect shows only on rare inputs, such as a bound one exact value reaches or a slice
-  that ends just past the free memory pointer. Proving loop-free candidates with the SMT checker
-  in `scripts/evm-rules/` is future work.
-- The interpreter models no storage, calldata, environment, or external calls, so functions that
-  use them are not offered. On the project archives of the runtime benchmark corpus, about a
-  quarter of internal functions are offered; storage reads, `gas`, paths the tests do not reach,
-  several return values, and calldata account for most of the rest.
+  accepted. Over the fifteen project archives of the runtime benchmark corpus, four single-site
+  mutants of each of the 3,875 offered functions (a changed operation, operand order, constant,
+  or branch, or a deleted memory store, storage write, or event) were checked: 15,200 of 15,348
+  fail equivalence. The 148 that pass are equivalent, such as stores another store overwrites,
+  scratch words a callee already wrote, the offset of an empty log or revert, or the low bytes of
+  a four-byte error selector, or change behavior only on inputs the generators rarely reach,
+  such as a bound one exact value reaches or a stored string shrinking to exactly one word.
+  Proving loop-free candidates with the SMT checker in `scripts/evm-rules/` is future work.
+- The interpreter models no calldata, `gas`, code reads, or calls to other contracts, so functions
+  that use them are not offered. On the project archives, 28% of the reachable internal functions
+  are offered. Decisions the inputs never complete both ways without reverting account for most
+  of the rest, chiefly the allocator's wraparound check, which no free memory pointer the inputs
+  choose trips, followed by `gas`, calldata, paths the tests do not complete, functions over 256
+  instructions, and several return values.
 - The cost model sees one stack copy per operand, not the stack scheduler's decisions.
 - `live` sends function MIR to the rewriter's provider.
