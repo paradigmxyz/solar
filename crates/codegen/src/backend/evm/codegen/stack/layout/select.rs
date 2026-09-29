@@ -64,6 +64,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         None
     }
 
+    /// Returns the whole-function liveness of a function, computing it on first use.
+    pub(in crate::backend::evm::codegen) fn function_liveness(
+        &mut self,
+        func_id: FunctionId,
+        func: &Function,
+    ) -> Rc<Liveness> {
+        Rc::clone(
+            self.function_liveness
+                .entry(func_id)
+                .or_insert_with(|| Rc::new(Liveness::compute(func))),
+        )
+    }
+
     /// Returns the stack-phi plan for a function, computing it on first use.
     pub(in crate::backend::evm::codegen) fn stack_phi_plan(
         &mut self,

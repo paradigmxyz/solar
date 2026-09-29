@@ -28,6 +28,7 @@ use crate::mir::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
+    bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
@@ -138,20 +139,23 @@ fn fmp_write_has_future_observer(func: &Function, cfg: &CfgInfo, inst_id: InstId
     {
         return true;
     }
-    if cfg.transitive_reachability().get(block).into_iter().flat_map(|blocks| blocks.iter()).any(
-        |block| {
-            func.blocks[block]
-                .instructions
-                .iter()
-                .copied()
-                .any(|inst| instruction_observes_fmp(func, inst))
-                || func.blocks[block]
-                    .terminator
-                    .as_ref()
-                    .is_some_and(|term| matches!(term, Terminator::TailCall { .. }))
-        },
-    ) {
-        return true;
+    // Search the blocks reachable through at least one edge, without the
+    // quadratic all-pairs reachability table.
+    let mut seen = DenseBitSet::new_empty(cfg.num_blocks());
+    let mut stack = cfg.successors(block).to_vec();
+    while let Some(block) = stack.pop() {
+        if !seen.insert(block) {
+            continue;
+        }
+        if func.blocks[block].instructions.iter().any(|&inst| instruction_observes_fmp(func, inst))
+            || func.blocks[block]
+                .terminator
+                .as_ref()
+                .is_some_and(|term| matches!(term, Terminator::TailCall { .. }))
+        {
+            return true;
+        }
+        stack.extend_from_slice(cfg.successors(block));
     }
 
     false

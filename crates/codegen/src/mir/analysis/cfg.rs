@@ -9,7 +9,7 @@
 use crate::mir::{BlockId, Function, utils::IndexLists};
 use smallvec::SmallVec;
 use solar_data_structures::{
-    bit_set::DenseBitSet,
+    bit_set::{BitMatrix, BitMatrixRow, DenseBitSet},
     index::{IndexVec, index_vec},
 };
 use std::cell::OnceCell;
@@ -23,7 +23,7 @@ pub(crate) struct CfgInfo {
     rpo: OnceCell<Vec<BlockId>>,
     cyclic_blocks: OnceCell<DenseBitSet<BlockId>>,
     dominators: OnceCell<DominatorTree>,
-    reachability: OnceCell<IndexVec<BlockId, DenseBitSet<BlockId>>>,
+    reachability: OnceCell<BitMatrix<BlockId, BlockId>>,
 }
 
 impl CfgInfo {
@@ -173,28 +173,30 @@ impl CfgInfo {
         self.dominators.get_or_init(|| DominatorTree::compute(self.predecessors(), self.rpo()))
     }
 
-    /// Returns block-to-block reachability through at least one CFG edge.
+    /// Returns the blocks reachable from `block` through at least one CFG edge, or `None`
+    /// for a block outside the snapshot.
     ///
     /// The table is computed lazily because only memory/state-aware passes need
     /// this more expensive transitive query.
-    pub(crate) fn transitive_reachability(&self) -> &IndexVec<BlockId, DenseBitSet<BlockId>> {
-        self.reachability.get_or_init(|| {
+    pub(crate) fn transitive_reachability(
+        &self,
+        block: BlockId,
+    ) -> Option<BitMatrixRow<'_, BlockId>> {
+        let reachability = self.reachability.get_or_init(|| {
+            let num_blocks = self.successors.len();
+            let mut reachability = BitMatrix::new(num_blocks, num_blocks);
             let mut stack = Vec::new();
-            self.successors
-                .iter()
-                .map(|successors| {
-                    let mut reachable = DenseBitSet::new_empty(self.successors.len());
-                    stack.clear();
-                    stack.extend_from_slice(successors);
-                    while let Some(block) = stack.pop() {
-                        if reachable.insert(block) {
-                            stack.extend_from_slice(&self.successors[block]);
-                        }
+            for (from, successors) in self.successors.iter_enumerated() {
+                stack.extend_from_slice(successors);
+                while let Some(block) = stack.pop() {
+                    if reachability.insert(from, block) {
+                        stack.extend_from_slice(&self.successors[block]);
                     }
-                    reachable
-                })
-                .collect()
-        })
+                }
+            }
+            reachability
+        });
+        (block.index() < self.successors.len()).then(|| reachability.row(block))
     }
 }
 

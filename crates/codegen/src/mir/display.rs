@@ -593,7 +593,7 @@ fn display_inst_kind<'a>(
             f,
             "store_storage_bytes_literal {}, hex\"{}\"",
             display_val(*slot, func),
-            alloy_primitives::hex::encode(bytes)
+            alloy_primitives::hex::display(bytes)
         ),
         InstKind::StorageArrayLoad { slot, element, enum_variants } => {
             write!(f, "load_storage_array ")?;
@@ -638,7 +638,7 @@ fn display_inst_kind<'a>(
                 }
                 match part {
                     super::PackedPart::Literal(bytes) => {
-                        write!(f, "data hex\"{}\"", alloy_primitives::hex::encode(bytes))?
+                        write!(f, "data hex\"{}\"", alloy_primitives::hex::display(bytes))?
                     }
                     super::PackedPart::Scalar { value, ty } => {
                         write!(f, "{ty} {}", display_val(*value, func))?

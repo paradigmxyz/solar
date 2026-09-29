@@ -211,7 +211,7 @@ impl GlobalStackPlan {
         // because resident arguments cannot fall back to memory on just one edge.
         if !preserve_across_calls {
             for (block_id, block) in func.blocks.iter_enumerated() {
-                let mut live = liveness.live_out(block_id).clone();
+                let mut live = DenseBitSet::from(liveness.live_out(block_id));
                 for value in block.terminator.iter().flat_map(Terminator::operands) {
                     live.insert(value);
                 }

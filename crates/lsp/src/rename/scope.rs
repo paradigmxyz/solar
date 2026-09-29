@@ -3,9 +3,11 @@
 //! Filtering individual locations would break override families and imported declarations, so
 //! every required edit must pass both lexical and resolved-path checks. Filesystem observations
 //! are shared only within this request, on its blocking worker, to keep symlink changes visible.
+//! Dependency restrictions, files outside the workspace, and unresolvable paths have separate
+//! diagnostics; none of these cases may produce a partial edit.
 
 use super::RenameCandidate;
-use crate::{config::Config, proto};
+use crate::{config::Config, proto, workspace::WorkspaceEditError};
 use async_lsp::{ErrorCode, ResponseError};
 use normalize_path::NormalizePath;
 use solar_interface::{
@@ -21,6 +23,26 @@ pub(crate) fn validate_rename_scope(
     candidate: &RenameCandidate,
     config: &Config,
 ) -> Result<(), ResponseError> {
+    check_rename_scope(candidate, config).map_err(|error| {
+        let message = match error {
+            WorkspaceEditError::Dependency => {
+                "cannot rename this symbol because it would modify dependency files"
+            }
+            WorkspaceEditError::OutsideWorkspace => {
+                "cannot rename this symbol because it would modify files outside the workspace"
+            }
+            WorkspaceEditError::UnresolvedPath => {
+                "cannot rename this symbol because its file paths could not be verified"
+            }
+        };
+        ResponseError::new(ErrorCode::REQUEST_FAILED, message)
+    })
+}
+
+fn check_rename_scope(
+    candidate: &RenameCandidate,
+    config: &Config,
+) -> Result<(), WorkspaceEditError> {
     let lexical = config.workspace_edit_scope();
     // Standalone sessions without workspace configuration retain their existing edit scope.
     if lexical.is_unrestricted() {
@@ -34,17 +56,17 @@ pub(crate) fn validate_rename_scope(
     };
     let resolved = lexical.map_paths(|path| resolve(path).unwrap_or_else(|| path.to_path_buf()));
     for locations in candidate.locations.chunk_by(|a, b| a.uri == b.uri) {
-        let allowed = proto::vfs_path(&locations[0].uri).is_some_and(|path| {
-            path.as_path().is_some_and(|path| {
-                lexical.allows(path) && resolve(path).is_some_and(|path| resolved.allows(&path))
-            })
-        });
-        if !allowed {
-            return Err(ResponseError::new(
-                ErrorCode::REQUEST_FAILED,
-                "cannot rename this symbol because it would modify dependency files",
-            ));
+        let path = proto::vfs_path(&locations[0].uri).ok_or(WorkspaceEditError::UnresolvedPath)?;
+        let path = path.as_path().ok_or(WorkspaceEditError::UnresolvedPath)?;
+        let lexical_result = lexical.check(path);
+        if matches!(lexical_result, Err(WorkspaceEditError::Dependency)) {
+            return lexical_result;
         }
+        // An outside path may still point into a dependency. Check its resolved target before
+        // reporting the missing workspace ownership, without granting permission through it.
+        let path = resolve(path).ok_or(WorkspaceEditError::UnresolvedPath)?;
+        resolved.check(&path)?;
+        lexical_result?;
     }
     Ok(())
 }

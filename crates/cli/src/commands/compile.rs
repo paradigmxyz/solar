@@ -129,13 +129,17 @@ pub(crate) fn run_compiler_session_with(
 ) -> Result {
     sess.validate()?;
     let mut compiler = solar_sema::Compiler::new(sess);
-    compiler.enter_mut(|compiler| {
+    let result = compiler.enter_mut(|compiler| {
         let result = f(compiler);
         if !finish {
             return result;
         }
         finish_session(compiler.gcx().sess, result)
-    })
+    });
+    if !compiler.sess().opts.unstable.drop_gcx {
+        std::mem::forget(compiler);
+    }
+    result
 }
 
 fn finish_session(sess: &Session, result: Result) -> Result {
