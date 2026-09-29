@@ -549,30 +549,28 @@ impl RenameIndex {
         self.family_targets.clear();
         let alias_offset = self.aliases.len();
         let mapping_name_offset = self.mapping_names.len();
-        self.symbol_targets.extend(
-            other.symbol_targets.drain().map(|symbol_id| symbol_id.offset_by(symbol_offset)),
-        );
-        self.yul_symbol_targets.extend(
-            other.yul_symbol_targets.drain().map(|symbol_id| symbol_id.offset_by(symbol_offset)),
-        );
+        self.symbol_targets
+            .extend(other.symbol_targets.drain().map(|symbol_id| symbol_id + symbol_offset));
+        self.yul_symbol_targets
+            .extend(other.yul_symbol_targets.drain().map(|symbol_id| symbol_id + symbol_offset));
         for occurrence in &mut other.occurrences {
             for target in &mut occurrence.targets {
                 *target = match *target {
                     RenameTarget::Symbol(symbol_id) => {
-                        RenameTarget::Symbol(symbol_id.offset_by(symbol_offset))
+                        RenameTarget::Symbol(symbol_id + symbol_offset)
                     }
                     RenameTarget::ImportAlias(alias_id) => {
-                        RenameTarget::ImportAlias(offset_id(alias_id, alias_offset))
+                        RenameTarget::ImportAlias(alias_id + alias_offset)
                     }
                     RenameTarget::MappingName(name_id) => {
-                        RenameTarget::MappingName(offset_id(name_id, mapping_name_offset))
+                        RenameTarget::MappingName(name_id + mapping_name_offset)
                     }
                 };
             }
         }
         for symbols in other.alias_symbols.values_mut() {
             for symbol_id in symbols {
-                *symbol_id = symbol_id.offset_by(symbol_offset);
+                *symbol_id += symbol_offset;
             }
         }
         self.conflicting_contents.extend(other.conflicting_contents);
@@ -587,7 +585,7 @@ impl RenameIndex {
             other
                 .alias_symbols
                 .into_iter()
-                .map(|(alias_id, symbols)| (offset_id(alias_id, alias_offset), symbols)),
+                .map(|(alias_id, symbols)| (alias_id + alias_offset, symbols)),
         );
         self.mapping_names.extend(other.mapping_names);
         self.occurrences.extend(other.occurrences);
@@ -964,10 +962,6 @@ fn equal_names<I: Idx>(
     target: fn(I) -> RenameTarget,
 ) -> Vec<RenameTarget> {
     names.indices().filter(|&candidate| names[id] == names[candidate]).map(target).collect()
-}
-
-fn offset_id<I: Idx>(id: I, offset: usize) -> I {
-    I::from_usize(id.index() + offset)
 }
 
 fn compare_locations(a: &Location, b: &Location) -> std::cmp::Ordering {

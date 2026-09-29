@@ -69,14 +69,7 @@ fn collect_comment_ranges(source: &str) -> Vec<Candidate> {
         let end = start + token.len as usize;
         match token.kind {
             RawTokenKind::LineComment { .. } => {
-                if let Some(group) = &mut line_group
-                    && has_one_line_break(&source[group.end..start])
-                {
-                    group.end = end;
-                } else {
-                    flush_line_comment_group(&mut ranges, &mut line_group);
-                    line_group = Some(start..end);
-                }
+                push_line_comment(source, &mut ranges, &mut line_group, start..end);
             }
             RawTokenKind::BlockComment { .. } => {
                 flush_line_comment_group(&mut ranges, &mut line_group);
@@ -111,14 +104,7 @@ fn collect_lexical_info(source: &str, include_fallback: bool) -> LexicalInfo {
         }
         match token.kind {
             RawTokenKind::LineComment { .. } => {
-                if let Some(group) = &mut line_group
-                    && has_one_line_break(&source[group.end..start])
-                {
-                    group.end = end;
-                } else {
-                    flush_line_comment_group(&mut ranges, &mut line_group);
-                    line_group = Some(start..end);
-                }
+                push_line_comment(source, &mut ranges, &mut line_group, start..end);
             }
             RawTokenKind::Whitespace => {}
             RawTokenKind::BlockComment { .. } => {
@@ -152,6 +138,23 @@ fn collect_lexical_info(source: &str, include_fallback: bool) -> LexicalInfo {
         .sort_unstable_by_key(|candidate| (candidate.range.start, Reverse(candidate.range.end)));
     fallback_ranges.dedup_by_key(|candidate| candidate.range.start);
     LexicalInfo { ranges, fallback_ranges, unclosed_braces }
+}
+
+/// Extends the current line-comment group when only one line break separates the comments.
+fn push_line_comment(
+    source: &str,
+    ranges: &mut Vec<Candidate>,
+    line_group: &mut Option<ByteRange<usize>>,
+    comment: ByteRange<usize>,
+) {
+    if let Some(group) = line_group
+        && has_one_line_break(&source[group.end..comment.start])
+    {
+        group.end = comment.end;
+    } else {
+        flush_line_comment_group(ranges, line_group);
+        *line_group = Some(comment);
+    }
 }
 
 fn flush_line_comment_group(
@@ -563,18 +566,7 @@ struct FlatPositionIndex<'a> {
 
 impl<'a> FlatPositionIndex<'a> {
     fn new(source: &'a str, file: Option<&SourceFile>) -> Self {
-        let mut line_starts = Vec::new();
-        line_starts.push(0);
-        let mut previous_cr_end = None;
-        for offset in memchr::memchr2_iter(b'\r', b'\n', source.as_bytes()) {
-            let is_cr = source.as_bytes()[offset] == b'\r';
-            if !is_cr && previous_cr_end == Some(offset) {
-                *line_starts.last_mut().unwrap() = offset + 1;
-            } else {
-                line_starts.push(offset + 1);
-            }
-            previous_cr_end = is_cr.then_some(offset + 1);
-        }
+        let line_starts = crate::proto::line_starts([source], 1);
         let mut multibyte_offsets = Vec::new();
         let mut extra_bytes = 0;
         if let Some(file) = file {

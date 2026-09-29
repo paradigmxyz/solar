@@ -95,17 +95,17 @@ impl TypeHierarchyIndex {
             other
                 .candidate_key_by_symbol
                 .into_iter()
-                .map(|(symbol_id, key)| (symbol_id.offset_by(symbol_offset), key)),
+                .map(|(symbol_id, key)| (symbol_id + symbol_offset, key)),
         );
         self.items_by_symbol.extend(
             other
                 .items_by_symbol
                 .into_iter()
-                .map(|(symbol_id, item)| (symbol_id.offset_by(symbol_offset), item)),
+                .map(|(symbol_id, item)| (symbol_id + symbol_offset, item)),
         );
         self.direct_edges.extend(other.direct_edges.into_iter().map(|edge| HierarchyEdge {
-            derived: edge.derived.offset_by(symbol_offset),
-            base: edge.base.offset_by(symbol_offset),
+            derived: edge.derived + symbol_offset,
+            base: edge.base + symbol_offset,
         }));
         self.invalidate_query_indexes();
     }

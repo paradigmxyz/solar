@@ -388,12 +388,20 @@ fn byte_column(contents: &RopeSlice<'_>, character: u32) -> Option<usize> {
 }
 
 fn collect_line_starts(rope: &Rope) -> Vec<usize> {
-    let mut line_starts = Vec::with_capacity(rope.line_len() + 1);
+    line_starts(rope.chunks(), rope.line_len() + 1)
+}
+
+/// Returns the byte offset of every LSP line start, treating CR, LF, and CRLF as line breaks.
+pub(crate) fn line_starts<'a>(
+    chunks: impl IntoIterator<Item = &'a str>,
+    capacity: usize,
+) -> Vec<usize> {
+    let mut line_starts = Vec::with_capacity(capacity);
     line_starts.push(0);
 
     let mut chunk_start = 0;
     let mut previous_cr_end = None;
-    for chunk in rope.chunks() {
+    for chunk in chunks {
         for index in memchr::memchr2_iter(b'\r', b'\n', chunk.as_bytes()) {
             let offset = chunk_start + index;
             let is_cr = chunk.as_bytes()[index] == b'\r';
