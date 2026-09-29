@@ -508,9 +508,7 @@ fn preserve_split_control_target(
 /// Recognizes a small recurring word computation whose branch must stay on the local path.
 fn has_short_word_backedge(module: &Module, header: BlockId) -> bool {
     module.blocks[header].instructions.windows(2).any(|pair| {
-        // Only a raw `JUMPI` has this opcode byte and this one-byte form.
-        pair[1].opcode == op::JUMPI
-            && pair[1].as_evm_opcode() == Some(op::JUMPI)
+        pair[1].as_evm_opcode() == Some(op::JUMPI)
             && pair[0].pushed_block().is_some_and(|target| {
                 let latch = &module.blocks[target];
                 matches!(latch.terminator.as_ref().map(|term| &term.kind),
