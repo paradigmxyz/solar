@@ -85,7 +85,7 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
     // A rejected machine run can veto a push share, so skip runs only when no push can share.
     let pushes = may_share_pushes(gcx);
     let runs = pushes || may_share_machine_runs(gcx, module);
-    (runs && outline_machine_runs(gcx, module, &mut state, !pushes))
+    (runs && outline_machine_runs(gcx, module, &mut state))
         | ((gcx.sess.opts.optimization.is_size() || module.enable_size_outlining)
             && outline_parametric_machine_runs(gcx, module, &mut state))
         | (pushes && outline_repeated_pushes(gcx, module, &mut state))
@@ -204,14 +204,7 @@ fn push_share_costs(target: Target) -> (usize, usize, u32) {
     (transfer_size(target), body_bytes, transfer_gas(target) + target.opcode_gas(op::SWAP1))
 }
 
-/// With `lifetime_only`, which requires gas mode, a run that cannot repay its transfers is not
-/// grouped at all, since its rejection could only veto a push share.
-fn outline_machine_runs(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    state: &mut RunState,
-    lifetime_only: bool,
-) -> bool {
+fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
     // Enumerating every contiguous run is quadratic in a block's length, and
     // hashing each run's instructions made it cubic. Two exact filters and a
     // candidate budget keep it in hand:
@@ -232,16 +225,6 @@ fn outline_machine_runs(
     let target = Target::new(gcx);
     let transfer_size = transfer_size(target);
     let shuffle_size = target.opcode(op::SWAP1).bytes as usize;
-    // Any number of gas-mode sites saves less than `size - transfer bytes` per site.
-    let may_repay = |size: usize| {
-        !lifetime_only
-            || sharing_improves_lifetime(
-                size.saturating_sub(transfer_size),
-                1,
-                transfer_gas(target),
-                target.expected_executions(),
-            )
-    };
 
     let mut candidates = FxHashMap::<RunSlice<'_>, SmallVec<[Site; 2]>>::default();
     let mut metrics = Vec::new();
@@ -289,7 +272,6 @@ fn outline_machine_runs(
                 let can_amortize = run_size > transfer_size + inputs as usize * shuffle_size;
                 if len >= MIN_MACHINE_RUN
                     && can_amortize
-                    && may_repay(run_size)
                     && (closed || open_size_run)
                     && is_split_point(&block.instructions, end + 1)
                 {
