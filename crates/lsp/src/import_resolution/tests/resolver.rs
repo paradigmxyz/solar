@@ -23,16 +23,25 @@ fn candidates(completion: &ImportCompletion) -> Vec<&str> {
 }
 
 #[test]
-fn resolver_completes_one_relative_directory_level_and_resolves_overlay_paths() {
+fn resolver_completes_relative_directories_and_resolves_overlay_paths() {
     let project = TestProject::from_fixture(
         r#"
         //- /foundry.toml
+
+        //- /Root.sol
+        contract Root {}
 
         //- /src/Main.sol
         import "./";
 
         //- /src/Local.sol
         contract Local {}
+
+        //- /src/.b.sol
+        contract SingleDot {}
+
+        //- /src/..b.sol
+        contract DoubleDot {}
 
         //- /src/nested/OnDisk.sol
         contract OnDisk {}
@@ -45,49 +54,30 @@ fn resolver_completes_one_relative_directory_level_and_resolves_overlay_paths() 
         [project.path("/src/Unsaved.sol"), project.path("/src/virtual/OnlyInOverlay.sol")];
 
     with_resolver(&project, &overlay, |resolver, importer| {
-        let completion = resolver.complete(importer, "./");
-        assert_eq!(
-            candidates(&completion),
-            ["./Local.sol", "./Main.sol", "./Unsaved.sol", "./nested/", "./virtual/"]
-        );
-        assert!(!completion.is_incomplete());
-        assert_eq!(resolver.resolve(importer, "./Unsaved.sol"), Some(overlay[0].clone()));
-    });
-}
-
-#[test]
-fn resolver_completes_bare_relative_directory_segments_beside_dotfiles() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-
-        //- /Root.sol
-        contract Root {}
-
-        //- /src/Main.sol
-        import ".";
-
-        //- /src/Local.sol
-        contract Local {}
-
-        //- /src/.b.sol
-        contract SingleDot {}
-
-        //- /src/..b.sol
-        contract DoubleDot {}
-        "#,
-    );
-
-    with_resolver(&project, &[], |resolver, importer| {
+        // Completion lists one directory level, and bare relative segments sit beside dotfiles.
         for (prefix, expected) in [
-            (".", &["..b.sol", "./", ".b.sol"][..]),
+            (
+                "./",
+                &[
+                    "./..b.sol",
+                    "./.b.sol",
+                    "./Local.sol",
+                    "./Main.sol",
+                    "./Unsaved.sol",
+                    "./nested/",
+                    "./virtual/",
+                ][..],
+            ),
+            (".", &["..b.sol", "./", ".b.sol"]),
             ("..", &["../", "..b.sol"]),
             ("./.", &["./..b.sol", "././", "./.b.sol"]),
             ("../..", &["../../"]),
         ] {
             let completion = resolver.complete(importer, prefix);
             assert_eq!(candidates(&completion), expected, "prefix: {prefix:?}");
+            assert!(!completion.is_incomplete());
         }
+        assert_eq!(resolver.resolve(importer, "./Unsaved.sol"), Some(overlay[0].clone()));
     });
 }
 

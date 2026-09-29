@@ -1403,21 +1403,6 @@ mod tests {
     }
 
     #[test]
-    fn workspace_path_index_uses_most_specific_base_path() {
-        let project = TestProject::new();
-        let workspaces = [
-            Workspace::naked(project.root().to_path_buf()),
-            Workspace::naked(project.path("/nested")),
-        ];
-        let index = WorkspacePathIndex::new(&workspaces);
-
-        let query = index.query(&project.path("/nested/A.sol"));
-        assert_eq!(query.workspace_idx_for_path(), 1);
-        assert_eq!(query.workspace_idxs_for_import_path().collect::<Vec<_>>(), [0, 1]);
-        assert_eq!(index.query(&project.path("/B.sol")).workspace_idx_for_path(), 0);
-    }
-
-    #[test]
     fn workspace_path_index_selects_import_owners_by_root_kind_and_specificity() {
         let project = TestProject::from_fixture(
             r#"
@@ -1502,6 +1487,12 @@ mod tests {
         ];
         let index = WorkspacePathIndex::new(&workspaces);
         let policy = exclude(&["generated/**"]);
+
+        // The most specific base path owns a path.
+        let query = index.query(&project.path("/nested/A.sol"));
+        assert_eq!(query.workspace_idx_for_path(), 1);
+        assert_eq!(query.workspace_idxs_for_import_path().collect::<Vec<_>>(), [0, 1]);
+        assert_eq!(index.query(&project.path("/B.sol")).workspace_idx_for_path(), 0);
 
         for (path, expected) in [
             ("/nested/Included.sol", Some(1)),
