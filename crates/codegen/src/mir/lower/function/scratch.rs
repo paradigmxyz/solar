@@ -17,20 +17,22 @@
 //! refers to that memory, which the check below proves; a program it cannot prove is rejected.
 //!
 //! The references to the block's memory are the results of the block's allocations, of the
-//! encodings and storage reads that allocate, of its calls that return memory, the pointers
-//! loaded from that memory, and every value derived from those by pure operations. The check
-//! rejects a use of one after the block, a `return` of one, a store of one into memory the block
-//! did not allocate or into storage, and a call in the block whose callee may store a reference to
-//! the block's memory where code after the block can reach it. A callee's summary says, for the
-//! object of each parameter and for any other memory that exists when it is entered, which
-//! pointers it may store there: ones derived from which of its parameters, or any other, such as
-//! memory it allocates, which in the block is the block's memory, or a pointer it loads. A call
-//! escapes when it may store a pointer to the block's memory into an object the block did not
-//! allocate, or into older memory. Callees are summarized over the call graph to a fixed point,
-//! and a callee with inline assembly may store anything anywhere. Type checking already rejected
-//! inline assembly in the block, and lowering rejects the inline assembly of a function body that
-//! a modifier's `_` runs inside it. Scalars, such as hashes, lengths, and loaded words, leave the
-//! block freely.
+//! encodings and storage reads that allocate, of its calls that return memory, the pointers loaded
+//! from that memory, and every value derived from those by pure operations. The check rejects a use
+//! of one after the block, a `return` of one, a store of one into memory the block did not allocate
+//! or into storage, and a call in the block whose callee may store a reference to the block's
+//! memory where code after the block can reach it. Memory the block allocated is what the alias
+//! analysis bases on one of the block's own allocations or encodings: a reference only may point
+//! into the block's memory, and a pointer loaded from that memory or returned by a call may point
+//! to older memory, so a store through one is a store outside. A callee's summary says, for the
+//! object of each parameter and for any other memory that exists when it is entered, which pointers
+//! it may store there: ones derived from which of its parameters, or any other, such as memory it
+//! allocates, which in the block is the block's memory, or a pointer it loads. A call escapes when
+//! it may store a pointer to the block's memory into an object the block did not allocate, or into
+//! older memory. Callees are summarized over the call graph to a fixed point, and a callee with
+//! inline assembly may store anything anywhere. Type checking already rejected inline assembly in
+//! the block, and lowering rejects the inline assembly of a function body that a modifier's `_`
+//! runs inside it. Scalars, such as hashes, lengths, and loaded words, leave the block freely.
 //!
 //! NOTE: reading `msize` after the block sees the memory the block used, as it would without
 //! reuse.
@@ -186,6 +188,17 @@ fn check_region(
             stack.push((result, false));
         }
     }
+    // Whether `pointer` lies in memory the block allocated, rather than only maybe referring to it.
+    let allocated = |pointer: ValueId| {
+        function.aa.memory_address(func, pointer).is_some_and(|address| match address.base {
+            MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site) => inside(site),
+            MemoryBase::Value(value) => match *func.value(value) {
+                Value::Inst(inst) => inside(inst) && allocates_new(func, inst),
+                _ => false,
+            },
+            _ => false,
+        })
+    };
     let mut escapes = Vec::new();
     while let Some((value, was_late)) = stack.pop() {
         for &block in terminators.get(&value).into_iter().flatten() {
@@ -227,7 +240,7 @@ fn check_region(
             }
             if let Some((destination, stored)) = store_operands(kind)
                 && stored == value
-                && destination.is_none_or(|destination| !references.contains(&destination))
+                && destination.is_none_or(|destination| !allocated(destination))
             {
                 escapes.push((instruction.metadata.source_span(), Escape::Stored));
             }
@@ -251,8 +264,7 @@ fn check_region(
         };
         let reaches_outside = block_memory(&writes.other)
             || writes.params.iter().any(|(param, stored)| {
-                args.get(param.index()).is_none_or(|arg| !references.contains(arg))
-                    && block_memory(stored)
+                args.get(param.index()).is_none_or(|&arg| !allocated(arg)) && block_memory(stored)
             });
         if reaches_outside {
             escapes.push((func.inst(inst).metadata.source_span(), Escape::Call(*callee)));
@@ -316,6 +328,13 @@ fn allocates(func: &Function, inst: InstId) -> bool {
         }
         _ => false,
     }
+}
+
+/// Whether `inst` allocates the memory its result refers to during the call, unlike a call to a
+/// function, which may return older memory.
+fn allocates_new(func: &Function, inst: InstId) -> bool {
+    allocates(func, inst)
+        && !matches!(func.inst(inst).kind, InstKind::ICall { function: Callee::Function(_), .. })
 }
 
 /// Whether a value of type `ty` can carry a memory pointer: a reference, an aggregate that may
