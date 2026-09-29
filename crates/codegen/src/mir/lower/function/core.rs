@@ -137,12 +137,39 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let function = self.cx.gcx.hir.function(function_id);
         // The receiver of `using Bytes for bytes` is the first parameter, so
         // both spellings reach the same operand list and the same operation.
-        let mut operands = Vec::with_capacity(function.parameters.len());
-        let mut parameter_tys = Vec::with_capacity(function.parameters.len());
-        let exprs = receiver.into_iter().chain(args.exprs()).collect::<Vec<_>>();
-        for (index, &argument) in exprs.iter().enumerate() {
-            let parameter = *function.parameters.get(index)?;
-            let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
+        // Named arguments bind by name and evaluate in source order, as the
+        // call to the body evaluates them.
+        let names = self.cx.gcx.callable_param_names(CallableParamSource::Function {
+            id: function_id,
+            skips_receiver: receiver.is_some(),
+        });
+        let first = usize::from(receiver.is_some());
+        let arguments = match args.kind {
+            hir::CallArgsKind::Unnamed(exprs) => exprs
+                .iter()
+                .enumerate()
+                .map(|(index, argument)| (first + index, argument))
+                .collect(),
+            hir::CallArgsKind::Named(args) => args
+                .iter()
+                .map(|arg| {
+                    let index = names.iter().position(|&name| name == Some(arg.name.name))?;
+                    Some((first + index, &arg.value))
+                })
+                .collect::<Option<Vec<_>>>()?,
+        };
+        let order = receiver.map(|receiver| (0, receiver)).into_iter().chain(arguments);
+        let order = order.collect::<Vec<_>>();
+        let parameter_tys = function
+            .parameters
+            .iter()
+            .map(|&parameter| self.cx.gcx.type_of_item(parameter.into()))
+            .collect::<Vec<_>>();
+        let mut operands = vec![None; parameter_tys.len()];
+        for (position, &(index, argument)) in order.iter().enumerate() {
+            let parameter_ty = *parameter_tys.get(index)?;
+            // The operands evaluated after this one.
+            let later = || order[position + 1..].iter().map(|&(_, later)| later);
             // A storage reference is passed as its slot, as to any internal call.
             let value = if Self::is_storage_parameter(parameter_ty) {
                 let Some(access) = self.storage_access(argument) else {
@@ -162,13 +189,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 intrinsic,
                 CoreIntrinsic::WriteEncoding | CoreIntrinsic::TryWriteEncoding
             ) && index == 2
+                && later().all(|later| self.core_argument_leaves_memory(later))
                 && let Some((builtin, encode_args)) = self.encoding_call(argument)
             {
-                // The encoding is staged past the free memory pointer. It is the last operand,
-                // so nothing allocates before the intrinsic copies it.
+                // The encoding is staged past the free memory pointer. It is the last operand
+                // to allocate, so nothing allocates before the intrinsic copies it.
                 self.lower_abi_encode_call_scratch(builtin, encode_args)?
             } else if Self::core_call_payload(intrinsic) == Some(index)
-                && exprs[index + 1..].iter().all(|later| self.core_argument_leaves_memory(later))
+                && later().all(|later| self.core_argument_leaves_memory(later))
                 && let Some((builtin, encode_args)) = self.encoding_call(argument)
             {
                 // The payload is staged past the free memory pointer. The operands after it
@@ -179,12 +207,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value = self.lower_typed_expr(argument, parameter_ty)?;
                 self.materialize_call_argument(parameter_ty, value, argument.span)?
             };
-            operands.push(value);
-            parameter_tys.push(parameter_ty);
+            operands[index] = Some(value);
         }
-        if operands.len() != function.parameters.len() {
+        let Some(operands) = operands.into_iter().collect::<Option<Vec<_>>>() else {
             return self.cx.report_unsupported(expr.span, "compiler module argument list");
-        }
+        };
         if intrinsic.returns_from_call() {
             self.before_core_return(expr.span)?;
         }
