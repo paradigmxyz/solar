@@ -323,6 +323,12 @@ the request again; `-Zllm-endpoint` names the gateway's API base, such as
 402 ends the turn. Foundry's `forge optimize` installs such a transport, paid from the Tempo
 account its user signed in with.
 
+An embedder that resolves a project's sources itself compiles them with
+`solar::cli::run_compiler_with_sources`, which runs the command line's pipeline, outputs, and
+rewriter in the embedder's session on the sources a closure adds to the parsing context; the
+closure can also set the context's import remappings and include paths. `forge optimize`
+compiles a Foundry project this way.
+
 ## Limits
 
 - Testing is not proof. A candidate that differs only on inputs no generator reaches is

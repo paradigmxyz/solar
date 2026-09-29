@@ -39,7 +39,7 @@ pub mod signal_handler {
 mod args;
 use args::Args;
 
-pub use commands::compile::run_compiler_args;
+pub use commands::compile::{run_compiler_args, run_compiler_with_sources};
 
 // `asm` feature.
 use alloy_primitives as _;
