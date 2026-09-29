@@ -3,14 +3,14 @@ llm-optimize TailCalls @main: not offered: is the dispatch entry
 llm-optimize TailCalls @helper: offered at 52 gas, 21 bytes
 llm-optimize TailCalls @helper: round 1: nothing cheaper
 llm-optimize TailCalls @parity: not offered: is recursive
-llm-optimize TailCalls @wraps: offered at 247 gas, 50 bytes
-llm-optimize TailCalls @wraps: round 1: accepted at 78 gas, 10 bytes
+llm-optimize TailCalls @wraps: offered at 86 gas, 13 bytes
+llm-optimize TailCalls @wraps: round 1: accepted at 76 gas, 10 bytes
 llm-optimize TailCalls @wraps: round 2: nothing cheaper
-llm-optimize TailCalls @wraps: rewritten from 247 gas, 50 bytes to 78 gas, 10 bytes
-llm-optimize TailCalls @forwards: offered at 368 gas, 50 bytes
+llm-optimize TailCalls @wraps: rewritten from 86 gas, 13 bytes to 76 gas, 10 bytes
+llm-optimize TailCalls @forwards: offered at 127 gas, 10 bytes
 llm-optimize TailCalls @forwards: round 1: rejected at constraints: tail calls `@parity`, which is recursive or an entry point; call it instead
 llm-optimize TailCalls @forwards: round 2: nothing cheaper
-llm-optimize TailCalls @shared: offered at 247 gas, 50 bytes
+llm-optimize TailCalls @shared: offered at 78 gas, 10 bytes
 llm-optimize TailCalls @shared: round 1: rejected at constraints: tail calls from code the constructor runs, which deployment cannot do; call and return instead
 llm-optimize TailCalls @shared: round 2: nothing cheaper
 - // === ROOT/tests/ui/codegen/mir/llm-optimize/tail_calls.mir (before llm-optimize) ===
@@ -55,9 +55,11 @@ llm-optimize TailCalls @shared: round 2: nothing cheaper
   
   fn @wraps(arg0: i256) -> i256 {
     bb0:
-      v0 = mul arg0, 3
--     v1 = icall @helper, v0
--     ret v1
+-     v0 = mul arg0, 4
+-     v1 = add v0, 0
+-     v2 = icall @helper, v1
+-     ret v2
++     v0 = shl 2, arg0
 +     tail_call @helper, v0
   }
   

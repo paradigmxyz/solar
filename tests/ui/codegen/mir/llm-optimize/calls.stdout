@@ -1,10 +1,10 @@
 llm-optimize Calls @main: not offered: is the dispatch entry
 llm-optimize Calls @increment: offered at 52 gas, 21 bytes
 llm-optimize Calls @increment: round 1: nothing cheaper
-llm-optimize Calls @twice: offered at 429 gas, 75 bytes
+llm-optimize Calls @twice: offered at 260 gas, 35 bytes
 llm-optimize Calls @twice: round 1: accepted at 52 gas, 21 bytes
 llm-optimize Calls @twice: round 2: nothing cheaper
-llm-optimize Calls @twice: rewritten from 429 gas, 75 bytes to 52 gas, 21 bytes
+llm-optimize Calls @twice: rewritten from 260 gas, 35 bytes to 52 gas, 21 bytes
 llm-optimize Calls @forward: offered at 67 gas, 6 bytes
 llm-optimize Calls @forward: round 1: rejected at cost: costs 52 gas, 21 bytes, which does not beat 67 gas, 6 bytes
 llm-optimize Calls @forward: round 2: nothing cheaper
