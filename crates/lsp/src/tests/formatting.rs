@@ -12,6 +12,8 @@ use crate::{
     test_support::{change, within},
 };
 
+const OPEN_TEST: &str = "//- /workspace/Test.sol open\ncontract Test{}\n";
+
 #[test]
 fn formatting_edits_replace_the_whole_changed_document() {
     assert_eq!(formatting_edits("contract C {}", "contract C {}".into()), None);
@@ -67,13 +69,7 @@ fn formatter_failures_map_to_concise_request_failed_errors() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn missing_forge_returns_request_failed() {
-    let mut project = TestProject::from_fixture(
-        r#"
-        //- /workspace/Test.sol
-        contract Test {}
-        "#,
-    );
-    project.open_file("/workspace/Test.sol", "contract Test{}");
+    let project = TestProject::from_fixture(OPEN_TEST);
     let mut state = formatting_state(&project, &project.path("/missing-forge"), &["/workspace"]);
 
     let error = format(&mut state, &project, "/workspace/Test.sol").await.unwrap_err();
@@ -84,20 +80,23 @@ async fn missing_forge_returns_request_failed() {
 
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
-async fn formatting_rejects_empty_output_for_non_whitespace_source() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /workspace/Test.sol
-        contract Test {}
-        "#,
-    );
-    let forge = write_formatter_executable(&project, &[], "cat >/dev/null");
-    let mut state = formatting_state(&project, &forge, &["/workspace"]);
+async fn formatting_rejects_failed_config_resolution_and_empty_output() {
+    let project = TestProject::from_fixture(OPEN_TEST);
+    for (ignores, message) in [
+        (None, "Forge config resolution failed"),
+        (Some(&[][..]), "Forge formatter returned empty output"),
+    ] {
+        let formatter = ": > \"$0.formatted\"\ncat >/dev/null";
+        let forge = write_formatter_executable(&project, ignores, formatter);
+        let mut state = formatting_state(&project, &forge, &["/workspace"]);
 
-    let error = format(&mut state, &project, "/workspace/Test.sol").await.unwrap_err();
+        let error = format(&mut state, &project, "/workspace/Test.sol").await.unwrap_err();
 
-    assert_eq!(error.code, ErrorCode::REQUEST_FAILED);
-    assert_eq!(error.message, "Forge formatter returned empty output");
+        assert_eq!(error.code, ErrorCode::REQUEST_FAILED);
+        assert_eq!(error.message, message);
+        // Failed config resolution stops before the formatter runs.
+        assert_eq!(project.path("/fake-forge.formatted").exists(), ignores.is_some());
+    }
 }
 
 #[cfg(unix)]
@@ -123,7 +122,7 @@ async fn formatting_sends_vfs_or_disk_source_with_the_owning_foundry_root() {
     project.open_file("/workspace/nested/Test.sol", unsaved);
     let forge = write_formatter_executable(
         &project,
-        &[],
+        Some(&[]),
         r#"printf '%s\n' "$@" > "$0.args"
 cat > "$0.stdin"
 printf 'contract Test { string s = "🚀"; }'"#,
@@ -165,7 +164,7 @@ async fn formatting_skips_files_ignored_by_resolved_forge_config() {
     project.open_file("/workspace/src/Resolved.sol", "contract Resolved{uint value;}");
     let forge = write_formatter_executable(
         &project,
-        &["src/Resolved.sol", "src/Missing.sol"],
+        Some(&["src/Resolved.sol", "src/Missing.sol"]),
         ": > \"$0.formatted\"\ncat",
     );
     let mut state = formatting_state(&project, &forge, &["/workspace"]);
@@ -183,47 +182,11 @@ async fn formatting_skips_files_ignored_by_resolved_forge_config() {
 
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
-async fn formatting_stops_when_forge_config_resolution_fails() {
-    let mut project = TestProject::from_fixture(
-        r#"
-        //- /workspace/Test.sol
-        contract Test {}
-        "#,
-    );
-    project.open_file("/workspace/Test.sol", "contract Test{}");
-    let forge = write_executable(
-        &project,
-        "/fake-forge",
-        r#"#!/bin/sh
-set -eu
-if [ "${1-}" = lint ]; then exit 1; fi
-if [ "${1-}" = config ]; then printf 'invalid config' >&2; exit 7; fi
-: > "$0.formatted"
-cat
-"#,
-    );
-    let mut state = formatting_state(&project, &forge, &["/workspace"]);
-
-    let error = format(&mut state, &project, "/workspace/Test.sol").await.unwrap_err();
-
-    assert_eq!(error.code, ErrorCode::REQUEST_FAILED);
-    assert_eq!(error.message, "Forge config resolution failed");
-    assert!(!project.path("/fake-forge.formatted").exists());
-}
-
-#[cfg(unix)]
-#[tokio::test(flavor = "current_thread")]
 async fn formatting_rejects_results_after_document_change() {
-    let mut project = TestProject::from_fixture(
-        r#"
-        //- /workspace/Test.sol
-        contract Test {}
-        "#,
-    );
-    project.open_file("/workspace/Test.sol", "contract Test{}");
+    let project = TestProject::from_fixture(OPEN_TEST);
     let forge = write_formatter_executable(
         &project,
-        &[],
+        Some(&[]),
         r#"cat > "$0.stdin"
 : > "$0.ready.tmp"
 mv "$0.ready.tmp" "$0.ready"
@@ -267,13 +230,21 @@ fn formatting_state(project: &TestProject, forge: &Path, roots: &[&str]) -> Glob
     state
 }
 
+/// Writes a fake Forge whose `config` prints `ignores`, or fails without them, and whose `fmt`
+/// runs `formatter`.
 #[cfg(unix)]
 fn write_formatter_executable(
     project: &TestProject,
-    ignores: &[&str],
+    ignores: Option<&[&str]>,
     formatter: &str,
 ) -> std::path::PathBuf {
-    let config = json!({ "fmt": { "ignore": ignores } });
+    let config = match ignores {
+        Some(ignores) => {
+            let config = json!({ "fmt": { "ignore": ignores } });
+            format!("printf '%s\\n' \"$@\" > \"$0.config-args\"\nprintf '%s' '{config}'")
+        }
+        None => "printf 'invalid config' >&2\nexit 7".into(),
+    };
     let contents = format!(
         r#"#!/bin/sh
 set -eu
@@ -282,8 +253,7 @@ lint)
 exit 1
 ;;
 config)
-printf '%s\n' "$@" > "$0.config-args"
-printf '%s' '{config}'
+{config}
 ;;
 fmt)
 {formatter}
