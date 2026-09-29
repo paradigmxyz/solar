@@ -186,6 +186,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     entries: FxHashMap::default(),
                     aliases: FxHashMap::default(),
                     terminal_sensitive: true,
+                    layout_limit: None,
                 }
             };
             let abi = self.static_call_abi_mut(func_id, func.params.len());
@@ -499,7 +500,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             crate::mir::Value::Arg(index) => {
                 if self.in_internal_function {
-                    self.scheduler.reject_hazard_arg_fallback(val);
+                    self.scheduler.reject_hazard_value_fallback(val);
                     let func_id = self
                         .current_internal_function
                         .expect("internal caller has a current function");
@@ -517,6 +518,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             crate::mir::Value::Inst(_) => {
                 let slot = spill_slot.expect("computed stack argument has a validated spill slot");
+                self.scheduler.reject_hazard_value_fallback(val);
                 self.emit_spill_load(func, slot);
             }
             other => unreachable!("stack-arg mask admitted an unsupported value: {other:?}"),
@@ -621,7 +623,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         if !self.scheduler.is_stack_only_value(value) {
             return;
         }
-        if self.scheduler.reject_hazard_arg_fallback(value) {
+        if self.scheduler.reject_hazard_value_fallback(value) {
             // Finish this failed attempt without repeating the depth-materialization loop.
             self.scheduler.materialize_stack_only_value(value);
             return;
@@ -691,13 +693,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         if transient_growth == 0 {
             return;
         }
+        // Protected values cannot use a speculative memory home. They may sit below temporary
+        // operands until the instruction consumes those operands; exact operand staging still
+        // checks every access. Reserve room for the persistent result instead.
         let materialize_depth = self.stack_access_limit().saturating_sub(transient_growth);
         let mut disabled_residency = false;
         loop {
             let entry = self.scheduler.stack.iter().enumerate().find_map(|(depth, value)| {
                 value
                     .filter(|&value| {
-                        depth >= materialize_depth && self.scheduler.is_stack_only_value(value)
+                        depth >= materialize_depth
+                            && self.scheduler.is_stack_only_value(value)
+                            && (!self.scheduler.is_hazard_protected(value)
+                                || depth >= self.stack_access_limit().saturating_sub(1))
                     })
                     .map(|value| (depth, value))
             });

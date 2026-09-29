@@ -330,7 +330,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     [*gas, *addr, *value, *args_offset, *args_size, *ret_offset, *ret_size];
                 self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
                 self.prepare_fresh_operands(func, &operands);
-                self.stage_stack_only_fresh_operands(&[
+                if !self.stage_stack_only_fresh_operands(&[
                     *ret_size,
                     *ret_offset,
                     *args_size,
@@ -338,7 +338,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     *value,
                     *addr,
                     *gas,
-                ]);
+                ]) {
+                    return;
+                }
                 self.emit_value_fresh(func, *ret_size);
                 self.emit_value_fresh(func, *ret_offset);
                 self.emit_value_fresh(func, *args_size);
@@ -365,7 +367,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     [*gas, *addr, *value, *args_offset, *args_size, *ret_offset, *ret_size];
                 self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
                 self.prepare_fresh_operands(func, &operands);
-                self.stage_stack_only_fresh_operands(&[
+                if !self.stage_stack_only_fresh_operands(&[
                     *ret_size,
                     *ret_offset,
                     *args_size,
@@ -373,7 +375,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     *value,
                     *addr,
                     *gas,
-                ]);
+                ]) {
+                    return;
+                }
                 self.emit_value_fresh(func, *ret_size);
                 self.emit_value_fresh(func, *ret_offset);
                 self.emit_value_fresh(func, *args_size);
@@ -391,14 +395,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let operands = [*gas, *addr, *args_offset, *args_size, *ret_offset, *ret_size];
                 self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
                 self.prepare_fresh_operands(func, &operands);
-                self.stage_stack_only_fresh_operands(&[
+                if !self.stage_stack_only_fresh_operands(&[
                     *ret_size,
                     *ret_offset,
                     *args_size,
                     *args_offset,
                     *addr,
                     *gas,
-                ]);
+                ]) {
+                    return;
+                }
                 self.emit_value_fresh(func, *ret_size);
                 self.emit_value_fresh(func, *ret_offset);
                 self.emit_value_fresh(func, *args_size);
@@ -414,14 +420,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let operands = [*gas, *addr, *args_offset, *args_size, *ret_offset, *ret_size];
                 self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
                 self.prepare_fresh_operands(func, &operands);
-                self.stage_stack_only_fresh_operands(&[
+                if !self.stage_stack_only_fresh_operands(&[
                     *ret_size,
                     *ret_offset,
                     *args_size,
                     *args_offset,
                     *addr,
                     *gas,
-                ]);
+                ]) {
+                    return;
+                }
                 // DELEGATECALL(gas, addr, argsOffset, argsSize, retOffset, retSize)
                 self.emit_value_fresh(func, *ret_size);
                 self.emit_value_fresh(func, *ret_offset);

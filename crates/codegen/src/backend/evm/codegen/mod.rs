@@ -1299,6 +1299,7 @@ RETURN
             ]),
             aliases: FxHashMap::default(),
             terminal_sensitive: true,
+            layout_limit: None,
         };
 
         assert_eq!(plan.uniformly_carried_values(&function, &term), [first]);
@@ -1356,6 +1357,7 @@ RETURN
             entries: FxHashMap::from_iter([(join, vec![ValueId::from_usize(16)])]),
             aliases: FxHashMap::default(),
             terminal_sensitive: true,
+            layout_limit: None,
         };
 
         assert!(!phi.merge_resident(

@@ -653,9 +653,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(in crate::backend::evm::codegen) fn stage_stack_only_fresh_operands(
         &mut self,
         operands: &[ValueId],
-    ) {
+    ) -> bool {
         if !self.scheduler.has_stack_only_values() {
-            return;
+            return true;
         }
         let stack_access_limit = self.stack_access_limit();
 
@@ -678,15 +678,22 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
             let Some(operand) = inaccessible else { break };
-            let Some(depth) = self.scheduler.stack.find(operand) else {
+            let depth = self.scheduler.stack.find(operand);
+            if depth.is_none_or(|depth| depth >= stack_access_limit)
+                && self.scheduler.reject_hazard_value_fallback(operand)
+            {
+                return false;
+            }
+            let Some(depth) = depth else {
                 if self.recover_lost_internal_stack_value(operand) {
-                    return;
+                    return false;
                 }
                 panic!("stack-only CALL operand {operand:?} was lost before its use");
             };
             assert!(depth < stack_access_limit, "stack-only CALL operand exceeded DUP reach");
             self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
         }
+        true
     }
 
     pub(in crate::backend::evm::codegen) fn stack_access_limit(&self) -> usize {
@@ -1140,7 +1147,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn store_stack_top_to_spill(&mut self, func: &Function, value: ValueId, slot: SpillSlot) {
-        self.scheduler.reject_hazard_arg_fallback(value);
+        self.scheduler.reject_hazard_value_fallback(value);
         // Store to spill slot: PUSH offset, MSTORE.
         // The PUSH creates an untracked stack entry, so we track it as unknown.
         self.emit_spill_slot_addr(func, slot);
@@ -1323,7 +1330,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         value: ValueId,
     ) -> bool {
         let Some(func_id) = self.current_internal_function else { return false };
-        if !self.scheduler.reject_hazard_arg_fallback(value) {
+        if !self.scheduler.reject_hazard_value_fallback(value) {
             self.disabled_stack_only_functions.insert(func_id);
         }
         self.asm.emit_push(U256::ZERO);

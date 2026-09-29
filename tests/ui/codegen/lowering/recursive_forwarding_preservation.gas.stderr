@@ -1,6 +1,6 @@
-error: codegen cannot preserve arguments across a low-memory write in `recurse`
+error: codegen cannot preserve values across a low-memory write in `recurse`
 
-error: codegen cannot preserve arguments across a low-memory write in `copyLoop`
+error: codegen cannot preserve values across a low-memory write in `constructor`
 
 error: aborting due to 2 previous errors
 

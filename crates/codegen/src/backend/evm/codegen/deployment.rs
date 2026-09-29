@@ -7,6 +7,7 @@ use super::{
     immutable_staging_addr, immutable_staging_base, immutable_staging_end, op,
 };
 use crate::{backend::assembler::PreparedAssembly, link::LibraryRelocation};
+use solar_interface::diagnostics::ErrorGuaranteed;
 
 struct PreparedDeploymentPrefix {
     assembly: PreparedAssembly,
@@ -94,13 +95,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         // are appended after the generated deployment prefix, so their offset
         // and the runtime-code offset depend on its final push widths. Only
         // repeat final assembly while both offsets stabilize.
-        let prepared_deploy_code = self.prepare_deployment_prefix(
+        let Ok(prepared_deploy_code) = self.prepare_deployment_prefix(
             module,
             &call_graph,
             runtime_len,
             copy_base,
             &immutable_refs,
-        );
+        ) else {
+            return EvmArtifact::default();
+        };
         let mut deploy_code_len = 0usize;
         let mut constructor_arg_offset = runtime_len;
         let mut deploy_code = self.assemble_deployment_prefix(
@@ -314,7 +317,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         runtime_len: usize,
         copy_base: u64,
         immutable_refs: &[ImmutableRef],
-    ) -> PreparedDeploymentPrefix {
+    ) -> Result<PreparedDeploymentPrefix, ErrorGuaranteed> {
         self.asm.clear();
         self.asm.set_artifact_kind(ArtifactKind::Constructor);
         self.asm.set_evm_ir_name(module.name.name);
@@ -500,11 +503,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_push(U256::ZERO);
             self.asm.emit_op(op::REVERT);
         }
-        PreparedDeploymentPrefix {
+        self.gcx.dcx().has_errors()?;
+        Ok(PreparedDeploymentPrefix {
             assembly: self.asm.prepare(self.capture_evm_ir, self.capture_debug_info),
             constructor_arg_offset,
             runtime_offset,
-        }
+        })
     }
 
     fn assemble_deployment_prefix(

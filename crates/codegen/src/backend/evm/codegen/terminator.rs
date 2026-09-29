@@ -41,6 +41,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Handle destination: either a MIR value or a temporary
         match &copy.dst {
             CopyDest::Value(dst_val) => {
+                self.scheduler.reject_hazard_value_fallback(*dst_val);
                 // Spill the value on top of stack to the destination's spill slot
                 // This allows the successor block to reload it
                 let slot = self.scheduler.spills.reserve(*dst_val);

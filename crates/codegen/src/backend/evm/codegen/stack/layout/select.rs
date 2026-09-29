@@ -453,9 +453,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// that output to a call.
     pub(in crate::backend::evm::codegen) fn compute_spill_hazard_stack_layout(
         &self,
+        func_id: FunctionId,
         func: &Function,
         liveness: &Liveness,
-        stack_phi_plan: &StackPhiPlan,
         values: &[ValueId],
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         if self.spill_hazard_insts.is_empty() {
@@ -466,36 +466,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             return None;
         }
 
-        let mut plan = GlobalStackPlan::analyze_resident_args(
+        let plan = GlobalStackPlan::analyze_resident_args_with_limit(
             func,
             liveness,
             values,
-            self.preserve_caller_stack
-                || self.current_internal_function.is_some_and(|func_id| {
-                    if !self.can_preserve_hazard_caller_stack(func_id) {
-                        return false;
-                    }
-                    let computed = values
-                        .iter()
-                        .copied()
-                        .filter(|&value| !matches!(func.value(value), Value::Arg(_)))
-                        .collect::<Vec<_>>();
-                    !GlobalStackPlan::values_live_across_calls(func, liveness, &computed)
-                }),
+            self.preserve_caller_stack || self.can_preserve_hazard_caller_stack(func_id),
+            self.global_stack_layout_limit(),
         )?;
-        // Phi operands are edge uses, not unchanged target live-ins. Full
-        // liveness conservatively includes them at the header; remove those
-        // incoming identities from the resident prefix so the phi edge can
-        // replace each source with its result instead of trying to carry both.
-        for (&pred, edge) in &stack_phi_plan.edges {
-            let Some(Terminator::Jump(target)) = func.blocks[pred].terminator.as_ref() else {
-                continue;
-            };
-            if let Some(entry) = plan.entries.get_mut(target) {
-                entry.retain(|value| !edge.sources.contains(value));
-            }
-        }
-        plan.entries.retain(|_, entry| !entry.is_empty());
         Some((values.to_vec(), plan))
     }
 

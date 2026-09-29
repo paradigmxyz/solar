@@ -188,13 +188,24 @@ impl<'gcx> EvmCodegen<'gcx> {
                 protected_stack_values.push(value);
             }
         }
+        if !stack_phi_plan.require_phis(func, &hazard_cross_block_values, self.stack_access_limit())
+        {
+            self.gcx
+                .dcx()
+                .err(format!(
+                    "codegen cannot preserve values across a low-memory forwarding buffer in `{}`",
+                    func.name
+                ))
+                .emit();
+            return;
+        }
         let hazard_stack_layout = (!hazard_cross_block_values.is_empty()
             && !resident_carries_hazards)
             .then(|| {
                 self.compute_spill_hazard_stack_layout(
+                    func_id,
                     func,
                     liveness,
-                    &stack_phi_plan,
                     &protected_stack_values,
                 )
             })
@@ -231,10 +242,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut stack_phi_sources = stack_phi_plan.edge_sources();
         if required_stack_plan {
             if !stack_phi_plan.merge_resident(func, &global_stack_plan, self.stack_access_limit()) {
-                // Selection preflights this exact composition. If a future transform invalidates
-                // that proof, regenerate the runtime with the ordinary frame-backed convention
-                // instead of emitting a partial stack ABI or panicking.
-                self.disabled_stack_only_functions.insert(func_id);
+                // Optional residency can retry with frame-backed arguments. A mandatory hazard
+                // layout has no memory fallback, so reject a failed composition outright.
+                if has_hazard_stack_plan {
+                    self.gcx.dcx().err(format!(
+                        "codegen cannot preserve values across a low-memory forwarding buffer in `{}`",
+                        func.name
+                    )).emit();
+                } else {
+                    self.disabled_stack_only_functions.insert(func_id);
+                }
                 return;
             }
             stack_phi_sources = stack_phi_plan.edge_sources();
@@ -523,12 +540,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             stack_only_values.extend(hazard_stack_values.into_iter().flatten().copied());
             self.scheduler.set_stack_only_values(func.num_values(), stack_only_values);
-            if self.in_internal_function {
-                for &value in hazard_stack_values.into_iter().flatten() {
-                    if matches!(func.value(value), Value::Arg(_)) {
-                        self.scheduler.protect_hazard_arg(func.num_values(), value);
-                    }
-                }
+            for &value in hazard_stack_values.into_iter().flatten() {
+                self.scheduler.protect_hazard_value(func.num_values(), value);
             }
             if block_id != BlockId::ENTRY
                 && self.resident_stack_args(func_id).is_some()
@@ -615,10 +628,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                                 self.emit_value(func, value);
                             }
                             pinned_hazard_values.insert(value);
-                            if self.in_internal_function
-                                && matches!(func.value(value), Value::Arg(_))
-                            {
-                                self.scheduler.protect_hazard_arg(func.num_values(), value);
+                            if matches!(func.value(value), Value::Arg(_)) {
+                                self.scheduler.protect_hazard_value(func.num_values(), value);
                             }
                         }
                         self.scheduler.spills.invalidate_stored(value);
@@ -1552,7 +1563,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.gcx
             .dcx()
             .err(format!(
-                "codegen cannot preserve arguments across a low-memory write in `{}`",
+                "codegen cannot preserve values across a low-memory write in `{}`",
                 func.name
             ))
             .emit();

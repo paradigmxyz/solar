@@ -670,26 +670,20 @@ bb88:
   push 31
   not
   and
-  swap 4
   push 32
+  dup 6
   add
-  dup 5
+  dup 2
   iszero
+  exchange 5, 6
+  iszero
+  push bb84
+  jumpi
+  swap 4
+  pop
+  swap 1
   swap 2
   swap 3
-  swap 4
-  swap 5
-  swap 2
-  push bb85
-  jumpi
-  push 32
-  dup 3
-  sub
-  dup 2
-  add
-  push 0
-  swap 1
-  mstore
   jump bb85
 bb85:
   swap 1
@@ -900,6 +894,17 @@ bb77 [loop]:
   add
   swap 1
   jump bb75
+bb84:
+  swap 4
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
+  swap 1
+  swap 2
+  swap 3
+  jump bb85
 bb72 [cold]:
   pop
   pop

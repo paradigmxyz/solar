@@ -68,7 +68,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
-        let resident_call_values: Vec<_> = if self.preserve_caller_stack {
+        let mut resident_call_values: Vec<_> = if self.preserve_caller_stack {
             self.resident_stack_args(func_id)
                 .into_iter()
                 .flatten()
@@ -81,6 +81,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else {
             Vec::new()
         };
+
+        if self.can_preserve_hazard_caller_stack(func_id) {
+            self.retain_hazard_call_values(liveness, block, inst_idx, &mut resident_call_values);
+        }
 
         // Frame layout: [reserved][saved frame ptr][args][returns][locals][spills].
         // The first slot is reserved (the return address used to live there;
@@ -609,13 +613,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         if self.can_preserve_hazard_caller_stack(func_id) && !self.spill_hazard_insts.is_empty() {
-            for value in self.scheduler.stack.iter().flatten() {
-                if self.scheduler.is_stack_only_value(value)
-                    && matches!(func.value(value), Value::Arg(_))
-                    && liveness.is_used_at_or_after(value, block, inst_idx + 1)
-                    && !resident_call_values.contains(&value)
-                {
-                    resident_call_values.push(value);
+            self.retain_hazard_call_values(liveness, block, inst_idx, &mut resident_call_values);
+            if let Some(mask) = &stack_mask {
+                for index in mask.iter() {
+                    let arg = args[index];
+                    if self.scheduler.is_hazard_protected(arg)
+                        && !resident_call_values.contains(&arg)
+                    {
+                        resident_call_values.push(arg);
+                    }
                 }
             }
         }
@@ -736,6 +742,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         if let Some(mask) = &stack_mask {
             for (i, &arg) in args.iter().enumerate() {
                 if mask.contains(i)
+                    && !resident_call_values.contains(&arg)
                     && !retention_plan.as_ref().is_some_and(|plan| plan.retained.contains(i))
                     && !caller_stack_plan
                         .as_ref()
@@ -857,7 +864,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // state rather than the child activation's last stores.
         for &value in &recursive_call_values {
             if let crate::mir::Value::Arg(index) = func.value(value) {
-                self.scheduler.reject_hazard_arg_fallback(value);
+                self.scheduler.reject_hazard_value_fallback(value);
                 let depth = self.scheduler.stack.find(value).unwrap_or_else(|| {
                     panic!("recursive caller argument {value:?} was not preserved")
                 });
@@ -1147,7 +1154,25 @@ impl<'gcx> EvmCodegen<'gcx> {
         &self,
         func_id: FunctionId,
     ) -> bool {
-        self.static_frame_functions.contains(func_id)
+        !self.in_constructor
             && !self.recursion_reaching_functions.contains(func_id)
+            && !self.recursive_stack_functions.contains(func_id)
+    }
+
+    fn retain_hazard_call_values(
+        &self,
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+        retained: &mut Vec<ValueId>,
+    ) {
+        for value in self.scheduler.stack.iter().flatten() {
+            if self.scheduler.is_hazard_protected(value)
+                && liveness.is_used_at_or_after(value, block, inst_idx + 1)
+                && !retained.contains(&value)
+            {
+                retained.push(value);
+            }
+        }
     }
 }
