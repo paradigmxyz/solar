@@ -78,9 +78,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// The length of the encoding the call [`Self::encoding_call`] found would produce, from its
     /// arguments' lengths without encoding them when every argument is a value, a byte string,
-    /// an array of values or a static aggregate. Otherwise the encoding is staged past the free
-    /// memory pointer, without reserving it, and measured. The arguments are evaluated either
-    /// way.
+    /// an array of values or a static aggregate, and none holds an enum, whose range the encoding
+    /// checks. Otherwise the encoding is staged past the free memory pointer, without reserving
+    /// it, and measured. The arguments are evaluated either way.
     pub(super) fn lower_abi_encoded_size(
         &mut self,
         builtin: Builtin,
@@ -103,10 +103,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         };
         let (layout, values) = self.lower_abi_encode_arguments(exprs)?;
-        let measurable = |ty: &AbiType| match ty {
-            AbiType::Bytes(_) => true,
-            AbiType::DynamicArray { element, .. } => !element.is_dynamic(),
-            _ => !ty.is_dynamic(),
+        let measurable = |ty: &AbiType| {
+            !checks_enum_range(ty)
+                && match ty {
+                    AbiType::Bytes(_) => true,
+                    AbiType::DynamicArray { element, .. } => !element.is_dynamic(),
+                    _ => !ty.is_dynamic(),
+                }
         };
         if !layout.types.iter().all(measurable) {
             // size = len(abi_encode_scratch(layout, selector, values))
@@ -1159,5 +1162,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             InstKind::builtin(crate::mir::Builtin::EcRecover, [hash, v, r, s]),
             Some(MirType::I256),
         ))
+    }
+}
+
+/// Whether encoding a value of type `ty` checks an enum's range, which fails with `Panic(0x21)`
+/// for a word out of range.
+fn checks_enum_range(ty: &AbiType) -> bool {
+    match ty {
+        AbiType::Word(validator) => matches!(validator, Some(AbiWordValidator::EnumRange(_))),
+        AbiType::Function | AbiType::Bytes(_) => false,
+        AbiType::DynamicArray { element, .. } | AbiType::FixedArray { element, .. } => {
+            checks_enum_range(element)
+        }
+        AbiType::Tuple(fields) => fields.iter().any(checks_enum_range),
     }
 }
