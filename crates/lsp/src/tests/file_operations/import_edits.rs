@@ -6,7 +6,7 @@ use crate::{
 use lsp_types::TextEdit;
 use solar_config::ImportRemapping;
 use solar_parse::lexer::unescape::{StrKind, try_parse_string_literal};
-use std::{collections::HashMap, fs};
+use std::collections::HashMap;
 
 #[cfg(unix)]
 use std::{ffi::OsString, os::unix::ffi::OsStringExt};
@@ -336,7 +336,7 @@ fn rename_file_preserves_non_utf8_import_bytes() {
 
     #[cfg(target_os = "linux")]
     {
-        fs::write(&target, "contract Target {}").unwrap();
+        std::fs::write(&target, "contract Target {}").unwrap();
         let edits = analyze_project(&project).import_rename_edits(&moves);
         let edit = edits.first_edit().unwrap();
         assert_eq!(edit.new_text, r#""./Renamed-\xFE.sol""#);
