@@ -591,11 +591,12 @@ pub(crate) fn goto_definition(
                     return Ok(symbol_definition());
                 };
                 symbol_tables.import_definition(&uri, position).or_else(|| {
+                    let overlay_paths = overlay_paths(&vfs.read());
                     match parse_import_definition_request(
                         importer,
                         contents,
                         position,
-                        overlay_paths(&vfs.read()),
+                        overlay_paths,
                         vfs_content_revision,
                     ) {
                         Some(import_request) => import_request.resolve(context),
@@ -685,11 +686,12 @@ fn import_definition_request(
             .ok()
             .map(|contents| Rope::from(contents.as_str()))
     })?;
+    let overlay_paths = overlay_paths(&state.vfs.read());
     Some(ImportDefinitionRequest::Parsed(parse_import_definition_request(
         importer,
         contents,
         position,
-        overlay_paths(&state.vfs.read()),
+        overlay_paths,
         vfs_content_revision,
     )?))
 }
