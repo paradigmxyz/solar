@@ -51,6 +51,7 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
+use tokio::task::JoinError;
 use tracing::warn;
 
 const WORKSPACE_DIAGNOSTIC_PARTIAL_BATCH_SIZE: usize = 64;
@@ -119,7 +120,7 @@ pub(crate) fn folding_range(
         let ranges = if let Some(source) = cached_source {
             tokio::task::spawn_blocking(move || source.folding_ranges())
                 .await
-                .map_err(folding_range_task_failed)?
+                .map_err(task_failed("folding-range"))?
         } else {
             let contents = { vfs.read().get_file_contents(&vfs_path).cloned() };
             let task = if let Some(rope) = contents {
@@ -136,7 +137,7 @@ pub(crate) fn folding_range(
                 };
                 tokio::task::spawn_blocking(move || crate::folding_range::folding_ranges(source))
             };
-            task.await.map_err(folding_range_task_failed)?
+            task.await.map_err(task_failed("folding-range"))?
         };
         Ok(Some(ranges))
     }
@@ -161,14 +162,14 @@ pub(crate) fn selection_range(
         let ranges = if let Some(source) = open_source {
             tokio::task::spawn_blocking(move || source.selection_ranges(&positions))
                 .await
-                .map_err(selection_range_task_failed)?
+                .map_err(task_failed("selection-range"))?
         } else {
             let source = tokio::fs::read_to_string(path).await.map_err(document_read_failed)?;
             tokio::task::spawn_blocking(move || {
                 crate::selection_range::selection_ranges(source, &positions)
             })
             .await
-            .map_err(selection_range_task_failed)?
+            .map_err(task_failed("selection-range"))?
         }
         .ok_or_else(|| {
             ResponseError::new(ErrorCode::INVALID_PARAMS, "invalid selection range position")
@@ -256,14 +257,17 @@ fn document_read_failed(error: io::Error) -> ResponseError {
     request_failed("failed to read document")
 }
 
-fn folding_range_task_failed(error: tokio::task::JoinError) -> ResponseError {
-    warn!(%error, "folding-range task failed");
-    ResponseError::new(ErrorCode::INTERNAL_ERROR, "folding-range task failed")
+fn task_failed(task: &'static str) -> impl FnOnce(JoinError) -> ResponseError {
+    move |error| {
+        warn!(%error, "{task} task failed");
+        ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("{task} task failed"))
+    }
 }
 
-fn selection_range_task_failed(error: tokio::task::JoinError) -> ResponseError {
-    warn!(%error, "selection-range task failed");
-    ResponseError::new(ErrorCode::INTERNAL_ERROR, "selection-range task failed")
+fn task_error(task: &'static str) -> impl FnOnce(JoinError) -> ResponseError {
+    move |error| {
+        ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("{task} task failed: {error}"))
+    }
 }
 
 fn formatter_failed(error: FormatterError) -> ResponseError {
@@ -303,6 +307,20 @@ fn latest_navigation_analysis_for_uri(
     let analysis = latest_analysis_for_uri(state, uri)?;
     state.prioritize_pending_analysis();
     Some(analysis)
+}
+
+/// Runs `query` on the latest analysis, or returns `default` when the request needs none.
+async fn query_analysis<T>(
+    analysis: Option<impl Future<Output = Result<Arc<ArcSwap<SymbolTables>>, ResponseError>>>,
+    default: T,
+    query: impl FnOnce(&SymbolTables) -> T,
+) -> Result<T, ResponseError> {
+    let Some(analysis) = analysis else { return Ok(default) };
+    Ok(query(&analysis.await?.load()))
+}
+
+fn position_params(params: TextDocumentPositionParams) -> (Url, Position) {
+    (normalize_file_uri(params.text_document.uri), params.position)
 }
 
 type ConfiguredAnalysis = (Arc<ArcSwap<SymbolTables>>, Arc<Config>);
@@ -357,24 +375,19 @@ pub(crate) fn document_symbol(
 ) -> impl Future<Output = Result<Option<DocumentSymbolResponse>, ResponseError>> + use<> {
     let hierarchical = state.config.supports_hierarchical_document_symbols();
     let uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_analysis_for_uri(state, &uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else {
-            let response = if hierarchical {
-                DocumentSymbolResponse::Nested(Vec::new())
-            } else {
-                DocumentSymbolResponse::Flat(Vec::new())
-            };
-            return Ok(Some(response));
-        };
-        let symbol_tables = latest_analysis.await?;
-        let response = if hierarchical {
-            DocumentSymbolResponse::Nested(symbol_tables.load().document_symbols(&uri))
+    let analysis = latest_analysis_for_uri(state, &uri);
+    let empty = if hierarchical {
+        DocumentSymbolResponse::Nested(Vec::new())
+    } else {
+        DocumentSymbolResponse::Flat(Vec::new())
+    };
+    query_analysis(analysis, Some(empty), move |tables| {
+        Some(if hierarchical {
+            DocumentSymbolResponse::Nested(tables.document_symbols(&uri))
         } else {
-            DocumentSymbolResponse::Flat(symbol_tables.load().flat_document_symbols(&uri))
-        };
-        Ok(Some(response))
-    }
+            DocumentSymbolResponse::Flat(tables.flat_document_symbols(&uri))
+        })
+    })
 }
 
 pub(crate) fn document_links(
@@ -382,14 +395,16 @@ pub(crate) fn document_links(
     mut params: DocumentLinkParams,
 ) -> impl Future<Output = Result<Option<Vec<DocumentLink>>, ResponseError>> + use<> {
     params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let request =
-        params.text_document.uri.to_file_path().ok().map(|path| (path, state.latest_analysis()));
-    async move {
-        let Some((path, latest_analysis)) = request else { return Ok(Some(Vec::new())) };
-        let symbol_tables = latest_analysis.await?;
-        let links = symbol_tables.load().document_links(&path);
-        Ok(Some(links))
-    }
+    let (path, analysis) = params
+        .text_document
+        .uri
+        .to_file_path()
+        .ok()
+        .map(|path| (path, state.latest_analysis()))
+        .unzip();
+    query_analysis(analysis, Some(Vec::new()), move |tables| {
+        path.map(|path| tables.document_links(&path))
+    })
 }
 
 pub(crate) fn code_actions(
@@ -419,12 +434,7 @@ pub(crate) fn code_actions(
             )
         })
         .await
-        .map_err(|error| {
-            ResponseError::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("code-action task failed: {error}"),
-            )
-        })?;
+        .map_err(task_error("code-action"))?;
         Ok(Some(actions))
     }
 }
@@ -550,42 +560,25 @@ pub(crate) fn prepare_type_hierarchy(
     state: &mut GlobalState,
     params: TypeHierarchyPrepareParams,
 ) -> impl Future<Output = Result<Option<Vec<TypeHierarchyItem>>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let uri = params.text_document.uri;
-    let latest_analysis = latest_analysis_for_uri(state, &uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.load().prepare_type_hierarchy(&uri, params.position);
-        Ok(response)
-    }
+    let (uri, position) = position_params(params.text_document_position_params);
+    let analysis = latest_analysis_for_uri(state, &uri);
+    query_analysis(analysis, None, move |tables| tables.prepare_type_hierarchy(&uri, position))
 }
 
 pub(crate) fn type_hierarchy_supertypes(
     state: &mut GlobalState,
     params: TypeHierarchySupertypesParams,
 ) -> impl Future<Output = Result<Option<Vec<TypeHierarchyItem>>, ResponseError>> + use<> {
-    let latest_analysis = latest_analysis_for_uri(state, &params.item.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.load().type_hierarchy_supertypes(&params.item);
-        Ok(response)
-    }
+    let analysis = latest_analysis_for_uri(state, &params.item.uri);
+    query_analysis(analysis, None, move |tables| tables.type_hierarchy_supertypes(&params.item))
 }
 
 pub(crate) fn type_hierarchy_subtypes(
     state: &mut GlobalState,
     params: TypeHierarchySubtypesParams,
 ) -> impl Future<Output = Result<Option<Vec<TypeHierarchyItem>>, ResponseError>> + use<> {
-    let latest_analysis = latest_analysis_for_uri(state, &params.item.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.load().type_hierarchy_subtypes(&params.item);
-        Ok(response)
-    }
+    let analysis = latest_analysis_for_uri(state, &params.item.uri);
+    query_analysis(analysis, None, move |tables| tables.type_hierarchy_subtypes(&params.item))
 }
 
 pub(crate) fn goto_definition(
@@ -766,92 +759,52 @@ pub(crate) fn goto_type_definition(
     state: &mut GlobalState,
     params: GotoDefinitionParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response =
-            symbol_tables.load().goto_type_definition(&params.text_document.uri, params.position);
-        Ok(response)
-    }
+    let (uri, position) = position_params(params.text_document_position_params);
+    let analysis = latest_navigation_analysis_for_uri(state, &uri);
+    query_analysis(analysis, None, move |tables| tables.goto_type_definition(&uri, position))
 }
 
 pub(crate) fn goto_declaration(
     state: &mut GlobalState,
     params: GotoDefinitionParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response =
-            symbol_tables.load().goto_declaration(&params.text_document.uri, params.position);
-        Ok(response)
-    }
+    let (uri, position) = position_params(params.text_document_position_params);
+    let analysis = latest_navigation_analysis_for_uri(state, &uri);
+    query_analysis(analysis, None, move |tables| tables.goto_declaration(&uri, position))
 }
 
 pub(crate) fn goto_implementation(
     state: &mut GlobalState,
     params: GotoImplementationParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response =
-            symbol_tables.load().goto_implementation(&params.text_document.uri, params.position);
-        Ok(response)
-    }
+    let (uri, position) = position_params(params.text_document_position_params);
+    let analysis = latest_navigation_analysis_for_uri(state, &uri);
+    query_analysis(analysis, None, move |tables| tables.goto_implementation(&uri, position))
 }
 
 pub(crate) fn prepare_call_hierarchy(
     state: &mut GlobalState,
     params: CallHierarchyPrepareParams,
 ) -> impl Future<Output = Result<Option<Vec<CallHierarchyItem>>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response =
-            symbol_tables.load().prepare_call_hierarchy(&params.text_document.uri, params.position);
-        Ok(response)
-    }
+    let (uri, position) = position_params(params.text_document_position_params);
+    let analysis = latest_analysis_for_uri(state, &uri);
+    query_analysis(analysis, None, move |tables| tables.prepare_call_hierarchy(&uri, position))
 }
 
 pub(crate) fn call_hierarchy_incoming(
     state: &mut GlobalState,
     params: CallHierarchyIncomingCallsParams,
 ) -> impl Future<Output = Result<Option<Vec<CallHierarchyIncomingCall>>, ResponseError>> + use<> {
-    let item = params.item;
-    let latest_analysis = latest_analysis_for_uri(state, &item.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.load().call_hierarchy_incoming(&item);
-        Ok(response)
-    }
+    let analysis = latest_analysis_for_uri(state, &params.item.uri);
+    query_analysis(analysis, None, move |tables| tables.call_hierarchy_incoming(&params.item))
 }
 
 pub(crate) fn call_hierarchy_outgoing(
     state: &mut GlobalState,
     params: CallHierarchyOutgoingCallsParams,
 ) -> impl Future<Output = Result<Option<Vec<CallHierarchyOutgoingCall>>, ResponseError>> + use<> {
-    let item = params.item;
-    let latest_analysis = latest_analysis_for_uri(state, &item.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.load().call_hierarchy_outgoing(&item);
-        Ok(response)
-    }
+    let analysis = latest_analysis_for_uri(state, &params.item.uri);
+    query_analysis(analysis, None, move |tables| tables.call_hierarchy_outgoing(&params.item))
 }
 
 pub(crate) fn references(
@@ -859,19 +812,11 @@ pub(crate) fn references(
     params: ReferenceParams,
 ) -> impl Future<Output = Result<Option<Vec<lsp_types::Location>>, ResponseError>> + use<> {
     let include_declaration = params.context.include_declaration;
-    let mut params = params.text_document_position;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.load().references(
-            &params.text_document.uri,
-            params.position,
-            include_declaration,
-        );
-        Ok(response)
-    }
+    let (uri, position) = position_params(params.text_document_position);
+    let analysis = latest_navigation_analysis_for_uri(state, &uri);
+    query_analysis(analysis, None, move |tables| {
+        tables.references(&uri, position, include_declaration)
+    })
 }
 
 pub(crate) fn code_lens(
@@ -880,45 +825,28 @@ pub(crate) fn code_lens(
 ) -> impl Future<Output = Result<Option<Vec<CodeLens>>, ResponseError>> + use<> {
     let uri = normalize_file_uri(params.text_document.uri);
     let options = state.config.code_lens_options();
-    let latest_analysis =
-        if options.is_active() { latest_analysis_for_uri(state, &uri) } else { None };
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(Some(Vec::new())) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.load().code_lenses(&uri, options);
-        Ok(Some(response))
-    }
+    let analysis = if options.is_active() { latest_analysis_for_uri(state, &uri) } else { None };
+    query_analysis(analysis, Some(Vec::new()), move |tables| {
+        Some(tables.code_lenses(&uri, options))
+    })
 }
 
 pub(crate) fn document_highlight(
     state: &mut GlobalState,
     params: DocumentHighlightParams,
 ) -> impl Future<Output = Result<Option<Vec<DocumentHighlight>>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response =
-            symbol_tables.load().document_highlights(&params.text_document.uri, params.position);
-        Ok(response)
-    }
+    let (uri, position) = position_params(params.text_document_position_params);
+    let analysis = latest_analysis_for_uri(state, &uri);
+    query_analysis(analysis, None, move |tables| tables.document_highlights(&uri, position))
 }
 
 pub(crate) fn hover(
     state: &mut GlobalState,
     params: HoverParams,
 ) -> impl Future<Output = Result<Option<Hover>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.load().hover(&params.text_document.uri, params.position);
-        Ok(response)
-    }
+    let (uri, position) = position_params(params.text_document_position_params);
+    let analysis = latest_navigation_analysis_for_uri(state, &uri);
+    query_analysis(analysis, None, move |tables| tables.hover(&uri, position))
 }
 
 pub(crate) fn prepare_rename(
@@ -940,7 +868,7 @@ pub(crate) fn prepare_rename(
             Ok(Some(PrepareRenameResponse::Range(candidate.range)))
         })
         .await
-        .map_err(rename_task_failed)?
+        .map_err(task_error("rename"))?
     }
 }
 
@@ -987,13 +915,9 @@ pub(crate) fn rename(
             validated_rename_workspace_edit(candidate, new_name, vfs, document_changes)
         })
         .await
-        .map_err(rename_task_failed)?
+        .map_err(task_error("rename"))?
         .map(Some)
     }
-}
-
-fn rename_task_failed(error: tokio::task::JoinError) -> ResponseError {
-    ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("rename task failed: {error}"))
 }
 
 fn ensure_rename_coverage(
@@ -1010,16 +934,13 @@ fn ensure_rename_coverage(
 
 pub(crate) fn inlay_hints(
     state: &mut GlobalState,
-    mut params: InlayHintParams,
+    params: InlayHintParams,
 ) -> impl Future<Output = Result<Option<Vec<InlayHint>>, ResponseError>> + use<> {
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(Some(Vec::new())) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.load().inlay_hints(&params.text_document.uri, params.range);
-        Ok(Some(response))
-    }
+    let uri = normalize_file_uri(params.text_document.uri);
+    let analysis = latest_analysis_for_uri(state, &uri);
+    query_analysis(analysis, Some(Vec::new()), move |tables| {
+        Some(tables.inlay_hints(&uri, params.range))
+    })
 }
 
 pub(crate) fn signature_help(
