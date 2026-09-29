@@ -90,6 +90,8 @@ fn specialize_round(
 ) -> bool {
     let graph = CallGraphInfo::new(module);
     let target = Target::new(gcx);
+    // A trial module holds only the priced body, so it inherits the module's length bound.
+    let lengths_bounded = check_elim::object_lengths_bounded(module);
     let mut sites: IndexVec<FunctionId, Vec<CallSite>> =
         index_vec![Vec::new(); module.functions.len()];
     let mut tail_called =
@@ -222,7 +224,8 @@ fn specialize_round(
             if !tried.insert((callee, constants.clone(), selected.len(), all_calls)) {
                 return None;
             }
-            price_leaf(gcx, target, module.name, body, &constants, count, all_calls)
+            let trial = Trial { name: module.name, lengths_bounded, count, all_calls };
+            price_leaf(gcx, target, body, &constants, trial)
         }) else {
             continue;
         };
@@ -253,17 +256,28 @@ fn specialize_round(
     changed
 }
 
+/// How a trial specialization is priced.
+#[derive(Clone, Copy)]
+struct Trial {
+    /// The name of the module the body comes from.
+    name: Ident,
+    /// Whether that module bounds object lengths, which the trial module alone cannot tell.
+    lengths_bounded: bool,
+    /// The call sites the specialization replaces.
+    count: u32,
+    /// Whether those are all the calls, so that the generic body goes away.
+    all_calls: bool,
+}
+
 /// Specializes the leaf `body` for `constants` in a trial module and returns the simplified body
-/// when, called from `count` sites, it shrinks the module without costing more gas. Unless the
-/// sites are `all_calls`, the generic body stays and is charged in full.
+/// when, called from the trial's sites, it shrinks the module without costing more gas. Unless
+/// the sites are all the calls, the generic body stays and is charged in full.
 fn price_leaf(
     gcx: solar_sema::Gcx<'_>,
     target: Target,
-    name: Ident,
     body: &Function,
     constants: &Constants,
-    count: u32,
-    all_calls: bool,
+    Trial { name, lengths_bounded, count, all_calls }: Trial,
 ) -> Option<Function> {
     let mut candidate = body.clone();
     let uses = candidate.arg_uses();
@@ -281,7 +295,7 @@ fn price_leaf(
     for pass in [
         &sccp::Sccp as &dyn MirPass,
         &egraph::Egraph,
-        &check_elim::CheckElim,
+        &check_elim::TrialCheckElim { lengths_bounded },
         &cfg_simplify::CfgSimplify,
         &dce::Dce,
     ] {

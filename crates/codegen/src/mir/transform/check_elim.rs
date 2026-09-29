@@ -224,15 +224,50 @@ impl MirPass for CheckElim {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let object_lengths = object_length_bound(module);
-        let summaries = object_lengths.is_some().then(|| analyses.call_summaries(module));
-        let never_returning = Arc::new(never_returning(module));
-        run_function_pass(module, analyses, |func, _| {
-            let mut eliminator = CheckEliminator::new(None, object_lengths);
-            eliminator.call_summaries.clone_from(&summaries);
-            eliminator.never_returning = Some(Arc::clone(&never_returning));
-            eliminator.run(func) != 0
-        })
+        eliminate_checks(module, analyses, object_lengths)
     }
+}
+
+/// Check elimination for a trial module that holds copies of another module's functions, as
+/// specialization prices them. The copies may carry no assembly while the original module's
+/// assembly still writes the lengths of the objects they receive, so the trial bounds object
+/// lengths only when the original module does.
+pub(crate) struct TrialCheckElim {
+    /// Whether the original module bounds object lengths, as [`object_lengths_bounded`] decides.
+    pub(crate) lengths_bounded: bool,
+}
+
+impl MirPass for TrialCheckElim {
+    fn name(&self) -> &'static str {
+        "check-elim"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        let object_lengths = object_length_bound(module).filter(|_| self.lengths_bounded);
+        eliminate_checks(module, analyses, object_lengths)
+    }
+}
+
+/// Runs check elimination over every function of `module`, bounding object lengths by
+/// `object_lengths` when the module guarantees that bound.
+fn eliminate_checks(
+    module: &mut Module,
+    analyses: &mut crate::mir::pass::ModuleAnalyses,
+    object_lengths: Option<Range>,
+) -> bool {
+    let summaries = object_lengths.is_some().then(|| analyses.call_summaries(module));
+    let never_returning = Arc::new(never_returning(module));
+    run_function_pass(module, analyses, |func, _| {
+        let mut eliminator = CheckEliminator::new(None, object_lengths);
+        eliminator.call_summaries.clone_from(&summaries);
+        eliminator.never_returning = Some(Arc::clone(&never_returning));
+        eliminator.run(func) != 0
+    })
 }
 
 /// Revisits checks exposed by physical memory lowering and CSE.
@@ -375,8 +410,14 @@ fn is_cleanup(func: &Function, kind: &InstKind) -> bool {
 /// leaves lengths unknown. Removed functions no longer run, and inlining keeps the bit on the
 /// callers that received their code.
 fn object_length_bound(module: &Module) -> Option<Range> {
-    (!module.functions.iter().any(|func| func.attributes.inline_assembly))
+    object_lengths_bounded(module)
         .then(|| Range::new(U256::ZERO, U256::from(EvmMemoryLayout::MAX_ALLOCATION_END)))
+}
+
+/// Whether every memory object's logical length in `module` stays below the allocation limit:
+/// no function carries inline assembly, which alone can write a length word.
+pub(crate) fn object_lengths_bounded(module: &Module) -> bool {
+    !module.functions.iter().any(|func| func.attributes.inline_assembly)
 }
 
 pub(crate) struct ImmutableCheckElim;
