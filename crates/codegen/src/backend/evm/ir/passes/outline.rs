@@ -144,7 +144,13 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
         metrics.extend(block.instructions.iter().map(|inst| {
             whitelisted_effect(inst).map(|effect| (effect, instruction_size_lower_bound(gcx, inst)))
         }));
+        let mut remaining = metrics.iter().flatten().map(|&(_, size)| size).sum::<usize>();
         for start in 0..metrics.len() {
+            // No later start can reach a profitable size either.
+            if !profitable(remaining) {
+                break;
+            }
+            remaining -= metrics[start].map_or(0, |(_, size)| size);
             if !is_split_point(&block.instructions, start) {
                 continue;
             }
