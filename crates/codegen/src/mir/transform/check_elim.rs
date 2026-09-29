@@ -600,19 +600,6 @@ impl<'a> CheckEliminator<'a> {
             (folds, checks) =
                 self.collect_folds(func, &cfg, &preds, &facts, &[], &mut Vec::new(), selected);
         }
-        if let Some((selected, reverting)) = selected {
-            folds.retain(|&(block, keep)| {
-                if selected.contains(block)
-                    && let Some(Terminator::Branch { then_block, else_block, .. }) =
-                        func.blocks[block].terminator
-                {
-                    let discarded = if keep == then_block { else_block } else { then_block };
-                    leads_to_revert(func, discarded, reverting)
-                } else {
-                    false
-                }
-            });
-        }
         self.ranges.clear();
         self.relations.clear();
         self.range_undo.clear();
@@ -640,8 +627,8 @@ impl<'a> CheckEliminator<'a> {
     /// Walks the dominator tree, recording edge and check facts. Returns branch folds and
     /// proven passing checks to remove.
     /// `candidates` whose update is proven wrap-free in its defining block's
-    /// scope are appended to `proven`. With `selected`, only branches the caller
-    /// could keep folded are evaluated; evaluation records no facts.
+    /// scope are appended to `proven`. With `selected`, only folds of selected branches whose
+    /// discarded arm reverts are evaluated and returned; evaluation records no facts.
     #[allow(clippy::too_many_arguments)]
     fn collect_folds(
         &mut self,
@@ -730,6 +717,10 @@ impl<'a> CheckEliminator<'a> {
                                     || leads_to_revert(func, *else_block, reverting))
                         })
                         && let Some(truth) = self.eval_truth(func, *condition, MAX_DEPTH)
+                        && selected.is_none_or(|(_, reverting)| {
+                            let discarded = if truth { *else_block } else { *then_block };
+                            leads_to_revert(func, discarded, reverting)
+                        })
                     {
                         folds.push((block, if truth { *then_block } else { *else_block }));
                     }

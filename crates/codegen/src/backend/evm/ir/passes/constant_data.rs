@@ -106,7 +106,7 @@ fn find_run(
     if words < 2 {
         return None;
     }
-    let data = literal_store_bytes(instructions, start, end);
+    let data = literal_store_bytes(instructions, start, end, words);
 
     let old_size = instructions[start..end]
         .iter()

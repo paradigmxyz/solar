@@ -292,28 +292,15 @@ impl JumpThreader {
             return false;
         }
 
-        for (other_block, block) in func.blocks.iter_enumerated() {
-            if other_block == block_id {
-                continue;
-            }
-            let mut found = false;
-            for &inst_id in &block.instructions {
-                func.inst(inst_id)
-                    .kind
-                    .visit_operands(|operand| found |= results.contains(operand));
-                if found {
-                    return true;
-                }
-            }
-            if let Some(term) = &block.terminator {
-                term.visit_operands(|operand| found |= results.contains(operand));
-                if found {
-                    return true;
-                }
-            }
-        }
-
-        false
+        let external = |operand| results.contains(operand);
+        func.blocks.iter_enumerated().any(|(other_block, block)| {
+            other_block != block_id
+                && (block
+                    .instructions
+                    .iter()
+                    .any(|&inst_id| func.inst(inst_id).kind.any_operand(external))
+                    || block.terminator.as_ref().is_some_and(|term| term.any_operand(external)))
+        })
     }
 
     fn thread_phi_constant_edges(&mut self, func: &mut Function) -> usize {

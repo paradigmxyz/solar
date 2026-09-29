@@ -268,17 +268,12 @@ fn find_run(
     instructions: &[Instruction],
     start: usize,
 ) -> Option<(Bytes, Rewrite)> {
-    let (data, end) = literal_store_run(instructions, start)?;
+    let (words, end) = literal_store_words(instructions, start)?;
+    let data = literal_store_bytes(instructions, start, end, words);
     let instructions = &instructions[start..end];
     let old_size = instructions.iter().map(|inst| instruction_size_lower_bound(gcx, inst)).sum();
     let old_gas = instructions.iter().map(|inst| static_gas(gcx, inst)).sum();
     Some((data, Rewrite { block, start, end, old_size, old_gas }))
-}
-
-/// Returns the bytes and exclusive end of a consecutive literal `MSTORE` run.
-fn literal_store_run(instructions: &[Instruction], start: usize) -> Option<(Bytes, usize)> {
-    let (_, end) = literal_store_words(instructions, start)?;
-    Some((literal_store_bytes(instructions, start, end), end))
 }
 
 /// Returns the word count and exclusive end of a consecutive literal `MSTORE` run.
@@ -313,10 +308,15 @@ pub(super) fn literal_store_words(
     Some((words, end))
 }
 
-/// Returns the bytes stored by the literal `MSTORE` run from `start` to `end`.
-pub(super) fn literal_store_bytes(instructions: &[Instruction], start: usize, end: usize) -> Bytes {
+/// Returns the bytes of the `words` literal `MSTORE`s from `start` to `end`.
+pub(super) fn literal_store_bytes(
+    instructions: &[Instruction],
+    start: usize,
+    end: usize,
+    words: usize,
+) -> Bytes {
     let first = instructions[start].concrete_immediate().unwrap();
-    let mut data = Vec::with_capacity((end - start + 3) / 6 * WORD_BYTES);
+    let mut data = Vec::with_capacity(words * WORD_BYTES);
     data.extend_from_slice(&first.to_be_bytes::<WORD_BYTES>());
     for window in instructions[start + 3..end].as_chunks::<6>().0 {
         data.extend_from_slice(

@@ -554,17 +554,13 @@ impl IndVarSimplifier {
             .iter_enumerated()
             .filter(|&(block_id, _)| !loop_data.blocks.contains(block_id))
             .all(|(_, block)| {
-                let mut found = false;
-                if let Some(term) = &block.terminator {
-                    term.visit_operands(|operand| found |= visited.contains(operand));
-                }
-                for &inst_id in &block.instructions {
-                    if inst_id != condition && Some(inst_id) != update {
-                        func.inst(inst_id)
-                            .visit_operands(|operand| found |= visited.contains(operand));
-                    }
-                }
-                !found
+                let read = |operand| visited.contains(operand);
+                !block.terminator.as_ref().is_some_and(|term| term.any_operand(read))
+                    && !block.instructions.iter().any(|&inst_id| {
+                        inst_id != condition
+                            && Some(inst_id) != update
+                            && func.inst(inst_id).kind.any_operand(read)
+                    })
             })
     }
 

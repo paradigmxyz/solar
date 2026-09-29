@@ -313,12 +313,7 @@ pub(super) fn estimated_block_size(
     addressed: bool,
     code_follows: bool,
 ) -> usize {
-    usize::from(addressed)
-        + block.instructions.iter().map(|inst| estimated_instruction_size(gcx, inst)).sum::<usize>()
-        + block
-            .terminator
-            .as_ref()
-            .map_or(0, |term| estimated_terminator_size(gcx, &term.kind, next, code_follows))
+    estimated_block_size_up_to(gcx, block, next, addressed, code_follows, usize::MAX)
 }
 
 /// Returns [`estimated_block_size`] when it is at most `limit`, and otherwise some larger size.
