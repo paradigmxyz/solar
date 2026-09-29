@@ -273,6 +273,115 @@ function documented(uint256 first, uint256 second) public active=0
 }
 
 #[test]
+fn selects_events_and_errors_through_import_namespaces() {
+    // Reused terminal names make a name-only fallback return both declarations.
+    let fixture = RequestFixture::new(
+        r#"
+        //- /A.sol
+        event TransferA(string value);
+        error ErrorA(uint8 code);
+        event Changed(uint256 amount);
+        error Failed(uint256 code);
+
+        //- /B.sol
+        import * as A from "./A.sol";
+
+        event TransferB(uint256 value);
+        error ErrorB(address account);
+        event Changed(address account);
+        error Failed(address account);
+
+        contract BContract {
+            event TransferC(bytes32 value);
+            error ErrorC(bool enabled);
+        }
+
+        //- /C.sol open
+        import * as A from "./A.sol";
+        import * as B from "./B.sol";
+
+        contract C {
+            function emits(address account) public {
+                emit B.TransferB($1 1);
+                emit B.BContract.TransferC($2 bytes32(0));
+                emit B.A.TransferA($3 "value");
+                emit A.Changed($4 1);
+                emit B.Changed($5 account);
+            }
+
+            function revertFromModule(address account) public pure {
+                revert B.ErrorB($6 account);
+            }
+
+            function revertFromContract() public pure {
+                revert B.BContract.ErrorC($7 true);
+            }
+
+            function revertFromNestedModule() public pure {
+                revert B.A.ErrorA($8 1);
+            }
+
+            function revertA() public pure {
+                revert A.Failed($9 1);
+            }
+
+            function revertB(address account) public pure {
+                revert B.Failed($10 account);
+            }
+        }
+        "#,
+        "/C.sol",
+    );
+
+    fixture.check_signature_help(
+        &["$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8", "$9", "$10"],
+        str![[r#"
+$1:
+active signature=Some(0) parameter=Some(0)
+event TransferB(uint256 value)
+  16..29
+$2:
+active signature=Some(0) parameter=Some(0)
+event TransferC(bytes32 value)
+  16..29
+$3:
+active signature=Some(0) parameter=Some(0)
+event TransferA(string memory value)
+  16..35
+$4:
+active signature=Some(0) parameter=Some(0)
+event Changed(uint256 amount)
+  14..28
+$5:
+active signature=Some(0) parameter=Some(0)
+event Changed(address account)
+  14..29
+$6:
+active signature=Some(0) parameter=Some(0)
+error ErrorB(address account)
+  13..28
+$7:
+active signature=Some(0) parameter=Some(0)
+error ErrorC(bool enabled)
+  13..25
+$8:
+active signature=Some(0) parameter=Some(0)
+error ErrorA(uint8 code)
+  13..23
+$9:
+active signature=Some(0) parameter=Some(0)
+error Failed(uint256 code)
+  13..25
+$10:
+active signature=Some(0) parameter=Some(0)
+error Failed(address account)
+  13..28
+
+"#]],
+    );
+}
+
+#[test]
 fn shows_signatures_despite_analysis_errors() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
