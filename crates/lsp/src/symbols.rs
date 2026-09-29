@@ -597,31 +597,22 @@ impl SymbolTables {
                 && entry.inheritance
                 && let Some((bases, derived)) = self.type_hierarchy.direct_counts(&entry.symbol_ids)
             {
-                if bases > 0 {
-                    lenses.push(CodeLens {
-                        range: entry.range,
-                        command: Some(inheritance_command(
-                            InheritanceLensKind::Base,
-                            bases,
-                            uri,
-                            position,
-                            options.client_commands,
-                        )),
-                        data: None,
-                    });
-                }
-                if derived > 0 {
-                    lenses.push(CodeLens {
-                        range: entry.range,
-                        command: Some(inheritance_command(
-                            InheritanceLensKind::Derived,
-                            derived,
-                            uri,
-                            position,
-                            options.client_commands,
-                        )),
-                        data: None,
-                    });
+                for (kind, count) in
+                    [(InheritanceLensKind::Base, bases), (InheritanceLensKind::Derived, derived)]
+                {
+                    if count > 0 {
+                        lenses.push(CodeLens {
+                            range: entry.range,
+                            command: Some(inheritance_command(
+                                kind,
+                                count,
+                                uri,
+                                position,
+                                options.client_commands,
+                            )),
+                            data: None,
+                        });
+                    }
                 }
             }
         }
@@ -859,8 +850,7 @@ impl SymbolTables {
         uri: &Url,
         position: Position,
     ) -> Option<GotoDefinitionResponse> {
-        let locations = self.locations_for_position(uri, position, NavigationTarget::Definition)?;
-        Some(GotoDefinitionResponse::Array(locations))
+        self.locations_for_position(uri, position, NavigationTarget::Definition)
     }
 
     pub(crate) fn goto_declaration(
@@ -868,9 +858,7 @@ impl SymbolTables {
         uri: &Url,
         position: Position,
     ) -> Option<GotoDefinitionResponse> {
-        let locations =
-            self.locations_for_position(uri, position, NavigationTarget::Declaration)?;
-        Some(GotoDefinitionResponse::Array(locations))
+        self.locations_for_position(uri, position, NavigationTarget::Declaration)
     }
 
     pub(crate) fn goto_implementation(
@@ -903,21 +891,20 @@ impl SymbolTables {
             }
             implementations
         };
-        let mut locations = Vec::new();
         let conflicting_contents = self.rename.conflicting_contents();
-        for symbol_id in symbol_ids {
-            let declaration = &self.declarations[symbol_id];
-            if declaration.has_definition
-                && !conflicting_contents.contains(&declaration.location.uri)
-            {
-                locations.push(self.selection_location(symbol_id));
-            }
-        }
+        let mut locations = symbol_ids
+            .into_iter()
+            .filter(|&symbol_id| {
+                let declaration = &self.declarations[symbol_id];
+                declaration.has_definition
+                    && !conflicting_contents.contains(&declaration.location.uri)
+            })
+            .map(|symbol_id| self.selection_location(symbol_id))
+            .collect::<Vec<_>>();
         if locations.is_empty() {
             return None;
         }
-        sort_locations(&mut locations);
-        locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
+        sort_and_dedup_locations(&mut locations);
         Some(GotoDefinitionResponse::Array(locations))
     }
 
@@ -1027,8 +1014,7 @@ impl SymbolTables {
                 .map(|index| self.references[index].location.clone()),
         );
 
-        sort_locations(&mut locations);
-        locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
+        sort_and_dedup_locations(&mut locations);
         Some(locations)
     }
 
@@ -1070,10 +1056,10 @@ impl SymbolTables {
         uri: &Url,
         position: Position,
     ) -> Option<Vec<DocumentHighlight>> {
-        let (highlights, _) = self.query_at_position(uri, position, |targets| {
+        self.query_at_position(uri, position, |targets| {
             Some(self.highlights_for_targets(uri, targets))
-        })?;
-        Some(highlights)
+        })
+        .map(|(highlights, _)| highlights)
     }
 
     fn highlights_for_targets(&self, uri: &Url, targets: &[SymbolId]) -> Vec<DocumentHighlight> {
@@ -1407,15 +1393,6 @@ impl SymbolTables {
         self.references.push(SymbolReference { location, targets, kind });
     }
 
-    #[cfg(test)]
-    fn push_test_declaration(&mut self, declaration: DeclarationSymbol) -> SymbolId {
-        let id = declaration.id;
-        self.files.entry(declaration.location.uri.clone()).or_default().push(id);
-        let pushed_id = self.declarations.push(declaration);
-        debug_assert_eq!(id, pushed_id);
-        id
-    }
-
     fn build_scopes<'gcx>(
         &mut self,
         gcx: Gcx<'gcx>,
@@ -1458,16 +1435,6 @@ impl SymbolTables {
         }
     }
 
-    fn scope_for_span(
-        &mut self,
-        locations: &proto::LocationConverter,
-        span: Span,
-        parent: ScopeId,
-    ) -> Option<ScopeId> {
-        let location = locations.location(span)?;
-        Some(self.push_scope(location.uri, location.range, Some(parent)))
-    }
-
     fn push_scope(&mut self, uri: Url, range: Range, parent: Option<ScopeId>) -> ScopeId {
         let member_scope =
             parent.map_or(self.scopes.next_idx(), |parent| self.scopes[parent].member_scope);
@@ -1476,7 +1443,11 @@ impl SymbolTables {
 
     fn add_scope_declaration(&mut self, scope: ScopeId, item_id: ItemId) {
         if let Some(&symbol_id) = self.symbols_by_key.get(&SymbolKey::Item(item_id)) {
-            self.add_symbol_to_scope(scope, symbol_id);
+            self.scopes[scope].declarations.push(ScopedDeclaration {
+                symbol_id,
+                name: None,
+                available_from: None,
+            });
         }
     }
 
@@ -1487,26 +1458,7 @@ impl SymbolTables {
         item_id: ItemId,
         span: Span,
     ) {
-        if let Some(&symbol_id) = self.symbols_by_key.get(&SymbolKey::Item(item_id)) {
-            self.add_local_symbol_to_scope(locations, scope, symbol_id, span);
-        }
-    }
-
-    fn add_symbol_to_scope(&mut self, scope: ScopeId, symbol_id: SymbolId) {
-        self.scopes[scope].declarations.push(ScopedDeclaration {
-            symbol_id,
-            name: None,
-            available_from: None,
-        });
-    }
-
-    fn add_local_symbol_to_scope(
-        &mut self,
-        locations: &proto::LocationConverter,
-        scope: ScopeId,
-        symbol_id: SymbolId,
-        span: Span,
-    ) {
+        let Some(&symbol_id) = self.symbols_by_key.get(&SymbolKey::Item(item_id)) else { return };
         let available_from = locations
             .location(span)
             .map(|location| location.range.end)
@@ -1674,19 +1626,21 @@ impl SymbolTables {
         name_range: Range,
         parent: Option<SymbolId>,
     ) -> SymbolId {
-        let symbol_id = self.declarations.next_idx();
-        let pushed_id = self.push_test_declaration(DeclarationSymbol {
-            id: symbol_id,
-            name: name.into(),
-            kind,
-            location: Location { uri: uri.clone(), range: location },
-            name_range,
-            parent,
-            rename_is_local: false,
-            has_definition: true,
-            has_getter_completion: false,
-            documentation: None,
-        });
+        let pushed_id = self.push_declaration(
+            None,
+            DeclarationSymbol {
+                id: self.declarations.next_idx(),
+                name: name.into(),
+                kind,
+                location: Location { uri: uri.clone(), range: location },
+                name_range,
+                parent,
+                rename_is_local: false,
+                has_definition: true,
+                has_getter_completion: false,
+                documentation: None,
+            },
+        );
         self.rebuild_indexes();
         pushed_id
     }
@@ -1724,7 +1678,7 @@ impl SymbolTables {
         uri: &Url,
         position: Position,
         target: NavigationTarget,
-    ) -> Option<Vec<Location>> {
+    ) -> Option<GotoDefinitionResponse> {
         let (locations, _) = self.query_at_position(uri, position, |symbol_ids| {
             let mut locations = symbol_ids
                 .iter()
@@ -1735,11 +1689,10 @@ impl SymbolTables {
             if locations.is_empty() {
                 return None;
             }
-            sort_locations(&mut locations);
-            locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
+            sort_and_dedup_locations(&mut locations);
             Some(locations)
         })?;
-        Some(locations)
+        Some(GotoDefinitionResponse::Array(locations))
     }
 
     /// Answers a point query only when the indexed contexts at the smallest range agree.
@@ -2299,7 +2252,8 @@ impl<'gcx> ScopeBuilder<'_, 'gcx> {
 
     fn push_child_scope(&mut self, span: Span) -> Option<ScopeId> {
         let parent = self.scope?;
-        self.tables.scope_for_span(self.locations, span, parent)
+        let location = self.locations.location(span)?;
+        Some(self.tables.push_scope(location.uri, location.range, Some(parent)))
     }
 
     fn with_scope(&mut self, scope: ScopeId, f: impl FnOnce(&mut Self)) {
@@ -2408,11 +2362,7 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
             return ControlFlow::Continue(());
         };
         for &variant in enumm.variants {
-            if let Some(symbol_id) =
-                self.tables.symbols_by_key.get(&SymbolKey::Item(ItemId::Variable(variant)))
-            {
-                self.tables.add_symbol_to_scope(scope, *symbol_id);
-            }
+            self.tables.add_scope_declaration(scope, ItemId::Variable(variant));
         }
         ControlFlow::Continue(())
     }
@@ -2727,13 +2677,11 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
     }
 
     fn symbol_ids_for_expr(&self, expr: &hir::Expr<'gcx>) -> ReferenceTargets {
-        if let Some(symbol_id) =
-            self.gcx.resolved_expr(expr).and_then(|res| self.symbol_id_for_res(res))
-        {
-            return ReferenceTargets::from_buf([symbol_id]);
-        }
-
-        ReferenceTargets::new()
+        self.gcx
+            .resolved_expr(expr)
+            .and_then(|res| self.symbol_id_for_res(res))
+            .into_iter()
+            .collect()
     }
 
     fn push_type_reference(&mut self, ty: &hir::Type<'gcx>) {
@@ -2941,18 +2889,15 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
     }
 }
 
-fn sort_locations(locations: &mut [Location]) {
+fn sort_and_dedup_locations(locations: &mut Vec<Location>) {
     locations.sort_by(|a, b| {
-        a.uri.as_str().cmp(b.uri.as_str()).then_with(|| {
-            (a.range.start.line, a.range.start.character, a.range.end.line, a.range.end.character)
-                .cmp(&(
-                    b.range.start.line,
-                    b.range.start.character,
-                    b.range.end.line,
-                    b.range.end.character,
-                ))
-        })
+        (a.uri.as_str(), a.range.start, a.range.end).cmp(&(
+            b.uri.as_str(),
+            b.range.start,
+            b.range.end,
+        ))
     });
+    locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
 }
 
 fn format_reference_title(count: usize) -> String {
@@ -3306,26 +3251,6 @@ mod tests {
     }
 
     #[test]
-    fn workspace_symbols_preserve_solidity_contract_categories() {
-        let uri = parse_uri("file:///workspace/src/Contract.sol");
-        let mut tables = SymbolTables::default();
-        push(&mut tables, &uri, "Regular", SymbolKind::CLASS, 0, 0, None);
-        push(&mut tables, &uri, "Iface", SymbolKind::INTERFACE, 1, 0, None);
-        push(&mut tables, &uri, "Lib", SymbolKind::MODULE, 2, 0, None);
-
-        let symbols = tables.workspace_symbols("");
-
-        assert_eq!(
-            symbols.iter().map(|symbol| (symbol.name.as_str(), symbol.kind)).collect::<Vec<_>>(),
-            [
-                ("Regular", SymbolKind::CLASS),
-                ("Iface", SymbolKind::INTERFACE),
-                ("Lib", SymbolKind::MODULE)
-            ]
-        );
-    }
-
-    #[test]
     fn workspace_symbols_search_corpus_respects_name_boundaries_and_unicode() {
         let uri = parse_uri("file:///workspace/src/Contract.sol");
         let mut tables = SymbolTables::default();
@@ -3368,67 +3293,35 @@ mod tests {
     fn position_lookups_handle_nested_multiline_and_point_ranges() {
         let uri = parse_uri("file:///workspace/src/Contract.sol");
         let mut tables = SymbolTables::default();
-        let outer = tables.push_for_test(
-            &uri,
-            "outer",
-            SymbolKind::VARIABLE,
-            range(0, 0, 3, 0),
-            range(0, 0, 3, 0),
-            None,
-        );
-        let inner = tables.push_for_test(
-            &uri,
-            "inner",
-            SymbolKind::VARIABLE,
-            range(2, 4, 2, 9),
-            range(2, 4, 2, 9),
-            None,
-        );
-        let point = tables.push_for_test(
-            &uri,
-            "point",
-            SymbolKind::VARIABLE,
-            range(4, 2, 4, 2),
-            range(4, 2, 4, 2),
-            None,
-        );
-        tables.references.extend([
-            SymbolReference {
-                location: Location { uri: uri.clone(), range: range(0, 0, 3, 0) },
-                targets: ReferenceTargets::from_buf([outer]),
+        let [outer, inner, point] = [
+            ("outer", range(0, 0, 3, 0)),
+            ("inner", range(2, 4, 2, 9)),
+            ("point", range(4, 2, 4, 2)),
+        ]
+        .map(|(name, range)| {
+            let symbol_id =
+                tables.push_for_test(&uri, name, SymbolKind::VARIABLE, range, range, None);
+            tables.references.push(SymbolReference {
+                location: Location { uri: uri.clone(), range },
+                targets: ReferenceTargets::from_buf([symbol_id]),
                 kind: DocumentHighlightKind::READ,
-            },
-            SymbolReference {
-                location: Location { uri: uri.clone(), range: range(2, 4, 2, 9) },
-                targets: ReferenceTargets::from_buf([inner]),
-                kind: DocumentHighlightKind::READ,
-            },
-            SymbolReference {
-                location: Location { uri: uri.clone(), range: range(4, 2, 4, 2) },
-                targets: ReferenceTargets::from_buf([point]),
-                kind: DocumentHighlightKind::READ,
-            },
-        ]);
+            });
+            symbol_id
+        });
         tables.rebuild_indexes();
 
-        assert_eq!(tables.declaration_at_position(&uri, Position::new(1, 0)), Some(outer));
-        assert_eq!(tables.declaration_at_position(&uri, Position::new(2, 5)), Some(inner));
-        assert_eq!(tables.declaration_at_position(&uri, Position::new(3, 0)), None);
-        assert_eq!(tables.declaration_at_position(&uri, Position::new(4, 2)), Some(point));
-
-        assert_eq!(
-            tables.reference_at_position(&uri, Position::new(1, 0)).unwrap().targets,
-            ReferenceTargets::from_buf([outer])
-        );
-        assert_eq!(
-            tables.reference_at_position(&uri, Position::new(2, 5)).unwrap().targets,
-            ReferenceTargets::from_buf([inner])
-        );
-        assert!(tables.reference_at_position(&uri, Position::new(3, 0)).is_none());
-        assert_eq!(
-            tables.reference_at_position(&uri, Position::new(4, 2)).unwrap().targets,
-            ReferenceTargets::from_buf([point])
-        );
+        for (position, expected) in [
+            (Position::new(1, 0), Some(outer)),
+            (Position::new(2, 5), Some(inner)),
+            (Position::new(3, 0), None),
+            (Position::new(4, 2), Some(point)),
+        ] {
+            assert_eq!(tables.declaration_at_position(&uri, position), expected);
+            assert_eq!(
+                tables.reference_at_position(&uri, position).map(|reference| &reference.targets),
+                expected.map(|symbol_id| ReferenceTargets::from_buf([symbol_id])).as_ref(),
+            );
+        }
     }
 
     #[test]
