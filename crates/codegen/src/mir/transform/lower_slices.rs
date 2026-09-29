@@ -33,9 +33,15 @@ impl MirPass for LowerSlices {
         &self,
         _gcx: Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        Self::run(module)
+        let changed = Self::run(module);
+        // NOTE: Rewriting a projection of an erased memory object into a load is not reported
+        // as a change on its own.
+        if !changed {
+            analyses.note_unreported_module_edit();
+        }
+        changed
     }
 }
 

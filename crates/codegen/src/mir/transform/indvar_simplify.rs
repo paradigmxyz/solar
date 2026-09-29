@@ -90,10 +90,17 @@ impl MirPass for IndVarSimplify {
             analyses,
             &selected,
             |func, analyses| {
-                IndVarSimplifier::new(Rc::clone(analyses.alias()))
+                let insts = func.num_insts();
+                let changed = IndVarSimplifier::new(Rc::clone(analyses.alias()))
                     .run(func, Rc::clone(analyses.cfg()))
                     .total()
-                    != 0
+                    != 0;
+                // NOTE: A pointer phi that fails to materialize leaves the instructions it
+                // already inserted in place without reporting a change.
+                if !changed && func.num_insts() != insts {
+                    analyses.note_unreported_edit();
+                }
+                changed
             },
         )
     }

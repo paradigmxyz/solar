@@ -632,7 +632,8 @@ impl FunctionAnalyses {
     }
 
     /// Records an edit that the transform does not report as a change, such as removing dead
-    /// instructions or annotating metadata, so body-derived caches drop the function.
+    /// instructions or annotating metadata, so the cached local memory summary drops the
+    /// function.
     pub(crate) fn note_unreported_edit(&self) {
         self.unreported_edit.set(true);
     }
@@ -743,6 +744,12 @@ impl ModuleAnalyses {
         Arc::clone(self.call_summaries.get_or_insert_with(|| {
             Arc::new(MemoryCallSummaries::new_cached(module, &mut self.local_summaries))
         }))
+    }
+
+    /// Drops every cached local memory summary after a module pass edited bodies without
+    /// reporting a change.
+    pub(crate) fn note_unreported_module_edit(&mut self) {
+        self.local_summaries.clear();
     }
 
     /// Declares that the running pass leaves the module call summaries valid.
