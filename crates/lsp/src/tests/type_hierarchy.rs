@@ -6,41 +6,16 @@ use crate::test_support::{
     TestProject, type_hierarchy_prepare_params, type_hierarchy_subtypes_params,
     type_hierarchy_supertypes_params,
 };
-use async_lsp::{ClientSocket, ErrorCode};
+use async_lsp::{ClientSocket, ErrorCode, ResponseError};
 use lsp_types::{Position, Range, SymbolKind, SymbolTag, TypeHierarchyItem, Url};
 use serde_json::json;
 use solar_config::{CompileOpts, ImportRemapping};
 use std::{
     future::Future,
+    pin::Pin,
     sync::{Arc, atomic::Ordering},
     task::{Context, Poll, Waker},
 };
-
-#[test]
-fn prepares_contracts_and_returns_direct_edges() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Hierarchy.sol
-        contract $1Base {}
-        contract $2Child is $3Base {}
-        "#,
-        "/Hierarchy.sol",
-    );
-
-    let base = fixture.prepare_type_hierarchy("$1").unwrap();
-    let child = fixture.prepare_type_hierarchy("$2").unwrap();
-    let base_reference = fixture.prepare_type_hierarchy("$3").unwrap();
-    assert_eq!(base.len(), 1);
-    assert_eq!(child.len(), 1);
-    assert_eq!(base_reference, base);
-    assert_eq!(base[0].name, "Base");
-    assert_eq!(child[0].name, "Child");
-
-    assert_eq!(fixture.type_hierarchy_supertypes(child[0].clone()), Some(base.clone()));
-    assert_eq!(fixture.type_hierarchy_subtypes(base[0].clone()), Some(child.clone()));
-    assert_eq!(fixture.type_hierarchy_supertypes(base[0].clone()), Some(Vec::new()));
-    assert_eq!(fixture.type_hierarchy_subtypes(child[0].clone()), Some(Vec::new()));
-}
 
 #[test]
 fn contract_edges_are_direct_in_diamonds_and_multilevel_hierarchies() {
@@ -48,25 +23,24 @@ fn contract_edges_are_direct_in_diamonds_and_multilevel_hierarchies() {
         r#"
         //- /Diamond.sol
         contract $1Root {}
-        contract $2Left is Root {}
+        contract $2Left is $5Root {}
         contract $3Right is Root {}
         contract $4Leaf is Left, Right {}
         "#,
         "/Diamond.sol",
     );
     let root = prepared(&fixture, "$1");
-    let left = prepared(&fixture, "$2");
-    let right = prepared(&fixture, "$3");
-    let leaf = prepared(&fixture, "$4");
+    assert_eq!(prepared(&fixture, "$5"), root);
+    assert_eq!(root.name, "Root");
 
-    assert!(names(fixture.type_hierarchy_supertypes(root.clone())).is_empty());
-    assert_eq!(names(fixture.type_hierarchy_supertypes(left.clone())), ["Root"]);
-    assert_eq!(names(fixture.type_hierarchy_supertypes(right.clone())), ["Root"]);
-    assert_eq!(names(fixture.type_hierarchy_supertypes(leaf.clone())), ["Left", "Right"]);
-    assert_eq!(names(fixture.type_hierarchy_subtypes(root)), ["Left", "Right"]);
-    assert_eq!(names(fixture.type_hierarchy_subtypes(left)), ["Leaf"]);
-    assert_eq!(names(fixture.type_hierarchy_subtypes(right)), ["Leaf"]);
-    assert!(names(fixture.type_hierarchy_subtypes(leaf)).is_empty());
+    assert_eq!(fixture.type_hierarchy_supertypes(prepared(&fixture, "$2")), Some(vec![root]));
+    assert!(supertypes(&fixture, "$1").is_empty());
+    assert_eq!(supertypes(&fixture, "$3"), ["Root"]);
+    assert_eq!(supertypes(&fixture, "$4"), ["Left", "Right"]);
+    assert_eq!(subtypes(&fixture, "$1"), ["Left", "Right"]);
+    assert_eq!(subtypes(&fixture, "$2"), ["Leaf"]);
+    assert_eq!(subtypes(&fixture, "$3"), ["Leaf"]);
+    assert!(subtypes(&fixture, "$4").is_empty());
 }
 
 #[test]
@@ -76,21 +50,26 @@ fn presents_all_supported_declarations_and_callable_edges() {
         //- /Callables.sol
         function $1freeFunction(uint256 value) pure returns (uint256) { return value; }
         function callFreeFunction() pure returns (uint256) { return $16freeFunction(1); }
-        interface $2Iface {}
+        interface $2Iface {
+            function $19total() external view returns (uint256);
+        }
         library $3Lib {}
 
         abstract contract $4Base {
             function $5value() external view virtual returns (uint256);
             function $6run(uint256 value) public virtual returns (uint256) { return value; }
             modifier $7guard() virtual { _; }
+            $21fallback() external virtual {}
+            $22receive() external payable virtual {}
         }
 
-        contract $8Derived is Base {
+        contract $8Derived is Base, Iface {
             uint256 public override $9value;
+            uint256 public $20total;
 
             $10constructor(uint256 initial) { value = initial; }
-            $11fallback() external {}
-            $12receive() external payable {}
+            $11fallback() external override {}
+            $12receive() external payable override {}
 
             function $13run(uint256 value_) public pure override returns (uint256) {
                 return value_;
@@ -109,101 +88,40 @@ fn presents_all_supported_declarations_and_callable_edges() {
         "/Callables.sol",
     );
 
-    assert_item(&prepared(&fixture, "$1"), "freeFunction(uint256)", SymbolKind::FUNCTION);
-    assert_item(&prepared(&fixture, "$2"), "Iface", SymbolKind::INTERFACE);
-    assert_item(&prepared(&fixture, "$3"), "Lib", SymbolKind::MODULE);
-    assert_item(&prepared(&fixture, "$4"), "Base", SymbolKind::CLASS);
-    assert_item(&prepared(&fixture, "$5"), "Base.value()", SymbolKind::METHOD);
-    assert_item(&prepared(&fixture, "$6"), "Base.run(uint256)", SymbolKind::METHOD);
-    assert_item(&prepared(&fixture, "$7"), "Base.guard", SymbolKind::FUNCTION);
-    assert_item(&prepared(&fixture, "$8"), "Derived", SymbolKind::CLASS);
-    assert_item(&prepared(&fixture, "$9"), "Derived.value", SymbolKind::PROPERTY);
-    assert_item(
-        &prepared(&fixture, "$10"),
-        "Derived.constructor(uint256)",
-        SymbolKind::CONSTRUCTOR,
-    );
-    assert_item(&prepared(&fixture, "$11"), "Derived.fallback()", SymbolKind::FUNCTION);
-    assert_item(&prepared(&fixture, "$12"), "Derived.receive()", SymbolKind::FUNCTION);
-    assert_item(&prepared(&fixture, "$13"), "Derived.run(uint256)", SymbolKind::METHOD);
-    assert_item(&prepared(&fixture, "$14"), "Derived.guard", SymbolKind::FUNCTION);
+    for (marker, name, kind) in [
+        ("$1", "freeFunction(uint256)", SymbolKind::FUNCTION),
+        ("$2", "Iface", SymbolKind::INTERFACE),
+        ("$3", "Lib", SymbolKind::MODULE),
+        ("$4", "Base", SymbolKind::CLASS),
+        ("$5", "Base.value()", SymbolKind::METHOD),
+        ("$6", "Base.run(uint256)", SymbolKind::METHOD),
+        ("$7", "Base.guard", SymbolKind::FUNCTION),
+        ("$8", "Derived", SymbolKind::CLASS),
+        ("$9", "Derived.value", SymbolKind::PROPERTY),
+        ("$10", "Derived.constructor(uint256)", SymbolKind::CONSTRUCTOR),
+        ("$11", "Derived.fallback()", SymbolKind::FUNCTION),
+        ("$12", "Derived.receive()", SymbolKind::FUNCTION),
+        ("$13", "Derived.run(uint256)", SymbolKind::METHOD),
+        ("$14", "Derived.guard", SymbolKind::FUNCTION),
+        ("$18", "Derived.hidden()", SymbolKind::METHOD),
+    ] {
+        assert_item(&prepared(&fixture, marker), name, kind);
+    }
     assert_eq!(prepared(&fixture, "$15"), prepared(&fixture, "$9"));
     assert_eq!(prepared(&fixture, "$16"), prepared(&fixture, "$1"));
     assert_eq!(prepared(&fixture, "$17"), prepared(&fixture, "$14"));
-    assert_item(&prepared(&fixture, "$18"), "Derived.hidden()", SymbolKind::METHOD);
 
-    assert_eq!(
-        names(fixture.type_hierarchy_supertypes(prepared(&fixture, "$9"))),
-        ["Base.value()"]
-    );
-    assert_eq!(
-        names(fixture.type_hierarchy_supertypes(prepared(&fixture, "$13"))),
-        ["Base.run(uint256)"]
-    );
-    assert_eq!(names(fixture.type_hierarchy_supertypes(prepared(&fixture, "$14"))), ["Base.guard"]);
-    assert_eq!(names(fixture.type_hierarchy_subtypes(prepared(&fixture, "$5"))), ["Derived.value"]);
-}
-
-#[test]
-fn indexes_implicit_interface_getter_overrides() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Getter.sol
-        interface Interface {
-            function $1value() external view returns (uint256);
-        }
-
-        contract Implementation is Interface {
-            uint256 public $2value;
-        }
-        "#,
-        "/Getter.sol",
-    );
-
-    assert_eq!(
-        names(fixture.type_hierarchy_supertypes(prepared(&fixture, "$2"))),
-        ["Interface.value()"]
-    );
-    assert_eq!(
-        names(fixture.type_hierarchy_subtypes(prepared(&fixture, "$1"))),
-        ["Implementation.value"]
-    );
-}
-
-#[test]
-fn special_function_override_edges_are_direct() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Special.sol
-        abstract contract Base {
-            $1fallback() external virtual {}
-            $2receive() external payable virtual {}
-        }
-
-        contract Child is Base {
-            $3fallback() external override {}
-            $4receive() external payable override {}
-        }
-        "#,
-        "/Special.sol",
-    );
-
-    assert_eq!(
-        names(fixture.type_hierarchy_supertypes(prepared(&fixture, "$3"))),
-        ["Base.fallback()"]
-    );
-    assert_eq!(
-        names(fixture.type_hierarchy_supertypes(prepared(&fixture, "$4"))),
-        ["Base.receive()"]
-    );
-    assert_eq!(
-        names(fixture.type_hierarchy_subtypes(prepared(&fixture, "$1"))),
-        ["Child.fallback()"]
-    );
-    assert_eq!(
-        names(fixture.type_hierarchy_subtypes(prepared(&fixture, "$2"))),
-        ["Child.receive()"]
-    );
+    for (derived, base, derived_name, base_name) in [
+        ("$9", "$5", "Derived.value", "Base.value()"),
+        ("$20", "$19", "Derived.total", "Iface.total()"),
+        ("$13", "$6", "Derived.run(uint256)", "Base.run(uint256)"),
+        ("$14", "$7", "Derived.guard", "Base.guard"),
+        ("$11", "$21", "Derived.fallback()", "Base.fallback()"),
+        ("$12", "$22", "Derived.receive()", "Base.receive()"),
+    ] {
+        assert_eq!(supertypes(&fixture, derived), [base_name]);
+        assert_eq!(subtypes(&fixture, base), [derived_name]);
+    }
 }
 
 #[test]
@@ -220,21 +138,18 @@ fn uses_exact_declaration_and_name_or_keyword_ranges() {
         "/Ranges.sol",
     );
 
-    let contract = prepared(&fixture, "$1");
-    assert_eq!(contract.range, Range::new(Position::new(0, 0), Position::new(4, 1)));
-    assert_eq!(contract.selection_range, Range::new(Position::new(0, 9), Position::new(0, 10)));
-
-    let constructor = prepared(&fixture, "$2");
-    assert_eq!(constructor.range, Range::new(Position::new(1, 4), Position::new(1, 20)));
-    assert_eq!(constructor.selection_range, Range::new(Position::new(1, 4), Position::new(1, 15)));
-
-    let fallback = prepared(&fixture, "$3");
-    assert_eq!(fallback.range, Range::new(Position::new(2, 4), Position::new(2, 26)));
-    assert_eq!(fallback.selection_range, Range::new(Position::new(2, 4), Position::new(2, 12)));
-
-    let receive = prepared(&fixture, "$4");
-    assert_eq!(receive.range, Range::new(Position::new(3, 4), Position::new(3, 33)));
-    assert_eq!(receive.selection_range, Range::new(Position::new(3, 4), Position::new(3, 11)));
+    let range = |start: (u32, u32), end: (u32, u32)| {
+        Range::new(Position::new(start.0, start.1), Position::new(end.0, end.1))
+    };
+    for (marker, full, selection) in [
+        ("$1", range((0, 0), (4, 1)), range((0, 9), (0, 10))),
+        ("$2", range((1, 4), (1, 20)), range((1, 4), (1, 15))),
+        ("$3", range((2, 4), (2, 26)), range((2, 4), (2, 12))),
+        ("$4", range((3, 4), (3, 33)), range((3, 4), (3, 11))),
+    ] {
+        let item = prepared(&fixture, marker);
+        assert_eq!((item.range, item.selection_range), (full, selection), "marker {marker}");
+    }
 }
 
 #[test]
@@ -281,59 +196,48 @@ fn validates_the_full_echoed_item_and_opaque_data() {
     );
     let item = prepared(&fixture, "$1");
     let range = item.selection_range;
-    assert_eq!(
-        item.data,
-        Some(json!([
-            2,
-            item.uri,
+    let data = |version, uri: &Url| {
+        json!([
+            version,
+            uri,
             range.start.line,
             range.start.character,
             range.end.line,
             range.end.character,
-        ]))
-    );
+        ])
+    };
+    assert_eq!(item.data, Some(data(2, &item.uri)));
 
-    let mut tampered = Vec::new();
-    let mut changed = prepared(&fixture, "$2");
-    changed.data = item.data.clone();
-    tampered.push(changed);
-    let mut changed = item.clone();
-    changed.name.push_str("Changed");
-    tampered.push(changed);
-    let mut changed = item.clone();
-    changed.kind = SymbolKind::INTERFACE;
-    tampered.push(changed);
-    let mut changed = item.clone();
-    changed.tags = Some(SymbolTag::DEPRECATED);
-    tampered.push(changed);
-    let mut changed = item.clone();
-    changed.detail = Some("changed".into());
-    tampered.push(changed);
-    let mut changed = item.clone();
-    changed.uri = Url::from_file_path(std::env::temp_dir().join("Other.sol")).unwrap();
-    tampered.push(changed);
-    let mut changed = item.clone();
-    changed.range.end.character += 1;
-    tampered.push(changed);
-    let mut changed = item.clone();
-    changed.selection_range.end.character += 1;
-    tampered.push(changed);
+    let other_uri = Url::from_file_path(std::env::temp_dir().join("Other.sol")).unwrap();
+    let changed = |item: &TypeHierarchyItem, change: &dyn Fn(&mut TypeHierarchyItem)| {
+        let mut item = item.clone();
+        change(&mut item);
+        item
+    };
+    let mut tampered = vec![
+        changed(&prepared(&fixture, "$2"), &|changed| changed.data = item.data.clone()),
+        changed(&item, &|changed| changed.name.push_str("Changed")),
+        changed(&item, &|changed| changed.kind = SymbolKind::INTERFACE),
+        changed(&item, &|changed| changed.tags = Some(SymbolTag::DEPRECATED)),
+        changed(&item, &|changed| changed.detail = Some("changed".into())),
+        changed(&item, &|changed| changed.uri = other_uri.clone()),
+        changed(&item, &|changed| changed.range.end.character += 1),
+        changed(&item, &|changed| changed.selection_range.end.character += 1),
+    ];
 
     // URL parsing normalizes the scheme, but echoed data must keep the exact serialized spelling.
     let normalized_uri = item.uri.as_str().replacen("file:", "FILE:", 1);
     assert_eq!(Url::parse(&normalized_uri).unwrap(), item.uri);
-    let mut changed = item.clone();
-    changed.data.as_mut().unwrap()[1] = json!(normalized_uri);
-    tampered.push(changed);
+    tampered.push(changed(&item, &|changed| {
+        changed.data.as_mut().unwrap()[1] = json!(normalized_uri);
+    }));
     for index in [0, 2, 3, 4, 5] {
         // JSON floats and strings must not be accepted as integer version or position fields.
-        for value in [
-            json!(item.data.as_ref().unwrap()[index].as_u64().unwrap() as f64),
-            json!(item.data.as_ref().unwrap()[index].to_string()),
-        ] {
-            let mut changed = item.clone();
-            changed.data.as_mut().unwrap()[index] = value;
-            tampered.push(changed);
+        let field = &item.data.as_ref().unwrap()[index];
+        for value in [json!(field.as_u64().unwrap() as f64), json!(field.to_string())] {
+            tampered.push(changed(&item, &|changed| {
+                changed.data.as_mut().unwrap()[index] = value.clone();
+            }));
         }
     }
 
@@ -341,22 +245,8 @@ fn validates_the_full_echoed_item_and_opaque_data() {
         None,
         Some(json!(null)),
         Some(json!([])),
-        Some(json!([
-            1,
-            item.uri,
-            range.start.line,
-            range.start.character,
-            range.end.line,
-            range.end.character
-        ])),
-        Some(json!([
-            2,
-            Url::from_file_path(std::env::temp_dir().join("Other.sol")).unwrap(),
-            range.start.line,
-            range.start.character,
-            range.end.line,
-            range.end.character
-        ])),
+        Some(data(1, &item.uri)),
+        Some(data(2, &other_uri)),
         Some(json!([2, item.uri, 9, 0, 9, 1])),
         Some(json!([2, item.uri, 0, 0, 0, 0, true])),
         Some(json!([2, item.uri, 0, 0, 0])),
@@ -369,9 +259,7 @@ fn validates_the_full_echoed_item_and_opaque_data() {
             "selectionRange": item.selection_range,
         })),
     ] {
-        let mut changed = item.clone();
-        changed.data = data;
-        tampered.push(changed);
+        tampered.push(changed(&item, &|changed| changed.data = data.clone()));
     }
 
     for changed in tampered {
@@ -410,30 +298,12 @@ fn callable_edges_are_direct_and_keep_overloads_separate() {
 
     assert_eq!(prepared(&fixture, "$7"), prepared(&fixture, "$5"));
     assert_eq!(prepared(&fixture, "$8"), prepared(&fixture, "$6"));
-    assert_eq!(
-        names(fixture.type_hierarchy_subtypes(prepared(&fixture, "$1"))),
-        ["Middle.run(uint256)"]
-    );
-    assert_eq!(
-        names(fixture.type_hierarchy_subtypes(prepared(&fixture, "$2"))),
-        ["Middle.run(address)"]
-    );
-    assert_eq!(
-        names(fixture.type_hierarchy_supertypes(prepared(&fixture, "$5"))),
-        ["Middle.run(uint256)"]
-    );
-    assert_eq!(
-        names(fixture.type_hierarchy_supertypes(prepared(&fixture, "$6"))),
-        ["Middle.run(address)"]
-    );
-    assert_eq!(
-        names(fixture.type_hierarchy_subtypes(prepared(&fixture, "$3"))),
-        ["Leaf.run(uint256)"]
-    );
-    assert_eq!(
-        names(fixture.type_hierarchy_subtypes(prepared(&fixture, "$4"))),
-        ["Leaf.run(address)"]
-    );
+    assert_eq!(subtypes(&fixture, "$1"), ["Middle.run(uint256)"]);
+    assert_eq!(subtypes(&fixture, "$2"), ["Middle.run(address)"]);
+    assert_eq!(supertypes(&fixture, "$5"), ["Middle.run(uint256)"]);
+    assert_eq!(supertypes(&fixture, "$6"), ["Middle.run(address)"]);
+    assert_eq!(subtypes(&fixture, "$3"), ["Leaf.run(uint256)"]);
+    assert_eq!(subtypes(&fixture, "$4"), ["Leaf.run(address)"]);
 }
 
 #[test]
@@ -459,11 +329,16 @@ fn canonical_names_keep_user_defined_parameter_types_distinct() {
         "/Names.sol",
     );
 
-    assert_eq!(prepared(&fixture, "$1").name, "C.choose(contract First)");
-    assert_eq!(prepared(&fixture, "$2").name, "C.choose(contract Second)");
-    assert_eq!(prepared(&fixture, "$3").name, "C.inspect(struct C.Data)");
-    assert_eq!(prepared(&fixture, "$4").name, "C.inspect(enum C.Choice)");
-    assert_eq!(prepared(&fixture, "$5").name, "C.inspect(Amount)");
+    assert_eq!(
+        ["$1", "$2", "$3", "$4", "$5"].map(|marker| prepared(&fixture, marker).name),
+        [
+            "C.choose(contract First)",
+            "C.choose(contract Second)",
+            "C.inspect(struct C.Data)",
+            "C.inspect(enum C.Choice)",
+            "C.inspect(Amount)",
+        ]
+    );
 }
 
 #[test]
@@ -485,18 +360,11 @@ fn merges_identical_cross_batch_nodes_and_edges_in_both_orders() {
     for paths in [["/first/Main.sol", "/second/Main.sol"], ["/second/Main.sol", "/first/Main.sol"]]
     {
         let fixture = RequestFixture::new_in_batches(source, &paths);
-        let base = prepared(&fixture, "$1");
-        let zed = prepared(&fixture, "$2");
-        let alpha = prepared(&fixture, "$3");
 
-        assert_eq!(prepared(&fixture, "$4"), base);
-        assert_eq!(
-            names(fixture.type_hierarchy_subtypes(base)),
-            ["Zed", "Alpha"],
-            "batch order {paths:?}"
-        );
-        assert_eq!(names(fixture.type_hierarchy_supertypes(zed)), ["Base"]);
-        assert_eq!(names(fixture.type_hierarchy_supertypes(alpha)), ["Base"]);
+        assert_eq!(prepared(&fixture, "$4"), prepared(&fixture, "$1"));
+        assert_eq!(subtypes(&fixture, "$1"), ["Zed", "Alpha"], "batch order {paths:?}");
+        assert_eq!(supertypes(&fixture, "$2"), ["Base"]);
+        assert_eq!(supertypes(&fixture, "$3"), ["Base"]);
     }
 }
 
@@ -531,7 +399,8 @@ fn incompatible_compile_contexts_exclude_nodes_and_incident_edges_in_both_orders
         enum Value { Item }
         "#,
     );
-    let shared_path = project.path("/Shared.sol");
+    let uri = |path| Url::from_file_path(project.path(path)).unwrap();
+    let shared_uri = uri("/Shared.sol");
 
     for batches in [
         [("/left/Main.sol", "/left"), ("/right/Main.sol", "/right")],
@@ -548,80 +417,44 @@ fn incompatible_compile_contexts_exclude_nodes_and_incident_edges_in_both_orders
                 }],
                 ..Default::default()
             };
-            let entry_contents = project.read_file(entry_path);
-            let entry_path = project.path(entry_path);
-            results.push(analyze(AnalysisBatch::from_files(opts, [(entry_path, entry_contents)])));
+            let entry = (project.path(entry_path), project.read_file(entry_path));
+            results.push(analyze(AnalysisBatch::from_files(opts, [entry])));
         }
         let result = results.finish();
         assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
         let tables = result.symbol_tables;
-        let shared_uri = Url::from_file_path(&shared_path).unwrap();
+        let item = |uri: &Url, line, character| {
+            tables
+                .prepare_type_hierarchy(uri, Position::new(line, character))
+                .unwrap()
+                .pop()
+                .unwrap()
+        };
 
-        assert_eq!(
-            tables.prepare_type_hierarchy(&shared_uri, Position::new(1, 10)),
-            None,
-            "batch order {batches:?}"
-        );
-        assert_eq!(
-            tables.prepare_type_hierarchy(&shared_uri, Position::new(1, 20)),
-            None,
-            "Base reference, batch order {batches:?}"
-        );
-        assert_eq!(
-            tables.prepare_type_hierarchy(&shared_uri, Position::new(2, 20)),
-            None,
-            "batch order {batches:?}"
-        );
-        assert_eq!(
-            tables.prepare_type_hierarchy(&shared_uri, Position::new(3, 14)),
-            None,
-            "batch order {batches:?}"
-        );
-        assert_eq!(
-            tables.prepare_type_hierarchy(&shared_uri, Position::new(3, 22)),
-            None,
-            "Value reference, batch order {batches:?}"
-        );
-        let stable = tables
-            .prepare_type_hierarchy(&shared_uri, Position::new(5, 10))
-            .unwrap()
-            .pop()
-            .unwrap();
-        assert_item(&stable, "Stable", SymbolKind::CLASS);
+        // `Shared`, its `Base` reference, its getter, `inspect`, and its `Value` reference.
+        for (line, character) in [(1, 10), (1, 20), (2, 20), (3, 14), (3, 22)] {
+            assert_eq!(
+                tables.prepare_type_hierarchy(&shared_uri, Position::new(line, character)),
+                None,
+                "{line}:{character}, batch order {batches:?}"
+            );
+        }
+        assert_item(&item(&shared_uri, 5, 10), "Stable", SymbolKind::CLASS);
 
         for (path, child_name) in
             [("/left/Main.sol", "LeftChild"), ("/right/Main.sol", "RightChild")]
         {
-            let uri = Url::from_file_path(project.path(path)).unwrap();
-            let child =
-                tables.prepare_type_hierarchy(&uri, Position::new(1, 10)).unwrap().pop().unwrap();
+            let child = item(&uri(path), 1, 10);
             assert_item(&child, child_name, SymbolKind::CLASS);
-            assert_eq!(
-                tables.type_hierarchy_supertypes(&child),
-                Some(Vec::new()),
-                "child {path}, batch order {batches:?}"
-            );
+            assert_eq!(tables.type_hierarchy_supertypes(&child), Some(Vec::new()), "{path}");
         }
-
-        for path in ["/left/Types.sol", "/right/Types.sol"] {
-            let uri = Url::from_file_path(project.path(path)).unwrap();
-            let base =
-                tables.prepare_type_hierarchy(&uri, Position::new(0, 10)).unwrap().pop().unwrap();
-            assert_eq!(
-                tables.type_hierarchy_subtypes(&base),
-                Some(Vec::new()),
-                "base {path}, batch order {batches:?}"
-            );
+        // Both `Base` declarations, then the interface getter of `Base.value`.
+        for (path, line, character) in
+            [("/left/Types.sol", 0, 10), ("/right/Types.sol", 0, 10), ("/left/Types.sol", 1, 14)]
+        {
+            let base = item(&uri(path), line, character);
+            assert_eq!(tables.type_hierarchy_subtypes(&base), Some(Vec::new()), "{path}");
         }
-
-        let left_uri = Url::from_file_path(project.path("/left/Types.sol")).unwrap();
-        let base_getter =
-            tables.prepare_type_hierarchy(&left_uri, Position::new(1, 14)).unwrap().pop().unwrap();
-        assert_eq!(
-            tables.type_hierarchy_subtypes(&base_getter),
-            Some(Vec::new()),
-            "batch order {batches:?}"
-        );
     }
 }
 
@@ -646,8 +479,7 @@ fn conflicting_snapshots_exclude_nodes_and_incident_edges_in_both_orders() {
         );
 
         assert_eq!(fixture.prepare_type_hierarchy("$1"), None, "batch order {paths:?}");
-        let child = prepared(&fixture, "$2");
-        assert_eq!(fixture.type_hierarchy_supertypes(child), Some(Vec::new()));
+        assert!(supertypes(&fixture, "$2").is_empty());
     }
 }
 
@@ -677,16 +509,8 @@ fn conflicting_request_files_cannot_leak_external_targets() {
             &paths,
         );
         assert_eq!(fixture.prepare_type_hierarchy("$3"), None, "batch order {paths:?}");
-        assert_eq!(
-            fixture.type_hierarchy_subtypes(prepared(&fixture, "$1")),
-            Some(Vec::new()),
-            "batch order {paths:?}"
-        );
-        assert_eq!(
-            fixture.type_hierarchy_subtypes(prepared(&fixture, "$2")),
-            Some(Vec::new()),
-            "batch order {paths:?}"
-        );
+        assert!(subtypes(&fixture, "$1").is_empty(), "batch order {paths:?}");
+        assert!(subtypes(&fixture, "$2").is_empty(), "batch order {paths:?}");
 
         let conflict_path = fixture.project_path("/Conflict.sol");
         let clean =
@@ -704,110 +528,46 @@ fn conflicting_request_files_cannot_leak_external_targets() {
 
 #[test]
 fn requests_reject_a_different_published_analysis_epoch() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Hierarchy.sol
-        contract Old {}
-        contract SuperOld {}
-        contract SuperChild is SuperOld {}
-        contract SubBase {}
-        contract SubOld is SubBase {}
-        "#,
-    );
+    let project = TestProject::new();
     let path = project.path("/Hierarchy.sol");
-    let old_tables = analyze_tables(&path, &project.read_file("/Hierarchy.sol"));
+    let old_tables = analyze_tables(
+        &path,
+        "contract Old {}\ncontract SuperOld {}\ncontract SuperChild is SuperOld {}\ncontract SubBase {}\ncontract SubOld is SubBase {}\n",
+    );
     let new_tables = analyze_tables(
         &path,
         "contract New {}\ncontract SuperNew {}\ncontract SuperChild is SuperNew {}\ncontract SubBase {}\ncontract SubNew is SubBase {}\n",
     );
     let uri = Url::from_file_path(path).unwrap();
-    let super_child =
-        old_tables.prepare_type_hierarchy(&uri, Position::new(2, 10)).unwrap().pop().unwrap();
-    let sub_base =
-        old_tables.prepare_type_hierarchy(&uri, Position::new(3, 10)).unwrap().pop().unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.symbol_tables.store(Arc::new(old_tables));
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
-
-    let mut prepare = std::pin::pin!(crate::handlers::prepare_type_hierarchy(
-        &mut state,
-        type_hierarchy_prepare_params(uri, Position::new(0, 10)),
-    ));
-    let mut supertypes = std::pin::pin!(crate::handlers::type_hierarchy_supertypes(
-        &mut state,
-        type_hierarchy_supertypes_params(super_child),
-    ));
-    let mut subtypes = std::pin::pin!(crate::handlers::type_hierarchy_subtypes(
-        &mut state,
-        type_hierarchy_subtypes_params(sub_base),
-    ));
-    let waker = Waker::noop();
-    let mut context = Context::from_waker(waker);
-    assert!(prepare.as_mut().poll(&mut context).is_pending());
-    assert!(supertypes.as_mut().poll(&mut context).is_pending());
-    assert!(subtypes.as_mut().poll(&mut context).is_pending());
+    let mut requests = hierarchy_requests(&mut state, old_tables, &uri, (2, 10), (3, 10));
+    let mut context = Context::from_waker(Waker::noop());
+    for request in &mut requests {
+        assert!(request.as_mut().poll(&mut context).is_pending());
+    }
 
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
     let mut snapshot = state.snapshot();
     assert!(snapshot.publish_symbol_tables(2, Arc::new(new_tables)));
     assert!(!snapshot.publish_symbol_tables(1, Default::default()));
 
-    for response in [
-        prepare.as_mut().poll(&mut context),
-        supertypes.as_mut().poll(&mut context),
-        subtypes.as_mut().poll(&mut context),
-    ] {
-        let Poll::Ready(Err(error)) = response else {
-            panic!("a new publication must not retarget an old request");
-        };
-        assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
-    }
+    // A new publication must not retarget an old request.
+    assert_content_modified(requests);
 }
 
 #[test]
 fn requests_reject_analysis_superseded_before_they_are_polled() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Hierarchy.sol
-        contract Base {}
-        contract Child is Base {}
-        "#,
-    );
+    let project = TestProject::new();
     let path = project.path("/Hierarchy.sol");
-    let tables = analyze_tables(&path, &project.read_file("/Hierarchy.sol"));
+    let tables = analyze_tables(&path, "contract Base {}\ncontract Child is Base {}\n");
     let uri = Url::from_file_path(path).unwrap();
-    let base = tables.prepare_type_hierarchy(&uri, Position::new(0, 10)).unwrap().pop().unwrap();
-    let child = tables.prepare_type_hierarchy(&uri, Position::new(1, 10)).unwrap().pop().unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.symbol_tables.store(Arc::new(tables));
-
-    let mut prepare = std::pin::pin!(crate::handlers::prepare_type_hierarchy(
-        &mut state,
-        type_hierarchy_prepare_params(uri, Position::new(0, 10)),
-    ));
-    let mut supertypes = std::pin::pin!(crate::handlers::type_hierarchy_supertypes(
-        &mut state,
-        type_hierarchy_supertypes_params(child),
-    ));
-    let mut subtypes = std::pin::pin!(crate::handlers::type_hierarchy_subtypes(
-        &mut state,
-        type_hierarchy_subtypes_params(base),
-    ));
+    let requests = hierarchy_requests(&mut state, tables, &uri, (1, 10), (0, 10));
 
     state.mark_analysis_pending_for_test();
 
-    let waker = Waker::noop();
-    let mut context = Context::from_waker(waker);
-    for response in [
-        prepare.as_mut().poll(&mut context),
-        supertypes.as_mut().poll(&mut context),
-        subtypes.as_mut().poll(&mut context),
-    ] {
-        let Poll::Ready(Err(error)) = response else {
-            panic!("superseded requests should return an error");
-        };
-        assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
-    }
+    assert_content_modified(requests);
 }
 
 #[test]
@@ -816,7 +576,7 @@ fn echoed_items_follow_current_source_identity() {
         r#"
         //- /Hierarchy.sol
         contract Base {}
-        contract $1Old is Base {}
+        contract Old is Base {}
 
         //- /Other.sol
         contract Before {}
@@ -824,14 +584,17 @@ fn echoed_items_follow_current_source_identity() {
     );
     let hierarchy_path = project.path("/Hierarchy.sol");
     let other_path = project.path("/Other.sol");
-    let old_tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [
-            (hierarchy_path.clone(), project.read_file("/Hierarchy.sol")),
-            (other_path.clone(), project.read_file("/Other.sol")),
-        ],
-    ))
-    .symbol_tables;
+    let analyze_both = |other: String| {
+        analyze(AnalysisBatch::from_files(
+            CompileOpts::default(),
+            [
+                (hierarchy_path.clone(), project.read_file("/Hierarchy.sol")),
+                (other_path.clone(), other),
+            ],
+        ))
+        .symbol_tables
+    };
+    let old_tables = analyze_both(project.read_file("/Other.sol"));
     let uri = Url::from_file_path(&hierarchy_path).unwrap();
     let old_item =
         old_tables.prepare_type_hierarchy(&uri, Position::new(1, 10)).unwrap().pop().unwrap();
@@ -844,15 +607,45 @@ fn echoed_items_follow_current_source_identity() {
     assert_eq!(moved.type_hierarchy_supertypes(&old_item), None);
     assert_eq!(SymbolTables::default().type_hierarchy_supertypes(&old_item), None);
 
-    let unrelated_change = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [
-            (hierarchy_path, project.read_file("/Hierarchy.sol")),
-            (other_path, "contract Changed {}\n".into()),
-        ],
-    ))
-    .symbol_tables;
+    let unrelated_change = analyze_both("contract Changed {}\n".into());
     assert_eq!(names(unrelated_change.type_hierarchy_supertypes(&old_item)), ["Base"]);
+}
+
+type HierarchyRequest =
+    Pin<Box<dyn Future<Output = Result<Option<Vec<TypeHierarchyItem>>, ResponseError>>>>;
+
+/// Starts prepare, supertypes, and subtypes requests against `tables`.
+fn hierarchy_requests(
+    state: &mut GlobalState,
+    tables: SymbolTables,
+    uri: &Url,
+    (super_line, super_character): (u32, u32),
+    (sub_line, sub_character): (u32, u32),
+) -> [HierarchyRequest; 3] {
+    let item = |line, character| {
+        tables.prepare_type_hierarchy(uri, Position::new(line, character)).unwrap().pop().unwrap()
+    };
+    let supertypes = type_hierarchy_supertypes_params(item(super_line, super_character));
+    let subtypes = type_hierarchy_subtypes_params(item(sub_line, sub_character));
+    state.symbol_tables.store(Arc::new(tables));
+    [
+        Box::pin(crate::handlers::prepare_type_hierarchy(
+            state,
+            type_hierarchy_prepare_params(uri.clone(), Position::new(0, 10)),
+        )),
+        Box::pin(crate::handlers::type_hierarchy_supertypes(state, supertypes)),
+        Box::pin(crate::handlers::type_hierarchy_subtypes(state, subtypes)),
+    ]
+}
+
+fn assert_content_modified(requests: [HierarchyRequest; 3]) {
+    let mut context = Context::from_waker(Waker::noop());
+    for mut request in requests {
+        let Poll::Ready(Err(error)) = request.as_mut().poll(&mut context) else {
+            panic!("superseded requests should return an error");
+        };
+        assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
+    }
 }
 
 fn prepared(fixture: &RequestFixture, marker: &str) -> TypeHierarchyItem {
@@ -861,6 +654,14 @@ fn prepared(fixture: &RequestFixture, marker: &str) -> TypeHierarchyItem {
         panic!("expected one item at marker {marker}: {items:?}")
     };
     item.clone()
+}
+
+fn supertypes(fixture: &RequestFixture, marker: &str) -> Vec<String> {
+    names(fixture.type_hierarchy_supertypes(prepared(fixture, marker)))
+}
+
+fn subtypes(fixture: &RequestFixture, marker: &str) -> Vec<String> {
+    names(fixture.type_hierarchy_subtypes(prepared(fixture, marker)))
 }
 
 fn names(items: Option<Vec<TypeHierarchyItem>>) -> Vec<String> {
