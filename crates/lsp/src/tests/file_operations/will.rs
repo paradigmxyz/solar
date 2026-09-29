@@ -31,16 +31,6 @@ fn assert_one_edit_per_file(edit: EditResult, files: &[PathBuf]) {
 }
 
 #[test]
-fn will_create_returns_no_speculative_edits() {
-    let mut state = state_with(Config::default());
-
-    let edit =
-        block_on(handlers::will_create_files(&mut state, CreateFilesParams::default())).unwrap();
-
-    assert!(edit.is_none());
-}
-
-#[test]
 fn will_file_operations_return_import_edits_without_mutating_state() {
     let project = TestProject::from_fixture(
         r#"
@@ -56,6 +46,9 @@ fn will_file_operations_return_import_edits_without_mutating_state() {
     let target = project.path("/src/Target.sol");
     let mut state = state(&project);
 
+    // Creates never return speculative edits.
+    let create = block_on(handlers::will_create_files(&mut state, CreateFilesParams::default()));
+    assert!(create.unwrap().is_none());
     let delete = will_delete(&mut state, &target).unwrap().unwrap();
     let rename =
         will_rename(&mut state, &target, project.path("/src/Renamed.sol")).unwrap().unwrap();
@@ -213,24 +206,8 @@ fn will_file_operations_refuse_incomplete_import_edits() {
             "/src/Target.sol",
         ),
         (
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = "src"
-
-            //- /src/Main.sol
-            import "./Target.sol";
-
-            //- /src/nested/.git
-            gitdir: elsewhere
-
-            //- /src/nested/Importer.sol
-            import "../Target.sol";
-
-            //- /src/Target.sol
-            contract Target {}
-            "#
-            .to_owned(),
+            with_src_importer("src", "/src/nested/Importer.sol")
+                + "//- /src/nested/.git\ngitdir: elsewhere\n",
             None,
             Some("/src/nested/Importer.sol"),
             "/src/Target.sol",
@@ -348,12 +325,7 @@ fn will_rename_validates_closed_importer_on_disk_across_workspace_roots() {
 
     let new_text = &edit.changes.unwrap()[&Url::from_file_path(&importer).unwrap()][0].new_text;
     assert_eq!(new_text, "\"../two/Renamed.sol\"");
-    fs::write(&importer, format!("import {new_text};\n")).unwrap();
-    fs::rename(&old_target, &new_target).unwrap();
-    let tables = analyze_project(&project);
-    let links = tables.document_links(&importer);
-    assert_eq!(links.len(), 1);
-    assert_eq!(links[0].target.as_ref().unwrap().to_file_path().unwrap(), new_target);
+    assert_moved_import_resolves(&project, [&importer; 2], new_text, [&old_target, &new_target]);
 
     fs::write(&importer, "import \"../two/Other.sol\";").unwrap();
     let error = will_rename(&mut state, &old_target, &new_target).unwrap_err();
@@ -382,13 +354,10 @@ fn will_rename_rewrites_independently_moved_importer_and_target() {
 
     let new_text = &edit.changes.unwrap()[&Url::from_file_path(&importer).unwrap()][0].new_text;
     assert_eq!(new_text, "\"../../vendor/pkg/Target.sol\"");
-    fs::write(&importer, format!("import {new_text};\n")).unwrap();
-    fs::create_dir_all(moved_importer.parent().unwrap()).unwrap();
-    fs::create_dir_all(moved_target.parent().unwrap()).unwrap();
-    fs::rename(importer, &moved_importer).unwrap();
-    fs::rename(target, &moved_target).unwrap();
-    let tables = analyze_project(&project);
-    let links = tables.document_links(&moved_importer);
-    assert_eq!(links.len(), 1);
-    assert_eq!(links[0].target.as_ref().unwrap().to_file_path().unwrap(), moved_target);
+    assert_moved_import_resolves(
+        &project,
+        [&importer, &moved_importer],
+        new_text,
+        [&target, &moved_target],
+    );
 }
