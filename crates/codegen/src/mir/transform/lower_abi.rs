@@ -557,30 +557,50 @@ impl LowerAbiCx {
                     else {
                         return value;
                     };
-                    // A returned calldata array is copied to memory, each element validated,
-                    // before it is encoded; only arrays of words or bytes are encoded from
-                    // calldata in place. The encoder also reads views of aggregates in place,
-                    // but a returned value is never a view, and its elements are not yet valid.
-                    if return_types.get(index) == Some(&MirType::Slice(SliceLocation::Calldata))
-                        && match &ty {
-                            AbiParamType::Tuple(_) | AbiParamType::FixedArray { .. } => true,
-                            AbiParamType::DynamicArray(_) => !matches!(
-                                &layout.types[index],
-                                AbiType::DynamicArray { element, .. }
-                                    if matches!(
-                                        element.as_ref(),
-                                        AbiType::Word(_) | AbiType::Function | AbiType::Bytes(_)
-                                    )
-                            ),
-                            _ => false,
+                    if return_types.get(index) == Some(&MirType::Slice(SliceLocation::Calldata)) {
+                        // A calldata array stays where it lies: the encoder checks every tail
+                        // and word below the span the entry decode checked, as solc's encoder
+                        // does. The memory cleanup below would read it as an object.
+                        if let AbiParamType::DynamicArray(element) = &ty {
+                            // The encoder copies a word array's elements as one block, so
+                            // one the entry decode did not validate, such as a call's
+                            // result, has its words checked here.
+                            if Self::is_scalar_or_enum(element)
+                                && !is_canonical_return_value(
+                                    builder.func(),
+                                    &ty,
+                                    value,
+                                    input_params,
+                                    ReturnValueSource::Scalar,
+                                )
+                            {
+                                // for word in slice: revert unless canonical(word)
+                                let data = builder.slice_ptr(value);
+                                let len = builder.slice_len(value);
+                                let input_end = builder.calldatasize();
+                                let mut current = builder.current_block();
+                                let options =
+                                    DecodeOptions::new(false, input_end, has_bitwise_shifting);
+                                Self::validate_scalar_array(
+                                    &mut builder,
+                                    data,
+                                    element,
+                                    len,
+                                    &mut current,
+                                    options,
+                                );
+                                builder.switch_to_block(current);
+                            }
+                            return value;
                         }
-                    {
-                        return materialize_calldata_return(
-                            &mut builder,
-                            &ty,
-                            value,
-                            has_bitwise_shifting,
-                        );
+                        if matches!(ty, AbiParamType::Tuple(_) | AbiParamType::FixedArray { .. }) {
+                            return materialize_calldata_return(
+                                &mut builder,
+                                &ty,
+                                value,
+                                has_bitwise_shifting,
+                            );
+                        }
                     }
                     if canonical_returns.contains(&index) {
                         return value;
