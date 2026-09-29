@@ -369,8 +369,10 @@ impl FunctionLowerer<'_, '_> {
         let out =
             self.builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
         let data = self.builder.memory_object_data(out, MemoryObjectKind::Bytes);
+        // mstore(data, leading(packed << 8, length))
         let eight = self.builder.imm(8);
         let contents = self.builder.shl(eight, packed);
+        let contents = self.keep_leading_bytes(contents, length);
         self.builder.mstore(data, contents);
         Some(out)
     }
@@ -442,10 +444,15 @@ impl FunctionLowerer<'_, '_> {
         let a =
             self.builder.alloc_bytes_object(a_length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
         let a_data = self.builder.memory_object_data(a, MemoryObjectKind::Bytes);
+        // Each payload word holds the payload and zeros, as the body's `new bytes` leaves it.
+        // mstore(data(a), leading(packed << 8, a_length))
         let eight = self.builder.imm(8);
         let a_contents = self.builder.shl(eight, packed);
+        let a_contents = self.keep_leading_bytes(a_contents, a_length);
         self.builder.mstore(a_data, a_contents);
 
+        // b's length byte follows a's payload.
+        // b_length = min(byte(a_length + 1, packed), 30 - a_length)
         let one = self.builder.imm(1);
         let b_index = self.builder.add(a_length, one);
         let raw_b_length = self.builder.byte(b_index, packed);
@@ -455,11 +462,13 @@ impl FunctionLowerer<'_, '_> {
         let b =
             self.builder.alloc_bytes_object(b_length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
         let b_data = self.builder.memory_object_data(b, MemoryObjectKind::Bytes);
+        // mstore(data(b), leading(packed << 8 * (a_length + 2), b_length))
         let two = self.builder.imm(2);
         let b_byte_offset = self.builder.add(a_length, two);
         let three = self.builder.imm(3);
         let b_bit_offset = self.builder.shl(three, b_byte_offset);
         let b_contents = self.builder.shl(b_bit_offset, packed);
+        let b_contents = self.keep_leading_bytes(b_contents, b_length);
         self.builder.mstore(b_data, b_contents);
         Some(vec![a, b])
     }
@@ -1960,6 +1969,17 @@ impl FunctionLowerer<'_, '_> {
         self.builder.add_phi_incoming(output, advance, output);
 
         (header, copied, output)
+    }
+
+    /// The first `count` bytes of `word` followed by zeros; `count` is below 32.
+    fn keep_leading_bytes(&mut self, word: ValueId, count: ValueId) -> ValueId {
+        // word & ~(MAX >> (count << 3))
+        let three = self.builder.imm(3);
+        let bits = self.builder.shl(three, count);
+        let all = self.builder.imm(U256::MAX);
+        let past = self.builder.shr(bits, all);
+        let kept = self.builder.not(past);
+        self.builder.and(word, kept)
     }
 }
 

@@ -20,6 +20,8 @@ contract Test {
         return Strings.packTwo(a, b);
     }
 
+    // The intrinsic reads both lengths from the packed word and stores each
+    // payload, cut to its length, without loading it back.
     // INTRINSIC-LABEL: fn @unpackPair
     // INTRINSIC: byte 0
     // INTRINSIC: mstore
