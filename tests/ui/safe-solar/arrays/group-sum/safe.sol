@@ -19,6 +19,8 @@
 //@ run-call: groupAliased 9, 5, false; gas=15000000 => true
 //@ run-call: groupAliased 57, 5, false; gas=15000000 => true
 //@ run-call: groupAliased 40, 0, true; gas=15000000 => true
+//@ run-call: groupNarrow [1, 1], [200, 100] => [44]
+//@ run-call: groupNarrow [2, 1], [7, 9] => [9, 7]
 
 // `groupSum` orders keys by their word value, keeps one of each, and gives
 // it the sum of the values its copies had. Both arrays shrink to the kept
@@ -124,6 +126,21 @@ contract Safe {
             if (a[i] != expected[i]) return false;
         }
         return true;
+    }
+
+    // Sums written through a `uint256[]` that aliases a `uint8[]` are wide words in it, which
+    // the narrow array's reads clean as they would clean any other dirty element.
+    function groupNarrow(uint256[] memory keys, uint8[] memory narrow)
+        public
+        pure
+        returns (uint8[] memory)
+    {
+        uint256[] memory values;
+        assembly {
+            values := narrow
+        }
+        WordArrays.groupSum(keys, values);
+        return narrow;
     }
 
     // A strictly descending run takes the reversal path.

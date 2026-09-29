@@ -1190,8 +1190,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if addresses { sym::core_array_group_sum_address } else { sym::core_array_group_sum };
         let helper = self.lazy_helper(name, |this, function| {
             function.attributes.no_inline = true;
-            // Keys are only permuted or cleaned; the sums land in `uint256[]` values.
-            function.attributes.preserves_array_elements = true;
+            // The sums are new words in `values`, which element cleanup must see: it bounds
+            // words per function, not per array.
             function.attributes.cleans_address_elements = addresses;
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
             let ty = MirType::MemoryObject(MemoryObjectKind::DynamicArray);
