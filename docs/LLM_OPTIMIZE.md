@@ -311,7 +311,9 @@ An embedder can also keep that rewriter and carry its requests instead. With the
 providers, `anthropic/`, `opencode/`, and `openai-chat/`, in place of the compiler's client, and
 the compiler then reads no key and sends none. `ChatTransport::send` takes a `reqwest::Request`
 with a buffered body and returns the response; a `TransportError` it returns is sent again when
-it is transient, and ends the turn otherwise.
+it is transient, and ends the turn otherwise. The CLI crate's `llm-transport` feature builds only
+this path, without nanocodex, TLS, or a client of the compiler's own: `live` then requires a
+transport, and `openai/` models, which only nanocodex asks, are unavailable.
 
 A transport can pay for requests. A gateway that fronts a provider and charges per request with
 the [Machine Payments Protocol](https://mpp.dev) answers an unpaid request with HTTP 402 and a

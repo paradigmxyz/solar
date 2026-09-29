@@ -30,30 +30,25 @@
 //! with [`set_transport`] before compiling: to answer the HTTP 402 challenges of a gateway that
 //! charges its user per request, for example, with the Machine Payments Protocol. The compiler
 //! then reads no key and sends none, since the transport authenticates or pays for each request.
+//! The `llm-transport` feature builds only this path: the chat providers without nanocodex, TLS,
+//! or an HTTP client of the compiler's own, so `-Zllm-optimize=live` requires a transport.
 
 use solar_config::LlmOptimizeMode;
 use solar_interface::{Result, Session};
 
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 use console::Voice;
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 use http::ChatClient;
-#[cfg(feature = "llm")]
-use nanocodex::{
-    AgentEvents, Model, Nanocodex, OpenAi, Thinking, Tools, UsdAmount, agent::ExecutionEnvironment,
-    oai::events::AgentEventKind,
-};
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 use provider::Provider;
-#[cfg(feature = "llm")]
-use serde_json::Value;
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 use solar_codegen::llm::{
     CostReport, LlmError, LlmRewriter, LlmSession, RewriteRequest, Verdict, set_rewriter,
 };
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 use solar_config::{ErrorFormat, LlmEffort};
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 use std::{
     fmt::{self, Write},
     pin::Pin,
@@ -64,52 +59,62 @@ use std::{
     },
     time::{Duration, Instant},
 };
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 use tokio::{runtime::Runtime, sync::Semaphore};
-#[cfg(feature = "llm")]
-use wire::{Delta, Transcript};
+#[cfg(feature = "llm-transport")]
+use wire::Transcript;
 
-#[cfg(any(feature = "llm", test))]
+#[cfg(feature = "llm")]
+use nanocodex::{
+    AgentEvents, Model, Nanocodex, OpenAi, Thinking, Tools, agent::ExecutionEnvironment,
+    oai::events::AgentEventKind,
+};
+#[cfg(feature = "llm")]
+use serde_json::Value;
+#[cfg(feature = "llm")]
+use wire::Delta;
+
+#[cfg(any(feature = "llm-transport", test))]
 use solar_codegen::llm::Proposal;
 
-#[cfg(any(feature = "llm", test))]
-#[cfg_attr(not(feature = "llm"), allow(dead_code))]
+#[cfg(any(feature = "llm-transport", test))]
+#[cfg_attr(not(feature = "llm-transport"), allow(dead_code))]
 mod console;
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 mod http;
-#[cfg(any(feature = "llm", test))]
-#[cfg_attr(not(feature = "llm"), allow(dead_code))]
+#[cfg(any(feature = "llm-transport", test))]
+#[cfg_attr(not(feature = "llm-transport"), allow(dead_code))]
 mod provider;
-#[cfg(any(feature = "llm", test))]
-#[cfg_attr(not(feature = "llm"), allow(dead_code))]
+#[cfg(any(feature = "llm-transport", test))]
+#[cfg_attr(not(feature = "llm-transport"), allow(dead_code))]
 mod wire;
 
 /// The rewriting brief every conversation opens with.
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 const INSTRUCTIONS: &str = include_str!("llm/instructions.md");
 /// Turns in flight at once, so parallel compilation does not flood the provider.
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 const MAX_TURNS: usize = 4;
 /// The longest wait for one reply, including the wait for a turn to start.
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 const TURN_TIMEOUT: Duration = Duration::from_secs(600);
 /// Estimated spend, in nano-USD, after which no turn starts.
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 const BUDGET_NANO_USD: u64 = 5_000_000_000;
 /// Tokens after which no turn starts, whatever they cost.
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 const BUDGET_TOKENS: u64 = 10_000_000;
 /// The date agents see: a fixed environment keeps host context out of prompts.
 #[cfg(feature = "llm")]
 const DATE: &str = "2026-01-01";
 /// The reply to a reply that held no candidate.
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 const FORMAT_REMINDER: &str = "Your reply held no candidate. Reply with exactly one fenced code \
                                block tagged `mir` holding the whole function, or with the single \
                                line `NO_IMPROVEMENT`.";
 
 /// The transport an embedder installed, which every chat provider sends through.
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 static TRANSPORT: RwLock<Option<Arc<dyn ChatTransport>>> = RwLock::new(None);
 
 /// Sends the requests of the chat providers, `anthropic/`, `opencode/`, and `openai-chat/`, in
@@ -120,7 +125,7 @@ static TRANSPORT: RwLock<Option<Arc<dyn ChatTransport>>> = RwLock::new(None);
 /// With a transport installed, the compiler neither reads nor sends a provider key: the transport
 /// authenticates or pays for every request. The compiler still sends a request again after a
 /// rate limit, an overload, a server error, or a failure the transport calls transient.
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 pub trait ChatTransport: Send + Sync {
     /// Sends `request` and returns the response to it, whatever its status. The request's body is
     /// buffered, so it can be cloned to send again.
@@ -131,14 +136,14 @@ pub trait ChatTransport: Send + Sync {
 }
 
 /// Why a [`ChatTransport`] could not deliver a request.
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 #[derive(Clone, Debug)]
 pub struct TransportError {
     message: String,
     transient: bool,
 }
 
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 impl TransportError {
     /// A failure another try may avoid, such as a dropped connection.
     pub fn transient(message: impl Into<String>) -> Self {
@@ -151,27 +156,27 @@ impl TransportError {
     }
 }
 
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 impl fmt::Display for TransportError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.message)
     }
 }
 
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 impl std::error::Error for TransportError {}
 
 /// Installs the transport the chat providers send through, or removes it with `None`.
 ///
 /// A compilation reads it once, when `-Zllm-optimize=live` starts, so install it before
 /// compiling and remove it after.
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 pub fn set_transport(transport: Option<Arc<dyn ChatTransport>>) {
     *TRANSPORT.write().unwrap_or_else(PoisonError::into_inner) = transport;
 }
 
 /// Returns the installed transport.
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 pub fn transport() -> Option<Arc<dyn ChatTransport>> {
     TRANSPORT.read().unwrap_or_else(PoisonError::into_inner).clone()
 }
@@ -185,9 +190,9 @@ pub(crate) fn install(sess: &Session) -> Result<Option<Installed>> {
     {
         return Ok(None);
     }
-    #[cfg(feature = "llm")]
+    #[cfg(feature = "llm-transport")]
     return Installed::new(sess).map(Some);
-    #[cfg(not(feature = "llm"))]
+    #[cfg(not(feature = "llm-transport"))]
     return Err(sess
         .dcx
         .err("`-Zllm-optimize=live` requires the compiler's `llm` feature")
@@ -196,10 +201,10 @@ pub(crate) fn install(sess: &Session) -> Result<Option<Installed>> {
 }
 
 /// An installed rewriter.
-#[cfg(not(feature = "llm"))]
+#[cfg(not(feature = "llm-transport"))]
 pub(crate) enum Installed {}
 
-#[cfg(not(feature = "llm"))]
+#[cfg(not(feature = "llm-transport"))]
 impl Installed {
     /// Removes the rewriter.
     pub(crate) fn finish(self, _sess: &Session) {
@@ -208,13 +213,13 @@ impl Installed {
 }
 
 /// An installed rewriter and the runtime its conversations run on.
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 pub(crate) struct Installed {
     shared: Arc<Shared>,
     runtime: Runtime,
 }
 
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 impl Installed {
     fn new(sess: &Session) -> Result<Self> {
         let unstable = &sess.opts.unstable;
@@ -236,7 +241,16 @@ impl Installed {
                     .help("name `openai-chat/MODEL` to ask OpenAI through its chat completions API")
                     .emit());
             }
-            (Some(_), _) => None,
+            (Some(_), _) => None::<String>,
+            #[cfg(not(feature = "llm"))]
+            (None, _) => {
+                return Err(sess
+                    .dcx
+                    .err("`-Zllm-optimize=live` requires an embedder's transport in this build")
+                    .help("build the compiler with `--features llm` to ask models with a key")
+                    .emit());
+            }
+            #[cfg(feature = "llm")]
             (None, _) => {
                 let variable = provider.key_variable();
                 let Ok(key) = std::env::var(variable) else {
@@ -261,6 +275,9 @@ impl Installed {
             sess.dcx.err(format!("cannot configure the model client: {error}")).emit()
         };
         let backend = match provider {
+            #[cfg(not(feature = "llm"))]
+            Provider::OpenAi => unreachable!("OpenAI's Responses API needs a key and nanocodex"),
+            #[cfg(feature = "llm")]
             Provider::OpenAi => {
                 let model = model
                     .map(str::parse::<Model>)
@@ -368,7 +385,7 @@ impl Installed {
                 shared.provider.name()
             );
             if shared.unpriced.load(Ordering::Relaxed) == 0 {
-                let spent = UsdAmount::from_nano_usd(shared.spent_nano_usd.load(Ordering::Relaxed));
+                let spent = Usd(shared.spent_nano_usd.load(Ordering::Relaxed));
                 let _ = write!(message, ", an estimated {spent}");
             } else {
                 message.push_str(", at a cost the compiler cannot estimate");
@@ -380,7 +397,7 @@ impl Installed {
 }
 
 /// State every conversation shares.
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 struct Shared {
     runtime: tokio::runtime::Handle,
     provider: Provider,
@@ -398,15 +415,16 @@ struct Shared {
 }
 
 /// How conversations reach the model.
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 enum Backend {
     /// A nanocodex agent per conversation.
+    #[cfg(feature = "llm")]
     Agent { openai: OpenAi, model: Option<Model>, thinking: Option<Thinking> },
     /// A chat API over HTTP.
     Chat { client: Arc<ChatClient>, model: String, effort: Option<LlmEffort> },
 }
 
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 impl Shared {
     /// Runs `future` on the runtime and waits at most a turn for it.
     fn run<T: Send + 'static>(
@@ -435,7 +453,7 @@ impl Shared {
 
 /// Runs `future` on `runtime` and waits at most `timeout` for it, from any thread: the caller
 /// never enters an async context.
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 fn wait<T: Send + 'static>(
     runtime: &tokio::runtime::Handle,
     future: impl Future<Output = T> + Send + 'static,
@@ -448,14 +466,15 @@ fn wait<T: Send + 'static>(
     receiver.recv_timeout(timeout).map_err(|_| LlmError::new("the model did not answer in time"))
 }
 
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 struct Rewriter(Arc<Shared>);
 
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 impl LlmRewriter for Rewriter {
     fn session(&self, request: &RewriteRequest) -> Result<Box<dyn LlmSession>, LlmError> {
         let shared = Arc::clone(&self.0);
         let chat: Box<dyn Chat> = match &shared.backend {
+            #[cfg(feature = "llm")]
             Backend::Agent { openai, model, thinking } => {
                 let (openai, model, thinking) = (openai.clone(), *model, *thinking);
                 let (agent, events) = shared
@@ -510,7 +529,7 @@ impl LlmRewriter for Rewriter {
 }
 
 /// A turn's reply and what it used.
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 struct Turn {
     text: String,
     tokens: u64,
@@ -519,7 +538,7 @@ struct Turn {
 }
 
 /// One conversation's exchanges with its model.
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 trait Chat: Send {
     /// Sends `prompt` and returns the reply, streaming it to `voice` as it arrives.
     fn turn(
@@ -599,13 +618,13 @@ impl Drop for AgentChat {
 }
 
 /// A conversation with a chat API, whose history the transcript keeps.
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 struct HttpChat {
     client: Arc<ChatClient>,
     transcript: Transcript,
 }
 
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 impl Chat for HttpChat {
     fn turn(
         &mut self,
@@ -633,7 +652,7 @@ impl Chat for HttpChat {
 }
 
 /// One conversation about one function.
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 struct Conversation {
     shared: Arc<Shared>,
     chat: Box<dyn Chat>,
@@ -645,7 +664,7 @@ struct Conversation {
     round: usize,
 }
 
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 impl LlmSession for Conversation {
     fn propose(&mut self, verdict: Option<&Verdict>) -> Result<Proposal, LlmError> {
         let proposal = self.ask(verdict);
@@ -671,7 +690,7 @@ impl LlmSession for Conversation {
     }
 }
 
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 impl Conversation {
     /// Asks for the next candidate after `verdict`.
     fn ask(&mut self, verdict: Option<&Verdict>) -> Result<Proposal, LlmError> {
@@ -722,7 +741,7 @@ impl Conversation {
         let mut message =
             format!("replied in {:.1} s using {tokens} tokens", start.elapsed().as_secs_f64());
         if let Some(nano_usd) = nano_usd {
-            let _ = write!(message, ", an estimated {}", UsdAmount::from_nano_usd(nano_usd));
+            let _ = write!(message, ", an estimated {}", Usd(nano_usd));
         }
         self.voice.say(message);
         Ok(text)
@@ -730,7 +749,7 @@ impl Conversation {
 }
 
 /// Renders the first prompt of a conversation.
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 fn first_prompt(request: &RewriteRequest) -> String {
     let mut prompt = String::new();
     let _ = writeln!(
@@ -762,7 +781,7 @@ fn first_prompt(request: &RewriteRequest) -> String {
 }
 
 /// Renders the prompt answering a verdict.
-#[cfg(feature = "llm")]
+#[cfg(feature = "llm-transport")]
 fn verdict_prompt(verdict: &Verdict, best: CostReport) -> String {
     match verdict {
         Verdict::Accepted { cost } => format!(
@@ -786,7 +805,7 @@ fn verdict_prompt(verdict: &Verdict, best: CostReport) -> String {
 
 /// Returns the proposal in a reply: its only `mir` block, or `NO_IMPROVEMENT` when it has
 /// no block.
-#[cfg(any(feature = "llm", test))]
+#[cfg(any(feature = "llm-transport", test))]
 fn extract(reply: &str) -> Option<Proposal> {
     let mut blocks = Vec::new();
     let mut lines = reply.lines();
@@ -816,6 +835,23 @@ fn extract(reply: &str) -> Option<Proposal> {
     }
 }
 
+/// An amount in nano-USD, written in dollars as nanocodex writes them: `$0.0125`.
+#[cfg(feature = "llm-transport")]
+struct Usd(u64);
+
+#[cfg(feature = "llm-transport")]
+impl fmt::Display for Usd {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        const NANO_USD_PER_USD: u64 = 1_000_000_000;
+        let (whole, fraction) = (self.0 / NANO_USD_PER_USD, self.0 % NANO_USD_PER_USD);
+        if fraction == 0 {
+            return write!(f, "${whole}");
+        }
+        let fraction = format!("{fraction:09}");
+        write!(f, "${whole}.{}", fraction.trim_end_matches('0'))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -833,5 +869,14 @@ mod tests {
         assert_eq!(extract("```mir\na\n```\n```mir\nb\n```"), None);
         assert_eq!(extract("```mir\nunclosed\n"), None);
         assert_eq!(extract("I would use a shift."), None);
+    }
+
+    #[cfg(feature = "llm-transport")]
+    #[test]
+    fn amounts() {
+        assert_eq!(Usd(0).to_string(), "$0");
+        assert_eq!(Usd(5_000_000_000).to_string(), "$5");
+        assert_eq!(Usd(12_500_000).to_string(), "$0.0125");
+        assert_eq!(Usd(1_250_000_001).to_string(), "$1.250000001");
     }
 }

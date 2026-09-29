@@ -1,30 +1,35 @@
 //! Chat providers reached over HTTP.
 //!
 //! A [`ChatClient`] posts a [`Transcript`](super::wire::Transcript)'s requests to one provider's
-//! endpoint with the provider's key, over the native-trust TLS configuration nanocodex uses for
-//! OpenAI, or through the [`ChatTransport`] an embedder installed, without a key. A request that
-//! meets a rate limit, overload, a server error, a failed connection, or a failure the transport
-//! calls transient is sent up to four times, waiting between tries as long as the provider asks
-//! through `retry-after`, or two seconds and then twice as long each time, but never more than a
-//! minute; any other failure ends the turn with the provider's message. An endpoint that asks for
-//! payment with HTTP 402 is not asked again: only a transport that pays gets past it. The key
-//! travels in a request header marked sensitive and nowhere else.
+//! endpoint through the [`ChatTransport`] an embedder installed, without a key, or, with the `llm`
+//! feature, with the provider's key over the native-trust TLS configuration nanocodex uses for
+//! OpenAI. A request that meets a rate limit, overload, a server error, a failed connection, or a
+//! failure the transport calls transient is sent up to four times, waiting between tries as long
+//! as the provider asks through `retry-after`, or two seconds and then twice as long each time,
+//! but never more than a minute; any other failure ends the turn with the provider's message. An
+//! endpoint that asks for payment with HTTP 402 is not asked again: only a transport that pays
+//! gets past it. The key travels in a request header marked sensitive and nowhere else.
 //!
 //! Replies stream in as server-sent events, each piece passed on as it arrives; once a reply has
 //! begun, a failure ends the turn rather than sending the request again. A server that ignores
 //! the request to stream sends its reply whole, which is shown whole.
 
 use super::{
-    ChatTransport, TransportError,
+    ChatTransport,
     provider::{Prices, Provider},
     wire::{ANTHROPIC_VERSION, Delta, Protocol, ReplyStream, SseParser},
 };
 use reqwest::{
-    Client, Method, Request, Response, StatusCode, Url,
+    Method, Request, Response, StatusCode, Url,
     header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue, RETRY_AFTER},
 };
 use serde_json::Value;
 use std::{sync::Arc, time::Duration};
+
+#[cfg(feature = "llm")]
+use super::TransportError;
+#[cfg(feature = "llm")]
+use reqwest::Client;
 
 /// Attempts at one request before its turn fails.
 const ATTEMPTS: u32 = 4;
@@ -38,6 +43,7 @@ const MAX_MESSAGE: usize = 500;
 /// What carries a chat endpoint's requests.
 enum Sender {
     /// The compiler's own client, with the provider's key.
+    #[cfg(feature = "llm")]
     Client(Client),
     /// An embedder's transport, which authenticates or pays for each request itself.
     Transport(Arc<dyn ChatTransport>),
@@ -88,6 +94,9 @@ impl ChatClient {
             .transpose()?;
         let sender = match transport {
             Some(transport) => Sender::Transport(transport),
+            #[cfg(not(feature = "llm"))]
+            None => return Err("this build sends requests only through a transport".into()),
+            #[cfg(feature = "llm")]
             None => {
                 let tls = nanocodex::oai::tls::native_client_config()
                     .await
@@ -126,6 +135,7 @@ impl ChatClient {
             };
             let request = self.request(&body);
             let sent = match &self.sender {
+                #[cfg(feature = "llm")]
                 Sender::Client(client) => client.execute(request).await.map_err(|error| {
                     let message = error.to_string();
                     if error.is_connect() || error.is_timeout() {
@@ -149,10 +159,23 @@ impl ChatClient {
                         .and_then(|value| value.trim().parse().ok())
                         .map(Duration::from_secs);
                     if status == StatusCode::PAYMENT_REQUIRED {
-                        return Err(format!(
-                            "{name} answered {status}: the endpoint asks for payment, which only \
-                             an embedder's transport can make"
-                        ));
+                        return Err(match &self.sender {
+                            #[cfg(feature = "llm")]
+                            Sender::Client(_) => format!(
+                                "{name} answered {status}: the endpoint asks for payment, which \
+                                 only an embedder's transport can make"
+                            ),
+                            Sender::Transport(_) => {
+                                let answer = format!(
+                                    "{name} answered {status} through the embedder's transport, \
+                                     which did not settle the payment"
+                                );
+                                match message(&response.text().await.unwrap_or_default()) {
+                                    message if message.is_empty() => answer,
+                                    message => format!("{answer}: {message}"),
+                                }
+                            }
+                        });
                     }
                     let text = response.text().await.unwrap_or_default();
                     let answer = format!("{name} answered {status}: {}", message(&text));
@@ -273,8 +296,9 @@ fn message(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::llm::{set_transport, wire::Transcript};
+    use crate::llm::{TransportError, set_transport, wire::Transcript};
     use clap::Parser;
+    use reqwest::Client;
     use solar_config::CompileOpts;
     use std::{
         future::Future,
@@ -370,17 +394,16 @@ data: {"type":"message_stop"}
     }
 
     /// Pays a 402 challenge by sending the request again with a credential, as an MPP client
-    /// does.
+    /// does, unless its wallet is empty.
     struct Paying {
         client: Client,
+        funded: bool,
         payments: AtomicUsize,
     }
 
     impl Paying {
-        async fn new() -> Arc<Self> {
-            let tls = nanocodex::oai::tls::native_client_config().await.unwrap();
-            let client = Client::builder().use_preconfigured_tls((*tls).clone()).build().unwrap();
-            Arc::new(Self { client, payments: AtomicUsize::new(0) })
+        async fn new(funded: bool) -> Arc<Self> {
+            Arc::new(Self { client: client().await, funded, payments: AtomicUsize::new(0) })
         }
     }
 
@@ -393,7 +416,7 @@ data: {"type":"message_stop"}
                 let mut paid = request.try_clone().expect("chat requests are buffered");
                 let failed = |error: reqwest::Error| TransportError::transient(error.to_string());
                 let response = self.client.execute(request).await.map_err(failed)?;
-                if response.status() != StatusCode::PAYMENT_REQUIRED {
+                if response.status() != StatusCode::PAYMENT_REQUIRED || !self.funded {
                     return Ok(response);
                 }
                 self.payments.fetch_add(1, Ordering::Relaxed);
@@ -401,6 +424,19 @@ data: {"type":"message_stop"}
                 self.client.execute(paid).await.map_err(failed)
             })
         }
+    }
+
+    /// A client for the plain-HTTP gateway.
+    async fn client() -> Client {
+        // Under the `llm` feature, reqwest's TLS has no crypto provider of its own, so the client
+        // takes nanocodex's configuration, as the compiler's own client does.
+        #[cfg(feature = "llm")]
+        {
+            let tls = nanocodex::oai::tls::native_client_config().await.unwrap();
+            Client::builder().use_preconfigured_tls((*tls).clone()).build().unwrap()
+        }
+        #[cfg(not(feature = "llm"))]
+        Client::new()
     }
 
     /// Asks `client` one turn, returning the reply's text.
@@ -415,7 +451,7 @@ data: {"type":"message_stop"}
     #[tokio::test]
     async fn transport_pays_the_gateway() {
         let (url, seen) = gateway(NO_IMPROVEMENT).await;
-        let transport = Paying::new().await;
+        let transport = Paying::new(true).await;
         let client = ChatClient::new(
             Provider::Anthropic,
             &url,
@@ -441,6 +477,23 @@ data: {"type":"message_stop"}
     }
 
     #[tokio::test]
+    async fn unsettled_payment_ends_the_turn() {
+        let (url, seen) = gateway(NO_IMPROVEMENT).await;
+        let transport = Paying::new(false).await;
+        let client =
+            ChatClient::new(Provider::Anthropic, &url, None, Some(transport), None).await.unwrap();
+        assert_eq!(
+            ask(&client).await,
+            Err("Anthropic answered 402 Payment Required through the embedder's transport, which \
+                 did not settle the payment"
+                .into())
+        );
+        // A payment request is not sent again.
+        assert_eq!(seen.lock().unwrap().len(), 1);
+    }
+
+    #[cfg(feature = "llm")]
+    #[tokio::test]
     async fn unpaid_gateway_ends_the_turn() {
         let (url, seen) = gateway(NO_IMPROVEMENT).await;
         let client =
@@ -463,7 +516,7 @@ data: {"type":"message_stop"}
     fn live_compilation_through_a_transport() {
         let server = Runtime::new().unwrap();
         let (url, seen) = server.block_on(gateway(NO_IMPROVEMENT));
-        let transport = server.block_on(Paying::new());
+        let transport = server.block_on(Paying::new(true));
         set_transport(Some(transport.clone()));
         let mut opts = CompileOpts::try_parse_from([
             "solar",
