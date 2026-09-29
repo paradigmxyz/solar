@@ -79,7 +79,7 @@ pub(crate) use builtin::{Builtin, Callee, RequireKind};
 mod builder;
 pub(crate) use builder::{ERROR_SELECTOR, FunctionBuilder};
 
-mod display;
+pub(crate) mod display;
 
 mod parser;
 
