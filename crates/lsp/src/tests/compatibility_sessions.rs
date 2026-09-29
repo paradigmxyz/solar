@@ -783,14 +783,17 @@ async fn did_open_before_initialize_is_not_observable() {
 #[tokio::test(flavor = "current_thread")]
 async fn diagnostic_details_are_preserved_on_the_wire() {
     for (source, expected) in [
-        ("contract Details { uint8 x = 300; }\n", str![[r#"
+        (
+            "contract Details { uint8 x = 300; }\n",
+            str![[r#"
 message: "mismatched types\nexpected `uint8`, found `int_literal[9]`"
 range: {"end":{"character":32,"line":0},"start":{"character":29,"line":0}}
 relatedInformation: []
 severity: 1
 source: "solar"
 
-"#]]),
+"#]],
+        ),
         (
             "contract Base { function f() public {} }\ncontract Derived is Base { function f() public override {} }\n",
             str![[r#"

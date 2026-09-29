@@ -1350,47 +1350,51 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
                 config.signature_help_options().signature_active_parameter
             }),
         ];
-        let default = ["push_diagnostics", "completion_resolve"];
+        let enabled = |capabilities: &Value| {
+            let (server, config) = negotiate(capabilities.clone());
+            flags.map(|(name, flag)| (name, flag(&server, &config)))
+        };
+        let default = enabled(&json!({}));
+        let default_names = default.iter().filter(|flag| flag.1).map(|flag| flag.0);
+        assert_eq!(default_names.collect::<Vec<_>>(), ["push_diagnostics", "completion_resolve"]);
+
         let completion_item =
             |item| json!({ "textDocument": { "completion": { "completionItem": item } } });
         let signature_information = |information| json!({ "textDocument": { "signatureHelp": { "signatureInformation": information } } });
-        for (capabilities, expected) in [
-            (json!({}), &default[..]),
-            (json!({ "window": { "workDoneProgress": false } }), &default),
-            (
-                json!({ "window": { "workDoneProgress": true } }),
-                &["push_diagnostics", "work_done_progress", "completion_resolve"],
-            ),
+        // Each row lists the flags that differ from the defaults.
+        for (capabilities, changed) in [
+            (json!({ "window": { "workDoneProgress": false } }), &[][..]),
+            (json!({ "window": { "workDoneProgress": true } }), &["work_done_progress"]),
             (
                 json!({ "workspace": { "didChangeWatchedFiles": {
                     "dynamicRegistration": true,
                     "relativePatternSupport": true,
                 } } }),
-                &["push_diagnostics", "watched_files", "relative_patterns", "completion_resolve"],
+                &["watched_files", "relative_patterns"],
             ),
             (
                 json!({ "workspace": { "workspaceEdit": { "documentChanges": true } } }),
-                &["push_diagnostics", "document_changes", "completion_resolve"],
+                &["document_changes"],
             ),
             (
                 json!({ "workspace": { "codeLens": { "refreshSupport": true } } }),
-                &["push_diagnostics", "code_lens_refresh", "completion_resolve"],
+                &["code_lens_refresh"],
             ),
             (
                 json!({ "workspace": { "inlayHint": { "refreshSupport": true } } }),
-                &["push_diagnostics", "inlay_hint_refresh", "completion_resolve"],
+                &["inlay_hint_refresh"],
             ),
             // Pull delivery requires both document diagnostics and refresh support.
             (
                 json!({ "workspace": { "diagnostics": { "refreshSupport": true } } }),
-                &["push_diagnostics", "diagnostic_refresh", "completion_resolve"],
+                &["diagnostic_refresh"],
             ),
             (
                 json!({ "textDocument": {
                     "diagnostic": { "dataSupport": true },
                     "publishDiagnostics": { "dataSupport": true },
                 } }),
-                &["push_diagnostics", "publish_data", "code_action_data", "completion_resolve"],
+                &["publish_data", "code_action_data"],
             ),
             (
                 json!({
@@ -1401,12 +1405,12 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
                     "workspace": { "diagnostics": { "refreshSupport": true } },
                 }),
                 &[
+                    "push_diagnostics",
                     "pull_diagnostics",
                     "diagnostic_provider",
                     "pull_data",
                     "code_action_data",
                     "diagnostic_refresh",
-                    "completion_resolve",
                 ],
             ),
             (
@@ -1418,10 +1422,10 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
                     "workspace": { "diagnostics": { "refreshSupport": true } },
                 }),
                 &[
+                    "push_diagnostics",
                     "pull_diagnostics",
                     "diagnostic_provider",
                     "diagnostic_refresh",
-                    "completion_resolve",
                 ],
             ),
             // Any literal support enables quick fixes, even without the quick-fix kind.
@@ -1429,50 +1433,37 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
                 json!({ "textDocument": { "codeAction": { "codeActionLiteralSupport": {
                     "codeActionKind": { "valueSet": ["refactor"] }
                 } } } }),
-                &[
-                    "push_diagnostics",
-                    "code_action_literals",
-                    "code_action_provider",
-                    "completion_resolve",
-                ],
+                &["code_action_literals", "code_action_provider"],
             ),
             (
                 json!({ "textDocument": { "codeAction": { "isPreferredSupport": true } } }),
-                &["push_diagnostics", "code_action_is_preferred", "completion_resolve"],
+                &["code_action_is_preferred"],
             ),
             (
                 json!({ "textDocument": { "documentSymbol": {
                     "hierarchicalDocumentSymbolSupport": true
                 } } }),
-                &["push_diagnostics", "hierarchical_symbols", "completion_resolve"],
+                &["hierarchical_symbols"],
             ),
             (
                 completion_item(json!({
                     "snippetSupport": true,
                     "documentationFormat": ["markdown", "plaintext"],
                 })),
-                &[
-                    "push_diagnostics",
-                    "completion_snippets",
-                    "completion_markdown",
-                    "completion_resolve",
-                ],
+                &["completion_snippets", "completion_markdown"],
             ),
-            (
-                completion_item(json!({ "documentationFormat": ["plaintext", "markdown"] })),
-                &default,
-            ),
+            (completion_item(json!({ "documentationFormat": ["plaintext", "markdown"] })), &[]),
             (
                 completion_item(
                     json!({ "resolveSupport": { "properties": ["additionalTextEdits"] } }),
                 ),
-                &["push_diagnostics"],
+                &["completion_resolve"],
             ),
             (
                 completion_item(json!({ "resolveSupport": {
                     "properties": ["additionalTextEdits", "documentation"]
                 } })),
-                &default,
+                &[],
             ),
             (
                 signature_information(json!({
@@ -1480,26 +1471,21 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
                     "parameterInformation": { "labelOffsetSupport": true },
                     "activeParameterSupport": true,
                 })),
-                &[
-                    "push_diagnostics",
-                    "completion_resolve",
-                    "signature_offsets",
-                    "signature_markdown",
-                    "signature_active_parameter",
-                ],
+                &["signature_offsets", "signature_markdown", "signature_active_parameter"],
             ),
             (
                 signature_information(json!({ "documentationFormat": ["plaintext", "markdown"] })),
-                &default,
+                &[],
             ),
         ] {
-            let (server, config) = negotiate(capabilities.clone());
-            let enabled = flags
+            let flags = enabled(&capabilities);
+            let flipped = flags
                 .iter()
-                .filter(|(_, flag)| flag(&server, &config))
-                .map(|&(name, _)| name)
+                .zip(&default)
+                .filter(|(flag, default)| flag.1 != default.1)
+                .map(|(&(name, _), _)| name)
                 .collect::<Vec<_>>();
-            assert_eq!(enabled, expected, "{capabilities}");
+            assert_eq!(flipped, changed, "{capabilities}");
         }
     }
 
