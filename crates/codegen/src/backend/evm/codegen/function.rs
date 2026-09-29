@@ -11,7 +11,7 @@ use super::{
     stack::layout::LIVE_JOIN_LAYOUT_LIMIT,
 };
 use crate::{mir::Callee, target::Target};
-use std::rc::Rc;
+use std::{cell::LazyCell, rc::Rc};
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Splits phi-carrying edges out of multi-successor predecessors when a
@@ -37,7 +37,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
         // Only an edge from a block with other successors needs liveness.
-        let liveness = OnceCell::new();
+        let liveness = LazyCell::new(|| Liveness::compute(func));
 
         let mut splits: Vec<(BlockId, BlockId)> = Vec::new();
         for (block_id, block) in func.blocks.iter_enumerated() {
@@ -51,19 +51,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let Some(terminator) = func.blocks[pred].terminator.as_ref() else { continue };
                     let successors = terminator.successors();
                     if terminator.operands().contains(&dst)
-                        || successors.iter().any(|&succ| {
-                            succ != block_id
-                                && liveness
-                                    .get_or_init(|| Liveness::compute(func))
-                                    .live_in(succ)
-                                    .contains(dst)
-                        })
+                        || successors
+                            .iter()
+                            .any(|&succ| succ != block_id && liveness.live_in(succ).contains(dst))
                     {
                         splits.push((pred, block_id));
                     }
                 }
             }
         }
+        drop(liveness);
 
         for (pred, succ) in splits {
             let edge = func.alloc_block();
