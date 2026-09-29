@@ -1618,6 +1618,7 @@ mod tests {
 
         let duplicate = BenchmarkProject::from_source("contract C { uint x; uint x; }".into());
         assert!(duplicate.unique_anchor("benchmark.sol", "x").is_err());
+        assert!(duplicate.unique_anchor("missing.sol", "x").is_err());
     }
 
     #[test]
