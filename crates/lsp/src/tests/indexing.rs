@@ -1,71 +1,18 @@
 use super::*;
-use crate::{handlers, vfs::VfsPath, workspace::Workspace};
-use async_lsp::LanguageServer;
-use crop::Rope;
 use std::sync::atomic::AtomicBool;
-
-pub(super) fn state_with(config: Config) -> GlobalState {
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
-    state
-}
-
-pub(super) async fn settle(state: &GlobalState) -> Arc<ArcSwap<SymbolTables>> {
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap()
-}
 
 async fn reanalyze(state: &mut GlobalState, changed_paths: Vec<PathBuf>) {
     state.recompute_after_opening_source(changed_paths);
     settle(state).await;
 }
 
-pub(super) fn analysis_version(state: &GlobalState) -> usize {
-    state.analysis_version.load(Ordering::Acquire)
-}
-
-pub(super) fn cancel_analysis(state: &GlobalState) {
-    state.analysis_scheduler.tasks.lock().cancel();
-}
-
-pub(super) fn open(state: &mut GlobalState, uri: &Url, version: i32, text: impl Into<String>) {
-    let text_document = TextDocumentItem::new(uri.clone(), "solidity".into(), version, text.into());
-    let params = DidOpenTextDocumentParams { text_document };
-    assert!(handlers::did_open_text_document(state, params).is_continue());
-}
-
-pub(super) fn change(state: &mut GlobalState, uri: &Url, version: i32, text: impl Into<String>) {
-    let params = DidChangeTextDocumentParams {
-        text_document: VersionedTextDocumentIdentifier::new(uri.clone(), version),
-        content_changes: vec![TextDocumentContentChangeEvent {
-            range: None,
-            range_length: None,
-            text: text.into(),
-        }],
-    };
-    assert!(handlers::did_change_text_document(state, params).is_continue());
-}
-
-pub(super) fn close(state: &mut GlobalState, uri: &Url) {
-    let params =
-        DidCloseTextDocumentParams { text_document: TextDocumentIdentifier::new(uri.clone()) };
-    assert!(handlers::did_close_text_document(state, params).is_continue());
-}
-
-pub(super) fn watch(state: &mut GlobalState, events: &[(&Path, FileChangeType)]) {
-    let changes = events
-        .iter()
-        .map(|&(path, typ)| FileEvent { uri: Url::from_file_path(path).unwrap(), typ })
-        .collect();
-    let params = DidChangeWatchedFilesParams { changes };
-    assert!(handlers::did_change_watched_files(state, params).is_continue());
-}
-
-pub(super) fn set_overlay(state: &GlobalState, path: &Path, text: &str, version: i32) {
-    state.vfs.write().set_file_contents_with_version(
-        VfsPath::from(path.to_path_buf()),
-        Some(Rope::from(text)),
-        Some(version),
-    );
+fn assert_workspace_diagnostics_clean(state: &GlobalState) {
+    for report in state.diagnostics.read().workspace_pull_reports(Vec::new()) {
+        let PullReport::Full { diagnostics, .. } = report.report else {
+            unreachable!("no previous result IDs")
+        };
+        assert!(diagnostics.is_empty());
+    }
 }
 
 pub(super) fn report_version(state: &GlobalState, uri: &Url) -> Option<i64> {
@@ -113,44 +60,13 @@ pub(super) fn symbol_names(tables: &Arc<ArcSwap<SymbolTables>>, query: &str) -> 
     tables.load().workspace_symbols(query).into_iter().map(|symbol| symbol.name).collect()
 }
 
-pub(super) fn workspace_at<'a>(config: &'a Config, root: &Path) -> &'a Workspace {
-    config
-        .workspaces()
-        .iter()
-        .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(root))
-        .unwrap()
-}
-
-fn quiet_client() -> (async_lsp::MainLoop<Router<()>>, ServerSocket) {
-    async_lsp::MainLoop::new_client(|_| {
-        let mut router = Router::new(());
-        router.notification::<notification::PublishDiagnostics>(|_, _| ControlFlow::Continue(()));
-        router.notification::<notification::LogMessage>(|_, _| ControlFlow::Continue(()));
-        router
-    })
-}
-
-async fn shutdown(
-    mut server: ServerSocket,
-    (server_task, client_task): (
-        tokio::task::JoinHandle<async_lsp::Result<()>>,
-        tokio::task::JoinHandle<async_lsp::Result<()>>,
-    ),
-) {
-    server.shutdown(()).await.unwrap();
-    server.exit(()).unwrap();
-    assert!(server_task.await.unwrap().is_ok());
-    assert!(matches!(client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
-}
-
 async fn wait_published(published: &mut watch::Receiver<usize>, done: impl Fn(usize) -> bool) {
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, async {
+    within("publication", async {
         while !done(*published.borrow()) {
             published.changed().await.unwrap();
         }
     })
-    .await
-    .unwrap();
+    .await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -181,8 +97,8 @@ async fn dependency_references_survive_closing_arbitrary_project_sources() {
             project.remove_file("/checks/Main.sol");
             std::fs::remove_dir(project.path("/checks")).unwrap();
         }
-        let uri = Url::from_file_path(project.path("/lib/forge-std/src/Base.sol")).unwrap();
-        let test_uri = Url::from_file_path(project.path("/checks/Main.sol")).unwrap();
+        let uri = project.uri("/lib/forge-std/src/Base.sol");
+        let test_uri = project.uri("/checks/Main.sol");
         let mut state = state_with(project.config());
         if created_later {
             // No watcher notification: the editor is how we discover this new file.
@@ -196,7 +112,7 @@ async fn dependency_references_survive_closing_arbitrary_project_sources() {
             let marker = marked.marker(name);
             let position = marker.position();
             lsp_types::Location::new(
-                Url::from_file_path(project.path(marker.path())).unwrap(),
+                project.uri(marker.path()),
                 Range::new(position, Position::new(position.line, position.character + 2)),
             )
         });
@@ -282,7 +198,7 @@ async fn identical_sources_and_reverted_edits_reuse_analysis_and_initialized_que
 
         // Removing an identical overlay changes its version without changing compiler inputs.
         // The didClose handler explicitly invalidates the cache before reaching this path.
-        state.vfs.write().set_file_contents(VfsPath::from(path.clone()), None);
+        remove_overlay(&state, &path);
         reanalyze(&mut state, Vec::new()).await;
         assert!(reused(&state));
         assert_eq!(state.symbol_tables.load().call_hierarchy_outgoing(&caller).unwrap().len(), 1);
@@ -332,7 +248,7 @@ async fn removing_workspace_batch_inputs_invalidates_the_aggregate() {
     assert_eq!(published.workspace_symbols("").len(), 3);
 
     // The remaining batches are reusable, but the newly empty batch changes the aggregate.
-    state.vfs.write().set_file_contents(VfsPath::from(project.path("/c/Main.sol")), None);
+    remove_overlay(&state, &project.path("/c/Main.sol"));
     reanalyze(&mut state, Vec::new()).await;
     let current = state.symbol_tables.load_full();
     assert!(!Arc::ptr_eq(&published, &current));
@@ -471,12 +387,7 @@ async fn workspace_batch_cache_rechecks_disk_imports_and_resolver_probes() {
         assert_eq!(Arc::ptr_eq(&original_main, &current_main), !edit_main);
         assert!(!Arc::ptr_eq(&original_other, &cached_batch_for_path(&state, &other).unwrap()));
         assert_eq!(symbol_names(&state.symbol_tables, "dependencyChanged"), ["dependencyChanged"]);
-        assert!(state.diagnostics.read().workspace_pull_reports(Vec::new()).into_iter().all(
-            |report| match report.report {
-                PullReport::Full { diagnostics, .. } => diagnostics.is_empty(),
-                PullReport::Unchanged { .. } => unreachable!("no previous result IDs"),
-            }
-        ));
+        assert_workspace_diagnostics_clean(&state);
     }
 }
 
@@ -494,7 +405,7 @@ async fn opening_identical_source_rechecks_single_workspace_disk_imports() {
         );
         let main = project.path("/Main.sol");
         let main_uri = Url::from_file_path(&main).unwrap();
-        let dep_uri = Url::from_file_path(project.path("/lib/Dep.sol")).unwrap();
+        let dep_uri = project.uri("/lib/Dep.sol");
         let dependency = project.read_file("/lib/Dep.sol");
         if initially_missing {
             project.remove_file("/lib/Dep.sol");
@@ -511,7 +422,7 @@ async fn opening_identical_source_rechecks_single_workspace_disk_imports() {
         assert!(Arc::ptr_eq(&published, &state.symbol_tables.load()));
         assert_eq!(state.diagnostics.read().pull_report(&main_uri, None), previous_report);
         // Remove the overlay so opening it again advances the content revision below.
-        state.vfs.write().set_file_contents(VfsPath::from(main.clone()), None);
+        remove_overlay(&state, &main);
 
         // Root text still matches. The import changed without any watcher notification,
         // and equal byte lengths must not substitute for comparing dependency contents.
@@ -526,11 +437,7 @@ async fn opening_identical_source_rechecks_single_workspace_disk_imports() {
         assert_eq!(symbol_names(&state.symbol_tables, "modified"), ["modified"]);
         assert_eq!(report_version(&state, &main_uri), Some(7));
         assert_eq!(report_version(&state, &dep_uri), None);
-        let reports = state.diagnostics.read().workspace_pull_reports(Vec::new());
-        assert!(reports.into_iter().all(|report| match report.report {
-            PullReport::Full { diagnostics, .. } => diagnostics.is_empty(),
-            PullReport::Unchanged { .. } => unreachable!("no previous result IDs"),
-        }));
+        assert_workspace_diagnostics_clean(&state);
     }
 }
 
@@ -560,7 +467,7 @@ async fn opening_identical_source_rechecks_retargeted_single_workspace_import() 
     // Identical text at a retargeted symlink still invalidates recorded path resolution.
     project.remove_file("/lib/Dep.sol");
     symlink(project.path("/lib/Second.sol"), &link).unwrap();
-    let main_uri = Url::from_file_path(project.path("/Main.sol")).unwrap();
+    let main_uri = project.uri("/Main.sol");
     open(&mut state, &main_uri, 7, project.read_file("/Main.sol"));
     settle(&state).await;
     let current = state.symbol_tables.load_full();
@@ -639,13 +546,8 @@ async fn cached_published_and_retained_symbol_tables_share_storage() {
     assert!(Arc::ptr_eq(&published, &state.symbol_tables.load()));
 
     // Publication precedes worker cleanup; wait until it releases its symbol references.
-    let _permit = tokio::time::timeout(
-        ASYNC_TEST_TIMEOUT,
-        state.analysis_scheduler.gate.clone().acquire_owned(),
-    )
-    .await
-    .unwrap()
-    .unwrap();
+    let _permit =
+        within("the worker", state.analysis_scheduler.gate.clone().acquire_owned()).await.unwrap();
     let tables = state.symbol_tables.clone();
     let retained = tables.load();
     let old = Arc::downgrade(&published);
@@ -809,16 +711,13 @@ fn source_event_classification_observes_path_index_committed_before_its_lock() {
                 .send(event_state.classify_source_file_event(&event_path, FileChangeType::CHANGED))
                 .unwrap();
         });
-        started_rx.recv_timeout(ASYNC_TEST_TIMEOUT).unwrap();
+        started_rx.recv_timeout(TIMEOUT).unwrap();
 
         commit.analysis_paths.resolved_dependencies.insert(path.clone());
         state.published_analysis_version.send_replace(version);
         drop(commit);
 
-        assert_eq!(
-            result_rx.recv_timeout(ASYNC_TEST_TIMEOUT).unwrap(),
-            SourceFileEventDisposition::Relevant
-        );
+        assert_eq!(result_rx.recv_timeout(TIMEOUT).unwrap(), SourceFileEventDisposition::Relevant);
     });
 }
 
@@ -898,7 +797,10 @@ async fn unknown_dependency_event_after_cache_clear_starts_recovery() {
     let cleared_version = analysis_version(&state);
     project.write_file("/generated/Dependency.sol", "contract Dependency {} contract Latest {}");
 
-    watch(&mut state, &[(&project.path("/generated/Dependency.sol"), FileChangeType::CHANGED)]);
+    watch_files(
+        &mut state,
+        [(&project.path("/generated/Dependency.sol"), FileChangeType::CHANGED)],
+    );
 
     assert_eq!(analysis_version(&state), cleared_version + 1);
     let tables = settle(&state).await;
@@ -929,12 +831,6 @@ async fn discovery_cleanup_does_not_remove_analysis_handles_for_the_same_epoch()
     let _ = worker.await;
 }
 
-fn begin_rediscovery(state: &mut GlobalState) -> (usize, ProgressTicket) {
-    state
-        .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
-        .unwrap()
-}
-
 #[tokio::test(flavor = "current_thread")]
 async fn workspace_discovery_router_rejects_stale_and_cancelled_ready_events() {
     struct DiscoveryStateProbe(oneshot::Sender<(Vec<PathBuf>, bool)>);
@@ -959,62 +855,60 @@ async fn workspace_discovery_router_rejects_stale_and_cancelled_ready_events() {
         negotiate_capabilities(project.initialize_params_with_roots(&["/latest"]));
 
     let (setup_tx, setup_rx) = std_mpsc::sync_channel(1);
-    let (server_main, internal_client) = async_lsp::MainLoop::new_server(move |client| {
-        let mut state = GlobalState::new(client);
-        state.config = Arc::new(latest_config);
-        let stale = begin_rediscovery(&mut state);
-        let latest = begin_rediscovery(&mut state);
-        let published = state.published_analysis_version.subscribe();
-        setup_tx.send((stale, latest, published, state.symbol_tables.clone())).unwrap();
+    let pair = LspPair::spawn(
+        move |client| {
+            let mut state = GlobalState::new(client);
+            state.config = Arc::new(latest_config);
+            let stale = begin_rediscovery(&mut state);
+            let latest = begin_rediscovery(&mut state);
+            let published = state.published_analysis_version.subscribe();
+            setup_tx.send((stale, latest, published, state.symbol_tables.clone())).unwrap();
 
-        let mut router = crate::new_router_with_state(state);
-        router.event::<DiscoveryStateProbe>(|state, probe| {
-            let roots = state
-                .config
-                .workspaces()
-                .iter()
-                .filter_map(|workspace| workspace.compile_opts().base_path.clone())
-                .collect();
-            let pending = state.analysis_commit.lock().discovery_pending;
-            probe.0.send((roots, pending)).unwrap();
-            ControlFlow::Continue(())
-        });
-        router
-    });
-    let (client_main, server) = quiet_client();
+            let mut router = crate::new_router_with_state(state);
+            router.event::<DiscoveryStateProbe>(|state, probe| {
+                let roots = state
+                    .config
+                    .workspaces()
+                    .iter()
+                    .filter_map(|workspace| workspace.compile_opts().base_path.clone())
+                    .collect();
+                let pending = state.analysis_commit.lock().discovery_pending;
+                probe.0.send((roots, pending)).unwrap();
+                ControlFlow::Continue(())
+            });
+            router
+        },
+        |_| quiet_client(),
+    );
     let ((stale_version, stale_progress), (latest_version, latest_progress), mut published, tables) =
         setup_rx.recv().unwrap();
-    let tasks = spawn_lsp_pair(server_main, client_main);
     let ready = |version, result, progress, cancellation| WorkspaceDiscoveryReady {
-        version,
-        result,
-        disk_paths: Vec::new(),
-        progress,
         cancellation,
+        ..discovery_ready(version, result, progress)
     };
     let probe = || async {
         let (probe_tx, probe_rx) = oneshot::channel();
-        internal_client.emit(DiscoveryStateProbe(probe_tx)).unwrap();
+        pair.client.emit(DiscoveryStateProbe(probe_tx)).unwrap();
         probe_rx.await.unwrap()
     };
 
     let event = ready(stale_version, stale_result, stale_progress, Default::default());
-    internal_client.emit(event).unwrap();
+    pair.client.emit(event).unwrap();
     assert_eq!(probe().await, (Vec::new(), true));
 
     let cancelled = IndexingCancellation::default();
     cancelled.cancel();
     let event = ready(latest_version, cancelled_result, latest_progress.clone(), cancelled);
-    internal_client.emit(event).unwrap();
+    pair.client.emit(event).unwrap();
     assert_eq!(probe().await, (Vec::new(), true));
 
     let event = ready(latest_version, latest_result, latest_progress, Default::default());
-    internal_client.emit(event).unwrap();
+    pair.client.emit(event).unwrap();
     wait_published(&mut published, |published| published == latest_version).await;
 
     assert!(symbol_names(&tables, "Stale").is_empty());
     assert_eq!(symbol_names(&tables, "Latest"), ["Latest"]);
-    shutdown(server, tasks).await;
+    pair.shutdown().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1040,35 +934,38 @@ async fn deferred_dependency_change_router_publishes_replacement_analysis() {
     project.write_file("/generated/Dependency.sol", "contract Dependency {} contract Latest {}");
 
     let (setup_tx, setup_rx) = std_mpsc::sync_channel(1);
-    let (server_main, internal_client) = async_lsp::MainLoop::new_server(move |client| {
-        let mut state = GlobalState::new(client);
-        state.config = Arc::new(config);
-        state.mark_analysis_pending_for_test();
-        assert_eq!(
-            state.classify_source_file_event(&dependency, FileChangeType::CHANGED),
-            SourceFileEventDisposition::Deferred
-        );
-        let published = state.published_analysis_version.subscribe();
-        setup_tx.send((analysis_version(&state), published, state.symbol_tables.clone())).unwrap();
+    let pair = LspPair::spawn(
+        move |client| {
+            let mut state = GlobalState::new(client);
+            state.config = Arc::new(config);
+            state.mark_analysis_pending_for_test();
+            assert_eq!(
+                state.classify_source_file_event(&dependency, FileChangeType::CHANGED),
+                SourceFileEventDisposition::Deferred
+            );
+            let published = state.published_analysis_version.subscribe();
+            setup_tx
+                .send((analysis_version(&state), published, state.symbol_tables.clone()))
+                .unwrap();
 
-        let mut router = crate::new_router_with_state(state);
-        router.event::<PublishAnalysis>(|state, event| {
-            let output = event.output.into_shared();
-            assert!(!state.snapshot().publish_analysis_output(event.version, output));
-            ControlFlow::Continue(())
-        });
-        router
-    });
-    let (client_main, server) = quiet_client();
+            let mut router = crate::new_router_with_state(state);
+            router.event::<PublishAnalysis>(|state, event| {
+                let output = event.output.into_shared();
+                assert!(!state.snapshot().publish_analysis_output(event.version, output));
+                ControlFlow::Continue(())
+            });
+            router
+        },
+        |_| quiet_client(),
+    );
     let (version, mut published, tables) = setup_rx.recv().unwrap();
-    let tasks = spawn_lsp_pair(server_main, client_main);
 
-    internal_client.emit(PublishAnalysis { version, output: old_output }).unwrap();
+    pair.client.emit(PublishAnalysis { version, output: old_output }).unwrap();
     wait_published(&mut published, |published| published > version).await;
 
     assert_eq!(*published.borrow(), version + 1);
     assert_eq!(symbol_names(&tables, "Latest"), ["Latest"]);
-    shutdown(server, tasks).await;
+    pair.shutdown().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1189,7 +1086,7 @@ async fn synchronous_workspace_folder_loader_failure_rolls_back_roots() {
     let mut state = state_with(config);
     let params = replace_workspace_folder(&project.path("/a"), &project.path("/b"));
 
-    assert!(handlers::did_change_workspace_folders(&mut state, params).is_continue());
+    assert!(crate::handlers::did_change_workspace_folders(&mut state, params).is_continue());
 
     settle(&state).await;
     assert_failed_workspace_folder_change_rolled_back(
@@ -1239,32 +1136,33 @@ async fn background_workspace_folder_loader_failure_rolls_back_roots() {
 
     let (project, config) = workspace_folder_failure_fixture();
     let (setup_tx, setup_rx) = std_mpsc::sync_channel(1);
-    let (server_main, internal_client) = async_lsp::MainLoop::new_server(move |client| {
-        let mut state = GlobalState::new(client);
-        state.config = Arc::new(config);
-        state.background_discovery = true;
-        setup_tx.send(state.published_analysis_version.subscribe()).unwrap();
-        let mut router = crate::new_router_with_state(state);
-        router.event::<WorkspaceStateProbe>(|state, WorkspaceStateProbe(old, new, done)| {
-            assert_failed_workspace_folder_change_rolled_back(state, &old, &new);
-            done.send(()).unwrap();
-            ControlFlow::Continue(())
-        });
-        router
-    });
-    let (client_main, mut server) = quiet_client();
+    let pair = LspPair::spawn(
+        move |client| {
+            let mut state = GlobalState::new(client);
+            state.config = Arc::new(config);
+            state.background_discovery = true;
+            setup_tx.send(state.published_analysis_version.subscribe()).unwrap();
+            let mut router = crate::new_router_with_state(state);
+            router.event::<WorkspaceStateProbe>(|state, WorkspaceStateProbe(old, new, done)| {
+                assert_failed_workspace_folder_change_rolled_back(state, &old, &new);
+                done.send(()).unwrap();
+                ControlFlow::Continue(())
+            });
+            router
+        },
+        |_| quiet_client(),
+    );
     let mut published = setup_rx.recv().unwrap();
-    let tasks = spawn_lsp_pair(server_main, client_main);
 
     let params = replace_workspace_folder(&project.path("/a"), &project.path("/b"));
-    server.did_change_workspace_folders(params).unwrap();
+    pair.server.notify::<notification::DidChangeWorkspaceFolders>(params).unwrap();
     wait_published(&mut published, |published| published != 0).await;
 
     let (done_tx, done_rx) = oneshot::channel();
     let probe = WorkspaceStateProbe(project.path("/a"), project.path("/b"), done_tx);
-    internal_client.emit(probe).unwrap();
+    pair.client.emit(probe).unwrap();
     done_rx.await.unwrap();
-    shutdown(server, tasks).await;
+    pair.shutdown().await;
 }
 
 #[test]

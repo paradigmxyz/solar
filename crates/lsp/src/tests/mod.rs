@@ -1,27 +1,14 @@
 use super::*;
-#[cfg(unix)]
-use crate::test_support::process_exists;
-use crate::{
-    config::negotiate_capabilities,
-    test_support::{MarkedProject, TestProject, spawn_lsp_pair},
-};
-use async_lsp::{ClientSocket, ErrorCode, ResponseError, ServerSocket, router::Router};
+use crate::{config::negotiate_capabilities, test_support::*};
+use async_lsp::{ClientSocket, ErrorCode, ResponseError, router::Router};
 use lsp_types::{
-    CodeLensWorkspaceClientCapabilities, Diagnostic, DiagnosticClientCapabilities,
-    DiagnosticWorkspaceClientCapabilities, DidChangeConfigurationParams,
-    DidChangeTextDocumentParams, DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams,
-    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
+    Diagnostic, DidChangeConfigurationParams, DidChangeWorkspaceFoldersParams,
     DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
-    DocumentSymbol, FileChangeType, FileEvent, InlayHintWorkspaceClientCapabilities,
-    NumberOrString, PartialResultParams, Position, ProgressParams, ProgressParamsValue,
-    PublishDiagnosticsParams, Range, TextDocumentContentChangeEvent, TextDocumentIdentifier,
-    TextDocumentItem, VersionedTextDocumentIdentifier, WatchKind, WorkDoneProgress,
-    WorkDoneProgressCreateParams, WorkDoneProgressParams, WorkspaceClientCapabilities,
-    WorkspaceFolder, WorkspaceFoldersChangeEvent, notification, notification::Notification,
-    request,
+    DocumentSymbol, FileChangeType, Position, Range, RenameParams, TextDocumentContentChangeEvent,
+    WatchKind, WorkDoneProgress, WorkspaceFolder, WorkspaceFoldersChangeEvent, notification,
+    notification::Notification, request,
 };
-#[cfg(unix)]
-use std::os::unix::fs::symlink;
+use serde_json::{Value, json};
 use std::{
     future::Future,
     path::Path,
@@ -30,7 +17,9 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::sync::{mpsc, oneshot};
-use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
+
+#[cfg(unix)]
+use std::os::unix::fs::symlink;
 
 mod call_hierarchy;
 mod code_action;
@@ -69,187 +58,18 @@ mod type_hierarchy;
 mod watched_files;
 mod workspace_diagnostic;
 
-const ASYNC_TEST_TIMEOUT: Duration = Duration::from_secs(5);
+use support::{Query, RequestFixture, rename_output};
 
-/// A server-to-client message observed by [`ClientHarness`].
-#[derive(Debug, PartialEq)]
-enum ClientEvent {
-    Create(WorkDoneProgressCreateParams),
-    Progress(ProgressParams),
-    Diagnostics(PublishDiagnosticsParams),
-    DiagnosticRefresh,
-    InlayHintRefresh,
-    CodeLensRefresh,
-}
-
-struct ClientState {
-    events: mpsc::UnboundedSender<ClientEvent>,
-    create_acks: mpsc::UnboundedSender<oneshot::Sender<()>>,
-}
-
-impl ClientState {
-    fn refresh(
-        &mut self,
-        event: ClientEvent,
-    ) -> impl Future<Output = Result<(), ResponseError>> + use<> {
-        self.events.send(event).unwrap();
-        async { Ok(()) }
-    }
-}
-
-/// A client that records server messages and answers progress creation only when acknowledged.
-struct ClientHarness {
-    client: ClientSocket,
-    server: ServerSocket,
-    events: mpsc::UnboundedReceiver<ClientEvent>,
-    create_acks: mpsc::UnboundedReceiver<oneshot::Sender<()>>,
-    server_task: tokio::task::JoinHandle<async_lsp::Result<()>>,
-    client_task: tokio::task::JoinHandle<async_lsp::Result<()>>,
-}
-
-impl ClientHarness {
-    fn new() -> Self {
-        let (server_main, client) = async_lsp::MainLoop::new_server(|_| {
-            let mut router = Router::new(());
-            router.notification::<notification::Exit>(|_, ()| ControlFlow::Break(Ok(())));
-            router
-        });
-        let (events_tx, events) = mpsc::unbounded_channel();
-        let (create_acks_tx, create_acks) = mpsc::unbounded_channel();
-        let (client_main, server) = async_lsp::MainLoop::new_client(move |_| {
-            let mut router =
-                Router::new(ClientState { events: events_tx, create_acks: create_acks_tx });
-            router.request::<request::WorkDoneProgressCreate, _>(|state, params| {
-                let (ack, acked) = oneshot::channel();
-                state.create_acks.send(ack).unwrap();
-                state.events.send(ClientEvent::Create(params)).unwrap();
-                async move {
-                    acked.await.map_err(|_| {
-                        ResponseError::new(ErrorCode::REQUEST_FAILED, "test create ack dropped")
-                    })
-                }
-            });
-            router.request::<request::Shutdown, _>(|_, ()| async { Ok(()) });
-            router.request::<request::WorkspaceDiagnosticRefresh, _>(|state, ()| {
-                state.refresh(ClientEvent::DiagnosticRefresh)
-            });
-            router.request::<request::InlayHintRefreshRequest, _>(|state, ()| {
-                state.refresh(ClientEvent::InlayHintRefresh)
-            });
-            router.request::<request::CodeLensRefresh, _>(|state, ()| {
-                state.refresh(ClientEvent::CodeLensRefresh)
-            });
-            router.notification::<notification::Progress>(|state, params| {
-                state.events.send(ClientEvent::Progress(params)).unwrap();
-                ControlFlow::Continue(())
-            });
-            router.notification::<notification::PublishDiagnostics>(|state, params| {
-                state.events.send(ClientEvent::Diagnostics(params)).unwrap();
-                ControlFlow::Continue(())
-            });
-            router
-        });
-        let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
-        Self { client, server, events, create_acks, server_task, client_task }
-    }
-
-    /// A state whose analysis progress starts without delay.
-    fn progress_state(&self) -> GlobalState {
-        let mut state = GlobalState::new(self.client.clone());
-        state.analysis_progress = ProgressCoordinator::with_timing(
-            self.client.clone(),
-            true,
-            Duration::ZERO,
-            Duration::from_secs(1),
-        );
-        state
-    }
-
-    async fn next_event(&mut self) -> ClientEvent {
-        tokio::time::timeout(ASYNC_TEST_TIMEOUT, self.events.recv())
-            .await
-            .expect("client event should arrive")
-            .expect("client event channel should stay open")
-    }
-
-    async fn next_published(&mut self) -> PublishDiagnosticsParams {
-        match self.next_event().await {
-            ClientEvent::Diagnostics(params) => params,
-            event => panic!("expected published diagnostics, got {event:?}"),
-        }
-    }
-
-    async fn expect_no_event(&mut self) {
-        if let Ok(event) =
-            tokio::time::timeout(Duration::from_millis(100), self.events.recv()).await
-        {
-            panic!("unexpected client event: {event:?}");
-        }
-    }
-
-    /// Expects exactly the given pull-result refresh requests, in any order.
-    async fn expect_refreshes(&mut self, diagnostics: bool, inlay_hints: bool) {
-        let mut expected = Vec::new();
-        expected.extend(diagnostics.then_some(ClientEvent::DiagnosticRefresh));
-        expected.extend(inlay_hints.then_some(ClientEvent::InlayHintRefresh));
-        for _ in 0..expected.len() {
-            let event = self.next_event().await;
-            let idx = expected.iter().position(|expected| *expected == event);
-            expected.swap_remove(idx.unwrap_or_else(|| panic!("unexpected event {event:?}")));
-        }
-        self.expect_no_event().await;
-    }
-
-    fn acknowledge_create(&mut self) {
-        self.create_acks.try_recv().expect("pending progress creation").send(()).unwrap();
-    }
-
-    async fn expect_progress_create(&mut self) -> NumberOrString {
-        match self.next_event().await {
-            ClientEvent::Create(create) => create.token,
-            event => panic!("expected progress creation, got {event:?}"),
-        }
-    }
-
-    async fn expect_progress_begin(&mut self, message: Option<&str>) -> NumberOrString {
-        let token = self.expect_progress_create().await;
-        self.acknowledge_create();
-        match self.next_event().await {
-            ClientEvent::Progress(ProgressParams {
-                token: actual,
-                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
-            }) => {
-                assert_eq!(actual, token);
-                assert_eq!(begin.message.as_deref(), message);
-            }
-            event => panic!("expected progress begin, got {event:?}"),
-        }
-        token
-    }
-
-    async fn expect_progress_end(&mut self, token: &NumberOrString, message: &str) {
-        match self.next_event().await {
-            ClientEvent::Progress(ProgressParams {
-                token: actual,
-                value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)),
-            }) => {
-                assert_eq!(&actual, token);
-                assert_eq!(end.message.as_deref(), Some(message));
-            }
-            event => panic!("expected progress end, got {event:?}"),
-        }
-    }
-
-    /// Round-trips a request so the client has handled every earlier server message.
-    async fn probe(&self) {
-        self.client.request::<request::Shutdown>(()).await.unwrap();
-    }
-
-    async fn shutdown(self) {
-        self.server.notify::<notification::Exit>(()).unwrap();
-        assert!(self.server_task.await.unwrap().is_ok());
-        assert!(matches!(self.client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
-    }
+/// A state whose analysis progress starts without delay.
+fn progress_state(harness: &ClientHarness) -> GlobalState {
+    let mut state = GlobalState::new(harness.client().clone());
+    state.analysis_progress = ProgressCoordinator::with_timing(
+        harness.client().clone(),
+        true,
+        Duration::ZERO,
+        Duration::from_secs(1),
+    );
+    state
 }
 
 fn snapshot(project: &TestProject) -> GlobalStateSnapshot {
@@ -257,17 +77,11 @@ fn snapshot(project: &TestProject) -> GlobalStateSnapshot {
 }
 
 fn config_with_indexing_excludes(project: &TestProject, excludes: &[&str]) -> Config {
-    rediscovered_config(
-        project.initialize_params(),
-        serde_json::json!({ "indexing": { "exclude": excludes } }),
-    )
+    config_with_options(project.initialize_params(), json!({ "indexing": { "exclude": excludes } }))
 }
 
-fn rediscovered_config(mut params: InitializeParams, options: serde_json::Value) -> Config {
-    params.initialization_options = Some(options);
-    let (_, mut config) = negotiate_capabilities(params);
-    config.rediscover_workspaces();
-    config
+fn config_with_options(params: InitializeParams, options: Value) -> Config {
+    rediscovered_config(with_options(params, options))
 }
 
 fn snapshot_with_config(config: Config, vfs: Vfs) -> GlobalStateSnapshot {
@@ -288,24 +102,26 @@ fn snapshot_with_config(config: Config, vfs: Vfs) -> GlobalStateSnapshot {
     }
 }
 
-fn project_state(project: &TestProject) -> GlobalState {
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config());
-    state.vfs = Arc::new(RwLock::new(project.vfs()));
-    state
+/// Analyzes `source` as the only file of a batch.
+fn analyze_source(path: impl Into<PathBuf>, source: impl Into<String>) -> AnalysisResult {
+    analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path.into(), source.into())]))
+}
+
+/// Analyzes every non-empty batch of `snapshot` and merges the outputs.
+fn analyze_workspace(snapshot: &GlobalStateSnapshot) -> AnalysisOutput {
+    let mut outputs = AnalysisOutputAccumulator::default();
+    for batch in snapshot.analysis_batches(Vec::new()) {
+        if !batch.files.is_empty() {
+            outputs.push(analyze_cancellable(batch, &Default::default()).unwrap());
+        }
+    }
+    outputs.finish()
 }
 
 fn analyze_single_batch(snapshot: &GlobalStateSnapshot) -> AnalysisResult {
     let mut batches = snapshot.analysis_batches(Vec::new());
     assert_eq!(batches.len(), 1);
     analyze(batches.pop().unwrap())
-}
-
-async fn wait_for_analysis(state: &GlobalState) -> Arc<ArcSwap<SymbolTables>> {
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
-        .await
-        .expect("analysis should finish")
-        .unwrap()
 }
 
 fn workspace_symbol_names(tables: &SymbolTables) -> Vec<String> {
@@ -315,37 +131,78 @@ fn workspace_symbol_names(tables: &SymbolTables) -> Vec<String> {
     names
 }
 
+fn analysis_version(state: &GlobalState) -> usize {
+    state.analysis_version.load(Ordering::Acquire)
+}
+
+fn cancel_analysis(state: &GlobalState) {
+    state.analysis_scheduler.tasks.lock().cancel();
+}
+
+/// Runs `notify` on another thread while the watched-file specs are locked, and checks that it
+/// advances the analysis epoch before it waits to reregister watchers.
+fn assert_epoch_advances_before_reregistration(
+    mut state: GlobalState,
+    notify: impl FnOnce(&mut GlobalState) + Send + 'static,
+) {
+    let initial_version = analysis_version(&state);
+    let registration = state.watched_file_registration.clone();
+    let desired_specs = registration.desired_specs.lock();
+    let version = state.analysis_version.clone();
+    let runtime = tokio::runtime::Handle::current();
+    let worker = std::thread::spawn(move || {
+        let _runtime = runtime.enter();
+        notify(&mut state);
+        state
+    });
+
+    let deadline = Instant::now() + Duration::from_millis(100);
+    while version.load(Ordering::Acquire) == initial_version && Instant::now() < deadline {
+        std::thread::yield_now();
+    }
+    let advanced_before_reregistration = version.load(Ordering::Acquire) != initial_version;
+
+    drop(desired_specs);
+    cancel_analysis(&worker.join().unwrap());
+    assert!(
+        advanced_before_reregistration,
+        "watchers were queued before the old analysis epoch was invalidated"
+    );
+}
+
+fn begin_recompute(
+    state: &mut GlobalState,
+    removed_paths: Vec<PathBuf>,
+    trigger: AnalysisTrigger,
+) -> (usize, ProgressTicket) {
+    state.begin_analysis(AnalysisMode::Recompute, removed_paths, Vec::new(), trigger).unwrap()
+}
+
+fn begin_rediscovery(state: &mut GlobalState) -> (usize, ProgressTicket) {
+    state
+        .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
+        .unwrap()
+}
+
+fn discovery_ready(
+    version: usize,
+    result: WorkspaceDiscoveryResult,
+    progress: ProgressTicket,
+) -> WorkspaceDiscoveryReady {
+    let cancellation = IndexingCancellation::default();
+    WorkspaceDiscoveryReady { version, result, disk_paths: Vec::new(), progress, cancellation }
+}
+
 fn analysis_coordinator(state: &GlobalState) -> AbortHandle {
     state.analysis_scheduler.tasks.lock().coordinator.as_ref().unwrap().1.clone()
 }
 
-fn change_document(state: &mut GlobalState, uri: &Url, version: i32, text: &str) {
-    let change =
-        TextDocumentContentChangeEvent { range: None, range_length: None, text: text.into() };
-    edit_document(state, uri, version, vec![change]);
-}
-
-fn edit_document(
-    state: &mut GlobalState,
-    uri: &Url,
-    version: i32,
-    content_changes: Vec<TextDocumentContentChangeEvent>,
-) {
-    let text_document = VersionedTextDocumentIdentifier::new(uri.clone(), version);
-    let params = DidChangeTextDocumentParams { text_document, content_changes };
-    assert!(crate::handlers::did_change_text_document(state, params).is_continue());
+fn rename_params(uri: &Url, position: Position, new_name: &str) -> RenameParams {
+    request_params(uri, position, json!({ "newName": new_name }))
 }
 
 fn range_edit(range: Range, text: &str) -> TextDocumentContentChangeEvent {
     TextDocumentContentChangeEvent { range: Some(range), range_length: None, text: text.into() }
-}
-
-fn save_document(state: &mut GlobalState, uri: &Url) {
-    let params = DidSaveTextDocumentParams {
-        text_document: TextDocumentIdentifier::new(uri.clone()),
-        text: None,
-    };
-    assert!(crate::handlers::did_save_text_document(state, params).is_continue());
 }
 
 fn diagnostic(message: &str) -> Diagnostic {
@@ -360,26 +217,29 @@ fn diagnostic_messages(diagnostics: &[Diagnostic]) -> Vec<&str> {
     diagnostics.iter().map(|diagnostic| diagnostic.message.as_str()).collect()
 }
 
+/// Returns the stored diagnostics of `uri`, which must have a full pull report.
+fn pulled_diagnostics(state: &GlobalState, uri: &Url) -> Vec<Diagnostic> {
+    let PullReport::Full { diagnostics, .. } = state.diagnostics.read().pull_report(uri, None)
+    else {
+        panic!("expected a full diagnostic report");
+    };
+    diagnostics
+}
+
 fn diagnostic_uri() -> Url {
     Url::from_file_path(std::env::temp_dir().join("Diagnostics.sol")).unwrap()
 }
 
 fn document_diagnostic_params(
-    uri: Url,
+    uri: &Url,
     previous_result_id: Option<String>,
 ) -> DocumentDiagnosticParams {
-    DocumentDiagnosticParams {
-        text_document: TextDocumentIdentifier::new(uri),
-        identifier: None,
-        previous_result_id,
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    }
+    request_params(uri, Position::default(), json!({ "previousResultId": previous_result_id }))
 }
 
 fn pull_document_diagnostics(
     state: &mut GlobalState,
-    uri: Url,
+    uri: &Url,
     previous_result_id: Option<String>,
 ) -> DocumentDiagnosticReport {
     let params = document_diagnostic_params(uri, previous_result_id);
@@ -391,46 +251,8 @@ fn pull_document_diagnostics(
     report
 }
 
-fn expect_ready<F: Future>(future: F) -> F::Output {
-    let waker = Waker::noop();
-    let mut context = Context::from_waker(waker);
-    let mut future = std::pin::pin!(future);
-    let Poll::Ready(output) = future.as_mut().poll(&mut context) else {
-        panic!("future should complete immediately");
-    };
-    output
-}
-
 fn flycheck_owner(workspace: impl Into<PathBuf>) -> DiagnosticOwner {
     DiagnosticOwner::Flycheck { id: "slow".into(), workspace: workspace.into() }
-}
-
-fn pause_blocking_pool() -> (std_mpsc::Sender<()>, tokio::task::JoinHandle<()>) {
-    let (started_tx, started_rx) = std_mpsc::channel();
-    let (release_tx, release_rx) = std_mpsc::channel();
-    let task = tokio::task::spawn_blocking(move || {
-        started_tx.send(()).unwrap();
-        release_rx.recv().unwrap();
-    });
-    started_rx
-        .recv_timeout(ASYNC_TEST_TIMEOUT)
-        .expect("blocking worker should start before analysis is requested");
-    (release_tx, task)
-}
-
-/// Runs `test` while the runtime's only blocking worker stays busy until `test` releases it.
-fn with_paused_analysis_worker<F: Future<Output = ()>>(
-    test: impl FnOnce(std_mpsc::Sender<()>) -> F,
-) {
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .max_blocking_threads(1)
-        .build()
-        .unwrap();
-    runtime.block_on(async {
-        let (release_worker, worker) = pause_blocking_pool();
-        tokio::join!(async { worker.await.unwrap() }, test(release_worker));
-    });
 }
 
 fn document_symbol_output(symbols: &[DocumentSymbol], depth: usize, output: &mut String) {
@@ -446,14 +268,8 @@ fn analysis_result_accumulator_merges_multiple_batches() {
     let two_path = std::env::temp_dir().join("Two.sol");
     let one_uri = Url::from_file_path(&one_path).unwrap();
     let two_uri = Url::from_file_path(&two_path).unwrap();
-    let mut first = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(one_path, "contract One {}".into())],
-    ));
-    let mut second = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(two_path, "contract Two {}".into())],
-    ));
+    let mut first = analyze_source(one_path, "contract One {}");
+    let mut second = analyze_source(two_path, "contract Two {}");
     second.analyzed_documents.insert(one_uri.clone(), Some(7));
     let uri = diagnostic_uri();
     first.diagnostics = diagnostics_for(&uri, "first");
@@ -507,8 +323,8 @@ fn analysis_collects_open_versions_and_loaded_dependencies() {
         contract Dependency {}
         "#,
     );
-    let main_uri = Url::from_file_path(project.path("/Main.sol")).unwrap();
-    let dependency_uri = Url::from_file_path(project.path("/Dependency.sol")).unwrap();
+    let main_uri = project.uri("/Main.sol");
+    let dependency_uri = project.uri("/Dependency.sol");
 
     let result = analyze_single_batch(&snapshot_with_config(Config::default(), project.vfs()));
 
@@ -522,17 +338,14 @@ fn analysis_collects_open_versions_and_loaded_dependencies() {
 #[tokio::test(flavor = "current_thread")]
 async fn analysis_updates_refresh_code_lenses_only_when_active() {
     let mut harness = ClientHarness::new();
-    let mut state = GlobalState::new(harness.client.clone());
+    let mut state = GlobalState::new(harness.client().clone());
     for enable in [true, false] {
-        let mut params = InitializeParams::default();
-        params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-            code_lens: Some(CodeLensWorkspaceClientCapabilities { refresh_support: Some(true) }),
-            ..Default::default()
-        });
-        params.initialization_options =
-            Some(serde_json::json!({ "codeLens": { "enable": enable } }));
+        let params = from_json(json!({
+            "capabilities": { "workspace": { "codeLens": { "refreshSupport": true } } },
+            "initializationOptions": { "codeLens": { "enable": enable } },
+        }));
         state.config = Arc::new(negotiate_capabilities(params).1);
-        let version = state.analysis_version.load(Ordering::Acquire);
+        let version = analysis_version(&state);
 
         assert!(state.snapshot().publish_analysis(version, AnalysisResult::default()));
         if enable {
@@ -544,7 +357,7 @@ async fn analysis_updates_refresh_code_lenses_only_when_active() {
         }
         harness.expect_no_event().await;
     }
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[test]
@@ -566,7 +379,7 @@ fn document_diagnostic_merges_owners_and_canonicalizes_file_uris() {
         );
 
         let DocumentDiagnosticReport::Full(report) =
-            pull_document_diagnostics(&mut state, uri, None)
+            pull_document_diagnostics(&mut state, &uri, None)
         else {
             panic!("first diagnostic pull should return a full report");
         };
@@ -576,7 +389,7 @@ fn document_diagnostic_merges_owners_and_canonicalizes_file_uris() {
         let result_id = report.result_id.unwrap();
 
         let DocumentDiagnosticReport::Unchanged(report) =
-            pull_document_diagnostics(&mut state, canonical_uri.clone(), Some(result_id.clone()))
+            pull_document_diagnostics(&mut state, &canonical_uri, Some(result_id.clone()))
         else {
             panic!("equivalent URI should share the cached result ID");
         };
@@ -593,7 +406,7 @@ fn document_diagnostic_waits_for_committed_analysis_diagnostics() {
 
     let mut request = std::pin::pin!(crate::handlers::document_diagnostic(
         &mut state,
-        document_diagnostic_params(uri.clone(), None),
+        document_diagnostic_params(&uri, None),
     ));
     let mut context = Context::from_waker(Waker::noop());
     assert!(request.as_mut().poll(&mut context).is_pending());
@@ -631,7 +444,7 @@ fn assert_analysis_stale_before_diagnostic_publication(
     });
 
     start.wait();
-    let deadline = Instant::now() + ASYNC_TEST_TIMEOUT;
+    let deadline = Instant::now() + TIMEOUT;
     while stale_snapshot.is_current(stale_version) && Instant::now() < deadline {
         std::thread::yield_now();
     }
@@ -641,7 +454,7 @@ fn assert_analysis_stale_before_diagnostic_publication(
 
     drop(diagnostics_guard);
     finished_rx
-        .recv_timeout(ASYNC_TEST_TIMEOUT)
+        .recv_timeout(TIMEOUT)
         .expect("epoch advance should finish after diagnostic publication is unblocked");
     worker.join().unwrap();
 
@@ -657,9 +470,8 @@ fn replacement_analysis_invalidates_old_worker_before_removed_diagnostics_publis
     let uri = diagnostic_uri();
     let path = uri.to_file_path().unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    let (stale_version, _stale_progress) = state
-        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
-        .unwrap();
+    let (stale_version, _stale_progress) =
+        begin_recompute(&mut state, Vec::new(), AnalysisTrigger::Document);
     state
         .snapshot()
         .publish_diagnostics(DiagnosticOwner::Compiler, diagnostics_for(&uri, "removed"));
@@ -681,7 +493,7 @@ fn clearing_analysis_cache_invalidates_old_worker_before_diagnostics_publish() {
     let uri = diagnostic_uri();
     let state = GlobalState::new(ClientSocket::new_closed());
     state.mark_analysis_pending_for_test();
-    let stale_version = state.analysis_version.load(Ordering::Acquire);
+    let stale_version = analysis_version(&state);
     state
         .snapshot()
         .publish_diagnostics(DiagnosticOwner::Compiler, diagnostics_for(&uri, "cleared"));
@@ -699,7 +511,7 @@ async fn clearing_analysis_cache_publishes_an_empty_snapshot_before_ending_progr
     let old_tables = analyze_single_batch(&snapshot(&project)).symbol_tables;
     assert_eq!(workspace_symbol_names(&old_tables), ["Cached"]);
     let mut harness = ClientHarness::new();
-    let mut state = harness.progress_state();
+    let mut state = progress_state(&harness);
     state.symbol_tables.store(Arc::new(old_tables));
     let compiler_only = Url::parse("file:///workspace/CompilerOnly.sol").unwrap();
     let shared = Url::parse("file:///workspace/Shared.sol").unwrap();
@@ -717,9 +529,7 @@ async fn clearing_analysis_cache_publishes_an_empty_snapshot_before_ending_progr
         harness.next_published().await;
     }
 
-    let (_, progress) = state
-        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
-        .unwrap();
+    let (_, progress) = begin_recompute(&mut state, Vec::new(), AnalysisTrigger::Document);
     progress.begin();
     progress.report("Analyzing workspace");
     let token = harness.expect_progress_begin(Some("Analyzing workspace")).await;
@@ -733,25 +543,23 @@ async fn clearing_analysis_cache_publishes_an_empty_snapshot_before_ending_progr
     assert_eq!(cleared[1].uri, shared);
     assert_eq!(diagnostic_messages(&cleared[1].diagnostics), ["flycheck"]);
     harness.expect_progress_end(&token, "Workspace index cleared").await;
-    assert!(wait_for_analysis(&state).await.load().workspace_symbols("").is_empty());
+    assert!(settle(&state).await.load().workspace_symbols("").is_empty());
     assert!(state.analysis_cache_invalidated());
 
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn clearing_analysis_cache_suppresses_progress_pending_creation() {
     let uri = diagnostic_uri();
     let mut harness = ClientHarness::new();
-    let mut state = harness.progress_state();
+    let mut state = progress_state(&harness);
     state.snapshot().publish_diagnostics(DiagnosticOwner::Compiler, diagnostics_for(&uri, "old"));
     harness.next_published().await;
 
-    let (_, progress) = state
-        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
-        .unwrap();
+    let (_, progress) = begin_recompute(&mut state, Vec::new(), AnalysisTrigger::Document);
     progress.begin();
-    harness.expect_progress_create().await;
+    harness.expect_create().await;
     progress.report("obsolete analysis");
     progress.finish("obsolete completion");
 
@@ -761,46 +569,37 @@ async fn clearing_analysis_cache_suppresses_progress_pending_creation() {
     assert_eq!(cleared.uri, uri);
     assert!(cleared.diagnostics.is_empty());
     harness.acknowledge_create();
-    harness.probe().await;
-    assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
+    harness.assert_silent().await;
 
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn superseded_analysis_cannot_publish_or_end_latest_progress() {
     let uri = diagnostic_uri();
     let mut harness = ClientHarness::new();
-    let mut state = harness.progress_state();
+    let mut state = progress_state(&harness);
 
-    let (stale_version, stale_progress) = state
-        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
-        .unwrap();
+    let (stale_version, stale_progress) =
+        begin_recompute(&mut state, Vec::new(), AnalysisTrigger::Document);
     let mut stale_snapshot = state.snapshot();
     stale_progress.begin();
     let token = harness.expect_progress_begin(None).await;
 
-    let (latest_version, latest_progress) = state
-        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
-        .unwrap();
+    let (latest_version, latest_progress) =
+        begin_recompute(&mut state, Vec::new(), AnalysisTrigger::Document);
     let mut latest_snapshot = state.snapshot();
-    match harness.next_event().await {
-        ClientEvent::Progress(ProgressParams {
-            token: actual,
-            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Report(report)),
-        }) => {
-            assert_eq!(actual, token);
-            assert_eq!(report.message.as_deref(), Some("Workspace changed, restarting analysis"));
-        }
-        event => panic!("expected replacement report, got {event:?}"),
-    }
+    let WorkDoneProgress::Report(report) = harness.expect_progress(&token).await else {
+        panic!("expected replacement report");
+    };
+    assert_eq!(report.message.as_deref(), Some("Workspace changed, restarting analysis"));
 
     stale_progress.report("stale report");
     stale_progress.finish("stale end");
     let stale_result =
         AnalysisResult { diagnostics: diagnostics_for(&uri, "stale"), ..Default::default() };
     assert!(!stale_snapshot.publish_analysis(stale_version, stale_result));
-    assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
+    harness.assert_silent().await;
 
     let latest_result =
         AnalysisResult { diagnostics: diagnostics_for(&uri, "current"), ..Default::default() };
@@ -818,14 +617,14 @@ async fn superseded_analysis_cannot_publish_or_end_latest_progress() {
     );
     harness.expect_progress_end(&token, "Workspace index ready").await;
 
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[test]
 fn clearing_analysis_cache_rejects_older_analysis_results() {
     let project = TestProject::from_fixture("//- /Stale.sol\ncontract Stale {}\n");
     let mut stale_result = analyze_single_batch(&snapshot(&project));
-    let uri = Url::from_file_path(project.path("/Stale.sol")).unwrap();
+    let uri = project.uri("/Stale.sol");
     stale_result.diagnostics = diagnostics_for(&uri, "stale compiler");
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.mark_analysis_pending_for_test();
@@ -835,40 +634,35 @@ fn clearing_analysis_cache_rejects_older_analysis_results() {
 
     assert!(!stale_snapshot.publish_analysis(1, stale_result));
     assert!(state.symbol_tables.load().workspace_symbols("").is_empty());
-    assert!(matches!(
-        state.diagnostics.read().pull_report(&uri, None),
-        PullReport::Full { diagnostics, .. } if diagnostics.is_empty()
-    ));
+    assert!(pulled_diagnostics(&state, &uri).is_empty());
 }
 
 #[test]
 fn reindex_if_invalidated_is_a_no_op_for_a_current_cache() {
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    let version = state.analysis_version.load(Ordering::Acquire);
+    let version = analysis_version(&state);
 
     state.reindex_if_invalidated();
 
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), version);
+    assert_eq!(analysis_version(&state), version);
     assert!(!state.analysis_cache_invalidated());
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn failed_current_analysis_ends_visible_progress() {
     let mut harness = ClientHarness::new();
-    let mut state = harness.progress_state();
-    let (version, progress) = state
-        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
-        .unwrap();
+    let mut state = progress_state(&harness);
+    let (version, progress) = begin_recompute(&mut state, Vec::new(), AnalysisTrigger::Document);
     progress.begin();
     let token = harness.expect_progress_begin(None).await;
 
     let task = tokio::spawn(async { panic!("test analysis failure") });
     state.monitor_analysis_task(version, task, progress);
-    wait_for_analysis(&state).await;
+    settle(&state).await;
     assert!(state.analysis_cache_invalidated());
     harness.expect_progress_end(&token, "Workspace indexing failed").await;
 
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -876,22 +670,15 @@ async fn failed_or_cancelled_analysis_keeps_results_until_save_recovers() {
     for cancelled in [false, true] {
         let project = TestProject::from_fixture("//- /Old.sol\ncontract Old {}\n");
         let old_tables = analyze_single_batch(&snapshot(&project)).symbol_tables;
-        let uri = Url::from_file_path(project.path("/Old.sol")).unwrap();
-        let mut state = GlobalState::new(ClientSocket::new_closed());
-        state.config = Arc::new(project.config());
+        let uri = project.uri("/Old.sol");
+        let mut state = state_with(project.config());
         state.symbol_tables.store(Arc::new(old_tables));
         state
             .snapshot()
             .publish_diagnostics(DiagnosticOwner::Compiler, diagnostics_for(&uri, "old compiler"));
 
-        let (version, progress) = state
-            .begin_analysis(
-                AnalysisMode::Recompute,
-                Vec::new(),
-                Vec::new(),
-                AnalysisTrigger::Document,
-            )
-            .unwrap();
+        let (version, progress) =
+            begin_recompute(&mut state, Vec::new(), AnalysisTrigger::Document);
         let task = if cancelled {
             let task = tokio::spawn(std::future::pending::<AnalysisTaskOutcome>());
             task.abort();
@@ -901,18 +688,15 @@ async fn failed_or_cancelled_analysis_keeps_results_until_save_recovers() {
         };
         state.monitor_analysis_task(version, task, progress);
 
-        assert_eq!(workspace_symbol_names(&wait_for_analysis(&state).await.load()), ["Old"]);
+        assert_eq!(workspace_symbol_names(&settle(&state).await.load()), ["Old"]);
         assert!(state.analysis_cache_invalidated());
         assert!(!state.natspec_semantics_are_usable(&uri));
-        assert!(matches!(
-            state.diagnostics.read().pull_report(&uri, None),
-            PullReport::Full { diagnostics, .. } if diagnostics == [diagnostic("old compiler")]
-        ));
+        assert_eq!(pulled_diagnostics(&state, &uri), [diagnostic("old compiler")]);
 
         project.write_file("/Old.sol", "contract Recovered {}");
-        save_document(&mut state, &uri);
+        save(&mut state, &uri);
 
-        assert_eq!(workspace_symbol_names(&wait_for_analysis(&state).await.load()), ["Recovered"]);
+        assert_eq!(workspace_symbol_names(&settle(&state).await.load()), ["Recovered"]);
         assert!(!state.analysis_cache_invalidated());
         assert!(state.natspec_semantics_are_usable(&uri));
     }
@@ -936,19 +720,18 @@ async fn reindex_rediscovers_disk_files_without_preclearing_the_old_index() {
     project.remove_file("/src/Old.sol");
     project.write_file("/src/New.sol", "contract New {}");
 
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
+    let mut state = state_with(config);
     state.symbol_tables.store(Arc::new(old_tables));
     state.reindex();
 
     assert!(state.analysis_commit.lock().external_refresh.is_some());
     assert_eq!(workspace_symbol_names(&state.symbol_tables.load()), ["Old"]);
-    assert_eq!(workspace_symbol_names(&wait_for_analysis(&state).await.load()), ["New"]);
+    assert_eq!(workspace_symbol_names(&settle(&state).await.load()), ["New"]);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn source_notification_after_clear_rediscovers_disk_files_and_preserves_overlays() {
-    for save in [true, false] {
+    for saved in [true, false] {
         let mut project = TestProject::from_fixture(
             r#"
             //- /foundry.toml
@@ -960,50 +743,23 @@ async fn source_notification_after_clear_rediscovers_disk_files_and_preserves_ov
             "#,
         );
         project.open_file("/src/Open.sol", "contract Unsaved {}");
-        let config = project.config();
+        let mut state = project.state();
         project.write_file("/src/New.sol", "contract New {}");
-        let uri = Url::from_file_path(project.path("/src/Open.sol")).unwrap();
-        let mut state = GlobalState::new(ClientSocket::new_closed());
-        state.config = Arc::new(config);
-        state.vfs = Arc::new(RwLock::new(project.vfs()));
+        let uri = project.uri("/src/Open.sol");
         state.clear_analysis_cache();
 
-        if save {
-            save_document(&mut state, &uri);
+        if saved {
+            save(&mut state, &uri);
         } else {
             let no_op = TextDocumentContentChangeEvent {
                 range_length: Some(0),
                 ..range_edit(Range::default(), "")
             };
-            edit_document(&mut state, &uri, 1, vec![no_op]);
+            edit(&mut state, &uri, 1, vec![no_op]);
         }
 
-        assert_eq!(
-            workspace_symbol_names(&wait_for_analysis(&state).await.load()),
-            ["New", "Unsaved"]
-        );
+        assert_eq!(workspace_symbol_names(&settle(&state).await.load()), ["New", "Unsaved"]);
     }
-}
-
-#[test]
-fn watched_file_registration_watches_solidity_and_foundry_configuration() {
-    let project = TestProject::new();
-    let [registration] =
-        watched_file_registration_params(&project.config()).registrations.try_into().unwrap();
-    assert_eq!(registration.id, "solar-watched-files");
-    assert_eq!(registration.method, lsp_types::notification::DidChangeWatchedFiles::METHOD);
-
-    assert_eq!(
-        registration.register_options,
-        Some(serde_json::json!({
-            "watchers": [
-                { "globPattern": "**/*.sol", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
-                { "globPattern": "**/foundry.toml", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
-                { "globPattern": "**/remappings.txt", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
-                { "globPattern": "**/.git", "kind": WatchKind::Create | WatchKind::Delete },
-            ],
-        }))
-    );
 }
 
 /// Checks that a source notification keeps only its own NatSpec usable until analysis publishes.
@@ -1012,14 +768,15 @@ fn check_source_notification(
     external_refresh: bool,
     notify: impl FnOnce(&mut GlobalState, Url),
 ) {
-    let open = if open { " open" } else { "" };
-    let project =
-        TestProject::from_fixture(&format!("//- /Request.sol{open}\ncontract Request {{}}\n"));
+    let project = TestProject::from_fixture(&format!(
+        "//- /Request.sol{}\ncontract Request {{}}\n",
+        if open { " open" } else { "" }
+    ));
     let path = project.path("/Request.sol");
     let uri = Url::from_file_path(&path).unwrap();
-    let other_uri = Url::from_file_path(project.path("/OtherRequest.sol")).unwrap();
-    with_paused_analysis_worker(|release_worker| async move {
-        let mut state = project_state(&project);
+    let other_uri = project.uri("/OtherRequest.sol");
+    with_paused_blocking_pool(|release_worker| async move {
+        let mut state = project.state();
         notify(&mut state, uri.clone());
         {
             let commit = state.analysis_commit.lock();
@@ -1030,7 +787,7 @@ fn check_source_notification(
         assert!(!state.natspec_semantics_are_usable(&other_uri));
 
         release_worker.send(()).unwrap();
-        wait_for_analysis(&state).await;
+        settle(&state).await;
         assert!(state.analysis_commit.lock().natspec_pending_source_changes.is_empty());
         assert!(state.natspec_semantics_are_usable(&other_uri));
     });
@@ -1039,36 +796,28 @@ fn check_source_notification(
 #[test]
 fn source_notifications_track_the_source_until_analysis_publishes() {
     check_source_notification(false, false, |state, uri| {
-        let text_document =
-            TextDocumentItem::new(uri, "solidity".into(), 1, "contract Request {}".into());
-        let params = DidOpenTextDocumentParams { text_document };
-        assert!(crate::handlers::did_open_text_document(state, params).is_continue());
+        open(state, &uri, 1, "contract Request {}");
     });
+    check_source_notification(true, false, |state, uri| close(state, &uri));
     check_source_notification(true, false, |state, uri| {
-        let params = DidCloseTextDocumentParams { text_document: TextDocumentIdentifier::new(uri) };
-        assert!(crate::handlers::did_close_text_document(state, params).is_continue());
-    });
-    check_source_notification(true, false, |state, uri| {
-        change_document(state, &uri, 1, "contract After {}");
+        change(state, &uri, 1, "contract After {}");
     });
     check_source_notification(false, true, |state, uri| {
-        let changes = vec![FileEvent { uri, typ: FileChangeType::CHANGED }];
-        let params = DidChangeWatchedFilesParams { changes };
-        assert!(crate::handlers::did_change_watched_files(state, params).is_continue());
+        watch_files(state, [(&uri.to_file_path().unwrap(), FileChangeType::CHANGED)]);
     });
 }
 
 /// Checks that a context notification refreshes externally and blocks NatSpec until published.
 fn check_context_notification(project: &TestProject, notify: impl FnOnce(&mut GlobalState)) {
-    let request_uri = Url::from_file_path(project.path("/Request.sol")).unwrap();
-    with_paused_analysis_worker(|release_worker| async move {
-        let mut state = project_state(project);
+    let request_uri = project.uri("/Request.sol");
+    with_paused_blocking_pool(|release_worker| async move {
+        let mut state = project.state();
         notify(&mut state);
         assert!(state.analysis_commit.lock().external_refresh.is_some());
         assert!(!state.natspec_semantics_are_usable(&request_uri));
 
         release_worker.send(()).unwrap();
-        wait_for_analysis(&state).await;
+        settle(&state).await;
         assert!(state.analysis_commit.lock().external_refresh.is_none());
         assert!(state.natspec_semantics_are_usable(&request_uri));
     });
@@ -1086,11 +835,9 @@ fn context_notifications_track_external_refresh_until_analysis_publishes() {
         contract Request {}
         "#,
     );
-    let uri = Url::from_file_path(project.path("/foundry.toml")).unwrap();
+    let manifest = project.path("/foundry.toml");
     check_context_notification(&project, |state| {
-        let changes = vec![FileEvent { uri, typ: FileChangeType::CHANGED }];
-        let params = DidChangeWatchedFilesParams { changes };
-        assert!(crate::handlers::did_change_watched_files(state, params).is_continue());
+        watch_files(state, [(&manifest, FileChangeType::CHANGED)]);
     });
 
     let added_path = project.path("/added");
@@ -1104,7 +851,7 @@ fn context_notifications_track_external_refresh_until_analysis_publishes() {
     });
 
     check_context_notification(&project, |state| {
-        let params = DidChangeConfigurationParams { settings: serde_json::Value::Null };
+        let params = DidChangeConfigurationParams { settings: Value::Null };
         assert!(crate::handlers::did_change_configuration(state, params).is_continue());
     });
 }
@@ -1112,15 +859,12 @@ fn context_notifications_track_external_refresh_until_analysis_publishes() {
 #[test]
 fn watched_solidity_change_ignores_open_document() {
     let project = TestProject::from_fixture("//- /Request.sol open\ncontract Request {}\n");
-    let uri = Url::from_file_path(project.path("/Request.sol")).unwrap();
-    let mut state = project_state(&project);
-    let version = state.analysis_version.load(Ordering::Acquire);
+    let mut state = project.state();
+    let version = analysis_version(&state);
 
-    let changes = vec![FileEvent { uri, typ: FileChangeType::CHANGED }];
-    let params = DidChangeWatchedFilesParams { changes };
-    assert!(crate::handlers::did_change_watched_files(&mut state, params).is_continue());
+    watch_files(&mut state, [(&project.path("/Request.sol"), FileChangeType::CHANGED)]);
 
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), version);
+    assert_eq!(analysis_version(&state), version);
     assert!(state.analysis_scheduler.tasks.lock().coordinator.is_none());
 }
 
@@ -1148,7 +892,7 @@ async fn did_change_clamps_positions_before_analysis_and_rename() {
         let (mut state, mut rename_params) = fixture.rename_state_and_params("$1", "Renamed");
         let uri = rename_params.text_document_position.text_document.uri.clone();
         let path = VfsPath::from(fixture.project_path("/Clamped.sol"));
-        edit_document(&mut state, &uri, 2, vec![range_edit(Range::new(position, position), text)]);
+        edit(&mut state, &uri, 2, vec![range_edit(Range::new(position, position), text)]);
         {
             let vfs = state.vfs.read();
             snapbox::assert_data_eq!(vfs.get_file_contents(&path).unwrap().to_string(), expected);
@@ -1156,14 +900,10 @@ async fn did_change_clamps_positions_before_analysis_and_rename() {
         }
 
         rename_params.text_document_position.position = rename_position;
-        let edit = tokio::time::timeout(
-            ASYNC_TEST_TIMEOUT,
-            crate::handlers::rename(&mut state, rename_params),
-        )
-        .await
-        .expect("rename should finish after the clamped change")
-        .unwrap()
-        .expect("the current contract should remain renamable");
+        let edit = within("rename", crate::handlers::rename(&mut state, rename_params))
+            .await
+            .unwrap()
+            .expect("the current contract should remain renamable");
         assert_eq!(
             edit.changes.unwrap()[&uri],
             [lsp_types::TextEdit::new(
@@ -1192,7 +932,7 @@ async fn did_change_rejects_invalid_ranges_without_applying_a_partial_batch() {
         let path = VfsPath::from(fixture.project_path("/Invalid.sol"));
         let valid_range = Range::new(Position::new(1, 9), Position::new(1, 10));
         let changes = vec![range_edit(valid_range, "D"), range_edit(invalid_range, "invalid")];
-        edit_document(&mut state, &uri, 2, changes);
+        edit(&mut state, &uri, 2, changes);
         let vfs = state.vfs.read();
         snapbox::assert_data_eq!(
             vfs.get_file_contents(&path).unwrap().to_string(),
@@ -1205,15 +945,12 @@ async fn did_change_rejects_invalid_ranges_without_applying_a_partial_batch() {
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn did_open_schedules_analysis_without_source_change_debounce() {
     let project = TestProject::from_fixture("//- /Request.sol\ncontract Request {}\n");
-    let uri = Url::from_file_path(project.path("/Request.sol")).unwrap();
-    let mut state = project_state(&project);
+    let uri = project.uri("/Request.sol");
+    let mut state = project.state();
     let start = tokio::time::Instant::now();
     let scheduler_tick = Duration::from_millis(1);
 
-    let text_document =
-        TextDocumentItem::new(uri, "solidity".into(), 1, project.read_file("/Request.sol"));
-    let params = DidOpenTextDocumentParams { text_document };
-    assert!(crate::handlers::did_open_text_document(&mut state, params).is_continue());
+    open(&mut state, &uri, 1, project.read_file("/Request.sol"));
     let coordinator = analysis_coordinator(&state);
     state.analysis_scheduler.gate.close();
 
@@ -1226,40 +963,39 @@ async fn did_open_schedules_analysis_without_source_change_debounce() {
 #[tokio::test(flavor = "current_thread")]
 async fn source_change_debounce_does_not_count_toward_progress_delay() {
     let project = TestProject::from_fixture("//- /Request.sol open\ncontract Before {}\n");
-    let uri = Url::from_file_path(project.path("/Request.sol")).unwrap();
+    let uri = project.uri("/Request.sol");
     let mut harness = ClientHarness::new();
-    let mut state = harness.progress_state();
+    let mut state = progress_state(&harness);
     state.config = Arc::new(project.config());
-    state.vfs = Arc::new(RwLock::new(project.vfs()));
+    *state.vfs.write() = project.vfs();
 
-    change_document(&mut state, &uri, 1, "contract After {}");
+    change(&mut state, &uri, 1, "contract After {}");
 
     tokio::time::sleep(state.config.source_change_debounce() / 2).await;
-    harness.probe().await;
-    assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
+    harness.assert_silent().await;
 
     state.clear_analysis_cache();
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn rapid_did_changes_restart_the_full_source_change_debounce() {
     let project = TestProject::from_fixture("//- /Request.sol open\ncontract Before {}\n");
-    let uri = Url::from_file_path(project.path("/Request.sol")).unwrap();
-    let mut state = project_state(&project);
-    state.config = Arc::new(rediscovered_config(
+    let uri = project.uri("/Request.sol");
+    let mut state = project.state();
+    state.config = Arc::new(config_with_options(
         project.initialize_params(),
-        serde_json::json!({ "sourceChangeDebounce": 75 }),
+        json!({ "sourceChangeDebounce": 75 }),
     ));
     let debounce = Duration::from_millis(75);
     let final_tick = Duration::from_millis(1);
     let almost_debounce = debounce - final_tick;
 
-    change_document(&mut state, &uri, 1, "contract First {}");
+    change(&mut state, &uri, 1, "contract First {}");
     let first_coordinator = analysis_coordinator(&state);
     tokio::time::sleep(almost_debounce).await;
 
-    change_document(&mut state, &uri, 2, "contract Latest {}");
+    change(&mut state, &uri, 2, "contract Latest {}");
     let latest_coordinator = analysis_coordinator(&state);
     state.analysis_scheduler.gate.close();
 
@@ -1274,27 +1010,26 @@ async fn rapid_did_changes_restart_the_full_source_change_debounce() {
 #[tokio::test(flavor = "current_thread")]
 async fn rapid_did_changes_debounce_to_the_latest_source() {
     let project = TestProject::from_fixture("//- /Request.sol open\ncontract Before {}\n");
-    let uri = Url::from_file_path(project.path("/Request.sol")).unwrap();
-    let mut state = project_state(&project);
+    let uri = project.uri("/Request.sol");
+    let mut state = project.state();
 
-    change_document(&mut state, &uri, 1, "contract Intermediate {}");
+    change(&mut state, &uri, 1, "contract Intermediate {}");
     let first_coordinator = analysis_coordinator(&state);
-    change_document(&mut state, &uri, 2, "contract Latest {}");
+    change(&mut state, &uri, 2, "contract Latest {}");
     let debounce = state.config.source_change_debounce();
 
     assert!(
         tokio::time::timeout(debounce / 2, state.latest_analysis()).await.is_err(),
         "analysis should remain pending during the debounce window"
     );
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, async {
+    within("the replaced coordinator", async {
         while !first_coordinator.is_finished() {
             tokio::task::yield_now().await;
         }
     })
-    .await
-    .expect("replacement should cancel the first coordinator");
+    .await;
 
-    assert_eq!(workspace_symbol_names(&wait_for_analysis(&state).await.load()), ["Latest"]);
+    assert_eq!(workspace_symbol_names(&settle(&state).await.load()), ["Latest"]);
 }
 
 #[test]
@@ -1391,9 +1126,9 @@ async fn saving_equivalent_file_uri_selects_workspace_flycheck() {
         contract Test {}
         "#,
     );
-    let config = rediscovered_config(
+    let config = config_with_options(
         project.initialize_params_with_roots(&["/workspace"]),
-        serde_json::json!({
+        json!({
             "flychecks": [{
                 "id": "save",
                 "command": std::env::current_exe().unwrap(),
@@ -1402,8 +1137,7 @@ async fn saving_equivalent_file_uri_selects_workspace_flycheck() {
         }),
     );
     let [owner] = config.flycheck_owners().collect::<Vec<_>>().try_into().unwrap();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
+    let mut state = state_with(config);
     let snapshot = state.snapshot();
     let uri = Url::parse(&format!(
         "{}/missing%2F..%2Fworkspace/src/Test.sol",
@@ -1411,7 +1145,7 @@ async fn saving_equivalent_file_uri_selects_workspace_flycheck() {
     ))
     .unwrap();
 
-    save_document(&mut state, &uri);
+    save(&mut state, &uri);
 
     assert!(!snapshot.is_current_flycheck(&owner, 0));
 }
@@ -1428,39 +1162,31 @@ async fn recomputing_for_removed_files_stales_all_flycheck_owners() {
         src = "src"
         "#,
     );
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(rediscovered_config(
+    let mut state = state_with(config_with_options(
         project.initialize_params_with_roots(&["/first", "/second"]),
-        serde_json::json!({ "flychecks": [{ "id": "slow", "command": "slow" }] }),
+        json!({ "flychecks": [{ "id": "slow", "command": "slow" }] }),
     ));
     let mut snapshot = state.snapshot();
     let first_owner = flycheck_owner(project.path("/first"));
     let second_owner = flycheck_owner(project.path("/second"));
     let deleted_path = project.path("/first/src/Deleted.sol");
-    let uri = Url::from_file_path(&deleted_path).unwrap();
-    let pulled_messages = |state: &GlobalState| {
-        let PullReport::Full { diagnostics, .. } = state.diagnostics.read().pull_report(&uri, None)
-        else {
-            panic!("expected a full report");
-        };
-        diagnostics.into_iter().map(|diagnostic| diagnostic.message).collect::<Vec<_>>()
-    };
+    let uri = project.uri("/first/src/Deleted.sol");
     snapshot.publish_flycheck_diagnostics(
         second_owner.clone(),
         0,
         diagnostics_for(&uri, "existing"),
     );
-    assert_eq!(pulled_messages(&state), ["existing"]);
+    assert_eq!(diagnostic_messages(&pulled_diagnostics(&state, &uri)), ["existing"]);
 
     state.recompute_for_file_changes(vec![deleted_path.clone()], vec![deleted_path], false);
 
     assert!(!snapshot.is_current_flycheck(&first_owner, 0));
     assert!(!snapshot.is_current_flycheck(&second_owner, 0));
-    assert!(pulled_messages(&state).is_empty());
+    assert!(pulled_diagnostics(&state, &uri).is_empty());
     snapshot.publish_flycheck_diagnostics(first_owner, 0, diagnostics_for(&uri, "stale"));
     snapshot.publish_flycheck_diagnostics(second_owner, 0, diagnostics_for(&uri, "stale other"));
-    assert!(pulled_messages(&state).is_empty());
-    wait_for_analysis(&state).await;
+    assert!(pulled_diagnostics(&state, &uri).is_empty());
+    settle(&state).await;
 }
 
 #[cfg(unix)]
@@ -1477,10 +1203,9 @@ async fn saving_again_cancels_in_flight_flychecks() {
     );
     let first_pid_path = project.path("/first-flycheck-pid.txt");
     let second_pid_path = project.path("/second-flycheck-pid.txt");
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(rediscovered_config(
+    let mut state = state_with(config_with_options(
         project.initialize_params(),
-        serde_json::json!({
+        json!({
             "flychecks": [{
                 "id": "slow",
                 "command": "/bin/sh",
@@ -1524,16 +1249,15 @@ async fn wait_for_path(path: &Path) {
 
 /// Returns the first workspace's sources and the flycheck inputs for a file saved after discovery.
 fn flycheck_source_paths(project: &TestProject, saved: &str) -> (Vec<PathBuf>, Vec<PathBuf>) {
-    let config = rediscovered_config(
+    let config = config_with_options(
         project.initialize_params(),
-        serde_json::json!({ "flychecks": [{ "id": "custom", "command": "custom-lint" }] }),
+        json!({ "flychecks": [{ "id": "custom", "command": "custom-lint" }] }),
     );
     let saved_path = project.path(saved);
     project.write_file(saved, "contract SavedAfterDiscovery {}\n");
     let [flycheck] = config.flychecks_for_path(&saved_path).try_into().unwrap();
     let source_files = config.workspaces()[0].source_files().to_vec();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
+    let state = state_with(config);
     (source_files, state.snapshot().flycheck_source_paths(&flycheck, &saved_path))
 }
 
@@ -1646,7 +1370,7 @@ fn goto_implementation_finds_unopened_naked_workspace_files() {
     assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
 
     let marker = marked.marker("$1");
-    let uri = Url::from_file_path(marked.project().path(marker.path())).unwrap();
+    let uri = marked.project().uri(marker.path());
     let Some(lsp_types::GotoDefinitionResponse::Array(locations)) =
         result.symbol_tables.goto_implementation(&uri, marker.position())
     else {
@@ -1787,8 +1511,7 @@ fn analysis_resolves_overlay_remapped_and_auto_remapped_imports() {
         .collect::<Vec<_>>();
     assert_eq!(
         targets,
-        ["/src/New.sol", "/lib/B.sol", "/lib/forge-std/src/Test.sol"]
-            .map(|path| Url::from_file_path(project.path(path)).unwrap())
+        ["/src/New.sol", "/lib/B.sol", "/lib/forge-std/src/Test.sol"].map(|path| project.uri(path))
     );
 }
 
@@ -1899,8 +1622,7 @@ fn analysis_batches_use_import_ownership_for_external_files() {
             .all(|(path, _)| ![&main_path, &overlay_path, &cached_path, &disk_path].contains(&path))
     }));
     let result = analyze(second_batch);
-    let expected =
-        Some(Url::from_file_path(project.path("/second/lib/second/Target.sol")).unwrap());
+    let expected = Some(project.uri("/second/lib/second/Target.sol"));
     for path in [main_path, overlay_path] {
         let links = result.symbol_tables.document_links(&path);
         assert_eq!(links.len(), 1);
@@ -1944,10 +1666,7 @@ fn analysis_batches_share_external_open_files_across_matching_and_overlapping_co
         let overlay_contents = "import \"./Dependency.sol\"; contract Overlay is Dependency {}";
         let overlay = project.path(&format!("{shared}/Overlay.sol"));
         let mut vfs = project.vfs();
-        vfs.set_file_contents(
-            crate::vfs::VfsPath::from(overlay.clone()),
-            Some(crop::Rope::from(overlay_contents)),
-        );
+        vfs.set_file_contents(VfsPath::from(overlay.clone()), Some(overlay_contents.into()));
         let snapshot = snapshot_with_config(project.config_with_roots(&["/"]), vfs);
 
         let batches = snapshot.analysis_batches(Vec::new());
@@ -1977,10 +1696,7 @@ fn analysis_batches_share_external_open_files_across_matching_and_overlapping_co
         let result = results.finish();
         assert!(result.diagnostics.values().all(Vec::is_empty));
         let [link] = result.symbol_tables.document_links(&overlay).try_into().unwrap();
-        assert_eq!(
-            link.target,
-            Some(Url::from_file_path(project.path(&format!("{shared}/Dependency.sol"))).unwrap())
-        );
+        assert_eq!(link.target, Some(project.uri(&format!("{shared}/Dependency.sol"))));
     }
 }
 
@@ -2014,10 +1730,7 @@ fn analyze_builds_declaration_symbol_table() {
     );
     let path = project.path("/Symbols.sol");
     let uri = Url::from_file_path(&path).unwrap();
-    let result = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path, project.read_file("/Symbols.sol"))],
-    ));
+    let result = analyze_source(path, project.read_file("/Symbols.sol"));
     assert!(result.diagnostics.is_empty());
 
     let declarations = result.symbol_tables.file_declarations(&uri).collect::<Vec<_>>();
@@ -2088,10 +1801,7 @@ fn analyze_builds_lsp_symbol_responses() {
     );
     let path = project.path("/Symbols.sol");
     let uri = Url::from_file_path(&path).unwrap();
-    let result = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path, project.read_file("/Symbols.sol"))],
-    ));
+    let result = analyze_source(path, project.read_file("/Symbols.sol"));
     assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
 
     let mut output = String::new();

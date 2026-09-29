@@ -1,8 +1,5 @@
 use super::*;
-use lsp_types::{
-    DiagnosticRelatedInformation, DiagnosticTag, Location, PublishDiagnosticsClientCapabilities,
-    TagSupport,
-};
+use lsp_types::{DiagnosticRelatedInformation, DiagnosticTag, Location};
 
 fn pull_refresh_config(diagnostics: bool, inlay_hints: bool) -> Config {
     diagnostic_refresh_config(diagnostics, diagnostics, inlay_hints)
@@ -13,18 +10,14 @@ fn diagnostic_refresh_config(
     diagnostic_refresh: bool,
     inlay_hints: bool,
 ) -> Config {
-    let mut params = InitializeParams::default();
-    params.capabilities.text_document.get_or_insert_default().diagnostic =
-        document_diagnostics.then(DiagnosticClientCapabilities::default);
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        diagnostic: Some(DiagnosticWorkspaceClientCapabilities {
-            refresh_support: Some(diagnostic_refresh),
-        }),
-        inlay_hint: Some(InlayHintWorkspaceClientCapabilities {
-            refresh_support: Some(inlay_hints),
-        }),
-        ..Default::default()
-    });
+    let text_document = if document_diagnostics { json!({ "diagnostic": {} }) } else { json!({}) };
+    let params = from_json(json!({ "capabilities": {
+        "textDocument": text_document,
+        "workspace": {
+            "diagnostic": { "refreshSupport": diagnostic_refresh },
+            "inlayHint": { "refreshSupport": inlay_hints },
+        },
+    } }));
     negotiate_capabilities(params).1
 }
 
@@ -33,25 +26,20 @@ fn pull_refresh_state(
     diagnostics: bool,
     inlay_hints: bool,
 ) -> GlobalState {
-    let mut state = GlobalState::new(harness.client.clone());
-    state.config = Arc::new(pull_refresh_config(diagnostics, inlay_hints));
-    state
+    harness.state(pull_refresh_config(diagnostics, inlay_hints))
 }
 
 fn begin(state: &mut GlobalState, removed_paths: Vec<PathBuf>, trigger: AnalysisTrigger) -> usize {
-    state.begin_analysis(AnalysisMode::Recompute, removed_paths, Vec::new(), trigger).unwrap().0
+    begin_recompute(state, removed_paths, trigger).0
 }
 
 fn changed_pull_result() -> AnalysisResult {
     let path = std::env::temp_dir().join("Hints.sol");
     let uri = Url::from_file_path(&path).unwrap();
-    let mut result = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(
-            path,
-            "contract C { function target(uint amount) public pure returns (uint) { return amount; } function caller() public pure returns (uint) { return target(1); } }".into(),
-        )],
-    ));
+    let mut result = analyze_source(
+        path,
+        "contract C { function target(uint amount) public pure returns (uint) { return amount; } function caller() public pure returns (uint) { return target(1); } }",
+    );
     assert!(
         !result
             .symbol_tables
@@ -68,14 +56,14 @@ fn diagnostic_with_details(uri: &Url, message: &str, related: &str) -> Diagnosti
         location: Location::new(uri.clone(), diagnostic.range),
         message: related.into(),
     }]);
-    diagnostic.data = Some(serde_json::json!({ "retained": true }));
+    diagnostic.data = Some(json!({ "retained": true }));
     diagnostic
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn published_diagnostics_preserve_related_text_without_client_support() {
     let mut harness = ClientHarness::new();
-    let state = GlobalState::new(harness.client.clone());
+    let state = harness.state(Config::default());
     let uri = diagnostic_uri();
     let original = diagnostic_with_details(
         &uri,
@@ -105,7 +93,7 @@ note: overriding function is here
         vec![original],
         "outgoing presentation must not change cached code-action diagnostics",
     );
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -117,16 +105,15 @@ async fn published_diagnostics_honor_supported_tags_and_related_information() {
         Some(vec![DiagnosticTag::UNNECESSARY, DiagnosticTag::DEPRECATED]),
     ] {
         let mut harness = ClientHarness::new();
-        let mut state = GlobalState::new(harness.client.clone());
-        let mut params = InitializeParams::default();
-        params.capabilities.text_document.get_or_insert_default().publish_diagnostics =
-            Some(PublishDiagnosticsClientCapabilities {
-                related_information: Some(true),
-                tag_support: supported.clone().map(|value_set| TagSupport { value_set }),
-                data_support: Some(true),
-                ..Default::default()
-            });
-        state.config = Arc::new(negotiate_capabilities(params).1);
+        let tag_support = supported.clone().map(|value_set| json!({ "valueSet": value_set }));
+        let params = from_json(json!({ "capabilities": { "textDocument": {
+            "publishDiagnostics": {
+                "relatedInformation": true,
+                "tagSupport": tag_support,
+                "dataSupport": true,
+            },
+        } } }));
+        let state = harness.state(negotiate_capabilities(params).1);
         let uri = diagnostic_uri();
         let mut original =
             diagnostic_with_details(&uri, "deprecated unused declaration", "declaration is here");
@@ -145,14 +132,13 @@ async fn published_diagnostics_honor_supported_tags_and_related_information() {
             vec![original],
             "tag negotiation must not remove metadata from cached diagnostics",
         );
-        harness.shutdown().await;
+        harness.exit().await;
     }
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn pulled_diagnostics_preserve_details_without_publish_capabilities() {
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(pull_refresh_config(true, false));
+    let state = state_with(pull_refresh_config(true, false));
     let uri = diagnostic_uri();
     let mut original =
         diagnostic_with_details(&uri, "deprecated declaration", "declaration is here");
@@ -185,8 +171,7 @@ async fn pulled_diagnostics_preserve_details_without_publish_capabilities() {
 async fn diagnostic_updates_use_only_the_negotiated_delivery() {
     for document_diagnostics in [false, true] {
         let mut harness = ClientHarness::new();
-        let mut state = GlobalState::new(harness.client.clone());
-        state.config = Arc::new(diagnostic_refresh_config(document_diagnostics, true, false));
+        let mut state = harness.state(diagnostic_refresh_config(document_diagnostics, true, false));
         assert_eq!(state.config.uses_pull_diagnostics(), document_diagnostics);
         let version = begin(&mut state, Vec::new(), AnalysisTrigger::External);
 
@@ -198,7 +183,7 @@ async fn diagnostic_updates_use_only_the_negotiated_delivery() {
             assert!(!harness.next_published().await.diagnostics.is_empty());
         }
         harness.expect_no_event().await;
-        harness.shutdown().await;
+        harness.exit().await;
     }
 }
 
@@ -221,7 +206,7 @@ async fn external_analysis_refreshes_changed_pull_results_per_capability() {
             );
         }
         harness.expect_refreshes(diagnostics, inlay_hints).await;
-        harness.shutdown().await;
+        harness.exit().await;
     }
 }
 
@@ -240,7 +225,7 @@ async fn external_analysis_refreshes_changed_workspace_membership_once() {
         harness.expect_refreshes(refresh, false).await;
     }
 
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -259,7 +244,7 @@ async fn ordinary_and_unchanged_analyses_do_not_refresh_pull_results() {
     assert_eq!(SymbolTables::take_inlay_hint_comparisons(), 1);
     harness.expect_no_event().await;
 
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -275,7 +260,7 @@ async fn external_analysis_preserves_early_diagnostic_changes_until_commit() {
     assert!(state.snapshot().publish_analysis(version, AnalysisResult::default()));
 
     harness.expect_refreshes(true, false).await;
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -296,7 +281,7 @@ async fn removed_flycheck_diagnostics_refresh_immediately_or_with_external_analy
     assert!(state.snapshot().publish_analysis(version, AnalysisResult::default()));
     harness.expect_refreshes(true, false).await;
 
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -320,7 +305,7 @@ async fn external_refresh_intent_survives_superseded_analysis() {
     harness.expect_refreshes(true, false).await;
     assert!(state.analysis_commit.lock().external_refresh.is_none());
 
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -332,17 +317,11 @@ async fn external_refresh_intent_survives_failed_analysis() {
         .snapshot()
         .publish_diagnostics(DiagnosticOwner::Compiler, diagnostics_for(&uri, "removed"));
 
-    let (failed_version, progress) = state
-        .begin_analysis(
-            AnalysisMode::Recompute,
-            vec![uri.to_file_path().unwrap()],
-            Vec::new(),
-            AnalysisTrigger::External,
-        )
-        .unwrap();
+    let (failed_version, progress) =
+        begin_recompute(&mut state, vec![uri.to_file_path().unwrap()], AnalysisTrigger::External);
     let task = tokio::spawn(async { panic!("test analysis failure") });
     state.monitor_analysis_task(failed_version, task, progress);
-    wait_for_analysis(&state).await;
+    settle(&state).await;
     assert_eq!(state.analysis_commit.lock().external_refresh, Some(false));
     harness.expect_refreshes(true, false).await;
 
@@ -353,7 +332,7 @@ async fn external_refresh_intent_survives_failed_analysis() {
     harness.expect_refreshes(true, true).await;
     assert!(state.analysis_commit.lock().external_refresh.is_none());
 
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -379,7 +358,7 @@ async fn clearing_and_restoring_the_analysis_cache_refresh_only_changed_pull_res
     assert!(state.snapshot().publish_analysis(version, changed_pull_result()));
     harness.expect_refreshes(true, true).await;
 
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -428,14 +407,14 @@ async fn current_flycheck_refreshes_only_changed_diagnostics() {
     state.snapshot().publish_flycheck_diagnostics(owner, version, DiagnosticMap::default());
     harness.expect_no_event().await;
 
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 /// Returns a pull-diagnostics state for a Foundry project with one flycheck on `/src/Test.sol`.
 #[cfg(unix)]
 fn flycheck_refresh_state(
     harness: &ClientHarness,
-    options: serde_json::Value,
+    options: Value,
 ) -> (TestProject, GlobalState, Url) {
     let project = TestProject::from_fixture(
         r#"
@@ -448,18 +427,15 @@ fn flycheck_refresh_state(
         "#,
     );
     let path = project.path("/src/Test.sol");
-    let uri = Url::from_file_path(&path).unwrap();
-    let mut params = project.initialize_params();
-    params.capabilities.text_document.get_or_insert_default().diagnostic =
-        Some(DiagnosticClientCapabilities::default());
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        diagnostic: Some(DiagnosticWorkspaceClientCapabilities { refresh_support: Some(true) }),
-        ..Default::default()
+    let uri = project.uri("/src/Test.sol");
+    let capabilities = json!({
+        "textDocument": { "diagnostic": {} },
+        "workspace": { "diagnostic": { "refreshSupport": true } },
     });
-    let config = rediscovered_config(params, options);
+    let params = with_capabilities(project.initialize_params(), capabilities);
+    let config = config_with_options(params, options);
     let [flycheck] = config.flychecks_for_path(&path).try_into().unwrap();
-    let mut state = GlobalState::new(harness.client.clone());
-    state.config = Arc::new(config);
+    let state = harness.state(config);
     state.snapshot().publish_diagnostics(flycheck.owner(), diagnostics_for(&uri, "stale flycheck"));
     (project, state, uri)
 }
@@ -470,15 +446,15 @@ async fn failed_save_flycheck_refreshes_cleared_diagnostics() {
     let mut harness = ClientHarness::new();
     let (_project, mut state, uri) = flycheck_refresh_state(
         &harness,
-        serde_json::json!({
+        json!({
             "flychecks": [{ "id": "save-error", "command": "/bin/sh", "args": ["-c", "exit 1"] }]
         }),
     );
 
-    save_document(&mut state, &uri);
+    save(&mut state, &uri);
 
     harness.expect_refreshes(true, false).await;
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[cfg(unix)]
@@ -486,14 +462,14 @@ async fn failed_save_flycheck_refreshes_cleared_diagnostics() {
 async fn invalidated_save_refreshes_removed_flycheck_diagnostics() {
     let mut harness = ClientHarness::new();
     let (project, mut state, uri) =
-        flycheck_refresh_state(&harness, serde_json::json!({ "forgePath": "/usr/bin/true" }));
+        flycheck_refresh_state(&harness, json!({ "forgePath": "/usr/bin/true" }));
     state.clear_analysis_cache();
     harness.expect_no_event().await;
     project.remove_file("/foundry.toml");
 
-    save_document(&mut state, &uri);
+    save(&mut state, &uri);
 
-    wait_for_analysis(&state).await;
+    settle(&state).await;
     harness.expect_refreshes(true, false).await;
-    harness.shutdown().await;
+    harness.exit().await;
 }

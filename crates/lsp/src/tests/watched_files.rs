@@ -1,11 +1,5 @@
-use super::{
-    indexing::{analysis_version, cancel_analysis, path_output, state_with},
-    *,
-};
-use lsp_types::{
-    DidChangeWatchedFilesClientCapabilities, InitializeParams, RegistrationParams,
-    UnregistrationParams, WatchKind,
-};
+use super::{indexing::path_output, *};
+use lsp_types::{RegistrationParams, UnregistrationParams};
 
 #[derive(Debug)]
 enum WatchedFileClientEvent {
@@ -22,25 +16,21 @@ struct ClientScript {
 }
 
 struct RegistrationHarness {
-    client: ClientSocket,
-    server: ServerSocket,
+    pair: LspPair,
     coordinator: Arc<WatchedFileRegistrationCoordinator>,
     config: Config,
     events: mpsc::UnboundedReceiver<WatchedFileClientEvent>,
-    server_task: tokio::task::JoinHandle<async_lsp::Result<()>>,
-    client_task: tokio::task::JoinHandle<async_lsp::Result<()>>,
 }
 
 impl RegistrationHarness {
     fn new(config: Config, script: ClientScript) -> Self {
-        let (server_main, client) = async_lsp::MainLoop::new_server(|_| {
-            let mut router = Router::new(());
-            router.notification::<notification::Exit>(|_, ()| ControlFlow::Break(Ok(())));
+        let (events_tx, events) = mpsc::unbounded_channel();
+        let server = |_| {
+            let mut router = exit_router(());
             router.event::<WatchedFileRegistrationReady>(|_, _| ControlFlow::Continue(()));
             router
-        });
-        let (events_tx, events) = mpsc::unbounded_channel();
-        let (client_main, server) = async_lsp::MainLoop::new_client(move |_| {
+        };
+        let pair = LspPair::spawn(server, move |_| {
             let failed = || ResponseError::new(ErrorCode::REQUEST_FAILED, "scripted failure");
             let mut router = Router::new((events_tx, script, 0, 0));
             router.request::<request::RegisterCapability, _>(
@@ -73,21 +63,22 @@ impl RegistrationHarness {
             );
             router
         });
-        let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
-        let coordinator = Arc::default();
-        Self { client, server, coordinator, config, events, server_task, client_task }
+        Self { pair, coordinator: Arc::default(), config, events }
+    }
+
+    /// Sends a prepared registration update.
+    fn send(&self, update: Option<WatchedFileRegistrationUpdate>) {
+        spawn_watched_file_registration_update(&self.pair.client, &self.coordinator, update);
     }
 
     /// Prepares and sends a registration update, returning the ID the client received.
     async fn register(&mut self, specs: Vec<WatchedFileSpec>) -> (String, RegistrationParams) {
-        let update =
-            prepare_watched_file_registration_update(&self.config, &self.coordinator, specs);
-        spawn_watched_file_registration_update(&self.client, &self.coordinator, update);
+        self.send(prepare_watched_file_registration_update(&self.config, &self.coordinator, specs));
         self.next_registration().await
     }
 
     async fn next_event(&mut self) -> WatchedFileClientEvent {
-        tokio::time::timeout(ASYNC_TEST_TIMEOUT, self.events.recv()).await.unwrap().unwrap()
+        within("watched-file registration", self.events.recv()).await.unwrap()
     }
 
     async fn next_registration(&mut self) -> (String, RegistrationParams) {
@@ -105,50 +96,28 @@ impl RegistrationHarness {
     }
 
     async fn wait_for_active(&self, ids: &[&str]) {
-        let deadline = Instant::now() + ASYNC_TEST_TIMEOUT;
+        let deadline = Instant::now() + TIMEOUT;
         while *self.coordinator.active_registration_ids.lock() != ids && Instant::now() < deadline {
             tokio::task::yield_now().await;
         }
         assert_eq!(*self.coordinator.active_registration_ids.lock(), ids);
     }
-
-    async fn shutdown(self) {
-        self.server.notify::<notification::Exit>(()).unwrap();
-        assert!(self.server_task.await.unwrap().is_ok());
-        assert!(matches!(self.client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
-    }
 }
 
 async fn wait_until_idle(coordinator: &WatchedFileRegistrationCoordinator) {
-    let deadline = Instant::now() + ASYNC_TEST_TIMEOUT;
+    let deadline = Instant::now() + TIMEOUT;
     while coordinator.desired_specs.lock().is_some() && Instant::now() < deadline {
         tokio::task::yield_now().await;
     }
     assert!(coordinator.desired_specs.lock().is_none());
 }
 
-fn relative_watch_params(
-    project: &TestProject,
-    roots: &[&str],
-    excludes: &[&str],
-) -> InitializeParams {
-    let mut params = project.initialize_params_with_roots(roots);
-    if !excludes.is_empty() {
-        params.initialization_options =
-            Some(serde_json::json!({ "indexing": { "exclude": excludes } }));
-    }
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(true),
-        }),
-        ..Default::default()
-    });
-    params
-}
-
 fn relative_watch_config(project: &TestProject, roots: &[&str], excludes: &[&str]) -> Config {
-    negotiate_capabilities(relative_watch_params(project, roots, excludes)).1
+    let mut params = with_relative_watchers(project.initialize_params_with_roots(roots));
+    if !excludes.is_empty() {
+        params = with_options(params, json!({ "indexing": { "exclude": excludes } }));
+    }
+    negotiate_capabilities(params).1
 }
 
 fn discovered_registration(
@@ -231,7 +200,7 @@ async fn watched_file_specs_are_prepared_after_the_analysis_commit_unlocks() {
             snapshot.publish_analysis_output(version, output.into_shared())
         });
 
-        let deadline = Instant::now() + ASYNC_TEST_TIMEOUT;
+        let deadline = Instant::now() + TIMEOUT;
         while *state.published_analysis_version.borrow() != version && Instant::now() < deadline {
             std::thread::yield_now();
         }
@@ -288,10 +257,10 @@ async fn workspace_folder_changes_normalize_equivalent_uris() {
 
     assert!(result.is_continue());
     assert_eq!(state.config.workspace_roots(), [project.path("/new")]);
-    let tables = super::indexing::settle(&state).await;
+    let tables = settle(&state).await;
     let tables = tables.load();
     assert!(tables.workspace_symbols("Old").is_empty());
-    let new_uri = Url::from_file_path(project.path("/new/New.sol")).unwrap();
+    let new_uri = project.uri("/new/New.sol");
     assert_eq!(tables.document_symbols(&new_uri)[0].name, "New");
 }
 
@@ -302,37 +271,16 @@ async fn workspace_folder_change_advances_epoch_before_watcher_reregistration() 
     let new_root = project.path("/new");
     std::fs::create_dir(&old_root).unwrap();
     std::fs::create_dir(&new_root).unwrap();
-    let mut state = state_with(relative_watch_config(&project, &["/old"], &[]));
-    let initial_version = analysis_version(&state);
-    let registration = state.watched_file_registration.clone();
-    let desired_specs = registration.desired_specs.lock();
-    let analysis_version = state.analysis_version.clone();
-    let runtime = tokio::runtime::Handle::current();
-    let worker = std::thread::spawn(move || {
-        let _runtime = runtime.enter();
+    let state = state_with(relative_watch_config(&project, &["/old"], &[]));
+    assert_epoch_advances_before_reregistration(state, move |state| {
         let folder = |uri, name: &str| WorkspaceFolder { uri, name: name.into() };
         let event = WorkspaceFoldersChangeEvent {
             added: vec![folder(Url::from_file_path(new_root).unwrap(), "new")],
             removed: vec![folder(Url::from_file_path(old_root).unwrap(), "old")],
         };
         let params = DidChangeWorkspaceFoldersParams { event };
-        assert!(crate::handlers::did_change_workspace_folders(&mut state, params).is_continue());
-        state
+        assert!(crate::handlers::did_change_workspace_folders(state, params).is_continue());
     });
-
-    let deadline = Instant::now() + Duration::from_millis(100);
-    while analysis_version.load(Ordering::Acquire) == initial_version && Instant::now() < deadline {
-        std::thread::yield_now();
-    }
-    let advanced_before_reregistration =
-        analysis_version.load(Ordering::Acquire) != initial_version;
-
-    drop(desired_specs);
-    cancel_analysis(&worker.join().unwrap());
-    assert!(
-        advanced_before_reregistration,
-        "workspace-folder change queued watchers before invalidating the old analysis epoch"
-    );
 }
 
 #[test]
@@ -800,10 +748,10 @@ fn concurrent_watched_file_updates_keep_desired_specs_and_generation_in_sync() {
 #[test]
 fn global_fallback_watched_file_update_ignores_spec_changes() {
     let project = TestProject::new();
-    let mut params = relative_watch_params(&project, &["/"], &[]);
-    let workspace = params.capabilities.workspace.as_mut().unwrap();
-    workspace.did_change_watched_files.as_mut().unwrap().relative_pattern_support = Some(false);
-    let (_, config) = negotiate_capabilities(params);
+    let watched_files = json!({ "dynamicRegistration": true, "relativePatternSupport": false });
+    let capabilities = json!({ "workspace": { "didChangeWatchedFiles": watched_files } });
+    let (_, config) =
+        negotiate_capabilities(with_capabilities(project.initialize_params(), capabilities));
     let coordinator = WatchedFileRegistrationCoordinator::default();
     let first = prepare_watched_file_registration_update(
         &config,
@@ -865,7 +813,7 @@ async fn failed_watched_file_replacement_keeps_the_previous_registration() {
     let (retry_id, _) = harness.register(sol_spec(&project, "/second")).await;
     harness.expect_unregistration(&first_id).await;
     harness.wait_for_active(&[&retry_id]).await;
-    harness.shutdown().await;
+    harness.pair.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -886,12 +834,11 @@ async fn superseded_replacement_preserves_previous_registration_until_latest_is_
     let third_specs = [&shared_root, &latest_root]
         .map(|root| WatchedFileSpec::new(root.clone(), "**/*.sol"))
         .to_vec();
-    let third = prepare_watched_file_registration_update(
+    harness.send(prepare_watched_file_registration_update(
         &harness.config,
         &harness.coordinator,
         third_specs,
-    );
-    spawn_watched_file_registration_update(&harness.client, &harness.coordinator, third);
+    ));
     replacement_ack_tx.send(()).unwrap();
 
     let (third_id, third_registration) = harness.next_registration().await;
@@ -900,7 +847,7 @@ async fn superseded_replacement_preserves_previous_registration_until_latest_is_
     harness.expect_unregistration(&first_id).await;
     harness.expect_unregistration(&second_id).await;
     harness.wait_for_active(&[&third_id]).await;
-    harness.shutdown().await;
+    harness.pair.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -917,7 +864,7 @@ async fn failed_unregistration_is_retried_after_the_next_replacement() {
     harness.register(sol_spec(&project, "/third")).await;
     harness.expect_unregistration(&first_id).await;
     harness.expect_unregistration(&second_id).await;
-    harness.shutdown().await;
+    harness.pair.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1000,22 +947,17 @@ async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
     let config = relative_watch_config(&project, &["/repo/workspace", "/shared"], &[]);
     let discovery = config.discover_workspaces(&IndexingCancellation::default()).unwrap();
     let mut harness = RegistrationHarness::new(config.clone(), ClientScript::default());
-    let mut state = GlobalState::new(harness.client.clone());
+    let mut state = GlobalState::new(harness.pair.client.clone());
     state.config = Arc::new(config);
     let desired_specs =
         |state: &GlobalState| state.watched_file_registration.desired_specs.lock().clone().unwrap();
-    let (version, progress) = state
-        .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
-        .unwrap();
+    let (version, progress) = begin_rediscovery(&mut state);
 
-    let ready = WorkspaceDiscoveryReady {
-        version,
-        result: discovery,
-        disk_paths: Vec::new(),
-        progress,
-        cancellation: IndexingCancellation::default(),
-    };
-    assert!(state.on_workspace_discovery_ready(ready).is_continue());
+    assert!(
+        state
+            .on_workspace_discovery_ready(discovery_ready(version, discovery, progress))
+            .is_continue()
+    );
     cancel_analysis(&state);
     let repo = project.path("/repo");
     let shared_contracts = project.path("/shared/contracts");
@@ -1059,5 +1001,5 @@ async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
     assert_ne!(cleared_id, published_id);
     harness.expect_unregistration(&published_id).await;
     assert!(!has_spec(&registration, &dependency_parent, "**/*.sol"));
-    harness.shutdown().await;
+    harness.pair.exit().await;
 }

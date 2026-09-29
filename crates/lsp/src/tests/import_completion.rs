@@ -1,9 +1,5 @@
-use super::support::{RequestFixture, check_completions_at};
-use crate::vfs::VfsPath;
-use crop::Rope;
-use lsp_types::{DidChangeWatchedFilesParams, FileChangeType, FileEvent, Position, Url};
+use super::{support::check_completions_at, *};
 use snapbox::str;
-use std::time::Duration;
 
 #[tokio::test(flavor = "current_thread")]
 async fn remappings_change_refreshes_import_completion_context() {
@@ -38,18 +34,10 @@ pkg/Old.sol File filter="pkg/Old.sol" edit=0:8-0:12
 "#]],
     );
 
-    std::fs::write(fixture.project_path("/remappings.txt"), "pkg/=lib/new/\n").unwrap();
-    let remappings_uri = Url::from_file_path(fixture.project_path("/remappings.txt")).unwrap();
-    let _ = crate::handlers::did_change_watched_files(
-        &mut state,
-        DidChangeWatchedFilesParams {
-            changes: vec![FileEvent { uri: remappings_uri, typ: FileChangeType::CHANGED }],
-        },
-    );
-    tokio::time::timeout(Duration::from_secs(5), state.latest_analysis())
-        .await
-        .expect("analysis after remappings change should finish")
-        .unwrap();
+    let remappings = fixture.project_path("/remappings.txt");
+    std::fs::write(&remappings, "pkg/=lib/new/\n").unwrap();
+    watch_files(&mut state, [(&remappings, FileChangeType::CHANGED)]);
+    settle(&state).await;
 
     fixture.check_completions_in(
         &mut state,
@@ -89,11 +77,7 @@ async fn open_overlay_changes_invalidate_import_completion_cache() {
 "#]],
     );
 
-    state.vfs.write().set_file_contents_with_version(
-        VfsPath::from(fixture.project_path("/src/Overlay.sol")),
-        Some(Rope::from("contract Overlay {}")),
-        Some(1),
-    );
+    set_overlay(&state, &fixture.project_path("/src/Overlay.sol"), "contract Overlay {}", 1);
     state.recompute_after_opening_source(Vec::new());
 
     fixture.check_completions_in(
@@ -257,7 +241,7 @@ fn import_completion_uses_lsp_lines_after_a_standalone_carriage_return() {
         "/src/Main.sol",
     );
     fixture.set_open_file_contents("/src/Main.sol", "\rcontract C {}\nimport \"./Dep");
-    let uri = Url::from_file_path(fixture.project_path("/src/Main.sol")).unwrap();
+    let uri = fixture.project().uri("/src/Main.sol");
 
     check_completions_at(
         &mut fixture.state(),

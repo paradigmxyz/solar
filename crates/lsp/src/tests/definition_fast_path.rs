@@ -1,6 +1,4 @@
-use super::support::{Query, RequestFixture};
-use crate::vfs::VfsPath;
-use crop::Rope;
+use super::*;
 use snapbox::{assert_data_eq, str};
 
 #[test]
@@ -51,7 +49,7 @@ async fn changed_imports_do_not_use_an_old_code_symbol() {
         let mut state = fixture.state();
         let main = fixture.project_path("/Main.sol");
         if open {
-            state.vfs.write().set_file_contents(VfsPath::from(main), Some(Rope::from(import)));
+            set_overlay(&state, &main, import, None);
         } else {
             std::fs::write(main, import).unwrap();
         }

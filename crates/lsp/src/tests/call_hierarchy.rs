@@ -1,12 +1,6 @@
-use super::{AnalysisBatch, analyze};
-use crate::{
-    symbols::{SymbolTables, SymbolTablesAggregator},
-    test_support::MarkedProject,
-};
-use lsp_types::{
-    CallHierarchyIncomingCall, CallHierarchyItem, CallHierarchyOutgoingCall, Position, Range, Url,
-};
-use solar_config::CompileOpts;
+use super::*;
+use crate::symbols::SymbolTablesAggregator;
+use lsp_types::{CallHierarchyIncomingCall, CallHierarchyItem, CallHierarchyOutgoingCall};
 
 #[test]
 fn groups_direct_calls_and_selects_call_site_endpoints() {
@@ -542,12 +536,11 @@ impl Calls {
     }
 
     fn analyze_contents(&self, path: &str, contents: String) -> SymbolTables {
-        let files = [(self.0.project().path(path), contents)];
-        analyze(AnalysisBatch::from_files(CompileOpts::default(), files)).symbol_tables
+        analyze_source(self.0.project().path(path), contents).symbol_tables
     }
 
     fn uri(&self, marker: &str) -> Url {
-        Url::from_file_path(self.0.project().path(self.0.marker(marker).path())).unwrap()
+        self.0.project().uri(self.0.marker(marker).path())
     }
 
     fn prepare_at(

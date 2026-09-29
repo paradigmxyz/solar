@@ -1,11 +1,11 @@
 use super::*;
 use crate::{
     LaunchConfig, new_server_service_with_router,
-    test_support::{assert_request_cancelled, spawn_lsp_pair, start_request},
+    test_support::{LspPair, assert_request_cancelled, start_request, within},
 };
-use async_lsp::{LanguageServer, router::Router};
+use async_lsp::router::Router;
 use lsp_types::{
-    CancelParams, InitializeParams, InitializeResult, InitializedParams, NumberOrString,
+    CancelParams, InitializeParams, InitializeResult, NumberOrString,
     notification::{Cancel, DidOpenTextDocument, Exit, Initialized, Notification},
     request::{HoverRequest, Initialize, Request, Shutdown},
 };
@@ -13,7 +13,6 @@ use serde_json::Value;
 use std::{
     future::{pending, ready},
     sync::{Arc, Mutex},
-    time::Duration,
 };
 
 type NotificationLog = Arc<Mutex<Vec<String>>>;
@@ -196,9 +195,7 @@ async fn pending_initialize_rejects_traffic_until_dropped() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn cancelled_initialize_allows_retry_over_the_wire() {
-    const TIMEOUT: Duration = Duration::from_secs(1);
-
-    let (server_main, _client) = async_lsp::MainLoop::new_server(|client| {
+    let server = |client| {
         new_server_service_with_router(client, LaunchConfig::default(), |_| {
             let mut router = Router::new(0);
             router
@@ -217,23 +214,15 @@ async fn cancelled_initialize_allows_retry_over_the_wire() {
                 .notification::<Exit>(|_, _| ControlFlow::Break(Ok(())));
             router
         })
-    });
-    let (client_main, mut server) = async_lsp::MainLoop::new_client(|_| Router::new(()));
-    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
+    };
+    let pair = LspPair::spawn(server, |_| Router::new(()));
 
-    let cancelled = start_request(server.request::<Initialize>(InitializeParams::default()));
-    server.notify::<Cancel>(CancelParams { id: NumberOrString::Number(0) }).unwrap();
-    assert_request_cancelled(tokio::time::timeout(TIMEOUT, cancelled).await.unwrap());
+    let cancelled = start_request(pair.server.request::<Initialize>(InitializeParams::default()));
+    pair.server.notify::<Cancel>(CancelParams { id: NumberOrString::Number(0) }).unwrap();
+    assert_request_cancelled(within("cancellation", cancelled).await);
 
-    tokio::time::timeout(TIMEOUT, server.initialize(InitializeParams::default()))
-        .await
-        .expect("retried initialize response should arrive")
-        .unwrap();
-    server.initialized(InitializedParams {}).unwrap();
-    server.shutdown(()).await.unwrap();
-    server.exit(()).unwrap();
-    assert!(tokio::time::timeout(TIMEOUT, server_task).await.unwrap().unwrap().is_ok());
-    assert!(matches!(client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
+    within("retried initialize", pair.initialize(InitializeParams::default())).await;
+    pair.shutdown().await;
 }
 
 #[tokio::test]

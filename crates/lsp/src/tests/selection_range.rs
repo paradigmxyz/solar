@@ -1,8 +1,4 @@
-use super::support::RequestFixture;
-use crate::vfs::VfsPath;
-use async_lsp::ErrorCode;
-use crop::Rope;
-use lsp_types::Position;
+use super::*;
 use snapbox::str;
 
 #[test]
@@ -322,11 +318,7 @@ fn content_changes_replace_cached_selection_ranges() {
     let first = fixture.selection_range_response_in_state(&mut state, &["$1"]);
     let (_, position) = fixture.marker_location("$1");
     let changed_source = "contract LongName {}";
-    state.vfs.write().set_file_contents_with_version(
-        VfsPath::from(fixture.project_path("/Selection.sol")),
-        Some(Rope::from(changed_source)),
-        Some(2),
-    );
+    set_overlay(&state, &fixture.project_path("/Selection.sol"), changed_source, 2);
 
     let changed = fixture.selection_range_response_in_state(&mut state, &["$1"]);
     let expected = crate::selection_range::selection_ranges(changed_source.into(), &[position])

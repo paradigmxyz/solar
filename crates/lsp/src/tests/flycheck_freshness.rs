@@ -14,47 +14,23 @@ fn freshness_project() -> TestProject {
 }
 
 async fn freshness_state(project: &TestProject) -> GlobalState {
-    let mut params = project.initialize_params();
-    params.initialization_options = Some(serde_json::json!({
+    let options = json!({
         "sourceChangeDebounce": 0,
         "flychecks": [{ "id": "slow", "command": "unused-test-flycheck" }],
-    }));
-    let (_, mut config) = negotiate_capabilities(params);
-    config.rediscover_workspaces();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
-    state.vfs = Arc::new(RwLock::new(project.vfs()));
+    });
+    let mut state = state_with(config_with_options(project.initialize_params(), options));
+    *state.vfs.write() = project.vfs();
     state.vfs.write().set_file_version(VfsPath::from(project.path("/src/Test.sol")), 1);
     state.recompute_after_opening_source(vec![project.path("/src/Test.sol")]);
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
-        .await
-        .expect("initial source analysis should finish")
-        .unwrap();
+    settle(&state).await;
     state
-}
-
-fn change_document(state: &mut GlobalState, uri: &Url, version: i32, text: &str) {
-    assert!(
-        crate::handlers::did_change_text_document(
-            state,
-            DidChangeTextDocumentParams {
-                text_document: VersionedTextDocumentIdentifier::new(uri.clone(), version),
-                content_changes: vec![TextDocumentContentChangeEvent {
-                    range: None,
-                    range_length: None,
-                    text: text.into(),
-                }],
-            },
-        )
-        .is_continue()
-    );
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn document_changes_keep_or_clear_completed_flycheck_diagnostics() {
     let project = freshness_project();
     let mut state = freshness_state(&project).await;
-    let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
+    let uri = project.uri("/src/Test.sol");
     let owner = flycheck_owner(project.path("/"));
     let epoch = state.begin_flycheck_epoch(&owner);
     let stale = diagnostic("warning from the saved source");
@@ -65,24 +41,18 @@ async fn document_changes_keep_or_clear_completed_flycheck_diagnostics() {
             DiagnosticMap::from_iter([(uri.clone(), vec![stale.clone()])]),
         );
     };
-    let pulled = |state: &GlobalState| match state.diagnostics.read().pull_report(&uri, None) {
-        PullReport::Full { diagnostics, .. } => diagnostics,
-        _ => panic!("expected a full diagnostic report"),
-    };
     publish(&state);
 
-    change_document(&mut state, &uri, 2, SOURCE);
-    assert_eq!(pulled(&state), std::slice::from_ref(&stale));
+    change(&mut state, &uri, 2, SOURCE);
+    assert_eq!(pulled_diagnostics(&state, &uri), std::slice::from_ref(&stale));
     assert!(state.snapshot().is_current_flycheck(&owner, epoch));
 
-    change_document(&mut state, &uri, 3, EDITED_SOURCE);
+    change(&mut state, &uri, 3, EDITED_SOURCE);
     publish(&state);
-    assert!(pulled(&state).is_empty());
+    assert!(pulled_diagnostics(&state, &uri).is_empty());
     let reports =
-        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.workspace_diagnostic_reports(Vec::new()))
-            .await
-            .expect("workspace diagnostics should use the edited source")
-            .unwrap();
+        within("workspace diagnostics", state.workspace_diagnostic_reports(Vec::new())).await;
+    let reports = reports.unwrap();
     let report = reports.iter().find(|report| report.uri == uri).unwrap();
     assert_eq!(report.version, Some(3));
     let PullReport::Full { diagnostics, .. } = &report.report else {
@@ -100,7 +70,7 @@ async fn document_changes_keep_or_clear_completed_flycheck_diagnostics() {
 async fn flycheck_results_must_match_open_document_sources() {
     let project = freshness_project();
     let state = freshness_state(&project).await;
-    let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
+    let uri = project.uri("/src/Test.sol");
     let path = project.path("/src/Test.sol");
 
     for sources in

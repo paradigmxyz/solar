@@ -1,34 +1,13 @@
-use super::super::{
-    AnalysisBatch, AnalysisOutputAccumulator, AnalysisResult, AnalysisResultAccumulator,
-    GlobalState, analyze, analyze_cancellable,
-};
-use crate::test_support::{
-    MarkedProject, type_hierarchy_prepare_params, type_hierarchy_subtypes_params,
-    type_hierarchy_supertypes_params,
-};
-use async_lsp::{ClientSocket, ErrorCode, ResponseError};
+use super::*;
 use lsp_types::{
-    CodeLens, CodeLensParams, CompletionContext, CompletionParams, CompletionResponse,
-    CompletionTextEdit, CompletionTriggerKind, DocumentHighlight, DocumentHighlightKind,
-    DocumentHighlightParams, DocumentLink, DocumentLinkParams, Documentation, FoldingRange,
-    FoldingRangeKind, FoldingRangeParams, GotoDefinitionParams, GotoDefinitionResponse, Hover,
-    HoverContents, HoverParams, InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams,
-    Location, MarkupKind, ParameterLabel, PartialResultParams, Position, PrepareRenameResponse,
-    Range, ReferenceContext, ReferenceParams, RenameParams, SelectionRange, SelectionRangeParams,
-    SignatureHelp, SignatureHelpParams, TextDocumentIdentifier, TextDocumentPositionParams,
-    TypeHierarchyItem, Url, WorkDoneProgressParams, WorkspaceEdit,
+    CodeLens, CompletionResponse, CompletionTextEdit, DocumentHighlight, DocumentHighlightKind,
+    DocumentLink, Documentation, FoldingRange, FoldingRangeKind, GotoDefinitionResponse, Hover,
+    HoverContents, InlayHint, InlayHintKind, InlayHintLabel, Location, MarkupKind, ParameterLabel,
+    PrepareRenameResponse, RenameParams, SelectionRange, SelectionRangeParams, SignatureHelp,
+    TypeHierarchyItem, WorkspaceEdit,
 };
 use snapbox::{IntoData, assert_data_eq};
-use solar_config::CompileOpts;
-use std::{
-    fmt::Write as _,
-    future::Future,
-    io::Read as _,
-    path::Path,
-    pin::Pin,
-    sync::Arc,
-    task::{Context, Poll, Waker},
-};
+use std::{fmt::Write as _, io::Read as _, pin::Pin};
 
 pub(super) struct RequestFixture {
     marked: MarkedProject,
@@ -46,7 +25,7 @@ impl RequestFixture {
         let marked = MarkedProject::from_fixture(fixture);
         let contents = marked.project().read_file(path);
         let path = marked.project().path(path);
-        let result = analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path, contents)]));
+        let result = analyze_source(path, contents);
         Self { marked, result }
     }
 
@@ -79,14 +58,15 @@ impl RequestFixture {
                 .filter(|(open_path, _)| open_path == path)
                 .map_or_else(|| marked.project().read_file(path), |(_, contents)| contents.clone());
             let path = marked.project().path(path);
-            results.push(analyze(AnalysisBatch::from_files(
-                CompileOpts::default(),
-                [(path, contents)],
-            )));
+            results.push(analyze_source(path, contents));
         }
         let result = results.finish();
         assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
         Self { marked, result }
+    }
+
+    pub(super) fn project(&self) -> &TestProject {
+        self.marked.project()
     }
 
     pub(super) fn project_contents(&self, path: &str) -> String {
@@ -103,7 +83,7 @@ impl RequestFixture {
         new_name: &str,
     ) -> (GlobalState, RenameParams) {
         let (uri, position) = self.marker_location(marker);
-        (self.state(), rename_params(uri, position, new_name))
+        (self.state(), rename_params(&uri, position, new_name))
     }
 
     pub(super) fn rename_state_with_roots(
@@ -160,10 +140,7 @@ impl RequestFixture {
         for &(path, contents) in changes {
             let path = self.marked.project().path(path);
             state.mark_source_analysis_pending_for_test(path.clone());
-            state.vfs.write().set_file_contents(
-                crate::vfs::VfsPath::from(path),
-                Some(crop::Rope::from(contents)),
-            );
+            set_overlay(&state, &path, contents, None);
         }
         state
     }
@@ -223,7 +200,7 @@ impl RequestFixture {
         let (uri, position) = self.marker_location(marker);
         expect_ready(crate::handlers::prepare_type_hierarchy(
             &mut state,
-            type_hierarchy_prepare_params(uri, position),
+            request_params(&uri, position, json!({})),
         ))
         .unwrap()
     }
@@ -235,7 +212,7 @@ impl RequestFixture {
         let mut state = self.state();
         expect_ready(crate::handlers::type_hierarchy_supertypes(
             &mut state,
-            type_hierarchy_supertypes_params(item),
+            from_json(json!({ "item": item })),
         ))
         .unwrap()
     }
@@ -247,7 +224,7 @@ impl RequestFixture {
         let mut state = self.state();
         expect_ready(crate::handlers::type_hierarchy_subtypes(
             &mut state,
-            type_hierarchy_subtypes_params(item),
+            from_json(json!({ "item": item })),
         ))
         .unwrap()
     }
@@ -287,7 +264,7 @@ impl RequestFixture {
         if client_commands {
             Arc::make_mut(&mut state.config).enable_code_lens_client_commands();
         }
-        let params = code_lens_params(self.path_uri(path));
+        let params = document_params(&self.path_uri(path));
         expect_ready(crate::handlers::code_lens(&mut state, params)).unwrap().unwrap_or_default()
     }
 
@@ -300,7 +277,7 @@ impl RequestFixture {
         let (uri, position) = self.marker_location(marker);
         let response = block_on(crate::handlers::prepare_rename(
             &mut state,
-            text_document_position(uri, position),
+            request_params(&uri, position, json!({})),
         ))
         .unwrap();
         assert_data_eq!(prepare_rename_output(response), expected);
@@ -328,7 +305,7 @@ impl RequestFixture {
         let mut state = self.state();
         let (uri, position) = self.marker_location(marker);
         let response =
-            block_on(crate::handlers::rename(&mut state, rename_params(uri, position, new_name)))
+            block_on(crate::handlers::rename(&mut state, rename_params(&uri, position, new_name)))
                 .unwrap();
         self.rename_output(response)
     }
@@ -337,7 +314,7 @@ impl RequestFixture {
         let mut state = self.state();
         let (uri, position) = self.marker_location(marker);
         let error =
-            block_on(crate::handlers::rename(&mut state, rename_params(uri, position, new_name)))
+            block_on(crate::handlers::rename(&mut state, rename_params(&uri, position, new_name)))
                 .expect_err("rename should fail");
         assert_eq!(error.code, expected);
     }
@@ -364,7 +341,7 @@ impl RequestFixture {
     pub(super) fn check_document_links_at(&self, uri: Url, expected: impl IntoData) {
         let mut state = self.state();
         let links =
-            expect_ready(crate::handlers::document_links(&mut state, document_link_params(uri)))
+            expect_ready(crate::handlers::document_links(&mut state, document_params(&uri)))
                 .unwrap()
                 .unwrap_or_default();
         assert_data_eq!(self.document_links_output(links), expected);
@@ -380,7 +357,7 @@ impl RequestFixture {
         let mut state = self.state();
         // Folding ranges are syntactic and must not wait for analysis.
         state.mark_analysis_pending_for_test();
-        block_on(crate::handlers::folding_range(&mut state, folding_range_params(uri))).unwrap()
+        block_on(crate::handlers::folding_range(&mut state, document_params(&uri))).unwrap()
     }
 
     pub(super) fn check_folding_range_uses_blocking_pool(
@@ -388,7 +365,7 @@ impl RequestFixture {
         path: &str,
         expected: impl IntoData,
     ) {
-        let params = folding_range_params(self.path_uri(path));
+        let params = document_params(&self.path_uri(path));
         let response =
             self.on_paused_blocking_pool(|state| crate::handlers::folding_range(state, params));
         let ranges = response.unwrap().expect("folding-range request should return ranges");
@@ -417,7 +394,7 @@ impl RequestFixture {
         expected: impl IntoData,
     ) {
         assert_eq!(positions.len(), normalized_positions.len());
-        let params = selection_range_params(self.path_uri(path), positions);
+        let params = selection_range_params(&self.path_uri(path), positions);
         self.check_selection_range_params(params, normalized_positions, expected);
     }
 
@@ -453,7 +430,7 @@ impl RequestFixture {
         expected: ErrorCode,
     ) {
         let mut state = self.state();
-        let params = selection_range_params(self.path_uri(path), positions);
+        let params = selection_range_params(&self.path_uri(path), positions);
         let error = block_on(crate::handlers::selection_range(&mut state, params))
             .expect_err("selection-range request should fail");
         assert_eq!(error.code, expected);
@@ -465,22 +442,14 @@ impl RequestFixture {
         &self,
         request: impl FnOnce(&mut GlobalState) -> F,
     ) -> F::Output {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .max_blocking_threads(1)
-            .build()
-            .unwrap();
-        runtime.block_on(async {
-            let (release_worker, worker) = super::pause_blocking_pool();
+        with_paused_blocking_pool(|release_worker| async move {
             let mut state = self.state();
             let mut request = std::pin::pin!(request(&mut state));
             let is_pending =
                 request.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending();
             release_worker.send(()).unwrap();
             assert!(is_pending);
-            let response = request.await;
-            worker.await.unwrap();
-            response
+            request.await
         })
     }
 
@@ -508,17 +477,11 @@ impl RequestFixture {
         changed_contents: &str,
     ) -> GlobalState {
         let path = self.marked.project().path(path);
-        let result = analyze(AnalysisBatch::from_files(
-            CompileOpts::default(),
-            [(path.clone(), changed_contents.to_string())],
-        ));
+        let result = analyze_source(path.clone(), changed_contents);
         assert!(!result.diagnostics.is_empty(), "changed source should fail analysis");
 
         let state = self.state();
-        state.vfs.write().set_file_contents(
-            crate::vfs::VfsPath::from(path),
-            Some(crop::Rope::from(changed_contents)),
-        );
+        set_overlay(&state, &path, changed_contents, None);
         state.symbol_tables.store(Arc::new(result.symbol_tables));
         state
     }
@@ -540,28 +503,27 @@ impl RequestFixture {
 
     fn inlay_hints(&self, uri: Url, range: Range) -> Vec<InlayHint> {
         let mut state = self.state();
-        let response =
-            expect_ready(crate::handlers::inlay_hints(&mut state, inlay_hint_params(uri, range)))
-                .unwrap();
+        let response = expect_ready(crate::handlers::inlay_hints(
+            &mut state,
+            request_params(&uri, Position::default(), json!({ "range": range })),
+        ))
+        .unwrap();
         response.unwrap_or_default()
     }
 
     pub(super) fn state(&self) -> GlobalState {
-        self.state_with_label_offsets(true)
+        let mut config = self.marked.project().config();
+        config.enable_signature_help_label_offsets();
+        let state = state_with(config);
+        *state.vfs.write() = self.marked.project().vfs();
+        state.symbol_tables.store(Arc::new(self.result.symbol_tables.clone()));
+        state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
+        state
     }
 
     pub(super) fn state_with_workspace_analysis(&self) -> GlobalState {
-        let mut outputs = AnalysisOutputAccumulator::default();
-        for batch in super::snapshot(self.marked.project()).analysis_batches(Vec::new()) {
-            if !batch.files.is_empty() {
-                outputs.push(
-                    analyze_cancellable(batch, &Default::default())
-                        .expect("fresh analysis cancellation cannot be cancelled"),
-                );
-            }
-        }
-        let output = outputs.finish();
-        let state = self.state_with_label_offsets(true);
+        let output = analyze_workspace(&snapshot(self.marked.project()));
+        let state = self.state();
         state.symbol_tables.store(Arc::new(output.result.symbol_tables));
         state.analysis_commit.lock().analysis_paths = output.analysis_paths;
         state
@@ -573,27 +535,12 @@ impl RequestFixture {
         state
     }
 
-    fn state_with_label_offsets(&self, label_offsets: bool) -> GlobalState {
-        let mut state = GlobalState::new(ClientSocket::new_closed());
-        let mut config = self.marked.project().config();
-        if label_offsets {
-            config.enable_signature_help_label_offsets();
-        }
-        state.config = Arc::new(config);
-        *state.vfs.write() = self.marked.project().vfs();
-        state.symbol_tables.store(Arc::new(self.result.symbol_tables.clone()));
-        state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
-        state
-    }
-
     fn path_uri(&self, path: &str) -> Url {
-        Url::from_file_path(self.marked.project().path(path)).unwrap()
+        self.marked.project().uri(path)
     }
 
     pub(super) fn marker_location(&self, marker: &str) -> (Url, Position) {
-        let marker = self.marked.marker(marker);
-        let path = self.marked.project().path(marker.path());
-        (Url::from_file_path(path).unwrap(), marker.position())
+        self.marked.location(marker)
     }
 
     fn selection_range_request(&self, markers: &[&str]) -> (SelectionRangeParams, Vec<Position>) {
@@ -611,7 +558,7 @@ impl RequestFixture {
             })
             .collect::<Vec<_>>();
         let params = selection_range_params(
-            uri.expect("at least one marker is required"),
+            &uri.expect("at least one marker is required"),
             positions.clone(),
         );
         (params, positions)
@@ -700,16 +647,8 @@ pub(super) fn rename_output(root: &Path, response: Option<WorkspaceEdit>) -> Str
         let path = uri.to_file_path().unwrap();
         let display_path = display_path(root, &path);
         for edit in edits {
-            writeln!(
-                output,
-                "{display_path}:{}:{}-{}:{} -> {}",
-                edit.range.start.line,
-                edit.range.start.character,
-                edit.range.end.line,
-                edit.range.end.character,
-                edit.new_text,
-            )
-            .unwrap();
+            writeln!(output, "{display_path}:{} -> {}", range_output(edit.range), edit.new_text)
+                .unwrap();
         }
     }
     output
@@ -774,7 +713,7 @@ impl Query {
             Box::pin(async move { request.await.map(response) })
         }
 
-        let goto = goto_params(uri.clone(), position);
+        let goto = request_params(&uri, position, json!({}));
         match self {
             Self::Definition => {
                 boxed(crate::handlers::goto_definition(state, goto), QueryResponse::Goto)
@@ -791,37 +730,27 @@ impl Query {
             Self::References(include_declaration) => boxed(
                 crate::handlers::references(
                     state,
-                    reference_params(uri, position, include_declaration),
+                    request_params(
+                        &uri,
+                        position,
+                        json!({ "context": { "includeDeclaration": include_declaration } }),
+                    ),
                 ),
                 QueryResponse::Locations,
             ),
             Self::Highlights => boxed(
                 crate::handlers::document_highlight(
                     state,
-                    document_highlight_params(uri, position),
+                    request_params(&uri, position, json!({})),
                 ),
                 QueryResponse::Highlights,
             ),
             Self::Hover => boxed(
-                crate::handlers::hover(state, hover_params(uri, position)),
+                crate::handlers::hover(state, request_params(&uri, position, json!({}))),
                 QueryResponse::Hover,
             ),
         }
     }
-}
-
-fn expect_ready<F: Future>(future: F) -> F::Output {
-    let waker = Waker::noop();
-    let mut cx = Context::from_waker(waker);
-    let mut future = std::pin::pin!(future);
-    match future.as_mut().poll(&mut cx) {
-        Poll::Ready(output) => output,
-        Poll::Pending => panic!("request handler future should complete immediately"),
-    }
-}
-
-fn block_on<F: Future>(future: F) -> F::Output {
-    tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(future)
 }
 
 fn read_file(path: &Path) -> Option<String> {
@@ -897,7 +826,9 @@ pub(super) fn check_completions_at<'a>(
     expected: impl IntoData,
 ) {
     let outputs = requests.into_iter().map(|(name, uri, position, trigger)| {
-        let params = completion_params(uri, position, trigger);
+        let context =
+            trigger.map(|trigger| json!({ "triggerKind": 2, "triggerCharacter": trigger }));
+        let params = request_params(&uri, position, json!({ "context": context }));
         let response = expect_ready(crate::handlers::completion(state, params)).unwrap();
         (name, completion_output(response.unwrap()))
     });
@@ -1006,26 +937,15 @@ fn prepare_rename_output(response: Option<PrepareRenameResponse>) -> String {
         PrepareRenameResponse::RangeWithPlaceholder { range, .. } => range,
         PrepareRenameResponse::DefaultBehavior { .. } => return "<default>\n".to_string(),
     };
-    format!(
-        "{}:{}-{}:{}\n",
-        range.start.line, range.start.character, range.end.line, range.end.character
-    )
+    format!("{}\n", range_output(range))
 }
 
 fn document_highlight_output(response: Option<Vec<DocumentHighlight>>) -> String {
     let Some(highlights) = response else { return "<none>\n".to_string() };
     let mut output = String::new();
     for highlight in highlights {
-        writeln!(
-            output,
-            "{}:{}-{}:{} {}",
-            highlight.range.start.line,
-            highlight.range.start.character,
-            highlight.range.end.line,
-            highlight.range.end.character,
-            document_highlight_kind(highlight.kind),
-        )
-        .unwrap();
+        let kind = document_highlight_kind(highlight.kind);
+        writeln!(output, "{} {kind}", range_output(highlight.range)).unwrap();
     }
     output
 }
@@ -1117,116 +1037,19 @@ fn display_path(root: &Path, path: &Path) -> String {
     format!("/{}", path.display())
 }
 
-fn completion_params(uri: Url, position: Position, trigger: Option<&str>) -> CompletionParams {
-    CompletionParams {
-        text_document_position: text_document_position(uri, position),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-        context: trigger.map(|trigger| CompletionContext {
-            trigger_kind: CompletionTriggerKind::TRIGGER_CHARACTER,
-            trigger_character: Some(trigger.into()),
-        }),
-    }
-}
-
-fn goto_params(uri: Url, position: Position) -> GotoDefinitionParams {
-    GotoDefinitionParams {
-        text_document_position_params: text_document_position(uri, position),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    }
-}
-
-fn reference_params(uri: Url, position: Position, include_declaration: bool) -> ReferenceParams {
-    ReferenceParams {
-        text_document_position: text_document_position(uri, position),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-        context: ReferenceContext { include_declaration },
-    }
-}
-
-fn code_lens_params(uri: Url) -> CodeLensParams {
-    CodeLensParams {
-        text_document: TextDocumentIdentifier { uri },
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    }
-}
-
-fn document_highlight_params(uri: Url, position: Position) -> DocumentHighlightParams {
-    DocumentHighlightParams {
-        text_document_position_params: text_document_position(uri, position),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    }
-}
-
-fn hover_params(uri: Url, position: Position) -> HoverParams {
-    HoverParams {
-        text_document_position_params: text_document_position(uri, position),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-    }
-}
-
-fn rename_params(uri: Url, position: Position, new_name: &str) -> RenameParams {
-    RenameParams {
-        text_document_position: text_document_position(uri, position),
-        new_name: new_name.into(),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-    }
-}
-
-fn inlay_hint_params(uri: Url, range: Range) -> InlayHintParams {
-    InlayHintParams {
-        text_document: TextDocumentIdentifier { uri },
-        range,
-        work_done_progress_params: WorkDoneProgressParams::default(),
-    }
-}
-
-fn document_link_params(uri: Url) -> DocumentLinkParams {
-    DocumentLinkParams {
-        text_document: TextDocumentIdentifier { uri },
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    }
-}
-
 pub(super) fn signature_help_at(
     state: &mut GlobalState,
     uri: Url,
     position: Position,
 ) -> Option<SignatureHelp> {
-    let params = SignatureHelpParams {
-        context: None,
-        text_document_position_params: text_document_position(uri, position),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-    };
-    expect_ready(crate::handlers::signature_help(state, params)).unwrap()
-}
-
-fn selection_range_params(uri: Url, positions: Vec<Position>) -> SelectionRangeParams {
-    SelectionRangeParams {
-        text_document: TextDocumentIdentifier { uri },
-        positions,
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    }
-}
-
-fn folding_range_params(uri: Url) -> FoldingRangeParams {
-    FoldingRangeParams {
-        text_document: TextDocumentIdentifier { uri },
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    }
+    expect_ready(crate::handlers::signature_help(state, request_params(&uri, position, json!({}))))
+        .unwrap()
 }
 
 fn full_range() -> Range {
     Range { start: Position::new(0, 0), end: Position::new(u32::MAX, u32::MAX) }
 }
 
-fn text_document_position(uri: Url, position: Position) -> TextDocumentPositionParams {
-    TextDocumentPositionParams { text_document: TextDocumentIdentifier { uri }, position }
+fn selection_range_params(uri: &Url, positions: Vec<Position>) -> SelectionRangeParams {
+    request_params(uri, Position::default(), json!({ "positions": positions }))
 }

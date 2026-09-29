@@ -1,8 +1,6 @@
-use super::{AnalysisBatch, analyze, call_hierarchy::merge_symbol_tables, support::RequestFixture};
-use crate::{config::CodeLensConfig, symbols::SymbolTables, test_support::MarkedProject};
-use lsp_types::{Position, Url};
+use super::{call_hierarchy::merge_symbol_tables, *};
+use crate::config::CodeLensConfig;
 use snapbox::{assert_data_eq, str};
-use solar_config::CompileOpts;
 
 #[test]
 fn shows_selectors_and_references() {
@@ -213,7 +211,7 @@ fn recomputes_warmed_reference_counts_when_merging_batches() {
     let project = marked.project();
     let first = analyze_file(&marked, "/First.sol");
     let second = analyze_file(&marked, "/Second.sol");
-    let uri = Url::from_file_path(project.path("/Shared.sol")).unwrap();
+    let uri = project.uri("/Shared.sol");
     let position = marked.marker("$1").position();
 
     assert_data_eq!(lens_titles_at(&first, &uri, position), "1 reference\n");
@@ -246,7 +244,7 @@ fn suppresses_warmed_reference_counts_after_merging_conflicting_callers() {
     let first = analyze_file(&marked, "/Caller.sol");
     project.write_file("/Caller.sol", &contents.replace("Target.target();", "\nTarget.target();"));
     let second = analyze_file(&marked, "/Root.sol");
-    let uri = Url::from_file_path(project.path("/Target.sol")).unwrap();
+    let uri = project.uri("/Target.sol");
     let position = marked.marker("$1").position();
 
     assert_data_eq!(lens_titles_at(&first, &uri, position), "1 reference\n0xd4b83992\n");
@@ -398,8 +396,7 @@ fn check_merged_titles(
 
 fn analyze_file(marked: &MarkedProject, path: &str) -> SymbolTables {
     let project = marked.project();
-    let files = [(project.path(path), project.read_file(path))];
-    let result = analyze(AnalysisBatch::from_files(CompileOpts::default(), files));
+    let result = analyze_source(project.path(path), project.read_file(path));
     assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
     result.symbol_tables
 }

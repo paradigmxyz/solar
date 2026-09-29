@@ -1,23 +1,16 @@
+use super::*;
 use crate::{
     LaunchConfig,
     code_actions::{DiagnosticData, DiagnosticSuggestion, source_fingerprint},
     config::negotiate_capabilities_with_pull_diagnostic_data,
-    global_state::GlobalState,
-    test_support::TestProject,
 };
-use async_lsp::ClientSocket;
 use lsp_types::{
-    CodeActionClientCapabilities, CodeActionContext, CodeActionKind, CodeActionKindLiteralSupport,
-    CodeActionLiteralSupport, CodeActionOrCommand, CodeActionParams, Diagnostic,
-    DiagnosticClientCapabilities, DiagnosticSeverity, DiagnosticWorkspaceClientCapabilities,
-    DocumentChanges, NumberOrString, OneOf, PartialResultParams, Position,
-    PublishDiagnosticsClientCapabilities, Range, TextDocumentIdentifier, TextEdit, Url,
-    WorkDoneProgressParams, WorkspaceEditClientCapabilities,
+    CodeActionKind, CodeActionOrCommand, CodeActionParams, DiagnosticRelatedInformation,
+    DiagnosticSeverity, DocumentChanges, Location, NumberOrString, OneOf, TextEdit,
 };
-use serde_json::json;
 use snapbox::{IntoData, assert_data_eq, str};
 use solar_interface::diagnostics::Applicability;
-use std::{fmt::Write as _, future::Future, sync::Arc};
+use std::fmt::Write as _;
 
 const BAD_NAME: &str = "contract Test { uint256 bad_name; }\n";
 
@@ -550,13 +543,9 @@ fn rejects_stale_disk_and_open_document_fingerprints() {
     assert!(authorized_code_actions(&mut state(&disk, false), disk_params).is_empty());
 
     let open = TestProject::from_fixture(&format!("//- /Test.sol open\n{BAD_NAME}"));
-    let (uri, _, _, open_params) = native_request(&open);
+    let (_, _, _, open_params) = native_request(&open);
     let mut open_state = state(&open, false);
-    open_state.vfs.write().set_file_contents_with_version(
-        crate::proto::vfs_path(&uri).unwrap(),
-        Some(crop::Rope::from("contract Test { uint256 changed; }")),
-        Some(1),
-    );
+    set_overlay(&open_state, &open.path("/Test.sol"), "contract Test { uint256 changed; }", 1);
     assert!(authorized_code_actions(&mut open_state, open_params).is_empty());
 }
 
@@ -648,8 +637,8 @@ apply different fix preferred=Some(true)
 
     // Presentation that appends related information still selects the matching server fix.
     let mut first = diagnostic.clone();
-    first.related_information = Some(vec![lsp_types::DiagnosticRelatedInformation {
-        location: lsp_types::Location::new(uri.clone(), first.range),
+    first.related_information = Some(vec![DiagnosticRelatedInformation {
+        location: Location::new(uri.clone(), first.range),
         message: "related declaration".into(),
     }]);
     let mut second = first.clone();
@@ -669,8 +658,7 @@ apply different fix preferred=Some(true)
 fn returns_no_literal_action_when_the_client_did_not_advertise_support() {
     let project = TestProject::from_fixture(&format!("//- /Test.sol\n{BAD_NAME}"));
     let (uri, _, diagnostic, params) = native_request(&project);
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config());
+    let mut state = state_with(project.config());
     *state.vfs.write() = project.vfs();
     replace_diagnostics(&state, uri, vec![diagnostic]);
 
@@ -771,7 +759,7 @@ fn fallback_request(
     message: &str,
 ) -> (Url, Diagnostic, CodeActionParams) {
     let contents = project.read_file("/Test.sol");
-    let uri = Url::from_file_path(project.path("/Test.sol")).unwrap();
+    let uri = project.uri("/Test.sol");
     let diagnostic = Diagnostic {
         range,
         severity: Some(DiagnosticSeverity::WARNING),
@@ -785,13 +773,9 @@ fn fallback_request(
         })),
         ..Diagnostic::new_simple(range, message.into())
     };
-    let params = CodeActionParams {
-        text_document: TextDocumentIdentifier { uri: uri.clone() },
-        range,
-        context: CodeActionContext { diagnostics: vec![diagnostic.clone()], ..Default::default() },
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    };
+    let context = json!({ "diagnostics": [diagnostic] });
+    let params =
+        request_params(&uri, Position::default(), json!({ "range": range, "context": context }));
     (uri, diagnostic, params)
 }
 
@@ -799,13 +783,13 @@ fn set_suggestion(
     diagnostic: &mut Diagnostic,
     title: &str,
     applicability: &str,
-    alternatives: serde_json::Value,
+    alternatives: Value,
 ) {
     diagnostic.data.as_mut().unwrap()["suggestions"] =
         json!([{ "title": title, "applicability": applicability, "alternatives": alternatives }]);
 }
 
-fn native_data(uri: Url, contents: &str, title: &str, edit: TextEdit) -> serde_json::Value {
+fn native_data(uri: Url, contents: &str, title: &str, edit: TextEdit) -> Value {
     let suggestion =
         DiagnosticSuggestion::new(title.into(), Applicability::MachineApplicable, vec![vec![edit]]);
     DiagnosticData::new(uri, contents, vec![suggestion]).to_value()
@@ -831,41 +815,26 @@ fn state_with_capabilities(
     publish_diagnostic_data: bool,
     pull_diagnostic_data: bool,
 ) -> GlobalState {
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    let mut initialize = project.initialize_params();
-    let text_document = initialize.capabilities.text_document.get_or_insert_default();
-    text_document.code_action = Some(CodeActionClientCapabilities {
-        code_action_literal_support: Some(CodeActionLiteralSupport {
-            code_action_kind: CodeActionKindLiteralSupport {
-                value_set: vec![CodeActionKind::QUICKFIX.as_str().into()],
-            },
-        }),
-        is_preferred_support: Some(is_preferred),
-        ..Default::default()
+    let quick_fix = json!({ "codeActionKind": { "valueSet": ["quickfix"] } });
+    let mut text_document = json!({
+        "codeAction": { "codeActionLiteralSupport": quick_fix, "isPreferredSupport": is_preferred },
+        "publishDiagnostics": { "dataSupport": publish_diagnostic_data },
     });
-    text_document.publish_diagnostics = Some(PublishDiagnosticsClientCapabilities {
-        data_support: Some(publish_diagnostic_data),
-        ..Default::default()
-    });
-    text_document.diagnostic = pull_delivery.then(DiagnosticClientCapabilities::default);
+    let mut workspace = json!({});
     if pull_delivery {
-        initialize.capabilities.workspace.get_or_insert_default().diagnostic =
-            Some(DiagnosticWorkspaceClientCapabilities { refresh_support: Some(true) });
+        text_document["diagnostic"] = json!({});
+        workspace["diagnostic"] = json!({ "refreshSupport": true });
     }
     if document_changes {
-        initialize.capabilities.workspace.get_or_insert_default().workspace_edit =
-            Some(WorkspaceEditClientCapabilities {
-                document_changes: Some(true),
-                ..Default::default()
-            });
+        workspace["workspaceEdit"] = json!({ "documentChanges": true });
     }
-    let config = negotiate_capabilities_with_pull_diagnostic_data(
-        initialize,
+    let capabilities = json!({ "textDocument": text_document, "workspace": workspace });
+    let (_, config) = negotiate_capabilities_with_pull_diagnostic_data(
+        with_capabilities(project.initialize_params(), capabilities),
         pull_diagnostic_data,
         &LaunchConfig::default(),
-    )
-    .1;
-    state.config = Arc::new(config);
+    );
+    let state = state_with(config);
     *state.vfs.write() = project.vfs();
     state
 }
@@ -957,8 +926,4 @@ fn actions_output(response: &[CodeActionOrCommand]) -> String {
         }
     }
     output
-}
-
-fn block_on<F: Future>(future: F) -> F::Output {
-    tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(future)
 }

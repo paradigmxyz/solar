@@ -1,10 +1,8 @@
 use super::*;
 use crate::{
     FoundryWorkspaceConfig, LaunchConfig, config::negotiate_capabilities_with_pull_diagnostic_data,
-    handlers, test_support::MarkedProject,
+    handlers,
 };
-use async_lsp::ClientSocket;
-use lsp_types::{RenameParams, TextDocumentIdentifier, TextDocumentPositionParams};
 use std::fmt::Write as _;
 
 #[tokio::test(flavor = "current_thread")]
@@ -25,18 +23,13 @@ async fn rejects_rename_with_unindexed_callers() {
         "#,
     );
     let mut state = coverage_state(&marked, false);
-    let params = rename_params(&marked, "$1", "increase");
-    let report = tokio::time::timeout(
-        super::super::ASYNC_TEST_TIMEOUT,
-        rename_report(&mut state, params, marked.project().root()),
-    )
-    .await
-    .unwrap();
+    let params = rename_at(&marked, "$1", "increase");
+    let report = within("rename", rename_report(&mut state, params, marked.project().root())).await;
     snapbox::assert_data_eq!(
         report,
         "cannot rename this symbol because workspace indexing may omit source files\n"
     );
-    let unchanged = rename_params(&marked, "$1", "increment");
+    let unchanged = rename_at(&marked, "$1", "increment");
     assert!(handlers::rename(&mut state, unchanged).await.unwrap().is_none());
 }
 
@@ -111,13 +104,10 @@ $5:
         ),
     ] {
         let mut state = coverage_state(&marked, complete);
-        tokio::time::timeout(super::super::ASYNC_TEST_TIMEOUT, state.latest_analysis())
-            .await
-            .unwrap()
-            .unwrap();
+        settle(&state).await;
         let mut output = String::new();
         for marker in ["$1", "$2", "$3", "$4", "$5"] {
-            let params = rename_params(&marked, marker, "renamed");
+            let params = rename_at(&marked, marker, "renamed");
             let report = rename_report(&mut state, params, marked.project().root()).await;
             write!(output, "{marker}:\n{report}").unwrap();
         }
@@ -186,22 +176,12 @@ fn coverage_state(marked: &MarkedProject, complete: bool) -> GlobalState {
     );
     config.rediscover_workspaces();
     assert_eq!(config.may_omit_source_files(), !complete);
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
+    let mut state = state_with(config);
     state.recompute_after_opening_source(Vec::new());
     state
 }
 
-fn rename_params(marked: &MarkedProject, marker: &str, new_name: &str) -> RenameParams {
-    let marker = marked.marker(marker);
-    RenameParams {
-        text_document_position: TextDocumentPositionParams::new(
-            TextDocumentIdentifier::new(
-                Url::from_file_path(marked.project().path(marker.path())).unwrap(),
-            ),
-            marker.position(),
-        ),
-        new_name: new_name.into(),
-        work_done_progress_params: Default::default(),
-    }
+fn rename_at(marked: &MarkedProject, marker: &str, new_name: &str) -> RenameParams {
+    let (uri, position) = marked.location(marker);
+    rename_params(&uri, position, new_name)
 }

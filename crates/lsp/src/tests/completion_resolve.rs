@@ -1,25 +1,12 @@
-use super::{
-    AnalysisBatch, AnalysisResult, AnalysisResultAccumulator, GlobalState, analyze,
-    support::RequestFixture,
-};
-use crate::test_support::MarkedProject;
-use async_lsp::{AnyRequest, ClientSocket, router::Router};
+use super::*;
+use async_lsp::AnyRequest;
 use lsp_types::{
-    CompletionClientCapabilities, CompletionItem, CompletionItemCapability,
-    CompletionItemCapabilityResolveSupport, CompletionItemKind, CompletionParams,
-    CompletionResponse, Documentation, InitializeParams, MarkupContent, MarkupKind, Position,
-    TextDocumentClientCapabilities, TextDocumentIdentifier, TextDocumentPositionParams, Url,
+    CompletionItem, CompletionItemKind, CompletionResponse, Documentation, MarkupContent,
+    MarkupKind,
     request::{Completion, Initialize, Request, ResolveCompletionItem},
 };
-use serde_json::json;
-use solar_config::{CompileOpts, ImportRemapping};
-use std::{
-    future::Future,
-    path::PathBuf,
-    pin::{Pin, pin},
-    sync::Arc,
-    task::{Context, Poll, Waker},
-};
+use solar_config::ImportRemapping;
+use std::pin::{Pin, pin};
 use tower::Service;
 
 const PLAIN_DOCUMENTATION: &str = r#"function documented(uint256 value) public pure returns (uint256 result)
@@ -56,7 +43,7 @@ Adds one to the provided value.
     for (formats, resolve_properties, expected, eager) in [
         (
             vec![MarkupKind::PlainText, MarkupKind::Markdown],
-            Some(vec!["documentation".into()]),
+            Some(vec!["documentation"]),
             Documentation::String(PLAIN_DOCUMENTATION.into()),
             false,
         ),
@@ -68,26 +55,20 @@ Adds one to the provided value.
         ),
         (
             vec![MarkupKind::PlainText],
-            Some(vec!["additionalTextEdits".into()]),
+            Some(vec!["additionalTextEdits"]),
             Documentation::String(PLAIN_DOCUMENTATION.into()),
             true,
         ),
     ] {
         let fixture = completion_resolve_fixture();
         let mut router = crate::new_router_with_state(fixture.state());
-        let mut params = InitializeParams::default();
-        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
-            completion: Some(CompletionClientCapabilities {
-                completion_item: Some(CompletionItemCapability {
-                    documentation_format: Some(formats),
-                    resolve_support: resolve_properties
-                        .map(|properties| CompletionItemCapabilityResolveSupport { properties }),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
+        let resolve_support =
+            resolve_properties.map(|properties| json!({ "properties": properties }));
+        let completion_item =
+            json!({ "documentationFormat": formats, "resolveSupport": resolve_support });
+        let params = from_json(json!({ "capabilities": { "textDocument": {
+            "completion": { "completionItem": completion_item },
+        } } }));
         request::<Initialize>(&mut router, params).await;
         let item = request_completion_item(&mut router, &fixture, "$1", "documented").await;
 
@@ -134,7 +115,7 @@ async fn resolves_imported_getter_and_alias_documentation() {
     );
     let mut router = crate::new_router_with_state(fixture.state());
     let item = request_completion_item(&mut router, &fixture, "$1", "balance").await;
-    let token_uri = Url::from_file_path(fixture.project_path("/Token.sol")).unwrap();
+    let token_uri = fixture.project().uri("/Token.sol");
     assert_eq!(item.kind, Some(CompletionItemKind::METHOD));
     assert_eq!(item.data.as_ref().unwrap()[1], json!(token_uri));
     let documentation = "uint256 public balance\n\nReturns the current balance.";
@@ -183,7 +164,7 @@ async fn validates_completion_data_before_waiting_and_uses_latest_analysis() {
     let mut state = fixture.state();
     state.mark_analysis_pending_for_test();
 
-    let with_data = |edit: fn(&mut serde_json::Value)| {
+    let with_data = |edit: fn(&mut Value)| {
         let mut item = item.clone();
         edit(item.data.as_mut().unwrap());
         item
@@ -315,7 +296,7 @@ async fn resolves_only_compatible_completion_items_across_analysis_batches() {
             "}\n",
         ),
     );
-    let uri = Url::from_file_path(project.path("/Shared.sol")).unwrap();
+    let uri = project.uri("/Shared.sol");
     let hover_position = marked.marker("$2").position();
     let analyze_context = |directory: &str| {
         let opts = CompileOpts {
@@ -402,7 +383,7 @@ fn completion_resolve_fixture() -> RequestFixture {
 }
 
 fn analyze_clean(path: PathBuf, contents: String) -> AnalysisResult {
-    let result = analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path, contents)]));
+    let result = analyze_source(path, contents);
     assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
     result
 }
@@ -413,8 +394,8 @@ fn poll_once<F: Future>(future: Pin<&mut F>) -> Poll<F::Output> {
 
 async fn request<R: Request>(router: &mut Router<GlobalState>, params: R::Params) -> R::Result {
     let request = json!({ "id": 0, "method": R::METHOD, "params": params });
-    let response = router.call(serde_json::from_value::<AnyRequest>(request).unwrap()).await;
-    serde_json::from_value(response.unwrap()).unwrap()
+    let response = router.call(from_json::<AnyRequest>(request)).await;
+    from_json(response.unwrap())
 }
 
 /// Resolves a deferred item and checks that only its documentation changes.
@@ -446,15 +427,7 @@ async fn request_completion_item_at(
     position: Position,
     label: &str,
 ) -> CompletionItem {
-    let params = CompletionParams {
-        text_document_position: TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier::new(uri),
-            position,
-        },
-        work_done_progress_params: Default::default(),
-        partial_result_params: Default::default(),
-        context: None,
-    };
+    let params = request_params(&uri, position, json!({}));
     let Some(CompletionResponse::Array(items)) = request::<Completion>(router, params).await else {
         panic!("expected completion items");
     };

@@ -2,20 +2,17 @@ use super::*;
 use crate::{
     config::negotiate_capabilities,
     symbols::{SymbolTables, push_symbol_for_test as push},
+    test_support::{
+        assert_polls, document_params, expect_ready, from_json, request_params, state_with,
+    },
 };
-use async_lsp::ClientSocket;
 use lsp_types::{
-    DocumentDiagnosticReport, DocumentDiagnosticReportResult, DocumentSymbolClientCapabilities,
-    DocumentSymbolResponse, InitializeParams, SymbolKind, TextDocumentClientCapabilities,
-    WorkspaceSymbolResponse,
+    DocumentDiagnosticReport, DocumentDiagnosticReportResult, DocumentSymbolResponse,
+    InitializeParams, SymbolKind, WorkspaceSymbolResponse,
 };
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
-use std::{
-    future::Future,
-    sync::Arc,
-    task::{Context, Poll, Waker},
-};
+use std::sync::Arc;
 
 #[test]
 fn completion_input_extracts_prefix_and_member_receiver() {
@@ -63,14 +60,9 @@ fn symbol_requests_read_the_latest_symbol_tables() {
     };
     assert_eq!(symbols.iter().map(|symbol| symbol.name.as_str()).collect::<Vec<_>>(), ["Other"]);
 
-    let mut hierarchical = InitializeParams::default();
-    hierarchical.capabilities.text_document = Some(TextDocumentClientCapabilities {
-        document_symbol: Some(DocumentSymbolClientCapabilities {
-            hierarchical_document_symbol_support: Some(true),
-            ..Default::default()
-        }),
-        ..Default::default()
-    });
+    let hierarchical = from_json(json!({ "capabilities": { "textDocument": {
+        "documentSymbol": { "hierarchicalDocumentSymbolSupport": true },
+    } } }));
     let mut state = state_with_symbols(hierarchical);
     let Some(DocumentSymbolResponse::Nested(symbols)) =
         expect_ready(document_symbol(&mut state, document_params(&uri))).unwrap()
@@ -152,28 +144,14 @@ fn latency_sensitive_requests_do_not_wait_for_analysis() {
 }
 
 fn pending_analysis_state() -> GlobalState {
-    let state = GlobalState::new(ClientSocket::new_closed());
+    let state = state_with(Config::default());
     state.mark_analysis_pending_for_test();
     state
 }
 
 /// Builds request params at the start of `uri`, extended with request-specific `extra` fields.
 fn params<T: DeserializeOwned>(uri: &Url, extra: Value) -> T {
-    let mut params = json!({
-        "textDocument": { "uri": uri },
-        "position": { "line": 0, "character": 0 },
-        "range": {
-            "start": { "line": 0, "character": 0 },
-            "end": { "line": u32::MAX, "character": u32::MAX },
-        },
-    });
-    let Value::Object(extra) = extra else { panic!("extra params must be an object") };
-    params.as_object_mut().unwrap().extend(extra);
-    serde_json::from_value(params).unwrap()
-}
-
-fn document_params<T: DeserializeOwned>(uri: &Url) -> T {
-    params(uri, json!({}))
+    request_params(uri, Position::default(), extra)
 }
 
 fn type_hierarchy_item(uri: &Url, data_uri: &Url) -> Value {
@@ -199,8 +177,7 @@ fn state_with_symbols(params: InitializeParams) -> GlobalState {
     push(&mut tables, &uri, "f", SymbolKind::METHOD, 2, 4, Some(contract));
     push(&mut tables, &file_uri("Other.sol"), "Other", SymbolKind::CLASS, 0, 0, None);
 
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(negotiate_capabilities(params).1);
+    let state = state_with(negotiate_capabilities(params).1);
     state.symbol_tables.store(Arc::new(tables));
     state
 }
@@ -211,18 +188,4 @@ fn parse_uri(uri: &str) -> Url {
 
 fn file_uri(path: &str) -> Url {
     Url::from_file_path(std::env::temp_dir().join(path)).unwrap()
-}
-
-fn expect_ready<F: Future>(future: F) -> F::Output {
-    let mut cx = Context::from_waker(Waker::noop());
-    match std::pin::pin!(future).poll(&mut cx) {
-        Poll::Ready(output) => output,
-        Poll::Pending => panic!("request handler future should complete immediately"),
-    }
-}
-
-#[track_caller]
-fn assert_polls(pending: bool, future: impl Future) {
-    let mut cx = Context::from_waker(Waker::noop());
-    assert_eq!(std::pin::pin!(future).poll(&mut cx).is_pending(), pending);
 }
