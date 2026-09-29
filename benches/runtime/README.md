@@ -369,3 +369,16 @@ openzeppelin-5.6.1-project 666aacb77d7fdf356de4fcabc93a230e6daccb642e1857b41c8c7
 These are full-project reproducers, not reduced cases. Nine of the twelve cases
 that previously failed compilation or helper-contract checks passed after enabling
 via-IR, including all five runtime cases. These three remained unsuccessful.
+
+Retested all 32 CI-selected cases on 2026-09-29 with oksolc
+`990c42d727e1aacf3d9bce1f290ee31b17babc2b`, using the same build and command above
+(substitute this revision in the fetch command). With the original settings,
+22 cases compiled; ten required via-IR, and two runtime helpers also required it.
+With `viaIR: true` on every input, including helpers, 29 cases compiled and all
+23 runtime cases completed their execution checks and hot gas calls. This run
+used oksolc alone and did not compare outputs against another compiler.
+
+The same three full-project failures remained, with the same input hashes and
+Seaport/Solady diagnostics. OpenZeppelin exited 137 with empty stdout/stderr and
+46,268,145,664 bytes peak RSS. The cause of the kill remains unconfirmed. These
+via-IR overrides were local experiments; CI retains each case's original settings.
