@@ -80,7 +80,7 @@ use super::{
 };
 use crate::mir::{
     ArithmeticKind, BlockId, CheckedOp, Function, Immediate, InstId, InstKind, Instruction,
-    MemoryRegion, MirType, Module, Terminator, Value, ValueId,
+    MemoryObjectKind, MemoryRegion, MirType, Module, Terminator, Value, ValueId,
     analysis::{
         AffineTerm, AliasAnalysis, CfgInfo, Loop, LoopAnalyzer, MemoryBase, ScalarEvolution,
     },
@@ -398,7 +398,7 @@ impl IndVarSimplifier {
                     InstKind::SetMemoryObjectLen(object, length, _) => (object, length),
                     _ => continue,
                 };
-                if !self.is_length_slot(func, slot) {
+                if !self.is_length_store(func, slot, length) {
                     continue;
                 }
                 lengths.entry(length).or_default().push(slot);
@@ -414,6 +414,74 @@ impl IndVarSimplifier {
             }
         }
         lengths
+    }
+
+    /// Whether storing `length` at `slot` writes an object's length: `slot` is the first word of a
+    /// bytes or dynamic array reference, or of an allocation sized from a word stored there, which
+    /// makes it such an object too. The first word of a fixed-size array is an element and a
+    /// struct's is a field, and their allocations have constant sizes. Without inline assembly
+    /// every word stored at a dynamic object's first word is a length the module bounds.
+    fn is_length_store(&self, func: &Function, slot: ValueId, length: ValueId) -> bool {
+        const DEPTH: usize = 8;
+        if let Some(MirType::MemoryObject(kind)) = func.value_ty(slot) {
+            return matches!(kind, MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray);
+        }
+        let Some(size) = self.allocation_size(func, slot) else { return false };
+        // A constant size is a fixed-size array's or a struct's, and a constant word sizes
+        // nothing: it could equal such a size.
+        let is_constant = |value: ValueId| matches!(func.value(value), Value::Immediate(_));
+        if is_constant(size) {
+            return false;
+        }
+        let sizes = |word: ValueId| !is_constant(word) && computed_from(func, size, word, DEPTH);
+        let start = self.alias.memory_address(func, slot);
+        sizes(length)
+            || func.instructions().any(|inst_id| match func.inst(inst_id).kind {
+                InstKind::MStore(other, word) | InstKind::SetMemoryObjectLen(other, word, _) => {
+                    self.alias.memory_address(func, other) == start && sizes(word)
+                }
+                _ => false,
+            })
+    }
+
+    /// The size of the allocation that starts at `slot`: an abstract allocation's operand, or,
+    /// after allocation lowering, what the free-memory pointer is bumped by past a read of it:
+    /// set_fmp start + size, or mstore 64, start + size
+    fn allocation_size(&self, func: &Function, slot: ValueId) -> Option<ValueId> {
+        let address = self.alias.memory_address(func, slot)?;
+        if address.region != MemoryRegion::Heap || address.offset != 0 {
+            return None;
+        }
+        match address.base {
+            MemoryBase::Allocation(alloc) | MemoryBase::DynamicAllocation(alloc) => {
+                match func.inst(alloc).kind {
+                    InstKind::Alloc { size, .. } => Some(size),
+                    _ => None,
+                }
+            }
+            MemoryBase::Value(start) if self.is_length_slot(func, slot) => {
+                func.instructions().find_map(|inst_id| {
+                    let next = match func.inst(inst_id).kind {
+                        InstKind::SetFmp(next) => next,
+                        InstKind::MStore(fmp, next)
+                            if func.value_u64(fmp) == Some(EvmMemoryLayout::FMP_SLOT) =>
+                        {
+                            next
+                        }
+                        _ => return None,
+                    };
+                    let &InstKind::Add(a, b) = inst_kind(func, uncast(func, next))? else {
+                        return None;
+                    };
+                    match (uncast(func, a) == start, uncast(func, b) == start) {
+                        (true, _) => Some(b),
+                        (_, true) => Some(a),
+                        _ => None,
+                    }
+                })
+            }
+            _ => None,
+        }
     }
 
     /// Whether `slot` is the first word of a memory object: a memory
@@ -1083,10 +1151,9 @@ impl IndVarSimplifier {
 
     /// Whether a bound is small enough that the test pointer's value there cannot wrap: at most
     /// `2^SMALL_BOUND_BITS`, or, in a module that keeps lengths below the allocation limit, the
-    /// length of an object. A typed length read qualifies, and so does the word stored where a
-    /// fresh object's length goes when the pointer walks that object's data, `object + 32`: the
-    /// first word of an object in memory is a struct's field as often as a length, but no loop
-    /// walks a struct's fields without assembly.
+    /// length of an object. A typed length read qualifies, and so does the word stored as a fresh
+    /// object's length when the pointer walks that object's data, `object + 32`; see
+    /// [`Self::is_length_store`] for what counts as a length.
     fn bound_small(
         &self,
         func: &Function,
@@ -1848,6 +1915,31 @@ fn inst_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
         Value::Inst(inst_id) => Some(&func.inst(*inst_id).kind),
         _ => None,
     }
+}
+
+/// The value `value` casts, through any number of pointer and word casts.
+fn uncast(func: &Function, mut value: ValueId) -> ValueId {
+    while let Some(
+        &(InstKind::PtrToInt(operand, _)
+        | InstKind::IntToPtr(operand)
+        | InstKind::Bitcast(operand)),
+    ) = inst_kind(func, value)
+    {
+        value = operand;
+    }
+    value
+}
+
+/// Whether `value` is `target` or computed from it through at most `depth` instructions other
+/// than phis.
+fn computed_from(func: &Function, value: ValueId, target: ValueId, depth: usize) -> bool {
+    if value == target {
+        return true;
+    }
+    let Some(kind) = inst_kind(func, value) else { return false };
+    depth != 0
+        && !matches!(kind, InstKind::Phi(_))
+        && kind.any_operand(|operand| computed_from(func, operand, target, depth - 1))
 }
 
 fn u256_to_i128(value: U256) -> Option<i128> {
