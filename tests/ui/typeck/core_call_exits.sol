@@ -114,3 +114,12 @@ library Deployed {
         Return.abiEncoded(bytes32(0)); //~ ERROR: this ends a call to `answer` with `(bytes32)`, but it returns `(bool)`
     }
 }
+
+// The operations can only be called directly: a pointer to one would end the
+// call where no check follows it.
+contract Taken {
+    function viaPointer() external pure returns (uint256) {
+        function(bytes memory) internal pure f = Return.raw; //~ ERROR: `Return.raw` can only be called directly
+        f("");
+    }
+}
