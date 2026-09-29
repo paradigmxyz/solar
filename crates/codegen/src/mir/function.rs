@@ -732,6 +732,12 @@ pub(crate) struct FunctionAttributes {
     ///
     /// This is a trusted invariant for compiler-synthesized helpers.
     pub(crate) cleans_address_elements: bool,
+    /// The function's only effect is to clean every element of its `address[]` argument in
+    /// place to the address the word holds, so element cleanup deletes a call to it where the
+    /// array cannot hold a dirty address.
+    ///
+    /// This is a trusted invariant for compiler-synthesized helpers.
+    pub(crate) only_cleans_address_elements: bool,
     /// Proved upper bound, in bits, on the words each array parameter can
     /// hold while this function reads it, recorded by element cleanup for
     /// the ABI return proofs that run after the element masks are gone.
@@ -758,6 +764,7 @@ impl Default for FunctionAttributes {
             preserves_array_elements: false,
             returns_param_elements: false,
             cleans_address_elements: false,
+            only_cleans_address_elements: false,
             array_element_bits: FxHashMap::default(),
             array_return_element_bits: None,
         }
