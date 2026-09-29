@@ -1,9 +1,10 @@
 //! The providers `-Zllm-optimize=live` can ask, and what the compiler knows about their models.
 //!
 //! `-Zllm-model` names a model as `PROVIDER/MODEL`. A model without a known provider prefix is an
-//! OpenAI one, so `gpt-6-sol` and `openai/gpt-6-sol` ask the same model. Prices and reasoning
-//! efforts are recorded for the models the documentation names, as their providers publish them;
-//! other models are asked all the same, with their tokens reported but not priced.
+//! OpenAI one, so `gpt-6-sol` and `openai/gpt-6-sol` ask the same model; `openai-chat/gpt-6-sol`
+//! asks it through OpenAI's chat completions API instead, which gateways also serve. Prices and
+//! reasoning efforts are recorded for the models the documentation names, as their providers
+//! publish them; other models are asked all the same, with their tokens reported but not priced.
 
 use solar_config::LlmEffort;
 
@@ -16,6 +17,8 @@ pub(super) enum Provider {
     Anthropic,
     /// OpenCode Zen's OpenAI-compatible chat completions API.
     OpenCode,
+    /// OpenAI's chat completions API, which gateways that front OpenAI also serve.
+    OpenAiChat,
 }
 
 impl Provider {
@@ -25,6 +28,7 @@ impl Provider {
             Some(("openai", model)) => (Self::OpenAi, model),
             Some(("anthropic", model)) => (Self::Anthropic, model),
             Some(("opencode", model)) => (Self::OpenCode, model),
+            Some(("openai-chat", model)) => (Self::OpenAiChat, model),
             _ => (Self::OpenAi, model),
         }
     }
@@ -32,7 +36,7 @@ impl Provider {
     /// The provider's name in diagnostics.
     pub(super) const fn name(self) -> &'static str {
         match self {
-            Self::OpenAi => "OpenAI",
+            Self::OpenAi | Self::OpenAiChat => "OpenAI",
             Self::Anthropic => "Anthropic",
             Self::OpenCode => "OpenCode Zen",
         }
@@ -41,7 +45,7 @@ impl Provider {
     /// The environment variable holding the provider's key.
     pub(super) const fn key_variable(self) -> &'static str {
         match self {
-            Self::OpenAi => "OPENAI_API_KEY",
+            Self::OpenAi | Self::OpenAiChat => "OPENAI_API_KEY",
             Self::Anthropic => "ANTHROPIC_API_KEY",
             Self::OpenCode => "OPENCODE_ZEN_API_KEY",
         }
@@ -53,6 +57,7 @@ impl Provider {
             Self::OpenAi => None,
             Self::Anthropic => Some("https://api.anthropic.com/v1"),
             Self::OpenCode => Some("https://opencode.ai/zen/v1"),
+            Self::OpenAiChat => Some("https://api.openai.com/v1"),
         }
     }
 }
@@ -163,6 +168,7 @@ mod tests {
         );
         assert_eq!(Provider::parse("openai/gpt-6-sol"), (Provider::OpenAi, "gpt-6-sol"));
         assert_eq!(Provider::parse("gpt-6-sol"), (Provider::OpenAi, "gpt-6-sol"));
+        assert_eq!(Provider::parse("openai-chat/gpt-6-sol"), (Provider::OpenAiChat, "gpt-6-sol"));
         // An unknown prefix is part of an OpenAI model's name.
         assert_eq!(Provider::parse("deepseek/v4"), (Provider::OpenAi, "deepseek/v4"));
 

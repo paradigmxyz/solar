@@ -88,7 +88,7 @@ Options:
           File of scripted `llm-optimize` candidates, for `-Zllm-optimize=script`
 
       -Zllm-model=<MODEL>
-          Model that `-Zllm-optimize=live` asks, as `PROVIDER/MODEL` with provider `openai`, `anthropic`, or `opencode`; a model without a provider is an OpenAI one
+          Model that `-Zllm-optimize=live` asks, as `PROVIDER/MODEL` with provider `openai`, `anthropic`, `opencode`, or `openai-chat`; a model without a provider is an OpenAI one
 
       -Zllm-endpoint=<URL>
           Base URL of the API `-Zllm-optimize=live` asks, replacing its provider's

@@ -53,7 +53,7 @@ impl ChatClient {
     ) -> Result<Self, String> {
         let protocol = match provider {
             Provider::Anthropic => Protocol::Messages,
-            Provider::OpenCode => Protocol::ChatCompletions,
+            Provider::OpenCode | Provider::OpenAiChat => Protocol::ChatCompletions,
             Provider::OpenAi => unreachable!("OpenAI models are asked through nanocodex"),
         };
         let key = match protocol {

@@ -59,6 +59,7 @@ The command line supports `live` when the compiler is built with its `llm` featu
 | `MODEL`, `openai/MODEL` | OpenAI's Responses API, through [nanocodex](https://docs.rs/nanocodex) | `OPENAI_API_KEY`       |
 | `anthropic/MODEL`       | Anthropic's Messages API at `https://api.anthropic.com/v1`             | `ANTHROPIC_API_KEY`    |
 | `opencode/MODEL`        | OpenCode Zen's chat completions at `https://opencode.ai/zen/v1`        | `OPENCODE_ZEN_API_KEY` |
+| `openai-chat/MODEL`     | OpenAI's chat completions at `https://api.openai.com/v1`               | `OPENAI_API_KEY`       |
 
 The key goes only to the provider's client. `-Zllm-endpoint` replaces the base URL, for a proxy or
 another server that speaks the same API. The compiler warns that `live` sends the MIR of every
