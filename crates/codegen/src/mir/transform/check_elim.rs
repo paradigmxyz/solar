@@ -185,8 +185,8 @@ use super::{call_cleanup, cfg_simplify::simplify_function, egraph::max_bits_with
 use crate::{
     mir::{
         ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, Function, FunctionId, Immediate,
-        ImmutableEncoding, ImmutableId, InstId, InstKind, Module, Terminator, TypeSize, Value,
-        ValueId, ValueLayout,
+        ImmutableEncoding, ImmutableId, InstId, InstKind, MemoryObjectKind, Module, Terminator,
+        TypeSize, Value, ValueId, ValueLayout,
         analysis::{
             Access, AddressSpace, AliasAnalysis, CallGraphInfo, CfgInfo, Location,
             MemoryCallSummaries,
@@ -1835,12 +1835,50 @@ impl<'a> CheckEliminator<'a> {
                     continue;
                 };
                 let Some(reach) = scale.checked_mul(candidate.step) else { continue };
-                if reach >= candidate.max_step && width <= reach {
+                if reach >= candidate.max_step
+                    && width <= reach
+                    && capacity.zip(requested_object).is_none_or(|(read, (object, kind))| {
+                        self.loop_keeps_length(func, read, object, kind, &candidate, inst_id)
+                    })
+                {
                     return true;
                 }
             }
         }
         false
+    }
+
+    /// Whether the length `read` observes inside `candidate`'s loop is still the one `stored`
+    /// set in its preheader: nothing after that store, in the preheader or the loop, may write
+    /// `object`'s length word. The caller rejects the object's logical-length stores; only
+    /// assembly writes a length word directly, as a raw store alias analysis sees.
+    fn loop_keeps_length(
+        &self,
+        func: &Function,
+        read: ValueId,
+        object: ValueId,
+        kind: MemoryObjectKind,
+        candidate: &ScaledCursor,
+        stored: InstId,
+    ) -> bool {
+        let Value::Inst(read_inst) = *func.value(read) else { return false };
+        let aa = match self.call_summaries.clone() {
+            Some(summaries) => AliasAnalysis::with_call_summaries(func, summaries),
+            None => AliasAnalysis::new(func),
+        };
+        let Some(location) = aa.memory_object_length_location(func, read_inst, object, kind) else {
+            return false;
+        };
+        let location = Location::Memory(location);
+        let preheader = &func.blocks[candidate.preheader].instructions;
+        let after_store = preheader.iter().skip_while(|&&inst| inst != stored).skip(1);
+        let in_loop =
+            candidate.loop_blocks.iter().flat_map(|block| func.blocks[block].instructions.iter());
+        after_store.chain(in_loop).all(|&inst| {
+            !aa.instruction_mod_ref(func, inst).may_write(&aa, location)
+                || writes_only_fresh_object(func, &func.inst(inst).kind)
+                || (self.object_lengths.is_some() && writes_below_objects(&aa, func, inst))
+        })
     }
 
     /// Returns `scale` for an exact `length * scale` product.
