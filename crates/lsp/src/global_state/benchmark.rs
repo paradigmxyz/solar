@@ -278,12 +278,7 @@ impl BenchmarkProject {
             files.push((path.clone(), source));
         }
         let mut dependency_roots = opts.include_paths.clone();
-        for remapping in &opts.import_remappings {
-            let target = Path::new(&remapping.path);
-            let target =
-                if target.is_absolute() { target.to_path_buf() } else { root.join(target) };
-            dependency_roots.push(target);
-        }
+        dependency_roots.extend(workspace.import_remapping_paths());
         for dependency_root in deduplicate_dependency_roots(dependency_roots) {
             collect_dependency_sources(
                 file_loader,

@@ -249,7 +249,7 @@ fn task_failed(task: &'static str) -> impl FnOnce(JoinError) -> ResponseError {
     }
 }
 
-fn task_error(task: &'static str) -> impl FnOnce(JoinError) -> ResponseError {
+pub(super) fn task_error(task: &'static str) -> impl FnOnce(JoinError) -> ResponseError {
     move |error| {
         ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("{task} task failed: {error}"))
     }

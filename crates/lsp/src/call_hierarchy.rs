@@ -7,7 +7,7 @@
 
 use crate::{
     hierarchy::{CanonicalSymbols, HierarchyItem, HierarchyKey as CallableKey},
-    proto,
+    proto::{self, PositionIndex},
     symbols::{DeclarationSymbol, SymbolId},
 };
 use lsp_types::{
@@ -65,60 +65,25 @@ struct QueryIndex {
     incoming_by_symbol: CallRelations,
     incomplete_outgoing: FxHashSet<SymbolId>,
     incomplete_incoming: FxHashSet<SymbolId>,
-    call_sites_by_uri: FxHashMap<Arc<Url>, IndexedRanges<CallSite>>,
-    bodies_by_uri: FxHashMap<Arc<Url>, IndexedRanges<CallableBody>>,
+    call_sites_by_uri: FxHashMap<Arc<Url>, PositionIndex<CallSite>>,
+    bodies_by_uri: FxHashMap<Arc<Url>, PositionIndex<CallableBody>>,
 }
 
 type CallRelations = FxHashMap<SymbolId, Vec<(SymbolId, Range)>>;
 
-/// Entries sorted by start position with a prefix maximum end, allowing point queries to
-/// skip entries that end before the cursor while retaining the original range tie order.
-#[derive(Clone, Debug)]
-struct IndexedRanges<T> {
-    entries: Vec<T>,
-    prefix_max_end: Vec<Position>,
-}
-
-impl<T> Default for IndexedRanges<T> {
-    fn default() -> Self {
-        Self { entries: Vec::new(), prefix_max_end: Vec::new() }
-    }
-}
-
-impl<T: PartialEq> IndexedRanges<T> {
-    /// Sorts entries by range and then by `tie`, deduplicates them, and rebuilds prefix maxima.
-    fn rebuild<K: Ord>(&mut self, range: impl Fn(&T) -> Range, tie: impl Fn(&T) -> K) {
-        self.entries.sort_by(|a, b| {
-            proto::range_key(range(a))
-                .cmp(&proto::range_key(range(b)))
-                .then_with(|| tie(a).cmp(&tie(b)))
-        });
-        self.entries.dedup();
-        self.prefix_max_end.clear();
-        self.prefix_max_end.reserve(self.entries.len());
-        let mut max_end = Position::default();
-        for entry in &self.entries {
-            max_end = max_end.max(range(entry).end);
-            self.prefix_max_end.push(max_end);
-        }
-    }
-}
-
-impl<T> IndexedRanges<T> {
-    fn candidates_at<'a>(
-        &'a self,
-        position: Position,
-        range: impl Fn(&T) -> Range + Copy + 'a,
-    ) -> impl Iterator<Item = &'a T> + 'a {
-        let end = self.entries.partition_point(|entry| range(entry).start <= position);
-        self.entries[..end]
-            .iter()
-            .zip(self.prefix_max_end[..end].iter().copied())
-            .rev()
-            .take_while(move |(_, prefix_max_end)| *prefix_max_end >= position)
-            .filter(move |(entry, _)| proto::range_contains(range(entry), position))
-            .map(|(entry, _)| entry)
-    }
+/// Sorts entries by range and then by `tie`, deduplicates them, and indexes them.
+fn rebuild_ranges<T: Copy + PartialEq, K: Ord>(
+    index: &mut PositionIndex<T>,
+    range: impl Fn(T) -> Range,
+    tie: impl Fn(&T) -> K,
+) {
+    index.entries.sort_by(|a, b| {
+        proto::range_key(range(*a))
+            .cmp(&proto::range_key(range(*b)))
+            .then_with(|| tie(a).cmp(&tie(b)))
+    });
+    index.entries.dedup();
+    index.index_sorted(range);
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -128,13 +93,13 @@ struct DirectCall {
     from_range: Range,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct CallSite {
     range: Range,
     callee: Option<SymbolId>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct CallableBody {
     range: Range,
     callable: SymbolId,
@@ -338,7 +303,11 @@ impl QueryIndex {
             }
         }
         for bodies in self.bodies_by_uri.values_mut() {
-            bodies.rebuild(|body| body.range, |body| &self.items_by_symbol[&body.callable].key);
+            rebuild_ranges(
+                bodies,
+                |body| body.range,
+                |body| &self.items_by_symbol[&body.callable].key,
+            );
         }
     }
 
@@ -403,7 +372,7 @@ impl QueryIndex {
         Some(response)
     }
 
-    fn call_site(&self, uri: &Url, position: Position) -> Option<&CallSite> {
+    fn call_site(&self, uri: &Url, position: Position) -> Option<CallSite> {
         self.call_sites_by_uri
             .get(uri)?
             .candidates_at(position, |site| site.range)
@@ -584,10 +553,10 @@ fn resolved_source_call<'gcx>(
 
 /// Orders call sites by range, then by callee key, for deterministic point queries.
 fn sort_call_sites(
-    sites: &mut IndexedRanges<CallSite>,
+    sites: &mut PositionIndex<CallSite>,
     items: &FxHashMap<SymbolId, HierarchyItem>,
 ) {
-    sites.rebuild(|site| site.range, |site| site.callee.map(|symbol| &items[&symbol].key));
+    rebuild_ranges(sites, |site| site.range, |site| site.callee.map(|symbol| &items[&symbol].key));
 }
 
 fn normalize_relations(relations: &mut CallRelations, items: &FxHashMap<SymbolId, HierarchyItem>) {
@@ -612,16 +581,14 @@ mod tests {
 
     #[test]
     fn indexed_ranges_match_linear_point_queries() {
-        let mut indexed = IndexedRanges {
-            entries: vec![
-                Entry { id: 3, range: Range::new(Position::new(2, 0), Position::new(2, 0)) },
-                Entry { id: 1, range: Range::new(Position::new(0, 0), Position::new(4, 0)) },
-                Entry { id: 4, range: Range::new(Position::new(1, 2), Position::new(1, 2)) },
-                Entry { id: 2, range: Range::new(Position::new(1, 0), Position::new(3, 0)) },
-            ],
-            prefix_max_end: Vec::new(),
-        };
-        indexed.rebuild(|entry| entry.range, |entry| entry.id);
+        let mut indexed = PositionIndex::default();
+        indexed.entries = vec![
+            Entry { id: 3, range: Range::new(Position::new(2, 0), Position::new(2, 0)) },
+            Entry { id: 1, range: Range::new(Position::new(0, 0), Position::new(4, 0)) },
+            Entry { id: 4, range: Range::new(Position::new(1, 2), Position::new(1, 2)) },
+            Entry { id: 2, range: Range::new(Position::new(1, 0), Position::new(3, 0)) },
+        ];
+        rebuild_ranges(&mut indexed, |entry| entry.range, |entry| entry.id);
 
         for position in [
             Position::new(0, 0),
@@ -672,13 +639,9 @@ mod tests {
                 },
             );
         }
-        let mut sites = IndexedRanges {
-            entries: vec![
-                CallSite { range, callee: Some(high) },
-                CallSite { range, callee: Some(low) },
-            ],
-            prefix_max_end: Vec::new(),
-        };
+        let mut sites = PositionIndex::default();
+        sites.entries =
+            vec![CallSite { range, callee: Some(high) }, CallSite { range, callee: Some(low) }];
         sort_call_sites(&mut sites, &query.items_by_symbol);
         query.call_sites_by_uri.insert(uri.clone(), sites);
         let selected = query.call_site(uri.as_ref(), Position::new(1, 3));

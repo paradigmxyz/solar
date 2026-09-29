@@ -40,7 +40,7 @@ use crate::{
     inlay_hints::InlayHintIndex,
     natspec_completion::{DeclarationKey, NatSpecCompletionIndex, NatSpecTargetSemantics},
     override_index::OverrideFamilyIndex,
-    proto,
+    proto::{self, PositionIndex},
     rename::{
         ImportBindings, MappingBindings, NamespaceBinding, RenameCandidate, RenameIndex,
         RenameReferenceContext,
@@ -231,70 +231,6 @@ struct SymbolReference {
     location: Location,
     targets: ReferenceTargets,
     kind: DocumentHighlightKind,
-}
-
-/// A start-sorted interval index for point queries.
-#[derive(Clone, Debug)]
-struct PositionIndex<T> {
-    entries: Vec<T>,
-    prefix_max_end: Vec<Position>,
-}
-
-impl<T> Default for PositionIndex<T> {
-    fn default() -> Self {
-        Self { entries: Vec::new(), prefix_max_end: Vec::new() }
-    }
-}
-
-impl<T: Copy> PositionIndex<T> {
-    fn push(&mut self, entry: T) {
-        self.entries.push(entry);
-    }
-
-    fn iter(&self) -> std::slice::Iter<'_, T> {
-        self.entries.iter()
-    }
-
-    fn rebuild(&mut self, range: impl Fn(T) -> Range + Copy) {
-        self.entries.sort_by_key(|&entry| {
-            let range = range(entry);
-            (range.start, range.end)
-        });
-
-        self.prefix_max_end.clear();
-        self.prefix_max_end.reserve(self.entries.len());
-        let mut max_end = None;
-        for &entry in &self.entries {
-            let end = range(entry).end;
-            max_end = Some(max_end.map_or(end, |max_end: Position| max_end.max(end)));
-            self.prefix_max_end.push(max_end.unwrap());
-        }
-    }
-
-    fn candidates_at<'a>(
-        &'a self,
-        position: Position,
-        range: impl Fn(T) -> Range + Copy + 'a,
-    ) -> impl Iterator<Item = T> + 'a {
-        self.candidates_at_with(position, range, proto::range_contains)
-    }
-
-    fn candidates_at_with<'a>(
-        &'a self,
-        position: Position,
-        range: impl Fn(T) -> Range + Copy + 'a,
-        contains: impl Fn(Range, Position) -> bool + 'a,
-    ) -> impl Iterator<Item = T> + 'a {
-        let end = self.entries.partition_point(|&entry| range(entry).start <= position);
-        self.entries[..end]
-            .iter()
-            .copied()
-            .zip(self.prefix_max_end[..end].iter().copied())
-            .rev()
-            .take_while(move |(_, prefix_max_end)| *prefix_max_end >= position)
-            .filter(move |&(entry, _)| contains(range(entry), position))
-            .map(|(entry, _)| entry)
-    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1064,7 +1000,7 @@ impl SymbolTables {
                     })
                 }));
             } else {
-                highlights.extend(references.iter().filter_map(|&index| {
+                highlights.extend(references.entries.iter().filter_map(|&index| {
                     let reference = &self.references[index];
                     reference.targets.iter().any(|target| targets.contains(target)).then_some(
                         DocumentHighlight {
@@ -2061,7 +1997,11 @@ impl SymbolTables {
 
         self.file_member_completions.clear();
         for (index, completion) in self.member_completions.iter().enumerate() {
-            self.file_member_completions.entry(completion.uri.clone()).or_default().push(index);
+            self.file_member_completions
+                .entry(completion.uri.clone())
+                .or_default()
+                .entries
+                .push(index);
         }
         for completions in self.file_member_completions.values_mut() {
             completions.rebuild(|index| self.member_completions[index].range);
@@ -2070,7 +2010,11 @@ impl SymbolTables {
         self.file_references.clear();
         self.symbol_references.clear();
         for (index, reference) in self.references.iter().enumerate() {
-            self.file_references.entry(reference.location.uri.clone()).or_default().push(index);
+            self.file_references
+                .entry(reference.location.uri.clone())
+                .or_default()
+                .entries
+                .push(index);
             for &target in &reference.targets {
                 self.symbol_references.entry(target).or_default().push(index);
             }

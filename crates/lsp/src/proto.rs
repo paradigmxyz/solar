@@ -144,6 +144,72 @@ pub(crate) fn range_key(range: lsp_types::Range) -> (u32, u32, u32, u32) {
     (range.start.line, range.start.character, range.end.line, range.end.character)
 }
 
+/// A start-sorted interval index for point queries.
+///
+/// A running maximum end lets queries skip earlier entries that end before the cursor while
+/// retaining the order of entries with equal ranges.
+#[derive(Clone, Debug)]
+pub(crate) struct PositionIndex<T> {
+    pub(crate) entries: Vec<T>,
+    prefix_max_end: Vec<lsp_types::Position>,
+}
+
+impl<T> Default for PositionIndex<T> {
+    fn default() -> Self {
+        Self { entries: Vec::new(), prefix_max_end: Vec::new() }
+    }
+}
+
+impl<T: Copy> PositionIndex<T> {
+    /// Stably sorts entries by range, then indexes them.
+    pub(crate) fn rebuild(&mut self, range: impl Fn(T) -> lsp_types::Range) {
+        self.entries.sort_by_key(|&entry| {
+            let range = range(entry);
+            (range.start, range.end)
+        });
+        self.index_sorted(range);
+    }
+
+    /// Indexes entries that are already sorted by start position.
+    pub(crate) fn index_sorted(&mut self, range: impl Fn(T) -> lsp_types::Range) {
+        let mut max_end = lsp_types::Position::default();
+        self.prefix_max_end = self
+            .entries
+            .iter()
+            .map(|&entry| {
+                max_end = max_end.max(range(entry).end);
+                max_end
+            })
+            .collect();
+    }
+
+    /// Returns entries containing `position`, from the latest start to the earliest.
+    pub(crate) fn candidates_at<'a>(
+        &'a self,
+        position: lsp_types::Position,
+        range: impl Fn(T) -> lsp_types::Range + Copy + 'a,
+    ) -> impl Iterator<Item = T> + 'a {
+        self.candidates_at_with(position, range, range_contains)
+    }
+
+    pub(crate) fn candidates_at_with<'a>(
+        &'a self,
+        position: lsp_types::Position,
+        range: impl Fn(T) -> lsp_types::Range + Copy + 'a,
+        contains: impl Fn(lsp_types::Range, lsp_types::Position) -> bool + 'a,
+    ) -> impl Iterator<Item = T> + 'a {
+        let end = self.entries.partition_point(|&entry| range(entry).start <= position);
+        self.entries[..end]
+            .iter()
+            .copied()
+            .zip(self.prefix_max_end[..end].iter().copied())
+            .rev()
+            .take_while(move |(_, prefix_max_end)| *prefix_max_end >= position)
+            .filter(move |&(entry, _)| contains(range(entry), position))
+            .map(|(entry, _)| entry)
+    }
+}
+
 pub(crate) fn vfs_path(url: &lsp_types::Url) -> Option<vfs::VfsPath> {
     url.to_file_path().map(VfsPath::from).ok()
 }

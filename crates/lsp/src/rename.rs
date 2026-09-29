@@ -1,6 +1,6 @@
 use crate::{
     override_index::OverrideFamilyIndex,
-    proto,
+    proto::{self, PositionIndex},
     source_paths::{SourcePath, identifiers_in_span},
     symbols::{DeclarationSymbol, SymbolId},
 };
@@ -76,37 +76,9 @@ pub(crate) struct RenameIndex {
     family_targets: FxHashMap<SymbolId, Vec<RenameTarget>>,
     yul_symbol_targets: FxHashSet<SymbolId>,
     occurrences: Vec<RenameOccurrence>,
-    file_occurrences: FxHashMap<Url, OccurrenceIndex>,
+    file_occurrences: FxHashMap<Url, PositionIndex<usize>>,
     target_occurrences: FxHashMap<RenameTarget, Vec<usize>>,
     ambiguous_targets: FxHashSet<RenameTarget>,
-}
-
-/// Start-sorted occurrence indexes with a prefix maximum end for point queries.
-#[derive(Clone, Debug, Default)]
-struct OccurrenceIndex {
-    entries: Vec<usize>,
-    prefix_max_end: Vec<Position>,
-}
-
-impl OccurrenceIndex {
-    fn rebuild(&mut self, occurrences: &[RenameOccurrence]) {
-        // `normalize_occurrences` orders the global list by URI and range before these
-        // per-file indexes are populated, so the entries are already start-sorted.
-        debug_assert!(self.entries.is_sorted_by_key(|&entry| {
-            let range = occurrences[entry].location.range;
-            (range.start, range.end, entry)
-        }));
-
-        let mut max_end = Position::default();
-        self.prefix_max_end = self
-            .entries
-            .iter()
-            .map(|&index| {
-                max_end = max_end.max(occurrences[index].location.range.end);
-                max_end
-            })
-            .collect();
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -637,8 +609,14 @@ impl RenameIndex {
                 self.target_occurrences.entry(target).or_default().push(index);
             }
         }
-        for occurrences in self.file_occurrences.values_mut() {
-            occurrences.rebuild(&self.occurrences);
+        for index in self.file_occurrences.values_mut() {
+            // `normalize_occurrences` orders the global list by URI and range before these
+            // per-file indexes are populated, so the entries are already start-sorted.
+            debug_assert!(index.entries.is_sorted_by_key(|&entry| {
+                let range = self.occurrences[entry].location.range;
+                (range.start, range.end, entry)
+            }));
+            index.index_sorted(|entry| self.occurrences[entry].location.range);
         }
     }
 
@@ -815,27 +793,13 @@ impl RenameIndex {
     }
 
     fn occurrence_at(&self, uri: &Url, position: Position) -> Option<&RenameOccurrence> {
-        let index = self.file_occurrences.get(uri)?;
-        let end = index
-            .entries
-            .partition_point(|&entry| self.occurrences[entry].location.range.start <= position);
-        let mut best = None;
-        for (&entry, &prefix_max_end) in
-            index.entries[..end].iter().zip(&index.prefix_max_end[..end]).rev()
-        {
-            if prefix_max_end < position {
-                break;
-            }
-            let occurrence = &self.occurrences[entry];
-            if !proto::range_contains(occurrence.location.range, position) {
-                continue;
-            }
-            let key = (proto::range_size_key(occurrence.location.range), entry);
-            if best.as_ref().is_none_or(|(best_key, _)| key < *best_key) {
-                best = Some((key, occurrence));
-            }
-        }
-        best.map(|(_, occurrence)| occurrence)
+        let range = |entry: usize| self.occurrences[entry].location.range;
+        let entry = self
+            .file_occurrences
+            .get(uri)?
+            .candidates_at(position, range)
+            .min_by_key(|&entry| (proto::range_size_key(range(entry)), entry))?;
+        Some(&self.occurrences[entry])
     }
 
     fn normalize_occurrences(&mut self) {

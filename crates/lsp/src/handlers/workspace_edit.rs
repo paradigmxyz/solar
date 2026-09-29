@@ -16,23 +16,6 @@ use solar_interface::{
 };
 use std::{collections::HashMap, sync::Arc};
 
-pub(crate) fn validated_rename_workspace_edit(
-    candidate: RenameCandidate,
-    new_name: String,
-    vfs: Arc<RwLock<Vfs>>,
-    document_changes: bool,
-) -> Result<WorkspaceEdit, ResponseError> {
-    Ok(validate_rename(candidate, new_name, vfs)?.into_workspace_edit(document_changes))
-}
-
-pub(super) fn validated_import_workspace_edit(
-    plan: ImportEditPlan,
-    vfs: Arc<RwLock<Vfs>>,
-    document_changes: bool,
-) -> Result<WorkspaceEdit, ResponseError> {
-    Ok(validate_import_edits(plan, vfs)?.into_workspace_edit(document_changes))
-}
-
 pub(crate) fn validated_code_actions(
     params: CodeActionParams,
     diagnostics: Vec<lsp_types::Diagnostic>,
@@ -153,11 +136,12 @@ impl ValidatedWorkspaceEdit {
     }
 }
 
-fn validate_rename(
+pub(crate) fn validated_rename_workspace_edit(
     candidate: RenameCandidate,
     new_name: String,
     vfs: Arc<RwLock<Vfs>>,
-) -> Result<ValidatedWorkspaceEdit, ResponseError> {
+    document_changes: bool,
+) -> Result<WorkspaceEdit, ResponseError> {
     if candidate.conflicting_contents {
         return Err(content_modified());
     }
@@ -191,13 +175,14 @@ fn validate_rename(
         changes.insert(locations[0].uri.clone(), edits);
     }
     let versions = contents.into_iter().map(|(uri, (_, version))| (uri, version)).collect();
-    Ok(ValidatedWorkspaceEdit { changes, versions })
+    Ok(ValidatedWorkspaceEdit { changes, versions }.into_workspace_edit(document_changes))
 }
 
-fn validate_import_edits(
+pub(super) fn validated_import_workspace_edit(
     plan: ImportEditPlan,
     vfs: Arc<RwLock<Vfs>>,
-) -> Result<ValidatedWorkspaceEdit, ResponseError> {
+    document_changes: bool,
+) -> Result<WorkspaceEdit, ResponseError> {
     let source_map = SourceMap::empty();
     let mut changes = HashMap::new();
     let mut versions = HashMap::new();
@@ -207,7 +192,7 @@ fn validate_import_edits(
         versions.insert(uri.clone(), version);
         changes.insert(uri, edits);
     }
-    Ok(ValidatedWorkspaceEdit { changes, versions })
+    Ok(ValidatedWorkspaceEdit { changes, versions }.into_workspace_edit(document_changes))
 }
 
 /// Loads a file's current contents, requiring them to match the analyzed snapshot.

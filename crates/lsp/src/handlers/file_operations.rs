@@ -1,4 +1,4 @@
-use super::workspace_edit::validated_import_workspace_edit;
+use super::{reqs::task_error, workspace_edit::validated_import_workspace_edit};
 use crate::{
     NotifyResult,
     config::Config,
@@ -82,7 +82,7 @@ where
             validated_import_workspace_edit(plan, vfs, document_changes)
         })
         .await
-        .map_err(file_operation_task_failed)?
+        .map_err(task_error("file-operation"))?
         .map(Some)
     }
 }
@@ -375,8 +375,4 @@ fn workspace_source_edits_are_complete(plan: &ImportEditPlan, config: &Config) -
     let is_workspace_source =
         |uri: &Url| uri.to_file_path().is_ok_and(|path| config.tracks_source_file(&path));
     plan.all_files(is_workspace_source)
-}
-
-fn file_operation_task_failed(error: tokio::task::JoinError) -> ResponseError {
-    ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("file-operation task failed: {error}"))
 }
