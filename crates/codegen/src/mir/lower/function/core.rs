@@ -1956,10 +1956,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let ([s], [ty]) = (operands, parameter_tys) else { return None };
         let s = *s;
         if !matches!(ty.kind, TyKind::Ref(..)) {
-            // mstore(0, word(s))
+            // A value assembly left dirty is cleaned to its type, as `abi.encode` cleans it.
+            // mstore(0, word(clean(s)))
             // return(0, 32)
+            let clean = self.encode_memory_scalar(*ty, s);
             let zero = self.builder.imm(U256::ZERO);
-            let word = self.builder.cast_word(s);
+            let word = self.builder.cast_word(clean);
             self.builder.mstore(zero, word);
             let size = self.builder.imm(32);
             self.builder.ret_data(zero, size);
