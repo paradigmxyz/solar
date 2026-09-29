@@ -61,13 +61,12 @@ pub(super) fn symbol_names(tables: &Arc<ArcSwap<SymbolTables>>, query: &str) -> 
 }
 
 async fn wait_published(published: &mut watch::Receiver<usize>, done: impl Fn(usize) -> bool) {
-    tokio::time::timeout(TIMEOUT, async {
+    within("publication", async {
         while !done(*published.borrow()) {
             published.changed().await.unwrap();
         }
     })
-    .await
-    .unwrap();
+    .await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -548,10 +547,7 @@ async fn cached_published_and_retained_symbol_tables_share_storage() {
 
     // Publication precedes worker cleanup; wait until it releases its symbol references.
     let _permit =
-        tokio::time::timeout(TIMEOUT, state.analysis_scheduler.gate.clone().acquire_owned())
-            .await
-            .unwrap()
-            .unwrap();
+        within("the worker", state.analysis_scheduler.gate.clone().acquire_owned()).await.unwrap();
     let tables = state.symbol_tables.clone();
     let retained = tables.load();
     let old = Arc::downgrade(&published);

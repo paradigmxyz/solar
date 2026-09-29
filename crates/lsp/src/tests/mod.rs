@@ -2,15 +2,13 @@ use super::*;
 use crate::{config::negotiate_capabilities, test_support::*};
 use async_lsp::{ClientSocket, ErrorCode, ResponseError, router::Router};
 use lsp_types::{
-    Diagnostic, DidChangeConfigurationParams, DidChangeWatchedFilesParams,
-    DidChangeWorkspaceFoldersParams, DocumentDiagnosticParams, DocumentDiagnosticReport,
-    DocumentDiagnosticReportResult, DocumentSymbol, FileChangeType, FileEvent, Position, Range,
-    RenameParams, TextDocumentContentChangeEvent, WatchKind, WorkDoneProgress, WorkspaceFolder,
-    WorkspaceFoldersChangeEvent, notification, notification::Notification, request,
+    Diagnostic, DidChangeConfigurationParams, DidChangeWorkspaceFoldersParams,
+    DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
+    DocumentSymbol, FileChangeType, Position, Range, RenameParams, TextDocumentContentChangeEvent,
+    WatchKind, WorkDoneProgress, WorkspaceFolder, WorkspaceFoldersChangeEvent, notification,
+    notification::Notification, request,
 };
 use serde_json::{Value, json};
-#[cfg(unix)]
-use std::os::unix::fs::symlink;
 use std::{
     future::Future,
     path::Path,
@@ -19,6 +17,9 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::sync::{mpsc, oneshot};
+
+#[cfg(unix)]
+use std::os::unix::fs::symlink;
 
 mod call_hierarchy;
 mod code_action;
@@ -834,11 +835,9 @@ fn context_notifications_track_external_refresh_until_analysis_publishes() {
         contract Request {}
         "#,
     );
-    let uri = project.uri("/foundry.toml");
+    let manifest = project.path("/foundry.toml");
     check_context_notification(&project, |state| {
-        let changes = vec![FileEvent { uri, typ: FileChangeType::CHANGED }];
-        let params = DidChangeWatchedFilesParams { changes };
-        assert!(crate::handlers::did_change_watched_files(state, params).is_continue());
+        watch_files(state, [(&manifest, FileChangeType::CHANGED)]);
     });
 
     let added_path = project.path("/added");
@@ -852,7 +851,7 @@ fn context_notifications_track_external_refresh_until_analysis_publishes() {
     });
 
     check_context_notification(&project, |state| {
-        let params = DidChangeConfigurationParams { settings: serde_json::Value::Null };
+        let params = DidChangeConfigurationParams { settings: Value::Null };
         assert!(crate::handlers::did_change_configuration(state, params).is_continue());
     });
 }
@@ -860,13 +859,10 @@ fn context_notifications_track_external_refresh_until_analysis_publishes() {
 #[test]
 fn watched_solidity_change_ignores_open_document() {
     let project = TestProject::from_fixture("//- /Request.sol open\ncontract Request {}\n");
-    let uri = project.uri("/Request.sol");
     let mut state = project.state();
     let version = analysis_version(&state);
 
-    let changes = vec![FileEvent { uri, typ: FileChangeType::CHANGED }];
-    let params = DidChangeWatchedFilesParams { changes };
-    assert!(crate::handlers::did_change_watched_files(&mut state, params).is_continue());
+    watch_files(&mut state, [(&project.path("/Request.sol"), FileChangeType::CHANGED)]);
 
     assert_eq!(analysis_version(&state), version);
     assert!(state.analysis_scheduler.tasks.lock().coordinator.is_none());
@@ -904,12 +900,10 @@ async fn did_change_clamps_positions_before_analysis_and_rename() {
         }
 
         rename_params.text_document_position.position = rename_position;
-        let edit =
-            tokio::time::timeout(TIMEOUT, crate::handlers::rename(&mut state, rename_params))
-                .await
-                .expect("rename should finish after the clamped change")
-                .unwrap()
-                .expect("the current contract should remain renamable");
+        let edit = within("rename", crate::handlers::rename(&mut state, rename_params))
+            .await
+            .unwrap()
+            .expect("the current contract should remain renamable");
         assert_eq!(
             edit.changes.unwrap()[&uri],
             [lsp_types::TextEdit::new(
@@ -1028,13 +1022,12 @@ async fn rapid_did_changes_debounce_to_the_latest_source() {
         tokio::time::timeout(debounce / 2, state.latest_analysis()).await.is_err(),
         "analysis should remain pending during the debounce window"
     );
-    tokio::time::timeout(TIMEOUT, async {
+    within("the replaced coordinator", async {
         while !first_coordinator.is_finished() {
             tokio::task::yield_now().await;
         }
     })
-    .await
-    .expect("replacement should cancel the first coordinator");
+    .await;
 
     assert_eq!(workspace_symbol_names(&settle(&state).await.load()), ["Latest"]);
 }

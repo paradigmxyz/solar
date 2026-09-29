@@ -395,7 +395,7 @@ fn poll_once<F: Future>(future: Pin<&mut F>) -> Poll<F::Output> {
 async fn request<R: Request>(router: &mut Router<GlobalState>, params: R::Params) -> R::Result {
     let request = json!({ "id": 0, "method": R::METHOD, "params": params });
     let response = router.call(from_json::<AnyRequest>(request)).await;
-    serde_json::from_value(response.unwrap()).unwrap()
+    from_json(response.unwrap())
 }
 
 /// Resolves a deferred item and checks that only its documentation changes.

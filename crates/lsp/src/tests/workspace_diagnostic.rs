@@ -146,10 +146,8 @@ async fn workspace_diagnostic_progress_and_partial_batches_precede_the_final_res
         let partial = wire.recv().await;
         assert_eq!(partial["method"], notification::Progress::METHOD);
         assert_eq!(partial["params"]["token"], "workspace-wire-partial");
-        let partial = serde_json::from_value::<WorkspaceDiagnosticReportPartialResult>(
-            partial["params"]["value"].clone(),
-        )
-        .unwrap();
+        let partial =
+            from_json::<WorkspaceDiagnosticReportPartialResult>(partial["params"]["value"].clone());
         batch_sizes.push(partial.items.len());
         let result = WorkspaceDiagnosticReport { items: partial.items }.into();
         actual_uris.extend(reports(result).0.into_iter().map(|report| {
@@ -225,17 +223,16 @@ async fn workspace_diagnostics_can_be_cancelled_between_partial_batches() {
     std::future::poll_fn(|context| service.poll_ready(context)).await.unwrap();
     let params =
         json!({ "previousResultIds": [], "partialResultToken": "workspace-cancel-partial" });
-    let request = serde_json::from_value(workspace_request("workspace-mid-stream-cancel", params));
-    let mut response = std::pin::pin!(service.call(request.unwrap()));
+    let request = from_json(workspace_request("workspace-mid-stream-cancel", params));
+    let mut response = std::pin::pin!(service.call(request));
 
     assert!(response.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
     let partial = within("partial result", progress.recv()).await.unwrap();
     assert_eq!(partial.token, NumberOrString::String("workspace-cancel-partial".into()));
-    let partial =
-        serde_json::from_value::<WorkspaceDiagnosticReportPartialResult>(partial.value).unwrap();
+    let partial = from_json::<WorkspaceDiagnosticReportPartialResult>(partial.value);
     assert_eq!(partial.items.len(), 64);
 
-    let cancel = serde_json::from_value(cancel_request("workspace-mid-stream-cancel")).unwrap();
+    let cancel = from_json(cancel_request("workspace-mid-stream-cancel"));
     assert!(service.notify(cancel).is_continue());
 
     assert_eq!(response.await.unwrap_err().code, ErrorCode::REQUEST_CANCELLED);
@@ -399,9 +396,7 @@ fn concurrent_workspace_diagnostic_requests_share_the_published_analysis() {
     let mut snapshot = state.snapshot();
     let scheduler = state.analysis_scheduler.clone();
     let mut router = crate::new_router_with_state(state);
-    let request = |id| {
-        serde_json::from_value(workspace_request(id, json!({ "previousResultIds": [] }))).unwrap()
-    };
+    let request = |id| from_json(workspace_request(id, json!({ "previousResultIds": [] })));
     let mut first = std::pin::pin!(router.call(request(1)));
     let mut second = std::pin::pin!(router.call(request(2)));
     let mut context = Context::from_waker(Waker::noop());
@@ -421,7 +416,7 @@ fn concurrent_workspace_diagnostic_requests_share_the_published_analysis() {
         let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
             panic!("workspace diagnostic should finish after publication");
         };
-        let response = serde_json::from_value(response.unwrap()).unwrap();
+        let response = from_json(response.unwrap());
         assert_eq!(
             reports(response).0,
             [
