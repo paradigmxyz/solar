@@ -193,11 +193,7 @@ pub fn generate_contract_bytecodes(
         && !gcx.sess.opts.unstable.print_after_each
         && !gcx.sess.opts.unstable.pass_diff
         && !gcx.sess.opts.unstable.time_passes;
-    let priorities = if parallel {
-        graph.scheduling_priorities(gcx)
-    } else {
-        IndexVec::from_vec(vec![0; contract_count])
-    };
+    let priorities = graph.scheduling_priorities(gcx, parallel);
     let jobs = ContractJobs {
         gcx,
         captures,
@@ -298,6 +294,22 @@ impl ContractGraph {
         }
 
         let dependencies = gcx.contract_bytecode_dependencies(contract_id);
+        // Final assembly links embedded bytecode by source-qualified name.
+        let mut names = FxHashMap::default();
+        for dependency in dependencies.iter() {
+            let name = QualifiedName::of_contract(gcx, dependency);
+            if let Some(other) = names.insert(name, dependency) {
+                return Err(gcx
+                    .dcx()
+                    .err(format!(
+                        "cannot embed two contracts named `{}:{}`",
+                        name.source, name.name
+                    ))
+                    .span(gcx.hir.contract(dependency).span)
+                    .span_note(gcx.hir.contract(other).span, "the other contract is here")
+                    .emit());
+            }
+        }
         for dependency in dependencies.iter() {
             self.dependents[dependency].push(contract_id);
             self.discover_contract(gcx, dependency, visiting)?;
@@ -314,18 +326,25 @@ impl ContractGraph {
     /// contract waits for the contracts it embeds, so their work is on the path
     /// to every embedding contract. Source-body sizes are a cheap scheduling
     /// estimate; they do not affect what gets compiled.
-    fn scheduling_priorities(&self, gcx: Gcx<'_>) -> IndexVec<ContractId, u64> {
+    ///
+    /// Sequential runs count each contract once, so embedded contracts still go first and
+    /// finish before the contracts waiting on them pile up, while unrelated contracts keep
+    /// source order for pass debugging output.
+    fn scheduling_priorities(&self, gcx: Gcx<'_>, weighted: bool) -> IndexVec<ContractId, u64> {
         let mut costs = IndexVec::from_vec(vec![0u64; self.dependencies.len()]);
         for id in self.reachable.iter() {
-            costs[id] = gcx
-                .contract_reachable_functions(id)
-                .iter()
-                .map(|function| {
-                    let span = gcx.hir.function(function).body_span;
-                    u64::from(span.hi().to_u32() - span.lo().to_u32())
-                })
-                .sum::<u64>()
-                .max(1);
+            costs[id] = if weighted {
+                gcx.contract_reachable_functions(id)
+                    .iter()
+                    .map(|function| {
+                        let span = gcx.hir.function(function).body_span;
+                        u64::from(span.hi().to_u32() - span.lo().to_u32())
+                    })
+                    .sum::<u64>()
+                    .max(1)
+            } else {
+                1
+            };
         }
         let mut priorities = costs.clone();
         let mut remaining = IndexVec::from_vec(self.dependents.iter().map(Vec::len).collect());
