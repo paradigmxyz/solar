@@ -378,7 +378,7 @@ fn anthropic_rewrites() {
     assert_data_eq!(
         String::from_utf8_lossy(&output.stderr).into_owned(),
         str![[r#"
-warning: `-Zllm-optimize=live` sends the MIR of offered functions to Anthropic
+warning: `-Zllm-optimize=live` sends the MIR of offered functions to `127.0.0.1`
 
 llm-optimize Triangle @sumBelow: costs 6741 gas, 43 bytes; asking anthropic/claude-opus-5-5 for something cheaper
 llm-optimize Triangle @sumBelow: round 1
@@ -438,7 +438,7 @@ fn opencode_rewrites() {
     assert_data_eq!(
         String::from_utf8_lossy(&output.stderr).into_owned(),
         str![[r#"
-warning: `-Zllm-optimize=live` sends the MIR of offered functions to OpenCode Zen
+warning: `-Zllm-optimize=live` sends the MIR of offered functions to `127.0.0.1`
 
 llm-optimize Triangle @sumBelow: costs 6741 gas, 43 bytes; asking opencode/deepseek-v4.1-flash for something cheaper
 llm-optimize Triangle @sumBelow: round 1
@@ -523,7 +523,7 @@ fn chat_provider_retries() {
     assert_data_eq!(
         String::from_utf8_lossy(&output.stderr).into_owned(),
         str![[r#"
-warning: `-Zllm-optimize=live` sends the MIR of offered functions to OpenCode Zen
+warning: `-Zllm-optimize=live` sends the MIR of offered functions to `127.0.0.1`
 
 llm-optimize Triangle @sumBelow: costs 6741 gas, 43 bytes; asking opencode/deepseek-v4.1-flash for something cheaper
 llm-optimize Triangle @sumBelow: round 1
@@ -577,7 +577,7 @@ fn cached_rewrites_skip_the_model() {
     assert_data_eq!(
         String::from_utf8_lossy(&second.stderr).into_owned(),
         str![[r#"
-warning: `-Zllm-optimize=live` sends the MIR of offered functions to OpenCode Zen
+warning: `-Zllm-optimize=live` sends the MIR of offered functions to `127.0.0.1`
 
 llm-optimize Triangle @sumBelow: reuses its cached rewrite at 72 gas, 28 bytes, down from 6741 gas, 43 bytes, without asking opencode/deepseek-v4.1-flash
 
