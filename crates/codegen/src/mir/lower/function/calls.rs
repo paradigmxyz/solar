@@ -516,10 +516,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         values.insert(0, function_value);
 
         let dispatcher = self.ensure_internal_function_pointer_dispatcher(function);
+        // The dispatcher calls every function the pointer can hold, so the modifier check follows
+        // the call into each of them.
         if function.returns.is_empty() {
             // icall_void(dispatcher, function, args)
             // result = 0
             self.builder.icall_void(dispatcher, values);
+            self.record_postlude_call(dispatcher, expr.span);
             return Some(self.builder.imm(U256::ZERO));
         }
         let return_types =
@@ -528,6 +531,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // result = icall(dispatcher, function, args)
         let result = self.builder.icall(dispatcher, values, result_ty);
         self.dirty_values.insert(result);
+        self.record_postlude_call(dispatcher, expr.span);
         Some(result)
     }
 

@@ -52,6 +52,17 @@ contract Test {
         fail();
     }
 
+    // A pointer call reaches whatever the pointer can hold.
+    function pointer() external lock returns (string memory) {
+        function(string memory) internal pure f = finish;
+        f("x"); //~ ERROR: this call can return from the external call and skip the rest of modifier `lock`
+    }
+
+    function revertingPointer() external lock returns (string memory) {
+        function() internal pure f = fail;
+        f();
+    }
+
     // Nothing runs after `_` in `enter`.
     function unguarded() external enter returns (string memory) {
         finish("x");
