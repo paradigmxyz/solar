@@ -628,11 +628,8 @@ async fn pull_diagnostic_client_refreshes_and_clears_without_push() {
     session.open(&document_uri, DIAGNOSTIC_SOURCE).await;
     let initial = session.document_request("textDocument/diagnostic", &document_uri).await;
     assert_eq!(initial.get("kind").and_then(Value::as_str), Some("full"));
+    // Pull diagnostic data follows pull `dataSupport`, not push `dataSupport`.
     assert_one_unresolved_diagnostic(&initial["items"], &document_uri, false, &profile_label);
-    assert!(
-        initial["items"][0].get("data").is_none(),
-        "pull diagnostic data must follow pull dataSupport, not push dataSupport: {initial}"
-    );
     let initial_result_id = initial
         .get("resultId")
         .and_then(Value::as_str)
@@ -680,31 +677,23 @@ async fn pull_diagnostic_client_refreshes_and_clears_without_push() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn pull_diagnostic_data_support_is_used_on_the_wire() {
-    let project = TestProject::new();
-    let document_uri = Url::from_file_path(project.path("/Diagnostics.sol")).unwrap();
-    let capabilities = diagnostic_client_capabilities(true, true, true);
-    let (mut session, initialize) = RawSession::start_initialized(
-        client_profile("Minimal LSP client"),
-        &project,
-        &capabilities,
-    )
-    .await;
-    assert!(initialize.pointer("/capabilities/diagnosticProvider").is_some());
+    let diagnostic = native_diagnostic_on_the_wire(DIAGNOSTIC_SOURCE, true, true).await;
+    assert_data_eq!(diagnostic, str![[r#"
+data: {"sourceFingerprint":"24fee19b51b73a844d065fdb0f41b803","suggestions":[],"uri":"[URI]","version":1}
+message: "unresolved symbol `missingValue`"
+range: {"end":{"character":27,"line":2},"start":{"character":15,"line":2}}
+relatedInformation: []
+severity: 1
+source: "solar"
 
-    session.open(&document_uri, DIAGNOSTIC_SOURCE).await;
-    let report = session.document_request("textDocument/diagnostic", &document_uri).await;
-    assert_one_unresolved_diagnostic(&report["items"], &document_uri, true, "pull data");
-    assert_eq!(session.server_message_count("textDocument/publishDiagnostics"), 0);
-
-    session.shutdown().await;
-    session.exit().await;
+"#]].raw());
 }
 
 /// Returns the only native diagnostic for `source`, one field per line.
-async fn native_diagnostic_on_the_wire(source: &str, pull: bool) -> String {
+async fn native_diagnostic_on_the_wire(source: &str, pull: bool, pull_data: bool) -> String {
     let project = TestProject::new();
     let document_uri = Url::from_file_path(project.path("/Details.sol")).unwrap();
-    let mut capabilities = diagnostic_client_capabilities(pull, pull, false);
+    let mut capabilities = diagnostic_client_capabilities(pull, pull, pull_data);
     capabilities["textDocument"]["publishDiagnostics"] = json!({
         "relatedInformation": true,
         "tagSupport": { "valueSet": [1, 2] },
@@ -754,19 +743,7 @@ async fn did_open_before_initialize_is_not_observable() {
     let document_uri = Url::from_file_path(project.path("/Ghost.sol")).unwrap();
     let mut session = RawSession::start();
 
-    session
-        .notify(
-            "textDocument/didOpen",
-            json!({
-                "textDocument": {
-                    "uri": document_uri,
-                    "languageId": "solidity",
-                    "version": 1,
-                    "text": "contract Ghost {}\n",
-                },
-            }),
-        )
-        .await;
+    session.open(&document_uri, "contract Ghost {}\n").await;
     session.initialize(client_profile("Minimal LSP client"), &root_uri, &json!({})).await;
     session.notify("initialized", json!({})).await;
 
@@ -821,7 +798,7 @@ tags: [2]
         ),
     ] {
         for pull in [false, true] {
-            let diagnostic = native_diagnostic_on_the_wire(source, pull).await;
+            let diagnostic = native_diagnostic_on_the_wire(source, pull, false).await;
             assert_data_eq!(diagnostic, expected.clone().raw());
         }
     }
