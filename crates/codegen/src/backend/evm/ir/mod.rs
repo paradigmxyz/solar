@@ -153,6 +153,7 @@ impl Module {
         self.enable_size_outlining = false;
         self.code_follows = false;
         self.debug_info_tracked = false;
+        self.peephole_clean.clear();
     }
 
     /// Enables source debug information auditing for optimization passes.

@@ -18,14 +18,14 @@
 
 use crate::mir::{
     Function, FunctionId, InstId, MirPhase, Module,
-    analysis::{AliasAnalysis, CfgInfo, MemoryCallSummaries},
+    analysis::{AliasAnalysis, CfgInfo, LocalSummaryCache, MemoryCallSummaries},
     pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff, run_passes_inner},
     transform::*,
 };
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::diagnostics::ErrorGuaranteed;
-use std::{any::TypeId, rc::Rc, sync::Arc};
+use std::{any::TypeId, cell::Cell, rc::Rc, sync::Arc};
 
 pub use crate::mir::pass_manager::{MirPass, pipeline_label, run_passes, run_passes_no_validate};
 
@@ -616,6 +616,8 @@ pub(crate) struct FunctionAnalyses {
     alias: Option<Rc<AliasAnalysis>>,
     /// Shared CFG snapshot; RPO, dominators, and reachability build lazily.
     cfg: Option<Rc<CfgInfo>>,
+    /// Whether the transform edited the body while reporting no change.
+    unreported_edit: Cell<bool>,
 }
 
 impl FunctionAnalyses {
@@ -627,6 +629,13 @@ impl FunctionAnalyses {
     /// Returns the CFG analysis requested by the running transform.
     pub(crate) fn cfg(&self) -> &Rc<CfgInfo> {
         self.cfg.as_ref().expect("function pass must request CFG analysis")
+    }
+
+    /// Records an edit that the transform does not report as a change, such as removing dead
+    /// instructions or annotating metadata, so the cached local memory summary drops the
+    /// function.
+    pub(crate) fn note_unreported_edit(&self) {
+        self.unreported_edit.set(true);
     }
 }
 
@@ -660,6 +669,8 @@ pub struct ModuleAnalyses {
     /// no change. Any intervening mutation of that body removes the entry.
     local_no_change: FxHashMap<TypeId, DenseBitSet<FunctionId>>,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
+    /// Local summaries of the functions no pass has changed since the last summary build.
+    local_summaries: LocalSummaryCache,
     preserved_by_pass: bool,
     call_summaries_preserved: bool,
 }
@@ -681,6 +692,7 @@ impl ModuleAnalyses {
         }
         if !self.preserved_by_pass {
             self.invalidate_all();
+            self.local_summaries.clear();
         }
         if !self.call_summaries_preserved {
             self.call_summaries = None;
@@ -722,15 +734,22 @@ impl ModuleAnalyses {
                 self.alias_with_summaries(func_id, summaries)
             }),
             cfg: requirements.cfg().then(|| self.cfg(func_id, &module.functions[func_id])),
+            unreported_edit: Cell::new(false),
         }
     }
 
     /// Returns the module call summaries, computing them on first use. A pass that changes
     /// the module drops them unless it calls [`Self::preserve_call_summaries`].
     pub(crate) fn call_summaries(&mut self, module: &Module) -> Arc<MemoryCallSummaries> {
-        Arc::clone(
-            self.call_summaries.get_or_insert_with(|| Arc::new(MemoryCallSummaries::new(module))),
-        )
+        Arc::clone(self.call_summaries.get_or_insert_with(|| {
+            Arc::new(MemoryCallSummaries::new_cached(module, &mut self.local_summaries))
+        }))
+    }
+
+    /// Drops every cached local memory summary after a module pass edited bodies without
+    /// reporting a change.
+    pub(crate) fn note_unreported_module_edit(&mut self) {
+        self.local_summaries.clear();
     }
 
     /// Declares that the running pass leaves the module call summaries valid.
@@ -768,6 +787,7 @@ impl ModuleAnalyses {
         changed: bool,
     ) {
         if changed {
+            self.local_summaries.invalidate(func_id);
             for cached in self.local_no_change.values_mut() {
                 if func_id.index() < cached.domain_size() {
                     cached.remove(func_id);
@@ -837,6 +857,9 @@ fn run_function_pass_cached(
     let func = &mut module.functions[func_id];
     let insts_before = func.num_insts();
     let changed = run(func, &bundle);
+    if bundle.unreported_edit.get() {
+        analyses.local_summaries.invalidate(func_id);
+    }
     if changed {
         if let Some(cfg) = &bundle.cfg {
             let (keep_alias, keep_cfg) = verified_preservation(func, cfg, insts_before);

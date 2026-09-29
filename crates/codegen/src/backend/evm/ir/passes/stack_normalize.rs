@@ -235,7 +235,11 @@ fn remove_redundant_permutations(
         while end < instructions.len() && symbolic_stack_op(&instructions[end]).is_some() {
             end += 1;
         }
-        if end != start {
+        // Only a `DUP` makes two stack slots hold the same value.
+        if instructions[start..end]
+            .iter()
+            .any(|inst| matches!(inst.as_stack_op(), Some(StackOp::Dup(_))))
+        {
             find_redundant_permutations(&instructions[start..end], start, remove);
         }
         start = end + 1;

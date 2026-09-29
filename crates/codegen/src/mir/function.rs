@@ -423,6 +423,18 @@ impl Function {
         inst_blocks
     }
 
+    /// Returns the block containing each placed instruction, indexed by instruction.
+    #[must_use]
+    pub(crate) fn inst_block_table(&self) -> IndexVec<InstId, Option<BlockId>> {
+        let mut inst_blocks = IndexVec::from_vec(vec![None; self.instructions.len()]);
+        for (block_id, block) in self.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                inst_blocks[inst_id] = Some(block_id);
+            }
+        }
+        inst_blocks
+    }
+
     /// Returns true if the block contains any phi instruction.
     #[must_use]
     pub(crate) fn block_has_phi(&self, block: BlockId) -> bool {
@@ -582,9 +594,14 @@ impl Function {
         }
     }
 
-    /// Annotates storage-alias metadata for state-access instructions.
-    pub(crate) fn annotate_storage_aliases(&mut self, scope: super::utils::StorageAliasScope) {
+    /// Annotates storage-alias metadata for state-access instructions and returns whether any
+    /// metadata changed.
+    pub(crate) fn annotate_storage_aliases(
+        &mut self,
+        scope: super::utils::StorageAliasScope,
+    ) -> bool {
         let inst_ids: Vec<_> = self.instructions().collect();
+        let mut changed = false;
         for inst_id in inst_ids {
             let slot = match self.inst(inst_id).kind {
                 InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(slot),
@@ -596,8 +613,11 @@ impl Function {
                 _ => None,
             };
             let alias = slot.map(|slot| StorageAlias::for_value(self, slot));
-            self.inst_mut(inst_id).metadata.set_storage_alias(alias);
+            let metadata = &mut self.inst_mut(inst_id).metadata;
+            changed |= metadata.storage_alias() != alias;
+            metadata.set_storage_alias(alias);
         }
+        changed
     }
 
     /// Returns stored storage-alias metadata, or computes a conservative alias key.

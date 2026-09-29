@@ -23,7 +23,10 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashSet,
 };
-use std::collections::{BTreeSet, VecDeque};
+use std::{
+    collections::{BTreeSet, VecDeque},
+    rc::Rc,
+};
 
 /// Includes observations in callees, conservatively retaining reads without a call summary.
 pub(crate) fn may_observe_msize(func: &Function, summaries: Option<&MemoryCallSummaries>) -> bool {
@@ -398,10 +401,85 @@ pub(crate) struct MemoryCallSummaries {
     summaries: IndexVec<FunctionId, Option<FunctionMemorySummary>>,
 }
 
+/// Local summary facts of functions whose bodies have not changed since they were computed,
+/// reused by later summary builds.
+pub(crate) struct LocalSummaryCache {
+    entries: IndexVec<FunctionId, Option<LocalSummaryEntry>>,
+    /// The functions with several return components when the entries were computed. A local
+    /// summary counts a call to one as a memory access, so a change invalidates every entry.
+    multiple_returns: DenseBitSet<FunctionId>,
+}
+
+struct LocalSummaryEntry {
+    sources: Rc<BitMatrix<ValueId, ArgIdx>>,
+    /// The alias analysis as the local summary left it. Address memos are depth-limited, so
+    /// their results depend on query order and later queries must continue from this state.
+    alias: AliasAnalysis,
+    summary: FunctionMemorySummary,
+}
+
+impl LocalSummaryEntry {
+    fn new(module: &Module, func: &Function) -> Self {
+        let sources = parameter_sources(func);
+        let alias = AliasAnalysis::new(func);
+        let summary = local_summary(module, func, &sources, &alias);
+        Self { sources: Rc::new(sources), alias, summary }
+    }
+
+    /// Checks that recomputing the entry reproduces it. Values added since, such as
+    /// immediates a rewrite created and discarded, must have no parameter sources.
+    #[cfg(debug_assertions)]
+    fn assert_current(&self, module: &Module, func: &Function) {
+        let fresh = Self::new(module, func);
+        let cached_rows = self.sources.rows().count();
+        let same_sources = fresh.sources.rows().count() >= cached_rows
+            && fresh.sources.rows().all(|row| {
+                if row.index() < cached_rows {
+                    self.sources.iter(row).eq(fresh.sources.iter(row))
+                } else {
+                    fresh.sources.iter(row).next().is_none()
+                }
+            });
+        assert!(
+            same_sources && self.summary == fresh.summary && self.alias.same_memo(&fresh.alias),
+            "stale local memory summary of `{}`",
+            func.name
+        );
+    }
+}
+
+impl Default for LocalSummaryCache {
+    fn default() -> Self {
+        Self { entries: IndexVec::new(), multiple_returns: DenseBitSet::new_empty(0) }
+    }
+}
+
+impl LocalSummaryCache {
+    /// Drops the entry of a function whose body changed.
+    pub(crate) fn invalidate(&mut self, func_id: FunctionId) {
+        if let Some(entry) = self.entries.get_mut(func_id) {
+            *entry = None;
+        }
+    }
+
+    /// Drops every entry.
+    pub(crate) fn clear(&mut self) {
+        self.entries = IndexVec::new();
+    }
+}
+
 impl MemoryCallSummaries {
     /// Computes summaries to a monotone fixpoint over the module call graph.
+    #[cfg(test)]
     #[must_use]
     pub(crate) fn new(module: &Module) -> Self {
+        Self::new_cached(module, &mut LocalSummaryCache::default())
+    }
+
+    /// Computes summaries to a monotone fixpoint over the module call graph, reusing the cached
+    /// local summaries of unchanged functions and caching the rest.
+    #[must_use]
+    pub(crate) fn new_cached(module: &Module, cache: &mut LocalSummaryCache) -> Self {
         let calls = CallGraphInfo::new(module);
         let mut targets = DenseBitSet::new_empty(module.functions.len());
         for caller in module.functions.indices() {
@@ -413,22 +491,38 @@ impl MemoryCallSummaries {
             return Self { summaries: IndexVec::new() };
         }
 
-        // The parameter sources and alias analysis of each target.
-        let facts = module
-            .functions
-            .iter_enumerated()
-            .map(|(id, func)| {
-                targets.contains(id).then(|| (parameter_sources(func), AliasAnalysis::new(func)))
-            })
-            .collect::<IndexVec<FunctionId, _>>();
+        let mut multiple_returns = DenseBitSet::new_empty(module.functions.len());
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if func.return_components().len() > 1 {
+                multiple_returns.insert(func_id);
+            }
+        }
+        if cache.entries.len() != module.functions.len()
+            || cache.multiple_returns != multiple_returns
+        {
+            cache.entries = module.functions.indices().map(|_| None).collect();
+            cache.multiple_returns = multiple_returns;
+        }
+
+        // The parameter sources, alias analysis, and local summary of each target.
+        let mut facts = IndexVec::with_capacity(module.functions.len());
         let mut local = index_vec![None; module.functions.len()];
-        for func_id in &targets {
-            let func = &module.functions[func_id];
-            let (sources, alias) = facts[func_id].as_ref().unwrap();
-            let mut summary = local_summary(module, func, sources, alias);
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if !targets.contains(func_id) {
+                facts.push(None);
+                continue;
+            }
+            let slot = &mut cache.entries[func_id];
+            #[cfg(debug_assertions)]
+            if let Some(entry) = slot {
+                entry.assert_current(module, func);
+            }
+            let entry = slot.get_or_insert_with(|| LocalSummaryEntry::new(module, func));
+            let mut summary = entry.summary.clone();
             summary.has_multiple_returns = func.return_components().len() > 1;
             summary.control.may_diverge |= calls.is_recursive(func_id);
             local[func_id] = Some(summary);
+            facts.push(Some((Rc::clone(&entry.sources), entry.alias.clone())));
         }
         let mut summaries = local.clone();
 
