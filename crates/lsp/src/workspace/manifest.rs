@@ -394,59 +394,9 @@ mod tests {
         paths.iter().map(|path| ProjectManifest::Foundry(project.path(path))).collect()
     }
 
-    fn assert_discovers(fixture: &str, root: &str, expected: &[&str]) {
-        let project = TestProject::from_fixture(fixture);
-        assert_eq!(
-            discover(&project, root, IndexingOptions::default(), None),
-            manifests(&project, expected)
-        );
-    }
-
     #[test]
-    fn naked_root_discovery_is_shallow() {
-        assert_discovers(
-            r#"
-            //- /child/foundry.toml
-
-            //- /container/deep/foundry.toml
-            "#,
-            "/",
-            &["/child/foundry.toml"],
-        );
-    }
-
-    #[test]
-    fn root_project_recursively_discovers_nested_projects_and_skips_heavy_dirs() {
-        assert_discovers(
-            r#"
-            //- /foundry.toml
-
-            //- /packages/token/foundry.toml
-
-            //- /packages/group/vault/foundry.toml
-
-            //- /.git/dependency/foundry.toml
-
-            //- /cache/dependency/foundry.toml
-
-            //- /lib/dependency/foundry.toml
-
-            //- /node_modules/dependency/foundry.toml
-
-            //- /out/dependency/foundry.toml
-            "#,
-            "/",
-            &[
-                "/foundry.toml",
-                "/packages/group/vault/foundry.toml",
-                "/packages/token/foundry.toml",
-            ],
-        );
-    }
-
-    #[test]
-    fn root_project_skips_nested_repository_boundaries() {
-        let fixture = r#"
+    fn discovers_manifests_within_index_boundaries() {
+        let nested_repository = r#"
             //- /foundry.toml
 
             //- /nested/.git
@@ -454,21 +404,123 @@ mod tests {
 
             //- /nested/foundry.toml
             "#;
-        assert_discovers(fixture, "/", &["/foundry.toml"]);
-        assert_discovers(fixture, "/nested", &["/nested/foundry.toml"]);
-    }
+        for (fixture, root, expected) in [
+            // Naked roots stay shallow.
+            (
+                r#"
+                //- /child/foundry.toml
 
-    #[test]
-    fn parent_discovery_prefers_nearest_foundry_manifest() {
-        assert_discovers(
-            r#"
-            //- /foundry.toml
+                //- /container/deep/foundry.toml
+                "#,
+                "/",
+                &["/child/foundry.toml"][..],
+            ),
+            // Root projects recurse but skip heavy directories.
+            (
+                r#"
+                //- /foundry.toml
 
-            //- /child/foundry.toml
-            "#,
-            "/child",
-            &["/child/foundry.toml"],
-        );
+                //- /packages/token/foundry.toml
+
+                //- /packages/group/vault/foundry.toml
+
+                //- /.git/dependency/foundry.toml
+
+                //- /cache/dependency/foundry.toml
+
+                //- /lib/dependency/foundry.toml
+
+                //- /node_modules/dependency/foundry.toml
+
+                //- /out/dependency/foundry.toml
+                "#,
+                "/",
+                &[
+                    "/foundry.toml",
+                    "/packages/group/vault/foundry.toml",
+                    "/packages/token/foundry.toml",
+                ],
+            ),
+            // Nested repositories are boundaries unless they are the root.
+            (nested_repository, "/", &["/foundry.toml"]),
+            (nested_repository, "/nested", &["/nested/foundry.toml"]),
+            // Parent discovery prefers the nearest manifest.
+            (
+                r#"
+                //- /foundry.toml
+
+                //- /child/foundry.toml
+                "#,
+                "/child",
+                &["/child/foundry.toml"],
+            ),
+            // A source root inside a library only opens its own corridor.
+            (
+                r#"
+                //- /foundry.toml
+                [profile.default]
+                src = "lib/contracts"
+
+                //- /lib/contracts/nested/foundry.toml
+
+                //- /lib/dependency/foundry.toml
+                "#,
+                "/",
+                &["/foundry.toml", "/lib/contracts/nested/foundry.toml"],
+            ),
+            // Source roots still skip default-excluded descendants.
+            (
+                r#"
+                //- /foundry.toml
+                [profile.default]
+                src = "src"
+
+                //- /src/nested/foundry.toml
+
+                //- /src/node_modules/dependency/foundry.toml
+                "#,
+                "/",
+                &["/foundry.toml", "/src/nested/foundry.toml"],
+            ),
+            // An import-only corridor does not admit its ancestor manifest.
+            (
+                r#"
+                //- /foundry.toml
+                [profile.default]
+                src = "lib/contracts"
+
+                //- /lib/foundry.toml
+                [profile.default]
+                src = "other"
+
+                //- /lib/contracts/Main.sol
+                contract Main {}
+                "#,
+                "/",
+                &["/foundry.toml"],
+            ),
+            // A source corridor does not admit excluded sibling manifests.
+            (
+                r#"
+                //- /foundry.toml
+                [profile.default]
+                src = ".hidden/contracts"
+
+                //- /.hidden/contracts/nested/foundry.toml
+
+                //- /.hidden/sibling/foundry.toml
+                "#,
+                "/",
+                &["/.hidden/contracts/nested/foundry.toml", "/foundry.toml"],
+            ),
+        ] {
+            let project = TestProject::from_fixture(fixture);
+            assert_eq!(
+                discover(&project, root, IndexingOptions::default(), None),
+                manifests(&project, expected),
+                "{root} in {fixture}"
+            );
+        }
     }
 
     #[test]
@@ -489,40 +541,6 @@ mod tests {
         assert_eq!(
             discover(&project, "/", options, None),
             manifests(&project, &["/foundry.toml", "/packages/app/foundry.toml"])
-        );
-    }
-
-    #[test]
-    fn source_root_inside_library_only_opens_its_manifest_corridor() {
-        assert_discovers(
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = "lib/contracts"
-
-            //- /lib/contracts/nested/foundry.toml
-
-            //- /lib/dependency/foundry.toml
-            "#,
-            "/",
-            &["/foundry.toml", "/lib/contracts/nested/foundry.toml"],
-        );
-    }
-
-    #[test]
-    fn source_root_discovery_skips_default_excluded_descendants() {
-        assert_discovers(
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = "src"
-
-            //- /src/nested/foundry.toml
-
-            //- /src/node_modules/dependency/foundry.toml
-            "#,
-            "/",
-            &["/foundry.toml", "/src/nested/foundry.toml"],
         );
     }
 
@@ -592,43 +610,6 @@ mod tests {
                 &mut FoundryConfigContext::new(None, &configs),
             ),
             (vec![project.path("/workspace/host-src")], vec![project.path("/workspace/host-lib")],)
-        );
-    }
-
-    #[test]
-    fn import_only_source_corridor_does_not_admit_ancestor_manifest() {
-        assert_discovers(
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = "lib/contracts"
-
-            //- /lib/foundry.toml
-            [profile.default]
-            src = "other"
-
-            //- /lib/contracts/Main.sol
-            contract Main {}
-            "#,
-            "/",
-            &["/foundry.toml"],
-        );
-    }
-
-    #[test]
-    fn source_corridor_does_not_admit_excluded_sibling_manifests() {
-        assert_discovers(
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = ".hidden/contracts"
-
-            //- /.hidden/contracts/nested/foundry.toml
-
-            //- /.hidden/sibling/foundry.toml
-            "#,
-            "/",
-            &["/.hidden/contracts/nested/foundry.toml", "/foundry.toml"],
         );
     }
 }

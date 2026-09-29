@@ -1246,30 +1246,7 @@ mod tests {
     }
 
     #[test]
-    fn host_foundry_workspace_paths_keep_approved_index_boundaries() {
-        let project = TestProject::new();
-        let external = project.path("/external/src");
-        let config = FoundryWorkspaceConfig::new(project.path("/workspace"))
-            .with_source_roots([external.clone()])
-            .with_flycheck_source_roots([external.clone()])
-            .with_include_paths([external.clone()]);
-        let configs = [config];
-
-        let workspace = Workspace::load_foundry_bounded(
-            project.path("/workspace/foundry.toml"),
-            &[project.path("/workspace")],
-            &mut FoundryConfigContext::new(None, &configs),
-        )
-        .unwrap();
-
-        assert!(workspace.source_roots().is_empty());
-        assert!(workspace.import_source_roots().is_empty());
-        assert_eq!(workspace.compile_opts().include_paths, [external]);
-        assert!(workspace.index_import_only_roots().is_empty());
-    }
-
-    #[test]
-    fn bounded_foundry_workspace_keeps_external_library_compile_config() {
+    fn bounded_foundry_workspace_keeps_external_compile_config_out_of_the_index() {
         let project = TestProject::from_fixture(
             r#"
             //- /workspace/foundry.toml
@@ -1281,15 +1258,17 @@ mod tests {
             contract Target {}
             "#,
         );
+        let load = |configs| {
+            Workspace::load_foundry_bounded(
+                project.path("/workspace/foundry.toml"),
+                &[project.path("/workspace")],
+                &mut FoundryConfigContext::new(None, configs),
+            )
+            .unwrap()
+        };
 
-        let workspace = Workspace::load_foundry_bounded(
-            project.path("/workspace/foundry.toml"),
-            &[project.path("/workspace")],
-            &mut FoundryConfigContext::default(),
-        )
-        .unwrap();
+        let workspace = load(&[]);
         let target = project.path("/external/lib/pkg/src").to_string_lossy().replace('\\', "/");
-
         assert_eq!(workspace.compile_opts().include_paths, [project.path("/external/lib")]);
         assert_eq!(workspace.import_only_roots(), [project.path("/external/lib")]);
         assert!(workspace.index_import_only_roots().is_empty());
@@ -1297,13 +1276,23 @@ mod tests {
             remappings(&workspace),
             [format!("pkg/={target}/"), "external/=../external/lib/pkg/src/".into()]
         );
-
         let workspaces = [workspace];
         assert_eq!(
             WorkspacePathIndex::new(&workspaces)
                 .workspace_idx_for_import_path(&project.path("/external/lib/pkg/src/Target.sol")),
             Some(0)
         );
+
+        let external = project.path("/external/src");
+        let host = FoundryWorkspaceConfig::new(project.path("/workspace"))
+            .with_source_roots([external.clone()])
+            .with_flycheck_source_roots([external.clone()])
+            .with_include_paths([external.clone()]);
+        let workspace = load(&[host]);
+        assert!(workspace.source_roots().is_empty());
+        assert!(workspace.import_source_roots().is_empty());
+        assert_eq!(workspace.compile_opts().include_paths, [external]);
+        assert!(workspace.index_import_only_roots().is_empty());
     }
 
     #[test]

@@ -61,12 +61,7 @@ async fn json_emitter_alternatives_become_separate_flycheck_code_actions() {
             "id": "json-emitter-contract",
             "command": std::env::current_exe().unwrap(),
             "args": [
-                "--ignored",
-                "--exact",
-                FAKE_FLYCHECK_TEST,
-                "--no-capture",
-                "--color",
-                "never"
+                "--ignored", "--exact", FAKE_FLYCHECK_TEST, "--no-capture", "--color", "never"
             ],
             "output": "forge-lint-json"
         }]

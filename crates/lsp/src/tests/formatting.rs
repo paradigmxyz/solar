@@ -106,13 +106,20 @@ async fn formatting_rejects_empty_output_for_non_whitespace_source() {
 
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
-async fn formatting_uses_unsaved_vfs_source_and_most_specific_workspace() {
+async fn formatting_sends_vfs_or_disk_source_with_the_owning_foundry_root() {
     let mut project = TestProject::from_fixture(
         r#"
         //- /workspace/A.sol
         contract A {}
 
         //- /workspace/nested/Test.sol
+        contract Test {}
+
+        //- /outside/foundry.toml
+        [fmt]
+        int_types = "short"
+
+        //- /outside/src/Test.sol
         contract Test {}
         "#,
     );
@@ -127,14 +134,21 @@ printf 'contract Test { string s = "🚀"; }'"#,
     );
     let mut state = formatting_state(&project, &forge, &["/workspace", "/workspace/nested"]);
 
-    let edits = format(&mut state, &project, "/workspace/nested/Test.sol").await.unwrap().unwrap();
+    // Open documents use the unsaved buffer and the most specific workspace; other documents
+    // are read from disk and use their nearest Foundry root outside the workspaces.
+    for (path, source, root) in [
+        ("/workspace/nested/Test.sol", unsaved, "/workspace/nested"),
+        ("/outside/src/Test.sol", "contract Test {}", "/outside"),
+    ] {
+        let edits = format(&mut state, &project, path).await.unwrap().unwrap();
 
-    assert_eq!(edits[0].new_text, "contract Test { string s = \"🚀\"; }");
-    assert_eq!(project.read_file("/fake-forge.stdin"), unsaved);
-    assert_eq!(
-        project.read_file("/fake-forge.args"),
-        format!("fmt\n--raw\n--root\n{}\n-\n", project.path("/workspace/nested").display())
-    );
+        assert_eq!(edits[0].new_text, "contract Test { string s = \"🚀\"; }");
+        assert_eq!(project.read_file("/fake-forge.stdin"), source);
+        assert_eq!(
+            project.read_file("/fake-forge.args"),
+            format!("fmt\n--raw\n--root\n{}\n-\n", project.path(root).display())
+        );
+    }
     let path = crate::vfs::VfsPath::from(project.path("/workspace/nested/Test.sol"));
     assert_eq!(state.vfs.read().get_file_contents(&path).unwrap().to_string(), unsaved);
 }
@@ -199,40 +213,6 @@ cat
     assert_eq!(error.code, ErrorCode::REQUEST_FAILED);
     assert_eq!(error.message, "Forge config resolution failed");
     assert!(!project.path("/fake-forge.formatted").exists());
-}
-
-#[cfg(unix)]
-#[tokio::test(flavor = "current_thread")]
-async fn formatting_reads_disk_and_discovers_foundry_root_outside_workspaces() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /workspace/.keep
-
-        //- /outside/foundry.toml
-        [fmt]
-        int_types = "short"
-
-        //- /outside/src/Test.sol
-        contract Test {}
-        "#,
-    );
-    let forge = write_formatter_executable(
-        &project,
-        &[],
-        r#"printf '%s\n' "$@" > "$0.args"
-cat > "$0.stdin"
-cat "$0.stdin""#,
-    );
-    let mut state = formatting_state(&project, &forge, &["/workspace"]);
-
-    let edits = format(&mut state, &project, "/outside/src/Test.sol").await.unwrap();
-
-    assert_eq!(edits, None);
-    assert_eq!(project.read_file("/fake-forge.stdin"), "contract Test {}");
-    assert_eq!(
-        project.read_file("/fake-forge.args"),
-        format!("fmt\n--raw\n--root\n{}\n-\n", project.path("/outside").display())
-    );
 }
 
 #[cfg(unix)]
