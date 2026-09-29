@@ -482,7 +482,7 @@ pub struct UnstableOpts {
     pub llm_script: Option<PathBuf>,
 
     /// Model that `-Zllm-optimize=live` asks, as `PROVIDER/MODEL` with provider `openai`,
-    /// `anthropic`, or `opencode`; a model without a provider is an OpenAI one.
+    /// `anthropic`, `opencode`, or `openai-chat`; a model without a provider is an OpenAI one.
     #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "MODEL"))]
     pub llm_model: Option<String>,
 

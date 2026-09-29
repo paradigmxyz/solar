@@ -6,7 +6,8 @@
 //! - `openai/MODEL`, or `MODEL` alone: a nanocodex agent over OpenAI's Responses API, keyed by
 //!   `OPENAI_API_KEY`;
 //! - `anthropic/MODEL`: Anthropic's Messages API, keyed by `ANTHROPIC_API_KEY`;
-//! - `opencode/MODEL`: OpenCode Zen's chat completions API, keyed by `OPENCODE_ZEN_API_KEY`.
+//! - `opencode/MODEL`: OpenCode Zen's chat completions API, keyed by `OPENCODE_ZEN_API_KEY`;
+//! - `openai-chat/MODEL`: OpenAI's chat completions API, keyed by `OPENAI_API_KEY`.
 //!
 //! Every conversation opens with the rewriting brief in `llm/instructions.md` and has no tools, so
 //! the model cannot read files, run commands, or search. nanocodex agents also get a fixed
@@ -195,7 +196,7 @@ impl Installed {
                     .map_err(configure)?;
                 Backend::Agent { openai, model, thinking }
             }
-            Provider::Anthropic | Provider::OpenCode => {
+            Provider::Anthropic | Provider::OpenCode | Provider::OpenAiChat => {
                 let Some(model) = model.filter(|model| !model.is_empty()) else {
                     let message = format!("`-Zllm-model` names no {} model", provider.name());
                     return Err(sess.dcx.err(message).emit());
