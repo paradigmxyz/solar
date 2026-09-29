@@ -201,6 +201,12 @@ pub(crate) trait Meter {
     ) {
         let _ = (function, block, operand);
     }
+
+    /// The instruction [`Self::instruction`] just reported produced `value`. A call's result is
+    /// not reported: the callee's return delivers it.
+    fn result(&mut self, value: U256) {
+        let _ = value;
+    }
 }
 
 impl Meter for () {}
@@ -491,13 +497,14 @@ impl<'a> Machine<'a> {
     }
 
     /// Runs the module's dispatch entry as a transaction with `calldata` on `evm_version`, asking
-    /// `host` for its context, within `limits`.
+    /// `host` for its context, within `limits`, reporting each operation to `meter`.
     pub(crate) fn transact(
         &self,
         calldata: &[u8],
         host: &mut dyn Host,
         evm_version: EvmVersion,
         limits: Limits,
+        meter: &mut dyn Meter,
     ) -> TransactionExecution {
         let Some(entry) = self.module.dispatch_entry() else {
             return TransactionExecution {
@@ -528,7 +535,7 @@ impl<'a> Machine<'a> {
                 heap_frames: FxHashMap::default(),
             }),
         };
-        let ControlFlow::Break(outcome) = run.execute(entry, &[], &mut ());
+        let ControlFlow::Break(outcome) = run.execute(entry, &[], meter);
         let outcome = match outcome {
             // return [] => stop
             Outcome::Return(values) if values.is_empty() => Outcome::Stop,
@@ -793,6 +800,7 @@ impl<'a> Run<'_, 'a, '_> {
         if entry {
             self.outcomes[inst] |= if result.is_zero() { 1 } else { 2 };
         }
+        meter.result(result);
         self.frame().values[value] = Some(result);
         ControlFlow::Continue(())
     }
@@ -1085,7 +1093,9 @@ impl<'a> Run<'_, 'a, '_> {
                 return ControlFlow::Break(Outcome::Unsupported("phi without an input"));
             };
             meter.instruction(body, inst, &|value| frame.word(value));
-            incoming.push((inst, result, frame.read(value)?));
+            let word = frame.read(value)?;
+            meter.result(word);
+            incoming.push((inst, result, word));
         }
         self.burn(incoming.len() as u64)?;
         let frame = self.frame();
@@ -1430,7 +1440,7 @@ fn @storage(arg0: i256) -> i256 {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
         sess.enter(|| {
             let module = parse_module(&sess, source).unwrap();
-            Machine::new(&module).transact(calldata, &mut TestHost, evm_version, LIMITS)
+            Machine::new(&module).transact(calldata, &mut TestHost, evm_version, LIMITS, &mut ())
         })
     }
 

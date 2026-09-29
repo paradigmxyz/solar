@@ -42,9 +42,6 @@ use ui_test::{build_manager::BuildManager, per_test_config::TestConfig};
 /// The environment variable that enables the check.
 const VARIABLE: &str = "SOLAR_RUN_CALL_MIR";
 
-/// The comment introducing a heap frame in a dump.
-const FRAME: &str = "// frame @";
-
 /// What a compiler command dumped, or why it could not.
 type Dumps = Arc<Result<Dump, String>>;
 
@@ -274,7 +271,14 @@ pub(super) fn check(
     let heap_start = trace.heap_start;
     let frames = dump.frames.get(call.contract);
     let mut host = EvmHost { chain: &trace.before, value: call.value, block, heap_start, frames };
-    let execution = interpret::transact(module, call.input, &mut host, call.evm_version);
+    let options = interpret::Options { evm_version: call.evm_version, ..Default::default() };
+    let execution = match interpret::transact(module, call.input, &mut host, options) {
+        Ok(execution) => execution,
+        Err(reason) => {
+            report("skipped", &reason);
+            return Ok(());
+        }
+    };
     if let Outcome::Unsupported(reason) = &execution.outcome {
         report("skipped", reason);
         return Ok(());
@@ -333,6 +337,7 @@ pub(super) fn check(
 /// Describes how a run ended, with the EVM's reason for halting if it has one.
 fn describe(outcome: &Outcome, stop: Option<InstrStop>) -> String {
     match (outcome, stop) {
+        (Outcome::Return(words), _) => format!("returned the words {words:x?}"),
         (Outcome::Success(data), _) => format!("returned 0x{}", hex::encode(data)),
         (Outcome::Revert(data), _) => format!("reverted with 0x{}", hex::encode(data)),
         (Outcome::Halt, Some(stop)) => format!("halted ({stop:?})"),
@@ -419,15 +424,6 @@ fn dump_command(command: &Command) -> Command {
     dump
 }
 
-/// Parses a heap frame line after its `// frame @` prefix: `name: size bytes, restores the free
-/// memory pointer`, or `keeps` it.
-fn parse_frame(line: &str) -> Option<(String, HeapFrame)> {
-    let (function, rest) = line.split_once(": ")?;
-    let size = rest.split_whitespace().next()?.parse().ok()?;
-    let restores_free_memory = rest.contains("restores the free memory pointer");
-    Some((function.to_owned(), HeapFrame { size, restores_free_memory }))
-}
-
 /// Runs a dump command and splits its output into modules, heap frames, and runtime bytecode by
 /// contract.
 fn run_dump(mut command: Command) -> Result<Dump, String> {
@@ -435,32 +431,22 @@ fn run_dump(mut command: Command) -> Result<Dump, String> {
     if !output.status.success() {
         return Err("the MIR dump failed".into());
     }
+    let stdout = String::from_utf8_lossy(&output.stdout);
     let mut dump = Dump::default();
-    let mut current: Option<(String, String)> = None;
-    for line in String::from_utf8_lossy(&output.stdout).lines() {
-        if let Some(name) = line.strip_prefix("// === ").and_then(|rest| rest.strip_suffix(" ==="))
-        {
-            dump.modules.extend(current.take());
-            current = Some((name.to_owned(), String::new()));
-        } else if line.starts_with(r#"{"contracts""#) {
-            let json = serde_json::from_str::<serde_json::Value>(line)
-                .map_err(|error| format!("unreadable compiler output: {error}"))?;
-            let contracts = json.get("contracts").and_then(serde_json::Value::as_object);
-            for (name, contract) in contracts.into_iter().flatten() {
-                let runtime = contract.get("bin-runtime").and_then(serde_json::Value::as_str);
-                if let Some(runtime) = runtime.and_then(|runtime| hex::decode(runtime).ok()) {
-                    dump.runtimes.insert(name.clone(), runtime);
-                }
+    for module in interpret::parse_dump(&stdout) {
+        dump.frames.insert(module.name.clone(), module.frames);
+        dump.modules.insert(module.name, module.mir);
+    }
+    if let Some(line) = stdout.lines().find(|line| line.starts_with(r#"{"contracts""#)) {
+        let json = serde_json::from_str::<serde_json::Value>(line)
+            .map_err(|error| format!("unreadable compiler output: {error}"))?;
+        let contracts = json.get("contracts").and_then(serde_json::Value::as_object);
+        for (name, contract) in contracts.into_iter().flatten() {
+            let runtime = contract.get("bin-runtime").and_then(serde_json::Value::as_str);
+            if let Some(runtime) = runtime.and_then(|runtime| hex::decode(runtime).ok()) {
+                dump.runtimes.insert(name.clone(), runtime);
             }
-            break;
-        } else if let Some((contract, text)) = &mut current {
-            if let Some((function, frame)) = line.strip_prefix(FRAME).and_then(parse_frame) {
-                dump.frames.entry(contract.clone()).or_default().insert(function, frame);
-            }
-            text.push_str(line);
-            text.push('\n');
         }
     }
-    dump.modules.extend(current);
     Ok(dump)
 }
