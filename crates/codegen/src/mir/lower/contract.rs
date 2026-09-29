@@ -1,6 +1,6 @@
 //! Contract-level lowering and function discovery.
 
-use super::{ContractBytecodes, function, storage::StorageLayout, types::TypeLowerer};
+use super::{function, storage::StorageLayout, types::TypeLowerer};
 use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet, FxIndexSet},
@@ -20,12 +20,7 @@ use crate::mir::{Function, FunctionAttributes, FunctionBuilder, Module};
 /// `sema_errored` records whether the compilation had already failed when the
 /// code generation phase started, which decides whether a lowering bail-out is
 /// worth reporting.
-pub(super) fn lower(
-    gcx: Gcx<'_>,
-    contract_id: ContractId,
-    child_bytecodes: &FxHashMap<ContractId, ContractBytecodes>,
-    sema_errored: bool,
-) -> Module {
+pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId, sema_errored: bool) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
     let storage = StorageLayout::for_contract(gcx, contract_id);
@@ -207,7 +202,6 @@ pub(super) fn lower(
             contract_id,
             function_ids: &mir_ids,
             immutable_ids: &immutable_ids,
-            child_bytecodes,
             state: &mut state,
             sema_errored,
             shared_literals: &shared_literals,

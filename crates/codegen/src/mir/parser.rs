@@ -324,6 +324,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 return Err(self.parser.error(format!("expected data ID {expected}, found {id}")));
             }
             self.parser.expect(TokenKind::Colon)?;
+            if self.parser.eat_keyword(sym::deferred) {
+                module.add_deferred_data(name);
+                continue;
+            }
             let bytes = self.parser.parse_data_bytes()?;
             let offsets = self.parser.parse_data_library_relocations(&bytes)?;
             module.add_linked_data(bytes, name, offsets);
@@ -2055,6 +2059,22 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parser.expect(TokenKind::Comma)?;
                 let size = self.parse_value(builder)?;
                 (InstKind::DataCopy(data, dest, size), None)
+            }
+            sym::data_size => {
+                let data = self.parse_data_ref()?;
+                let mut addend = 0;
+                let mut aligned = false;
+                if self.parser.eat(TokenKind::Comma) {
+                    let value = self.parser.parse_uint()?;
+                    addend = u64::try_from(value).map_err(|_| {
+                        self.parser.error(format!("integer `{value}` does not fit in u64"))
+                    })?;
+                    if self.parser.eat(TokenKind::Comma) {
+                        self.parser.expect_keyword(sym::aligned)?;
+                        aligned = true;
+                    }
+                }
+                (InstKind::DataSize(data, addend, aligned), Some(MirType::I256))
             }
             sym::storeimmutable => {
                 let (id, _) = self.parse_immutable_ref()?;

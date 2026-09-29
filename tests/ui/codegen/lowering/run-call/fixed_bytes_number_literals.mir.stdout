@@ -31,42 +31,43 @@ immutables:
 fn @viaExternal() -> i256 [selector=0x09338c08, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 169, v1
-    v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    data_copy Probe_initcode_0, v4, 138
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 138
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 138
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v1 = data_size Probe_initcode_0
+    v2 = data_size Probe_initcode_0
+    v3 = data_size Probe_initcode_0, 31, aligned
+    v4 = alloc raw, exact, uninitialized, infallible, v3
+    v5 = ptrtoint memptr v4 to i256
+    data_copy Probe_initcode_0, v5, v1
+    v6 = slice_ptr v0
+    v7 = ptrtoint memptr v4 to i256
+    v8 = add v7, v1
+    mcopy v8, v6, 0 !metadata(memory=heap)
+    v9 = ptrtoint memptr v4 to i256
+    v10 = create 0, v9, v2
+    v11 = zext i160 v10 to i256
+    v12 = ne v11, 0
+    jumpi v12, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = gas
-    v13 = and 0x102030400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v14 = abi_encode [word<bytes4>], selector 0x14beb1ca00000000000000000000000000000000000000000000000000000000, args v13
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = zext i160 v9 to i256
-    v18 = call v12, v17, 0, v15, v16, 0, 32
-    jumpi v18, bb4, bb3
+    v13 = gas
+    v14 = and 0x102030400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v15 = abi_encode [word<bytes4>], selector 0x14beb1ca00000000000000000000000000000000000000000000000000000000, args v14
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = zext i160 v10 to i256
+    v19 = call v13, v18, 0, v16, v17, 0, 32
+    jumpi v19, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v19 = returndatasize
-    v20 = lt v19, 32
-    icall revert_if<tuple_data_too_short>, v20
-    v21 = add 0, 0
-    v22 = mload v21
-    v23 = add 0, 0
-    v24 = mload v23
-    ret v24
+    v20 = returndatasize
+    v21 = lt v20, 32
+    icall revert_if<tuple_data_too_short>, v21
+    v22 = add 0, 0
+    v23 = mload v22
+    v24 = add 0, 0
+    v25 = mload v24
+    ret v25
 }
 
 fn @giveInternal(arg0: i256) -> i256 [pure] {

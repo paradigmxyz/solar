@@ -125,10 +125,15 @@ bb26 [cold]:
   push 0
   revert
 bb6:
-  push 224
+  push 160
+  dup 1
   push 64
   mstore
-  push 160
+  push 64
+  dup 2
+  add
+  push 64
+  mstore
   push 32
   dup 2
   mstore
@@ -137,29 +142,30 @@ bb6:
   push 11
   dup 2
   mstore
+  push 470
+  push 502
+  push 512
   push 64
   mload
-  push 512
+  swap 1
   dup 2
   add
   push 64
   mstore
-  push 470
+  dup 3
   push_data ChildWithArg_initcode_0
   dup 3
   codecopy
-  push 470
-  dup 2
+  swap 2
+  dup 3
   add
   push 32
-  dup 4
+  dup 5
   dup 3
   mcopy
   pop
-  swap 1
+  swap 2
   pop
-  push 502
-  swap 1
   push 0
   create
   jump bb28
@@ -206,10 +212,15 @@ bb28:
   push 128
   return
 bb12:
-  push 224
+  push 160
+  dup 1
   push 64
   mstore
-  push 160
+  push 64
+  dup 2
+  add
+  push 64
+  mstore
   push 32
   dup 2
   mstore
@@ -218,38 +229,46 @@ bb12:
   push 22
   dup 2
   mstore
+  push 470
+  push 502
+  push 512
   push 64
   mload
-  push 512
+  swap 1
   dup 2
   add
   push 64
   mstore
-  push 470
+  dup 3
   push_data ChildWithArg_initcode_0
   dup 3
   codecopy
-  push 470
-  dup 2
+  swap 2
+  dup 3
   add
   push 32
-  dup 4
+  dup 5
   dup 3
   mcopy
   pop
-  swap 1
+  swap 2
   pop
-  push 502
   push 1
   swap 2
+  swap 1
   push 0
   create2
   jump bb28
 bb18:
-  push 320
+  push 192
+  dup 1
   push 64
   mstore
-  push 160
+  push 64
+  dup 2
+  add
+  push 64
+  mstore
   push 32
   dup 2
   mstore
@@ -258,36 +277,46 @@ bb18:
   push 3
   dup 2
   mstore
+  push 470
+  push 502
+  push 512
   push 64
   mload
-  push 512
+  dup 2
   dup 2
   add
   push 64
   mstore
-  push 470
+  dup 4
   push_data ChildWithArg_initcode_0
   dup 3
   codecopy
-  push 470
+  dup 4
   dup 2
   add
   push 32
-  dup 4
+  dup 7
   dup 3
   mcopy
   pop
-  swap 1
+  swap 4
   pop
-  push 502
+  dup 2
   swap 1
+  swap 4
   push 0
   create
   dup 1
   iszero
   push bb26
   jumpi
-  push 256
+  push 64
+  mload
+  push 64
+  dup 2
+  add
+  push 64
+  mstore
   push 32
   dup 2
   mstore
@@ -298,27 +327,27 @@ bb18:
   mstore
   push 64
   mload
-  push 512
-  dup 2
+  swap 5
+  dup 6
   add
   push 64
   mstore
-  push 470
+  dup 4
   push_data ChildWithArg_initcode_0
-  dup 3
+  dup 7
   codecopy
-  push 470
-  dup 2
+  swap 3
+  dup 5
   add
   push 32
-  dup 4
+  dup 5
   dup 3
   mcopy
   pop
-  swap 1
+  swap 2
   pop
-  push 502
   swap 1
+  swap 2
   push 0
   create
   dup 1
@@ -347,7 +376,7 @@ bb18:
   swap 3
   pop
   pop
-  push 224
+  push 160
   mstore
   iszero
   push bb26
@@ -375,7 +404,7 @@ bb18:
   push 0
   push 4
   dup 4
-  push 224
+  push 160
   mload
   gas
   staticcall

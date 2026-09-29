@@ -463,6 +463,21 @@ fn display_inst_kind<'a>(
             )?;
             write!(f, ", {}, {}", display_val(*dest, func), display_val(*size, func))
         }
+        InstKind::DataSize(id, addend, aligned) => {
+            let name = module.and_then(|module| module.data_name(id.id));
+            write!(
+                f,
+                "data_size {}",
+                crate::utils::display_data_ref(name, id.id.index(), id.offset)
+            )?;
+            if *addend != 0 || *aligned {
+                write!(f, ", {addend}")?;
+            }
+            if *aligned {
+                f.write_str(", aligned")?;
+            }
+            Ok(())
+        }
         InstKind::Alloc { size, kind, semantics } => {
             let kind = match kind {
                 crate::mir::AllocationKind::Raw => "raw".to_string(),

@@ -1,7 +1,6 @@
 //! Memory-backed value construction and default aggregate values.
 
 use super::*;
-use crate::link::RelocatableBytecode;
 
 const MIN_BULK_ZERO_STRUCT_FIELDS: usize = 4;
 
@@ -237,21 +236,34 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         gcx: Gcx<'_>,
         module: &mut Module,
         builder: &mut FunctionBuilder<'_>,
-        bytecode: &RelocatableBytecode,
-        name: Symbol,
-    ) -> Option<ValueId> {
-        let (object, data, padded_size) =
-            Self::alloc_const_bytes(builder, bytecode.bytes.len(), AllocationSemantics::INTERNAL)?;
-        super::super::data::copy_bytecode_to_memory(
-            gcx,
-            module,
-            builder,
-            data,
-            bytecode,
-            padded_size,
-            name,
-        );
-        Some(object)
+        contract_id: hir::ContractId,
+        creation: bool,
+    ) -> ValueId {
+        let code = super::super::data::contract_code_data(gcx, module, contract_id, creation);
+        let word = EvmMemoryLayout::WORD_SIZE;
+        // len = data_size code(C)
+        // object = bytes(data_size code(C), 63, aligned) !preserves_fmp
+        // set_memory_object_len object, len
+        let len = builder.data_size(code, 0, false);
+        let size = builder.data_size(code, 2 * word - 1, true);
+        let object =
+            builder.alloc_object(size, MemoryObjectLayout::Bytes, AllocationSemantics::INTERNAL);
+        let Value::Inst(alloc) = *builder.func().value(object) else {
+            unreachable!("allocation result must reference its instruction")
+        };
+        builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
+        builder.set_memory_object_len(object, len, MemoryObjectKind::Bytes);
+        let data = builder.memory_object_data(object, MemoryObjectKind::Bytes);
+        // Contract code is never empty, so its last data word starts one length word
+        // before the padded length.
+        // mstore object + data_size(code(C), 31, aligned), 0
+        // data_copy code(C), data, len
+        let tail_offset = builder.data_size(code, word - 1, true);
+        let tail = builder.add(object, tail_offset);
+        let zero = builder.imm(0);
+        builder.mstore(tail, zero);
+        builder.data_copy(code, data, len);
+        object
     }
 
     fn alloc_const_bytes(

@@ -4,6 +4,7 @@
 @module Parser
 data:
   payload_0: hex"11223344"
+  child_1: deferred
 
 immutables:
   fn: u8
@@ -58,6 +59,21 @@ fn @copy_data() {
   bb0:
     data_copy payload_0+1, 0, 3
     stop
+}
+
+// CHECK-LABEL: @deferred_data
+// CHECK: {{^ +}}[[LEN:v[0-9]+]] = data_size child_1{{$}}
+// CHECK: {{^ +}}{{v[0-9]+}} = data_size child_1, 32{{$}}
+// CHECK: {{^ +}}{{v[0-9]+}} = data_size child_1, 63, aligned
+// CHECK: {{^ +}}data_copy child_1, 0, [[LEN]]
+fn @deferred_data() -> i256 {
+  bb0:
+    v0 = data_size child_1
+    v1 = data_size child_1, 32
+    v2 = data_size child_1, 63, aligned
+    data_copy child_1, 0, v0
+    v3 = add v1, v2
+    ret v3
 }
 
 // CHECK-LABEL: @environment

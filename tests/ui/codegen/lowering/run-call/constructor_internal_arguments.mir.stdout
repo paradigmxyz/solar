@@ -53,30 +53,31 @@ fn @constructor() [constructor] {
     v3 = eq v2, false
     v4 = zext i1 v3 to i256
     v5 = abi_encode [word<bytes3>, word<bool>], args v0, v4
-    v6 = not 31
-    v7 = and 424, v6
-    v8 = alloc raw, exact, uninitialized, infallible, v7
-    v9 = ptrtoint memptr v8 to i256
-    data_copy ConstructorInternalArgumentsHelper_initcode_0, v9, 329
-    v10 = slice_ptr v5
-    v11 = ptrtoint memptr v8 to i256
-    v12 = add v11, 329
-    mcopy v12, v10, 64 !metadata(memory=heap)
-    v13 = ptrtoint memptr v8 to i256
-    v14 = create 0, v13, 393
-    v15 = zext i160 v14 to i256
-    v16 = ne v15, 0
-    jumpi v16, bb2, bb1
+    v6 = data_size ConstructorInternalArgumentsHelper_initcode_0
+    v7 = data_size ConstructorInternalArgumentsHelper_initcode_0, 64
+    v8 = data_size ConstructorInternalArgumentsHelper_initcode_0, 95, aligned
+    v9 = alloc raw, exact, uninitialized, infallible, v8
+    v10 = ptrtoint memptr v9 to i256
+    data_copy ConstructorInternalArgumentsHelper_initcode_0, v10, v6
+    v11 = slice_ptr v5
+    v12 = ptrtoint memptr v9 to i256
+    v13 = add v12, v6
+    mcopy v13, v11, 64 !metadata(memory=heap)
+    v14 = ptrtoint memptr v9 to i256
+    v15 = create 0, v14, v7
+    v16 = zext i160 v15 to i256
+    v17 = ne v16, 0
+    jumpi v17, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v17 = sload 0 !metadata(storage=slot(0))
-    v18 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v19 = and v17, v18
-    v20 = zext i160 v14 to i256
-    v21 = and v20, 0xffffffffffffffffffffffffffffffffffffffff
-    v22 = or v19, v21
-    sstore 0, v22 !metadata(storage=slot(0))
+    v18 = sload 0 !metadata(storage=slot(0))
+    v19 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v20 = and v18, v19
+    v21 = zext i160 v15 to i256
+    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffff
+    v23 = or v20, v22
+    sstore 0, v23 !metadata(storage=slot(0))
     ret
 }
 

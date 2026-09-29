@@ -12,62 +12,66 @@ impl<'gcx> EvmCodegen<'gcx> {
         let _changed = run_pipeline(self.gcx, module, None);
     }
 
-    /// Generates runtime bytecode for a module.
-    pub(super) fn generate_runtime_code(
+    /// Schedules the runtime code of a module into the assembler's EVM IR.
+    pub(super) fn schedule_runtime_code(
         &mut self,
         module: &crate::mir::LoweredModule<'_>,
         call_graph: &CallGraphInfo,
-    ) -> GeneratedCode {
+    ) {
         assert_eq!(
             module.phase(),
             MirPhase::Lowered,
             "EVM codegen requires MIR in the final phase"
         );
+        let mut preserve_caller_stack =
+            !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None);
+        let mut runtime_stack_args = true;
+        let mut stack_returns_enabled = true;
+        self.disabled_stack_only_functions.clear_to(module.functions.len());
+        loop {
+            let disabled_stack_only_functions = self.disabled_stack_only_functions.count();
+            self.reset_runtime_codegen(module);
+            self.preserve_caller_stack = preserve_caller_stack;
+            self.runtime_stack_args = runtime_stack_args;
+            self.stack_returns_enabled = stack_returns_enabled;
+
+            if !module.functions.is_empty() {
+                self.emit_runtime(module, call_graph);
+            }
+
+            if self.disabled_stack_only_functions.count() > disabled_stack_only_functions {
+                continue;
+            }
+            let stack_fits = self.caller_stack_prefixes_fit(module, MAX_STACK_DEPTH);
+            if !stack_fits && !self.icall_stack_edges.is_empty() {
+                if preserve_caller_stack {
+                    preserve_caller_stack = false;
+                    continue;
+                }
+                if runtime_stack_args {
+                    runtime_stack_args = false;
+                    continue;
+                }
+                if stack_returns_enabled {
+                    stack_returns_enabled = false;
+                    continue;
+                }
+            }
+            if !stack_fits {
+                self.report_stack_limit_error();
+            }
+            break;
+        }
+    }
+
+    /// Optimizes and assembles the scheduled runtime code.
+    ///
+    /// The assembler's deferred data must be resolved.
+    pub(super) fn assemble_runtime_code(&mut self) -> GeneratedCode {
         let runtime_code_size_limit = self.gcx.sess.opts.evm_version.runtime_code_size_limit();
         let may_need_code_size_rescue = self.gcx.sess.opts.optimization.is_gas();
         let mut code_size_rescue = false;
         let mut gas_first_result = None;
-        {
-            let mut preserve_caller_stack =
-                !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None);
-            let mut runtime_stack_args = true;
-            let mut stack_returns_enabled = true;
-            self.disabled_stack_only_functions.clear_to(module.functions.len());
-            loop {
-                let disabled_stack_only_functions = self.disabled_stack_only_functions.count();
-                self.reset_runtime_codegen(module);
-                self.preserve_caller_stack = preserve_caller_stack;
-                self.runtime_stack_args = runtime_stack_args;
-                self.stack_returns_enabled = stack_returns_enabled;
-
-                if !module.functions.is_empty() {
-                    self.emit_runtime(module, call_graph);
-                }
-
-                if self.disabled_stack_only_functions.count() > disabled_stack_only_functions {
-                    continue;
-                }
-                let stack_fits = self.caller_stack_prefixes_fit(module, MAX_STACK_DEPTH);
-                if !stack_fits && !self.icall_stack_edges.is_empty() {
-                    if preserve_caller_stack {
-                        preserve_caller_stack = false;
-                        continue;
-                    }
-                    if runtime_stack_args {
-                        runtime_stack_args = false;
-                        continue;
-                    }
-                    if stack_returns_enabled {
-                        stack_returns_enabled = false;
-                        continue;
-                    }
-                }
-                if !stack_fits {
-                    self.report_stack_limit_error();
-                }
-                break;
-            }
-        }
         // Both outlining policies share the same scheduled and structurally simplified input.
         if may_need_code_size_rescue && runtime_code_size_limit.is_some() {
             self.asm.prepare_outlining();

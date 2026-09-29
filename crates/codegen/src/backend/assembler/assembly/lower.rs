@@ -21,6 +21,7 @@ impl Assembler<'_> {
         {
             return;
         }
+        assert!(self.deferred_data.is_empty(), "EVM IR passes require resolved data");
         let Some((mut program, labels)) = self.finish_evm_ir() else { return };
         ir::builder::resolve_known_deferred_constants(&mut program, &self.deferred_values);
         self.outlining = Some(ir::OutliningCheckpoint::prepare(self.gcx, &mut program));
@@ -40,6 +41,7 @@ impl Assembler<'_> {
         capture_evm_ir: bool,
         capture_debug_info: bool,
     ) -> PreparedAssembly {
+        assert!(self.deferred_data.is_empty(), "EVM IR passes require resolved data");
         let Some((mut ir_program, mut labels)) = self.finish_evm_ir() else {
             return PreparedAssembly::default();
         };

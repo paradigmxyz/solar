@@ -1229,6 +1229,18 @@ impl<'a> FunctionBuilder<'a> {
     pub(crate) fn data_copy(&mut self, data: crate::mir::DataRef, dest: ValueId, size: ValueId) {
         self.emit_void_inst(InstKind::DataCopy(data, dest, size))
     }
+
+    /// Emits the byte length of module data from its offset, plus `addend`, rounded
+    /// down to a multiple of 32 when `aligned` is set.
+    pub(crate) fn data_size(
+        &mut self,
+        data: crate::mir::DataRef,
+        addend: u64,
+        aligned: bool,
+    ) -> ValueId {
+        // result = data_size data, addend[, aligned]
+        self.emit_inst(InstKind::DataSize(data, addend, aligned), Some(MirType::I256))
+    }
     /// Emits a calldatacopy whose destination is proven to be in the heap.
     pub(crate) fn calldatacopy_heap(&mut self, dest: ValueId, offset: ValueId, size: ValueId) {
         self.emit_void_inst_in_region(

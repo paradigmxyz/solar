@@ -631,6 +631,25 @@ impl<'a> Validator<'a> {
                         id.index()
                     ));
                 }
+                InstKind::DataSize(data, ..) => match module.get_data(data.id) {
+                    None => self.emit(format_args!(
+                        "inst{} references nonexistent data{}",
+                        inst_id.index(),
+                        data.id.index()
+                    )),
+                    Some(bytes)
+                        if !module.data_is_deferred(data.id)
+                            && data.offset as usize > bytes.len() =>
+                    {
+                        self.emit(format_args!(
+                            "inst{} data offset {} exceeds data size {}",
+                            inst_id.index(),
+                            data.offset,
+                            bytes.len()
+                        ));
+                    }
+                    Some(_) => {}
+                },
                 InstKind::LoadImmutable(id) => {
                     match (module.get_immutable_type(id), inst.result_ty) {
                         (Some(expected), Some(actual)) if actual != expected.mir_type() => {
@@ -1190,6 +1209,19 @@ impl<'a> Validator<'a> {
             );
             return;
         };
+        // The length of deferred data is only known through its own `data_size`.
+        if matches!(func.value(*size), Value::Inst(size) if func.inst(*size).kind == InstKind::DataSize(*data, 0, false))
+        {
+            return;
+        }
+        if module.data_is_deferred(data.id) {
+            self.emit_at_inst(
+                "data_copy size of deferred data must be its `data_size`",
+                block_id,
+                inst_id,
+            );
+            return;
+        }
         let Some(size) = func.value_u256(*size) else {
             self.emit_at_inst("data_copy size must be an immediate", block_id, inst_id);
             return;

@@ -184,24 +184,25 @@ fn @staticReceiverMutability() -> i256 [selector=0xde2015ae, abi_params=[], abi_
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 153, v1
-    v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    data_copy MutatingBase_initcode_0, v4, 122
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 122
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 122
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v1 = data_size MutatingBase_initcode_0
+    v2 = data_size MutatingBase_initcode_0
+    v3 = data_size MutatingBase_initcode_0, 31, aligned
+    v4 = alloc raw, exact, uninitialized, infallible, v3
+    v5 = ptrtoint memptr v4 to i256
+    data_copy MutatingBase_initcode_0, v5, v1
+    v6 = slice_ptr v0
+    v7 = ptrtoint memptr v4 to i256
+    v8 = add v7, v1
+    mcopy v8, v6, 0 !metadata(memory=heap)
+    v9 = ptrtoint memptr v4 to i256
+    v10 = create 0, v9, v2
+    v11 = zext i160 v10 to i256
+    v12 = ne v11, 0
+    jumpi v12, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    storeimmutable target, v12
+    v13 = zext i160 v10 to i256
+    storeimmutable target, v13
     ret
 }

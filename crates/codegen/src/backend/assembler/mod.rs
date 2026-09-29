@@ -15,7 +15,10 @@ use crate::{
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::U256;
-use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::GrowableBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_interface::{Span, Symbol, sym};
 use solar_sema::Gcx;
 
@@ -147,6 +150,27 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) next_deferred_alloc: IdCounter<DeferredAlloc>,
     /// Final placement of deferred allocations.
     pub(in crate::backend) deferred_allocations: FxHashMap<DeferredAlloc, DeferredAllocResolution>,
+    /// Loaded data whose bytes are supplied before the EVM IR pipeline.
+    pub(in crate::backend) deferred_data: FxHashSet<ir::DataId>,
+    /// Deferred constants for sizes derived from deferred data lengths.
+    pub(in crate::backend) deferred_data_sizes: FxHashMap<DataSize, DeferredConst>,
+}
+
+/// A size derived from the length of loaded data.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(in crate::backend) struct DataSize {
+    pub(in crate::backend) data: ir::DataId,
+    pub(in crate::backend) offset: u32,
+    pub(in crate::backend) addend: u64,
+    pub(in crate::backend) aligned: bool,
+}
+
+impl DataSize {
+    /// Returns the size for data of `len` bytes.
+    pub(in crate::backend) fn value(self, len: usize) -> U256 {
+        let size = U256::from(len - self.offset as usize) + U256::from(self.addend);
+        if self.aligned { size & !U256::from(31) } else { size }
+    }
 }
 
 /// Final lowering selected for a deferred allocation.
@@ -184,6 +208,8 @@ impl<'gcx> Assembler<'gcx> {
             alloc_relocations: Vec::new(),
             next_deferred_alloc: IdCounter::new(),
             deferred_allocations: FxHashMap::default(),
+            deferred_data: FxHashSet::default(),
+            deferred_data_sizes: FxHashMap::default(),
         }
     }
 
@@ -211,6 +237,8 @@ impl<'gcx> Assembler<'gcx> {
         self.alloc_relocations.clear();
         self.next_deferred_alloc.clear();
         self.deferred_allocations.clear();
+        self.deferred_data.clear();
+        self.deferred_data_sizes.clear();
     }
 
     /// Sets the artifact context used by conservative layout estimates.

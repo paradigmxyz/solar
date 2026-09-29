@@ -472,6 +472,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             InstKind::DataCopy(data, dest, size) => {
                 self.emit_data_copy(func, *data, *dest, *size, liveness, block, inst_idx);
             }
+            InstKind::DataSize(data, addend, aligned) => {
+                // push data_size(data) + addend[, aligned]
+                self.asm.emit_push_data_size(*data, *addend, *aligned);
+                self.scheduler.instruction_executed(0, result_value);
+            }
 
             InstKind::MappingSlot(_, _)
             | InstKind::MappingSlotMemory(_, _)

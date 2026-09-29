@@ -4,7 +4,7 @@ use super::{self as ir};
 use crate::{
     backend::{
         assembler::{
-            ArtifactKind, Assembler, DeferredAllocResolution, DeferredConst, Label,
+            ArtifactKind, Assembler, DataSize, DeferredAllocResolution, DeferredConst, Label,
             assembly::DeferredAlloc,
         },
         evm::{
@@ -140,6 +140,24 @@ impl<'gcx> Assembler<'gcx> {
                     && module.data_is_emitted_in_runtime(id),
             })
             .collect();
+        self.deferred_data
+            .extend(module.iter_deferred_data().map(|id| ir::DataId::from_usize(id.index())));
+    }
+
+    /// Supplies loaded data that was deferred, and the lengths pushed for it, from `module`.
+    pub(crate) fn resolve_deferred_data(&mut self, module: &MirModule) {
+        self.program.libraries = module.libraries.clone();
+        for id in self.deferred_data.drain() {
+            let mir_id = crate::mir::DataId::from_usize(id.index());
+            assert!(!module.data_is_deferred(mir_id), "data{} is still deferred", id.index());
+            let data = &mut self.program.data[id];
+            data.bytes = module.get_data(mir_id).expect("loaded data exists").clone();
+            data.library_relocations = module.data_library_relocations(mir_id).to_vec();
+        }
+        for (size, deferred) in self.deferred_data_sizes.drain() {
+            let value = size.value(self.program.data[size.data].bytes.len());
+            self.deferred_values.insert(deferred, value);
+        }
     }
 
     /// Emits a relocatable constant-data address push.
@@ -148,6 +166,27 @@ impl<'gcx> Assembler<'gcx> {
             ir::DataId::from_usize(data.id.index()),
             data.offset,
         )));
+    }
+
+    /// Emits the byte length of constant data from its offset, plus `addend`, rounded down to
+    /// a multiple of 32 when `aligned` is set.
+    pub(crate) fn emit_push_data_size(&mut self, data: MirDataRef, addend: u64, aligned: bool) {
+        let size = DataSize {
+            data: ir::DataId::from_usize(data.id.index()),
+            offset: data.offset,
+            addend,
+            aligned,
+        };
+        if self.deferred_data.contains(&size.data) {
+            // push_deferred data_size(data) + addend[, aligned]
+            let next_deferred = &mut self.next_deferred;
+            let deferred =
+                *self.deferred_data_sizes.entry(size).or_insert_with(|| next_deferred.next());
+            self.emit_push_deferred(deferred);
+        } else {
+            // push data_size(data) + addend[, aligned]
+            self.emit_push(size.value(self.program.data[size.data].bytes.len()));
+        }
     }
 
     /// Returns optimistic and block-layout byte sizes for the entry trace through

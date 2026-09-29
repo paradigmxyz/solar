@@ -12,10 +12,10 @@ use solar_data_structures::{
     bit_set::DenseBitSet,
     fmt::{self, FmtIteratorExt},
     index::{IndexVec, index_vec},
-    map::FxHashMap,
+    map::{FxHashMap, FxIndexMap},
 };
 use solar_interface::{Ident, Symbol, sym};
-use solar_sema::hir::VariableId;
+use solar_sema::hir::{ContractId, VariableId};
 use std::{borrow::Cow, sync::Arc};
 
 /// A named immutable declared by a MIR module.
@@ -36,6 +36,32 @@ struct Data {
     name: Option<Symbol>,
     emit_in_runtime: bool,
     library_relocations: Vec<LibraryRelocation>,
+    /// Whether the bytes are supplied later, before final assembly.
+    deferred: bool,
+}
+
+impl Data {
+    fn deferred(name: Option<Symbol>) -> Self {
+        Self {
+            bytes: Bytes::new(),
+            name,
+            emit_in_runtime: false,
+            library_relocations: Vec::new(),
+            deferred: true,
+        }
+    }
+}
+
+/// Bits that bound the length of any module data, checked when deferred data is resolved.
+pub(crate) const DATA_SIZE_BITS: u32 = 32;
+
+/// Bytecode of another contract that a module embeds as data.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct ContractCode {
+    /// The embedded contract.
+    pub(crate) contract: ContractId,
+    /// Whether this is the creation bytecode rather than the runtime bytecode.
+    pub(crate) creation: bool,
 }
 
 /// The representation contract of a MIR module.
@@ -109,8 +135,8 @@ pub struct Module {
     data: IndexVec<DataId, Data>,
     /// Exact data lookup used before the final subslice-packing pass.
     data_index: FxHashMap<Bytes, DataId>,
-    /// Linked data has a separate identity from literal bytes with the same contents.
-    linked_data_index: FxHashMap<(Bytes, Vec<LibraryRelocation>), DataId>,
+    /// Deferred data for embedded contract bytecode, in allocation order.
+    contract_codes: FxIndexMap<ContractCode, DataId>,
     /// Whether this is an interface (no bytecode generation).
     pub(crate) is_interface: bool,
     /// Whether this module was lowered from a library.
@@ -180,7 +206,7 @@ impl Module {
             data: IndexVec::new(),
             data_index: FxHashMap::default(),
             libraries: LibraryTable::default(),
-            linked_data_index: FxHashMap::default(),
+            contract_codes: FxIndexMap::default(),
             is_interface: false,
             is_library: false,
             phase: MirPhase::Semantic,
@@ -233,6 +259,14 @@ impl Module {
         }
         crate::mir::analysis::validate_phase(dcx, self, MirPhase::Lowered)?;
         Ok(LoweredModule(self))
+    }
+
+    /// Returns the lowered view of a module that [`Self::as_lowered`] already accepted.
+    ///
+    /// Only deferred data may have been resolved since that check.
+    pub(crate) fn as_checked_lowered(&self) -> LoweredModule<'_> {
+        debug_assert_eq!(self.phase, MirPhase::Lowered);
+        LoweredModule(self)
     }
 
     /// Returns whether all external entries have an explicit ABI implementation.
@@ -472,31 +506,62 @@ impl Module {
         if offsets.is_empty() {
             return self.add_data(bytes, name);
         }
-        self.data.push(Data { bytes, name, emit_in_runtime: false, library_relocations: offsets })
-    }
-
-    /// Interns embedded bytecode without sharing its relocations with literal data.
-    pub(crate) fn intern_linked_data(
-        &mut self,
-        bytes: Bytes,
-        name: Option<Symbol>,
-        offsets: Vec<LibraryRelocation>,
-    ) -> DataRef {
-        if offsets.is_empty() {
-            return self.intern_data(Cow::Borrowed(&bytes), name);
-        }
-        let key = (bytes.clone(), offsets.clone());
-        if let Some(&id) = self.linked_data_index.get(&key) {
-            return DataRef::new(id, 0);
-        }
-        let id = self.data.push(Data {
+        self.data.push(Data {
             bytes,
             name,
             emit_in_runtime: false,
             library_relocations: offsets,
-        });
-        self.linked_data_index.insert(key, id);
+            deferred: false,
+        })
+    }
+
+    /// Interns another contract's bytecode, whose bytes are resolved before final assembly.
+    pub(crate) fn intern_contract_code(&mut self, code: ContractCode, name: Symbol) -> DataRef {
+        let id = *self
+            .contract_codes
+            .entry(code)
+            .or_insert_with(|| self.data.push(Data::deferred(Some(name))));
         DataRef::new(id, 0)
+    }
+
+    /// Adds data whose bytes are resolved before final assembly.
+    pub(crate) fn add_deferred_data(&mut self, name: Option<Symbol>) -> DataId {
+        self.data.push(Data::deferred(name))
+    }
+
+    /// Returns whether data still waits for its bytes.
+    pub(crate) fn data_is_deferred(&self, id: DataId) -> bool {
+        self.data[id].deferred
+    }
+
+    /// Returns all data that still waits for its bytes.
+    pub(crate) fn iter_deferred_data(&self) -> impl Iterator<Item = DataId> + '_ {
+        self.data.iter_enumerated().filter_map(|(id, data)| data.deferred.then_some(id))
+    }
+
+    /// Returns embedded contract bytecode that is still deferred, in allocation order.
+    pub(crate) fn deferred_contract_codes(
+        &self,
+    ) -> impl Iterator<Item = (DataId, ContractCode)> + '_ {
+        self.contract_codes
+            .iter()
+            .filter(|&(_, &id)| self.data[id].deferred)
+            .map(|(&code, &id)| (id, code))
+    }
+
+    /// Supplies the bytes of deferred data.
+    pub(crate) fn resolve_deferred_data(
+        &mut self,
+        id: DataId,
+        bytes: Bytes,
+        library_relocations: Vec<LibraryRelocation>,
+    ) {
+        let data = &mut self.data[id];
+        assert!(std::mem::take(&mut data.deferred), "data{} is not deferred", id.index());
+        assert!(!bytes.is_empty(), "contract bytecode must not be empty");
+        assert!(bytes.len() >> DATA_SIZE_BITS == 0, "data length exceeds {DATA_SIZE_BITS} bits");
+        data.bytes = bytes;
+        data.library_relocations = library_relocations;
     }
 
     /// Interns constant data and returns its stable identifier.
@@ -527,6 +592,7 @@ impl Module {
             name,
             emit_in_runtime,
             library_relocations: Vec::new(),
+            deferred: false,
         });
         self.data_index.entry(data).or_insert(id);
         id
@@ -586,6 +652,10 @@ impl Module {
                         write!(f, "  {}", crate::utils::display_data_name(name, id.index()))?;
                     } else {
                         write!(f, "  {}", id.index())?;
+                    }
+                    if self.data_is_deferred(id) {
+                        writeln!(f, ": deferred")?;
+                        continue;
                     }
                     write!(f, ": hex\"")?;
                     for byte in data {

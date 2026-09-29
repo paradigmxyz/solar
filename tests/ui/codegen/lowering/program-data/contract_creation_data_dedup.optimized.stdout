@@ -131,19 +131,19 @@ bb6:
   push 0
   push 160
   mstore
+  push 255
+  push 256
   push 64
   mload
-  push 256
+  swap 1
   dup 2
   add
   push 64
   mstore
-  push 255
+  dup 2
   push_data Child_initcode_0
   dup 3
   codecopy
-  push 255
-  swap 1
   push 0
   create
   dup 1
@@ -194,18 +194,19 @@ bb18:
   push 0
   push 160
   mstore
-  push 64
-  mload
+  push 255
+  push 256
   dup 1
+  dup 2
   dup 2
   add
   push 64
   mstore
-  push 255
+  dup 3
   push_data Child_initcode_0
   dup 3
   codecopy
-  push 255
+  dup 3
   swap 1
   push 0
   create
@@ -218,16 +219,16 @@ bb18:
   mstore
   push 64
   mload
-  push 256
-  dup 2
+  swap 2
+  dup 3
   add
   push 64
   mstore
-  push 255
-  push_data Child_initcode_0
   dup 3
+  push_data Child_initcode_0
+  dup 4
   codecopy
-  push 255
+  swap 2
   swap 1
   push 0
   create

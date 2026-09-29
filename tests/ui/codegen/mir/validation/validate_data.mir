@@ -2,6 +2,7 @@
 @module ValidateData
 data:
   0: hex"aabb"
+  1: deferred
 
 fn @dynamic(arg0: i256) {
   bb0:
@@ -21,5 +22,27 @@ fn @at_end() {
   bb0:
     data_copy 0+2, 0, 1
     //~? ERROR: [fn2] [bb0, inst0] data_copy range 2..3 exceeds data size 2
+    stop
+}
+
+fn @deferred_immediate() {
+  bb0:
+    data_copy 1, 0, 2
+    //~? ERROR: [fn3] [bb0, inst0] data_copy size of deferred data must be its `data_size`
+    stop
+}
+
+fn @deferred_derived_size() {
+  bb0:
+    v0 = data_size 1, 32
+    data_copy 1, 0, v0
+    //~? ERROR: [fn4] [bb0, inst1] data_copy size of deferred data must be its `data_size`
+    stop
+}
+
+fn @deferred_size() {
+  bb0:
+    v0 = data_size 1
+    data_copy 1, 0, v0
     stop
 }

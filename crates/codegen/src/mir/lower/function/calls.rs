@@ -267,24 +267,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
         let contract = self.cx.gcx.hir.contract(contract_id);
-        let bytecode = self
-            .cx
-            .child_bytecodes
-            .get(&contract_id)
-            .and_then(super::super::data::ContractBytecodes::deployment)
-            .ok_or_else(|| {
-                self.cx
-                    .gcx
-                    .dcx()
-                    .err(format!(
-                        "codegen is missing creation bytecode for `new {}`",
-                        contract.name
-                    ))
-                    .span(ty.span)
-                    .note("the deployed contract did not compile or was not lowered first")
-                    .emit()
-            });
-        let Ok(bytecode) = bytecode else { return None };
+        if !self.cx.gcx.contract_bytecode_dependencies(self.cx.contract_id).contains(contract_id) {
+            self.cx
+                .gcx
+                .dcx()
+                .err(format!("codegen is missing creation bytecode for `new {}`", contract.name))
+                .span(ty.span)
+                .note("the deployed contract did not compile or was not lowered first")
+                .emit();
+            return None;
+        }
+        let bytecode =
+            super::super::data::contract_code_data(self.cx.gcx, self.cx.module, contract_id, true);
 
         let mut call_value = self.builder.imm(U256::ZERO);
         let mut salt = None;
@@ -344,32 +338,38 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // arguments = abi_encode(constructor_args)
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         let encoded = self.builder.abi_encode(Arc::clone(&layout), None, values.into_boxed_slice());
-        let encoded_len = if layout.types.iter().any(AbiType::is_dynamic) {
-            self.builder.slice_len(encoded)
-        } else {
-            self.builder.imm(layout.head_size())
+        let static_len = (!layout.types.iter().any(AbiType::is_dynamic))
+            .then(|| layout.head_size())
+            .filter(|&len| len.checked_add(31).is_some());
+        let encoded_len = match static_len {
+            Some(len) => self.builder.imm(len),
+            None => self.builder.slice_len(encoded),
         };
 
-        let bytecode_len = u64::try_from(bytecode.bytes.len()).ok()?;
-        let bytecode_len_value = self.builder.imm(bytecode_len);
-        let total_len = self.builder.checked_add(bytecode_len_value, encoded_len);
+        // len = data_size initcode(C)
+        let bytecode_len_value = self.builder.data_size(bytecode, 0, false);
         // CREATE consumes a raw byte range, so do not reserve a semantic bytes
         // header that no later operation can observe.
-        let padding = self.builder.imm(31);
-        let rounded_len = self.builder.checked_add(total_len, padding);
-        let mask = self.builder.not(padding);
-        let allocation_size = self.builder.and(rounded_len, mask);
+        let (total_len, allocation_size) = if let Some(len) = static_len {
+            // total_len = data_size initcode(C), len
+            // allocation_size = data_size initcode(C), len + 31, aligned
+            (
+                self.builder.data_size(bytecode, len, false),
+                self.builder.data_size(bytecode, len + 31, true),
+            )
+        } else {
+            // total_len = checked_add len, encoded_len
+            // allocation_size = checked_add(total_len, 31) & ~31
+            let total_len = self.builder.checked_add(bytecode_len_value, encoded_len);
+            let padding = self.builder.imm(31);
+            let rounded_len = self.builder.checked_add(total_len, padding);
+            let mask = self.builder.not(padding);
+            (total_len, self.builder.and(rounded_len, mask))
+        };
         let data = self.builder.alloc_raw(allocation_size, AllocationSemantics::INTERNAL);
 
-        super::super::data::copy_bytecode_to_memory(
-            self.cx.gcx,
-            self.cx.module,
-            &mut self.builder,
-            data,
-            bytecode,
-            bytecode.bytes.len(),
-            super::super::data::contract_bytecode_data_name(self.cx.gcx, contract_id, true),
-        );
+        // data_copy initcode(C), data, len
+        self.builder.data_copy(bytecode, data, bytecode_len_value);
         let encoded_ptr = self.builder.slice_ptr(encoded);
         let copy_dest = self.builder.add(data, bytecode_len_value);
         // init = creation_bytecode ++ arguments

@@ -1,8 +1,8 @@
 //! Contract bytecode generation and dependency orchestration.
 
 use crate::{
-    Backend, EvmCodegen,
-    backend::evm::{DebugInstruction, ir},
+    EvmCodegen,
+    backend::evm::{DebugInstruction, EvmArtifact, ir},
     link::{Library, LibraryRelocation, LibraryTable, RelocatableBytecode},
     mir::{Module, lower, pass::run_pipeline},
 };
@@ -184,22 +184,6 @@ pub fn generate_contract_bytecodes(
     requested.union_with(capture_debug_info);
     let graph = ContractGraph::discover(gcx, &requested)?;
     let contract_count = gcx.hir.contract_ids().len();
-    let artifacts =
-        IndexVec::<ContractId, _>::from_vec((0..contract_count).map(|_| OnceLock::new()).collect());
-    let remaining_dependencies = IndexVec::<ContractId, _>::from_vec(
-        graph
-            .dependencies
-            .iter()
-            .map(|dependencies| AtomicUsize::new(dependencies.len()))
-            .collect(),
-    );
-
-    let mut ready = DenseBitSet::new_empty(contract_count);
-    for contract_id in graph.reachable.iter() {
-        if graph.dependencies[contract_id].is_empty() {
-            ready.insert(contract_id);
-        }
-    }
 
     // Pass debugging writes directly to stdout and stderr, so keep its output ordered.
     let parallel = gcx.sess.is_parallel()
@@ -211,31 +195,38 @@ pub fn generate_contract_bytecodes(
     } else {
         IndexVec::from_vec(vec![0; contract_count])
     };
-    let roots = ready.iter().collect::<Vec<_>>();
-    let ready = ContractQueue {
-        contracts: Mutex::new(if parallel {
-            roots.iter().map(|&id| (priorities[id], Reverse(id))).collect()
-        } else {
-            BinaryHeap::new()
-        }),
-        priorities,
+    let jobs = ContractJobs {
+        gcx,
+        captures,
+        graph: &graph,
+        artifacts: IndexVec::from_vec((0..contract_count).map(|_| OnceLock::new()).collect()),
+        scheduled: IndexVec::from_vec((0..contract_count).map(|_| Mutex::new(None)).collect()),
+        remaining_inputs: IndexVec::from_vec(
+            graph
+                .dependencies
+                .iter()
+                .map(|dependencies| AtomicUsize::new(dependencies.len() + 1))
+                .collect(),
+        ),
+        queue: ContractQueue { jobs: Mutex::new(BinaryHeap::new()), priorities },
     };
+    // Every contract is scheduled up front; only its completion waits for the
+    // bytecode of the contracts it creates.
     sync::scope(parallel, |scope| {
-        for &root in &roots {
-            if !parallel {
-                ready.push(root);
+        if parallel {
+            for contract_id in graph.reachable.iter() {
+                jobs.queue.push(ContractJob::Schedule(contract_id));
             }
-            spawn_contract_codegen(
-                &scope,
-                gcx,
-                captures,
-                &graph,
-                &artifacts,
-                &remaining_dependencies,
-                &ready,
-            );
+            for _ in graph.reachable.iter() {
+                jobs.spawn_worker(&scope);
+            }
+        } else {
+            for contract_id in graph.reachable.iter() {
+                jobs.enqueue(&scope, ContractJob::Schedule(contract_id));
+            }
         }
     });
+    let artifacts = jobs.artifacts;
     gcx.dcx().has_errors()?;
 
     let mut generated = FxHashMap::default();
@@ -324,8 +315,10 @@ impl ContractGraph {
         Ok(())
     }
 
-    /// Starts the estimated longest dependency chains first. Source-body sizes are
-    /// a cheap scheduling estimate; they do not affect what gets compiled.
+    /// Starts the estimated longest dependency chains first. Completing a
+    /// contract waits for the contracts it embeds, so their work is on the path
+    /// to every embedding contract. Source-body sizes are a cheap scheduling
+    /// estimate; they do not affect what gets compiled.
     fn scheduling_priorities(&self, gcx: Gcx<'_>) -> IndexVec<ContractId, u64> {
         let mut costs = IndexVec::from_vec(vec![0u64; self.dependencies.len()]);
         for id in self.reachable.iter() {
@@ -356,70 +349,170 @@ impl ContractGraph {
     }
 }
 
-/// Workers choose the highest-priority ready contract independently of Rayon's task order.
+/// One unit of contract code generation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum ContractJob {
+    /// Lowers, optimizes, and schedules a contract.
+    Schedule(ContractId),
+    /// Completes a scheduled contract once the bytecode it embeds is generated.
+    Finish(ContractId),
+}
+
+/// Workers choose the highest-priority ready job independently of Rayon's task order.
 struct ContractQueue {
-    contracts: Mutex<BinaryHeap<(u64, Reverse<ContractId>)>>,
+    jobs: Mutex<BinaryHeap<(u64, Reverse<ContractJob>)>>,
     priorities: IndexVec<ContractId, u64>,
 }
 
 impl ContractQueue {
-    fn push(&self, id: ContractId) {
-        self.contracts.lock().push((self.priorities[id], Reverse(id)));
-    }
-
-    fn pop(&self) -> ContractId {
-        let (_, Reverse(id)) = self.contracts.lock().pop().expect("each job has a ready contract");
-        id
-    }
-}
-
-fn spawn_contract_codegen<'scope, 'gcx>(
-    scope: &Scope<'_, 'scope>,
-    gcx: Gcx<'gcx>,
-    captures: ContractCaptures<'scope>,
-    graph: &'scope ContractGraph,
-    artifacts: &'scope IndexVec<ContractId, OnceLock<ContractArtifact>>,
-    remaining_dependencies: &'scope IndexVec<ContractId, AtomicUsize>,
-    ready: &'scope ContractQueue,
-) where
-    'gcx: 'scope,
-{
-    scope.spawn(move |scope| {
-        let contract_id = ready.pop();
-        let Ok(artifact) = generate_contract_bytecode(gcx, contract_id, captures, graph, artifacts)
-        else {
-            return;
+    fn push(&self, job: ContractJob) {
+        // Completion is short and unblocks the contracts that embed its bytecode.
+        let priority = match job {
+            ContractJob::Schedule(id) => self.priorities[id],
+            ContractJob::Finish(_) => u64::MAX,
         };
-        artifacts[contract_id]
-            .set(artifact)
-            .expect("contract artifact should only be generated once");
+        self.jobs.lock().push((priority, Reverse(job)));
+    }
 
-        for &dependent in &graph.dependents[contract_id] {
-            let previous = remaining_dependencies[dependent].fetch_sub(1, Ordering::AcqRel);
-            assert!(previous > 0, "contract dependency count underflow");
-            if previous == 1 {
-                ready.push(dependent);
-                spawn_contract_codegen(
-                    &scope,
-                    gcx,
-                    captures,
-                    graph,
-                    artifacts,
-                    remaining_dependencies,
-                    ready,
-                );
-            }
-        }
-    });
+    fn pop(&self) -> ContractJob {
+        let (_, Reverse(job)) = self.jobs.lock().pop().expect("each worker has a ready job");
+        job
+    }
 }
 
-fn generate_contract_bytecode(
+/// A contract that is optimized and scheduled, waiting for the bytecode it embeds.
+struct ScheduledContract<'gcx> {
+    module: Module,
+    backend: ContractBackend<'gcx>,
+    /// MIR captured before the optimization pipeline.
+    built_mir: Option<Module>,
+}
+
+enum ContractBackend<'gcx> {
+    /// Runtime code waiting for its EVM IR pipeline and assembly.
+    Scheduled(Box<EvmCodegen<'gcx>>),
+    /// The backend already finished or is not needed.
+    Done(Box<EvmArtifact>),
+}
+
+/// Shared state of the contract code generation jobs.
+struct ContractJobs<'a, 'gcx> {
+    gcx: Gcx<'gcx>,
+    captures: ContractCaptures<'a>,
+    graph: &'a ContractGraph,
+    artifacts: IndexVec<ContractId, OnceLock<ContractArtifact>>,
+    scheduled: IndexVec<ContractId, Mutex<Option<ScheduledContract<'gcx>>>>,
+    /// Unfinished inputs of each contract: its own scheduling and each dependency.
+    remaining_inputs: IndexVec<ContractId, AtomicUsize>,
+    queue: ContractQueue,
+}
+
+impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
+    fn enqueue<'scope>(&'scope self, scope: &Scope<'_, 'scope>, job: ContractJob) {
+        self.queue.push(job);
+        self.spawn_worker(scope);
+    }
+
+    fn spawn_worker<'scope>(&'scope self, scope: &Scope<'_, 'scope>) {
+        scope.spawn(move |scope| match self.queue.pop() {
+            ContractJob::Schedule(contract_id) => {
+                let Ok(scheduled) =
+                    schedule_contract(self.gcx, contract_id, self.captures, self.graph)
+                else {
+                    return;
+                };
+                *self.scheduled[contract_id].lock() = Some(scheduled);
+                self.release(&scope, contract_id);
+            }
+            ContractJob::Finish(contract_id) => {
+                let scheduled = self.scheduled[contract_id]
+                    .lock()
+                    .take()
+                    .expect("contract should be scheduled before it finishes");
+                let Ok(artifact) = finish_contract(
+                    self.gcx,
+                    contract_id,
+                    self.captures,
+                    self.graph,
+                    &self.artifacts,
+                    scheduled,
+                ) else {
+                    return;
+                };
+                self.artifacts[contract_id]
+                    .set(artifact)
+                    .expect("contract artifact should only be generated once");
+                for &dependent in &self.graph.dependents[contract_id] {
+                    self.release(&scope, dependent);
+                }
+            }
+        });
+    }
+
+    /// Records one finished input of `contract_id` and completes it after the last one.
+    fn release<'scope>(&'scope self, scope: &Scope<'_, 'scope>, contract_id: ContractId) {
+        let previous = self.remaining_inputs[contract_id].fetch_sub(1, Ordering::AcqRel);
+        assert!(previous > 0, "contract input count underflow");
+        if previous == 1 {
+            self.enqueue(scope, ContractJob::Finish(contract_id));
+        }
+    }
+}
+
+/// Lowers, optimizes, and schedules a contract whose embedded bytecode stays deferred.
+fn schedule_contract<'gcx>(
+    gcx: Gcx<'gcx>,
+    contract_id: ContractId,
+    captures: ContractCaptures<'_>,
+    graph: &ContractGraph,
+) -> Result<ScheduledContract<'gcx>> {
+    let mut module = lower::lower_contract(gcx, contract_id, captures.sema_errored);
+    gcx.dcx().has_errors()?;
+    let capture_mir = captures.mir.contains(contract_id);
+    let needs_backend = captures.bytecode.contains(contract_id)
+        || captures.evm_ir.contains(contract_id)
+        || captures.debug_info.contains(contract_id)
+        || !graph.dependents[contract_id].is_empty();
+    let runtime_data =
+        captures.runtime_data.filter(|_| needs_backend).map(|data| data(contract_id));
+    append_runtime_data(&mut module, runtime_data.as_ref());
+    let capture_built = capture_mir
+        && matches!(gcx.sess.opts.optimization, OptimizationMode::None)
+        && gcx.sess.opts.unstable.mir_pipeline.is_none();
+    let built_mir = (capture_built && needs_backend).then(|| module.clone());
+    let backend = if needs_backend {
+        module.set_debug_info_tracked(captures.debug_info.contains(contract_id));
+        let mut codegen = Box::new(EvmCodegen::new(gcx));
+        codegen.set_capture_mir(capture_mir && !capture_built);
+        codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
+        codegen.set_capture_debug_info(captures.debug_info.contains(contract_id));
+        match codegen.schedule_module(&mut module) {
+            Some(artifact) => {
+                gcx.dcx().has_errors()?;
+                ContractBackend::Done(Box::new(artifact))
+            }
+            None => ContractBackend::Scheduled(codegen),
+        }
+    } else {
+        if capture_mir && !capture_built {
+            let _changed = run_pipeline(gcx, &mut module, None);
+            gcx.dcx().has_errors()?;
+        }
+        ContractBackend::Done(Box::default())
+    };
+    Ok(ScheduledContract { module, backend, built_mir })
+}
+
+/// Supplies the embedded bytecode of a scheduled contract and completes its artifact.
+fn finish_contract(
     gcx: Gcx<'_>,
     contract_id: ContractId,
     captures: ContractCaptures<'_>,
     graph: &ContractGraph,
     artifacts: &IndexVec<ContractId, OnceLock<ContractArtifact>>,
+    scheduled: ScheduledContract<'_>,
 ) -> Result<ContractArtifact> {
+    let ScheduledContract { mut module, backend, mut built_mir } = scheduled;
     let child_bytecodes = graph.dependencies[contract_id]
         .iter()
         .map(|dependency| {
@@ -447,38 +540,21 @@ fn generate_contract_bytecode(
                 ),
             )
         })
-        .collect();
-    let mut module =
-        lower::lower_contract(gcx, contract_id, &child_bytecodes, captures.sema_errored);
-    gcx.dcx().has_errors()?;
-    let capture_mir = captures.mir.contains(contract_id);
-    let needs_backend = captures.bytecode.contains(contract_id)
-        || captures.evm_ir.contains(contract_id)
-        || captures.debug_info.contains(contract_id)
-        || !graph.dependents[contract_id].is_empty();
-    let runtime_data =
-        captures.runtime_data.filter(|_| needs_backend).map(|data| data(contract_id));
-    append_runtime_data(&mut module, runtime_data.as_ref());
-    let capture_built = capture_mir
-        && matches!(gcx.sess.opts.optimization, OptimizationMode::None)
-        && gcx.sess.opts.unstable.mir_pipeline.is_none();
-    let built_mir = (capture_built && needs_backend).then(|| module.clone());
-    let artifact = if needs_backend {
-        module.set_debug_info_tracked(captures.debug_info.contains(contract_id));
-        let mut codegen = EvmCodegen::new(gcx);
-        codegen.set_capture_mir(capture_mir && !capture_built);
-        codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
-        codegen.set_capture_debug_info(captures.debug_info.contains(contract_id));
-        let artifact = codegen.lower_module(&mut module);
-        gcx.dcx().has_errors()?;
-        artifact
-    } else {
-        if capture_mir && !capture_built {
-            let _changed = run_pipeline(gcx, &mut module, None);
+        .collect::<FxHashMap<_, _>>();
+    let child_bytecode = |dependency| &child_bytecodes[&dependency];
+    lower::resolve_contract_code(&mut module, child_bytecode);
+    if let Some(built_mir) = &mut built_mir {
+        lower::resolve_contract_code(built_mir, child_bytecode);
+    }
+    let artifact = match backend {
+        ContractBackend::Scheduled(mut codegen) => {
+            let artifact = codegen.finish_module(&mut module);
             gcx.dcx().has_errors()?;
+            artifact
         }
-        Default::default()
+        ContractBackend::Done(artifact) => *artifact,
     };
+    let capture_mir = captures.mir.contains(contract_id);
     if let Some(limit) = gcx.sess.opts.evm_version.runtime_code_size_limit()
         && artifact.runtime.len() > limit
     {

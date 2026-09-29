@@ -1,7 +1,7 @@
 //! Function-level HIR to MIR lowering.
 
 use super::{
-    ContractBytecodes, contract,
+    contract,
     storage::{StorageEncoding, StorageLayout, StorageLocation},
     types,
 };
@@ -49,7 +49,6 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) contract_id: hir::ContractId,
     pub(super) function_ids: &'ctx FxHashMap<hir::FunctionId, FunctionId>,
     pub(super) immutable_ids: &'ctx FxHashMap<VariableId, ImmutableId>,
-    pub(super) child_bytecodes: &'ctx FxHashMap<hir::ContractId, ContractBytecodes>,
     pub(super) state: &'ctx mut LoweringState,
     pub(super) shared_literals: &'ctx FxIndexSet<ByteSymbol>,
     pub(super) shared_word_literals: &'ctx FxHashSet<ByteSymbol>,
@@ -68,7 +67,6 @@ impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
             contract_id: self.contract_id,
             function_ids: self.function_ids,
             immutable_ids: self.immutable_ids,
-            child_bytecodes: self.child_bytecodes,
             state: &mut *self.state,
             shared_literals: self.shared_literals,
             shared_word_literals: self.shared_word_literals,
