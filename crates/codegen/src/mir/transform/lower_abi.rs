@@ -545,8 +545,9 @@ impl LowerAbiCx {
                         if let AbiParamType::DynamicArray(element) = &ty {
                             // The encoder copies a word array's elements as one block, so
                             // one the entry decode did not validate, such as a call's
-                            // result, has its words checked here.
-                            if Self::is_scalar_or_enum(element)
+                            // result, has its words checked here, external function
+                            // pointers included.
+                            if element.is_scalar_word()
                                 && !is_canonical_return_value(
                                     builder.func(),
                                     &ty,
