@@ -610,6 +610,33 @@ fn completes_members_and_filters_prefixes() {
             uint256 public balance;
         }
 
+        library Math {
+            function twice(uint256 value) internal pure returns (uint256) { return value * 2; }
+            function wrong(address value) internal pure returns (address) { return value; }
+            function hidden(uint256 value) private pure returns (uint256) { return value; }
+        }
+        function triple(uint256 value) pure returns (uint256) { return value * 3; }
+        contract Library {
+            using Ma$16th for uint256;
+            using {triple} for uint256;
+            function f(uint256 value) public pure {
+                Math.$17;
+                Math.tw$18;
+                value.$19;
+                value.tw$20;
+                (value + 1).$21;
+            }
+        }
+        contract NoUsing {
+            function f(uint256 value) public pure {
+                value.$22;
+                (value + 1).$23;
+                missing.$24;
+                unknown().$25;
+                value . $26;
+            }
+        }
+
         contract C {
             struct Data {
                 uint256 field;
@@ -656,7 +683,8 @@ fn completes_members_and_filters_prefixes() {
     fixture.check_completions(
         &[
             "$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8", "$9", "$10", "$11", "$12", "$13",
-            "$14", "$15",
+            "$14", "$15", "$16", "$17", "$18", "$19", "$20", "$21", "$22", "$23", "$24", "$25",
+            "$26",
         ],
         str![[r#"
 $1 $2 $3 $4 $5:
@@ -700,7 +728,17 @@ $13:
 field Property detail="Data"
 $14:
 needleValue Variable detail="f"
-$15:
+$15 $22 $23 $24 $25 $26:
+$16:
+Math Module
+$17:
+twice Method detail="Math"
+wrong Method detail="Math"
+$18 $20:
+twice Method detail="Math"
+$19 $21:
+triple Function
+twice Method detail="Math"
 
 "#]],
     );
@@ -747,60 +785,6 @@ first Method detail="First"
 $2 $3:
 second Method detail="Second"
 $4 $5:
-
-"#]],
-    );
-}
-
-#[test]
-fn completes_library_and_using_for_members() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /Completion.sol open
-        library Math {
-            function twice(uint256 value) internal pure returns (uint256) { return value * 2; }
-            function wrong(address value) internal pure returns (address) { return value; }
-            function hidden(uint256 value) private pure returns (uint256) { return value; }
-        }
-        function triple(uint256 value) pure returns (uint256) { return value * 3; }
-        contract C {
-            using Ma$1th for uint256;
-            using {triple} for uint256;
-            function f(uint256 value) public pure {
-                Math.$2;
-                Math.tw$3;
-                value.$4;
-                value.tw$5;
-                (value + 1).$6;
-            }
-        }
-        contract D {
-            function f(uint256 value) public pure {
-                value.$7;
-                (value + 1).$8;
-                missing.$9;
-                unknown().$10;
-                value . $11;
-            }
-        }
-        "#,
-        "/Completion.sol",
-    );
-
-    fixture.check_completions(
-        &["$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8", "$9", "$10", "$11"],
-        str![[r#"
-$1:
-Math Module
-$2:
-twice Method detail="Math"
-wrong Method detail="Math"
-$3 $5:
-twice Method detail="Math"
-$4 $6:
-triple Function
-twice Method detail="Math"
-$7 $8 $9 $10 $11:
 
 "#]],
     );
