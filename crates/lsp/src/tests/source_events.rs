@@ -1,5 +1,5 @@
 use super::{
-    indexing::{analyze_project, symbol_names},
+    indexing::{GENERATED_DEPENDENCY, analyze_project, host_config, symbol_names, workspace_bases},
     *,
 };
 use lsp_types::{CreateFilesParams, DeleteFilesParams, FileCreate, FileDelete};
@@ -49,67 +49,53 @@ async fn watched_unrelated_excluded_sources_and_manifests_do_not_schedule_analys
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn watched_nested_manifest_create_discovers_the_project() {
-    let project = TestProject::from_fixture(
-        r#"
+async fn watched_nested_manifest_creates_discover_projects() {
+    // Below an excluded directory, and below the external source and test roots of a project.
+    let excluded = r#"
         //- /foundry.toml
 
         //- /packages/app/foundry.toml
 
         //- /packages/app/generated/.keep
-        "#,
-    );
-    let mut state =
-        state_with(config_with_indexing_excludes(&project, &["packages/app/generated/**"]));
-    project
-        .write_file("/packages/app/generated/foundry.toml", "[profile.default]\nsrc = \"src\"\n");
-    project.write_file("/packages/app/generated/src/Nested.sol", "contract Nested {}");
-
-    watch_files(
-        &mut state,
-        [(&project.path("/packages/app/generated/foundry.toml"), FileChangeType::CREATED)],
-    );
-
-    assert_eq!(symbol_names(&settle(&state).await, "Nested"), ["Nested"]);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn watched_nested_manifest_create_under_external_foundry_roots_discovers_projects() {
-    let project = TestProject::from_fixture(
-        r#"
+        "#;
+    let external = r#"
         //- /workspace/foundry.toml
         [profile.default]
         src = "../shared/contracts"
         test = "../shared/checks"
 
         //- /shared/.keep
-        "#,
-    );
-    let roots =
-        ["/shared/contracts/deep/app", "/shared/checks/deep/app"].map(|root| project.path(root));
-    let has_workspace = |config: &Config, root: &Path| {
-        config
-            .workspaces()
-            .iter()
-            .any(|workspace| workspace.compile_opts().base_path.as_deref() == Some(root))
-    };
-    let mut state = state_with(project.config());
-    assert!(roots.iter().all(|root| !has_workspace(&state.config, root)));
-    for (root, source) in
-        [("/shared/contracts/deep/app", "Source"), ("/shared/checks/deep/app", "Check")]
-    {
-        project.write_file(&format!("{root}/foundry.toml"), "[profile.default]\nsrc = \"src\"\n");
-        project.write_file(&format!("{root}/src/{source}.sol"), &format!("contract {source} {{}}"));
+        "#;
+    let external_projects =
+        [("/shared/contracts/deep/app", "Source"), ("/shared/checks/deep/app", "Check")];
+    for (fixture, excludes, projects) in [
+        (
+            excluded,
+            &["packages/app/generated/**"][..],
+            &[("/packages/app/generated", "Nested")][..],
+        ),
+        (external, &[], &external_projects),
+    ] {
+        let project = TestProject::from_fixture(fixture);
+        let mut state = state_with(config_with_indexing_excludes(&project, excludes));
+        let roots = projects.iter().map(|(root, _)| project.path(root)).collect::<Vec<_>>();
+        assert!(roots.iter().all(|root| !workspace_bases(&state.config).contains(root)));
+        for (root, name) in projects {
+            project
+                .write_file(&format!("{root}/foundry.toml"), "[profile.default]\nsrc = \"src\"\n");
+            project.write_file(&format!("{root}/src/{name}.sol"), &format!("contract {name} {{}}"));
+        }
+
+        let manifests =
+            roots.iter().map(|root| (root.join("foundry.toml"), FileChangeType::CREATED));
+        watch_files(&mut state, manifests);
+        let tables = settle(&state).await;
+
+        assert!(roots.iter().all(|root| workspace_bases(&state.config).contains(root)));
+        for (_, name) in projects {
+            assert_eq!(symbol_names(&tables, name), [*name]);
+        }
     }
-
-    let manifests = roots.clone().map(|root| root.join("foundry.toml"));
-    watch_files(
-        &mut state,
-        [(&manifests[0], FileChangeType::CREATED), (&manifests[1], FileChangeType::CREATED)],
-    );
-    settle(&state).await;
-
-    assert!(roots.iter().all(|root| has_workspace(&state.config, root)));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -121,10 +107,7 @@ async fn watched_nested_repository_markers_prune_and_restore_nested_projects() {
         src = "src"
 
         //- /src/Main.sol
-        contract Main {}
-
         //- /src/nested/Nested.sol
-        contract Nested {}
         "#,
     );
     let nested_root = project.path("/src/nested");
@@ -175,12 +158,9 @@ async fn watched_created_directories_under_shallow_roots_discover_projects_and_s
         test = "test"
 
         //- /contracts/Main.sol
-        contract Main {}
-
         //- /node_modules/dependency/foundry.toml
 
         //- /test/node_modules/dependency/Skipped.t.sol
-        contract Skipped {}
         "#,
     );
     let mut state = state_with(project.config());
@@ -255,10 +235,7 @@ async fn watched_directory_topology_under_partitioned_root_is_rediscovered() {
         src = "."
 
         //- /lib/Dependency.sol
-        contract Dependency {}
-
         //- /old/Old.sol
-        contract Old {}
         "#,
     );
     let mut state = state_with(project.config());
@@ -285,14 +262,6 @@ async fn watched_directory_topology_under_partitioned_root_is_rediscovered() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn watched_dependency_and_unresolved_candidate_changes_schedule_analysis() {
-    let excluded_dependency = r#"
-        //- /Main.sol
-        import "./generated/Dependency.sol";
-        contract Main is Dependency {}
-
-        //- /generated/Dependency.sol
-        contract Dependency {}
-        "#;
     let unresolved_candidate = r#"
         //- /foundry.toml
         [profile.default]
@@ -311,7 +280,7 @@ async fn watched_dependency_and_unresolved_candidate_changes_schedule_analysis()
         "#;
     for typ in [FileChangeType::CHANGED, FileChangeType::DELETED] {
         for (fixture, excludes, path) in [
-            (excluded_dependency, &["generated/**"][..], "/generated/Dependency.sol"),
+            (GENERATED_DEPENDENCY, &["generated/**"][..], "/generated/Dependency.sol"),
             (unresolved_candidate, &[], "/lib-one/Dependency.sol"),
         ] {
             let project = TestProject::from_fixture(fixture);
@@ -378,23 +347,16 @@ async fn watched_flycheck_only_source_change_schedules_analysis() {
         test = "test"
 
         //- /src/Main.sol
-        contract Main {}
-
         //- /test/Main.t.sol
-        contract MainTest {}
         "#,
     );
     let path = project.path("/test/Main.t.sol");
-    let (_, mut config) = crate::config::negotiate_capabilities_with_pull_diagnostic_data(
-        project.initialize_params(),
-        false,
-        &crate::LaunchConfig::default().with_foundry_workspace_configs([
-            crate::FoundryWorkspaceConfig::new(project.root())
-                .with_source_roots(["src"])
-                .with_flycheck_source_roots(["src", "test"]),
-        ]),
-    );
-    config.rediscover_workspaces();
+    let launch_config = crate::LaunchConfig::default().with_foundry_workspace_configs([
+        crate::FoundryWorkspaceConfig::new(project.root())
+            .with_source_roots(["src"])
+            .with_flycheck_source_roots(["src", "test"]),
+    ]);
+    let config = host_config(project.initialize_params(), &launch_config);
     assert!(!config.tracks_source_file(&path));
     assert!(config.tracks_flycheck_file(&path));
     let mut state = state_with(config);
@@ -415,8 +377,6 @@ async fn watched_source_respects_the_most_specific_flycheck_owner() {
         test = "."
 
         //- /src/Main.sol
-        contract Main {}
-
         //- /packages/app/foundry.toml
         [profile.default]
         src = "src"
@@ -443,39 +403,10 @@ async fn watched_source_respects_the_most_specific_flycheck_owner() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn unknown_dependency_event_is_deferred_while_analysis_is_pending() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Main.sol
-        contract Main {}
-
-        //- /generated/Dependency.sol
-        contract Dependency {}
-        "#,
-    );
-    let mut state = state_with(config_with_indexing_excludes(&project, &["generated/**"]));
-    state.mark_analysis_pending_for_test();
-    let path = project.path("/generated/Dependency.sol");
-
-    watch_files(&mut state, [(&path, FileChangeType::CHANGED)]);
-
-    assert_eq!(analysis_version(&state), 1);
-    assert_eq!(deferred_event(&state, &path), Some(FileChangeType::CHANGED));
-}
-
-#[test]
-fn did_create_and_delete_defer_a_path_first_learned_by_pending_analysis() {
-    for typ in [FileChangeType::CREATED, FileChangeType::DELETED] {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /Main.sol
-            import "./generated/Dependency.sol";
-            contract Main is Dependency {}
-
-            //- /generated/Dependency.sol
-            contract Dependency {}
-            "#,
-        );
+async fn source_events_defer_a_path_first_learned_by_pending_analysis() {
+    // Changes arrive as watched-file events, creations and deletions as file operations.
+    for typ in [FileChangeType::CREATED, FileChangeType::CHANGED, FileChangeType::DELETED] {
+        let project = TestProject::from_fixture(GENERATED_DEPENDENCY);
         let path = project.path("/generated/Dependency.sol");
         if typ == FileChangeType::CREATED {
             project.remove_file("/generated/Dependency.sol");
@@ -489,6 +420,9 @@ fn did_create_and_delete_defer_a_path_first_learned_by_pending_analysis() {
         if typ == FileChangeType::CREATED {
             project.write_file("/generated/Dependency.sol", "contract Dependency {}");
             create_files(&mut state, &path);
+        } else if typ == FileChangeType::CHANGED {
+            project.write_file("/generated/Dependency.sol", "contract Dependency { uint x; }");
+            watch_files(&mut state, [(&path, typ)]);
         } else {
             std::fs::remove_file(&path).unwrap();
             let files = vec![FileDelete { uri: Url::from_file_path(&path).unwrap().to_string() }];

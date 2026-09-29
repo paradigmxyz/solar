@@ -1,4 +1,7 @@
-use super::{indexing::path_output, *};
+use super::{
+    indexing::{change_workspace_folders, path_output, resolved_paths},
+    *,
+};
 use lsp_types::{RegistrationParams, UnregistrationParams};
 
 #[derive(Debug)]
@@ -37,16 +40,10 @@ impl RegistrationHarness {
                 move |(events, script, attempts, _), params| {
                     events.send(WatchedFileClientEvent::Register(params)).unwrap();
                     let fail = script.fail_register == Some(*attempts);
-                    let delay = match script.delay_register.take() {
-                        Some((attempt, ack)) if attempt == *attempts => Some(ack),
-                        delay => {
-                            script.delay_register = delay;
-                            None
-                        }
-                    };
+                    let delay = script.delay_register.take_if(|(attempt, _)| attempt == attempts);
                     *attempts += 1;
                     async move {
-                        if let Some(ack) = delay {
+                        if let Some((_, ack)) = delay {
                             ack.await.map_err(|_| failed())?;
                         }
                         if fail { Err(failed()) } else { Ok(()) }
@@ -176,21 +173,23 @@ fn workspace_project() -> TestProject {
     project
 }
 
+/// A `/workspace` project and its undiscovered config with relative watchers.
+fn workspace_watch_config() -> (TestProject, Config) {
+    let project = workspace_project();
+    let config = relative_watch_config(&project, &["/workspace"], &[]);
+    (project, config)
+}
+
 const CREATE_DELETE: u64 = 5;
 
 #[tokio::test(flavor = "current_thread")]
 async fn watched_file_specs_are_prepared_after_the_analysis_commit_unlocks() {
-    let project = workspace_project();
-    let state = state_with(relative_watch_config(&project, &["/workspace"], &[]));
+    let (project, config) = workspace_watch_config();
+    let state = state_with(config);
     state.mark_analysis_pending_for_test();
     let version = analysis_version(&state);
     let mut snapshot = state.snapshot();
-    let output = path_output(AnalysisPathIndex {
-        resolved_dependencies: FxHashSet::from_iter([
-            project.path("/workspace/deps/Dependency.sol")
-        ]),
-        ..Default::default()
-    });
+    let output = path_output(resolved_paths([project.path("/workspace/deps/Dependency.sol")]));
     let desired_specs = state.watched_file_registration.desired_specs.lock();
     let runtime = tokio::runtime::Handle::current();
 
@@ -237,25 +236,11 @@ async fn workspace_folder_changes_normalize_equivalent_uris() {
     );
     let mut state =
         state_with(negotiate_capabilities(project.initialize_params_with_roots(&["/old"])).1);
-    let equivalent = |name: &str| WorkspaceFolder {
-        uri: Url::parse(&format!(
-            "{}/missing%2F..%2F{name}",
-            Url::from_file_path(project.root()).unwrap()
-        ))
-        .unwrap(),
-        name: name.into(),
-    };
-    let event = WorkspaceFoldersChangeEvent {
-        added: vec![equivalent("new")],
-        removed: vec![equivalent("old")],
-    };
+    let root = Url::from_file_path(project.root()).unwrap();
+    let equivalent = |name| Url::parse(&format!("{root}/missing%2F..%2F{name}")).unwrap();
 
-    let result = crate::handlers::did_change_workspace_folders(
-        &mut state,
-        DidChangeWorkspaceFoldersParams { event },
-    );
+    change_workspace_folders(&mut state, &[equivalent("new")], &[equivalent("old")]);
 
-    assert!(result.is_continue());
     assert_eq!(state.config.workspace_roots(), [project.path("/new")]);
     let tables = settle(&state).await;
     let tables = tables.load();
@@ -267,19 +252,13 @@ async fn workspace_folder_changes_normalize_equivalent_uris() {
 #[tokio::test(flavor = "current_thread")]
 async fn workspace_folder_change_advances_epoch_before_watcher_reregistration() {
     let project = TestProject::new();
-    let old_root = project.path("/old");
-    let new_root = project.path("/new");
-    std::fs::create_dir(&old_root).unwrap();
-    std::fs::create_dir(&new_root).unwrap();
+    let [old_root, new_root] = ["/old", "/new"].map(|root| project.uri(root));
+    for root in ["/old", "/new"] {
+        std::fs::create_dir(project.path(root)).unwrap();
+    }
     let state = state_with(relative_watch_config(&project, &["/old"], &[]));
     assert_epoch_advances_before_reregistration(state, move |state| {
-        let folder = |uri, name: &str| WorkspaceFolder { uri, name: name.into() };
-        let event = WorkspaceFoldersChangeEvent {
-            added: vec![folder(Url::from_file_path(new_root).unwrap(), "new")],
-            removed: vec![folder(Url::from_file_path(old_root).unwrap(), "old")],
-        };
-        let params = DidChangeWorkspaceFoldersParams { event };
-        assert!(crate::handlers::did_change_workspace_folders(state, params).is_continue());
+        change_workspace_folders(state, &[new_root], &[old_root]);
     });
 }
 
@@ -305,39 +284,18 @@ fn watched_file_registration_has_global_fallback_patterns() {
 
 #[test]
 fn relative_watched_file_registration_tracks_nested_repository_markers() {
-    let clean = TestProject::from_fixture(
-        r#"
-        //- /workspace/foundry.toml
-        [profile.default]
-        src = "contracts"
-
-        //- /workspace/contracts/Main.sol
-        contract Main {}
-
-        //- /workspace/.git/HEAD
-        "#,
-    );
+    let workspace = "//- /workspace/foundry.toml\n[profile.default]\nsrc = \"contracts\"\n\
+                     //- /workspace/contracts/Main.sol\n";
+    let clean = TestProject::from_fixture(&format!("{workspace}//- /workspace/.git/HEAD\n"));
     let registration = discovered_registration(&clean, &["/workspace"], &[]);
     let source_root = clean.path("/workspace/contracts");
     assert_eq!(spec_kind(&registration, &source_root, "**/.git"), Some(CREATE_DELETE));
     assert!(!has_spec(&registration, &clean.path("/workspace"), ".git"));
 
-    let pruned = TestProject::from_fixture(
-        r#"
-        //- /workspace/foundry.toml
-        [profile.default]
-        src = "contracts"
-
-        //- /workspace/contracts/Main.sol
-        contract Main {}
-
-        //- /workspace/contracts/nested/.git
-        gitdir: elsewhere
-
-        //- /workspace/contracts/nested/Nested.sol
-        contract Nested {}
-        "#,
-    );
+    let pruned = TestProject::from_fixture(&format!(
+        "{workspace}//- /workspace/contracts/nested/.git\ngitdir: elsewhere\n\
+         //- /workspace/contracts/nested/Nested.sol\n"
+    ));
     let registration = discovered_registration(&pruned, &["/workspace"], &[]);
     let marker_root = pruned.path("/workspace/contracts/nested");
     assert_eq!(spec_kind(&registration, &marker_root, ".git"), Some(CREATE_DELETE));
@@ -350,14 +308,10 @@ fn relative_watched_file_registration_tracks_nested_repository_markers() {
         src = "src"
 
         //- /repo/src/Main.sol
-        contract Main {}
-
         //- /repo/src/vendor/.git
         gitdir: elsewhere
 
         //- /repo/src/vendor/Vendor.sol
-        contract Vendor {}
-
         //- /repo/member/.keep
         "#,
     );
@@ -375,21 +329,11 @@ fn relative_watched_file_registration_uses_bounded_roots() {
         src = "contracts"
 
         //- /workspace/contracts/Main.sol
-        contract Main {}
-
         //- /workspace/node_modules/Dependency.sol
-        contract Dependency {}
-
         //- /workspace/out/Generated.sol
-        contract Generated {}
-
         //- /workspace/.hidden/Hidden.sol
-        contract Hidden {}
-
         //- /workspace/nested/.git/HEAD
-
         //- /workspace/nested/Nested.sol
-        contract Nested {}
         "#,
     );
     let workspace_root = project.path("/workspace");
@@ -421,50 +365,21 @@ fn relative_watched_file_registration_partitions_root_sources() {
         src = "."
 
         //- /foundry/Root.sol
-        contract Root {}
-
         //- /foundry/contracts/Main.sol
-        contract Main {}
-
         //- /foundry/contracts/core/Core.sol
-        contract Core {}
-
         //- /foundry/contracts/node_modules/Dependency.sol
-        contract Dependency {}
-
         //- /foundry/contracts/out/Generated.sol
-        contract Generated {}
-
         //- /foundry/contracts/.hidden/Hidden.sol
-        contract Hidden {}
-
         //- /foundry/contracts/vendor/.git/HEAD
-
         //- /foundry/contracts/vendor/Nested.sol
-        contract Nested {}
-
         //- /foundry/lib/Dependency.sol
-        contract Dependency {}
-
         //- /foundry/out/Generated.sol
-        contract Generated {}
-
         //- /foundry/.hidden/Hidden.sol
-        contract Hidden {}
-
         //- /foundry/nested/.git/HEAD
-
         //- /foundry/nested/Nested.sol
-        contract Nested {}
-
         //- /naked/Root.sol
-        contract Root {}
-
         //- /naked/contracts/Main.sol
-        contract Main {}
-
         //- /naked/node_modules/Dependency.sol
-        contract Dependency {}
         "#,
     );
     let foundry = project.path("/foundry");
@@ -502,7 +417,7 @@ fn relative_watched_file_registration_partitions_root_sources() {
 }
 
 #[test]
-fn relative_watched_file_registration_respects_nested_workspace_ownership() {
+fn nested_workspace_policy_owns_discovered_sources_batches_and_watchers() {
     let project = TestProject::from_fixture(
         r#"
         //- /foundry.toml
@@ -527,16 +442,38 @@ fn relative_watched_file_registration_respects_nested_workspace_ownership() {
         contract Dependency {}
         "#,
     );
-    let nested_source_root = project.path("/nested/src");
-    let registration = discovered_registration(&project, &["/"], &["src/generated/**"]);
+    let mut config = relative_watch_config(&project, &["/"], &["src/generated/**"]);
+    config.rediscover_workspaces();
+    let nested_root = project.path("/nested");
+    assert!(workspace_at(&config, project.root()).source_files().is_empty());
+    assert_eq!(
+        workspace_at(&config, &nested_root).source_files(),
+        [project.path("/nested/Outside.sol"), project.path("/nested/src/Included.sol")]
+    );
+    assert_eq!(config.index_metrics().eager, 2);
 
+    let registration = watched_file_registration_params(&config);
+    let nested_source_root = project.path("/nested/src");
     for pattern in ["*", "*.sol", "foundry.toml"] {
         assert!(has_spec(&registration, &nested_source_root, pattern));
     }
-    assert!(has_spec(&registration, &project.path("/nested"), "*.sol"));
+    assert!(has_spec(&registration, &nested_root, "*.sol"));
     for excluded in ["/nested/Outside.sol", "/nested/src/generated", "/nested/src/vendor"] {
         assert!(!has_recursive_spec_covering(&registration, &project.path(excluded)));
     }
+
+    let batches = snapshot_with_config(config, Vfs::default()).analysis_batches(Vec::new());
+    let batch_at = |root: &Path| {
+        batches.iter().find(|batch| batch.opts.base_path.as_deref() == Some(root)).unwrap()
+    };
+    assert!(batch_at(project.root()).files.iter().all(|(path, _)| !path.starts_with(&nested_root)));
+    assert_eq!(
+        batch_at(&nested_root).files,
+        vec![
+            (project.path("/nested/Outside.sol"), Arc::new("contract Outside {}".into())),
+            (project.path("/nested/src/Included.sol"), Arc::new("contract Included {}".into()))
+        ]
+    );
 }
 
 #[test]
@@ -548,7 +485,6 @@ fn relative_watched_file_registration_omits_excluded_source_root() {
         src = "contracts"
 
         //- /contracts/Main.sol
-        contract Main {}
         "#,
     );
     let source_root = project.path("/contracts");
@@ -571,30 +507,11 @@ fn watched_file_specs_add_only_approved_dependency_parents() {
         remappings = ["@mapped/=../mapped/"]
 
         //- /workspace/src/Main.sol
-        contract Main {}
-
         //- /include/pkg/Include.sol
-        contract Include {}
-
         //- /mapped/pkg/Mapped.sol
-        contract Mapped {}
         "#,
     );
-    let (_, mut config) =
-        negotiate_capabilities(project.initialize_params_with_roots(&["/workspace"]));
-    config.apply_workspace_discovery(WorkspaceDiscoveryResult {
-        workspaces: vec![
-            crate::workspace::Workspace::load_foundry_bounded(
-                project.path("/workspace/foundry.toml"),
-                &[project.path("/workspace")],
-                &mut crate::workspace::FoundryConfigContext::default(),
-            )
-            .unwrap(),
-        ],
-        manifest_watch_roots: Vec::new(),
-        git_marker_watch_roots: Vec::new(),
-        metrics: Default::default(),
-    });
+    let config = project.config_with_roots(&["/workspace"]);
     let workspace_parent = project.path("/workspace/deps");
     let include_root = project.path("/include");
     let include_parent = project.path("/include/pkg");
@@ -642,15 +559,11 @@ fn watched_file_specs_use_indexed_recursive_coverage() {
         src = "src"
 
         //- /workspace/src/Main.sol
-        contract Main {}
         "#,
     );
     let config = project.config_with_roots(&["/workspace"]);
     let dependency_parent = project.path("/workspace/src/nested");
-    let analysis_paths = AnalysisPathIndex {
-        resolved_dependencies: FxHashSet::from_iter([dependency_parent.join("Dependency.sol")]),
-        ..Default::default()
-    };
+    let analysis_paths = resolved_paths([dependency_parent.join("Dependency.sol")]);
 
     let specs = watched_file_specs(&config, &analysis_paths);
 
@@ -663,12 +576,10 @@ fn watched_file_specs_cap_dynamic_dependency_parents() {
     let project = workspace_project();
     let (_, config) = negotiate_capabilities(project.initialize_params_with_roots(&["/workspace"]));
     let dependency_root = project.path("/workspace/deps");
-    let analysis_paths = AnalysisPathIndex {
-        resolved_dependencies: (0..MAX_DYNAMIC_WATCHED_FILE_SPECS + 32)
-            .map(|index| dependency_root.join(index.to_string()).join("Dependency.sol"))
-            .collect(),
-        ..Default::default()
-    };
+    let analysis_paths = resolved_paths(
+        (0..MAX_DYNAMIC_WATCHED_FILE_SPECS + 32)
+            .map(|index| dependency_root.join(index.to_string()).join("Dependency.sol")),
+    );
 
     let specs = watched_file_specs(&config, &analysis_paths);
 
@@ -695,9 +606,8 @@ fn watched_file_specs_prioritize_specific_dependency_parents() {
     }
     let resolved_parent = project.path("/workspace/resolved");
     let analysis_paths = AnalysisPathIndex {
-        resolved_dependencies: FxHashSet::from_iter([resolved_parent.join("Dependency.sol")]),
         missing_candidates,
-        ..Default::default()
+        ..resolved_paths([resolved_parent.join("Dependency.sol")])
     };
 
     let specs = watched_file_specs(&config, &analysis_paths);
@@ -719,8 +629,8 @@ fn watched_file_specs_prioritize_specific_dependency_parents() {
 
 #[test]
 fn concurrent_watched_file_updates_keep_desired_specs_and_generation_in_sync() {
-    let project = workspace_project();
-    let config = Arc::new(relative_watch_config(&project, &["/workspace"], &[]));
+    let (project, config) = workspace_watch_config();
+    let config = Arc::new(config);
     let coordinator = Arc::new(WatchedFileRegistrationCoordinator::default());
     let barrier = Arc::new(Barrier::new(3));
     let specs = [sol_spec(&project, "/first"), sol_spec(&project, "/second")];
@@ -753,27 +663,19 @@ fn global_fallback_watched_file_update_ignores_spec_changes() {
     let (_, config) =
         negotiate_capabilities(with_capabilities(project.initialize_params(), capabilities));
     let coordinator = WatchedFileRegistrationCoordinator::default();
-    let first = prepare_watched_file_registration_update(
-        &config,
-        &coordinator,
-        sol_spec(&project, "/first"),
-    );
-    let first = first.unwrap();
+    let prepare = |root| {
+        prepare_watched_file_registration_update(&config, &coordinator, sol_spec(&project, root))
+    };
+    let first = prepare("/first").unwrap();
 
     assert!(first.desired_specs.is_empty());
-    let second = prepare_watched_file_registration_update(
-        &config,
-        &coordinator,
-        sol_spec(&project, "/second"),
-    );
-    assert!(second.is_none());
+    assert!(prepare("/second").is_none());
     assert_eq!(coordinator.generation.load(Ordering::Acquire), first.generation);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn failed_watched_file_registration_allows_the_same_specs_to_retry() {
-    let project = workspace_project();
-    let config = relative_watch_config(&project, &["/workspace"], &[]);
+    let (project, config) = workspace_watch_config();
     let coordinator = Arc::new(WatchedFileRegistrationCoordinator::default());
     let client = ClientSocket::new_closed();
     let specs = config.watched_file_specs();
@@ -797,8 +699,7 @@ async fn failed_watched_file_registration_allows_the_same_specs_to_retry() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn failed_watched_file_replacement_keeps_the_previous_registration() {
-    let project = workspace_project();
-    let config = relative_watch_config(&project, &["/workspace"], &[]);
+    let (project, config) = workspace_watch_config();
     let script = ClientScript { fail_register: Some(1), ..Default::default() };
     let mut harness = RegistrationHarness::new(config, script);
 
@@ -818,8 +719,7 @@ async fn failed_watched_file_replacement_keeps_the_previous_registration() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn superseded_replacement_preserves_previous_registration_until_latest_is_active() {
-    let project = workspace_project();
-    let config = relative_watch_config(&project, &["/workspace"], &[]);
+    let (project, config) = workspace_watch_config();
     let (replacement_ack_tx, replacement_ack_rx) = oneshot::channel();
     let script =
         ClientScript { delay_register: Some((1, replacement_ack_rx)), ..Default::default() };
@@ -852,8 +752,7 @@ async fn superseded_replacement_preserves_previous_registration_until_latest_is_
 
 #[tokio::test(flavor = "current_thread")]
 async fn failed_unregistration_is_retried_after_the_next_replacement() {
-    let project = workspace_project();
-    let config = relative_watch_config(&project, &["/workspace"], &[]);
+    let (project, config) = workspace_watch_config();
     let script = ClientScript { fail_unregister: Some(0), ..Default::default() };
     let mut harness = RegistrationHarness::new(config, script);
 
@@ -876,8 +775,6 @@ async fn discovery_refreshes_watched_file_specs_before_analysis() {
         src = "contracts"
 
         //- /contracts/Main.sol
-        contract Main {}
-
         //- /out/generated/.keep
         "#,
     );
@@ -972,12 +869,11 @@ async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
     let outside_parent = project.path("/outside");
     let missing_parent = project.path("/repo/missing");
     let output = path_output(AnalysisPathIndex {
-        resolved_dependencies: FxHashSet::from_iter([
+        missing_candidates: FxHashSet::from_iter([missing_parent.join("Missing.sol")]),
+        ..resolved_paths([
             dependency_parent.join("Dependency.sol"),
             outside_parent.join("Outside.sol"),
-        ]),
-        missing_candidates: FxHashSet::from_iter([missing_parent.join("Missing.sol")]),
-        ..Default::default()
+        ])
     });
     assert!(state.snapshot().publish_analysis_output(version, output.into_shared()));
     let specs = desired_specs(&state);

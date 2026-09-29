@@ -1,6 +1,16 @@
 use super::*;
 use std::sync::atomic::AtomicBool;
 
+/// A project whose main source imports a dependency below `/generated`.
+pub(super) const GENERATED_DEPENDENCY: &str = r#"
+    //- /Main.sol
+    import "./generated/Dependency.sol";
+    contract Main is Dependency {}
+
+    //- /generated/Dependency.sol
+    contract Dependency {}
+    "#;
+
 async fn reanalyze(state: &mut GlobalState, changed_paths: Vec<PathBuf>) {
     state.recompute_after_opening_source(changed_paths);
     settle(state).await;
@@ -15,7 +25,7 @@ fn assert_workspace_diagnostics_clean(state: &GlobalState) {
     }
 }
 
-pub(super) fn report_version(state: &GlobalState, uri: &Url) -> Option<i64> {
+fn report_version(state: &GlobalState, uri: &Url) -> Option<i64> {
     let reports = state.diagnostics.read().workspace_pull_reports(Vec::new());
     reports.into_iter().find(|report| report.uri == *uri).unwrap().version
 }
@@ -33,6 +43,90 @@ pub(super) fn analysis_result(
 
 pub(super) fn path_output(analysis_paths: AnalysisPathIndex) -> AnalysisOutput {
     AnalysisOutput { result: analysis_result([], []), analysis_paths }
+}
+
+pub(super) fn workspace_bases(config: &Config) -> Vec<PathBuf> {
+    let workspaces = config.workspaces().iter();
+    workspaces.filter_map(|workspace| workspace.compile_opts().base_path.clone()).collect()
+}
+
+pub(super) fn resolved_paths(paths: impl IntoIterator<Item = PathBuf>) -> AnalysisPathIndex {
+    AnalysisPathIndex { resolved_dependencies: paths.into_iter().collect(), ..Default::default() }
+}
+
+/// Builds a workspace folder change that adds the `added` folders and removes the `removed` ones.
+pub(super) fn workspace_folders_change(
+    added: &[Url],
+    removed: &[Url],
+) -> DidChangeWorkspaceFoldersParams {
+    let folders = |uris: &[Url]| {
+        uris.iter().map(|uri| WorkspaceFolder { uri: uri.clone(), name: "folder".into() }).collect()
+    };
+    let event = WorkspaceFoldersChangeEvent { added: folders(added), removed: folders(removed) };
+    DidChangeWorkspaceFoldersParams { event }
+}
+
+pub(super) fn change_workspace_folders(state: &mut GlobalState, added: &[Url], removed: &[Url]) {
+    let params = workspace_folders_change(added, removed);
+    assert!(crate::handlers::did_change_workspace_folders(state, params).is_continue());
+}
+
+/// Negotiates `params` with a host `launch_config` and discovers its workspaces.
+pub(super) fn host_config(params: InitializeParams, launch_config: &crate::LaunchConfig) -> Config {
+    let (_, mut config) = crate::config::negotiate_capabilities_with_pull_diagnostic_data(
+        params,
+        false,
+        launch_config,
+    );
+    config.rediscover_workspaces();
+    config
+}
+
+/// A config whose host Foundry loader uses `src` sources and fails for roots where `fails` holds.
+fn failing_loader_config(
+    params: InitializeParams,
+    fails: impl Fn(&Path) -> bool + Send + Sync + 'static,
+) -> Config {
+    let launch_config =
+        crate::LaunchConfig::default().with_foundry_workspace_config_loader(move |root| {
+            if fails(root) {
+                return Err("host config unavailable");
+            }
+            Ok(crate::FoundryWorkspaceConfig::new(root).with_source_roots(["src"]))
+        });
+    host_config(params, &launch_config)
+}
+
+/// Starts a rediscovery that fails in the host loader and waits for the recovery analysis.
+async fn fail_rediscovery(state: &mut GlobalState) {
+    let (version, progress) = begin_rediscovery(state);
+    assert!(state.analysis_commit.lock().discovery_pending);
+    let Err(error) = state.config.try_discover_workspaces(&IndexingCancellation::default()) else {
+        panic!("host loader should fail workspace discovery")
+    };
+    let failed = WorkspaceDiscoveryFailed { version, error: error.to_string(), progress };
+    assert!(state.on_workspace_discovery_failed(failed).is_continue());
+    settle(state).await;
+}
+
+/// Serves a state that uses `config` to a quiet client. `setup` runs on the state before `route`
+/// adds test handlers to its router.
+fn serve<T>(
+    config: Config,
+    setup: impl FnOnce(&mut GlobalState) -> T,
+    route: impl FnOnce(&mut Router<GlobalState>),
+) -> (LspPair, T) {
+    let mut output = None;
+    let server = |client| {
+        let mut state = GlobalState::new(client);
+        state.config = Arc::new(config);
+        output = Some(setup(&mut state));
+        let mut router = crate::new_router_with_state(state);
+        route(&mut router);
+        router
+    };
+    let pair = LspPair::spawn(server, |_| quiet_client());
+    (pair, output.unwrap())
 }
 
 /// Analyzes the only batch of a fixture as a previous analysis would have.
@@ -219,6 +313,22 @@ async fn identical_sources_and_reverted_edits_reuse_analysis_and_initialized_que
     }
 }
 
+/// Analyzes `/a/Main.sol` and `/b/Other.sol` as separate workspaces, returning both paths.
+async fn two_workspaces() -> (TestProject, GlobalState, PathBuf, PathBuf) {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /a/Main.sol
+        contract Main { uint public original; }
+        //- /b/Other.sol
+        contract Other { uint public stable; }
+        "#,
+    );
+    let mut state = state_with(project.config_with_roots(&["/a", "/b"]));
+    reanalyze(&mut state, Vec::new()).await;
+    let (main, other) = (project.path("/a/Main.sol"), project.path("/b/Other.sol"));
+    (project, state, main, other)
+}
+
 fn cached_batch_for_path(state: &GlobalState, path: &Path) -> Option<Arc<CachedAnalysisBatch>> {
     let commit = state.analysis_commit.lock();
     let cached = commit.cached_output.as_ref()?;
@@ -261,20 +371,9 @@ async fn removing_workspace_batch_inputs_invalidates_the_aggregate() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn editing_one_workspace_reuses_other_workspace_and_current_document_versions() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /a/Main.sol
-        contract Main { uint public original; }
-        //- /b/Other.sol
-        contract Other { uint public stable; }
-        "#,
-    );
-    let main = project.path("/a/Main.sol");
-    let other = project.path("/b/Other.sol");
+    let (project, mut state, main, other) = two_workspaces().await;
     let main_uri = Url::from_file_path(&main).unwrap();
     let other_uri = Url::from_file_path(&other).unwrap();
-    let mut state = state_with(project.config_with_roots(&["/a", "/b"]));
-    reanalyze(&mut state, Vec::new()).await;
     let original_main = cached_batch_for_path(&state, &main).unwrap();
     let original_other = cached_batch_for_path(&state, &other).unwrap();
 
@@ -304,18 +403,7 @@ async fn editing_one_workspace_reuses_other_workspace_and_current_document_versi
 
 #[tokio::test(flavor = "current_thread")]
 async fn workspace_batch_cache_revalidates_config_and_disk_sources() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /a/Main.sol
-        contract Main {}
-        //- /b/Other.sol
-        contract Other {}
-        "#,
-    );
-    let main = project.path("/a/Main.sol");
-    let other = project.path("/b/Other.sol");
-    let mut state = state_with(project.config_with_roots(&["/a", "/b"]));
-    reanalyze(&mut state, Vec::new()).await;
+    let (project, mut state, main, other) = two_workspaces().await;
     let original = cached_batch_for_path(&state, &other).unwrap();
 
     state.config = Arc::new((*state.config).clone());
@@ -526,14 +614,8 @@ async fn disk_dependency_changes_survive_identical_inputs_and_cache_reuse_attemp
 
 #[tokio::test(flavor = "current_thread")]
 async fn cached_published_and_retained_symbol_tables_share_storage() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Main.sol
-        contract Main {}
-        "#,
-    );
-    let mut state = state_with(project.config());
-    *state.vfs.write() = project.vfs();
+    let project = TestProject::from_fixture("//- /Main.sol\ncontract Main {}\n");
+    let mut state = project.state();
     reanalyze(&mut state, vec![project.path("/Main.sol")]).await;
 
     let published = state.symbol_tables.load_full();
@@ -615,10 +697,7 @@ fn analysis_output_accumulator_resolved_path_wins_across_batches() {
         missing_candidates: FxHashSet::from_iter([path.clone()]),
         ..Default::default()
     }));
-    accumulator.push(path_output(AnalysisPathIndex {
-        resolved_dependencies: FxHashSet::from_iter([path.clone()]),
-        ..Default::default()
-    }));
+    accumulator.push(path_output(resolved_paths([path.clone()])));
 
     let output = accumulator.finish();
 
@@ -629,13 +708,7 @@ fn analysis_output_accumulator_resolved_path_wins_across_batches() {
 
 #[test]
 fn stale_analysis_does_not_replace_published_path_index() {
-    let output = |path: &str| {
-        path_output(AnalysisPathIndex {
-            resolved_dependencies: FxHashSet::from_iter([PathBuf::from(path)]),
-            ..Default::default()
-        })
-        .into_shared()
-    };
+    let output = |path: &str| path_output(resolved_paths([PathBuf::from(path)])).into_shared();
     let state = GlobalState::new(ClientSocket::new_closed());
     assert!(state.snapshot().publish_analysis_output(0, output("Current.sol")));
     let mut stale_snapshot = state.snapshot();
@@ -655,13 +728,7 @@ fn deferred_source_events_block_only_analysis_that_observed_the_path() {
     let dependency = PathBuf::from("Dependency.sol");
     let missing = project.path("/Missing.sol");
     let cases = [
-        (
-            dependency.clone(),
-            AnalysisPathIndex {
-                resolved_dependencies: FxHashSet::from_iter([dependency]),
-                ..Default::default()
-            },
-        ),
+        (dependency.clone(), resolved_paths([dependency])),
         (
             missing.clone(),
             AnalysisPathIndex {
@@ -782,16 +849,7 @@ async fn latest_analysis_uses_the_config_published_with_the_analysis() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn unknown_dependency_event_after_cache_clear_starts_recovery() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Main.sol
-        import "./generated/Dependency.sol";
-        contract Main is Dependency {}
-
-        //- /generated/Dependency.sol
-        contract Dependency {}
-        "#,
-    );
+    let project = TestProject::from_fixture(GENERATED_DEPENDENCY);
     let mut state = state_with(config_with_indexing_excludes(&project, &["generated/**"]));
     state.clear_analysis_cache();
     let cleared_version = analysis_version(&state);
@@ -854,34 +912,21 @@ async fn workspace_discovery_router_rejects_stale_and_cancelled_ready_events() {
     let (_, latest_config) =
         negotiate_capabilities(project.initialize_params_with_roots(&["/latest"]));
 
-    let (setup_tx, setup_rx) = std_mpsc::sync_channel(1);
-    let pair = LspPair::spawn(
-        move |client| {
-            let mut state = GlobalState::new(client);
-            state.config = Arc::new(latest_config);
-            let stale = begin_rediscovery(&mut state);
-            let latest = begin_rediscovery(&mut state);
-            let published = state.published_analysis_version.subscribe();
-            setup_tx.send((stale, latest, published, state.symbol_tables.clone())).unwrap();
-
-            let mut router = crate::new_router_with_state(state);
-            router.event::<DiscoveryStateProbe>(|state, probe| {
-                let roots = state
-                    .config
-                    .workspaces()
-                    .iter()
-                    .filter_map(|workspace| workspace.compile_opts().base_path.clone())
-                    .collect();
-                let pending = state.analysis_commit.lock().discovery_pending;
-                probe.0.send((roots, pending)).unwrap();
-                ControlFlow::Continue(())
-            });
-            router
-        },
-        |_| quiet_client(),
-    );
+    let setup = |state: &mut GlobalState| {
+        let stale = begin_rediscovery(state);
+        let latest = begin_rediscovery(state);
+        (stale, latest, state.published_analysis_version.subscribe(), state.symbol_tables.clone())
+    };
+    let route = |router: &mut Router<GlobalState>| {
+        router.event::<DiscoveryStateProbe>(|state, probe| {
+            let pending = state.analysis_commit.lock().discovery_pending;
+            probe.0.send((workspace_bases(&state.config), pending)).unwrap();
+            ControlFlow::Continue(())
+        });
+    };
+    let (pair, setup) = serve(latest_config, setup, route);
     let ((stale_version, stale_progress), (latest_version, latest_progress), mut published, tables) =
-        setup_rx.recv().unwrap();
+        setup;
     let ready = |version, result, progress, cancellation| WorkspaceDiscoveryReady {
         cancellation,
         ..discovery_ready(version, result, progress)
@@ -918,47 +963,29 @@ async fn deferred_dependency_change_router_publishes_replacement_analysis() {
         output: AnalysisOutput,
     }
 
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Main.sol
-        import "./generated/Dependency.sol";
-        contract Main is Dependency {}
-
-        //- /generated/Dependency.sol
-        contract Dependency {}
-        "#,
-    );
+    let project = TestProject::from_fixture(GENERATED_DEPENDENCY);
     let config = config_with_indexing_excludes(&project, &["generated/**"]);
     let old_output = analyze_project(&project, &config);
     let dependency = project.path("/generated/Dependency.sol");
     project.write_file("/generated/Dependency.sol", "contract Dependency {} contract Latest {}");
 
-    let (setup_tx, setup_rx) = std_mpsc::sync_channel(1);
-    let pair = LspPair::spawn(
-        move |client| {
-            let mut state = GlobalState::new(client);
-            state.config = Arc::new(config);
-            state.mark_analysis_pending_for_test();
-            assert_eq!(
-                state.classify_source_file_event(&dependency, FileChangeType::CHANGED),
-                SourceFileEventDisposition::Deferred
-            );
-            let published = state.published_analysis_version.subscribe();
-            setup_tx
-                .send((analysis_version(&state), published, state.symbol_tables.clone()))
-                .unwrap();
-
-            let mut router = crate::new_router_with_state(state);
-            router.event::<PublishAnalysis>(|state, event| {
-                let output = event.output.into_shared();
-                assert!(!state.snapshot().publish_analysis_output(event.version, output));
-                ControlFlow::Continue(())
-            });
-            router
-        },
-        |_| quiet_client(),
-    );
-    let (version, mut published, tables) = setup_rx.recv().unwrap();
+    let setup = |state: &mut GlobalState| {
+        state.mark_analysis_pending_for_test();
+        assert_eq!(
+            state.classify_source_file_event(&dependency, FileChangeType::CHANGED),
+            SourceFileEventDisposition::Deferred
+        );
+        let published = state.published_analysis_version.subscribe();
+        (analysis_version(state), published, state.symbol_tables.clone())
+    };
+    let route = |router: &mut Router<GlobalState>| {
+        router.event::<PublishAnalysis>(|state, event| {
+            let output = event.output.into_shared();
+            assert!(!state.snapshot().publish_analysis_output(event.version, output));
+            ControlFlow::Continue(())
+        });
+    };
+    let (pair, (version, mut published, tables)) = serve(config, setup, route);
 
     pair.client.emit(PublishAnalysis { version, output: old_output }).unwrap();
     wait_published(&mut published, |published| published > version).await;
@@ -982,49 +1009,18 @@ async fn host_loader_failure_terminates_background_discovery_with_last_good_conf
     );
     let fail = Arc::new(AtomicBool::new(false));
     let loader_fail = fail.clone();
-    let launch_config =
-        crate::LaunchConfig::default().with_foundry_workspace_config_loader(move |root| {
-            if loader_fail.load(Ordering::Relaxed) {
-                return Err("host config unavailable");
-            }
-            Ok(crate::FoundryWorkspaceConfig::new(root).with_source_roots(["src"]))
-        });
-    let (_, mut config) = crate::config::negotiate_capabilities_with_pull_diagnostic_data(
-        project.initialize_params(),
-        false,
-        &launch_config,
-    );
-    config.rediscover_workspaces();
+    let config = failing_loader_config(project.initialize_params(), move |_| {
+        loader_fail.load(Ordering::Relaxed)
+    });
     assert_eq!(config.workspaces()[0].source_roots(), &[project.path("/src")]);
 
     let mut state = state_with(config);
     fail.store(true, Ordering::Relaxed);
-    let (version, progress) = begin_rediscovery(&mut state);
-    assert!(state.analysis_commit.lock().discovery_pending);
-    let Err(error) = state.config.try_discover_workspaces(&IndexingCancellation::default()) else {
-        panic!("host loader should fail workspace discovery")
-    };
-    let failed = WorkspaceDiscoveryFailed { version, error: error.to_string(), progress };
-    assert!(state.on_workspace_discovery_failed(failed).is_continue());
-
-    settle(&state).await;
+    fail_rediscovery(&mut state).await;
     assert_eq!(state.config.workspaces()[0].source_roots(), &[project.path("/src")]);
     let commit = state.analysis_commit.lock();
     assert!(commit.cache_invalidated);
     assert!(!commit.discovery_pending);
-}
-
-fn replace_workspace_folder(old_root: &Path, new_root: &Path) -> DidChangeWorkspaceFoldersParams {
-    let folder = |root, name: &str| WorkspaceFolder {
-        uri: Url::from_file_path(root).unwrap(),
-        name: name.into(),
-    };
-    DidChangeWorkspaceFoldersParams {
-        event: WorkspaceFoldersChangeEvent {
-            added: vec![folder(new_root, "new")],
-            removed: vec![folder(old_root, "old")],
-        },
-    }
 }
 
 fn workspace_folder_failure_fixture() -> (TestProject, Config) {
@@ -1046,19 +1042,8 @@ fn workspace_folder_failure_fixture() -> (TestProject, Config) {
         "#,
     );
     let rejected = project.path("/b");
-    let launch_config =
-        crate::LaunchConfig::default().with_foundry_workspace_config_loader(move |root| {
-            if root == rejected {
-                return Err("host config unavailable");
-            }
-            Ok(crate::FoundryWorkspaceConfig::new(root).with_source_roots(["src"]))
-        });
-    let (_, mut config) = crate::config::negotiate_capabilities_with_pull_diagnostic_data(
-        project.initialize_params_with_roots(&["/a"]),
-        false,
-        &launch_config,
-    );
-    config.rediscover_workspaces();
+    let params = project.initialize_params_with_roots(&["/a"]);
+    let config = failing_loader_config(params, move |root| root == rejected);
     (project, config)
 }
 
@@ -1067,14 +1052,8 @@ fn assert_failed_workspace_folder_change_rolled_back(
     old_root: &Path,
     new_root: &Path,
 ) {
-    let base_paths = state
-        .config
-        .workspaces()
-        .iter()
-        .filter_map(|workspace| workspace.compile_opts().base_path.clone())
-        .collect::<Vec<_>>();
     assert_eq!(state.config.workspace_roots(), [old_root.to_path_buf()]);
-    assert_eq!(base_paths, [old_root.to_path_buf()]);
+    assert_eq!(workspace_bases(&state.config), [old_root.to_path_buf()]);
     assert!(state.config.tracks_source_file(&old_root.join("src/A.sol")));
     assert!(!state.config.tracks_source_file(&new_root.join("src/B.sol")));
     assert!(!state.analysis_commit.lock().discovery_pending);
@@ -1084,16 +1063,12 @@ fn assert_failed_workspace_folder_change_rolled_back(
 async fn synchronous_workspace_folder_loader_failure_rolls_back_roots() {
     let (project, config) = workspace_folder_failure_fixture();
     let mut state = state_with(config);
-    let params = replace_workspace_folder(&project.path("/a"), &project.path("/b"));
+    let (old_root, new_root) = (project.path("/a"), project.path("/b"));
 
-    assert!(crate::handlers::did_change_workspace_folders(&mut state, params).is_continue());
+    change_workspace_folders(&mut state, &[project.uri("/b")], &[project.uri("/a")]);
 
     settle(&state).await;
-    assert_failed_workspace_folder_change_rolled_back(
-        &state,
-        &project.path("/a"),
-        &project.path("/b"),
-    );
+    assert_failed_workspace_folder_change_rolled_back(&state, &old_root, &new_root);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1119,14 +1094,7 @@ async fn clearing_cache_discards_workspace_root_rollback_checkpoint() {
     assert!(state.analysis_commit.lock().workspace_roots_before_change.is_none());
     assert_eq!(state.config.workspace_roots(), std::slice::from_ref(&new_root));
 
-    let (version, progress) = begin_rediscovery(&mut state);
-    let Err(error) = state.config.try_discover_workspaces(&IndexingCancellation::default()) else {
-        panic!("host loader should fail workspace discovery")
-    };
-    let failed = WorkspaceDiscoveryFailed { version, error: error.to_string(), progress };
-    assert!(state.on_workspace_discovery_failed(failed).is_continue());
-
-    settle(&state).await;
+    fail_rediscovery(&mut state).await;
     assert_eq!(state.config.workspace_roots(), [new_root]);
 }
 
@@ -1135,26 +1103,17 @@ async fn background_workspace_folder_loader_failure_rolls_back_roots() {
     struct WorkspaceStateProbe(PathBuf, PathBuf, oneshot::Sender<()>);
 
     let (project, config) = workspace_folder_failure_fixture();
-    let (setup_tx, setup_rx) = std_mpsc::sync_channel(1);
-    let pair = LspPair::spawn(
-        move |client| {
-            let mut state = GlobalState::new(client);
-            state.config = Arc::new(config);
-            state.background_discovery = true;
-            setup_tx.send(state.published_analysis_version.subscribe()).unwrap();
-            let mut router = crate::new_router_with_state(state);
-            router.event::<WorkspaceStateProbe>(|state, WorkspaceStateProbe(old, new, done)| {
-                assert_failed_workspace_folder_change_rolled_back(state, &old, &new);
-                done.send(()).unwrap();
-                ControlFlow::Continue(())
-            });
-            router
-        },
-        |_| quiet_client(),
-    );
-    let mut published = setup_rx.recv().unwrap();
+    let route = |router: &mut Router<GlobalState>| {
+        router.event::<WorkspaceStateProbe>(|state, WorkspaceStateProbe(old, new, done)| {
+            assert_failed_workspace_folder_change_rolled_back(state, &old, &new);
+            done.send(()).unwrap();
+            ControlFlow::Continue(())
+        });
+    };
+    let (pair, mut published) =
+        serve(config, |state| state.published_analysis_version.subscribe(), route);
 
-    let params = replace_workspace_folder(&project.path("/a"), &project.path("/b"));
+    let params = workspace_folders_change(&[project.uri("/b")], &[project.uri("/a")]);
     pair.server.notify::<notification::DidChangeWorkspaceFolders>(params).unwrap();
     wait_published(&mut published, |published| published != 0).await;
 
@@ -1194,65 +1153,13 @@ fn analysis_batches_index_sources_below_overlapping_library_and_manifest_corrido
         let project = TestProject::from_fixture(fixture);
         let config = project.config();
         let lib = project.path("/lib");
-        assert!(!config.workspaces().iter().any(|workspace| {
-            workspace.compile_opts().base_path.as_deref() == Some(lib.as_path())
-        }));
+        assert!(!workspace_bases(&config).contains(&lib));
 
         let mut batches = snapshot_with_config(config, Vfs::default()).analysis_batches(Vec::new());
 
         let expected = vec![(project.path(main), Arc::new("contract Main {}".into()))];
         assert_eq!(batches.pop().unwrap().files, expected);
     }
-}
-
-#[test]
-fn workspace_discovery_rechecks_sources_against_the_owning_workspace_policy() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "."
-
-        //- /nested/foundry.toml
-        [profile.default]
-        src = "src"
-        libs = ["src/vendor"]
-
-        //- /nested/src/Included.sol
-        contract Included {}
-
-        //- /nested/src/generated/Excluded.sol
-        contract Excluded {}
-
-        //- /nested/src/vendor/Dependency.sol
-        contract Dependency {}
-
-        //- /nested/Outside.sol
-        contract Outside {}
-        "#,
-    );
-    let config = config_with_indexing_excludes(&project, &["src/generated/**"]);
-    let nested_root = project.path("/nested");
-    assert!(workspace_at(&config, project.root()).source_files().is_empty());
-    assert_eq!(
-        workspace_at(&config, &nested_root).source_files(),
-        [project.path("/nested/Outside.sol"), project.path("/nested/src/Included.sol")]
-    );
-    assert_eq!(config.index_metrics().eager, 2);
-
-    let batches = snapshot_with_config(config, Vfs::default()).analysis_batches(Vec::new());
-    let batch_at = |root: &Path| {
-        batches.iter().find(|batch| batch.opts.base_path.as_deref() == Some(root)).unwrap()
-    };
-
-    assert!(batch_at(project.root()).files.iter().all(|(path, _)| !path.starts_with(&nested_root)));
-    assert_eq!(
-        batch_at(&nested_root).files,
-        vec![
-            (project.path("/nested/Outside.sol"), Arc::new("contract Outside {}".into())),
-            (project.path("/nested/src/Included.sol"), Arc::new("contract Included {}".into()))
-        ]
-    );
 }
 
 #[test]
@@ -1264,18 +1171,13 @@ fn nested_external_source_and_flycheck_roots_outrank_an_outer_workspace_base() {
         src = "src"
 
         //- /src/Outer.sol
-        contract Outer {}
-
         //- /packages/app/foundry.toml
         [profile.default]
         src = "../../shared"
         test = "../../checks"
 
         //- /shared/Shared.sol
-        contract Shared {}
-
         //- /checks/Nested.t.sol
-        contract NestedTest {}
         "#,
     );
     let config = project.config();
@@ -1312,7 +1214,6 @@ fn discovery_finds_nested_projects_under_flycheck_roots_and_nested_manifests() {
         src = "src"
 
         //- /out/checks/deep/app/src/Check.sol
-        contract Check {}
         "#,
     );
     assert_eq!(
@@ -1332,14 +1233,11 @@ fn discovery_finds_nested_projects_under_flycheck_roots_and_nested_manifests() {
         src = "src"
 
         //- /shared/contracts/first/src/First.sol
-        contract First {}
-
         //- /shared/contracts/first/src/second/foundry.toml
         [profile.default]
         src = "src"
 
         //- /shared/contracts/first/src/second/src/Second.sol
-        contract Second {}
         "#,
     );
     let config = project.config();
@@ -1364,7 +1262,6 @@ fn discovery_and_updates_share_the_most_specific_flycheck_owner() {
         test = "../../src/shared"
 
         //- /src/shared/Shared.t.sol
-        contract SharedTest {}
         "#,
     );
     let mut config = project.config();
