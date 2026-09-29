@@ -1346,6 +1346,9 @@ impl FunctionLowerer<'_, '_> {
         (header, output)
     }
 
+    /// Splits `subject` into one-byte strings. Each keeps only its byte in
+    /// the payload word, zeroing the padding as the body's `new bytes(1)` does,
+    /// rather than the subject bytes that follow it.
     fn lower_core_string_split_empty(&mut self, subject: ValueId, length: ValueId) {
         let bytes = MemoryObjectKind::Bytes;
         let (out, _) = self
@@ -1361,8 +1364,11 @@ impl FunctionLowerer<'_, '_> {
                 AllocationSemantics::INTERNAL,
             );
             builder.set_memory_object_len(piece, one, bytes);
+            // piece[0..32] = mload(source + index) & (0xff << 248)
             let source_address = builder.add(source, index);
             let word = builder.mload(source_address);
+            let first_byte = builder.imm(U256::from(0xff) << 248);
+            let word = builder.and(word, first_byte);
             let zero = builder.imm(0);
             builder.memory_object_store_word(piece, zero, word);
             let piece = builder.cast(piece, MirType::I256);
