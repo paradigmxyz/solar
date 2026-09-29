@@ -50,46 +50,21 @@ fn groups_direct_calls_and_selects_call_site_endpoints() {
 }
 
 #[test]
-fn prepares_enclosing_callable_bodies_only() {
-    let calls = Calls::new(
-        r#"
-        //- /Prepare.sol
-        $5contract C {
-            modifier $1guarded() {
-                $2_;
-            }
-
-            function $3f() external {
-                uint256 $4value = 1;
-            }
-        }
-        "#,
-    );
-    let tables = calls.analyze(&["/Prepare.sol"]);
-    let modifier = calls.item(&tables, "$1");
-    let function = calls.item(&tables, "$3");
-
-    assert_eq!(modifier.name, "guarded");
-    assert_eq!(calls.prepare_at(&tables, "$2", 0), Some(vec![modifier]));
-    assert_eq!(function.name, "f");
-    assert_eq!(calls.prepare_at(&tables, "$4", 0), Some(vec![function]));
-    assert_eq!(calls.prepare_at(&tables, "$5", 0), None);
-}
-
-#[test]
 fn indexes_modifier_applications_and_arguments() {
     let calls = Calls::new(
         r#"
         //- /Modifiers.sol
-        contract Base {
+        $8contract Base {
             modifier $6baseGuard() { _; }
         }
 
         contract C is Base {
             function $1argument() internal pure returns (uint256) { return 1; }
-            modifier $2guarded(uint256) { _; }
+            modifier $2guarded(uint256) { $9_; }
 
-            function $3caller() external $4guarded($5argument()) Base.$7baseGuard /* gap */ () {}
+            function $3caller() external $4guarded($5argument()) Base.$7baseGuard /* gap */ () {
+                uint256 $10value = 1;
+            }
         }
         "#,
     );
@@ -97,11 +72,18 @@ fn indexes_modifier_applications_and_arguments() {
     let argument = calls.item(&tables, "$1");
     let modifier = calls.item(&tables, "$2");
     let base_modifier = calls.item(&tables, "$6");
+    let caller = calls.item(&tables, "$3");
+
+    // Only enclosing callable bodies prepare an item.
+    assert_eq!((modifier.name.as_str(), caller.name.as_str()), ("guarded", "caller"));
+    assert_eq!(calls.prepare_at(&tables, "$9", 0), Some(vec![modifier.clone()]));
+    assert_eq!(calls.prepare_at(&tables, "$10", 0), Some(vec![caller.clone()]));
+    assert_eq!(calls.prepare_at(&tables, "$8", 0), None);
 
     assert_eq!(calls.prepare_at(&tables, "$4", 0), Some(vec![modifier.clone()]));
     assert_eq!(calls.prepare_at(&tables, "$7", 0), Some(vec![base_modifier.clone()]));
     assert_eq!(
-        tables.call_hierarchy_outgoing(&calls.item(&tables, "$3")),
+        tables.call_hierarchy_outgoing(&caller),
         Some(vec![
             outgoing(&base_modifier, vec![calls.range("$7", 9)]),
             outgoing(&argument, vec![calls.range("$5", 8)]),

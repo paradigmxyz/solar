@@ -69,7 +69,24 @@ fn presents_all_supported_declarations_and_callable_edges() {
             function read() external view returns (uint256) {
                 return this.$15value();
             }
+
+            // Unsupported declarations.
+            uint256 public $24plain;
+            uint256 private $25secret;
+            struct $26Data { uint256 value; }
+            enum $27Choice { A }
+            event $28Changed(uint256 value);
+            error $29Failed();
+
+            function use(uint256 $30parameter) public pure {
+                uint256 $31local = parameter;
+                assembly {
+                    function $32yulFunction() -> result { result := 1 }
+                    pop(yulFunction())
+                }
+            }
         }
+        type $23Value is uint256;
         "#,
         "/Callables.sol",
     );
@@ -106,6 +123,9 @@ fn presents_all_supported_declarations_and_callable_edges() {
         let item = prepared(&fixture, marker);
         assert_eq!((item.range, item.selection_range), (full, selection), "marker {marker}");
     }
+    for marker in 23..=32 {
+        assert_eq!(fixture.prepare_type_hierarchy(&format!("${marker}")), None, "marker {marker}");
+    }
     assert_eq!(prepared(&fixture, "$15"), prepared(&fixture, "$9"));
     assert_eq!(prepared(&fixture, "$16"), prepared(&fixture, "$1"));
     assert_eq!(prepared(&fixture, "$17"), prepared(&fixture, "$14"));
@@ -120,38 +140,6 @@ fn presents_all_supported_declarations_and_callable_edges() {
     ] {
         assert_eq!(supertypes(&fixture, derived), [base_name]);
         assert_eq!(subtypes(&fixture, base), [derived_name]);
-    }
-}
-
-#[test]
-fn rejects_unsupported_declarations() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Unsupported.sol
-        type $1Value is uint256;
-
-        contract C {
-            uint256 public $2plain;
-            uint256 private $3hidden;
-            struct $4Data { uint256 value; }
-            enum $5Choice { A }
-            event $6Changed(uint256 value);
-            error $7Failed();
-
-            function use(uint256 $8parameter) public pure {
-                uint256 $9local = parameter;
-                assembly {
-                    function $10yulFunction() -> result { result := 1 }
-                    pop(yulFunction())
-                }
-            }
-        }
-        "#,
-        "/Unsupported.sol",
-    );
-
-    for marker in ["$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8", "$9", "$10"] {
-        assert_eq!(fixture.prepare_type_hierarchy(marker), None, "marker {marker}");
     }
 }
 
