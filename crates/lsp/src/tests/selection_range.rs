@@ -198,7 +198,7 @@ fn falls_back_to_cursor_and_document_outside_syntax() {
         //- /Empty.sol open
         $4
         "#,
-        "/Fallback.sol",
+        "/Empty.sol",
     );
 
     // Non-empty range ends are exclusive, so `$3` is outside the first contract.

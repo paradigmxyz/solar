@@ -20,7 +20,7 @@ fn serves_open_disk_and_empty_documents_without_waiting_for_analysis() {
 
         //- /Empty.sol open
         "#,
-        "/Open.sol",
+        "/Empty.sol",
     );
     fixture.write_file("/Open.sol", "contract Disk {}");
 
