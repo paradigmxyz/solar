@@ -418,6 +418,12 @@ mod tests {
         (result_id, diagnostics)
     }
 
+    #[track_caller]
+    fn assert_unchanged(store: &DiagnosticStore, uri: &Url, result_id: &str) {
+        let expected = PullReport::Unchanged { result_id: result_id.into() };
+        assert_eq!(store.pull_report(uri, Some(result_id)), expected);
+    }
+
     #[test]
     fn owner_updates_merge_and_publish_only_affected_uris_with_analyzed_versions() {
         let first = uri("src/First.sol");
@@ -573,10 +579,7 @@ mod tests {
             (result_id.clone(), Vec::new())
         );
         assert_eq!(full(store.pull_report(&first, Some("stale"))), (result_id.clone(), Vec::new()));
-        assert_eq!(
-            store.pull_report(&first, Some(&result_id)),
-            PullReport::Unchanged { result_id: result_id.clone() }
-        );
+        assert_unchanged(&store, &first, &result_id);
         assert!(store.reports.is_empty());
     }
 
@@ -601,16 +604,10 @@ mod tests {
         let update = publish(&mut store, "first");
         assert!(!update.batches.is_empty());
         assert!(!update.pull_reports_changed);
-        assert_eq!(
-            store.pull_report(&first, Some(&first_id)),
-            PullReport::Unchanged { result_id: first_id.clone() }
-        );
+        assert_unchanged(&store, &first, &first_id);
 
         publish(&mut store, "changed");
-        assert_eq!(
-            store.pull_report(&second, Some(&second_id)),
-            PullReport::Unchanged { result_id: second_id }
-        );
+        assert_unchanged(&store, &second, &second_id);
         let (next_id, diagnostics) = full(store.pull_report(&first, Some(&first_id)));
         assert_ne!(next_id, first_id);
         assert_eq!(diagnostics, [diagnostic("changed")]);
@@ -637,10 +634,7 @@ mod tests {
         let (empty_id, diagnostics) = full(store.pull_report(&file, Some(&result_id)));
         assert_ne!(empty_id, result_id);
         assert!(diagnostics.is_empty());
-        assert_eq!(
-            store.pull_report(&file, Some(&empty_id)),
-            PullReport::Unchanged { result_id: empty_id.clone() }
-        );
+        assert_unchanged(&store, &file, &empty_id);
 
         publish(&mut store);
         let (restored_id, diagnostics) = full(store.pull_report(&file, Some(&empty_id)));

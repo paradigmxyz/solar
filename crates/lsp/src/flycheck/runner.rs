@@ -255,7 +255,7 @@ mod tests {
     use super::*;
     use crate::test_support::TestProject;
     #[cfg(unix)]
-    use crate::{config::negotiate_capabilities, test_support::process_exists};
+    use crate::test_support::{process_exists, rediscovered_config, with_options};
     #[cfg(unix)]
     use std::os::unix::{fs::symlink, process::ExitStatusExt};
     #[cfg(windows)]
@@ -269,15 +269,8 @@ mod tests {
             contract Test {}
             "#,
         );
-        let uri = lsp_types::Url::from_file_path(project.path("/src/Test.sol")).unwrap();
-        let config = FlycheckConfig {
-            id: "forge-lint".into(),
-            command: "forge".into(),
-            args: Vec::new(),
-            cwd: project.root().to_path_buf(),
-            workspace_root: project.root().to_path_buf(),
-            output: FlycheckOutput::ForgeLintJson,
-        };
+        let uri = project.uri("/src/Test.sol");
+        let config = flycheck(&project, "forge", Vec::new(), FlycheckOutput::ForgeLintJson);
         let messages = |stdout: Vec<u8>, stderr: Vec<u8>| {
             let output = Output { status: std::process::ExitStatus::from_raw(0), stdout, stderr };
             let diagnostics = parse_output(&output, &config, None).unwrap();
@@ -374,7 +367,7 @@ mod tests {
         let fixture = std::fs::File::options().write(true).open(&path).unwrap();
         fixture.set_modified(SystemTime::now() - Duration::from_secs(60)).unwrap();
         drop(fixture);
-        let uri = lsp_types::Url::from_file_path(&path).unwrap();
+        let uri = project.uri("/src/Test.sol");
 
         for (script, changed, restored) in [
             (
@@ -390,22 +383,16 @@ mod tests {
                 false,
             ),
         ] {
-            let config = FlycheckConfig {
-                id: "changing-source".into(),
-                command: "/bin/sh".into(),
-                args: vec![
-                    "-c".into(),
-                    format!("{script}; printf '%s\\n' \"$4\""),
-                    "sh".into(),
-                    path.display().to_string(),
-                    dependency.display().to_string(),
-                    original.clone(),
-                    String::from_utf8(solc_diagnostic("diagnostic")).unwrap(),
-                ],
-                cwd: project.root().to_path_buf(),
-                workspace_root: project.root().to_path_buf(),
-                output: FlycheckOutput::SolcJson,
-            };
+            let args = vec![
+                "-c".into(),
+                format!("{script}; printf '%s\\n' \"$4\""),
+                "sh".into(),
+                path.display().to_string(),
+                dependency.display().to_string(),
+                original.clone(),
+                String::from_utf8(solc_diagnostic("diagnostic")).unwrap(),
+            ];
+            let config = flycheck(&project, "/bin/sh", args, FlycheckOutput::SolcJson);
             let (_cancel, cancelled) = oneshot::channel();
             let sources = vec![path.clone(), dependency.clone()];
 
@@ -427,14 +414,8 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn failed_forge_lint_with_non_json_stderr_reports_command_failure() {
         let project = TestProject::new();
-        let config = FlycheckConfig {
-            id: "forge-lint".into(),
-            command: "/bin/sh".into(),
-            args: vec!["-c".into(), "printf 'compiler failed' >&2; exit 1".into()],
-            cwd: project.root().to_path_buf(),
-            workspace_root: project.root().to_path_buf(),
-            output: FlycheckOutput::ForgeLintJson,
-        };
+        let args = vec!["-c".into(), "printf 'compiler failed' >&2; exit 1".into()];
+        let config = flycheck(&project, "/bin/sh", args, FlycheckOutput::ForgeLintJson);
         let (_cancel, cancelled) = oneshot::channel();
 
         let error = run(config, Duration::from_secs(30), cancelled, Vec::new()).await.unwrap_err();
@@ -458,21 +439,21 @@ mod tests {
             "#,
         );
         let pid_path = project.path("/flycheck-pid.txt");
-        let mut params = project.initialize_params();
-        params.initialization_options = Some(serde_json::json!({
-            "flychecks": [{
-                "id": "timeout-repro",
-                "command": "/bin/sh",
-                "args": [
-                    "-c",
-                    "printf '%s' \"$$\" > \"$1\"; exec sleep 120",
-                    "sh",
-                    pid_path.display().to_string(),
-                ],
-            }],
-        }));
-        let (_, mut config) = negotiate_capabilities(params);
-        config.rediscover_workspaces();
+        let config = rediscovered_config(with_options(
+            project.initialize_params(),
+            serde_json::json!({
+                "flychecks": [{
+                    "id": "timeout-repro",
+                    "command": "/bin/sh",
+                    "args": [
+                        "-c",
+                        "printf '%s' \"$$\" > \"$1\"; exec sleep 120",
+                        "sh",
+                        pid_path.display().to_string(),
+                    ],
+                }],
+            }),
+        ));
         let [config] =
             config.flychecks_for_path(&project.path("/src/Test.sol")).try_into().unwrap();
 
@@ -482,6 +463,22 @@ mod tests {
         assert!(matches!(error, FlycheckError::Timeout));
         let pid = project.read_file("/flycheck-pid.txt").parse().unwrap();
         assert!(!process_exists(pid));
+    }
+
+    fn flycheck(
+        project: &TestProject,
+        command: &str,
+        args: Vec<String>,
+        output: FlycheckOutput,
+    ) -> FlycheckConfig {
+        FlycheckConfig {
+            id: "test".into(),
+            command: command.into(),
+            args,
+            cwd: project.root().to_path_buf(),
+            workspace_root: project.root().to_path_buf(),
+            output,
+        }
     }
 
     fn solc_diagnostic(message: &str) -> Vec<u8> {

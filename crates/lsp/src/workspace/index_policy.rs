@@ -231,10 +231,22 @@ mod tests {
         let project = TestProject::new();
         let workspace_root = project.root();
         let source_root = project.path("/src");
+        // Invalid, absolute, and parent globs are ignored individually.
         let policy = WorkspaceIndexPolicy::new(IndexingOptions {
-            exclude: vec!["src/generated/**".into(), "src/vendor/?old[0-9]/**".into()],
+            exclude: vec![
+                "/absolute/**".into(),
+                "C:/absolute/**".into(),
+                "../escape/**".into(),
+                "src/[invalid".into(),
+                "src/generated/**".into(),
+                "src/vendor/?old[0-9]/**".into(),
+            ],
             ..Default::default()
         });
+        assert_eq!(
+            policy.excludes.iter().map(Pattern::as_str).collect::<Vec<_>>(),
+            ["src/generated/**", "src/vendor/?old[0-9]/**"]
+        );
 
         for (directory, pruned) in [
             ("/src/node_modules", true),
@@ -258,23 +270,6 @@ mod tests {
             &source_root,
             &project.path("/src/contracts/Token.sol"),
         ));
-    }
-
-    #[test]
-    fn invalid_absolute_and_parent_globs_are_ignored_individually() {
-        let policy = WorkspaceIndexPolicy::new(IndexingOptions {
-            exclude: vec![
-                "/absolute/**".into(),
-                "C:/absolute/**".into(),
-                "../escape/**".into(),
-                "src/[invalid".into(),
-                "src/generated/**".into(),
-            ],
-            ..Default::default()
-        });
-
-        assert_eq!(policy.excludes.len(), 1);
-        assert_eq!(policy.excludes[0].as_str(), "src/generated/**");
     }
 
     #[test]

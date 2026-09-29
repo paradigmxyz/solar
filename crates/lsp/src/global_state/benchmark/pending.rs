@@ -155,26 +155,19 @@ impl BenchmarkPendingRequests {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{global_state::benchmark::BenchmarkProject, test_support::TestProject};
-    use lsp_types::{
-        Position, TextDocumentContentChangeEvent, TextDocumentIdentifier,
-        VersionedTextDocumentIdentifier,
+    use crate::{
+        global_state::benchmark::BenchmarkProject,
+        test_support::{TestProject, from_json, request_params},
     };
+    use lsp_types::Position;
+    use serde_json::json;
     use solar_config::CompileOpts;
 
     fn full_change(uri: &Url, version: i32, text: &str) -> DidChangeTextDocumentParams {
-        DidChangeTextDocumentParams {
-            text_document: VersionedTextDocumentIdentifier::new(uri.clone(), version),
-            content_changes: vec![TextDocumentContentChangeEvent {
-                range: None,
-                range_length: None,
-                text: text.into(),
-            }],
-        }
-    }
-
-    fn position_params(uri: &Url, position: Position) -> TextDocumentPositionParams {
-        TextDocumentPositionParams::new(TextDocumentIdentifier::new(uri.clone()), position)
+        from_json(json!({
+            "textDocument": { "uri": uri, "version": version },
+            "contentChanges": [{ "text": text }],
+        }))
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -199,19 +192,18 @@ mod tests {
         assert_ne!(old_hover, new_hover);
         assert_ne!(old_definition, new_definition);
 
+        let params = request_params::<TextDocumentPositionParams>(&uri, position, json!({}));
         let mut requests =
             BenchmarkPendingRequests::new(project.root().to_path_buf(), uri.clone(), before.into())
                 .await;
         for (index, source) in [after.as_str(), before, after.as_str()].into_iter().enumerate() {
             let change = full_change(&uri, index as i32 + 2, source);
             let elapsed = if index == 1 {
-                let (elapsed, response) =
-                    requests.definition(change, position_params(&uri, position)).await;
+                let (elapsed, response) = requests.definition(change, params.clone()).await;
                 assert_eq!(response, old_definition);
                 elapsed
             } else {
-                let (elapsed, response) =
-                    requests.hover(change, position_params(&uri, position)).await;
+                let (elapsed, response) = requests.hover(change, params.clone()).await;
                 assert_eq!(response, new_hover);
                 elapsed
             };
@@ -229,12 +221,11 @@ mod tests {
         let project = TestProject::new();
         let source = "contract C {}";
         project.write_file("/Main.sol", source);
-        let uri = Url::from_file_path(project.path("/Main.sol")).unwrap();
+        let uri = project.uri("/Main.sol");
         let mut requests =
             BenchmarkPendingRequests::new(project.root().to_path_buf(), uri.clone(), source.into())
                 .await;
-        requests
-            .hover(full_change(&uri, 2, source), position_params(&uri, Position::new(0, 9)))
-            .await;
+        let params = request_params(&uri, Position::new(0, 9), json!({}));
+        requests.hover(full_change(&uri, 2, source), params).await;
     }
 }

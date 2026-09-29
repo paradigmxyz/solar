@@ -181,6 +181,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::from_json;
     use async_lsp::router::Router;
     use lsp_types::request::Shutdown;
     use serde_json::json;
@@ -191,10 +192,8 @@ mod tests {
         router.request::<Shutdown, _>(|_, ()| std::future::ready(Ok(())));
         let mut service = RequestCancellationLayer::new(ClientSocket::new_closed()).layer(router);
         std::future::poll_fn(|cx| service.poll_ready(cx)).await.unwrap();
-        let request = |id: serde_json::Value| {
-            serde_json::from_value::<AnyRequest>(json!({ "id": id, "method": Shutdown::METHOD }))
-                .unwrap()
-        };
+        let request =
+            |id: serde_json::Value| from_json(json!({ "id": id, "method": Shutdown::METHOD }));
 
         assert_eq!(service.call(request(json!(1))).await.unwrap(), json!(null));
         assert_eq!(service.ongoing.len(), 1);
@@ -204,7 +203,7 @@ mod tests {
         let response = service.call(request(json!("request-id")));
         let cancel =
             json!({ "method": notification::Cancel::METHOD, "params": { "id": "request-id" } });
-        assert!(service.notify(serde_json::from_value(cancel).unwrap()).is_continue());
+        assert!(service.notify(from_json(cancel)).is_continue());
         let error = response.await.unwrap_err();
         assert_eq!(error.code, ErrorCode::REQUEST_CANCELLED);
         assert_eq!(error.message, "Client cancelled the request");
