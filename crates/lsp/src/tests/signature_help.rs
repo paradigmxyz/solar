@@ -2,10 +2,14 @@ use super::{
     GlobalState,
     support::{RequestFixture, signature_help_at},
 };
-use crate::vfs::VfsPath;
+use crate::{config::negotiate_capabilities, vfs::VfsPath};
 use crop::Rope;
-use lsp_types::Position;
+use lsp_types::{
+    InitializeParams, MarkupKind, Position, SignatureHelpClientCapabilities,
+    SignatureInformationSettings, TextDocumentClientCapabilities,
+};
 use snapbox::str;
+use std::sync::Arc;
 
 fn set_source(state: &GlobalState, fixture: &RequestFixture, contents: &str) {
     let path = VfsPath::from(fixture.project_path("/Signature.sol"));
@@ -239,14 +243,30 @@ new uint256[](uint256) returns (uint256[] memory)
 
 "#]],
     );
+    // Clients without label offsets receive parameter text.
+    let mut params = InitializeParams::default();
+    params.capabilities.text_document = Some(TextDocumentClientCapabilities {
+        signature_help: Some(SignatureHelpClientCapabilities {
+            signature_information: Some(SignatureInformationSettings {
+                documentation_format: Some(vec![MarkupKind::Markdown]),
+                parameter_information: None,
+                active_parameter_support: Some(true),
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+    let mut state = fixture.state();
+    state.config = Arc::new(negotiate_capabilities(params).1);
     fixture.check_signature_help_in(
-        &mut fixture.state_with_label_offsets(false),
-        &["$7"],
+        &mut state,
+        &["$17"],
         str![[r#"
-active signature=Some(0) parameter=Some(1)
-function add(uint256 lhs, uint256 rhs) public pure returns (uint256)
-  uint256 lhs
-  uint256 rhs
+active signature=Some(0) parameter=Some(0)
+function documented(uint256 first, uint256 second) public active=0
+  markdown=Updates both values. |  | The values are stored together.
+  uint256 first markdown=The first value.
+  uint256 second markdown=The second value.
 
 "#]],
     );

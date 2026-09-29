@@ -611,7 +611,7 @@ impl RequestFixture {
         state
     }
 
-    pub(super) fn state_with_label_offsets(&self, label_offsets: bool) -> GlobalState {
+    fn state_with_label_offsets(&self, label_offsets: bool) -> GlobalState {
         let mut state = GlobalState::new(ClientSocket::new_closed());
         let mut config = self.marked.project().config();
         if label_offsets {
