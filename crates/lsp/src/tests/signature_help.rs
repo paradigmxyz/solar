@@ -1,15 +1,26 @@
 use super::{support::signature_help_at, *};
 use snapbox::str;
 
+/// Parses `source` as the open `/Signature.sol`.
+fn signature_fixture(source: &str) -> RequestFixture {
+    RequestFixture::new(&format!("//- /Signature.sol open\n{source}"), "/Signature.sol")
+}
+
+fn incomplete_signature_fixture(source: &str) -> RequestFixture {
+    RequestFixture::new_allowing_diagnostics(
+        &format!("//- /Signature.sol open\n{source}"),
+        "/Signature.sol",
+    )
+}
+
 fn set_source(state: &GlobalState, fixture: &RequestFixture, contents: &str) {
     set_overlay(state, &fixture.project_path("/Signature.sol"), contents, None);
 }
 
 #[test]
 fn shows_signatures_for_solidity_call_forms() {
-    let fixture = RequestFixture::new(
+    let fixture = signature_fixture(
         r#"
-        //- /Signature.sol open
         contract Target {
             constructor(uint256 count, address owner) payable {}
             function set(uint256 value) external payable {}
@@ -17,6 +28,10 @@ fn shows_signatures_for_solidity_call_forms() {
 
         contract Plain {
             constructor(uint256 count) {}
+        }
+
+        contract Texts {
+            function set(string memory text, uint256 value) external pure {}
         }
 
         contract Paid {
@@ -116,16 +131,27 @@ fn shows_signatures_for_solidity_call_forms() {
                 Pair({right: $25 address(0), left: 1});
                 new uint256[]($26 value);
             }
+
+            // Member calls require the indexed callsite, so a relative opening-parenthesis offset
+            // cannot accidentally pass through the unqualified-name fallback.
+            function trivia(Texts target) public pure {
+                target.set("", 0);
+                target.set("escaped quote: \";,(", $31 1);
+                target.set('escaped quote: \';,(', $32 2);
+                target.set(unicode"😀; // /*,(", $33 3);
+                target.set("value", /* /* ; " ' ( , // */ $34 4);
+                target.set("value", // ; " ' ( , /*
+                    $35 5);
+            }
         }
         "#,
-        "/Signature.sol",
     );
 
     fixture.check_signature_help(
         &[
             "$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8", "$9", "$10", "$11", "$12", "$13",
             "$14", "$15", "$16", "$17", "$18", "$19", "$20", "$21", "$22", "$23", "$24", "$25",
-            "$26", "$27", "$28", "$29", "$30",
+            "$26", "$27", "$28", "$29", "$30", "$31", "$32", "$33", "$34", "$35",
         ],
         str![[r#"
 $1:
@@ -229,6 +255,11 @@ $26:
 active signature=Some(0) parameter=Some(0)
 new uint256[](uint256) returns (uint256[] memory)
   14..21
+$31 $32 $33 $34 $35:
+active signature=Some(0) parameter=Some(1)
+function set(string memory text, uint256 value) external pure
+  13..31
+  33..46
 
 "#]],
     );
@@ -365,9 +396,8 @@ error Failed(address account)
 
 #[test]
 fn shows_signatures_despite_analysis_errors() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
+    let fixture = incomplete_signature_fixture(
         r#"
-        //- /Signature.sol open
         contract A {
             function hidden(uint256 value) private pure {}
         }
@@ -394,7 +424,6 @@ fn shows_signatures_despite_analysis_errors() {
             }
         }
         "#,
-        "/Signature.sol",
     );
 
     fixture.check_signature_help(
@@ -412,44 +441,6 @@ $3 $4:
 active signature=Some(0) parameter=Some(0)
 callback(uint256 value) returns (uint256)
   9..22
-
-"#]],
-    );
-}
-
-#[test]
-fn keeps_member_call_offsets_after_statements_and_lexical_trivia() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Signature.sol open
-        contract Target {
-            function set(string memory text, uint256 value) external pure {}
-        }
-
-        contract C {
-            function use(Target target) public pure {
-                target.set("", 0);
-                target.set("escaped quote: \";,(", $1 1);
-                target.set('escaped quote: \';,(', $2 2);
-                target.set(unicode"😀; // /*,(", $3 3);
-                target.set("value", /* /* ; " ' ( , // */ $4 4);
-                target.set("value", // ; " ' ( , /*
-                    $5 5);
-            }
-        }
-        "#,
-        "/Signature.sol",
-    );
-
-    // Member calls require the indexed callsite, so a relative opening-parenthesis offset cannot
-    // accidentally pass through the unqualified-name fallback.
-    fixture.check_signature_help(
-        &["$1", "$2", "$3", "$4", "$5"],
-        str![[r#"
-active signature=Some(0) parameter=Some(1)
-function set(string memory text, uint256 value) external pure
-  13..31
-  33..46
 
 "#]],
     );
@@ -504,11 +495,7 @@ function select(uint256 value) external pure
 "#]],
         ),
     ] {
-        let fixture = RequestFixture::new_allowing_diagnostics(
-            &format!("//- /Signature.sol open\n{source}"),
-            "/Signature.sol",
-        );
-        fixture.check_signature_help(&["$1"], expected);
+        incomplete_signature_fixture(source).check_signature_help(&["$1"], expected);
     }
 }
 
@@ -634,8 +621,7 @@ function bar(address value) public pure
 "#]],
         ),
     ] {
-        let fixture =
-            RequestFixture::new(&format!("//- /Signature.sol open\n{source}"), "/Signature.sol");
+        let fixture = signature_fixture(source);
         let changed = replacements
             .iter()
             .fold(fixture.project_contents("/Signature.sol"), |contents, (from, to)| {
@@ -678,24 +664,25 @@ function twice(uint256 value) internal pure returns (uint256)
 
 #[test]
 fn clamps_positions_and_rejects_surrogate_pairs() {
-    let fixture = RequestFixture::new(
+    let fixture = signature_fixture(
         r#"
-        //- /Signature.sol open
         contract C {
             function add(uint256 lhs, uint256 rhs) public pure returns (uint256) {
                 return lhs + rhs;
             }
 
             function set(string memory text) public pure {}
+            function foo(uint256 lhs, uint256 rhs) public pure {}
+            function bar(uint256 first, uint256 second) public pure {}
 
             function use() public pure {
                 add(1,$1
                     2);
                 set(unicode"$2😀");
+                foo(1,$3 2);
             }
         }
         "#,
-        "/Signature.sol",
     );
     let mut state = fixture.state();
     let (uri, position) = fixture.marker_location("$1");
@@ -707,52 +694,9 @@ fn clamps_positions_and_rejects_surrogate_pairs() {
     let (_, position) = fixture.marker_location("$2");
     assert!(signature_help_at(&mut state, uri.clone(), position).is_some());
     let inside = Position::new(position.line, position.character + 1);
-    assert_eq!(signature_help_at(&mut state, uri, inside), None);
-}
+    assert_eq!(signature_help_at(&mut state, uri.clone(), inside), None);
 
-#[test]
-fn clamps_signature_help_lines_to_the_document_end() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /Signature.sol open
-        contract C {
-            function add(uint256 lhs, uint256 rhs) public pure returns (uint256) {
-                return lhs + rhs;
-            }
-
-            function use() public pure {
-                add(1,$1
-        "#,
-        "/Signature.sol",
-    );
-    let mut state = fixture.state();
-    let (uri, position) = fixture.marker_location("$1");
-    let expected = signature_help_at(&mut state, uri.clone(), position).unwrap();
-    assert_eq!(expected.active_parameter, Some(1));
-
-    for position in [Position::new(99, 0), Position::new(u32::MAX, u32::MAX)] {
-        assert_eq!(signature_help_at(&mut state, uri.clone(), position), Some(expected.clone()));
-    }
-}
-
-#[test]
-fn clamps_signature_help_before_resolving_an_unindexed_call() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Signature.sol open
-        contract C {
-            function foo(uint256 lhs, uint256 rhs) public pure {}
-            function bar(uint256 first, uint256 second) public pure {}
-
-            function use() public pure {
-                foo(1,$1 2);
-            }
-        }
-        "#,
-        "/Signature.sol",
-    );
-    let mut state = fixture.state();
-    let (uri, position) = fixture.marker_location("$1");
+    let (_, position) = fixture.marker_location("$3");
     let original = fixture.project_contents("/Signature.sol");
     let call_start = original.find("foo(1,").unwrap();
     set_source(&state, &fixture, &format!("{}bar(1,", &original[..call_start]));
@@ -767,10 +711,32 @@ fn clamps_signature_help_before_resolving_an_unindexed_call() {
 }
 
 #[test]
-fn warmed_requests_reject_a_changed_receiver_before_reanalysis() {
-    let fixture = RequestFixture::new(
+fn clamps_signature_help_lines_to_the_document_end() {
+    let fixture = incomplete_signature_fixture(
         r#"
-        //- /Signature.sol open
+        contract C {
+            function add(uint256 lhs, uint256 rhs) public pure returns (uint256) {
+                return lhs + rhs;
+            }
+
+            function use() public pure {
+                add(1,$1
+        "#,
+    );
+    let mut state = fixture.state();
+    let (uri, position) = fixture.marker_location("$1");
+    let expected = signature_help_at(&mut state, uri.clone(), position).unwrap();
+    assert_eq!(expected.active_parameter, Some(1));
+
+    for position in [Position::new(99, 0), Position::new(u32::MAX, u32::MAX)] {
+        assert_eq!(signature_help_at(&mut state, uri.clone(), position), Some(expected.clone()));
+    }
+}
+
+#[test]
+fn warmed_requests_reject_a_changed_receiver_before_reanalysis() {
+    let fixture = signature_fixture(
+        r#"
         contract A {
             function f(uint256 value) external pure {}
         }
@@ -785,7 +751,6 @@ fn warmed_requests_reject_a_changed_receiver_before_reanalysis() {
             }
         }
         "#,
-        "/Signature.sol",
     );
     let mut state = fixture.state();
     let (uri, position) = fixture.marker_location("$1");
@@ -811,9 +776,8 @@ fn warmed_requests_reject_a_changed_receiver_before_reanalysis() {
 
 #[test]
 fn warmed_requests_use_current_string_and_comment_boundaries_before_reanalysis() {
-    let fixture = RequestFixture::new(
+    let fixture = signature_fixture(
         r#"
-        //- /Signature.sol open
         contract Target {
             function set(bytes memory text, uint256 value) external pure {}
         }
@@ -825,7 +789,6 @@ fn warmed_requests_use_current_string_and_comment_boundaries_before_reanalysis()
             }
         }
         "#,
-        "/Signature.sol",
     );
     let mut state = fixture.state();
     let (uri, position) = fixture.marker_location("$1");
@@ -859,9 +822,8 @@ fn warmed_requests_use_current_string_and_comment_boundaries_before_reanalysis()
 
 #[test]
 fn warmed_requests_use_changed_lines_and_utf16_columns_before_reanalysis() {
-    let fixture = RequestFixture::new(
+    let fixture = signature_fixture(
         r#"
-        //- /Signature.sol open
         contract C {
             function set(string memory text, uint256 value) public pure {}
 
@@ -871,7 +833,6 @@ fn warmed_requests_use_changed_lines_and_utf16_columns_before_reanalysis() {
             }
         }
         "#,
-        "/Signature.sol",
     );
     let mut state = fixture.state();
     let (uri, position) = fixture.marker_location("$1");
@@ -898,9 +859,8 @@ fn warmed_requests_use_changed_lines_and_utf16_columns_before_reanalysis() {
 
 #[test]
 fn warmed_member_signature_help_survives_an_earlier_line_edit() {
-    let fixture = RequestFixture::new(
+    let fixture = signature_fixture(
         r#"
-        //- /Signature.sol open
         contract Target {
             function set(uint256 value) external pure {}
         }
@@ -911,7 +871,6 @@ fn warmed_member_signature_help_survives_an_earlier_line_edit() {
             }
         }
         "#,
-        "/Signature.sol",
     );
     let mut state = fixture.state();
     let (uri, position) = fixture.marker_location("$1");
