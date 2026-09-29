@@ -723,9 +723,9 @@ pub(crate) struct FunctionAttributes {
     /// Never clone this function into multiple callers.
     pub(crate) no_inline: bool,
     /// Every memory write either permutes words already present in an array
-    /// argument, stores into an array whose elements are full words, or writes
-    /// free memory above the free-memory pointer, so calls cannot widen any
-    /// array's element bit width.
+    /// argument, possibly cleaned to their low bits, stores into an array whose
+    /// elements are full words, or writes free memory above the free-memory
+    /// pointer, so calls cannot widen any array's element bit width.
     ///
     /// This is a trusted invariant for compiler-synthesized helpers. It must
     /// stay false for source functions and for helpers that store new words
@@ -737,6 +737,12 @@ pub(crate) struct FunctionAttributes {
     ///
     /// This is a trusted invariant for compiler-synthesized helpers.
     pub(crate) returns_param_elements: bool,
+    /// Every `and` of a loaded word with `2**160 - 1` in this function cleans
+    /// an element of an `address[]` to the address it holds, so element
+    /// cleanup removes these masks once no array can hold a dirty address.
+    ///
+    /// This is a trusted invariant for compiler-synthesized helpers.
+    pub(crate) cleans_address_elements: bool,
     /// Proved upper bound, in bits, on the words each array parameter can
     /// hold while this function reads it, recorded by element cleanup for
     /// the ABI return proofs that run after the element masks are gone.
@@ -762,6 +768,7 @@ impl Default for FunctionAttributes {
             no_inline: false,
             preserves_array_elements: false,
             returns_param_elements: false,
+            cleans_address_elements: false,
             array_element_bits: FxHashMap::default(),
             array_return_element_bits: None,
         }

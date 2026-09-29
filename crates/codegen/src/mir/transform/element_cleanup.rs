@@ -34,6 +34,13 @@
 //! Runs early in the optimized phase, while element accesses are still
 //! semantic and the call graph is explicit; removed masks lose their debug
 //! checkpoints rather than lending them to the loads.
+//!
+//! Compiler helpers that compare `address[]` elements walk the words through raw pointers and
+//! clean each loaded word with `and word, 2**160 - 1`, marked by `cleans_address_elements`. In a
+//! module without inline assembly, typed stores and validating decoders wrote every array word,
+//! so no element holds a dirty address and those masks are dropped, along with the mark, so the
+//! helper can merge with the word helper of the same shape. A module with assembly keeps them:
+//! the pointers carry no array identity to bound per array.
 
 use super::egraph::max_bits_with_args;
 use crate::mir::{
@@ -60,6 +67,8 @@ const MAX_VALUE_DEPTH: u32 = 8;
 const FULL_WIDTH: u32 = 256;
 /// Fixed-point rounds after which every bound is given up as full.
 const MAX_ROUNDS: usize = 16;
+/// The width of an address, which helpers' element masks clean words to.
+const ADDRESS_WIDTH: u32 = 160;
 
 impl MirPass for ElementCleanup {
     fn name(&self) -> &'static str {
@@ -95,11 +104,19 @@ impl MirPass for ElementCleanup {
                 );
             }
         }
+        // Only assembly can leave an address element's upper bits dirty.
+        let clean_addresses = !module.functions.iter().any(|func| func.attributes.inline_assembly);
         let mut changed = false;
         for (id, func) in module.functions.iter_mut_enumerated() {
             let reading = transitive[id];
-            if reading >= FULL_WIDTH {
+            let helper_masks = clean_addresses && func.attributes.cleans_address_elements;
+            if reading >= FULL_WIDTH && !helper_masks {
                 continue;
+            }
+            // Every address mask goes below, so nothing sets the helper apart from a word
+            // helper of the same shape any more, which it may now merge with.
+            if helper_masks {
+                func.attributes.cleans_address_elements = false;
             }
             // The ABI return proofs run after the masks are gone: leave them
             // the bound of every array parameter this function reads.
@@ -150,10 +167,21 @@ impl MirPass for ElementCleanup {
             for inst in func.instructions() {
                 if let Some((element, bits)) = masked_element(func, inst)
                     && let Value::Inst(load) = func.value(element)
-                    && let InstKind::MemoryObjectLoadElement { object, layout, .. } =
-                        func.inst(*load).kind
-                    && is_word_array(layout)
-                    && objects.get(&object).is_some_and(|&origin| origin.max(reading) <= bits)
+                    && match func.inst(*load).kind {
+                        InstKind::MemoryObjectLoadElement { object, layout, .. } => {
+                            is_word_array(layout)
+                                && objects
+                                    .get(&object)
+                                    .is_some_and(|&origin| origin.max(reading) <= bits)
+                        }
+                        // A helper's address mask of a loaded element word.
+                        InstKind::MLoad(_) => {
+                            helper_masks
+                                && bits == ADDRESS_WIDTH
+                                && matches!(func.inst(inst).kind, InstKind::And(..))
+                        }
+                        _ => false,
+                    }
                     && let Some(result) = func.inst_result_value(inst)
                 {
                     // zext i160 (trunc i256 element to i160) to i256 -> element

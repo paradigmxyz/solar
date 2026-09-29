@@ -2346,6 +2346,8 @@ impl<'a> InlineCloner<'a> {
     ) -> Self {
         // The callee's instructions move into the caller, and with them any assembly.
         caller.attributes.inline_assembly |= callee.attributes.inline_assembly;
+        // Only a callee whose address masks clean elements keeps the caller's claim.
+        caller.attributes.cleans_address_elements &= callee.attributes.cleans_address_elements;
         Self {
             caller,
             callee,
