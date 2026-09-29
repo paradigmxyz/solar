@@ -2131,11 +2131,10 @@ define_mir_ops! {
     )]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     DataCopy(data: DataRef, dest: ValueId, size: ValueId),
-    /// Byte length of constant module data from its offset to its end, plus
-    /// an addend, rounded down to a multiple of 32 when aligned.
+    /// Byte length of deferred module data, such as another contract's
+    /// bytecode, plus an addend, rounded down to a multiple of 32 when aligned.
     ///
-    /// The length of deferred data, such as another contract's bytecode, is
-    /// only known once the data is linked during final assembly. Folding
+    /// The length is only known once the data is linked during final assembly. Folding
     /// the addend and rounding into the operation keeps sizes derived from
     /// the length constant after resolution.
     #[mir_op(

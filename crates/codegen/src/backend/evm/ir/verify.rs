@@ -301,14 +301,23 @@ impl<'a> Verifier<'a> {
                 encoding if encoding == Instruction::ENCODED_PUSH | Instruction::IMMUTABLE => {
                     self.verify_immutable_id(block_id, inst, value);
                 }
-                encoding
-                    if encoding == Instruction::ENCODED_PUSH | Instruction::DATA
-                        || encoding == Instruction::ENCODED_PUSH | Instruction::DATA_SIZE =>
-                {
-                    let (PushValue::Data(data) | PushValue::DataSize(DataSize { data, .. })) =
-                        value
-                    else {
-                        self.error_in_block(block_id, "program data push must carry a data ID");
+                encoding if encoding == Instruction::ENCODED_PUSH | Instruction::DATA_SIZE => {
+                    let PushValue::DataSize(size) = value else {
+                        self.error_in_block(block_id, "`push_data_size` must carry a data size");
+                        return;
+                    };
+                    if size.data.index() >= module.data.len() {
+                        self.error_in_block(
+                            block_id,
+                            format_args!("program data `{}` is out of range", size.data.index()),
+                        );
+                    } else if module.data[size.data].deferred.is_none() {
+                        self.error_in_block(block_id, "`push_data_size` requires deferred data");
+                    }
+                }
+                encoding if encoding == Instruction::ENCODED_PUSH | Instruction::DATA => {
+                    let PushValue::Data(data) = value else {
+                        self.error_in_block(block_id, "`push_data` must carry a data ID");
                         return;
                     };
                     if data.id.index() >= module.data.len() {

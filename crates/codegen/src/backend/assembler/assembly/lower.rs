@@ -72,26 +72,12 @@ impl Assembler<'_> {
         succeeded(self)
     }
 
-    /// Links embedded contract bytecode into the optimized program's deferred data,
-    /// interning its libraries into `libraries`.
-    pub(in crate::backend) fn link(
+    /// Links embedded contract bytecode into the optimized program's deferred data, interning
+    /// its libraries into `libraries`, and lowers the program to primitive assembly.
+    pub(in crate::backend) fn prepare_linked(
         &mut self,
         bytecodes: &EmbeddedBytecodes,
         libraries: &mut LibraryTable,
-    ) {
-        if let Some(optimized) = &mut self.optimized
-            && !optimized.failed
-            && optimized.program.link(bytecodes, libraries)
-        {
-            // With literal sizes, linked bytes can share storage with other data.
-            optimized.program.fold_data_sizes();
-            let _changed = ir::pack_linked_data(&mut optimized.program);
-        }
-    }
-
-    /// Lowers the optimized program to primitive assembly.
-    pub(in crate::backend) fn lower(
-        &mut self,
         capture_evm_ir: bool,
         capture_debug_info: bool,
     ) -> PreparedAssembly {
@@ -103,7 +89,12 @@ impl Assembler<'_> {
         if failed {
             return failed_preparation(ir_program, capture_evm_ir);
         }
+        let linked = ir_program.link(bytecodes, libraries);
         ir_program.fold_data_sizes();
+        if linked {
+            // With literal sizes, linked bytes can share storage with other data.
+            let _changed = ir::pack_linked_data(&mut ir_program);
+        }
         let errors_before = self.gcx.dcx().err_count();
         let program = lower_evm_ir(self, &mut ir_program, &mut labels, capture_debug_info);
         validate_program_evm_version(self, &program);

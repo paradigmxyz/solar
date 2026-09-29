@@ -650,13 +650,11 @@ pub struct EvmArtifact {
 impl crate::backend::Backend for EvmCodegen<'_> {
     type Output = EvmArtifact;
 
-    /// Lowers a module that embeds no other contract's bytecode; use
-    /// [`EvmCodegen::schedule_module`] and [`EvmCodegen::finish_module`] otherwise.
-    fn lower_module(&mut self, module: &mut Module) -> EvmArtifact {
+    fn lower_module(&mut self, module: &mut Module, bytecodes: &EmbeddedBytecodes) -> EvmArtifact {
         if !self.schedule_module(module) {
             return EvmArtifact::default();
         }
-        self.finish_module(module, &EmbeddedBytecodes::default())
+        self.finish_module(module, bytecodes)
     }
 }
 
@@ -1058,9 +1056,9 @@ RETURN
             module.advance_phase(codegen.gcx.dcx(), MirPhase::Lowered).unwrap();
 
             let mut first_module = module.clone();
-            let first = codegen.lower_module(&mut first_module);
+            let first = codegen.lower_module(&mut first_module, &Default::default());
             let mut second_module = module.clone();
-            let second = codegen.lower_module(&mut second_module);
+            let second = codegen.lower_module(&mut second_module, &Default::default());
 
             assert_eq!(second.deployment, first.deployment);
             assert_eq!(second.runtime, first.runtime);

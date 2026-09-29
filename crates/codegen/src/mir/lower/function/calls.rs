@@ -337,15 +337,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
 
         // len = data_size initcode(C)
-        let bytecode_len_value = self.builder.data_size(bytecode, 0, false);
+        let bytecode_len_value = self.builder.data_size(bytecode.id, 0, false);
         // CREATE consumes a raw byte range, so do not reserve a semantic bytes
         // header that no later operation can observe.
         let (total_len, allocation_size) = if let Some(len) = static_len {
             // total_len = data_size initcode(C), len
             // allocation_size = data_size initcode(C), len + 31, aligned
             (
-                self.builder.data_size(bytecode, len, false),
-                self.builder.data_size(bytecode, len + 31, true),
+                self.builder.data_size(bytecode.id, len, false),
+                self.builder.data_size(bytecode.id, len + 31, true),
             )
         } else {
             // total_len = checked_add len, encoded_len

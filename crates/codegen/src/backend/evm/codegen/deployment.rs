@@ -19,7 +19,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Optimizes `module` and schedules its runtime code.
     ///
     /// Returns whether the module has code to finish. If so, [`Self::finish_module`]
-    /// completes the artifact once the module's deferred data has been resolved.
+    /// completes the artifact once the embedded bytecode is available.
     /// Otherwise the artifact is empty.
     #[tracing::instrument(
         name = "evm_codegen",
@@ -27,7 +27,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         skip_all,
         fields(module = %module.name),
     )]
-    pub fn schedule_module(&mut self, module: &mut Module) -> bool {
+    pub(crate) fn schedule_module(&mut self, module: &mut Module) -> bool {
         // Interfaces have no code. An internal-only library keeps its rejecting
         // dispatch stub, like `solc`.
         if module.is_interface {
@@ -102,7 +102,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         skip_all,
         fields(module = %module.name),
     )]
-    pub fn finish_module(&mut self, module: &Module, bytecodes: &EmbeddedBytecodes) -> EvmArtifact {
+    pub(crate) fn finish_module(
+        &mut self,
+        module: &Module,
+        bytecodes: &EmbeddedBytecodes,
+    ) -> EvmArtifact {
         let PendingRuntime { call_graph, size_rescue } =
             self.pending_runtime.take().expect("module must be scheduled first");
         let lowered = module.as_checked_lowered();
@@ -131,12 +135,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             &immutable_refs,
         );
         self.asm.optimize();
-        self.asm.link(bytecodes, &mut libraries);
-        let prepared_deploy_code = PreparedDeploymentPrefix {
-            assembly: self.asm.lower(self.capture_evm_ir, self.capture_debug_info),
-            constructor_arg_offset,
-            runtime_offset,
-        };
+        let assembly = self.asm.prepare_linked(
+            bytecodes,
+            &mut libraries,
+            self.capture_evm_ir,
+            self.capture_debug_info,
+        );
+        let prepared_deploy_code =
+            PreparedDeploymentPrefix { assembly, constructor_arg_offset, runtime_offset };
         let mut deploy_code_len = 0usize;
         let mut constructor_arg_offset = runtime_len;
         let mut deploy_code = self.assemble_deployment_prefix(

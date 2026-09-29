@@ -29,8 +29,7 @@ pub(crate) fn display_data_ref(
 /// Displays a size derived from a data length: `data[, addend[, aligned]]`.
 pub(crate) fn display_data_size(name: Option<Symbol>, size: DataSize) -> impl fmt::Display {
     fmt::from_fn(move |f| {
-        let data = size.data;
-        write!(f, "{}", display_data_ref(name, data.id.index(), data.offset))?;
+        write!(f, "{}", display_data_ref(name, size.data.index(), 0))?;
         if size.addend != 0 || size.aligned {
             write!(f, ", {}", size.addend)?;
         }

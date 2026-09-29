@@ -23,7 +23,7 @@ use crate::{
 };
 use alloy_primitives::{Bytes, U256};
 use memchr::memmem;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{index::IndexVec, map::FxHashMap};
 use solar_interface::sym;
 use solar_sema::Gcx;
 
@@ -405,7 +405,6 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
             DataRef::new(id, 0)
         } else if let Some(data_ref) = (allow_subslices
             && references.subslice_safe[old_id]
-            && !references.sized.contains(old_id)
             && module.data.len() < MAX_DATA_SUBSTRING_ENTRIES)
             .then(|| find_data(&packed, &sources, data, old_id))
             .flatten()
@@ -441,14 +440,17 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
     module.data = ordered;
     for block in &mut module.blocks {
         for inst in &mut block.instructions {
-            let data = match &mut inst.value {
-                Some(PushValue::Data(data)) => data,
-                Some(PushValue::DataSize(size)) => &mut size.data,
-                _ => continue,
-            };
-            let base = remap[&data.id];
-            data.id = base.id;
-            data.offset = data.offset.checked_add(base.offset).expect("data offset overflow");
+            match &mut inst.value {
+                Some(PushValue::Data(data)) => {
+                    let base = remap[&data.id];
+                    data.id = base.id;
+                    data.offset =
+                        data.offset.checked_add(base.offset).expect("data offset overflow");
+                }
+                // Deferred data keeps its own entry.
+                Some(PushValue::DataSize(size)) => size.data = remap[&size.data].id,
+                _ => {}
+            }
         }
     }
     true
@@ -489,8 +491,6 @@ enum DataStackValue {
 struct DataReferences {
     counts: IndexVec<DataId, usize>,
     subslice_safe: IndexVec<DataId, bool>,
-    /// Data whose length a `push_data_size` observes, so it cannot become another's subslice.
-    sized: DenseBitSet<DataId>,
     layout_observable: bool,
 }
 
@@ -499,7 +499,6 @@ impl DataReferences {
         Self {
             counts: IndexVec::from_vec(vec![0; module.data.len()]),
             subslice_safe: IndexVec::from_vec(vec![true; module.data.len()]),
-            sized: DenseBitSet::new_empty(module.data.len()),
             layout_observable: false,
         }
     }
@@ -582,8 +581,7 @@ fn track_data_reference(
         return;
     }
     if let Some(size) = inst.pushed_data_size() {
-        references.counts[size.data.id] += 1;
-        references.sized.insert(size.data.id);
+        references.counts[size.data] += 1;
         stack.push(DataStackValue::Size(size));
         return;
     }

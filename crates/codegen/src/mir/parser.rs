@@ -2062,9 +2062,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::DataCopy(data, dest, size), None)
             }
             sym::data_size => {
+                let span = self.parser.token().span;
                 let data = self.parse_data_ref()?;
+                if data.offset != 0 {
+                    return Err(self.parser.error_at(span, "data size cannot take an offset"));
+                }
                 let (addend, aligned) = self.parser.parse_data_size_operands()?;
-                (InstKind::DataSize(DataSize { data, addend, aligned }), Some(MirType::I256))
+                let size = DataSize { data: data.id, addend, aligned };
+                (InstKind::DataSize(size), Some(MirType::I256))
             }
             sym::storeimmutable => {
                 let (id, _) = self.parse_immutable_ref()?;

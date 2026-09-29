@@ -265,15 +265,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // len = data_size code(C)
         // size = data_size code(C), 63, aligned
         // object = bytes(size, len) !preserves_fmp
-        let len = builder.data_size(code, 0, false);
-        let size = builder.data_size(code, 2 * word - 1, true);
+        let len = builder.data_size(code.id, 0, false);
+        let size = builder.data_size(code.id, 2 * word - 1, true);
         let (object, data) =
             Self::alloc_bytes_object(builder, size, len, AllocationSemantics::INTERNAL);
         // Contract code is never empty, so its last data word starts one length word
         // before the padded length.
         // mstore object + data_size(code(C), 31, aligned), 0
         // data_copy code(C), data, len
-        let tail_offset = builder.data_size(code, word - 1, true);
+        let tail_offset = builder.data_size(code.id, word - 1, true);
         let tail = builder.add(object, tail_offset);
         let zero = builder.imm(0);
         builder.mstore(tail, zero);

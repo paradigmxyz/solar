@@ -4,7 +4,7 @@
 
 use flate2::read::GzDecoder;
 use solar::{
-    codegen::{self, EvmCodegen, RelocatableBytecode},
+    codegen::{self, Backend, EvmCodegen, RelocatableBytecode},
     parse::interface::{Result, Session},
     sema::{Compiler as SemaCompiler, CompilerRef},
 };
@@ -222,12 +222,7 @@ fn ensure_contract_bytecode(
     }
     let mut module = codegen::mir::lower::lower_contract(gcx, contract_id);
     gcx.dcx().has_errors()?;
-    let mut evm = EvmCodegen::new(gcx);
-    let artifact = if evm.schedule_module(&mut module) {
-        evm.finish_module(&module, bytecodes)
-    } else {
-        Default::default()
-    };
+    let artifact = EvmCodegen::new(gcx).lower_module(&mut module, bytecodes);
     bytecodes.insert(
         key,
         codegen::ContractBytecodes {

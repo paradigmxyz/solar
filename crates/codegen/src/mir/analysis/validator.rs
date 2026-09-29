@@ -1181,32 +1181,30 @@ impl<'a> Validator<'a> {
         block_id: BlockId,
         inst_id: InstId,
     ) {
-        let (mnemonic, data, size) = match &func.inst(inst_id).kind {
-            InstKind::DataCopy(data, _, size) => ("data_copy", data, Some(size)),
-            InstKind::DataSize(size) => ("data_size", &size.data, None),
+        let (data, size) = match &func.inst(inst_id).kind {
+            InstKind::DataCopy(data, _, size) => (data, size),
+            InstKind::DataSize(size) => {
+                match module.data.get(size.data) {
+                    None => self.emit_at_inst(
+                        format_args!("data_size references nonexistent data{}", size.data.index()),
+                        block_id,
+                        inst_id,
+                    ),
+                    Some(data) if data.deferred.is_none() => {
+                        self.emit_at_inst("data_size requires deferred data", block_id, inst_id)
+                    }
+                    Some(_) => {}
+                }
+                return;
+            }
             _ => return,
         };
         let Some(bytes) = module.data.get(data.id).map(|data| &data.bytes) else {
             self.emit_at_inst(
-                format_args!("{mnemonic} references nonexistent data{}", data.id.index()),
+                format_args!("data_copy references nonexistent data{}", data.id.index()),
                 block_id,
                 inst_id,
             );
-            return;
-        };
-        let Some(size) = size else {
-            // Deferred data stays empty until resolved, so no offset reaches into it.
-            if data.offset as usize > bytes.len() {
-                self.emit_at_inst(
-                    format_args!(
-                        "data_size offset {} exceeds data size {}",
-                        data.offset,
-                        bytes.len()
-                    ),
-                    block_id,
-                    inst_id,
-                );
-            }
             return;
         };
         // The length of deferred data is only known through its own `data_size`.

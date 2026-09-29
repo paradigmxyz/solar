@@ -190,7 +190,7 @@ fn display_push_value<'a>(module: &'a Module, value: &'a PushValue) -> impl fmt:
             crate::utils::display_data_ref(module.data[data.id].name, data.id.index(), data.offset,)
         ),
         PushValue::DataSize(size) => {
-            let name = module.data[size.data.id].name;
+            let name = module.data[size.data].name;
             write!(f, "{}", crate::utils::display_data_size(name, *size))
         }
     })

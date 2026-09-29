@@ -1231,11 +1231,11 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::DataCopy(data, dest, size))
     }
 
-    /// Emits the byte length of module data from its offset, plus `addend`, rounded
-    /// down to a multiple of 32 when `aligned` is set.
+    /// Emits the byte length of deferred module data plus `addend`, rounded down to a
+    /// multiple of 32 when `aligned` is set.
     pub(crate) fn data_size(
         &mut self,
-        data: crate::mir::DataRef,
+        data: crate::mir::DataId,
         addend: u64,
         aligned: bool,
     ) -> ValueId {

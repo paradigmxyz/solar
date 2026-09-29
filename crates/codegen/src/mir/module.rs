@@ -223,9 +223,8 @@ impl Module {
         Ok(LoweredModule(self))
     }
 
-    /// Returns the lowered view of a module that [`Self::as_lowered`] already accepted.
-    ///
-    /// Only deferred data may have been resolved since that check.
+    /// Returns the lowered view of a module that [`Self::as_lowered`] already accepted and
+    /// that has not changed since.
     pub(crate) fn as_checked_lowered(&self) -> LoweredModule<'_> {
         debug_assert_eq!(self.phase, MirPhase::Lowered);
         LoweredModule(self)
@@ -468,8 +467,9 @@ impl Module {
 
     /// Interns another contract's bytecode, which final assembly links in.
     pub(crate) fn intern_contract_code(&mut self, code: ContractCode, name: Symbol) -> DataRef {
-        let id = match self.data.iter().position(|data| data.deferred == Some(code)) {
-            Some(index) => DataId::from_usize(index),
+        let existing = self.data.iter_enumerated().find(|(_, data)| data.deferred == Some(code));
+        let id = match existing {
+            Some((id, _)) => id,
             None => self.add_contract_code(code, Some(name)),
         };
         DataRef::new(id, 0)

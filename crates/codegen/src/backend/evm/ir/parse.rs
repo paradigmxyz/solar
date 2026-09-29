@@ -301,7 +301,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let span = self.parser.token().span;
                 let (id, offset, _) = self.parser.parse_data_ref()?;
                 let id = self.check_assembly_id("program data", span, id)?;
-                let data = DataRef::new(DataId::from_usize(id as usize), offset);
+                if offset != 0 {
+                    return Err(self.parser.error_at(span, "data size cannot take an offset"));
+                }
+                let data = DataId::from_usize(id as usize);
                 let (addend, aligned) = self.parser.parse_data_size_operands()?;
                 Instruction::push_data_size(DataSize { data, addend, aligned })
             }

@@ -117,7 +117,7 @@ impl Module {
         for block in &mut self.blocks {
             for inst in &mut block.instructions {
                 if let Some(size) = inst.pushed_data_size() {
-                    let data = &self.data[size.data.id];
+                    let data = &self.data[size.data];
                     assert!(data.deferred.is_none(), "data sizes require linked data");
                     let value = size.value(data.bytes.len());
                     inst.replace_preserving_metadata(Instruction::push_value(value));

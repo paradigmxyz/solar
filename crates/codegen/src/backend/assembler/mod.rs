@@ -296,7 +296,12 @@ impl<'gcx> Assembler<'gcx> {
         capture_debug_info: bool,
     ) -> AssembledCode {
         self.optimize();
-        self.assemble_lowered(capture_evm_ir, capture_debug_info)
+        self.assemble_linked(
+            &EmbeddedBytecodes::default(),
+            &mut LibraryTable::default(),
+            capture_evm_ir,
+            capture_debug_info,
+        )
     }
 
     /// Links embedded contract bytecode into the optimized program, then lowers and
@@ -308,16 +313,8 @@ impl<'gcx> Assembler<'gcx> {
         capture_evm_ir: bool,
         capture_debug_info: bool,
     ) -> AssembledCode {
-        self.link(bytecodes, libraries);
-        self.assemble_lowered(capture_evm_ir, capture_debug_info)
-    }
-
-    fn assemble_lowered(
-        &mut self,
-        capture_evm_ir: bool,
-        capture_debug_info: bool,
-    ) -> AssembledCode {
-        let prepared = self.lower(capture_evm_ir, capture_debug_info);
+        let prepared =
+            self.prepare_linked(bytecodes, libraries, capture_evm_ir, capture_debug_info);
         let result = self.assemble_owned(prepared, &[]);
         self.clear();
         result

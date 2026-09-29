@@ -17,7 +17,7 @@ pub(crate) use data::data_copy_cost;
 
 /// Lowers a contract from HIR to MIR.
 ///
-/// The bytecode of contracts that this contract creates stays deferred data that
+/// The bytecode of contracts that this contract embeds stays deferred data that
 /// the backend links in during final assembly.
 pub fn lower_contract(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     contract::lower(gcx, contract_id)

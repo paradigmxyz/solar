@@ -521,6 +521,11 @@ fn finish_contract(
             (Library::of_contract(gcx, dependency), bytecodes)
         })
         .collect::<EmbeddedBytecodes>();
+    assert_eq!(
+        children.len(),
+        graph.dependencies[contract_id].count(),
+        "embedded contracts must have distinct source-qualified names"
+    );
     let artifact = match codegen {
         Some(mut codegen) => {
             let artifact = codegen.finish_module(&module, &children);
