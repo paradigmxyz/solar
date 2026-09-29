@@ -36,3 +36,9 @@ fn @structs(arg0: calldataslice) -> calldataslice [selector=0xe12fb1be, pure, ab
     v0 = make_calldata_slice 0, 0
     ret arg0
 }
+
+fn @pairs(arg0: calldataslice) -> calldataslice [selector=0xebfa7a4a, pure, abi_params=[array<_, array<2, bytes>>], abi_returns=[memory_array<array<2, memory_bytes>>], abi_return_params=[array<_, array<2, bytes>>]] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    ret arg0
+}

@@ -1750,11 +1750,9 @@ fn encoded_value(
     if input.checked {
         // revert InvalidCalldataAccessOffset
         //   unless slt(offset, calldatasize - base - (first_size - 1))
-        // The value's first word, or a struct's head, must start inside calldata.
-        let first_size = match ty {
-            AbiType::Bytes(_) | AbiType::DynamicArray { .. } => 32,
-            _ => ty.head_size(),
-        };
+        // The value's first word, or all the heads of a tuple's fields or a fixed array's
+        // elements, must lie inside calldata.
+        let first_size = ty.tail_size();
         let calldata_size = builder.calldatasize();
         let available = builder.sub(calldata_size, base);
         let slack = builder.imm(first_size.saturating_sub(1));
