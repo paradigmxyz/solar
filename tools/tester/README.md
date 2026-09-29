@@ -39,6 +39,13 @@ that receives one line per call, `checked`, `skipped` with the reason, or
 SOLAR_RUN_CALL_MIR=target/run-call-mir.log TESTER_MODE=ui cargo test -p solar-compiler --test tests
 ```
 
+A test written in lowered MIR, such as those in `tests/ui/codegen/mir/interp/`,
+exists to run its calls both ways, so its directives are always checked, and a
+call the interpreter cannot run fails the test instead of being skipped. The
+runner compiles the module like a contract named after the file and the module.
+MIR has no ABI, so a directive names the function by its signature, followed by
+its outputs when it returns values, as in `add(uint256,uint256)(uint256) 2, 3 => 5`.
+
 To look into a disagreement, run the call by hand with
 [solar-mir-interp](../mir-interp/README.md): pass it the test's
 `-Zdump=mir-final` output and the call, and add `--trace` to see every operation

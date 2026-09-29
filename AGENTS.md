@@ -396,6 +396,8 @@ for a one-line restatement of the pass name.
     the pass's command-line name for the directory.
   - Progressive MIR lowering pass tests (`lower-abi`, `lower-dispatch`, and
     `lower-evm-shaped`) go together under `tests/ui/codegen/mir/lowering/`.
+  - Lowered MIR programs whose `run-call` directives check the MIR interpreter
+    against the EVM go under `tests/ui/codegen/mir/interp/`.
   - EVM IR optimization tests go under `tests/ui/codegen/evm-ir/<pass-name>/`,
     using the `-Zevm-ir-pipeline` pass name for the directory.
   - Pass-free round-trip fixtures, pipeline tests, and validation tests belong
@@ -461,7 +463,9 @@ Common file-level UI directives:
   zero-argument `setUp()` first when the contract defines it. With
   `SOLAR_RUN_CALL_MIR` set, both also run on the contract's final MIR through
   the MIR interpreter, which must agree with the EVM (see
-  `tools/tester/README.md`).
+  `tools/tester/README.md`). Lowered `.mir` tests always run that check. Their
+  modules have no ABI, so name the function by its signature and outputs, as in
+  `add(uint256,uint256)(uint256) 2, 3 => 5`.
 - `//@ filecheck: ...`: Run LLVM FileCheck against the generated `.stdout` file
   after the UI test. Arguments after `filecheck:` are passed directly to
   FileCheck, for example `--check-prefix=ABI` or

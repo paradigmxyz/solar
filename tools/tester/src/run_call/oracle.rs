@@ -1,4 +1,5 @@
-//! Checks each `run-call` against the MIR interpreter when `SOLAR_RUN_CALL_MIR` is set.
+//! Checks each `run-call` against the MIR interpreter when `SOLAR_RUN_CALL_MIR` is set, and always
+//! in a test written in MIR.
 //!
 //! The test runner executes a call in an EVM as usual, then compiles the test again with
 //! `-Zdump=mir-final` and runs the same call on the called contract's dumped MIR through
@@ -14,6 +15,9 @@
 //! With `SOLAR_RUN_CALL_MIR=1`, only a disagreement is reported, as a test failure. Any other
 //! value names a file that also receives one line per call: `checked`, `skipped` with the reason,
 //! or `mismatch`.
+//!
+//! A test written in MIR exists to run its calls both ways, so it is checked without the variable,
+//! and a call the interpreter cannot run fails it instead of being skipped.
 
 use super::CALLER;
 use alloy_primitives::{Address, B256, Log, U256, hex};
@@ -68,6 +72,17 @@ pub(super) struct Call<'a> {
 /// Returns whether the check is enabled.
 pub(super) fn enabled() -> bool {
     std::env::var_os(VARIABLE).is_some_and(|value| !value.is_empty())
+}
+
+/// Returns whether the check runs for the test: always for a test written in MIR, and for every
+/// other test when the check is enabled.
+pub(super) fn applies(config: &TestConfig) -> bool {
+    enabled() || is_mir(config)
+}
+
+/// Returns whether the test is written in MIR.
+fn is_mir(config: &TestConfig) -> bool {
+    config.status.path().extension().is_some_and(|extension| extension == "mir")
 }
 
 /// An account as the called contract sees it.
@@ -234,6 +249,13 @@ pub(super) fn check(
     trace: &Trace,
 ) -> Result<(), String> {
     let report = |status: &str, detail: &str| record(config, call.name, status, detail);
+    let skip = |reason: &str| {
+        report("skipped", reason);
+        if is_mir(config) {
+            return Err(format!("the MIR interpreter cannot check `{}`: {reason}", call.name));
+        }
+        Ok(())
+    };
     let expected = match trace.stop {
         stop if stop.is_success() => Outcome::Success(trace.output.clone()),
         InstrStop::Revert => Outcome::Revert(trace.output.clone()),
@@ -244,8 +266,7 @@ pub(super) fn check(
         | InstrStop::InvalidOperandOOG
         | InstrStop::StackOverflow
         | InstrStop::CallTooDeep => {
-            report("skipped", &format!("the EVM ended with {:?}", trace.stop));
-            return Ok(());
+            return skip(&format!("the EVM ended with {:?}", trace.stop));
         }
         _ => Outcome::Halt,
     };
@@ -253,19 +274,16 @@ pub(super) fn check(
     let dump = match dumps.as_ref() {
         Ok(dump) => dump,
         Err(error) => {
-            report("skipped", error);
-            return Ok(());
+            return skip(error);
         }
     };
     let Some(module) = dump.modules.get(call.contract) else {
-        report("skipped", "the MIR dump has no module for the contract");
-        return Ok(());
+        return skip("the MIR dump has no module for the contract");
     };
     // A constructor may deploy other code, and deployment patches immutables into the runtime.
     let deployed = trace.before.accounts.get(&trace.before.contract).map(|account| &account.code);
     if dump.runtimes.get(call.contract) != deployed {
-        report("skipped", "the deployed code is not the compiled runtime");
-        return Ok(());
+        return skip("the deployed code is not the compiled runtime");
     }
     let block = BlockEnv::<BaseEvmTypes>::default();
     let heap_start = trace.heap_start;
@@ -275,13 +293,11 @@ pub(super) fn check(
     let execution = match interpret::transact(module, call.input, &mut host, options) {
         Ok(execution) => execution,
         Err(reason) => {
-            report("skipped", &reason);
-            return Ok(());
+            return skip(&reason);
         }
     };
     if let Outcome::Unsupported(reason) = &execution.outcome {
-        report("skipped", reason);
-        return Ok(());
+        return skip(reason);
     }
 
     let mut differences = Vec::new();
@@ -306,7 +322,11 @@ pub(super) fn check(
             .map(|log| (log.topics.clone(), log.data.clone()))
             .collect::<Vec<_>>();
         if logs != mir_logs {
-            differences.push(format!("the EVM logged {logs:x?}, the MIR {mir_logs:x?}"));
+            differences.push(format!(
+                "the EVM logged {}, the MIR {}",
+                describe_logs(&logs),
+                describe_logs(&mir_logs)
+            ));
         }
         let written = execution.storage.iter().copied().collect::<HashMap<_, _>>();
         for (&slot, &value) in &written {
@@ -344,6 +364,15 @@ fn describe(outcome: &Outcome, stop: Option<InstrStop>) -> String {
         (Outcome::Halt, None) => "halted".into(),
         (Outcome::Unsupported(reason), _) => format!("could not run: {reason}"),
     }
+}
+
+/// Describes events as their topics and data, in hex.
+fn describe_logs(logs: &[(Vec<U256>, Vec<u8>)]) -> String {
+    let logs = logs.iter().map(|(topics, data)| {
+        let topics = topics.iter().map(|topic| format!("{topic:#x}")).collect::<Vec<_>>();
+        format!("topics [{}] data 0x{}", topics.join(", "), hex::encode(data))
+    });
+    format!("[{}]", logs.collect::<Vec<_>>().join("; "))
 }
 
 /// Appends one line about `call` to the log file the environment variable names, if any.
