@@ -14,7 +14,9 @@
 //! written, so a builder also stays in memory and out of the ABI: no state or storage variable,
 //! no parameter or return value of a public or external function or of an external function
 //! type, no event, error or `try` clause parameter, and no argument of `abi.encode` and its
-//! variants holds one.
+//! variants holds one. An external function type counts wherever it appears, in an array or a
+//! mapping as well, since calling a value of it encodes the builder; a call through a function
+//! pointer of such a type is rejected too.
 
 use crate::{
     builtins::Builtin,
@@ -130,13 +132,25 @@ impl<'gcx> BuilderFields<'gcx> {
         }
     }
 
-    /// The builder an external function type `ty` takes or returns, when there is one.
+    /// The builder an external function type in `ty` takes or returns, when there is one: `ty`
+    /// itself, an element, a mapping value or a tuple component, at any depth. A function type's
+    /// own parameters are variables, which are checked where they are declared.
     fn external_signature_builder(&self, ty: Ty<'gcx>) -> Option<hir::StructId> {
-        let TyKind::Fn(function) = ty.peel_refs().kind else { return None };
-        if !function.is_external() {
-            return None;
+        match ty.peel_refs().kind {
+            TyKind::Fn(function) if function.is_external() => function
+                .parameters
+                .iter()
+                .chain(function.returns)
+                .find_map(|&ty| self.holds_builder(ty)),
+            TyKind::Array(element, _) | TyKind::DynArray(element) | TyKind::Slice(element) => {
+                self.external_signature_builder(element)
+            }
+            TyKind::Mapping(_, value) => self.external_signature_builder(value),
+            TyKind::Tuple(components) => {
+                components.iter().find_map(|&component| self.external_signature_builder(component))
+            }
+            _ => None,
         }
-        function.parameters.iter().chain(function.returns).find_map(|&ty| self.holds_builder(ty))
     }
 
     /// The builder `ty` holds, including as a tuple component, when there is one.
@@ -221,6 +235,19 @@ impl<'gcx> Visit<'gcx> for BuilderFields<'gcx> {
                     .span(span)
                     .note("a decoded builder could claim bytes that were never written")
                     .emit();
+            }
+            // A declared function's own parameters and returns are checked where it is declared;
+            // a function pointer's type can come from where no declaration is checked, such as
+            // `new`.
+            ExprKind::Call(..)
+                if let Some((callee, _, _)) = expr.as_call()
+                    && self.gcx.resolved_function(callee).is_none()
+                    && let Some(ty) = self.gcx.type_of_expr(callee.id)
+                    && let TyKind::Fn(function) = ty.kind
+                    && function.is_external()
+                    && let Some(id) = self.external_signature_builder(ty) =>
+            {
+                self.report_escape(id, expr.span, "an external call");
             }
             ExprKind::Call(..)
                 if let Some((callee, args, _)) = expr.as_call()
