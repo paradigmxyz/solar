@@ -2,7 +2,7 @@ use super::{support::check_completions_at, *};
 use snapbox::str;
 
 #[tokio::test(flavor = "current_thread")]
-async fn remappings_change_refreshes_import_completion_context() {
+async fn remapping_and_overlay_changes_refresh_import_completions() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /foundry.toml
@@ -14,6 +14,10 @@ async fn remappings_change_refreshes_import_completion_context() {
 
         //- /src/Main.sol open
         import "pkg/$1";
+        import "./$2";
+
+        //- /src/Existing.sol
+        contract Existing {}
 
         //- /lib/old/Old.sol
         contract Old {}
@@ -26,10 +30,16 @@ async fn remappings_change_refreshes_import_completion_context() {
     let mut state = fixture.state();
     fixture.check_completions_in(
         &mut state,
-        &["$1"],
+        &["$1", "$2"],
         str![[r#"
+$1:
 pkg/Old.sol File filter="pkg/Old.sol" edit=0:8-0:12
 | pkg/Old.sol
+$2:
+./Existing.sol File filter="./Existing.sol" edit=1:8-1:10
+| ./Existing.sol
+./Main.sol File filter="./Main.sol" edit=1:8-1:10
+| ./Main.sol
 
 "#]],
     );
@@ -38,40 +48,17 @@ pkg/Old.sol File filter="pkg/Old.sol" edit=0:8-0:12
     std::fs::write(&remappings, "pkg/=lib/new/\n").unwrap();
     watch_files(&mut state, [(&remappings, FileChangeType::CHANGED)]);
     settle(&state).await;
-
     fixture.check_completions_in(
         &mut state,
-        &["$1"],
+        &["$1", "$2"],
         str![[r#"
+$1:
 pkg/New.sol File filter="pkg/New.sol" edit=0:8-0:12
 | pkg/New.sol
-
-"#]],
-    );
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn open_overlay_changes_invalidate_import_completion_cache() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-
-        //- /src/Main.sol open
-        import "./$1";
-
-        //- /src/Existing.sol
-        contract Existing {}
-        "#,
-        "/src/Main.sol",
-    );
-    let mut state = fixture.state();
-    fixture.check_completions_in(
-        &mut state,
-        &["$1"],
-        str![[r#"
-./Existing.sol File filter="./Existing.sol" edit=0:8-0:10
+$2:
+./Existing.sol File filter="./Existing.sol" edit=1:8-1:10
 | ./Existing.sol
-./Main.sol File filter="./Main.sol" edit=0:8-0:10
+./Main.sol File filter="./Main.sol" edit=1:8-1:10
 | ./Main.sol
 
 "#]],
@@ -79,16 +66,15 @@ async fn open_overlay_changes_invalidate_import_completion_cache() {
 
     set_overlay(&state, &fixture.project_path("/src/Overlay.sol"), "contract Overlay {}", 1);
     state.recompute_after_opening_source(Vec::new());
-
     fixture.check_completions_in(
         &mut state,
-        &["$1"],
+        &["$2"],
         str![[r#"
-./Existing.sol File filter="./Existing.sol" edit=0:8-0:10
+./Existing.sol File filter="./Existing.sol" edit=1:8-1:10
 | ./Existing.sol
-./Main.sol File filter="./Main.sol" edit=0:8-0:10
+./Main.sol File filter="./Main.sol" edit=1:8-1:10
 | ./Main.sol
-./Overlay.sol File filter="./Overlay.sol" edit=0:8-0:10
+./Overlay.sol File filter="./Overlay.sol" edit=1:8-1:10
 | ./Overlay.sol
 
 "#]],
@@ -327,29 +313,33 @@ Extensionless File filter="Extensionless" edit=4:8-4:11
 }
 
 #[test]
-fn completes_remapped_imports_from_the_deepest_foundry_workspace() {
+fn completes_imports_from_the_deepest_owning_workspace() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
-        //- /foundry.toml
+        //- /owned/foundry.toml
         [profile.default]
         auto_detect_remappings = false
         remappings = ["pkg/=lib/outer/"]
 
-        //- /lib/outer/Outer.sol
+        //- /owned/lib/outer/Outer.sol
         contract Outer {}
 
-        //- /packages/app/foundry.toml
+        //- /owned/packages/app/foundry.toml
         [profile.default]
         auto_detect_remappings = false
         remappings = ["pkg/=lib/inner/"]
 
-        //- /packages/app/src/Main.sol open
+        //- /owned/packages/app/src/Main.sol open
         import "pkg/$1";
 
-        //- /packages/app/lib/inner/Inner.sol
+        //- /owned/packages/app/lib/inner/Inner.sol
         contract Inner {}
+
+        //- /unowned/Main.sol open
+        import "./$2";
+        contract Main {}
         "#,
-        "/packages/app/src/Main.sol",
+        "/owned/packages/app/src/Main.sol",
     );
 
     fixture.check_triggered_completions(
@@ -360,6 +350,8 @@ pkg/Inner.sol File filter="pkg/Inner.sol" edit=0:8-0:12
 
 "#]],
     );
+    // Unowned files do not fall back to symbol completion.
+    fixture.check_completions(&["$2"], str![""]);
 }
 
 #[test]
@@ -399,20 +391,4 @@ Target.sol File filter="Target.sol" edit=1:8-1:8
 
 "#]],
     );
-}
-
-#[test]
-fn unowned_import_completion_does_not_fall_back_to_symbols() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /owned/foundry.toml
-
-        //- /unowned/Main.sol open
-        import "./$1";
-        contract Main {}
-        "#,
-        "/unowned/Main.sol",
-    );
-
-    fixture.check_completions(&["$1"], str![""]);
 }

@@ -6,7 +6,6 @@ use lsp_types::{
     request::{Completion, Initialize, Request, ResolveCompletionItem},
 };
 use solar_config::ImportRemapping;
-use std::pin::{Pin, pin};
 use tower::Service;
 
 const PLAIN_DOCUMENTATION: &str = r#"function documented(uint256 value) public pure returns (uint256 result)
@@ -185,11 +184,9 @@ async fn validates_completion_data_before_waiting_and_uses_latest_analysis() {
         with_data(|data| data[1] = json!("untitled:Completion.sol")),
         with_data(|data| data[2] = json!("invalid")),
     ] {
-        let mut request =
-            pin!(crate::handlers::resolve_completion_item(&mut state, invalid.clone()));
-        let Poll::Ready(response) = poll_once(request.as_mut()) else {
-            panic!("invalid completion data should not wait for analysis");
-        };
+        // Invalid completion data must not wait for analysis.
+        let response =
+            expect_ready(crate::handlers::resolve_completion_item(&mut state, invalid.clone()));
         assert_eq!(response.unwrap(), invalid);
     }
 
@@ -204,16 +201,13 @@ async fn validates_completion_data_before_waiting_and_uses_latest_analysis() {
             },
         );
     for (_, request) in &mut requests {
-        assert!(poll_once(request.as_mut()).is_pending());
+        assert_polls(true, request.as_mut());
     }
 
     let mut snapshot = state.snapshot();
     assert!(snapshot.publish_symbol_tables(1, Arc::new(replacement.symbol_tables)));
     for (index, (item, request)) in requests.iter_mut().enumerate() {
-        let Poll::Ready(response) = poll_once(request.as_mut()) else {
-            panic!("resolve should complete after analysis is published");
-        };
-        let mut resolved = response.unwrap();
+        let mut resolved = expect_ready(request.as_mut()).unwrap();
         if index == 0 {
             let documentation = PLAIN_DOCUMENTATION.replacen(
                 "Adds one to the provided value.",
@@ -229,7 +223,7 @@ async fn validates_completion_data_before_waiting_and_uses_latest_analysis() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn resolves_only_compatible_completion_items_across_analysis_batches() {
-    let marked = MarkedProject::from_fixture(
+    let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Shared.sol open
         import {Base} from "@dep/Base.sol";
@@ -279,8 +273,9 @@ async fn resolves_only_compatible_completion_items_across_analysis_batches() {
         //- /right/Main.sol
         import "../Shared.sol";
         "#,
+        "/Shared.sol",
     );
-    let project = marked.project();
+    let project = fixture.project();
     project.write_file(
         "/left/Base.sol",
         concat!(
@@ -296,8 +291,7 @@ async fn resolves_only_compatible_completion_items_across_analysis_batches() {
             "}\n",
         ),
     );
-    let uri = project.uri("/Shared.sol");
-    let hover_position = marked.marker("$2").position();
+    let (uri, hover_position) = fixture.marker_location("$2");
     let analyze_context = |directory: &str| {
         let opts = CompileOpts {
             base_path: Some(project.root().to_path_buf()),
@@ -324,28 +318,20 @@ async fn resolves_only_compatible_completion_items_across_analysis_batches() {
         "structurally different NatSpec should render identically",
     );
 
-    let state = GlobalState::new(ClientSocket::new_closed());
-    *state.vfs.write() = project.vfs();
+    let state = fixture.state();
     let symbol_tables = state.symbol_tables.clone();
     symbol_tables.store(Arc::new(left.symbol_tables.clone()));
     let mut router = crate::new_router_with_state(state);
-    let item = request_completion_item_at(
-        &mut router,
-        uri.clone(),
-        marked.marker("$1").position(),
-        "documented",
-    )
-    .await;
-    assert!(item.data.is_some(), "source completion should carry resolve data");
-    assert!(item.documentation.is_none(), "documentation should be deferred");
+    let item = request_completion_item(&mut router, &fixture, "$1", "documented").await;
 
     let mut results = AnalysisResultAccumulator::default();
     results.push(left);
     results.push(equivalent);
     symbol_tables.store(Arc::new(results.finish().symbol_tables));
-    let mut resolved = request::<ResolveCompletionItem>(&mut router, item.clone()).await;
-    assert!(resolved.documentation.take().is_some());
-    assert_eq!(resolved, item);
+    let documentation = "function documented(uint256 value) public pure override returns (uint256 result)\n\n\
+                         Shared documentation.\n\nSecond paragraph.";
+    let documentation = Documentation::String(documentation.into());
+    check_resolved_documentation(&mut router, item.clone(), documentation).await;
 
     let left = analyze_context("/left");
     let right = analyze_context("/right");
@@ -388,10 +374,6 @@ fn analyze_clean(path: PathBuf, contents: String) -> AnalysisResult {
     result
 }
 
-fn poll_once<F: Future>(future: Pin<&mut F>) -> Poll<F::Output> {
-    future.poll(&mut Context::from_waker(Waker::noop()))
-}
-
 async fn request<R: Request>(router: &mut Router<GlobalState>, params: R::Params) -> R::Result {
     let request = json!({ "id": 0, "method": R::METHOD, "params": params });
     let response = router.call(from_json::<AnyRequest>(request)).await;
@@ -418,15 +400,6 @@ async fn request_completion_item(
     label: &str,
 ) -> CompletionItem {
     let (uri, position) = fixture.marker_location(marker);
-    request_completion_item_at(router, uri, position, label).await
-}
-
-async fn request_completion_item_at(
-    router: &mut Router<GlobalState>,
-    uri: Url,
-    position: Position,
-    label: &str,
-) -> CompletionItem {
     let params = request_params(&uri, position, json!({}));
     let Some(CompletionResponse::Array(items)) = request::<Completion>(router, params).await else {
         panic!("expected completion items");

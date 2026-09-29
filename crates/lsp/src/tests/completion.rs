@@ -1,5 +1,5 @@
 use super::support::RequestFixture;
-use snapbox::str;
+use snapbox::{IntoData, str};
 
 #[test]
 fn completes_line_natspec_templates() {
@@ -219,6 +219,7 @@ fn completes_block_and_recovered_natspec() {
          *
          */
         contract Multiline {}
+        /** docs */ contract Closed { function f() external pure { ret$8urn; } }
         ///$6
         contract LineDocs {}
         /**$7
@@ -227,7 +228,7 @@ fn completes_block_and_recovered_natspec() {
         "/Completion.sol",
     );
 
-    fixture.check_completions(&["$1", "$2", "$3", "$4", "$5"], str![[r#"
+    fixture.check_completions(&["$1", "$2", "$3", "$4", "$5", "$8"], str![[r#"
 $1:
 NatSpec function documentation Snippet detail="function value" sort="0" filter="///" format=Snippet edit=1:4-1:7
 | /// $1
@@ -259,16 +260,18 @@ NatSpec contract documentation Snippet detail="contract Multiline" sort="0" filt
 |  * @author $2
 |  * @notice $3$0
 |  */
+$8:
+revert Function
 
 "#]]);
     fixture.check_triggered_completions(&[("$6", "/"), ("$7", "*")], str![[r#"
 $6:
-NatSpec contract documentation Snippet detail="contract LineDocs" sort="0" filter="///" format=Snippet edit=22:0-22:3
+NatSpec contract documentation Snippet detail="contract LineDocs" sort="0" filter="///" format=Snippet edit=23:0-23:3
 | /// @title $1
 | /// @author $2
 | /// @notice $3$0
 $7:
-NatSpec contract documentation Snippet detail="contract OpenVault" sort="0" filter="/**" format=Snippet edit=24:0-24:3
+NatSpec contract documentation Snippet detail="contract OpenVault" sort="0" filter="/**" format=Snippet edit=25:0-25:3
 | /**
 |  * @title $1
 |  * @author $2
@@ -498,25 +501,6 @@ NatSpec function documentation Snippet detail="function value" sort="0" filter="
 }
 
 #[test]
-fn falls_back_to_ordinary_completion_after_closed_block_natspec() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Completion.sol open
-        /** docs */ contract C { function f() external pure { ret$1urn; } }
-        "#,
-        "/Completion.sol",
-    );
-
-    fixture.check_completions(
-        &["$1"],
-        str![[r#"
-revert Function
-
-"#]],
-    );
-}
-
-#[test]
 fn completes_symbols_in_scope() {
     let fixture = RequestFixture::new(
         r#"
@@ -626,6 +610,33 @@ fn completes_members_and_filters_prefixes() {
             uint256 public balance;
         }
 
+        library Math {
+            function twice(uint256 value) internal pure returns (uint256) { return value * 2; }
+            function wrong(address value) internal pure returns (address) { return value; }
+            function hidden(uint256 value) private pure returns (uint256) { return value; }
+        }
+        function triple(uint256 value) pure returns (uint256) { return value * 3; }
+        contract Library {
+            using Ma$16th for uint256;
+            using {triple} for uint256;
+            function f(uint256 value) public pure {
+                Math.$17;
+                Math.tw$18;
+                value.$19;
+                value.tw$20;
+                (value + 1).$21;
+            }
+        }
+        contract NoUsing {
+            function f(uint256 value) public pure {
+                value.$22;
+                (value + 1).$23;
+                missing.$24;
+                unknown().$25;
+                value . $26;
+            }
+        }
+
         contract C {
             struct Data {
                 uint256 field;
@@ -672,7 +683,8 @@ fn completes_members_and_filters_prefixes() {
     fixture.check_completions(
         &[
             "$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8", "$9", "$10", "$11", "$12", "$13",
-            "$14", "$15",
+            "$14", "$15", "$16", "$17", "$18", "$19", "$20", "$21", "$22", "$23", "$24", "$25",
+            "$26",
         ],
         str![[r#"
 $1 $2 $3 $4 $5:
@@ -716,7 +728,17 @@ $13:
 field Property detail="Data"
 $14:
 needleValue Variable detail="f"
-$15:
+$15 $22 $23 $24 $25 $26:
+$16:
+Math Module
+$17:
+twice Method detail="Math"
+wrong Method detail="Math"
+$18 $20:
+twice Method detail="Math"
+$19 $21:
+triple Function
+twice Method detail="Math"
 
 "#]],
     );
@@ -769,60 +791,6 @@ $4 $5:
 }
 
 #[test]
-fn completes_library_and_using_for_members() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /Completion.sol open
-        library Math {
-            function twice(uint256 value) internal pure returns (uint256) { return value * 2; }
-            function wrong(address value) internal pure returns (address) { return value; }
-            function hidden(uint256 value) private pure returns (uint256) { return value; }
-        }
-        function triple(uint256 value) pure returns (uint256) { return value * 3; }
-        contract C {
-            using Ma$1th for uint256;
-            using {triple} for uint256;
-            function f(uint256 value) public pure {
-                Math.$2;
-                Math.tw$3;
-                value.$4;
-                value.tw$5;
-                (value + 1).$6;
-            }
-        }
-        contract D {
-            function f(uint256 value) public pure {
-                value.$7;
-                (value + 1).$8;
-                missing.$9;
-                unknown().$10;
-                value . $11;
-            }
-        }
-        "#,
-        "/Completion.sol",
-    );
-
-    fixture.check_completions(
-        &["$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8", "$9", "$10", "$11"],
-        str![[r#"
-$1:
-Math Module
-$2:
-twice Method detail="Math"
-wrong Method detail="Math"
-$3 $5:
-twice Method detail="Math"
-$4 $6:
-triple Function
-twice Method detail="Math"
-$7 $8 $9 $10 $11:
-
-"#]],
-    );
-}
-
-#[test]
 fn completes_members_with_incomplete_syntax() {
     for (prelude, expression) in [
         ("using Math for uint256;", "x.$1"),
@@ -856,86 +824,6 @@ fn completes_members_with_incomplete_syntax() {
             fixture.check_completions(&["$1"], expected);
         }
     }
-}
-
-#[test]
-fn completes_library_members_before_analysis_finishes() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Math.sol
-        library Math {
-            function twice(uint256 value) internal pure returns (uint256) { return value * 2; }
-            function hidden(uint256 value) private pure returns (uint256) { return value; }
-        }
-        //- /Completion.sol open
-        import {Math as Numbers} from "./Math.sol";
-        contract C {
-            using Nu$3mbers for uint256;
-            function f(uint256 value) public pure {
-                uint x = 1;
-                Numbers;$1
-                value;$2
-                x;$4
-            }
-        }
-        "#,
-        "/Completion.sol",
-    );
-    fixture.check_completions(
-        &["$3"],
-        str![[r#"
-Numbers Module
-
-"#]],
-    );
-    let changed = fixture
-        .project_contents("/Completion.sol")
-        .replace("Numbers;", "Numbers.")
-        .replace("value;", "value.")
-        .replace("x;", "x.");
-    let mut state = fixture.completion_state_after_changes(&[("/Completion.sol", &changed)]);
-    fixture.check_completions_in(
-        &mut state,
-        &["$1", "$2", "$4"],
-        str![[r#"
-twice Method detail="Math"
-
-"#]],
-    );
-}
-
-#[test]
-fn pending_members_respect_shadowing_and_chained_receivers() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /Completion.sol open
-        contract C {
-            struct Data { uint field; }
-            function f() public pure {
-                Data memory msg;
-                Data memory field;
-                msg;$1
-                msg.field;$2
-            }
-        }
-        "#,
-        "/Completion.sol",
-    );
-    let changed = fixture
-        .project_contents("/Completion.sol")
-        .replace("msg;", "msg.")
-        .replace("msg.field;", "msg.field.");
-    let mut state = fixture.completion_state_after_changes(&[("/Completion.sol", &changed)]);
-    fixture.check_completions_in(
-        &mut state,
-        &["$1", "$2"],
-        str![[r#"
-$1:
-field Property detail="Data"
-$2:
-
-"#]],
-    );
 }
 
 #[test]
@@ -976,14 +864,9 @@ fn completes_all_declaration_receivers_before_analysis() {
         "#,
         "/Completion.sol",
     );
-    let changed = ["Status", "Record", "Price", "Changed", "Failed", "helper", "Base", "callback"]
-        .into_iter()
-        .fold(fixture.project_contents("/Completion.sol"), |contents, name| {
-            contents.replace(&format!("{name};"), &format!("{name}."))
-        });
-    let mut state = fixture.completion_state_after_changes(&[("/Completion.sol", &changed)]);
-    fixture.check_completions_in(
-        &mut state,
+    check_member_access_edits(
+        &fixture,
+        &["Status", "Record", "Price", "Changed", "Failed", "helper", "Base", "callback"],
         &["$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8", "$9"],
         str![[r#"
 $1:
@@ -1011,54 +894,68 @@ selector Method
 }
 
 #[test]
-fn completes_namespace_receivers_before_analysis() {
+fn completes_namespace_and_library_receivers_before_analysis() {
     let fixture = RequestFixture::new_in_batches(
         r#"
         //- /Definitions.sol
         enum Status { Pending, Done }
-        library Math { function twice(uint x) internal pure returns (uint) { return x * 2; } }
+        library Math {
+            function twice(uint x) internal pure returns (uint) { return x * 2; }
+            function hidden(uint x) private pure returns (uint) { return x; }
+        }
         //- /Exports.sol
         import {Math as Numbers} from "./Definitions.sol";
         //- /Completion.sol open
         import * as Definitions from "./Definitions.sol";
         import "./Exports.sol" as Exports;
+        import {Math as Numbers} from "./Definitions.sol";
         contract C {
             function f() public pure {
                 Def$1initions;$2
                 Exports;$3
             }
         }
+        contract D {
+            using Nu$4mbers for uint256;
+            function f(uint256 value) public pure {
+                uint x = 1;
+                Numbers;$5
+                value;$6
+                x;$7
+            }
+        }
         "#,
         &["/Definitions.sol", "/Completion.sol"],
     );
     fixture.check_completions(
-        &["$1"],
+        &["$1", "$4"],
         str![[r#"
+$1:
 Definitions Module
+$4:
+Numbers Module
 
 "#]],
     );
-    let changed = fixture
-        .project_contents("/Completion.sol")
-        .replace("Definitions;", "Definitions.")
-        .replace("Exports;", "Exports.");
-    let mut state = fixture.completion_state_after_changes(&[("/Completion.sol", &changed)]);
-    fixture.check_completions_in(
-        &mut state,
-        &["$2", "$3"],
+    check_member_access_edits(
+        &fixture,
+        &["Definitions", "Exports", "Numbers", "value", "x"],
+        &["$2", "$3", "$5", "$6", "$7"],
         str![[r#"
 $2:
 Math Module
 Status Enum
 $3:
 Numbers Module
+$5 $6 $7:
+twice Method detail="Math"
 
 "#]],
     );
 }
 
 #[test]
-fn pending_receivers_use_the_callers_contract_scope() {
+fn pending_receivers_use_the_callers_scope() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Base.sol
@@ -1084,18 +981,22 @@ fn pending_receivers_use_the_callers_contract_scope() {
         contract Other is Base {
             function f() public pure { amount;$6 }
         }
+        contract Shadowing {
+            struct Data { uint field; }
+            function f() public pure {
+                Data memory msg;
+                Data memory field;
+                msg;$7
+                msg.field;$8
+            }
+        }
         "#,
         "/Completion.sol",
     );
-    let changed = ["amount", "this", "super", "externalCall", "secret"]
-        .into_iter()
-        .fold(fixture.project_contents("/Completion.sol"), |contents, name| {
-            contents.replace(&format!("{name};"), &format!("{name}."))
-        });
-    let mut state = fixture.completion_state_after_changes(&[("/Completion.sol", &changed)]);
-    fixture.check_completions_in(
-        &mut state,
-        &["$1", "$2", "$3", "$4", "$5", "$6"],
+    check_member_access_edits(
+        &fixture,
+        &["amount", "this", "super", "externalCall", "secret", "msg", "msg.field"],
+        &["$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8"],
         str![[r#"
 $1:
 twice Function
@@ -1107,8 +1008,26 @@ externalCall Method detail="Base"
 inherited Method detail="Base"
 $4:
 selector Method
-$5 $6:
+$5 $6 $8:
+$7:
+field Property detail="Data"
 
 "#]],
     );
+}
+
+/// Checks completions after turning each `name;` in `/Completion.sol` into the unanalyzed
+/// member access `name.`.
+fn check_member_access_edits(
+    fixture: &RequestFixture,
+    names: &[&str],
+    markers: &[&str],
+    expected: impl IntoData,
+) {
+    let changed =
+        names.iter().fold(fixture.project_contents("/Completion.sol"), |contents, name| {
+            contents.replace(&format!("{name};"), &format!("{name}."))
+        });
+    let mut state = fixture.completion_state_after_changes(&[("/Completion.sol", &changed)]);
+    fixture.check_completions_in(&mut state, markers, expected);
 }

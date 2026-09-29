@@ -621,26 +621,21 @@ mod tests {
     }
 
     #[test]
-    fn rejects_a_line_doc_comment_separated_by_a_blank_line() {
-        let contents = Rope::from("///\n\ncontract C {}");
-        assert!(matches!(
-            target(&contents, Position::new(0, 3)),
-            NatSpecCompletionResult::Claimed(None)
-        ));
-    }
-
-    #[test]
-    fn leaves_valid_empty_trailing_and_string_lines_for_ordinary_completion() {
-        for (source, position) in [
-            ("", Position::new(0, 0)),
-            ("contract C {}\n", Position::new(1, 0)),
-            ("contract C {}\r\n", Position::new(1, 0)),
-            ("string constant VALUE = \"/**\";", Position::new(0, 29)),
+    fn claims_detached_comments_and_leaves_other_lines_for_ordinary_completion() {
+        for (source, position, claimed) in [
+            // A line doc comment separated by a blank line is claimed without a target.
+            ("///\n\ncontract C {}", Position::new(0, 3), true),
+            ("", Position::new(0, 0), false),
+            ("contract C {}\n", Position::new(1, 0), false),
+            ("contract C {}\r\n", Position::new(1, 0), false),
+            ("string constant VALUE = \"/**\";", Position::new(0, 29), false),
         ] {
-            assert!(matches!(
-                target(&Rope::from(source), position),
-                NatSpecCompletionResult::NotApplicable
-            ));
+            let result = target(&Rope::from(source), position);
+            let matches = match result {
+                NatSpecCompletionResult::NotApplicable => !claimed,
+                NatSpecCompletionResult::Claimed(target) => claimed && target.is_none(),
+            };
+            assert!(matches, "{source:?}");
         }
     }
 

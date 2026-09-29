@@ -1154,7 +1154,7 @@ mod tests {
         }
     }
 
-    fn test_signature(label: &str, parameter_names: Vec<Option<&str>>) -> CallSignature {
+    fn test_signature(label: &str, parameter_names: &[Option<&str>]) -> CallSignature {
         CallSignature {
             information: SignatureInformation {
                 label: label.into(),
@@ -1162,22 +1162,18 @@ mod tests {
                 parameters: None,
                 active_parameter: None,
             },
-            parameter_names: parameter_names
-                .into_iter()
-                .map(|name| name.map(str::to_owned))
-                .collect(),
+            parameter_names: parameter_names.iter().map(|name| name.map(str::to_owned)).collect(),
             variadic: false,
         }
     }
 
     #[test]
     fn extend_reinterns_callsite_signatures() {
+        let signature = || Arc::new(test_signature("function f(uint256)", &[None]));
         let mut destination = SignatureHelpIndex::default();
-        let canonical = destination
-            .intern_signature(Arc::new(test_signature("function f(uint256)", vec![None])));
+        let canonical = destination.intern_signature(signature());
         let mut source = SignatureHelpIndex::default();
-        let duplicate =
-            source.intern_signature(Arc::new(test_signature("function f(uint256)", vec![None])));
+        let duplicate = source.intern_signature(signature());
         let uri = Url::parse("file:///Signature.sol").unwrap();
         source.calls.insert(
             uri.clone(),
@@ -1197,17 +1193,14 @@ mod tests {
 
     #[test]
     fn fallback_ranking_prefers_named_and_compatible_arity() {
-        let short = test_signature("short", vec![Some("first")]);
-        let long = test_signature("long", vec![Some("first"), Some("second")]);
-
-        assert!(
-            long.fallback_rank(&ActiveArgument { ordinal: 1, name: None })
-                < short.fallback_rank(&ActiveArgument { ordinal: 1, name: None })
-        );
-        assert!(
-            long.fallback_rank(&ActiveArgument { ordinal: 0, name: Some("second") })
-                < short.fallback_rank(&ActiveArgument { ordinal: 0, name: Some("second") })
-        );
+        let short = test_signature("short", &[Some("first")]);
+        let long = test_signature("long", &[Some("first"), Some("second")]);
+        for argument in [
+            ActiveArgument { ordinal: 1, name: None },
+            ActiveArgument { ordinal: 0, name: Some("second") },
+        ] {
+            assert!(long.fallback_rank(&argument) < short.fallback_rank(&argument));
+        }
     }
 
     #[test]
