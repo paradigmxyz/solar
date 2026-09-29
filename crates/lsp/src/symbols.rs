@@ -48,6 +48,7 @@ use crate::{
     signature_help::SignatureHelpIndex,
     source_paths::SourcePath,
     type_hierarchy::TypeHierarchyIndex,
+    utils::item_param_source,
 };
 
 const COMPLETION_ITEM_DATA_VERSION: u8 = 1;
@@ -2585,22 +2586,13 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         if let hir::ExprKind::New(ty) = &callee.kind
             && let TyKind::Contract(id) = self.gcx.type_of_hir_ty(ty).kind
         {
-            return self.item_param_source(id.into());
+            return item_param_source(self.gcx, id.into());
         }
 
         self.gcx
             .type_of_expr(callee.id)
             .and_then(|ty| self.gcx.callable_signature_of_ty(ty))
             .and_then(|signature| signature.param_source)
-    }
-
-    fn item_param_source(&self, item: ItemId) -> Option<CallableParamSource> {
-        let id = match item {
-            ItemId::Function(id) => id,
-            ItemId::Contract(id) => self.gcx.hir.contract(id).ctor?,
-            _ => return None,
-        };
-        Some(CallableParamSource::Function { id, skips_receiver: false })
     }
 
     fn call_param_ids(&self, source: CallableParamSource) -> &'gcx [VariableId] {
@@ -2669,7 +2661,7 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
                 ReferenceTargets::from_buf([symbol_id]),
             );
         }
-        if let Some(source) = self.item_param_source(modifier.id) {
+        if let Some(source) = item_param_source(self.gcx, modifier.id) {
             self.push_named_arg_references(source, &modifier.args);
         }
         self.visit_call_args(&modifier.args)

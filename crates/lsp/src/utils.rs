@@ -6,6 +6,7 @@ use solar_interface::{
     source_map::{FileName, SourceFile},
 };
 use solar_parse::{Parser, ast};
+use solar_sema::{Gcx, hir::ItemId, ty::CallableParamSource};
 use std::{mem, ops::Range as ByteRange, sync::Arc};
 
 /// Applies sequential changes atomically, rejecting malformed ranges without changing the input.
@@ -119,6 +120,16 @@ pub(crate) fn parse_recovering<T>(
         drop(parser);
         Some(f(&sess, &file, source_unit.as_ref()))
     })
+}
+
+/// Returns the parameter source of a modifier invocation or base constructor call.
+pub(crate) fn item_param_source(gcx: Gcx<'_>, item: ItemId) -> Option<CallableParamSource> {
+    let id = match item {
+        ItemId::Function(id) => id,
+        ItemId::Contract(id) => gcx.hir.contract(id).ctor?,
+        _ => return None,
+    };
+    Some(CallableParamSource::Function { id, skips_receiver: false })
 }
 
 /// Returns the byte range of `span` relative to `file`.
