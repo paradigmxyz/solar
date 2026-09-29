@@ -100,9 +100,11 @@
 //! wider output steps, multiple latches, or logical-length mutations retain
 //! their checks.
 //!
-//! Two more universal equalities feed those proofs. A checked `u256` sum equals
-//! a wrapping sum of the same operands wherever it is defined, so a loop test
-//! on `i + 16` covers a bounds check that adds 16 to `i` again. In a module
+//! Two more equalities feed those proofs. A checked `u256` sum equals a
+//! wrapping sum of the same operands once the checked sum has passed its
+//! check, so the walk records the equality at the checked add for the code it
+//! dominates: a loop test on `i + 16` covers a bounds check that adds 16 to `i`
+//! again in the body. Elsewhere the wrapping sum may have wrapped. In a module
 //! without inline assembly, rereads of a parameter object's length agree, and
 //! a fresh object's rereads equal the length stored at its allocation, when
 //! nothing in the function can write that length: stores into other fresh
@@ -720,6 +722,9 @@ struct CheckEliminator<'a> {
     /// Orderings between a derived value and its source that hold wherever the
     /// value exists: shifts, masks, and constant divisions never grow.
     universal_relations: FxHashSet<Relation>,
+    /// The equalities between each checked `u256` sum and the wrapping sums of
+    /// the same operands, which hold only after the checked add, keyed by it.
+    sum_twins: FxHashMap<InstId, SmallVec<[Relation; 2]>>,
     /// The value each stable object-length read agrees with: the length stored
     /// right after a fresh object's allocation, or a parameter's first read.
     length_anchors: FxHashMap<ValueId, ValueId>,
@@ -771,6 +776,7 @@ impl<'a> CheckEliminator<'a> {
         self.difference_index = None;
         self.monotone_relations.clear();
         self.universal_relations.clear();
+        self.sum_twins.clear();
         self.length_anchors.clear();
         self.trip_bounds.clear();
         self.scaled_cursors.clear();
@@ -793,7 +799,7 @@ impl<'a> CheckEliminator<'a> {
             return 0;
         }
         self.universal_relations = universal_relations(func, &relevant);
-        self.universal_relations.extend(checked_sum_twins(func));
+        self.sum_twins = checked_sum_twins(func);
         if self.object_lengths.is_some() {
             for (read, anchor) in stable_object_lengths(func, self.call_summaries.clone()) {
                 self.length_anchors.insert(read, anchor);
@@ -1036,6 +1042,13 @@ impl<'a> CheckEliminator<'a> {
                                 checks.insert(id);
                             }
                             self.assume(func, condition, passing, MAX_DEPTH);
+                        }
+                        // A checked sum that passed equals its wrapping twins in the code it
+                        // dominates.
+                        if let Some(twins) = self.sum_twins.get(&id).cloned() {
+                            for relation in twins {
+                                self.add_relation(relation);
+                            }
                         }
                         if let Some(average) = func.inst_result_value(id) {
                             self.assume_average(func, average);
@@ -1552,7 +1565,7 @@ impl<'a> CheckEliminator<'a> {
         for &relation in &self.monotone_relations {
             index_relation(&mut index, relation);
         }
-        for &relation in &self.universal_relations {
+        for &relation in self.universal_relations.iter().chain(self.sum_twins.values().flatten()) {
             index_relation(&mut index, relation);
         }
         self.relation_index = Some(index);
@@ -2736,18 +2749,22 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
     relations
 }
 
-/// Equates each checked `u256` sum with a wrapping sum of the same operands.
+/// Equates each checked `u256` sum with the wrapping sums of the same operands,
+/// keyed by the checked add.
 ///
-/// The checked sum is defined only where it did not wrap, and there both hold
-/// the same word, so a guard on one bounds the other: a loop test on
-/// `i + 16` then covers a bounds check that adds `16` to `i` again.
-fn checked_sum_twins(func: &Function) -> Vec<Relation> {
+/// The checked sum passed its check only where it did not wrap, and there both
+/// hold the same word, so a guard on one bounds the other: a loop test on
+/// `i + 16` then covers a bounds check that adds `16` to `i` again. Before the
+/// checked add, or beside it, the wrapping sum may have wrapped, so the caller
+/// records the equalities only in the code the checked add dominates.
+fn checked_sum_twins(func: &Function) -> FxHashMap<InstId, SmallVec<[Relation; 2]>> {
     // Constants may be distinct values with equal words.
     let key = |value: ValueId| match const_of(func, value) {
         Some(constant) => (true, constant),
         None => (false, U256::from(value.index())),
     };
-    let mut sums = FxHashMap::<_, (SmallVec<[ValueId; 2]>, SmallVec<[ValueId; 2]>)>::default();
+    let mut sums =
+        FxHashMap::<_, (SmallVec<[ValueId; 2]>, SmallVec<[(InstId, ValueId); 2]>)>::default();
     for inst_id in func.instructions() {
         let Some(value) = func.inst_result_value(inst_id) else { continue };
         let (a, b, checked) = match func.inst(inst_id).kind {
@@ -2762,18 +2779,18 @@ fn checked_sum_twins(func: &Function) -> Vec<Relation> {
         };
         let (a, b) = (key(a), key(b));
         let entry = sums.entry(if a <= b { (a, b) } else { (b, a) }).or_default();
-        if checked { entry.1.push(value) } else { entry.0.push(value) }
+        if checked { entry.1.push((inst_id, value)) } else { entry.0.push(value) }
     }
-    let mut relations = Vec::new();
+    let mut twins = FxHashMap::<_, SmallVec<[Relation; 2]>>::default();
     for (wrapping, checked) in sums.values() {
-        for &checked in checked {
+        for &(inst_id, checked) in checked {
             for &wrapping in wrapping {
                 let (a, b) = ordered(checked, wrapping);
-                relations.push(Relation::Eq(a, b));
+                twins.entry(inst_id).or_default().push(Relation::Eq(a, b));
             }
         }
     }
-    relations
+    twins
 }
 
 /// Pairs each reread of an object's length that nothing in the function can
