@@ -118,6 +118,47 @@ contract Test {
         }
     }
 
+    // A pointer loaded from the block's memory may point to older memory, as may
+    // one a call returns, so a store through either may reach older memory.
+    function throughLoadedPointer(bytes[] memory outer, uint256 x) external pure returns (uint256) {
+        /// @custom:solar-scratch
+        {
+            bytes memory t = abi.encode(x);
+            bytes[][] memory holder = new bytes[][](1);
+            holder[0] = outer;
+            bytes[] memory loaded = holder[0];
+            loaded[0] = t; //~ ERROR: this stores a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+        }
+        return outer[0].length;
+    }
+
+    function callThroughLoadedPointer(bytes[] memory outer, uint256 x)
+        external
+        pure
+        returns (uint256)
+    {
+        /// @custom:solar-scratch
+        {
+            bytes[][] memory holder = new bytes[][](1);
+            holder[0] = outer;
+            setFirst(holder[0], abi.encode(x)); //~ ERROR: this call may store a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+        }
+        return outer[0].length;
+    }
+
+    function same(bytes[] memory list) internal pure returns (bytes[] memory) {
+        return list;
+    }
+
+    function throughReturnedPointer(bytes[] memory outer, uint256 x) external pure returns (uint256) {
+        /// @custom:solar-scratch
+        {
+            bytes[] memory returned = same(outer);
+            returned[0] = abi.encode(x); //~ ERROR: this stores a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+        }
+        return outer[0].length;
+    }
+
     modifier scratchBody() {
         /// @custom:solar-scratch
         {
