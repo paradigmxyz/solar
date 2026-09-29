@@ -69,10 +69,10 @@ pub(crate) struct Config {
     publish_diagnostics_tags: Vec<DiagnosticTag>,
     publish_diagnostics_data: bool,
     pull_diagnostics_data: bool,
-    completion: CompletionClientOptions,
-    signature_help: SignatureHelpClientOptions,
+    pub(crate) completion: CompletionClientOptions,
+    pub(crate) signature_help: SignatureHelpClientOptions,
     source_change_debounce: Duration,
-    code_lens: CodeLensConfig,
+    pub(crate) code_lens: CodeLensConfig,
 }
 
 /// Boolean client capabilities negotiated at initialization.
@@ -249,21 +249,9 @@ impl Config {
         self.source_change_debounce
     }
 
-    pub(crate) fn completion_options(&self) -> CompletionClientOptions {
-        self.completion
-    }
-
     #[cfg(test)]
     pub(crate) fn enable_completion_snippets(&mut self) {
         self.completion.snippet_support = true;
-    }
-
-    pub(crate) fn signature_help_options(&self) -> SignatureHelpClientOptions {
-        self.signature_help
-    }
-
-    pub(crate) fn code_lens_options(&self) -> CodeLensConfig {
-        self.code_lens
     }
 
     #[cfg(test)]
@@ -1274,15 +1262,13 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
             ("code_action_is_preferred", |_, config| config.client.code_action_is_preferred),
             ("work_done_progress", |_, config| config.client.work_done_progress),
             ("hierarchical_symbols", |_, config| config.client.hierarchical_document_symbols),
-            ("completion_snippets", |_, config| config.completion_options().snippet_support),
-            ("completion_markdown", |_, config| config.completion_options().markdown_documentation),
-            ("completion_resolve", |_, config| config.completion_options().resolve_documentation),
-            ("signature_offsets", |_, config| config.signature_help_options().label_offsets),
-            ("signature_markdown", |_, config| {
-                config.signature_help_options().markdown_documentation
-            }),
+            ("completion_snippets", |_, config| config.completion.snippet_support),
+            ("completion_markdown", |_, config| config.completion.markdown_documentation),
+            ("completion_resolve", |_, config| config.completion.resolve_documentation),
+            ("signature_offsets", |_, config| config.signature_help.label_offsets),
+            ("signature_markdown", |_, config| config.signature_help.markdown_documentation),
             ("signature_active_parameter", |_, config| {
-                config.signature_help_options().signature_active_parameter
+                config.signature_help.signature_active_parameter
             }),
         ];
         let enabled = |capabilities: &Value| {
@@ -1461,7 +1447,7 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
             "clientCommands": true,
         } });
         assert_eq!(
-            config(Some(code_lens), &default_launch).code_lens_options(),
+            config(Some(code_lens), &default_launch).code_lens,
             CodeLensConfig {
                 enable: false,
                 selectors: false,

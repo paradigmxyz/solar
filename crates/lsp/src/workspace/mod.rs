@@ -242,14 +242,17 @@ impl Workspace {
     }
 
     pub(crate) fn import_remapping_paths(&self) -> impl Iterator<Item = PathBuf> + '_ {
-        self.compile_opts.import_remappings.iter().filter_map(|remapping| {
-            let target = Path::new(&remapping.path);
-            if target.is_absolute() {
-                Some(target.normalize())
-            } else {
-                self.compile_opts.base_path.as_ref().map(|base| base.join(target).normalize())
-            }
-        })
+        let remappings = self.compile_opts.import_remappings.iter();
+        remappings.filter_map(|remapping| self.resolve_base_path(Path::new(&remapping.path)))
+    }
+
+    /// Normalizes `path`, resolving a relative path against the base path.
+    pub(crate) fn resolve_base_path(&self, path: &Path) -> Option<PathBuf> {
+        if path.is_absolute() {
+            Some(path.normalize())
+        } else {
+            self.compile_opts.base_path.as_ref().map(|base| base.join(path).normalize())
+        }
     }
 
     /// Returns include roots admitted to eager indexing and topology watching.

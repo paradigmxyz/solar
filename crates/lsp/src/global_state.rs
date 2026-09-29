@@ -862,7 +862,7 @@ impl GlobalState {
 
     pub(crate) fn clear_analysis_cache(&mut self) {
         let refresh_code_lenses =
-            self.config.client.code_lens_refresh && self.config.code_lens_options().is_active();
+            self.config.client.code_lens_refresh && self.config.code_lens.is_active();
         let compare_inlay_hints = self.config.client.inlay_hint_refresh;
         let config = self.config.clone();
         let (old_symbol_tables, refresh_requests) = {
@@ -2071,17 +2071,11 @@ fn dependency_watch_roots(config: &Config) -> FxHashSet<PathBuf> {
         config.workspace_roots().iter().map(|root| root.normalize()).collect::<FxHashSet<_>>();
     for workspace in config.workspaces() {
         let opts = workspace.compile_opts();
-        let base_path = opts.base_path.as_deref();
-        if let Some(base_path) = base_path {
+        if let Some(base_path) = &opts.base_path {
             roots.insert(base_path.normalize());
         }
-        roots.extend(opts.include_paths.iter().filter_map(|path| {
-            if path.is_absolute() {
-                Some(path.normalize())
-            } else {
-                base_path.map(|base_path| base_path.join(path).normalize())
-            }
-        }));
+        roots
+            .extend(opts.include_paths.iter().filter_map(|path| workspace.resolve_base_path(path)));
         roots.extend(workspace.import_remapping_paths());
     }
     roots
@@ -2576,7 +2570,7 @@ impl GlobalStateSnapshot {
         output: AnalysisOutput<Arc<SymbolTables>>,
     ) -> bool {
         let refresh_code_lenses =
-            self.config.client.code_lens_refresh && self.config.code_lens_options().is_active();
+            self.config.client.code_lens_refresh && self.config.code_lens.is_active();
         let AnalysisOutput { result, analysis_paths } = output;
         let analysis_watched_file_specs = self
             .config

@@ -783,7 +783,7 @@ pub(crate) fn code_lens(
     params: CodeLensParams,
 ) -> impl Future<Output = Result<Option<Vec<CodeLens>>, ResponseError>> + use<> {
     let uri = normalize_file_uri(params.text_document.uri);
-    let options = state.config.code_lens_options();
+    let options = state.config.code_lens;
     let analysis = if options.is_active() { latest_analysis_for_uri(state, &uri) } else { None };
     query_analysis(analysis, Some(Vec::new()), move |tables| {
         Some(tables.code_lenses(&uri, options))
@@ -902,7 +902,7 @@ pub(crate) fn signature_help(
             source.positions(),
             &source.source(),
             statement_boundary,
-            state.config.signature_help_options(),
+            state.config.signature_help,
         )
     });
     ready(Ok(response))
@@ -936,7 +936,7 @@ pub(crate) fn completion(
                             .cloned()
                     })
                     .flatten();
-                target.completion_items(state.config.completion_options(), semantics.as_ref())
+                target.completion_items(state.config.completion, semantics.as_ref())
             });
             return ready(Ok(Some(CompletionResponse::Array(items))));
         }
@@ -952,7 +952,7 @@ pub(crate) fn completion(
     }
     let input = completion_input(state, &uri, position);
     let context = input.as_ref().map(CompletionInput::context).unwrap_or_default();
-    let options = state.config.completion_options();
+    let options = state.config.completion;
     let symbol_tables = state.symbol_tables.load();
     let mut items = symbol_tables.completion_items(&uri, position, context);
     if !options.resolve_documentation {
@@ -1071,7 +1071,7 @@ pub(crate) fn resolve_completion_item(
     state: &mut GlobalState,
     mut item: CompletionItem,
 ) -> impl Future<Output = Result<CompletionItem, ResponseError>> + use<> {
-    let options = state.config.completion_options();
+    let options = state.config.completion;
     let request = if options.resolve_documentation {
         CompletionItemData::from_item(&item).and_then(|data| {
             let latest_analysis = latest_analysis_for_uri(state, data.uri())?;
