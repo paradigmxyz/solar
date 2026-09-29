@@ -43,20 +43,14 @@ $3 highlights: 2:30-2:33 READ
 
 "#]],
     );
-    fixture.check_rename(
-        "$2",
-        "Renamed",
+    fixture.check_prepare_rename("$3", "2:30-2:33\n");
+    fixture.check_renames(
+        &[("$2", "Renamed"), ("$3", "Renamed")],
         str![[r#"
+$2:
 /Main.sol:2:16-2:17 -> Renamed
 /Middle.sol:0:22-0:23 -> Renamed
-
-"#]],
-    );
-    fixture.check_prepare_rename("$3", "2:30-2:33\n");
-    fixture.check_rename(
-        "$3",
-        "Renamed",
-        str![[r#"
+$3:
 /Lib.sol:0:7-0:10 -> Renamed
 /Main.sol:2:30-2:33 -> Renamed
 
@@ -109,19 +103,13 @@ $3 0:22-0:23 WRITE
 
 "#]],
     );
-    fixture.check_rename(
-        "$3",
-        "Renamed",
+    fixture.check_renames(
+        &[("$3", "Renamed"), ("$4", "Renamed")],
         str![[r#"
+$3:
 /Main.sol:0:22-0:23 -> Renamed
 /Main.sol:3:4-3:5 -> Renamed
-
-"#]],
-    );
-    fixture.check_rename(
-        "$4",
-        "Renamed",
-        str![[r#"
+$4:
 /Main.sol:1:22-1:23 -> Renamed
 /Main.sol:4:4-4:5 -> Renamed
 
@@ -182,19 +170,13 @@ $6 /Events.sol:0:10 interface Events {
 
 "#]],
     );
-    fixture.check_rename(
-        "$4",
-        "Renamed",
+    fixture.check_renames(
+        &[("$4", "Renamed"), ("$7", "Renamed")],
         str![[r#"
+$4:
 /Events.sol:1:10-1:13 -> Renamed
 /Events.sol:7:20-7:23 -> Renamed
-
-"#]],
-    );
-    fixture.check_rename(
-        "$7",
-        "Renamed",
-        str![[r#"
+$7:
 /Events.sol:3:10-3:16 -> Renamed
 /Events.sol:9:22-9:28 -> Renamed
 

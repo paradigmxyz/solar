@@ -52,43 +52,22 @@ $4 highlights: 1:21-1:24 WRITE
 "#]],
     );
     fixture.check_prepare_rename("$1", "3:4-3:6\n");
-    fixture.check_rename(
-        "$1",
-        "Renamed",
+    fixture.check_prepare_rename("$2", "3:7-3:10\n");
+    fixture.check_prepare_rename("$3", "5:13-5:15\n");
+    fixture.check_prepare_rename("$4", "5:16-5:19\n");
+    fixture.check_renames(
+        &[("$1", "Renamed"), ("$2", "Renamed"), ("$3", "Renamed"), ("$4", "Renamed")],
         str![[r#"
+$1:
 /Main.sol:0:22-0:24 -> Renamed
 /Main.sol:3:4-3:6 -> Renamed
-
-"#]],
-    );
-
-    fixture.check_prepare_rename("$2", "3:7-3:10\n");
-    fixture.check_rename(
-        "$2",
-        "Renamed",
-        str![[r#"
+$2:
 /Lib.sol:0:7-0:10 -> Renamed
 /Main.sol:3:7-3:10 -> Renamed
-
-"#]],
-    );
-
-    fixture.check_prepare_rename("$3", "5:13-5:15\n");
-    fixture.check_rename(
-        "$3",
-        "Renamed",
-        str![[r#"
+$3:
 /Main.sol:1:10-1:12 -> Renamed
 /Main.sol:5:13-5:15 -> Renamed
-
-"#]],
-    );
-
-    fixture.check_prepare_rename("$4", "5:16-5:19\n");
-    fixture.check_rename(
-        "$4",
-        "Renamed",
-        str![[r#"
+$4:
 /Main.sol:1:21-1:24 -> Renamed
 /Main.sol:5:16-5:19 -> Renamed
 

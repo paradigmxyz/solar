@@ -48,14 +48,10 @@ fn definition_after(
     let mut state = fixture.state();
     state.mark_analysis_pending_for_test();
     let (uri, position) = fixture.marker_location("$1");
-    let mut request = Query::Definition.request(&mut state, uri, position);
-    let mut context = Context::from_waker(Waker::noop());
-    assert!(request.as_mut().poll(&mut context).is_pending());
+    let mut request = start_request(Query::Definition.request(&mut state, uri, position));
 
     update(&mut state);
-    let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
-        panic!("definition request should complete after analysis settles");
-    };
+    let response = expect_ready(request.as_mut());
     response.map(|response| fixture.response_output(response)).map_err(|error| error.code)
 }
 
@@ -75,15 +71,32 @@ fn open_import_fixture() -> RequestFixture {
     )
 }
 
-#[test]
-fn import_definition_discards_a_stale_vfs_result() {
+#[tokio::test(flavor = "current_thread")]
+async fn import_definition_discards_stale_vfs_and_failed_analysis_results() {
     let fixture = open_import_fixture();
-    let response = definition_after(&fixture, |state| {
+    let stale = definition_after(&fixture, |state| {
         let old_tables = state.symbol_tables.load_full();
         set_overlay(state, &fixture.project_path("/Main.sol"), "import \"./Other.sol\";", None);
         assert!(state.snapshot().publish_symbol_tables(1, old_tables));
     });
-    assert_eq!(response.as_deref(), Ok("<none>\n"));
+    assert_eq!(stale.as_deref(), Ok("<none>\n"));
+
+    // The index is discarded after the current analysis fails.
+    let error = tokio::spawn(async { panic!("test import analysis failure") }).await.unwrap_err();
+    let failed = definition_after(&fixture, |state| {
+        let failed_version = analysis_version(state);
+        assert!(
+            crate::global_state::handle_analysis_failure(
+                failed_version,
+                error,
+                &state.analysis_version,
+                &state.published_analysis_version,
+                &state.analysis_commit,
+            )
+            .is_some()
+        );
+    });
+    assert_eq!(failed.as_deref(), Ok("<none>\n"));
 }
 
 #[test]
@@ -108,26 +121,6 @@ fn import_definition_discards_a_fallback_from_an_old_analysis_epoch() {
         assert!(state.snapshot().publish_symbol_tables(2, Default::default()));
     });
     assert_eq!(response, Err(ErrorCode::CONTENT_MODIFIED));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn import_definition_discards_the_index_after_current_analysis_fails() {
-    let fixture = open_import_fixture();
-    let error = tokio::spawn(async { panic!("test import analysis failure") }).await.unwrap_err();
-    let response = definition_after(&fixture, |state| {
-        let failed_version = analysis_version(state);
-        assert!(
-            crate::global_state::handle_analysis_failure(
-                failed_version,
-                error,
-                &state.analysis_version,
-                &state.published_analysis_version,
-                &state.analysis_commit,
-            )
-            .is_some()
-        );
-    });
-    assert_eq!(response.as_deref(), Ok("<none>\n"));
 }
 
 #[tokio::test(flavor = "current_thread")]

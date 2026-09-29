@@ -384,18 +384,13 @@ fn requests_wait_for_requested_analysis() {
         let new_tables = state.symbol_tables.load_full();
         state.symbol_tables.store(Arc::new(old_tables.clone()));
         state.mark_analysis_pending_for_test();
-        let mut request = query.request(&mut state, uri.clone(), position);
-        let mut context = Context::from_waker(Waker::noop());
-        assert!(request.as_mut().poll(&mut context).is_pending(), "{query:?}");
+        let mut request = start_request(query.request(&mut state, uri.clone(), position));
 
         let mut snapshot = state.snapshot();
         assert!(snapshot.publish_symbol_tables(1, new_tables));
         assert!(!snapshot.publish_symbol_tables(0, Default::default()));
-        let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
-            panic!("{query:?} request should complete after analysis is published");
-        };
-        write!(output, "{}: {}", query.label(), fixture.response_output(response.unwrap()))
-            .unwrap();
+        let response = expect_ready(request.as_mut()).unwrap();
+        write!(output, "{}: {}", query.label(), fixture.response_output(response)).unwrap();
     }
     assert_data_eq!(
         output,
