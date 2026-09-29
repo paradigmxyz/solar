@@ -539,14 +539,9 @@ impl Module {
         self.data.iter_enumerated().filter_map(|(id, data)| data.deferred.then_some(id))
     }
 
-    /// Returns embedded contract bytecode that is still deferred, in allocation order.
-    pub(crate) fn deferred_contract_codes(
-        &self,
-    ) -> impl Iterator<Item = (DataId, ContractCode)> + '_ {
-        self.contract_codes
-            .iter()
-            .filter(|&(_, &id)| self.data[id].deferred)
-            .map(|(&code, &id)| (id, code))
+    /// Returns the data of embedded contract bytecode, in allocation order.
+    pub(crate) fn contract_codes(&self) -> impl Iterator<Item = (DataId, ContractCode)> + '_ {
+        self.contract_codes.iter().map(|(&code, &id)| (id, code))
     }
 
     /// Supplies the bytes of deferred data.
@@ -559,7 +554,10 @@ impl Module {
         let data = &mut self.data[id];
         assert!(std::mem::take(&mut data.deferred), "data{} is not deferred", id.index());
         assert!(!bytes.is_empty(), "contract bytecode must not be empty");
-        assert!(bytes.len() >> DATA_SIZE_BITS == 0, "data length exceeds {DATA_SIZE_BITS} bits");
+        assert!(
+            u64::try_from(bytes.len()).is_ok_and(|len| len >> DATA_SIZE_BITS == 0),
+            "data length exceeds {DATA_SIZE_BITS} bits"
+        );
         data.bytes = bytes;
         data.library_relocations = library_relocations;
     }

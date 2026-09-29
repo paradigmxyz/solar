@@ -212,18 +212,12 @@ pub fn generate_contract_bytecodes(
     };
     // Every contract is scheduled up front; only its completion waits for the
     // bytecode of the contracts it creates.
+    for contract_id in graph.reachable.iter() {
+        jobs.queue.push(ContractJob::Schedule(contract_id));
+    }
     sync::scope(parallel, |scope| {
-        if parallel {
-            for contract_id in graph.reachable.iter() {
-                jobs.queue.push(ContractJob::Schedule(contract_id));
-            }
-            for _ in graph.reachable.iter() {
-                jobs.spawn_worker(&scope);
-            }
-        } else {
-            for contract_id in graph.reachable.iter() {
-                jobs.enqueue(&scope, ContractJob::Schedule(contract_id));
-            }
+        for _ in graph.reachable.iter() {
+            jobs.spawn_worker(&scope);
         }
     });
     let artifacts = jobs.artifacts;
@@ -408,11 +402,7 @@ struct ContractJobs<'a, 'gcx> {
 }
 
 impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
-    fn enqueue<'scope>(&'scope self, scope: &Scope<'_, 'scope>, job: ContractJob) {
-        self.queue.push(job);
-        self.spawn_worker(scope);
-    }
-
+    /// Spawns a worker that runs the highest-priority ready job.
     fn spawn_worker<'scope>(&'scope self, scope: &Scope<'_, 'scope>) {
         scope.spawn(move |scope| match self.queue.pop() {
             ContractJob::Schedule(contract_id) => {
@@ -454,7 +444,8 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
         let previous = self.remaining_inputs[contract_id].fetch_sub(1, Ordering::AcqRel);
         assert!(previous > 0, "contract input count underflow");
         if previous == 1 {
-            self.enqueue(scope, ContractJob::Finish(contract_id));
+            self.queue.push(ContractJob::Finish(contract_id));
+            self.spawn_worker(scope);
         }
     }
 }
@@ -548,7 +539,7 @@ fn finish_contract(
     }
     let artifact = match backend {
         ContractBackend::Scheduled(mut codegen) => {
-            let artifact = codegen.finish_module(&mut module);
+            let artifact = codegen.finish_module(&module);
             gcx.dcx().has_errors()?;
             artifact
         }

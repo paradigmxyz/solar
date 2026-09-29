@@ -15,25 +15,17 @@ struct PreparedDeploymentPrefix {
 }
 
 impl<'gcx> EvmCodegen<'gcx> {
+    /// Optimizes `module` and schedules its runtime code.
+    ///
+    /// Returns the final artifact when code generation ends early. Otherwise
+    /// [`Self::finish_module`] completes the artifact once the module's deferred
+    /// data has been resolved.
     #[tracing::instrument(
         name = "evm_codegen",
         level = "debug",
         skip_all,
         fields(module = %module.name),
     )]
-
-    pub(super) fn generate_deployment_artifact(&mut self, module: &mut Module) -> EvmArtifact {
-        if let Some(artifact) = self.schedule_module(module) {
-            return artifact;
-        }
-        self.finish_module(module)
-    }
-
-    /// Optimizes `module` and schedules its runtime code.
-    ///
-    /// Returns the final artifact when code generation ends early. Otherwise
-    /// [`Self::finish_module`] completes the artifact once the module's deferred
-    /// data has been resolved.
     pub(crate) fn schedule_module(&mut self, module: &mut Module) -> Option<EvmArtifact> {
         // Interfaces have no code. An internal-only library keeps its rejecting
         // dispatch stub, like `solc`.
@@ -100,7 +92,13 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Completes the artifact of a module scheduled by [`Self::schedule_module`].
     ///
     /// Every deferred data entry of `module` must be resolved.
-    pub(crate) fn finish_module(&mut self, module: &mut Module) -> EvmArtifact {
+    #[tracing::instrument(
+        name = "evm_finish",
+        level = "debug",
+        skip_all,
+        fields(module = %module.name),
+    )]
+    pub(crate) fn finish_module(&mut self, module: &Module) -> EvmArtifact {
         let call_graph = self.call_graph.take().expect("module must be scheduled first");
         self.asm.resolve_deferred_data(module);
         let lowered = module.as_checked_lowered();

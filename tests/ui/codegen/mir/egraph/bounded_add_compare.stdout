@@ -1,0 +1,39 @@
+- // === ROOT/tests/ui/codegen/mir/egraph/bounded_add_compare.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/bounded_add_compare.mir (after egraph) ===
+  @module BoundedAddCompare
+  data:
+    child_0: deferred
+  
+  fn @masked(arg0: i256) -> i1 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = add v0, 32
+-     v2 = lt v1, v0
+-     ret v2
++     ret false
+  }
+  
+  fn @data_size(arg0: i256) -> i1 {
+    bb0:
+      v0 = data_size child_0, 32
+      v1 = add v0, 31
+-     v2 = lt v1, v0
+-     ret v2
++     ret false
+  }
+  
+  fn @unbounded(arg0: i256) -> i1 {
+    bb0:
+      v0 = add arg0, 32
+      v1 = lt v0, arg0
+      ret v1
+  }
+  
+  fn @addend_can_wrap(arg0: i256) -> i1 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = add v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+      v2 = lt v1, v0
+      ret v2
+  }
+  

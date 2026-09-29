@@ -61,8 +61,8 @@ pub fn resolve_contract_code<'a>(
     module: &mut Module,
     mut bytecodes: impl FnMut(ContractId) -> &'a ContractBytecodes,
 ) {
-    let deferred = module.deferred_contract_codes().collect::<Vec<_>>();
-    for (id, code) in deferred {
+    let codes = module.contract_codes().collect::<Vec<_>>();
+    for (id, code) in codes {
         let bytecodes = bytecodes(code.contract);
         let bytecode = if code.creation { &bytecodes.deployment } else { &bytecodes.runtime };
         let bytecode = bytecode.as_ref().expect("embedded contract bytecode must not be empty");
@@ -87,7 +87,8 @@ pub(super) fn contract_code_data(
     contract_id: ContractId,
     creation: bool,
 ) -> DataRef {
-    let name = contract_bytecode_data_name(gcx, contract_id, creation);
+    let kind = if creation { "initcode" } else { "runtime_code" };
+    let name = Symbol::intern(&format!("{}_{kind}", gcx.hir.contract(contract_id).name));
     module.intern_contract_code(ContractCode { contract: contract_id, creation }, name)
 }
 
@@ -232,15 +233,6 @@ fn copy_splat_to_memory(
         filled += chunk;
     }
     true
-}
-
-pub(super) fn contract_bytecode_data_name(
-    gcx: Gcx<'_>,
-    contract_id: ContractId,
-    creation: bool,
-) -> Symbol {
-    let kind = if creation { "initcode" } else { "runtime_code" };
-    Symbol::intern(&format!("{}_{kind}", gcx.hir.contract(contract_id).name))
 }
 
 fn padded_data_word(data: &[u8]) -> [u8; EvmMemoryLayout::WORD_SIZE as usize] {

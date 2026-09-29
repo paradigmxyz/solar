@@ -1241,6 +1241,7 @@ impl<'a> FunctionBuilder<'a> {
         // result = data_size data, addend[, aligned]
         self.emit_inst(InstKind::DataSize(data, addend, aligned), Some(MirType::I256))
     }
+
     /// Emits a calldatacopy whose destination is proven to be in the heap.
     pub(crate) fn calldatacopy_heap(&mut self, dest: ValueId, offset: ValueId, size: ValueId) {
         self.emit_void_inst_in_region(

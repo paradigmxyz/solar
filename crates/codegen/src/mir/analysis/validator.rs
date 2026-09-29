@@ -637,6 +637,14 @@ impl<'a> Validator<'a> {
                         inst_id.index(),
                         data.id.index()
                     )),
+                    // Deferred data has no known length to offset into.
+                    Some(_) if module.data_is_deferred(data.id) && data.offset != 0 => {
+                        self.emit(format_args!(
+                            "inst{} offsets into deferred data{}",
+                            inst_id.index(),
+                            data.id.index()
+                        ));
+                    }
                     Some(bytes)
                         if !module.data_is_deferred(data.id)
                             && data.offset as usize > bytes.len() =>
@@ -1210,7 +1218,8 @@ impl<'a> Validator<'a> {
             return;
         };
         // The length of deferred data is only known through its own `data_size`.
-        if matches!(func.value(*size), Value::Inst(size) if func.inst(*size).kind == InstKind::DataSize(*data, 0, false))
+        if let Value::Inst(size) = func.value(*size)
+            && func.inst(*size).kind == InstKind::DataSize(*data, 0, false)
         {
             return;
         }

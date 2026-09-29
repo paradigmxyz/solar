@@ -644,7 +644,10 @@ impl crate::backend::Backend for EvmCodegen<'_> {
     type Output = EvmArtifact;
 
     fn lower_module(&mut self, module: &mut Module) -> EvmArtifact {
-        self.generate_deployment_artifact(module)
+        if let Some(artifact) = self.schedule_module(module) {
+            return artifact;
+        }
+        self.finish_module(module)
     }
 }
 
