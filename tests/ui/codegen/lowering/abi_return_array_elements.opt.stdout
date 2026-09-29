@@ -279,23 +279,22 @@ fn @cleanup_return(arg0: memptr) -> memptr [may_return_memory] {
     mstore 64, v27 !metadata(memory=scratch)
     mstore v26, v0
     v17 = add v24, 32
-    v32 = shl 5, v0
-    v33 = add v17, v32
     v21 = add v26, 32
     jump bb4
   bb4:
-    v28 = phi [bb3: v17], [bb5: v29]
-    v30 = phi [bb3: v21], [bb5: v31]
-    v12 = lt v28, v33
+    v11 = phi [bb3: 0], [bb5: v15]
+    v12 = lt v11, v0
     jumpi v12, bb5, bb6
   bb6:
     ret v10
   bb5:
-    v13 = mload v28
+    v18 = shl 5, v11
+    v19 = add v17, v18
+    v13 = mload v19
     v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore v30, v14
-    v29 = add v28, 32
-    v31 = add v30, 32
+    v23 = add v21, v18
+    mstore v23, v14
+    v15 = add v11, 1
     jump bb4
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

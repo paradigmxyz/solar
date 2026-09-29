@@ -731,31 +731,29 @@ bb68:
   push 32
   dup 4
   add
-  swap 2
-  push 5
-  shl
-  dup 3
-  add
-  swap 2
+  push 0
   jump bb69
 bb71 [loop]:
-  dup 2
+  dup 1
+  dup 4
+  add
   sload
   dup 2
-  mstore
-  push 32
+  push 5
+  shl
+  dup 4
   add
-  swap 1
+  mstore
   push 1
   add
-  swap 1
   jump bb69
 bb69 [loop]:
-  dup 3
+  dup 4
   dup 2
   lt
   push bb71
   jumpi
+  pop
   pop
   pop
   pop

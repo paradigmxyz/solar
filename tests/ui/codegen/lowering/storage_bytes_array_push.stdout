@@ -80,13 +80,10 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     mstore 0, v4 !metadata(memory=scratch)
     v84 = keccak256 0, 32 !metadata(memory=scratch)
     v40 = shr 5, v74
-    v109 = shl 5, v40
-    v110 = add v91, v109
     jump bb10
   bb10:
-    v105 = phi [bb9: v84], [bb11: v106]
-    v107 = phi [bb9: v91], [bb11: v108]
-    v42 = lt v107, v110
+    v41 = phi [bb9: 0], [bb11: v46]
+    v42 = lt v41, v40
     jumpi v42, bb11, bb12
   bb12:
     v47 = and v74, 31
@@ -104,10 +101,12 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     sstore v57, v56 !metadata(storage=symbolic(v57))
     jump bb1
   bb11:
-    v44 = mload v107
-    sstore v105, v44
-    v106 = add v105, 1
-    v108 = add v107, 32
+    v43 = shl 5, v41
+    v87 = add v91, v43
+    v44 = mload v87
+    v45 = add v84, v41
+    sstore v45, v44 !metadata(storage=symbolic(v45))
+    v46 = add v41, 1
     jump bb10
   bb8:
     v28 = mload v91
@@ -265,21 +264,20 @@ fn @load_storage_bytes(arg0: i256) -> memptr [may_return_memory] {
     mstore 0, arg0 !metadata(memory=scratch)
     v25 = keccak256 0, 32 !metadata(memory=scratch)
     v30 = add v33, 32
-    v44 = shl 5, v11
-    v45 = add v30, v44
     jump bb5
   bb5:
-    v40 = phi [bb4: v25], [bb6: v41]
-    v42 = phi [bb4: v30], [bb6: v43]
-    v20 = lt v42, v45
+    v19 = phi [bb4: 0], [bb6: v24]
+    v20 = lt v19, v11
     jumpi v20, bb6, bb9
   bb9:
     ret v16
   bb6:
-    v22 = sload v40
-    mstore v42, v22
-    v41 = add v40, 1
-    v43 = add v42, 32
+    v21 = add v25, v19
+    v22 = sload v21 !metadata(storage=symbolic(v21))
+    v23 = shl 5, v19
+    v31 = add v30, v23
+    mstore v31, v22
+    v24 = add v19, 1
     jump bb5
   bb8:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

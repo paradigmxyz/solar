@@ -52,15 +52,20 @@
 //! only deployed code runs, that includes a pointer over single bytes, which
 //! then replaces the counter instead of riding beside it; code that also runs
 //! at construction keeps the counter, whose setup is cheaper in bytes. The pointer
-//! must not wrap between the start and the bound: its base is a heap address,
-//! bounded by the memory a call can afford, and a loop cannot run
-//! `2^MAX_TRIP_COUNT_BITS` iterations, the trip-count assumption the loop split
-//! also makes, so a scaled bound below that stays far from the word size.
+//! must not wrap between the start and the bound. Its base is a heap address,
+//! bounded by the memory a call can afford. The counter starts small, from a
+//! constant or an enclosing loop's counter, and either ascends by small steps,
+//! which a loop cannot repeat `2^MAX_TRIP_COUNT_BITS` times, the trip-count
+//! assumption the loop split also makes, or descends by one while the header test
+//! keeps it above its bound, so every value a test compares stays far below the
+//! word size. A bound must be small as well:
+//! the loop may leave through another test, or a bounds check, long before it
+//! reaches a caller's count, whose pointer could wrap below the start. So every
+//! bound is a constant, a value of at most 128 bits, or, in a module without
+//! inline assembly, a read of an object's length.
 //! A comparison of the counter elsewhere, such as the second half of
-//! `i < a.length && j < b.length`, is taken over the same way, but its bound
-//! is not a trip count the loop could not reach anyway, so only an object's
-//! length word qualifies: every allocation keeps that far below where a
-//! scaled pointer could wrap.
+//! `i < a.length && j < b.length`, is taken over the same way, but only when
+//! its bound is an object's length word.
 //!
 //! Safety contract:
 //! - require canonical loops with a preheader; several latches must pass one value
@@ -69,7 +74,10 @@
 //! - recognize checked unsigned word updates while retaining their failure checks.
 //! - add only one scaled address counter when the original update must stay live.
 
-use super::{check_elim::runtime_only_functions, egraph::max_bits_with_args};
+use super::{
+    check_elim::{object_lengths_bounded, runtime_only_functions},
+    egraph::max_bits_with_args,
+};
 use crate::mir::{
     ArithmeticKind, BlockId, CheckedOp, Function, Immediate, InstId, InstKind, Instruction,
     MemoryRegion, MirType, Module, Terminator, Value, ValueId,
@@ -81,6 +89,7 @@ use crate::mir::{
     utils as mir_utils,
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     map::{FxHashMap, FxHashSet},
@@ -112,6 +121,7 @@ impl MirPass for IndVarSimplify {
         let mut runtime = runtime_only_functions(module);
         runtime.intersect(&selected);
         selected.subtract(&runtime);
+        let lengths_bounded = object_lengths_bounded(module);
         let mut changed = false;
         for (functions, runtime_only) in [(&runtime, true), (&selected, false)] {
             changed |= run_selected_function_pass_with_alias_and_cfg(
@@ -120,9 +130,13 @@ impl MirPass for IndVarSimplify {
                 functions,
                 |func, analyses| {
                     let insts = func.num_insts();
-                    let changed = IndVarSimplifier::new(Rc::clone(analyses.alias()), runtime_only)
-                        .run(func, Rc::clone(analyses.cfg()))
-                        .total()
+                    let changed = IndVarSimplifier::new(
+                        Rc::clone(analyses.alias()),
+                        runtime_only,
+                        lengths_bounded,
+                    )
+                    .run(func, Rc::clone(analyses.cfg()))
+                    .total()
                         != 0;
                     // NOTE: A pointer phi that fails to materialize leaves the instructions it
                     // already inserted in place without reporting a change.
@@ -161,6 +175,9 @@ struct IndVarSimplifier {
     alias: Rc<AliasAnalysis>,
     /// Whether the function runs only in deployed code.
     runtime_only: bool,
+    /// Whether the module keeps every object's length below the allocation limit, which it does
+    /// without inline assembly.
+    lengths_bounded: bool,
 }
 
 /// The control-flow region in which one loop counter can be reduced.
@@ -183,6 +200,10 @@ struct ExitTest {
     subject_first: bool,
     comparison: Comparison,
 }
+
+/// The words stored where a fresh heap object's length goes, before a loop, each with the
+/// objects it was stored into.
+type StoredLengths = FxHashMap<ValueId, SmallVec<[ValueId; 1]>>;
 
 /// The unsigned comparison an exit test makes; a pointer that grows with the
 /// counter satisfies the same one against its end.
@@ -285,8 +306,8 @@ impl AddressKey {
 impl IndVarSimplifier {
     /// Creates a new induction-variable simplifier.
     #[must_use]
-    fn new(alias: Rc<AliasAnalysis>, runtime_only: bool) -> Self {
-        Self { stats: IndVarSimplifyStats::default(), alias, runtime_only }
+    fn new(alias: Rc<AliasAnalysis>, runtime_only: bool, lengths_bounded: bool) -> Self {
+        Self { stats: IndVarSimplifyStats::default(), alias, runtime_only, lengths_bounded }
     }
 
     /// Runs induction-variable simplification once over `func`.
@@ -365,8 +386,8 @@ impl IndVarSimplifier {
         func: &Function,
         analyzer: &LoopAnalyzer,
         header: BlockId,
-    ) -> FxHashSet<ValueId> {
-        let mut lengths = FxHashSet::default();
+    ) -> StoredLengths {
+        let mut lengths = StoredLengths::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
             if !analyzer.dominates(block_id, header) {
                 continue;
@@ -380,14 +401,14 @@ impl IndVarSimplifier {
                 if !self.is_length_slot(func, slot) {
                     continue;
                 }
-                lengths.insert(length);
+                lengths.entry(length).or_default().push(slot);
                 // `n + 29` stored as a length bounds `n` as well: an
                 // allocation with slack is cut back to the length it computed.
                 if let Some(&InstKind::Add(a, b)) = inst_kind(func, length) {
                     if func.value_u256(b).is_some() {
-                        lengths.insert(a);
+                        lengths.entry(a).or_default().push(slot);
                     } else if func.value_u256(a).is_some() {
-                        lengths.insert(b);
+                        lengths.entry(b).or_default().push(slot);
                     }
                 }
             }
@@ -544,13 +565,96 @@ impl IndVarSimplifier {
     /// How far the width of a value step is traced.
     const VALUE_STEP_DEPTH: u32 = 4;
 
+    /// The widest element a rewritten exit test's pointer steps over: scaled from a heap base,
+    /// no counter value or bound below `2^192` wraps.
+    const MAX_TEST_SCALE: i128 = 1 << 62;
+
+    /// The widest bound an exit test may compare the counter with.
+    const SMALL_BOUND_BITS: u32 = 128;
+
+    /// How far a counter's start is traced through enclosing counters and offsets.
+    const START_DEPTH: u32 = 4;
+
+    /// Whether every value the counter takes stays far below the word size, as the exit tests a
+    /// pointer takes over need: it starts small, and either ascends by small steps, which no loop
+    /// repeats `2^MAX_TRIP_COUNT_BITS` times, or descends by one while the header test
+    /// `counter > bound` keeps it above zero.
+    fn bounded_counter(
+        &self,
+        func: &Function,
+        loop_data: &Loop,
+        counter: &Counter,
+        tests: &[ExitTest],
+    ) -> bool {
+        if !self.start_small(func, counter.init, Self::START_DEPTH) {
+            return false;
+        }
+        let ascends = counter.leaves.iter().all(|&(_, step)| match step {
+            Step::Constant(constant) => (0..=1 << 64).contains(&constant),
+            Step::Value { negative, .. } => !negative,
+        });
+        if ascends {
+            return true;
+        }
+        let Some(Terminator::Branch { condition, then_block, else_block }) =
+            func.blocks[loop_data.header].terminator
+        else {
+            return false;
+        };
+        counter.leaves.iter().all(|&(_, step)| matches!(step, Step::Constant(-1)))
+            && loop_data.blocks.contains(then_block)
+            && !loop_data.blocks.contains(else_block)
+            && tests.iter().any(|test| {
+                func.inst_result_value(test.condition) == Some(condition)
+                    && test.subject == counter.value
+                    && matches!(
+                        (test.comparison, test.subject_first),
+                        (Comparison::Gt, true) | (Comparison::Lt, false)
+                    )
+            })
+    }
+
+    /// Whether `value` stays below `2^131`: a value of at most 64 bits, one plus a constant of at
+    /// most 64 bits, or a phi, such as an enclosing loop's counter, that holds only such values
+    /// and itself plus such constants, which no execution adds `2^MAX_TRIP_COUNT_BITS` times.
+    fn start_small(&self, func: &Function, value: ValueId, depth: u32) -> bool {
+        if max_bits_with_args(func, value, Self::VALUE_STEP_DEPTH, &|_| 256) <= 64 {
+            return true;
+        }
+        let Some(depth) = depth.checked_sub(1) else { return false };
+        let small =
+            |value: ValueId| func.value_u256(value).is_some_and(|word| word.bit_len() <= 64);
+        let sum = |value: ValueId| match inst_kind(func, value) {
+            Some(&InstKind::Add(a, b))
+            | Some(&InstKind::CheckedBinary {
+                op: CheckedOp::Add,
+                arithmetic: ArithmeticKind::Unsigned(256),
+                lhs: a,
+                rhs: b,
+            }) => Some((a, b)),
+            _ => None,
+        };
+        match inst_kind(func, value) {
+            Some(InstKind::Phi(incoming)) => incoming.iter().all(|&(_, input)| {
+                input == value
+                    || sum(input)
+                        .is_some_and(|(a, b)| a == value && small(b) || b == value && small(a))
+                    || self.start_small(func, input, depth)
+            }),
+            _ => sum(value).is_some_and(|(a, b)| {
+                small(b) && self.start_small(func, a, depth)
+                    || small(a) && self.start_small(func, b, depth)
+            }),
+        }
+    }
+
     /// Replaces one counter's address expressions with carried pointers.
     fn reduce_counter(
         &mut self,
         func: &mut Function,
         loop_region: LoopRegion<'_>,
         before: &DenseBitSet<BlockId>,
-        lengths: &FxHashSet<ValueId>,
+        lengths: &StoredLengths,
         counter: Counter,
     ) {
         let LoopRegion { loop_data, blocks: region, preheader, .. } = loop_region;
@@ -648,19 +752,32 @@ impl IndVarSimplifier {
         // is weighed across all families at once.
         let exit_tests = self.counter_exit_tests(func, loop_data, region, lengths, &counter);
         let definers = counter.definers(func);
-        let counter_free = !must_keep_update
-            && !exit_tests.is_empty()
-            && Self::counter_only_feeds(func, region, &counter, &exit_tests, &definers, &addresses);
-        let test_family = if counter_free {
-            families.iter().position(|members| {
-                let key = &members[0].0;
-                key.scale > 0
-                    && key.invariants.is_empty()
-                    && key.base.is_some_and(|base| self.is_heap_address(func, base))
-            })
-        } else {
-            None
-        };
+        // The test pointer ascends from a heap address with the counter, so it stays below the
+        // word size up to every small bound.
+        let test_family = families.iter().position(|members| {
+            let key = &members[0].0;
+            key.scale > 0
+                && key.scale <= Self::MAX_TEST_SCALE
+                && key.constant >= 0
+                && key.invariants.is_empty()
+                && key.base.is_some_and(|base| self.is_heap_address(func, base))
+        });
+        let counter_free = test_family.is_some_and(|family| {
+            let key = &families[family][0].0;
+            !must_keep_update
+                && !exit_tests.is_empty()
+                && self.bounded_counter(func, loop_data, &counter, &exit_tests)
+                && exit_tests.iter().all(|test| self.bound_small(func, test.bound, key, lengths))
+                && Self::counter_only_feeds(
+                    func,
+                    region,
+                    &counter,
+                    &exit_tests,
+                    &definers,
+                    &addresses,
+                )
+        });
+        let test_family = test_family.filter(|_| counter_free);
         let reduce_all = test_family.is_some() && {
             let before = families
                 .iter()
@@ -898,7 +1015,7 @@ impl IndVarSimplifier {
         func: &Function,
         loop_data: &Loop,
         region: &DenseBitSet<BlockId>,
-        lengths: &FxHashSet<ValueId>,
+        lengths: &StoredLengths,
         counter: &Counter,
     ) -> Vec<ExitTest> {
         // `i + 4 <= n` tests the update, and the tail after a loop tests
@@ -914,18 +1031,6 @@ impl IndVarSimplifier {
                 .any(|block| func.blocks[block].instructions.contains(inst_id)),
             Value::Undef(_) | Value::Error(_) => false,
         };
-        let object_length = |value: ValueId| match func.value(value) {
-            Value::Immediate(_) => true,
-            Value::Inst(inst_id) => {
-                lengths.contains(&value)
-                    || match func.inst(*inst_id).kind {
-                        InstKind::MemoryObjectLen(..) => true,
-                        InstKind::MLoad(slot) => self.is_length_slot(func, slot),
-                        _ => false,
-                    }
-            }
-            Value::Arg(_) | Value::Undef(_) | Value::Error(_) => false,
-        };
         let mut tests = Vec::new();
         for block in region.iter() {
             let in_header = block == loop_data.header;
@@ -936,19 +1041,80 @@ impl IndVarSimplifier {
                     InstKind::Eq(a, b) => (a, b, Comparison::Eq),
                     _ => continue,
                 };
-                let (subject, bound, subject_first) = if subjects.contains_key(&a) && invariant(b) {
+                // A subject below the counter could wrap under zero where its pointer does not.
+                let ascends =
+                    |value: ValueId| subjects.get(&value).is_some_and(|&offset| offset >= 0);
+                let (subject, bound, subject_first) = if ascends(a) && invariant(b) {
                     (a, b, true)
-                } else if subjects.contains_key(&b) && invariant(a) {
+                } else if ascends(b) && invariant(a) {
                     (b, a, false)
                 } else {
                     continue;
                 };
-                if in_header && !matches!(comparison, Comparison::Eq) || object_length(bound) {
+                if func.value_ty(bound) != Some(MirType::I256) {
+                    continue;
+                }
+                if in_header && !matches!(comparison, Comparison::Eq)
+                    || self.is_object_length(func, lengths, bound)
+                {
                     tests.push(ExitTest { condition, subject, bound, subject_first, comparison });
                 }
             }
         }
         tests
+    }
+
+    /// Whether `value` is a constant or an object's length word: one read from an object, or
+    /// one stored as a fresh object's length.
+    fn is_object_length(&self, func: &Function, lengths: &StoredLengths, value: ValueId) -> bool {
+        match func.value(value) {
+            Value::Immediate(_) => true,
+            Value::Inst(inst_id) => {
+                lengths.contains_key(&value)
+                    || match func.inst(*inst_id).kind {
+                        InstKind::MemoryObjectLen(..) => true,
+                        InstKind::MLoad(slot) => self.is_length_slot(func, slot),
+                        _ => false,
+                    }
+            }
+            Value::Arg(_) | Value::Undef(_) | Value::Error(_) => false,
+        }
+    }
+
+    /// Whether a bound is small enough that the test pointer's value there cannot wrap: at most
+    /// `2^SMALL_BOUND_BITS`, or, in a module that keeps lengths below the allocation limit, the
+    /// length of an object. A typed length read qualifies, and so does the word stored where a
+    /// fresh object's length goes when the pointer walks that object's data, `object + 32`: the
+    /// first word of an object in memory is a struct's field as often as a length, but no loop
+    /// walks a struct's fields without assembly.
+    fn bound_small(
+        &self,
+        func: &Function,
+        bound: ValueId,
+        key: &AddressKey,
+        lengths: &StoredLengths,
+    ) -> bool {
+        if max_bits_with_args(func, bound, Self::VALUE_STEP_DEPTH, &|_| 256)
+            <= Self::SMALL_BOUND_BITS
+        {
+            return true;
+        }
+        if !self.lengths_bounded {
+            return false;
+        }
+        if matches!(inst_kind(func, bound), Some(InstKind::MemoryObjectLen(..))) {
+            return true;
+        }
+        let walks = |object: ValueId| {
+            key.base == Some(object) && key.constant == 32
+                || key.constant == 0
+                    && key.base.is_some_and(|base| {
+                        matches!(inst_kind(func, base), Some(&InstKind::Add(a, b))
+                            if a == object && func.value_u256(b) == Some(U256::from(32))
+                                || b == object && func.value_u256(a) == Some(U256::from(32)))
+                    })
+        };
+        lengths.get(&bound).is_some_and(|objects| objects.iter().any(|&object| walks(object)))
     }
 
     /// The counter and every `counter + c` in the region, each with its
