@@ -1,5 +1,5 @@
 use crate::{
-    code_actions::{CodeActionPlan, ranges_overlap, rope_source_fingerprint},
+    code_actions::{CodeActionPlan, exact_byte_range, ranges_overlap, rope_source_fingerprint},
     document_links::ImportEditPlan,
     proto,
     rename::RenameCandidate,
@@ -84,22 +84,11 @@ fn validated_code_action(
         return None;
     }
     let edits = validate_code_action_edits(positions, plan.edits)?;
-    let edit = if document_changes {
-        WorkspaceEdit {
-            changes: None,
-            document_changes: Some(DocumentChanges::Edits(vec![TextDocumentEdit {
-                text_document: OptionalVersionedTextDocumentIdentifier { uri: plan.uri, version },
-                edits: edits.into_iter().map(OneOf::Left).collect(),
-            }])),
-            change_annotations: None,
-        }
-    } else {
-        WorkspaceEdit {
-            changes: Some(HashMap::from([(plan.uri, edits)])),
-            document_changes: None,
-            change_annotations: None,
-        }
-    };
+    let edit = ValidatedWorkspaceEdit {
+        versions: HashMap::from([(plan.uri.clone(), version)]),
+        changes: HashMap::from([(plan.uri, edits)]),
+    }
+    .into_workspace_edit(document_changes);
     let mut diagnostic = plan.diagnostic;
     if !supports_diagnostic_data {
         diagnostic.data = None;
@@ -125,16 +114,8 @@ fn validate_code_action_edits(
     if edits.is_empty() {
         return None;
     }
-    let mut byte_ranges = Vec::with_capacity(edits.len());
-    for edit in &edits {
-        let range = index.checked_text_range(edit.range)?;
-        if index.position_at_byte(range.start) != Some(edit.range.start)
-            || index.position_at_byte(range.end) != Some(edit.range.end)
-        {
-            return None;
-        }
-        byte_ranges.push(range);
-    }
+    let mut byte_ranges =
+        edits.iter().map(|edit| exact_byte_range(index, edit.range)).collect::<Option<Vec<_>>>()?;
     (!ranges_overlap(&mut byte_ranges)).then_some(edits)
 }
 
@@ -180,17 +161,14 @@ fn validate_rename(
     if candidate.conflicting_contents {
         return Err(content_modified());
     }
-    let mut contents = HashMap::<Url, (Rope, Option<i32>)>::new();
     let source_map = SourceMap::empty();
-    for (uri, analyzed_contents) in &candidate.analyzed_contents {
-        let Some((file_contents, version)) = current_file_contents(&vfs, &source_map, uri) else {
-            return Err(content_modified());
-        };
-        if file_contents.byte_slice(..) != analyzed_contents.as_str() {
-            return Err(content_modified());
-        }
-        contents.insert(uri.clone(), (file_contents, version));
-    }
+    let contents = candidate
+        .analyzed_contents
+        .iter()
+        .map(|(uri, analyzed)| {
+            Ok((uri.clone(), unchanged_file_contents(&vfs, &source_map, uri, analyzed)?))
+        })
+        .collect::<Result<HashMap<_, _>, ResponseError>>()?;
 
     // Rename candidates are URI-sorted. Reuse one position index per file and release it
     // before validating the next file so peak index memory stays bounded by one document.
@@ -225,16 +203,23 @@ fn validate_import_edits(
     let mut versions = HashMap::new();
     for (uri, planned) in plan.into_entries() {
         let (analyzed_contents, edits) = planned.into_parts();
-        let Some((file_contents, version)) = current_file_contents(&vfs, &source_map, &uri) else {
-            return Err(content_modified());
-        };
-        if file_contents.byte_slice(..) != analyzed_contents.as_str() {
-            return Err(content_modified());
-        }
+        let (_, version) = unchanged_file_contents(&vfs, &source_map, &uri, &analyzed_contents)?;
         versions.insert(uri.clone(), version);
         changes.insert(uri, edits);
     }
     Ok(ValidatedWorkspaceEdit { changes, versions })
+}
+
+/// Loads a file's current contents, requiring them to match the analyzed snapshot.
+fn unchanged_file_contents(
+    vfs: &RwLock<Vfs>,
+    source_map: &SourceMap,
+    uri: &Url,
+    analyzed: &str,
+) -> Result<(Rope, Option<i32>), ResponseError> {
+    current_file_contents(vfs, source_map, uri)
+        .filter(|(contents, _)| contents.byte_slice(..) == analyzed)
+        .ok_or_else(content_modified)
 }
 
 fn current_file_contents(
@@ -337,55 +322,25 @@ mod tests {
     }
 
     #[test]
-    fn code_action_edit_validation_accepts_adjacent_utf16_ranges() {
+    fn code_action_edit_validation_accepts_only_exact_disjoint_utf16_ranges() {
         let contents = Rope::from("😀value");
-        let edits = vec![
-            TextEdit::new(Range::new(Position::new(0, 0), Position::new(0, 2)), "x".into()),
-            TextEdit::new(Range::new(Position::new(0, 2), Position::new(0, 7)), "y".into()),
-        ];
-
-        assert_eq!(
-            validate_code_action_edits(&proto::LspPositionIndex::new(&contents), edits.clone()),
-            Some(edits)
-        );
-    }
-
-    #[test]
-    fn code_action_edit_validation_rejects_untrusted_ranges() {
-        let contents = Rope::from("😀value");
-        let invalid = [
-            vec![TextEdit::new(
-                Range::new(Position::new(0, 1), Position::new(0, 2)),
-                "split surrogate".into(),
-            )],
-            vec![TextEdit::new(
-                Range::new(Position::new(0, 99), Position::new(0, 99)),
-                "past line end".into(),
-            )],
-            vec![
-                TextEdit::new(
-                    Range::new(Position::new(0, 2), Position::new(0, 5)),
-                    "overlap one".into(),
-                ),
-                TextEdit::new(
-                    Range::new(Position::new(0, 4), Position::new(0, 7)),
-                    "overlap two".into(),
-                ),
-            ],
-            vec![
-                TextEdit::new(Range::new(Position::new(0, 2), Position::new(0, 2)), "first".into()),
-                TextEdit::new(
-                    Range::new(Position::new(0, 2), Position::new(0, 2)),
-                    "second".into(),
-                ),
-            ],
-        ];
-
-        for edits in invalid {
-            assert_eq!(
-                validate_code_action_edits(&proto::LspPositionIndex::new(&contents), edits),
-                None
-            );
+        let index = proto::LspPositionIndex::new(&contents);
+        let edits = |ranges: &[(u32, u32)]| {
+            ranges
+                .iter()
+                .map(|&(start, end)| {
+                    TextEdit::new(
+                        Range::new(Position::new(0, start), Position::new(0, end)),
+                        "x".into(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        let adjacent = edits(&[(0, 2), (2, 7)]);
+        assert_eq!(validate_code_action_edits(&index, adjacent.clone()), Some(adjacent));
+        // Split surrogates, positions past the line end, overlaps, and equal insertions.
+        for invalid in [&[(1, 2)][..], &[(99, 99)], &[(2, 5), (4, 7)], &[(2, 2), (2, 2)], &[]] {
+            assert_eq!(validate_code_action_edits(&index, edits(invalid)), None, "{invalid:?}");
         }
     }
 }
