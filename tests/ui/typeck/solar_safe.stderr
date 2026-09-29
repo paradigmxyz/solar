@@ -50,6 +50,20 @@ LL │ /// @custom:solar-safe
    ├ note: it runs this through `Safe.wrap`
    ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
 
+error: `Safe` is tagged `@custom:solar-safe` but runs wrapping arithmetic
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ …     function(uint256, uint256) internal pure returns (uint256) f = Math.wrappingAdd;
+   │                                                                      ━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `Safe.wrapPointer`
+   ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
+
 error: `Safe` is tagged `@custom:solar-safe` but runs inline assembly
    ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
    │
@@ -142,5 +156,5 @@ LL │ /// @custom:solar-safe everything
    │
    ╰ help: the properties are `memory` and `arithmetic`; naming none requires both
 
-error: aborting due to 12 previous errors
+error: aborting due to 13 previous errors
 

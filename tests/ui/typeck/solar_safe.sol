@@ -70,6 +70,12 @@ contract Safe is Base {
         return Math.wrappingAdd(a, 1); //~ ERROR: `Safe` is tagged `@custom:solar-safe` but runs wrapping arithmetic
     }
 
+    // A wrapping operation taken as a value is called through the pointer.
+    function wrapPointer(uint256 a) external pure returns (uint256) {
+        function(uint256, uint256) internal pure returns (uint256) f = Math.wrappingAdd; //~ ERROR: `Safe` is tagged `@custom:solar-safe` but runs wrapping arithmetic
+        return f(a, 1);
+    }
+
     // A function whose value is taken may be called through the pointer.
     function pointer() external pure returns (uint256) {
         function() internal pure returns (uint256) f = viaPointer;
