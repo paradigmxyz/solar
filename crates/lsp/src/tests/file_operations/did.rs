@@ -29,6 +29,11 @@ fn assert_buffer(state: &GlobalState, path: impl AsRef<Path>, text: &str, versio
     assert_eq!(buffer, Some((text.to_owned(), Some(version))));
 }
 
+/// Asserts that the first workspace is rooted at `root`.
+fn assert_root(state: &GlobalState, root: &Path) {
+    assert_eq!(state.config.workspaces()[0].compile_opts().base_path.as_deref(), Some(root));
+}
+
 fn did_create(state: &mut GlobalState, paths: impl IntoIterator<Item = impl AsRef<Path>>) {
     let files = paths.into_iter().map(|path| FileCreate { uri: uri(path) }).collect();
     assert!(handlers::did_create_files(state, CreateFilesParams { files }).is_continue());
@@ -54,11 +59,11 @@ fn rename_watcher_events(
         .collect()
 }
 
-/// Creates a Foundry project whose `lib` folder is only reachable through imports.
-fn import_only_project(main: &str) -> TestProject {
-    TestProject::from_fixture(&format!(
+/// A Foundry project whose `lib` folder is only reachable through imports.
+fn import_only_fixture(main: &str) -> String {
+    format!(
         "//- /foundry.toml\n[profile.default]\nauto_detect_remappings = false\nlibs = [\"lib\"]\n\n//- /src/Main.sol\n{main}\n"
-    ))
+    )
 }
 
 /// Opens `/old/Open.sol` with an unsaved buffer, optionally prepares the `/old` -> `/new`
@@ -167,9 +172,7 @@ async fn did_create_nested_manifest_discovers_the_project() {
         did_create(&mut state, [project.path(&manifest)]);
 
         assert!(has_symbol(&analysis(&state).await, "Nested"));
-        assert!(state.config.workspaces().iter().any(|workspace| {
-            workspace.compile_opts().base_path.as_deref() == Some(project.path(package).as_path())
-        }));
+        workspace_at(&state.config, &project.path(package));
     }
 }
 
@@ -257,27 +260,35 @@ async fn delayed_create_after_empty_folder_did_create_is_processed() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn did_create_and_its_watcher_echo_start_one_epoch() {
-    for (fixture, created, contents) in [
-        (EXISTING, "/Created.sol", "contract Created {}"),
+    for (fixture, created, echo, contents) in [
+        (EXISTING.to_owned(), "/Created.sol", "/Created.sol", "contract Created {}"),
         (
-            "//- /foundry.toml\n\n//- /src/Main.sol\ncontract Main {}\n",
+            "//- /foundry.toml\n\n//- /src/Main.sol\ncontract Main {}\n".to_owned(),
+            "/remappings.txt",
             "/remappings.txt",
             "pkg/=lib/pkg/\n",
         ),
+        // A created folder whose only echo is reachable through an import.
+        (
+            import_only_fixture("import \"pkg/src/Target.sol\";"),
+            "/lib/pkg",
+            "/lib/pkg/src/Target.sol",
+            "contract Target {}",
+        ),
     ] {
         for watcher_first in [false, true] {
-            let project = TestProject::from_fixture(fixture);
-            let created = project.path(created);
+            let project = TestProject::from_fixture(&fixture);
             let mut state = state(&project);
-            fs::write(&created, contents).unwrap();
+            project.write_file(echo, contents);
+            let (created, echo) = (project.path(created), project.path(echo));
             let before = analysis_version(&state);
 
             if watcher_first {
-                watch_files(&mut state, [(&created, CREATED)]);
+                watch_files(&mut state, [(&echo, CREATED)]);
                 did_create(&mut state, [&created]);
             } else {
                 did_create(&mut state, [&created]);
-                watch_files(&mut state, [(&created, CREATED)]);
+                watch_files(&mut state, [(&echo, CREATED)]);
             }
 
             assert_eq!(analysis_version(&state), before + 1);
@@ -358,7 +369,8 @@ async fn mixed_watcher_batch_preserves_an_unrelated_deleted_open_file() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn folder_create_and_its_watcher_echoes_start_one_epoch() {
-    // Watcher echoes arrive split after the notification, or batched before it.
+    // Watcher echoes arrive split after the notification, or batched before it. The last case
+    // creates Foundry flycheck descendants outside the source roots.
     for (watcher_first, files) in [
         (
             false,
@@ -375,6 +387,13 @@ async fn folder_create_and_its_watcher_echoes_start_one_epoch() {
                 ("foundry.toml", "[profile.default]\nsrc = \"src\"\n"),
                 ("src/First.sol", "contract First {}"),
                 ("src/Second.sol", "contract Second {}"),
+            ],
+        ),
+        (
+            false,
+            &[
+                ("foundry.toml", "[profile.default]\nsrc = \"src\"\n"),
+                ("test/Only.t.sol", "contract OnlyTest {}"),
             ],
         ),
     ] {
@@ -402,50 +421,8 @@ async fn folder_create_and_its_watcher_echoes_start_one_epoch() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn folder_create_records_foundry_flycheck_descendants_for_watcher_echoes() {
-    let project = TestProject::from_fixture(EXISTING);
-    let mut state = state(&project);
-    project.write_file("/created/foundry.toml", "[profile.default]\nsrc = \"src\"\n");
-    project.write_file("/created/test/Only.t.sol", "contract OnlyTest {}");
-    let before = analysis_version(&state);
-
-    did_create(&mut state, [project.path("/created")]);
-    watch_files(
-        &mut state,
-        [
-            (project.path("/created/foundry.toml"), CREATED),
-            (project.path("/created/test/Only.t.sol"), CREATED),
-        ],
-    );
-
-    assert_eq!(analysis_version(&state), before + 1);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn folder_create_and_import_only_watcher_echo_start_one_epoch() {
-    for watcher_first in [false, true] {
-        let project = import_only_project("import \"pkg/src/Target.sol\";");
-        let folder = project.path("/lib/pkg");
-        let target = project.path("/lib/pkg/src/Target.sol");
-        let mut state = state(&project);
-        project.write_file("/lib/pkg/src/Target.sol", "contract Target {}");
-        let before = analysis_version(&state);
-
-        if watcher_first {
-            watch_files(&mut state, [(&target, CREATED)]);
-            did_create(&mut state, [&folder]);
-        } else {
-            did_create(&mut state, [&folder]);
-            watch_files(&mut state, [(&target, CREATED)]);
-        }
-
-        assert_eq!(analysis_version(&state), before + 1);
-    }
-}
-
-#[tokio::test(flavor = "current_thread")]
 async fn unrelated_import_only_folder_create_does_not_schedule_analysis() {
-    let project = import_only_project("contract Main {}");
+    let project = TestProject::from_fixture(&import_only_fixture("contract Main {}"));
     let mut state = state(&project);
     project.write_file("/lib/pkg/src/Unrelated.sol", "contract Unrelated {}");
     let before = analysis_version(&state);
@@ -538,36 +515,26 @@ async fn did_rename_or_watcher_migrates_open_buffers_before_one_reanalysis() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn split_watcher_echo_after_did_rename_is_ignored() {
-    let (_project, mut state, params, old_file, new_file) = folder_rename(true).await;
-    let before = analysis_version(&state);
-
-    did_rename(&mut state, &params);
-    for event in [(&old_file, DELETED), (&new_file, CREATED)] {
-        for _ in 0..2 {
-            watch_files(&mut state, [event]);
-        }
-    }
-
-    assert_eq!(analysis_version(&state), before + 1);
-    assert_buffer(&state, &new_file, UNSAVED, 12);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn unrelated_create_does_not_end_split_watcher_echo() {
+async fn split_watcher_echoes_after_did_rename_are_ignored() {
     let (project, mut state, params, old_file, new_file) = folder_rename(true).await;
     let before = analysis_version(&state);
 
     did_rename(&mut state, &params);
-    watch_files(&mut state, [(&old_file, DELETED)]);
+    for _ in 0..2 {
+        watch_files(&mut state, [(&old_file, DELETED)]);
+    }
+    assert_eq!(analysis_version(&state), before + 1);
+    // An unrelated create does not end the split echo.
     project.write_file("/other/New.sol", "contract New {}");
     did_create(&mut state, [project.path("/other/New.sol")]);
     assert_eq!(analysis_version(&state), before + 2);
 
-    watch_files(&mut state, [(&new_file, CREATED)]);
-    assert_eq!(analysis_version(&state), before + 2);
+    for _ in 0..2 {
+        watch_files(&mut state, [(&new_file, CREATED)]);
+    }
     did_rename(&mut state, &params);
     assert_eq!(analysis_version(&state), before + 2);
+    assert_buffer(&state, &new_file, UNSAVED, 12);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -874,7 +841,7 @@ async fn did_rename_workspace_root_preserves_foundry_configuration_and_closed_fi
     let workspaces = state.config.workspaces();
     assert_eq!(workspaces.len(), 1);
     assert_eq!(workspaces[0].kind(), WorkspaceKind::Foundry);
-    assert_eq!(workspaces[0].compile_opts().base_path.as_deref(), Some(new_root.as_path()));
+    assert_root(&state, &new_root);
     assert!(has_symbol(&tables, "Main"));
     assert_eq!(
         tables.document_links(&new_root.join("src/Main.sol"))[0].target,
@@ -886,10 +853,7 @@ async fn did_rename_workspace_root_preserves_foundry_configuration_and_closed_fi
     assert_eq!(analysis_version(&state), before + 1);
     did_rename(&mut state, &params);
     assert_eq!(analysis_version(&state), before + 1);
-    assert_eq!(
-        state.config.workspaces()[0].compile_opts().base_path.as_deref(),
-        Some(new_root.as_path())
-    );
+    assert_root(&state, &new_root);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -935,10 +899,7 @@ async fn watcher_can_commit_workspace_root_rename_once() {
     let files = ["foundry.toml", "src/Main.sol", "lib/Dependency.sol"];
     watch_files(&mut state, rename_watcher_events(&old_root, &new_root, &files));
     assert_eq!(analysis_version(&state), before + 1);
-    assert_eq!(
-        state.config.workspaces()[0].compile_opts().base_path.as_deref(),
-        Some(new_root.as_path())
-    );
+    assert_root(&state, &new_root);
     assert!(!exists(&state, &old_main));
     assert_buffer(&state, &new_main, unsaved, 12);
 
@@ -975,7 +936,7 @@ async fn did_rename_replay_does_not_remap_workspace_root_again() {
 
     let tables = analysis(&state).await;
     assert_eq!(analysis_version(&state), before + 1);
-    assert_eq!(state.config.workspaces()[0].compile_opts().base_path.as_deref(), Some(b.as_path()));
+    assert_root(&state, &b);
     assert!(has_symbol(&tables, "Main"));
 }
 
@@ -1001,34 +962,11 @@ async fn did_only_rename_round_trip_reapplies_original_payload() {
     assert_eq!(analysis_version(&state), before + 3);
     assert!(!exists(&state, a.join("Main.sol")));
     assert_buffer(&state, b.join("Main.sol"), UNSAVED, 12);
-    assert_eq!(state.config.workspaces()[0].compile_opts().base_path.as_deref(), Some(b.as_path()));
+    assert_root(&state, &b);
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn did_delete_folder_removes_open_descendants_but_not_prefix_siblings() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /pkg/Deleted.sol open
-        contract Deleted {}
-
-        //- /pkg2/Keep.sol open
-        contract Keep {}
-        "#,
-    );
-    let mut state = state(&project);
-    fs::remove_dir_all(project.path("/pkg")).unwrap();
-
-    did_delete(&mut state, [project.path("/pkg")]);
-
-    assert!(!exists(&state, project.path("/pkg/Deleted.sol")));
-    assert!(exists(&state, project.path("/pkg2/Keep.sol")));
-    let tables = analysis(&state).await;
-    assert!(tables.workspace_symbols("Deleted").is_empty());
-    assert!(has_symbol(&tables, "Keep"));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn did_delete_folder_clears_closed_dependency_diagnostics_by_prefix() {
+async fn did_delete_folder_clears_descendants_but_not_prefix_siblings() {
     let project = TestProject::from_fixture(
         r#"
         //- /foundry.toml
@@ -1041,12 +979,18 @@ async fn did_delete_folder_clears_closed_dependency_diagnostics_by_prefix() {
         //- /lib/pkg/Dependency.sol
         contract Dependency {}
 
-        //- /lib2/Keep.sol
+        //- /lib/pkg/Deleted.sol open
+        contract Deleted {}
+
+        //- /lib/pkg2/Keep.sol open
         contract Keep {}
+
+        //- /lib/pkg2/Closed.sol
+        contract Closed {}
         "#,
     );
     let deleted_uri = project.uri("/lib/pkg/Dependency.sol");
-    let sibling_uri = project.uri("/lib2/Keep.sol");
+    let sibling_uri = project.uri("/lib/pkg2/Closed.sol");
     let owner =
         DiagnosticOwner::Flycheck { id: "probe".into(), workspace: project.root().to_path_buf() };
     let mut state = state(&project);
@@ -1057,11 +1001,15 @@ async fn did_delete_folder_clears_closed_dependency_diagnostics_by_prefix() {
             (sibling_uri.clone(), vec![diagnostic("sibling")]),
         ]),
     );
-    fs::remove_dir_all(project.path("/lib")).unwrap();
+    fs::remove_dir_all(project.path("/lib/pkg")).unwrap();
 
-    did_delete(&mut state, [project.path("/lib")]);
+    did_delete(&mut state, [project.path("/lib/pkg")]);
 
-    analysis(&state).await;
+    assert!(!exists(&state, project.path("/lib/pkg/Deleted.sol")));
+    assert!(exists(&state, project.path("/lib/pkg2/Keep.sol")));
+    let tables = analysis(&state).await;
+    assert!(tables.workspace_symbols("Deleted").is_empty());
+    assert!(has_symbol(&tables, "Keep"));
     assert!(pulled_diagnostics(&state, &deleted_uri).is_empty());
     assert_eq!(pulled_diagnostics(&state, &sibling_uri), [diagnostic("sibling")]);
 }
