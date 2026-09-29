@@ -165,7 +165,12 @@ impl<'gcx> ParsingContext<'gcx> {
     }
 
     /// Adds a preloaded file to the resolver.
+    ///
+    /// A file under a name reserved for a compiler-owned module must be that module's text.
     pub fn add_file(&mut self, file: Arc<SourceFile>) {
+        if crate::core::check_reserved_source(self.dcx(), &file).is_err() {
+            return;
+        }
         self.sources.get_or_insert_file(file);
     }
 
@@ -437,11 +442,15 @@ impl<'gcx> ParsingContext<'gcx> {
                 .emit();
             return None;
         };
-        self.sess
+        let file = self
+            .sess
             .source_map()
             .new_source_file(crate::core::file_name(module), module.source)
             .map_err(|e| self.dcx().err(format!("failed to load compiler module: {e}")).emit())
-            .ok()
+            .ok()?;
+        // The source map returns a file already loaded under the name, whatever its text.
+        crate::core::check_reserved_source(self.dcx(), &file).ok()?;
+        Some(file)
     }
 
     fn map_resolve_error(&self) -> impl FnOnce(ResolveError) -> ErrorGuaranteed {

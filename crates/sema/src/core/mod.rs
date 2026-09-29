@@ -4,8 +4,10 @@
 //! never a file: the prefix is intercepted before file resolution, so neither
 //! a remapping nor a file on disk can stand in for a module, and a source unit
 //! supplied under one of these names is set aside in favour of the module.
-//! That is what gives a module's declarations an identity the compiler can
-//! trust.
+//! A source that an embedder loads under a reserved name, or that already
+//! holds one when an import asks for the module, is accepted only when it is
+//! the module's exact text. That is what gives a module's declarations an
+//! identity the compiler can trust by name.
 //!
 //! Every function in a module carries a body that any Solidity compiler
 //! accepts and that defines the operation's behaviour, so the same source
@@ -16,7 +18,12 @@
 
 use crate::hir;
 use solar_data_structures::map::FxHashMap;
-use solar_interface::{Symbol, source_map::FileName, sym};
+use solar_interface::{
+    Symbol,
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    source_map::{FileName, SourceFile},
+    sym,
+};
 use std::sync::OnceLock;
 
 /// The import prefix reserved for compiler-owned modules.
@@ -83,6 +90,24 @@ pub fn is_core_file(name: &FileName) -> bool {
 /// The file name a compiler-owned module is registered under.
 pub fn file_name(module: &CoreModule) -> FileName {
     FileName::Custom(module.path.to_string())
+}
+
+/// Checks that `file`, when a reserved name holds it, is the compiler-owned module that name
+/// reserves, with exactly its text. Every identity check trusts the name alone afterwards.
+pub fn check_reserved_source(dcx: &DiagCtxt, file: &SourceFile) -> Result<(), ErrorGuaranteed> {
+    let FileName::Custom(path) = &file.name else { return Ok(()) };
+    if !is_reserved_path(path)
+        || lookup(path).is_some_and(|module| module.source == file.src.as_str())
+    {
+        return Ok(());
+    }
+    Err(dcx
+        .err(format!("source `{path}` is reserved for a compiler module"))
+        .note(format!(
+            "names under `{PREFIX}` identify the modules this compiler provides, so a source \
+             under one must be that module's exact text"
+        ))
+        .emit())
 }
 
 /// An operation the compiler lowers directly instead of calling its body.
@@ -514,5 +539,106 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
         // `Cast`, `Precompiles` and the remaining codecs are library code
         // throughout.
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Compiler;
+    use snapbox::{assert_data_eq, str};
+    use solar_interface::{ColorChoice, Session};
+    use std::path::PathBuf;
+
+    const MAIN: &str = r#"import {Bytes} from "solar:core/v1/Bytes.sol"; contract C {}"#;
+
+    /// Parses `main.sol`, which imports `Bytes`, after `load` registers other sources, and
+    /// returns the errors emitted.
+    fn parse_errors(load: impl FnOnce(&mut crate::ParsingContext<'_>, &Session) + Send) -> String {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.dcx.set_flags(|flags| flags.track_diagnostics = false);
+        let mut compiler = Compiler::new(sess);
+        compiler.enter_mut(|c| {
+            let mut pcx = c.parse();
+            load(&mut pcx, c.sess());
+            pcx.add_file(
+                c.sess().source_map().new_source_file(PathBuf::from("main.sol"), MAIN).unwrap(),
+            );
+            pcx.parse();
+        });
+        match compiler.sess().dcx.emitted_errors().unwrap() {
+            Ok(()) => String::new(),
+            Err(errors) => errors.to_string(),
+        }
+    }
+
+    const FORGED: &str = "library Bytes {}";
+
+    #[test]
+    fn loaded_module_must_be_exact() {
+        let errors = parse_errors(|pcx, _| {
+            let _ = pcx.par_load_files_with_contents([(
+                "solar:core/v1/Bytes.sol".to_string(),
+                FORGED.to_string(),
+            )]);
+        });
+        assert_data_eq!(
+            errors,
+            str![[r#"
+error: source `solar:core/v1/Bytes.sol` is reserved for a compiler module
+  │
+  ╰ note: names under `solar:core/` identify the modules this compiler provides, so a source under one must be that module's exact text
+
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn unknown_reserved_name() {
+        let errors = parse_errors(|pcx, _| {
+            let _ = pcx.par_load_files_with_contents([(
+                "solar:core/v1/Fake.sol".to_string(),
+                FORGED.to_string(),
+            )]);
+        });
+        assert_data_eq!(
+            errors,
+            str![[r#"
+error: source `solar:core/v1/Fake.sol` is reserved for a compiler module
+  │
+  ╰ note: names under `solar:core/` identify the modules this compiler provides, so a source under one must be that module's exact text
+
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn import_rejects_preloaded_text() {
+        let errors = parse_errors(|_, sess| {
+            sess.source_map()
+                .new_source_file("solar:core/v1/Bytes.sol".to_string(), FORGED)
+                .unwrap();
+        });
+        assert_data_eq!(
+            errors,
+            str![[r#"
+error: source `solar:core/v1/Bytes.sol` is reserved for a compiler module
+  │
+  ╰ note: names under `solar:core/` identify the modules this compiler provides, so a source under one must be that module's exact text
+
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn exact_copy_is_the_module() {
+        let errors = parse_errors(|pcx, _| {
+            let module = lookup("solar:core/v1/Bytes.sol").unwrap();
+            pcx.par_load_files_with_contents([(module.path.to_string(), module.source)]).unwrap();
+        });
+        assert_data_eq!(errors, str![""]);
     }
 }
