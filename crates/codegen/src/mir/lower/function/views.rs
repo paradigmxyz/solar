@@ -46,14 +46,15 @@
 //!
 //! `@custom:solar-view data` on an internal function makes its parameter `data`, of a memory
 //! reference type, a view parameter, which the function can only read in place. Other compilers
-//! pass the caller's object, and every internal call does the same with any memory reference;
-//! this compiler passes what the caller holds, without a copy. A `bytes` or `string` parameter
-//! takes the slice of the bytes of a view or of an object. An array or struct parameter takes the
-//! caller's object, which the function reads as any object is read, or a view of the encoding the
-//! value was decoded from. A call that passes views reaches the copy of the function that takes
-//! each view parameter the way the call passes it, one copy per combination, which reads them
-//! where they are. The function reads a view parameter in memory as a view, borrowed from its entry
-//! on, so none of its writes may reach memory that existed when it was entered while it still
+//! pass the caller's object, and every internal call does the same with any memory reference; this
+//! compiler passes what the caller holds, without a copy. A `bytes` or `string` parameter takes the
+//! slice of the bytes of a view or of an object, an object's as they are when every argument has
+//! been evaluated, which is when the function would first read them. An array or struct parameter
+//! takes the caller's object, which the function reads as any object is read, or a view of the
+//! encoding the value was decoded from. A call that passes views reaches the copy of the function
+//! that takes each view parameter the way the call passes it, one copy per combination, which reads
+//! them where they are. The function reads a view parameter in memory as a view, borrowed from its
+//! entry on, so none of its writes may reach memory that existed when it was entered while it still
 //! reads the parameter; an object is the caller's own, and calldata cannot change. It cannot be
 //! used as a function pointer, whose calls pass objects.
 //!
@@ -712,34 +713,36 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// Lowers `argument` for a `@custom:solar-view` parameter of type `ty`, without a copy: a
-    /// view passes itself, in memory or in calldata, any other `bytes` or `string` the slice of
-    /// its object's bytes, and any other array or struct its object. [`Self::view_callee`] picks
+    /// view passes itself, in memory or in calldata, and any other array or struct its object.
+    /// Any other `bytes` or `string` passes its object here, which [`Self::view_argument`] turns
+    /// into the slice of its bytes once every argument is evaluated. [`Self::view_callee`] picks
     /// the function that takes them.
     pub(super) fn lower_view_argument(
         &mut self,
         argument: &hir::Expr<'_>,
         ty: Ty<'gcx>,
     ) -> Option<ValueId> {
-        let object = if self.is_view_expr(argument) {
-            // A `bytes` view held as an object passes the slice of its bytes.
-            let view = self.lower_view_expr(argument)?;
-            if self.builder.func().value_slice_location(view).is_some() || !is_bytes_view(ty) {
-                return Some(view);
-            }
-            view
-        } else {
-            let value = self.lower_typed_expr(argument, ty)?;
-            let object = self.materialize_call_argument(ty, value, argument.span)?;
-            if !is_bytes_view(ty) {
-                return Some(object);
-            }
-            object
-        };
+        if self.is_view_expr(argument) {
+            return self.lower_view_expr(argument);
+        }
+        let value = self.lower_typed_expr(argument, ty)?;
+        self.materialize_call_argument(ty, value, argument.span)
+    }
+
+    /// The value a `@custom:solar-view` parameter of type `ty` takes for `value`, which
+    /// [`Self::lower_view_argument`] lowered: a `bytes` or `string` object, a `bytes` view held
+    /// as an object included, passes the slice of its bytes. The call makes the slice after every
+    /// argument is evaluated, so it has the length the function would read from the object, even
+    /// when a later argument changed it.
+    pub(super) fn view_argument(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
+        if !is_bytes_view(ty) || self.builder.func().value_slice_location(value).is_some() {
+            return value;
+        }
         // slice = make_memory_slice(object.data, object.len)
-        let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
+        let data = self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
         let data = self.builder.cast(data, MirType::I256);
-        let length = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
-        Some(self.builder.make_slice(data, length, SliceLocation::Memory))
+        let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
+        self.builder.make_slice(data, length, SliceLocation::Memory)
     }
 
     /// The function a call reaches that passes `values` to the function `id`, lowered as

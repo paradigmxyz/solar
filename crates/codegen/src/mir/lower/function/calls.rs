@@ -953,6 +953,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(&mir_id) = self.cx.function_ids.get(&function_id) else {
             return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
         };
+        for (index, value) in values.iter_mut().enumerate() {
+            if is_view_parameter(self.cx.gcx, function_id, index) {
+                let parameter_ty = self.cx.gcx.type_of_item(function.parameters[index].into());
+                *value = self.view_argument(*value, parameter_ty);
+            }
+        }
         let mir_id = self.view_callee(function_id, mir_id, &values);
         if let Some(value) = self.lower_pure_struct_constructor(function, &values) {
             return Some(CallResult::Value(value));
