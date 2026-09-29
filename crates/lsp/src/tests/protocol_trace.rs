@@ -245,39 +245,27 @@ async fn set_trace_before_initialize_does_not_emit_server_traces() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn disabling_trace_during_a_request_suppresses_its_completion() {
-    let (mut harness, entered, release) = pending_trace_harness().await;
-    set_trace(&harness, TraceValue::Messages);
-    let (request, _) = start_pending(&harness, entered).await;
+async fn changing_trace_during_a_request_does_not_trace_its_completion() {
+    for (before, during) in
+        [(TraceValue::Messages, TraceValue::Off), (TraceValue::Off, TraceValue::Messages)]
+    {
+        let (mut harness, entered, release) = pending_trace_harness().await;
+        set_trace(&harness, before);
+        let (request, _) = start_pending(&harness, entered).await;
 
-    set_trace(&harness, TraceValue::Off);
-    harness.server().request::<TraceBarrierRequest>(()).await.unwrap();
-    release.send(()).expect("pending request should still be running");
-    within("pending request", request).await.unwrap();
-    harness.probe().await;
+        set_trace(&harness, during);
+        harness.server().request::<TraceBarrierRequest>(()).await.unwrap();
+        harness.probe().await;
+        let barrier = trace("Server completed request `test/traceBarrier` successfully");
+        let expected = Vec::from_iter((during == TraceValue::Messages).then_some(barrier));
+        assert_eq!(harness.take_traces(), expected, "{before:?} -> {during:?}");
 
-    assert_eq!(harness.take_traces(), []);
-    shutdown(harness).await;
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn enabling_trace_during_a_request_does_not_create_a_completion() {
-    let (mut harness, entered, release) = pending_trace_harness().await;
-    let (request, _) = start_pending(&harness, entered).await;
-
-    set_trace(&harness, TraceValue::Messages);
-    harness.server().request::<TraceBarrierRequest>(()).await.unwrap();
-    harness.probe().await;
-    assert_eq!(
-        harness.take_traces(),
-        [trace("Server completed request `test/traceBarrier` successfully")]
-    );
-
-    release.send(()).expect("pending request should still be running");
-    within("pending request", request).await.unwrap();
-    harness.probe().await;
-    assert!(harness.take_traces().is_empty());
-    shutdown(harness).await;
+        release.send(()).expect("pending request should still be running");
+        within("pending request", request).await.unwrap();
+        harness.probe().await;
+        assert!(harness.take_traces().is_empty(), "{before:?} -> {during:?}");
+        shutdown(harness).await;
+    }
 }
 
 #[tokio::test(flavor = "current_thread")]

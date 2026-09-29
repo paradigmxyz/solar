@@ -402,15 +402,9 @@ async fn client_profiles_complete_a_raw_lsp_session() {
         session.change(&document_uri, change).await;
         let symbols = session.document_request("textDocument/documentSymbol", &document_uri).await;
         assert_symbol_replaced(&symbols, "After", "Before", &profile_label);
-        let hover = session
-            .request(
-                "textDocument/hover",
-                json!({
-                    "textDocument": { "uri": document_uri },
-                    "position": { "line": 0, "character": 17 },
-                }),
-            )
-            .await;
+        let position = json!({ "line": 0, "character": 17 });
+        let params = json!({ "textDocument": { "uri": document_uri }, "position": position });
+        let hover = session.request("textDocument/hover", params).await;
         assert!(
             hover.to_string().contains("contract After"),
             "{profile_label}: hover did not resolve the edited contract: {hover}"
@@ -542,16 +536,12 @@ async fn pull_diagnostic_client_refreshes_and_clears_without_push() {
         .to_owned();
 
     let diagnostic = initial["items"][0].clone();
-    let code_actions = session
-        .request(
-            "textDocument/codeAction",
-            json!({
-                "textDocument": { "uri": document_uri },
-                "range": diagnostic["range"],
-                "context": { "diagnostics": [diagnostic] },
-            }),
-        )
-        .await;
+    let params = json!({
+        "textDocument": { "uri": document_uri },
+        "range": diagnostic["range"],
+        "context": { "diagnostics": [diagnostic] },
+    });
+    let code_actions = session.request("textDocument/codeAction", params).await;
     assert_eq!(
         code_actions,
         json!([]),
@@ -562,15 +552,9 @@ async fn pull_diagnostic_client_refreshes_and_clears_without_push() {
     assert_eq!(session.server_message_count("textDocument/publishDiagnostics"), 0);
 
     session.change(&document_uri, json!({ "text": CLEARED_DIAGNOSTIC_SOURCE })).await;
-    let cleared = session
-        .request(
-            "textDocument/diagnostic",
-            json!({
-                "textDocument": { "uri": document_uri },
-                "previousResultId": initial_result_id,
-            }),
-        )
-        .await;
+    let params =
+        json!({ "textDocument": { "uri": document_uri }, "previousResultId": initial_result_id });
+    let cleared = session.request("textDocument/diagnostic", params).await;
     assert_eq!(cleared.get("kind").and_then(Value::as_str), Some("full"));
     assert_eq!(cleared.get("items"), Some(&json!([])));
     assert_eq!(session.server_message_count("workspace/diagnostic/refresh"), 1);
