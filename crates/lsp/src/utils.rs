@@ -93,9 +93,22 @@ pub(crate) fn rope_to_string(rope: &Rope) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::{apply_document_changes, rope_eq_str};
-    use crop::Rope;
+    use super::*;
     use lsp_types::{Position, Range, TextDocumentContentChangeEvent};
+
+    fn edits(edits: &[(u32, u32, u32, u32, &str)]) -> Vec<TextDocumentContentChangeEvent> {
+        edits
+            .iter()
+            .map(|&(start_line, start, end_line, end, text)| TextDocumentContentChangeEvent {
+                range: Some(Range::new(
+                    Position::new(start_line, start),
+                    Position::new(end_line, end),
+                )),
+                range_length: None,
+                text: text.into(),
+            })
+            .collect()
+    }
 
     #[test]
     fn rope_eq_str_compares_chunked_utf8() {
@@ -106,121 +119,72 @@ mod tests {
     }
 
     #[test]
-    fn descending_document_changes_clamp_oversized_columns() {
-        let changes = [
-            (Range::new(Position::new(2, 0), Position::new(2, 1)), "X"),
-            (Range::new(Position::new(0, 4), Position::new(0, 5)), "Y"),
-        ]
-        .map(|(range, text)| TextDocumentContentChangeEvent {
-            range: Some(range),
-            range_length: None,
-            text: text.into(),
-        });
-        let text = apply_document_changes(&Rope::from("abc\ndef\nghi"), changes.into()).unwrap();
+    fn descending_document_changes_match_sequential_edits() {
+        let changes = edits(&[(2, 0, 2, 1, "X"), (0, 4, 0, 5, "Y")]);
+        let text = apply_document_changes(&Rope::from("abc\ndef\nghi"), changes).unwrap();
         assert_eq!(text, "abcY\ndef\nXhi");
-    }
 
-    #[test]
-    fn descending_document_changes_preserve_unicode_and_line_endings() {
         let original = Rope::from("a😀b\r\ncéc\rd𐐀e\nfgh");
-        let changes = [
-            (Range::new(Position::new(3, 1), Position::new(3, 2)), "😀\r\nmore"),
-            (Range::new(Position::new(2, 1), Position::new(2, 3)), "世\n界"),
-            (Range::new(Position::new(1, 1), Position::new(1, 2)), "E\r"),
-            (Range::new(Position::new(0, 1), Position::new(0, 3)), "🙂"),
-        ]
-        .map(|(range, text)| TextDocumentContentChangeEvent {
-            range: Some(range),
-            range_length: None,
-            text: text.into(),
-        });
+        let changes = edits(&[
+            (3, 1, 3, 2, "😀\r\nmore"),
+            (2, 1, 2, 3, "世\n界"),
+            (1, 1, 1, 2, "E\r"),
+            (0, 1, 0, 3, "🙂"),
+        ]);
         let sequential = changes.iter().fold(original.clone(), |text, change| {
             apply_document_changes(&text, vec![change.clone()]).unwrap()
         });
-        let text = apply_document_changes(&original, changes.into()).unwrap();
+        let text = apply_document_changes(&original, changes).unwrap();
         assert_eq!(text, sequential);
         assert_eq!(text, "a🙂b\r\ncE\rc\rd世\n界e\nf😀\r\nmoreh");
     }
 
     #[test]
     fn test_apply_document_changes() {
-        macro_rules! c {
-            [$($sl:expr, $sc:expr; $el:expr, $ec:expr => $text:expr),+] => {
-                vec![$(TextDocumentContentChangeEvent {
-                    range: Some(Range {
-                        start: Position { line: $sl, character: $sc },
-                        end: Position { line: $el, character: $ec },
-                    }),
-                    range_length: None,
-                    text: String::from($text),
-                }),+]
-            };
-        }
-
-        let text = apply_document_changes(&Rope::new(), vec![]).unwrap();
-        assert_eq!(text, "");
-
-        let text = apply_document_changes(
-            &text,
+        let full = |text: &str| {
             vec![TextDocumentContentChangeEvent {
                 range: None,
                 range_length: None,
-                text: String::from("the"),
-            }],
-        )
-        .unwrap();
-        assert_eq!(text, "the");
+                text: text.into(),
+            }]
+        };
+        let mut text = Rope::new();
+        for (changes, expected) in [
+            (vec![], ""),
+            (full("the"), "the"),
+            (edits(&[(0, 3, 0, 3, " quick")]), "the quick"),
+            (edits(&[(0, 0, 0, 4, ""), (0, 5, 0, 5, " foxes")]), "quick foxes"),
+            (edits(&[(0, 11, 0, 11, "\ndream")]), "quick foxes\ndream"),
+            (edits(&[(1, 0, 1, 0, "have ")]), "quick foxes\nhave dream"),
+            (
+                edits(&[(0, 0, 0, 0, "the "), (1, 4, 1, 4, " quiet"), (1, 16, 1, 16, "s\n")]),
+                "the quick foxes\nhave quiet dreams\n",
+            ),
+            (
+                edits(&[(0, 15, 0, 15, "\n"), (2, 17, 2, 17, "\n")]),
+                "the quick foxes\n\nhave quiet dreams\n\n",
+            ),
+            (
+                edits(&[(1, 0, 1, 0, "DREAM"), (2, 0, 2, 0, "they "), (3, 0, 3, 0, "DON'T THEY?")]),
+                "the quick foxes\nDREAM\nthey have quiet dreams\nDON'T THEY?\n",
+            ),
+            (edits(&[(0, 10, 1, 5, ""), (2, 0, 3, 0, "")]), "the quick \nthey have quiet dreams\n"),
+        ] {
+            text = apply_document_changes(&text, changes).unwrap();
+            assert_eq!(text, expected);
+        }
 
-        let text = apply_document_changes(&text, c![0, 3; 0, 3 => " quick"]).unwrap();
-        assert_eq!(text, "the quick");
-
-        let text =
-            apply_document_changes(&text, c![0, 0; 0, 4 => "", 0, 5; 0, 5 => " foxes"]).unwrap();
-        assert_eq!(text, "quick foxes");
-
-        let text = apply_document_changes(&text, c![0, 11; 0, 11 => "\ndream"]).unwrap();
-        assert_eq!(text, "quick foxes\ndream");
-
-        let text = apply_document_changes(&text, c![1, 0; 1, 0 => "have "]).unwrap();
-        assert_eq!(text, "quick foxes\nhave dream");
-
-        let text = apply_document_changes(
-            &text,
-            c![0, 0; 0, 0 => "the ", 1, 4; 1, 4 => " quiet", 1, 16; 1, 16 => "s\n"],
-        )
-        .unwrap();
-        assert_eq!(text, "the quick foxes\nhave quiet dreams\n");
-
-        let text =
-            apply_document_changes(&text, c![0, 15; 0, 15 => "\n", 2, 17; 2, 17 => "\n"]).unwrap();
-        assert_eq!(text, "the quick foxes\n\nhave quiet dreams\n\n");
-
-        let text = apply_document_changes(
-            &text,
-            c![1, 0; 1, 0 => "DREAM", 2, 0; 2, 0 => "they ", 3, 0; 3, 0 => "DON'T THEY?"],
-        )
-        .unwrap();
-        assert_eq!(text, "the quick foxes\nDREAM\nthey have quiet dreams\nDON'T THEY?\n");
-
-        let text = apply_document_changes(&text, c![0, 10; 1, 5 => "", 2, 0; 3, 0 => ""]).unwrap();
-        assert_eq!(text, "the quick \nthey have quiet dreams\n");
-
-        let text = Rope::from("❤️");
-        let text = apply_document_changes(&text, c![0, 0; 0, 0 => "a"]).unwrap();
-        assert_eq!(text, "a❤️");
-
-        let text = Rope::from("a\nb");
-        let text =
-            apply_document_changes(&text, c![0, 1; 1, 0 => "\nțc", 0, 1; 1, 1 => "d"]).unwrap();
-        assert_eq!(text, "adcb");
-
-        let text = Rope::from("a\nb");
-        let text =
-            apply_document_changes(&text, c![0, 1; 1, 0 => "ț\nc", 0, 2; 0, 2 => "c"]).unwrap();
-        assert_eq!(text, "ațc\ncb");
-
-        let text = Rope::from("function increment() public {\n    // 中文😀\n    umber++;\n}");
-        let text = apply_document_changes(&text, c![2, 4; 2, 9 => "number"]).unwrap();
-        assert_eq!(text, "function increment() public {\n    // 中文😀\n    number++;\n}");
+        for (original, changes, expected) in [
+            ("❤️", edits(&[(0, 0, 0, 0, "a")]), "a❤️"),
+            ("a\nb", edits(&[(0, 1, 1, 0, "\nțc"), (0, 1, 1, 1, "d")]), "adcb"),
+            ("a\nb", edits(&[(0, 1, 1, 0, "ț\nc"), (0, 2, 0, 2, "c")]), "ațc\ncb"),
+            (
+                "function increment() public {\n    // 中文😀\n    umber++;\n}",
+                edits(&[(2, 4, 2, 9, "number")]),
+                "function increment() public {\n    // 中文😀\n    number++;\n}",
+            ),
+        ] {
+            assert_eq!(apply_document_changes(&Rope::from(original), changes).unwrap(), expected);
+        }
     }
 }
