@@ -106,12 +106,7 @@ fn uses_cached_utf16_positions_for_crlf_documents() {
 
 "#]],
     );
-    let mut state = fixture.state();
-    let first = fixture.selection_range_response_in_state(&mut state, &["$1"]);
-    let cached = fixture.selection_range_response_in_state(&mut state, &["$1"]);
-    let disk = fixture.selection_range_response_in_state(&mut state, &["$2"]);
-    assert_eq!(cached, first);
-    assert_eq!(disk, first);
+    check_cached_and_disk_ranges(&fixture);
 
     let valid = Position::new(2, 28);
     for invalid in [Position::new(99, 0), Position::new(2, 13)] {
@@ -155,27 +150,6 @@ fn clamps_positions_and_supports_standalone_carriage_returns() {
   1:9-1:10
   1:0-1:13
   0:0-1:13
-
-"#]],
-    );
-}
-
-#[test]
-fn parses_selection_ranges_on_the_blocking_pool() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Blocking.sol open
-        contract Bl$1ocking {}
-        "#,
-        "/Blocking.sol",
-    );
-
-    fixture.check_selection_range_uses_blocking_pool(
-        &["$1"],
-        str![[r#"
-0:
-  0:9-0:17
-  0:0-0:20
 
 "#]],
     );
@@ -237,53 +211,30 @@ fn prefers_open_vfs_contents_and_reads_closed_documents_from_disk() {
     );
     fixture.write_file("/Open.sol", "contract DiskVersion {}");
 
-    for marker in ["$1", "$2"] {
-        fixture.check_selection_ranges(
-            &[marker],
-            str![[r#"
+    let expected = str![[r#"
 0:
   0:9-0:13
   0:0-0:16
 
-"#]],
-        );
+"#]];
+    for marker in ["$1", "$2"] {
+        fixture.check_selection_ranges(&[marker], expected.clone());
+        fixture.check_selection_range_uses_blocking_pool(&[marker], expected.clone());
     }
 }
 
 #[test]
-fn recovers_selection_ranges_from_incomplete_source() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /Incomplete.sol open
-        contract C {
-            function f(uint256 value) external pure returns (uint256) {
-                return val$1ue
-        "#,
-        "/Incomplete.sol",
-    );
-
-    fixture.check_selection_ranges(
-        &["$1"],
-        str![[r#"
-0:
-  2:15-2:20
-  2:8-2:20
-  1:62-2:20
-  1:4-2:20
-  0:0-2:20
-
-"#]],
-    );
-}
-
-#[test]
-fn falls_back_when_source_cannot_be_parsed() {
+fn recovers_or_falls_back_when_source_cannot_be_parsed() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Open.sol open
         @$1
         //- /Disk.sol
         @$2
+        //- /Incomplete.sol open
+        contract C {
+            function f(uint256 value) external pure returns (uint256) {
+                return val$3ue
         "#,
         "/Open.sol",
     );
@@ -297,12 +248,19 @@ fn falls_back_when_source_cannot_be_parsed() {
 
 "#]],
     );
-    let mut state = fixture.state();
-    let first = fixture.selection_range_response_in_state(&mut state, &["$1"]);
-    let cached = fixture.selection_range_response_in_state(&mut state, &["$1"]);
-    let disk = fixture.selection_range_response_in_state(&mut state, &["$2"]);
-    assert_eq!(cached, first);
-    assert_eq!(disk, first);
+    check_cached_and_disk_ranges(&fixture);
+    fixture.check_selection_ranges(
+        &["$3"],
+        str![[r#"
+0:
+  2:15-2:20
+  2:8-2:20
+  1:62-2:20
+  1:4-2:20
+  0:0-2:20
+
+"#]],
+    );
 }
 
 #[test]
@@ -326,4 +284,13 @@ fn content_changes_replace_cached_selection_ranges() {
 
     assert_ne!(changed, first);
     assert_eq!(changed, expected);
+}
+
+/// Checks that a repeated request at open `$1` and a request at the same place in closed `$2`
+/// return the first response.
+fn check_cached_and_disk_ranges(fixture: &RequestFixture) {
+    let mut state = fixture.state();
+    let first = fixture.selection_range_response_in_state(&mut state, &["$1"]);
+    assert_eq!(fixture.selection_range_response_in_state(&mut state, &["$1"]), first);
+    assert_eq!(fixture.selection_range_response_in_state(&mut state, &["$2"]), first);
 }
