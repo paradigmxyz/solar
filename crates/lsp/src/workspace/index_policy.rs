@@ -143,15 +143,6 @@ impl WorkspaceIndexPolicy {
         })
     }
 
-    pub(crate) fn excludes_directory(
-        &self,
-        workspace_root: &Path,
-        source_root: &Path,
-        directory: &Path,
-    ) -> bool {
-        self.excludes_source_directory(workspace_root, source_root, directory)
-    }
-
     pub(crate) fn excludes_source_directory(
         &self,
         workspace_root: &Path,
@@ -254,27 +245,23 @@ mod tests {
             ..Default::default()
         });
 
-        assert!(policy.should_prune_directory(
-            workspace_root,
-            &source_root,
-            &project.path("/src/node_modules")
-        ));
-        assert!(policy.should_prune_directory(
-            workspace_root,
-            &source_root,
-            &project.path("/src/.hidden")
-        ));
-        assert!(policy.should_prune_directory(
-            workspace_root,
-            &source_root,
-            &project.path("/src/generated")
-        ));
-        assert!(policy.should_prune_directory(
-            workspace_root,
-            &source_root,
-            &project.path("/src/vendor/xold7")
-        ));
-        assert!(!policy.should_prune_directory(workspace_root, &source_root, &source_root));
+        for (directory, pruned) in [
+            ("/src/node_modules", true),
+            ("/src/.hidden", true),
+            ("/src/generated", true),
+            ("/src/vendor/xold7", true),
+            ("/src", false),
+        ] {
+            assert_eq!(
+                policy.should_prune_directory(
+                    workspace_root,
+                    &source_root,
+                    &project.path(directory)
+                ),
+                pruned,
+                "{directory}"
+            );
+        }
         assert!(!policy.excludes_source_file(
             workspace_root,
             &source_root,
