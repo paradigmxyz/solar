@@ -19,6 +19,10 @@
 //@ run-call: counted => 68, 2
 //@ run-call: viewed 0x00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000301020300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000b => 224, 224
 //@ run-call: plain 0x010203 => 3
+//@ run-call: enums (1, 1), [0, 1] => 192, 192
+//@ run-call-fail: dirtyEnumField => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@ run-call-fail: dirtyEnumElement => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@ run-call-fail: dirtyEnumValue => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 
 // `Abi.encodedSize` with an `abi.encode*` call as its argument is the length
 // that encoding has, computed from the arguments' lengths without encoding
@@ -37,6 +41,16 @@ contract Test {
     struct Order {
         uint256 id;
         bytes payload;
+    }
+
+    enum Side {
+        Buy,
+        Sell
+    }
+
+    struct Quote {
+        uint256 price;
+        Side side;
     }
 
     uint256 private calls;
@@ -104,5 +118,35 @@ contract Test {
 
     function plain(bytes memory b) public pure returns (uint256) {
         return Abi.encodedSize(b);
+    }
+
+    function enums(Quote memory q, Side[] memory sides) public pure returns (uint256, uint256) {
+        return (Abi.encodedSize(abi.encode(q, sides)), abi.encode(q, sides).length);
+    }
+
+    // The encoding checks the range of every enum it encodes, so a size that comes from an
+    // encoding that fails fails the same way, with Panic(0x21).
+    function dirtyEnumField() public pure returns (uint256) {
+        Quote memory q = Quote(1, Side.Buy);
+        assembly {
+            mstore(add(q, 0x20), 5)
+        }
+        return Abi.encodedSize(abi.encode(q));
+    }
+
+    function dirtyEnumElement() public pure returns (uint256) {
+        Side[] memory sides = new Side[](2);
+        assembly {
+            mstore(add(sides, 0x40), 7)
+        }
+        return Abi.encodedSize(abi.encode(sides));
+    }
+
+    function dirtyEnumValue() public pure returns (uint256) {
+        Side side;
+        assembly {
+            side := 9
+        }
+        return Abi.encodedSize(abi.encode(side));
     }
 }
