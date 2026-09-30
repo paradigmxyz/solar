@@ -161,6 +161,7 @@ impl ContractSelection {
 /// Contracts in `capture_evm_ir` retain their final EVM IR in the returned artifact.
 /// Values returned by `runtime_data` are emitted as trailing runtime program data.
 /// Contracts in `capture_debug_info` retain final instruction locations.
+#[tracing::instrument(name = "codegen", level = "debug", skip_all)]
 pub fn generate_contract_bytecodes(
     gcx: Gcx<'_>,
     contracts: &ContractSelection,
@@ -204,6 +205,7 @@ pub fn generate_contract_bytecodes(
     };
     let jobs = ContractJobs {
         gcx,
+        span: tracing::Span::current(),
         captures,
         graph: &graph,
         artifacts: IndexVec::from_vec((0..contract_count).map(|_| OnceLock::new()).collect()),
@@ -260,6 +262,7 @@ struct ContractGraph {
 }
 
 impl ContractGraph {
+    #[tracing::instrument(name = "contract_graph", level = "debug", skip_all)]
     fn discover(gcx: Gcx<'_>, contracts: &ContractSelection) -> Result<Self> {
         let contract_count = gcx.hir.contract_ids().len();
         let mut graph = Self {
@@ -409,6 +412,8 @@ struct ScheduledContract<'gcx> {
 /// Shared state of the contract code generation jobs.
 struct ContractJobs<'a, 'gcx> {
     gcx: Gcx<'gcx>,
+    /// Parent of the job spans, which run on worker threads.
+    span: tracing::Span,
     captures: ContractCaptures<'a>,
     graph: &'a ContractGraph,
     artifacts: IndexVec<ContractId, OnceLock<ContractArtifact>>,
@@ -456,6 +461,12 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
     /// Lowers, optimizes, and schedules a contract whose embedded bytecode stays deferred.
     fn schedule(&self, contract_id: ContractId) -> Result<ScheduledContract<'gcx>> {
         let Self { gcx, captures, graph, .. } = *self;
+        let _span = tracing::debug_span!(
+            parent: &self.span,
+            "schedule_contract",
+            contract = %gcx.contract_fully_qualified_name(contract_id)
+        )
+        .entered();
         let mut module = lower::lower_contract(gcx, contract_id);
         gcx.dcx().has_errors()?;
         let capture_mir = captures.mir.contains(contract_id);
@@ -496,6 +507,12 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
         scheduled: ScheduledContract<'gcx>,
     ) -> Result<ContractArtifact> {
         let Self { gcx, captures, graph, .. } = *self;
+        let _span = tracing::debug_span!(
+            parent: &self.span,
+            "finish_contract",
+            contract = %gcx.contract_fully_qualified_name(contract_id)
+        )
+        .entered();
         let ScheduledContract { module, codegen, built_mir } = scheduled;
         let children = graph.dependencies[contract_id]
             .iter()

@@ -16,6 +16,7 @@ use std::ops::ControlFlow;
 use crate::mir::{Function, FunctionAttributes, FunctionBuilder, Module};
 
 /// Builds a typed MIR module from one HIR contract.
+#[tracing::instrument(name = "mir_lowering", level = "debug", skip_all)]
 pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
