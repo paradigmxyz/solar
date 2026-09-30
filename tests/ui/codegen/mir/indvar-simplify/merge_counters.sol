@@ -6,22 +6,20 @@
 //@ run-call: merge [2, 4], [2, 4] => [2, 4]
 
 // A merge steps `i` on the arms that consume `a[i]` and `j` on the arms that
-// consume `b[j]`, so neither counter is stepped on the latch alone. Both walk
-// their input as carried pointers: the merge loop's exit tests compare the
-// pointers with their ends and each element read is one load of a pointer.
+// consume `b[j]`, so neither counter is stepped on the latch alone.
+//
+// NOTE: both counters should walk their input as carried pointers, and do not
+// on this base. #1505 dropped the rule that a memory-object parameter was
+// allocated before the function ran, so `a.length` and `b.length` are reloaded
+// in the header; an exit test against a reloaded length is not invariant, the
+// counters are not free, and the reduction cannot pay for itself. See the note
+// in `codegen/core/bytes_write_alias.sol`.
 // CHECK-LABEL: fn @merge
 // CHECK: {{v[0-9]+}} = phi [bb{{[0-9]+}}: 0], [bb{{[0-9]+}}: {{v[0-9]+}}]
 // CHECK-NEXT: {{v[0-9]+}} = phi
-// CHECK-NEXT: [[A:v[0-9]+]] = phi
-// CHECK-NEXT: [[B:v[0-9]+]] = phi
-// CHECK-NEXT: {{v[0-9]+}} = lt [[A]], [[AEND:v[0-9]+]]
-// CHECK-NEXT: jumpi
-// CHECK-NEXT: bb{{[0-9]+}}:
-// CHECK-NEXT: {{v[0-9]+}} = lt [[B]], [[BEND:v[0-9]+]]
-// CHECK-NEXT: jumpi
-// CHECK: [[U:v[0-9]+]] = mload [[A]]
-// CHECK-NEXT: [[V:v[0-9]+]] = mload [[B]]
-// CHECK-NEXT: eq [[U]], [[V]]
+// CHECK-NEXT: {{v[0-9]+}} = phi
+// CHECK: [[EQ:v[0-9]+]] = eq {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK-NEXT: jumpi [[EQ]]
 
 contract Test {
     function merge(uint256[] memory a, uint256[] memory b)
