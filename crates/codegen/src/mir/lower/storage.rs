@@ -142,6 +142,14 @@ impl<'gcx> StorageLayout<'gcx> {
         self.builder.packed_encoding(ty)
     }
 
+    /// Returns every state variable location as `(variable, slot, byte offset, transient)`.
+    pub(super) fn variables(&self) -> impl Iterator<Item = (VariableId, U256, u8, bool)> + '_ {
+        self.builder
+            .locations
+            .iter()
+            .map(|(&id, location)| (id, location.slot, location.offset, location.transient))
+    }
+
     pub(super) fn field_location(
         &self,
         struct_id: solar_sema::hir::StructId,

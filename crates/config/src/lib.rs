@@ -341,6 +341,7 @@ impl Dump {
                 kind,
                 DumpKind::Mir
                     | DumpKind::MirCfg
+                    | DumpKind::Secir
                     | DumpKind::EvmIr
                     | DumpKind::EvmIrRuntime
                     | DumpKind::DisasmDeploy
@@ -381,6 +382,8 @@ str_enum! {
         Mir,
         /// Print MIR CFGs in DOT format.
         MirCfg,
+        /// Print security facts derived from built MIR.
+        Secir,
         /// Print creation EVM IR.
         EvmIr,
         /// Print runtime EVM IR.

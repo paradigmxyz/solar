@@ -26,6 +26,7 @@ mod link;
 pub use link::{Library, LibraryId, LibraryRelocation, LibraryTable, RelocatableBytecode};
 
 mod ir_parse;
+pub mod secir;
 mod source_info;
 
 pub(crate) mod target;

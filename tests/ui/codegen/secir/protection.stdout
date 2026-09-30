@@ -1,0 +1,90 @@
+// === ROOT/tests/ui/codegen/secir/protection.sol:Protection ===
+contract Protection
+  storage:
+    slot 0: owner
+    slot 1: admins
+    slot 2: value
+    slot 3: roles
+  fn _checkAdmin [internal view] @ 26:5
+    entry checks admins[..], [msg.sender] (access control)
+    reads admins[..] keyed by msg.sender @ 27:14
+    guard revert (access control) on admins[..], [msg.sender] @ 27:9
+  fn _checkRole [internal view] @ 35:5
+    entry checks roles[..], [arg0], [arg1]
+    icall hasRole(arg0; arg1) @ 36:14
+    guard revert on roles[..], [arg0], [arg1] @ 36:9
+    transitive reads roles[..]
+  fn hasRole [external 0x91d14854 view] @ 39:5
+    returns roles[..], [arg0], [arg1]
+    reads roles[..] keyed by arg0, arg1 @ 40:16
+  fn mint [external 0xa0712d68 nonpayable] @ 43:5
+    modifiers onlyRole
+    entry checks roles[..], [msg.sender] (access control)
+    reads value [guarded] @ 44:9
+    writes value from arg0, value [guarded] @ 44:9
+    icall _checkRole(_; msg.sender) @ 31:9
+    transitive reads roles[..]
+    writes storage without emitting an event
+  fn setValue [external 0x55241077 nonpayable] @ 47:5
+    modifiers onlyOwner
+    entry checks msg.sender, owner (access control)
+    reads owner @ 17:31
+    writes value from arg0 [guarded] @ 48:9
+    guard revert (access control) on msg.sender, owner @ 17:9
+    writes storage without emitting an event
+  fn setByAdmin [external 0x550be474 nonpayable] @ 51:5
+    modifiers onlyAdmin
+    entry checks admins[..], [msg.sender] (access control)
+    writes value from arg0 [guarded] @ 52:9
+    icall _checkAdmin() @ 22:9
+    transitive reads admins[..]
+    writes storage without emitting an event
+  fn setWithLocalCopy [external 0x3d335822 nonpayable] @ 55:5
+    entry checks msg.sender, owner (access control)
+    reads owner @ 57:27
+    writes value from arg0 [guarded] @ 58:9
+    guard revert (access control) on msg.sender, owner @ 57:9
+    writes storage without emitting an event
+  fn oneBranch [external 0xb435200e nonpayable] @ 61:5
+    reads owner @ 63:35
+    reads value @ 66:9
+    writes value from arg0 [guarded] @ 64:13
+    writes value from value @ 66:9
+    guard revert (access control) on msg.sender, owner @ 63:13
+    branch on arg0 @ 62:9
+    constants 10
+    writes storage without emitting an event
+  fn earlyReturn [external 0xb055da2f nonpayable] @ 69:5
+    reads owner @ 70:27
+    writes value from arg0 @ 71:9
+    branch on msg.sender, owner @ 70:9
+    writes storage without emitting an event
+  fn kill [external 0x41c0e1b5 nonpayable] @ 74:5
+    selfdestruct to msg.sender @ 75:9
+  fn forward [external 0x6fadcf72 payable] @ 78:5
+    entry checks arg1, call result, calldata
+    delegatecall to arg0 args (arg1) [controlled target] @ 79:9
+    guard revert on arg1 @ 79:9
+    guard revert on arg1, calldata @ 79:9
+    guard panic on arg1 @ 79:9
+    guard revert on call result @ 80:9
+  fn claimOwnership [external 0x4e71e0c8 nonpayable] @ 83:5
+    reads owner @ 84:9
+    writes owner from msg.sender @ 84:9
+    writes storage without emitting an event
+  fn setOwner [external 0x13af4035 nonpayable] @ 87:5
+    modifiers onlyOwner
+    entry checks msg.sender, arg0, owner (access control)
+    reads owner @ 17:31
+    reads owner [guarded] @ 89:9
+    writes owner from arg0 [guarded] @ 89:9
+    guard revert (access control) on msg.sender, owner @ 17:9
+    guard revert on arg0 @ 88:9
+    writes storage without emitting an event
+  storage flows:
+    owner [externally controlled]: written by claimOwnership from msg.sender, setOwner from arg0 [guarded]; read by setValue, setWithLocalCopy, oneBranch, earlyReturn, claimOwnership, setOwner
+    value [externally controlled]: written by mint from arg0, value [guarded], setValue from arg0 [guarded], setByAdmin from arg0 [guarded], setWithLocalCopy from arg0 [guarded], oneBranch from arg0, value, earlyReturn from arg0; read by mint, oneBranch
+    admins[..]: read by setByAdmin
+    roles[..]: read by hasRole, mint
+  never written: admins, roles
+  receives value, sends value

@@ -1,0 +1,77 @@
+// === ROOT/tests/ui/codegen/secir/dataflow.sol:DataFlow ===
+contract DataFlow
+  storage:
+    slot 0: owner
+    slot 1: recipient
+    slot 2: implementation
+    slot 3: fee
+    slot 4: token
+  fn constructor [constructor nonpayable] @ 21:5
+    reads owner @ 22:9
+    reads token @ 23:9
+    writes owner from msg.sender @ 22:9
+    writes token from arg0 @ 23:9
+  fn setRecipient [external 0x3bbed4a0 nonpayable] @ 26:5
+    reads recipient @ 27:9
+    writes recipient from arg0 @ 27:9
+    writes storage without emitting an event
+  fn setFee [external 0x69fe0e2d nonpayable] @ 30:5
+    entry checks msg.sender, owner (access control)
+    reads owner @ 31:31
+    writes fee from arg0 [guarded] @ 32:9
+    icall _double(arg0) [guarded] @ 32:15
+    guard revert (access control) on msg.sender, owner @ 31:9
+    writes storage without emitting an event
+  fn setImplementation [external 0xd784d426 nonpayable] @ 35:5
+    entry checks msg.sender, owner (access control)
+    reads implementation [guarded] @ 37:9
+    writes implementation from arg0 [guarded] @ 37:9
+    icall _onlyOwner() @ 36:9
+    transitive reads owner
+    writes storage without emitting an event
+  fn payout [external 0x63bd1d4a nonpayable] @ 40:5
+    reads recipient @ 41:14
+    icall _scaled(balance) @ 41:25
+    icall _pay(recipient; fee, balance) @ 41:9
+    transitive reads fee
+    transitive transfer to recipient with value from fee, balance [controlled target] @ 70:9
+  fn upgrade [external 0x25394645 nonpayable] @ 44:5
+    entry checks arg0, call result, calldata
+    reads implementation @ 45:22
+    delegatecall to implementation args (arg0) @ 45:9
+    guard revert on arg0 @ 45:9
+    guard revert on arg0, calldata @ 45:9
+    guard panic on arg0 @ 45:9
+    guard revert on call result @ 46:9
+  fn pull [external 0xf2d5d56b nonpayable] @ 49:5
+    entry checks call result, memory
+    reads token @ 50:9
+    call 0x23b872dd to token args (arg0; environment; arg1) @ 50:9
+    guard revert on call result @ 50:9
+    guard revert on call result @ 50:9
+    guard revert on memory @ 50:9
+  fn pullSelf [external 0x6188adb3 nonpayable] @ 53:5
+    entry checks call result, memory
+    reads token @ 54:9
+    call 0x23b872dd to token args (msg.sender; environment; arg0) @ 54:9
+    guard revert on call result @ 54:9
+    guard revert on call result @ 54:9
+    guard revert on memory @ 54:9
+  fn _onlyOwner [internal view] @ 57:5
+    entry checks msg.sender, owner (access control)
+    reads owner @ 58:31
+    guard revert (access control) on msg.sender, owner @ 58:9
+  fn _double [internal pure] @ 61:5
+    returns arg0
+  fn _scaled [internal view] @ 65:5
+    returns arg0, fee
+    reads fee @ 66:20
+  fn _pay [internal nonpayable] @ 69:5
+    transfer to arg0 with value from arg1 [controlled target] @ 70:9
+  storage flows:
+    owner: written by constructor from msg.sender; read by constructor, setFee, setImplementation
+    recipient [externally controlled]: written by setRecipient from arg0; read by setRecipient, payout
+    implementation: written by setImplementation from arg0 [guarded]; read by setImplementation, upgrade
+    fee: written by setFee from arg0 [guarded]; read by payout
+    token: written by constructor from arg0; read by constructor, pull, pullSelf
+  sends value

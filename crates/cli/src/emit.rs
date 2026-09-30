@@ -80,6 +80,10 @@ pub(crate) fn emit_requested(
     if pipeline_mir_output {
         capture_mir.union_with(&ContractSelection::All);
     }
+    let mut capture_secir = ContractSelection::empty(gcx);
+    if let Some(contracts) = dump_contracts.as_ref().filter(|_| has_secir_dump(gcx)) {
+        capture_secir.union_with(contracts);
+    }
     let mut capture_evm_ir = ContractSelection::empty(gcx);
     if let Some(contracts) = dump_contracts.as_ref().filter(|_| has_evm_ir_dump(gcx)) {
         capture_evm_ir.union_with(contracts);
@@ -93,7 +97,8 @@ pub(crate) fn emit_requested(
     let generate_artifacts = !generated_bytecode_contracts.is_empty()
         || !capture_mir.is_empty()
         || !capture_evm_ir.is_empty()
-        || !capture_debug_info.is_empty();
+        || !capture_debug_info.is_empty()
+        || !capture_secir.is_empty();
     let artifacts = if generate_artifacts {
         Some(generate_contract_bytecodes(
             gcx,
@@ -102,6 +107,7 @@ pub(crate) fn emit_requested(
             &capture_evm_ir,
             runtime_data,
             &capture_debug_info,
+            &capture_secir,
         )?)
     } else {
         None
@@ -111,6 +117,11 @@ pub(crate) fn emit_requested(
         && has_mir_dump(gcx)
     {
         dump_mir(gcx, contracts, artifacts.as_ref().expect("artifacts should be generated"))?;
+    }
+    if let Some(contracts) = &dump_contracts
+        && has_secir_dump(gcx)
+    {
+        dump_secir(gcx, contracts, artifacts.as_ref().expect("artifacts should be generated"))?;
     }
     if pipeline_mir_output {
         emit_mir_pipeline_output(gcx, artifacts.as_ref().expect("artifacts should be generated"))?;
@@ -418,6 +429,10 @@ fn has_mir_dump(gcx: Gcx<'_>) -> bool {
     })
 }
 
+fn has_secir_dump(gcx: Gcx<'_>) -> bool {
+    gcx.sess.opts.unstable.dump.as_ref().is_some_and(|dump| dump.kinds.contains(&DumpKind::Secir))
+}
+
 fn has_evm_ir_dump(gcx: Gcx<'_>) -> bool {
     gcx.sess.opts.unstable.dump.as_ref().is_some_and(|dump| {
         dump.kinds.iter().any(|kind| matches!(kind, DumpKind::EvmIr | DumpKind::EvmIrRuntime))
@@ -474,6 +489,32 @@ fn dump_mir_contract(
     if dump.kinds.contains(&DumpKind::MirCfg) {
         write_mir_dump_contract(writer, gcx, id, module, DumpKind::MirCfg, first)?;
     }
+    Ok(())
+}
+
+fn dump_secir(
+    gcx: Gcx<'_>,
+    contracts: &ContractSelection,
+    artifacts: &FxHashMap<ContractId, ContractArtifact>,
+) -> Result {
+    let sess = gcx.sess;
+    let write_err =
+        |e: std::io::Error| sess.dcx.err(format!("failed to write to output: {e}")).emit();
+    let mut writer = console_writer(sess.opts.color);
+    let mut first = true;
+    for id in contracts.into_iter(gcx) {
+        let Some(facts) = artifacts.get(&id).and_then(|artifact| artifact.secir.as_ref()) else {
+            continue;
+        };
+        if !std::mem::replace(&mut first, false) {
+            writeln!(writer).map_err(write_err)?;
+        }
+        let name = gcx.contract_fully_qualified_name(id);
+        writeln!(writer, "// === {name} ===").map_err(write_err)?;
+        write!(writer, "{}", facts.display(gcx)).map_err(write_err)?;
+    }
+    writer.flush().map_err(write_err)?;
+
     Ok(())
 }
 
