@@ -16,8 +16,10 @@ pub(crate) use codegen::select;
 pub use codegen::{EvmArtifact, EvmCodegen};
 
 mod debug_info;
+pub(crate) use debug_info::DebugInfoBuilder;
 pub use debug_info::{
-    DebugFunction, DebugFunctionExit, DebugInstruction, DebugSpans, MAX_DEBUG_SPANS,
+    DebugFunction, DebugFunctionExit, DebugInfo, DebugInstruction, DebugInstructions,
+    DebugLocation, DebugSpans, MAX_DEBUG_SPANS,
 };
 
 mod disasm;

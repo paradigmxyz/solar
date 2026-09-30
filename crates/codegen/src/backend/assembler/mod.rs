@@ -9,7 +9,8 @@
 
 use crate::{
     backend::evm::{
-        DebugFunction, DebugFunctionExit, DebugInstruction, DebugSpans, ir, op, op::WORD_BYTES,
+        DebugFunction, DebugFunctionExit, DebugInfo, DebugInfoBuilder, DebugSpans, ir, op,
+        op::WORD_BYTES,
     },
     link::LibraryRelocation,
     mir::{ImmutableId, TypeSize},
@@ -64,7 +65,7 @@ pub(crate) struct AssembledCode {
     /// Final EVM IR captured immediately before byte emission.
     pub evm_ir: Option<ir::Module>,
     /// Final instruction offsets and source spans.
-    pub debug_info: Option<Vec<DebugInstruction>>,
+    pub debug_info: Option<DebugInfo>,
 }
 
 /// The bytecode artifact currently being assembled.
@@ -632,7 +633,7 @@ struct BytecodeAssembler<'gcx> {
     bytecode: Vec<u8>,
     immutable_refs: Vec<ImmutableRef>,
     library_relocations: Vec<LibraryRelocation>,
-    debug_info: Option<Vec<DebugInstruction>>,
+    debug_info: Option<DebugInfoBuilder>,
     function_invoke: Option<DebugFunction>,
     function_exit: Option<DebugFunctionExit>,
     modifier_depth: u32,
@@ -645,7 +646,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
             bytecode: Vec::new(),
             immutable_refs: Vec::new(),
             library_relocations: Vec::new(),
-            debug_info: capture_debug_info.then(Vec::new),
+            debug_info: capture_debug_info.then(DebugInfoBuilder::default),
             function_invoke: None,
             function_exit: None,
             modifier_depth: 0,
@@ -747,20 +748,20 @@ impl<'gcx> BytecodeAssembler<'gcx> {
             immutable_refs: self.immutable_refs,
             library_relocations: self.library_relocations,
             evm_ir: None,
-            debug_info: self.debug_info,
+            debug_info: self.debug_info.map(DebugInfoBuilder::finish),
         }
     }
 
     fn record_instruction(&mut self, offset: usize, source_spans: &[Span]) {
         let Some(debug_info) = &mut self.debug_info else { return };
-        debug_info.push(DebugInstruction {
-            offset: offset.try_into().expect("EVM bytecode offset exceeds u32"),
-            opcode: self.bytecode[offset],
-            source_spans: source_spans.iter().copied().collect(),
-            function_invoke: self.function_invoke,
-            function_exit: self.function_exit,
-            modifier_depth: self.modifier_depth,
-        });
+        debug_info.record(
+            offset,
+            self.bytecode[offset],
+            source_spans,
+            self.function_invoke,
+            self.function_exit,
+            self.modifier_depth,
+        );
     }
 }
 

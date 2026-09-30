@@ -2,7 +2,7 @@
 
 use crate::{
     Backend, EvmCodegen,
-    backend::evm::{DebugInstruction, ir},
+    backend::evm::{DebugInfo, ir},
     link::{Library, LibraryRelocation, LibraryTable, RelocatableBytecode},
     mir::{Module, lower, pass::run_pipeline},
 };
@@ -51,9 +51,9 @@ pub struct ContractArtifact {
     /// Final runtime EVM IR immediately before byte emission.
     pub runtime_evm_ir: Option<ir::Module>,
     /// Final deployment-prefix instruction locations.
-    pub deployment_debug_info: Option<Vec<DebugInstruction>>,
+    pub deployment_debug_info: Option<DebugInfo>,
     /// Final runtime instruction locations.
-    pub runtime_debug_info: Option<Vec<DebugInstruction>>,
+    pub runtime_debug_info: Option<DebugInfo>,
 }
 
 /// An immutable placeholder in runtime bytecode.
@@ -541,8 +541,8 @@ fn generate_contract_bytecode(
     let mir = capture_mir.then(|| built_mir.unwrap_or(module));
 
     Ok(ContractArtifact {
-        deployment: artifact.deployment.into(),
-        runtime: artifact.runtime.into(),
+        deployment: artifact.deployment.into_boxed_slice().into(),
+        runtime: artifact.runtime.into_boxed_slice().into(),
         immutable_references,
         deployment_link_references,
         runtime_link_references,
