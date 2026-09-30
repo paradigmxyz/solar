@@ -53,54 +53,48 @@ fn @put() [selector=0x94f47146, abi_wrapper] {
   bb0:
     v28 = calldatasize
     v29 = lt v28, 36
-    jumpi v29, bb9, bb10
-  bb10:
+    jumpi v29, bb6, bb7
+  bb7:
     v30 = calldataload 4
     v31 = add v30, 4
     v32 = add v31, 32
-    v33 = gt v30, 0xffffffffffffffff
+    v33 = shr 64, v30
     v34 = gt v32, v28
-    v35 = or v33, v34
-    jumpi v35, bb9, bb11
-  bb11:
-    v37 = calldataload v31
-    v39 = add v37, 63
-    v40 = lt v39, v37
-    jumpi v40, bb12, bb13
-  bb13:
-    v42 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v57 = mload 64 !metadata(memory=scratch)
-    v58 = add v57, v42
-    v59 = lt v58, v57
-    v60 = gt v58, 0xffffffffffffffff
-    v61 = or v59, v60
-    jumpi v61, bb12, bb15
-  bb15:
-    mstore 64, v58 !metadata(memory=scratch)
-    mstore v57, v37
-    v44 = sub v28, v32
-    v45 = gt v37, v44
-    jumpi v45, bb9, bb14
-  bb14:
-    v49 = add v57, 32
-    calldatacopy v49, v32, v37
-    mstore 0, 0 !metadata(memory=scratch)
-    v47 = keccak256 0, 32 !metadata(memory=scratch)
-    v2 = shr 69, v37
-    v3 = ne v2, 0
-    jumpi v3, bb6, bb7
-  bb7:
-    v4 = mload v57
-    v7 = gt v37, v4
-    jumpi v7, bb6, bb8
+    v35 = zext i1 v34 to i256
+    v36 = or v33, v35
+    v37 = ne v36, 0
+    jumpi v37, bb6, bb8
   bb8:
-    v13 = and v37, 31
-    v14 = sub v37, v13
+    v38 = calldataload v31
+    v40 = add v38, 63
+    v41 = lt v40, v38
+    jumpi v41, bb9, bb10
+  bb10:
+    v43 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v55 = mload 64 !metadata(memory=scratch)
+    v56 = add v55, v43
+    v57 = lt v56, v55
+    v58 = zext i1 v57 to i256
+    v59 = shr 64, v56
+    v60 = or v58, v59
+    v61 = ne v60, 0
+    jumpi v61, bb9, bb12
+  bb12:
+    mstore 64, v56 !metadata(memory=scratch)
+    mstore v55, v38
+    v45 = sub v28, v32
+    v46 = gt v38, v45
+    jumpi v46, bb6, bb11
+  bb11:
+    v49 = add v55, 32
+    calldatacopy v49, v32, v38
+    v13 = and v38, 31
+    v14 = sub v38, v13
     v15 = add v49, v14
     jump bb1
   bb1:
-    v16 = phi [bb8: v49], [bb2: v20]
-    v17 = phi [bb8: v47], [bb2: v21]
+    v16 = phi [bb11: v49], [bb2: v20]
+    v17 = phi [bb11: 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563], [bb2: v21]
     v18 = lt v16, v15
     jumpi v18, bb2, bb3
   bb3:
@@ -122,13 +116,11 @@ fn @put() [selector=0x94f47146, abi_wrapper] {
     v20 = add v16, 32
     v21 = add v17, 1
     jump bb1
-  bb6:
-    tail_call @revert_stub
-  bb12:
+  bb9:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36
-  bb9:
+  bb6:
     revert 0, 0
 }
 

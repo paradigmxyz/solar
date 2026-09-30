@@ -113,54 +113,59 @@ fn @move() [selector=0x42e3f4e4, abi_wrapper, pure] {
 
 fn @blank() [selector=0xc59f587e, abi_wrapper, pure] {
   bb0:
-    v28 = calldatasize
-    v29 = lt v28, 68
-    jumpi v29, bb8, bb9
+    v32 = calldatasize
+    v33 = lt v32, 68
+    jumpi v33, bb8, bb9
   bb9:
-    v30 = icall @decode_calldata_type, 4
-    v48 = ptrtoint memptr v30 to i256
-    v0 = mload v48
+    v34 = icall @decode_calldata_type, 4
+    v52 = ptrtoint memptr v34 to i256
+    v0 = mload v52
     v3 = gt arg1, v0
-    jumpi v3, bb6, bb7
+    v5 = zext i1 v3 to i256
+    v6 = ne arg1, 0
+    v7 = zext i1 v6 to i256
+    v8 = and v7, v5
+    v9 = ne v8, 0
+    jumpi v9, bb6, bb7
   bb7:
-    v47 = add v48, 32
-    v11 = shr 5, arg1
+    v51 = add v52, 32
+    v15 = shr 5, arg1
     jump bb1
   bb1:
-    v12 = phi [bb7: 0], [bb2: v16]
-    v13 = lt v12, v11
-    jumpi v13, bb2, bb3
+    v16 = phi [bb7: 0], [bb2: v20]
+    v17 = lt v16, v15
+    jumpi v17, bb2, bb3
   bb3:
-    v17 = and arg1, 31
-    v18 = ne v17, 0
-    jumpi v18, bb4, bb5
+    v21 = and arg1, 31
+    v22 = ne v21, 0
+    jumpi v22, bb4, bb5
   bb4:
-    v19 = shl 3, v17
-    v20 = shr v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v21 = shl 5, v11
-    v22 = add v47, v21
-    v23 = mload v22
-    v24 = and v23, v20
-    v25 = not v20
-    v26 = and v25, 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a
-    v27 = or v24, v26
-    mstore v22, v27
+    v23 = shl 3, v21
+    v24 = shr v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v25 = shl 5, v15
+    v26 = add v51, v25
+    v27 = mload v26
+    v28 = and v27, v24
+    v29 = not v24
+    v30 = and v29, 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a
+    v31 = or v28, v30
+    mstore v26, v31
     jump bb5
   bb5:
-    v34 = mload v48
-    v35 = add v34, 31
-    v37 = and v35, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v40 = add v47, v34
-    mstore v40, 0
-    v42 = sub v48, 32
-    mstore v42, 32
-    v43 = add v37, 64
-    returndata v42, v43
+    v38 = mload v52
+    v39 = add v38, 31
+    v41 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v44 = add v51, v38
+    mstore v44, 0
+    v46 = sub v52, 32
+    mstore v46, 32
+    v47 = add v41, 64
+    returndata v46, v47
   bb2:
-    v14 = shl 5, v12
-    v15 = add v47, v14
-    mstore v15, 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a
-    v16 = add v12, 1
+    v18 = shl 5, v16
+    v19 = add v51, v18
+    mstore v19, 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a
+    v20 = add v16, 1
     jump bb1
   bb6:
     tail_call @revert_stub

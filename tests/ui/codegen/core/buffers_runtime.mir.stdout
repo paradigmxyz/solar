@@ -14,8 +14,7 @@
 @module Test
 types:
   struct0: {memorybytes, i256}
-  struct1: {memorybytes, memorybytes, i256}
-  struct2: {memorybytes, memorybytes}
+  struct1: {memorybytes, memorybytes}
 
 fn @concat(arg0: memorybytes, arg1: memorybytes, arg2: i256) -> memorybytes [selector=0x2f018e19, pure, abi_params=[bytes, bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
@@ -58,21 +57,44 @@ fn @counted(arg0: i256) -> struct0 [selector=0xe4b83521, pure, abi_params=[u256]
     jump bb1
 }
 
-fn @spent(arg0: memorybytes, arg1: memorybytes) -> struct1 [selector=0x68f75a92, pure, abi_params=[bytes, bytes], abi_returns=[memory_bytes, memory_bytes, word], abi_return_params=[bytes, bytes, u256]] {
+fn @lastIteration(arg0: i256) -> memorybytes [selector=0x5eab2782, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = icall @create, 16
-    icall @append, v0, arg0
-    v1 = icall @finish, v0
-    icall @append, v0, arg1
-    v2 = icall @finish, v0
-    v3 = icall @length, v0
-    v4 = insert_value struct1, undef struct1, 0, v1
-    v5 = insert_value struct1, v4, 1, v2
-    v6 = insert_value struct1, v5, 2, v3
-    ret v6
+    v0 = icall @create, 1
+    jump bb1
+  bb1:
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: memorybytes 96], [bb3: v11]
+    v3 = phi [bb0: v0], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v12]
+    v5 = lt v4, v1
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v2
+  bb4:
+    v6 = and v4, 255
+    v7 = shl 248, v6
+    icall @appendByte, v3, v7
+    v8 = checked_add u256, v4, 1
+    v9 = eq v8, v1
+    jumpi v9, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v10 = icall @finish, v3
+    jump bb9
+  bb9:
+    v11 = phi [bb7: v10], [bb8: v2]
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v12 = checked_add u256, v4, 1
+    jump bb1
 }
 
-fn @neighbour(arg0: memorybytes, arg1: memorybytes) -> struct2 [selector=0x5409b789, pure, abi_params=[bytes, bytes], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
+fn @neighbour(arg0: memorybytes, arg1: memorybytes) -> struct1 [selector=0x5409b789, pure, abi_params=[bytes, bytes], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
     v0 = icall @create, 4
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
@@ -83,8 +105,8 @@ fn @neighbour(arg0: memorybytes, arg1: memorybytes) -> struct2 [selector=0x5409b
     icall @append, v0, arg0
     icall @append, v0, arg1
     v4 = icall @finish, v0
-    v5 = insert_value struct2, undef struct2, 0, v4
-    v6 = insert_value struct2, v5, 1, v1
+    v5 = insert_value struct1, undef struct1, 0, v4
+    v6 = insert_value struct1, v5, 1, v1
     ret v6
 }
 
@@ -297,7 +319,7 @@ fn @create(arg0: i256) -> memorystruct [pure] {
     icall panic_if<0x41>, v1
     v2 = not 31
     v3 = and v0, v2
-    v4 = alloc memorybytes, exact, zeroed, panic, v3
+    v4 = alloc memorybytes, exact, uninitialized, panic, v3
     set_memory_object_len memorybytes, v4, arg0
     v5 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v6 = ptrtoint memorybytes 96 to i256
@@ -413,6 +435,18 @@ fn @finish(arg0: memorystruct) -> memorybytes [pure] {
     ret v1
 }
 
+fn @_backing(arg0: i256) -> memorybytes [pure] {
+  bb0:
+    v0 = add arg0, 63
+    v1 = lt v0, arg0
+    icall panic_if<0x41>, v1
+    v2 = not 31
+    v3 = and v0, v2
+    v4 = alloc memorybytes, exact, zeroed, panic, v3
+    set_memory_object_len memorybytes, v4, arg0
+    ret v4
+}
+
 fn @_grow(arg0: memorystruct, arg1: i256) [pure] {
   bb0:
     v0 = memory_object_load_field memorystruct<2>, arg0, 0
@@ -432,7 +466,7 @@ fn @_grow(arg0: memorystruct, arg1: i256) [pure] {
     icall panic_if<0x41>, v7
     v8 = not 31
     v9 = and v6, v8
-    v10 = alloc memorybytes, exact, zeroed, panic, v9
+    v10 = alloc memorybytes, exact, uninitialized, panic, v9
     set_memory_object_len memorybytes, v10, v5
     v11 = memory_object_load_field memorystruct<2>, arg0, 0
     v12 = inttoptr i256 v11 to memorybytes

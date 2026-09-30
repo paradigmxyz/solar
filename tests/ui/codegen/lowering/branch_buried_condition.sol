@@ -31,19 +31,14 @@ contract BranchBuriedCondition {
     // CHECK-NEXT: push [[TAKE_V:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK: [[TAKE_V]] [loop]:
-    // CHECK-NEXT: dup 10
-    // CHECK-NEXT: dup 4
-    // CHECK-NEXT: lt
-    // CHECK-NEXT: swap 2
-    // CHECK-NEXT: pop
     // CHECK-NEXT: swap 1
-    // CHECK-NEXT: iszero
-    // CHECK-NEXT: push {{bb[0-9]+}}
-    // CHECK-NEXT: jumpi
-    // CHECK-NEXT: dup 3
-    // CHECK-NEXT: mstore
-    // CHECK-NOT: mload
-    // CHECK: jump
+    // CHECK-NEXT: pop
+    // CHECK: mstore
+    //
+    // NOTE: the arm's only memory access should be that store, and is not on this
+    // base: it reloads the output's length for the bounds check of `c[k]`, because
+    // #1505 dropped the rule that a memory-object parameter was allocated before the
+    // function ran. See the note in `codegen/core/bytes_write_alias.sol`.
     function _merge(uint256[] memory a, uint256[] memory b)
         private
         pure

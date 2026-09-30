@@ -12,9 +12,6 @@
 
 // === ROOT/tests/ui/codegen/core/bytes_equals_runtime.sol:Test ===
 @module Test
-types:
-  struct0: {memoryarray, i256}
-
 fn @equal(arg0: memorybytes, arg1: memorybytes) -> i256 [selector=0x235266d2, pure, abi_params=[bytes, bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @equals, arg0, arg1
@@ -48,41 +45,37 @@ fn @squares(arg0: i256) -> memoryarray [selector=0x1d1d15d4, pure, abi_params=[u
     jump bb1
 }
 
-fn @evens(arg0: i256) -> struct0 [selector=0xe3adac5e, pure, abi_params=[u256], abi_returns=[memory_array<word>, word], abi_return_params=[array<_, u256>, u256]] {
+fn @evens(arg0: i256) -> memoryarray [selector=0xe3adac5e, pure, abi_params=[u256], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
     v0 = icall @createWords, 0
     jump bb1
   bb1:
     v1 = phi [bb0: arg0], [bb3: v1]
     v2 = phi [bb0: memoryarray 96], [bb3: v2]
-    v3 = phi [bb0: 0], [bb3: v3]
-    v4 = phi [bb0: v0], [bb3: v4]
-    v5 = phi [bb0: 0], [bb3: v9]
-    v6 = lt v5, v1
-    jumpi v6, bb4, bb5
+    v3 = phi [bb0: v0], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v8]
+    v5 = lt v4, v1
+    jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v10 = icall @finish, v4
-    v11 = icall @length, v4
-    v12 = insert_value struct0, undef struct0, 0, v10
-    v13 = insert_value struct0, v12, 1, v11
-    ret v13
+    v9 = icall @finish, v3
+    ret v9
   bb4:
-    v7 = checked_rem u256, v5, 2
-    v8 = eq v7, 0
-    jumpi v8, bb7, bb8
+    v6 = checked_rem u256, v4, 2
+    v7 = eq v6, 0
+    jumpi v7, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    icall @append, v4, v5
+    icall @append, v3, v4
     jump bb9
   bb9:
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v9 = checked_add u256, v5, 1
+    v8 = checked_add u256, v4, 1
     jump bb1
 }
 
@@ -315,7 +308,7 @@ fn @createWords(arg0: i256) -> memorystruct [pure] {
     v14 = zext i1 v13 to i256
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
-    v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
+    v16 = alloc memoryarray<1>, exact, uninitialized, panic, v9
     set_memory_object_len memoryarray, v16, arg0
     v17 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v18 = ptrtoint memoryarray 96 to i256
@@ -324,12 +317,6 @@ fn @createWords(arg0: i256) -> memorystruct [pure] {
     v19 = ptrtoint memoryarray v16 to i256
     memory_object_store_field memorystruct<2>, v17, 0, v19
     ret v17
-}
-
-fn @length(arg0: memorystruct) -> i256 [pure] {
-  bb0:
-    v0 = memory_object_load_field memorystruct<2>, arg0, 1
-    ret v0
 }
 
 fn @append(arg0: memorystruct, arg1: i256) [pure] {
@@ -376,6 +363,32 @@ fn @finish(arg0: memorystruct) -> memoryarray [pure] {
     ret v1
 }
 
+fn @_wordBacking(arg0: i256) -> memoryarray [pure] {
+  bb0:
+    v0 = mul arg0, 1
+    v1 = eq 1, 0
+    v2 = div v0, 1
+    v3 = eq v2, arg0
+    v4 = or v1, v3
+    v5 = zext i1 v4 to i256
+    v6 = eq v5, 0
+    icall panic_if<0x41>, v6
+    v7 = add v0, 1
+    v8 = lt v7, v0
+    icall panic_if<0x41>, v8
+    v9 = mul v7, 32
+    v10 = eq 32, 0
+    v11 = div v9, 32
+    v12 = eq v11, v7
+    v13 = or v10, v12
+    v14 = zext i1 v13 to i256
+    v15 = eq v14, 0
+    icall panic_if<0x41>, v15
+    v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
+    set_memory_object_len memoryarray, v16, arg0
+    ret v16
+}
+
 fn @_growWords(arg0: memorystruct, arg1: i256) [pure] {
   bb0:
     v0 = memory_object_load_field memorystruct<2>, arg0, 0
@@ -409,7 +422,7 @@ fn @_growWords(arg0: memorystruct, arg1: i256) [pure] {
     v20 = zext i1 v19 to i256
     v21 = eq v20, 0
     icall panic_if<0x41>, v21
-    v22 = alloc memoryarray<1>, exact, zeroed, panic, v15
+    v22 = alloc memoryarray<1>, exact, uninitialized, panic, v15
     set_memory_object_len memoryarray, v22, v5
     jump bb4
   bb4:

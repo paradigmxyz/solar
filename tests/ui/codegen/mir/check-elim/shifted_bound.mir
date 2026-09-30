@@ -12,7 +12,7 @@
 // CHECK: - jumpi v6, bb6, bb4
 // CHECK: + jump bb4
 // CHECK: {{^ +}}jumpi v8, bb6, bb5
-fn @slack(arg0: u256, arg1: u256) -> u256 {
+fn @slack(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = add arg1, 29
     v1 = lt v0, arg1
@@ -42,7 +42,7 @@ fn @slack(arg0: u256, arg1: u256) -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @unchecked_sum{{[( ]}}
 // CHECK: {{^ +}}jumpi v5, bb4, bb3
-fn @unchecked_sum(arg0: u256, arg1: u256) -> u256 {
+fn @unchecked_sum(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = add arg1, 29
     v1 = add arg0, 3

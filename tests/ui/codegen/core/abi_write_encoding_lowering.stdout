@@ -94,49 +94,49 @@ fn @copyInto(arg0: memorybytes, arg1: i256, arg2: memorybytes, arg3: i256, arg4:
   bb14:
     jump bb22
   bb22:
-    v37 = phi [bb14: arg3], [bb24: v37]
-    v38 = phi [bb14: arg2], [bb24: v38]
-    v39 = phi [bb14: arg0], [bb24: v39]
-    v40 = phi [bb14: v14], [bb24: v40]
-    v41 = phi [bb14: 0], [bb24: v55]
-    v42 = phi [bb14: arg1], [bb24: v42]
-    v43 = lt v41, v40
+    v37 = phi [bb14: arg0], [bb24: v37]
+    v38 = phi [bb14: arg1], [bb24: v38]
+    v39 = phi [bb14: arg2], [bb24: v39]
+    v40 = phi [bb14: arg3], [bb24: v40]
+    v41 = phi [bb14: v14], [bb24: v41]
+    v42 = phi [bb14: 0], [bb24: v55]
+    v43 = lt v42, v41
     jumpi v43, bb25, bb26
   bb26:
     jump bb23
   bb23:
     jump bb15
   bb25:
-    v44 = checked_add u256, v37, v41
-    v45 = memory_object_len memorybytes, v38
+    v44 = checked_add u256, v40, v42
+    v45 = memory_object_len memorybytes, v39
     v46 = lt v44, v45
     v47 = eq v46, false
     icall panic_if<0x32>, v47
-    v48 = memory_object_load_byte memorybytes, v38, v44
+    v48 = memory_object_load_byte memorybytes, v39, v44
     v49 = shl 248, v48
-    v50 = checked_add u256, v42, v41
-    v51 = memory_object_len memorybytes, v39
+    v50 = checked_add u256, v38, v42
+    v51 = memory_object_len memorybytes, v37
     v52 = lt v50, v51
     v53 = eq v52, false
     icall panic_if<0x32>, v53
     v54 = byte 0, v49
-    memory_object_store_byte memorybytes, v39, v50, v54
+    memory_object_store_byte memorybytes, v37, v50, v54
     jump bb27
   bb27:
     jump bb24
   bb24:
-    v55 = checked_add u256, v41, 1
+    v55 = checked_add u256, v42, 1
     jump bb22
   bb13:
     jump bb16
   bb16:
-    v16 = phi [bb13: arg3], [bb18: v16]
-    v17 = phi [bb13: v14], [bb18: v36]
+    v16 = phi [bb13: arg0], [bb18: v16]
+    v17 = phi [bb13: arg1], [bb18: v17]
     v18 = phi [bb13: arg2], [bb18: v18]
-    v19 = phi [bb13: arg0], [bb18: v19]
+    v19 = phi [bb13: arg3], [bb18: v19]
     v20 = phi [bb13: v14], [bb18: v20]
-    v21 = phi [bb13: arg1], [bb18: v21]
-    v22 = gt v17, 0
+    v21 = phi [bb13: v14], [bb18: v36]
+    v22 = gt v21, 0
     jumpi v22, bb19, bb20
   bb20:
     jump bb17
@@ -144,13 +144,13 @@ fn @copyInto(arg0: memorybytes, arg1: i256, arg2: memorybytes, arg3: i256, arg4:
     jump bb15
   bb15:
     v56 = phi [bb17: v16], [bb23: v37]
-    v57 = phi [bb17: v18], [bb23: v38]
-    v58 = phi [bb17: v19], [bb23: v39]
-    v59 = phi [bb17: v20], [bb23: v40]
-    v60 = phi [bb17: v21], [bb23: v42]
+    v57 = phi [bb17: v17], [bb23: v38]
+    v58 = phi [bb17: v18], [bb23: v39]
+    v59 = phi [bb17: v19], [bb23: v40]
+    v60 = phi [bb17: v20], [bb23: v41]
     ret
   bb19:
-    v23 = checked_add u256, v16, v17
+    v23 = checked_add u256, v19, v21
     v24 = checked_sub u256, v23, 1
     v25 = memory_object_len memorybytes, v18
     v26 = lt v24, v25
@@ -158,19 +158,19 @@ fn @copyInto(arg0: memorybytes, arg1: i256, arg2: memorybytes, arg3: i256, arg4:
     icall panic_if<0x32>, v27
     v28 = memory_object_load_byte memorybytes, v18, v24
     v29 = shl 248, v28
-    v30 = checked_add u256, v21, v17
+    v30 = checked_add u256, v17, v21
     v31 = checked_sub u256, v30, 1
-    v32 = memory_object_len memorybytes, v19
+    v32 = memory_object_len memorybytes, v16
     v33 = lt v31, v32
     v34 = eq v33, false
     icall panic_if<0x32>, v34
     v35 = byte 0, v29
-    memory_object_store_byte memorybytes, v19, v31, v35
+    memory_object_store_byte memorybytes, v16, v31, v35
     jump bb21
   bb21:
     jump bb18
   bb18:
-    v36 = checked_sub u256, v17, 1
+    v36 = checked_sub u256, v21, 1
     jump bb16
 }
 

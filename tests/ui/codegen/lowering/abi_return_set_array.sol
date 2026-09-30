@@ -9,11 +9,11 @@
 
 import {WordArrays} from "solar:core/WordArrays.sol";
 
-// Size builds share one set helper between address and word arrays. Its
-// comparison flip is a scalar and adds no words to the array it returns, whose
-// words all come from its array parameters: validated addresses here. The
-// wrapper returns what an internal call passed straight through from that
-// helper, so the result needs no per-element cleanup.
+// Size builds give address arrays a set helper of their own, shaped like the
+// word helper. Its comparison flip is a scalar and adds no words to the array
+// it returns, whose words all come from its array parameters: validated
+// addresses here. The wrapper returns what an internal call passed straight
+// through from that helper, so the result needs no per-element cleanup.
 // CHECK-LABEL: fn @merged{{[( ]}}
 // CHECK-NOT: 0xffffffffffffffffffffffffffffffffffffffff
 // CHECK: returndata

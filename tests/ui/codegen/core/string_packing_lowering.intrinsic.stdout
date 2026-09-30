@@ -79,52 +79,56 @@ fn @packPair() [selector=0xa2352af0, abi_wrapper, pure] {
 
 fn @unpackPair() [selector=0x227bb006, abi_wrapper, pure] {
   bb0:
-    v25 = calldatasize
-    v26 = lt v25, 36
-    jumpi v26, bb1, bb2
+    v35 = calldatasize
+    v36 = lt v35, 36
+    jumpi v36, bb1, bb2
   bb2:
     v0 = byte 0, arg0
     v1 = gt v0, 30
     v2 = select v1, 30, v0
-    v65 = mload 64 !metadata(memory=scratch)
-    v66 = add v65, 128
-    mstore 64, v66 !metadata(memory=scratch)
-    v6 = add v65, 31
-    mstore v6, arg0
-    mstore v65, v2
-    v63 = add v65, 32
-    v9 = add v63, v2
-    v10 = mload v9
-    v11 = byte 0, v10
-    v12 = sub 30, v2
-    v13 = gt v11, v12
-    v14 = select v13, v12, v11
-    v16 = add v65, 64
-    v18 = add v16, 31
-    mstore v18, v10
-    v33 = mload v63
-    v64 = add v16, 32
-    v37 = mload v64
-    v41 = add v14, 31
-    v42 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v39 = add v2, 31
-    v40 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v47 = add v64, v40
-    v49 = sub v47, v65
-    v50 = add v47, 32
-    mstore v65, 64
-    mstore v63, v49
-    mstore v16, v2
-    mstore v64, v33
-    v54 = add v64, v2
-    mstore v54, 0
-    mstore v47, v14
-    mstore v50, v37
-    v55 = add v50, v14
-    mstore v55, 0
-    v56 = add v50, v42
-    v58 = sub v56, v65
-    returndata v65, v58
+    v3 = add v2, 1
+    v4 = byte v3, arg0
+    v5 = sub 30, v2
+    v6 = gt v4, v5
+    v7 = select v6, v5, v4
+    v71 = mload 64 !metadata(memory=scratch)
+    v72 = add v71, 128
+    mstore 64, v72 !metadata(memory=scratch)
+    v11 = add v71, 64
+    v13 = shl 8, arg0
+    v14 = shl 3, v2
+    v15 = shr v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v16 = not v15
+    v17 = and v13, v16
+    v20 = add v3, 1
+    v21 = shl 3, v20
+    v22 = shl v21, arg0
+    v23 = shl 3, v7
+    v24 = shr v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v25 = not v24
+    v26 = and v22, v25
+    v49 = add v2, 31
+    v50 = and v49, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v51 = add v7, 31
+    v52 = and v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v55 = add v71, 96
+    v57 = add v55, v50
+    v59 = sub v57, v71
+    v60 = add v57, 32
+    mstore v71, 64
+    v63 = add v71, 32
+    mstore v63, v59
+    mstore v11, v2
+    mstore v55, v17
+    v64 = add v55, v2
+    mstore v64, 0
+    mstore v57, v7
+    mstore v60, v26
+    v65 = add v60, v7
+    mstore v65, 0
+    v66 = add v60, v52
+    v68 = sub v66, v71
+    returndata v71, v68
   bb1:
     revert 0, 0
 }
