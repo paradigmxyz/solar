@@ -7,14 +7,18 @@
 //! one, breaking every pre-Cancun test that pranks before an operation
 //! involving a memory copy.
 //!
-//! The loop is expanded at every site, or, when the objective ranks the
-//! bytes of the copies above the gas of the call protocol, built once as the
-//! internal function `mcopy_words(dest, src, len)` that eligible runtime sites
-//! call, like solc's shared `copy_memory_to_memory` routine. Constructor-reachable
-//! sites remain inline because their ABI output may occupy the free-memory
-//! pointer where an internal call would stage its frame. Copies through raw or
-//! symbolic memory bases also remain inline because the helper's argument frame
-//! could overlap either copied range.
+//! The loop is expanded at every site, or built once per loop shape (direction
+//! and whole-word length) as an internal function `mcopy_words(dest, src, len)`
+//! that eligible runtime sites of that shape call, like solc's shared
+//! `copy_memory_to_memory` routine. A helper is built when the objective ranks
+//! the calls above the expanded loops: bytes first in size mode, and in gas mode
+//! the lifetime cost of the call protocol's gas over the optimizer runs against
+//! the deposit of the repeated bytes. Constructor-reachable sites remain inline
+//! because their ABI output may occupy the free-memory pointer where an internal
+//! call would stage its frame. Copies through raw or symbolic memory bases also
+//! remain inline because the helper's argument frame could overlap either copied
+//! range, unless the copy is marked `disjoint`: ABI encoding copies from heap
+//! objects into heap output, clear of every frame.
 //!
 //! Copies marked `disjoint`, such as ABI encoding's copies of source data into
 //! its output, run forward. Otherwise pointer provenance picks the direction at
@@ -41,7 +45,7 @@ use crate::{
     },
     target::{Cost, Target},
 };
-use solar_data_structures::bit_set::DenseBitSet;
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
 
@@ -94,26 +98,33 @@ impl MirPass for LowerMCopy {
         let target = Target::new(gcx);
         let fresh_returns = super::lower_abi_encode::fresh_object_returning_functions(module);
         let summaries = analyses.call_summaries(module);
-        let helper_sites = module
+        let is_runtime = |id: FunctionId| {
+            id.index() >= constructor_reachable.domain_size() || !constructor_reachable.contains(id)
+        };
+        let sites = module
             .functions
             .iter_enumerated()
-            .filter(|(id, _)| !constructor_reachable.contains(*id))
-            .map(|(_, func)| {
-                let alias = AliasAnalysis::with_call_summaries(func, summaries.clone());
-                func.instructions().filter(|&inst| copy_helper_eligible(func, &alias, inst)).count()
-            })
-            .sum::<usize>();
-        let helper = shared_copy_helper(target, helper_sites);
-        let helper = helper.map(|function| module.add_function(function));
-        for (func_id, func) in module.functions.iter_mut_enumerated() {
-            if !func.blocks.is_empty() {
-                let constructor_reachable = func_id.index() < constructor_reachable.domain_size()
-                    && constructor_reachable.contains(func_id);
-                let helper = (!constructor_reachable).then_some(helper).flatten();
-                lower_function(func, helper, &fresh_returns, &summaries);
+            .map(|(id, func)| copy_sites(func, is_runtime(id), &fresh_returns, &summaries))
+            .collect::<IndexVec<FunctionId, _>>();
+
+        // One helper per copy shape, when its sites are worth sharing.
+        let mut counts = FxHashMap::<CopyShape, u32>::default();
+        for site in sites.iter().flatten().filter(|site| site.shareable) {
+            *counts.entry(site.shape).or_default() += 1;
+        }
+        let mut shapes = counts.into_iter().collect::<Vec<_>>();
+        shapes.sort_by_key(|&(shape, _)| shape);
+        let mut helpers = FxHashMap::default();
+        for (shape, count) in shapes {
+            if let Some(helper) = shared_copy_helper(target, shape, count) {
+                helpers.insert(shape, module.add_function(helper));
             }
         }
-        CallGraphInfo::assert_runtime_helpers(module, helper);
+
+        for (func_id, sites) in sites.into_iter_enumerated() {
+            lower_function(module.function_mut(func_id), &sites, &helpers);
+        }
+        CallGraphInfo::assert_runtime_helpers(module, helpers.into_values());
         true
     }
 }
@@ -122,12 +133,55 @@ fn is_mcopy(func: &Function, inst: InstId) -> bool {
     matches!(func.inst(inst).kind, InstKind::MCopy(_, _, _))
 }
 
-/// Builds the shared copy helper when the objective ranks `sites` calls to it, with the
-/// protocol gas they run, above `sites` expanded loops.
-fn shared_copy_helper(target: Target, sites: usize) -> Option<Function> {
+/// The loop an `mcopy` expands to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct CopyShape {
+    direction: CopyDirection,
+    whole_words: bool,
+}
+
+/// One `mcopy` and the loop it expands to.
+struct CopySite {
+    inst: InstId,
+    shape: CopyShape,
+    /// Whether a runtime helper call can replace the expansion.
+    shareable: bool,
+}
+
+/// Finds the copies of a function, with the loop shape each expands to.
+fn copy_sites(
+    func: &Function,
+    runtime: bool,
+    fresh_returns: &DenseBitSet<FunctionId>,
+    summaries: &std::sync::Arc<crate::mir::analysis::MemoryCallSummaries>,
+) -> Vec<CopySite> {
+    if func.blocks.is_empty() || !func.instructions().any(|inst| is_mcopy(func, inst)) {
+        return Vec::new();
+    }
+    let alias = AliasAnalysis::with_call_summaries(func, summaries.clone());
+    func.instructions()
+        .filter_map(|inst| {
+            let InstKind::MCopy(dest, src, len) = func.inst(inst).kind else { return None };
+            let disjoint = func.inst(inst).metadata.disjoint();
+            let direction = if disjoint {
+                CopyDirection::Forward
+            } else {
+                copy_direction(func, &alias, fresh_returns, dest, src, len)
+            };
+            let shape = CopyShape { direction, whole_words: is_whole_words(func, len, 0) };
+            let shareable = runtime && (disjoint || copy_helper_eligible(func, &alias, inst));
+            Some(CopySite { inst, shape, shareable })
+        })
+        .collect()
+}
+
+/// Builds the helper for `sites` copies of one shape when the objective ranks
+/// calling it above expanding the loop at every site.
+fn shared_copy_helper(target: Target, shape: CopyShape, sites: u32) -> Option<Function> {
     if sites < 2 {
         return None;
     }
+    // fn @mcopy_words(dest, src, len) { copy_loop<shape>(dest, src, len); ret }
     let mut function = Function::new(Ident::with_dummy_span(sym::mcopy_words));
     {
         let mut builder = FunctionBuilder::new(&mut function);
@@ -135,75 +189,62 @@ fn shared_copy_helper(target: Target, sites: usize) -> Option<Function> {
         let src = builder.add_param(MirType::I256);
         let len = builder.add_param(MirType::I256);
         let exit = builder.create_block();
-        emit_copy_loop(&mut builder, dest, src, len, exit, CopyDirection::Dynamic);
+        emit_copy_loop(&mut builder, dest, src, len, exit, shape);
         builder.switch_to_block(exit);
         builder.ret([]);
     }
     let params = function.params.len();
     let body = target.code_estimate(&function);
-    let sites = u32::try_from(sites).unwrap_or(u32::MAX);
-    // The loop itself runs in both shapes; the call protocol is the price of sharing it, and
-    // the copies of the loop are the price of expanding it.
+    // The loop itself runs in both shapes. Sharing it costs a call and a return at every
+    // execution and a call at every site; expanding it repeats its bytes at every site.
     let frame_words =
         EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE / EvmMemoryLayout::WORD_SIZE + params as u64;
     let call = target.icall(params, 0, frame_words);
     let ret = target.internal_return(params, 0);
-    let shared = Cost::new(0, body.bytes).plus(ret).plus(call.times(sites));
+    let shared = Cost::new(
+        call.gas.saturating_add(ret.gas).saturating_mul(sites),
+        body.bytes.saturating_add(ret.bytes).saturating_add(call.bytes.saturating_mul(sites)),
+    );
     let expanded = Cost::new(0, body.bytes.saturating_mul(sites));
-    target.cmp(shared, expanded).is_lt().then_some(function)
+    let shares = if target.optimization().is_gas() {
+        target.lifetime_gas(shared) < target.lifetime_gas(expanded)
+    } else {
+        target.cmp(shared, expanded).is_lt()
+    };
+    shares.then_some(function)
 }
 
 fn lower_function(
     func: &mut Function,
-    helper: Option<FunctionId>,
-    fresh_returns: &DenseBitSet<FunctionId>,
-    summaries: &std::sync::Arc<crate::mir::analysis::MemoryCallSummaries>,
-) -> bool {
-    let alias = AliasAnalysis::with_call_summaries(func, summaries.clone());
-    let directions = func
-        .instructions()
-        .filter_map(|inst| {
-            let InstKind::MCopy(dest, src, len) = func.inst(inst).kind else { return None };
-            let direction = if func.inst(inst).metadata.disjoint() {
-                CopyDirection::Forward
-            } else {
-                copy_direction(func, &alias, fresh_returns, dest, src, len)
-            };
-            Some((inst, direction))
-        })
-        .collect::<solar_data_structures::map::FxHashMap<_, _>>();
-    let helper_sites = helper.map(|helper| {
-        directions
-            .keys()
-            .copied()
-            .filter(|&inst| copy_helper_eligible(func, &alias, inst))
-            .map(|inst| (inst, helper))
-            .collect::<solar_data_structures::map::FxHashMap<_, _>>()
-    });
-    if let Some(helper_sites) = &helper_sites {
-        for (&inst, &helper) in helper_sites {
-            call_copy_helper(func, inst, helper);
+    sites: &[CopySite],
+    helpers: &FxHashMap<CopyShape, FunctionId>,
+) {
+    let mut shapes = FxHashMap::default();
+    for site in sites {
+        match helpers.get(&site.shape) {
+            Some(&helper) if site.shareable => call_copy_helper(func, site.inst, helper),
+            _ => {
+                shapes.insert(site.inst, site.shape);
+            }
         }
     }
 
     // Expanding a copy splits its block at the copy, so the rest of the block,
     // with any later copy, is visited as the continuation.
-    let mut changed = false;
     let mut block_index = 0;
     while block_index < func.blocks.len() {
         let block = BlockId::from_usize(block_index);
-        let mcopy =
-            func.blocks[block].instructions.iter().copied().enumerate().find(|&(_, inst)| {
-                is_mcopy(func, inst)
-                    && helper_sites.as_ref().is_none_or(|sites| !sites.contains_key(&inst))
-            });
+        let mcopy = func.blocks[block]
+            .instructions
+            .iter()
+            .copied()
+            .enumerate()
+            .find(|&(_, inst)| shapes.contains_key(&inst));
         if let Some((position, inst)) = mcopy {
-            lower_mcopy(func, block, position, inst, directions[&inst]);
-            changed = true;
+            lower_mcopy(func, block, position, inst, shapes[&inst]);
         }
         block_index += 1;
     }
-    changed
 }
 
 /// Returns whether a helper call frame is provably disjoint from both copy ranges.
@@ -222,7 +263,7 @@ fn helper_owned_base(base: MemoryBase) -> bool {
     )
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum CopyDirection {
     Forward,
     Reverse,
@@ -328,7 +369,7 @@ fn lower_mcopy(
     block: BlockId,
     position: usize,
     inst: InstId,
-    direction: CopyDirection,
+    shape: CopyShape,
 ) {
     let InstKind::MCopy(dest, src, len) = func.inst(inst).kind else { unreachable!() };
 
@@ -349,7 +390,7 @@ fn lower_mcopy(
 
     let mut builder = FunctionBuilder::new(func);
     builder.switch_to_block(block);
-    emit_copy_loop(&mut builder, dest, src, len, continuation, direction);
+    emit_copy_loop(&mut builder, dest, src, len, continuation, shape);
 }
 
 /// Emits the word-copy loop from the builder's current block, continuing at `continuation`.
@@ -359,7 +400,7 @@ fn emit_copy_loop(
     src: ValueId,
     len: ValueId,
     continuation: BlockId,
-    direction: CopyDirection,
+    shape: CopyShape,
 ) {
     let copy = builder.create_block();
 
@@ -370,7 +411,7 @@ fn emit_copy_loop(
     builder.switch_to_block(copy);
 
     // full = len & ~31, or len when it is whole words
-    let full = if is_whole_words(builder.func(), len, 0) {
+    let full = if shape.whole_words {
         len
     } else {
         let thirty_one = builder.imm(31);
@@ -378,7 +419,7 @@ fn emit_copy_loop(
         builder.and(len, not_thirty_one)
     };
     let copy = WordCopy { dest, src, len, full };
-    match direction {
+    match shape.direction {
         CopyDirection::Forward => emit_forward_copy(builder, copy, continuation),
         CopyDirection::Reverse => emit_reverse_copy(builder, copy, continuation),
         CopyDirection::Dynamic => emit_dynamic_copy(builder, copy, continuation),

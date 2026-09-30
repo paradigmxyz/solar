@@ -1,5 +1,7 @@
 //@ compile-flags: --evm-version paris
-//@ codegen-matrix: standard
+//@ codegen-matrix: standard shared
+//@[shared] compile-flags: -Osize -Zdump=mir
+//@[shared] filecheck: --check-prefix=SHARED
 //@ run-call: words => true
 //@ run-call: bytesTail => true
 //@ run-call: concat => true
@@ -9,6 +11,15 @@
 // Without `MCOPY`, memory copies lower to word loops: whole-word lengths skip
 // the partial-word merge, and a partial tail changes exactly the copied bytes.
 // Returning a fresh array encodes it in place, a backward whole-word copy.
+// In size mode, the forward byte copies of ABI encoding share one helper, which
+// needs no runtime direction check.
+// SHARED-LABEL: fn @bytesTail(
+// SHARED: icall @[[FORWARD:mcopy_words[.0-9]*]],
+// SHARED-LABEL: fn @concat(
+// SHARED: icall @[[FORWARD]],
+// SHARED: {{^}}fn @[[FORWARD]](
+// SHARED-NOT: lt arg1, arg0
+// SHARED: ret
 contract PreCancunMemoryCopies {
     function words() external pure returns (bool) {
         uint256[] memory values = new uint256[](3);
