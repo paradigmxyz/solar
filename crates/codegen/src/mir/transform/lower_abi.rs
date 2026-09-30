@@ -725,20 +725,29 @@ impl LowerAbiCx {
         module: &mut Module,
         targets: &[FunctionId],
     ) {
-        let mut counts = FxHashMap::<AbiParamType, usize>::default();
+        // Parameters share a helper per type, and so do the dynamic tuples repeated
+        // anywhere inside them, which the helpers of enclosing types then call.
+        let mut counts = FxHashMap::<AbiParamType, (usize, usize)>::default();
         for &id in targets {
             let func = module.function(id);
             let Some(layout) = func.abi_params.as_ref() else { continue };
             for (ty, &arg_type) in layout.types.iter().zip(&func.params) {
                 if !ty.is_scalar_word() && matches!(arg_type, MirType::MemoryObject(_)) {
-                    *counts.entry(ty.clone()).or_default() += 1;
+                    if !(matches!(ty, AbiParamType::Tuple(_)) && ty.has_dynamic_child()) {
+                        let first = counts.len();
+                        let count = counts.entry(ty.clone()).or_insert((0, first));
+                        count.0 = count.0.saturating_add(1).min(2);
+                    }
+                    count_dynamic_tuple_types(ty, 1, &mut counts);
                 }
             }
         }
-        for (ty, count) in counts {
-            if count < 2 {
-                continue;
-            }
+        let mut types = counts
+            .into_iter()
+            .filter_map(|(ty, (count, first))| (count >= 2).then_some((first, ty)))
+            .collect::<Vec<_>>();
+        types.sort_by_key(|(first, ty)| (abi_param_type_depth(ty), *first));
+        for (_, ty) in types {
             let helper = self.synthesize_calldata_aggregate_type_helper(module, ty.clone());
             self.aggregate_type_helpers.insert(ty, helper);
         }
@@ -753,9 +762,15 @@ impl LowerAbiCx {
         {
             let mut builder = self.builder(&mut function);
             let head = builder.add_param(MirType::I256);
-            let tuple_base = builder.imm(4);
+            // Only tuples decode nested in other values; the rest read the argument tuple at 4.
+            let tuple_base = if matches!(ty, AbiParamType::Tuple(_)) {
+                builder.add_param(MirType::I256)
+            } else {
+                builder.imm(4)
+            };
             let input_end = builder.calldatasize();
             let mut current = builder.current_block();
+            let helpers = &self.aggregate_type_helpers;
             let value = Self::decode_aggregate_argument(
                 &mut builder,
                 &ty,
@@ -763,7 +778,10 @@ impl LowerAbiCx {
                 head,
                 tuple_base,
                 &mut current,
-                DecodeOptions::new(false, input_end, self.has_bitwise_shifting).checked(),
+                DecodeOptions {
+                    helpers: (!helpers.is_empty()).then_some(helpers),
+                    ..DecodeOptions::new(false, input_end, self.has_bitwise_shifting).checked()
+                },
             );
             builder.set_return_type(ty.mir_type());
             builder.ret([value]);
@@ -1389,8 +1407,10 @@ impl LowerAbiCx {
                             && Self::requires_calldata_element_validation(ty))
                         || !matches!(decode_type, MirType::Slice(SliceLocation::Calldata))
                         || self.needs_full_calldata_array_validation(builder.func(), uses, ty);
+                    let helpers = &self.aggregate_type_helpers;
                     let decode_options = DecodeOptions {
                         validate_array_elements,
+                        helpers: (!constructor && !helpers.is_empty()).then_some(helpers),
                         ..DecodeOptions::new(constructor, input_end, self.has_bitwise_shifting)
                     };
                     if uses.is_empty() {
@@ -1410,7 +1430,8 @@ impl LowerAbiCx {
                                 && matches!(arg_type, MirType::MemoryObject(_))
                                 && let Some(&helper) = self.aggregate_type_helpers.get(ty)
                             {
-                                let value = builder.icall(helper, vec![head], arg_type);
+                                let args = calldata_type_helper_args(ty, head, tuple_base);
+                                let value = builder.icall(helper, args, arg_type);
                                 logical_values[index] = Some(value);
                             } else {
                                 let value = Self::decode_aggregate_argument(
@@ -1431,7 +1452,8 @@ impl LowerAbiCx {
                             && matches!(arg_type, MirType::MemoryObject(_))
                             && let Some(&helper) = self.aggregate_type_helpers.get(ty)
                         {
-                            builder.icall(helper, vec![head], arg_type)
+                            let args = calldata_type_helper_args(ty, head, tuple_base);
+                            builder.icall(helper, args, arg_type)
                         } else if !constructor
                             && decode_type == arg_type
                             && matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
@@ -1710,8 +1732,14 @@ impl LowerAbiCx {
         let to_calldata =
             !constructor && matches!(arg_type, MirType::Slice(SliceLocation::Calldata));
         // The shared helper checks the value's head offset with the tuple reason, so a struct
-        // member decodes inline when reasons are encoded.
-        if constructor
+        // member decodes inline when reasons are encoded. A calldata helper decodes a fresh,
+        // fully validated memory struct.
+        if (constructor
+            || (is_dynamic
+                && matches!(ty, crate::mir::AbiParamType::Tuple(_))
+                && !allow_alias
+                && validate_array_elements
+                && arg_type == ty.mir_type()))
             && head_checked
             && (!builder.encodes_revert_reasons()
                 || offset_reason == RevertReason::InvalidTupleOffset)
@@ -1719,8 +1747,10 @@ impl LowerAbiCx {
         {
             // word_arguments = ptrtoint pointer_arguments to i256
             // decoded = icall helper, word_arguments
+            // A calldata helper reads its input end from `calldatasize` itself.
             let args = [head, tuple_base, input_end]
                 .into_iter()
+                .take(if constructor { 3 } else { 2 })
                 .map(|value| builder.cast(value, MirType::I256))
                 .collect();
             return builder.icall(helper, args, ty.mir_type());
@@ -3113,6 +3143,16 @@ fn decode_memory_tuple(
             .checked_add(ty.checked_head_size().expect("ABI head size exceeds u64 range"))?;
     }
     Some(values)
+}
+
+/// Returns the arguments of a shared calldata decoder, which takes the enclosing tuple base only
+/// for tuples.
+fn calldata_type_helper_args(
+    ty: &AbiParamType,
+    head: ValueId,
+    tuple_base: ValueId,
+) -> Vec<ValueId> {
+    if matches!(ty, AbiParamType::Tuple(_)) { vec![head, tuple_base] } else { vec![head] }
 }
 
 fn count_dynamic_tuple_types(
