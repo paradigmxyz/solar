@@ -8,7 +8,7 @@
 
 // === ROOT/tests/ui/codegen/core/abi_runtime.sol:Test ===
 @module Test
-types:
+@types
   struct0: {i256, i256}
 
 fn @call(arg0: i256, arg1: i256) -> memorybytes [selector=0x3bd9ef28, pure, abi_params=[address, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

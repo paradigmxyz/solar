@@ -10,7 +10,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/create_lowering.sol:Test ===
 @module Test
 @phase lowered
-types:
+@types
   struct0: {i256, memptr}
   struct1: {i256, i256}
 

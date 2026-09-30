@@ -4,7 +4,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/solar_scratch_runtime.sol:Test ===
 @module Test
-types:
+@types
   struct0: {i256, memorybytes}
   struct1: {i256, i256}
   struct2: {memorybytes, i256}

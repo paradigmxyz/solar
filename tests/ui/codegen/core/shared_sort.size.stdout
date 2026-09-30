@@ -19,7 +19,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/shared_sort.sol:Test ===
 @module Test
 @phase lowered
-types:
+@types
   struct0: {memptr, memptr}
 
 fn @sortInts() [selector=0xf42afd9e, abi_wrapper, pure] {

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/core/abi_view_lowering.sol:Test ===
 @module Test
 @phase lowered
-types:
+@types
   struct0: {i256, i256}
   struct1: {i256, calldataslice}
   struct2: {i256, memptr}

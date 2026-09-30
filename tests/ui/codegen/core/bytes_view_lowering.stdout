@@ -10,7 +10,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/bytes_view_lowering.sol:Test ===
 @module Test
 @phase lowered
-types:
+@types
   struct0: {i256, i256}
 
 fn @viewed() [selector=0xd3855add, abi_wrapper, pure] {

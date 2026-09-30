@@ -10,7 +10,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/calls_payload_staging.sol:CallsPayloadStaging ===
 @module CallsPayloadStaging
 @phase lowered
-types:
+@types
   struct0: {i256, i256, memptr}
   struct1: {i256, i256, i256}
 

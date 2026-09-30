@@ -19,7 +19,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/calls_bounded_runtime.sol:Test ===
 @module Test
 @phase lowered
-types:
+@types
   struct0: {i256, memptr, i256}
 
 fn @bounded() [selector=0xb45a5590, abi_wrapper] {

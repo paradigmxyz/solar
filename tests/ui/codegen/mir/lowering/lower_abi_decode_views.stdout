@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_decode_views.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_decode_views.mir (after lower-abi) ===
   @module DecodeViews
-  types:
+  @types
     struct0: {calldataslice, calldataslice, i256}
     struct1: {memoryslice, memoryslice, i256}
   

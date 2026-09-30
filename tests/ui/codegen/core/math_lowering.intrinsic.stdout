@@ -19,7 +19,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/math_lowering.sol:Test ===
 @module Test
 @phase lowered
-types:
+@types
   struct0: {i256, i256}
 
 fn @mul512.0() [selector=0x73d0b512, abi_wrapper, pure] {

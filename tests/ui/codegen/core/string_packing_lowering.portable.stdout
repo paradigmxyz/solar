@@ -37,7 +37,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/string_packing_lowering.sol:Test ===
 @module Test
 @phase lowered
-types:
+@types
   struct0: {memptr, memptr}
 
 fn @packPair() [selector=0xa2352af0, abi_wrapper, pure] {

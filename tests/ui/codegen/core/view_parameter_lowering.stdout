@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/core/view_parameter_lowering.sol:Test ===
 @module Test
 @phase lowered
-types:
+@types
   struct0: {i256, i256}
 
 fn @checksum.0(arg0: i256, arg1: i256) -> struct0 [may_return_memory, pure, return_abi=[i256, i256]] {

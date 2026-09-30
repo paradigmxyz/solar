@@ -10,7 +10,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/forward_lowering.sol:Test ===
 @module Test
 @phase lowered
-immutables:
+@immutables
   implementation: u160
 
 fn @fallback() [abi_wrapper, fallback, payable] {

@@ -12,7 +12,7 @@
 
 // === ROOT/tests/ui/codegen/core/buffers_typed_runtime.sol:Test ===
 @module Test
-types:
+@types
   struct0: {memoryarray, i256}
 
 fn @addresses(arg0: i256) -> struct0 [selector=0xedf26d9b, pure, abi_params=[u256], abi_returns=[memory_array<word<u160>>, word], abi_return_params=[array<_, address>, u256]] {
