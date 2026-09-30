@@ -330,7 +330,7 @@ impl<'a> FileResolver<'a> {
     /// Resolves an import path.
     ///
     /// `parent` is the path of the file that contains the import, if any.
-    #[instrument(level = "debug", skip_all, fields(path = %path.display()))]
+    #[instrument(level = "trace", skip_all, fields(path = %path.display()))]
     pub fn resolve_file(
         &self,
         path: &Path,

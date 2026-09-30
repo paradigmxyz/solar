@@ -21,12 +21,6 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Returns whether the module has code to finish. If so, [`Self::finish_module`]
     /// completes the artifact once the embedded bytecode is available.
     /// Otherwise the artifact is empty.
-    #[tracing::instrument(
-        name = "evm_codegen",
-        level = "debug",
-        skip_all,
-        fields(module = %module.name),
-    )]
     pub(crate) fn schedule_module(&mut self, module: &mut Module) -> bool {
         // Interfaces have no code. An internal-only library keeps its rejecting
         // dispatch stub, like `solc`.
@@ -86,32 +80,26 @@ impl<'gcx> EvmCodegen<'gcx> {
         // First schedule the runtime code and run its EVM IR pipeline. Only final
         // assembly waits for the bytecode of contracts it embeds.
         self.schedule_runtime_code(&lowered, &call_graph);
-        let size_rescue = self.optimize_runtime_code();
+        self.asm.optimize();
         if self.gcx.dcx().has_errors().is_err() {
             return false;
         }
-        self.pending_runtime = Some(PendingRuntime { call_graph, size_rescue });
+        self.pending_runtime = Some(PendingRuntime { call_graph });
         true
     }
 
     /// Completes the artifact of a module scheduled by [`Self::schedule_module`], linking in the
     /// bytecode of the contracts it embeds.
-    #[tracing::instrument(
-        name = "evm_finish",
-        level = "debug",
-        skip_all,
-        fields(module = %module.name),
-    )]
     pub(crate) fn finish_module(
         &mut self,
         module: &Module,
         bytecodes: &EmbeddedBytecodes,
     ) -> EvmArtifact {
-        let PendingRuntime { call_graph, size_rescue } =
+        let PendingRuntime { call_graph } =
             self.pending_runtime.take().expect("module must be scheduled first");
         debug_assert_eq!(module.phase(), MirPhase::Lowered);
         let mut libraries = module.libraries.clone();
-        let runtime_code = self.assemble_runtime_code(size_rescue, bytecodes, &mut libraries);
+        let runtime_code = self.assemble_runtime_code(bytecodes, &mut libraries);
         let runtime_len = runtime_code.bytecode.len();
         let immutable_refs = std::mem::take(&mut self.runtime_immutable_refs);
 
@@ -349,6 +337,12 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Constructor arguments are read from the end of the initcode using CODECOPY.
     /// The args are ABI-encoded and appended after the deployment bytecode.
     /// Returns the deferred constructor-argument and runtime-code offsets.
+    #[tracing::instrument(
+        name = "stack_scheduling",
+        level = "debug",
+        skip_all,
+        fields(artifact = "deployment")
+    )]
     fn emit_deployment_prefix(
         &mut self,
         module: &Module,

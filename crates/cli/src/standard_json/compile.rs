@@ -60,7 +60,9 @@ pub fn compile_standard_json(
     } else {
         Cow::Borrowed(input)
     };
-    match serde_json::from_str::<CompilerInput<'_>>(&input) {
+    let parsed = tracing::debug_span!("parse_input")
+        .in_scope(|| serde_json::from_str::<CompilerInput<'_>>(&input));
+    match parsed {
         Ok(compiler_input) => {
             if opts.unstable.standard_json_stats {
                 print_standard_json_stats(&input, &compiler_input);
@@ -85,12 +87,12 @@ pub fn compile_standard_json(
 pub(crate) fn run(opts: CompileOpts) -> io::Result<()> {
     let mut stdout = io::BufWriter::new(io::stdout());
     let mut input = String::new();
-    let result = match opts.input.as_slice() {
+    let result = tracing::debug_span!("read_input").in_scope(|| match opts.input.as_slice() {
         [] => io::stdin().read_to_string(&mut input),
         [arg] if arg == "-" => io::stdin().read_to_string(&mut input),
         [path] => File::open(path).and_then(|mut file| file.read_to_string(&mut input)),
         _ => unreachable!("standard JSON input count is validated during argument parsing"),
-    };
+    });
     match result {
         Ok(_) => compile_standard_json(&input, opts, None, &mut stdout)?,
         Err(e) => standard_json_error_output(
@@ -124,6 +126,7 @@ fn write_empty_standard_json_output(
     finish_standard_json_output(&mut output, source_map, opts, &diagnostics, out)
 }
 
+#[tracing::instrument(name = "write_output", level = "debug", skip_all)]
 fn finish_standard_json_output<'a>(
     output: &mut CompilerOutput<'a>,
     source_map: Arc<SourceMap>,
@@ -389,31 +392,32 @@ fn compile(
                 });
                 let compilation_id = compilation.as_ref().map(EthdebugCompilation::id);
 
-                let contract_outputs = gcx
-                    .hir
-                    .par_contracts_enumerated()
-                    .filter_map(|(contract_id, contract)| {
-                        let source = gcx.hir.source(contract.source);
-                        let source_name = standard_json_source_name(&source.file.name);
-                        let contract_name = contract.name.as_str();
-                        let contract_selection =
-                            output_selection.contract(&source_name, contract_name);
-                        let contract_output = make_contract_output(
-                            gcx,
-                            contract_id,
-                            contract_selection,
-                            bytecodes.as_ref(),
-                            contract_metadata.as_ref(),
-                            compilation_id,
-                            source_map_encoder.as_ref(),
-                        );
-                        (!contract_output.is_empty()).then_some((
-                            source_name,
-                            contract_name,
-                            contract_output,
-                        ))
-                    })
-                    .collect::<Vec<_>>();
+                let contract_outputs = tracing::debug_span!("contract_outputs").in_scope(|| {
+                    gcx.hir
+                        .par_contracts_enumerated()
+                        .filter_map(|(contract_id, contract)| {
+                            let source = gcx.hir.source(contract.source);
+                            let source_name = standard_json_source_name(&source.file.name);
+                            let contract_name = contract.name.as_str();
+                            let contract_selection =
+                                output_selection.contract(&source_name, contract_name);
+                            let contract_output = make_contract_output(
+                                gcx,
+                                contract_id,
+                                contract_selection,
+                                bytecodes.as_ref(),
+                                contract_metadata.as_ref(),
+                                compilation_id,
+                                source_map_encoder.as_ref(),
+                            );
+                            (!contract_output.is_empty()).then_some((
+                                source_name,
+                                contract_name,
+                                contract_output,
+                            ))
+                        })
+                        .collect::<Vec<_>>()
+                });
                 for (source_name, contract_name, contract_output) in contract_outputs {
                     output
                         .contracts
@@ -533,6 +537,7 @@ fn disallowed_io(path: &Path) -> io::Error {
     )
 }
 
+#[tracing::instrument(name = "source_outputs", level = "debug", skip_all)]
 fn source_outputs_from_compiler(
     compiler: &solar_sema::CompilerRef<'_>,
 ) -> FxIndexMap<String, SourceOutput> {

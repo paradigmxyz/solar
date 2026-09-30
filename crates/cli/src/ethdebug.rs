@@ -151,6 +151,7 @@ impl EthdebugCompilation {
     }
 }
 
+#[tracing::instrument(name = "ethdebug_compilation", level = "debug", skip_all)]
 pub(crate) fn make_ethdebug_compilation(
     gcx: Gcx<'_>,
     metadata_identity: Option<alloy_primitives::B256>,
