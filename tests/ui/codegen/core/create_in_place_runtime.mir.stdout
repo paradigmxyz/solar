@@ -19,7 +19,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/create_in_place_runtime.sol:Test ===
 @module Test
 @phase lowered
-types:
+@types
   struct0: {memptr, memptr}
   struct1: {i256, memptr}
   struct2: {i256, i256}

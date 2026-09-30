@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/transient_storage.sol:TransientStorage ===
 @module TransientStorage
-types:
+@types
   struct0: {i256, i256, i256, i256, i256, i256}
   struct1: {i256, i256, i256}
   struct2: {i256, i256}

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/literal_seeded_loops.sol:LiteralSeededLoops ===
 @module LiteralSeededLoops
-types:
+@types
   struct0: {i256, i256, i256}
 
 fn @twoLoops(arg0: i256, arg1: i256) -> struct0 [selector=0x3edb475c, pure, abi_params=[u256, u256], abi_returns=[word, word, word<bool>], abi_return_params=[u256, u256, bool]] {

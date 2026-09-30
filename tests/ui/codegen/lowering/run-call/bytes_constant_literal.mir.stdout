@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/bytes_constant_literal.sol:BytesConstantLiteral ===
 @module BytesConstantLiteral
-types:
+@types
   struct0: {i256, i256, memorybytes}
 
 fn @packedHash(arg0: i256) -> i256 [selector=0x5277f243, pure, abi_params=[address], abi_returns=[word], abi_return_params=[bytes32]] {

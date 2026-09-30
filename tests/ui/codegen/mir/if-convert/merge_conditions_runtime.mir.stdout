@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/if-convert/merge_conditions_runtime.sol:MergeConditions ===
 @module MergeConditions
-types:
+@types
   struct0: {i256, i256}
 
 fn @search(arg0: memoryarray, arg1: i256) -> struct0 [selector=0xd43fc471, pure, abi_params=[array<_, u256>, u256], abi_returns=[word<bool>, word], abi_return_params=[bool, u256]] {

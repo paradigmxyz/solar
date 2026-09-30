@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_reference_loop.sol:StorageReferenceLoop ===
 @module StorageReferenceLoop
-types:
+@types
   struct0: {i256, i256}
 
 fn @storageLoopMemory(arg0: i256) -> i256 [selector=0xb09bad66, inline_assembly, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {

@@ -10,7 +10,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/mir/byte-run-loads/masked.sol:Test ===
 @module Test
 @phase lowered
-types:
+@types
   struct0: {i256, i256, i256, i256}
   struct1: {i256, i256}
 

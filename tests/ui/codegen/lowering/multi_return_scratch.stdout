@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return_scratch.sol:MultiReturnScratch ===
 @module MultiReturnScratch
-types:
+@types
   struct0: {i256, i256, i256}
   struct1: {i256, i256, i256, i256}
   struct2: {i256, i256}

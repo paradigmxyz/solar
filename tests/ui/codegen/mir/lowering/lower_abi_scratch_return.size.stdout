@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_scratch_return.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_scratch_return.mir (after lower-abi) ===
   @module LowerAbiScratchReturn
-  types:
+  @types
     struct0: {i256, i256}
     struct1: {i256, i256, i256}
   
