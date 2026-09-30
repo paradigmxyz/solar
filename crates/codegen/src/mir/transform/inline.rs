@@ -2344,6 +2344,8 @@ impl<'a> InlineCloner<'a> {
         callee_frame_prefix: u64,
         args: Box<[ValueId]>,
     ) -> Self {
+        // The callee's instructions move into the caller, and with them any assembly.
+        caller.attributes.inline_assembly |= callee.attributes.inline_assembly;
         Self {
             caller,
             callee,

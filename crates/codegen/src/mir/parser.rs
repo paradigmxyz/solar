@@ -638,6 +638,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 sym::may_return_memory => {
                     builder.func_mut().attributes.may_return_memory = true;
                 }
+                sym::inline_assembly => builder.func_mut().attributes.inline_assembly = true,
                 sym::function_pointer_dispatcher => {
                     builder.func_mut().attributes.is_function_pointer_dispatcher = true;
                 }
