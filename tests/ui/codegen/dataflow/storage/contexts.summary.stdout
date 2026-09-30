@@ -1,0 +1,14 @@
+// === dataflow storage (k=0): ROOT/tests/ui/codegen/dataflow/storage/contexts.sol:Contexts ===
+fn @bump:
+  bb0:
+    v1 = sload v0  ; read=arg0.1
+    sstore v0, v2  ; write=arg0.1
+  summary: reads={arg0.1} writes={arg0.1}
+fn @first:
+  bb0:
+    icall @bump, 0  ; read=slot(1) write=slot(1)
+  summary: reads={slot(1)} writes={slot(1)}
+fn @second:
+  bb0:
+    icall @bump, v2  ; read=slot(2)[caller].1 write=slot(2)[caller].1
+  summary: reads={slot(2)[caller].1} writes={slot(2)[caller].1}

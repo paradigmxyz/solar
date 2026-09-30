@@ -1,0 +1,8 @@
+// === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_fig01b_queue.sol:Queue ===
+fn @reserve:
+  bb0:
+    v1 = sload v0  ; read slot(0)[arg0]
+  bb1:
+    v8 = sload v7  ; read slot(0)[arg0]
+    sstore v7, v13  ; write slot(0)[arg0]
+  exit: clobbers

@@ -1,0 +1,17 @@
+warning: possible cross-function reentrancy: `withdraw` writes storage after an external call
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/openzeppelin_guard.sol:LL:CC
+   │
+LL │         token.transfer(msg.sender, amount);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: `withdraw` writes `slot(2)` after the call
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/openzeppelin_guard.sol:LL:CC
+   │
+LL │         pending -= amount;
+   ╰╴        ━━━━━━━━━━━━━━━━━
+note: a reentrant call to `sweep` can read it here (stale read)
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/openzeppelin_guard.sol:LL:CC
+   │
+LL │         if (pending == 0) balances[address(this)] = 0;
+   ╰╴            ━━━━━━━
+

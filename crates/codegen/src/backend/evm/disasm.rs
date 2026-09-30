@@ -302,6 +302,14 @@ fn instructions(
     })
 }
 
+/// Returns whether any instruction of `bytecode` may run other code.
+///
+/// Push immediates are skipped, while data appended to the code is decoded as instructions,
+/// so the answer is conservative for every byte sequence.
+pub(crate) fn may_execute_code(bytecode: &[u8], evm_version: EvmVersion) -> bool {
+    instructions(bytecode, evm_version).any(|instruction| op::executes_code(instruction.opcode))
+}
+
 fn versioned_mnemonic(opcode: u8, evm_version: EvmVersion) -> Option<&'static str> {
     if opcode == op::PREVRANDAO && evm_version < EvmVersion::Paris {
         Some("difficulty")

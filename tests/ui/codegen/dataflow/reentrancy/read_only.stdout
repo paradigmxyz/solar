@@ -1,0 +1,25 @@
+// === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/read_only.sol:Pool ===
+fn @withdraw:
+  bb0:
+    v0 = sload 0  ; read slot(0)
+    v4 = sload 0  ; read slot(0) if entry(slot(0)) & 0xff == 0
+    sstore 0, v9  ; write slot(0) if entry(slot(0)) & 0xff == 0
+    v10 = sload 2  ; read slot(2) if entry(slot(0)) & 0xff == 0
+    v12 = sload 1  ; read slot(1) if entry(slot(0)) & 0xff == 0
+    v14 = sload 2  ; read slot(2) if entry(slot(0)) & 0xff == 0
+    sstore 2, v15  ; write slot(2) if entry(slot(0)) & 0xff == 0
+    v20 = address_call v16, v18, gas v17, value v13  ; call to caller slot(0)=(entry(slot(0)) & 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00 | 0x1) slot(2)=? if entry(slot(0)) & 0xff == 0
+    v25 = sload v24  ; read slot(3)[caller] if entry(slot(0)) & 0xff == 0 after call#0.24
+    sstore v24, v26  ; write slot(3)[caller] if entry(slot(0)) & 0xff == 0 after call#0.24
+    v27 = sload 1  ; read slot(1) if entry(slot(0)) & 0xff == 0 after call#0.24
+    sstore 1, v28  ; write slot(1) if entry(slot(0)) & 0xff == 0 after call#0.24
+  bb2:
+    v29 = sload 0  ; read slot(0) if entry(slot(0)) & 0xff == 0 after call#0.24
+    sstore 0, v34  ; write slot(0) if entry(slot(0)) & 0xff == 0 after call#0.24
+  exit: slot(0)=(? & 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00 | 0x0) slot(1)=? slot(2)=? requires entry(slot(0)) & 0xff == 0
+fn @price:
+  bb0:
+    v0 = sload 2  ; read slot(2)
+    v2 = sload 1  ; read slot(1)
+  exit:
+finding: reentrancy read-only @withdraw call#0.24: writes slot(1) after the call; reentrant @price reads slot(1) (stale read)

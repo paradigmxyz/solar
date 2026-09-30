@@ -142,13 +142,13 @@
 0xe6 dupn             io=? since=amsterdam gas=3
 0xe7 swapn            io=? since=amsterdam gas=3
 0xe8 exchange         io=? since=amsterdam gas=3
-0xf0 create           io=3/1 bits=[]/160 since=homestead gas=32000 writes_storage
-0xf1 call             io=7/1 bits=[256, 160]/1 since=homestead gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage
-0xf2 callcode         io=7/1 bits=[256, 160]/1 since=homestead gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage
+0xf0 create           io=3/1 bits=[]/160 since=homestead gas=32000 writes_storage executes_code
+0xf1 call             io=7/1 bits=[256, 160]/1 since=homestead gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage executes_code
+0xf2 callcode         io=7/1 bits=[256, 160]/1 since=homestead gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage executes_code
 0xf3 return           io=2/0 since=homestead gas=0 terminal
-0xf4 delegatecall     io=6/1 bits=[256, 160]/1 since=homestead gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage
-0xf5 create2          io=4/1 bits=[]/160 since=constantinople gas=32000 writes_storage
-0xfa staticcall       io=6/1 bits=[256, 160]/1 since=byzantium gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage
+0xf4 delegatecall     io=6/1 bits=[256, 160]/1 since=homestead gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage executes_code
+0xf5 create2          io=4/1 bits=[]/160 since=constantinople gas=32000 writes_storage executes_code
+0xfa staticcall       io=6/1 bits=[256, 160]/1 since=byzantium gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage executes_code
 0xfd revert           io=2/0 since=byzantium gas=0 terminal
 0xfe invalid          io=0/0 since=homestead gas=0 terminal
 0xff selfdestruct     io=1/0 bits=[160]/256 since=homestead gas=0 tangerineWhistle=5000 terminal

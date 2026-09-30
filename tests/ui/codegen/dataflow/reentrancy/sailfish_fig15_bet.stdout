@@ -1,0 +1,18 @@
+// === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_fig15_bet.sol:Bet ===
+fn @recordBet:
+  bb0:
+    sstore v2, arg1  ; write slot(0)[caller]
+    v7 = sload v6  ; read slot(1)[v4]
+    sstore v12, v8  ; write slot(1)[v10]
+  exit: clobbers
+fn @settleBet:
+  bb0:
+    v3 = sload v2  ; read slot(0)[caller]
+    v12 = sload v11  ; read slot(1)[v9]
+    v18 = sload v17  ; read slot(1)[v15]
+    v23 = sload v22  ; read slot(0)[caller]
+    v33 = sload v32  ; read slot(1)[v30]
+    sstore v42, v34  ; write slot(1)[v40]
+    icall transfer<>, v43, v24  ; stipend to caller
+  exit: clobbers
+finding: tod @settleBet call#1.45: value depends on slot(1)[*] written by @recordBet

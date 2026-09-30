@@ -80,6 +80,13 @@ pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
     crate::mir::analysis::validate(dcx, module);
 }
 
+/// Runs the dataflow analyses selected by `-Zdataflow` and returns their fact dump.
+///
+/// Returns `None` when no analysis is requested or the selection is invalid.
+pub fn run_dataflow(gcx: solar_sema::Gcx<'_>, module: &Module, name: &str) -> Option<String> {
+    crate::mir::analysis::dataflow::run_requested(gcx, module, name)
+}
+
 pub(crate) mod utils;
 
 newtype_index! {

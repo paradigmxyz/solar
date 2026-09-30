@@ -1,0 +1,18 @@
+// === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_cream_hook.sol:CreamMarket ===
+fn @constructor:
+  exit:
+fn @borrow:
+  bb0:
+    v3 = sload v2  ; read slot(0)[caller]
+    v8 = sload v7  ; read slot(1)[caller]
+    v19 = call v13, v12, 0, v17, v18, 0, 32  ; call to immutable0
+  bb2:
+    v34 = sload v33  ; read slot(0)[caller] after call#1.20
+    sstore v33, v35  ; write slot(0)[caller] after call#1.20
+  exit:
+fn @deposit:
+  bb0:
+    v4 = sload v3  ; read slot(1)[caller]
+    sstore v3, v5  ; write slot(1)[caller]
+  exit:
+finding: reentrancy single-function @borrow call#1.20: writes slot(0)[caller] after the call; reentrant @borrow reads slot(0)[caller] (stale read)

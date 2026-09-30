@@ -1,0 +1,14 @@
+// === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_housing_tracker.sol:HousingTracker ===
+fn @list:
+  bb0:
+    v3 = sload v2  ; read slot(0)[caller]
+    v16 = call v7, arg0, v8, v12, v13, 0, 0  ; call to arg0
+  bb2:
+    v18 = sload 2  ; read slot(2) after call#0.18
+    sstore 2, v19  ; write slot(2) after call#0.18
+    v21 = sload v20  ; read slot(1)[v18] after call#0.18
+    sstore v20, v26  ; write slot(1)[v18] after call#0.18
+    v30 = sload v29  ; read slot(0)[caller] after call#0.18
+    sstore v29, v35  ; write slot(0)[caller] after call#0.18
+  exit: slot(2)=? clobbers
+finding: reentrancy single-function @list call#0.18: writes slot(0)[caller] after the call; reentrant @list reads slot(0)[caller] (stale read)

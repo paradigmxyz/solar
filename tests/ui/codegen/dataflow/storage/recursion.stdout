@@ -1,0 +1,21 @@
+// === dataflow storage (k=0): ROOT/tests/ui/codegen/dataflow/storage/recursion.sol:Recursion ===
+fn @even:
+  bb0:
+    sstore arg0, arg1  ; write=arg0
+  bb1:
+    icall @odd, arg0, v1  ; write=arg0|arg0.1
+  summary: writes={arg0, arg0.1}
+fn @odd:
+  bb0:
+    sstore v0, arg1  ; write=arg0.1
+  bb1:
+    icall @even, arg0, v2  ; write=arg0|arg0.1
+  summary: writes={arg0, arg0.1}
+fn @start:
+  bb0:
+    icall @even, 2, arg0  ; write=slot(2)|slot(3)
+  summary: writes={slot(2), slot(3)}
+fn @walk:
+  bb4:
+    sstore v2, v0  ; write=?
+  summary: writes={?}

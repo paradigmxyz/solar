@@ -1,0 +1,51 @@
+// === dataflow taint (k=0): ROOT/tests/ui/codegen/dataflow/taint/slither_515.sol:SharedIdentity ===
+fn @f:
+  summary: ret0={arg0}
+fn @test1:
+  bb0:
+    v0 = icall @f, arg0  ; taint={arg0}
+  summary: slot(0)<-{arg0}
+fn @test2:
+  bb0:
+    v0 = calldatasize  ; taint={calldatasize}
+    v1 = make_calldata_slice 0, v0  ; taint={calldatasize}
+    v2 = slice_len v1  ; taint={calldatasize}
+    v3 = checked_add u256, arg0, v2  ; taint={arg0, calldatasize}
+    v4 = icall @f, v3  ; taint={arg0, calldatasize}
+  summary: slot(1)<-{arg0, calldatasize}
+// === dataflow taint (k=0): ROOT/tests/ui/codegen/dataflow/taint/slither_515.sol:KeyDependency ===
+fn @set:
+  bb0:
+    v0 = caller  ; taint={caller}
+    v1 = zext i160 v0 to i256  ; taint={caller}
+    v2 = mapping_slot v1, 0  ; taint={caller}
+    v3 = sload v2  ; taint={caller, sload(slot(0)[caller])}
+  summary: slot(1)<-{caller, sload(slot(0)[caller])}
+// === dataflow taint (k=0): ROOT/tests/ui/codegen/dataflow/taint/slither_515.sol:FieldTaint ===
+fn @createPost:
+  bb0:
+    v1 = sload 0  ; taint={sload(slot(0))}
+    v2 = timestamp  ; taint={timestamp}
+    v3 = caller  ; taint={caller}
+    v4 = zext i160 v3 to i256  ; taint={caller}
+    v5 = sload 0  ; taint={sload(slot(0))}
+    v6 = gt v5, 0xffffffffffffffff  ; taint={sload(slot(0))}
+    v7 = add v5, 1  ; taint={sload(slot(0))}
+    v9 = mul v5, 3  ; taint={sload(slot(0))}
+    v10 = add v8, v9  ; taint={sload(slot(0))}
+    v11 = memory_object_load_field memorystruct<3>, v0, 0  ; taint={caller, timestamp, sload(slot(0))}
+    v12 = add v10, 1  ; taint={sload(slot(0))}
+    v13 = memory_object_load_field memorystruct<3>, v0, 1  ; taint={caller, timestamp, sload(slot(0))}
+    v14 = add v10, 2  ; taint={sload(slot(0))}
+    v15 = memory_object_load_field memorystruct<3>, v0, 2  ; taint={caller, timestamp, sload(slot(0))}
+    v16 = sload v14  ; taint={sload(slot(0)), sload(data(slot(0))<v5 x3>.2)}
+    v18 = and v16, v17  ; taint={sload(slot(0)), sload(data(slot(0))<v5 x3>.2)}
+    v19 = and v15, 0xffffffffffffffffffffffffffffffffffffffff  ; taint={caller, timestamp, sload(slot(0))}
+    v20 = or v18, v19  ; taint={caller, timestamp, sload(slot(0)), sload(data(slot(0))<v5 x3>.2)}
+  summary: slot(0)<-{sload(slot(0))} data(slot(0))<* x3><-{caller, timestamp, sload(slot(0))} data(slot(0))<* x3>.2<-{caller, timestamp, sload(slot(0)), sload(data(slot(0))<* x3>.2)} data(slot(0))<* x3>.1<-{caller, timestamp, sload(slot(0))}
+fn @likePost:
+  bb0:
+    v0 = sload 0  ; taint={sload(slot(0))}
+    v1 = lt arg0, v0  ; taint={arg0, sload(slot(0))}
+    v2 = zext i1 v1 to i256  ; taint={arg0, sload(slot(0))}
+  summary: ret0={arg0, sload(slot(0))}

@@ -1,0 +1,17 @@
+warning: possible delegatecall reentrancy: `funcA` writes storage after an external call
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_fig14_delegatecall.sol:LL:CC
+   │
+LL │         (bool ok, ) = address(this).delegatecall(_data);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: `funcA` writes `slot(0)` after the call
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_fig14_delegatecall.sol:LL:CC
+   │
+LL │         __isTokenFallback = false;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━
+note: a reentrant call to `funcB` can read it here (stale read)
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_fig14_delegatecall.sol:LL:CC
+   │
+LL │         assert(__isTokenFallback);
+   ╰╴               ━━━━━━━━━━━━━━━━━
+

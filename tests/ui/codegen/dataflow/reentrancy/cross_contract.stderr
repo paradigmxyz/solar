@@ -1,0 +1,17 @@
+warning: possible cross-contract reentrancy: `withdraw` writes storage after an external call
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/cross_contract.sol:LL:CC
+   │
+LL │         relay.forward(to);
+   │         ━━━━━━━━━━━━━━━━━
+   ╰╴
+note: `withdraw` writes `slot(0)[caller]` after the call
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/cross_contract.sol:LL:CC
+   │
+LL │         balances[msg.sender] = 0;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━
+note: a reentrant call to `deposit` can read it here (stale read)
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/cross_contract.sol:LL:CC
+   │
+LL │         balances[msg.sender] += msg.value;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+

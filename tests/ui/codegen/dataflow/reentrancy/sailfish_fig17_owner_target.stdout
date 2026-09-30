@@ -1,0 +1,20 @@
+// === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_fig17_owner_target.sol:EnvientaPreToken ===
+fn @constructor:
+  bb0:
+    v1 = sload 0  ; read slot(0)
+    sstore 0, v6  ; write slot(0)
+  exit: slot(0)=?
+fn @enableBuyBackMode:
+  bb0:
+    v1 = sload 0  ; read slot(0)
+    v7 = sload 1  ; read slot(1) if caller == entry(slot(0)) & 0xffffffffffffffffffffffffffffffffffffffff
+    sstore 1, v12  ; write slot(1) if caller == entry(slot(0)) & 0xffffffffffffffffffffffffffffffffffffffff
+  exit: slot(1)=? requires caller == entry(slot(0)) & 0xffffffffffffffffffffffffffffffffffffffff
+fn @transfer:
+  bb0:
+    v0 = sload 1  ; read slot(1)
+    v8 = staticcall v2, v1, v6, v7, 0, 32  ; staticcall to sload(slot(1))
+  bb2:
+    v21 = sload v20  ; read slot(2)[caller] after call#2.8
+    sstore v20, v22  ; write slot(2)[caller] after call#2.8
+  exit:

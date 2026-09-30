@@ -1,0 +1,20 @@
+// === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_fig13_cross_function.sol:CrossFunction ===
+fn @funcA:
+  bb0:
+    v1 = sload v0  ; read slot(1)
+    v7 = sload 0  ; read slot(0)
+    v17 = call v5, v4, 0, v13, v14, 0, 0  ; call to sload(slot(1))
+  bb2:
+    v18 = sload 0  ; read slot(0) after call#0.18
+    v21 = sload v20  ; read slot(2) after call#0.18
+    icall transfer<>, v22, v21  ; stipend to sload(slot(0)) slot(0)=? slot(1)=? after call#0.18
+  exit: slot(0)=? slot(1)=?
+fn @funcB:
+  bb0:
+    v1 = sload 0  ; read slot(0)
+    sstore 0, v6  ; write slot(0)
+    v9 = sload v7  ; read slot(1)
+    sstore v7, v14  ; write slot(1)
+  exit: slot(0)=? slot(1)=?
+finding: reentrancy cross-function @funcA call#0.18: reads slot(0) after the call; reentrant @funcB writes slot(0) (destructive write)
+finding: tod @funcA call#0.24: recipient depends on slot(0) written by @funcB
