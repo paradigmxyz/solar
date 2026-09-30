@@ -20,15 +20,17 @@
 // CHECK: mstore8
 
 // The output's allocation cannot change the input's length: its fill and its
-// length word stay inside it, and its pointer bump is a reserved word. So the
-// length read before it is the one the loop compares against, the source
-// bounds check folds into the loop condition, and the byte loop is one `mcopy`.
+// length word stay inside it, and its pointer bump is a reserved word.
+//
+// NOTE: the byte loop is no longer one `mcopy`. #1505 dropped the rule that a
+// memory-object parameter was allocated before the function ran, so the
+// allocation between the two length reads invalidates the first, the source
+// bounds check no longer folds into the loop condition, and the idiom cannot
+// fire. See the note in `codegen/core/bytes_write_alias.sol`.
 // CHECK-LABEL: fn @_slice
 // CHECK: [[INPUT:v[0-9]+]] = ptrtoint memptr arg0 to i256
 // CHECK: mload [[INPUT]]
-// CHECK-NOT: mload [[INPUT]]
-// CHECK-NOT: mstore8
-// CHECK: mcopy
+// CHECK: mstore8
 
 contract Test {
     function slice(bytes memory s, uint256 start, uint256 end) public pure returns (bytes memory) {
