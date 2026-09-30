@@ -33,8 +33,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             let mut runtime_stack_args = true;
             let mut stack_returns_enabled = true;
             self.disabled_stack_only_functions.clear_to(module.functions.len());
+            self.dynamic_spill_base_functions.clear_to(module.functions.len());
             loop {
                 let disabled_stack_only_functions = self.disabled_stack_only_functions.count();
+                let dynamic_spill_base_functions = self.dynamic_spill_base_functions.count();
                 self.reset_runtime_codegen(module);
                 self.preserve_caller_stack = preserve_caller_stack;
                 self.runtime_stack_args = runtime_stack_args;
@@ -44,7 +46,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.emit_runtime(module, call_graph);
                 }
 
-                if self.disabled_stack_only_functions.count() > disabled_stack_only_functions {
+                if self.disabled_stack_only_functions.count() > disabled_stack_only_functions
+                    || self.dynamic_spill_base_functions.count() > dynamic_spill_base_functions
+                {
                     continue;
                 }
                 let stack_fits = self.caller_stack_prefixes_fit(module, MAX_STACK_DEPTH);
@@ -128,6 +132,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.static_frame_addr_consts.clear();
         self.packed_static_frame_sizes.clear();
         self.external_spill_addr_consts.clear();
+        self.spill_base_area_consts.clear();
+        self.spill_base_floor_consts.clear();
+        self.external_spill_base_consts.clear();
         self.pending_static_allocs.clear();
         self.runtime_free_memory_consts.clear();
         self.runtime_entry_reachability.clear();

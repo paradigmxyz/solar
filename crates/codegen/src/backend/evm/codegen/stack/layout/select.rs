@@ -57,7 +57,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // header: compare(index, bound)
                 // latch: carry(bound, next phis...)
                 let values = vec![bound];
-                let plan = GlobalStackPlan::analyze_resident_args(func, liveness, &values, false)?;
+                let plan = GlobalStackPlan::analyze_resident_args(
+                    func,
+                    liveness,
+                    &values,
+                    false,
+                    self.stack_access_limit(),
+                )?;
                 return Some((values, plan));
             }
         }
@@ -155,8 +161,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         preserve_across_calls: bool,
         context: &ResidentSearchContext,
     ) -> Option<(GlobalStackPlan, ScheduleCost)> {
-        let plan =
-            GlobalStackPlan::analyze_resident_args(func, liveness, values, preserve_across_calls)?;
+        let plan = GlobalStackPlan::analyze_resident_args(
+            func,
+            liveness,
+            values,
+            preserve_across_calls,
+            self.stack_access_limit(),
+        )?;
         if let Some(phi_plan) = &context.phi_plan {
             // One physical word cannot be both a phi input and an invariant resident prefix word.
             // `merge_resident` would otherwise extend only the result side of that edge, leaving a
@@ -466,11 +477,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             return None;
         }
 
+        // Calls keep a dynamic spill base below their return address in every mode.
         let mut plan = GlobalStackPlan::analyze_resident_args(
             func,
             liveness,
             values,
-            self.preserve_caller_stack,
+            self.preserve_caller_stack || self.spill_base.is_some(),
+            self.stack_access_limit(),
         )?;
         // Phi operands are edge uses, not unchanged target live-ins. Full
         // liveness conservatively includes them at the header; remove those

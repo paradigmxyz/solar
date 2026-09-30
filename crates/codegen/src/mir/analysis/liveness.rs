@@ -274,6 +274,24 @@ impl Liveness {
         Some(Self { live_in, live_out, last_use_in_block: Some(last_use_in_block), num_values })
     }
 
+    /// Keeps `value` live from its definition in the entry block through every terminator.
+    ///
+    /// Codegen uses this for a compiler-owned word that no MIR instruction reads but that must
+    /// stay on the stack for the whole function.
+    pub(crate) fn pin(&mut self, func: &Function, value: ValueId) {
+        let last_uses =
+            self.last_use_in_block.as_mut().expect("liveness was computed without last uses");
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            if block_id != BlockId::ENTRY {
+                self.live_in.insert(block_id, value);
+            }
+            if block.terminator.as_ref().is_some_and(|term| !term.successors().is_empty()) {
+                self.live_out.insert(block_id, value);
+            }
+            last_uses.insert((value, block_id), None);
+        }
+    }
+
     /// Returns the values live at the entry of a block.
     #[must_use]
     pub(crate) fn live_in(&self, block: BlockId) -> BitMatrixRow<'_, ValueId> {

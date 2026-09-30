@@ -195,16 +195,19 @@ impl GlobalStackPlan {
     /// Plans a single physical layout for stack-passed arguments that never
     /// receive a static-frame home. Unlike the calldata layout above, this is
     /// an ABI invariant: every live edge must carry the value because there is
-    /// no legal reload fallback.
+    /// no legal reload fallback. The width is bounded only by `stack_access_limit`: every layout
+    /// and the branch condition or switch selector above it must stay within `DUP` reach.
     pub(in crate::backend::evm::codegen) fn analyze_resident_args(
         func: &Function,
         liveness: &Liveness,
         values: &[ValueId],
         preserve_across_calls: bool,
+        stack_access_limit: usize,
     ) -> Option<Self> {
         if values.is_empty() {
             return None;
         }
+        let reachable = |layout: &[ValueId]| layout.len() < stack_access_limit;
         // Nested calls are eligible only when runtime emission can retain the live resident prefix
         // below their return address. Stack-phi edges compose their changing values above this
         // invariant prefix. The analysis remains deliberately all-or-nothing because resident
@@ -231,7 +234,7 @@ impl GlobalStackPlan {
                 .copied()
                 .filter(|&value| liveness.live_in(block_id).contains(value))
                 .collect();
-            if entry.len() > GLOBAL_STACK_LAYOUT_LIMIT {
+            if !reachable(&entry) {
                 return None;
             }
             if !entry.is_empty() {
@@ -265,6 +268,9 @@ impl GlobalStackPlan {
                                     .is_some_and(|entry| entry.contains(value))
                         })
                         .collect();
+                    if !reachable(&union) {
+                        return None;
+                    }
                     entries.insert(*then_block, union.clone());
                     entries.insert(*else_block, union);
                     continue;
@@ -275,7 +281,7 @@ impl GlobalStackPlan {
                         union.push(value);
                     }
                 }
-                if union.len() > GLOBAL_STACK_LAYOUT_LIMIT {
+                if !reachable(&union) {
                     return None;
                 }
             }
@@ -283,7 +289,7 @@ impl GlobalStackPlan {
 
         // A switch initially carries one physical stack through its dispatch, but codegen can
         // route each target through a cleanup trampoline. Keep the exact target layouts here and
-        // only require their union to remain within the globally schedulable prefix.
+        // only require their union to remain reachable.
         for block in &func.blocks {
             let Some(Terminator::Switch { default, cases, .. }) = &block.terminator else {
                 continue;
@@ -303,7 +309,7 @@ impl GlobalStackPlan {
                     }
                 }
             }
-            if union.len() > GLOBAL_STACK_LAYOUT_LIMIT {
+            if !reachable(&union) {
                 return None;
             }
         }
@@ -417,6 +423,7 @@ impl GlobalStackPlan {
         }
     }
 
+    /// Returns both successor layouts of a branch. Plan construction bounds their union.
     pub(in crate::backend::evm::codegen) fn branch_layouts(
         &self,
         term: &Terminator,
@@ -424,14 +431,10 @@ impl GlobalStackPlan {
         let Terminator::Branch { then_block, else_block, .. } = term else { return None };
         let then_layout = self.entry(*then_block).unwrap_or(&[]);
         let else_layout = self.entry(*else_block).unwrap_or(&[]);
-        if then_layout.is_empty() && else_layout.is_empty() {
-            return None;
-        }
-        let union_len = then_layout.len()
-            + else_layout.iter().filter(|value| !then_layout.contains(value)).count();
-        (union_len <= GLOBAL_STACK_LAYOUT_LIMIT).then_some((then_layout, else_layout))
+        (!then_layout.is_empty() || !else_layout.is_empty()).then_some((then_layout, else_layout))
     }
 
+    /// Returns every distinct successor layout of a switch. Plan construction bounds their union.
     pub(in crate::backend::evm::codegen) fn switch_layouts(
         &self,
         term: &Terminator,
@@ -443,15 +446,7 @@ impl GlobalStackPlan {
                 layouts.push((*target, self.entry(*target).unwrap_or(&[])));
             }
         }
-        let mut union = Vec::new();
-        for &(_, layout) in &layouts {
-            for &value in layout {
-                if !union.contains(&value) {
-                    union.push(value);
-                }
-            }
-        }
-        (!union.is_empty() && union.len() <= GLOBAL_STACK_LAYOUT_LIMIT).then_some(layouts)
+        layouts.iter().any(|(_, layout)| !layout.is_empty()).then_some(layouts)
     }
 
     /// Returns values present in every physical successor layout of `term`.

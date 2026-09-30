@@ -237,7 +237,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Returns `Some(grounded)` for a heap-pointer derivation. Recursive phi
     /// edges are provisionally valid but ungrounded; every accepted cycle must
     /// also contain a concrete FMP, allocation, or qualified-helper origin.
-    fn heap_pointer_provenance(
+    pub(in crate::backend::evm::codegen) fn heap_pointer_provenance(
         &self,
         func: &Function,
         aa: &AliasAnalysis,

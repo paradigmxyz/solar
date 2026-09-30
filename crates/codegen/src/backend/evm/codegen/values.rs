@@ -104,21 +104,41 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     pub(super) fn emit_operand_plan(&mut self, func: &Function, plan: OperandPlan) {
         let stack_depth = self.scheduler.depth();
+        let spill_base_depth = self.spill_base_model_depth();
         let ops = self.scheduler.apply_operand_plan(plan);
         self.record_scheduled_ops_peak(stack_depth, &ops);
-        self.emit_scheduled_ops(func, ops);
+        self.emit_scheduled_ops(func, ops, spill_base_depth);
     }
 
     pub(super) fn record_scheduled_ops_peak(&mut self, stack_depth: usize, ops: &[ScheduledOp]) {
         self.scheduler.observe_scheduled_ops_peak(stack_depth, ops, self.operand_cost_model());
     }
 
+    /// Emits scheduled operations. The model may already describe the stack after `ops`, so
+    /// `spill_base_depth` gives the dynamic spill base's physical depth before the first one.
     pub(super) fn emit_scheduled_ops(
         &mut self,
         func: &Function,
         ops: impl IntoIterator<Item = ScheduledOp>,
+        mut spill_base_depth: Option<usize>,
     ) {
         for op in ops {
+            self.spill_base_depth = spill_base_depth;
+            spill_base_depth = spill_base_depth.map(|depth| match op {
+                ScheduledOp::Stack(StackOp::Swap(n)) if depth == 0 => usize::from(n),
+                ScheduledOp::Stack(StackOp::Swap(n)) if depth == usize::from(n) => 0,
+                ScheduledOp::Stack(StackOp::Exchange(n, m)) if depth == usize::from(n) => {
+                    usize::from(m)
+                }
+                ScheduledOp::Stack(StackOp::Exchange(n, m)) if depth == usize::from(m) => {
+                    usize::from(n)
+                }
+                ScheduledOp::Stack(StackOp::Swap(_) | StackOp::Exchange(..)) => depth,
+                ScheduledOp::Stack(StackOp::Pop) => depth
+                    .checked_sub(1)
+                    .expect("scheduled operations popped the dynamic spill base"),
+                _ => depth + 1,
+            });
             match op {
                 ScheduledOp::Stack(stack_op) => {
                     self.asm.emit_stack_op(stack_op);
@@ -148,11 +168,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
+        self.spill_base_depth = None;
     }
 
     fn emit_fresh_scheduled_value(&mut self, func: &Function, value: ValueId, op: ScheduledOp) {
         self.record_scheduled_ops_peak(self.scheduler.depth(), &[op]);
-        self.emit_scheduled_ops(func, [op]);
+        self.emit_scheduled_ops(func, [op], self.spill_base_model_depth());
         self.scheduler.stack.push(value);
     }
 
@@ -194,6 +215,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let stack_depth = self.scheduler.depth();
+        let spill_base_depth = self.spill_base_model_depth();
         let ops = if claim_top {
             self.scheduler.ensure_on_top(val, func)
         } else {
@@ -201,7 +223,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         .to_vec();
         self.record_scheduled_ops_peak(stack_depth, &ops);
-        self.emit_scheduled_ops(func, ops);
+        self.emit_scheduled_ops(func, ops, spill_base_depth);
     }
 
     /// Emits a value fresh, without trying to DUP from the stack.

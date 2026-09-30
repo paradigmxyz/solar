@@ -72,6 +72,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         // once instead of rebuilding them for each artifact and caller-stack retry.
         let call_graph = CallGraphInfo::new(module);
         self.heap_pointer_return_functions = Self::collect_heap_pointer_return_functions(module);
+        self.free_memory_clobbering_functions =
+            self.collect_free_memory_clobbering_functions(module);
+        (self.unowned_memory_writers, self.heap_memory_writers) =
+            self.collect_memory_writers(module);
         self.cold_functions = if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             DenseBitSet::new_empty(module.functions.len())
         } else {
@@ -94,13 +98,18 @@ impl<'gcx> EvmCodegen<'gcx> {
         // are appended after the generated deployment prefix, so their offset
         // and the runtime-code offset depend on its final push widths. Only
         // repeat final assembly while both offsets stabilize.
-        let prepared_deploy_code = self.prepare_deployment_prefix(
-            module,
-            &call_graph,
-            runtime_len,
-            copy_base,
-            &immutable_refs,
-        );
+        // A constructor body can request a dynamic spill base while it emits; regenerate it.
+        let prepared_deploy_code = loop {
+            if let Some(prepared) = self.prepare_deployment_prefix(
+                module,
+                &call_graph,
+                runtime_len,
+                copy_base,
+                &immutable_refs,
+            ) {
+                break prepared;
+            }
+        };
         let mut deploy_code_len = 0usize;
         let mut constructor_arg_offset = runtime_len;
         let mut deploy_code = self.assemble_deployment_prefix(
@@ -314,7 +323,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         runtime_len: usize,
         copy_base: u64,
         immutable_refs: &[ImmutableRef],
-    ) -> PreparedDeploymentPrefix {
+    ) -> Option<PreparedDeploymentPrefix> {
+        let dynamic_spill_base_functions = self.dynamic_spill_base_functions.count();
         self.asm.clear();
         self.asm.set_artifact_kind(ArtifactKind::Constructor);
         self.asm.set_evm_ir_name(module.name.name);
@@ -350,6 +360,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.static_frame_addr_consts.clear();
             self.packed_static_frame_sizes.clear();
             self.external_spill_addr_consts.clear();
+            self.spill_base_area_consts.clear();
+            self.spill_base_floor_consts.clear();
+            self.external_spill_base_consts.clear();
             self.pending_static_allocs.clear();
             self.runtime_free_memory_consts.clear();
             self.runtime_entry_reachability.clear();
@@ -467,6 +480,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .emit();
             }
             self.asm.set_deferred_const(constructor_fixed_memory_end, U256::from(fixed_memory_end));
+            self.resolve_spill_base_floors(module, fixed_memory_end.saturating_add(heap_guard));
+            self.resolve_spill_base_areas(module);
 
             self.resolve_pending_frame_size_consts(module, |_| heap_guard);
 
@@ -500,11 +515,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_push(U256::ZERO);
             self.asm.emit_op(op::REVERT);
         }
-        PreparedDeploymentPrefix {
+        // A body that requested a dynamic spill base stopped early; the caller regenerates it.
+        if self.dynamic_spill_base_functions.count() != dynamic_spill_base_functions {
+            return None;
+        }
+        Some(PreparedDeploymentPrefix {
             assembly: self.asm.prepare(self.capture_evm_ir, self.capture_debug_info),
             constructor_arg_offset,
             runtime_offset,
-        }
+        })
     }
 
     fn assemble_deployment_prefix(

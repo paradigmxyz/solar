@@ -502,12 +502,22 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let func_id = self
                         .current_internal_function
                         .expect("internal caller has a current function");
-                    let addr = self.static_frame_addr(
-                        func_id,
-                        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-                            + (index.index() as u64) * EvmMemoryLayout::WORD_SIZE,
-                    );
-                    self.asm.emit_push_deferred(addr);
+                    self.note_fixed_memory_access();
+                    // The caller's model is drained below `words_above` raw arguments.
+                    self.spill_base_depth = self
+                        .spill_base
+                        .as_ref()
+                        .and_then(|base| caller_stack?.find(base.value))
+                        .map(|depth| depth + words_above);
+                    if !self.emit_dynamic_frame_arg_addr(*index) {
+                        let addr = self.static_frame_addr(
+                            func_id,
+                            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                                + (index.index() as u64) * EvmMemoryLayout::WORD_SIZE,
+                        );
+                        self.asm.emit_push_deferred(addr);
+                    }
+                    self.spill_base_depth = None;
                     self.asm.emit_op(op::MLOAD);
                 } else {
                     self.asm.emit_push(U256::from(4 + (index.index() as u64) * WORD_BYTES as u64));
@@ -516,7 +526,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             crate::mir::Value::Inst(_) => {
                 let slot = spill_slot.expect("computed stack argument has a validated spill slot");
+                // The caller's model is drained below `words_above` raw arguments.
+                self.spill_base_depth = self
+                    .spill_base
+                    .as_ref()
+                    .and_then(|base| caller_stack?.find(base.value))
+                    .map(|depth| depth + words_above);
                 self.emit_spill_load(func, slot);
+                self.spill_base_depth = None;
             }
             other => unreachable!("stack-arg mask admitted an unsupported value: {other:?}"),
         }

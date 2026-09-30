@@ -68,6 +68,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for func_id in self.static_frame_functions.iter() {
             let func = &module.functions[func_id];
             if !self.recursive_frame_functions.contains(func_id)
+                && !self.uses_dynamic_spill_base(func_id)
                 && func.internal_frame_size == 0
                 && func.return_components().len() <= 1
                 && !func
@@ -94,6 +95,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.static_frame_addr_consts.insert((func_id, offset), constant);
         }
         for &entry in &self.runtime_entry_funcs {
+            // A dynamic spill base addresses its whole static area by offset.
+            if self.external_spill_base_consts.contains_key(&entry) {
+                continue;
+            }
             let size = if let Some(slots) = self.external_spill_addr_consts.get_mut(&entry) {
                 slots.retain(|(id, _)| referenced.contains(id));
                 slots.len() as u64 * EvmMemoryLayout::WORD_SIZE
@@ -362,7 +367,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_current_internal_frame_addr_untracked(offset);
     }
 
-    fn own_frame_addr_is_dynamic(&self) -> bool {
+    pub(in crate::backend::evm::codegen) fn own_frame_addr_is_dynamic(&self) -> bool {
         self.current_internal_function
             .is_none_or(|func_id| !self.static_frame_functions.contains(func_id))
             && (self.in_internal_function || self.in_constructor)
@@ -792,6 +797,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.set_deferred_const(id, U256::from(base + rank as u64 * WORD_BYTES as u64));
             }
         }
+        for (func_id, id) in std::mem::take(&mut self.external_spill_base_consts) {
+            let base =
+                entry_bases[&func_id] + static_alloc_sizes.get(&func_id).copied().unwrap_or(0);
+            self.asm.set_deferred_const(id, U256::from(base));
+        }
 
         let max_entry_end = entry_ends.values().copied().max().unwrap_or(0);
         let region_start = max_entry_end.max(low_memory_end);
@@ -928,7 +938,57 @@ impl<'gcx> EvmCodegen<'gcx> {
             let floor = free_memory_floors[&entry];
             self.asm.set_deferred_const(id, U256::from(floor));
         }
+        if !self.spill_base_floor_consts.is_empty() {
+            // floor = max(static compiler memory + heap prefix, constant memory ranges)
+            let static_end = frame_bases
+                .iter()
+                .map(|(&func, &base)| base + self.emitted_frame_size(module, func))
+                .chain(entry_ends.values().copied())
+                .chain(heap_alloc_ends.values().copied())
+                .chain(free_memory_floors.values().copied())
+                .fold(low_memory_end, u64::max)
+                .checked_add(reachable_heap_prefix_guards.values().copied().max().unwrap_or(0))
+                .expect("runtime heap prefix overflow");
+            self.resolve_spill_base_floors(module, static_end);
+        }
+        self.resolve_spill_base_areas(module);
         self.runtime_entry_reachability.clear();
+    }
+
+    /// Resolves the floors that dynamic spill areas move above.
+    pub(in crate::backend::evm::codegen) fn resolve_spill_base_floors(
+        &mut self,
+        module: &Module,
+        static_end: u64,
+    ) {
+        let constant_end = module
+            .functions
+            .iter()
+            .map(Self::constant_memory_write_end)
+            .fold(static_end, u64::max)
+            .next_multiple_of(EvmMemoryLayout::WORD_SIZE);
+        for id in std::mem::take(&mut self.spill_base_floor_consts) {
+            self.asm.set_deferred_const(id, U256::from(constant_end));
+        }
+    }
+
+    /// Resolves the area sizes of dynamic spill bases.
+    pub(in crate::backend::evm::codegen) fn resolve_spill_base_areas(&mut self, module: &Module) {
+        for (id, func_id, frame_body) in std::mem::take(&mut self.spill_base_area_consts) {
+            let size = if frame_body {
+                // An internal base starts at the first argument, after any frame header.
+                let header =
+                    if self.runtime_stack_args && self.static_frame_functions.contains(func_id) {
+                        0
+                    } else {
+                        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                    };
+                self.emitted_frame_size(module, func_id) - header
+            } else {
+                self.function_spill_sizes.get(&func_id).copied().unwrap_or(0)
+            };
+            self.asm.set_deferred_const(id, U256::from(size));
+        }
     }
 
     fn external_spill_base(
@@ -1315,6 +1375,36 @@ impl<'gcx> EvmCodegen<'gcx> {
         mark
     }
 
+    /// Returns the highest end address of any constant-address memory write in `func`.
+    ///
+    /// Writes ending above 4 GiB cannot pay for their memory expansion and are ignored.
+    fn constant_memory_write_end(func: &Function) -> u64 {
+        let range_end = |offset: ValueId, size: Option<u64>| {
+            let end = func.value_u64(offset)?.checked_add(size.filter(|&size| size != 0)?)?;
+            (end <= u64::from(u32::MAX)).then_some(end)
+        };
+        func.instructions()
+            .filter_map(|inst_id| match func.inst(inst_id).kind {
+                InstKind::MStore(addr, _) => range_end(addr, Some(EvmMemoryLayout::WORD_SIZE)),
+                InstKind::MStore8(addr, _) => range_end(addr, Some(1)),
+                InstKind::CalldataCopy(dest, _, size)
+                | InstKind::CodeCopy(dest, _, size)
+                | InstKind::DataCopy(_, dest, size)
+                | InstKind::ExtCodeCopy(_, dest, _, size)
+                | InstKind::ReturnDataCopy(dest, _, size)
+                | InstKind::MCopy(dest, _, size) => range_end(dest, func.value_u64(size)),
+                InstKind::Call { ret_offset, ret_size, .. }
+                | InstKind::CallCode { ret_offset, ret_size, .. }
+                | InstKind::StaticCall { ret_offset, ret_size, .. }
+                | InstKind::DelegateCall { ret_offset, ret_size, .. } => {
+                    range_end(ret_offset, func.value_u64(ret_size))
+                }
+                _ => None,
+            })
+            .max()
+            .unwrap_or(0)
+    }
+
     /// Visits physical memory ranges used by instructions and terminators.
     /// Unknown lengths still expose their base to heap-prefix analysis.
     fn for_each_memory_range(func: &Function, mut visit: impl FnMut(ValueId, Option<u64>)) {
@@ -1431,6 +1521,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         slot: SpillSlot,
     ) {
+        self.note_fixed_memory_access();
+        if self.emit_dynamic_spill_slot_addr(func, slot) {
+            return;
+        }
         if self.in_internal_function {
             self.emit_own_frame_addr(self.internal_spill_slot_offset(func, slot));
         } else {
@@ -1439,6 +1533,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn emit_spill_slot_addr_untracked(&mut self, func: &Function, slot: SpillSlot) {
+        self.note_fixed_memory_access();
+        if self.emit_dynamic_spill_slot_addr(func, slot) {
+            return;
+        }
         if self.in_internal_function {
             self.emit_own_frame_addr_untracked(self.internal_spill_slot_offset(func, slot));
         } else if self.in_constructor {
@@ -1473,7 +1571,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_op(op::MLOAD);
     }
 
-    fn internal_spill_slot_offset(&self, func: &Function, slot: SpillSlot) -> u64 {
+    pub(in crate::backend::evm::codegen) fn internal_spill_slot_offset(
+        &self,
+        func: &Function,
+        slot: SpillSlot,
+    ) -> u64 {
         EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
             + (func.params.len() as u64) * EvmMemoryLayout::WORD_SIZE
             + (func.return_components().len() as u64) * EvmMemoryLayout::WORD_SIZE
@@ -1501,10 +1603,13 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     pub(in crate::backend::evm::codegen) fn emit_internal_arg_load(&mut self, index: ArgIdx) {
-        self.emit_own_frame_addr_untracked(
-            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-                + (index.index() as u64) * EvmMemoryLayout::WORD_SIZE,
-        );
+        self.note_fixed_memory_access();
+        if !self.emit_dynamic_frame_arg_addr(index) {
+            self.emit_own_frame_addr_untracked(
+                EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                    + (index.index() as u64) * EvmMemoryLayout::WORD_SIZE,
+            );
+        }
         self.asm.emit_op(op::MLOAD);
     }
 }

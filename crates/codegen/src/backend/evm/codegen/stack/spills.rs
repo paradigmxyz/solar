@@ -542,15 +542,21 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Returns the shallowest stack word that `needed` does not claim. The dynamic spill base is
+    /// always claimed; function exits drop it explicitly after their last spill reload.
     pub(in crate::backend::evm::codegen) fn first_stack_value_not_needed_by(
         &self,
         needed: &[ValueId],
     ) -> Option<usize> {
         let mut remaining = Self::value_counts(needed.iter().copied());
+        let spill_base = self.spill_base.as_ref().map(|base| base.value);
         for (depth, slot) in self.scheduler.stack.iter().enumerate() {
             let Some(value) = slot else {
                 return Some(depth);
             };
+            if Some(value) == spill_base && !needed.contains(&value) {
+                continue;
+            }
             let Some(count) = remaining.get_mut(&value) else {
                 return Some(depth);
             };
@@ -1060,7 +1066,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         debug_assert!(depth >= stack_access_limit);
 
         let mut saved_above = Vec::with_capacity(depth + 1 - stack_access_limit);
+        let spill_base = self.spill_base.as_ref().map(|base| base.value);
         for _ in 0..(depth + 1 - stack_access_limit) {
+            // The dynamic spill base addresses every save below; keep it on top and save the
+            // word under it instead.
+            if spill_base.is_some() && self.scheduler.stack.top() == spill_base {
+                self.emit_stack_op(StackOp::Swap(1));
+            }
             let Some(top) = self.scheduler.stack.top() else {
                 panic!("cannot spill deep stack value {val:?}: untracked stack entry above it");
             };
@@ -1087,7 +1099,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (saved, restore) in saved_above.into_iter().rev() {
             let stack_depth = self.scheduler.depth();
             self.record_scheduled_ops_peak(stack_depth, std::slice::from_ref(&restore));
-            self.emit_scheduled_ops(func, [restore]);
+            self.emit_scheduled_ops(func, [restore], self.spill_base_model_depth());
             self.scheduler.stack.push(saved);
         }
     }
@@ -1298,12 +1310,26 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// The emitted placeholder belongs to an attempt that the outer codegen loop discards. The
     /// next attempt excludes this function from stack-only argument and return plans, so every
     /// value has a frame-backed reload route.
+    ///
+    /// A value kept on the stack across a low-memory clobber has no such fallback. Losing one
+    /// regenerates the function with a dynamic spill base instead.
     pub(in crate::backend::evm::codegen) fn recover_lost_internal_stack_value(
         &mut self,
         value: ValueId,
     ) -> bool {
-        let Some(func_id) = self.current_internal_function else { return false };
-        self.disabled_stack_only_functions.insert(func_id);
+        if let Some(func_id) = self.emitting_function
+            && self.spill_base.is_none()
+            && !self.spill_hazard_insts.is_empty()
+            && self.current_internal_function.is_none_or(|internal| {
+                self.resident_stack_args(internal).is_none_or(|args| !args.contains(&value))
+            })
+        {
+            self.request_dynamic_spill_base(func_id);
+        } else if let Some(func_id) = self.current_internal_function {
+            self.disabled_stack_only_functions.insert(func_id);
+        } else {
+            return false;
+        }
         self.asm.emit_push(U256::ZERO);
         self.scheduler.stack.push(value);
         true

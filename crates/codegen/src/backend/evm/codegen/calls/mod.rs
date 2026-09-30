@@ -68,7 +68,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
-        let resident_call_values: Vec<_> = if self.preserve_caller_stack {
+        let mut resident_call_values: Vec<_> = if self.preserve_caller_stack {
             self.resident_stack_args(func_id)
                 .into_iter()
                 .flatten()
@@ -81,6 +81,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else {
             Vec::new()
         };
+        // The dynamic spill base has no memory home and must survive every call.
+        resident_call_values.extend(self.spill_base.as_ref().map(|base| base.value));
 
         // Frame layout: [reserved][saved frame ptr][args][returns][locals][spills].
         // The first slot is reserved (the return address used to live there;
@@ -94,7 +96,23 @@ impl<'gcx> EvmCodegen<'gcx> {
         // a helper and then stored, as in `tryAdd`) would otherwise be popped by
         // the arg-store loop below and then lost when the stack is cleared for
         // the call, leaving it unavailable at its later use.
-        self.spill_live_stack_values(func_id, func, liveness, block, inst_idx);
+        if self.carry_live_across_call {
+            // The callee may write a dynamic spill area. Keep everything live after the call on
+            // the stack instead.
+            let carried = self.carry_live_call_values(
+                func,
+                liveness,
+                block,
+                inst_idx,
+                result,
+                self.in_internal_function,
+            );
+            self.carried_call_values.clone_from(&carried);
+            resident_call_values.extend(carried);
+            self.check_carried_call_values(func, &mut resident_call_values, 1);
+        } else {
+            self.spill_live_stack_values(func_id, func, liveness, block, inst_idx);
+        }
 
         // The dynamic-frame base is an anonymous word kept on the physical stack while arguments
         // are stored. Give any argument that this extra word would bury beyond `DUP` a memory
@@ -533,8 +551,21 @@ impl<'gcx> EvmCodegen<'gcx> {
             if self.runtime_stack_args { self.stack_arg_mask(callee).cloned() } else { None };
         let argument_words = stack_mask.as_ref().map_or(0, DenseBitSet::count);
         let recursive_reentry = self.recursive_frame_edges.contains(&(func_id, callee));
+        let carry_live = recursive_reentry || self.carry_live_across_call;
         let mut recursive_call_values = Vec::new();
-        if recursive_reentry {
+        if !recursive_reentry && self.carry_live_across_call {
+            // The callee may write a dynamic spill area. Keep everything live after the call on
+            // the stack instead.
+            recursive_call_values = self.carry_live_call_values(
+                func,
+                liveness,
+                block,
+                inst_idx,
+                result,
+                self.in_internal_function,
+            );
+            self.carried_call_values.clone_from(&recursive_call_values);
+        } else if recursive_reentry {
             // The callee is about to reuse a scratch frame that may belong to
             // an older activation in the same recursive component. Recover
             // every caller word needed after the call before argument stores
@@ -604,6 +635,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
+        if let Some(base) = &self.spill_base
+            && !resident_call_values.contains(&base.value)
+        {
+            // The dynamic spill base has no memory home and must survive every call.
+            resident_call_values.push(base.value);
+        }
+        if self.carry_live_across_call {
+            self.check_carried_call_values(func, &mut resident_call_values, argument_words + 1);
+            recursive_call_values.retain(|value| resident_call_values.contains(value));
+        }
         let carries_resident_stack = !resident_call_values.is_empty();
         let caller_stack_plan = (!carries_resident_stack).then(|| {
             self.plan_static_call_stack(
@@ -651,7 +692,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
-        if !recursive_reentry && caller_stack_plan.is_none() {
+        if !carry_live && caller_stack_plan.is_none() {
             // The fallback drains the caller stack, so park every value needed after the call
             // before consuming arguments.
             self.spill_live_stack_values(func_id, func, liveness, block, inst_idx);
@@ -831,12 +872,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                     "recursive caller argument exceeded DUP reach"
                 );
                 self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
-                let addr = self.static_frame_addr(
-                    func_id,
-                    EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-                        + index.index() as u64 * EvmMemoryLayout::WORD_SIZE,
-                );
-                self.asm.emit_push_deferred(addr);
+                if !self.emit_dynamic_frame_arg_addr(*index) {
+                    let addr = self.static_frame_addr(
+                        func_id,
+                        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                            + index.index() as u64 * EvmMemoryLayout::WORD_SIZE,
+                    );
+                    self.asm.emit_push_deferred(addr);
+                }
                 self.scheduler.stack.push_unknown();
                 self.asm.emit_op(op::MSTORE);
                 self.scheduler.instruction_executed(2, None);

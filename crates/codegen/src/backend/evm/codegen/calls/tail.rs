@@ -75,6 +75,7 @@ impl EvmCodegen<'_> {
         for value in Self::missing_stack_phi_sources(&self.scheduler.stack, args) {
             self.emit_operand(func, value);
         }
+        self.drop_spill_base();
         let target = args.iter().rev().copied().map(TargetSlot::Value).collect::<Vec<_>>();
         let shuffle = self.scheduler.shuffle_to_layout(&target).unwrap_or_else(|| {
             panic!("could not stage direct self-tail arguments in `{}`", func.name)
@@ -155,6 +156,7 @@ impl EvmCodegen<'_> {
         for value in Self::missing_stack_phi_sources(&self.scheduler.stack, args) {
             self.emit_operand(func, value);
         }
+        self.drop_spill_base();
         let target = args.iter().rev().copied().map(TargetSlot::Value).collect::<Vec<_>>();
         let Some(shuffle) = self.scheduler.shuffle_to_layout(&target) else {
             // Regenerate with the callee's frame convention if the stack tuple

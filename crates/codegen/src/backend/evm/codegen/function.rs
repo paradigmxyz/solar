@@ -112,18 +112,49 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Generates the body of a function.
     pub(super) fn generate_function_body(&mut self, func_id: FunctionId, func: &Function) {
+        self.spill_base = None;
+        self.emitting_function = Some(func_id);
+        self.after_spill_hazard = false;
+        let dynamic_spill_base_func;
+        let func = if self.uses_dynamic_spill_base(func_id) {
+            dynamic_spill_base_func = self.begin_dynamic_spill_base(func_id, func);
+            &dynamic_spill_base_func
+        } else {
+            func
+        };
         let stack_only_disabled_at_entry = self.stack_only_function_disabled(func_id);
         let report_missing_spill_home = self.gcx.sess.opts.unstable.assert_planned_edge_spill_home;
-        let block_local_liveness =
-            self.emitting_entry.then(|| Liveness::compute_block_local_for_codegen(func)).flatten();
-        let whole_function_liveness = block_local_liveness.is_none();
-        let liveness =
-            block_local_liveness.map_or_else(|| self.function_liveness(func_id, func), Rc::new);
+        let block_local_liveness = (self.emitting_entry && self.spill_base.is_none())
+            .then(|| Liveness::compute_block_local_for_codegen(func))
+            .flatten();
+        // The dynamic spill base changes the function, so its analyses are not cached.
+        let whole_function_liveness = block_local_liveness.is_none() && self.spill_base.is_none();
+        let liveness = if let Some(base) = &self.spill_base {
+            let mut liveness = Liveness::compute(func);
+            liveness.pin(func, base.value);
+            Rc::new(liveness)
+        } else {
+            block_local_liveness.map_or_else(|| self.function_liveness(func_id, func), Rc::new)
+        };
         let liveness = &*liveness;
         let cross_block_live = OnceCell::new();
         let mut function_returns = FxHashSet::default();
 
         self.spill_hazard_insts = self.compute_spill_hazard_insts(func);
+        if self.spill_base.is_some() && self.spill_hazard_clobbers_frame_pointer(func) {
+            self.gcx
+                .dcx()
+                .err(format!(
+                    "codegen cannot keep the internal frame of `{}` across a dynamic low-memory \
+                     write",
+                    func.name
+                ))
+                .note(
+                    "the write can cover the frame pointer this recursive function keeps at `0xa0`",
+                )
+                .emit();
+            return;
+        }
 
         // Eliminate phis.
         self.block_copies.clear();
@@ -152,52 +183,64 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut stack_phi_plan =
             phi_plan.as_deref().map_or_else(StackPhiPlan::default, StackPhiPlan::clone);
         let resident_stack_plan = self.resident_stack_plan(func_id).cloned();
-        // Without a forwarding-buffer clobber no value needs a successor after one.
-        let hazard_cross_block_values = if self.spill_hazard_insts.is_empty() {
-            Vec::new()
-        } else {
-            let existing_stack_only_values = self.stack_only_values(func_id, true);
-            let hazard_recomputable =
-                cross_block_values(func, |value| !existing_stack_only_values.contains(&value));
-            self.spill_hazard_cross_block_values(
-                func,
-                liveness,
-                &cross_block_live,
-                &hazard_recomputable,
-            )
-        };
-        let resident_carries_hazards = resident_stack_plan.as_ref().is_some_and(|plan| {
-            self.stack_plan_carries_spill_hazards(func, liveness, plan, &hazard_cross_block_values)
-        });
+        // Without a forwarding-buffer clobber no value needs a successor after one. A dynamic
+        // spill base keeps only its own word on the stack; other values spill above the buffer.
+        let hazard_cross_block_values =
+            if self.spill_hazard_insts.is_empty() || self.spill_base.is_some() {
+                Vec::new()
+            } else {
+                let existing_stack_only_values = self.stack_only_values(func_id, true);
+                let hazard_recomputable =
+                    cross_block_values(func, |value| !existing_stack_only_values.contains(&value));
+                self.spill_hazard_cross_block_values(
+                    func,
+                    liveness,
+                    &cross_block_live,
+                    &hazard_recomputable,
+                )
+            };
+        let resident_carries_hazards = self.spill_base.is_none()
+            && resident_stack_plan.as_ref().is_some_and(|plan| {
+                self.stack_plan_carries_spill_hazards(
+                    func,
+                    liveness,
+                    plan,
+                    &hazard_cross_block_values,
+                )
+            });
         let mut protected_stack_values =
             self.resident_stack_args(func_id).map_or_else(Vec::new, |values| values.to_vec());
+        protected_stack_values.extend(self.spill_base.as_ref().map(|base| base.value));
         for &value in &hazard_cross_block_values {
             if !protected_stack_values.contains(&value) {
                 protected_stack_values.push(value);
             }
         }
-        let hazard_stack_layout = (!hazard_cross_block_values.is_empty()
+        let hazard_stack_layout = ((!hazard_cross_block_values.is_empty()
             && !resident_carries_hazards)
-            .then(|| {
-                self.compute_spill_hazard_stack_layout(
-                    func,
-                    liveness,
-                    &stack_phi_plan,
-                    &protected_stack_values,
-                )
-            })
-            .flatten();
-        if !hazard_cross_block_values.is_empty()
+            || self.spill_base.is_some())
+        .then(|| {
+            self.compute_spill_hazard_stack_layout(
+                func,
+                liveness,
+                &stack_phi_plan,
+                &protected_stack_values,
+            )
+        })
+        .flatten();
+        if self.spill_base.is_some() {
+            assert!(
+                hazard_stack_layout.is_some(),
+                "dynamic spill base of `{}` has no resident stack layout",
+                func.name
+            );
+        } else if !hazard_cross_block_values.is_empty()
             && hazard_stack_layout.is_none()
             && !resident_carries_hazards
         {
-            self.gcx
-                .dcx()
-                .err(format!(
-                    "codegen cannot preserve values across a low-memory forwarding buffer in `{}`",
-                    func.name
-                ))
-                .emit();
+            // The values do not fit on the stack. Regenerate with a dynamic spill base, which
+            // spills them above the buffer instead.
+            self.request_dynamic_spill_base(func_id);
             return;
         }
         let hazard_stack_values = hazard_stack_layout.as_ref().map(|(values, _)| values.as_slice());
@@ -219,11 +262,42 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut stack_phi_sources = stack_phi_plan.edge_sources();
         if required_stack_plan {
             if !stack_phi_plan.merge_resident(func, &global_stack_plan, self.stack_access_limit()) {
-                // Selection preflights this exact composition. If a future transform invalidates
-                // that proof, regenerate the runtime with the ordinary frame-backed convention
-                // instead of emitting a partial stack ABI or panicking.
-                self.disabled_stack_only_functions.insert(func_id);
-                return;
+                if self.spill_base.is_none() {
+                    // Selection preflights this exact composition. If a future transform
+                    // invalidates that proof, regenerate the runtime with the ordinary
+                    // frame-backed convention instead of emitting a partial stack ABI or
+                    // panicking. Values kept on the stack across a low-memory clobber have no
+                    // frame-backed convention; they move to a dynamic spill base instead.
+                    if has_hazard_stack_plan {
+                        self.request_dynamic_spill_base(func_id);
+                    } else {
+                        self.disabled_stack_only_functions.insert(func_id);
+                    }
+                    return;
+                }
+                // The dynamic spill base must reach every block and has no fallback. Carry phis
+                // through their memory copies instead of stack layouts.
+                stack_phi_plan = StackPhiPlan {
+                    loop_blocks: std::mem::take(&mut stack_phi_plan.loop_blocks),
+                    ..StackPhiPlan::default()
+                };
+                global_stack_plan = self
+                    .compute_spill_hazard_stack_layout(
+                        func,
+                        liveness,
+                        &stack_phi_plan,
+                        &protected_stack_values,
+                    )
+                    .map(|(_, plan)| plan)
+                    .expect("dynamic spill base layout without stack phis");
+                assert!(
+                    stack_phi_plan.merge_resident(
+                        func,
+                        &global_stack_plan,
+                        self.stack_access_limit()
+                    ),
+                    "dynamic spill base layout does not compose without stack phis"
+                );
             }
             stack_phi_sources = stack_phi_plan.edge_sources();
         } else if global_stack_plan.is_empty()
@@ -383,7 +457,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         // and drop the scheduler's stored guarantee where a live value is not
         // available, so that path stores again before any reload.
         let mut spill_avail_out: FxHashMap<BlockId, FxHashSet<ValueId>> = FxHashMap::default();
+        // Blocks that may run after a low-memory clobber. A static spill access there can touch
+        // the forwarded buffer, so it requests a dynamic spill base instead.
+        let post_hazard_blocks = (self.spill_base.is_none() && !self.spill_hazard_insts.is_empty())
+            .then(|| self.post_spill_hazard_blocks(func, &store_cfg));
+        // Calls before which a dynamic spill base raises the free-memory pointer past its area.
+        let free_memory_trusted_calls = if self.spill_base.is_some() {
+            self.free_memory_trusted_calls(func)
+        } else {
+            FxHashSet::default()
+        };
         for (pos, &block_id) in block_order.iter().enumerate() {
+            self.after_spill_hazard =
+                post_hazard_blocks.as_ref().is_some_and(|blocks| blocks.contains(block_id));
             let block = &func.blocks[block_id];
             let fallthrough = block_order.get(pos + 1).copied();
             let self_tail_call = self.void_self_tail_call(func_id, func, block_id);
@@ -509,6 +595,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
                 let inst = func.inst(inst_id);
 
+                if self.is_spill_base_inst(inst_id) {
+                    self.emit_spill_base_init(func_id);
+                    continue;
+                }
+
                 // icall callee(args); return -> forward_return_address callee(args)
                 if (self_tail_call.is_some() || tail_call.is_some())
                     && inst_idx + 1 == block.instructions.len()
@@ -548,7 +639,18 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // yet: free-memory-pointer loads reserve a reloadable slot
                 // before their definition stores them, and reloading one here
                 // would read a slot nothing has stored.
-                if self.spill_hazard_insts.contains(&inst_id) {
+                self.refresh_spill_base();
+                let pointer_raised = free_memory_trusted_calls.contains(&inst_id);
+                if pointer_raised {
+                    self.emit_free_memory_bump();
+                }
+                self.carry_live_across_call = self.spill_base.is_some()
+                    && self.call_may_write_spill_area(func, inst_id, pointer_raised);
+                if self.spill_base.is_some() {
+                    self.relocate_spill_base_before_write(
+                        func, liveness, block_id, inst_idx, inst_id,
+                    );
+                } else if self.spill_hazard_insts.contains(&inst_id) {
                     let pending = &block.instructions[inst_idx..];
                     let at_risk: Vec<ValueId> = self
                         .scheduler
@@ -588,8 +690,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                     inst_idx,
                     result_value,
                 );
+                if std::mem::take(&mut self.carry_live_across_call) {
+                    // The call may have written anywhere the area was.
+                    self.move_spill_base_above_msize();
+                    let carried = std::mem::take(&mut self.carried_call_values);
+                    self.restore_carried_frame_args(func, &carried);
+                }
                 if !stack_only_disabled_at_entry && self.stack_only_function_disabled(func_id) {
                     return;
+                }
+                if self.spill_base.is_none() && self.spill_hazard_insts.contains(&inst_id) {
+                    self.after_spill_hazard = true;
                 }
                 if let Some(result) = result_value {
                     self.spill_reserved_result_if_live(func, liveness, block_id, inst_idx, result);

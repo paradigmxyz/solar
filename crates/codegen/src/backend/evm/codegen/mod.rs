@@ -74,6 +74,7 @@ mod instructions;
 mod planning;
 mod runtime;
 pub(crate) mod select;
+mod spill_base;
 mod terminator;
 mod values;
 
@@ -150,6 +151,23 @@ struct SpillStore {
     slot: SpillSlot,
     block: ir::BlockId,
     range: std::ops::Range<usize>,
+}
+
+/// Spill-area addressing for a function that clobbers low memory with a dynamic-length write.
+///
+/// A copy such as `calldatacopy(0, 0, calldatasize())` can overwrite every fixed spill slot, and
+/// the copied buffer stays readable for an unknown time afterwards. Such a function keeps the
+/// address of its spill area in one stack word instead. The area starts at its static location
+/// and moves above every write that may overlap it; slots are addressed relative to the word.
+struct DynamicSpillBase {
+    /// Stack word holding the current spill-area address.
+    value: ValueId,
+    /// Placeholder entry instruction that defines `value`.
+    inst: InstId,
+    /// Byte size of the function's spill area, known after the body has emitted.
+    area: DeferredConst,
+    /// First byte above every static and constant-address memory range of the runtime.
+    floor: DeferredConst,
 }
 
 /// A single-use call gas operand rebuilt at the call site.
@@ -367,6 +385,36 @@ pub struct EvmCodegen<'gcx> {
     /// across one are kept stack-resident instead of reloaded from the
     /// overwritten slot. Empty for every function without such a forward.
     spill_hazard_insts: FxHashSet<InstId>,
+    /// Functions that address their spill area through a runtime base word. See
+    /// [`DynamicSpillBase`].
+    dynamic_spill_base_functions: DenseBitSet<FunctionId>,
+    /// The runtime spill base of the function being emitted.
+    spill_base: Option<DynamicSpillBase>,
+    /// Physical depth of the spill base while scheduled operations emit ahead of the model.
+    spill_base_depth: Option<usize>,
+    /// The function whose body is being emitted.
+    emitting_function: Option<FunctionId>,
+    /// Whether the current emission point may follow a low-memory clobber.
+    after_spill_hazard: bool,
+    /// Area-size constants of dynamic spill bases, resolved after emission, and whether each
+    /// covers an internal frame body rather than only a spill area.
+    spill_base_area_consts: Vec<(DeferredConst, FunctionId, bool)>,
+    /// Memory-floor constants of dynamic spill bases, resolved after frame placement.
+    spill_base_floor_consts: Vec<DeferredConst>,
+    /// Initial spill-area addresses of external entries with a dynamic spill base.
+    external_spill_base_consts: FxHashMap<FunctionId, DeferredConst>,
+    /// Functions that may leave something other than a pointer in the free-memory-pointer word.
+    free_memory_clobbering_functions: DenseBitSet<FunctionId>,
+    /// Functions that, directly or through calls, may write memory they did not allocate.
+    unowned_memory_writers: DenseBitSet<FunctionId>,
+    /// Functions that, directly or through calls, may write memory reached through the
+    /// free-memory pointer.
+    heap_memory_writers: DenseBitSet<FunctionId>,
+    /// Whether the internal call being emitted carries the caller's live values on the stack,
+    /// because the callee may write a dynamic spill area.
+    carry_live_across_call: bool,
+    /// Values the internal call being emitted carried on the stack.
+    carried_call_values: Vec<ValueId>,
     /// Leaf helpers whose sole returned word is derived from the free-memory pointer.
     /// Their callers may safely use the result as a dynamic forwarding-buffer base.
     heap_pointer_return_functions: DenseBitSet<FunctionId>,
@@ -459,6 +507,19 @@ impl<'gcx> EvmCodegen<'gcx> {
             function_liveness: FxHashMap::default(),
             function_ir_block_start: 0,
             spill_hazard_insts: FxHashSet::default(),
+            dynamic_spill_base_functions: DenseBitSet::new_empty(0),
+            spill_base: None,
+            spill_base_depth: None,
+            emitting_function: None,
+            after_spill_hazard: false,
+            spill_base_area_consts: Vec::new(),
+            spill_base_floor_consts: Vec::new(),
+            external_spill_base_consts: FxHashMap::default(),
+            free_memory_clobbering_functions: DenseBitSet::new_empty(0),
+            unowned_memory_writers: DenseBitSet::new_empty(0),
+            heap_memory_writers: DenseBitSet::new_empty(0),
+            carry_live_across_call: false,
+            carried_call_values: Vec::new(),
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
             global_stack_active: false,
             global_stack_aliases: FxHashMap::default(),
@@ -521,6 +582,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.stack_phi_plans.clear();
         self.function_liveness.clear();
         self.spill_hazard_insts.clear();
+        self.dynamic_spill_base_functions.clear_to(module.functions.len());
+        self.spill_base = None;
+        self.spill_base_depth = None;
+        self.emitting_function = None;
+        self.after_spill_hazard = false;
+        self.spill_base_area_consts.clear();
+        self.spill_base_floor_consts.clear();
+        self.external_spill_base_consts.clear();
+        self.free_memory_clobbering_functions.clear_to(module.functions.len());
+        self.unowned_memory_writers.clear_to(module.functions.len());
+        self.heap_memory_writers.clear_to(module.functions.len());
+        self.carry_live_across_call = false;
+        self.carried_call_values.clear();
         self.heap_pointer_return_functions.clear_to(module.functions.len());
         self.global_stack_active = false;
         self.global_stack_aliases.clear();

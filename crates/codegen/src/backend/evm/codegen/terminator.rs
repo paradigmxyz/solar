@@ -90,6 +90,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             for value in Self::missing_stack_phi_sources(&self.scheduler.stack, values) {
                 self.emit_operand(func, value);
             }
+            self.drop_spill_base();
             // StackModel and the shuffler use top-to-bottom order. The physical ABI leaves the
             // last result on top so the caller can stage anonymous results N-1..1 before adopting
             // the MIR-visible first result.
@@ -286,6 +287,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         {
                             self.emit_operand(func, value);
                         }
+                        self.drop_spill_base();
                         let target: Vec<_> =
                             stack_args.iter().copied().map(TargetSlot::Value).collect();
                         let Some(shuffle) = self.scheduler.shuffle_to_layout(&target) else {
@@ -300,6 +302,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                         }
                     }
                 }
+                // The callee's convention has no place for the dynamic spill base.
+                self.drop_spill_base();
                 let label = self.function_labels[function];
                 self.emit_push_label(label);
                 self.asm.emit_op(op::JUMP);
