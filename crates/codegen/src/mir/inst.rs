@@ -1,9 +1,6 @@
 //! MIR instructions.
 
-use super::{
-    Function, InstKind, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation, Value,
-    ValueId,
-};
+use super::{Function, InstKind, MemoryObjectLayout, MirType, SliceLocation, Value, ValueId};
 use crate::mir::{Builtin, Callee};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -634,7 +631,7 @@ impl AbiEncodeMode {
     pub(crate) const fn result_type(self) -> MirType {
         match self {
             Self::Slice | Self::Scratch => MirType::Slice(SliceLocation::Memory),
-            Self::Bytes => MirType::MemoryObject(MemoryObjectKind::Bytes),
+            Self::Bytes => MirType::MemPtr,
         }
     }
 }
@@ -644,8 +641,7 @@ impl AllocationKind {
     #[must_use]
     pub(crate) const fn result_type(self) -> MirType {
         match self {
-            Self::Raw => MirType::MemPtr,
-            Self::Object(layout) => MirType::MemoryObject(layout.kind()),
+            Self::Raw | Self::Object(_) => MirType::MemPtr,
         }
     }
 }

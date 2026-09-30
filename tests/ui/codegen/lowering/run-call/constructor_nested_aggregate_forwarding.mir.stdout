@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_aggregate_forwarding.sol:ConstructorAggregateBase ===
 @module ConstructorAggregateBase
-fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, tuple<u256, bytes>>]] {
+fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, tuple<u256, bytes>>]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = sload 0 !metadata(storage=slot(0))
@@ -25,12 +25,12 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, tuple<u256
     ret
   bb9:
     v21 = memory_object_load_element memoryarray<1>, arg0, v19
-    v22 = inttoptr i256 v21 to memorystruct
+    v22 = inttoptr i256 v21 to memptr
     v23 = eq v21, 0
     jumpi v23, bb11, bb12
   bb11:
     v24 = icall @default_struct_0
-    v25 = ptrtoint memorystruct v24 to i256
+    v25 = ptrtoint memptr v24 to i256
     memory_object_store_element memoryarray<1>, arg0, v19, v25
     jump bb12
   bb12:
@@ -42,7 +42,7 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, tuple<u256
     sstore v29, v30 !metadata(storage=symbolic(v29))
     v31 = add v29, 1
     v32 = memory_object_load_field memorystruct<2>, v26, 1
-    v33 = inttoptr i256 v32 to memorybytes
+    v33 = inttoptr i256 v32 to memptr
     icall @store_storage_bytes, v31, v33
     v34 = add v19, 1
     jump bb8
@@ -72,18 +72,18 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, tuple<u256
     jump bb3
 }
 
-fn @default_struct_0() -> memorystruct {
+fn @default_struct_0() -> memptr {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v0, 0, 0
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v1, 0
-    v2 = ptrtoint memorybytes v1 to i256
+    v2 = ptrtoint memptr v1 to i256
     memory_object_store_field memorystruct<2>, v0, 1, v2
     ret v0
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
@@ -91,7 +91,7 @@ fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_aggregate_forwarding.sol:ConstructorAggregateMain ===
 @module ConstructorAggregateMain
-fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, tuple<u256, bytes>>]] {
+fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, tuple<u256, bytes>>]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = sload 0 !metadata(storage=slot(0))
@@ -120,12 +120,12 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, tuple<u256
     ret
   bb10:
     v21 = memory_object_load_element memoryarray<1>, arg0, v19
-    v22 = inttoptr i256 v21 to memorystruct
+    v22 = inttoptr i256 v21 to memptr
     v23 = eq v21, 0
     jumpi v23, bb12, bb13
   bb12:
     v24 = icall @default_struct_0
-    v25 = ptrtoint memorystruct v24 to i256
+    v25 = ptrtoint memptr v24 to i256
     memory_object_store_element memoryarray<1>, arg0, v19, v25
     jump bb13
   bb13:
@@ -137,7 +137,7 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, tuple<u256
     sstore v29, v30 !metadata(storage=symbolic(v29))
     v31 = add v29, 1
     v32 = memory_object_load_field memorystruct<2>, v26, 1
-    v33 = inttoptr i256 v32 to memorybytes
+    v33 = inttoptr i256 v32 to memptr
     icall @store_storage_bytes, v31, v33
     v34 = add v19, 1
     jump bb9
@@ -223,18 +223,18 @@ fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word]
     ret v44
 }
 
-fn @default_struct_0() -> memorystruct {
+fn @default_struct_0() -> memptr {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v0, 0, 0
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v1, 0
-    v2 = ptrtoint memorybytes v1 to i256
+    v2 = ptrtoint memptr v1 to i256
     memory_object_store_field memorystruct<2>, v0, 1, v2
     ret v0
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
@@ -260,12 +260,12 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = memory_object_load_element memoryarray<1>, v0, 0
-    v11 = inttoptr i256 v10 to memorystruct
+    v11 = inttoptr i256 v10 to memptr
     v12 = eq v10, 0
     jumpi v12, bb4, bb5
   bb4:
     v13 = icall @default_struct_0
-    v14 = ptrtoint memorystruct v13 to i256
+    v14 = ptrtoint memptr v13 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v14
     jump bb5
   bb5:
@@ -281,29 +281,29 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = memory_object_load_element memoryarray<1>, v0, 0
-    v23 = inttoptr i256 v22 to memorystruct
+    v23 = inttoptr i256 v22 to memptr
     v24 = eq v22, 0
     jumpi v24, bb6, bb7
   bb6:
     v25 = icall @default_struct_0
-    v26 = ptrtoint memorystruct v25 to i256
+    v26 = ptrtoint memptr v25 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v26
     jump bb7
   bb7:
     v27 = phi [bb5: v23], [bb6: v25]
-    v28 = ptrtoint memorybytes v16 to i256
+    v28 = ptrtoint memptr v16 to i256
     memory_object_store_field memorystruct<2>, v27, 1, v28
     v29 = memory_object_len memoryarray, v0
     v30 = lt 1, v29
     v31 = eq v30, false
     icall panic_if<0x32>, v31
     v32 = memory_object_load_element memoryarray<1>, v0, 1
-    v33 = inttoptr i256 v32 to memorystruct
+    v33 = inttoptr i256 v32 to memptr
     v34 = eq v32, 0
     jumpi v34, bb8, bb9
   bb8:
     v35 = icall @default_struct_0
-    v36 = ptrtoint memorystruct v35 to i256
+    v36 = ptrtoint memptr v35 to i256
     memory_object_store_element memoryarray<1>, v0, 1, v36
     jump bb9
   bb9:
@@ -319,17 +319,17 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v43 = eq v42, false
     icall panic_if<0x32>, v43
     v44 = memory_object_load_element memoryarray<1>, v0, 1
-    v45 = inttoptr i256 v44 to memorystruct
+    v45 = inttoptr i256 v44 to memptr
     v46 = eq v44, 0
     jumpi v46, bb10, bb11
   bb10:
     v47 = icall @default_struct_0
-    v48 = ptrtoint memorystruct v47 to i256
+    v48 = ptrtoint memptr v47 to i256
     memory_object_store_element memoryarray<1>, v0, 1, v48
     jump bb11
   bb11:
     v49 = phi [bb9: v45], [bb10: v47]
-    v50 = ptrtoint memorybytes v38 to i256
+    v50 = ptrtoint memptr v38 to i256
     memory_object_store_field memorystruct<2>, v49, 1, v50
     v51 = abi_encode [memory_array<tuple<word, memory_bytes>>], args v0
     v52 = slice_len v51
@@ -378,21 +378,21 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
   bb2:
     v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v3, 0, 0
-    v4 = ptrtoint memorybytes 96 to i256
+    v4 = ptrtoint memptr 96 to i256
     memory_object_store_field memorystruct<2>, v3, 1, v4
-    v5 = ptrtoint memorystruct v3 to i256
+    v5 = ptrtoint memptr v3 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v5
     v6 = add v1, 1
     jump bb1
 }
 
-fn @default_struct_0() -> memorystruct {
+fn @default_struct_0() -> memptr {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v0, 0, 0
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v1, 0
-    v2 = ptrtoint memorybytes v1 to i256
+    v2 = ptrtoint memptr v1 to i256
     memory_object_store_field memorystruct<2>, v0, 1, v2
     ret v0
 }

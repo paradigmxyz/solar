@@ -852,18 +852,17 @@ impl<'a> FunctionBuilder<'a> {
         )
     }
 
-    /// Loads a memory-object reference stored in a struct field.
+    /// Loads a memory-object pointer stored in a struct field.
     pub(crate) fn memory_object_load_object_field(
         &mut self,
         object: ValueId,
         layout: MemoryObjectLayout,
         field: u64,
-        kind: MemoryObjectKind,
     ) -> ValueId {
         // result = memory_object_load_field layout, object, field
         self.emit_inst(
             InstKind::MemoryObjectLoadField { object, layout, field },
-            Some(MirType::MemoryObject(kind)),
+            Some(MirType::MemPtr),
         )
     }
 
@@ -897,11 +896,10 @@ impl<'a> FunctionBuilder<'a> {
         object: ValueId,
         layout: MemoryObjectLayout,
         index: ValueId,
-        kind: MemoryObjectKind,
     ) -> ValueId {
         self.emit_inst(
             InstKind::MemoryObjectLoadElement { object, layout, index },
-            Some(MirType::MemoryObject(kind)),
+            Some(MirType::MemPtr),
         )
     }
 
@@ -1161,16 +1159,6 @@ impl<'a> FunctionBuilder<'a> {
         self.or(shifted, one)
     }
 
-    /// Gives raw pointer bits an object type without checking the object.
-    pub(crate) fn memory_object_from_ptr(
-        &mut self,
-        ptr: ValueId,
-        kind: MemoryObjectKind,
-    ) -> ValueId {
-        // object = inttoptr word to object, or bitcast pointer to object
-        self.cast(ptr, MirType::MemoryObject(kind))
-    }
-
     /// Builds a struct from its ordered field values.
     pub(crate) fn make_struct(
         &mut self,
@@ -1187,13 +1175,15 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Decodes a memory-backed ABI tuple into semantic values.
+    ///
+    /// `data` is a bytes object, or a raw word addressing a static head.
     pub(crate) fn abi_decode(
         &mut self,
         layout: crate::mir::AbiParamLayoutRef,
         data: ValueId,
         result_ty: MirType,
     ) -> ValueId {
-        let data = if matches!(self.func.value_ty(data), Some(MirType::I256 | MirType::MemPtr)) {
+        let data = if self.func.value_ty(data) == Some(MirType::I256) {
             // object = alloc_bytes static_head_size
             // memory_object_copy_from_slice object, make_memory_slice(data, static_head_size)
             let size = self.imm(layout.checked_head_size().expect("static ABI layout"));
@@ -1413,7 +1403,7 @@ impl<'a> FunctionBuilder<'a> {
         // object = returndata_bytes
         self.emit_inst(
             InstKind::builtin(crate::mir::Builtin::ReturndataBytes, []),
-            Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
+            Some(MirType::MemPtr),
         )
     }
 

@@ -11,7 +11,7 @@
 // CHECK: + {{v[0-9]+}} = mload [[LOAD]]
 // CHECK: + [[DATA:v[0-9]+]] = ptrtoint memptr [[OBJECT_PTR]] to i256
 // CHECK: + {{v[0-9]+}} = add [[DATA]], 32
-fn @objects(arg0: memorybytes, arg1: memoryarray, arg2: memorystruct, arg3: memoryfixedarray) {
+fn @objects(arg0: memptr, arg1: memptr, arg2: memptr, arg3: memptr) {
   bb0:
     v4 = alloc memorybytes, exact, zeroed, panic, 96
     set_memory_object_len memorybytes, v4, 3
@@ -35,7 +35,7 @@ fn @objects(arg0: memorybytes, arg1: memoryarray, arg2: memorystruct, arg3: memo
 // CHECK: + mcopy [[DEST1:v[0-9]+]], [[MEMORY_PTR:v[0-9]+]], [[MEMORY_LEN:v[0-9]+]]
 // CHECK: + calldatacopy [[DEST2:v[0-9]+]], [[CALLDATA_PTR:v[0-9]+]], [[CALLDATA_LEN:v[0-9]+]]
 // CHECK: + returndatacopy [[DEST3:v[0-9]+]], [[RETURNDATA_PTR:v[0-9]+]], [[RETURNDATA_LEN:v[0-9]+]]
-fn @copy_from_slice(arg0: memorybytes, arg1: memoryslice, arg2: calldataslice, arg3: returndataslice) {
+fn @copy_from_slice(arg0: memptr, arg1: memoryslice, arg2: calldataslice, arg3: returndataslice) {
   bb0:
     memory_object_copy_from_slice memorybytes, arg0, arg1
     memory_object_copy_from_slice memorybytes, arg0, arg2
@@ -45,30 +45,21 @@ fn @copy_from_slice(arg0: memorybytes, arg1: memoryslice, arg2: calldataslice, a
 
 // CHECK-LABEL: {{^[ +].*}}fn @copy_object{{[( ]}}
 // CHECK: + mcopy [[OBJECT_DEST:v[0-9]+]], [[OBJECT_SOURCE:v[0-9]+]], [[COPY_LEN:(v|arg)[0-9]+]]
-fn @copy_object(arg0: memorybytes, arg1: memorybytes, arg2: i256) {
+fn @copy_object(arg0: memptr, arg1: memptr, arg2: i256) {
   bb0:
     memory_object_copy memorybytes, arg0, memorybytes, arg1, arg2
     stop
 }
 
-// CHECK-LABEL: {{^[ +].*}}fn @raw_pointer{{[( ]}}
-// CHECK: + [[POINTER:v[0-9]+]] = inttoptr i256 arg0 to memptr
-// CHECK: ret [[POINTER]]
-fn @raw_pointer(arg0: i256) -> memorybytes {
-  bb0:
-    v0 = inttoptr i256 arg0 to memorybytes
-    ret v0
-}
-
 // CHECK-LABEL: {{^[ +].*}}fn @word_carrier{{[( ]}}
 // CHECK: {{^[ +].*}}[[POINTER:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} arg0
-// CHECK: + [[OBJECT_POINTER:v[0-9]+]] = inttoptr i256 [[POINTER]] to memptr
+// CHECK: {{^[ +].*}}[[OBJECT_POINTER:v[0-9]+]] = inttoptr i256 [[POINTER]] to memptr
 // CHECK-NOT: + {{.*}}ptrtoint
 // CHECK: + {{v[0-9]+}} = mload [[POINTER]]
-fn @word_carrier(arg0: memorystruct) -> i256 {
+fn @word_carrier(arg0: memptr) -> i256 {
   bb0:
-    v0 = ptrtoint memorystruct arg0 to i256
-    v2 = inttoptr i256 v0 to memorybytes
+    v0 = ptrtoint memptr arg0 to i256
+    v2 = inttoptr i256 v0 to memptr
     v1 = memory_object_len memorybytes, v2
     ret v1
 }
@@ -91,7 +82,7 @@ fn @unreachable_cast_cycle() -> i256 {
 // CHECK: + mstore [[BASE]], 0
 // CHECK: + [[OFFSET_BASE:v[0-9]+]] = ptrtoint memptr [[BASE_PTR]] to i256
 // CHECK: + [[NEXT:v[0-9]+]] = add [[OFFSET_BASE]], 32{{$}}
-fn @merged_allocations() -> memorybytes {
+fn @merged_allocations() -> memptr {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 0

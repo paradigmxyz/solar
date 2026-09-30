@@ -15,7 +15,7 @@ fn @b(arg0: i256) -> i256 [selector=0xcd580ff3, view, abi_params=[u256], abi_ret
     ret v2
 }
 
-fn @constructor(arg0: i256, arg1: memoryfixedarray) [constructor, abi_params=[u256, array<3, u256>]] {
+fn @constructor(arg0: i256, arg1: memptr) [constructor, abi_params=[u256, array<3, u256>]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     jump bb1

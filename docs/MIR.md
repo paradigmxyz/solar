@@ -8,9 +8,11 @@ is a late lowering decision.
 
 ## Value types and conversions
 
-SSA values use integers (`iN`), raw memory pointers (`memptr`), structs, slices,
-or memory-object references. A `memptr` carries a 256-bit memory address without
-implying validity, heap provenance, or non-wrapping pointer arithmetic.
+SSA values use integers (`iN`), opaque memory pointers (`memptr`), structs, or
+slices. A `memptr` carries a 256-bit memory address without implying validity,
+heap provenance, or non-wrapping pointer arithmetic. Memory objects are `memptr`
+values too: an access such as `memory_object_load_field memorystruct<3>, v0, 2`
+names the object layout itself, as LLVM loads name their type.
 An `i256` carries 256 bits; source widths, signedness, and ABI encoding rules
 belong to operation and layout metadata. An `i256` argument does not imply
 heap provenance or non-wrapping address arithmetic. `void` denotes no function result.
@@ -34,7 +36,7 @@ and use `opcode source-type value to destination-type`:
 - `sext i160 value to i256` widens by copying the sign bit.
 - `ptrtoint memptr value to i256` exposes a pointer's bits; narrower results truncate.
 - `inttoptr i256 value to memptr` interprets integer bits as a pointer.
-- `bitcast memptr value to memorybytes` changes a pointer's nominal type.
+- `bitcast memptr value to memptr` renames a value without changing its type or bits.
 
 `trunc i256 value to i1` keeps only the low bit. Use `ne value, 0` for
 nonzero truth conversion. Pointer casts establish no validity or ownership. Phi
@@ -104,7 +106,7 @@ fold checks that forwarding exposes. Storage PRE leaves memory reads alone to
 avoid extending pointer lifetimes. After allocation expansion, gas mode forwards
 free-memory-pointer loads within each block, discarding the cached word at other
 side effects. ABI expansion can create object operations
-and aggregate results; flatten structs before erasing object types, and keep
+and aggregate results; flatten structs before lowering memory objects, and keep
 allocation identity until placement has finished. Any newly introduced helper must pass through the remaining required
 lowerings too. Expansion must not leave a high-level operation behind merely
 because it was created after that operation's lowering pass ran.
@@ -312,7 +314,7 @@ loop allocations lose their distinct site identities after a possible pointer
 reset. Region labels describe layout and do not prove disjointness from raw
 addresses; CSE, memory DSE, and PRE require address or allocation proofs. Semantic
 object stores and copies also invalidate allocation provenance when their destination
-may reach reserved memory. An object type alone does not establish ownership. Do not
+may reach reserved memory. An object layout alone does not establish ownership. Do not
 attach heap-allocated effect records to every instruction. Unknown calls remain
 conservative; known intrinsics expose their summaries without expanding their
 implementation.
@@ -488,19 +490,18 @@ transforms justify their cost.
 
 `insert_value` and `extract_value` construct and project fixed SSA structs.
 They do not allocate storage, copy bytes, or imply an address. A slice field
-carries its pointer and length; a memory-object field carries a typed reference,
-not a copy of the referenced object.
+carries its pointer and length; a memory-object field carries a `memptr`, not a
+copy of the referenced object.
 
-A raw `i256` field can carry all bits of a nominal object reference. Keep that
-loss of type information explicit: `ptrtoint` exposes pointer bits as an
-integer; `inttoptr` gives an integer an object type without proving
-validity or ownership. Neither operation allocates or copies memory. Aggregate
-lowering inserts `ptrtoint` when a raw field contains a nominal reference;
-memory-object lowering erases object types, and later simplification removes
-redundant word casts. Alias analysis follows their unchanged addresses.
+A raw `i256` field can carry all bits of a pointer. Keep the conversion
+explicit: `ptrtoint` exposes pointer bits as an integer; `inttoptr` turns an
+integer into a `memptr` without proving validity or ownership. Neither operation
+allocates or copies memory. Field and element loads of a pointer produce a
+`memptr` directly, and later simplification removes redundant word casts. Alias
+analysis follows their unchanged addresses.
 
-The verifier checks nominal object kinds against semantic accesses, while
-retaining compatibility with raw pointer carriers during lowering. It also
+The verifier checks that semantic accesses receive pointers; the access itself
+names the object layout. It also
 checks ordinary return counts and void signatures. `ret` returns to a MIR
 caller, including for void functions; `stop` ends EVM execution even inside
 a helper. ABI lowering converts empty external returns into `stop`. A shared

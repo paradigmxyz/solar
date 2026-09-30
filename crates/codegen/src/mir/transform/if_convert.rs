@@ -262,7 +262,7 @@ fn join_selects(func: &Function, site: &Site) -> Option<Vec<Select>> {
 /// Whether a value carries memory, storage, or calldata provenance that the
 /// arithmetic forms would erase.
 fn is_pointer(func: &Function, value: ValueId) -> bool {
-    matches!(func.value_ty(value), Some(MirType::MemoryObject(_) | MirType::Slice(_)))
+    matches!(func.value_ty(value), Some(MirType::MemPtr | MirType::Slice(_)))
 }
 
 fn select_form(

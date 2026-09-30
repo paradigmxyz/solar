@@ -62,9 +62,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         element: Ty<'gcx>,
         value: ValueId,
     ) -> Option<ValueId> {
-        // value = memory_object_from_ptr<element>(value)
-        let kind = self.types.memory_layout(element)?.kind();
-        let value = self.builder.memory_object_from_ptr(value, kind);
+        // value = inttoptr value to memptr
+        let value = self.builder.cast(value, MirType::MemPtr);
         let zero = self.builder.imm(U256::ZERO);
         let is_null = self.builder.eq(value, zero);
         let preheader = self.builder.current_block();
@@ -101,9 +100,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.default_object(element);
         }
         let helper = self.default_struct_helper(id, element)?;
-        let kind = self.types.memory_layout(element)?.kind();
         // object = icall @default_struct_N
-        Some(self.builder.icall(helper, Vec::new(), MirType::MemoryObject(kind)))
+        Some(self.builder.icall(helper, Vec::new(), MirType::MemPtr))
     }
 
     /// Returns the shared constructor of `struct_id`'s default object.
@@ -112,12 +110,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         struct_id: hir::StructId,
         ty: Ty<'gcx>,
     ) -> Option<FunctionId> {
-        // fn @default_struct_N() -> memorystruct { object = default(Struct); ret object }
+        // fn @default_struct_N() -> memptr { object = default(Struct); ret object }
         self.lazy_helper(helper_name(sym::default_struct, struct_id.index()), |this, function| {
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
             let object = lowerer.default_object(ty)?;
-            let kind = lowerer.types.memory_layout(ty)?.kind();
-            lowerer.builder.set_return_type(MirType::MemoryObject(kind));
+            lowerer.builder.set_return_type(MirType::MemPtr);
             lowerer.builder.ret([object]);
             Some(())
         })
@@ -214,14 +211,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let helper = self.ensure_bytes_word_helper();
             let word = self.lower_string_literal_word(bytes);
             let length = self.builder.imm(bytes.len() as u64);
-            self.builder.icall(
-                helper,
-                vec![word, length],
-                MirType::MemoryObject(MemoryObjectKind::Bytes),
-            )
+            self.builder.icall(helper, vec![word, length], MirType::MemPtr)
         } else if let Some(index) = self.cx.shared_literals.get_index_of(&symbol) {
             let helper = self.ensure_bytes_literal_helper(symbol, index);
-            self.builder.icall(helper, Vec::new(), MirType::MemoryObject(MemoryObjectKind::Bytes))
+            self.builder.icall(helper, Vec::new(), MirType::MemPtr)
         } else {
             self.lower_bytes_literal(bytes)?
         };
@@ -236,7 +229,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let mut builder = FunctionBuilder::new_semantic(function);
             let word = builder.add_param(MirType::I256);
             let length = builder.add_param(MirType::I256);
-            builder.set_return_type(MirType::MemoryObject(MemoryObjectKind::Bytes));
+            builder.set_return_type(MirType::MemPtr);
             let size = builder.imm(64);
             let object = builder.alloc_object(
                 size,
@@ -356,7 +349,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // literal_bytes() -> bytes
         self.lazy_helper(helper_name(sym::literal_bytes, index), |this, function| {
             let mut builder = FunctionBuilder::new_semantic(function);
-            builder.set_return_type(MirType::MemoryObject(MemoryObjectKind::Bytes));
+            builder.set_return_type(MirType::MemPtr);
             let object = Self::build_bytes_literal(
                 this.cx.gcx,
                 this.cx.module,
@@ -394,7 +387,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             // object = ZERO_SLOT
             let value = crate::mir::Immediate::for_type(
-                Some(MirType::MemoryObject(layout.kind())),
+                Some(MirType::MemPtr),
                 U256::from(EvmMemoryLayout::ZERO_SLOT),
             );
             return Some(self.builder.func_mut().alloc_value(Value::Immediate(value)));

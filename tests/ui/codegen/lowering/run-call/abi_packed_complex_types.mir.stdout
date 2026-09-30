@@ -157,14 +157,14 @@ fn @hashNestedAbi() -> i256 [selector=0x821258ba, pure, abi_params=[], abi_retur
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = memory_object_load_element memoryarray<1>, v0, 0
-    v13 = inttoptr i256 v12 to memoryfixedarray
+    v13 = inttoptr i256 v12 to memptr
     v14 = eq v12, 0
     jumpi v14, bb4, bb5
   bb4:
     v15 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v16 = ptrtoint memoryfixedarray v15 to i256
+    v16 = ptrtoint memptr v15 to i256
     memory_zero v16, 64
-    v17 = ptrtoint memoryfixedarray v15 to i256
+    v17 = ptrtoint memptr v15 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v17
     jump bb5
   bb5:
@@ -180,14 +180,14 @@ fn @hashNestedAbi() -> i256 [selector=0x821258ba, pure, abi_params=[], abi_retur
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = memory_object_load_element memoryarray<1>, v0, 0
-    v27 = inttoptr i256 v26 to memoryfixedarray
+    v27 = inttoptr i256 v26 to memptr
     v28 = eq v26, 0
     jumpi v28, bb6, bb7
   bb6:
     v29 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v30 = ptrtoint memoryfixedarray v29 to i256
+    v30 = ptrtoint memptr v29 to i256
     memory_zero v30, 64
-    v31 = ptrtoint memoryfixedarray v29 to i256
+    v31 = ptrtoint memptr v29 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v31
     jump bb7
   bb7:
@@ -203,9 +203,9 @@ fn @hashNestedAbi() -> i256 [selector=0x821258ba, pure, abi_params=[], abi_retur
     ret v38
   bb2:
     v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v4 = ptrtoint memoryfixedarray v3 to i256
+    v4 = ptrtoint memptr v3 to i256
     memory_zero v4, 64
-    v5 = ptrtoint memoryfixedarray v3 to i256
+    v5 = ptrtoint memptr v3 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v5
     v6 = add v1, 1
     jump bb1
@@ -216,9 +216,9 @@ fn @hashStructAbi() -> i256 [selector=0x46dfc0fe, pure, abi_params=[], abi_retur
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
     v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v2 = ptrtoint memoryfixedarray v1 to i256
+    v2 = ptrtoint memptr v1 to i256
     memory_zero v2, 64
-    v3 = ptrtoint memoryfixedarray v1 to i256
+    v3 = ptrtoint memptr v1 to i256
     memory_object_store_field memorystruct<2>, v0, 1, v3
     v4 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
     v5 = and v4, 0xffffffffffffffffffffffffffffff
@@ -226,7 +226,7 @@ fn @hashStructAbi() -> i256 [selector=0x46dfc0fe, pure, abi_params=[], abi_retur
     v6 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
     v7 = and v6, 0xffffffffffffffffffffffffffffff
     v8 = memory_object_load_field memorystruct<2>, v0, 1
-    v9 = inttoptr i256 v8 to memoryfixedarray
+    v9 = inttoptr i256 v8 to memptr
     v10 = lt 0, 2
     v11 = eq v10, false
     icall panic_if<0x32>, v11
@@ -234,7 +234,7 @@ fn @hashStructAbi() -> i256 [selector=0x46dfc0fe, pure, abi_params=[], abi_retur
     v12 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3
     v13 = and v12, 0xffffffffffffffffffffffffffffff
     v14 = memory_object_load_field memorystruct<2>, v0, 1
-    v15 = inttoptr i256 v14 to memoryfixedarray
+    v15 = inttoptr i256 v14 to memptr
     v16 = lt 1, 2
     v17 = eq v16, false
     icall panic_if<0x32>, v17

@@ -1,29 +1,29 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_returndata_bounds.sol:ReturnProducer ===
 @module ReturnProducer
-fn @aggregate() -> memorystruct [selector=0xaf36778b, pure, abi_params=[], abi_returns=[tuple<tuple<array<2, word>>, word>], abi_return_params=[tuple<tuple<array<2, u256>>, u256>]] {
+fn @aggregate() -> memptr [selector=0xaf36778b, pure, abi_params=[], abi_returns=[tuple<tuple<array<2, word>>, word>], abi_return_params=[tuple<tuple<array<2, u256>>, u256>]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     v2 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v3 = ptrtoint memoryfixedarray v2 to i256
+    v3 = ptrtoint memptr v2 to i256
     memory_zero v3, 64
-    v4 = ptrtoint memoryfixedarray v2 to i256
+    v4 = ptrtoint memptr v2 to i256
     memory_object_store_field memorystruct<1>, v1, 0, v4
-    v5 = ptrtoint memorystruct v1 to i256
+    v5 = ptrtoint memptr v1 to i256
     memory_object_store_field memorystruct<2>, v0, 0, v5
     memory_object_store_field memorystruct<2>, v0, 1, 0
     v6 = memory_object_load_field memorystruct<2>, v0, 0
-    v7 = inttoptr i256 v6 to memorystruct
+    v7 = inttoptr i256 v6 to memptr
     v8 = memory_object_load_field memorystruct<1>, v7, 0
-    v9 = inttoptr i256 v8 to memoryfixedarray
+    v9 = inttoptr i256 v8 to memptr
     v10 = lt 0, 2
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     memory_object_store_element memoryfixedarray<2, 1>, v9, 0, 11
     v12 = memory_object_load_field memorystruct<2>, v0, 0
-    v13 = inttoptr i256 v12 to memorystruct
+    v13 = inttoptr i256 v12 to memptr
     v14 = memory_object_load_field memorystruct<1>, v13, 0
-    v15 = inttoptr i256 v14 to memoryfixedarray
+    v15 = inttoptr i256 v14 to memptr
     v16 = lt 1, 2
     v17 = eq v16, false
     icall panic_if<0x32>, v17
@@ -50,12 +50,12 @@ fn @dirtyAddress() -> i256 [selector=0x986597e5, pure, abi_params=[], abi_return
 @data
   ReturnProducer_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/external_returndata_bounds.sol:ReturnProducer"
 
-fn @check(arg0: memorystruct) -> i256 [pure] {
+fn @check(arg0: memptr) -> i256 [pure] {
   bb0:
     v0 = memory_object_load_field memorystruct<2>, arg0, 0
-    v1 = inttoptr i256 v0 to memorystruct
+    v1 = inttoptr i256 v0 to memptr
     v2 = memory_object_load_field memorystruct<1>, v1, 0
-    v3 = inttoptr i256 v2 to memoryfixedarray
+    v3 = inttoptr i256 v2 to memptr
     v4 = lt 0, 2
     v5 = eq v4, false
     icall panic_if<0x32>, v5
@@ -63,9 +63,9 @@ fn @check(arg0: memorystruct) -> i256 [pure] {
     v7 = eq v6, 11
     icall require<short_string>, v7, 5, 0x6669727374000000000000000000000000000000000000000000000000000000
     v8 = memory_object_load_field memorystruct<2>, arg0, 0
-    v9 = inttoptr i256 v8 to memorystruct
+    v9 = inttoptr i256 v8 to memptr
     v10 = memory_object_load_field memorystruct<1>, v9, 0
-    v11 = inttoptr i256 v10 to memoryfixedarray
+    v11 = inttoptr i256 v10 to memptr
     v12 = lt 1, 2
     v13 = eq v12, false
     icall panic_if<0x32>, v13
@@ -113,16 +113,20 @@ fn @staticAggregate() -> i256 [selector=0x9982aedb, abi_params=[], abi_returns=[
     v20 = returndatasize
     v21 = lt v20, 96
     icall revert_if<tuple_data_too_short>, v21
-    v22 = not 31
-    v23 = and 159, v22
-    v24 = alloc memorybytes, exact, uninitialized, infallible, v23
-    set_memory_object_len memorybytes, v24, 96
-    v25 = ptrtoint memptr v17 to i256
-    v26 = make_memory_slice v25, 96
-    memory_object_copy_from_slice memorybytes, v24, v26
-    v27 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v24
-    v28 = icall @check, v27
-    ret v28
+    v22 = ptrtoint memptr v17 to i256
+    v23 = make_memory_slice v22, 96
+    v24 = slice_len v23
+    v25 = add v24, 63
+    v26 = lt v25, v24
+    icall panic_if<0x41>, v26
+    v27 = not 31
+    v28 = and v25, v27
+    v29 = alloc memorybytes, exact, uninitialized, infallible, v28
+    set_memory_object_len memorybytes, v29, v24
+    memory_object_copy_from_slice memorybytes, v29, v23
+    v30 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v29
+    v31 = icall @check, v30
+    ret v31
 }
 
 fn @projectedAggregate() -> i256 [selector=0xec2041b8, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -160,23 +164,27 @@ fn @projectedAggregate() -> i256 [selector=0xec2041b8, abi_params=[], abi_return
     v20 = returndatasize
     v21 = lt v20, 96
     icall revert_if<tuple_data_too_short>, v21
-    v22 = not 31
-    v23 = and 159, v22
-    v24 = alloc memorybytes, exact, uninitialized, infallible, v23
-    set_memory_object_len memorybytes, v24, 96
-    v25 = ptrtoint memptr v17 to i256
-    v26 = make_memory_slice v25, 96
-    memory_object_copy_from_slice memorybytes, v24, v26
-    v27 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v24
-    v28 = memory_object_load_field memorystruct<2>, v27, 0
-    v29 = inttoptr i256 v28 to memorystruct
-    v30 = memory_object_load_field memorystruct<1>, v29, 0
-    v31 = inttoptr i256 v30 to memoryfixedarray
-    v32 = lt 1, 2
-    v33 = eq v32, false
-    icall panic_if<0x32>, v33
-    v34 = memory_object_load_element memoryfixedarray<2, 1>, v31, 1
-    ret v34
+    v22 = ptrtoint memptr v17 to i256
+    v23 = make_memory_slice v22, 96
+    v24 = slice_len v23
+    v25 = add v24, 63
+    v26 = lt v25, v24
+    icall panic_if<0x41>, v26
+    v27 = not 31
+    v28 = and v25, v27
+    v29 = alloc memorybytes, exact, uninitialized, infallible, v28
+    set_memory_object_len memorybytes, v29, v24
+    memory_object_copy_from_slice memorybytes, v29, v23
+    v30 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v29
+    v31 = memory_object_load_field memorystruct<2>, v30, 0
+    v32 = inttoptr i256 v31 to memptr
+    v33 = memory_object_load_field memorystruct<1>, v32, 0
+    v34 = inttoptr i256 v33 to memptr
+    v35 = lt 1, 2
+    v36 = eq v35, false
+    icall panic_if<0x32>, v36
+    v37 = memory_object_load_element memoryfixedarray<2, 1>, v34, 1
+    ret v37
 }
 
 fn @functionPointerAggregate() -> i256 [selector=0xebe6d175, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -219,16 +227,20 @@ fn @functionPointerAggregate() -> i256 [selector=0xebe6d175, abi_params=[], abi_
     v25 = returndatasize
     v26 = lt v25, 96
     icall revert_if<tuple_data_too_short>, v26
-    v27 = not 31
-    v28 = and 159, v27
-    v29 = alloc memorybytes, exact, uninitialized, infallible, v28
-    set_memory_object_len memorybytes, v29, 96
-    v30 = ptrtoint memptr v22 to i256
-    v31 = make_memory_slice v30, 96
-    memory_object_copy_from_slice memorybytes, v29, v31
-    v32 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v29
-    v33 = icall @check, v32
-    ret v33
+    v27 = ptrtoint memptr v22 to i256
+    v28 = make_memory_slice v27, 96
+    v29 = slice_len v28
+    v30 = add v29, 63
+    v31 = lt v30, v29
+    icall panic_if<0x41>, v31
+    v32 = not 31
+    v33 = and v30, v32
+    v34 = alloc memorybytes, exact, uninitialized, infallible, v33
+    set_memory_object_len memorybytes, v34, v29
+    memory_object_copy_from_slice memorybytes, v34, v28
+    v35 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v34
+    v36 = icall @check, v35
+    ret v36
 }
 
 fn @dirtyAddressBoundary() -> i256 [selector=0x2986c9cc, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

@@ -595,7 +595,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             let zero = self.builder.imm(0);
             let word_and_length = match self.builder.func().value_ty(value) {
-                Some(MirType::MemoryObject(MemoryObjectKind::Bytes)) => {
+                Some(MirType::MemPtr) => {
                     let word = self.builder.memory_object_load_element(
                         value,
                         MemoryObjectLayout::Bytes,
@@ -686,12 +686,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let byte_value = match from.peel_refs().kind {
             TyKind::StringLiteral(..) => match self.builder.func().value_ty(value) {
-                Some(MirType::MemoryObject(MemoryObjectKind::Bytes)) => Some(value),
+                Some(MirType::MemPtr) => Some(value),
                 _ => return value,
             },
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 match self.builder.func().value_ty(value) {
-                    Some(MirType::MemoryObject(MemoryObjectKind::Bytes)) => Some(value),
+                    Some(MirType::MemPtr) => Some(value),
                     Some(MirType::Slice(_)) => Some(self.materialize_memory_slice(value)),
                     _ => return value,
                 }
@@ -1424,7 +1424,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // mcopy(data, ret_offset, ret_size)
                 self.builder.mcopy(data, offset, size);
             }
-            Some(object)
+            if object == data {
+                // A single static aggregate returns into a raw buffer; decode a bytes copy.
+                // object = bytes(size); copy(make_slice(data, size), object.data)
+                let slice = self.builder.make_slice(data, size, SliceLocation::Memory);
+                Some(self.materialize_memory_slice(slice))
+            } else {
+                Some(object)
+            }
         } else if decode_returndata {
             if !self.cx.gcx.sess.opts.evm_version.supports_returndata() {
                 return report_error(self.cx.gcx, span, unsupported_returndata);

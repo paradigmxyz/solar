@@ -7,29 +7,29 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
-    v1 = ptrtoint memoryarray 96 to i256
+    v1 = ptrtoint memptr 96 to i256
     memory_object_store_field memorystruct<2>, v0, 1, v1
     memory_object_store_field memorystruct<2>, v0, 0, 8
     v2 = alloc memoryarray<1>, exact, zeroed, panic, 128
     set_memory_object_len memoryarray, v2, 3
-    v3 = ptrtoint memoryarray v2 to i256
+    v3 = ptrtoint memptr v2 to i256
     memory_object_store_field memorystruct<2>, v0, 1, v3
     v4 = memory_object_load_field memorystruct<2>, v0, 1
-    v5 = inttoptr i256 v4 to memoryarray
+    v5 = inttoptr i256 v4 to memptr
     v6 = memory_object_len memoryarray, v5
     v7 = lt 0, v6
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     memory_object_store_element memoryarray<1>, v5, 0, 9
     v9 = memory_object_load_field memorystruct<2>, v0, 1
-    v10 = inttoptr i256 v9 to memoryarray
+    v10 = inttoptr i256 v9 to memptr
     v11 = memory_object_len memoryarray, v10
     v12 = lt 1, v11
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     memory_object_store_element memoryarray<1>, v10, 1, 10
     v14 = memory_object_load_field memorystruct<2>, v0, 1
-    v15 = inttoptr i256 v14 to memoryarray
+    v15 = inttoptr i256 v14 to memptr
     v16 = memory_object_len memoryarray, v15
     v17 = lt 2, v16
     v18 = eq v17, false
@@ -41,17 +41,17 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v21 = abi_decode [tuple<u256, array<_, u256>>], v20
     v22 = memory_object_load_field memorystruct<2>, v21, 0
     v23 = memory_object_load_field memorystruct<2>, v21, 1
-    v24 = inttoptr i256 v23 to memoryarray
+    v24 = inttoptr i256 v23 to memptr
     v25 = memory_object_len memoryarray, v24
     v26 = memory_object_load_field memorystruct<2>, v21, 1
-    v27 = inttoptr i256 v26 to memoryarray
+    v27 = inttoptr i256 v26 to memptr
     v28 = memory_object_len memoryarray, v27
     v29 = lt 0, v28
     v30 = eq v29, false
     icall panic_if<0x32>, v30
     v31 = memory_object_load_element memoryarray<1>, v27, 0
     v32 = memory_object_load_field memorystruct<2>, v21, 1
-    v33 = inttoptr i256 v32 to memoryarray
+    v33 = inttoptr i256 v32 to memptr
     v34 = memory_object_len memoryarray, v33
     v35 = lt 2, v34
     v36 = eq v35, false
@@ -64,7 +64,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     ret v41
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

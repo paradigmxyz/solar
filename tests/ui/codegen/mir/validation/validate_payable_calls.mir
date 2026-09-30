@@ -2,14 +2,14 @@
 @module InvalidPayableCalls
 
 //~? ERROR: [fn0] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
-fn @send_object(arg0: memorybytes) -> i256 {
+fn @send_object(arg0: memptr) -> i256 {
   bb0:
     v0 = icall send<>, arg0, 1
     ret v0
 }
 
 //~? ERROR: [fn1] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
-fn @transfer_object(arg0: memorybytes) {
+fn @transfer_object(arg0: memptr) {
   bb0:
     icall transfer<>, 0, arg0
     ret
@@ -30,7 +30,7 @@ fn @check_extra_condition(arg0: i256) {
 }
 
 //~? ERROR: [fn4] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
-fn @check_object_condition(arg0: memorybytes) {
+fn @check_object_condition(arg0: memptr) {
   bb0:
     icall panic_if_zero<0x1>, arg0
     ret

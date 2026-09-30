@@ -19,7 +19,7 @@ fn @constructor() [constructor] {
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_number_literals.sol:FixedBytesLiterals ===
 @module FixedBytesLiterals
 @types
-  struct0: {i256, memorybytes}
+  struct0: {i256, memptr}
   struct1: {i256, i256, i256}
 
 @data

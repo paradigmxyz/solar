@@ -20,7 +20,7 @@ fn @init(arg0: calldataslice, arg1: i256) -> i256 [selector=0x5c58abd8, pure, ab
     ret v8
 }
 
-fn @tail(arg0: calldataslice) -> memorybytes [selector=0x39663a7e, pure, abi_params=[tuple<address, u8, bytes, bytes>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @tail(arg0: calldataslice) -> memptr [selector=0x39663a7e, pure, abi_params=[tuple<address, u8, bytes, bytes>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 96
@@ -92,12 +92,12 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = memory_object_load_element memoryarray<1>, v0, 0
-    v12 = inttoptr i256 v11 to memorystruct
+    v12 = inttoptr i256 v11 to memptr
     v13 = eq v11, 0
     jumpi v13, bb4, bb5
   bb4:
     v14 = icall @default_struct_1
-    v15 = ptrtoint memorystruct v14 to i256
+    v15 = ptrtoint memptr v14 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v15
     jump bb5
   bb5:
@@ -113,17 +113,17 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v22 = eq v21, false
     icall panic_if<0x32>, v22
     v23 = memory_object_load_element memoryarray<1>, v0, 0
-    v24 = inttoptr i256 v23 to memorystruct
+    v24 = inttoptr i256 v23 to memptr
     v25 = eq v23, 0
     jumpi v25, bb6, bb7
   bb6:
     v26 = icall @default_struct_1
-    v27 = ptrtoint memorystruct v26 to i256
+    v27 = ptrtoint memptr v26 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v27
     jump bb7
   bb7:
     v28 = phi [bb5: v24], [bb6: v26]
-    v29 = ptrtoint memorybytes v17 to i256
+    v29 = ptrtoint memptr v17 to i256
     memory_object_store_field memorystruct<3>, v28, 1, v29
     v30 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v30, 2
@@ -132,35 +132,35 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v33 = eq v32, false
     icall panic_if<0x32>, v33
     v34 = memory_object_load_element memoryarray<1>, v0, 0
-    v35 = inttoptr i256 v34 to memorystruct
+    v35 = inttoptr i256 v34 to memptr
     v36 = eq v34, 0
     jumpi v36, bb8, bb9
   bb8:
     v37 = icall @default_struct_1
-    v38 = ptrtoint memorystruct v37 to i256
+    v38 = ptrtoint memptr v37 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v38
     jump bb9
   bb9:
     v39 = phi [bb7: v35], [bb8: v37]
-    v40 = ptrtoint memoryarray v30 to i256
+    v40 = ptrtoint memptr v30 to i256
     memory_object_store_field memorystruct<3>, v39, 2, v40
     v41 = memory_object_len memoryarray, v0
     v42 = lt 0, v41
     v43 = eq v42, false
     icall panic_if<0x32>, v43
     v44 = memory_object_load_element memoryarray<1>, v0, 0
-    v45 = inttoptr i256 v44 to memorystruct
+    v45 = inttoptr i256 v44 to memptr
     v46 = eq v44, 0
     jumpi v46, bb10, bb11
   bb10:
     v47 = icall @default_struct_1
-    v48 = ptrtoint memorystruct v47 to i256
+    v48 = ptrtoint memptr v47 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v48
     jump bb11
   bb11:
     v49 = phi [bb9: v45], [bb10: v47]
     v50 = memory_object_load_field memorystruct<3>, v49, 2
-    v51 = inttoptr i256 v50 to memoryarray
+    v51 = inttoptr i256 v50 to memptr
     v52 = memory_object_len memoryarray, v51
     v53 = lt 0, v52
     v54 = eq v53, false
@@ -171,18 +171,18 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v57 = eq v56, false
     icall panic_if<0x32>, v57
     v58 = memory_object_load_element memoryarray<1>, v0, 0
-    v59 = inttoptr i256 v58 to memorystruct
+    v59 = inttoptr i256 v58 to memptr
     v60 = eq v58, 0
     jumpi v60, bb12, bb13
   bb12:
     v61 = icall @default_struct_1
-    v62 = ptrtoint memorystruct v61 to i256
+    v62 = ptrtoint memptr v61 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v62
     jump bb13
   bb13:
     v63 = phi [bb11: v59], [bb12: v61]
     v64 = memory_object_load_field memorystruct<3>, v63, 2
-    v65 = inttoptr i256 v64 to memoryarray
+    v65 = inttoptr i256 v64 to memptr
     v66 = memory_object_len memoryarray, v65
     v67 = lt 1, v66
     v68 = eq v67, false
@@ -193,12 +193,12 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v71 = eq v70, false
     icall panic_if<0x32>, v71
     v72 = memory_object_load_element memoryarray<1>, v0, 1
-    v73 = inttoptr i256 v72 to memorystruct
+    v73 = inttoptr i256 v72 to memptr
     v74 = eq v72, 0
     jumpi v74, bb14, bb15
   bb14:
     v75 = icall @default_struct_1
-    v76 = ptrtoint memorystruct v75 to i256
+    v76 = ptrtoint memptr v75 to i256
     memory_object_store_element memoryarray<1>, v0, 1, v76
     jump bb15
   bb15:
@@ -214,17 +214,17 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v83 = eq v82, false
     icall panic_if<0x32>, v83
     v84 = memory_object_load_element memoryarray<1>, v0, 1
-    v85 = inttoptr i256 v84 to memorystruct
+    v85 = inttoptr i256 v84 to memptr
     v86 = eq v84, 0
     jumpi v86, bb16, bb17
   bb16:
     v87 = icall @default_struct_1
-    v88 = ptrtoint memorystruct v87 to i256
+    v88 = ptrtoint memptr v87 to i256
     memory_object_store_element memoryarray<1>, v0, 1, v88
     jump bb17
   bb17:
     v89 = phi [bb15: v85], [bb16: v87]
-    v90 = ptrtoint memorybytes v78 to i256
+    v90 = ptrtoint memptr v78 to i256
     memory_object_store_field memorystruct<3>, v89, 1, v90
     v91 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v91, 1
@@ -233,35 +233,35 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v94 = eq v93, false
     icall panic_if<0x32>, v94
     v95 = memory_object_load_element memoryarray<1>, v0, 1
-    v96 = inttoptr i256 v95 to memorystruct
+    v96 = inttoptr i256 v95 to memptr
     v97 = eq v95, 0
     jumpi v97, bb18, bb19
   bb18:
     v98 = icall @default_struct_1
-    v99 = ptrtoint memorystruct v98 to i256
+    v99 = ptrtoint memptr v98 to i256
     memory_object_store_element memoryarray<1>, v0, 1, v99
     jump bb19
   bb19:
     v100 = phi [bb17: v96], [bb18: v98]
-    v101 = ptrtoint memoryarray v91 to i256
+    v101 = ptrtoint memptr v91 to i256
     memory_object_store_field memorystruct<3>, v100, 2, v101
     v102 = memory_object_len memoryarray, v0
     v103 = lt 1, v102
     v104 = eq v103, false
     icall panic_if<0x32>, v104
     v105 = memory_object_load_element memoryarray<1>, v0, 1
-    v106 = inttoptr i256 v105 to memorystruct
+    v106 = inttoptr i256 v105 to memptr
     v107 = eq v105, 0
     jumpi v107, bb20, bb21
   bb20:
     v108 = icall @default_struct_1
-    v109 = ptrtoint memorystruct v108 to i256
+    v109 = ptrtoint memptr v108 to i256
     memory_object_store_element memoryarray<1>, v0, 1, v109
     jump bb21
   bb21:
     v110 = phi [bb19: v106], [bb20: v108]
     v111 = memory_object_load_field memorystruct<3>, v110, 2
-    v112 = inttoptr i256 v111 to memoryarray
+    v112 = inttoptr i256 v111 to memptr
     v113 = memory_object_len memoryarray, v112
     v114 = lt 0, v113
     v115 = eq v114, false
@@ -273,12 +273,12 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v119 = eq v118, false
     icall panic_if<0x32>, v119
     v120 = memory_object_load_element memoryarray<1>, v0, 0
-    v121 = inttoptr i256 v120 to memorystruct
+    v121 = inttoptr i256 v120 to memptr
     v122 = eq v120, 0
     jumpi v122, bb22, bb23
   bb22:
     v123 = icall @default_struct_1
-    v124 = ptrtoint memorystruct v123 to i256
+    v124 = ptrtoint memptr v123 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v124
     jump bb23
   bb23:
@@ -289,12 +289,12 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v129 = eq v128, false
     icall panic_if<0x32>, v129
     v130 = memory_object_load_element memoryarray<1>, v0, 1
-    v131 = inttoptr i256 v130 to memorystruct
+    v131 = inttoptr i256 v130 to memptr
     v132 = eq v130, 0
     jumpi v132, bb24, bb25
   bb24:
     v133 = icall @default_struct_1
-    v134 = ptrtoint memorystruct v133 to i256
+    v134 = ptrtoint memptr v133 to i256
     memory_object_store_element memoryarray<1>, v0, 1, v134
     jump bb25
   bb25:
@@ -306,36 +306,36 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v140 = eq v139, false
     icall panic_if<0x32>, v140
     v141 = memory_object_load_element memoryarray<1>, v0, 0
-    v142 = inttoptr i256 v141 to memorystruct
+    v142 = inttoptr i256 v141 to memptr
     v143 = eq v141, 0
     jumpi v143, bb26, bb27
   bb26:
     v144 = icall @default_struct_1
-    v145 = ptrtoint memorystruct v144 to i256
+    v145 = ptrtoint memptr v144 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v145
     jump bb27
   bb27:
     v146 = phi [bb25: v142], [bb26: v144]
     v147 = memory_object_load_field memorystruct<3>, v146, 1
-    v148 = inttoptr i256 v147 to memorybytes
+    v148 = inttoptr i256 v147 to memptr
     v149 = memory_object_len memorybytes, v148
     v150 = memory_object_len memoryarray, v0
     v151 = lt 1, v150
     v152 = eq v151, false
     icall panic_if<0x32>, v152
     v153 = memory_object_load_element memoryarray<1>, v0, 1
-    v154 = inttoptr i256 v153 to memorystruct
+    v154 = inttoptr i256 v153 to memptr
     v155 = eq v153, 0
     jumpi v155, bb28, bb29
   bb28:
     v156 = icall @default_struct_1
-    v157 = ptrtoint memorystruct v156 to i256
+    v157 = ptrtoint memptr v156 to i256
     memory_object_store_element memoryarray<1>, v0, 1, v157
     jump bb29
   bb29:
     v158 = phi [bb27: v154], [bb28: v156]
     v159 = memory_object_load_field memorystruct<3>, v158, 1
-    v160 = inttoptr i256 v159 to memorybytes
+    v160 = inttoptr i256 v159 to memptr
     v161 = memory_object_len memorybytes, v160
     v162 = checked_add u256, v149, v161
     v163 = memory_object_len memoryarray, v0
@@ -343,36 +343,36 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v165 = eq v164, false
     icall panic_if<0x32>, v165
     v166 = memory_object_load_element memoryarray<1>, v0, 0
-    v167 = inttoptr i256 v166 to memorystruct
+    v167 = inttoptr i256 v166 to memptr
     v168 = eq v166, 0
     jumpi v168, bb30, bb31
   bb30:
     v169 = icall @default_struct_1
-    v170 = ptrtoint memorystruct v169 to i256
+    v170 = ptrtoint memptr v169 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v170
     jump bb31
   bb31:
     v171 = phi [bb29: v167], [bb30: v169]
     v172 = memory_object_load_field memorystruct<3>, v171, 2
-    v173 = inttoptr i256 v172 to memoryarray
+    v173 = inttoptr i256 v172 to memptr
     v174 = memory_object_len memoryarray, v173
     v175 = memory_object_len memoryarray, v0
     v176 = lt 1, v175
     v177 = eq v176, false
     icall panic_if<0x32>, v177
     v178 = memory_object_load_element memoryarray<1>, v0, 1
-    v179 = inttoptr i256 v178 to memorystruct
+    v179 = inttoptr i256 v178 to memptr
     v180 = eq v178, 0
     jumpi v180, bb32, bb33
   bb32:
     v181 = icall @default_struct_1
-    v182 = ptrtoint memorystruct v181 to i256
+    v182 = ptrtoint memptr v181 to i256
     memory_object_store_element memoryarray<1>, v0, 1, v182
     jump bb33
   bb33:
     v183 = phi [bb31: v179], [bb32: v181]
     v184 = memory_object_load_field memorystruct<3>, v183, 2
-    v185 = inttoptr i256 v184 to memoryarray
+    v185 = inttoptr i256 v184 to memptr
     v186 = memory_object_len memoryarray, v185
     v187 = lt 0, v186
     v188 = eq v187, false
@@ -387,11 +387,11 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
   bb2:
     v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v3, 0, 0
-    v4 = ptrtoint memorybytes 96 to i256
+    v4 = ptrtoint memptr 96 to i256
     memory_object_store_field memorystruct<3>, v3, 1, v4
-    v5 = ptrtoint memoryarray 96 to i256
+    v5 = ptrtoint memptr 96 to i256
     memory_object_store_field memorystruct<3>, v3, 2, v5
-    v6 = ptrtoint memorystruct v3 to i256
+    v6 = ptrtoint memptr v3 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v6
     v7 = add v1, 1
     jump bb1
@@ -410,12 +410,12 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v11 = inttoptr i256 v10 to memorystruct
+    v11 = inttoptr i256 v10 to memptr
     v12 = eq v10, 0
     jumpi v12, bb4, bb5
   bb4:
     v13 = icall @default_struct_1
-    v14 = ptrtoint memorystruct v13 to i256
+    v14 = ptrtoint memptr v13 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v14
     jump bb5
   bb5:
@@ -430,17 +430,17 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v22 = inttoptr i256 v21 to memorystruct
+    v22 = inttoptr i256 v21 to memptr
     v23 = eq v21, 0
     jumpi v23, bb6, bb7
   bb6:
     v24 = icall @default_struct_1
-    v25 = ptrtoint memorystruct v24 to i256
+    v25 = ptrtoint memptr v24 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v25
     jump bb7
   bb7:
     v26 = phi [bb5: v22], [bb6: v24]
-    v27 = ptrtoint memorybytes v16 to i256
+    v27 = ptrtoint memptr v16 to i256
     memory_object_store_field memorystruct<3>, v26, 1, v27
     v28 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v28, 1
@@ -448,34 +448,34 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v30 = eq v29, false
     icall panic_if<0x32>, v30
     v31 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v32 = inttoptr i256 v31 to memorystruct
+    v32 = inttoptr i256 v31 to memptr
     v33 = eq v31, 0
     jumpi v33, bb8, bb9
   bb8:
     v34 = icall @default_struct_1
-    v35 = ptrtoint memorystruct v34 to i256
+    v35 = ptrtoint memptr v34 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v35
     jump bb9
   bb9:
     v36 = phi [bb7: v32], [bb8: v34]
-    v37 = ptrtoint memoryarray v28 to i256
+    v37 = ptrtoint memptr v28 to i256
     memory_object_store_field memorystruct<3>, v36, 2, v37
     v38 = lt 0, 2
     v39 = eq v38, false
     icall panic_if<0x32>, v39
     v40 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v41 = inttoptr i256 v40 to memorystruct
+    v41 = inttoptr i256 v40 to memptr
     v42 = eq v40, 0
     jumpi v42, bb10, bb11
   bb10:
     v43 = icall @default_struct_1
-    v44 = ptrtoint memorystruct v43 to i256
+    v44 = ptrtoint memptr v43 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v44
     jump bb11
   bb11:
     v45 = phi [bb9: v41], [bb10: v43]
     v46 = memory_object_load_field memorystruct<3>, v45, 2
-    v47 = inttoptr i256 v46 to memoryarray
+    v47 = inttoptr i256 v46 to memptr
     v48 = memory_object_len memoryarray, v47
     v49 = lt 0, v48
     v50 = eq v49, false
@@ -485,12 +485,12 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v52 = eq v51, false
     icall panic_if<0x32>, v52
     v53 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
-    v54 = inttoptr i256 v53 to memorystruct
+    v54 = inttoptr i256 v53 to memptr
     v55 = eq v53, 0
     jumpi v55, bb12, bb13
   bb12:
     v56 = icall @default_struct_1
-    v57 = ptrtoint memorystruct v56 to i256
+    v57 = ptrtoint memptr v56 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v57
     jump bb13
   bb13:
@@ -505,17 +505,17 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v63 = eq v62, false
     icall panic_if<0x32>, v63
     v64 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
-    v65 = inttoptr i256 v64 to memorystruct
+    v65 = inttoptr i256 v64 to memptr
     v66 = eq v64, 0
     jumpi v66, bb14, bb15
   bb14:
     v67 = icall @default_struct_1
-    v68 = ptrtoint memorystruct v67 to i256
+    v68 = ptrtoint memptr v67 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v68
     jump bb15
   bb15:
     v69 = phi [bb13: v65], [bb14: v67]
-    v70 = ptrtoint memorybytes v59 to i256
+    v70 = ptrtoint memptr v59 to i256
     memory_object_store_field memorystruct<3>, v69, 1, v70
     v71 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v71, 2
@@ -523,34 +523,34 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v73 = eq v72, false
     icall panic_if<0x32>, v73
     v74 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
-    v75 = inttoptr i256 v74 to memorystruct
+    v75 = inttoptr i256 v74 to memptr
     v76 = eq v74, 0
     jumpi v76, bb16, bb17
   bb16:
     v77 = icall @default_struct_1
-    v78 = ptrtoint memorystruct v77 to i256
+    v78 = ptrtoint memptr v77 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v78
     jump bb17
   bb17:
     v79 = phi [bb15: v75], [bb16: v77]
-    v80 = ptrtoint memoryarray v71 to i256
+    v80 = ptrtoint memptr v71 to i256
     memory_object_store_field memorystruct<3>, v79, 2, v80
     v81 = lt 1, 2
     v82 = eq v81, false
     icall panic_if<0x32>, v82
     v83 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
-    v84 = inttoptr i256 v83 to memorystruct
+    v84 = inttoptr i256 v83 to memptr
     v85 = eq v83, 0
     jumpi v85, bb18, bb19
   bb18:
     v86 = icall @default_struct_1
-    v87 = ptrtoint memorystruct v86 to i256
+    v87 = ptrtoint memptr v86 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v87
     jump bb19
   bb19:
     v88 = phi [bb17: v84], [bb18: v86]
     v89 = memory_object_load_field memorystruct<3>, v88, 2
-    v90 = inttoptr i256 v89 to memoryarray
+    v90 = inttoptr i256 v89 to memptr
     v91 = memory_object_len memoryarray, v90
     v92 = lt 0, v91
     v93 = eq v92, false
@@ -560,18 +560,18 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v95 = eq v94, false
     icall panic_if<0x32>, v95
     v96 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
-    v97 = inttoptr i256 v96 to memorystruct
+    v97 = inttoptr i256 v96 to memptr
     v98 = eq v96, 0
     jumpi v98, bb20, bb21
   bb20:
     v99 = icall @default_struct_1
-    v100 = ptrtoint memorystruct v99 to i256
+    v100 = ptrtoint memptr v99 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v100
     jump bb21
   bb21:
     v101 = phi [bb19: v97], [bb20: v99]
     v102 = memory_object_load_field memorystruct<3>, v101, 2
-    v103 = inttoptr i256 v102 to memoryarray
+    v103 = inttoptr i256 v102 to memptr
     v104 = memory_object_len memoryarray, v103
     v105 = lt 1, v104
     v106 = eq v105, false
@@ -581,12 +581,12 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v108 = eq v107, false
     icall panic_if<0x32>, v108
     v109 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v110 = inttoptr i256 v109 to memorystruct
+    v110 = inttoptr i256 v109 to memptr
     v111 = eq v109, 0
     jumpi v111, bb22, bb23
   bb22:
     v112 = icall @default_struct_1
-    v113 = ptrtoint memorystruct v112 to i256
+    v113 = ptrtoint memptr v112 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v113
     jump bb23
   bb23:
@@ -596,12 +596,12 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v117 = eq v116, false
     icall panic_if<0x32>, v117
     v118 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
-    v119 = inttoptr i256 v118 to memorystruct
+    v119 = inttoptr i256 v118 to memptr
     v120 = eq v118, 0
     jumpi v120, bb24, bb25
   bb24:
     v121 = icall @default_struct_1
-    v122 = ptrtoint memorystruct v121 to i256
+    v122 = ptrtoint memptr v121 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v122
     jump bb25
   bb25:
@@ -612,70 +612,70 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v127 = eq v126, false
     icall panic_if<0x32>, v127
     v128 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v129 = inttoptr i256 v128 to memorystruct
+    v129 = inttoptr i256 v128 to memptr
     v130 = eq v128, 0
     jumpi v130, bb26, bb27
   bb26:
     v131 = icall @default_struct_1
-    v132 = ptrtoint memorystruct v131 to i256
+    v132 = ptrtoint memptr v131 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v132
     jump bb27
   bb27:
     v133 = phi [bb25: v129], [bb26: v131]
     v134 = memory_object_load_field memorystruct<3>, v133, 1
-    v135 = inttoptr i256 v134 to memorybytes
+    v135 = inttoptr i256 v134 to memptr
     v136 = memory_object_len memorybytes, v135
     v137 = lt 1, 2
     v138 = eq v137, false
     icall panic_if<0x32>, v138
     v139 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
-    v140 = inttoptr i256 v139 to memorystruct
+    v140 = inttoptr i256 v139 to memptr
     v141 = eq v139, 0
     jumpi v141, bb28, bb29
   bb28:
     v142 = icall @default_struct_1
-    v143 = ptrtoint memorystruct v142 to i256
+    v143 = ptrtoint memptr v142 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v143
     jump bb29
   bb29:
     v144 = phi [bb27: v140], [bb28: v142]
     v145 = memory_object_load_field memorystruct<3>, v144, 1
-    v146 = inttoptr i256 v145 to memorybytes
+    v146 = inttoptr i256 v145 to memptr
     v147 = memory_object_len memorybytes, v146
     v148 = checked_add u256, v136, v147
     v149 = lt 1, 2
     v150 = eq v149, false
     icall panic_if<0x32>, v150
     v151 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
-    v152 = inttoptr i256 v151 to memorystruct
+    v152 = inttoptr i256 v151 to memptr
     v153 = eq v151, 0
     jumpi v153, bb30, bb31
   bb30:
     v154 = icall @default_struct_1
-    v155 = ptrtoint memorystruct v154 to i256
+    v155 = ptrtoint memptr v154 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v155
     jump bb31
   bb31:
     v156 = phi [bb29: v152], [bb30: v154]
     v157 = memory_object_load_field memorystruct<3>, v156, 2
-    v158 = inttoptr i256 v157 to memoryarray
+    v158 = inttoptr i256 v157 to memptr
     v159 = memory_object_len memoryarray, v158
     v160 = lt 1, 2
     v161 = eq v160, false
     icall panic_if<0x32>, v161
     v162 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
-    v163 = inttoptr i256 v162 to memorystruct
+    v163 = inttoptr i256 v162 to memptr
     v164 = eq v162, 0
     jumpi v164, bb32, bb33
   bb32:
     v165 = icall @default_struct_1
-    v166 = ptrtoint memorystruct v165 to i256
+    v166 = ptrtoint memptr v165 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v166
     jump bb33
   bb33:
     v167 = phi [bb31: v163], [bb32: v165]
     v168 = memory_object_load_field memorystruct<3>, v167, 2
-    v169 = inttoptr i256 v168 to memoryarray
+    v169 = inttoptr i256 v168 to memptr
     v170 = memory_object_len memoryarray, v169
     v171 = lt 1, v170
     v172 = eq v171, false
@@ -690,11 +690,11 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
   bb2:
     v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v3, 0, 0
-    v4 = ptrtoint memorybytes 96 to i256
+    v4 = ptrtoint memptr 96 to i256
     memory_object_store_field memorystruct<3>, v3, 1, v4
-    v5 = ptrtoint memoryarray 96 to i256
+    v5 = ptrtoint memptr 96 to i256
     memory_object_store_field memorystruct<3>, v3, 2, v5
-    v6 = ptrtoint memorystruct v3 to i256
+    v6 = ptrtoint memptr v3 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v0, v1, v6
     v7 = add v1, 1
     jump bb1
@@ -716,12 +716,12 @@ fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = memory_object_load_element memoryarray<1>, v0, 0
-    v13 = inttoptr i256 v12 to memorystruct
+    v13 = inttoptr i256 v12 to memptr
     v14 = eq v12, 0
     jumpi v14, bb4, bb5
   bb4:
     v15 = icall @default_struct_1
-    v16 = ptrtoint memorystruct v15 to i256
+    v16 = ptrtoint memptr v15 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v16
     jump bb5
   bb5:
@@ -732,12 +732,12 @@ fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=
     v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = memory_object_load_element memoryarray<1>, v0, 1
-    v23 = inttoptr i256 v22 to memorystruct
+    v23 = inttoptr i256 v22 to memptr
     v24 = eq v22, 0
     jumpi v24, bb6, bb7
   bb6:
     v25 = icall @default_struct_1
-    v26 = ptrtoint memorystruct v25 to i256
+    v26 = ptrtoint memptr v25 to i256
     memory_object_store_element memoryarray<1>, v0, 1, v26
     jump bb7
   bb7:
@@ -749,36 +749,36 @@ fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=
     v32 = eq v31, false
     icall panic_if<0x32>, v32
     v33 = memory_object_load_element memoryarray<1>, v0, 0
-    v34 = inttoptr i256 v33 to memorystruct
+    v34 = inttoptr i256 v33 to memptr
     v35 = eq v33, 0
     jumpi v35, bb8, bb9
   bb8:
     v36 = icall @default_struct_1
-    v37 = ptrtoint memorystruct v36 to i256
+    v37 = ptrtoint memptr v36 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v37
     jump bb9
   bb9:
     v38 = phi [bb7: v34], [bb8: v36]
     v39 = memory_object_load_field memorystruct<3>, v38, 1
-    v40 = inttoptr i256 v39 to memorybytes
+    v40 = inttoptr i256 v39 to memptr
     v41 = memory_object_len memorybytes, v40
     v42 = memory_object_len memoryarray, v0
     v43 = lt 1, v42
     v44 = eq v43, false
     icall panic_if<0x32>, v44
     v45 = memory_object_load_element memoryarray<1>, v0, 1
-    v46 = inttoptr i256 v45 to memorystruct
+    v46 = inttoptr i256 v45 to memptr
     v47 = eq v45, 0
     jumpi v47, bb10, bb11
   bb10:
     v48 = icall @default_struct_1
-    v49 = ptrtoint memorystruct v48 to i256
+    v49 = ptrtoint memptr v48 to i256
     memory_object_store_element memoryarray<1>, v0, 1, v49
     jump bb11
   bb11:
     v50 = phi [bb9: v46], [bb10: v48]
     v51 = memory_object_load_field memorystruct<3>, v50, 1
-    v52 = inttoptr i256 v51 to memorybytes
+    v52 = inttoptr i256 v51 to memptr
     v53 = memory_object_len memorybytes, v52
     v54 = checked_add u256, v41, v53
     v55 = memory_object_len memoryarray, v0
@@ -786,36 +786,36 @@ fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=
     v57 = eq v56, false
     icall panic_if<0x32>, v57
     v58 = memory_object_load_element memoryarray<1>, v0, 0
-    v59 = inttoptr i256 v58 to memorystruct
+    v59 = inttoptr i256 v58 to memptr
     v60 = eq v58, 0
     jumpi v60, bb12, bb13
   bb12:
     v61 = icall @default_struct_1
-    v62 = ptrtoint memorystruct v61 to i256
+    v62 = ptrtoint memptr v61 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v62
     jump bb13
   bb13:
     v63 = phi [bb11: v59], [bb12: v61]
     v64 = memory_object_load_field memorystruct<3>, v63, 2
-    v65 = inttoptr i256 v64 to memoryarray
+    v65 = inttoptr i256 v64 to memptr
     v66 = memory_object_len memoryarray, v65
     v67 = memory_object_len memoryarray, v0
     v68 = lt 1, v67
     v69 = eq v68, false
     icall panic_if<0x32>, v69
     v70 = memory_object_load_element memoryarray<1>, v0, 1
-    v71 = inttoptr i256 v70 to memorystruct
+    v71 = inttoptr i256 v70 to memptr
     v72 = eq v70, 0
     jumpi v72, bb14, bb15
   bb14:
     v73 = icall @default_struct_1
-    v74 = ptrtoint memorystruct v73 to i256
+    v74 = ptrtoint memptr v73 to i256
     memory_object_store_element memoryarray<1>, v0, 1, v74
     jump bb15
   bb15:
     v75 = phi [bb13: v71], [bb14: v73]
     v76 = memory_object_load_field memorystruct<3>, v75, 2
-    v77 = inttoptr i256 v76 to memoryarray
+    v77 = inttoptr i256 v76 to memptr
     v78 = memory_object_len memoryarray, v77
     v79 = checked_add u256, v66, v78
     v80 = insert_value struct1, undef struct1, 0, v8
@@ -826,11 +826,11 @@ fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=
   bb2:
     v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v3, 0, 0
-    v4 = ptrtoint memorybytes 96 to i256
+    v4 = ptrtoint memptr 96 to i256
     memory_object_store_field memorystruct<3>, v3, 1, v4
-    v5 = ptrtoint memoryarray 96 to i256
+    v5 = ptrtoint memptr 96 to i256
     memory_object_store_field memorystruct<3>, v3, 2, v5
-    v6 = ptrtoint memorystruct v3 to i256
+    v6 = ptrtoint memptr v3 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v6
     v7 = add v1, 1
     jump bb1
@@ -860,13 +860,13 @@ fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[]
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = memory_object_load_element memoryarray<1>, v0, 0
-    v15 = inttoptr i256 v14 to memorybytes
+    v15 = inttoptr i256 v14 to memptr
     v16 = eq v14, 0
     jumpi v16, bb7, bb8
   bb7:
     v17 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v17, 0
-    v18 = ptrtoint memorybytes v17 to i256
+    v18 = ptrtoint memptr v17 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v18
     jump bb8
   bb8:
@@ -877,13 +877,13 @@ fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[]
     v23 = eq v22, false
     icall panic_if<0x32>, v23
     v24 = memory_object_load_element memoryarray<1>, v0, 1
-    v25 = inttoptr i256 v24 to memorybytes
+    v25 = inttoptr i256 v24 to memptr
     v26 = eq v24, 0
     jumpi v26, bb9, bb10
   bb9:
     v27 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v27, 0
-    v28 = ptrtoint memorybytes v27 to i256
+    v28 = ptrtoint memptr v27 to i256
     memory_object_store_element memoryarray<1>, v0, 1, v28
     jump bb10
   bb10:
@@ -896,13 +896,13 @@ fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[]
     v35 = eq v34, false
     icall panic_if<0x32>, v35
     v36 = memory_object_load_element memoryarray<1>, v5, 0
-    v37 = inttoptr i256 v36 to memoryarray
+    v37 = inttoptr i256 v36 to memptr
     v38 = eq v36, 0
     jumpi v38, bb11, bb12
   bb11:
     v39 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v39, 0
-    v40 = ptrtoint memoryarray v39 to i256
+    v40 = ptrtoint memptr v39 to i256
     memory_object_store_element memoryarray<1>, v5, 0, v40
     jump bb12
   bb12:
@@ -913,13 +913,13 @@ fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[]
     v45 = eq v44, false
     icall panic_if<0x32>, v45
     v46 = memory_object_load_element memoryarray<1>, v5, 1
-    v47 = inttoptr i256 v46 to memoryarray
+    v47 = inttoptr i256 v46 to memptr
     v48 = eq v46, 0
     jumpi v48, bb13, bb14
   bb13:
     v49 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v49, 0
-    v50 = ptrtoint memoryarray v49 to i256
+    v50 = ptrtoint memptr v49 to i256
     memory_object_store_element memoryarray<1>, v5, 1, v50
     jump bb14
   bb14:
@@ -932,12 +932,12 @@ fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[]
     v57 = insert_value struct1, v56, 3, v53
     ret v57
   bb5:
-    v8 = ptrtoint memoryarray 96 to i256
+    v8 = ptrtoint memptr 96 to i256
     memory_object_store_element memoryarray<1>, v5, v6, v8
     v9 = add v6, 1
     jump bb4
   bb2:
-    v3 = ptrtoint memorybytes 96 to i256
+    v3 = ptrtoint memptr 96 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v3
     v4 = add v1, 1
     jump bb1
@@ -959,13 +959,13 @@ fn @zeroDynamicAggregatesAfterScratch() -> struct2 [selector=0x7d3c2623, pure, a
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = memory_object_load_element memoryarray<1>, v0, 0
-    v9 = inttoptr i256 v8 to memorybytes
+    v9 = inttoptr i256 v8 to memptr
     v10 = eq v8, 0
     jumpi v10, bb4, bb5
   bb4:
     v11 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v11, 0
-    v12 = ptrtoint memorybytes v11 to i256
+    v12 = ptrtoint memptr v11 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v12
     jump bb5
   bb5:
@@ -976,7 +976,7 @@ fn @zeroDynamicAggregatesAfterScratch() -> struct2 [selector=0x7d3c2623, pure, a
     v17 = insert_value struct2, v16, 1, v15
     ret v17
   bb2:
-    v3 = ptrtoint memorybytes 96 to i256
+    v3 = ptrtoint memptr 96 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v3
     v4 = add v1, 1
     jump bb1
@@ -998,44 +998,44 @@ fn @zeroNestedDynamicAggregateAfterScratch() -> i256 [selector=0x84af5c73, pure,
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = memory_object_load_element memoryarray<1>, v0, 0
-    v12 = inttoptr i256 v11 to memorystruct
+    v12 = inttoptr i256 v11 to memptr
     v13 = eq v11, 0
     jumpi v13, bb4, bb5
   bb4:
     v14 = icall @default_struct_1
-    v15 = ptrtoint memorystruct v14 to i256
+    v15 = ptrtoint memptr v14 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v15
     jump bb5
   bb5:
     v16 = phi [bb3: v12], [bb4: v14]
     v17 = memory_object_load_field memorystruct<3>, v16, 1
-    v18 = inttoptr i256 v17 to memorybytes
+    v18 = inttoptr i256 v17 to memptr
     v19 = memory_object_len memorybytes, v18
     ret v19
   bb2:
     v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v3, 0, 0
-    v4 = ptrtoint memorybytes 96 to i256
+    v4 = ptrtoint memptr 96 to i256
     memory_object_store_field memorystruct<3>, v3, 1, v4
-    v5 = ptrtoint memoryarray 96 to i256
+    v5 = ptrtoint memptr 96 to i256
     memory_object_store_field memorystruct<3>, v3, 2, v5
-    v6 = ptrtoint memorystruct v3 to i256
+    v6 = ptrtoint memptr v3 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v6
     v7 = add v1, 1
     jump bb1
 }
 
-fn @default_struct_1() -> memorystruct {
+fn @default_struct_1() -> memptr {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     memory_object_store_field memorystruct<3>, v0, 0, 0
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v1, 0
-    v2 = ptrtoint memorybytes v1 to i256
+    v2 = ptrtoint memptr v1 to i256
     memory_object_store_field memorystruct<3>, v0, 1, v2
     v3 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v3, 0
-    v4 = ptrtoint memoryarray v3 to i256
+    v4 = ptrtoint memptr v3 to i256
     memory_object_store_field memorystruct<3>, v0, 2, v4
     ret v0
 }

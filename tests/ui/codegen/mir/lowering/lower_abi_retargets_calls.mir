@@ -26,7 +26,7 @@ fn @caller(arg0: i256) -> i256 [selector=0x0a0a0a02, abi_returns=[word]] {
 // CHECK: + mstore 160, 1
 // CHECK: + mstore 192, 0x3100000000000000000000000000000000000000000000000000000000000000
 // CHECK: + returndata 128, 96
-fn @literal() -> memorybytes [selector=0x0a0a0a03, abi_params=[], abi_returns=[memory_bytes]] {
+fn @literal() -> memptr [selector=0x0a0a0a03, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 1
@@ -36,7 +36,7 @@ fn @literal() -> memorybytes [selector=0x0a0a0a03, abi_params=[], abi_returns=[m
 
 // CHECK: + fn @literalCaller()
 // CHECK: + {{v[0-9]+}} = icall @literal.body
-fn @literalCaller() -> memorybytes [selector=0x0a0a0a04, abi_params=[], abi_returns=[memory_bytes]] {
+fn @literalCaller() -> memptr [selector=0x0a0a0a04, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = icall fn2
     ret v0
@@ -48,7 +48,7 @@ fn @literalCaller() -> memorybytes [selector=0x0a0a0a04, abi_params=[], abi_retu
 // CHECK: + mstore 192, 5
 // CHECK: + mstore 224, 0x3100000000000000000000000000000000000000000000000000000000000000
 // CHECK: + returndata 128, 128
-fn @longLiteral() -> memorybytes [selector=0x0a0a0a05, abi_params=[], abi_returns=[memory_bytes]] {
+fn @longLiteral() -> memptr [selector=0x0a0a0a05, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
     set_memory_object_len memorybytes, v0, 33
@@ -62,7 +62,7 @@ fn @longLiteral() -> memorybytes [selector=0x0a0a0a05, abi_params=[], abi_return
 
 // CHECK-LABEL: + fn @overlappingLiteral()
 // CHECK: + {{v[0-9]+}} = abi_encode [memory_bytes], args
-fn @overlappingLiteral() -> memorybytes [selector=0x0a0a0a06, abi_params=[], abi_returns=[memory_bytes]] {
+fn @overlappingLiteral() -> memptr [selector=0x0a0a0a06, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
     set_memory_object_len memorybytes, v0, 33
@@ -80,7 +80,7 @@ fn @overlappingLiteral() -> memorybytes [selector=0x0a0a0a06, abi_params=[], abi
 // CHECK: + mstore 192, 1
 // CHECK: + mstore 224, 2
 // CHECK: + returndata 128, 128
-fn @constantEncoding() -> memorybytes [selector=0x0a0a0a07, abi_params=[], abi_returns=[memory_bytes]] {
+fn @constantEncoding() -> memptr [selector=0x0a0a0a07, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = abi_encode [word, word], object, args 1, 2
     ret v0
@@ -90,7 +90,7 @@ fn @constantEncoding() -> memorybytes [selector=0x0a0a0a07, abi_params=[], abi_r
 // CHECK: + mstore 128, 32
 // CHECK-NEXT: + mstore 160, 0
 // CHECK-NEXT: + returndata 128, 64
-fn @emptyEncoding() -> memorybytes [selector=0x0a0a0a08, abi_params=[], abi_returns=[memory_bytes]] {
+fn @emptyEncoding() -> memptr [selector=0x0a0a0a08, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = abi_encode [], object
     ret v0
@@ -99,7 +99,7 @@ fn @emptyEncoding() -> memorybytes [selector=0x0a0a0a08, abi_params=[], abi_retu
 // CHECK-LABEL: + fn @narrowEncoding()
 // CHECK: abi_encode [word<u8>], object, args 0x1234
 // CHECK: + {{v[0-9]+}} = abi_encode [memory_bytes], args
-fn @narrowEncoding() -> memorybytes [selector=0x0a0a0a09, abi_params=[], abi_returns=[memory_bytes]] {
+fn @narrowEncoding() -> memptr [selector=0x0a0a0a09, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = abi_encode [word<u8>], object, args 0x1234
     ret v0
@@ -108,7 +108,7 @@ fn @narrowEncoding() -> memorybytes [selector=0x0a0a0a09, abi_params=[], abi_ret
 // CHECK-LABEL: + fn @prefixedEncoding()
 // CHECK: abi_encode [word], object, selector
 // CHECK: + {{v[0-9]+}} = abi_encode [memory_bytes], args
-fn @prefixedEncoding() -> memorybytes [selector=0x0a0a0a0a, abi_params=[], abi_returns=[memory_bytes]] {
+fn @prefixedEncoding() -> memptr [selector=0x0a0a0a0a, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = abi_encode [word], object, selector 0x1234567800000000000000000000000000000000000000000000000000000000, args 1
     ret v0

@@ -8,8 +8,6 @@ error: [fn1] non-word type `memoryslice` survives the `lowered` phase boundary
 
 error: [fn1] [bb0, inst0] ABI encoding instruction `abi_encode` survives the `lowered` phase boundary
 
-error: [fn2] non-word type `memorystruct` survives the `lowered` phase boundary
-
 error: [fn2] [bb0, inst0] aggregate instruction `storage_to_memory` survives the `lowered` phase boundary
 
 error: [fn3] [bb0, inst3] `mapping_slot` has incompatible scalar types; use an explicit cast
@@ -82,11 +80,9 @@ error: [fn19] [bb0, inst1] builtin instruction `icall` survives the `lowered` ph
 
 error: [fn20] [bb0, inst1] `address_call` has incompatible scalar types; use an explicit cast
 
-error: [fn20] non-word type `memorybytes` survives the `lowered` phase boundary
-
 error: [fn20] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
 
 error: [fn20] [bb0, inst1] builtin instruction `address_call` survives the `lowered` phase boundary
 
-error: aborting due to 45 previous errors
+error: aborting due to 43 previous errors
 

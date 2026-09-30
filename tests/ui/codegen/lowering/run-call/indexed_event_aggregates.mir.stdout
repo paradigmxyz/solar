@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/indexed_event_aggregates.sol:IndexedAggregates ===
 @module IndexedAggregates
 @types
-  struct0: {i256, memorybytes}
+  struct0: {i256, memptr}
 
 fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
@@ -19,20 +19,20 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v7 = lt 0, v6
     v8 = eq v7, false
     icall panic_if<0x32>, v8
-    v9 = ptrtoint memoryarray v5 to i256
+    v9 = ptrtoint memptr v5 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v9
     v10 = memory_object_len memoryarray, v0
     v11 = lt 0, v10
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = memory_object_load_element memoryarray<1>, v0, 0
-    v14 = inttoptr i256 v13 to memoryarray
+    v14 = inttoptr i256 v13 to memptr
     v15 = eq v13, 0
     jumpi v15, bb4, bb5
   bb4:
     v16 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v16, 0
-    v17 = ptrtoint memoryarray v16 to i256
+    v17 = ptrtoint memptr v16 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v17
     jump bb5
   bb5:
@@ -47,13 +47,13 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = memory_object_load_element memoryarray<1>, v0, 0
-    v26 = inttoptr i256 v25 to memoryarray
+    v26 = inttoptr i256 v25 to memptr
     v27 = eq v25, 0
     jumpi v27, bb6, bb7
   bb6:
     v28 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v28, 0
-    v29 = ptrtoint memoryarray v28 to i256
+    v29 = ptrtoint memptr v28 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v29
     jump bb7
   bb7:
@@ -69,7 +69,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v36 = lt 1, v35
     v37 = eq v36, false
     icall panic_if<0x32>, v37
-    v38 = ptrtoint memoryarray v34 to i256
+    v38 = ptrtoint memptr v34 to i256
     memory_object_store_element memoryarray<1>, v0, 1, v38
     v39 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v39, 5
@@ -121,7 +121,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v80 = memory_object_load_element memoryarray<1>, v0, v77
     v81 = eq v80, 0
     v82 = eq v81, false
-    v83 = inttoptr i256 v80 to memoryarray
+    v83 = inttoptr i256 v80 to memptr
     v84 = memory_object_len memoryarray, v83
     v85 = zext i1 v82 to i256
     v86 = mul v84, v85
@@ -135,7 +135,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v98 = add v77, 1
     jump bb14
   bb18:
-    v90 = inttoptr i256 v80 to memoryarray
+    v90 = inttoptr i256 v80 to memptr
     v91 = memory_object_load_element memoryarray<1>, v90, v87
     v92 = zext i1 v82 to i256
     v93 = mul v91, v92
@@ -150,7 +150,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v46 = memory_object_load_element memoryarray<1>, v0, v43
     v47 = eq v46, 0
     v48 = eq v47, false
-    v49 = inttoptr i256 v46 to memoryarray
+    v49 = inttoptr i256 v46 to memptr
     v50 = memory_object_len memoryarray, v49
     v51 = zext i1 v48 to i256
     v52 = mul v50, v51
@@ -167,7 +167,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v65 = add v43, 1
     jump bb8
   bb12:
-    v56 = inttoptr i256 v46 to memoryarray
+    v56 = inttoptr i256 v46 to memptr
     v57 = memory_object_load_element memoryarray<1>, v56, v53
     v58 = zext i1 v48 to i256
     v59 = mul v57, v58
@@ -177,13 +177,13 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v62 = add v53, 1
     jump bb11
   bb2:
-    v3 = ptrtoint memoryarray 96 to i256
+    v3 = ptrtoint memptr 96 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v3
     v4 = add v1, 1
     jump bb1
 }
 
-fn @test_strings() -> memorybytes [selector=0xcdb50c38, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @test_strings() -> memptr [selector=0xcdb50c38, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -202,7 +202,7 @@ fn @test_strings() -> memorybytes [selector=0xcdb50c38, abi_params=[], abi_retur
     v9 = lt 0, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = ptrtoint memorybytes v5 to i256
+    v11 = ptrtoint memptr v5 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v11
     v12 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v12, 5
@@ -249,7 +249,7 @@ fn @test_strings() -> memorybytes [selector=0xcdb50c38, abi_params=[], abi_retur
     ret v70
   bb8:
     v49 = memory_object_load_element memoryarray<1>, v0, v46
-    v50 = inttoptr i256 v49 to memorybytes
+    v50 = inttoptr i256 v49 to memptr
     v51 = memory_object_len memorybytes, v50
     v52 = eq v49, 0
     v53 = eq v52, false
@@ -268,7 +268,7 @@ fn @test_strings() -> memorybytes [selector=0xcdb50c38, abi_params=[], abi_retur
     memory_object_store_word memorybytes, v44, v62, 0
     jump bb11
   bb11:
-    v63 = inttoptr i256 v49 to memorybytes
+    v63 = inttoptr i256 v49 to memptr
     v64 = memory_object_data memorybytes, v63
     v65 = ptrtoint memptr v64 to i256
     v66 = make_memory_slice v65, v55
@@ -278,7 +278,7 @@ fn @test_strings() -> memorybytes [selector=0xcdb50c38, abi_params=[], abi_retur
     jump bb7
   bb5:
     v20 = memory_object_load_element memoryarray<1>, v0, v17
-    v21 = inttoptr i256 v20 to memorybytes
+    v21 = inttoptr i256 v20 to memptr
     v22 = memory_object_len memorybytes, v21
     v23 = eq v20, 0
     v24 = eq v23, false
@@ -296,7 +296,7 @@ fn @test_strings() -> memorybytes [selector=0xcdb50c38, abi_params=[], abi_retur
     v34 = add v17, 1
     jump bb4
   bb2:
-    v3 = ptrtoint memorybytes 96 to i256
+    v3 = ptrtoint memptr 96 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v3
     v4 = add v1, 1
     jump bb1

@@ -21,8 +21,8 @@
 +     v8 = ptrtoint memptr v3 to i256
 +     mstore v8, v7
 +     v9 = memory_object_len memorybytes, v0
-+     v10 = ptrtoint memorybytes v0 to i256
-+     v11 = ptrtoint memorybytes 0 to i256
++     v10 = ptrtoint memptr v0 to i256
++     v11 = ptrtoint memptr 0 to i256
 +     v12 = eq v10, v11
 +     v13 = eq v12, false
 +     v14 = zext i1 v13 to i256
@@ -68,8 +68,8 @@
 +     v8 = ptrtoint memptr v3 to i256
 +     mstore v8, v7
 +     v9 = memory_object_len memorybytes, v0
-+     v10 = ptrtoint memorybytes v0 to i256
-+     v11 = ptrtoint memorybytes 0 to i256
++     v10 = ptrtoint memptr v0 to i256
++     v11 = ptrtoint memptr 0 to i256
 +     v12 = eq v10, v11
 +     v13 = eq v12, false
 +     v14 = zext i1 v13 to i256
@@ -112,8 +112,8 @@
 +     v7 = ptrtoint memptr v2 to i256
 +     mstore v7, v6
 +     v8 = memory_object_len memorybytes, v0
-+     v9 = ptrtoint memorybytes v0 to i256
-+     v10 = ptrtoint memorybytes 0 to i256
++     v9 = ptrtoint memptr v0 to i256
++     v10 = ptrtoint memptr 0 to i256
 +     v11 = eq v9, v10
 +     v12 = eq v11, false
 +     v13 = zext i1 v12 to i256

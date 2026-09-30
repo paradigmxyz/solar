@@ -1408,7 +1408,7 @@ fn @deleteOob(arg0: i256) [selector=0xfb2fda33, abi_params=[u256], abi_returns=[
     ret
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

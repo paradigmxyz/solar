@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/low_level_call_evaluation_order.sol:LowLevelCallEvaluationOrder ===
 @module LowLevelCallEvaluationOrder
 @types
-  struct0: {memorybytes, memorybytes}
-  struct1: {i256, memorybytes}
+  struct0: {memptr, memptr}
+  struct1: {i256, memptr}
 
 fn @receiver() -> i256 {
   bb0:
@@ -34,7 +34,7 @@ fn @valueOpt() -> i256 {
     ret 0
 }
 
-fn @data() -> memorybytes {
+fn @data() -> memptr {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -66,7 +66,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     ret v8
 }
 
-fn @echo(arg0: memorybytes) -> memorybytes [selector=0x624fbfdc, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @echo(arg0: memptr) -> memptr [selector=0x624fbfdc, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     ret arg0
 }

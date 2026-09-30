@@ -15,12 +15,12 @@ fn @wide() -> i256 [selector=0xe5f38a58, pure, abi_params=[], abi_returns=[word]
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = memory_object_load_element memoryarray<1>, v0, 0
-    v11 = inttoptr i256 v10 to memorystruct
+    v11 = inttoptr i256 v10 to memptr
     v12 = eq v10, 0
     jumpi v12, bb4, bb5
   bb4:
     v13 = icall @default_struct_1
-    v14 = ptrtoint memorystruct v13 to i256
+    v14 = ptrtoint memptr v13 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v14
     jump bb5
   bb5:
@@ -31,12 +31,12 @@ fn @wide() -> i256 [selector=0xe5f38a58, pure, abi_params=[], abi_returns=[word]
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = memory_object_load_element memoryarray<1>, v0, 1
-    v20 = inttoptr i256 v19 to memorystruct
+    v20 = inttoptr i256 v19 to memptr
     v21 = eq v19, 0
     jumpi v21, bb6, bb7
   bb6:
     v22 = icall @default_struct_1
-    v23 = ptrtoint memorystruct v22 to i256
+    v23 = ptrtoint memptr v22 to i256
     memory_object_store_element memoryarray<1>, v0, 1, v23
     jump bb7
   bb7:
@@ -47,12 +47,12 @@ fn @wide() -> i256 [selector=0xe5f38a58, pure, abi_params=[], abi_returns=[word]
     v27 = eq v26, false
     icall panic_if<0x32>, v27
     v28 = memory_object_load_element memoryarray<1>, v0, 0
-    v29 = inttoptr i256 v28 to memorystruct
+    v29 = inttoptr i256 v28 to memptr
     v30 = eq v28, 0
     jumpi v30, bb8, bb9
   bb8:
     v31 = icall @default_struct_1
-    v32 = ptrtoint memorystruct v31 to i256
+    v32 = ptrtoint memptr v31 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v32
     jump bb9
   bb9:
@@ -63,12 +63,12 @@ fn @wide() -> i256 [selector=0xe5f38a58, pure, abi_params=[], abi_returns=[word]
     v37 = eq v36, false
     icall panic_if<0x32>, v37
     v38 = memory_object_load_element memoryarray<1>, v0, 1
-    v39 = inttoptr i256 v38 to memorystruct
+    v39 = inttoptr i256 v38 to memptr
     v40 = eq v38, 0
     jumpi v40, bb10, bb11
   bb10:
     v41 = icall @default_struct_1
-    v42 = ptrtoint memorystruct v41 to i256
+    v42 = ptrtoint memptr v41 to i256
     memory_object_store_element memoryarray<1>, v0, 1, v42
     jump bb11
   bb11:
@@ -80,12 +80,12 @@ fn @wide() -> i256 [selector=0xe5f38a58, pure, abi_params=[], abi_returns=[word]
     v48 = eq v47, false
     icall panic_if<0x32>, v48
     v49 = memory_object_load_element memoryarray<1>, v0, 0
-    v50 = inttoptr i256 v49 to memorystruct
+    v50 = inttoptr i256 v49 to memptr
     v51 = eq v49, 0
     jumpi v51, bb12, bb13
   bb12:
     v52 = icall @default_struct_1
-    v53 = ptrtoint memorystruct v52 to i256
+    v53 = ptrtoint memptr v52 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v53
     jump bb13
   bb13:
@@ -95,9 +95,9 @@ fn @wide() -> i256 [selector=0xe5f38a58, pure, abi_params=[], abi_returns=[word]
     ret v56
   bb2:
     v3 = alloc memorystruct<4>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
-    v4 = ptrtoint memorystruct v3 to i256
+    v4 = ptrtoint memptr v3 to i256
     memory_zero v4, 128
-    v5 = ptrtoint memorystruct v3 to i256
+    v5 = ptrtoint memptr v3 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v5
     v6 = add v1, 1
     jump bb1
@@ -118,54 +118,54 @@ fn @nested() -> i256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[wor
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = memory_object_load_element memoryarray<1>, v0, 0
-    v12 = inttoptr i256 v11 to memorystruct
+    v12 = inttoptr i256 v11 to memptr
     v13 = eq v11, 0
     jumpi v13, bb4, bb5
   bb4:
     v14 = icall @default_struct_2
-    v15 = ptrtoint memorystruct v14 to i256
+    v15 = ptrtoint memptr v14 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v15
     jump bb5
   bb5:
     v16 = phi [bb3: v12], [bb4: v14]
     v17 = memory_object_load_field memorystruct<2>, v16, 0
-    v18 = inttoptr i256 v17 to memorystruct
+    v18 = inttoptr i256 v17 to memptr
     memory_object_store_field memorystruct<2>, v18, 1, 7
     v19 = memory_object_len memoryarray, v0
     v20 = lt 0, v19
     v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = memory_object_load_element memoryarray<1>, v0, 0
-    v23 = inttoptr i256 v22 to memorystruct
+    v23 = inttoptr i256 v22 to memptr
     v24 = eq v22, 0
     jumpi v24, bb6, bb7
   bb6:
     v25 = icall @default_struct_2
-    v26 = ptrtoint memorystruct v25 to i256
+    v26 = ptrtoint memptr v25 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v26
     jump bb7
   bb7:
     v27 = phi [bb5: v23], [bb6: v25]
     v28 = memory_object_load_field memorystruct<2>, v27, 0
-    v29 = inttoptr i256 v28 to memorystruct
+    v29 = inttoptr i256 v28 to memptr
     v30 = memory_object_load_field memorystruct<2>, v29, 1
     v31 = memory_object_len memoryarray, v0
     v32 = lt 0, v31
     v33 = eq v32, false
     icall panic_if<0x32>, v33
     v34 = memory_object_load_element memoryarray<1>, v0, 0
-    v35 = inttoptr i256 v34 to memorystruct
+    v35 = inttoptr i256 v34 to memptr
     v36 = eq v34, 0
     jumpi v36, bb8, bb9
   bb8:
     v37 = icall @default_struct_2
-    v38 = ptrtoint memorystruct v37 to i256
+    v38 = ptrtoint memptr v37 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v38
     jump bb9
   bb9:
     v39 = phi [bb7: v35], [bb8: v37]
     v40 = memory_object_load_field memorystruct<2>, v39, 0
-    v41 = inttoptr i256 v40 to memorystruct
+    v41 = inttoptr i256 v40 to memptr
     v42 = memory_object_load_field memorystruct<2>, v41, 0
     v43 = checked_add u256, v30, v42
     ret v43
@@ -174,10 +174,10 @@ fn @nested() -> i256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[wor
     v4 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v4, 0, 0
     memory_object_store_field memorystruct<2>, v4, 1, 0
-    v5 = ptrtoint memorystruct v4 to i256
+    v5 = ptrtoint memptr v4 to i256
     memory_object_store_field memorystruct<2>, v3, 0, v5
     memory_object_store_field memorystruct<2>, v3, 1, 0
-    v6 = ptrtoint memorystruct v3 to i256
+    v6 = ptrtoint memptr v3 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v6
     v7 = add v1, 1
     jump bb1
@@ -198,14 +198,14 @@ fn @small() -> i256 [selector=0x6cf3c25e, pure, abi_params=[], abi_returns=[word
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = memory_object_load_element memoryarray<1>, v0, 0
-    v10 = inttoptr i256 v9 to memorystruct
+    v10 = inttoptr i256 v9 to memptr
     v11 = eq v9, 0
     jumpi v11, bb4, bb5
   bb4:
     v12 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v12, 0, 0
     memory_object_store_field memorystruct<2>, v12, 1, 0
-    v13 = ptrtoint memorystruct v12 to i256
+    v13 = ptrtoint memptr v12 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v13
     jump bb5
   bb5:
@@ -216,14 +216,14 @@ fn @small() -> i256 [selector=0x6cf3c25e, pure, abi_params=[], abi_returns=[word
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = memory_object_load_element memoryarray<1>, v0, 0
-    v19 = inttoptr i256 v18 to memorystruct
+    v19 = inttoptr i256 v18 to memptr
     v20 = eq v18, 0
     jumpi v20, bb6, bb7
   bb6:
     v21 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v21, 0, 0
     memory_object_store_field memorystruct<2>, v21, 1, 0
-    v22 = ptrtoint memorystruct v21 to i256
+    v22 = ptrtoint memptr v21 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v22
     jump bb7
   bb7:
@@ -234,14 +234,14 @@ fn @small() -> i256 [selector=0x6cf3c25e, pure, abi_params=[], abi_returns=[word
     v27 = eq v26, false
     icall panic_if<0x32>, v27
     v28 = memory_object_load_element memoryarray<1>, v0, 0
-    v29 = inttoptr i256 v28 to memorystruct
+    v29 = inttoptr i256 v28 to memptr
     v30 = eq v28, 0
     jumpi v30, bb8, bb9
   bb8:
     v31 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v31, 0, 0
     memory_object_store_field memorystruct<2>, v31, 1, 0
-    v32 = ptrtoint memorystruct v31 to i256
+    v32 = ptrtoint memptr v31 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v32
     jump bb9
   bb9:
@@ -253,13 +253,13 @@ fn @small() -> i256 [selector=0x6cf3c25e, pure, abi_params=[], abi_returns=[word
     v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v3, 0, 0
     memory_object_store_field memorystruct<2>, v3, 1, 0
-    v4 = ptrtoint memorystruct v3 to i256
+    v4 = ptrtoint memptr v3 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v4
     v5 = add v1, 1
     jump bb1
 }
 
-fn @default_struct_1() -> memorystruct {
+fn @default_struct_1() -> memptr {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     memory_object_store_field memorystruct<4>, v0, 0, 0
@@ -269,13 +269,13 @@ fn @default_struct_1() -> memorystruct {
     ret v0
 }
 
-fn @default_struct_2() -> memorystruct {
+fn @default_struct_2() -> memptr {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v1, 0, 0
     memory_object_store_field memorystruct<2>, v1, 1, 0
-    v2 = ptrtoint memorystruct v1 to i256
+    v2 = ptrtoint memptr v1 to i256
     memory_object_store_field memorystruct<2>, v0, 0, v2
     memory_object_store_field memorystruct<2>, v0, 1, 0
     ret v0

@@ -5,7 +5,7 @@
     struct0: {}
     struct1: {calldataslice, i256}
     struct2: {memoryslice, struct0, struct1, returndataslice}
-    struct3: {memorybytes}
+    struct3: {memptr}
   
 - fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struct2 {
 + fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struct2 [return_abi=[i256, i256, i256, i256, i256, i256, i256]] {
@@ -189,8 +189,8 @@
       ret arg0
   }
   
-- fn @memory_call_results(arg0: i1, arg1: memorybytes) -> struct3 {
-+ fn @memory_call_results(arg0: i1, arg1: memorybytes) -> struct3 [return_abi=[memorybytes]] {
+- fn @memory_call_results(arg0: i1, arg1: memptr) -> struct3 {
++ fn @memory_call_results(arg0: i1, arg1: memptr) -> struct3 [return_abi=[memptr]] {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -207,7 +207,7 @@
 +     ret v3
   }
   
-  fn @memory_identity(arg0: memorybytes) -> memorybytes {
+  fn @memory_identity(arg0: memptr) -> memptr {
     bb0:
       ret arg0
   }
@@ -219,7 +219,7 @@
     struct0: {}
     struct1: {calldataslice, i256}
     struct2: {memoryslice, struct0, struct1, returndataslice}
-    struct3: {memorybytes}
+    struct3: {memptr}
   
   fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struct2 [return_abi=[i256, i256, i256, i256, i256, i256, i256]] {
     bb0:
@@ -365,7 +365,7 @@
       ret arg0
   }
   
-  fn @memory_call_results(arg0: i1, arg1: memorybytes) -> struct3 [return_abi=[memorybytes]] {
+  fn @memory_call_results(arg0: i1, arg1: memptr) -> struct3 [return_abi=[memptr]] {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -380,7 +380,7 @@
       ret v3
   }
   
-  fn @memory_identity(arg0: memorybytes) -> memorybytes {
+  fn @memory_identity(arg0: memptr) -> memptr {
     bb0:
       ret arg0
   }
@@ -392,7 +392,7 @@
     struct0: {}
     struct1: {calldataslice, i256}
     struct2: {memoryslice, struct0, struct1, returndataslice}
-    struct3: {memorybytes}
+    struct3: {memptr}
   
 - fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struct2 [return_abi=[i256, i256, i256, i256, i256, i256, i256]] {
 + fn @pack(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) -> struct2 [return_abi=[i256, i256, i256, i256, i256, i256, i256]] {
@@ -568,7 +568,7 @@
 +     ret arg0, arg1
   }
   
-  fn @memory_call_results(arg0: i1, arg1: memorybytes) -> struct3 [return_abi=[memorybytes]] {
+  fn @memory_call_results(arg0: i1, arg1: memptr) -> struct3 [return_abi=[memptr]] {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -583,7 +583,7 @@
       ret v3
   }
   
-  fn @memory_identity(arg0: memorybytes) -> memorybytes {
+  fn @memory_identity(arg0: memptr) -> memptr {
     bb0:
       ret arg0
   }

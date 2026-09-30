@@ -251,8 +251,8 @@ fn @empty_bytes() -> i256 {
 
 fn @is_empty_bytes(arg0: memptr) -> i256 {
   bb0:
-    v0 = bitcast memptr arg0 to memorybytes
-    v1 = ptrtoint memorybytes v0 to i256
+    v0 = bitcast memptr arg0 to memptr
+    v1 = ptrtoint memptr v0 to i256
     v2 = inttoptr i256 v1 to memptr
     v3 = ptrtoint memptr v2 to i256
     v4 = mload v3

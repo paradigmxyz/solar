@@ -613,9 +613,10 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 
 ### IR construction and rewrites
 
-- Generated MIR scalar SSA values use `i1`, `i160`, `i256`, or `memptr`; structs, slices, and memory-object
-  references retain their own types. Keep source widths, signedness, and ABI
-  encodings in operation or layout metadata.
+- Generated MIR scalar SSA values use `i1`, `i160`, `i256`, or `memptr`; structs and slices
+  retain their own types. Memory objects are opaque `memptr` values, like LLVM's `ptr`:
+  the operations that access them carry the object layout. Keep source widths,
+  signedness, and ABI encodings in operation or layout metadata.
 - Name MIR integer types `iN` by bit width. Accept any positive 32-bit width in
   MIR syntax, but emit only `i1`, `i160`, and `i256` from source lowering for now.
   Other widths have no codegen support yet; lower them at the EVM IR boundary

@@ -38,8 +38,8 @@
 use super::egraph::max_bits_with_args;
 use crate::mir::{
     AbiParamType, AbiWordValidator, AllocationInitialization, AllocationKind, ArgIdx, EffectKind,
-    Function, FunctionId, InstId, InstKind, MemoryObjectKind, MemoryObjectLayout, MemoryRegion,
-    MirType, Module, Terminator, Value, ValueId,
+    Function, FunctionId, InstId, InstKind, MemoryObjectLayout, MemoryRegion, MirType, Module,
+    Terminator, Value, ValueId,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
     utils,
@@ -191,10 +191,7 @@ fn is_word_array(layout: MemoryObjectLayout) -> bool {
 }
 
 fn is_array(ty: MirType) -> bool {
-    matches!(
-        ty,
-        MirType::MemoryObject(MemoryObjectKind::DynamicArray | MemoryObjectKind::FixedArray)
-    )
+    matches!(ty, MirType::MemPtr)
 }
 
 /// The value a contiguous low-bit mask keeps, and the mask's width in bits.

@@ -852,7 +852,7 @@ impl<'a> Validator<'a> {
                     InstKind::AbiDecode { data, layout } => {
                         self.check_value_type(
                             func.value_ty(*data),
-                            Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
+                            Some(MirType::MemPtr),
                             block,
                             id,
                         );
@@ -1016,11 +1016,6 @@ impl<'a> Validator<'a> {
         if func.value_ty(value).is_none_or(|ty| ty == MirType::Void) {
             self.emit(format_args!("live value v{} has no value type", value.index()));
         }
-        if let Value::Immediate(crate::mir::Immediate::Pointer(_, ty)) = func.value(value)
-            && !ty.is_pointer()
-        {
-            self.emit("pointer constant must have a pointer type");
-        }
         if let Value::Immediate(immediate) = func.value(value)
             && let MirType::Int(bits) = immediate.ty()
             && immediate.as_u256().is_some_and(|word| word.bit_len() > bits.get() as usize)
@@ -1042,9 +1037,7 @@ impl<'a> Validator<'a> {
                     InstKind::ICall { function: Callee::Builtin(builtin), args } => {
                         let result = match builtin {
                             Builtin::Require(_) | Builtin::Check { .. } | Builtin::Transfer => None,
-                            Builtin::ReturndataBytes | Builtin::Concat(_) => {
-                                Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
-                            }
+                            Builtin::ReturndataBytes | Builtin::Concat(_) => Some(MirType::MemPtr),
                             Builtin::CheckedAddMod
                             | Builtin::CheckedMulMod
                             | Builtin::Sha256
@@ -1106,11 +1099,7 @@ impl<'a> Validator<'a> {
                         });
                         valid_parts
                             && inst.result_ty
-                                == Some(if *hash {
-                                    MirType::I256
-                                } else {
-                                    MirType::MemoryObject(MemoryObjectKind::Bytes)
-                                })
+                                == Some(if *hash { MirType::I256 } else { MirType::MemPtr })
                     }
                     InstKind::CheckedBinary { arithmetic, .. } => {
                         let (crate::mir::ArithmeticKind::Unsigned(bits)
@@ -1128,12 +1117,9 @@ impl<'a> Validator<'a> {
                             (1..=256).contains(&variants)
                                 && *element
                                     == crate::mir::ValueLayout::UInt(TypeSize::new_int_bits(8))
-                        }) && inst.result_ty
-                            == Some(MirType::MemoryObject(MemoryObjectKind::DynamicArray))
+                        }) && inst.result_ty == Some(MirType::MemPtr)
                     }
-                    InstKind::StorageBytesLoad(_) => {
-                        inst.result_ty == Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
-                    }
+                    InstKind::StorageBytesLoad(_) => inst.result_ty == Some(MirType::MemPtr),
                     InstKind::AddressCall { kind, value, .. } => {
                         *kind == AddressCallKind::Call || value.is_none()
                     }
@@ -1464,7 +1450,7 @@ fn return_abi_matches(
                     continue;
                 }
                 match ty {
-                    MirType::MemoryObject(_) if actual == MirType::I256 => {}
+                    MirType::MemPtr if actual == MirType::I256 => {}
                     MirType::Slice(location) => {
                         let pointer = match location {
                             SliceLocation::Memory => MirType::I256,
@@ -1493,7 +1479,7 @@ fn return_abi_matches(
 
 /// Returns the first type, in signature and then block order, that is not a scalar word.
 fn first_non_word_type(func: &Function) -> Option<MirType> {
-    let non_word = |ty: MirType| !ty.is_word() || matches!(ty, MirType::MemoryObject(_));
+    let non_word = |ty: MirType| !ty.is_word();
     let signature = func.arg_indices().map(|index| func.arg_ty(index));
     if let Some(ty) =
         signature.chain(func.return_components().iter().copied()).find(|&ty| non_word(ty))

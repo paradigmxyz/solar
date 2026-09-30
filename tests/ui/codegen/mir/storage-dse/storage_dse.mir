@@ -90,7 +90,7 @@ fn @header_observes_store(arg0: i256) {
 // CHECK: {{^[ +].*}}sstore arg0, 7
 // CHECK: {{^[ +].*}}load_storage_bytes arg1
 // CHECK: {{^[ +].*}}sstore arg0, 0
-fn @copy_observes_store(arg0: i256, arg1: i256) -> memorybytes {
+fn @copy_observes_store(arg0: i256, arg1: i256) -> memptr {
   bb0:
     sstore arg0, 7
     v0 = load_storage_bytes arg1

@@ -54,14 +54,14 @@
       jump bb1
   }
   
-  fn @copy_object(arg0: memorybytes, arg1: i256) -> i256 {
+  fn @copy_object(arg0: memptr, arg1: i256) -> i256 {
     bb0:
       v0 = mload 64
       v1 = add arg1, 32
       v2 = add v0, v1
       mstore 64, v2
       mstore v0, arg1
-      v3 = ptrtoint memorybytes arg0 to i256
+      v3 = ptrtoint memptr arg0 to i256
       v4 = add v3, 32
       v5 = add v0, 32
       jump bb1
@@ -86,7 +86,7 @@
       v0 = mload 64
       v1 = sub v0, 1
       v2 = inttoptr i256 v1 to memptr
-      v3 = bitcast memptr v2 to memorybytes
+      v3 = bitcast memptr v2 to memptr
       v4 = icall @copy_object, v3, 4
       ret v4
   }
@@ -95,8 +95,8 @@
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = alloc memorybytes, exact, uninitialized, infallible, 64
-      v2 = ptrtoint memorybytes v0 to i256
-      v3 = ptrtoint memorybytes v1 to i256
+      v2 = ptrtoint memptr v0 to i256
+      v3 = ptrtoint memptr v1 to i256
       v4 = add v2, 32
       v5 = add v3, 32
 +     v13 = add v2, 32
@@ -126,8 +126,8 @@
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = alloc memorybytes, exact, uninitialized, infallible, 64
-      v2 = ptrtoint memorybytes v0 to i256
-      v3 = ptrtoint memorybytes v1 to i256
+      v2 = ptrtoint memptr v0 to i256
+      v3 = ptrtoint memptr v1 to i256
       v4 = add v2, 32
       v5 = add v3, 32
       jump bb1
@@ -151,8 +151,8 @@
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = alloc memorybytes, exact, uninitialized, infallible, 64
-      v2 = ptrtoint memorybytes v1 to i256
-      v3 = ptrtoint memorybytes v0 to i256
+      v2 = ptrtoint memptr v1 to i256
+      v3 = ptrtoint memptr v0 to i256
       v4 = add v2, 32
       v5 = add v3, 32
       jump bb1
@@ -177,8 +177,8 @@
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = alloc memorybytes, exact, uninitialized, infallible, 64
-      v2 = ptrtoint memorybytes v1 to i256
-      v3 = ptrtoint memorybytes v0 to i256
+      v2 = ptrtoint memptr v1 to i256
+      v3 = ptrtoint memptr v0 to i256
       v4 = add v2, 32
       v5 = add v3, 32
       jump bb1

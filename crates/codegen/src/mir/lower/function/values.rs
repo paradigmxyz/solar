@@ -601,7 +601,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         returns: usize,
         ty: Ty<'gcx>,
     ) -> ValueId {
-        let MirType::MemoryObject(kind) = types::TypeLowerer::mir_return_type(ty) else {
+        let MirType::MemPtr = types::TypeLowerer::mir_return_type(ty) else {
             return self.load_static_abi_return_value(base, index, returns);
         };
         let index = self.builder.imm(u64::try_from(index).unwrap_or(u64::MAX));
@@ -609,7 +609,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             base,
             MemoryObjectLayout::word_fixed_array(u64::try_from(returns).unwrap_or(u64::MAX)),
             index,
-            kind,
         )
     }
 }

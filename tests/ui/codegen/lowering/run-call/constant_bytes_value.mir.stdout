@@ -24,7 +24,7 @@ fn @firstWord() -> i256 [selector=0x20cb3a4a, pure, abi_params=[], abi_returns=[
     v3 = ptrtoint memptr v1 to i256
     v4 = add v3, 32
     mstore v4, 0x102030405060708000000000000000000000000000000000000000000000000
-    v5 = ptrtoint memorybytes v0 to i256
+    v5 = ptrtoint memptr v0 to i256
     v6 = add v5, 32
     v7 = mload v6
     ret v7

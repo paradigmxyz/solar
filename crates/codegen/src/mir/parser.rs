@@ -405,13 +405,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 for &id in &instructions {
                     let instruction = function.inst(id);
                     let non_default = |ty| {
-                        matches!(
-                            ty,
-                            MirType::Struct(_)
-                                | MirType::Slice(_)
-                                | MirType::MemoryObject(_)
-                                | MirType::MemPtr
-                        ) || matches!(ty, MirType::Int(bits) if bits.get() != 256)
+                        matches!(ty, MirType::Struct(_) | MirType::Slice(_) | MirType::MemPtr)
+                            || matches!(ty, MirType::Int(bits) if bits.get() != 256)
                     };
                     if instruction.result_ty.is_some_and(non_default) {
                         continue;
@@ -693,10 +688,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let layout = self.parse_value_layout_from_ident(id)?;
         match layout {
             super::ValueLayout::MemPtr
-            | super::ValueLayout::MemoryObject(_)
             | super::ValueLayout::Slice(_)
             | super::ValueLayout::Struct(_)
             | super::ValueLayout::Void => Ok(layout.mir_type()),
+            super::ValueLayout::MemoryObject(_) => Err(self
+                .parser
+                .error(format!("`{id}` is an object layout; memory objects are `memptr` values"))),
             _ => Err(self
                 .parser
                 .error(format!("`{id}` is a layout type; use `iN` for a scalar SSA value"))),
@@ -1746,10 +1743,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     .map_err(|_| self.parser.error("memory field index does not fit in u64"))?;
                 let ty = if self.parser.eat(TokenKind::Comma) {
                     let ty = self.parse_type()?;
-                    if !matches!(ty, MirType::MemoryObject(_)) {
-                        return Err(self
-                            .parser
-                            .error("object load annotation must be a memory-object type"));
+                    if !matches!(ty, MirType::MemPtr) {
+                        return Err(self.parser.error("object load annotation must be `memptr`"));
                     }
                     ty
                 } else {
@@ -1781,10 +1776,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let index = self.parse_value(builder)?;
                 let ty = if self.parser.eat(TokenKind::Comma) {
                     let ty = self.parse_type()?;
-                    if !matches!(ty, MirType::MemoryObject(_)) {
-                        return Err(self
-                            .parser
-                            .error("object load annotation must be a memory-object type"));
+                    if !matches!(ty, MirType::MemPtr) {
+                        return Err(self.parser.error("object load annotation must be `memptr`"));
                     }
                     ty
                 } else {
@@ -1962,7 +1955,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     Value::Inst(inst)
                         if matches!(builder.func().inst(*inst).kind, InstKind::ICall { function: super::Callee::Function(_), .. })
                 );
-                if !matches!(data_ty, Some(MirType::MemoryObject(MemoryObjectKind::Bytes)))
+                if !matches!(data_ty, Some(MirType::MemPtr))
                     && !(data_ty == Some(MirType::I256)
                         && !layout.types.iter().any(AbiParamType::has_dynamic_child))
                     && !pending_call
@@ -2138,11 +2131,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let hash = mnemonic == sym::keccak256_packed;
                 (
                     InstKind::AbiEncodePacked { parts: parts.into_boxed_slice(), hash },
-                    Some(if hash {
-                        MirType::I256
-                    } else {
-                        MirType::MemoryObject(MemoryObjectKind::Bytes)
-                    }),
+                    Some(if hash { MirType::I256 } else { MirType::MemPtr }),
                 )
             }
             sym::validate_storage_bytes => inst!(ValidateStorageBytes(a)),
@@ -2160,10 +2149,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 };
                 self.parser.expect(TokenKind::Comma)?;
                 let slot = self.parse_value(builder)?;
-                (
-                    InstKind::StorageArrayLoad { slot, element, enum_variants },
-                    Some(MirType::MemoryObject(MemoryObjectKind::DynamicArray)),
-                )
+                (InstKind::StorageArrayLoad { slot, element, enum_variants }, Some(MirType::MemPtr))
             }
             sym::store_storage_bytes_literal => {
                 let slot = self.parse_value(builder)?;
@@ -2174,7 +2160,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::store_storage_bytes => inst!(StorageBytesStore(a, b)),
             sym::clear_storage_words => inst!(StorageClearWords(a, b, c)),
             sym::load_storage_bytes => {
-                inst!(StorageBytesLoad(a) => MirType::MemoryObject(MemoryObjectKind::Bytes))
+                inst!(StorageBytesLoad(a) => MirType::MemPtr)
             }
             sym::address_call | sym::address_staticcall | sym::address_delegatecall => {
                 operands!(address, input);
@@ -2302,12 +2288,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     super::Callee::Builtin(
                         super::Builtin::Require(_) | super::Builtin::Check { .. },
                     ) => None,
-                    super::Callee::Builtin(super::Builtin::Concat(_)) => {
-                        Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
-                    }
+                    super::Callee::Builtin(super::Builtin::Concat(_)) => Some(MirType::MemPtr),
                     super::Callee::Builtin(super::Builtin::Transfer) => None,
                     super::Callee::Builtin(super::Builtin::ReturndataBytes) => {
-                        Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+                        Some(MirType::MemPtr)
                     }
                     super::Callee::Builtin(
                         super::Builtin::Sha256

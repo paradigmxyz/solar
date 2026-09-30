@@ -46,8 +46,6 @@ pub(crate) enum MemoryBase {
     Allocation(InstId),
     /// An unrecycled allocation site with multiple dynamic loop instances.
     DynamicAllocation(InstId),
-    /// A nominal memory-object argument, without allocation ownership.
-    Param(ValueId),
     /// A symbolic MIR value.
     Value(ValueId),
 }
@@ -87,12 +85,6 @@ impl MemoryAddress {
         Self { region, base: MemoryBase::Value(value), offset: 0 }
     }
 
-    /// Creates the address of a memory object passed in as an argument.
-    #[must_use]
-    pub(crate) const fn param(value: ValueId) -> Self {
-        Self { region: MemoryRegion::Heap, base: MemoryBase::Param(value), offset: 0 }
-    }
-
     /// Returns the absolute address, if known.
     #[must_use]
     pub(crate) const fn as_absolute(self) -> Option<u64> {
@@ -101,7 +93,6 @@ impl MemoryAddress {
             MemoryBase::InternalFrame
             | MemoryBase::Allocation(_)
             | MemoryBase::DynamicAllocation(_)
-            | MemoryBase::Param(_)
             | MemoryBase::Value(_) => None,
         }
     }
@@ -114,7 +105,6 @@ impl MemoryAddress {
             MemoryBase::Absolute
             | MemoryBase::Allocation(_)
             | MemoryBase::DynamicAllocation(_)
-            | MemoryBase::Param(_)
             | MemoryBase::Value(_) => None,
         }
     }
@@ -1759,14 +1749,8 @@ impl AliasAnalysis {
             Value::Immediate(immediate) => {
                 Some(MemoryAddress::absolute(immediate.as_u256()?.try_into().ok()?))
             }
-            // Preserve parameter identity without assuming an allocation origin.
-            Value::Arg(index) => {
-                Some(if matches!(func.arg_ty(*index), crate::mir::MirType::MemoryObject(_)) {
-                    MemoryAddress::param(value)
-                } else {
-                    MemoryAddress::symbolic(value, MemoryRegion::Unknown)
-                })
-            }
+            // An opaque pointer argument implies no allocation origin or region.
+            Value::Arg(_) => Some(MemoryAddress::symbolic(value, MemoryRegion::Unknown)),
             Value::Undef(_) | Value::Error(_) => None,
             Value::Inst(inst_id) => match func.inst(*inst_id).kind {
                 InstKind::InternalFrameAddr(offset) => Some(MemoryAddress::internal_frame(offset)),
@@ -1918,14 +1902,7 @@ impl AliasAnalysis {
             return MemoryRegion::Unknown;
         }
         let Value::Inst(inst_id) = func.value(value) else {
-            return match func.value(value) {
-                Value::Arg(index)
-                    if matches!(func.arg_ty(*index), crate::mir::MirType::MemoryObject(_)) =>
-                {
-                    MemoryRegion::Heap
-                }
-                _ => MemoryRegion::Unknown,
-            };
+            return MemoryRegion::Unknown;
         };
         match func.inst(*inst_id).kind {
             InstKind::InternalFrameAddr(_) => MemoryRegion::InternalFrame,
@@ -2027,8 +2004,8 @@ impl AliasAnalysis {
             | InstKind::MemoryObjectCopyFromSlice { object, .. }
             | InstKind::MemoryObjectCopyFromSliceAt { object, .. }
             | InstKind::MemoryObjectCopy { destination: object, .. } => {
-                // Object types do not prove ownership: raw pointers can be rebound
-                // to objects, and lowering exposes their writes to reserved memory.
+                // Object layouts do not prove ownership: any pointer can be accessed
+                // as an object, and lowering exposes their writes to reserved memory.
                 Self::range_may_overlap_fmp(func, object, None)
             }
             InstKind::MCopy(dest, _, size)
@@ -2199,7 +2176,7 @@ mod tests {
         let cases = {
             let mut builder = FunctionBuilder::new(&mut func);
             let slot = builder.add_param(MirType::I256);
-            let object = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
+            let object = builder.add_param(MirType::MemPtr);
             let calldata = builder.add_param(MirType::Slice(SliceLocation::Calldata));
             let cases = [
                 (InstKind::StorageBytesStore(slot, object), Some(32), false),
@@ -2280,7 +2257,7 @@ mod tests {
                             crate::mir::AllocationSemantics::INTERNAL,
                         )
                     } else {
-                        builder.add_param(MirType::MemoryObject(layout.kind()))
+                        builder.add_param(MirType::MemPtr)
                     }
                 });
                 let [bytes, structure, array] = objects;
