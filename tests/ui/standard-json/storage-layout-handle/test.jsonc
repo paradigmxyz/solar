@@ -1,0 +1,29 @@
+// CHECK: "Orders": {
+// CHECK: "storageLayout": {
+// CHECK: "t_struct(Order)
+// CHECK: "numberOfBytes": "64"
+// CHECK: "label": "marketId"
+// CHECK-NEXT: "offset": 20
+// CHECK-NEXT: "slot": "0"
+// CHECK-NEXT: "type": "t_uint72"
+// CHECK: "handles": {
+// CHECK-NEXT: "t_struct(Order)
+// CHECK-NEXT: {
+// CHECK-NEXT: "member": "marketId"
+// CHECK-NEXT: "dictionary": {
+// CHECK: "label": "markets"
+// CHECK: "slot": "0"
+// CHECK: "Plain": {
+// CHECK-NOT: "handles"
+// CHECK: "types"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "handle.sol": {
+        "Orders": ["storageLayout"],
+        "Plain": ["storageLayout"]
+      }
+    }
+  }
+}

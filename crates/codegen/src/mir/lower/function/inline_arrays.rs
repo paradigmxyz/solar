@@ -42,7 +42,7 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
         // length = inline ? top : header
         let header = self.builder.sload(slot);
         let length_shift = self.builder.imm(248);
-        let top = self.builder.shr(length_shift, header);
+        let top = self.builder.shr(header, length_shift);
         let inline = self.builder.ne_zero(top);
         let length = self.builder.select(inline, top, header);
         (header, inline, length)
@@ -184,7 +184,7 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
         let encoded = array.element.encode(&mut self.builder, value);
         let bits = self.builder.imm(array.size() * 8);
         let shift = self.builder.mul(length, bits);
-        let placed = self.builder.shl(shift, encoded);
+        let placed = self.builder.shl(encoded, shift);
         let appended = self.builder.or(grown, placed);
         self.builder.sstore(slot, appended);
         self.builder.ret([]);
@@ -210,7 +210,7 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
         let capacity_bytes = u64::from(array.capacity) * array.size();
         if u64::from(array.capacity) < array.per_slot() {
             let shift = self.builder.imm(capacity_bytes * 8);
-            let placed = self.builder.shl(shift, encoded);
+            let placed = self.builder.shl(encoded, shift);
             let word = self.builder.or(elements, placed);
             self.builder.sstore(data, word);
         } else {
@@ -279,7 +279,7 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
         let bits = self.builder.imm(array.size() * 8);
         let shift = self.builder.mul(last, bits);
         let mask = self.builder.imm(array.element.mask());
-        let element_mask = self.builder.shl(shift, mask);
+        let element_mask = self.builder.shl(mask, shift);
         let keep = self.builder.not(element_mask);
         let cleared = self.builder.and(header, keep);
         let one_length = self.builder.imm(U256::from(1) << 248);

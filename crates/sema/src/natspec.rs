@@ -575,6 +575,14 @@ impl<'gcx> Resolver<'gcx> {
                 variable.is_state_variable()
                     && matches!(variable.ty.kind, hir::TypeKind::Array(array) if array.size.is_none())
             }
+            (SolarTag::Handle, hir::ItemId::Struct(id)) => {
+                gcx.hir.strukt(id).contract.is_some_and(|contract| {
+                    matches!(
+                        gcx.hir.contract(contract).kind,
+                        hir::ContractKind::Contract | hir::ContractKind::AbstractContract
+                    )
+                })
+            }
             _ => false,
         };
         if !applies {
@@ -990,6 +998,9 @@ pub(crate) enum SolarTag {
     /// `@custom:solar-bitmap`: a mapping from unsigned integers to booleans keeps each value in
     /// one bit, 256 keys to a word.
     Bitmap,
+    /// `@custom:solar-handle <field> <dictionary>`: a struct keeps the index of a field's value
+    /// in an append-only dictionary array instead of the value.
+    Handle,
     /// A `solar-` tag this compiler does not define.
     Unknown,
 }
@@ -1005,6 +1016,7 @@ impl SolarTag {
             sym::solar_dash_cold => Some(Self::Cold),
             sym::solar_dash_fuse => Some(Self::Fuse),
             sym::solar_dash_bitmap => Some(Self::Bitmap),
+            sym::solar_dash_handle => Some(Self::Handle),
             _ => name.as_str().starts_with("solar-").then_some(Self::Unknown),
         }
     }
@@ -1070,13 +1082,21 @@ pub(crate) fn report_misplaced_solar_tag(
             .span(span)
             .help("put it on a mapping from an unsigned integer to `bool`")
             .emit(),
+        SolarTag::Handle => dcx
+            .err("`@custom:solar-handle` must document a struct declared in a contract")
+            .span(span)
+            .help(
+                "put it on a struct of the contract that keeps the dictionary: \
+                 `@custom:solar-handle marketId markets`",
+            )
+            .emit(),
         SolarTag::Unknown => dcx
             .err_at(span, format!("unknown tag `@custom:{name}`"))
             .note("`@custom:solar-` tags are requirements this compiler checks")
             .help(
                 "the supported tags are `@custom:solar-cold`, `@custom:solar-inline`, `@custom:solar-optimize`, \
-                 `@custom:solar-safe`, `@custom:solar-trusted`, `@custom:solar-fuse`, and \
-                 `@custom:solar-bitmap`",
+                 `@custom:solar-safe`, `@custom:solar-trusted`, `@custom:solar-fuse`, \
+                 `@custom:solar-bitmap`, and `@custom:solar-handle`",
             )
             .emit(),
     }
