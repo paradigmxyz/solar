@@ -1,5 +1,6 @@
 use crate::{
     code_actions::{CodeActionPlan, ranges_overlap, rope_source_fingerprint},
+    config::Config,
     document_links::ImportEditPlan,
     proto,
     rename::RenameCandidate,
@@ -16,6 +17,10 @@ use solar_interface::{
 };
 use std::{collections::HashMap, sync::Arc};
 
+mod scope;
+
+pub(super) use scope::check_edit_scope;
+
 pub(crate) fn validated_rename_workspace_edit(
     candidate: RenameCandidate,
     new_name: String,
@@ -27,10 +32,14 @@ pub(crate) fn validated_rename_workspace_edit(
 
 pub(super) fn validated_import_workspace_edit(
     plan: ImportEditPlan,
+    config: &Config,
     vfs: Arc<RwLock<Vfs>>,
     document_changes: bool,
-) -> Result<WorkspaceEdit, ResponseError> {
-    Ok(validate_import_edits(plan, vfs)?.into_workspace_edit(document_changes))
+) -> Result<Option<WorkspaceEdit>, ResponseError> {
+    if check_edit_scope(plan.files(), config).is_err() {
+        return Ok(None);
+    }
+    Ok(Some(validate_import_edits(plan, vfs)?.into_workspace_edit(document_changes)))
 }
 
 pub(crate) fn validated_code_actions(

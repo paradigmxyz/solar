@@ -15,6 +15,8 @@ use lsp_types::{
 };
 use std::{fs, future::Future, sync::Arc};
 
+mod scope;
+
 fn block_on<F: Future>(future: F) -> F::Output {
     tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(future)
 }
