@@ -1,7 +1,11 @@
-//@ compile-flags: -O gas --emit=bin
+//@ revisions: none gas size
+//@[none] compile-flags: -O none --emit=bin
+//@[gas] compile-flags: -O gas --emit=bin
+//@[size] compile-flags: -O size --emit=bin
 
-// A recursive function keeps its frame pointer at `0xa0`. Moving spills cannot protect it from a
-// copy over it, so codegen reports an error instead of emitting a broken frame.
+// A recursive function keeps its frame pointer at `0xa0`, and its caller reads it after the call
+// returns. Moving spills cannot protect it from a copy over it, so codegen reports an error
+// instead of emitting a broken frame, whether or not the function needs a dynamic spill base.
 // https://github.com/paradigmxyz/solar/issues/1625
 
 contract T {

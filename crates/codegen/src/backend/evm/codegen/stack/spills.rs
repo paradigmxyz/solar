@@ -879,10 +879,22 @@ impl<'gcx> EvmCodegen<'gcx> {
         let dup_n = (depth + 1) as u8;
         self.emit_stack_op(StackOp::Dup(dup_n));
 
+        // A store after a low-memory clobber writes into the buffer only if dead-store removal
+        // keeps it, so it requests a dynamic spill base only then.
+        let after_hazard = std::mem::take(&mut self.after_spill_hazard);
         self.store_stack_top_to_spill(func, val, slot);
+        self.after_spill_hazard = after_hazard;
         let (end_block, end) = self.asm.next_instruction_position();
         if end_block == block {
-            self.spill_stores.push(SpillStore { value: val, slot, block, range: start..end });
+            self.spill_stores.push(SpillStore {
+                value: val,
+                slot,
+                block,
+                range: start..end,
+                after_hazard: after_hazard && self.spill_base.is_none(),
+            });
+        } else {
+            self.note_fixed_memory_access();
         }
     }
 
@@ -955,6 +967,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+            if self.spill_stores.iter().any(|store| store.after_hazard) {
+                self.request_emitting_dynamic_spill_base();
+            }
             return;
         }
 
@@ -1050,6 +1065,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                     }
                 }
             }
+        }
+        if stores
+            .iter()
+            .enumerate()
+            .any(|(index, store)| store.after_hazard && !dead.contains(&index))
+        {
+            self.request_emitting_dynamic_spill_base();
         }
         let mut removals = dead
             .into_iter()

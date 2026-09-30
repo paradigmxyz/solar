@@ -129,11 +129,15 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Requests a dynamic spill base when a spill slot or frame argument at a fixed address is
     /// accessed after a low-memory clobber, where the word may lie inside the written buffer.
-    fn note_fixed_memory_access(&mut self) {
-        if self.spill_base.is_none()
-            && self.after_spill_hazard
-            && let Some(func_id) = self.emitting_function
-        {
+    pub(super) fn note_fixed_memory_access(&mut self) {
+        if self.spill_base.is_none() && self.after_spill_hazard {
+            self.request_emitting_dynamic_spill_base();
+        }
+    }
+
+    /// Requests a dynamic spill base for the function being emitted.
+    pub(super) fn request_emitting_dynamic_spill_base(&mut self) {
+        if let Some(func_id) = self.emitting_function {
             self.request_dynamic_spill_base(func_id);
         }
     }
@@ -144,13 +148,23 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn spill_hazard_clobbers_frame_pointer(&self, func: &Function) -> bool {
         let frame_pointer_end =
             EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE;
-        self.in_internal_function
-            && self.own_frame_addr_is_dynamic()
-            && self.spill_hazard_insts.iter().any(|&inst| {
-                Self::dynamic_spill_write_dest(func, inst).is_some_and(|dest| {
-                    func.value_u64(dest).is_none_or(|dest| dest < frame_pointer_end)
+        if !self.in_internal_function || !self.own_frame_addr_is_dynamic() {
+            return false;
+        }
+        // The caller reads the word after the function returns, so a write on a path that ends
+        // the call frame is harmless. Without a dynamic spill base, only a write whose
+        // destination provably starts below the word counts: an unbounded destination is almost
+        // always on the heap.
+        let returning = Self::blocks_returning_to_caller(func);
+        let inst_blocks = func.inst_blocks();
+        self.spill_hazard_insts.iter().any(|&inst| {
+            inst_blocks.get(&inst).is_some_and(|&block| returning.contains(block))
+                && Self::dynamic_spill_write_dest(func, inst).is_some_and(|dest| {
+                    let mut visiting = DenseBitSet::new_empty(func.num_values());
+                    Self::value_u64_upper_bound(func, dest, &mut visiting)
+                        .map_or(self.spill_base.is_some(), |dest| dest < frame_pointer_end)
                 })
-            })
+        })
     }
 
     /// Returns whether `inst` is the placeholder that defines the dynamic spill base.
@@ -999,8 +1013,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         for &value in spilled {
             let slot = self.scheduler.spills.get(value).expect("spilled carried value has a slot");
+            // Unwinding stored the value, or popped it because it rematerializes.
             let Some(depth) = self.scheduler.stack.find(value) else {
-                debug_assert!(self.scheduler.spills.is_stored(value), "carried value was lost");
+                debug_assert!(
+                    self.scheduler.spills.is_stored(value)
+                        || Self::always_rematerializable_op(func, value).is_some(),
+                    "carried value was lost"
+                );
                 continue;
             };
             assert!(depth < self.stack_access_limit(), "carried value exceeded DUP reach");
