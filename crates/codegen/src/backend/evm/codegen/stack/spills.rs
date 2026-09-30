@@ -530,12 +530,23 @@ impl<'gcx> EvmCodegen<'gcx> {
         &mut self,
         needed: &[ValueId],
     ) {
-        while let Some(depth) = self.first_stack_value_not_needed_by(needed) {
+        self.pop_reachable_stack_values_not_needed_by(needed);
+        assert!(
+            self.first_stack_value_not_needed_by(needed).is_none(),
+            "resident stack discard exceeded SWAP reach"
+        );
+    }
+
+    /// Pops every stack word within `SWAP` reach that `needed` does not claim.
+    pub(in crate::backend::evm::codegen) fn pop_reachable_stack_values_not_needed_by(
+        &mut self,
+        needed: &[ValueId],
+    ) {
+        while let Some(depth) = self.first_stack_value_not_needed_by(needed)
+            && depth <= self.stack_access_limit()
+        {
+            // [swap depth]; pop
             if depth > 0 {
-                assert!(
-                    depth <= self.stack_access_limit(),
-                    "resident stack discard exceeded SWAP reach"
-                );
                 self.emit_stack_op(StackOp::Swap(depth as u8));
             }
             self.emit_stack_op(StackOp::Pop);

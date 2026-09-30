@@ -1,7 +1,7 @@
 //@ compile-flags: -O gas --emit=bin
 
-// A recursive function keeps its frame pointer at `0xa0`. A copy over it cannot be protected by
-// moving spills, so codegen reports it instead of emitting a broken frame.
+// A recursive function keeps its frame pointer at `0xa0`. Moving spills cannot protect it from a
+// copy over it, so codegen reports an error instead of emitting a broken frame.
 // https://github.com/paradigmxyz/solar/issues/1625
 
 contract T {

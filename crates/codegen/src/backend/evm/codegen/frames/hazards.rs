@@ -4,7 +4,7 @@ use super::{
     super::{
         AliasAnalysis, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap,
         FxHashSet, InstId, InstKind, MemoryBase, MemoryRegion, MirType, Module, Terminator, U256,
-        Value, ValueId,
+        Value, ValueId, spill_base::WriteSize,
     },
     SPILL_HAZARD_BOUND,
 };
@@ -24,55 +24,28 @@ impl<'gcx> EvmCodegen<'gcx> {
         ) {
             return None;
         }
-        let dynamic_range = |dest, size| {
-            // Fixed-width copies have the same explicit-memory contract as
-            // `mstore`: arbitrary destinations in hand-written assembly may
-            // alias compiler memory. The forwarding-buffer protocol is for
-            // variable-length writes that can sweep over every spill slot.
-            if func.value_u64(size).is_some() {
-                return None;
-            }
-            let below_spills = func.value_u64(dest).is_some_and(|dest| {
-                let mut visiting = DenseBitSet::new_empty(func.num_values());
-                Self::value_u64_upper_bound(func, size, &mut visiting)
-                    .and_then(|size| dest.checked_add(size))
-                    .is_some_and(|end| end <= EvmMemoryLayout::HEAP_START)
-            });
-            (!below_spills).then_some(dest)
-        };
-        match func.inst(inst_id).kind {
-            InstKind::CalldataCopy(dest, _, size)
-            | InstKind::DataCopy(_, dest, size)
-            | InstKind::CodeCopy(dest, _, size)
-            | InstKind::ExtCodeCopy(_, dest, _, size)
-            | InstKind::MCopy(dest, _, size) => dynamic_range(dest, size),
-            InstKind::ReturnDataCopy(dest, offset, size) => {
-                // `returndatacopy(_, returndatasize(), n)` is an OOG guard:
-                // `n == 0` writes nothing, while every nonzero length is out
-                // of bounds and traps before memory is modified.
-                let starts_at_end = matches!(
-                    func.value(offset),
-                    Value::Inst(inst) if matches!(func.inst(*inst).kind, InstKind::ReturnDataSize)
-                );
-                if starts_at_end { None } else { dynamic_range(dest, size) }
-            }
-            InstKind::Call { ret_offset: dest, ret_size: size, .. }
-            | InstKind::CallCode { ret_offset: dest, ret_size: size, .. }
-            | InstKind::StaticCall { ret_offset: dest, ret_size: size, .. }
-            | InstKind::DelegateCall { ret_offset: dest, ret_size: size, .. }
-                if func.value_u64(size) != Some(0) =>
-            {
-                dynamic_range(dest, size)
-            }
+        let (dest, size) = Self::memory_write(func, inst_id)?;
+        match (&func.inst(inst_id).kind, size) {
             // A fixed-width store through a loop-carried pointer that starts below the spill
             // area sweeps every slot the loop reaches; across the iterations it is as unbounded
             // as a variable-length copy.
-            InstKind::MStore(dest, _) | InstKind::MStore8(dest, _)
-                if Self::is_low_sweeping_pointer(func, dest) =>
-            {
-                Some(dest)
+            (InstKind::MStore(..) | InstKind::MStore8(..), _) => {
+                Self::is_low_sweeping_pointer(func, dest).then_some(dest)
             }
-            _ => None,
+            // Fixed-width copies have the same explicit-memory contract as `mstore`: arbitrary
+            // destinations in hand-written assembly may alias compiler memory. The
+            // forwarding-buffer protocol is for variable-length writes that can sweep over every
+            // spill slot.
+            (_, WriteSize::Const(_)) => None,
+            (_, WriteSize::Value(size)) => {
+                let below_spills = func.value_u64(dest).is_some_and(|dest| {
+                    let mut visiting = DenseBitSet::new_empty(func.num_values());
+                    Self::value_u64_upper_bound(func, size, &mut visiting)
+                        .and_then(|size| dest.checked_add(size))
+                        .is_some_and(|end| end <= EvmMemoryLayout::HEAP_START)
+                });
+                (!below_spills).then_some(dest)
+            }
         }
     }
 

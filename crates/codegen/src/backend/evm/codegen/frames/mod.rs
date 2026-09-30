@@ -796,17 +796,17 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
+        let spill_start = |func_id| {
+            entry_bases[&func_id] + static_alloc_sizes.get(&func_id).copied().unwrap_or(0)
+        };
         for (func_id, spills) in self.external_spill_addr_consts.drain() {
-            let base =
-                entry_bases[&func_id] + static_alloc_sizes.get(&func_id).copied().unwrap_or(0);
+            let base = spill_start(func_id);
             for (rank, (id, _)) in spills.into_iter().enumerate() {
                 self.asm.set_deferred_const(id, U256::from(base + rank as u64 * WORD_BYTES as u64));
             }
         }
         for (func_id, id) in std::mem::take(&mut self.external_spill_base_consts) {
-            let base =
-                entry_bases[&func_id] + static_alloc_sizes.get(&func_id).copied().unwrap_or(0);
-            self.asm.set_deferred_const(id, U256::from(base));
+            self.asm.set_deferred_const(id, U256::from(spill_start(func_id)));
         }
 
         let max_entry_end = entry_ends.values().copied().max().unwrap_or(0);
@@ -1507,7 +1507,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         slot: SpillSlot,
     ) {
-        self.note_fixed_memory_access();
         if self.emit_dynamic_spill_slot_addr(func, slot) {
             return;
         }
@@ -1519,7 +1518,6 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn emit_spill_slot_addr_untracked(&mut self, func: &Function, slot: SpillSlot) {
-        self.note_fixed_memory_access();
         if self.emit_dynamic_spill_slot_addr(func, slot) {
             return;
         }
@@ -1589,7 +1587,6 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     pub(in crate::backend::evm::codegen) fn emit_internal_arg_load(&mut self, index: ArgIdx) {
-        self.note_fixed_memory_access();
         if !self.emit_dynamic_frame_arg_addr(index) {
             self.emit_own_frame_addr_untracked(
                 EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE

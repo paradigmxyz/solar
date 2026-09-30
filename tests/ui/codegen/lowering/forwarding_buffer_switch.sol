@@ -2,7 +2,7 @@
 //@[none] compile-flags: -O none -Zdump=evm-ir-runtime
 //@[gas] compile-flags: -O gas -Zdump=evm-ir-runtime
 //@[size] compile-flags: -O size -Zdump=evm-ir-runtime
-//@ filecheck:
+//@ filecheck: --implicit-check-not=msize
 
 // OpenZeppelin's `Proxy._delegate`. The `switch` keeps its scrutinee on the stack after
 // `returndatacopy` instead of spilling it into the returned data, so the function needs no
@@ -20,7 +20,6 @@ contract Proxy {
     // CHECK: delegatecall
     // CHECK: returndatacopy
     // CHECK-NOT: mstore
-    // CHECK-NOT: msize
     // CHECK: revert
     // CHECK: return
     fallback() external payable {

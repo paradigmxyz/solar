@@ -131,7 +131,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let whole_function_liveness = block_local_liveness.is_none() && self.spill_base.is_none();
         let liveness = if let Some(base) = &self.spill_base {
             let mut liveness = Liveness::compute(func);
-            liveness.pin(func, base.value);
+            liveness.pin(func, CfgInfo::new(func).reachable(), base.value);
             Rc::new(liveness)
         } else {
             block_local_liveness.map_or_else(|| self.function_liveness(func_id, func), Rc::new)
@@ -624,24 +624,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.asm.set_modifier_depth(inst.metadata.modifier_depth());
                 }
 
-                // A whole-calldata-forwarding clobber overwrites the low memory
-                // the spill area lives in. Reload every value live across it
-                // onto the stack while the slot is still valid, and drop the
-                // stored flag so nothing reloads the clobbered slot. The slot is
-                // NOT re-stored here: the clobbered range is the very memory the
-                // following forward reads, so writing it back would corrupt the
-                // forwarded input. The value rides the stack, which the write
-                // never touches; live-out values re-store once at block end.
-                // Only values still needed past the clobber are pinned: a phi
-                // source or an operand the copy itself consumes has its last
-                // recorded use in this block at or before it, and reloading it
-                // would only deepen the stack with a dead word. A value this
-                // block defines at or after the clobber has no word to hold
-                // yet: free-memory-pointer loads reserve a reloadable slot
-                // before their definition stores them, and reloading one here
-                // would read a slot nothing has stored.
                 self.refresh_spill_base();
-                let pointer_raised = free_memory_trusted_calls.contains(&inst_id);
+                // Raise the free-memory pointer only where that spares the call a carry.
+                let pointer_raised = free_memory_trusted_calls.contains(&inst_id)
+                    && self.call_may_write_spill_area(func, inst_id, false)
+                    && !self.call_may_write_spill_area(func, inst_id, true);
                 if pointer_raised {
                     self.emit_free_memory_bump();
                 }
@@ -652,6 +639,22 @@ impl<'gcx> EvmCodegen<'gcx> {
                         func, liveness, block_id, inst_idx, inst_id,
                     );
                 } else if self.spill_hazard_insts.contains(&inst_id) {
+                    // A whole-calldata-forwarding clobber overwrites the low memory
+                    // the spill area lives in. Reload every value live across it
+                    // onto the stack while the slot is still valid, and drop the
+                    // stored flag so nothing reloads the clobbered slot. The slot is
+                    // NOT re-stored here: the clobbered range is the very memory the
+                    // following forward reads, so writing it back would corrupt the
+                    // forwarded input. The value rides the stack, which the write
+                    // never touches; live-out values re-store once at block end.
+                    // Only values still needed past the clobber are pinned: a phi
+                    // source or an operand the copy itself consumes has its last
+                    // recorded use in this block at or before it, and reloading it
+                    // would only deepen the stack with a dead word. A value this
+                    // block defines at or after the clobber has no word to hold
+                    // yet: free-memory-pointer loads reserve a reloadable slot
+                    // before their definition stores them, and reloading one here
+                    // would read a slot nothing has stored.
                     let pending = &block.instructions[inst_idx..];
                     let at_risk: Vec<ValueId> = self
                         .scheduler

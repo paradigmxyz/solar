@@ -7,13 +7,13 @@
 //! while the buffer may still be read.
 //!
 //! The first codegen attempt keeps values that cross such a write on the stack. When that does
-//! not fit, or a spill would touch low memory after the write, the function is regenerated with
-//! a dynamic spill base: one stack word holds the address of its spill area, and every slot is
-//! addressed as `base + offset`. The area starts at its ordinary static location. Before every
+//! not fit, or a spill would touch low memory after the write, codegen regenerates the function
+//! with a dynamic spill base: one stack word holds the address of its spill area, and each slot
+//! lives at `base + offset`. The area starts at its ordinary static location. Before every
 //! memory write whose range is not a compile-time constant, the function checks whether the write
-//! can overlap the area. If it can, the live slots move to
-//! `max(round_up(dest + size), msize(), floor)`, where `floor` is above all static compiler
-//! memory and every constant-address range of the runtime, and the base word is updated in place.
+//! can overlap the area. If it can, the function moves the live slots to
+//! `max(round_up(dest + size), msize(), floor)`, where `floor` lies above all static compiler
+//! memory and every constant-address write of the runtime, and updates the base word in place.
 //! Constant-address writes stay below `floor`, so they cannot reach a moved area. An internal
 //! function's base addresses its frame from the first argument, so its frame arguments move with
 //! its spills; its return words and address-taken locals keep their fixed addresses.
@@ -21,32 +21,33 @@
 //! The base word is a stack-only value: liveness pins it through every block, the resident
 //! layout carries it across edges, and internal calls keep it below their return address. The
 //! emitter swaps it back near the top of the stack before each instruction. When scheduling
-//! buries it beyond `DUP` reach within one instruction, the words above it are parked at
-//! `msize()`, where memory holds nothing, and restored and cleared afterwards.
+//! buries it beyond `DUP` reach within one instruction, the emitter parks the words above it at
+//! `msize()`, where memory holds nothing, and restores and clears them afterwards.
 //!
 //! Callees allocate from the free-memory pointer, which can point below a moved area. Before an
-//! internal call, the pointer is raised past the area when a dataflow proves that no earlier
-//! write can have left something else in the `0x40` word: that word may hold part of a buffer,
-//! and writing it would corrupt the buffer.
+//! internal call, the function raises the pointer past the area when a dataflow proves that no
+//! earlier write can have left something else in the `0x40` word: that word may hold part of a
+//! buffer, and writing it would corrupt the buffer.
 //!
-//! A call to a function that may write memory it did not allocate, or whose pointer could not
-//! be raised, carries every value used after it on the stack instead, since no address is safe
-//! from the callee. Values rebuilt from arguments and immediates are recomputed afterwards
-//! instead of carried. Carried words may sit below `DUP` reach during the call. Afterwards the
-//! base moves above `msize()`, the carried values that had slots are stored there again, since
-//! blocks emitted earlier may reload them, and the words above any value still out of reach are
-//! stored and popped. A call to a function that may make a low-memory clobber before returning
-//! is a clobber in its caller too, so the caller gets the same treatment.
+//! No address is safe from a callee that may write memory it did not allocate, or one that
+//! allocates while the pointer stays low. Every value used after a call to such a callee rides
+//! the stack across it instead, even below `DUP` reach, except values that the function can
+//! rebuild from arguments and immediates afterwards. After the call, the base moves above
+//! `msize()`, the function stores the carried values that had slots there again, since blocks
+//! emitted earlier may reload them, and it stores and pops the words above any value still out
+//! of reach. A call to a function that may make a variable-length low-memory write before
+//! returning counts as such a write in its caller too.
 //!
-//! NOTE: A recursive function's frame pointer lives at a fixed word that no move can protect; a
-//! clobber in the function itself that may cover it is reported as an error. A callee's clobber
-//! of that word is not detected.
+//! NOTE: A recursive function's frame pointer lives at a fixed word that no move can protect;
+//! codegen reports an error for a write in the function itself that may cover it, but does not
+//! detect a callee's write over it. A callee's sweeping word store does not count as a write in
+//! its caller.
 
 use super::{
-    ArgIdx, BlockId, CfgInfo, DenseBitSet, DynamicSpillBase, EvmCodegen, EvmMemoryLayout, Function,
-    FunctionId, FxHashMap, FxHashSet, IndexVec, InstId, InstKind, Liveness, MirType, SpillSlot,
-    StackEffect, StackModel, StackOp, StackPush, Terminator, U256, Value, ValueId,
-    cross_block_values, op,
+    ArgIdx, BlockId, CfgInfo, DeferredConst, DenseBitSet, DynamicSpillBase, EvmCodegen,
+    EvmMemoryLayout, Function, FunctionId, FxHashMap, FxHashSet, IndexVec, InstId, InstKind,
+    Liveness, MirType, SpillSlot, StackEffect, StackModel, StackOp, StackPush, Terminator, U256,
+    Value, ValueId, cross_block_values, op,
 };
 use crate::mir::{
     Callee, Instruction, MemoryRegion, Module,
@@ -128,7 +129,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Requests a dynamic spill base when a spill slot or frame argument at a fixed address is
     /// accessed after a low-memory clobber, where the word may lie inside the written buffer.
-    pub(super) fn note_fixed_memory_access(&mut self) {
+    fn note_fixed_memory_access(&mut self) {
         if self.spill_base.is_none()
             && self.after_spill_hazard
             && let Some(func_id) = self.emitting_function
@@ -299,13 +300,15 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Emits the address of a spill slot relative to the dynamic spill base, without touching the
-    /// stack model. Returns false when the function addresses its spill area statically.
+    /// stack model. Returns false when the function addresses its spill area statically, after
+    /// noting the fixed access.
     pub(super) fn emit_dynamic_spill_slot_addr(
         &mut self,
         func: &Function,
         slot: SpillSlot,
     ) -> bool {
         if self.spill_base.is_none() {
+            self.note_fixed_memory_access();
             return false;
         }
         self.emit_spill_base_offset(self.spill_slot_base_offset(func, slot));
@@ -313,9 +316,14 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Emits the address of an internal function's own frame argument relative to the dynamic
-    /// spill base. Returns false when the function addresses its frame statically.
+    /// spill base. Returns false when the function addresses its frame statically, after noting
+    /// the fixed access.
     pub(super) fn emit_dynamic_frame_arg_addr(&mut self, index: ArgIdx) -> bool {
-        if self.spill_base.is_none() || !self.in_internal_function {
+        if self.spill_base.is_none() {
+            self.note_fixed_memory_access();
+            return false;
+        }
+        if !self.in_internal_function {
             return false;
         }
         self.emit_spill_base_offset(index.index() as u64 * EvmMemoryLayout::WORD_SIZE);
@@ -354,7 +362,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             | InstKind::ExtCodeCopy(_, dest, _, size)
             | InstKind::MCopy(dest, _, size) => range(dest, size),
             InstKind::ReturnDataCopy(dest, offset, size) => {
-                // `returndatacopy(_, returndatasize(), n)` writes nothing or traps.
+                // `returndatacopy(_, returndatasize(), n)` is an OOG guard: `n == 0` writes
+                // nothing, while every nonzero length is out of bounds and traps before memory
+                // is modified.
                 let starts_at_end = matches!(
                     func.value(offset),
                     Value::Inst(inst) if matches!(func.inst(*inst).kind, InstKind::ReturnDataSize)
@@ -416,8 +426,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         match size {
             WriteSize::Const(size) => {
                 self.emit_value(func, dest);
-                self.asm.emit_push(U256::from(size));
-                self.scheduler.stack.push_unknown();
+                self.emit_untracked_push(U256::from(size));
                 self.emit_stack_op(StackOp::Swap(1));
             }
             WriteSize::Value(size) => {
@@ -435,8 +444,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_stack_op(StackOp::Dup(1));
         self.emit_spill_base_copy();
         self.emit_untracked_op(op::LT);
-        self.asm.emit_push_deferred(area);
-        self.scheduler.stack.push_unknown();
+        self.emit_untracked_push_deferred(area);
         self.emit_spill_base_copy();
         self.emit_untracked_op(op::ADD);
         self.emit_stack_op(StackOp::Dup(4));
@@ -455,32 +463,27 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // new_base = max(round_up(end), msize(), floor)
         self.emit_stack_op(StackOp::Dup(1));
-        self.asm.emit_push(U256::from(EvmMemoryLayout::WORD_SIZE - 1));
-        self.scheduler.stack.push_unknown();
+        self.emit_untracked_push(U256::from(EvmMemoryLayout::WORD_SIZE - 1));
         self.emit_untracked_op(op::ADD);
-        self.asm.emit_push(U256::from(EvmMemoryLayout::WORD_SIZE - 1));
-        self.scheduler.stack.push_unknown();
+        self.emit_untracked_push(U256::from(EvmMemoryLayout::WORD_SIZE - 1));
         self.emit_untracked_op(op::NOT);
         self.emit_untracked_op(op::AND);
         self.emit_untracked_op(op::MSIZE);
         self.emit_max();
-        self.asm.emit_push_deferred(floor);
-        self.scheduler.stack.push_unknown();
+        self.emit_untracked_push_deferred(floor);
         self.emit_max();
 
         // mstore(new_base + offset, mload(spill_base + offset)) for every live word
         for offset in live_words {
             self.emit_spill_base_copy();
             if offset != 0 {
-                self.asm.emit_push(U256::from(offset));
-                self.scheduler.stack.push_unknown();
+                self.emit_untracked_push(U256::from(offset));
                 self.emit_untracked_op(op::ADD);
             }
             self.emit_untracked_op(op::MLOAD);
             self.emit_stack_op(StackOp::Dup(2));
             if offset != 0 {
-                self.asm.emit_push(U256::from(offset));
-                self.scheduler.stack.push_unknown();
+                self.emit_untracked_push(U256::from(offset));
                 self.emit_untracked_op(op::ADD);
             }
             self.emit_untracked_op(op::MSTORE);
@@ -522,6 +525,18 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Pushes an anonymous copy of the dynamic spill base.
     fn emit_spill_base_copy(&mut self) {
         self.emit_spill_base_offset(0);
+        self.scheduler.stack.push_unknown();
+    }
+
+    /// Pushes an anonymous immediate word.
+    fn emit_untracked_push(&mut self, value: U256) {
+        self.asm.emit_push(value);
+        self.scheduler.stack.push_unknown();
+    }
+
+    /// Pushes an anonymous deferred constant word.
+    fn emit_untracked_push_deferred(&mut self, value: DeferredConst) {
+        self.asm.emit_push_deferred(value);
         self.scheduler.stack.push_unknown();
     }
 
@@ -580,9 +595,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn collect_memory_summaries(&self, module: &Module) -> [DenseBitSet<FunctionId>; 4] {
         let [mut free_memory, mut unowned, mut heap, mut hazards] =
             std::array::from_fn(|_| DenseBitSet::new_empty(module.functions.len()));
-        // A hazard on a path that ends the call frame cannot reach the caller's spills. Only
-        // variable-length writes count: a sweeping word store is usually bounded in ways the
-        // hazard analysis cannot see, such as a byte scan over scratch space.
+        // A hazard on a path that ends the call frame cannot reach the caller's spills.
+        // NOTE: Only variable-length writes count. A sweeping word store is usually bounded in
+        // ways the hazard analysis cannot see, such as a byte scan over scratch space, and
+        // counting it would give every caller a dynamic spill base. An unbounded sweep in a
+        // callee can therefore still overwrite its caller's spill slots.
         let returning = module
             .functions
             .iter()
@@ -626,9 +643,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                         let InstKind::ICall { function, .. } = &func.inst(inst).kind else {
                             continue;
                         };
-                        for set in [&mut free_memory, &mut unowned, &mut heap] {
-                            if !matches!(function, Callee::Function(callee) if !set.contains(*callee))
-                            {
+                        // Every caller is already in `heap`.
+                        for set in [&mut free_memory, &mut unowned] {
+                            let callee_writes = match function {
+                                Callee::Function(callee) => set.contains(*callee),
+                                _ => true,
+                            };
+                            if callee_writes {
                                 changed |= set.insert(func_id);
                             }
                         }
@@ -726,16 +747,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         let Some(base) = &self.spill_base else { return };
         let area = base.area;
         // mstore(FMP_SLOT, max(mload(FMP_SLOT), spill_base + area))
-        self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-        self.scheduler.stack.push_unknown();
+        self.emit_untracked_push(U256::from(EvmMemoryLayout::FMP_SLOT));
         self.emit_untracked_op(op::MLOAD);
         self.emit_spill_base_copy();
-        self.asm.emit_push_deferred(area);
-        self.scheduler.stack.push_unknown();
+        self.emit_untracked_push_deferred(area);
         self.emit_untracked_op(op::ADD);
         self.emit_max();
-        self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-        self.scheduler.stack.push_unknown();
+        self.emit_untracked_push(U256::from(EvmMemoryLayout::FMP_SLOT));
         self.emit_untracked_op(op::MSTORE);
     }
 
@@ -794,8 +812,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Emits every value used after an internal call onto the stack, where the call cannot
-    /// write it, and forgets their spill stores. Frame arguments are carried with
-    /// `include_args`: a recursive callee reuses the frame, and a dynamic spill base moves it.
+    /// write it, and forgets their spill stores. An internal function also carries its frame
+    /// arguments: a recursive callee reuses the frame, and a dynamic spill base moves it.
     pub(super) fn carry_live_call_values(
         &mut self,
         func: &Function,
@@ -803,7 +821,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         block: BlockId,
         inst_idx: usize,
         result: Option<ValueId>,
-        include_args: bool,
     ) -> Vec<ValueId> {
         let mut seen = FxHashSet::default();
         let mut values = Vec::new();
@@ -815,14 +832,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         // A reserved slot can be reloadable before the block defines its value.
         let pending = &func.blocks[block].instructions[inst_idx..];
         // A later block may reload a slot stored on another path, so stored values count too.
+        let spills = &self.scheduler.spills;
         for value in self
             .scheduler
             .stack
             .iter()
             .flatten()
-            .chain(self.scheduler.spills.reloadable_values())
-            .chain(self.scheduler.spills.stored_values())
-            .collect::<Vec<_>>()
+            .chain(spills.reloadable_values())
+            .chain(spills.stored_values())
         {
             if Some(value) != result
                 && Some(value) != spill_base
@@ -833,7 +850,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 && seen.insert(value)
             {
                 // Rebuild a value from its arguments after the call, unless a slot holds it.
-                let spills = &mut self.scheduler.spills;
                 if rebuildable.as_ref().is_some_and(|set| set.contains(value))
                     && !matches!(func.value(value), Value::Arg(_))
                     && !spills.is_stored(value)
@@ -847,8 +863,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         // A rebuilt value recomputes its operands and reloads the arguments they depend on from
         // the moved frame.
+        let mut visited = DenseBitSet::new_empty(func.num_values());
         let mut used_args = DenseBitSet::new_empty(func.num_values());
         while let Some(value) = recomputed.pop() {
+            if !visited.insert(value) {
+                continue;
+            }
             match func.value(value) {
                 Value::Arg(_) => {
                     used_args.insert(value);
@@ -864,7 +884,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 _ => {}
             }
         }
-        if include_args {
+        if self.in_internal_function {
             for value in func.live_values() {
                 if Some(value) != result
                     && matches!(func.value(value), Value::Arg(_))
@@ -877,6 +897,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         for &value in &values {
+            // [mload(spill_base + slot_offset) | recompute value]; [swap spill_base up]
             if !self.scheduler.stack.contains(value) {
                 self.emit_value(func, value);
                 self.refresh_spill_base();
@@ -893,34 +914,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         values
     }
 
-    /// Drops the reachable stack words an internal call neither carries nor passes, then returns
-    /// whether the carried values stay within stack reach with `words_above` more words pushed
-    /// above them.
-    pub(super) fn carried_call_values_fit(
-        &mut self,
-        resident: &[ValueId],
-        args: &[ValueId],
-        words_above: usize,
-    ) -> bool {
+    /// Returns whether the values carried across an internal call stay within stack reach with
+    /// `words_above` more words pushed above them.
+    pub(super) fn carried_call_values_fit(&self, resident: &[ValueId], words_above: usize) -> bool {
         let limit = self.stack_access_limit();
-        self.drop_reachable_values_not_needed_by(
-            &resident.iter().chain(args).copied().collect::<Vec<_>>(),
-        );
         let deepest = resident.iter().filter_map(|&value| self.scheduler.stack.find(value)).max();
         resident.len() + words_above < limit
             && deepest.is_none_or(|depth| depth + words_above < limit)
-    }
-
-    /// Pops every stack word within `SWAP` reach that `needed` does not claim.
-    pub(super) fn drop_reachable_values_not_needed_by(&mut self, needed: &[ValueId]) {
-        while let Some(depth) = self.first_stack_value_not_needed_by(needed)
-            && depth <= self.stack_access_limit()
-        {
-            if depth > 0 {
-                self.emit_stack_op(StackOp::Swap(depth as u8));
-            }
-            self.emit_stack_op(StackOp::Pop);
-        }
     }
 
     /// Moves the dynamic spill base above everything an internal call may have written, after
@@ -930,8 +930,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let floor = base.floor;
         // spill_base = max(msize(), floor)
         self.emit_untracked_op(op::MSIZE);
-        self.asm.emit_push_deferred(floor);
-        self.scheduler.stack.push_unknown();
+        self.emit_untracked_push_deferred(floor);
         self.emit_max();
         self.replace_spill_base_with_top();
         // Every stored slot now lies in the abandoned area.
@@ -948,30 +947,40 @@ impl<'gcx> EvmCodegen<'gcx> {
         spilled: &[ValueId],
     ) {
         self.unwind_carried_values(func, values);
-        for &value in values {
-            let Value::Arg(index) = func.value(value) else { continue };
-            if !self.in_internal_function {
-                break;
+        if self.in_internal_function {
+            for &value in values {
+                if let Value::Arg(index) = func.value(value)
+                    && let Some(depth) = self.scheduler.stack.find(value)
+                {
+                    assert!(
+                        depth < self.stack_access_limit(),
+                        "carried argument exceeded DUP reach"
+                    );
+                    // dup argument
+                    self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
+                    self.store_top_to_moved_frame_arg(*index);
+                }
             }
-            let Some(depth) = self.scheduler.stack.find(value) else { continue };
-            assert!(depth < self.stack_access_limit(), "carried argument exceeded DUP reach");
-            // mstore(spill_base + argument_offset, argument)
-            self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
-            self.emit_dynamic_frame_arg_addr(*index);
-            self.scheduler.stack.push_unknown();
-            self.emit_untracked_op(op::MSTORE);
         }
         for &value in spilled {
-            let (Some(slot), Some(depth)) =
-                (self.scheduler.spills.get(value), self.scheduler.stack.find(value))
-            else {
-                continue;
-            };
-            assert!(depth < self.stack_access_limit(), "carried value exceeded DUP reach");
-            // mstore(spill_base + slot_offset, value)
-            self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
-            self.store_stack_top_to_spill(func, value, slot);
+            if let Some(slot) = self.scheduler.spills.get(value)
+                && let Some(depth) = self.scheduler.stack.find(value)
+            {
+                assert!(depth < self.stack_access_limit(), "carried value exceeded DUP reach");
+                // mstore(spill_base + slot_offset, value)
+                self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
+                self.store_stack_top_to_spill(func, value, slot);
+            }
         }
+    }
+
+    /// Stores the top word into frame argument `index` of the moved spill area.
+    fn store_top_to_moved_frame_arg(&mut self, index: ArgIdx) {
+        // mstore(spill_base + argument_offset, argument)
+        let addressed = self.emit_dynamic_frame_arg_addr(index);
+        debug_assert!(addressed, "carried values cross calls only with a dynamic spill base");
+        self.scheduler.stack.push_unknown();
+        self.emit_untracked_op(op::MSTORE);
     }
 
     /// Stores and pops the words above `values` in the moved area until each is within `DUP`
@@ -992,15 +1001,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             if self.in_internal_function
                 && let Value::Arg(index) = func.value(top)
             {
-                // mstore(spill_base + argument_offset, argument)
-                self.emit_dynamic_frame_arg_addr(*index);
-                self.scheduler.stack.push_unknown();
-                self.emit_untracked_op(op::MSTORE);
+                self.store_top_to_moved_frame_arg(*index);
             } else if Self::always_rematerializable_op(func, top).is_some()
                 || self.scheduler.reloadable_spill(top).is_some()
             {
+                // pop
                 self.emit_stack_op(StackOp::Pop);
             } else {
+                // mstore(spill_base + slot_offset, top)
                 let slot = self.scheduler.spills.allocate(top);
                 self.store_stack_top_to_spill(func, top, slot);
             }

@@ -159,9 +159,11 @@ struct DynamicSpillBase {
     value: ValueId,
     /// Placeholder entry instruction that defines `value`.
     inst: InstId,
-    /// Byte size of the function's spill area, known after the body has emitted.
+    /// Byte size of the area that moves with the base, known after the body has emitted: the
+    /// spill area, or an internal function's frame from its first argument on.
     area: DeferredConst,
-    /// First byte above every static and constant-address memory range of the runtime.
+    /// First byte above all static compiler memory and every constant-address write of the
+    /// runtime.
     floor: DeferredConst,
 }
 
@@ -375,10 +377,10 @@ pub struct EvmCodegen<'gcx> {
     /// Whole-function liveness by function, shared the same way as `stack_phi_plans`.
     function_liveness: FxHashMap<FunctionId, Rc<Liveness>>,
     function_ir_block_start: usize,
-    /// Whole-calldata-forwarding clobbers (`calldatacopy(0, 0, calldatasize())`
-    /// in a proxy) whose write reaches the compiler spill area. Values live
-    /// across one are kept stack-resident instead of reloaded from the
-    /// overwritten slot. Empty for every function without such a forward.
+    /// Low-memory clobbers whose write may reach the compiler spill area, such as
+    /// `calldatacopy(0, 0, calldatasize())` in a proxy, and calls to functions that may make
+    /// one before returning. Values live across one stay on the stack or in a dynamic spill
+    /// area instead of reloading the overwritten slot.
     spill_hazard_insts: FxHashSet<InstId>,
     /// Functions that address their spill area through a runtime base word. See
     /// [`DynamicSpillBase`].

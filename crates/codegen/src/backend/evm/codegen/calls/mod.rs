@@ -96,26 +96,24 @@ impl<'gcx> EvmCodegen<'gcx> {
         // a helper and then stored, as in `tryAdd`) would otherwise be popped by
         // the arg-store loop below and then lost when the stack is cleared for
         // the call, leaving it unavailable at its later use.
-        if self.carry_live_across_call {
+        let deep_carry = if self.carry_live_across_call {
             // The callee may write a dynamic spill area. Keep everything live after the call on
             // the stack instead.
-            let carried = self.carry_live_call_values(
-                func,
-                liveness,
-                block,
-                inst_idx,
-                result,
-                self.in_internal_function,
+            for value in self.carry_live_call_values(func, liveness, block, inst_idx, result) {
+                if !resident_call_values.contains(&value) {
+                    resident_call_values.push(value);
+                }
+            }
+            // Frame setup keeps the frame base, a staged word, and its address above the stack.
+            // Carried words beyond `DUP` reach stay where they are.
+            self.pop_reachable_stack_values_not_needed_by(
+                &resident_call_values.iter().chain(args).copied().collect::<Vec<_>>(),
             );
-            resident_call_values.extend(carried);
-        }
-        // Frame setup keeps the frame base, a staged word, and its address above the stack.
-        // Carried words beyond `DUP` reach stay where they are.
-        let deep_carry = self.carry_live_across_call
-            && !self.carried_call_values_fit(&resident_call_values, args, 3);
-        if !self.carry_live_across_call {
+            !self.carried_call_values_fit(&resident_call_values, 3)
+        } else {
             self.spill_live_stack_values(func_id, func, liveness, block, inst_idx);
-        }
+            false
+        };
 
         // The dynamic-frame base is an anonymous word kept on the physical stack while arguments
         // are stored. Give any argument that this extra word would bury beyond `DUP` a memory
@@ -153,7 +151,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let caller_stack = if resident_call_values.is_empty() {
             None
         } else if deep_carry {
-            self.drop_reachable_values_not_needed_by(&resident_call_values);
+            self.pop_reachable_stack_values_not_needed_by(&resident_call_values);
             Some(self.scheduler.stack.clone())
         } else {
             self.pop_stack_values_not_needed_by(&resident_call_values);
@@ -562,19 +560,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         // may write a dynamic spill area. Recover every caller word needed after
         // the call before argument stores overwrite that memory, then keep those
         // words below the hidden return address for the duration of the call.
-        let recursive_call_values = if recursive_reentry || self.carry_live_across_call {
-            self.carry_live_call_values(
-                func,
-                liveness,
-                block,
-                inst_idx,
-                result,
-                recursive_reentry || self.in_internal_function,
-            )
+        let carry_live = recursive_reentry || self.carry_live_across_call;
+        let carried_values = if carry_live {
+            self.carry_live_call_values(func, liveness, block, inst_idx, result)
         } else {
             Vec::new()
         };
-        let mut resident_call_values = recursive_call_values.clone();
+        let mut resident_call_values = carried_values.clone();
         if recursive_reentry && let Some(mask) = &stack_mask {
             // Stack-passed actuals are installed after the memory arguments.
             // Snapshot them before any store can overwrite their source frame.
@@ -623,14 +615,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             .count();
         // Carried words beyond `DUP` reach stay where they are; after the call, the moved spill
         // area can hold them again.
-        let deep_carry = self.carry_live_across_call
-            && !recursive_reentry
-            && !self.carried_call_values_fit(
-                &resident_call_values,
-                args,
-                argument_words + 2 + duplicated_args,
+        let deep_carry = self.carry_live_across_call && !recursive_reentry && {
+            self.pop_reachable_stack_values_not_needed_by(
+                &resident_call_values.iter().chain(args).copied().collect::<Vec<_>>(),
             );
-        let carry_live = recursive_reentry || self.carry_live_across_call;
+            !self.carried_call_values_fit(
+                &resident_call_values,
+                argument_words + 2 + duplicated_args,
+            )
+        };
         let carries_resident_stack = !resident_call_values.is_empty();
         let caller_stack_plan = (!carries_resident_stack).then(|| {
             self.plan_static_call_stack(
@@ -778,7 +771,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let caller_stack = if deep_carry {
-            self.drop_reachable_values_not_needed_by(&resident_call_values);
+            self.pop_reachable_stack_values_not_needed_by(&resident_call_values);
             Some(self.scheduler.stack.clone())
         } else if carries_resident_stack {
             self.pop_stack_values_not_needed_by(&resident_call_values);
@@ -860,29 +853,31 @@ impl<'gcx> EvmCodegen<'gcx> {
         // state rather than the child activation's last stores. Values carried
         // past a call that may write the dynamic spill area stay on the stack;
         // their area moves once the call completes.
-        for &value in recursive_call_values.iter().filter(|_| recursive_reentry) {
-            if let crate::mir::Value::Arg(index) = func.value(value) {
-                let depth = self.scheduler.stack.find(value).unwrap_or_else(|| {
-                    panic!("recursive caller argument {value:?} was not preserved")
-                });
-                assert!(
-                    depth < self.stack_access_limit(),
-                    "recursive caller argument exceeded DUP reach"
-                );
-                self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
-                if !self.emit_dynamic_frame_arg_addr(*index) {
-                    let addr = self.static_frame_addr(
-                        func_id,
-                        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-                            + index.index() as u64 * EvmMemoryLayout::WORD_SIZE,
+        if recursive_reentry {
+            for &value in &carried_values {
+                if let crate::mir::Value::Arg(index) = func.value(value) {
+                    let depth = self.scheduler.stack.find(value).unwrap_or_else(|| {
+                        panic!("recursive caller argument {value:?} was not preserved")
+                    });
+                    assert!(
+                        depth < self.stack_access_limit(),
+                        "recursive caller argument exceeded DUP reach"
                     );
-                    self.asm.emit_push_deferred(addr);
+                    self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
+                    if !self.emit_dynamic_frame_arg_addr(*index) {
+                        let addr = self.static_frame_addr(
+                            func_id,
+                            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                                + index.index() as u64 * EvmMemoryLayout::WORD_SIZE,
+                        );
+                        self.asm.emit_push_deferred(addr);
+                    }
+                    self.scheduler.stack.push_unknown();
+                    self.asm.emit_op(op::MSTORE);
+                    self.scheduler.instruction_executed(2, None);
+                } else {
+                    self.spill_value_if_needed(func, value);
                 }
-                self.scheduler.stack.push_unknown();
-                self.asm.emit_op(op::MSTORE);
-                self.scheduler.instruction_executed(2, None);
-            } else {
-                self.spill_value_if_needed(func, value);
             }
         }
 

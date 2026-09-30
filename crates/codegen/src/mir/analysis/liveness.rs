@@ -274,23 +274,19 @@ impl Liveness {
         Some(Self { live_in, live_out, last_use_in_block: Some(last_use_in_block), num_values })
     }
 
-    /// Keeps `value` live from its definition in the entry block through every terminator.
+    /// Keeps `value` live from its definition in the entry block through every terminator of the
+    /// `reachable` blocks. Unreachable blocks never see the value.
     ///
     /// Codegen uses this for a compiler-owned word that no MIR instruction reads but that must
     /// stay on the stack for the whole function.
-    pub(crate) fn pin(&mut self, func: &Function, value: ValueId) {
+    pub(crate) fn pin(
+        &mut self,
+        func: &Function,
+        reachable: &DenseBitSet<BlockId>,
+        value: ValueId,
+    ) {
         let last_uses =
             self.last_use_in_block.as_mut().expect("liveness was computed without last uses");
-        // Unreachable blocks never see the value.
-        let mut reachable = DenseBitSet::new_empty(func.blocks.len());
-        let mut worklist = vec![BlockId::ENTRY];
-        while let Some(block) = worklist.pop() {
-            if reachable.insert(block)
-                && let Some(term) = &func.blocks[block].terminator
-            {
-                worklist.extend(term.successors());
-            }
-        }
         for block_id in reachable.iter() {
             let block = &func.blocks[block_id];
             if block_id != BlockId::ENTRY {

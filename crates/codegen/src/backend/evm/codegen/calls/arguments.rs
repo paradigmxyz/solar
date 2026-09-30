@@ -512,7 +512,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let func_id = self
                         .current_internal_function
                         .expect("internal caller has a current function");
-                    self.note_fixed_memory_access();
                     if !self.emit_dynamic_frame_arg_addr(*index) {
                         let addr = self.static_frame_addr(
                             func_id,

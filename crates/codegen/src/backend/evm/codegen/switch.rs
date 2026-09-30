@@ -2027,6 +2027,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else if self.after_spill_hazard {
             // A spill slot after a low-memory clobber may lie in the written buffer. Keep the
             // scrutinee on the stack while draining the rest, like a branch condition.
+            // [swap depth(other); pop]*; [dup scrutinee]
             self.pop_stack_values_not_needed_by(&[value]);
             self.emit_value(func, value);
         } else {
