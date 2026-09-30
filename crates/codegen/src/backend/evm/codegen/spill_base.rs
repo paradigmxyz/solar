@@ -215,7 +215,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.park_stack_words(parked);
         // dup spill_base
         // [push offset; add]
-        self.scheduler.stack.observe_peak(self.scheduler.depth().saturating_add(2));
+        // Unparking holds three scratch words above the address.
+        let scratch = if parked == 0 { 2 } else { 4 };
+        self.scheduler.stack.observe_peak(self.scheduler.depth().saturating_add(scratch));
         self.asm.emit_stack_op(StackOp::Dup((depth - parked + 1) as u8));
         if offset != 0 {
             self.asm.emit_push(U256::from(offset));

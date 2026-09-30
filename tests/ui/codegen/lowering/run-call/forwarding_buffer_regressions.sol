@@ -9,6 +9,10 @@
 //@ run-call: BuriedBaseHarness::run => 1
 //@ run-call: HeapCallerHarness::run => 1
 //@ run-call: RestoredPointerHarness::run => 1
+//@ run-call: AppendingCalleeHarness::run => 1
+//@ run-call: AllocatingCalleeHarness::run => 1
+//@ run-call: RecursiveCarryHarness::run => 1
+//@ run-call: ConstructorLoopHarness::run => 1
 
 // Reduced regressions for the dynamic spill base. Expected results come from a model of each
 // program, not from compiling it.
@@ -403,6 +407,144 @@ contract RestoredPointerHarness {
         require(success, "restored pointer call");
         (bytes32 h, bytes32 e, uint256 y) = abi.decode(result, (bytes32, bytes32, uint256));
         require(h == keccak256(data) && e == keccak256(abi.encode(38, 7, 33)) && y == 38, "restored pointer");
+        return 1;
+    }
+}
+
+// A callee's assembly appends right after the copied buffer.
+contract AppendingCallee {
+    function append(uint256 n) internal view {
+        for (uint256 i = 0; i < n; i++) {
+            assembly { mstore(add(0x80, add(calldatasize(), mul(i, 0x20))), caller()) }
+        }
+    }
+
+    fallback() external {
+        uint256 v0;
+        assembly { v0 := add(calldataload(0), 7) }
+        assembly { calldatacopy(0x80, 0, calldatasize()) }
+        append(2);
+        append(1);
+        uint256 r = v0;
+        assembly { mstore(0, r) return(0, 0x20) }
+    }
+}
+
+contract AppendingCalleeHarness {
+    function run() external returns (uint256) {
+        (bool success, bytes memory result) = address(new AppendingCallee()).call(input());
+        require(success && abi.decode(result, (uint256)) == 106, "appending callee");
+        return 1;
+    }
+}
+
+// The caller allocates before a callee allocates, after moving the free-memory pointer itself.
+contract AllocatingCallee {
+    function g() internal pure returns (bytes32) {
+        return keccak256(new bytes(200));
+    }
+
+    fallback() external {
+        assembly {
+            calldatacopy(0x80, 0, calldatasize())
+            mstore(0x40, add(0x180, calldatasize()))
+        }
+        uint256 v0;
+        assembly { v0 := add(mload(0x80), 0) }
+        uint256 v1;
+        assembly { v1 := add(mload(0xa0), 1) }
+        uint256 v2;
+        assembly { v2 := add(mload(0xc0), 2) }
+        uint256 v3;
+        assembly { v3 := add(mload(0xe0), 3) }
+        bytes memory m = new bytes(1024);
+        bytes32 h = g();
+        uint256 r = v0 ^ v1 ^ v2 ^ v3;
+        assembly { mstore(0, r) mstore(0x20, mload(m)) mstore(0x40, h) return(0, 0x60) }
+    }
+}
+
+contract AllocatingCalleeHarness {
+    function run() external returns (uint256) {
+        (bool success, bytes memory result) = address(new AllocatingCallee()).call(input());
+        require(success, "allocating callee call");
+        (uint256 r, uint256 length, bytes32 h) = abi.decode(result, (uint256, uint256, bytes32));
+        require(r == 491784 && length == 1024 && h == keccak256(new bytes(200)), "allocating callee");
+        return 1;
+    }
+}
+
+// Each recursive activation copies over low memory, and a child's frame comes from the
+// free-memory pointer.
+contract RecursiveCarry {
+    function rec(uint256 n, uint256 x) internal returns (uint256 r) {
+        unchecked {
+            uint256 v0 = n * 3 + 0 + x;
+            uint256 v1 = n * 4 + 1 + x;
+            uint256 v2 = n * 5 + 2 + x;
+            uint256 v3 = n * 6 + 3 + x;
+            assembly { calldatacopy(0x100, 0, calldatasize()) }
+            if (n > 0) x = rec(n - 1, x + 1);
+            r = (v0 ^ v1 ^ v2 ^ v3) + x;
+        }
+    }
+
+    function run(uint256 n) external returns (uint256) {
+        return rec(n, 0);
+    }
+}
+
+contract RecursiveCarryHarness {
+    function run() external returns (uint256) {
+        RecursiveCarry target = new RecursiveCarry();
+        for (uint256 n = 1; n < 4; n += 2) {
+            (bool success, bytes memory result) =
+                address(target).call(abi.encodePacked(abi.encodeCall(RecursiveCarry.run, (n)), new bytes(512)));
+            require(success && abi.decode(result, (uint256)) == (n == 1 ? 0xd : 0x17), "recursive carry");
+        }
+        return 1;
+    }
+}
+
+// A constructor copies its code over low memory inside a loop.
+contract ConstructorLoop {
+    uint256 public out;
+
+    constructor(uint256 x) {
+        unchecked {
+            uint256 v0 = x * 3 + 0;
+            uint256 v1 = x * 4 + 1;
+            uint256 v2 = x * 5 + 2;
+            uint256 v3 = x * 6 + 3;
+            uint256 v4 = x * 7 + 4;
+            uint256 v5 = x * 8 + 5;
+            uint256 v6 = x * 9 + 6;
+            uint256 v7 = x * 10 + 7;
+            uint256 v8 = x * 11 + 8;
+            uint256 v9 = x * 12 + 9;
+            uint256 v10 = x * 13 + 10;
+            uint256 v11 = x * 14 + 11;
+            uint256 v12 = x * 15 + 12;
+            uint256 v13 = x * 16 + 13;
+            uint256 v14 = x * 17 + 14;
+            uint256 v15 = x * 18 + 15;
+            uint256 v16 = x * 19 + 16;
+            uint256 v17 = x * 20 + 17;
+            uint256 v18 = x * 21 + 18;
+            uint256 v19 = x * 22 + 19;
+            assembly { codecopy(0, 0, codesize()) }
+            for (uint256 i = 0; i < 3; i++) {
+                v19 += v18 * i;
+                assembly { codecopy(0x40, 0, codesize()) }
+            }
+            out = (v0 * 1) ^ (v1 * 2) ^ (v2 * 3) ^ (v3 * 4) ^ (v4 * 5) ^ (v5 * 6) ^ (v6 * 7) ^ (v7 * 8) ^ (v8 * 9) ^ (v9 * 10) ^ (v10 * 11) ^ (v11 * 12) ^ (v12 * 13) ^ (v13 * 14) ^ (v14 * 15) ^ (v15 * 16) ^ (v16 * 17) ^ (v17 * 18) ^ (v18 * 19) ^ (v19 * 20);
+        }
+    }
+}
+
+contract ConstructorLoopHarness {
+    function run() external returns (uint256) {
+        require(new ConstructorLoop(5).out() == 9068, "constructor loop");
         return 1;
     }
 }
