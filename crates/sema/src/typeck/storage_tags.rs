@@ -1,4 +1,4 @@
-//! Storage layout tags: `@custom:solar-fuse` and `@custom:solar-inline`.
+//! Storage layout tags: `@custom:solar-fuse`, `@custom:solar-inline` and `@custom:solar-bitmap`.
 //!
 //! A layout tag changes where the values of a state variable live in storage, never what the
 //! program computes. Every Solidity-level read and write behaves as without the tag; what differs
@@ -20,12 +20,16 @@
 //! `inline_arrays` describes; a longer array has the standard layout. Its elements must be value
 //! types narrower than a word.
 //!
+//! `@custom:solar-bitmap` on a mapping from an unsigned integer to `bool` keeps the value for key
+//! `k` in bit `k % 256` of the word at `keccak256((k / 256) . slot)`, so 256 consecutive keys
+//! share one word where the standard layout gives each its own.
+//!
 //! The standard layout stays observable through a variable's slot, so the tagged variables may
-//! only be used where the compiler knows the tag. A fused mapping may only be indexed. An inline
-//! array may be indexed, measured, pushed, popped, deleted and copied into memory, but not bound
-//! to a storage reference, a storage parameter or a storage return, passed to library functions,
-//! chosen by a conditional expression, or assigned as a whole. Inline assembly cannot take the
-//! `.slot` or `.offset` of either.
+//! only be used where the compiler knows the tag. A fused or bitmap mapping may only be indexed. An
+//! inline array may be indexed, measured, pushed, popped, deleted and copied into memory, but not
+//! bound to a storage reference, a storage parameter or a storage return, passed to library
+//! functions, chosen by a conditional expression, or assigned as a whole. Inline assembly cannot
+//! take the `.slot` or `.offset` of either.
 
 use crate::{
     hir::{self, ExprKind, StmtKind, Visit},
@@ -42,10 +46,11 @@ use std::ops::ControlFlow;
 pub(super) fn check(gcx: Gcx<'_>) {
     let fused = check_fused_groups(gcx);
     let inline = check_inline_arrays(gcx);
-    if fused.is_empty() && inline.is_empty() {
+    let bitmaps = check_bitmaps(gcx);
+    if fused.is_empty() && inline.is_empty() && bitmaps.is_empty() {
         return;
     }
-    let mut uses = Uses { gcx, fused: &fused, inline: &inline, function: None };
+    let mut uses = Uses { gcx, fused: &fused, inline: &inline, bitmaps: &bitmaps, function: None };
     for id in gcx.hir.function_ids() {
         uses.function = Some(id);
         let _ = uses.visit_nested_function(id);
@@ -161,6 +166,33 @@ fn check_inline_arrays(gcx: Gcx<'_>) -> FxHashSet<hir::VariableId> {
     inline
 }
 
+/// Checks every `@custom:solar-bitmap` mapping and returns the mappings the tags pack into bits.
+fn check_bitmaps(gcx: Gcx<'_>) -> FxHashSet<hir::VariableId> {
+    let mut bitmaps = FxHashSet::default();
+    for contract in gcx.hir.contracts() {
+        for id in contract.variables() {
+            // A tag on anything but a mapping state variable is reported as misplaced.
+            let Some(tag) = gcx.hir.solar_bitmap(id) else { continue };
+            let Some((key, value)) = mapping_types(gcx, id) else { continue };
+            bitmaps.insert(id);
+            let unsigned = matches!(key.kind, TyKind::Elementary(ElementaryType::UInt(_)));
+            let boolean = matches!(value.kind, TyKind::Elementary(ElementaryType::Bool));
+            if !unsigned || !boolean {
+                gcx.dcx()
+                    .err("a bitmap mapping must map an unsigned integer to `bool`")
+                    .span(tag)
+                    .span_note(
+                        gcx.hir.variable(id).span,
+                        format!("it maps `{}` to `{}`", key.display(gcx), value.display(gcx)),
+                    )
+                    .note("key `k` keeps its value in bit `k % 256` of the word for `k / 256`")
+                    .emit();
+            }
+        }
+    }
+    bitmaps
+}
+
 /// The bytes a value of the value type `ty` takes in a storage word, or `None` for a type that
 /// does not pack.
 fn value_bytes(ty: Ty<'_>) -> Option<u64> {
@@ -184,6 +216,7 @@ struct Uses<'gcx, 'a> {
     gcx: Gcx<'gcx>,
     fused: &'a FxHashSet<hir::VariableId>,
     inline: &'a FxHashSet<hir::VariableId>,
+    bitmaps: &'a FxHashSet<hir::VariableId>,
     /// The function whose body is visited.
     function: Option<hir::FunctionId>,
 }
@@ -195,6 +228,10 @@ impl<'gcx> Uses<'gcx, '_> {
 
     fn is_inline(&self, expr: &hir::Expr<'_>) -> bool {
         self.gcx.resolved_variable(expr.peel_parens()).is_some_and(|id| self.inline.contains(&id))
+    }
+
+    fn is_bitmap(&self, expr: &hir::Expr<'_>) -> bool {
+        self.gcx.resolved_variable(expr.peel_parens()).is_some_and(|id| self.bitmaps.contains(&id))
     }
 
     /// Reports an inline array that becomes a storage reference at `span`.
@@ -336,7 +373,9 @@ impl<'gcx> Visit<'gcx> for Uses<'gcx, '_> {
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
         match expr.kind {
             // mapping[key], array[index]
-            ExprKind::Index(base, index) if self.is_fused(base) || self.is_inline(base) => {
+            ExprKind::Index(base, index)
+                if self.is_fused(base) || self.is_inline(base) || self.is_bitmap(base) =>
+            {
                 if let Some(index) = index {
                     self.visit_expr(index)?;
                 }
@@ -399,9 +438,13 @@ impl<'gcx> Visit<'gcx> for Uses<'gcx, '_> {
                 self.check_arguments(self.gcx.type_of_expr(callee.id), names.as_deref(), args);
             }
             // variable.slot, variable.offset
-            ExprKind::YulMember(base, member) if self.is_fused(base) || self.is_inline(base) => {
+            ExprKind::YulMember(base, member)
+                if self.is_fused(base) || self.is_inline(base) || self.is_bitmap(base) =>
+            {
                 let (what, tag) = if self.is_fused(base) {
                     ("a fused mapping", "`@custom:solar-fuse` moves the mapping's values")
+                } else if self.is_bitmap(base) {
+                    ("a bitmap mapping", "`@custom:solar-bitmap` moves the mapping's values")
                 } else {
                     ("an inline array", "`@custom:solar-inline` moves the array's elements")
                 };
@@ -413,15 +456,20 @@ impl<'gcx> Visit<'gcx> for Uses<'gcx, '_> {
                     .emit();
                 return ControlFlow::Continue(());
             }
-            _ if self.is_fused(expr) => {
+            _ if self.is_fused(expr) || self.is_bitmap(expr) => {
+                let (what, tag) = if self.is_fused(expr) {
+                    ("a fused mapping", "`@custom:solar-fuse`")
+                } else {
+                    ("a bitmap mapping", "`@custom:solar-bitmap`")
+                };
                 self.gcx
                     .dcx()
-                    .err("a fused mapping can only be indexed")
+                    .err(format!("{what} can only be indexed"))
                     .span(expr.span)
-                    .note(
-                        "`@custom:solar-fuse` moves the mapping's values out of the standard \
-                         slots that a storage reference reaches",
-                    )
+                    .note(format!(
+                        "{tag} moves the mapping's values out of the standard slots that a \
+                         storage reference reaches"
+                    ))
                     .emit();
                 return ControlFlow::Continue(());
             }
