@@ -1,6 +1,6 @@
 error: codegen cannot keep the internal frame of `rec` across a dynamic low-memory write
    │
-   ╰ note: the write can cover the frame pointer this recursive function keeps at `0xa0`
+   ╰ note: the write can cover the frame pointer its dynamic frame keeps at `0xa0`
 
 error: aborting due to 1 previous error
 

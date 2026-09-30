@@ -150,7 +150,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     func.name
                 ))
                 .note(format!(
-                    "the write can cover the frame pointer this recursive function keeps at `{:#x}`",
+                    "the write can cover the frame pointer its dynamic frame keeps at `{:#x}`",
                     EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT
                 ))
                 .emit();

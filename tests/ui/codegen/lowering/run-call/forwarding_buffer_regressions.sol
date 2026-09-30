@@ -19,6 +19,10 @@
 //@ run-call: IfElseReturnHarness::run => 1
 //@ run-call: SwitchExitHarness::run => 1
 //@ run-call: CopyingHelperHarness::run => 1
+//@ run-call: RebuiltOperandHarness::run => 1
+//@ run-call: WideBranchHarness::run => 1
+//@ run-call: BuriedMoveHarness::run => 1
+//@ run-call: RebuiltArgumentHarness::run => 1
 
 // Reduced regressions for the dynamic spill base. Expected results come from a model of each
 // program, not from compiling it.
@@ -833,6 +837,311 @@ contract CopyingHelperHarness {
             );
             require(success && abi.decode(result, (uint256)) == expected[i], "copying helper");
         }
+        return 1;
+    }
+}
+
+// Calldata whose byte `i` is `7 * i + 3`, for the cases below.
+function patterned() pure returns (bytes memory data) {
+    data = new bytes(0x700);
+    for (uint256 i; i < data.length; i++) {
+        data[i] = bytes1(uint8(7 * i + 3));
+    }
+}
+
+function copyInLoop() pure returns (uint256 a, uint256 b) {
+    for (uint256 i = 0; i < 1; ++i) {
+        assembly { calldatacopy(0, 0, calldatasize()) }
+    }
+}
+
+// `y` is rebuilt from `x`'s slot after `x` itself is dead, so moving the area must copy it.
+contract RebuiltOperand {
+    fallback() external {
+        uint256 x;
+        uint256 y;
+        uint256 z;
+        uint256 w;
+        assembly {
+            x := add(calldataload(0x80), 2)
+            y := sub(calldataload(0x120), add(calldataload(0x160), x))
+        }
+        (z, w) = copyInLoop();
+        assembly {
+            let p := calldatasize()
+            mstore(p, x)
+            mstore(add(p, 0x20), z)
+            mstore(add(p, 0x40), w)
+            mstore(add(p, 0x60), y)
+            return(p, 0x80)
+        }
+    }
+}
+
+contract RebuiltOperandHarness {
+    function run() external returns (uint256) {
+        (bool success, bytes memory result) = address(new RebuiltOperand()).call(patterned());
+        require(
+            success
+                && keccak256(result)
+                    == 0x33ac6ac823c11b3cb6f34afa5110ccb4dac706a5dc2bf884c31b69dc93304110,
+            "rebuilt operand"
+        );
+        return 1;
+    }
+}
+
+function three(uint256, uint256) pure returns (uint256 a, uint256 b, uint256 c) {}
+
+// With the dynamic base, the branch into the loop keeps more words than `SWAP` reaches.
+contract WideBranch {
+    fallback() external {
+        uint256 v0;
+        uint256 v1;
+        uint256 v2;
+        uint256 v3;
+        uint256 v4;
+        uint256 v5;
+        uint256 v6;
+        uint256 v7;
+        uint256 v8;
+        uint256 v9;
+        uint256 v10;
+        uint256 v11;
+        uint256 v12;
+        uint256 v13;
+        uint256 v14;
+        uint256 v15;
+        uint256 v16;
+        uint256 v17;
+        uint256 v18;
+        assembly {
+            v0 := calldataload(0x0)
+            v1 := calldataload(0x20)
+            v2 := calldataload(0x40)
+            v3 := calldataload(0x60)
+            v4 := calldataload(0x80)
+            v5 := calldataload(0xa0)
+            v6 := calldataload(0xc0)
+            v7 := calldataload(0xe0)
+            v8 := calldataload(0x100)
+            v9 := calldataload(0x120)
+            v10 := calldataload(0x140)
+            v11 := calldataload(0x160)
+            v12 := calldataload(0x180)
+            v13 := calldataload(0x1a0)
+            v14 := calldataload(0x1c0)
+            v15 := calldataload(0x1e0)
+            v16 := calldataload(0x200)
+            v17 := calldataload(0x220)
+        }
+        if (v12 & 3 != 2) {
+            if (v11 & 3 != 0) {
+                assembly {
+                    calldatacopy(0, 0x40, calldatasize())
+                    let p := calldatasize()
+                    mstore(add(p, 0x0), v0)
+                    mstore(add(p, 0x20), v1)
+                    mstore(add(p, 0x40), v2)
+                    mstore(add(p, 0x60), v3)
+                    mstore(add(p, 0x80), v4)
+                    mstore(add(p, 0xa0), v5)
+                    mstore(add(p, 0xc0), v6)
+                    mstore(add(p, 0xe0), v7)
+                    mstore(add(p, 0x100), v8)
+                    mstore(add(p, 0x120), v9)
+                    mstore(add(p, 0x140), v10)
+                    mstore(add(p, 0x160), v11)
+                    mstore(add(p, 0x180), v12)
+                    mstore(add(p, 0x1a0), v13)
+                    mstore(add(p, 0x1c0), v14)
+                    mstore(add(p, 0x1e0), v15)
+                    mstore(add(p, 0x200), v16)
+                    mstore(add(p, 0x220), v17)
+                    mstore(add(p, 0x240), v18)
+                    return(0, add(p, 0x260))
+                }
+            }
+            for (uint256 i = 0; i < 3; ++i) {
+                (v5, v3, v9) = three(v5, i);
+                v1 = i;
+            }
+        }
+        assembly {
+            let p := calldatasize()
+            mstore(add(p, 0x0), v0)
+            mstore(add(p, 0x20), v1)
+            mstore(add(p, 0x40), v2)
+            mstore(add(p, 0x60), v3)
+            mstore(add(p, 0x80), v4)
+            mstore(add(p, 0xa0), v5)
+            mstore(add(p, 0xc0), v6)
+            mstore(add(p, 0xe0), v7)
+            mstore(add(p, 0x100), v8)
+            mstore(add(p, 0x120), v9)
+            mstore(add(p, 0x140), v10)
+            mstore(add(p, 0x160), v11)
+            mstore(add(p, 0x180), v12)
+            mstore(add(p, 0x1a0), v13)
+            mstore(add(p, 0x1c0), v14)
+            mstore(add(p, 0x1e0), v15)
+            mstore(add(p, 0x200), v16)
+            mstore(add(p, 0x220), v17)
+            mstore(add(p, 0x240), v18)
+            return(p, 0x260)
+        }
+    }
+}
+
+contract WideBranchHarness {
+    function run() external returns (uint256) {
+        (bool success, bytes memory result) = address(new WideBranch()).call(patterned());
+        require(
+            success
+                && keccak256(result)
+                    == 0x2e6b903f40c6b4adeaec0972cda7307b9688a823cb3c7adc1cbb862720b47604,
+            "wide branch"
+        );
+        return 1;
+    }
+}
+
+function h0(uint256 p0) pure returns (uint256 r0, uint256 r1, uint256 r2) {
+    uint256 l0;
+    uint256 l1;
+    assembly { l0 := add(sub(0xff, 0x7), p0) }
+    assembly { calldatacopy(and(l1, 0x3e0), 0x40, and(l0, 0x1ff)) }
+}
+
+// A carry leaves the base below `SWAP` reach when the call moves it.
+contract BuriedMove {
+    fallback() external {
+        uint256 v0;
+        uint256 v1;
+        uint256 v2;
+        uint256 v3;
+        uint256 v4;
+        uint256 v5;
+        uint256 v6;
+        uint256 v7;
+        uint256 v8;
+        uint256 v9;
+        uint256 v10;
+        uint256 v11;
+        uint256 v12;
+        uint256 v13;
+        uint256 v14;
+        uint256 v15;
+        uint256 v16;
+        uint256 v17;
+        uint256 v18;
+        uint256 v19;
+        uint256 v20;
+        assembly {
+            v0 := calldataload(0x0)
+            v3 := calldataload(0x60)
+            v5 := calldataload(0xa0)
+            v9 := calldataload(0x120)
+            v11 := calldataload(0x160)
+            v13 := calldataload(0x1a0)
+            v15 := calldataload(0x1e0)
+            v16 := calldataload(0x200)
+            v17 := calldataload(0x220)
+            v18 := calldataload(0x240)
+            v19 := calldataload(0x260)
+        }
+        if (v18 & 3 != 0) {
+            (v4, v20, v2) = h0(v8);
+        } else {
+            assembly { v1 := xor(v1, mload(0x1e0)) }
+        }
+        for (uint256 i0 = 0; i0 < 2; i0++) {
+            for (uint256 i1 = 0; i1 < 2; i1++) {
+                assembly { v20 := add(sub(add(v16, i1), sub(v12, v5)), sub(i1, sub(7, i1))) }
+            }
+        }
+        (v1, v12, v4) = h0(v1);
+        assembly {
+            let p := calldatasize()
+            mstore(add(p, 0x0), v0)
+            mstore(add(p, 0x20), v1)
+            mstore(add(p, 0x40), v2)
+            mstore(add(p, 0x60), v3)
+            mstore(add(p, 0x80), v4)
+            mstore(add(p, 0xa0), v5)
+            mstore(add(p, 0xc0), v6)
+            mstore(add(p, 0xe0), v7)
+            mstore(add(p, 0x100), v8)
+            mstore(add(p, 0x120), v9)
+            mstore(add(p, 0x140), v10)
+            mstore(add(p, 0x160), v11)
+            mstore(add(p, 0x180), v12)
+            mstore(add(p, 0x1a0), v13)
+            mstore(add(p, 0x1c0), v14)
+            mstore(add(p, 0x1e0), v15)
+            mstore(add(p, 0x200), v16)
+            mstore(add(p, 0x220), v17)
+            mstore(add(p, 0x240), v18)
+            mstore(add(p, 0x260), v19)
+            mstore(add(p, 0x280), v20)
+            return(p, 0x2a0)
+        }
+    }
+}
+
+contract BuriedMoveHarness {
+    function run() external returns (uint256) {
+        (bool success, bytes memory result) = address(new BuriedMove()).call(patterned());
+        require(
+            success
+                && keccak256(result)
+                    == 0x2a08a16bc08e8d49386a407de4138e569aee3961dcb782e4379ead7e3a18adfe,
+            "buried move"
+        );
+        return 1;
+    }
+}
+
+function copyFrom(uint256 x) pure {
+    assembly {
+        calldatacopy(0, x, calldatasize())
+        for { let i := 0 } lt(i, 3) { i := add(i, 1) } {
+            mstore(add(calldatasize(), mul(i, 32)), i)
+        }
+    }
+}
+
+function rebuiltArgument(uint256 p) pure returns (uint256 r) {
+    uint256 l;
+    assembly { l := add(p, calldataload(0x200)) }
+    copyFrom(p);
+    assembly { r := add(l, 1) }
+}
+
+// `l` depends on an argument that is dead after the call, so the call carries `l` itself.
+contract RebuiltArgument {
+    fallback() external {
+        uint256 a;
+        assembly { a := and(calldataload(0x20), 0xff) }
+        uint256 v = rebuiltArgument(a);
+        uint256 w = rebuiltArgument(a + 1);
+        assembly {
+            mstore(0x80, v)
+            mstore(0xa0, w)
+            return(0x80, 0x40)
+        }
+    }
+}
+
+contract RebuiltArgumentHarness {
+    function run() external returns (uint256) {
+        (bool success, bytes memory result) = address(new RebuiltArgument()).call(patterned());
+        (uint256 v, uint256 w) = abi.decode(result, (uint256, uint256));
+        require(
+            success && v == 0x30a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced699
+                && w == 0x30a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced69a,
+            "rebuilt argument"
+        );
         return 1;
     }
 }

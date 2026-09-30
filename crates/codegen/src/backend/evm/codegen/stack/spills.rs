@@ -531,10 +531,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         needed: &[ValueId],
     ) {
         self.pop_reachable_stack_values_not_needed_by(needed);
-        assert!(
-            self.first_stack_value_not_needed_by(needed).is_none(),
-            "resident stack discard exceeded SWAP reach"
-        );
+        while let Some(depth) = self.first_stack_value_not_needed_by(needed) {
+            // [park words above; swap word up; unpark]; pop
+            self.raise_stack_word(depth);
+            self.emit_stack_op(StackOp::Pop);
+        }
     }
 
     /// Pops every stack word within `SWAP` reach that `needed` does not claim.

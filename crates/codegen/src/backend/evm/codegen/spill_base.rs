@@ -272,27 +272,27 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Moves the dynamic spill base to the top of the stack, however deep it is.
-    fn raise_spill_base(&mut self, depth: usize) {
+    /// Moves the stack word at `depth` to the top, however deep it is.
+    pub(super) fn raise_stack_word(&mut self, depth: usize) {
         if depth == 0 {
             return;
         }
         let limit = self.stack_access_limit();
         if depth <= limit && StackOp::Swap(depth as u8).is_valid() {
-            // swap spill_base to the top
+            // swap word to the top
             self.emit_stack_op(StackOp::Swap(depth as u8));
             return;
         }
-        // [w0..wk, x, .., spill_base] => park w0..wk; swap spill_base with x; unpark
-        // => [spill_base, w0..wk, .., x]
+        // [w0..wk, x, .., word] => park w0..wk; swap word with x; unpark
+        // => [word, w0..wk, .., x]
         let parked = depth - (limit - 1);
         self.park_stack_words(parked);
         self.asm.emit_stack_op(StackOp::Swap((limit - 1) as u8));
         self.unpark_stack_words(parked);
         let mut words = self.scheduler.stack.as_slice().to_vec();
-        let base = words.remove(depth);
+        let word = words.remove(depth);
         let displaced = words.remove(parked);
-        words.insert(0, base);
+        words.insert(0, word);
         words.insert(depth, displaced);
         let max_depth = self.scheduler.stack.max_depth();
         self.scheduler.stack = StackModel::from_top_to_bottom(words);
@@ -333,7 +333,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Removes the dynamic spill base before a function exit consumes the stack.
     pub(super) fn drop_spill_base(&mut self) {
         let Some(depth) = self.spill_base_model_depth() else { return };
-        self.raise_spill_base(depth);
+        self.raise_stack_word(depth);
         // pop spill_base
         self.emit_stack_op(StackOp::Pop);
     }
@@ -342,7 +342,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn refresh_spill_base(&mut self) {
         let Some(depth) = self.spill_base_model_depth() else { return };
         if depth > SPILL_BASE_MAX_DEPTH {
-            self.raise_spill_base(depth);
+            self.raise_stack_word(depth);
         }
     }
 
@@ -402,19 +402,18 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // Words reloaded at or after the write: spill slots, and an internal function's frame
         // arguments. A later block may reload a slot stored on another path.
+        let read = self.values_read_at_or_after(func, liveness, block, inst_idx);
         let spills = &self.scheduler.spills;
         let mut live_words = spills
             .reloadable_values()
             .chain(spills.stored_values())
-            .filter(|&value| liveness.is_used_at_or_after(value, block, inst_idx))
+            .filter(|&value| read.contains(value))
             .filter_map(|value| spills.get(value))
             .map(|slot| self.spill_slot_base_offset(func, slot))
             .collect::<Vec<_>>();
         if self.in_internal_function {
-            live_words.extend(func.live_values().filter_map(|value| match func.value(value) {
-                Value::Arg(index) if liveness.is_used_at_or_after(value, block, inst_idx) => {
-                    Some(index.index() as u64 * EvmMemoryLayout::WORD_SIZE)
-                }
+            live_words.extend(read.iter().filter_map(|value| match func.value(value) {
+                Value::Arg(index) => Some(index.index() as u64 * EvmMemoryLayout::WORD_SIZE),
                 _ => None,
             }));
         }
@@ -505,11 +504,19 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// keeps the base's identity at its position.
     fn replace_spill_base_with_top(&mut self) {
         let depth = self.spill_base_depth().expect("dynamic spill base is active");
-        assert!(StackOp::Swap(depth as u8).is_valid(), "dynamic spill base exceeded SWAP reach");
-        // swap depth(spill_base); pop
-        self.asm.emit_stack_op(StackOp::Swap(depth as u8));
+        if depth <= self.stack_access_limit() {
+            // swap depth(spill_base); pop
+            self.asm.emit_stack_op(StackOp::Swap(depth as u8));
+            self.asm.emit_stack_op(StackOp::Pop);
+            self.scheduler.stack.pop();
+            return;
+        }
+        // [new, .., spill_base] => [spill_base, new, ..] => pop => [new, ..]
+        self.raise_stack_word(depth);
         self.asm.emit_stack_op(StackOp::Pop);
+        let base = self.scheduler.stack.pop().expect("raised spill base is on top");
         self.scheduler.stack.pop();
+        self.scheduler.stack.push(base);
     }
 
     /// Forgets the spill stores of `values`, whose slots no longer hold them.
@@ -822,7 +829,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         inst_idx: usize,
         result: Option<ValueId>,
     ) -> Vec<ValueId> {
-        let mut seen = FxHashSet::default();
         let mut values = Vec::new();
         let mut recomputed = Vec::new();
         // A constructor's arguments live in memory the callee may write.
@@ -831,70 +837,56 @@ impl<'gcx> EvmCodegen<'gcx> {
         let spill_base = self.spill_base.as_ref().map(|base| base.value);
         // A reserved slot can be reloadable before the block defines its value.
         let pending = &func.blocks[block].instructions[inst_idx..];
-        // A later block may reload a slot stored on another path, so stored values count too.
+        // An internal function reloads an argument from its moved frame only if it carries it.
+        let arg_is_live = |value| liveness.is_used_at_or_after(value, block, inst_idx + 1);
         let spills = &self.scheduler.spills;
-        for value in self
-            .scheduler
-            .stack
-            .iter()
-            .flatten()
-            .chain(spills.reloadable_values())
-            .chain(spills.stored_values())
-        {
-            if Some(value) != result
-                && Some(value) != spill_base
-                && !matches!(func.value(value), Value::Inst(def) if pending.contains(def))
-                && liveness.is_used_at_or_after(value, block, inst_idx + 1)
-                && (self.scheduler.stack.contains(value)
-                    || self.scheduler.can_emit_value(value, func))
-                && seen.insert(value)
+        for value in self.values_read_at_or_after(func, liveness, block, inst_idx + 1).iter() {
+            let on_stack = self.scheduler.stack.contains(value);
+            // A later block may reload a slot stored on another path, so stored values count too.
+            let in_slot = spills.is_stored(value) || spills.is_reloadable(value);
+            if Some(value) == result
+                || Some(value) == spill_base
+                || matches!(func.value(value), Value::Arg(_))
+                || matches!(func.value(value), Value::Inst(def) if pending.contains(def))
+                || !(on_stack || in_slot || self.scheduler.should_recompute_unstored_spill(value))
+                || !(on_stack || self.scheduler.can_emit_value(value, func))
             {
-                // Rebuild a value from its arguments after the call, unless a slot holds it.
-                if rebuildable.as_ref().is_some_and(|set| set.contains(value))
-                    && !matches!(func.value(value), Value::Arg(_))
-                    && !spills.is_stored(value)
-                    && !spills.is_reloadable(value)
-                {
-                    recomputed.push(value);
-                } else {
-                    values.push(value);
-                }
-            }
-        }
-        // A rebuilt value recomputes its operands and reloads the arguments they depend on from
-        // the moved frame.
-        let mut visited = DenseBitSet::new_empty(func.num_values());
-        let mut used_args = DenseBitSet::new_empty(func.num_values());
-        while let Some(value) = recomputed.pop() {
-            if !visited.insert(value) {
                 continue;
             }
-            match func.value(value) {
-                Value::Arg(_) => {
-                    used_args.insert(value);
+            // Rebuild a value after the call, unless a slot holds it or it needs an argument
+            // that nothing carries.
+            if !in_slot
+                && rebuildable.as_ref().is_some_and(|set| set.contains(value))
+                && (!self.in_internal_function
+                    || Self::operand_args(func, value).into_iter().all(arg_is_live))
+            {
+                recomputed.push(value);
+            } else {
+                values.push(value);
+            }
+        }
+        // A rebuilt value recomputes its operands too.
+        let mut visited = DenseBitSet::new_empty(func.num_values());
+        while let Some(value) = recomputed.pop() {
+            if visited.insert(value)
+                && let Value::Inst(def) = func.value(value)
+            {
+                let spills = &mut self.scheduler.spills;
+                if !spills.is_stored(value) && !spills.is_reloadable(value) {
+                    spills.allocate(value);
+                    spills.mark_recomputable(value);
                 }
-                Value::Inst(def) => {
-                    let spills = &mut self.scheduler.spills;
-                    if !spills.is_stored(value) && !spills.is_reloadable(value) {
-                        spills.allocate(value);
-                        spills.mark_recomputable(value);
-                    }
-                    recomputed.extend(func.inst(*def).kind.operands());
-                }
-                _ => {}
+                recomputed.extend(func.inst(*def).kind.operands());
             }
         }
         if self.in_internal_function {
-            for value in func.live_values() {
-                if Some(value) != result
+            let mut seen = DenseBitSet::new_empty(func.num_values());
+            values.extend(func.live_values().filter(|&value| {
+                Some(value) != result
                     && matches!(func.value(value), Value::Arg(_))
-                    && (used_args.contains(value)
-                        || liveness.is_used_at_or_after(value, block, inst_idx + 1))
+                    && arg_is_live(value)
                     && seen.insert(value)
-                {
-                    values.push(value);
-                }
-            }
+            }));
         }
         for &value in &values {
             // [mload(spill_base + slot_offset) | recompute value]; [swap spill_base up]
@@ -912,6 +904,51 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.forget_spill_stores(values.iter().copied());
         self.carried_call_values.clone_from(&values);
         values
+    }
+
+    /// Returns the values that code at or after `inst_idx` may read: the live values, and the
+    /// operands of every one the scheduler rebuilds instead of reloading.
+    fn values_read_at_or_after(
+        &self,
+        func: &Function,
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+    ) -> DenseBitSet<ValueId> {
+        let spills = &self.scheduler.spills;
+        let mut read = DenseBitSet::new_empty(func.num_values());
+        let mut worklist = func
+            .live_values()
+            .filter(|&value| liveness.is_used_at_or_after(value, block, inst_idx))
+            .collect::<Vec<_>>();
+        while let Some(value) = worklist.pop() {
+            if read.insert(value)
+                && spills.is_recomputable(value)
+                && !spills.is_stored(value)
+                && let Value::Inst(def) = func.value(value)
+            {
+                worklist.extend(func.inst(*def).kind.operands());
+            }
+        }
+        read
+    }
+
+    /// Returns the arguments that `value` is computed from.
+    fn operand_args(func: &Function, value: ValueId) -> Vec<ValueId> {
+        let mut visited = DenseBitSet::new_empty(func.num_values());
+        let mut args = Vec::new();
+        let mut worklist = vec![value];
+        while let Some(value) = worklist.pop() {
+            if !visited.insert(value) {
+                continue;
+            }
+            match func.value(value) {
+                Value::Arg(_) => args.push(value),
+                Value::Inst(def) => worklist.extend(func.inst(*def).kind.operands()),
+                _ => {}
+            }
+        }
+        args
     }
 
     /// Returns whether the values carried across an internal call stay within stack reach with
@@ -963,14 +1000,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         for &value in spilled {
-            if let Some(slot) = self.scheduler.spills.get(value)
-                && let Some(depth) = self.scheduler.stack.find(value)
-            {
-                assert!(depth < self.stack_access_limit(), "carried value exceeded DUP reach");
-                // mstore(spill_base + slot_offset, value)
-                self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
-                self.store_stack_top_to_spill(func, value, slot);
-            }
+            let slot = self.scheduler.spills.get(value).expect("spilled carried value has a slot");
+            let Some(depth) = self.scheduler.stack.find(value) else {
+                debug_assert!(self.scheduler.spills.is_stored(value), "carried value was lost");
+                continue;
+            };
+            assert!(depth < self.stack_access_limit(), "carried value exceeded DUP reach");
+            // mstore(spill_base + slot_offset, value)
+            self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
+            self.store_stack_top_to_spill(func, value, slot);
         }
     }
 
