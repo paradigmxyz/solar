@@ -86,4 +86,5 @@ contract Protection
     value [externally controlled]: written by mint from arg0, value [guarded], setValue from arg0 [guarded], setByAdmin from arg0 [guarded], setWithLocalCopy from arg0 [guarded], oneBranch from arg0, value, earlyReturn from arg0; read by mint, oneBranch
     admins[..]: read by setByAdmin
     roles[..]: read by hasRole, mint
+  never written: admins, roles
   receives value, sends value

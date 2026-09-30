@@ -69,4 +69,5 @@ contract CallsAndStorage
     allowance[..]: written by pay from arg2 [guarded]
     items[..]: written by pay from arg2 [guarded]; read by peek
     slot ? [externally controlled]: written by raw from arg0
+  never written: owner
   sends value

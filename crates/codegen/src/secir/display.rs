@@ -40,6 +40,15 @@ impl ContractFacts {
                     cx.flow(f, flow)?;
                 }
             }
+            let unwritten = self
+                .unwritten_state_variables()
+                .map(|variable| {
+                    variable.name.map_or_else(|| "_".to_owned(), |name| name.to_string())
+                })
+                .collect::<Vec<_>>();
+            if !unwritten.is_empty() {
+                writeln!(f, "  never written: {}", unwritten.join(", "))?;
+            }
             let value = [
                 (self.receives_value, "receives value"),
                 (self.sends_value, "sends value"),
