@@ -1,4 +1,4 @@
-// === <solar:core/v1/Arrays.sol>:Arrays ===
+// === <solar:core/Arrays.sol>:Arrays ===
 @module Arrays
 @phase lowered
 @library

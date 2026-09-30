@@ -4,7 +4,7 @@
 //@[portable] compile-flags: -Ogas -Zdump=mir -Zno-core-intrinsics
 //@[portable] filecheck: --check-prefix=PORTABLE
 
-import {Strings} from "solar:core/v1/Strings.sol";
+import {Strings} from "solar:core/Strings.sol";
 
 contract Test {
     // The intrinsic packs each string from one word load. The portable body is

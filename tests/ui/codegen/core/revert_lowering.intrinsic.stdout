@@ -1,4 +1,4 @@
-// === <solar:core/v1/Revert.sol>:Revert ===
+// === <solar:core/Revert.sol>:Revert ===
 @module Revert
 @phase lowered
 @library

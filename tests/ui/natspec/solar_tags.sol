@@ -2,7 +2,7 @@
 // compilers read as documentation. A tag in the wrong place or with an unknown
 // name is an error rather than a requirement that silently goes unchecked;
 // other `@custom:` tags stay documentation.
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 /// @custom:solar-view
 //~^ ERROR: `@custom:solar-view` must document a variable declaration statement

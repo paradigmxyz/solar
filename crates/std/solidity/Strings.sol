@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Buffers, ByteBuilder} from "solar:core/v1/Buffers.sol";
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Buffers, ByteBuilder} from "solar:core/Buffers.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 /// @notice Text helpers over `string`.
-/// @dev Compiler-owned module, imported as `solar:core/v1/Strings.sol`. This
+/// @dev Compiler-owned module, imported as `solar:core/Strings.sol`. This
 /// is an ordinary source library over `Bytes` and `Buffers`. Strings are
 /// treated as bytes: no function but `isValidUTF8` validates or depends on
 /// UTF-8, and `escapeJSON` escapes only what JSON requires, so a valid UTF-8

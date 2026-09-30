@@ -1,4 +1,4 @@
-// === <solar:core/v1/Precompiles.sol>:Precompiles ===
+// === <solar:core/Precompiles.sol>:Precompiles ===
 @module Precompiles
 @library
 

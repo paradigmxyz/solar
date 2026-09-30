@@ -1,4 +1,4 @@
-//! Uses of a `solar:core/v1/Buffers.sol` builder after `Buffers.finish` emptied it.
+//! Uses of a `solar:core/Buffers.sol` builder after `Buffers.finish` emptied it.
 //!
 //! `finish` returns what a builder holds without a copy and leaves the builder empty, so appending
 //! afterwards starts a new output instead of extending the one returned. That is well defined, and
@@ -34,7 +34,7 @@ use solar_interface::source_map::FileName;
 use std::collections::VecDeque;
 
 /// The module that owns the builders.
-const BUFFERS: &str = "solar:core/v1/Buffers.sol";
+const BUFFERS: &str = "solar:core/Buffers.sol";
 
 /// The functions of `mir_ids` that are `Buffers.finish`.
 pub(in crate::mir::lower) fn finish_functions(

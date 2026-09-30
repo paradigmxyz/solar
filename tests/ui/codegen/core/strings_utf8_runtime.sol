@@ -23,7 +23,7 @@
 // shortest forms only, no surrogate halves, nothing past U+10FFFF, and no
 // truncated rune or stray continuation byte. Runs of ASCII are skipped a word
 // at a time, so the last two cases put a rune after a full ASCII word.
-import {Strings} from "solar:core/v1/Strings.sol";
+import {Strings} from "solar:core/Strings.sol";
 
 contract Test {
     function valid(bytes memory b) public pure returns (bool) {

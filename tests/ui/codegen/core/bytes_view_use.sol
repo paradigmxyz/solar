@@ -2,7 +2,7 @@
 
 // A view can only be read in place: every use that could keep it or write
 // through it is rejected, since it would tell the view from a copy.
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 contract Test {
     using Bytes for bytes;

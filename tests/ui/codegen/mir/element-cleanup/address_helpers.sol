@@ -1,6 +1,6 @@
 //@ compile-flags: -Zmir-pipeline=element-cleanup -Zpass-diff
 //@ filecheck:
-import {WordArrays} from "solar:core/v1/WordArrays.sol";
+import {WordArrays} from "solar:core/WordArrays.sol";
 
 // The address helpers clean every element word they load. Without inline
 // assembly no element can be dirty, so the masks go.

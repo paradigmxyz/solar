@@ -1,8 +1,8 @@
-// === <solar:core/v1/Bytes.sol>:Bytes ===
+// === <solar:core/Bytes.sol>:Bytes ===
 @module Bytes
 @library
 
-// === <solar:core/v1/Abi.sol>:Abi ===
+// === <solar:core/Abi.sol>:Abi ===
 @module Abi
 @library
 

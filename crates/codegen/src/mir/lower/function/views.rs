@@ -37,7 +37,7 @@
 //! A view itself can only be read in place: `.length`, indexing, field reads, `keccak256`,
 //! `abi.decode`, the encodings that copy it from where it is into their output (`abi.encode` and
 //! its variants, `abi.encodePacked`, `bytes.concat` and `string.concat`, event and error
-//! arguments, and the arguments of external calls), the reads of `solar:core/v1/Bytes.sol` and
+//! arguments, and the arguments of external calls), the reads of `solar:core/Bytes.sol` and
 //! `Hash.sol` that take a range (a view of a view included), and passing it as a view parameter.
 //! Any other use, such as an assignment, a write through the view, passing it to another function
 //! or returning it, is an error at the use, because it could keep the view or write the source

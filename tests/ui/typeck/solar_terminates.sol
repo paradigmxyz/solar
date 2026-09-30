@@ -1,8 +1,8 @@
 // A function tagged `@custom:solar-terminates` ends the call on every path:
 // it reverts, returns from the external call, or calls another tagged
 // function, and never returns to its caller.
-import {Return} from "solar:core/v1/Return.sol";
-import {Revert} from "solar:core/v1/Revert.sol";
+import {Return} from "solar:core/Return.sol";
+import {Revert} from "solar:core/Revert.sol";
 
 contract Test {
     error Bad(uint256 code);

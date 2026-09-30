@@ -21,7 +21,7 @@
 // what it computed: a point off the curve and a pairing input of the wrong
 // length are `false` with zeroed results, never a stale or padded answer.
 // `2**256 % 253` is 31, returned at the modulus's full 33 bytes.
-import {Precompiles} from "solar:core/v1/Precompiles.sol";
+import {Precompiles} from "solar:core/Precompiles.sol";
 
 contract Test {
     function modexp(bytes memory base, bytes memory exponent, bytes memory modulus)

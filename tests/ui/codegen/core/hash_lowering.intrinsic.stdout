@@ -1,4 +1,4 @@
-// === <solar:core/v1/Hash.sol>:Hash ===
+// === <solar:core/Hash.sol>:Hash ===
 @module Hash
 @phase lowered
 @library

@@ -4,7 +4,7 @@
 // a write that may change them before a later read of the view is rejected. A
 // view of calldata borrows nothing, since calldata cannot change, and hashing
 // or comparing one writes only memory no object holds.
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 contract Test {
     using Bytes for bytes;

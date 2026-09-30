@@ -26,7 +26,7 @@
 // memory-safe assembly store of the length word and the intrinsic is a length
 // write the alias and value-numbering analyses model. Both must agree, and the
 // aliasing cases are the point: every reference sees the new length at once.
-import {Arrays} from "solar:core/v1/Arrays.sol";
+import {Arrays} from "solar:core/Arrays.sol";
 
 contract Test {
     using Arrays for address[];

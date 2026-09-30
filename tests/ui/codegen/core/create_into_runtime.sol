@@ -11,8 +11,8 @@
 // bounded by the buffer the caller owns: how much arrived, how much there was,
 // and the rest of the buffer untouched. A creation that succeeds, and one that
 // fails without data, copy nothing.
-import {Bytes} from "solar:core/v1/Bytes.sol";
-import {Create} from "solar:core/v1/Create.sol";
+import {Bytes} from "solar:core/Bytes.sol";
+import {Create} from "solar:core/Create.sol";
 
 contract Test {
     function attempt(bytes memory initcode, uint256 room)

@@ -6,19 +6,19 @@
 // real one is a masked word read. An exact copy is set aside silently.
 // CHECK: "errors": [
 // CHECK: "type": "Warning"
-// CHECK: "message": "source `solar:core/v1/Bytes.sol` is provided by the compiler; the supplied content differs from it and is ignored"
+// CHECK: "message": "source `solar:core/Bytes.sol` is provided by the compiler; the supplied content differs from it and is ignored"
 // CHECK: "contracts": {
 // CHECK: "A.sol": {
 // CHECK: "T": {
 // CHECK: "abi": [
-// CHECK-NOT: "solar:core/v1/Bytes.sol": {
+// CHECK-NOT: "solar:core/Bytes.sol": {
 {
   "language": "Solidity",
   "sources": {
     "A.sol": {
-      "content": "import {Bytes} from \"solar:core/v1/Bytes.sol\"; contract T { function f(bytes memory b) public pure returns (bytes4) { return Bytes.readBytes4(b, 0); } }"
+      "content": "import {Bytes} from \"solar:core/Bytes.sol\"; contract T { function f(bytes memory b) public pure returns (bytes4) { return Bytes.readBytes4(b, 0); } }"
     },
-    "solar:core/v1/Bytes.sol": {
+    "solar:core/Bytes.sol": {
       "content": "library Bytes { function readBytes4(bytes memory, uint256) internal pure returns (bytes4) { return 0xdeadbeef; } }"
     }
   },

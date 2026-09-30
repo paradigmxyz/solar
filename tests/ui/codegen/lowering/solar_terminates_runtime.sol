@@ -11,7 +11,7 @@
 // `@custom:solar-terminates` helpers behave as the same helpers without the
 // tag: a revert with the helper's data, or a successful return of the whole
 // call, and the caller's code after the call never runs.
-import {Return} from "solar:core/v1/Return.sol";
+import {Return} from "solar:core/Return.sol";
 
 contract Test {
     error Bad(uint256 code);

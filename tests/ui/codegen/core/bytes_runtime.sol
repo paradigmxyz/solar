@@ -85,7 +85,7 @@
 // The same source under both lowerings: every call must give the same answer
 // and fail in the same places, which is what makes the shipped body the
 // definition and the intrinsic an optimization of it.
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 contract Test {
     function read1(bytes memory b, uint256 o) public pure returns (bytes1) {

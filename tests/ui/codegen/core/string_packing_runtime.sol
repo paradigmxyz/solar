@@ -37,7 +37,7 @@
 //@ run-call: unpackFullPairWord 0x1e616161616161616161616161616161616161616161616161616161616161ff => 0x6161616161616161616161616161616161616161616161616161616161610000
 //@ run-call: unpackSecondWord 0x0003626364ffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x6263640000000000000000000000000000000000000000000000000000000000
 
-import {Strings} from "solar:core/v1/Strings.sol";
+import {Strings} from "solar:core/Strings.sol";
 
 contract Test {
     function packSingle(string memory value) public pure returns (bytes32) {

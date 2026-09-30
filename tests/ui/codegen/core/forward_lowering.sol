@@ -16,7 +16,7 @@
 // INTRINSIC-DAG: returndata 0, {{v[0-9]+}}
 // PORTABLE-LABEL: fn @fallback
 // PORTABLE: delegatecall
-import {Calls} from "solar:core/v1/Calls.sol";
+import {Calls} from "solar:core/Calls.sol";
 
 contract Test {
     address private immutable implementation = address(this);

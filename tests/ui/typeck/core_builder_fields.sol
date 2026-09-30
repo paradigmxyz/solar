@@ -1,7 +1,7 @@
-// The fields of the builders in `solar:core/v1/Buffers.sol` belong to the
+// The fields of the builders in `solar:core/Buffers.sol` belong to the
 // module: a builder keeps what was written apart from its capacity, which a
 // field read could expose and a field write could break.
-import {Buffers, ByteBuilder, WordBuilder} from "solar:core/v1/Buffers.sol";
+import {Buffers, ByteBuilder, WordBuilder} from "solar:core/Buffers.sol";
 
 contract Test {
     using Buffers for ByteBuilder;

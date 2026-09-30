@@ -1,6 +1,6 @@
 //@ compile-flags: -Ogas -Zdump=mir
 //@ filecheck:
-import {Strings} from "solar:core/v1/Strings.sol";
+import {Strings} from "solar:core/Strings.sol";
 
 contract Test {
     // Below sixteen bytes the prefix and the digits fit one data word: the

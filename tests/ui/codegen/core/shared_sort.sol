@@ -12,7 +12,7 @@
 //@ run-call: groupSums [4, 4, 4], [1, 2, 3] => [4], [6]
 //@ run-call: groupSums [1], [9] => [1], [9]
 
-import {WordArrays} from "solar:core/v1/WordArrays.sol";
+import {WordArrays} from "solar:core/WordArrays.sol";
 
 // Builds that do not optimize for gas share one paired quicksort between
 // plain sorts and `groupSum`. A plain sort passes a zero pair distance and

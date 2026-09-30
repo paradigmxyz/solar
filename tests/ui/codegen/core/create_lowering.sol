@@ -22,7 +22,7 @@
 // INTRINSIC-NEXT: revert 0, 4
 // PORTABLE-LABEL: fn @spawn
 // PORTABLE: create
-import {Create} from "solar:core/v1/Create.sol";
+import {Create} from "solar:core/Create.sol";
 
 contract Test {
     function spawn(bytes memory initcode) public returns (bytes memory) {

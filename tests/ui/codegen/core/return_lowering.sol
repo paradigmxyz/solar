@@ -13,7 +13,7 @@
 // INTRINSIC: returndata [[HEAD]],
 // PORTABLE-LABEL: fn @echo
 // PORTABLE: tail_call @abiEncoded
-import {Return} from "solar:core/v1/Return.sol";
+import {Return} from "solar:core/Return.sol";
 
 contract Test {
     function echo(string memory s) public pure returns (string memory) {

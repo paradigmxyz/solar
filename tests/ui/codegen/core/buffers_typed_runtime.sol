@@ -9,7 +9,7 @@
 // an `int256[]` as a `WordBuilder` assembles a `uint256[]`: appends grow the
 // builder instead of writing past it, and `finish` hands the words over
 // without a copy.
-import {AddressBuilder, Buffers, Bytes32Builder, Int256Builder} from "solar:core/v1/Buffers.sol";
+import {AddressBuilder, Buffers, Bytes32Builder, Int256Builder} from "solar:core/Buffers.sol";
 
 contract Test {
     using Buffers for AddressBuilder;

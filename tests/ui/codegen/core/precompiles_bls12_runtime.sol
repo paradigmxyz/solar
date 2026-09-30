@@ -27,7 +27,7 @@
 // e(G, H) e(-G, H) = 1, the field-to-curve maps, and the proof that the zero
 // polynomial is zero at 1. A point off the curve, an element not below the
 // modulus, a false evaluation and an input of the wrong length all fail.
-import {Precompiles} from "solar:core/v1/Precompiles.sol";
+import {Precompiles} from "solar:core/Precompiles.sol";
 
 contract Test {
     function g1Add(bytes memory a, bytes memory b) public view returns (bool, bytes memory) {

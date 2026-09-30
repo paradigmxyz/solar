@@ -18,9 +18,9 @@
 // PORTABLE-LABEL: fn @callInto
 // PORTABLE: call arg2, arg0, arg1
 // PORTABLE: returndatasize
-import {Bytes} from "solar:core/v1/Bytes.sol";
-import {Calls} from "solar:core/v1/Calls.sol";
-import {Create} from "solar:core/v1/Create.sol";
+import {Bytes} from "solar:core/Bytes.sol";
+import {Calls} from "solar:core/Calls.sol";
+import {Create} from "solar:core/Create.sol";
 
 contract Test {
     function probe(bytes memory initcode)

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 /// @notice Bit scanning and counting.
-/// @dev Compiler-owned module, imported as `solar:core/v1/Bits.sol`. Every
+/// @dev Compiler-owned module, imported as `solar:core/Bits.sol`. Every
 /// function is total: a zero input gives 256, which no bit index or count of
 /// a non-zero word can be. The bodies are plain Solidity; where the target EVM
 /// has a matching instruction the compiler uses it instead, and otherwise the

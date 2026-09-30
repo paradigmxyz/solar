@@ -12,7 +12,7 @@
 // INTRINSIC-NOT: icall @tryReadBytes4
 // PORTABLE-LABEL: fn @try4
 // PORTABLE: icall @tryReadBytes4
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 contract Test {
     function try1(bytes memory b, uint256 offset) public pure returns (bool, bytes1) {

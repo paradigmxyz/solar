@@ -1,7 +1,7 @@
 // A `CodeView` is made only by `Code.slice`, from a range it checked, and
 // only `Code` unpacks one: wrapping a word, decoding a view, or unwrapping one
 // elsewhere is an error.
-import {Code, CodeView} from "solar:core/v1/Code.sol";
+import {Code, CodeView} from "solar:core/Code.sol";
 
 contract Test {
     struct Holder {

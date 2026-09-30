@@ -47,7 +47,7 @@
 // `decode` is source code over `Bytes`: it takes either case and an optional
 // prefix and reverts with `InvalidHex()` on anything else or an odd number of
 // digits.
-import {Hex} from "solar:core/v1/codecs/Hex.sol";
+import {Hex} from "solar:core/codecs/Hex.sol";
 
 contract Test {
     function encode(bytes memory data) public pure returns (string memory) {

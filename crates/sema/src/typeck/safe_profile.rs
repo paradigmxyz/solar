@@ -4,7 +4,7 @@
 //! requirements. `memory` requires that none of it is inline assembly, the only way Solidity code
 //! reaches memory outside the objects it allocates. `arithmetic` requires that all of its
 //! arithmetic is checked: no `unchecked` block, no call to the wrapping operations of
-//! `solar:core/v1/Math.sol`, and no inline assembly either, whose arithmetic wraps. A tag that
+//! `solar:core/Math.sol`, and no inline assembly either, whose arithmetic wraps. A tag that
 //! names neither requires both. Other compilers read the tag as documentation.
 //!
 //! The code a contract runs is what its creation and its entry points reach through internal
@@ -190,7 +190,7 @@ pub(crate) enum Violation {
     Assembly,
     /// An `unchecked` block.
     Unchecked,
-    /// A call to a wrapping operation of `solar:core/v1/Math.sol`.
+    /// A call to a wrapping operation of `solar:core/Math.sol`.
     Wrapping,
 }
 
@@ -329,11 +329,11 @@ impl<'gcx> Visit<'gcx> for Scan<'gcx> {
     }
 }
 
-/// Whether the function `id` is one of the wrapping operations of `solar:core/v1/Math.sol`.
+/// Whether the function `id` is one of the wrapping operations of `solar:core/Math.sol`.
 fn is_wrapping(gcx: Gcx<'_>, id: hir::FunctionId) -> bool {
     let function = gcx.hir.function(id);
     matches!(
         &gcx.hir.source(function.source).file.name,
-        FileName::Custom(path) if path == "solar:core/v1/Math.sol"
+        FileName::Custom(path) if path == "solar:core/Math.sol"
     ) && gcx.item_name(id).as_str().starts_with("wrapping")
 }

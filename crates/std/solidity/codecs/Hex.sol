@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 /// @notice Hexadecimal text over `bytes`.
-/// @dev Compiler-owned module, imported as `solar:core/v1/codecs/Hex.sol`.
+/// @dev Compiler-owned module, imported as `solar:core/codecs/Hex.sol`.
 /// `encode` and `encodePrefixed` may use specialized lowering; these checked
 /// bodies define the portable behavior and run under `-Zno-core-intrinsics`.
 /// `decode` is an ordinary source function over `Bytes`. `encode` writes

@@ -57,7 +57,7 @@
 //@ run-call: sweep 70; gas=16000000 => true
 //@ run-call: sweep 100; gas=16000000 => true
 
-import {Strings} from "solar:core/v1/Strings.sol";
+import {Strings} from "solar:core/Strings.sol";
 
 contract Test {
     // CHECK-LABEL: fn @html{{[( ]}}

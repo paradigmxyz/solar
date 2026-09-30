@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 /// @notice Base64 over `bytes`.
-/// @dev Compiler-owned module, imported as `solar:core/v1/codecs/Base64.sol`.
+/// @dev Compiler-owned module, imported as `solar:core/codecs/Base64.sol`.
 /// Calls may use specialized codec lowering; these checked bodies define
 /// the portable behavior and run under `-Zno-core-intrinsics`. `encode` writes
 /// the standard alphabet with padding, or the

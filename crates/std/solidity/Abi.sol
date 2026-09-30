@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 /// @notice ABI encoding into memory a caller already owns.
-/// @dev Compiler-owned module, imported as `solar:core/v1/Abi.sol`. This is a
+/// @dev Compiler-owned module, imported as `solar:core/Abi.sol`. This is a
 /// source library over `Bytes`, and other compilers run it as written.
 ///
 /// Every function writes at an offset measured from the start of the encoding,

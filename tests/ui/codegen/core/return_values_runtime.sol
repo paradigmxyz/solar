@@ -25,7 +25,7 @@
 // is raw bytes, so `Return.raw` ends a call to it with exactly its argument,
 // and any encoding may end it too. A call through an internal function
 // pointer ends the call it is made in.
-import {Return} from "solar:core/v1/Return.sol";
+import {Return} from "solar:core/Return.sol";
 
 contract Test {
     function word(uint256 value) public pure returns (uint256) {

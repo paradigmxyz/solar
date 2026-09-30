@@ -37,7 +37,7 @@
 // `@custom:solar-view` reads a `Bytes.slice` range in place, and must behave
 // exactly like the copy the portable body makes, which is what the `portable`
 // revision runs.
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 contract Test {
     using Bytes for bytes;

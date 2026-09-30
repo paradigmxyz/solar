@@ -12,7 +12,7 @@
 // INTRINSIC-NOT: mstore8
 // PORTABLE-LABEL: fn @hash
 // PORTABLE: mstore8
-import {Hash} from "solar:core/v1/Hash.sol";
+import {Hash} from "solar:core/Hash.sol";
 
 contract Test {
     function hash(bytes memory b, uint256 offset, uint256 count) public pure returns (bytes32) {

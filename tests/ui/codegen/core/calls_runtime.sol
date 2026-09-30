@@ -11,9 +11,9 @@
 // `Calls.callInto` copies at most the output buffer's length of what the
 // callee returns, and reports both how much arrived and how much there was.
 // A reverting callee gives `false` with its revert data in the buffer.
-import {Bytes} from "solar:core/v1/Bytes.sol";
-import {Calls} from "solar:core/v1/Calls.sol";
-import {Create} from "solar:core/v1/Create.sol";
+import {Bytes} from "solar:core/Bytes.sol";
+import {Calls} from "solar:core/Calls.sol";
+import {Create} from "solar:core/Create.sol";
 
 contract Test {
     function probe(bytes memory initcode)

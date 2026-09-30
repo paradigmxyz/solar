@@ -23,7 +23,7 @@
 // CANCUN-NOT: clz
 // CANCUN: 0x8421084210842108cc6318c6db6d54be
 // CANCUN: 0xd76453e0
-import {Bits} from "solar:core/v1/Bits.sol";
+import {Bits} from "solar:core/Bits.sol";
 
 contract Test {
     function leading(uint256 x) public pure returns (uint256) {

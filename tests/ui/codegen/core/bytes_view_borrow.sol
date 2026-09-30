@@ -4,7 +4,7 @@
 // between the view and a later read of it would make the view differ from the
 // copy other compilers make. Writes after the last read, and writes of memory
 // that cannot hold the source, are fine.
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 contract Test {
     using Bytes for bytes;

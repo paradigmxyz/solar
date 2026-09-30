@@ -5,8 +5,8 @@
 // A successful exit through `Return.abiEncoded`, `Return.raw`, a forward or a
 // `@custom:solar-terminates` function is rejected while such code is pending;
 // a reverting exit rolls everything back and is fine.
-import {Calls} from "solar:core/v1/Calls.sol";
-import {Return} from "solar:core/v1/Return.sol";
+import {Calls} from "solar:core/Calls.sol";
+import {Return} from "solar:core/Return.sol";
 
 contract Test {
     uint256 locked;

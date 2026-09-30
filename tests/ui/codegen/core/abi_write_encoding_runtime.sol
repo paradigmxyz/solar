@@ -21,8 +21,8 @@
 // `Abi.writeEncoding(out, offset, abi.encode(...))` stages the encoding past
 // the free memory pointer instead of allocating it, and must behave exactly
 // like the copy of the allocated encoding that the `portable` revision runs.
-import {Abi} from "solar:core/v1/Abi.sol";
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Abi} from "solar:core/Abi.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 interface IERC20 {
     function transfer(address to, uint256 amount) external returns (bool);

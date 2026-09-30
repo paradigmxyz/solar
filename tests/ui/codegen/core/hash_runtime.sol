@@ -12,7 +12,7 @@
 // `Hash.keccak256Range` hashes a range of a buffer. The shipped body copies
 // the range out and hashes the copy; the intrinsic hashes it where it lies.
 // Both check the range and fail the same way when it does not fit.
-import {Hash} from "solar:core/v1/Hash.sol";
+import {Hash} from "solar:core/Hash.sol";
 
 contract Test {
     function hash(bytes memory b, uint256 offset, uint256 count) public pure returns (bytes32) {

@@ -14,8 +14,8 @@
 // INTRINSIC-NOT: icall @tryDeployInto
 // PORTABLE-LABEL: fn @tryDeployInto
 // PORTABLE: returndatacopy
-import {Bytes} from "solar:core/v1/Bytes.sol";
-import {Create} from "solar:core/v1/Create.sol";
+import {Bytes} from "solar:core/Bytes.sol";
+import {Create} from "solar:core/Create.sol";
 
 contract Test {
     function attempt(bytes memory initcode, uint256 room)

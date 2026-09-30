@@ -17,8 +17,8 @@
 // it allocates first: a length no buffer can hold raises `Panic(0x41)`. The
 // new buffer's last word is zero past the bytes, as `new bytes` leaves it,
 // even where memory held other words.
-import {Code} from "solar:core/v1/Code.sol";
-import {Create} from "solar:core/v1/Create.sol";
+import {Code} from "solar:core/Code.sol";
+import {Create} from "solar:core/Create.sol";
 
 contract Test {
     function whole(bytes memory initcode) public returns (bytes memory) {

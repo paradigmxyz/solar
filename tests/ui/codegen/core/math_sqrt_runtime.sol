@@ -40,7 +40,7 @@
 // before it; Newton's step only comes down from there. Perfect squares, their
 // neighbours, the powers of two and the largest word are all checked against
 // an integer square root.
-import {Math} from "solar:core/v1/Math.sol";
+import {Math} from "solar:core/Math.sol";
 
 contract Test {
     function root(uint256 x) public pure returns (uint256) {

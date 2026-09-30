@@ -30,7 +30,7 @@
 // measured from an encoding staged past the free memory pointer otherwise.
 // Each function returns it beside the length of the encoding itself, and the
 // arguments are evaluated either way. Any other argument is measured as it is.
-import {Abi} from "solar:core/v1/Abi.sol";
+import {Abi} from "solar:core/Abi.sol";
 
 contract Test {
     struct Point {

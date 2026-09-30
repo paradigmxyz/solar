@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 /// @notice What the build is optimized for, as a constant.
-/// @dev Compiler-owned module, imported as `solar:core/v1/Build.sol`.
+/// @dev Compiler-owned module, imported as `solar:core/Build.sol`.
 /// `gasFirst()` is true when the compiler optimizes the build for runtime gas
 /// and false when it optimizes for code size or not at all. A library can
 /// guard a path that only pays for itself in gas with it: the path folds away

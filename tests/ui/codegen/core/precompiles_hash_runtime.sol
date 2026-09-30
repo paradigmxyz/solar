@@ -17,7 +17,7 @@
 // `sample` and rejects it with one bit of the hash, the key or `r` changed.
 // On a target before Osaka the address is an empty account, which answers
 // with nothing, so the same valid signature is `false` there.
-import {Precompiles} from "solar:core/v1/Precompiles.sol";
+import {Precompiles} from "solar:core/Precompiles.sol";
 
 contract Test {
     function compress(

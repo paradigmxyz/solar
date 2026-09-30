@@ -10,7 +10,7 @@ pragma solidity ^0.8.20;
 type CodeView is uint256;
 
 /// @notice Reading ranges of another account's code.
-/// @dev Compiler-owned module, imported as `solar:core/v1/Code.sol`.
+/// @dev Compiler-owned module, imported as `solar:core/Code.sol`.
 /// `target.code` copies the whole code; these copy a range of it, checked
 /// against the code's size rather than zero-padded past it, which is what
 /// reading a data contract needs. The body is one memory-safe assembly copy,

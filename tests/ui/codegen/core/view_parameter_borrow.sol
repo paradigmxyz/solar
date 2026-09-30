@@ -4,7 +4,7 @@
 // read it in place, and nothing the function does may change those bytes
 // while it still reads them: writes of the memory that existed when it was
 // entered are rejected, writes of fresh memory are not.
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 contract Test {
     /// @custom:solar-view data

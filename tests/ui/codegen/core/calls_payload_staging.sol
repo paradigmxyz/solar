@@ -27,7 +27,7 @@
 // CHECK: mstore 64,
 // CHECK: mstore 64,
 // CHECK: = call {{v[0-9]+}}, 4, 0, {{v[0-9]+}}, {{v[0-9]+}},
-import {Calls} from "solar:core/v1/Calls.sol";
+import {Calls} from "solar:core/Calls.sol";
 
 contract CallsPayloadStaging {
     function staged(uint256 a) public returns (bool ok, uint256 copied, bytes memory out) {

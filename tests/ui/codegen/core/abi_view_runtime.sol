@@ -44,8 +44,8 @@
 // exactly like the copying decode, which is what the `portable` revision runs:
 // the same values, the same reverts on malformed input, and `Panic(0x41)` for
 // lengths no copy could allocate.
-import {Bytes} from "solar:core/v1/Bytes.sol";
-import {Hash} from "solar:core/v1/Hash.sol";
+import {Bytes} from "solar:core/Bytes.sol";
+import {Hash} from "solar:core/Hash.sol";
 
 contract Test {
     using Bytes for bytes;

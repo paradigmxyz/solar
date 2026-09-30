@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 /// @notice Hashing a range of a buffer without copying it out first.
-/// @dev Compiler-owned module, imported as `solar:core/v1/Hash.sol`. The body
+/// @dev Compiler-owned module, imported as `solar:core/Hash.sol`. The body
 /// copies the range into a fresh buffer and hashes that, which is the plain
 /// Solidity spelling; the compiler hashes the range where it lies. Both check
 /// the range against the buffer and raise `Panic(0x32)` when it does not fit.

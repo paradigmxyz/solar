@@ -12,7 +12,7 @@
 // INTRINSIC-NOT: icall @raw
 // PORTABLE-LABEL: fn @boom
 // PORTABLE: revert
-import {Revert} from "solar:core/v1/Revert.sol";
+import {Revert} from "solar:core/Revert.sol";
 
 contract Test {
     function boom(bytes memory data) public pure {

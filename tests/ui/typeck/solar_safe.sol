@@ -4,8 +4,8 @@
 // modules and code tagged `@custom:solar-trusted` are trusted, and an assembly
 // block that only points a storage reference at its ERC-7201 namespace is
 // verified instead. External calls run in call frames of their own.
-import {Bytes} from "solar:core/v1/Bytes.sol";
-import {Math} from "solar:core/v1/Math.sol";
+import {Bytes} from "solar:core/Bytes.sol";
+import {Math} from "solar:core/Math.sol";
 
 library Raw {
     function word(bytes memory b) internal pure returns (uint256 w) {

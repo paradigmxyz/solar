@@ -9,7 +9,7 @@
 // CHECK: mload
 // CHECK: and {{.*}}, 0xffffffff00000000000000000000000000000000000000000000000000000000
 // CHECK-NOT: deadbeef
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 contract Test {
     function f(bytes memory b) public pure returns (bytes4) {

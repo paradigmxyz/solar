@@ -27,7 +27,7 @@
 // view reads it, in memory or calldata, into its output, in the canonical form
 // a copy of it would have, whatever offsets its input used. It must behave
 // exactly like encoding the copy, which the `portable` revision runs.
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 contract Test {
     using Bytes for bytes;
