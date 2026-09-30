@@ -140,6 +140,10 @@ storage_path PathTable, PathNode, KeyTerm, PathSet, alias queries, instantiation
 storage      value -> paths, per-function storage footprints and returned pointers
 taint        value -> sources, storage flows
 liveness     backward liveness of storage writes
+value        ValueDomain plug-in API and the generic value analysis
+interval     unsigned intervals
+rounding     rounding directions
+units        dimensions and decimal scales
 slot_state   SymWord, Pred, SlotState: exact slots relative to entry, guards
 reentrancy   events, contract model, trust, checker, findings
 ```
@@ -358,46 +362,67 @@ that does or does not call out (`cross_contract.sol`), event reordering
 The object-sensitive revision of `storage/contexts.sol` shows the same summaries
 computed per storage object with `-Zdataflow-k=1`.
 
-## Abstract-domain plug-ins (*planned*)
+## Abstract-domain plug-ins
 
-Numeric domains plug in as a value domain over SSA values plus hooks for branch
-refinement and call summaries:
+Numeric and tag domains plug in as a value domain over SSA values (`value.rs`):
 
 ```rust
-trait ValueDomain: JoinSemiLattice + Eq {
+trait ValueDomain: JoinSemiLattice + Eq + Hash + Debug + Display {
+    const NAME: &'static str;
     fn top() -> Self;
     fn constant(value: U256) -> Self;
-    fn transfer(op: &Op, operands: &[Self]) -> Self;        // schema-generated `Op` view
-    fn refine(cond: &Op, operands: &mut [Self], taken: bool) -> bool; // false: infeasible
+    fn transfer(cx: &DomainCx<'_>, op: Op, operands: &[Self]) -> Self;
+    fn refine(op: Op, operands: &mut [Self], taken: bool) -> bool { true }
+    fn call_seed(callee: &str) -> Option<Self> { None }
+    fn is_empty(&self) -> bool { false }
+    fn check(cx: &DomainCx<'_>, op: Op, operands: &[Self], findings: &mut Vec<String>) {}
+}
+
+trait Seeded: ValueDomain {
+    fn parse_seed(text: &str) -> Option<Self> { None }
 }
 ```
 
-A generic `ValueAnalysis<D>` client implements `Analysis` with `MapLattice<ValueId, D>`,
-applies `refine` in `apply_edge`, and uses `k`-contexts whose entry abstraction is the
-argument abstraction, so non-relational domains gain precision from calling contexts.
-Transfer functions dispatch on the schema-generated `Op` view, so there is no parallel
-operation table.
+`ValueAnalysis<D>` implements the engine's `Analysis` over `MapLattice<ValueId, D>` and
+`InterproceduralAnalysis` with the argument abstractions as entry. Transfer functions
+match the schema-generated `Op` view, as ISLE rules do, so there is no parallel
+operation table. Branch conditions and passing checks call `refine` on the comparison
+that produced them, and an empty refinement makes the edge unreachable. After widening,
+two descending rounds (`engine::narrow`) recover bounds such as a loop's limit. With
+`k = 0` a callee is summarized once over its seeded or unknown arguments; with `k > 0`
+each context has its own exact result. Seeds come from NatSpec: the driver matches MIR
+functions to their declarations by span and passes each parameter's name and
+documentation, and each result's documentation, as text for the domain to parse.
 
-- **Intervals** over unsigned words with signed views, widening to the type range,
-  and refinement from `lt`/`gt`/`eq` and checked-arithmetic success, so check
-  elimination can consume interprocedural ranges.
-- **Rounding direction**: Slither's `UP`/`DOWN`/`NEUTRAL`/`UNKNOWN` sets with the
-  division inversion and ceiling idiom, seeded from function names and NatSpec, with
-  consistency diagnostics.
-- **Units and scales**: a map from base units to integer exponents plus a decimal
-  scale, following the Trail of Bits algebra, seeded from NatSpec annotations.
-  Mismatched additions and scales become diagnostics.
-- **Products** of these domains are tuples of lattices, so a reduced product only
-  needs a `reduce` hook.
+- **Intervals** (`-Zdataflow=intervals`, `interval.rs`) over unsigned words with EVM
+  wrapping, checked arithmetic that keeps the non-wrapping part, comparison refinement,
+  and widening to the end of the word. A passing `require(i < 5)` proves the following
+  `data[i]` bounds check of a ten-element array.
+- **Rounding direction** (`-Zdataflow=rounding`, `rounding.rs`): sets of up, down, exact,
+  and unknown, following Slither's rounding analysis. Division rounds down unless it is
+  the ceiling idiom; subtraction and division invert the second operand; calls named
+  like `mulDivUp` or `divWadDown` seed their results, as do parameters named with an
+  `_UP` or `_DOWN` suffix. Mixing opposite directions and dividing by a value rounded
+  the same way as the numerator are reported.
+- **Units and scales** (`-Zdataflow=units`, `units.rs`): products of base units with
+  integer exponents and a decimal scale, parsed from `@param amount D18{tok}` and
+  `@return D18{share}`. Multiplication adds scales and exponents, powers of ten are pure
+  scales, other literals adopt the other operand's dimension in sums, and adding or
+  comparing different dimensions is reported.
+- **Products** of domains are tuples of lattices; a reduced product only needs a
+  `reduce` hook on top of the tuple.
+
+Findings from value domains print in the dump and are emitted as warnings at the
+instruction's source location.
 
 An SMT backend stays optional. The repository already drives cvc5 from Python in
-`scripts/evm-rules/` for offline proofs; a refutation client would do the same behind
-a Cargo feature or an external process, never as a mandatory dependency, and would
-treat solver timeouts as "not refuted".
+`scripts/evm-rules/` for offline proofs; a refutation client would do the same behind a
+Cargo feature or an external process, never as a mandatory dependency, and would treat
+solver timeouts as "not refuted".
 
 ## Program-point facts in tests
 
-`-Zdataflow=storage,taint,reentrancy,liveness` runs the named analyses on each contract's MIR
+`-Zdataflow=storage,taint,reentrancy,liveness,intervals,rounding,units` runs the named analyses on each contract's MIR
 before optimization, or on parsed MIR input before its pipeline, and prints one
 section per analysis and contract:
 
@@ -456,8 +481,9 @@ measured results.
 | --- | --- | --- |
 | M0 | This design | done |
 | M1 | Framework core, storage paths, taint, reentrancy with path-sensitive guards, cross-contract trust, `-Zdataflow` dumps, Slither #515 and Sailfish tests | done |
-| M2 | Abstract-domain plug-in API with intervals, rounding direction, and units; library `delegatecall` summaries | planned |
+| M2 | Abstract-domain plug-in API with intervals, rounding direction, and units, NatSpec seeds, and narrowing | done |
 | M3 | Storage forwarding across calls, guard removal, cross-function check elimination, with runtime tests and benchmark measurements | planned |
+| Later | Summaries for public library functions reached through `delegatecall`; privileged origins through role mappings | planned |
 
 ## Limitations
 

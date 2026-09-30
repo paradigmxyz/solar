@@ -102,6 +102,12 @@ struct LiveState<'a> {
     table: &'a PathTable,
 }
 
+impl PartialEq for LiveState<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.live == other.live
+    }
+}
+
 impl JoinSemiLattice for LiveState<'_> {
     fn join(&mut self, other: &Self) -> bool {
         self.live.join_with(self.table, &other.live)

@@ -1,0 +1,36 @@
+// === dataflow rounding (k=0): ROOT/tests/ui/codegen/dataflow/rounding/directions.sol:FixedPointMath ===
+// === dataflow rounding (k=0): ROOT/tests/ui/codegen/dataflow/rounding/directions.sol:Vault ===
+fn @previewDeposit:
+  bb0:
+    v2 = icall @mulDivDown, arg0, v0, v1  ; down
+  summary: ret0=down
+fn @previewMint:
+  bb0:
+    v2 = icall @mulDivUp, arg0, v0, v1  ; up
+  summary: ret0=up
+fn @mixed:
+  bb0:
+    v2 = icall @mulDivUp, arg0, v0, v1  ; up
+    v5 = icall @mulDivDown, arg1, v3, v4  ; down
+    v6 = checked_add u256, v2, v5  ; unknown
+  summary: ret0=unknown
+finding: rounding @mixed: `v6 = checked_add u256, v2, v5` combines values rounded up and down
+fn @ratio:
+  bb0:
+    v2 = icall @mulDivDown, arg0, v0, v1  ; down
+    v5 = icall @mulDivDown, arg0, v3, v4  ; down
+    v6 = checked_div u256, v2, v5  ; unknown
+  summary: ret0=unknown
+finding: rounding @ratio: `v6 = checked_div u256, v2, v5` divides a value rounded down by a value rounded the same way, which rounds the quotient the other way
+fn @ceil:
+  bb0:
+    v2 = checked_div u256, v1, arg1  ; up
+  summary: ret0=up
+fn @mulDivUp:
+  bb0:
+    v3 = checked_div u256, v2, arg2  ; up
+  summary: ret0=up
+fn @mulDivDown:
+  bb0:
+    v1 = checked_div u256, v0, arg2  ; down
+  summary: ret0=down

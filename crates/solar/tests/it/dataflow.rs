@@ -32,7 +32,10 @@ fn dataflow_analyses_are_bytecode_neutral() {
                 analyzed.path(),
                 source,
                 mode,
-                &["-Zdataflow=storage,taint,reentrancy,liveness", "-Zdataflow-k=1"],
+                &[
+                    "-Zdataflow=storage,taint,reentrancy,liveness,intervals,rounding,units",
+                    "-Zdataflow-k=1",
+                ],
             );
             assert_eq!(actual, expected, "{source} with -O {mode}");
         }

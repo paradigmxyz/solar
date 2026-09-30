@@ -78,7 +78,7 @@ Options:
       -Zdataflow=<ANALYSIS[,ANALYSIS...]>
           Run MIR dataflow analyses and print their facts at every program point.
           
-          Valid analyses are `storage`, `taint`, `reentrancy`, and `liveness`. Analyses run on each contract's MIR before optimization and never change generated code.
+          Valid analyses are `storage`, `taint`, `reentrancy`, `liveness`, `intervals`, `rounding`, and `units`. Analyses run on each contract's MIR before optimization and never change generated code.
 
       -Zdataflow-k=<K>
           Call-string length for context-sensitive dataflow analyses; `0` uses one summary per function

@@ -86,7 +86,7 @@ pub(crate) enum ProgramPoint {
 /// A dataflow problem over one function's CFG.
 pub(crate) trait Analysis {
     /// The abstract state at each program point.
-    type Domain: JoinSemiLattice;
+    type Domain: JoinSemiLattice + PartialEq;
 
     /// The propagation direction.
     const DIRECTION: Direction = Direction::Forward;
@@ -351,6 +351,60 @@ fn solve_backward<A: Analysis>(
     }
 
     Results { states, visited }
+}
+
+/// Refines a forward fixed point with `rounds` descending iterations.
+///
+/// Widening can overshoot, for example past a loop bound. Starting from a post-fixpoint,
+/// recomputing every block entry from its predecessors without widening yields smaller states
+/// that still over-approximate the least fixed point, because the transfer functions are
+/// monotone.
+pub(crate) fn narrow<A: Analysis>(
+    func: &Function,
+    cfg: &CfgInfo,
+    analysis: &mut A,
+    results: &mut Results<A::Domain>,
+    rounds: usize,
+) {
+    debug_assert_eq!(A::DIRECTION, Direction::Forward, "narrowing refines forward problems only");
+    for _ in 0..rounds {
+        let mut changed = false;
+        for &block in cfg.rpo() {
+            if block == BlockId::ENTRY || !results.visited.contains(block) {
+                continue;
+            }
+            let mut entry = analysis.bottom(func);
+            for &pred in &func.blocks[block].predecessors {
+                if !results.visited.contains(pred) {
+                    continue;
+                }
+                let mut state = results.states[pred].clone();
+                for &inst in &func.blocks[pred].instructions {
+                    if !matches!(func.inst(inst).kind, InstKind::Phi(_)) {
+                        analysis.apply_instruction(func, pred, inst, &mut state);
+                    }
+                }
+                analysis.apply_terminator(func, pred, &mut state);
+                for edge in outgoing_edges(func, pred).into_iter().filter(|edge| edge.to == block) {
+                    let mut edge_state = state.clone();
+                    analysis.apply_edge(func, &edge, &mut edge_state);
+                    for phi in block_phis(func, block) {
+                        if let Some(incoming) = phi_incoming(func, phi, pred) {
+                            analysis.apply_phi(func, phi, incoming, &edge, &mut edge_state);
+                        }
+                    }
+                    entry.join(&edge_state);
+                }
+            }
+            if results.states[block] != entry {
+                results.states[block] = entry;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
 }
 
 /// Replays a forward analysis over its fixed point in reverse postorder.
