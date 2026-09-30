@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_aggregate.sol:ExternalFunctionPointerAggregateTarget ===
 @module ExternalFunctionPointerAggregateTarget
-types:
+@types
   struct0: {i256, memorybytes}
 
 fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
@@ -35,20 +35,20 @@ fn @combine(arg0: memoryarray, arg1: memorybytes) -> struct0 [selector=0x3488ea1
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_aggregate.sol:ExternalFunctionPointerAggregate ===
 @module ExternalFunctionPointerAggregate
-types:
+@types
   struct0: {i256, memorybytes}
 
-data:
-  ExternalFunctionPointerAggregateTarget_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_aggregate.sol:ExternalFunctionPointerAggregateTarget"
+@data
+  ExternalFunctionPointerAggregateTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_aggregate.sol:ExternalFunctionPointerAggregateTarget"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize ExternalFunctionPointerAggregateTarget_initcode_0
-    v2 = datasize ExternalFunctionPointerAggregateTarget_initcode_0, 31, aligned
+    v1 = datasize ExternalFunctionPointerAggregateTarget_creation_code_0
+    v2 = datasize ExternalFunctionPointerAggregateTarget_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy ExternalFunctionPointerAggregateTarget_initcode_0, v4, v1
+    datacopy ExternalFunctionPointerAggregateTarget_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

@@ -7,17 +7,17 @@ fn @ping(arg0: i256) -> i256 [selector=0x773acdef, payable, abi_params=[u256], a
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_external_call_evaluation_order.sol:TryExternalCallEvaluationOrder ===
 @module TryExternalCallEvaluationOrder
-data:
-  TryExternalCallEvaluationOrderTarget_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/try_external_call_evaluation_order.sol:TryExternalCallEvaluationOrderTarget"
+@data
+  TryExternalCallEvaluationOrderTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/try_external_call_evaluation_order.sol:TryExternalCallEvaluationOrderTarget"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize TryExternalCallEvaluationOrderTarget_initcode_0
-    v2 = datasize TryExternalCallEvaluationOrderTarget_initcode_0, 31, aligned
+    v1 = datasize TryExternalCallEvaluationOrderTarget_creation_code_0
+    v2 = datasize TryExternalCallEvaluationOrderTarget_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy TryExternalCallEvaluationOrderTarget_initcode_0, v4, v1
+    datacopy TryExternalCallEvaluationOrderTarget_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

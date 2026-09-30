@@ -25,7 +25,7 @@ use solar_data_structures::{index::IndexVec, newtype_index};
 use solar_interface::{Span, Symbol};
 use std::fmt;
 
-pub(crate) use crate::link::{Data, DataId, DataRef, DataSize};
+pub(crate) use crate::link::{Data, DataBytes, DataId, DataRef, DataSize};
 
 pub(in crate::backend) mod builder;
 mod display;
@@ -96,15 +96,15 @@ impl Module {
     ) -> bool {
         let mut linked = false;
         for data in &mut self.data {
-            let Some(code) = data.deferred.take() else { continue };
-            // @data d deferred creation|runtime C
-            // => @data d hex"<code(C)>" library_relocations [..]
+            let DataBytes::Deferred(code) = data.bytes else { continue };
+            // d: creation_code|runtime_code C
+            // => d: hex"<code(C)>" library_relocations [..]
             let bytecode = code.bytecode(bytecodes);
             assert!(
                 u32::try_from(bytecode.bytes.len()).is_ok(),
                 "embedded bytecode length exceeds `u32`"
             );
-            data.bytes = bytecode.bytes.clone();
+            data.bytes = DataBytes::Known(bytecode.bytes.clone());
             data.library_relocations = bytecode.relocations_in(libraries);
             linked = true;
         }
@@ -120,9 +120,7 @@ impl Module {
             for inst in &mut block.instructions {
                 // push_data_size d, addend[, aligned] => push (len(d) + addend) [& ~31]
                 if let Some(size) = inst.pushed_data_size() {
-                    let data = &self.data[size.data];
-                    assert!(data.deferred.is_none(), "data sizes require linked data");
-                    let value = size.value(data.bytes.len());
+                    let value = size.value(self.data[size.data].bytes.linked().len());
                     inst.replace_preserving_metadata(Instruction::push_value(value));
                 }
             }

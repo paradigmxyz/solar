@@ -16,18 +16,18 @@ contract CodeTarget {
 }
 
 // MIR-LABEL: contract_code_data.sol:CodeFactory ===
-// MIR: data:
-// MIR: CodeTarget_initcode_0: deferred creation "{{.*}}contract_code_data.sol:CodeTarget"
-// MIR: CodeTarget_runtime_code_1: deferred runtime "{{.*}}contract_code_data.sol:CodeTarget"
-// MIR-NOT: CodeTarget_initcode_2:
+// MIR: @data
+// MIR: CodeTarget_creation_code_0: creation_code "{{.*}}contract_code_data.sol:CodeTarget"
+// MIR: CodeTarget_runtime_code_1: runtime_code "{{.*}}contract_code_data.sol:CodeTarget"
+// MIR-NOT: CodeTarget_creation_code_2:
 // OPT-LABEL: contract_code_data.sol:CodeFactory (runtime) ===
 // OPT: @module CodeFactory_runtime
-// OPT: push_data CodeTarget_initcode_0+{{[0-9]+}}
-// OPT: @data CodeTarget_initcode_0 hex"
-// OPT-NOT: @data CodeTarget_runtime_code_
+// OPT: CodeTarget_creation_code_0: hex"
+// OPT-NOT: CodeTarget_runtime_code_
+// OPT: push_data CodeTarget_creation_code_0+{{[0-9]+}}
 contract CodeFactory {
     // MIR-LABEL: fn @deployCreationCode{{[( ]}}
-    // MIR: datacopy CodeTarget_initcode_0,
+    // MIR: datacopy CodeTarget_creation_code_0,
     function deployCreationCode() external returns (uint256) {
         bytes memory code = type(CodeTarget).creationCode;
         address deployed;
@@ -38,7 +38,7 @@ contract CodeFactory {
     }
 
     // MIR-LABEL: fn @runtimeCodeMatches{{[( ]}}
-    // MIR: datacopy CodeTarget_initcode_0,
+    // MIR: datacopy CodeTarget_creation_code_0,
     // MIR: datacopy CodeTarget_runtime_code_1,
     function runtimeCodeMatches() external returns (bool) {
         CodeTarget deployed = new CodeTarget();

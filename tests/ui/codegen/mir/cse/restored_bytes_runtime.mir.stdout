@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/cse/restored_bytes_runtime.sol:Test ===
 @module Test
-types:
+@types
   struct0: {i256, i256}
 
 fn @temporary(arg0: i256) -> i256 [pure] {

@@ -1,6 +1,9 @@
 //@ compile-flags: -Ogas -Zevm-ir-pipeline=pack-data
 //@ filecheck:
 @module copy_after_jump
+@data
+  container_0: hex"11223344"
+  small_1: hex"2233"
 
 // A copy that a shared tail moved behind a jump still bounds its data, so the
 // small entry can live inside the container.
@@ -18,6 +21,3 @@ bb1:
   push 0
   codecopy
   stop
-
-@data container_0 hex"11223344"
-@data small_1 hex"2233"

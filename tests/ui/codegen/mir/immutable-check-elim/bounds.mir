@@ -3,7 +3,7 @@
 //@[size] compile-flags: -Osize --evm-version=osaka -Zmir-pipeline=immutable-check-elim
 //@[legacy] compile-flags: -Ogas --evm-version=byzantium -Zmir-pipeline=immutable-check-elim
 @module ImmutableBounds
-immutables:
+@immutables
   small: u64
   signed: i64
   wide: u256

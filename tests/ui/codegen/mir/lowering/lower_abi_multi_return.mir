@@ -3,11 +3,11 @@
 // Static multi-return wrappers must encode every return word, not just the
 // first call result.
 @module LowerAbiMultiReturn
-types:
+@types
   struct0: {i256, i256}
 
 
-immutables:
+@immutables
   owner: address
 // CHECK-LABEL: {{^[ +].*}}fn @pair{{[( ]}}
 // CHECK: + mstore 128, arg0

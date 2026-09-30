@@ -3,23 +3,23 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:B ===
 @module B
-data:
-  A_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:A"
-  A_runtime_code_1: deferred runtime "ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:A"
+@data
+  A_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:A"
+  A_runtime_code_1: runtime_code "ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:A"
 
 fn @nonEmptyCode() -> i256 [selector=0x73c60a6b, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = datasize A_initcode_0
-    v1 = datasize A_initcode_0, 63, aligned
+    v0 = datasize A_creation_code_0
+    v1 = datasize A_creation_code_0, 63, aligned
     v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, v0
     v3 = memory_object_data memorybytes, v2
-    v4 = datasize A_initcode_0, 31, aligned
+    v4 = datasize A_creation_code_0, 31, aligned
     v5 = ptrtoint memorybytes v2 to i256
     v6 = add v5, v4
     mstore v6, 0
     v7 = ptrtoint memptr v3 to i256
-    datacopy A_initcode_0, v7, v0
+    datacopy A_creation_code_0, v7, v0
     v8 = memory_object_len memorybytes, v2
     v9 = gt v8, 0
     jumpi v9, bb1, bb2
@@ -62,11 +62,11 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:EmptyContractRuntime ===
 @module EmptyContractRuntime
-data:
-  InternalContract_runtime_code_0: deferred runtime "ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:InternalContract"
-  ConstructorOnly_runtime_code_1: deferred runtime "ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:ConstructorOnly"
-  InternalLibrary_runtime_code_2: deferred runtime "ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:InternalLibrary"
-  A_initcode_3: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:A"
+@data
+  InternalContract_runtime_code_0: runtime_code "ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:InternalContract"
+  ConstructorOnly_runtime_code_1: runtime_code "ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:ConstructorOnly"
+  InternalLibrary_runtime_code_2: runtime_code "ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:InternalLibrary"
+  A_creation_code_3: creation_code "ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:A"
 
 fn @hasNonCallableRuntime() -> i256 [selector=0x0fedb051, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
@@ -130,11 +130,11 @@ fn @hasNonCallableRuntime() -> i256 [selector=0x0fedb051, pure, abi_params=[], a
 fn @deploysRevertingRuntime() -> i256 [selector=0x7c2d5470, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize A_initcode_3
-    v2 = datasize A_initcode_3, 31, aligned
+    v1 = datasize A_creation_code_3
+    v2 = datasize A_creation_code_3, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy A_initcode_3, v4, v1
+    datacopy A_creation_code_3, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -173,11 +173,11 @@ fn @deploysRevertingRuntime() -> i256 [selector=0x7c2d5470, abi_params=[], abi_r
 fn @hasCode() -> i256 [selector=0xfffc60a2, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize A_initcode_3
-    v2 = datasize A_initcode_3, 31, aligned
+    v1 = datasize A_creation_code_3
+    v2 = datasize A_creation_code_3, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy A_initcode_3, v4, v1
+    datacopy A_creation_code_3, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -201,11 +201,11 @@ fn @hasCode() -> i256 [selector=0xfffc60a2, abi_params=[], abi_returns=[word<boo
 fn @rejectsCalls() -> i256 [selector=0x99b623b6, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize A_initcode_3
-    v2 = datasize A_initcode_3, 31, aligned
+    v1 = datasize A_creation_code_3
+    v2 = datasize A_creation_code_3, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy A_initcode_3, v4, v1
+    datacopy A_creation_code_3, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

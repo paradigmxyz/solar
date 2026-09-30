@@ -34,11 +34,11 @@ fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/create_with_dynamic_args.sol:Factory ===
 @module Factory
-types:
+@types
   struct0: {i256, i256}
 
-data:
-  Token_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/create_with_dynamic_args.sol:Token"
+@data
+  Token_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/create_with_dynamic_args.sol:Token"
 
 fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[word, word<u8>], abi_return_params=[u256, u8]] {
   bb0:
@@ -50,7 +50,7 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
     v3 = and 18, 255
     v4 = abi_encode [memory_bytes, word<u8>], args v0, v3
     v5 = slice_len v4
-    v6 = datasize Token_initcode_0
+    v6 = datasize Token_creation_code_0
     v7 = add v6, v5
     v8 = lt v7, v6
     icall panic_if<0x41>, v8
@@ -61,7 +61,7 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
     v12 = and v9, v11
     v13 = alloc raw, exact, uninitialized, infallible, v12
     v14 = ptrtoint memptr v13 to i256
-    datacopy Token_initcode_0, v14, v6
+    datacopy Token_creation_code_0, v14, v6
     v15 = slice_ptr v4
     v16 = ptrtoint memptr v13 to i256
     v17 = add v16, v6

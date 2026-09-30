@@ -1,9 +1,12 @@
-use crate::link::{ContractCode, LibraryId, LibraryRelocation, LibraryTable, QualifiedName};
+use crate::link::{
+    CodeKind, ContractCode, Data, DataId, LibraryId, LibraryRelocation, LibraryTable, QualifiedName,
+};
 use alloy_primitives::{Bytes, U256};
 use solar_ast::{
     Arena,
     token::{BinOpToken, Delimiter, Token, TokenKind, TokenLitKind},
 };
+use solar_data_structures::index::IndexVec;
 use solar_interface::{Session, Span, Symbol, source_map::SourceFile, sym};
 use solar_parse::PErr;
 
@@ -137,22 +140,100 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(bytes.into())
     }
 
-    /// Parses a source-qualified library identity.
-    pub(crate) fn parse_library(&mut self) -> Result<LibraryId, PErr<'sess>> {
-        let library = self.parse_qualified_name()?;
-        Ok(self.libraries.intern(library))
+    /// Parses the entries of an `@libraries` section: `L_0: "a.sol:L"`.
+    pub(crate) fn parse_library_declarations(&mut self) -> Result<(), PErr<'sess>> {
+        while self.check_declaration() {
+            let span = self.token().span;
+            let (id, _) = self.parse_indexed_name("library")?;
+            if id != self.libraries.len() {
+                return Err(self.error_at(
+                    span,
+                    format!("expected library ID {}, found {id}", self.libraries.len()),
+                ));
+            }
+            self.expect(TokenKind::Colon)?;
+            let library = self.parse_qualified_name()?;
+            if self.libraries.intern(library).index() != id {
+                let message = format!("library `{}` is already declared", library.as_str());
+                return Err(self.error_at(span, message));
+            }
+        }
+        Ok(())
     }
 
-    /// Parses embedded contract bytecode: `creation|runtime "source":"name"`.
-    pub(crate) fn parse_contract_code(&mut self) -> Result<ContractCode, PErr<'sess>> {
-        let creation = if self.eat_keyword(sym::creation) {
-            true
-        } else if self.eat_keyword(sym::runtime) {
-            false
-        } else {
-            return Err(self.error("expected `creation` or `runtime`"));
+    /// Parses the entries of a `@data` section:
+    ///
+    /// ```text
+    /// Child_creation_code_0: creation_code "b.sol:Child"
+    /// literal_1: hex"..." library_relocations [2: L_0]
+    /// ```
+    pub(crate) fn parse_data_declarations(
+        &mut self,
+    ) -> Result<IndexVec<DataId, Data>, PErr<'sess>> {
+        let mut data = IndexVec::new();
+        while self.check_declaration() {
+            let span = self.token().span;
+            let (id, name) = self.parse_data_id()?;
+            if id != U256::from(data.len()) {
+                let message = format!("expected data ID {}, found {id}", data.len());
+                return Err(self.error_at(span, message));
+            }
+            self.expect(TokenKind::Colon)?;
+            let kind = if self.eat_keyword(sym::creation_code) {
+                Some(CodeKind::Creation)
+            } else if self.eat_keyword(sym::runtime_code) {
+                Some(CodeKind::Runtime)
+            } else {
+                None
+            };
+            if let Some(kind) = kind {
+                let contract = self.parse_qualified_name()?;
+                data.push(Data::contract_code(ContractCode { contract, kind }, name));
+                continue;
+            }
+            if !matches!(self.token().kind, TokenKind::Literal(TokenLitKind::HexStr, _)) {
+                return Err(self.error("expected `hex\"...\"`, `creation_code`, or `runtime_code`"));
+            }
+            let bytes = self.parse_data_bytes()?;
+            let library_relocations = self.parse_data_library_relocations(&bytes)?;
+            data.push(Data { library_relocations, ..Data::new(bytes, name) });
+        }
+        Ok(data)
+    }
+
+    /// Returns whether the next tokens start a declaration: `name_index:` or `index:`.
+    ///
+    /// EVM IR block labels contain no `_`, so they end a section.
+    fn check_declaration(&self) -> bool {
+        let is_name = match self.token().kind {
+            TokenKind::Ident(name) => name.as_str().contains('_'),
+            TokenKind::Literal(TokenLitKind::Integer, _) => true,
+            _ => false,
         };
-        Ok(ContractCode { contract: self.parse_qualified_name()?, creation })
+        is_name && self.look_ahead(1).kind == TokenKind::Colon
+    }
+
+    /// Parses a reference to a declared library: `Name_index`.
+    pub(crate) fn parse_library_ref(&mut self) -> Result<LibraryId, PErr<'sess>> {
+        let span = self.token().span;
+        let (id, name) = self.parse_indexed_name("library")?;
+        if id >= self.libraries.len() {
+            return Err(self.error_at(span, format!("unknown library `{name}_{id}`")));
+        }
+        Ok(LibraryId::new(id))
+    }
+
+    /// Parses an `name_index` identifier.
+    fn parse_indexed_name(&mut self, what: &str) -> Result<(usize, Symbol), PErr<'sess>> {
+        let span = self.token().span;
+        let name = self.parse_ident()?;
+        let Some((base, index)) = name.as_str().rsplit_once('_') else {
+            return Err(self.error_at(span, format!("invalid {what} identifier `{name}`")));
+        };
+        let id = index.parse().map_err(|err| {
+            self.error_at(span, format!("invalid {what} identifier `{name}`: {err}"))
+        })?;
+        Ok((id, Symbol::intern(base)))
     }
 
     /// Parses the operands that follow a data reference in a data size: `[, addend[, aligned]]`.
@@ -205,7 +286,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     );
                 }
                 self.expect(TokenKind::Colon)?;
-                let library = self.parse_library()?;
+                let library = self.parse_library_ref()?;
                 relocations.push(LibraryRelocation { offset, library });
                 if !self.eat(TokenKind::Comma) {
                     self.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;

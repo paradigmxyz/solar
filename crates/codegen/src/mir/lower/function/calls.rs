@@ -1,7 +1,10 @@
 //! Function calls, conversions, and call-target resolution.
 
 use super::*;
-use crate::{link::QualifiedName, mir::Immediate};
+use crate::{
+    link::{CodeKind, QualifiedName},
+    mir::Immediate,
+};
 
 #[derive(Clone, Copy)]
 pub(super) struct ExternalReturnPlan {
@@ -266,7 +269,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
-        let bytecode = self.contract_code(ty.span, contract_id, true)?;
+        let bytecode = self.contract_code(ty.span, contract_id, CodeKind::Creation)?;
 
         let mut call_value = self.builder.imm(U256::ZERO);
         let mut salt = None;

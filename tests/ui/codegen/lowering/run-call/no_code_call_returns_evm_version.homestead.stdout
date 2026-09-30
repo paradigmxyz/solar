@@ -23,11 +23,11 @@ fn @pair() -> memoryfixedarray [selector=0xa8aa1b31, pure, abi_params=[], abi_re
 
 // === ROOT/tests/ui/codegen/lowering/run-call/no_code_call_returns_evm_version.sol:NoCodeReturnCalls ===
 @module NoCodeReturnCalls
-types:
+@types
   struct0: {i256, i256}
 
-data:
-  NoCodeCallee_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/no_code_call_returns_evm_version.sol:NoCodeCallee"
+@data
+  NoCodeCallee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/no_code_call_returns_evm_version.sol:NoCodeCallee"
 
 fn @direct() -> i256 [selector=0x222b1407, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -196,11 +196,11 @@ fn @pointerNoReturn() [selector=0xcf820bfc, abi_params=[], abi_returns=[], abi_r
 fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize NoCodeCallee_initcode_0
-    v2 = datasize NoCodeCallee_initcode_0, 31, aligned
+    v1 = datasize NoCodeCallee_creation_code_0
+    v2 = datasize NoCodeCallee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy NoCodeCallee_initcode_0, v4, v1
+    datacopy NoCodeCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -242,11 +242,11 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
 fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize NoCodeCallee_initcode_0
-    v2 = datasize NoCodeCallee_initcode_0, 31, aligned
+    v1 = datasize NoCodeCallee_creation_code_0
+    v2 = datasize NoCodeCallee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy NoCodeCallee_initcode_0, v4, v1
+    datacopy NoCodeCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-structs/slices.mir (before lower-structs) ===
 + // === ROOT/tests/ui/codegen/mir/lower-structs/slices.mir (after lower-structs) ===
   @module StructSlices
-  types:
+  @types
     struct0: {}
     struct1: {calldataslice, i256}
     struct2: {memoryslice, struct0, struct1, returndataslice}

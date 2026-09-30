@@ -1,7 +1,7 @@
 @module DataSizeOffset
+@data
+  literal_0: hex"aabb"
 
 bb0:
   push_data_size literal_0+1 //~ ERROR: data size cannot take an offset
   stop
-
-@data literal_0 hex"aabb"

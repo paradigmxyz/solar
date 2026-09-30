@@ -8,7 +8,7 @@ fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_param
 // === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeLibrary ===
 @module EmptyCodeLibrary
 @library
-immutables:
+@immutables
   library_deploy_address: address
 
 fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -242,17 +242,17 @@ fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_param
 
 // === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTryFactory ===
 @module EmptyCodeTryFactory
-data:
-  EmptyCodeTryConstructor_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTryConstructor"
+@data
+  EmptyCodeTryConstructor_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTryConstructor"
 
 fn @deploy() [selector=0x775c300c, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize EmptyCodeTryConstructor_initcode_0
-    v2 = datasize EmptyCodeTryConstructor_initcode_0, 31, aligned
+    v1 = datasize EmptyCodeTryConstructor_creation_code_0
+    v2 = datasize EmptyCodeTryConstructor_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy EmptyCodeTryConstructor_initcode_0, v4, v1
+    datacopy EmptyCodeTryConstructor_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

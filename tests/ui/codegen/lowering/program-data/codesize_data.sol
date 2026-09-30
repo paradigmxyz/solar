@@ -26,5 +26,5 @@ contract CodeSizeData {
 }
 
 // RUNTIME-LABEL: @module CodeSizeData_runtime
-// RUNTIME: @data literal_0 hex"
-// RUNTIME: @data literal_1 hex"
+// RUNTIME: literal_0: hex"
+// RUNTIME: literal_1: hex"

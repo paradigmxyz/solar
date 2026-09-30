@@ -38,7 +38,7 @@ impl<'gcx> Assembler<'gcx> {
                 .err("cannot assemble unresolved `push_deferred` instruction")
                 .emit());
         }
-        if module.data.iter().any(|data| data.deferred.is_some()) {
+        if module.data.iter().any(|data| data.bytes.known().is_none()) {
             return Err(gcx.dcx().err("cannot assemble unlinked deferred program data").emit());
         }
         debug_assert!(ir::verify::Verifier::is_valid(&module));

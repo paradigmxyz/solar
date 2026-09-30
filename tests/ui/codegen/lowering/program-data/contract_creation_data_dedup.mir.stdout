@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_data_dedup.sol:Child ===
 @module Child
-data:
+@data
   literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 
 fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -20,17 +20,17 @@ fn @payload() -> memorybytes [selector=0xa878f858, pure, abi_params=[], abi_retu
 
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_data_dedup.sol:Factory ===
 @module Factory
-data:
-  Child_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/program-data/contract_creation_data_dedup.sol:Child"
+@data
+  Child_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/program-data/contract_creation_data_dedup.sol:Child"
 
 fn @first() -> i256 [selector=0x3df4ddf4, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize Child_initcode_0
-    v2 = datasize Child_initcode_0, 31, aligned
+    v1 = datasize Child_creation_code_0
+    v2 = datasize Child_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy Child_initcode_0, v4, v1
+    datacopy Child_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -66,11 +66,11 @@ fn @first() -> i256 [selector=0x3df4ddf4, abi_params=[], abi_returns=[word], abi
 fn @second() -> i256 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize Child_initcode_0
-    v2 = datasize Child_initcode_0, 31, aligned
+    v1 = datasize Child_creation_code_0
+    v2 = datasize Child_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy Child_initcode_0, v4, v1
+    datacopy Child_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -106,11 +106,11 @@ fn @second() -> i256 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word], ab
 fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize Child_initcode_0
-    v2 = datasize Child_initcode_0, 31, aligned
+    v1 = datasize Child_creation_code_0
+    v2 = datasize Child_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy Child_initcode_0, v4, v1
+    datacopy Child_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -125,11 +125,11 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
   bb2:
     v12 = zext i160 v9 to i256
     v13 = abi_encode []
-    v14 = datasize Child_initcode_0
-    v15 = datasize Child_initcode_0, 31, aligned
+    v14 = datasize Child_creation_code_0
+    v15 = datasize Child_creation_code_0, 31, aligned
     v16 = alloc raw, exact, uninitialized, infallible, v15
     v17 = ptrtoint memptr v16 to i256
-    datacopy Child_initcode_0, v17, v14
+    datacopy Child_creation_code_0, v17, v14
     v18 = slice_ptr v13
     v19 = ptrtoint memptr v16 to i256
     v20 = add v19, v14

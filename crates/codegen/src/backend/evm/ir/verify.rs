@@ -316,7 +316,7 @@ impl<'a> Verifier<'a> {
                                 ),
                             );
                         }
-                        Some(data) if data.deferred.is_none() => {
+                        Some(data) if data.bytes.known().is_some() => {
                             self.error_in_block(
                                 block_id,
                                 "`push_data_size` requires deferred data",
@@ -335,13 +335,15 @@ impl<'a> Verifier<'a> {
                             block_id,
                             format_args!("program data `{}` is out of range", data.id.index()),
                         );
-                    } else if data.offset as usize > module.data[data.id].bytes.len() {
+                    } else if let len =
+                        module.data[data.id].bytes.known().map_or(0, |bytes| bytes.len())
+                        && data.offset as usize > len
+                    {
                         self.error_in_block(
                             block_id,
                             format_args!(
-                                "program data offset `{}` exceeds data size `{}`",
-                                data.offset,
-                                module.data[data.id].bytes.len()
+                                "program data offset `{}` exceeds data size `{len}`",
+                                data.offset
                             ),
                         );
                     }

@@ -1,7 +1,7 @@
 //@compile-flags: -Zmir-pipeline=none
 
 @module DataSizeOffset
-data:
+@data
   0: hex"aabb"
 
 fn @bad() {

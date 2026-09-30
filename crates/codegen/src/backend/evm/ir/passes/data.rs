@@ -138,20 +138,15 @@ impl Improvement {
 impl DataPool {
     fn new(data: &IndexVec<DataId, Data>) -> Self {
         // Relocated and deferred bytes are not final, so constants never share them.
-        let literal = |(_, data): &(DataId, &Data)| {
-            data.library_relocations.is_empty() && data.deferred.is_none()
+        let literals = || {
+            data.iter_enumerated().filter_map(|(id, data)| {
+                data.library_relocations.is_empty().then_some(())?;
+                Some((id, data.bytes.known()?.clone()))
+            })
         };
         Self {
-            entries: data
-                .iter_enumerated()
-                .filter(literal)
-                .map(|(id, data)| PoolEntry { id, bytes: data.bytes.clone() })
-                .collect(),
-            exact: data
-                .iter_enumerated()
-                .filter(literal)
-                .map(|(id, data)| (data.bytes.clone(), DataRef::new(id, 0)))
-                .collect(),
+            entries: literals().map(|(id, bytes)| PoolEntry { id, bytes }).collect(),
+            exact: literals().map(|(id, bytes)| (bytes, DataRef::new(id, 0))).collect(),
         }
     }
 
@@ -397,7 +392,8 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
         return false;
     }
     referenced.sort_unstable_by(|&a, &b| {
-        module.data[b].bytes.len().cmp(&module.data[a].bytes.len()).then_with(|| a.cmp(&b))
+        let len = |id: DataId| module.data[id].bytes.known().map_or(0, |bytes| bytes.len());
+        len(b).cmp(&len(a)).then_with(|| a.cmp(&b))
     });
 
     let mut packed = IndexVec::<DataId, Data>::new();
@@ -406,25 +402,28 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
     let mut remap = FxHashMap::default();
     for old_id in referenced {
         let data = &module.data[old_id];
-        let key = (data.bytes.clone(), data.library_relocations.clone());
         // Deferred bytes are not known yet, so they are never shared.
-        let data_ref = if data.emit_in_runtime || data.deferred.is_some() {
-            let id = packed.push(data.clone());
-            sources.push(old_id);
+        let key = (data.bytes.known())
+            .filter(|_| !data.emit_in_runtime)
+            .map(|bytes| (bytes.clone(), data.library_relocations.clone()));
+        let data_ref = if let Some(key) = &key
+            && let Some(&id) = exact.get(key)
+        {
             DataRef::new(id, 0)
-        } else if let Some(&id) = exact.get(&key) {
-            DataRef::new(id, 0)
-        } else if let Some(data_ref) = (allow_subslices
-            && references.subslice_safe[old_id]
-            && module.data.len() < MAX_DATA_SUBSTRING_ENTRIES)
-            .then(|| find_data(&packed, &sources, data, old_id))
-            .flatten()
+        } else if key.is_some()
+            && let Some(data_ref) = (allow_subslices
+                && references.subslice_safe[old_id]
+                && module.data.len() < MAX_DATA_SUBSTRING_ENTRIES)
+                .then(|| find_data(&packed, &sources, data, old_id))
+                .flatten()
         {
             data_ref
         } else {
             let id = packed.push(data.clone());
             sources.push(old_id);
-            exact.insert(key, id);
+            if let Some(key) = key {
+                exact.insert(key, id);
+            }
             DataRef::new(id, 0)
         };
         if packed[data_ref.id].name.is_none() {
@@ -473,13 +472,14 @@ fn find_data(
     needle: &Data,
     needle_id: DataId,
 ) -> Option<DataRef> {
-    let mut finder = NeedleFinder::new(&needle.bytes);
+    let needle_bytes = needle.bytes.known()?;
+    let mut finder = NeedleFinder::new(needle_bytes);
     data.iter_enumerated().find_map(|(id, known)| {
-        if sources[id] >= needle_id || known.deferred.is_some() {
+        if sources[id] >= needle_id {
             return None;
         }
-        let offset = finder.find(&known.bytes)?;
-        let end = offset + needle.bytes.len();
+        let offset = finder.find(known.bytes.known()?)?;
+        let end = offset + needle_bytes.len();
         let compatible = known
             .library_relocations
             .iter()
@@ -700,7 +700,8 @@ fn ensure_stack_depth(stack: &mut Vec<DataStackValue>, depth: usize) {
 
 fn data_copy_is_bounded(module: &Module, data: DataRef, size: usize) -> bool {
     module.data.get(data.id).is_some_and(|entry| {
-        (data.offset as usize).checked_add(size).is_some_and(|end| end <= entry.bytes.len())
+        let end = (data.offset as usize).checked_add(size);
+        end.zip(entry.bytes.known()).is_some_and(|(end, bytes)| end <= bytes.len())
     })
 }
 

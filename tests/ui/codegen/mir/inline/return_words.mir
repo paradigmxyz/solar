@@ -2,7 +2,7 @@
 //@[gas] compile-flags: -Ogas -Zmir-pipeline=inline-tiny-leaves,cfg-simplify,dce
 //@[size] compile-flags: -Osize -Zmir-pipeline=inline-tiny-leaves,cfg-simplify,dce
 @module ReturnWords
-types:
+@types
   struct0: {i256, i256}
 
 fn @entry(arg0: i256, arg1: i256) -> i256 [selector=1] {

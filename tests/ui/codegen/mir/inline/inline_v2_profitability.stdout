@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/inline/inline_v2_profitability.mir (before inline) ===
 + // === ROOT/tests/ui/codegen/mir/inline/inline_v2_profitability.mir (after inline) ===
   @module InlineV2Profitability
-  types:
+  @types
     struct0: {i256, i256}
   
   fn @single_large_caller(arg0: i256) -> i256 {

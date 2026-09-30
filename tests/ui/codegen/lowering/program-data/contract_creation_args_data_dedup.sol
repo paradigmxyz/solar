@@ -19,31 +19,31 @@ contract ChildWithArg {
 }
 
 // MIR-LABEL: contract_creation_args_data_dedup.sol:FactoryWithArgs ===
-// MIR: data:
-// MIR: ChildWithArg_initcode_0: deferred creation
-// MIR-NOT: ChildWithArg_initcode_1:
+// MIR: @data
+// MIR: ChildWithArg_creation_code_0: creation_code
+// MIR-NOT: ChildWithArg_creation_code_1:
 // OPT-LABEL: contract_creation_args_data_dedup.sol:FactoryWithArgs (runtime) ===
 // OPT: @module FactoryWithArgs_runtime
+// OPT: ChildWithArg_creation_code_0: hex"
+// OPT-NOT: ChildWithArg_creation_code_1
 // Every creation site references the one canonical data object.
-// OPT: push_data ChildWithArg_initcode_0
-// OPT-NOT: push_data ChildWithArg_initcode_1
-// OPT: @data ChildWithArg_initcode_0 hex"
-// OPT-NOT: @data ChildWithArg_initcode_1
+// OPT: push_data ChildWithArg_creation_code_0
+// OPT-NOT: push_data ChildWithArg_creation_code_1
 contract FactoryWithArgs {
     // MIR-LABEL: fn @plain{{[( ]}}
-    // MIR: datacopy ChildWithArg_initcode_0,
+    // MIR: datacopy ChildWithArg_creation_code_0,
     function plain() external returns (uint256) {
         return new ChildWithArg(11).value();
     }
 
     // MIR-LABEL: fn @salted{{[( ]}}
-    // MIR: datacopy ChildWithArg_initcode_0,
+    // MIR: datacopy ChildWithArg_creation_code_0,
     function salted() external returns (uint256) {
         return new ChildWithArg{salt: bytes32(uint256(1))}(22).value();
     }
 
     // MIR-LABEL: fn @pair{{[( ]}}
-    // MIR-COUNT-2: datacopy ChildWithArg_initcode_0,
+    // MIR-COUNT-2: datacopy ChildWithArg_creation_code_0,
     function pair() external returns (uint256) {
         ChildWithArg left = new ChildWithArg(3);
         ChildWithArg right = new ChildWithArg(4);

@@ -7,8 +7,8 @@ fn @echo(arg0: i256) -> i256 [selector=0x6279e43c, pure, abi_params=[u256], abi_
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_clobbered_local.sol:C ===
 @module C
-data:
-  Impl_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/proxy_clobbered_local.sol:Impl"
+@data
+  Impl_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_clobbered_local.sol:Impl"
 
 fn @keepsLocal(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i256 [selector=0x0ea6bb92, pure, abi_params=[u256, u256, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -36,11 +36,11 @@ fn @keepsLocal(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i2
 fn @forwards() -> i256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize Impl_initcode_0
-    v2 = datasize Impl_initcode_0, 31, aligned
+    v1 = datasize Impl_creation_code_0
+    v2 = datasize Impl_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy Impl_initcode_0, v4, v1
+    datacopy Impl_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

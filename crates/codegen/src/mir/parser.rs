@@ -194,67 +194,39 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn parse_module(&mut self) -> PResult<'sess, Module> {
-        let mut phase = super::MirPhase::default();
-        let mut is_library = false;
         self.parser.expect(TokenKind::At)?;
         self.parser.expect_keyword(sym::module)?;
         let module_name = self.parser.parse_ident()?;
+        let module_ident = Ident::with_dummy_span(module_name);
+        let mut module = Module::new(module_ident);
+        let mut function_refs = Vec::new();
         while self.parser.eat(TokenKind::At) {
             let attr = self.parser.parse_ident()?;
             match attr {
                 sym::phase => {
                     let phase_span = self.parser.token().span;
                     let phase_name = self.parse_phase_name()?;
-                    phase = super::MirPhase::by_name(phase_name).ok_or_else(|| {
+                    module.phase = super::MirPhase::by_name(phase_name).ok_or_else(|| {
                         self.parser
                             .error_at(phase_span, format!("unknown MIR phase `{phase_name}`"))
                     })?;
                 }
-                kw::Library => is_library = true,
+                kw::Library => module.is_library = true,
+                sym::types => self.parse_type_declarations()?,
+                sym::libraries => self.parser.parse_library_declarations()?,
+                sym::data => {
+                    for data in self.parser.parse_data_declarations()? {
+                        module.add_data_entry(data);
+                    }
+                    self.data_sizes = module
+                        .data
+                        .iter()
+                        .map(|data| data.bytes.known().map_or(0, |bytes| bytes.len()))
+                        .collect();
+                }
+                sym::immutables => self.parse_immutable_declarations(&mut module)?,
                 _ => return Err(self.parser.error(format!("unknown module attribute `@{attr}`"))),
             }
-        }
-
-        let module_ident = Ident::with_dummy_span(module_name);
-        let mut module = Module::new(module_ident);
-        module.phase = phase;
-        module.is_library = is_library;
-        let mut function_refs = Vec::new();
-
-        if self.parser.eat_keyword(sym::types) {
-            self.parser.expect(TokenKind::Colon)?;
-            while self.parser.token().kind != TokenKind::Eof
-                && self.parser.token().ident().is_some_and(|id| id.as_str().starts_with("struct"))
-            {
-                let name = self.parser.parse_ident()?;
-                let expected = format!("struct{}", self.struct_types.len());
-                if name.as_str() != expected {
-                    return Err(self.parser.error(format!("expected type `{expected}`")));
-                }
-                self.parser.expect(TokenKind::Colon)?;
-                self.parser.expect(TokenKind::OpenDelim(Delimiter::Brace))?;
-                let mut fields = Vec::new();
-                if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Brace)) {
-                    loop {
-                        let ty = self.parse_type()?;
-                        if ty == MirType::Void {
-                            return Err(self.parser.error("struct fields cannot have type `void`"));
-                        }
-                        fields.push(ty);
-                        if self.parser.eat(TokenKind::CloseDelim(Delimiter::Brace)) {
-                            break;
-                        }
-                        self.parser.expect(TokenKind::Comma)?;
-                    }
-                }
-                self.struct_types.push(StructType { fields: fields.into() });
-            }
-        }
-        if self.parser.check_keyword(sym::data) {
-            self.parse_data_declarations(&mut module)?;
-        }
-        if self.parser.check_keyword(sym::immutables) {
-            self.parse_immutable_declarations(&mut module)?;
         }
 
         let mut cast_sources = Vec::new();
@@ -310,37 +282,37 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(module)
     }
 
-    fn parse_data_declarations(&mut self, module: &mut Module) -> PResult<'sess, ()> {
-        self.parser.expect_keyword(sym::data)?;
-        self.parser.expect(TokenKind::Colon)?;
-        while !self.parser.is_eof()
-            && !self.parser.check_keyword(sym::immutables)
-            && !(self.parser.check_keyword(sym::fn_)
-                && self.parser.look_ahead(1).kind == TokenKind::At)
-        {
-            let (id, name) = self.parser.parse_data_id()?;
-            let expected = U256::from(module.data.len());
-            if id != expected {
-                return Err(self.parser.error(format!("expected data ID {expected}, found {id}")));
+    fn parse_type_declarations(&mut self) -> PResult<'sess, ()> {
+        while self.parser.token().ident().is_some_and(|id| id.as_str().starts_with("struct")) {
+            let name = self.parser.parse_ident()?;
+            let expected = format!("struct{}", self.struct_types.len());
+            if name.as_str() != expected {
+                return Err(self.parser.error(format!("expected type `{expected}`")));
             }
             self.parser.expect(TokenKind::Colon)?;
-            if self.parser.eat_keyword(sym::deferred) {
-                let code = self.parser.parse_contract_code()?;
-                module.add_contract_code(code, name);
-                continue;
+            self.parser.expect(TokenKind::OpenDelim(Delimiter::Brace))?;
+            let mut fields = Vec::new();
+            if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Brace)) {
+                loop {
+                    let ty = self.parse_type()?;
+                    if ty == MirType::Void {
+                        return Err(self.parser.error("struct fields cannot have type `void`"));
+                    }
+                    fields.push(ty);
+                    if self.parser.eat(TokenKind::CloseDelim(Delimiter::Brace)) {
+                        break;
+                    }
+                    self.parser.expect(TokenKind::Comma)?;
+                }
             }
-            let bytes = self.parser.parse_data_bytes()?;
-            let offsets = self.parser.parse_data_library_relocations(&bytes)?;
-            module.add_linked_data(bytes, name, offsets);
+            self.struct_types.push(StructType { fields: fields.into() });
         }
-        self.data_sizes = module.data.iter().map(|data| data.bytes.len()).collect();
         Ok(())
     }
 
     fn parse_immutable_declarations(&mut self, module: &mut Module) -> PResult<'sess, ()> {
-        self.parser.expect_keyword(sym::immutables)?;
-        self.parser.expect(TokenKind::Colon)?;
         while !self.parser.is_eof()
+            && !self.parser.check(TokenKind::At)
             && !(self.parser.check_keyword(sym::fn_)
                 && self.parser.look_ahead(1).kind == TokenKind::At)
         {
@@ -2078,7 +2050,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::StoreImmutable(id, value), None)
             }
             sym::library_address => {
-                let value = self.parser.parse_library()?;
+                let value = self.parser.parse_library_ref()?;
                 (InstKind::LibraryAddress(value), Some(MirType::I160))
             }
             kw::Loadimmutable => {

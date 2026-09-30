@@ -17,17 +17,17 @@ fn @value(arg0: i256) -> i256 [selector=0xc4d47ed1, pure, abi_params=[bool], abi
 
 // === ROOT/tests/ui/codegen/lowering/try_catch_return.sol:TryCatchReturn ===
 @module TryCatchReturn
-data:
-  TryCatchReturnTarget_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/try_catch_return.sol:TryCatchReturnTarget"
+@data
+  TryCatchReturnTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/try_catch_return.sol:TryCatchReturnTarget"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize TryCatchReturnTarget_initcode_0
-    v2 = datasize TryCatchReturnTarget_initcode_0, 31, aligned
+    v1 = datasize TryCatchReturnTarget_creation_code_0
+    v2 = datasize TryCatchReturnTarget_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy TryCatchReturnTarget_initcode_0, v4, v1
+    datacopy TryCatchReturnTarget_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

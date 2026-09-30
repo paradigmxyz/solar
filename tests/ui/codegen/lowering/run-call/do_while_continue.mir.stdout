@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/do_while_continue.sol:DoWhileContinue ===
 @module DoWhileContinue
-types:
+@types
   struct0: {i256, i256}
 
 fn @falseCondition() -> i256 [selector=0x0c55a706, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

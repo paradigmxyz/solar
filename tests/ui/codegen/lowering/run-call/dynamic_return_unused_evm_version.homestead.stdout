@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_unused_evm_version.sol:DynamicCallee ===
 @module DynamicCallee
-types:
+@types
   struct0: {i256, memorybytes}
 
-data:
+@data
   literal_0: hex"30313233343536373839616263646566303132333435363738396162636465663031000000000000000000000000000000000000000000000000000000000000"
 
 fn @dynBytes() -> memorybytes [selector=0x7271bb2c, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -40,20 +40,20 @@ fn @mixed() -> struct0 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[w
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_unused_evm_version.sol:DynamicReturnUnused ===
 @module DynamicReturnUnused
-types:
+@types
   struct0: {i256, i256}
 
-data:
-  DynamicCallee_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_unused_evm_version.sol:DynamicCallee"
+@data
+  DynamicCallee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_unused_evm_version.sol:DynamicCallee"
 
 fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize DynamicCallee_initcode_0
-    v2 = datasize DynamicCallee_initcode_0, 31, aligned
+    v1 = datasize DynamicCallee_creation_code_0
+    v2 = datasize DynamicCallee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy DynamicCallee_initcode_0, v4, v1
+    datacopy DynamicCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -95,11 +95,11 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
 fn @liveString() -> i256 [selector=0x86c92c52, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize DynamicCallee_initcode_0
-    v2 = datasize DynamicCallee_initcode_0, 31, aligned
+    v1 = datasize DynamicCallee_creation_code_0
+    v2 = datasize DynamicCallee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy DynamicCallee_initcode_0, v4, v1
+    datacopy DynamicCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -141,11 +141,11 @@ fn @liveString() -> i256 [selector=0x86c92c52, abi_params=[], abi_returns=[word]
 fn @liveTry() -> i256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize DynamicCallee_initcode_0
-    v2 = datasize DynamicCallee_initcode_0, 31, aligned
+    v1 = datasize DynamicCallee_creation_code_0
+    v2 = datasize DynamicCallee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy DynamicCallee_initcode_0, v4, v1
+    datacopy DynamicCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -195,11 +195,11 @@ fn @liveTry() -> i256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word], a
 fn @liveMixed() -> i256 [selector=0xaf1b6bff, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize DynamicCallee_initcode_0
-    v2 = datasize DynamicCallee_initcode_0, 31, aligned
+    v1 = datasize DynamicCallee_creation_code_0
+    v2 = datasize DynamicCallee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy DynamicCallee_initcode_0, v4, v1
+    datacopy DynamicCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -249,11 +249,11 @@ fn @liveMixed() -> i256 [selector=0xaf1b6bff, abi_params=[], abi_returns=[word],
 fn @liveTuple() -> i256 [selector=0x04e1eee0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize DynamicCallee_initcode_0
-    v2 = datasize DynamicCallee_initcode_0, 31, aligned
+    v1 = datasize DynamicCallee_creation_code_0
+    v2 = datasize DynamicCallee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy DynamicCallee_initcode_0, v4, v1
+    datacopy DynamicCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -315,11 +315,11 @@ fn @liveTuple() -> i256 [selector=0x04e1eee0, abi_params=[], abi_returns=[word],
 fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize DynamicCallee_initcode_0
-    v2 = datasize DynamicCallee_initcode_0, 31, aligned
+    v1 = datasize DynamicCallee_creation_code_0
+    v2 = datasize DynamicCallee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy DynamicCallee_initcode_0, v4, v1
+    datacopy DynamicCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -365,11 +365,11 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
 fn @liveLoop() -> i256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize DynamicCallee_initcode_0
-    v2 = datasize DynamicCallee_initcode_0, 31, aligned
+    v1 = datasize DynamicCallee_creation_code_0
+    v2 = datasize DynamicCallee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy DynamicCallee_initcode_0, v4, v1
+    datacopy DynamicCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

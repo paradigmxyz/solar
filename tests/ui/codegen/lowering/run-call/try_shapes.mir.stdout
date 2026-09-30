@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_shapes.sol:Callee ===
 @module Callee
-types:
+@types
   struct0: {i256, i256}
 
 fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -19,20 +19,20 @@ fn @g(arg0: i256) -> struct0 [selector=0xe420264a, pure, abi_params=[u256], abi_
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_shapes.sol:TryShapes ===
 @module TryShapes
-types:
+@types
   struct0: {i256, i256}
 
-data:
-  Callee_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/try_shapes.sol:Callee"
+@data
+  Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/try_shapes.sol:Callee"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize Callee_initcode_0
-    v2 = datasize Callee_initcode_0, 31, aligned
+    v1 = datasize Callee_creation_code_0
+    v2 = datasize Callee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy Callee_initcode_0, v4, v1
+    datacopy Callee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -280,11 +280,11 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
   bb33:
     v132 = phi [bb31: v130], [bb34: v131]
     v133 = abi_encode []
-    v134 = datasize Callee_initcode_0
-    v135 = datasize Callee_initcode_0, 31, aligned
+    v134 = datasize Callee_creation_code_0
+    v135 = datasize Callee_creation_code_0, 31, aligned
     v136 = alloc raw, exact, uninitialized, infallible, v135
     v137 = ptrtoint memptr v136 to i256
-    datacopy Callee_initcode_0, v137, v134
+    datacopy Callee_creation_code_0, v137, v134
     v138 = slice_ptr v133
     v139 = ptrtoint memptr v136 to i256
     v140 = add v139, v134

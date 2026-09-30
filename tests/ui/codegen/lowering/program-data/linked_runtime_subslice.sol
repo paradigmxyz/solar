@@ -14,12 +14,12 @@ contract Child {
 // Linked runtime code shares the creation code that contains it only when the
 // optimizer allows data subslices.
 // NONE-LABEL: @module Factory_runtime
-// NONE: push_data Child_initcode_0
+// NONE: Child_runtime_code_1: hex
+// NONE: push_data Child_creation_code_0
 // NONE: push_data Child_runtime_code_1
-// NONE: @data Child_runtime_code_1 hex
 // GAS-LABEL: @module Factory_runtime
-// GAS: push_data Child_initcode_0+{{[0-9]+}}
-// GAS-NOT: @data Child_runtime_code
+// GAS: push_data Child_creation_code_0+{{[0-9]+}}
+// GAS-NOT: Child_runtime_code
 contract Factory {
     function creation() external pure returns (bytes memory) {
         return type(Child).creationCode;

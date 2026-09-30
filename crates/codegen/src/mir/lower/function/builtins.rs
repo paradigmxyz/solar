@@ -1,6 +1,7 @@
 //! Builtin call and value lowering.
 
 use super::*;
+use crate::link::CodeKind;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_builtin_call(
@@ -269,8 +270,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                     Builtin::ContractCreationCode | Builtin::ContractRuntimeCode => {
                         // value = bytes(creation_bytecode(C) | runtime_bytecode(C))
-                        let creation = builtin == Builtin::ContractCreationCode;
-                        let code = self.contract_code(expr.span, contract_id, creation)?;
+                        let kind = if builtin == Builtin::ContractCreationCode {
+                            CodeKind::Creation
+                        } else {
+                            CodeKind::Runtime
+                        };
+                        let code = self.contract_code(expr.span, contract_id, kind)?;
                         Some(Self::build_bytecode(&mut self.builder, code))
                     }
                     _ => unreachable!(),

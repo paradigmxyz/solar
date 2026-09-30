@@ -23,21 +23,21 @@ fn @receive() [receive, payable] {
 
 // === ROOT/tests/ui/codegen/lowering/transfer_send.sol:TransferSend ===
 @module TransferSend
-types:
+@types
   struct0: {i256, i256, i256}
 
-data:
-  GasReceiver_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/transfer_send.sol:GasReceiver"
-  RevertReceiver_initcode_1: deferred creation "ROOT/tests/ui/codegen/lowering/transfer_send.sol:RevertReceiver"
+@data
+  GasReceiver_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/transfer_send.sol:GasReceiver"
+  RevertReceiver_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/transfer_send.sol:RevertReceiver"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize GasReceiver_initcode_0
-    v2 = datasize GasReceiver_initcode_0, 31, aligned
+    v1 = datasize GasReceiver_creation_code_0
+    v2 = datasize GasReceiver_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy GasReceiver_initcode_0, v4, v1
+    datacopy GasReceiver_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -58,11 +58,11 @@ fn @constructor() [constructor] {
     v17 = or v14, v16
     sstore 0, v17 !metadata(storage=slot(0))
     v18 = abi_encode []
-    v19 = datasize RevertReceiver_initcode_1
-    v20 = datasize RevertReceiver_initcode_1, 31, aligned
+    v19 = datasize RevertReceiver_creation_code_1
+    v20 = datasize RevertReceiver_creation_code_1, 31, aligned
     v21 = alloc raw, exact, uninitialized, infallible, v20
     v22 = ptrtoint memptr v21 to i256
-    datacopy RevertReceiver_initcode_1, v22, v19
+    datacopy RevertReceiver_creation_code_1, v22, v19
     v23 = slice_ptr v18
     v24 = ptrtoint memptr v21 to i256
     v25 = add v24, v19

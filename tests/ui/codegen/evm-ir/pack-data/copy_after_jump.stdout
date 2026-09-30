@@ -1,6 +1,10 @@
 - // === ROOT/tests/ui/codegen/evm-ir/pack-data/copy_after_jump.evmir (before pack-data) ===
 + // === ROOT/tests/ui/codegen/evm-ir/pack-data/copy_after_jump.evmir (after pack-data) ===
   @module copy_after_jump
+  @data
+    container_0: hex"11223344"
+-   small_1: hex"2233"
+  
   bb0:
     push 4
     push_data container_0
@@ -14,7 +18,4 @@
     push 0
     codecopy
     stop
-  
-  @data container_0 hex"11223344"
-- @data small_1 hex"2233"
   

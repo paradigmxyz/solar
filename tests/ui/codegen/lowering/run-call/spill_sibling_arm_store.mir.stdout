@@ -35,8 +35,8 @@ fn @settle() [selector=0x11da60b4, payable, abi_params=[], abi_returns=[], abi_r
 
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:IntNegate ===
 @module IntNegate
-data:
-  Recorder_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:Recorder"
+@data
+  Recorder_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:Recorder"
 
 fn @run(arg0: i256) -> i256 [selector=0x96c07422, abi_params=[i128], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -258,11 +258,11 @@ fn @take(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) {
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize Recorder_initcode_0
-    v2 = datasize Recorder_initcode_0, 31, aligned
+    v1 = datasize Recorder_creation_code_0
+    v2 = datasize Recorder_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy Recorder_initcode_0, v4, v1
+    datacopy Recorder_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

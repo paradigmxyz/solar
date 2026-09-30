@@ -1,7 +1,7 @@
 //! Memory-backed value construction and default aggregate values.
 
 use super::*;
-use crate::link::{ContractCode, QualifiedName};
+use crate::link::{CodeKind, ContractCode, QualifiedName};
 
 const MIN_BULK_ZERO_STRUCT_FIELDS: usize = 4;
 
@@ -239,23 +239,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         span: Span,
         contract_id: hir::ContractId,
-        creation: bool,
+        kind: CodeKind,
     ) -> Option<DataId> {
         let gcx = self.cx.gcx;
         let name = gcx.hir.contract(contract_id).name;
-        let kind = if creation { "creation" } else { "runtime" };
         if !self.cx.bytecode_dependencies.contains(contract_id) {
             gcx.dcx()
-                .err(format!("codegen is missing {kind} bytecode for `{name}`"))
+                .err(format!("codegen is missing {} for `{name}`", kind.keyword()))
                 .span(span)
                 .note("the contract is not a bytecode dependency of the contract being compiled")
                 .emit();
             return None;
         }
-        let suffix = if creation { "initcode" } else { "runtime_code" };
-        let data_name = Symbol::intern(&format!("{name}_{suffix}"));
-        let code =
-            ContractCode { contract: QualifiedName::of_contract(gcx, contract_id), creation };
+        let data_name = Symbol::intern(&format!("{name}_{}", kind.keyword()));
+        let code = ContractCode { contract: QualifiedName::of_contract(gcx, contract_id), kind };
         Some(self.cx.module.intern_contract_code(code, data_name))
     }
 

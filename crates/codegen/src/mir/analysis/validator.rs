@@ -1190,7 +1190,7 @@ impl<'a> Validator<'a> {
                         block_id,
                         inst_id,
                     ),
-                    Some(data) if data.deferred.is_none() => {
+                    Some(data) if data.bytes.known().is_some() => {
                         self.emit_at_inst("datasize requires deferred data", block_id, inst_id)
                     }
                     Some(_) => {}
@@ -1213,26 +1213,26 @@ impl<'a> Validator<'a> {
         {
             return;
         }
-        if entry.deferred.is_some() {
+        let Some(bytes) = entry.bytes.known() else {
             self.emit_at_inst(
                 "datacopy size of deferred data must be its `datasize`",
                 block_id,
                 inst_id,
             );
             return;
-        }
+        };
         let Some(size) = func.value_u256(*size) else {
             self.emit_at_inst("datacopy size must be an immediate", block_id, inst_id);
             return;
         };
         let end = U256::from(data.offset).checked_add(size);
-        if end.is_none_or(|end| end > U256::from(entry.bytes.len())) {
+        if end.is_none_or(|end| end > U256::from(bytes.len())) {
             self.emit_at_inst(
                 format_args!(
                     "datacopy range {}..{} exceeds data size {}",
                     data.offset,
                     end.map_or_else(|| "overflow".into(), |end| end.to_string()),
-                    entry.bytes.len()
+                    bytes.len()
                 ),
                 block_id,
                 inst_id,

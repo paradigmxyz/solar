@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_slot_recomputed_operand_storage.sol:SpillSlotRecomputedOperandStorage ===
 @module SpillSlotRecomputedOperandStorage
-types:
+@types
   struct0: {i256, i256}
 
 fn @acc() -> i256 [selector=0x7da1365e, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

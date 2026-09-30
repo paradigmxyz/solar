@@ -446,8 +446,8 @@ fn display_inst_kind<'a>(
             write!(f, ", {}", display_val(*value, func))
         }
         InstKind::LibraryAddress(id) => {
-            if let Some(library) = module.and_then(|module| module.libraries.get(*id)) {
-                write!(f, "library_address {library}")
+            if let Some(module) = module {
+                write!(f, "library_address {}", module.libraries.display_ref(*id))
             } else {
                 write!(f, "library_address {id:?}")
             }

@@ -1,0 +1,11 @@
+//@compile-flags: -Zmir-pipeline=none
+
+@module DuplicateLibrary
+@libraries
+  L_0: "a.sol:L"
+  L_1: "a.sol:L" //~ ERROR: library `a.sol:L` is already declared
+
+fn @f() {
+  bb0:
+    stop
+}

@@ -1,10 +1,10 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_multi_return.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_multi_return.mir (after lower-abi) ===
   @module LowerAbiMultiReturn
-  types:
+  @types
     struct0: {i256, i256}
   
-  immutables:
+  @immutables
     owner: address
   
 - fn @pair(arg0: i256) -> struct0 [selector=0x1f6a26ff, return_abi=[i256, i256], abi_returns=[word, word]] {

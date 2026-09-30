@@ -56,20 +56,20 @@ fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/state_string_initializers.sol:DeployStateStringInitializers ===
 @module DeployStateStringInitializers
-types:
+@types
   struct0: {memorybytes, memorybytes, i256}
 
-data:
-  StateStringInitializers_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/state_string_initializers.sol:StateStringInitializers"
+@data
+  StateStringInitializers_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/state_string_initializers.sol:StateStringInitializers"
 
 fn @deploys() -> i256 [selector=0x225b4d71, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize StateStringInitializers_initcode_0
-    v2 = datasize StateStringInitializers_initcode_0, 31, aligned
+    v1 = datasize StateStringInitializers_creation_code_0
+    v2 = datasize StateStringInitializers_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy StateStringInitializers_initcode_0, v4, v1
+    datacopy StateStringInitializers_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -93,11 +93,11 @@ fn @deploys() -> i256 [selector=0x225b4d71, abi_params=[], abi_returns=[word<boo
 fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory_bytes, memory_bytes, word<u8>], abi_return_params=[bytes, bytes, u8]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize StateStringInitializers_initcode_0
-    v2 = datasize StateStringInitializers_initcode_0, 31, aligned
+    v1 = datasize StateStringInitializers_creation_code_0
+    v2 = datasize StateStringInitializers_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy StateStringInitializers_initcode_0, v4, v1
+    datacopy StateStringInitializers_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

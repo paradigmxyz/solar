@@ -103,8 +103,20 @@ placeholder bytes carry no identity. Embedded creation and runtime bytecode carr
 their library tables and relocations; lowering remaps their IDs into the parent
 module's table.
 Data pooling shares bytes only when the library identities and offsets also match.
-The textual IR prints library identities as fully qualified names, `"source.sol:Library"`,
-and data relocations as `library_relocations [offset: "source.sol:Library"]`.
+MIR and EVM IR text declare libraries and data in `@libraries` and `@data` sections after the
+module header, and refer to both by declared name:
+
+```text
+@libraries
+  Library_0: "source.sol:Library"
+
+@data
+  Child_creation_code_0: creation_code "child.sol:Child"
+  literal_1: hex"..." library_relocations [2: Library_0]
+```
+
+Instructions refer to a library as `library_address Library_0` in MIR and
+`push_library Library_0` in EVM IR.
 
 ### Optimization search and costs
 

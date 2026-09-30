@@ -50,6 +50,9 @@ bb3 [cold]:
   revert
 // === ROOT/tests/ui/codegen/lowering/program-data/hoisted_creation_size.sol:Factory (runtime) ===
 @module Factory_runtime
+@data
+  RuntimeChild_creation_code_0: hex"34600d5760218060115f395ff35b5f5ffd34601d575f3560e01c8063e2179b8e03601d57600260805260206080f35b5f5ffd"
+
 bb0:
   callvalue
   push bb3
@@ -98,7 +101,7 @@ bb8 [loop]:
   push 64
   mstore
   push 50
-  push_data RuntimeChild_initcode_0
+  push_data RuntimeChild_creation_code_0
   dup 3
   codecopy
   dup 4
@@ -138,5 +141,3 @@ bb10 [cold]:
   returndatasize
   push 0
   revert
-
-@data RuntimeChild_initcode_0 hex"34600d5760218060115f395ff35b5f5ffd34601d575f3560e01c8063e2179b8e03601d57600260805260206080f35b5f5ffd"

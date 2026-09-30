@@ -58,11 +58,11 @@ fn @constructor(arg0: memoryarray, arg1: memoryarray, arg2: i256) [constructor, 
 
 // === ROOT/tests/ui/codegen/lowering/run-call/create_shared_array_encoder.sol:CreateSharedArrayEncoder ===
 @module CreateSharedArrayEncoder
-types:
+@types
   struct0: {i256, i256, i256, i256}
 
-data:
-  Child_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/create_shared_array_encoder.sol:Child"
+@data
+  Child_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/create_shared_array_encoder.sol:Child"
 
 fn @one(arg0: i256) -> memoryarray [pure] {
   bb0:
@@ -110,7 +110,7 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     memory_object_store_element memoryarray<1>, v11, 1, 200
     v18 = abi_encode [memory_array<word<u160>>, memory_array<word>, word], args v0, v11, 17
     v19 = slice_len v18
-    v20 = datasize Child_initcode_0
+    v20 = datasize Child_creation_code_0
     v21 = add v20, v19
     v22 = lt v21, v20
     icall panic_if<0x41>, v22
@@ -121,7 +121,7 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     v26 = and v23, v25
     v27 = alloc raw, exact, uninitialized, infallible, v26
     v28 = ptrtoint memptr v27 to i256
-    datacopy Child_initcode_0, v28, v20
+    datacopy Child_creation_code_0, v28, v20
     v29 = slice_ptr v18
     v30 = ptrtoint memptr v27 to i256
     v31 = add v30, v20
@@ -229,7 +229,7 @@ fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[
     v9 = icall @one, v8
     v10 = abi_encode [memory_array<word<u160>>, memory_array<word>, word], args v9, v0, 5
     v11 = slice_len v10
-    v12 = datasize Child_initcode_0
+    v12 = datasize Child_creation_code_0
     v13 = add v12, v11
     v14 = lt v13, v12
     icall panic_if<0x41>, v14
@@ -240,7 +240,7 @@ fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[
     v18 = and v15, v17
     v19 = alloc raw, exact, uninitialized, infallible, v18
     v20 = ptrtoint memptr v19 to i256
-    datacopy Child_initcode_0, v20, v12
+    datacopy Child_creation_code_0, v20, v12
     v21 = slice_ptr v10
     v22 = ptrtoint memptr v19 to i256
     v23 = add v22, v12

@@ -14,17 +14,17 @@ fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[], abi_return
 
 // === ROOT/tests/ui/codegen/lowering/try_catch_panic.sol:TryCatchPanic ===
 @module TryCatchPanic
-data:
-  TryCatchPanicTarget_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/try_catch_panic.sol:TryCatchPanicTarget"
+@data
+  TryCatchPanicTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/try_catch_panic.sol:TryCatchPanicTarget"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize TryCatchPanicTarget_initcode_0
-    v2 = datasize TryCatchPanicTarget_initcode_0, 31, aligned
+    v1 = datasize TryCatchPanicTarget_creation_code_0
+    v2 = datasize TryCatchPanicTarget_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy TryCatchPanicTarget_initcode_0, v4, v1
+    datacopy TryCatchPanicTarget_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

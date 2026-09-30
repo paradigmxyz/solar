@@ -1,6 +1,10 @@
 - // === ROOT/tests/ui/codegen/evm-ir/none/deferred_data.evmir (before none) ===
 + // === ROOT/tests/ui/codegen/evm-ir/none/deferred_data.evmir (after none) ===
   @module deferred
+  @data
+    child_0: creation_code "child.sol:Child"
+    child_1: runtime_code "child.sol:Child"
+  
   bb0:
     push_data_size child_0
     push_data_size child_0, 63, aligned
@@ -12,7 +16,4 @@
     push 0
     codecopy
     stop
-  
-  @data child_0 deferred creation "child.sol:Child"
-  @data child_1 deferred runtime "child.sol:Child"
   

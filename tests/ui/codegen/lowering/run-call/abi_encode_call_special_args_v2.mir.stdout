@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_special_args_v2.sol:AbiEncodeCallSpecialArgs ===
 @module AbiEncodeCallSpecialArgs
-types:
+@types
   struct0: {i256, i256}
 
 fn @fNoArgs() [selector=0x1af93581, abi_params=[], abi_returns=[], abi_return_params=[]] {

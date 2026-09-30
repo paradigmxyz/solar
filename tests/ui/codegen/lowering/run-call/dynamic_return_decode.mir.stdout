@@ -229,20 +229,20 @@ fn @load_storage_word_array(arg0: i256) -> memoryarray {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:ArrayCaller ===
 @module ArrayCaller
-types:
+@types
   struct0: {i256, i256}
 
-data:
-  Callee_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
+@data
+  Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
 
 fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize Callee_initcode_0
-    v2 = datasize Callee_initcode_0, 31, aligned
+    v1 = datasize Callee_creation_code_0
+    v2 = datasize Callee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy Callee_initcode_0, v4, v1
+    datacopy Callee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -300,20 +300,20 @@ fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:StringCaller ===
 @module StringCaller
-types:
+@types
   struct0: {i256, i256}
 
-data:
-  Callee_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
+@data
+  Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
 
 fn @strFirstAndLen() -> struct0 [selector=0x2b10ead6, abi_params=[], abi_returns=[word<bytes1>, word], abi_return_params=[bytes1, u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize Callee_initcode_0
-    v2 = datasize Callee_initcode_0, 31, aligned
+    v1 = datasize Callee_creation_code_0
+    v2 = datasize Callee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy Callee_initcode_0, v4, v1
+    datacopy Callee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -352,17 +352,17 @@ fn @strFirstAndLen() -> struct0 [selector=0x2b10ead6, abi_params=[], abi_returns
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:BytesCaller ===
 @module BytesCaller
-data:
-  Callee_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
+@data
+  Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
 
 fn @bytesRoundTrip() -> i256 [selector=0x9700a482, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize Callee_initcode_0
-    v2 = datasize Callee_initcode_0, 31, aligned
+    v1 = datasize Callee_creation_code_0
+    v2 = datasize Callee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy Callee_initcode_0, v4, v1
+    datacopy Callee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -393,17 +393,17 @@ fn @bytesRoundTrip() -> i256 [selector=0x9700a482, abi_params=[], abi_returns=[w
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:FixedCaller ===
 @module FixedCaller
-data:
-  Callee_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
+@data
+  Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
 
 fn @fixedSum() -> i256 [selector=0x1f080ca7, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize Callee_initcode_0
-    v2 = datasize Callee_initcode_0, 31, aligned
+    v1 = datasize Callee_creation_code_0
+    v2 = datasize Callee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy Callee_initcode_0, v4, v1
+    datacopy Callee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -458,17 +458,17 @@ fn @fixedSum() -> i256 [selector=0x1f080ca7, abi_params=[], abi_returns=[word], 
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:StringElementCaller ===
 @module StringElementCaller
-data:
-  Callee_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
+@data
+  Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
 
 fn @stringElem() -> i256 [selector=0x8eb2047c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize Callee_initcode_0
-    v2 = datasize Callee_initcode_0, 31, aligned
+    v1 = datasize Callee_creation_code_0
+    v2 = datasize Callee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy Callee_initcode_0, v4, v1
+    datacopy Callee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -499,17 +499,17 @@ fn @stringElem() -> i256 [selector=0x8eb2047c, abi_params=[], abi_returns=[word]
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:NestedCaller ===
 @module NestedCaller
-data:
-  Callee_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
+@data
+  Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
 
 fn @nestedSum() -> i256 [selector=0x002c8096, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize Callee_initcode_0
-    v2 = datasize Callee_initcode_0, 31, aligned
+    v1 = datasize Callee_creation_code_0
+    v2 = datasize Callee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy Callee_initcode_0, v4, v1
+    datacopy Callee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

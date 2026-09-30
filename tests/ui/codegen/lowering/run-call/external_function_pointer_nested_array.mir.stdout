@@ -85,11 +85,11 @@ fn @f(arg0: memoryarray) -> memoryfixedarray [selector=0x2ed7fe6a, abi_params=[a
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_nested_array.sol:ExternalFunctionPointerNestedArray ===
 @module ExternalFunctionPointerNestedArray
-types:
+@types
   struct0: {i256, i256, i256}
 
-data:
-  ExternalFunctionPointerNestedArrayTarget_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_nested_array.sol:ExternalFunctionPointerNestedArrayTarget"
+@data
+  ExternalFunctionPointerNestedArrayTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_nested_array.sol:ExternalFunctionPointerNestedArrayTarget"
 
 fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
@@ -119,11 +119,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v24 = shl 64, v20
     memory_object_store_element memoryarray<1>, v3, 0, v24
     v25 = abi_encode []
-    v26 = datasize ExternalFunctionPointerNestedArrayTarget_initcode_0
-    v27 = datasize ExternalFunctionPointerNestedArrayTarget_initcode_0, 31, aligned
+    v26 = datasize ExternalFunctionPointerNestedArrayTarget_creation_code_0
+    v27 = datasize ExternalFunctionPointerNestedArrayTarget_creation_code_0, 31, aligned
     v28 = alloc raw, exact, uninitialized, infallible, v27
     v29 = ptrtoint memptr v28 to i256
-    datacopy ExternalFunctionPointerNestedArrayTarget_initcode_0, v29, v26
+    datacopy ExternalFunctionPointerNestedArrayTarget_creation_code_0, v29, v26
     v30 = slice_ptr v25
     v31 = ptrtoint memptr v28 to i256
     v32 = add v31, v26

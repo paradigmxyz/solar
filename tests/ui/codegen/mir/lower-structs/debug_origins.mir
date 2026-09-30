@@ -2,7 +2,7 @@
 //@ filecheck:
 @module StructDebugOrigins
 
-types:
+@types
   struct0: {i256, i256}
 
 // CHECK-LABEL: {{^[ +].*}}fn @caller{{[( ]}}

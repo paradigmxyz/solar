@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_multi_return.sol:Callee ===
 @module Callee
-types:
+@types
   struct0: {memorybytes, i256}
   struct1: {i256, memorybytes}
   struct2: {memorybytes, memorybytes}
@@ -69,7 +69,7 @@ fn @mixed() -> struct3 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[m
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_multi_return.sol:Caller ===
 @module Caller
-types:
+@types
   struct0: {i256, i256}
   struct1: {memorybytes, i256}
   struct2: {i256, memorybytes}
@@ -77,17 +77,17 @@ types:
   struct4: {i256, i256, i256}
   struct5: {memoryarray, i256, memorybytes}
 
-data:
-  Callee_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/dynamic_multi_return.sol:Callee"
+@data
+  Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_multi_return.sol:Callee"
 
 fn @strAndNum() -> struct0 [selector=0x713d228b, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize Callee_initcode_0
-    v2 = datasize Callee_initcode_0, 31, aligned
+    v1 = datasize Callee_creation_code_0
+    v2 = datasize Callee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy Callee_initcode_0, v4, v1
+    datacopy Callee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -127,11 +127,11 @@ fn @strAndNum() -> struct0 [selector=0x713d228b, abi_params=[], abi_returns=[wor
 fn @numAndStr() -> struct0 [selector=0xed19722c, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize Callee_initcode_0
-    v2 = datasize Callee_initcode_0, 31, aligned
+    v1 = datasize Callee_creation_code_0
+    v2 = datasize Callee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy Callee_initcode_0, v4, v1
+    datacopy Callee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -171,11 +171,11 @@ fn @numAndStr() -> struct0 [selector=0xed19722c, abi_params=[], abi_returns=[wor
 fn @twoStrings() -> struct0 [selector=0x477be19f, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize Callee_initcode_0
-    v2 = datasize Callee_initcode_0, 31, aligned
+    v1 = datasize Callee_creation_code_0
+    v2 = datasize Callee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy Callee_initcode_0, v4, v1
+    datacopy Callee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -216,11 +216,11 @@ fn @twoStrings() -> struct0 [selector=0x477be19f, abi_params=[], abi_returns=[wo
 fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize Callee_initcode_0
-    v2 = datasize Callee_initcode_0, 31, aligned
+    v1 = datasize Callee_creation_code_0
+    v2 = datasize Callee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy Callee_initcode_0, v4, v1
+    datacopy Callee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

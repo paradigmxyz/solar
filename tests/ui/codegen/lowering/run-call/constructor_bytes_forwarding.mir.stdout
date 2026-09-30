@@ -118,17 +118,17 @@ fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_bytes_forwarding.sol:ConstructorBytesCreator ===
 @module ConstructorBytesCreator
-types:
+@types
   struct0: {i256, i256}
 
-data:
-  ConstructorBytesMain_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_bytes_forwarding.sol:ConstructorBytesMain"
+@data
+  ConstructorBytesMain_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_bytes_forwarding.sol:ConstructorBytesMain"
 
 fn @f(arg0: i256, arg1: memorybytes) -> struct0 [selector=0xcdc9dc79, abi_params=[u256, bytes], abi_returns=[word, word<bytes1>], abi_return_params=[u256, bytes1]] {
   bb0:
     v0 = abi_encode [memory_bytes, word], args arg1, arg0
     v1 = slice_len v0
-    v2 = datasize ConstructorBytesMain_initcode_0
+    v2 = datasize ConstructorBytesMain_creation_code_0
     v3 = add v2, v1
     v4 = lt v3, v2
     icall panic_if<0x41>, v4
@@ -139,7 +139,7 @@ fn @f(arg0: i256, arg1: memorybytes) -> struct0 [selector=0xcdc9dc79, abi_params
     v8 = and v5, v7
     v9 = alloc raw, exact, uninitialized, infallible, v8
     v10 = ptrtoint memptr v9 to i256
-    datacopy ConstructorBytesMain_initcode_0, v10, v2
+    datacopy ConstructorBytesMain_creation_code_0, v10, v2
     v11 = slice_ptr v0
     v12 = ptrtoint memptr v9 to i256
     v13 = add v12, v2

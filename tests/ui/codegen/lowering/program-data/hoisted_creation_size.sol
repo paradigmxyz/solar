@@ -17,8 +17,8 @@ contract RuntimeChild {
 }
 
 // CHECK-LABEL: hoisted_creation_size.sol:Factory (runtime) ===
-// CHECK: @data RuntimeChild_initcode
-// CHECK-NOT: @data InitOnlyChild_initcode
+// CHECK: RuntimeChild_creation_code_
+// CHECK-NOT: InitOnlyChild_creation_code_
 contract Factory {
     InitOnlyChild internal child = new InitOnlyChild();
 

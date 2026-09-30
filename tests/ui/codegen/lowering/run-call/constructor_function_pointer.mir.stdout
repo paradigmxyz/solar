@@ -49,9 +49,9 @@ fn @constructor(arg0: memoryfixedarray) [constructor, abi_params=[array<1, funct
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:Caller ===
 @module Caller
-data:
-  Target_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:Target"
-  ArrayTarget_initcode_1: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:ArrayTarget"
+@data
+  Target_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:Target"
+  ArrayTarget_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:ArrayTarget"
 
 fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -60,12 +60,12 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v2 = shl 32, v1
     v3 = or v2, 0x990227f1
     v4 = abi_encode [function], args v3
-    v5 = datasize Target_initcode_0
-    v6 = datasize Target_initcode_0, 32
-    v7 = datasize Target_initcode_0, 63, aligned
+    v5 = datasize Target_creation_code_0
+    v6 = datasize Target_creation_code_0, 32
+    v7 = datasize Target_creation_code_0, 63, aligned
     v8 = alloc raw, exact, uninitialized, infallible, v7
     v9 = ptrtoint memptr v8 to i256
-    datacopy Target_initcode_0, v9, v5
+    datacopy Target_creation_code_0, v9, v5
     v10 = slice_ptr v4
     v11 = ptrtoint memptr v8 to i256
     v12 = add v11, v5
@@ -113,12 +113,12 @@ fn @fArray() -> i256 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool
     v8 = shl 64, v5
     memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v8
     v9 = abi_encode [array<1, function>], args v0
-    v10 = datasize ArrayTarget_initcode_1
-    v11 = datasize ArrayTarget_initcode_1, 32
-    v12 = datasize ArrayTarget_initcode_1, 63, aligned
+    v10 = datasize ArrayTarget_creation_code_1
+    v11 = datasize ArrayTarget_creation_code_1, 32
+    v12 = datasize ArrayTarget_creation_code_1, 63, aligned
     v13 = alloc raw, exact, uninitialized, infallible, v12
     v14 = ptrtoint memptr v13 to i256
-    datacopy ArrayTarget_initcode_1, v14, v10
+    datacopy ArrayTarget_creation_code_1, v14, v10
     v15 = slice_ptr v9
     v16 = ptrtoint memptr v13 to i256
     v17 = add v16, v10

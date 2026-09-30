@@ -9,21 +9,14 @@ impl Module {
     pub fn to_text(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
             writeln!(f, "@module {}", self.name)?;
+            write!(f, "{}", crate::link::display_declarations(&self.libraries, &self.data))?;
             write!(
                 f,
                 "{}",
                 self.blocks
                     .iter()
                     .format_with("", |f, block| { write!(f, "{}", display_block(self, block)) })
-            )?;
-            if !self.data.is_empty() {
-                writeln!(f)?;
-            }
-            for (id, data) in self.data.iter_enumerated() {
-                let name = crate::utils::display_data_ref(data.name, id.index(), 0);
-                writeln!(f, "@data {name} {}", data.display_contents(&self.libraries))?;
-            }
-            Ok(())
+            )
         })
     }
 }
@@ -181,7 +174,7 @@ fn display_push_value<'a>(module: &'a Module, value: &'a PushValue) -> impl fmt:
             write!(f, "{}", display_u256(*value))
         }
         PushValue::Library(library) => {
-            write!(f, "{}", module.libraries.get(*library).expect("valid library ID"))
+            write!(f, "{}", module.libraries.display_ref(*library))
         }
         PushValue::Block(block) => write!(f, "{}", display_block_id(module, *block)),
         PushValue::Data(data) => write!(

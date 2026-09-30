@@ -7,9 +7,9 @@ fn @fallback() [fallback, payable] {
 
 // === ROOT/tests/ui/codegen/lowering/program-data/empty_runtime_code.sol:EmptyFactory ===
 @module EmptyFactory
-data:
-  EmptyRuntime_runtime_code_0: deferred runtime "ROOT/tests/ui/codegen/lowering/program-data/empty_runtime_code.sol:EmptyRuntime"
-  EmptyRuntime_initcode_1: deferred creation "ROOT/tests/ui/codegen/lowering/program-data/empty_runtime_code.sol:EmptyRuntime"
+@data
+  EmptyRuntime_runtime_code_0: runtime_code "ROOT/tests/ui/codegen/lowering/program-data/empty_runtime_code.sol:EmptyRuntime"
+  EmptyRuntime_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/program-data/empty_runtime_code.sol:EmptyRuntime"
 
 fn @runtimeLength() -> i256 [selector=0xb379b2a0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -47,11 +47,11 @@ fn @runtimeCode() -> memorybytes [selector=0x40e70806, pure, abi_params=[], abi_
 fn @deploy() -> i256 [selector=0x775c300c, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize EmptyRuntime_initcode_1
-    v2 = datasize EmptyRuntime_initcode_1, 31, aligned
+    v1 = datasize EmptyRuntime_creation_code_1
+    v2 = datasize EmptyRuntime_creation_code_1, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy EmptyRuntime_initcode_1, v4, v1
+    datacopy EmptyRuntime_creation_code_1, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

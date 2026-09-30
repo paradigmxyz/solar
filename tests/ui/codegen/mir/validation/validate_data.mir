@@ -1,8 +1,8 @@
 //@compile-flags: -Zmir-pipeline=none
 @module ValidateData
-data:
+@data
   0: hex"aabb"
-  1: deferred creation "child.sol:Child"
+  1: creation_code "child.sol:Child"
 
 fn @dynamic(arg0: i256) {
   bb0:

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/nested_tuple_parentheses.sol:NestedTupleParentheses ===
 @module NestedTupleParentheses
-types:
+@types
   struct0: {i256, i256}
 
 fn @f0() -> struct0 [selector=0xa5850475, pure, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[i256, bool]] {

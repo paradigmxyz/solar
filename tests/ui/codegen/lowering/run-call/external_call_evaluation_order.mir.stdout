@@ -10,10 +10,10 @@ fn @mutate() -> i256 [selector=0x7795b5fc, abi_params=[], abi_returns=[word], ab
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_evaluation_order.sol:ExternalCallEvaluationOrder ===
 @module ExternalCallEvaluationOrder
-data:
-  MutatingBase_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/external_call_evaluation_order.sol:MutatingBase"
+@data
+  MutatingBase_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/external_call_evaluation_order.sol:MutatingBase"
 
-immutables:
+@immutables
   target: u256
 
 fn @receiver() -> i256 {
@@ -184,11 +184,11 @@ fn @staticReceiverMutability() -> i256 [selector=0xde2015ae, abi_params=[], abi_
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize MutatingBase_initcode_0
-    v2 = datasize MutatingBase_initcode_0, 31, aligned
+    v1 = datasize MutatingBase_creation_code_0
+    v2 = datasize MutatingBase_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy MutatingBase_initcode_0, v4, v1
+    datacopy MutatingBase_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

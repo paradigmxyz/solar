@@ -1,11 +1,11 @@
 //! MIR module (top-level container).
 
 use super::{
-    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, Data, DataId, DataRef,
+    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, Data, DataBytes, DataId, DataRef,
     Disambiguator, Function, FunctionId, ImmutableId, MangledSymbol, MirType, StructId, StructType,
     Terminator, ValueId,
 };
-use crate::link::{ContractCode, LibraryRelocation, LibraryTable};
+use crate::link::{ContractCode, LibraryTable};
 use alloy_primitives::Bytes;
 use smallvec::SmallVec;
 use solar_data_structures::{
@@ -445,31 +445,24 @@ impl Module {
         self.immutables.iter_enumerated()
     }
 
-    /// Adds a declaration with library relocations without interning it as literal data.
-    pub(crate) fn add_linked_data(
-        &mut self,
-        bytes: Bytes,
-        name: Option<Symbol>,
-        offsets: Vec<LibraryRelocation>,
-    ) -> DataId {
-        if offsets.is_empty() {
-            return self.add_data(bytes, name);
+    /// Adds a data entry, interning its bytes when they are plain literal data.
+    pub(crate) fn add_data_entry(&mut self, data: Data) -> DataId {
+        let bytes = data.bytes.known().filter(|_| data.library_relocations.is_empty()).cloned();
+        let id = self.data.push(data);
+        if let Some(bytes) = bytes {
+            self.data_index.entry(bytes).or_insert(id);
         }
-        self.data.push(Data { library_relocations: offsets, ..Data::new(bytes, name) })
+        id
     }
 
     /// Interns another contract's bytecode, which final assembly links in.
     pub(crate) fn intern_contract_code(&mut self, code: ContractCode, name: Symbol) -> DataId {
-        let existing = self.data.iter_enumerated().find(|(_, data)| data.deferred == Some(code));
+        let existing =
+            self.data.iter_enumerated().find(|(_, data)| data.bytes == DataBytes::Deferred(code));
         match existing {
             Some((id, _)) => id,
-            None => self.add_contract_code(code, Some(name)),
+            None => self.data.push(Data::contract_code(code, Some(name))),
         }
-    }
-
-    /// Adds deferred data for another contract's bytecode, which final assembly links in.
-    pub(crate) fn add_contract_code(&mut self, code: ContractCode, name: Option<Symbol>) -> DataId {
-        self.data.push(Data::contract_code(code, name))
     }
 
     /// Interns constant data and returns its stable identifier.
@@ -495,9 +488,7 @@ impl Module {
     }
 
     fn push_data(&mut self, data: Bytes, name: Option<Symbol>, emit_in_runtime: bool) -> DataId {
-        let id = self.data.push(Data { emit_in_runtime, ..Data::new(data.clone(), name) });
-        self.data_index.entry(data).or_insert(id);
-        id
+        self.add_data_entry(Data { emit_in_runtime, ..Data::new(data, name) })
     }
 
     /// Returns an iterator over all functions.
@@ -516,22 +507,15 @@ impl Module {
                 writeln!(f, "@library")?;
             }
             if !self.struct_types.is_empty() {
-                writeln!(f, "types:")?;
+                writeln!(f, "@types")?;
                 for (id, ty) in self.struct_types.iter_enumerated() {
                     writeln!(f, "  struct{}: {{{}}}", id.index(), ty.fields.iter().format(", "))?;
                 }
                 writeln!(f)?;
             }
-            if !self.data.is_empty() {
-                writeln!(f, "data:")?;
-                for (id, data) in self.data.iter_enumerated() {
-                    let name = crate::utils::display_data_ref(data.name, id.index(), 0);
-                    writeln!(f, "  {name}: {}", data.display_contents(&self.libraries))?;
-                }
-                writeln!(f)?;
-            }
+            write!(f, "{}", crate::link::display_declarations(&self.libraries, &self.data))?;
             if !self.immutables.is_empty() {
-                writeln!(f, "immutables:")?;
+                writeln!(f, "@immutables")?;
                 for (id, immutable) in self.iter_immutables() {
                     writeln!(
                         f,

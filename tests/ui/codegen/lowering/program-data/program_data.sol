@@ -11,7 +11,7 @@
 //@ run-call: zeroWordHash => 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
 //@ run-call: splatHash => 0x779ba5798a6ad3d608b17a14735a3a2d7d61e8c9817435fc4524dd5d0cf6a177
 
-// CHECK-LABEL: data:
+// CHECK-LABEL: @data
 // CHECK: literal_0: hex"
 // CHECK: literal_1: hex"
 // CHECK: literal_2: hex"

@@ -54,6 +54,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let name = self.parser.parse_ident()?;
 
         let mut module = Module::new(name);
+        while self.parser.eat(TokenKind::At) {
+            let section = self.parser.parse_ident()?;
+            match section {
+                sym::libraries => self.parser.parse_library_declarations()?,
+                sym::data => module.data = self.parser.parse_data_declarations()?,
+                _ => return Err(self.parser.error(format!("unknown module section `@{section}`"))),
+            }
+        }
         self.parse_program_body(&mut module)?;
         let tracks_debug_info = module.blocks.iter().any(|block| {
             block.metadata.function_invoke.is_some()
@@ -92,11 +100,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_program_body(&mut self, module: &mut Module) -> PResult<'sess, ()> {
         let mut current_block = None;
         while !self.parser.is_eof() {
-            if self.parser.eat(TokenKind::At) {
-                self.parse_data(module)?;
-                current_block = None;
-                continue;
-            }
             if let Some(header) = self.try_parse_block_header()? {
                 let block_id = self.define_block(module, header.label)?;
                 module.blocks[block_id].metadata.hotness = header.hotness;
@@ -119,26 +122,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.reject_unresolved_blocks()?;
         super::passes::utils::remap_block_order(module, &self.block_order);
 
-        Ok(())
-    }
-
-    fn parse_data(&mut self, module: &mut Module) -> PResult<'sess, ()> {
-        self.parser.expect_keyword(sym::data)?;
-        let (id, name) = self.parse_data_id()?;
-        let id = id as usize;
-        if id != module.data.len() {
-            return Err(self
-                .parser
-                .error(format!("expected program data ID {}, found {id}", module.data.len())));
-        }
-        if self.parser.eat_keyword(sym::deferred) {
-            let code = self.parser.parse_contract_code()?;
-            module.data.push(Data::contract_code(code, name));
-            return Ok(());
-        }
-        let bytes = self.parser.parse_data_bytes()?;
-        let library_relocations = self.parser.parse_data_library_relocations(&bytes)?;
-        module.data.push(Data { library_relocations, ..Data::new(bytes, name) });
         Ok(())
     }
 
@@ -290,7 +273,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     unreachable!("ordinary push parser only produces immediates and blocks")
                 }
             },
-            sym::push_library => Instruction::push_library(self.parser.parse_library()?),
+            sym::push_library => Instruction::push_library(self.parser.parse_library_ref()?),
             sym::push_data => {
                 let span = self.parser.token().span;
                 let (id, offset, _) = self.parser.parse_data_ref()?;
@@ -434,12 +417,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let span = self.parser.token().span;
         let value = self.parser.parse_uint()?;
         self.check_assembly_id(name, span, value)
-    }
-
-    fn parse_data_id(&mut self) -> PResult<'sess, (u32, Option<Symbol>)> {
-        let span = self.parser.token().span;
-        let (value, name) = self.parser.parse_data_id()?;
-        self.check_assembly_id("program data", span, value).map(|id| (id, name))
     }
 
     fn check_assembly_id(&self, name: &str, span: Span, value: U256) -> PResult<'sess, u32> {
@@ -624,11 +601,15 @@ mod tests {
                 gcx.sess,
                 r#"
 @module libraries
+@libraries
+  L_0: "a.sol:L"
+  L_1: "b.sol:L"
+
 bb0:
-  push_library "a.sol:L"
+  push_library L_0
   push 0
   mstore
-  push_library "b.sol:L"
+  push_library L_1
   push 32
   mstore
   push 64
@@ -641,7 +622,10 @@ bb0:
             let relocations = bytecode
                 .relocations
                 .iter()
-                .map(|relocation| relocation.display(&bytecode.libraries).to_string())
+                .map(|relocation| {
+                    let library = bytecode.libraries.get(relocation.library).unwrap();
+                    format!("{}: {library}", relocation.offset)
+                })
                 .collect::<Vec<_>>()
                 .join("\n");
             assert_data_eq!(

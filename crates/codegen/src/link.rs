@@ -2,7 +2,7 @@
 
 use alloy_primitives::{Bytes, U256};
 use solar_data_structures::{fmt::FmtIteratorExt, index::IndexVec, map::FxHashMap, newtype_index};
-use solar_interface::Symbol;
+use solar_interface::{Symbol, sym};
 use solar_sema::{Gcx, hir::ContractId};
 use std::fmt;
 
@@ -17,45 +17,42 @@ newtype_index! {
 /// One constant byte string and its optional display name.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Data {
-    pub(crate) bytes: Bytes,
+    pub(crate) bytes: DataBytes,
     pub(crate) name: Option<Symbol>,
     /// Whether the data must be emitted at the end of the runtime program.
     pub(crate) emit_in_runtime: bool,
     /// Identities and byte offsets of unresolved library addresses in this data.
     pub(crate) library_relocations: Vec<LibraryRelocation>,
-    /// Embedded contract bytecode that final assembly links in. Its bytes stay empty
-    /// until then, so passes must treat it as opaque.
-    pub(crate) deferred: Option<ContractCode>,
 }
 
 impl Data {
     /// Creates literal data.
     pub(crate) fn new(bytes: Bytes, name: Option<Symbol>) -> Self {
         Self {
-            bytes,
+            bytes: DataBytes::Known(bytes),
             name,
             emit_in_runtime: false,
             library_relocations: Vec::new(),
-            deferred: None,
         }
     }
 
     /// Creates deferred data for another contract's bytecode, which final assembly links in.
     pub(crate) fn contract_code(code: ContractCode, name: Option<Symbol>) -> Self {
-        Self { deferred: Some(code), ..Self::new(Bytes::new(), name) }
+        Self { bytes: DataBytes::Deferred(code), ..Self::new(Bytes::new(), name) }
     }
 
-    /// Displays the textual contents: `deferred creation|runtime <contract>`, or the hex bytes
-    /// followed by any library relocations.
+    /// Displays the textual contents: `creation_code|runtime_code "source:Name"`, or the hex
+    /// bytes followed by any library relocations.
     pub(crate) fn display_contents<'a>(
         &'a self,
         libraries: &'a LibraryTable,
     ) -> impl fmt::Display + 'a {
         solar_data_structures::fmt::from_fn(move |f| {
-            if let Some(code) = self.deferred {
-                return write!(f, "deferred {code}");
-            }
-            write!(f, "hex\"{}\"", alloy_primitives::hex::display(&self.bytes))?;
+            let bytes = match &self.bytes {
+                DataBytes::Known(bytes) => bytes,
+                DataBytes::Deferred(code) => return write!(f, "{code}"),
+            };
+            write!(f, "hex\"{}\"", alloy_primitives::hex::display(bytes))?;
             if !self.library_relocations.is_empty() {
                 let relocations =
                     self.library_relocations.iter().map(|reloc| reloc.display(libraries));
@@ -63,6 +60,31 @@ impl Data {
             }
             Ok(())
         })
+    }
+}
+
+/// The bytes of a data entry.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum DataBytes {
+    /// Bytes known during compilation.
+    Known(Bytes),
+    /// Another contract's bytecode, which final assembly links in. Passes must treat it as
+    /// opaque until then.
+    Deferred(ContractCode),
+}
+
+impl DataBytes {
+    /// Returns the bytes, or `None` before deferred data is linked.
+    pub(crate) fn known(&self) -> Option<&Bytes> {
+        match self {
+            Self::Known(bytes) => Some(bytes),
+            Self::Deferred(_) => None,
+        }
+    }
+
+    /// Returns the bytes of data that final assembly has linked.
+    pub(crate) fn linked(&self) -> &Bytes {
+        self.known().expect("deferred data must be linked")
     }
 }
 
@@ -149,6 +171,14 @@ impl LibraryTable {
         self.entries.clear();
     }
 
+    pub(crate) fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
     /// Returns the existing ID or adds the library to this table.
     pub fn intern(&mut self, library: QualifiedName) -> LibraryId {
         if let Some((id, _)) = self.entries.iter_enumerated().find(|(_, entry)| **entry == library)
@@ -163,6 +193,14 @@ impl LibraryTable {
     pub fn get(&self, id: LibraryId) -> Option<&QualifiedName> {
         self.entries.get(id)
     }
+
+    /// Displays a reference to a library declaration: `Name_index`.
+    pub(crate) fn display_ref(&self, id: LibraryId) -> impl fmt::Display + '_ {
+        fmt::from_fn(move |f| {
+            let (_, name) = self.get(id).expect("valid library ID").split();
+            write!(f, "{name}_{}", id.index())
+        })
+    }
 }
 
 /// A linker-supplied address at a byte offset in code or program data.
@@ -174,9 +212,7 @@ pub struct LibraryRelocation {
 
 impl LibraryRelocation {
     pub(crate) fn display<'a>(&'a self, libraries: &'a LibraryTable) -> impl fmt::Display + 'a {
-        fmt::from_fn(move |f| {
-            write!(f, "{}: {}", self.offset, libraries.get(self.library).expect("valid library ID"))
-        })
+        fmt::from_fn(move |f| write!(f, "{}: {}", self.offset, libraries.display_ref(self.library)))
     }
 }
 
@@ -202,13 +238,31 @@ impl RelocatableBytecode {
     }
 }
 
+/// Which bytecode of a contract another contract embeds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum CodeKind {
+    /// Deployment bytecode, including the initcode prefix.
+    Creation,
+    /// Deployed runtime bytecode.
+    Runtime,
+}
+
+impl CodeKind {
+    /// Returns the textual IR keyword.
+    pub(crate) fn keyword(self) -> Symbol {
+        match self {
+            Self::Creation => sym::creation_code,
+            Self::Runtime => sym::runtime_code,
+        }
+    }
+}
+
 /// Bytecode of another contract that a module embeds as program data.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct ContractCode {
-    /// The source-qualified name of the embedded contract.
+    /// The fully qualified name of the embedded contract.
     pub(crate) contract: QualifiedName,
-    /// Whether this is the creation bytecode rather than the runtime bytecode.
-    pub(crate) creation: bool,
+    pub(crate) kind: CodeKind,
 }
 
 impl ContractCode {
@@ -216,14 +270,16 @@ impl ContractCode {
     pub(crate) fn bytecode(self, bytecodes: &EmbeddedBytecodes) -> &RelocatableBytecode {
         let bytecodes =
             bytecodes.get(&self.contract).expect("embedded contract bytecode must be supplied");
-        if self.creation { &bytecodes.deployment } else { &bytecodes.runtime }
+        match self.kind {
+            CodeKind::Creation => &bytecodes.deployment,
+            CodeKind::Runtime => &bytecodes.runtime,
+        }
     }
 }
 
 impl fmt::Display for ContractCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let kind = if self.creation { "creation" } else { "runtime" };
-        write!(f, "{kind} {}", self.contract)
+        write!(f, "{} {}", self.kind.keyword(), self.contract)
     }
 }
 
@@ -238,3 +294,29 @@ pub struct ContractBytecodes {
 
 /// Generated bytecode of the contracts a module embeds, by source-qualified contract name.
 pub type EmbeddedBytecodes = FxHashMap<QualifiedName, ContractBytecodes>;
+
+/// Displays the `@libraries` and `@data` sections shared by MIR and EVM IR, each followed by a
+/// blank line and omitted when empty.
+pub(crate) fn display_declarations<'a>(
+    libraries: &'a LibraryTable,
+    data: &'a IndexVec<DataId, Data>,
+) -> impl fmt::Display + 'a {
+    fmt::from_fn(move |f| {
+        if !libraries.is_empty() {
+            writeln!(f, "@libraries")?;
+            for (id, library) in libraries.entries.iter_enumerated() {
+                writeln!(f, "  {}: {library}", libraries.display_ref(id))?;
+            }
+            writeln!(f)?;
+        }
+        if !data.is_empty() {
+            writeln!(f, "@data")?;
+            for (id, entry) in data.iter_enumerated() {
+                let name = crate::utils::display_data_ref(entry.name, id.index(), 0);
+                writeln!(f, "  {name}: {}", entry.display_contents(libraries))?;
+            }
+            writeln!(f)?;
+        }
+        Ok(())
+    })
+}
