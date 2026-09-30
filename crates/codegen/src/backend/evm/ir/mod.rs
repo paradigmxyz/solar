@@ -29,7 +29,7 @@ pub(in crate::backend) mod builder;
 mod display;
 mod parse;
 mod passes;
-pub(crate) use passes::{OutliningCheckpoint, compact_pushes};
+pub(crate) use passes::compact_pushes;
 pub(in crate::backend) mod verify;
 
 pub(crate) use passes::compact_pushes::immediate_materialization_cost;
@@ -95,8 +95,6 @@ pub struct Module {
     pub(crate) blocks: IndexVec<BlockId, Block>,
     /// Constant byte strings addressable by `push_data`.
     pub(crate) data: IndexVec<DataId, Data>,
-    /// Whether gas mode is rescuing a runtime that exceeds EIP-170.
-    pub(crate) enable_size_outlining: bool,
     /// Whether bytes that execution must not fall into follow this code: the runtime
     /// artifact after creation code. A final `STOP` is then kept instead of being
     /// left implicit at the end of the bytecode.
@@ -139,7 +137,6 @@ impl Module {
             libraries: LibraryTable::default(),
             blocks: IndexVec::new(),
             data: IndexVec::new(),
-            enable_size_outlining: false,
             code_follows: false,
             debug_info_tracked: false,
             peephole_clean: passes::CleanBlocks::default(),
@@ -151,7 +148,6 @@ impl Module {
         self.blocks.clear();
         self.data.clear();
         self.libraries.clear();
-        self.enable_size_outlining = false;
         self.code_follows = false;
         self.debug_info_tracked = false;
         self.peephole_clean.clear();

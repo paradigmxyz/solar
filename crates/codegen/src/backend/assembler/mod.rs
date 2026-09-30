@@ -99,7 +99,7 @@ pub(in crate::backend) struct PreparedAssembly {
 }
 
 /// Relocating assembler for finalized EVM IR.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) gcx: Gcx<'gcx>,
     /// Artifact whose labels are being laid out.
@@ -108,8 +108,6 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) program: ir::Module,
     /// Whether `program` already has explicit EVM IR terminators.
     pub(in crate::backend) program_is_finalized: bool,
-    /// Pass history at the shared input to gas-first and size-rescue outlining.
-    pub(in crate::backend) outlining: Option<ir::OutliningCheckpoint>,
     /// Block currently receiving emitted instructions.
     pub(in crate::backend) current_block: Option<ir::BlockId>,
     /// Source span attached to newly emitted EVM IR operations.
@@ -165,7 +163,6 @@ impl<'gcx> Assembler<'gcx> {
             artifact_kind: ArtifactKind::Runtime,
             program: ir::Module::new(sym::asm),
             program_is_finalized: false,
-            outlining: None,
             current_block: None,
             current_source_spans: DebugSpans::new(),
             current_modifier_depth: 0,
@@ -192,7 +189,6 @@ impl<'gcx> Assembler<'gcx> {
         self.artifact_kind = ArtifactKind::Runtime;
         self.program.clear();
         self.program_is_finalized = false;
-        self.outlining = None;
         self.current_block = None;
         self.current_source_spans.clear();
         self.current_modifier_depth = 0;
@@ -223,11 +219,6 @@ impl<'gcx> Assembler<'gcx> {
     /// Sets the source module name carried by emitted EVM IR.
     pub(crate) fn set_evm_ir_name(&mut self, name: Symbol) {
         self.program.set_name(Symbol::intern(&format!("{name}_{}", self.artifact_kind.name())));
-    }
-
-    /// Enables size-oriented outlining for an oversized gas-mode runtime.
-    pub(crate) fn set_enable_size_outlining(&mut self, enable: bool) {
-        self.program.enable_size_outlining = enable;
     }
 
     /// Returns the conservative indexed-jump target width for this artifact.
