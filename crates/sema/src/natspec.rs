@@ -579,6 +579,11 @@ impl<'gcx> Resolver<'gcx> {
                 let variable = gcx.hir.variable(id);
                 variable.is_state_variable() && matches!(variable.ty.kind, hir::TypeKind::Mapping(_))
             }
+            (SolarTag::Inline, hir::ItemId::Variable(id)) => {
+                let variable = gcx.hir.variable(id);
+                variable.is_state_variable()
+                    && matches!(variable.ty.kind, hir::TypeKind::Array(array) if array.size.is_none())
+            }
             _ => false,
         };
         if !applies {
@@ -587,6 +592,9 @@ impl<'gcx> Resolver<'gcx> {
         }
         match tag {
             SolarTag::Optimize => self.check_solar_optimize(docs, tag_span),
+            SolarTag::Inline if matches!(item_id, hir::ItemId::Variable(_)) => {
+                self.check_solar_inline_array(docs, tag_span);
+            }
             SolarTag::Inline => self.check_solar_inline(docs, tag_span),
             _ => {}
         }
@@ -605,6 +613,22 @@ impl<'gcx> Resolver<'gcx> {
                 .err("`@custom:solar-inline` takes no argument, `always` or `never`")
                 .span(tag_span)
                 .help("write `@custom:solar-inline always` to clone every legal call")
+                .emit();
+        }
+    }
+
+    /// Reports arguments or duplicate tags on a `@custom:solar-inline` storage array.
+    fn check_solar_inline_array(&self, docs: &[ast::DocComment<'gcx>], tag_span: Span) {
+        let Some(natspec) = self.first_duplicate_free_tag(docs, sym::solar_dash_inline, tag_span)
+        else {
+            return;
+        };
+        if !solar_tag_content(docs, natspec.span).trim().is_empty() {
+            self.gcx
+                .dcx()
+                .err("`@custom:solar-inline` on a storage array takes no arguments")
+                .span(tag_span)
+                .help("remove the argument to keep the array's short contents in its own slot")
                 .emit();
         }
     }
@@ -942,7 +966,8 @@ impl<'gcx> Resolver<'gcx> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SolarTag {
     /// `@custom:solar-inline [always|never]`: the inliner favors the function, always clones it
-    /// where legal, or never clones it.
+    /// where legal, or never clones it. On a dynamic storage array, the bare tag keeps the length
+    /// and as many elements as fit in the array's own slot.
     Inline,
     /// `@custom:solar-safe`: the code the contract runs has no inline assembly, with checked
     /// arithmetic available as an explicit property.
@@ -983,9 +1008,15 @@ pub(crate) fn report_misplaced_solar_tag(
 ) -> ErrorGuaranteed {
     match tag {
         SolarTag::Inline => dcx
-            .err(format!("`@custom:{name}` must document a function that internal calls reach"))
+            .err(format!(
+                "`@custom:{name}` must document a function that internal calls reach or a dynamic \
+                 storage array state variable",
+            ))
             .span(span)
-            .help("put it on an internal, private or public function with a body")
+            .help(
+                "put it on an internal, private or public function with a body, or a state \
+                 variable such as `uint64[] list;`",
+            )
             .emit(),
         SolarTag::Safe => dcx
             .err("`@custom:solar-safe` must document a contract or a library")

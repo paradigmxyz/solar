@@ -1,0 +1,101 @@
+error: `@custom:solar-inline` must document a dynamic storage array state variable
+   ╭▸ ROOT/tests/ui/typeck/solar_inline.sol:LL:CC
+   │
+LL │     /// @custom:solar-inline
+   │          ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a state variable such as `uint64[] list;`
+
+error: the elements of an inline array must be value types narrower than a word
+   ╭▸ ROOT/tests/ui/typeck/solar_inline.sol:LL:CC
+   │
+LL │     /// @custom:solar-inline
+   │          ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: its elements are `uint256`
+   ╭▸ ROOT/tests/ui/typeck/solar_inline.sol:LL:CC
+   │
+LL │     uint256[] words;
+   │     ━━━━━━━━━━━━━━━━
+   ╰ note: the array's slot keeps its length in the top byte, below its elements
+
+error: an inline array cannot be a storage reference
+   ╭▸ ROOT/tests/ui/typeck/solar_inline.sol:LL:CC
+   │
+LL │         uint64[] storage r = list;
+   │                              ━━━━
+   │
+   ├ note: `@custom:solar-inline` keeps a short array in its own slot, which a storage reference would read with the standard layout
+   ╰ help: index the array or copy it into memory
+
+error: an inline array cannot be a storage reference
+   ╭▸ ROOT/tests/ui/typeck/solar_inline.sol:LL:CC
+   │
+LL │         r = list;
+   │             ━━━━
+   │
+   ├ note: `@custom:solar-inline` keeps a short array in its own slot, which a storage reference would read with the standard layout
+   ╰ help: index the array or copy it into memory
+
+error: an inline array cannot be a storage reference
+   ╭▸ ROOT/tests/ui/typeck/solar_inline.sol:LL:CC
+   │
+LL │         return first(list);
+   │                      ━━━━
+   │
+   ├ note: `@custom:solar-inline` keeps a short array in its own slot, which a storage reference would read with the standard layout
+   ╰ help: index the array or copy it into memory
+
+error: an inline array cannot be a storage reference
+   ╭▸ ROOT/tests/ui/typeck/solar_inline.sol:LL:CC
+   │
+LL │         return first({l: list});
+   │                          ━━━━
+   │
+   ├ note: `@custom:solar-inline` keeps a short array in its own slot, which a storage reference would read with the standard layout
+   ╰ help: index the array or copy it into memory
+
+error: an inline array cannot be a storage reference
+   ╭▸ ROOT/tests/ui/typeck/solar_inline.sol:LL:CC
+   │
+LL │         return list;
+   │                ━━━━
+   │
+   ├ note: `@custom:solar-inline` keeps a short array in its own slot, which a storage reference would read with the standard layout
+   ╰ help: index the array or copy it into memory
+
+error: an inline array has no member `sum` this compiler keeps
+   ╭▸ ROOT/tests/ui/typeck/solar_inline.sol:LL:CC
+   │
+LL │         return list.sum();
+   │                ━━━━━━━━
+   │
+   ╰ note: a library function attached to it would take it as a storage reference, which reads the standard layout
+
+error: an inline array cannot be chosen by a conditional expression
+   ╭▸ ROOT/tests/ui/typeck/solar_inline.sol:LL:CC
+   │
+LL │         return c ? list : other;
+   │                ━━━━━━━━━━━━━━━━
+   │
+   ├ note: the result is a storage reference, which reads the standard layout
+   ╰ help: branch with `if` instead
+
+error: an inline array cannot be assigned as a whole
+   ╭▸ ROOT/tests/ui/typeck/solar_inline.sol:LL:CC
+   │
+LL │         list = values;
+   │         ━━━━━━━━━━━━━
+   │
+   ╰ help: `delete` it and `push` the elements
+
+error: inline assembly cannot take the `.slot` of an inline array
+   ╭▸ ROOT/tests/ui/typeck/solar_inline.sol:LL:CC
+   │
+LL │             s := list.slot
+   │                       ━━━━
+   │
+   ╰ note: `@custom:solar-inline` moves the array's elements out of their standard slots
+
+error: aborting due to 11 previous errors
+
