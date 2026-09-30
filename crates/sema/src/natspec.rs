@@ -575,7 +575,7 @@ impl<'gcx> Resolver<'gcx> {
                 let function = gcx.hir.function(id);
                 function.kind == hir::FunctionKind::Function && function.body.is_some()
             }
-            (SolarTag::Fuse, hir::ItemId::Variable(id)) => {
+            (SolarTag::Fuse | SolarTag::Bitmap, hir::ItemId::Variable(id)) => {
                 let variable = gcx.hir.variable(id);
                 variable.is_state_variable() && matches!(variable.ty.kind, hir::TypeKind::Mapping(_))
             }
@@ -980,6 +980,9 @@ pub(crate) enum SolarTag {
     /// `@custom:solar-fuse <group>`: the mappings of a group keep their values for one key
     /// together, in one record.
     Fuse,
+    /// `@custom:solar-bitmap`: a mapping from unsigned integers to booleans keeps each value in
+    /// one bit, 256 keys to a word.
+    Bitmap,
     /// A `solar-` tag this compiler does not define.
     Unknown,
 }
@@ -993,6 +996,7 @@ impl SolarTag {
             sym::solar_dash_trusted => Some(Self::Trusted),
             sym::solar_dash_optimize => Some(Self::Optimize),
             sym::solar_dash_fuse => Some(Self::Fuse),
+            sym::solar_dash_bitmap => Some(Self::Bitmap),
             _ => name.as_str().starts_with("solar-").then_some(Self::Unknown),
         }
     }
@@ -1050,13 +1054,19 @@ pub(crate) fn report_misplaced_solar_tag(
                  `@custom:solar-fuse account`",
             )
             .emit(),
+        SolarTag::Bitmap => dcx
+            .err("`@custom:solar-bitmap` must document a mapping state variable")
+            .span(span)
+            .help("put it on a mapping from an unsigned integer to `bool`")
+            .emit(),
         SolarTag::Unknown => dcx
             .err(format!("unknown tag `@custom:{name}`"))
             .span(span)
             .note("`@custom:solar-` tags are requirements this compiler checks")
             .help(
                 "the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, \
-                 `@custom:solar-safe`, `@custom:solar-trusted`, and `@custom:solar-fuse`",
+                 `@custom:solar-safe`, `@custom:solar-trusted`, `@custom:solar-fuse`, and \
+                 `@custom:solar-bitmap`",
             )
             .emit(),
     }

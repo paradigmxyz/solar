@@ -1,0 +1,65 @@
+error: `@custom:solar-bitmap` must document a mapping state variable
+   ╭▸ ROOT/tests/ui/typeck/solar_bitmap.sol:LL:CC
+   │
+LL │     /// @custom:solar-bitmap
+   │          ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a mapping from an unsigned integer to `bool`
+
+error: a bitmap mapping must map an unsigned integer to `bool`
+   ╭▸ ROOT/tests/ui/typeck/solar_bitmap.sol:LL:CC
+   │
+LL │     /// @custom:solar-bitmap
+   │          ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: it maps `address` to `bool`
+   ╭▸ ROOT/tests/ui/typeck/solar_bitmap.sol:LL:CC
+   │
+LL │     mapping(address => bool) byAddress;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ note: key `k` keeps its value in bit `k % 256` of the word for `k / 256`
+
+error: a bitmap mapping must map an unsigned integer to `bool`
+   ╭▸ ROOT/tests/ui/typeck/solar_bitmap.sol:LL:CC
+   │
+LL │     /// @custom:solar-bitmap
+   │          ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: it maps `int256` to `bool`
+   ╭▸ ROOT/tests/ui/typeck/solar_bitmap.sol:LL:CC
+   │
+LL │     mapping(int256 => bool) signed;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ note: key `k` keeps its value in bit `k % 256` of the word for `k / 256`
+
+error: a bitmap mapping must map an unsigned integer to `bool`
+   ╭▸ ROOT/tests/ui/typeck/solar_bitmap.sol:LL:CC
+   │
+LL │     /// @custom:solar-bitmap
+   │          ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: it maps `uint256` to `uint8`
+   ╭▸ ROOT/tests/ui/typeck/solar_bitmap.sol:LL:CC
+   │
+LL │     mapping(uint256 => uint8) counts;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ note: key `k` keeps its value in bit `k % 256` of the word for `k / 256`
+
+error: a bitmap mapping can only be indexed
+   ╭▸ ROOT/tests/ui/typeck/solar_bitmap.sol:LL:CC
+   │
+LL │         return isSet(claimed, id);
+   │                      ━━━━━━━
+   │
+   ╰ note: `@custom:solar-bitmap` moves the mapping's values out of the standard slots that a storage reference reaches
+
+error: inline assembly cannot take the `.slot` of a bitmap mapping
+   ╭▸ ROOT/tests/ui/typeck/solar_bitmap.sol:LL:CC
+   │
+LL │             s := claimed.slot
+   │                          ━━━━
+   │
+   ╰ note: `@custom:solar-bitmap` moves the mapping's values out of their standard slots
+
+error: aborting due to 6 previous errors
+
