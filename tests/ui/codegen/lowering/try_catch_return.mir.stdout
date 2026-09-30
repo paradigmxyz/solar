@@ -17,23 +17,23 @@ fn @value(arg0: i256) -> i256 [selector=0xc4d47ed1, pure, abi_params=[bool], abi
 
 // === ROOT/tests/ui/codegen/lowering/try_catch_return.sol:TryCatchReturn ===
 @module TryCatchReturn
-data:
-  TryCatchReturnTarget_initcode_0: hex"34600d5760638060115f395ff35b5f5ffd341515601c575f3560e01c8063c4d47ed114601857601c565b6020565b5f5ffd5b60243610605f576004356002901015605f57600435158060a052155060a051605457600d6080526020608001608090036080f35b6001605b57fe5b5f5ffd5b5f5ffd"
+@data
+  TryCatchReturnTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/try_catch_return.sol:TryCatchReturnTarget"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 147, v1
+    v1 = datasize TryCatchReturnTarget_creation_code_0
+    v2 = datasize TryCatchReturnTarget_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy TryCatchReturnTarget_initcode_0, v4, 116
+    datacopy TryCatchReturnTarget_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 116
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 116
+    v9 = create 0, v8, v1
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1

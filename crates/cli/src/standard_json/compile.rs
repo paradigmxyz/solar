@@ -712,10 +712,11 @@ fn make_bytecode_output(
         });
         let mut by_source = FxIndexMap::<String, FxIndexMap<String, Vec<OffsetLength>>>::default();
         for reference in references {
+            let (source, name) = reference.library.split();
             by_source
-                .entry(reference.source.clone())
+                .entry(source.to_string())
                 .or_default()
-                .entry(reference.name.clone())
+                .entry(name.to_string())
                 .or_default()
                 .push(OffsetLength { start: reference.start, length: 20 });
         }

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/loop_tuple_spill_across_branch.sol:LoopTupleSpillAcrossBranch ===
 @module LoopTupleSpillAcrossBranch
-types:
+@types
   struct0: {i256, i256}
 
 fn @step(arg0: i256, arg1: i256) -> struct0 [pure] {

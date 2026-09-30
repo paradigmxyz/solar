@@ -105,8 +105,7 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
             {
                 const_exprs.insert(expr, address);
             }
-            if inst.deferred_push().is_none()
-                && inst.pushed_value().is_some_and(|value| !value.is_zero())
+            if inst.is_duplicable_push()
                 && let Some(depth) = stack.iter().rev().position(|value| value.expr == expr)
                 && depth < stack_access_limit
             {
@@ -335,8 +334,7 @@ fn may_regenerate(
                 continue;
             };
             let expr = push_fingerprint(inst.opcode, inst.encoding, value);
-            if inst.deferred_push().is_none()
-                && inst.pushed_value().is_some_and(|value| !value.is_zero())
+            if inst.is_duplicable_push()
                 && stack.iter().rev().take(stack_access_limit).any(|existing| existing.expr == expr)
             {
                 return true;
@@ -465,8 +463,7 @@ fn has_repeated_candidate_opcode(instructions: &[Instruction]) -> bool {
     let mut seen = [0u64; 4];
     for inst in instructions {
         let candidate = if inst.is_encoded_push() {
-            inst.deferred_push().is_none()
-                && inst.pushed_value().is_some_and(|value| !value.is_zero())
+            inst.is_duplicable_push()
         } else {
             expression_inputs(inst.opcode, 0, 0).is_some()
         };

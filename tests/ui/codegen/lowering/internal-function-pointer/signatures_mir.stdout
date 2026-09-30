@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/signatures_mir.sol:FunctionPointerSignatures ===
 @module FunctionPointerSignatures
-types:
+@types
   struct0: {i256, i256}
 
 fn @callVoid() -> i256 [selector=0xd04622c6, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {

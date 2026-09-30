@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/inline-immutable-leaves/leaves.mir (before inline-immutable-leaves) ===
 + // === ROOT/tests/ui/codegen/mir/inline-immutable-leaves/leaves.mir (after inline-immutable-leaves) ===
   @module ImmutableLeaves
-  immutables:
+  @immutables
     start: u64
     duration: u64
     initial: u256
@@ -78,7 +78,7 @@
 - // === ROOT/tests/ui/codegen/mir/inline-immutable-leaves/leaves.mir (before cfg-simplify) ===
 + // === ROOT/tests/ui/codegen/mir/inline-immutable-leaves/leaves.mir (after cfg-simplify) ===
   @module ImmutableLeaves
-  immutables:
+  @immutables
     start: u64
     duration: u64
     initial: u256
@@ -153,7 +153,7 @@
 - // === ROOT/tests/ui/codegen/mir/inline-immutable-leaves/leaves.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/inline-immutable-leaves/leaves.mir (after dce) ===
   @module ImmutableLeaves
-  immutables:
+  @immutables
     start: u64
     duration: u64
     initial: u256

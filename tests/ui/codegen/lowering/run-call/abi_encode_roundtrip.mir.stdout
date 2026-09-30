@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_roundtrip.sol:AbiEncodeRoundtrip ===
 @module AbiEncodeRoundtrip
-types:
+@types
   struct0: {i256, i256, i256}
   struct1: {memoryfixedarray, memorybytes, i256}
   struct2: {i256, i256, i256, i256}

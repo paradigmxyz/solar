@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/cse/cse_swapped_comparisons.mir (before cse) ===
 + // === ROOT/tests/ui/codegen/mir/cse/cse_swapped_comparisons.mir (after cse) ===
   @module CseSwappedComparisons
-  types:
+  @types
     struct0: {i1, i1}
   
   fn @reuse_gt_after_lt(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {

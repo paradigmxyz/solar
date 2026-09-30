@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/shared_public_body.sol:SharedPublicBody ===
 @module SharedPublicBody
-types:
+@types
   struct0: {i256, i256}
 
 fn @shared(arg0: i256) -> struct0 [selector=0x727ee1fa, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {

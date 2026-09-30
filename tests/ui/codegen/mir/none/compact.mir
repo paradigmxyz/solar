@@ -1,19 +1,22 @@
 //@compile-flags: -Zmir-pipeline=none
 //@filecheck: --enable-var-scope
-// CHECK: linked_0: hex"8000000000000000000000000000000000000000" library_relocations [0: "A.sol":"L"]
+// CHECK: L_0: "A.sol:L"
+// CHECK: linked_0: hex"8000000000000000000000000000000000000000" library_relocations [0: L_0]
 // CHECK-LABEL: @compact
 // CHECK: {{^ +}}[[SUM:v[0-9]+]] = add 1, 2
 // CHECK: {{^ +}}ret [[SUM]]
 @module Compact
-data:
-  linked_0: hex"8000000000000000000000000000000000000000" library_relocations [0: "A.sol":"L"]
+@libraries
+  L_0: "A.sol:L"
+@data
+  linked_0: hex"8000000000000000000000000000000000000000" library_relocations [0: L_0]
 fn @compact() -> i256 { bb0: v0 = add 1, 2 ret v0 }
 
 
 // CHECK-LABEL: @library
-// CHECK: library_address "A.sol":"L"
+// CHECK: library_address L_0
 fn @library() -> i160 {
   bb0:
-    v0 = library_address "A.sol":"L"
+    v0 = library_address L_0
     ret v0
 }

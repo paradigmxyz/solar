@@ -4,7 +4,7 @@
 @module SharedInputCosts
 
 // The surviving shift already needs the byte, so charge a copy but not a new BYTE.
-types:
+@types
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 

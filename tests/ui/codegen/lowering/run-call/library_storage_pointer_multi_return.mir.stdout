@@ -4,7 +4,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/library_storage_pointer_multi_return.sol:LibraryStoragePointerMultiReturn ===
 @module LibraryStoragePointerMultiReturn
-types:
+@types
   struct0: {i256, memoryarray}
   struct1: {i256, i256}
   struct2: {i256, memorybytes}

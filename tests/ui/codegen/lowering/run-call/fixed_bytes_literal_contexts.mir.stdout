@@ -19,7 +19,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[bytes2]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_literal_contexts.sol:FixedBytesLiteralContexts ===
 @module FixedBytesLiteralContexts
-types:
+@types
   struct0: {i256, i256, i256, i256, i256, i256, i256, i256, i256}
 
 fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word<bytes1>, word<bytes2>, word<bytes1>, word<bytes2>, word<bytes1>, word<bytes2>, word<bytes1>, word<bytes1>, word<bytes1>], abi_return_params=[bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes1, bytes1]] {

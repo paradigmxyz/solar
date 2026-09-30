@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/bytes_concat_array_holes.sol:BytesConcatArrayHoles ===
 @module BytesConcatArrayHoles
-types:
+@types
   struct0: {memoryarray, i256}
   struct1: {i256, i256}
 
