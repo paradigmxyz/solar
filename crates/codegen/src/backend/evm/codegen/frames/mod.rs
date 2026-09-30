@@ -955,23 +955,33 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .fold(low_memory_end, u64::max)
                 .checked_add(reachable_heap_prefix_guards.values().copied().max().unwrap_or(0))
                 .expect("runtime heap prefix overflow");
-            self.resolve_spill_base_floors(module, static_end);
+            // Constructor code never runs with the runtime.
+            let mut runtime_functions = DenseBitSet::new_empty(module.functions.len());
+            for reachable in self.runtime_entry_reachability.values() {
+                runtime_functions.union(reachable);
+            }
+            self.resolve_spill_base_floors(module, static_end, |func_id| {
+                runtime_functions.contains(func_id)
+            });
         }
         self.resolve_spill_base_areas(module);
         self.runtime_entry_reachability.clear();
     }
 
-    /// Resolves the floors that dynamic spill areas move above.
+    /// Resolves the floor that dynamic spill areas move above, from the constant-address writes
+    /// of the artifact's functions.
     pub(in crate::backend::evm::codegen) fn resolve_spill_base_floors(
         &mut self,
         module: &Module,
         static_end: u64,
+        in_artifact: impl Fn(FunctionId) -> bool,
     ) {
         let Some(id) = self.spill_base_floor_const.take() else { return };
         let constant_end = module
             .functions
-            .iter()
-            .map(Self::constant_memory_write_end)
+            .iter_enumerated()
+            .filter(|&(func_id, _)| in_artifact(func_id))
+            .map(|(_, func)| Self::constant_memory_write_end(func))
             .fold(static_end, u64::max)
             .next_multiple_of(EvmMemoryLayout::WORD_SIZE);
         self.asm.set_deferred_const(id, U256::from(constant_end));

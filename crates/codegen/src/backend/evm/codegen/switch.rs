@@ -2025,11 +2025,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_stack_op(StackOp::Pop);
             }
         } else {
-            // Keep the scrutinee on the stack while draining the rest, like a branch condition.
-            // A spill and reload would also write a slot after a low-memory clobber, where the
-            // slot may lie in the written buffer.
+            // Keep the scrutinee and any computed case values on the stack while draining the
+            // rest, like a branch condition. A spill and reload would also write a slot after a
+            // low-memory clobber, where the slot may lie in the written buffer.
             // [swap depth(other); pop]*; [dup scrutinee]
-            self.pop_stack_values_not_needed_by(&[value]);
+            let mut needed = Vec::with_capacity(cases.len() + 1);
+            needed.push(value);
+            needed.extend(cases.iter().map(|&(case_val, _)| case_val));
+            self.pop_stack_values_not_needed_by(&needed);
             self.emit_value(func, value);
         }
 

@@ -78,6 +78,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.heap_memory_writers,
             self.spill_hazard_functions,
         ] = self.collect_memory_summaries(module);
+        let heap_prefix = Self::heap_prefix_offsets(module);
+        self.max_heap_prefix_guard = module
+            .functions
+            .iter_enumerated()
+            .map(|(func_id, func)| heap_prefix.guard(func_id, func))
+            .max()
+            .unwrap_or(0);
         self.cold_functions = if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             DenseBitSet::new_empty(module.functions.len())
         } else {
@@ -484,7 +491,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .emit();
             }
             self.asm.set_deferred_const(constructor_fixed_memory_end, U256::from(fixed_memory_end));
-            self.resolve_spill_base_floors(module, fixed_memory_end.saturating_add(heap_guard));
+            self.resolve_spill_base_floors(
+                module,
+                fixed_memory_end.saturating_add(heap_guard),
+                |_| true,
+            );
             self.resolve_spill_base_areas(module);
 
             self.resolve_pending_frame_size_consts(module, |_| heap_guard);

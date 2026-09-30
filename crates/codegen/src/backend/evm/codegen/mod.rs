@@ -416,6 +416,8 @@ pub struct EvmCodegen<'gcx> {
     unowned_memory_writers: DenseBitSet<FunctionId>,
     /// Functions that, directly or through calls, may write memory a spill slot can occupy.
     spill_hazard_functions: DenseBitSet<FunctionId>,
+    /// Most bytes any function of the module may write below the start of a heap allocation.
+    max_heap_prefix_guard: u64,
     /// Functions that, directly or through calls, may write memory reached through the
     /// free-memory pointer.
     heap_memory_writers: DenseBitSet<FunctionId>,
@@ -527,6 +529,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             free_memory_clobbering_functions: DenseBitSet::new_empty(0),
             unowned_memory_writers: DenseBitSet::new_empty(0),
             spill_hazard_functions: DenseBitSet::new_empty(0),
+            max_heap_prefix_guard: 0,
             heap_memory_writers: DenseBitSet::new_empty(0),
             carry_live_across_call: false,
             carried_call: None,

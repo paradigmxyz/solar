@@ -382,6 +382,20 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Returns the offset and size of the memory range that a memory write also reads: a call's
+    /// input or a copy's source.
+    fn memory_read_range(func: &Function, inst: InstId) -> Option<(ValueId, ValueId)> {
+        let (offset, size) = match func.inst(inst).kind {
+            InstKind::Call { args_offset, args_size, .. }
+            | InstKind::CallCode { args_offset, args_size, .. }
+            | InstKind::StaticCall { args_offset, args_size, .. }
+            | InstKind::DelegateCall { args_offset, args_size, .. } => (args_offset, args_size),
+            InstKind::MCopy(_, src, len) => (src, len),
+            _ => return None,
+        };
+        (func.value_u64(size) != Some(0)).then_some((offset, size))
+    }
+
     /// Returns the destination and size of a memory write whose range is not a compile-time
     /// constant. Constant ranges stay below the dynamic spill floor.
     fn dynamic_memory_write(func: &Function, inst: InstId) -> Option<(ValueId, WriteSize)> {
@@ -402,9 +416,30 @@ impl<'gcx> EvmCodegen<'gcx> {
         let Some(base) = &self.spill_base else { return };
         let (area, floor) = (base.area, self.spill_base_floor());
         let Some((dest, size)) = Self::dynamic_memory_write(func, inst) else { return };
+        // The new area must also stay clear of memory the instruction reads.
+        let read = Self::memory_read_range(func, inst);
+
+        // [read_size, read_offset,] [size, dest]
+        // Tracked operands emit first: a deep spill cannot save an anonymous word above them.
+        if let Some((read_offset, read_size)) = read {
+            self.emit_value(func, read_size);
+            self.emit_value(func, read_offset);
+        }
+        match size {
+            WriteSize::Const(size) => {
+                self.emit_value(func, dest);
+                self.emit_untracked_push(U256::from(size));
+                self.emit_stack_op(StackOp::Swap(1));
+            }
+            WriteSize::Value(size) => {
+                self.emit_value(func, size);
+                self.emit_value(func, dest);
+            }
+        }
 
         // Words reloaded at or after the write: spill slots, and an internal function's frame
-        // arguments. A later block may reload a slot stored on another path.
+        // arguments. A later block may reload a slot stored on another path. Collect them only
+        // now, since emitting the operands may have spilled more.
         let rebuilt_operands = self.rebuilt_operands_at_or_after(func, liveness, block, inst_idx);
         let is_read = |value| {
             liveness.is_used_at_or_after(value, block, inst_idx) || rebuilt_operands.contains(value)
@@ -427,20 +462,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         live_words.sort_unstable();
         live_words.dedup();
-
-        // [size, dest]
-        // Tracked operands emit first: a deep spill cannot save an anonymous word above them.
-        match size {
-            WriteSize::Const(size) => {
-                self.emit_value(func, dest);
-                self.emit_untracked_push(U256::from(size));
-                self.emit_stack_op(StackOp::Swap(1));
-            }
-            WriteSize::Value(size) => {
-                self.emit_value(func, size);
-                self.emit_value(func, dest);
-            }
-        }
 
         // end = dest + size
         self.emit_stack_op(StackOp::Dup(2));
@@ -479,6 +500,22 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_max();
         self.emit_untracked_push_deferred(floor);
         self.emit_max();
+        if read.is_some() {
+            // new_base = max(new_base, round_up(read_offset + read_size) * (read_size != 0))
+            self.emit_stack_op(StackOp::Dup(5));
+            self.emit_stack_op(StackOp::Dup(7));
+            self.emit_untracked_op(op::ADD);
+            self.emit_untracked_push(U256::from(EvmMemoryLayout::WORD_SIZE - 1));
+            self.emit_untracked_op(op::ADD);
+            self.emit_untracked_push(U256::from(EvmMemoryLayout::WORD_SIZE - 1));
+            self.emit_untracked_op(op::NOT);
+            self.emit_untracked_op(op::AND);
+            self.emit_stack_op(StackOp::Dup(7));
+            self.emit_untracked_op(op::ISZERO);
+            self.emit_untracked_op(op::ISZERO);
+            self.emit_untracked_op(op::MUL);
+            self.emit_max();
+        }
 
         // mstore(new_base + offset, mload(spill_base + offset)) for every live word
         for offset in live_words {
@@ -768,12 +805,17 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn emit_free_memory_bump(&mut self) {
         let Some(base) = &self.spill_base else { return };
         let area = base.area;
-        // mstore(FMP_SLOT, max(mload(FMP_SLOT), spill_base + area))
+        // A callee may write a heap prefix below its first allocation.
+        // mstore(FMP_SLOT, max(mload(FMP_SLOT), spill_base + area [+ guard]))
         self.emit_untracked_push(U256::from(EvmMemoryLayout::FMP_SLOT));
         self.emit_untracked_op(op::MLOAD);
         self.emit_spill_base_copy();
         self.emit_untracked_push_deferred(area);
         self.emit_untracked_op(op::ADD);
+        if self.max_heap_prefix_guard != 0 {
+            self.emit_untracked_push(U256::from(self.max_heap_prefix_guard));
+            self.emit_untracked_op(op::ADD);
+        }
         self.emit_max();
         self.emit_untracked_push(U256::from(EvmMemoryLayout::FMP_SLOT));
         self.emit_untracked_op(op::MSTORE);
