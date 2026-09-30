@@ -56,11 +56,11 @@ impl StorageLocation {
         self.offset != 0 || self.size.bits() != Self::WORD.bits()
     }
 
-    const fn word_bytes() -> u8 {
+    pub(super) const fn word_bytes() -> u8 {
         Self::WORD.bytes()
     }
 
-    fn mask(self) -> U256 {
+    pub(super) fn mask(self) -> U256 {
         if self.size >= Self::WORD {
             U256::MAX
         } else {
@@ -78,6 +78,21 @@ impl StorageLocation {
         } else {
             builder.sstore(slot, value);
         }
+    }
+
+    /// The bits a packed store puts in the word for `value`, before they are shifted into place:
+    /// `value & mask`, after aligning a fixed-bytes value to the low end.
+    pub(super) fn encode(self, builder: &mut FunctionBuilder<'_>, value: ValueId) -> ValueId {
+        // encoded = (fixed_bytes ? value >> align_shift : value) & field_mask
+        let value = match self.encoding {
+            StorageEncoding::FixedBytes => {
+                let shift = builder.imm(u64::from(Self::word_bytes() - self.size.bytes()) * 8);
+                builder.shr(shift, value)
+            }
+            StorageEncoding::Unsigned | StorageEncoding::Signed => value,
+        };
+        let field_mask = builder.imm(self.mask());
+        builder.and(value, field_mask)
     }
 
     pub(super) fn load_word(
@@ -113,6 +128,31 @@ impl StorageLocation {
     }
 }
 
+/// The layout of a storage array documented `@custom:solar-inline`. While the array holds at most
+/// `capacity` elements, they lie in its own slot, element `i` at byte `i * size` as in the first
+/// word of the standard data area, and the slot's top byte holds the length. An array that grows
+/// past `capacity` moves to the standard layout, whose length never reaches the top byte, so a
+/// nonzero top byte marks the inline form, and an empty array reads the same in both.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct InlineArray {
+    /// How many elements fit below the length byte.
+    pub(super) capacity: u8,
+    /// Where an element lies in its word, at a byte offset the access supplies.
+    pub(super) element: StorageLocation,
+}
+
+impl InlineArray {
+    /// The width of an element in bytes.
+    pub(super) fn size(self) -> u64 {
+        u64::from(self.element.size.bytes())
+    }
+
+    /// How many elements share a word of the standard data area.
+    pub(super) fn per_slot(self) -> u64 {
+        32 / self.size()
+    }
+}
+
 /// Storage locations for all state variables visible to the selected contract.
 pub(super) struct StorageLayout<'gcx> {
     builder: StorageBuilder<'gcx>,
@@ -135,6 +175,12 @@ impl<'gcx> StorageLayout<'gcx> {
     /// mapping `id`, and where the mapping's value lies in the record, relative to its start.
     pub(super) fn fused(&self, id: VariableId) -> Option<(U256, StorageLocation)> {
         self.builder.fused.get(&id).copied()
+    }
+
+    /// The layout of the storage array documented `@custom:solar-inline` at `slot`. Such an
+    /// array is reached only through its state variable, so its slot is always this constant.
+    pub(super) fn inline_array_at(&self, slot: U256) -> Option<InlineArray> {
+        self.builder.inline_arrays.get(&slot).copied()
     }
 
     pub(super) fn store(
@@ -276,6 +322,8 @@ struct StorageBuilder<'gcx> {
     locations: FxHashMap<VariableId, StorageLocation>,
     /// The record slot and value location of every mapping in a `@custom:solar-fuse` group.
     fused: FxHashMap<VariableId, (U256, StorageLocation)>,
+    /// The layout of every storage array documented `@custom:solar-inline`, by its slot.
+    inline_arrays: FxHashMap<U256, InlineArray>,
     field_types: IndexVec<StructId, OnceLock<&'gcx [Ty<'gcx>]>>,
     field_locations: RefCell<FxHashMap<StructId, Option<Box<[StorageLocation]>>>>,
     storage_cursor: StorageCursor,
@@ -353,6 +401,7 @@ impl<'gcx> StorageBuilder<'gcx> {
             gcx,
             locations: FxHashMap::default(),
             fused: FxHashMap::default(),
+            inline_arrays: FxHashMap::default(),
             field_types: gcx.hir.strukt_ids().map(|_| OnceLock::new()).collect(),
             field_locations: RefCell::new(FxHashMap::default()),
             storage_cursor: StorageCursor::new(base_slot, false),
@@ -376,7 +425,30 @@ impl<'gcx> StorageBuilder<'gcx> {
             }
         }
         self.fuse_mappings(contract_id);
+        self.inline_arrays(contract_id);
         StorageLayout { builder: self }
+    }
+
+    /// Records the layout of the contract's storage arrays documented `@custom:solar-inline`
+    /// whose elements leave room for the length byte.
+    fn inline_arrays(&mut self, contract_id: ContractId) {
+        let contract = self.gcx.hir.contract(contract_id);
+        for &base in contract.linearized_bases.iter() {
+            for id in self.gcx.hir.contract(base).variables() {
+                if self.gcx.hir.solar_inline(id).is_some()
+                    && let TyKind::DynArray(element) =
+                        self.gcx.type_of_item(id.into()).peel_refs().kind
+                    && let Some((size, encoding)) = self.packed_encoding(element)
+                    && let capacity = (StorageLocation::word_bytes() - 1) / size.bytes()
+                    && capacity > 0
+                    && let Some(location) = self.locations.get(&id)
+                    && !location.transient
+                {
+                    let element = StorageLocation::packed_word(size, encoding);
+                    self.inline_arrays.insert(location.slot, InlineArray { capacity, element });
+                }
+            }
+        }
     }
 
     /// Lays out the records of the `@custom:solar-fuse` groups of the contract's mappings: the

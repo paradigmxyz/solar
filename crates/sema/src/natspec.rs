@@ -847,6 +847,9 @@ pub(crate) enum SolarTag {
     /// `@custom:solar-fuse <group>`: the mappings of a group keep their values for one key
     /// together, in one record.
     Fuse,
+    /// `@custom:solar-inline`: a storage array keeps its length and as many elements as fit in
+    /// its own slot.
+    Inline,
     /// A `solar-` tag this compiler does not define.
     Unknown,
 }
@@ -861,6 +864,7 @@ impl SolarTag {
             sym::solar_dash_safe => Some(Self::Safe),
             sym::solar_dash_trusted => Some(Self::Trusted),
             sym::solar_dash_fuse => Some(Self::Fuse),
+            sym::solar_dash_inline => Some(Self::Inline),
             _ => name.as_str().starts_with("solar-").then_some(Self::Unknown),
         }
     }
@@ -868,8 +872,8 @@ impl SolarTag {
 
 /// Whether the Solar tag `tag` can document the item `item`: `@custom:solar-safe` a contract or a
 /// library, `@custom:solar-trusted` one of those or a function or modifier with a body,
-/// `@custom:solar-fuse` a mapping state variable, and the other declaration tags what
-/// [`declaration_tag_applies`] accepts.
+/// `@custom:solar-fuse` a mapping state variable, `@custom:solar-inline` a dynamic storage array
+/// state variable, and the other declaration tags what [`declaration_tag_applies`] accepts.
 fn item_tag_applies(gcx: Gcx<'_>, tag: SolarTag, item: hir::ItemId) -> bool {
     let code_contract = |id| gcx.hir.contract(id).kind != hir::ContractKind::Interface;
     match (tag, item) {
@@ -879,6 +883,11 @@ fn item_tag_applies(gcx: Gcx<'_>, tag: SolarTag, item: hir::ItemId) -> bool {
         (SolarTag::Fuse, hir::ItemId::Variable(id)) => {
             let variable = gcx.hir.variable(id);
             variable.is_state_variable() && matches!(variable.ty.kind, hir::TypeKind::Mapping(_))
+        }
+        (SolarTag::Inline, hir::ItemId::Variable(id)) => {
+            let variable = gcx.hir.variable(id);
+            variable.is_state_variable()
+                && matches!(variable.ty.kind, hir::TypeKind::Array(array) if array.size.is_none())
         }
         _ => false,
     }
@@ -940,14 +949,19 @@ pub(crate) fn report_misplaced_solar_tag(dcx: &DiagCtxt, tag: SolarTag, name: Sy
                  `@custom:solar-fuse account`",
             )
             .emit(),
+        SolarTag::Inline => dcx
+            .err("`@custom:solar-inline` must document a dynamic storage array state variable")
+            .span(span)
+            .help("put it on a state variable such as `uint64[] list;`")
+            .emit(),
         SolarTag::Unknown => dcx
             .err(format!("unknown Solar tag `@custom:{name}`"))
             .span(span)
             .note("`@custom:solar-` tags are requirements this compiler checks")
             .help(
                 "the supported tags are `@custom:solar-view`, `@custom:solar-scratch`, \
-                 `@custom:solar-terminates`, `@custom:solar-safe`, `@custom:solar-trusted`, and \
-                 `@custom:solar-fuse`",
+                 `@custom:solar-terminates`, `@custom:solar-safe`, `@custom:solar-trusted`, \
+                 `@custom:solar-fuse`, and `@custom:solar-inline`",
             )
             .emit(),
     };

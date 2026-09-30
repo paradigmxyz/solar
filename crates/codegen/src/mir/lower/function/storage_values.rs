@@ -286,6 +286,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 // bounds_check(index, length)
                 let index = self.lower_expr(index)?;
+                if matches!(ty.kind, TyKind::DynArray(_))
+                    && let Some(array) = self.inline_array_at(base.slot)
+                {
+                    return Some(self.inline_array_element_access(base.slot, index, array));
+                }
                 let (element, dynamic, length) = match ty.kind {
                     TyKind::Array(element, len) => (element, false, self.builder.imm(len)),
                     TyKind::DynArray(element) => (element, true, self.builder.sload(base.slot)),
@@ -316,6 +321,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             {
                 let ExprKind::Member(receiver, _) = &callee.kind else { return None };
                 let (base, element) = self.storage_array_base(receiver)?;
+                if let Some(array) = self.inline_array_at(base.slot) {
+                    return self.inline_array_push_access(base.slot, array, element, receiver.span);
+                }
                 let (access, new_length) =
                     self.storage_array_push_access(base, element, receiver.span)?;
                 self.builder.sstore(base.slot, new_length);
@@ -379,7 +387,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
     }
 
-    fn storage_array_push_access(
+    pub(super) fn storage_array_push_access(
         &mut self,
         base: StorageAccess,
         element: Ty<'gcx>,
@@ -555,6 +563,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             None
         };
+        if let Some(array) = self.inline_array_at(base.slot) {
+            // inline_array_push(array_slot, argument | 0)
+            let value = match value {
+                Some((value, _)) => {
+                    let dirty = !self.in_inline_assembly && self.dirty_values.contains(&value);
+                    let value = self.normalize_dirty_scalar(value, element);
+                    if !dirty {
+                        self.validate_enum(element, value);
+                    }
+                    value
+                }
+                None => self.builder.imm(0),
+            };
+            self.lower_inline_array_push(base.slot, value, array, element, expr.span)?;
+            // A plain `push()` appends a zero element, which is its value.
+            return Some(self.builder.imm(U256::ZERO));
+        }
         // element_slot = storage_array_element_slot(array_slot, old_length)
         // store(element_slot, argument | default)
         // sstore(array_slot, old_length + 1)
@@ -706,6 +731,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some((base, element)) = self.storage_array_base(receiver) else {
             return self.cx.report_unsupported(expr.span, "storage array pop target");
         };
+        if let Some(array) = self.inline_array_at(base.slot) {
+            // inline_array_pop(array_slot)
+            self.lower_inline_array_pop(base.slot, array, element, expr.span)?;
+            return Some(self.builder.imm(0));
+        }
 
         // if length == 0 { panic(EmptyArrayPop) }
         // sstore(array_slot, length - 1)
@@ -1015,7 +1045,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 })?;
                 Some(object)
             }
-            TyKind::DynArray(element) => self.load_dynamic_storage_object(element, slot, span),
+            TyKind::DynArray(element) => {
+                if let Some(array) = self.inline_array_at(slot) {
+                    // object = load_storage_inline_array(slot)
+                    return self.load_inline_array(slot, array, element);
+                }
+                self.load_dynamic_storage_object(element, slot, span)
+            }
             _ => self.cx.report_unsupported(span, "storage object copy"),
         }
     }
@@ -1066,7 +1102,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         });
     }
 
-    fn ensure_storage_array_helper(
+    pub(super) fn ensure_storage_array_helper(
         &mut self,
         element: solar_sema::ty::Ty<'gcx>,
     ) -> Option<FunctionId> {
@@ -1328,6 +1364,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     Some(())
                 })?;
                 Some(())
+            }
+            // Type checking rejects assigning a whole array to one documented
+            // `@custom:solar-inline`, whose inline form the standard store would not keep.
+            TyKind::DynArray(_) if self.inline_array_at(slot).is_some() => {
+                self.cx.report_unsupported(span, "assignment of a whole inline array")
             }
             TyKind::DynArray(element) => {
                 self.store_dynamic_storage_object(element, source_ty, slot, object, span)
@@ -1609,30 +1650,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.clear_storage_bytes(access.slot)
             }
             TyKind::DynArray(element) => {
-                // length = sload(slot)
-                // sstore(slot, 0)
-                // for i in 0..length { clear_storage(element_slot(i)) }
-                let length = self.builder.sload(access.slot);
-                self.builder.sstore(access.slot, zero);
-
-                if let Some((size, _)) = self.cx.storage.packed_encoding(element)
-                    && size.bits() < 256
-                {
-                    let elements_per_slot = self.builder.imm(32 / u64::from(size.bytes()));
-                    let full_slots = self.builder.div(length, elements_per_slot);
-                    let remainder = self.builder.mod_(length, elements_per_slot);
-                    let remainder_is_zero = self.builder.eq_zero(remainder);
-                    let has_partial_slot = self.builder.eq_zero(remainder_is_zero);
-                    let slots = self.builder.add(full_slots, has_partial_slot);
-                    self.builder.clear_storage_words(access.slot, zero, slots);
-                    return Some(());
+                if self.inline_array_at(access.slot).is_some() {
+                    return self.clear_inline_array(ty, access, span);
                 }
-
-                self.counted_loop(length, |this, index| {
-                    let element_access =
-                        this.storage_array_element_access(access.slot, index, element, true, span)?;
-                    this.clear_storage_access(element, element_access, span)
-                })?;
+                self.clear_standard_storage_array(element, access, span)?;
             }
             TyKind::Struct(struct_id) => {
                 // clear_storage_struct(slot)
@@ -1689,6 +1710,40 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
         Some(())
+    }
+
+    /// Clears the standard dynamic storage array at `access`: its length and its elements.
+    pub(super) fn clear_standard_storage_array(
+        &mut self,
+        element: Ty<'gcx>,
+        access: StorageAccess,
+        span: Span,
+    ) -> Option<()> {
+        // length = sload(slot)
+        // sstore(slot, 0)
+        // for i in 0..length { clear_storage(element_slot(i)) }
+        let zero = self.builder.imm(U256::ZERO);
+        let length = self.builder.sload(access.slot);
+        self.builder.sstore(access.slot, zero);
+
+        if let Some((size, _)) = self.cx.storage.packed_encoding(element)
+            && size.bits() < 256
+        {
+            let elements_per_slot = self.builder.imm(32 / u64::from(size.bytes()));
+            let full_slots = self.builder.div(length, elements_per_slot);
+            let remainder = self.builder.mod_(length, elements_per_slot);
+            let remainder_is_zero = self.builder.eq_zero(remainder);
+            let has_partial_slot = self.builder.eq_zero(remainder_is_zero);
+            let slots = self.builder.add(full_slots, has_partial_slot);
+            self.builder.clear_storage_words(access.slot, zero, slots);
+            return Some(());
+        }
+
+        self.counted_loop(length, |this, index| {
+            let element_access =
+                this.storage_array_element_access(access.slot, index, element, true, span)?;
+            this.clear_storage_access(element, element_access, span)
+        })
     }
 
     fn clear_storage_struct_fields(

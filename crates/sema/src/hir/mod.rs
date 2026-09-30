@@ -436,6 +436,18 @@ impl<'hir> Hir<'hir> {
             Some((group.map_or(kw::Empty, Symbol::intern), natspec.span))
         })
     }
+
+    /// Returns the span of the `@custom:solar-inline` tag on a state variable's declaration.
+    pub fn solar_inline(&self, id: VariableId) -> Option<Span> {
+        let doc = self.doc(self.variable(id).doc);
+        doc.ast_comments.iter().flat_map(|comment| comment.natspec.iter()).find_map(|natspec| {
+            matches!(
+                natspec.kind,
+                ast::NatSpecKind::Custom { name } if name.name == sym::solar_dash_inline
+            )
+            .then_some(natspec.span)
+        })
+    }
 }
 
 /// A statement documented by a `@custom:solar-*` tag.

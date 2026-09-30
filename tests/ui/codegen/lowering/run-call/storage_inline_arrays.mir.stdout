@@ -1,0 +1,1016 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_inline_arrays.sol:InlineArrays ===
+@module InlineArrays
+@types
+  struct0: {i256, i256, i256}
+  struct1: {i256, memoryarray, i256, i256}
+  struct2: {memoryarray, i256}
+  struct3: {i256, i256}
+  struct4: {i256, i256, i256, i256}
+
+fn @list(arg0: i256) -> i256 [selector=0x80c9419e, view, abi_params=[u256], abi_returns=[word<u64>], abi_return_params=[u64]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = shr 248, v0
+    v2 = ne v1, 0
+    v3 = select v2, v1, v0
+    v4 = lt arg0, v3
+    icall revert_if_zero<empty>, v4
+    jumpi v2, bb1, bb2
+  bb2:
+    v6 = storage_array_data_slot 0
+    v7 = div arg0, 4
+    v8 = add v6, v7
+    v9 = mod arg0, 4
+    v10 = mul v9, 8
+    jump bb3
+  bb1:
+    v5 = mul arg0, 8
+    jump bb3
+  bb3:
+    v11 = phi [bb1: 0], [bb2: v8]
+    v12 = phi [bb1: v5], [bb2: v10]
+    v13 = sload v11 !metadata(storage=symbolic(v11))
+    v14 = mul v12, 8
+    v15 = shr v14, v13
+    v16 = and v15, 0xffffffffffffffff
+    ret v16
+}
+
+fn @raw() -> struct0 [inline_assembly, view] {
+  bb0:
+    v0 = keccak256_packed (u256 0)
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = sload v0 !metadata(storage=symbolic(v0))
+    v3 = add v0, 1
+    v4 = sload v3 !metadata(storage=offset(v0, 1))
+    v5 = insert_value struct0, undef struct0, 0, v1
+    v6 = insert_value struct0, v5, 1, v2
+    v7 = insert_value struct0, v6, 2, v4
+    ret v7
+}
+
+fn @fill(arg0: i256) -> struct1 [selector=0x3fda5389, abi_params=[u256], abi_returns=[word, memory_array<word<u64>>, word, word], abi_return_params=[u256, array<_, u64>, bytes32, bytes32]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v1]
+    v2 = phi [bb0: memoryarray 96], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v4]
+    v5 = phi [bb0: 0], [bb3: v9]
+    v6 = lt v5, v0
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v10 = icall @raw
+    v11 = extract_value struct0, v10, 0
+    v12 = extract_value struct0, v10, 1
+    v13 = extract_value struct0, v10, 2
+    v14 = sload 0 !metadata(storage=slot(0))
+    v15 = shr 248, v14
+    v16 = ne v15, 0
+    v17 = select v16, v15, v14
+    v18 = icall @load_storage_inline_array_8_0, 0
+    v19 = insert_value struct1, undef struct1, 0, v17
+    v20 = insert_value struct1, v19, 1, v18
+    v21 = insert_value struct1, v20, 2, v11
+    v22 = insert_value struct1, v21, 3, v12
+    ret v22
+  bb4:
+    v7 = checked_add u256, v5, 1
+    v8 = and v7, 0xffffffffffffffff
+    icall @inline_array_push_8_0, 0, v8
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v9 = checked_add u256, v5, 1
+    jump bb1
+}
+
+fn @writes(arg0: i256) -> memoryarray [selector=0x74e3fb3e, abi_params=[u256], abi_returns=[memory_array<word<u64>>], abi_return_params=[array<_, u64>]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: memoryarray 96], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v7]
+    v3 = checked_add u256, v0, 1
+    v4 = lt v2, v3
+    jumpi v4, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    icall @inline_array_pop_8_0, 0
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = shr 248, v8
+    v10 = ne v9, 0
+    v11 = select v10, v9, v8
+    v12 = lt 1, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    jumpi v10, bb7, bb8
+  bb8:
+    v15 = storage_array_data_slot 0
+    v16 = div 1, 4
+    v17 = add v15, v16
+    v18 = mod 1, 4
+    v19 = mul v18, 8
+    jump bb9
+  bb7:
+    v14 = mul 1, 8
+    jump bb9
+  bb9:
+    v20 = phi [bb7: 0], [bb8: v17]
+    v21 = phi [bb7: v14], [bb8: v19]
+    v22 = mul v21, 8
+    v23 = shl v22, 0xffffffffffffffff
+    v24 = sload v20 !metadata(storage=symbolic(v20))
+    v25 = not v23
+    v26 = and v24, v25
+    v27 = and 9, 0xffffffffffffffff
+    v28 = shl v22, v27
+    v29 = or v26, v28
+    sstore v20, v29 !metadata(storage=symbolic(v20))
+    v30 = icall @load_storage_inline_array_8_0, 0
+    ret v30
+  bb4:
+    v5 = checked_add u256, v2, 1
+    v6 = and v5, 0xffffffffffffffff
+    icall @inline_array_push_8_0, 0, v6
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v7 = checked_add u256, v2, 1
+    jump bb1
+}
+
+fn @pops(arg0: i256) -> struct2 [selector=0xeb28a515, abi_params=[u256], abi_returns=[memory_array<word<u64>>, word], abi_return_params=[array<_, u64>, bytes32]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: memoryarray 96], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v7]
+    v4 = lt v3, v0
+    jumpi v4, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    icall @inline_array_pop_8_0, 0
+    icall @inline_array_pop_8_0, 0
+    v8 = icall @raw
+    v9 = extract_value struct0, v8, 0
+    v10 = extract_value struct0, v8, 1
+    v11 = extract_value struct0, v8, 2
+    v12 = icall @load_storage_inline_array_8_0, 0
+    v13 = insert_value struct2, undef struct2, 0, v12
+    v14 = insert_value struct2, v13, 1, v9
+    ret v14
+  bb4:
+    v5 = checked_add u256, v3, 1
+    v6 = and v5, 0xffffffffffffffff
+    icall @inline_array_push_8_0, 0, v6
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v7 = checked_add u256, v3, 1
+    jump bb1
+}
+
+fn @refill() -> struct2 [selector=0x538e0759, abi_params=[], abi_returns=[memory_array<word<u64>>, word], abi_return_params=[array<_, u64>, bytes32]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: memoryarray 96], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v6]
+    v3 = lt v2, 5
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    jump bb7
+  bb7:
+    v7 = phi [bb2: v0], [bb9: v7]
+    v8 = phi [bb2: v1], [bb9: v8]
+    v9 = phi [bb2: v2], [bb9: v9]
+    v10 = phi [bb2: 0], [bb9: v12]
+    v11 = lt v10, 5
+    jumpi v11, bb10, bb11
+  bb11:
+    jump bb8
+  bb8:
+    icall @inline_array_push_8_0, 0, 7
+    v13 = icall @raw
+    v14 = extract_value struct0, v13, 0
+    v15 = extract_value struct0, v13, 1
+    v16 = extract_value struct0, v13, 2
+    v17 = icall @load_storage_inline_array_8_0, 0
+    v18 = insert_value struct2, undef struct2, 0, v17
+    v19 = insert_value struct2, v18, 1, v14
+    ret v19
+  bb10:
+    icall @inline_array_pop_8_0, 0
+    jump bb12
+  bb12:
+    jump bb9
+  bb9:
+    v12 = checked_add u256, v10, 1
+    jump bb7
+  bb4:
+    v4 = checked_add u256, v2, 1
+    v5 = and v4, 0xffffffffffffffff
+    icall @inline_array_push_8_0, 0, v5
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v6 = checked_add u256, v2, 1
+    jump bb1
+}
+
+fn @popEmpty() [selector=0x05f3a546, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    icall @inline_array_pop_8_0, 0
+    ret
+}
+
+fn @outOfBounds(arg0: i256) -> i256 [selector=0x34a878be, abi_params=[u256], abi_returns=[word<u64>], abi_return_params=[u64]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v6]
+    v3 = lt v2, v0
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = shr 248, v7
+    v9 = ne v8, 0
+    v10 = select v9, v8, v7
+    v11 = lt v0, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    jumpi v9, bb7, bb8
+  bb8:
+    v14 = storage_array_data_slot 0
+    v15 = div v0, 4
+    v16 = add v14, v15
+    v17 = mod v0, 4
+    v18 = mul v17, 8
+    jump bb9
+  bb7:
+    v13 = mul v0, 8
+    jump bb9
+  bb9:
+    v19 = phi [bb7: 0], [bb8: v16]
+    v20 = phi [bb7: v13], [bb8: v18]
+    v21 = sload v19 !metadata(storage=symbolic(v19))
+    v22 = mul v20, 8
+    v23 = shr v22, v21
+    v24 = and v23, 0xffffffffffffffff
+    ret v24
+  bb4:
+    v4 = checked_add u256, v2, 1
+    v5 = and v4, 0xffffffffffffffff
+    icall @inline_array_push_8_0, 0, v5
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v6 = checked_add u256, v2, 1
+    jump bb1
+}
+
+fn @deletes(arg0: i256) -> struct3 [selector=0x3374fbb4, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, bytes32]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v7]
+    v4 = lt v3, v0
+    jumpi v4, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = shr 248, v8
+    v10 = ne v9, 0
+    v11 = select v10, v9, v8
+    jumpi v10, bb7, bb8
+  bb8:
+    v12 = sload 0 !metadata(storage=slot(0))
+    sstore 0, 0 !metadata(storage=slot(0))
+    v13 = div v12, 4
+    v14 = mod v12, 4
+    v15 = eq v14, 0
+    v16 = eq v15, false
+    v17 = zext i1 v16 to i256
+    v18 = add v13, v17
+    clear_storage_words 0, 0, v18
+    jump bb9
+  bb7:
+    sstore 0, 0 !metadata(storage=slot(0))
+    jump bb9
+  bb9:
+    v19 = icall @raw
+    v20 = extract_value struct0, v19, 0
+    v21 = extract_value struct0, v19, 1
+    v22 = extract_value struct0, v19, 2
+    v23 = sload 0 !metadata(storage=slot(0))
+    v24 = shr 248, v23
+    v25 = ne v24, 0
+    v26 = select v25, v24, v23
+    v27 = insert_value struct3, undef struct3, 0, v26
+    v28 = insert_value struct3, v27, 1, v21
+    ret v28
+  bb4:
+    v5 = checked_add u256, v3, 1
+    v6 = and v5, 0xffffffffffffffff
+    icall @inline_array_push_8_0, 0, v6
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v7 = checked_add u256, v3, 1
+    jump bb1
+}
+
+fn @getters(arg0: i256) -> i256 [selector=0x0b55e840, abi_params=[u256], abi_returns=[word<u64>], abi_return_params=[u64]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v7]
+    v3 = lt v2, v0
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v8 = address
+    v9 = gas
+    v10 = abi_encode [word], selector 0x80c9419e00000000000000000000000000000000000000000000000000000000, args 1
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = zext i160 v8 to i256
+    v14 = staticcall v9, v13, v11, v12, 0, 32
+    jumpi v14, bb8, bb7
+  bb7:
+    revert_returndata
+  bb8:
+    v15 = returndatasize
+    v16 = lt v15, 32
+    icall revert_if<tuple_data_too_short>, v16
+    v17 = add 0, 0
+    v18 = mload v17
+    v19 = and v18, 0xffffffffffffffff
+    v20 = eq v18, v19
+    v21 = eq v20, false
+    icall revert_if<empty>, v21
+    v22 = add 0, 0
+    v23 = mload v22
+    ret v23
+  bb4:
+    v4 = checked_add u256, v2, 1
+    v5 = checked_mul u256, v4, 10
+    v6 = and v5, 0xffffffffffffffff
+    icall @inline_array_push_8_0, 0, v6
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v7 = checked_add u256, v2, 1
+    jump bb1
+}
+
+fn @getterOutOfBounds() -> i256 [selector=0x7177d2c7, abi_params=[], abi_returns=[word<u64>], abi_return_params=[u64]] {
+  bb0:
+    icall @inline_array_push_8_0, 0, 1
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [word], selector 0x80c9419e00000000000000000000000000000000000000000000000000000000, args 1
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = zext i160 v0 to i256
+    v6 = staticcall v1, v5, v3, v4, 0, 32
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    v11 = and v10, 0xffffffffffffffff
+    v12 = eq v10, v11
+    v13 = eq v12, false
+    icall revert_if<empty>, v13
+    v14 = add 0, 0
+    v15 = mload v14
+    ret v15
+}
+
+fn @pushZero() -> struct2 [selector=0xe83b401e, abi_params=[], abi_returns=[memory_array<word<u64>>, word], abi_return_params=[array<_, u64>, u256]] {
+  bb0:
+    icall @inline_array_push_8_0, 0, 0
+    icall @inline_array_push_8_0, 0, 0
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = shr 248, v0
+    v2 = ne v1, 0
+    v3 = select v2, v1, v0
+    v4 = sub v3, 1
+    jumpi v2, bb1, bb2
+  bb2:
+    v6 = storage_array_data_slot 0
+    v7 = div v4, 4
+    v8 = add v6, v7
+    v9 = mod v4, 4
+    v10 = mul v9, 8
+    jump bb3
+  bb1:
+    v5 = mul v4, 8
+    jump bb3
+  bb3:
+    v11 = phi [bb1: 0], [bb2: v8]
+    v12 = phi [bb1: v5], [bb2: v10]
+    v13 = mul v12, 8
+    v14 = shl v13, 0xffffffffffffffff
+    v15 = sload v11 !metadata(storage=symbolic(v11))
+    v16 = not v14
+    v17 = and v15, v16
+    v18 = and 7, 0xffffffffffffffff
+    v19 = shl v13, v18
+    v20 = or v17, v19
+    sstore v11, v20 !metadata(storage=symbolic(v11))
+    v21 = icall @load_storage_inline_array_8_0, 0
+    v22 = sload 0 !metadata(storage=slot(0))
+    v23 = shr 248, v22
+    v24 = ne v23, 0
+    v25 = select v24, v23, v22
+    v26 = insert_value struct2, undef struct2, 0, v21
+    v27 = insert_value struct2, v26, 1, v25
+    ret v27
+}
+
+fn @triples(arg0: i256) -> struct4 [selector=0xb15dafc9, inline_assembly, abi_params=[u256], abi_returns=[word, word, word, word], abi_return_params=[u256, bytes32, bytes32, bytes32]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v4]
+    v5 = phi [bb0: 0], [bb3: v10]
+    v6 = lt v5, v0
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v11 = keccak256_packed (u256 1)
+    v12 = sload 1 !metadata(storage=slot(1))
+    v13 = sload v11 !metadata(storage=symbolic(v11))
+    v14 = add v11, 1
+    v15 = sload v14 !metadata(storage=offset(v11, 1))
+    jump bb7
+  bb7:
+    v16 = phi [bb2: v0], [bb9: v16]
+    v17 = phi [bb2: v1], [bb9: v17]
+    v18 = phi [bb2: v12], [bb9: v18]
+    v19 = phi [bb2: v13], [bb9: v19]
+    v20 = phi [bb2: v15], [bb9: v20]
+    v21 = phi [bb2: v5], [bb9: v21]
+    v22 = phi [bb2: v11], [bb9: v22]
+    v23 = phi [bb2: 0], [bb9: v49]
+    v24 = lt v23, v16
+    jumpi v24, bb10, bb11
+  bb11:
+    jump bb8
+  bb8:
+    v50 = sload 1 !metadata(storage=slot(1))
+    v51 = shr 248, v50
+    v52 = ne v51, 0
+    v53 = select v52, v51, v50
+    v54 = insert_value struct4, undef struct4, 0, v53
+    v55 = insert_value struct4, v54, 1, v18
+    v56 = insert_value struct4, v55, 2, v19
+    v57 = insert_value struct4, v56, 3, v20
+    ret v57
+  bb10:
+    v25 = sload 1 !metadata(storage=slot(1))
+    v26 = shr 248, v25
+    v27 = ne v26, 0
+    v28 = select v27, v26, v25
+    v29 = lt v23, v28
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    jumpi v27, bb13, bb14
+  bb14:
+    v32 = storage_array_data_slot 1
+    v33 = div v23, 10
+    v34 = add v32, v33
+    v35 = mod v23, 10
+    v36 = mul v35, 3
+    jump bb15
+  bb13:
+    v31 = mul v23, 3
+    jump bb15
+  bb15:
+    v37 = phi [bb13: 1], [bb14: v34]
+    v38 = phi [bb13: v31], [bb14: v36]
+    v39 = sload v37 !metadata(storage=symbolic(v37))
+    v40 = mul v38, 8
+    v41 = shr v40, v39
+    v42 = and v41, 0xffffff
+    v43 = shl 232, v42
+    v44 = checked_add u256, 0xa00000, v23
+    v45 = and v44, 0xffffff
+    v46 = shl 232, v45
+    v47 = eq v43, v46
+    v48 = eq v47, false
+    icall revert_if<empty>, v48
+    jump bb12
+  bb12:
+    jump bb9
+  bb9:
+    v49 = checked_add u256, v23, 1
+    jump bb7
+  bb4:
+    v7 = checked_add u256, 0xa00000, v5
+    v8 = and v7, 0xffffff
+    v9 = shl 232, v8
+    icall @inline_array_push_3_2, 1, v9
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v10 = checked_add u256, v5, 1
+    jump bb1
+}
+
+fn @copies(arg0: i256) -> struct2 [selector=0x2f27240d, abi_params=[u256], abi_returns=[memory_array<word<u64>>, word<bool>], abi_return_params=[array<_, u64>, bool]] {
+  bb0:
+    v0 = mul arg0, 1
+    v1 = eq 1, 0
+    v2 = div v0, 1
+    v3 = eq v2, arg0
+    v4 = or v1, v3
+    v5 = zext i1 v4 to i256
+    v6 = eq v5, 0
+    icall panic_if<0x41>, v6
+    v7 = add v0, 1
+    v8 = lt v7, v0
+    icall panic_if<0x41>, v8
+    v9 = mul v7, 32
+    v10 = eq 32, 0
+    v11 = div v9, 32
+    v12 = eq v11, v7
+    v13 = or v10, v12
+    v14 = zext i1 v13 to i256
+    v15 = eq v14, 0
+    icall panic_if<0x41>, v15
+    v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
+    set_memory_object_len memoryarray, v16, arg0
+    jump bb1
+  bb1:
+    v17 = phi [bb0: arg0], [bb3: v17]
+    v18 = phi [bb0: memoryarray 96], [bb3: v18]
+    v19 = phi [bb0: 0], [bb3: v19]
+    v20 = phi [bb0: v16], [bb3: v20]
+    v21 = phi [bb0: 0], [bb3: v30]
+    v22 = lt v21, v17
+    jumpi v22, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v31 = icall @load_storage_inline_array_8_0, 0
+    v32 = memory_object_len memoryarray, v31
+    v33 = sload 3 !metadata(storage=slot(3))
+    v34 = gt v33, v32
+    jumpi v34, bb7, bb8
+  bb7:
+    jump bb9
+  bb9:
+    v35 = phi [bb7: v32], [bb10: v50]
+    v36 = lt v35, v33
+    jumpi v36, bb10, bb11
+  bb11:
+    jump bb8
+  bb8:
+    sstore 3, v32 !metadata(storage=slot(3))
+    jump bb12
+  bb12:
+    v51 = phi [bb8: 0], [bb13: v67]
+    v52 = lt v51, v32
+    jumpi v52, bb13, bb14
+  bb14:
+    v68 = shr 2, v32
+    v69 = and v32, 3
+    v70 = eq v69, 0
+    jumpi v70, bb16, bb15
+  bb15:
+    v71 = mul v69, 64
+    v72 = shl v71, 1
+    v73 = sub v72, 1
+    v74 = storage_array_data_slot 3
+    v75 = add v74, v68
+    v76 = sload v75 !metadata(storage=symbolic(v75))
+    v77 = and v76, v73
+    sstore v75, v77 !metadata(storage=symbolic(v75))
+    jump bb16
+  bb16:
+    v78 = icall @load_storage_packed_array_8_0, 3
+    v79 = icall @load_storage_inline_array_8_0, 0
+    v80 = abi_encode [memory_array<word<u64>>], scratch, args v79
+    v81 = slice_ptr v80
+    v82 = slice_len v80
+    v83 = keccak256 v81, v82
+    v84 = abi_encode [memory_array<word<u64>>], scratch, args v20
+    v85 = slice_ptr v84
+    v86 = slice_len v84
+    v87 = keccak256 v85, v86
+    v88 = eq v83, v87
+    v89 = zext i1 v88 to i256
+    v90 = insert_value struct2, undef struct2, 0, v78
+    v91 = insert_value struct2, v90, 1, v89
+    ret v91
+  bb13:
+    v53 = memory_object_load_element memoryarray<1>, v31, v51
+    v54 = storage_array_data_slot 3
+    v55 = div v51, 4
+    v56 = add v54, v55
+    v57 = mod v51, 4
+    v58 = mul v57, 8
+    v59 = mul v58, 8
+    v60 = shl v59, 0xffffffffffffffff
+    v61 = sload v56 !metadata(storage=symbolic(v56))
+    v62 = not v60
+    v63 = and v61, v62
+    v64 = and v53, 0xffffffffffffffff
+    v65 = shl v59, v64
+    v66 = or v63, v65
+    sstore v56, v66 !metadata(storage=symbolic(v56))
+    v67 = add v51, 1
+    jump bb12
+  bb10:
+    v37 = storage_array_data_slot 3
+    v38 = div v35, 4
+    v39 = add v37, v38
+    v40 = mod v35, 4
+    v41 = mul v40, 8
+    v42 = mul v41, 8
+    v43 = shl v42, 0xffffffffffffffff
+    v44 = sload v39 !metadata(storage=symbolic(v39))
+    v45 = not v43
+    v46 = and v44, v45
+    v47 = and 0, 0xffffffffffffffff
+    v48 = shl v42, v47
+    v49 = or v46, v48
+    sstore v39, v49 !metadata(storage=symbolic(v39))
+    v50 = add v35, 1
+    jump bb9
+  bb4:
+    v23 = checked_add u256, v21, 1
+    v24 = and v23, 0xffffffffffffffff
+    icall @inline_array_push_8_0, 0, v24
+    v25 = checked_add u256, v21, 1
+    v26 = and v25, 0xffffffffffffffff
+    v27 = memory_object_len memoryarray, v20
+    v28 = lt v21, v27
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    memory_object_store_element memoryarray<1>, v20, v21, v26
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v30 = checked_add u256, v21, 1
+    jump bb1
+}
+
+fn @signed() -> struct2 [selector=0x232a6b9d, inline_assembly, abi_params=[], abi_returns=[memory_array<word<i16>>, word], abi_return_params=[array<_, i16>, bytes32]] {
+  bb0:
+    v0 = sub 0, 1
+    icall @inline_array_push_2_1, 2, v0
+    icall @inline_array_push_2_1, 2, 2
+    icall @inline_array_push_2_1, 2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8000
+    v1 = sload 2 !metadata(storage=slot(2))
+    v2 = icall @load_storage_inline_array_2_1, 2
+    v3 = insert_value struct2, undef struct2, 0, v2
+    v4 = insert_value struct2, v3, 1, v1
+    ret v4
+}
+
+fn @inline_array_push_8_0(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = shr 248, v0
+    v2 = ne v1, 0
+    v3 = select v2, v1, v0
+    v4 = eq v0, 0
+    v5 = or v2, v4
+    v6 = zext i1 v5 to i256
+    v7 = lt v3, 3
+    v8 = zext i1 v7 to i256
+    v9 = and v6, v8
+    v10 = ne v9, 0
+    jumpi v10, bb1, bb2
+  bb2:
+    jumpi v2, bb3, bb4
+  bb4:
+    v21 = sload arg0 !metadata(storage=symbolic(arg0))
+    v22 = gt v21, 0xffffffffffffffff
+    icall panic_if<0x41>, v22
+    v23 = add v21, 1
+    v24 = storage_array_data_slot arg0
+    v25 = div v21, 4
+    v26 = add v24, v25
+    v27 = mod v21, 4
+    v28 = mul v27, 8
+    v29 = mul v28, 8
+    v30 = shl v29, 0xffffffffffffffff
+    v31 = sload v26 !metadata(storage=symbolic(v26))
+    v32 = not v30
+    v33 = and v31, v32
+    v34 = and arg1, 0xffffffffffffffff
+    v35 = shl v29, v34
+    v36 = or v33, v35
+    sstore v26, v36 !metadata(storage=symbolic(v26))
+    sstore arg0, v23 !metadata(storage=symbolic(arg0))
+    ret
+  bb3:
+    v16 = storage_array_data_slot arg0
+    v17 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v18 = and arg1, 0xffffffffffffffff
+    v19 = shl 192, v18
+    v20 = or v17, v19
+    sstore v16, v20 !metadata(storage=symbolic(v16))
+    sstore arg0, 4 !metadata(storage=symbolic(arg0))
+    ret
+  bb1:
+    v11 = add v0, 0x100000000000000000000000000000000000000000000000000000000000000
+    v12 = and arg1, 0xffffffffffffffff
+    v13 = mul v3, 64
+    v14 = shl v13, v12
+    v15 = or v11, v14
+    sstore arg0, v15 !metadata(storage=symbolic(arg0))
+    ret
+}
+
+fn @load_storage_inline_array_8_0(arg0: i256) -> memoryarray {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = shr 248, v0
+    v2 = ne v1, 0
+    v3 = select v2, v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    v20 = icall @load_storage_packed_array_8_0, arg0
+    ret v20
+  bb1:
+    v4 = add v3, 1
+    v5 = lt v4, v3
+    icall panic_if<0x41>, v5
+    v6 = mul v4, 32
+    v7 = eq 32, 0
+    v8 = div v6, 32
+    v9 = eq v8, v4
+    v10 = or v7, v9
+    v11 = zext i1 v10 to i256
+    v12 = eq v11, 0
+    icall panic_if<0x41>, v12
+    v13 = alloc memoryarray<1>, exact, uninitialized, panic, v6
+    set_memory_object_len memoryarray, v13, v3
+    jump bb3
+  bb3:
+    v14 = phi [bb1: 0], [bb4: v19]
+    v15 = lt v14, v3
+    jumpi v15, bb4, bb5
+  bb5:
+    ret v13
+  bb4:
+    v16 = mul v14, 64
+    v17 = shr v16, v0
+    v18 = and v17, 0xffffffffffffffff
+    memory_object_store_element memoryarray<1>, v13, v14, v18
+    v19 = add v14, 1
+    jump bb3
+}
+
+fn @load_storage_packed_array_8_0(arg0: i256) -> memoryarray {
+  bb0:
+    v0 = load_storage_array u64, arg0
+    ret v0
+}
+
+fn @inline_array_pop_8_0(arg0: i256) {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = shr 248, v0
+    v2 = ne v1, 0
+    v3 = select v2, v1, v0
+    v4 = eq v3, 0
+    icall panic_if<0x31>, v4
+    v5 = sub v3, 1
+    jumpi v2, bb1, bb2
+  bb2:
+    sstore arg0, v5 !metadata(storage=symbolic(arg0))
+    v11 = storage_array_data_slot arg0
+    v12 = div v5, 4
+    v13 = add v11, v12
+    v14 = mod v5, 4
+    v15 = mul v14, 8
+    v16 = mul v15, 8
+    v17 = shl v16, 0xffffffffffffffff
+    v18 = sload v13 !metadata(storage=symbolic(v13))
+    v19 = not v17
+    v20 = and v18, v19
+    v21 = and 0, 0xffffffffffffffff
+    v22 = shl v16, v21
+    v23 = or v20, v22
+    sstore v13, v23 !metadata(storage=symbolic(v13))
+    ret
+  bb1:
+    v6 = mul v5, 64
+    v7 = shl v6, 0xffffffffffffffff
+    v8 = not v7
+    v9 = and v0, v8
+    v10 = sub v9, 0x100000000000000000000000000000000000000000000000000000000000000
+    sstore arg0, v10 !metadata(storage=symbolic(arg0))
+    ret
+}
+
+fn @inline_array_push_3_2(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = shr 248, v0
+    v2 = ne v1, 0
+    v3 = select v2, v1, v0
+    v4 = eq v0, 0
+    v5 = or v2, v4
+    v6 = zext i1 v5 to i256
+    v7 = lt v3, 10
+    v8 = zext i1 v7 to i256
+    v9 = and v6, v8
+    v10 = ne v9, 0
+    jumpi v10, bb1, bb2
+  bb2:
+    jumpi v2, bb3, bb4
+  bb4:
+    v22 = sload arg0 !metadata(storage=symbolic(arg0))
+    v23 = gt v22, 0xffffffffffffffff
+    icall panic_if<0x41>, v23
+    v24 = add v22, 1
+    v25 = storage_array_data_slot arg0
+    v26 = div v22, 10
+    v27 = add v25, v26
+    v28 = mod v22, 10
+    v29 = mul v28, 3
+    v30 = mul v29, 8
+    v31 = shl v30, 0xffffff
+    v32 = sload v27 !metadata(storage=symbolic(v27))
+    v33 = not v31
+    v34 = and v32, v33
+    v35 = shr 232, arg1
+    v36 = and v35, 0xffffff
+    v37 = shl v30, v36
+    v38 = or v34, v37
+    sstore v27, v38 !metadata(storage=symbolic(v27))
+    sstore arg0, v24 !metadata(storage=symbolic(arg0))
+    ret
+  bb3:
+    v17 = storage_array_data_slot arg0
+    v18 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v19 = shr 232, arg1
+    v20 = and v19, 0xffffff
+    sstore v17, v18 !metadata(storage=symbolic(v17))
+    v21 = add v17, 1
+    sstore v21, v20 !metadata(storage=offset(v17, 1))
+    sstore arg0, 11 !metadata(storage=symbolic(arg0))
+    ret
+  bb1:
+    v11 = add v0, 0x100000000000000000000000000000000000000000000000000000000000000
+    v12 = shr 232, arg1
+    v13 = and v12, 0xffffff
+    v14 = mul v3, 24
+    v15 = shl v14, v13
+    v16 = or v11, v15
+    sstore arg0, v16 !metadata(storage=symbolic(arg0))
+    ret
+}
+
+fn @inline_array_push_2_1(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = shr 248, v0
+    v2 = ne v1, 0
+    v3 = select v2, v1, v0
+    v4 = eq v0, 0
+    v5 = or v2, v4
+    v6 = zext i1 v5 to i256
+    v7 = lt v3, 15
+    v8 = zext i1 v7 to i256
+    v9 = and v6, v8
+    v10 = ne v9, 0
+    jumpi v10, bb1, bb2
+  bb2:
+    jumpi v2, bb3, bb4
+  bb4:
+    v21 = sload arg0 !metadata(storage=symbolic(arg0))
+    v22 = gt v21, 0xffffffffffffffff
+    icall panic_if<0x41>, v22
+    v23 = add v21, 1
+    v24 = storage_array_data_slot arg0
+    v25 = div v21, 16
+    v26 = add v24, v25
+    v27 = mod v21, 16
+    v28 = mul v27, 2
+    v29 = mul v28, 8
+    v30 = shl v29, 0xffff
+    v31 = sload v26 !metadata(storage=symbolic(v26))
+    v32 = not v30
+    v33 = and v31, v32
+    v34 = and arg1, 0xffff
+    v35 = shl v29, v34
+    v36 = or v33, v35
+    sstore v26, v36 !metadata(storage=symbolic(v26))
+    sstore arg0, v23 !metadata(storage=symbolic(arg0))
+    ret
+  bb3:
+    v16 = storage_array_data_slot arg0
+    v17 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v18 = and arg1, 0xffff
+    v19 = shl 240, v18
+    v20 = or v17, v19
+    sstore v16, v20 !metadata(storage=symbolic(v16))
+    sstore arg0, 16 !metadata(storage=symbolic(arg0))
+    ret
+  bb1:
+    v11 = add v0, 0x100000000000000000000000000000000000000000000000000000000000000
+    v12 = and arg1, 0xffff
+    v13 = mul v3, 16
+    v14 = shl v13, v12
+    v15 = or v11, v14
+    sstore arg0, v15 !metadata(storage=symbolic(arg0))
+    ret
+}
+
+fn @load_storage_inline_array_2_1(arg0: i256) -> memoryarray {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = shr 248, v0
+    v2 = ne v1, 0
+    v3 = select v2, v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    v21 = icall @load_storage_packed_array_2_1, arg0
+    ret v21
+  bb1:
+    v4 = add v3, 1
+    v5 = lt v4, v3
+    icall panic_if<0x41>, v5
+    v6 = mul v4, 32
+    v7 = eq 32, 0
+    v8 = div v6, 32
+    v9 = eq v8, v4
+    v10 = or v7, v9
+    v11 = zext i1 v10 to i256
+    v12 = eq v11, 0
+    icall panic_if<0x41>, v12
+    v13 = alloc memoryarray<1>, exact, uninitialized, panic, v6
+    set_memory_object_len memoryarray, v13, v3
+    jump bb3
+  bb3:
+    v14 = phi [bb1: 0], [bb4: v20]
+    v15 = lt v14, v3
+    jumpi v15, bb4, bb5
+  bb5:
+    ret v13
+  bb4:
+    v16 = mul v14, 16
+    v17 = shr v16, v0
+    v18 = and v17, 0xffff
+    v19 = signextend 1, v18
+    memory_object_store_element memoryarray<1>, v13, v14, v19
+    v20 = add v14, 1
+    jump bb3
+}
+
+fn @load_storage_packed_array_2_1(arg0: i256) -> memoryarray {
+  bb0:
+    v0 = load_storage_array i16, arg0
+    ret v0
+}
