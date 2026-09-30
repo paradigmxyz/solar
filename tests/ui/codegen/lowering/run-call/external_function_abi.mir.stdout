@@ -24,7 +24,7 @@ fn @echoArray(arg0: memoryarray) -> memoryarray [selector=0xb4b16456, pure, abi_
     ret arg0
 }
 
-fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @run() -> i256 [selector=0xc0406226, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256

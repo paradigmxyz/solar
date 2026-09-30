@@ -21,30 +21,30 @@ fn @add() [selector=0xe022d77c, abi_wrapper, view] {
     jumpi v53, bb6, bb8
   bb8:
     v7 = gas
-    v87 = mload 64 !metadata(memory=scratch)
-    v88 = add v87, 160
-    mstore 64, v88 !metadata(memory=scratch)
-    mstore v87, 128
-    v84 = add v87, 32
-    mstore v84, arg0
-    v65 = add v87, 64
+    v86 = mload 64 !metadata(memory=scratch)
+    v87 = add v86, 160
+    mstore 64, v87 !metadata(memory=scratch)
+    mstore v86, 128
+    v83 = add v86, 32
+    mstore v83, arg0
+    v65 = add v86, 64
     mstore v65, arg1
-    v67 = add v87, 96
+    v67 = add v86, 96
     mstore v67, arg2
-    v69 = add v87, 128
+    v69 = add v86, 128
     mstore v69, arg3
-    v28 = staticcall v7, 6, v84, 128, 0, 0
+    v28 = staticcall v7, 6, v83, 128, 0, 0
     v29 = returndatasize
     v30 = add v29, 63
     v31 = lt v30, v29
     jumpi v31, bb4, bb5
   bb5:
     v33 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v85 = mload 64 !metadata(memory=scratch)
-    v86 = add v85, v33
-    mstore 64, v86 !metadata(memory=scratch)
-    mstore v85, v29
-    v74 = add v85, 32
+    v84 = mload 64 !metadata(memory=scratch)
+    v85 = add v84, v33
+    mstore 64, v85 !metadata(memory=scratch)
+    mstore v84, v29
+    v74 = add v84, 32
     returndatacopy v74, 0, v29
     jumpi v28, bb2, bb1
   bb2:
@@ -58,7 +58,7 @@ fn @add() [selector=0xe022d77c, abi_wrapper, view] {
     jumpi v43, bb6, bb7
   bb7:
     v46 = mload v74
-    v48 = add v85, 64
+    v48 = add v84, 64
     v49 = mload v48
     v19 = zext i1 v28 to i256
     jump bb1

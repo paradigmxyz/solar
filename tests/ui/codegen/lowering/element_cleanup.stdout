@@ -91,7 +91,7 @@
       ret v0
   }
   
-  fn @dirty(arg0: memoryarray) -> i256 [selector=0x74016a59, pure, abi_params=[array<_, address>], abi_returns=[word<u160>], abi_return_params=[address]] {
+  fn @dirty(arg0: memoryarray) -> i256 [selector=0x74016a59, inline_assembly, pure, abi_params=[array<_, address>], abi_returns=[word<u160>], abi_return_params=[address]] {
     bb0:
       v0 = ptrtoint memoryarray arg0 to i256
       v1 = add v0, 32

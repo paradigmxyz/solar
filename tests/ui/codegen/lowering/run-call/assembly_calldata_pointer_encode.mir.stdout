@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/assembly_calldata_pointer_encode.sol:AssemblyCalldataPointerEncode ===
 @module AssemblyCalldataPointerEncode
-fn @arrayCopy() -> memoryfixedarray [selector=0xb192499e, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @arrayCopy() -> memoryfixedarray [selector=0xb192499e, inline_assembly, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
     v0 = make_calldata_slice 4, 2
     v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
@@ -17,7 +17,7 @@ fn @arrayCopy() -> memoryfixedarray [selector=0xb192499e, pure, abi_params=[], a
     ret v7
 }
 
-fn @bytesCopy() -> memorybytes [selector=0x6310efb6, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @bytesCopy() -> memorybytes [selector=0x6310efb6, inline_assembly, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = make_calldata_slice 0, 0
     v1 = slice_ptr v0
@@ -46,7 +46,7 @@ fn @bytesCopy() -> memorybytes [selector=0x6310efb6, pure, abi_params=[], abi_re
     ret v12
 }
 
-fn @bytesHash() -> i256 [selector=0x05da852c, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @bytesHash() -> i256 [selector=0x05da852c, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = make_calldata_slice 0, 0
     v1 = slice_ptr v0
@@ -76,7 +76,7 @@ fn @bytesHash() -> i256 [selector=0x05da852c, pure, abi_params=[], abi_returns=[
     ret v19
 }
 
-fn @bytesLength() -> i256 [selector=0x46cab953, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @bytesLength() -> i256 [selector=0x46cab953, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = make_calldata_slice 0, 0
     v1 = slice_ptr v0
@@ -89,7 +89,7 @@ fn @bytesLength() -> i256 [selector=0x46cab953, pure, abi_params=[], abi_returns
     ret v7
 }
 
-fn @arrayIndex() -> i256 [selector=0xf1de2d43, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @arrayIndex() -> i256 [selector=0xf1de2d43, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = make_calldata_slice 4, 2
     v1 = slice_len v0
@@ -115,7 +115,7 @@ fn @structFirst() -> i256 [selector=0x2165fa18, pure, abi_params=[], abi_returns
     ret v3
 }
 
-fn @makeStruct() -> calldataslice [pure] {
+fn @makeStruct() -> calldataslice [inline_assembly, pure] {
   bb0:
     v0 = make_calldata_slice 4, 0
     ret v0

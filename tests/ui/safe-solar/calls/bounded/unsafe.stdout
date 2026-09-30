@@ -4,7 +4,7 @@
 types:
   struct0: {i256, i256, i256, i256}
 
-fn @probe() [selector=0xbed1a1cc, abi_wrapper] {
+fn @probe() [selector=0xbed1a1cc, abi_wrapper, inline_assembly] {
   bb0:
     v30 = calldatasize
     v31 = lt v30, 36

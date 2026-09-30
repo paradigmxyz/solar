@@ -30,8 +30,8 @@ fn @fixedSize() [selector=0x77e15753, abi_wrapper, pure] {
     v8 = eq v7, 0
     jumpi v8, bb3, bb1
   bb3:
-    mstore 0, 96 !metadata(memory=scratch)
-    returndata 0, 32
+    mstore 128, 96
+    returndata 128, 32
   bb1:
     revert 0, 0
 }
@@ -77,8 +77,8 @@ fn @dynamicSize() [selector=0x509079b7, abi_wrapper, pure] {
     v7 = shl 5, v34
     v8 = add v7, 32
     v9 = add v5, v8
-    mstore 0, v9 !metadata(memory=scratch)
-    returndata 0, 32
+    mstore 128, v9
+    returndata 128, 32
   bb1:
     revert 0, 0
 }
@@ -104,56 +104,55 @@ fn @staged() [selector=0xb73ce65c, abi_wrapper, pure] {
     jumpi v15, bb1, bb4
   bb4:
     v65 = mload 64 !metadata(memory=scratch)
-    v20 = add v65, 32
+    v21 = add v65, 32
     mstore v65, 32
-    mstore v20, v11
-    v25 = add v20, 32
-    v26 = shl 5, v11
-    v27 = add v25, v26
+    mstore v21, v11
+    v26 = add v21, 32
+    v27 = shl 5, v11
+    v28 = add v26, v27
     jump bb5
   bb5:
-    v29 = phi [bb4: v11], [bb10: v57]
-    v30 = phi [bb4: v27], [bb10: v56]
-    v31 = phi [bb4: v25], [bb10: v59]
-    v32 = phi [bb4: v6], [bb10: v58]
-    v33 = gt v29, 0
-    jumpi v33, bb6, bb7
+    v30 = phi [bb4: v11], [bb10: v57]
+    v31 = phi [bb4: v28], [bb10: v56]
+    v32 = phi [bb4: v26], [bb10: v59]
+    v33 = phi [bb4: v6], [bb10: v58]
+    v34 = gt v30, 0
+    jumpi v34, bb6, bb7
   bb7:
-    v61 = sub v30, v65
-    mstore 0, v61
-    returndata 0, 32
+    v61 = sub v31, v65
+    mstore 128, v61
+    returndata 128, 32
   bb6:
-    v34 = calldataload v32
-    v35 = calldatasize
-    v36 = sub v35, v6
-    v37 = sub v36, 31
-    v38 = slt v34, v37
-    jumpi v38, bb8, bb1
+    v35 = calldataload v33
+    v36 = calldatasize
+    v37 = sub v36, v6
+    v38 = sub v37, 31
+    v39 = slt v35, v38
+    jumpi v39, bb8, bb1
   bb8:
-    v40 = add v6, v34
-    v41 = calldataload v40
-    v42 = shr 64, v41
-    v43 = ne v42, 0
+    v41 = add v6, v35
+    v42 = calldataload v41
+    v43 = gt v42, 0xffffffffffffffff
     jumpi v43, bb1, bb9
   bb9:
-    v44 = add v40, 32
-    v45 = sub v35, v41
+    v44 = add v41, 32
+    v45 = sub v36, v42
     v46 = sgt v44, v45
     jumpi v46, bb1, bb10
   bb10:
-    v48 = sub v30, v25
-    mstore v31, v48
-    v51 = add v41, 31
+    v48 = sub v31, v26
+    mstore v32, v48
+    v51 = add v42, 31
     v52 = and v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v53 = add v30, 32
-    v54 = add v30, v52
+    v53 = add v31, 32
+    v54 = add v31, v52
     mstore v54, 0
-    mstore v30, v41
+    mstore v31, v42
     v56 = add v53, v52
-    calldatacopy v53, v44, v41
-    v57 = sub v29, 1
-    v58 = add v32, 32
-    v59 = add v31, 32
+    calldatacopy v53, v44, v42
+    v57 = sub v30, 1
+    v58 = add v33, 32
+    v59 = add v32, 32
     jump bb5
   bb1:
     revert 0, 0

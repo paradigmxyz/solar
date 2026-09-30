@@ -39,9 +39,9 @@ fn @entry() [entry] {
 @phase lowered
 fn @spell() [selector=0x0f590e07, abi_wrapper, pure] {
   bb0:
-    v171 = calldatasize
-    v172 = lt v171, 68
-    jumpi v172, bb19, bb20
+    v170 = calldatasize
+    v171 = lt v170, 68
+    jumpi v171, bb19, bb20
   bb20:
     v0 = lt arg1, 16
     jumpi v0, bb1, bb4
@@ -51,141 +51,138 @@ fn @spell() [selector=0x0f590e07, abi_wrapper, pure] {
     jumpi v55, bb15, bb16
   bb16:
     v56 = add arg1, arg1
-    v57 = shr 64, v56
-    v58 = ne v57, 0
-    jumpi v58, bb17, bb18
+    v57 = gt v56, 0xffffffffffffffff
+    jumpi v57, bb17, bb18
   bb18:
-    v59 = add v56, 2
-    v60 = add v59, 95
-    v61 = and v60, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v201 = mload 64 !metadata(memory=scratch)
-    v62 = inttoptr i256 v201 to memptr !metadata(memory=scratch)
-    v202 = add v201, v61
-    v203 = lt v202, v201
-    v204 = zext i1 v203 to i256
-    v205 = shr 64, v202
-    v206 = or v204, v205
-    v207 = ne v206, 0
-    jumpi v207, bb17, bb21
+    v58 = add v56, 2
+    v59 = add v58, 95
+    v60 = and v59, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v219 = mload 64 !metadata(memory=scratch)
+    v61 = inttoptr i256 v219 to memptr !metadata(memory=scratch)
+    v220 = add v219, v60
+    v221 = lt v220, v219
+    v222 = gt v220, 0xffffffffffffffff
+    v223 = or v221, v222
+    jumpi v223, bb17, bb21
   bb21:
-    mstore 64, v202 !metadata(memory=scratch)
-    mstore v201, v59
-    v65 = add v201, 34
-    v66 = shl 3, arg1
-    v67 = shr v66, arg0
-    v68 = ne v67, 0
-    jumpi v68, bb6, bb8
+    mstore 64, v220 !metadata(memory=scratch)
+    mstore v219, v58
+    v64 = add v219, 34
+    v65 = shl 3, arg1
+    v66 = shr v65, arg0
+    v67 = ne v66, 0
+    jumpi v67, bb6, bb8
   bb8:
-    v69 = gt arg1, 16
-    jumpi v69, bb10, bb9
+    v68 = gt arg1, 16
+    jumpi v68, bb10, bb9
   bb9:
-    v70 = shl 64, arg0
-    v71 = or arg0, v70
-    v72 = and v71, 0xffffffffffffffff0000000000000000ffffffffffffffff
-    v73 = shl 32, v72
-    v74 = or v72, v73
-    v75 = and v74, 0xffffffff00000000ffffffff00000000ffffffff00000000ffffffff
-    v76 = shl 16, v75
-    v77 = or v75, v76
-    v78 = and v77, 0xffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff
-    v79 = shl 8, v78
-    v80 = or v78, v79
-    v81 = and v80, 0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff
-    v82 = shl 4, v81
-    v83 = or v81, v82
-    v84 = and v83, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
-    v85 = add v84, 0x606060606060606060606060606060606060606060606060606060606060606
-    v86 = shr 4, v85
-    v87 = and v86, 0x101010101010101010101010101010101010101010101010101010101010101
-    v88 = add v84, 0x3030303030303030303030303030303030303030303030303030303030303030
-    v89 = mul v87, 39
-    v90 = add v88, v89
-    v91 = shl 3, v56
-    v92 = sub 256, v91
-    v93 = shl v92, v90
-    mstore v65, v93
+    v69 = shl 64, arg0
+    v70 = or arg0, v69
+    v71 = and v70, 0xffffffffffffffff0000000000000000ffffffffffffffff
+    v72 = shl 32, v71
+    v73 = or v71, v72
+    v74 = and v73, 0xffffffff00000000ffffffff00000000ffffffff00000000ffffffff
+    v75 = shl 16, v74
+    v76 = or v74, v75
+    v77 = and v76, 0xffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff
+    v78 = shl 8, v77
+    v79 = or v77, v78
+    v80 = and v79, 0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff
+    v81 = shl 4, v80
+    v82 = or v80, v81
+    v83 = and v82, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+    v84 = add v83, 0x606060606060606060606060606060606060606060606060606060606060606
+    v85 = shr 4, v84
+    v86 = and v85, 0x101010101010101010101010101010101010101010101010101010101010101
+    v87 = add v83, 0x3030303030303030303030303030303030303030303030303030303030303030
+    v88 = mul v86, 39
+    v89 = add v87, v88
+    v90 = shl 3, v56
+    v91 = sub 256, v90
+    v92 = shl v91, v89
+    mstore v64, v92
     jump bb11
   bb10:
-    v94 = gt v56, 64
-    v95 = sub v56, 64
-    v161 = zext i1 v94 to i256
-    v96 = mul v161, v95
-    v97 = add v96, 31
-    v98 = shr 5, v97
-    v169 = shl 5, v98
-    v170 = add v65, v169
+    v93 = gt v56, 64
+    v94 = sub v56, 64
+    v160 = zext i1 v93 to i256
+    v95 = mul v160, v94
+    v96 = add v95, 31
+    v97 = shr 5, v96
+    v168 = shl 5, v97
+    v169 = add v64, v168
     jump bb12
   bb12:
-    v167 = phi [bb10: v65], [bb13: v168]
-    v100 = lt v167, v170
-    jumpi v100, bb13, bb14
+    v166 = phi [bb10: v64], [bb13: v167]
+    v99 = lt v166, v169
+    jumpi v99, bb13, bb14
   bb14:
-    v104 = add v65, v96
-    v105 = shr 128, arg0
-    v106 = shl 64, v105
-    v107 = or v105, v106
-    v108 = and v107, 0xffffffffffffffff0000000000000000ffffffffffffffff
-    v109 = shl 32, v108
-    v110 = or v108, v109
-    v111 = and v110, 0xffffffff00000000ffffffff00000000ffffffff00000000ffffffff
-    v112 = shl 16, v111
-    v113 = or v111, v112
-    v114 = and v113, 0xffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff
-    v115 = shl 8, v114
-    v116 = or v114, v115
-    v117 = and v116, 0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff
-    v118 = shl 4, v117
-    v119 = or v117, v118
-    v120 = and v119, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
-    v121 = add v120, 0x606060606060606060606060606060606060606060606060606060606060606
-    v122 = shr 4, v121
-    v123 = and v122, 0x101010101010101010101010101010101010101010101010101010101010101
-    v124 = add v120, 0x3030303030303030303030303030303030303030303030303030303030303030
-    v125 = mul v123, 39
-    v126 = add v124, v125
-    v127 = sub 64, v56
-    v164 = eq v94, false
-    v165 = zext i1 v164 to i256
-    v128 = mul v165, v127
-    v129 = shl 3, v128
-    v130 = shl v129, v126
-    mstore v104, v130
-    v131 = and arg0, 0xffffffffffffffffffffffffffffffff
-    v132 = shl 64, v131
-    v133 = or v131, v132
-    v134 = and v133, 0xffffffffffffffff0000000000000000ffffffffffffffff
-    v135 = shl 32, v134
-    v136 = or v134, v135
-    v137 = and v136, 0xffffffff00000000ffffffff00000000ffffffff00000000ffffffff
-    v138 = shl 16, v137
-    v139 = or v137, v138
-    v140 = and v139, 0xffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff
-    v141 = shl 8, v140
-    v142 = or v140, v141
-    v143 = and v142, 0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff
-    v144 = shl 4, v143
-    v145 = or v143, v144
-    v146 = and v145, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
-    v147 = add v146, 0x606060606060606060606060606060606060606060606060606060606060606
-    v148 = shr 4, v147
-    v149 = and v148, 0x101010101010101010101010101010101010101010101010101010101010101
-    v150 = add v146, 0x3030303030303030303030303030303030303030303030303030303030303030
-    v151 = mul v149, 39
-    v152 = add v150, v151
-    v153 = add v65, v56
-    v154 = sub v153, 32
-    mstore v154, v152
-    mstore v153, 0
+    v103 = add v64, v95
+    v104 = shr 128, arg0
+    v105 = shl 64, v104
+    v106 = or v104, v105
+    v107 = and v106, 0xffffffffffffffff0000000000000000ffffffffffffffff
+    v108 = shl 32, v107
+    v109 = or v107, v108
+    v110 = and v109, 0xffffffff00000000ffffffff00000000ffffffff00000000ffffffff
+    v111 = shl 16, v110
+    v112 = or v110, v111
+    v113 = and v112, 0xffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff
+    v114 = shl 8, v113
+    v115 = or v113, v114
+    v116 = and v115, 0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff
+    v117 = shl 4, v116
+    v118 = or v116, v117
+    v119 = and v118, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+    v120 = add v119, 0x606060606060606060606060606060606060606060606060606060606060606
+    v121 = shr 4, v120
+    v122 = and v121, 0x101010101010101010101010101010101010101010101010101010101010101
+    v123 = add v119, 0x3030303030303030303030303030303030303030303030303030303030303030
+    v124 = mul v122, 39
+    v125 = add v123, v124
+    v126 = sub 64, v56
+    v163 = eq v93, false
+    v164 = zext i1 v163 to i256
+    v127 = mul v164, v126
+    v128 = shl 3, v127
+    v129 = shl v128, v125
+    mstore v103, v129
+    v130 = and arg0, 0xffffffffffffffffffffffffffffffff
+    v131 = shl 64, v130
+    v132 = or v130, v131
+    v133 = and v132, 0xffffffffffffffff0000000000000000ffffffffffffffff
+    v134 = shl 32, v133
+    v135 = or v133, v134
+    v136 = and v135, 0xffffffff00000000ffffffff00000000ffffffff00000000ffffffff
+    v137 = shl 16, v136
+    v138 = or v136, v137
+    v139 = and v138, 0xffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff
+    v140 = shl 8, v139
+    v141 = or v139, v140
+    v142 = and v141, 0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff
+    v143 = shl 4, v142
+    v144 = or v142, v143
+    v145 = and v144, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+    v146 = add v145, 0x606060606060606060606060606060606060606060606060606060606060606
+    v147 = shr 4, v146
+    v148 = and v147, 0x101010101010101010101010101010101010101010101010101010101010101
+    v149 = add v145, 0x3030303030303030303030303030303030303030303030303030303030303030
+    v150 = mul v148, 39
+    v151 = add v149, v150
+    v152 = add v64, v56
+    v153 = sub v152, 32
+    mstore v153, v151
+    mstore v152, 0
     jump bb11
   bb11:
-    v158 = shl 16, v59
-    v159 = or v158, 0x3078
-    v157 = add v201, 2
-    mstore v157, v159
+    v157 = shl 16, v58
+    v158 = or v157, 0x3078
+    v156 = add v219, 2
+    mstore v156, v158
     jump bb5
   bb13:
-    mstore v167, 0x3030303030303030303030303030303030303030303030303030303030303030
-    v168 = add v167, 32
+    mstore v166, 0x3030303030303030303030303030303030303030303030303030303030303030
+    v167 = add v166, 32
     jump bb12
   bb17:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -231,14 +228,14 @@ fn @spell() [selector=0x0f590e07, abi_wrapper, pure] {
     v49 = shl v48, v45
     v50 = shr 16, v49
     v51 = or v50, 0x3078000000000000000000000000000000000000000000000000000000000000
-    v210 = mload 64 !metadata(memory=scratch)
-    v52 = inttoptr i256 v210 to memptr !metadata(memory=scratch)
-    v211 = add v210, 64
-    mstore 64, v211 !metadata(memory=scratch)
+    v227 = mload 64 !metadata(memory=scratch)
+    v52 = inttoptr i256 v227 to memptr !metadata(memory=scratch)
+    v228 = add v227, 64
+    mstore 64, v228 !metadata(memory=scratch)
     v53 = add v46, 2
-    mstore v210, v53
-    v191 = add v210, 32
-    mstore v191, v51
+    mstore v227, v53
+    v209 = add v227, 32
+    mstore v209, v51
     jump bb5
   bb2:
     v5 = shl 8, arg0
@@ -259,28 +256,41 @@ fn @spell() [selector=0x0f590e07, abi_wrapper, pure] {
     v20 = shl v19, v16
     v21 = shr 16, v20
     v22 = or v21, 0x3078000000000000000000000000000000000000000000000000000000000000
-    v208 = mload 64 !metadata(memory=scratch)
-    v23 = inttoptr i256 v208 to memptr !metadata(memory=scratch)
-    v209 = add v208, 64
-    mstore 64, v209 !metadata(memory=scratch)
+    v225 = mload 64 !metadata(memory=scratch)
+    v23 = inttoptr i256 v225 to memptr !metadata(memory=scratch)
+    v226 = add v225, 64
+    mstore 64, v226 !metadata(memory=scratch)
     v24 = add v17, 2
-    mstore v208, v24
-    v188 = add v208, 32
-    mstore v188, v22
+    mstore v225, v24
+    v206 = add v225, 32
+    mstore v206, v22
     jump bb5
   bb5:
-    v160 = phi [bb2: v23], [bb3: v52], [bb11: v62]
-    v195 = ptrtoint memptr v160 to i256
-    v176 = mload v195
-    v177 = add v176, 31
-    v179 = and v177, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v197 = add v195, 32
-    v182 = add v197, v176
-    mstore v182, 0
-    v184 = sub v195, 32
-    mstore v184, 32
-    v185 = add v179, 64
-    returndata v184, v185
+    v159 = phi [bb2: v23], [bb3: v52], [bb11: v61]
+    v229 = mload 64 !metadata(memory=scratch)
+    v177 = add v229, 32
+    mstore v229, 32
+    v213 = ptrtoint memptr v159 to i256
+    v185 = ne v213, 0
+    v186 = zext i1 v185 to i256
+    v181 = mload v213
+    v187 = mul v181, v186
+    v189 = add v187, 31
+    v190 = and v189, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v191 = add v177, 32
+    v192 = add v177, v190
+    mstore v192, 0
+    mstore v177, v187
+    v194 = add v191, v190
+    v215 = add v213, 32
+    mcopy v191, v215, v187
+    v197 = sub v194, v229
+    v199 = add v197, 31
+    v201 = and v199, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v230 = mload 64 !metadata(memory=scratch)
+    v231 = add v230, v201
+    mstore 64, v231 !metadata(memory=scratch)
+    returndata v230, v197
   bb6:
     mstore 0, 0x2194895a !metadata(memory=scratch)
     revert 28, 4

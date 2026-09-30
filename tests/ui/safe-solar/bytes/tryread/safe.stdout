@@ -33,30 +33,31 @@ fn @peek() [selector=0xa230438f, abi_wrapper, pure] {
     jumpi v40, bb4, bb5
   bb5:
     v42 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v63 = mload 64 !metadata(memory=scratch)
-    v64 = add v63, v42
-    v65 = lt v64, v63
-    v66 = gt v64, 0xffffffffffffffff
-    v67 = or v65, v66
-    jumpi v67, bb4, bb7
+    v64 = mload 64 !metadata(memory=scratch)
+    v65 = add v64, v42
+    v66 = lt v65, v64
+    v67 = gt v65, 0xffffffffffffffff
+    v68 = or v66, v67
+    jumpi v68, bb4, bb7
   bb7:
-    mstore 64, v64 !metadata(memory=scratch)
-    mstore v63, v37
+    mstore 64, v65 !metadata(memory=scratch)
+    mstore v64, v37
     v44 = sub v28, v32
     v45 = gt v37, v44
     jumpi v45, bb1, bb6
   bb6:
-    v54 = add v63, 32
+    v54 = add v64, 32
     calldatacopy v54, v32, v37
-    v69 = mload 64 !metadata(memory=scratch)
-    v70 = add v69, 64
-    mstore 64, v70 !metadata(memory=scratch)
-    mstore v69, 4
-    v60 = add v69, 32
+    v70 = mload 64 !metadata(memory=scratch)
+    v71 = add v70, 64
+    mstore 64, v71 !metadata(memory=scratch)
+    mstore v70, 4
+    v60 = add v70, 32
     mstore v60, 0x1122334400000000000000000000000000000000000000000000000000000000
+    v3 = mload v64
     v4 = add arg1, 4
     v5 = lt v4, arg1
-    v6 = gt v4, v37
+    v6 = gt v4, v3
     v7 = or v5, v6
     v9 = eq v7, false
     v24 = zext i1 v9 to i256

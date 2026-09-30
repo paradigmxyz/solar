@@ -10,7 +10,7 @@ fn @unusedMemoryBytes(arg0: memorybytes) -> i256 [selector=0x2758f02b, pure, abi
     ret 2
 }
 
-fn @unusedMemoryFmp(arg0: memorybytes) -> i256 [selector=0xc3b2ecc1, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @unusedMemoryFmp(arg0: memorybytes) -> i256 [selector=0xc3b2ecc1, inline_assembly, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     ret v0

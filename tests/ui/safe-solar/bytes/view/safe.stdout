@@ -22,47 +22,43 @@ fn @header() [selector=0x801fdbfc, abi_wrapper, pure] {
     v42 = calldataload 4
     v43 = add v42, 4
     v44 = add v43, 32
-    v45 = shr 64, v42
+    v45 = gt v42, 0xffffffffffffffff
     v46 = gt v44, v40
-    v47 = zext i1 v46 to i256
-    v48 = or v45, v47
-    v49 = ne v48, 0
-    jumpi v49, bb3, bb5
+    v47 = or v45, v46
+    jumpi v47, bb3, bb5
   bb5:
-    v50 = calldataload v43
-    v52 = add v50, 63
-    v53 = lt v52, v50
-    jumpi v53, bb6, bb7
+    v49 = calldataload v43
+    v51 = add v49, 63
+    v52 = lt v51, v49
+    jumpi v52, bb6, bb7
   bb7:
-    v55 = and v52, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v69 = mload 64 !metadata(memory=scratch)
-    v70 = add v69, v55
-    v71 = lt v70, v69
-    v72 = zext i1 v71 to i256
-    v73 = shr 64, v70
+    v54 = and v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v70 = mload 64 !metadata(memory=scratch)
+    v71 = add v70, v54
+    v72 = lt v71, v70
+    v73 = gt v71, 0xffffffffffffffff
     v74 = or v72, v73
-    v75 = ne v74, 0
-    jumpi v75, bb6, bb9
+    jumpi v74, bb6, bb9
   bb9:
-    mstore 64, v70 !metadata(memory=scratch)
-    mstore v69, v50
-    v57 = sub v40, v44
-    v58 = gt v50, v57
-    jumpi v58, bb3, bb8
+    mstore 64, v71 !metadata(memory=scratch)
+    mstore v70, v49
+    v56 = sub v40, v44
+    v57 = gt v49, v56
+    jumpi v57, bb3, bb8
   bb8:
-    v63 = add v69, 32
-    calldatacopy v63, v44, v50
-    v3 = lt v50, 4
+    v63 = add v70, 32
+    calldatacopy v63, v44, v49
+    v3 = lt v49, 4
     jumpi v3, bb1, bb2
   bb2:
-    v38 = sub v50, 4
-    v31 = add v69, 36
+    v38 = sub v49, 4
+    v31 = add v70, 36
     v35 = keccak256 v31, v38
     v19 = mload v63
     v20 = and v19, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 0, v20 !metadata(memory=scratch)
-    mstore 32, v35 !metadata(memory=scratch)
-    returndata 0, 64
+    mstore 128, v20
+    mstore 160, v35
+    returndata 128, 64
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)

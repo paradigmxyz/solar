@@ -30,20 +30,20 @@ fn @f() [selector=0xd45754f8, abi_wrapper, pure] {
     jumpi v23, bb6, bb7
   bb7:
     v25 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v39 = mload 64 !metadata(memory=scratch)
-    v40 = add v39, v25
-    v41 = lt v40, v39
-    v42 = gt v40, 0xffffffffffffffff
-    v43 = or v41, v42
-    jumpi v43, bb6, bb9
+    v40 = mload 64 !metadata(memory=scratch)
+    v41 = add v40, v25
+    v42 = lt v41, v40
+    v43 = gt v41, 0xffffffffffffffff
+    v44 = or v42, v43
+    jumpi v44, bb6, bb9
   bb9:
-    mstore 64, v40 !metadata(memory=scratch)
-    mstore v39, v20
+    mstore 64, v41 !metadata(memory=scratch)
+    mstore v40, v20
     v27 = sub v11, v15
     v28 = gt v20, v27
     jumpi v28, bb3, bb8
   bb8:
-    v33 = add v39, 32
+    v33 = add v40, 32
     calldatacopy v33, v15, v20
     v3 = lt v20, 4
     jumpi v3, bb1, bb2

@@ -14,19 +14,22 @@ fn @doubled() [selector=0x61fe03e4, abi_wrapper, pure] {
   bb0:
     v3 = icall @decode_calldata_type, 4
     v0 = icall @_doubled, v3
-    v22 = ptrtoint memptr v0 to i256
-    v7 = mload v22
-    v24 = add v22, 32
-    v9 = add v7, 31
-    v11 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v13 = add v24, v11
-    mstore v13, 0
-    v15 = add v22, 64
-    mcopy v15, v24, v7
-    mstore v22, 32
-    mstore v24, v7
-    v19 = add v11, 64
-    returndata v22, v19
+    v28 = ptrtoint memptr v0 to i256
+    v11 = ne v28, 0
+    v12 = zext i1 v11 to i256
+    v7 = mload v28
+    v13 = mul v7, v12
+    v30 = add v28, 32
+    v15 = add v13, 31
+    v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v19 = add v30, v17
+    mstore v19, 0
+    v21 = add v28, 64
+    mcopy v21, v30, v13
+    mstore v28, 32
+    mstore v30, v13
+    v25 = add v17, 64
+    returndata v28, v25
 }
 
 fn @doubledTwice() [selector=0x406883b8, abi_wrapper, pure] {
@@ -34,19 +37,22 @@ fn @doubledTwice() [selector=0x406883b8, abi_wrapper, pure] {
     v4 = icall @decode_calldata_type, 4
     v0 = icall @_doubled, v4
     v1 = icall @_doubled, v0
-    v23 = ptrtoint memptr v1 to i256
-    v8 = mload v23
-    v25 = add v23, 32
-    v10 = add v8, 31
-    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v14 = add v25, v12
-    mstore v14, 0
-    v16 = add v23, 64
-    mcopy v16, v25, v8
-    mstore v23, 32
-    mstore v25, v8
-    v20 = add v12, 64
-    returndata v23, v20
+    v29 = ptrtoint memptr v1 to i256
+    v12 = ne v29, 0
+    v13 = zext i1 v12 to i256
+    v8 = mload v29
+    v14 = mul v8, v13
+    v31 = add v29, 32
+    v16 = add v14, 31
+    v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v20 = add v31, v18
+    mstore v20, 0
+    v22 = add v29, 64
+    mcopy v22, v31, v14
+    mstore v29, 32
+    mstore v31, v14
+    v26 = add v18, 64
+    returndata v29, v26
 }
 
 fn @_doubled(arg0: memptr) -> memptr [may_return_memory, pure] {
@@ -54,6 +60,9 @@ fn @_doubled(arg0: memptr) -> memptr [may_return_memory, pure] {
     v67 = ptrtoint memptr arg0 to i256
     v0 = mload v67
     v1 = add v0, 63
+    v2 = lt v1, v0
+    jumpi v2, bb7, bb8
+  bb8:
     v4 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v75 = mload 64 !metadata(memory=scratch)
     v5 = inttoptr i256 v75 to memptr !metadata(memory=scratch)
@@ -61,61 +70,61 @@ fn @_doubled(arg0: memptr) -> memptr [may_return_memory, pure] {
     v77 = lt v76, v75
     v78 = gt v76, 0xffffffffffffffff
     v79 = or v77, v78
-    jumpi v79, bb11, bb10
-  bb10:
+    jumpi v79, bb7, bb12
+  bb12:
     mstore 64, v76 !metadata(memory=scratch)
     v81 = calldatasize
     calldatacopy v75, v81, v4
     mstore v75, v0
-    v70 = add v67, 32
+    v74 = add v67, 32
     v62 = add v75, 32
     jump bb1
   bb1:
-    v7 = phi [bb10: 0], [bb8: v50]
-    v50 = add v7, 32
-    v51 = lt v50, v7
+    v8 = phi [bb12: 0], [bb10: v50]
+    v50 = add v8, 32
+    v51 = lt v50, v8
     v10 = mload v67
     v11 = gt v50, v10
     jumpi v11, bb3, bb2
   bb2:
-    v21 = add v70, v7
+    v21 = add v74, v8
     v22 = mload v21
     v23 = add v22, v22
     v25 = mload v75
     v28 = gt v50, v25
     v29 = or v51, v28
-    jumpi v29, bb7, bb8
-  bb8:
-    v63 = add v62, v7
+    jumpi v29, bb9, bb10
+  bb10:
+    v63 = add v62, v8
     mstore v63, v23
     jump bb1
   bb3:
     v65 = add v75, 32
     jump bb4
   bb4:
-    v37 = phi [bb3: v7], [bb9: v54]
+    v36 = phi [bb3: v8], [bb11: v54]
     v38 = mload v67
-    v39 = lt v37, v38
+    v39 = lt v36, v38
     jumpi v39, bb6, bb5
   bb5:
     ret v5
   bb6:
-    v58 = add v70, v37
+    v58 = add v74, v36
     v59 = mload v58
     v60 = byte 0, v59
     v45 = mload v75
-    v46 = lt v37, v45
-    jumpi v46, bb9, bb7
-  bb7:
+    v46 = lt v36, v45
+    jumpi v46, bb11, bb9
+  bb9:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
     revert 28, 36
-  bb9:
-    v66 = add v65, v37
-    mstore8 v66, v60
-    v54 = add v37, 1
-    jump bb4
   bb11:
+    v66 = add v65, v36
+    mstore8 v66, v60
+    v54 = add v36, 1
+    jump bb4
+  bb7:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_dirty_memory_fields.sol:AbiEncodeDirtyMemoryFields ===
 @module AbiEncodeDirtyMemoryFields
-fn @dirty() -> memorystruct [pure] {
+fn @dirty() -> memorystruct [inline_assembly, pure] {
   bb0:
     v0 = alloc memorystruct<6>, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
     v1 = ptrtoint memorystruct v0 to i256
@@ -42,7 +42,7 @@ fn @encodeStruct() -> i256 [selector=0x01e941a3, pure, abi_params=[], abi_return
     ret v4
 }
 
-fn @encodeArray() -> i256 [selector=0x7a13e494, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @encodeArray() -> i256 [selector=0x7a13e494, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -69,7 +69,7 @@ fn @encodeArray() -> i256 [selector=0x7a13e494, pure, abi_params=[], abi_returns
     ret v14
 }
 
-fn @encodeBadEnum() -> memorybytes [selector=0xc72bddb9, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeBadEnum() -> memorybytes [selector=0xc72bddb9, inline_assembly, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @dirty
     v1 = ptrtoint memorystruct v0 to i256
