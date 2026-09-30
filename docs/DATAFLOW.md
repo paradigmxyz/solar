@@ -497,7 +497,7 @@ interval contexts into `check-elim`) is not implemented.
 ### Measured results
 
 The existing OpenZeppelin VestingWallet workload provides a production-contract example
-of storage-read inlining. Compared with base `8f8a48994`, with the archived input's normal
+of storage-read inlining. Compared with base `4cc64e740`, with the archived input's normal
 optimizer settings and the `hot` gas profile:
 
 | Measurement | Base | Candidate | Delta |
@@ -526,10 +526,12 @@ CodSpeed and repeated same-profile measurements are the compile-speed acceptance
 
 Local CLI wall-time measurements used frozen debug binaries, one thread, all-function
 codegen, two warmups and nine interleaved samples, with no concurrent builds or benchmarks.
-Median `chains` compilation was 232.60 ms on the base and 237.14 ms on this revision
-(+1.95%); the reviewed head `d62e8a058` took 315.23 ms. The LilWeb3 project measured
-93.46 ms on base and 91.08 ms on this revision. These are wall-clock measurements,
+Median `chains` compilation was 241.87 ms on the base and 239.38 ms on revision
+`e9fb8d869` (-1.03%). The LilWeb3 project measured
+91.50 ms on base and 92.51 ms on this revision (+1.09%). These are wall-clock measurements,
 not CodSpeed's simulated instruction counts, and should not be treated as interchangeable.
+The [CI runtime benchmark](https://github.com/paradigmxyz/solar/actions/runs/36746997986)
+independently reproduced the gas and size results against this same base.
 
 Reproduce with separate frozen base and candidate compiler binaries using
 `benches/runtime/benchmark.py --mode runtime compile-time --suite all --gas --gas-profile hot
