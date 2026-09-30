@@ -65,7 +65,7 @@ impl SourceMapEncoder {
         // NOTE: An incoming transfer may be optimized into a zero-byte fallthrough.
         // Its checkpoint is then unavailable; keep the shared location unknown
         // (-1, -1, -1) rather than changing codegen to manufacture a source stop.
-        let location = match instruction.location.source_spans.as_slice() {
+        let location = match instruction.location.source_spans {
             [span] => Some(*span),
             _ => None,
         }

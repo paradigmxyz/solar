@@ -213,6 +213,7 @@ bitflags = "2.4"
 bumpalo = "3.14"
 either = "1"
 glob = "0.3"
+hashbrown = { version = "0.17", default-features = false }
 oxc_index = { version = "5.0", features = ["nonmax"] }
 indexmap = "2.2"
 itertools = ">=0.10, <=0.14"

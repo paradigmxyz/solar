@@ -2,19 +2,30 @@
 //!
 //! Like DWARF line tables, [`DebugInfo`] records a row only where the location
 //! state changes. Each row covers a run of consecutive instructions that share
-//! one interned [`DebugLocation`]. Consumers recover instruction offsets and
-//! opcodes by decoding the final bytecode inside each run, so program data
-//! between instructions always starts a new row.
+//! one interned location. Consumers recover instruction offsets and opcodes by
+//! decoding the final bytecode inside each run, so program data between
+//! instructions always starts a new row.
+//!
+//! Like a DWARF line program, the rows form a byte stream of LEB128 numbers.
+//! Each row stores the signed distance from the previous run's decoded end to
+//! its first instruction, which is zero unless program data or a mismatched
+//! instruction length ends the previous run, then the run length, then the
+//! signed change of location index from the previous row. Signed numbers use
+//! zigzag encoding.
+//!
+//! Each interned location takes 16 bytes. A single source span is stored
+//! inline; span sets of any other size are ranges of a shared span table, and
+//! function identities are indices into a function table.
 
 use super::op;
 use smallvec::SmallVec;
 use solar_data_structures::{
-    index::{IndexSlice, IndexVec},
-    map::FxIndexSet,
+    index::IndexVec,
+    map::{FxBuildHasher, FxHashMap, HashTable, hashbrown::hash_table::Entry},
     newtype_index,
 };
-use solar_interface::{Span, Symbol};
-use std::iter::FusedIterator;
+use solar_interface::{BytePos, Span, Symbol};
+use std::{hash::BuildHasher, iter::FusedIterator};
 
 pub use crate::source_info::MAX_DEBUG_SPANS;
 
@@ -40,13 +51,13 @@ pub enum DebugFunctionExit {
 }
 
 /// Source location state shared by a run of instructions.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct DebugLocation {
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct DebugLocation<'a> {
     /// Source spans associated with the instruction.
     ///
     /// More than one span means an optimization shared this instruction
     /// between multiple source-level origins.
-    pub source_spans: DebugSpans,
+    pub source_spans: &'a [Span],
     /// Function entered after this instruction executes.
     pub function_invoke: Option<DebugFunction>,
     /// Function activation closed after this instruction executes.
@@ -55,41 +66,79 @@ pub struct DebugLocation {
     pub modifier_depth: u32,
 }
 
-impl DebugLocation {
-    fn matches(
-        &self,
-        source_spans: &[Span],
-        function_invoke: Option<DebugFunction>,
-        function_exit: Option<DebugFunctionExit>,
-        modifier_depth: u32,
-    ) -> bool {
-        self.source_spans.as_slice() == source_spans
-            && self.function_invoke == function_invoke
-            && self.function_exit == function_exit
-            && self.modifier_depth == modifier_depth
-    }
-}
-
 newtype_index! {
     /// An index into a [`DebugInfo`] location table.
     struct DebugLocationId;
+
+    /// An index into a [`DebugInfo`] function table.
+    struct DebugFunctionId;
 }
 
-/// A run of consecutive instructions with the same location.
+/// Interned form of a [`DebugLocation`].
 #[derive(Clone, Copy, Debug)]
-struct DebugRow {
-    /// Byte offset of the first instruction.
-    start: u32,
-    /// Number of instructions in the run.
-    len: u32,
-    location: DebugLocationId,
+struct Location {
+    /// The only source span, or the bounds of a [`DebugInfo::spans`] range
+    /// when [`Flags::table_spans`] is set.
+    span: Span,
+    function_invoke: Option<DebugFunctionId>,
+    flags: Flags,
+}
+
+const _: () = assert!(size_of::<Location>() == 16);
+
+/// Function exit, span storage, and modifier depth of a [`Location`].
+///
+/// Bits 0 and 1 hold the exit, bit 2 marks table spans, and the remaining
+/// bits hold the modifier depth.
+#[derive(Clone, Copy, Debug)]
+struct Flags(u32);
+
+impl Flags {
+    const EXIT_MASK: u32 = 0b11;
+    const TABLE_SPANS: u32 = 1 << 2;
+    const DEPTH_SHIFT: u32 = 3;
+
+    fn new(
+        function_exit: Option<DebugFunctionExit>,
+        table_spans: bool,
+        modifier_depth: u32,
+    ) -> Self {
+        assert!(modifier_depth <= u32::MAX >> Self::DEPTH_SHIFT, "modifier depth exceeds 29 bits");
+        let exit = match function_exit {
+            None => 0,
+            Some(DebugFunctionExit::Return) => 1,
+            Some(DebugFunctionExit::Revert) => 2,
+        };
+        let table_spans = if table_spans { Self::TABLE_SPANS } else { 0 };
+        Self(modifier_depth << Self::DEPTH_SHIFT | table_spans | exit)
+    }
+
+    fn function_exit(self) -> Option<DebugFunctionExit> {
+        match self.0 & Self::EXIT_MASK {
+            0 => None,
+            1 => Some(DebugFunctionExit::Return),
+            _ => Some(DebugFunctionExit::Revert),
+        }
+    }
+
+    fn table_spans(self) -> bool {
+        self.0 & Self::TABLE_SPANS != 0
+    }
+
+    fn modifier_depth(self) -> u32 {
+        self.0 >> Self::DEPTH_SHIFT
+    }
 }
 
 /// Final instruction locations of one bytecode artifact.
 #[derive(Clone, Debug, Default)]
 pub struct DebugInfo {
-    locations: IndexVec<DebugLocationId, DebugLocation>,
-    rows: Vec<DebugRow>,
+    locations: IndexVec<DebugLocationId, Location>,
+    /// Source span sets that do not have exactly one span.
+    spans: Vec<Span>,
+    functions: IndexVec<DebugFunctionId, DebugFunction>,
+    /// Encoded rows, as described in the module documentation.
+    rows: Vec<u8>,
     /// Number of recorded instructions.
     len: usize,
 }
@@ -98,13 +147,29 @@ impl DebugInfo {
     /// Returns the recorded instructions, decoded from the bytecode they describe.
     pub fn instructions<'a>(&'a self, bytecode: &'a [u8]) -> DebugInstructions<'a> {
         DebugInstructions {
-            locations: &self.locations,
+            info: self,
             bytecode,
-            rows: self.rows.iter(),
-            location: DebugLocationId::from_usize(0),
+            rows: &self.rows,
+            location_id: DebugLocationId::from_usize(0),
+            location: DebugLocation::default(),
             offset: 0,
             remaining_in_row: 0,
             remaining: self.len,
+        }
+    }
+
+    fn location(&self, id: DebugLocationId) -> DebugLocation<'_> {
+        let location = &self.locations[id];
+        let source_spans = if location.flags.table_spans() {
+            &self.spans[location.span.to_range()]
+        } else {
+            std::slice::from_ref(&location.span)
+        };
+        DebugLocation {
+            source_spans,
+            function_invoke: location.function_invoke.map(|id| self.functions[id]),
+            function_exit: location.flags.function_exit(),
+            modifier_depth: location.flags.modifier_depth(),
         }
     }
 }
@@ -117,16 +182,18 @@ pub struct DebugInstruction<'a> {
     /// Raw EVM opcode byte.
     pub opcode: u8,
     /// Source location state of the instruction.
-    pub location: &'a DebugLocation,
+    pub location: DebugLocation<'a>,
 }
 
 /// Iterator over the instructions of a [`DebugInfo`].
 #[derive(Clone, Debug)]
 pub struct DebugInstructions<'a> {
-    locations: &'a IndexSlice<DebugLocationId, [DebugLocation]>,
+    info: &'a DebugInfo,
     bytecode: &'a [u8],
-    rows: std::slice::Iter<'a, DebugRow>,
-    location: DebugLocationId,
+    /// Encoded rows after the current one.
+    rows: &'a [u8],
+    location_id: DebugLocationId,
+    location: DebugLocation<'a>,
     offset: u32,
     remaining_in_row: u32,
     remaining: usize,
@@ -136,18 +203,23 @@ impl<'a> Iterator for DebugInstructions<'a> {
     type Item = DebugInstruction<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.remaining == 0 {
+            return None;
+        }
         if self.remaining_in_row == 0 {
-            let row = self.rows.next()?;
-            self.offset = row.start;
+            let row = Row::decode(&mut self.rows);
+            self.offset = offset_by(self.offset, row.gap);
             self.remaining_in_row = row.len;
-            self.location = row.location;
+            let location = offset_by(self.location_id.index() as u32, row.location);
+            self.location_id = DebugLocationId::from_usize(location as usize);
+            self.location = self.info.location(self.location_id);
         }
         let offset = self.offset;
         let opcode = self.bytecode[offset as usize];
         self.offset += encoded_len(opcode);
         self.remaining_in_row -= 1;
         self.remaining -= 1;
-        Some(DebugInstruction { offset, opcode, location: &self.locations[self.location] })
+        Some(DebugInstruction { offset, opcode, location: self.location })
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -162,11 +234,24 @@ impl FusedIterator for DebugInstructions<'_> {}
 /// Records [`DebugInfo`] rows while bytecode is emitted.
 #[derive(Debug, Default)]
 pub(crate) struct DebugInfoBuilder {
-    locations: FxIndexSet<DebugLocation>,
-    rows: Vec<DebugRow>,
-    len: usize,
+    info: DebugInfo,
+    /// Interned locations, keyed by the hash of their [`DebugLocation`].
+    location_ids: HashTable<DebugLocationId>,
+    function_ids: FxHashMap<DebugFunction, DebugFunctionId>,
+    /// The current row, encoded once it ends.
+    row: Option<PendingRow>,
+    /// Location index of the last encoded row.
+    encoded_location: usize,
     /// Offset at which the current row's next instruction decodes.
     next_offset: u32,
+}
+
+/// A row that may still grow.
+#[derive(Debug)]
+struct PendingRow {
+    gap: i64,
+    len: u32,
+    location: DebugLocationId,
 }
 
 impl DebugInfoBuilder {
@@ -181,40 +266,137 @@ impl DebugInfoBuilder {
         modifier_depth: u32,
     ) {
         let offset = u32::try_from(offset).expect("EVM bytecode offset exceeds u32");
-        self.len += 1;
+        let location =
+            DebugLocation { source_spans, function_invoke, function_exit, modifier_depth };
+        self.info.len += 1;
         // Extend the current run only when decoding it reaches this instruction.
-        if let Some(row) = self.rows.last_mut()
+        if let Some(row) = &mut self.row
             && self.next_offset == offset
-            && self.locations[row.location.index()].matches(
-                source_spans,
-                function_invoke,
-                function_exit,
-                modifier_depth,
-            )
+            && self.info.location(row.location) == location
         {
             row.len += 1;
         } else {
-            let (location, _) = self.locations.insert_full(DebugLocation {
-                source_spans: source_spans.iter().copied().collect(),
-                function_invoke,
-                function_exit,
-                modifier_depth,
-            });
-            self.rows.push(DebugRow {
-                start: offset,
+            let row = PendingRow {
+                gap: i64::from(offset) - i64::from(self.next_offset),
                 len: 1,
-                location: DebugLocationId::from_usize(location),
-            });
+                location: self.intern(location),
+            };
+            if let Some(row) = self.row.replace(row) {
+                self.encode(row);
+            }
         }
         self.next_offset = offset + encoded_len(opcode);
     }
 
     pub(crate) fn finish(mut self) -> DebugInfo {
-        let mut locations = self.locations.into_iter().collect::<Vec<_>>();
-        locations.shrink_to_fit();
-        self.rows.shrink_to_fit();
-        DebugInfo { locations: IndexVec::from_vec(locations), rows: self.rows, len: self.len }
+        if let Some(row) = self.row.take() {
+            self.encode(row);
+        }
+        let mut info = self.info;
+        info.locations.shrink_to_fit();
+        info.spans.shrink_to_fit();
+        info.functions.shrink_to_fit();
+        info.rows.shrink_to_fit();
+        info
     }
+
+    /// Returns the index of `location`, adding it on first use.
+    fn intern(&mut self, location: DebugLocation<'_>) -> DebugLocationId {
+        let info = &mut self.info;
+        let entry = self.location_ids.entry(
+            FxBuildHasher.hash_one(location),
+            |&id| info.location(id) == location,
+            |&id| FxBuildHasher.hash_one(info.location(id)),
+        );
+        let entry = match entry {
+            Entry::Occupied(entry) => return *entry.get(),
+            Entry::Vacant(entry) => entry,
+        };
+        let (span, table_spans) = match location.source_spans {
+            &[span] => (span, false),
+            spans => {
+                let start = BytePos::from_usize(info.spans.len());
+                info.spans.extend_from_slice(spans);
+                (Span::new_unchecked(start, BytePos::from_usize(info.spans.len())), true)
+            }
+        };
+        let function_invoke = location.function_invoke.map(|function| {
+            *self.function_ids.entry(function).or_insert_with(|| info.functions.push(function))
+        });
+        let flags = Flags::new(location.function_exit, table_spans, location.modifier_depth);
+        let id = info.locations.push(Location { span, function_invoke, flags });
+        entry.insert(id);
+        id
+    }
+
+    fn encode(&mut self, row: PendingRow) {
+        let location = row.location.index() as i64 - self.encoded_location as i64;
+        Row { gap: row.gap, len: row.len, location }.encode(&mut self.info.rows);
+        self.encoded_location = row.location.index();
+    }
+}
+
+/// One encoded row, relative to the previous row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Row {
+    /// Distance from the previous run's decoded end to the first instruction.
+    gap: i64,
+    /// Number of instructions in the run.
+    len: u32,
+    /// Change of location index from the previous row.
+    location: i64,
+}
+
+impl Row {
+    fn encode(self, out: &mut Vec<u8>) {
+        write_leb128(out, zigzag(self.gap));
+        write_leb128(out, self.len.into());
+        write_leb128(out, zigzag(self.location));
+    }
+
+    fn decode(bytes: &mut &[u8]) -> Self {
+        Self {
+            gap: unzigzag(read_leb128(bytes)),
+            len: u32::try_from(read_leb128(bytes)).expect("debug info run length exceeds u32"),
+            location: unzigzag(read_leb128(bytes)),
+        }
+    }
+}
+
+fn write_leb128(out: &mut Vec<u8>, mut value: u64) {
+    while value >= 0x80 {
+        out.push(value as u8 | 0x80);
+        value >>= 7;
+    }
+    out.push(value as u8);
+}
+
+fn read_leb128(bytes: &mut &[u8]) -> u64 {
+    let mut value = 0;
+    let mut shift = 0;
+    loop {
+        let (&byte, rest) = bytes.split_first().expect("truncated debug info row");
+        *bytes = rest;
+        value |= u64::from(byte & 0x7f) << shift;
+        if byte < 0x80 {
+            return value;
+        }
+        shift += 7;
+    }
+}
+
+/// Maps signed values of small magnitude to small unsigned values.
+fn zigzag(value: i64) -> u64 {
+    ((value << 1) ^ (value >> 63)) as u64
+}
+
+fn unzigzag(value: u64) -> i64 {
+    (value >> 1) as i64 ^ -((value & 1) as i64)
+}
+
+/// Adds a decoded signed delta to an unsigned position.
+fn offset_by(base: u32, delta: i64) -> u32 {
+    u32::try_from(i64::from(base) + delta).expect("invalid debug info row")
 }
 
 /// Returns the byte length that run decoding assigns to an instruction.
@@ -232,7 +414,31 @@ const fn encoded_len(opcode: u8) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solar_interface::BytePos;
+    use solar_interface::sym;
+
+    fn decode_rows(mut bytes: &[u8]) -> Vec<Row> {
+        std::iter::from_fn(|| (!bytes.is_empty()).then(|| Row::decode(&mut bytes))).collect()
+    }
+
+    #[test]
+    fn rows_round_trip() {
+        let rows = [
+            Row { gap: 0, len: 1, location: 0 },
+            Row { gap: 0, len: 127, location: 1 },
+            Row { gap: 0, len: 128, location: -1 },
+            Row { gap: -1, len: 3, location: 2 },
+            Row { gap: 3, len: 1, location: -2 },
+            Row { gap: i64::from(u32::MAX), len: u32::MAX, location: i64::from(u32::MAX) },
+            Row { gap: -i64::from(u32::MAX), len: 1 << 20, location: -i64::from(u32::MAX) },
+            Row { gap: i64::MAX, len: 1, location: i64::MIN },
+        ];
+        let mut bytes = Vec::new();
+        for row in rows {
+            row.encode(&mut bytes);
+        }
+        assert_eq!(bytes[..10], [0, 1, 0, 0, 0x7f, 2, 0, 0x80, 0x01, 1]);
+        assert_eq!(decode_rows(&bytes), rows);
+    }
 
     #[test]
     fn runs_split_at_location_changes_and_gaps() {
@@ -259,7 +465,16 @@ mod tests {
         }
         let info = builder.finish();
 
-        assert_eq!(info.rows.len(), 5);
+        assert_eq!(
+            decode_rows(&info.rows),
+            [
+                Row { gap: 0, len: 2, location: 0 },
+                Row { gap: 2, len: 1, location: 0 },
+                Row { gap: 0, len: 1, location: 1 },
+                Row { gap: 0, len: 1, location: -1 },
+                Row { gap: -1, len: 2, location: 0 },
+            ]
+        );
         assert_eq!(info.locations.len(), 2);
         let decoded = info
             .instructions(&bytecode)
@@ -270,5 +485,58 @@ mod tests {
             info.instructions(&bytecode)
                 .all(|instruction| instruction.opcode == bytecode[instruction.offset as usize])
         );
+    }
+
+    #[test]
+    fn locations_round_trip() {
+        let span = |lo| Span::new(BytePos(lo), BytePos(lo + 1));
+        let function = DebugFunction { identifier: sym::_anonymous, declaration: span(9) };
+        let spans = [span(0), span(1), span(2)];
+        let locations = [
+            DebugLocation { source_spans: &spans[..1], ..Default::default() },
+            DebugLocation { source_spans: &[], modifier_depth: 3, ..Default::default() },
+            DebugLocation {
+                source_spans: &spans,
+                function_invoke: Some(function),
+                ..Default::default()
+            },
+            DebugLocation {
+                source_spans: &spans[1..],
+                function_exit: Some(DebugFunctionExit::Return),
+                ..Default::default()
+            },
+            DebugLocation {
+                source_spans: &spans[..1],
+                function_invoke: Some(function),
+                function_exit: Some(DebugFunctionExit::Revert),
+                modifier_depth: u32::MAX >> Flags::DEPTH_SHIFT,
+            },
+        ];
+        // Revisit earlier locations so later rows reuse interned entries.
+        let order = [0, 1, 2, 1, 3, 4, 0, 2];
+        let bytecode = [op::STOP; 8];
+
+        let mut builder = DebugInfoBuilder::default();
+        for (offset, &index) in order.iter().enumerate() {
+            let location = locations[index];
+            builder.record(
+                offset,
+                op::STOP,
+                location.source_spans,
+                location.function_invoke,
+                location.function_exit,
+                location.modifier_depth,
+            );
+        }
+        let info = builder.finish();
+
+        assert_eq!(info.locations.len(), locations.len());
+        assert_eq!(info.spans.len(), 5);
+        assert_eq!(info.functions.len(), 1);
+        let decoded = info
+            .instructions(&bytecode)
+            .map(|instruction| instruction.location)
+            .collect::<Vec<_>>();
+        assert_eq!(decoded, order.map(|index| locations[index]));
     }
 }

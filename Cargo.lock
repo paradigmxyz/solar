@@ -4611,6 +4611,7 @@ version = "0.2.0"
 dependencies = [
  "bumpalo",
  "diff",
+ "hashbrown 0.17.1",
  "indexmap 2.14.2",
  "oxc_index",
  "parking_lot",
