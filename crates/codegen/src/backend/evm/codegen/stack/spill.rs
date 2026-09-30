@@ -217,6 +217,11 @@ impl SpillManager {
         self.recomputable.contains(value)
     }
 
+    /// Iterates every value that may be rematerialized while unstored.
+    pub(crate) fn recomputable_values(&self) -> impl Iterator<Item = ValueId> + '_ {
+        self.recomputable.iter()
+    }
+
     /// Forgets that already-emitted code stored this value. A value carried on
     /// the stack across a loop back edge is redefined without a store, so its
     /// reserved slot no longer holds the current definition: the next

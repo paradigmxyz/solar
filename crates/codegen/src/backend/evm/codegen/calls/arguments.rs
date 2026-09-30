@@ -509,18 +509,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             crate::mir::Value::Arg(index) => {
                 if self.in_internal_function {
-                    let func_id = self
-                        .current_internal_function
-                        .expect("internal caller has a current function");
-                    if !self.emit_dynamic_frame_arg_addr(*index) {
-                        let addr = self.static_frame_addr(
-                            func_id,
-                            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-                                + (index.index() as u64) * EvmMemoryLayout::WORD_SIZE,
-                        );
-                        self.asm.emit_push_deferred(addr);
-                    }
-                    self.asm.emit_op(op::MLOAD);
+                    self.emit_internal_arg_load(*index);
                 } else {
                     self.asm.emit_push(U256::from(4 + (index.index() as u64) * WORD_BYTES as u64));
                     self.asm.emit_op(op::CALLDATALOAD);

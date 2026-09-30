@@ -39,8 +39,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             (_, WriteSize::Const(_)) => None,
             (_, WriteSize::Value(size)) => {
                 let below_spills = func.value_u64(dest).is_some_and(|dest| {
-                    let mut visiting = DenseBitSet::new_empty(func.num_values());
-                    Self::value_u64_upper_bound(func, size, &mut visiting)
+                    Self::value_upper_bound(func, size)
                         .or_else(|| Self::guarded_upper_bound(func, inst_id, size))
                         .and_then(|size| dest.checked_add(size))
                         .is_some_and(|end| end <= EvmMemoryLayout::HEAP_START)
@@ -106,7 +105,15 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Returns a conservative upper bound for a small integer expression.
-    pub(in crate::backend::evm::codegen) fn value_u64_upper_bound(
+    pub(in crate::backend::evm::codegen) fn value_upper_bound(
+        func: &Function,
+        value: ValueId,
+    ) -> Option<u64> {
+        let mut visiting = DenseBitSet::new_empty(func.num_values());
+        Self::value_u64_upper_bound(func, value, &mut visiting)
+    }
+
+    fn value_u64_upper_bound(
         func: &Function,
         value: ValueId,
         visiting: &mut DenseBitSet<ValueId>,
@@ -152,7 +159,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         &self,
         func: &Function,
     ) -> FxHashSet<InstId> {
-        let mut hazards = self.direct_spill_hazard_insts(func);
+        let mut hazards = self.direct_spill_hazard_insts(func, &AliasAnalysis::new(func));
         // Creation code runs with empty calldata, so a copy of `calldatasize()` bytes writes
         // nothing.
         if self.asm.artifact_kind == ArtifactKind::Constructor {
@@ -162,12 +169,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                         if matches!(func.inst(*def).kind, InstKind::CalldataSize)))
             });
         }
-        hazards.extend(func.instructions().filter(|&inst_id| {
-            matches!(func.inst(inst_id).kind, InstKind::ICall {
-                function: Callee::Function(callee), ..
-            } if callee.index() < self.spill_hazard_functions.domain_size()
-                && self.spill_hazard_functions.contains(callee))
-        }));
+        if !self.spill_hazard_functions.is_empty() {
+            hazards.extend(func.instructions().filter(|&inst_id| {
+                matches!(func.inst(inst_id).kind, InstKind::ICall {
+                    function: Callee::Function(callee), ..
+                } if callee.index() < self.spill_hazard_functions.domain_size()
+                    && self.spill_hazard_functions.contains(callee))
+            }));
+        }
         hazards
     }
 
@@ -175,24 +184,14 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(in crate::backend::evm::codegen) fn direct_spill_hazard_insts(
         &self,
         func: &Function,
+        aa: &AliasAnalysis,
     ) -> FxHashSet<InstId> {
-        let mut hazards = FxHashSet::default();
-        let candidates = func
-            .instructions()
-            .filter_map(|inst_id| {
-                Self::dynamic_spill_write_dest(func, inst_id).map(|dest| (inst_id, dest))
+        func.instructions()
+            .filter(|&inst_id| {
+                Self::dynamic_spill_write_dest(func, inst_id)
+                    .is_some_and(|dest| self.write_dest_may_reach_spills(func, aa, dest))
             })
-            .collect::<Vec<_>>();
-        if candidates.is_empty() {
-            return hazards;
-        }
-        let aa = AliasAnalysis::new(func);
-        for (inst_id, dest) in candidates {
-            if self.write_dest_may_reach_spills(func, &aa, dest) {
-                hazards.insert(inst_id);
-            }
-        }
-        hazards
+            .collect()
     }
 
     /// Whether a dynamic-length write's destination may overlap the spill area.

@@ -122,6 +122,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else {
             func
         };
+        let store_cfg = CfgInfo::new(func);
         let stack_only_disabled_at_entry = self.stack_only_function_disabled(func_id);
         let report_missing_spill_home = self.gcx.sess.opts.unstable.assert_planned_edge_spill_home;
         let block_local_liveness = (self.emitting_entry && self.spill_base.is_none())
@@ -131,7 +132,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let whole_function_liveness = block_local_liveness.is_none() && self.spill_base.is_none();
         let liveness = if let Some(base) = &self.spill_base {
             let mut liveness = Liveness::compute(func);
-            liveness.pin(func, CfgInfo::new(func).reachable(), base.value);
+            liveness.pin(func, store_cfg.reachable(), base.value);
             Rc::new(liveness)
         } else {
             block_local_liveness.map_or_else(|| self.function_liveness(func_id, func), Rc::new)
@@ -215,7 +216,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             });
         let mut protected_stack_values =
             self.resident_stack_args(func_id).map_or_else(Vec::new, |values| values.to_vec());
-        protected_stack_values.extend(self.spill_base.as_ref().map(|base| base.value));
+        protected_stack_values.extend(self.spill_base_value());
         for &value in &hazard_cross_block_values {
             if !protected_stack_values.contains(&value) {
                 protected_stack_values.push(value);
@@ -446,7 +447,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         // Generate each block.
-        let store_cfg = CfgInfo::new(func);
         let block_order = self.block_layout_order(func, &store_cfg);
         let block_pos: FxHashMap<BlockId, usize> =
             block_order.iter().enumerate().map(|(pos, &b)| (b, pos)).collect();
@@ -628,19 +628,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.asm.set_modifier_depth(inst.metadata.modifier_depth());
                 }
 
-                self.refresh_spill_base();
-                // Raise the free-memory pointer only where that spares the call a carry.
-                let pointer_raised = free_memory_trusted_calls.contains(&inst_id)
-                    && self.call_may_write_spill_area(func, inst_id, false)
-                    && !self.call_may_write_spill_area(func, inst_id, true);
-                if pointer_raised {
-                    self.emit_free_memory_bump();
-                }
-                self.carry_live_across_call = self.spill_base.is_some()
-                    && self.call_may_write_spill_area(func, inst_id, pointer_raised);
                 if self.spill_base.is_some() {
-                    self.relocate_spill_base_before_write(
-                        func, liveness, block_id, inst_idx, inst_id,
+                    self.prepare_spill_base_for_inst(
+                        func,
+                        liveness,
+                        block_id,
+                        inst_idx,
+                        inst_id,
+                        free_memory_trusted_calls.contains(&inst_id),
                     );
                 } else if self.spill_hazard_insts.contains(&inst_id) {
                     // A whole-calldata-forwarding clobber overwrites the low memory
@@ -677,10 +672,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                             }
                             pinned_hazard_values.insert(value);
                         }
-                        self.scheduler.spills.invalidate_stored(value);
-                        if let Some(available) = &mut self.spill_available {
-                            available.remove(&value);
-                        }
+                        self.forget_spill_stores([value]);
                     }
                     // The callee writes during the call, so a spill around it is already exposed.
                     if matches!(inst.kind, InstKind::ICall { .. }) {
@@ -702,13 +694,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     inst_idx,
                     result_value,
                 );
-                let carried = std::mem::take(&mut self.carried_call_values);
-                let spilled = std::mem::take(&mut self.carried_spill_values);
-                if std::mem::take(&mut self.carry_live_across_call) {
-                    // The call may have written anywhere the area was.
-                    self.move_spill_base_above_msize();
-                    self.restore_carried_values(func, &carried, &spilled);
-                }
+                self.finish_carried_call(func);
                 if !stack_only_disabled_at_entry && self.stack_only_function_disabled(func_id) {
                     return;
                 }

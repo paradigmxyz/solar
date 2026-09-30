@@ -82,7 +82,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             Vec::new()
         };
         // The dynamic spill base has no memory home and must survive every call.
-        resident_call_values.extend(self.spill_base.as_ref().map(|base| base.value));
+        resident_call_values.extend(self.spill_base_value());
 
         // Frame layout: [reserved][saved frame ptr][args][returns][locals][spills].
         // The first slot is reserved (the return address used to live there;
@@ -105,11 +105,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
             // Frame setup keeps the frame base, a staged word, and its address above the stack.
-            // Carried words beyond `DUP` reach stay where they are.
-            self.pop_reachable_stack_values_not_needed_by(
-                &resident_call_values.iter().chain(args).copied().collect::<Vec<_>>(),
-            );
-            !self.carried_call_values_fit(&resident_call_values, 3)
+            self.begin_carry(&resident_call_values, args, 3)
         } else {
             self.spill_live_stack_values(func_id, func, liveness, block, inst_idx);
             false
@@ -151,8 +147,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let caller_stack = if resident_call_values.is_empty() {
             None
         } else if deep_carry {
-            self.pop_reachable_stack_values_not_needed_by(&resident_call_values);
-            Some(self.scheduler.stack.clone())
+            Some(self.deep_carry_caller_stack(&resident_call_values))
         } else {
             self.pop_stack_values_not_needed_by(&resident_call_values);
             let target =
@@ -596,12 +591,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
-        if let Some(base) = &self.spill_base
-            && !resident_call_values.contains(&base.value)
-        {
-            // The dynamic spill base has no memory home and must survive every call.
-            resident_call_values.push(base.value);
-        }
+        // The dynamic spill base has no memory home and must survive every call.
+        resident_call_values.extend(self.spill_base_value());
         // The carried words must stay reachable below the return label, the stack-passed
         // arguments above it, one staged memory argument, and a copy of every carried memory
         // argument.
@@ -613,17 +604,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     && resident_call_values.contains(arg)
             })
             .count();
-        // Carried words beyond `DUP` reach stay where they are; after the call, the moved spill
-        // area can hold them again.
-        let deep_carry = self.carry_live_across_call && !recursive_reentry && {
-            self.pop_reachable_stack_values_not_needed_by(
-                &resident_call_values.iter().chain(args).copied().collect::<Vec<_>>(),
-            );
-            !self.carried_call_values_fit(
-                &resident_call_values,
-                argument_words + 2 + duplicated_args,
-            )
-        };
+        let deep_carry = self.carry_live_across_call
+            && !recursive_reentry
+            && self.begin_carry(&resident_call_values, args, argument_words + 2 + duplicated_args);
         let carries_resident_stack = !resident_call_values.is_empty();
         let caller_stack_plan = (!carries_resident_stack).then(|| {
             self.plan_static_call_stack(
@@ -775,8 +758,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let caller_stack = if deep_carry {
-            self.pop_reachable_stack_values_not_needed_by(&resident_call_values);
-            Some(self.scheduler.stack.clone())
+            Some(self.deep_carry_caller_stack(&resident_call_values))
         } else if carries_resident_stack {
             self.pop_stack_values_not_needed_by(&resident_call_values);
             let target =
@@ -868,14 +850,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         "recursive caller argument exceeded DUP reach"
                     );
                     self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
-                    if !self.emit_dynamic_frame_arg_addr(*index) {
-                        let addr = self.static_frame_addr(
-                            func_id,
-                            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-                                + index.index() as u64 * EvmMemoryLayout::WORD_SIZE,
-                        );
-                        self.asm.emit_push_deferred(addr);
-                    }
+                    self.emit_own_frame_arg_addr(*index);
                     self.scheduler.stack.push_unknown();
                     self.asm.emit_op(op::MSTORE);
                     self.scheduler.instruction_executed(2, None);

@@ -967,15 +967,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         module: &Module,
         static_end: u64,
     ) {
+        let Some(id) = self.spill_base_floor_const.take() else { return };
         let constant_end = module
             .functions
             .iter()
             .map(Self::constant_memory_write_end)
             .fold(static_end, u64::max)
             .next_multiple_of(EvmMemoryLayout::WORD_SIZE);
-        if let Some(id) = self.spill_base_floor_const.take() {
-            self.asm.set_deferred_const(id, U256::from(constant_end));
-        }
+        self.asm.set_deferred_const(id, U256::from(constant_end));
     }
 
     /// Resolves the area sizes of dynamic spill bases.
@@ -1587,13 +1586,19 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     pub(in crate::backend::evm::codegen) fn emit_internal_arg_load(&mut self, index: ArgIdx) {
+        self.emit_own_frame_arg_addr(index);
+        self.asm.emit_op(op::MLOAD);
+    }
+
+    /// Emits the address of the current internal function's frame argument `index`, without
+    /// touching the stack model.
+    pub(in crate::backend::evm::codegen) fn emit_own_frame_arg_addr(&mut self, index: ArgIdx) {
         if !self.emit_dynamic_frame_arg_addr(index) {
             self.emit_own_frame_addr_untracked(
                 EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
                     + (index.index() as u64) * EvmMemoryLayout::WORD_SIZE,
             );
         }
-        self.asm.emit_op(op::MLOAD);
     }
 }
 

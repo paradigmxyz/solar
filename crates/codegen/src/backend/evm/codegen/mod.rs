@@ -164,9 +164,15 @@ struct DynamicSpillBase {
     /// Byte size of the area that moves with the base, known after the body has emitted: the
     /// spill area, or an internal function's frame from its first argument on.
     area: DeferredConst,
-    /// First byte above all static compiler memory and every constant-address write of the
-    /// runtime.
-    floor: DeferredConst,
+}
+
+/// Values an internal call carries on the stack past a callee that may write a dynamic spill
+/// area.
+struct CarriedCall {
+    /// Every carried value.
+    values: Vec<ValueId>,
+    /// Carried values whose spill slots held them before the call.
+    spilled: Vec<ValueId>,
 }
 
 /// A single-use call gas operand rebuilt at the call site.
@@ -398,7 +404,9 @@ pub struct EvmCodegen<'gcx> {
     /// Area-size constants of dynamic spill bases, resolved after emission, and whether each
     /// covers an internal frame body rather than only a spill area.
     spill_base_area_consts: Vec<(DeferredConst, FunctionId, bool)>,
-    /// Memory floor that dynamic spill areas move above, resolved after frame placement.
+    /// Memory floor that dynamic spill areas move above, resolved after frame placement: the
+    /// first byte above all static compiler memory and every constant-address write of the
+    /// runtime.
     spill_base_floor_const: Option<DeferredConst>,
     /// Initial spill-area addresses of external entries with a dynamic spill base.
     external_spill_base_consts: FxHashMap<FunctionId, DeferredConst>,
@@ -414,10 +422,8 @@ pub struct EvmCodegen<'gcx> {
     /// Whether the internal call being emitted carries the caller's live values on the stack,
     /// because the callee may write a dynamic spill area.
     carry_live_across_call: bool,
-    /// Values the internal call being emitted carried on the stack.
-    carried_call_values: Vec<ValueId>,
-    /// Carried values whose spill slots held them before the call.
-    carried_spill_values: Vec<ValueId>,
+    /// Values the internal call being emitted carries on the stack.
+    carried_call: Option<CarriedCall>,
     /// Functions already reported for a low-memory write over their frame pointer.
     frame_pointer_errors: FxHashSet<FunctionId>,
     /// Leaf helpers whose sole returned word is derived from the free-memory pointer.
@@ -525,8 +531,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             spill_hazard_functions: DenseBitSet::new_empty(0),
             heap_memory_writers: DenseBitSet::new_empty(0),
             carry_live_across_call: false,
-            carried_call_values: Vec::new(),
-            carried_spill_values: Vec::new(),
+            carried_call: None,
             frame_pointer_errors: FxHashSet::default(),
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
             global_stack_active: false,
@@ -603,8 +608,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.spill_hazard_functions.clear_to(module.functions.len());
         self.heap_memory_writers.clear_to(module.functions.len());
         self.carry_live_across_call = false;
-        self.carried_call_values.clear();
-        self.carried_spill_values.clear();
+        self.carried_call = None;
         self.frame_pointer_errors.clear();
         self.heap_pointer_return_functions.clear_to(module.functions.len());
         self.global_stack_active = false;

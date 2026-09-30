@@ -530,7 +530,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         &mut self,
         needed: &[ValueId],
     ) {
-        self.pop_reachable_stack_values_not_needed_by(needed);
         while let Some(depth) = self.first_stack_value_not_needed_by(needed) {
             // [park words above; swap word up; unpark]; pop
             self.raise_stack_word(depth);
@@ -561,7 +560,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         needed: &[ValueId],
     ) -> Option<usize> {
         let mut remaining = Self::value_counts(needed.iter().copied());
-        let spill_base = self.spill_base.as_ref().map(|base| base.value);
+        let spill_base = self.spill_base_value();
         for (depth, slot) in self.scheduler.stack.iter().enumerate() {
             let Some(value) = slot else {
                 return Some(depth);
@@ -891,7 +890,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 slot,
                 block,
                 range: start..end,
-                after_hazard: after_hazard && self.spill_base.is_none(),
+                after_hazard,
             });
         } else {
             self.note_fixed_memory_access();
@@ -948,10 +947,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             {
                 *references = references.saturating_sub(1);
             }
-            self.scheduler.spills.invalidate_stored(store.value);
-            if let Some(available) = &mut self.spill_available {
-                available.remove(&store.value);
-            }
+            self.forget_spill_stores([store.value]);
         }
         self.early_spill_removals
             .extend(removals.into_iter().map(|store| (store.block, store.range)));
@@ -1089,6 +1085,38 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.remove_instructions(&mut removals);
     }
 
+    /// Keeps a dynamic spill base on top of the stack below the next word, since it addresses
+    /// every save.
+    pub(in crate::backend::evm::codegen) fn lift_word_above_spill_base(&mut self) {
+        // swap1
+        if self.spill_base_value().is_some_and(|base| self.scheduler.stack.top() == Some(base)) {
+            self.emit_stack_op(StackOp::Swap(1));
+        }
+    }
+
+    /// Stores the top word `top` in its spill slot, or pops it when it rematerializes or its slot
+    /// already holds it, and returns the operation that restores it.
+    pub(in crate::backend::evm::codegen) fn save_and_pop_top_word(
+        &mut self,
+        func: &Function,
+        top: ValueId,
+    ) -> ScheduledOp {
+        if let Some(op) = Self::always_rematerializable_op(func, top) {
+            // pop
+            self.emit_stack_op(StackOp::Pop);
+            return ScheduledOp::RematerializeNullary(op);
+        }
+        let slot = self.scheduler.spills.allocate(top);
+        if self.scheduler.reloadable_spill(top).is_some() {
+            // pop
+            self.emit_stack_op(StackOp::Pop);
+        } else {
+            // mstore(slot, top)
+            self.store_stack_top_to_spill(func, top, slot);
+        }
+        ScheduledOp::LoadSpill(slot)
+    }
+
     pub(in crate::backend::evm::codegen) fn spill_deep_stack_value(
         &mut self,
         func: &Function,
@@ -1100,30 +1128,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         debug_assert!(depth >= stack_access_limit);
 
         let mut saved_above = Vec::with_capacity(depth + 1 - stack_access_limit);
-        let spill_base = self.spill_base.as_ref().map(|base| base.value);
         for _ in 0..(depth + 1 - stack_access_limit) {
-            // swap1
-            // The dynamic spill base addresses every save below; keep it on top and save the
-            // word under it instead.
-            if spill_base.is_some() && self.scheduler.stack.top() == spill_base {
-                self.emit_stack_op(StackOp::Swap(1));
-            }
+            self.lift_word_above_spill_base();
             let Some(top) = self.scheduler.stack.top() else {
                 panic!("cannot spill deep stack value {val:?}: untracked stack entry above it");
             };
-            let restore = if let Some(op) = Self::always_rematerializable_op(func, top) {
-                self.emit_stack_op(StackOp::Pop);
-                ScheduledOp::RematerializeNullary(op)
-            } else {
-                let top_slot = self.scheduler.spills.allocate(top);
-                if self.scheduler.reloadable_spill(top).is_some() {
-                    self.emit_stack_op(StackOp::Pop);
-                } else {
-                    self.store_stack_top_to_spill(func, top, top_slot);
-                }
-                ScheduledOp::LoadSpill(top_slot)
-            };
-            saved_above.push((top, restore));
+            saved_above.push((top, self.save_and_pop_top_word(func, top)));
         }
 
         let Some(accessible_depth) = self.scheduler.stack.find(val) else {
