@@ -627,16 +627,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    pub(in crate::backend::evm::codegen) fn spill_values_before_stack_clear(
-        &mut self,
-        func: &Function,
-        values: &[ValueId],
-    ) {
-        for &value in values {
-            self.spill_value_if_needed(func, value);
-        }
-    }
-
     /// Parks stack-resident operands in their spill slots before an
     /// `emit_value_fresh` sequence. The sequence re-materializes each value,
     /// and definitions such as free-memory-pointer loads cannot be recomputed

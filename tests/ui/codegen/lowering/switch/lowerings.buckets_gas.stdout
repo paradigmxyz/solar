@@ -6,9 +6,6 @@ bb0:
   jumpi
   push 0
   calldataload
-  dup 1
-  push 128
-  mstore
   push 9
   dup 2
   mod
@@ -123,19 +120,16 @@ bb19:
   return
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
 CALLVALUE
-PUSH1 0x1e ; bb0
+PUSH1 0x1a ; bb0
 JUMPI
 PUSH0
 CALLDATALOAD
-DUP1
-PUSH1 0x80
-MSTORE
 PUSH1 0x09
 DUP2
 MOD
 PUSH1 0x17
 ADD
-PUSH9 0x1e2233445566778899
+PUSH9 0x1a1e2f405162738495
 SWAP1
 BYTE
 JUMP ; unknown
@@ -149,7 +143,7 @@ JUMPDEST
 DUP1
 PUSH1 0x40
 SUB
-PUSH1 0x1e ; bb0
+PUSH1 0x1a ; bb0
 JUMPI
 POP
 PUSH1 0x6b
@@ -163,7 +157,7 @@ JUMPDEST
 DUP1
 PUSH1 0x38
 SUB
-PUSH1 0x1e ; bb0
+PUSH1 0x1a ; bb0
 JUMPI
 POP
 PUSH1 0x6a
@@ -177,7 +171,7 @@ JUMPDEST
 DUP1
 PUSH1 0x30
 SUB
-PUSH1 0x1e ; bb0
+PUSH1 0x1a ; bb0
 JUMPI
 POP
 PUSH1 0x69
@@ -191,7 +185,7 @@ JUMPDEST
 DUP1
 PUSH1 0x28
 SUB
-PUSH1 0x1e ; bb0
+PUSH1 0x1a ; bb0
 JUMPI
 POP
 PUSH1 0x68
@@ -205,7 +199,7 @@ JUMPDEST
 DUP1
 PUSH1 0x20
 SUB
-PUSH1 0x1e ; bb0
+PUSH1 0x1a ; bb0
 JUMPI
 POP
 PUSH1 0x67
@@ -219,7 +213,7 @@ JUMPDEST
 DUP1
 PUSH1 0x18
 SUB
-PUSH1 0x1e ; bb0
+PUSH1 0x1a ; bb0
 JUMPI
 POP
 PUSH1 0x66
@@ -233,7 +227,7 @@ JUMPDEST
 DUP1
 PUSH1 0x10
 SUB
-PUSH1 0x1e ; bb0
+PUSH1 0x1a ; bb0
 JUMPI
 POP
 PUSH1 0x65
@@ -247,7 +241,7 @@ JUMPDEST
 DUP1
 PUSH1 0x08
 SUB
-PUSH1 0x1e ; bb0
+PUSH1 0x1a ; bb0
 JUMPI
 POP
 PUSH1 0x64

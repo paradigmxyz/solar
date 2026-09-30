@@ -21,9 +21,6 @@ bb0:
   push 256
   mstore
   dup 1
-  push 288
-  mstore
-  dup 1
   push 0xaca5dfb5
   gt
   push bb4

@@ -17,12 +17,6 @@ bb3:
   push 0
   calldataload
   dup 1
-  push 128
-  mstore
-  pop
-  push 128
-  mload
-  dup 1
   push 8
   sub
   push bb4

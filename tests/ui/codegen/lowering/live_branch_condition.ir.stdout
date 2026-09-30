@@ -17,9 +17,6 @@ bb0:
   push 160
   mstore
   dup 1
-  push 192
-  mstore
-  dup 1
   push 0x75de2d6b
   sub
   push bb2

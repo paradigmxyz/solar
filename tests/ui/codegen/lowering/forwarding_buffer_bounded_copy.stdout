@@ -90,13 +90,12 @@ bb0:
   pop
   push bb4
   returndatasize
+  dup 1
   push 768
   mstore
   push 1
   push 800
   mstore
-  push 768
-  mload
   dup 1
   push 32
   sub

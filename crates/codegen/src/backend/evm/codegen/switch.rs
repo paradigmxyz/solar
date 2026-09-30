@@ -2024,31 +2024,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_stack_op(StackOp::Swap(1));
                 self.emit_stack_op(StackOp::Pop);
             }
-        } else if self.after_spill_hazard {
-            // A spill slot after a low-memory clobber may lie in the written buffer. Keep the
-            // scrutinee on the stack while draining the rest, like a branch condition.
+        } else {
+            // Keep the scrutinee on the stack while draining the rest, like a branch condition.
+            // A spill and reload would also write a slot after a low-memory clobber, where the
+            // slot may lie in the written buffer.
             // [swap depth(other); pop]*; [dup scrutinee]
             self.pop_stack_values_not_needed_by(&[value]);
             self.emit_value(func, value);
-        } else {
-            let mut operands = Vec::with_capacity(cases.len() + 1);
-            operands.push(value);
-            operands.extend(cases.iter().map(|(case_val, _)| *case_val));
-            self.spill_values_before_stack_clear(func, &operands);
-
-            if self.scheduler.is_stack_only_value(value) {
-                // A stack-only scrutinee has no memory home to reload after
-                // the drain. Copy it to the top while it is still tracked and
-                // pop the rest from beneath, like the entry dispatch path.
-                self.emit_value(func, value);
-                while self.scheduler.depth() > 1 {
-                    self.emit_stack_op(StackOp::Swap(1));
-                    self.emit_stack_op(StackOp::Pop);
-                }
-            } else {
-                self.pop_all_stack_values();
-                self.emit_value(func, value);
-            }
         }
 
         match (plan, constant_entries) {
