@@ -63,6 +63,13 @@
 //! constant offsets before the next memory/effect barrier qualify. Publication
 //! stores remain intact so later observers of the buffer retain their behavior;
 //! ordinary memory DSE decides whether those stores are removable.
+//!
+//! The storage-read adapter queries on-demand summaries only for callers containing
+//! repeated potential reads. It selects small helpers that read a stable location also
+//! read elsewhere in the caller. A possible warm SLOAD saving influences lifetime
+//! pricing, but is not a legality fact: inlining preserves every operation, and ordinary
+//! alias-aware CSE must independently prove redundancy. Unknown effects, intervening
+//! writes, and failing checks are never deleted based on the summary.
 
 use crate::{
     backend::evm::{op, select},
@@ -71,7 +78,7 @@ use crate::{
         FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate,
         ImmutableEncoding, InstId, InstKind, Instruction, MemoryObjectKind, MirPhase, MirType,
         Module, Terminator, Value, ValueId,
-        analysis::{CallGraphInfo, Liveness, LoopAnalyzer},
+        analysis::{CallGraphInfo, Liveness, LoopAnalyzer, dataflow::facts::StorageFacts},
         immutable::immutable_push_type_size,
         memory::{EvmMemoryLayout, MemoryLayoutPolicy},
         pass::MirPass,
@@ -81,7 +88,11 @@ use crate::{
 };
 use smallvec::SmallVec;
 use solar_ast::StateMutability;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_sema::Gcx;
 
 /// Module pass for metadata-backed MIR inlining.
@@ -283,6 +294,115 @@ impl MirPass for SpecializeFunctionPointers {
     }
 }
 
+/// Exposes repeated storage reads hidden behind small internal helpers.
+pub(crate) struct InlineStorageReads;
+
+impl MirPass for InlineStorageReads {
+    fn name(&self) -> &'static str {
+        "inline-storage-reads"
+    }
+
+    fn run_pass(
+        &self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        if !gcx.sess.opts.optimization.is_gas() {
+            return false;
+        }
+        let mut readers = DenseBitSet::new_empty(module.functions.len());
+        for (id, func) in module.iter_functions() {
+            if func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::SLoad(_))) {
+                readers.insert(id);
+            }
+        }
+        if readers.is_empty() {
+            return false;
+        }
+        let graph = CallGraphInfo::new(module);
+        loop {
+            let mut changed = false;
+            for (id, _) in module.iter_functions() {
+                if !readers.contains(id) && graph.callees(id).any(|callee| readers.contains(callee))
+                {
+                    changed |= readers.insert(id);
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        let mut candidates = DenseBitSet::new_empty(module.functions.len());
+        for (id, func) in module.iter_functions() {
+            let mut calls = 0;
+            let mut loads = 0;
+            for inst in func.instructions() {
+                match func.inst(inst).kind {
+                    InstKind::ICall { function: Callee::Function(callee), .. }
+                        if readers.contains(callee)
+                            && module.function(callee).instructions().take(33).count() <= 32 =>
+                    {
+                        calls += 1;
+                    }
+                    InstKind::SLoad(_) => loads += 1,
+                    _ => {}
+                }
+            }
+            if calls > 0 && calls + loads >= 2 {
+                candidates.insert(id);
+            }
+        }
+        if candidates.is_empty() {
+            return false;
+        }
+        let facts = StorageFacts::compute(module, gcx.sess.opts.evm_version, &candidates);
+        let mut selected = FxHashSet::default();
+        for id in candidates.iter() {
+            let func = module.function(id);
+            let mut reads = Vec::new();
+            for inst in func.instructions() {
+                if let Some(footprint) = facts.footprint(func, inst)
+                    && let Some(paths) = footprint.reads
+                    && !paths.is_empty()
+                {
+                    reads.push((inst, paths));
+                }
+            }
+            for &(inst, paths) in &reads {
+                if let InstKind::ICall { function: Callee::Function(callee), .. } =
+                    func.inst(inst).kind
+                    && module.function(callee).instructions().take(33).count() <= 32
+                    && !module.function(callee).attributes.no_inline
+                    && module.function(callee).internal_frame_size == 0
+                    && reads.iter().any(|&(other, other_paths)| {
+                        inst != other
+                            && paths.iter().any(|path| {
+                                other_paths
+                                    .iter()
+                                    .any(|other_path| facts.same_location(&[*path], &[*other_path]))
+                            })
+                    })
+                {
+                    selected.insert((id, inst));
+                }
+            }
+        }
+        if selected.is_empty() {
+            return false;
+        }
+        MirInliner {
+            selected_storage_calls: Some(selected),
+            max_instructions: 32,
+            max_single_call_sanity_instructions: 32,
+            ..MirInliner::default()
+        }
+        .run(gcx, module)
+        .inlined
+            != 0
+    }
+}
+
 /// Module-level MIR internal-call inliner.
 ///
 /// This pass clones small internal/private callees into their callers. Each
@@ -321,6 +441,8 @@ struct MirInliner {
     /// frame slots are lowered to physical memory, a late run must leave such
     /// callees alone: the staging instructions would survive the phase boundary.
     frame_staging_allowed: bool,
+    /// Storage summaries are a profitability hint only; they never authorize removing effects.
+    selected_storage_calls: Option<FxHashSet<(MirFunctionId, InstId)>>,
     mode: InlineMode,
 }
 
@@ -363,6 +485,7 @@ impl Default for MirInliner {
             immutable_leaves_only: false,
             memory_wrappers_only: false,
             frame_staging_allowed: true,
+            selected_storage_calls: None,
             mode: InlineMode::Normal,
         }
     }
@@ -814,6 +937,13 @@ impl MirInliner {
         call_count: usize,
         preferred_large_call_site: Option<(MirFunctionId, InstId)>,
     ) -> bool {
+        if self
+            .selected_storage_calls
+            .as_ref()
+            .is_some_and(|sites| !sites.contains(&(caller, site.inst)))
+        {
+            return false;
+        }
         let single_call = self.inline_single_call && call_count == 1;
         let bounded_phi = summary.phi_stack_peak.is_some()
             && match self.mode {
@@ -973,9 +1103,13 @@ impl MirInliner {
         } else {
             site.loop_executions
         };
-        let execution_savings = u128::from(estimated_icall_savings(self.target, site, summary))
-            .saturating_mul(u128::from(self.expected_executions_per_deployment))
-            .saturating_mul(u128::from(loop_executions));
+        // A warm SLOAD costs 100 gas. This is only a profitability estimate: ordinary
+        // alias-aware CSE must still prove that the exposed read is redundant.
+        let storage_savings = if self.selected_storage_calls.is_some() { 100 } else { 0 };
+        let execution_savings =
+            u128::from(estimated_icall_savings(self.target, site, summary) + storage_savings)
+                .saturating_mul(u128::from(self.expected_executions_per_deployment))
+                .saturating_mul(u128::from(loop_executions));
         execution_savings > added_deposit_cost
     }
 }

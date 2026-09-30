@@ -4,11 +4,15 @@ This document describes the MIR dataflow framework in
 `crates/codegen/src/mir/analysis/dataflow/`: the research it builds on, how its
 pieces map onto existing MIR analyses, the security and optimization clients it
 serves, how tests state facts at program points, and the milestone plan. Sections
-marked *planned* describe later milestones; everything else is implemented.
+marked *planned* describe later milestones. The diagnostics and abstract domains are
+experimental, not a soundness certificate for the absence of vulnerabilities.
 
 The framework only reads MIR. Requesting `-Zdataflow` prints facts and emits
 diagnostics but leaves generated code unchanged. Transformations that consume its
-facts are ordinary MIR passes with their own tests and runtime coverage.
+facts are ordinary MIR passes with their own tests and runtime coverage. By default,
+storage summaries are used only as an inlining profitability hint: they never authorize
+deleting a storage access or guard. Experimental effect-based transformations require
+`-Zdataflow-optimizations`.
 
 ## Goals
 
@@ -274,12 +278,17 @@ Labels describe the vector: single-function, cross-function, read-only,
 delegatecall, contract creation, or cross-contract (a call into compiled code that
 itself calls out).
 
-A call cannot call back when its target is a precompile, the zero address, or code
+The experimental lint classifies a call as unable to call back when its target is a precompile, the zero address, or code
 compiled here without call instructions: created with `new`, or held in an immutable
 or a slot that only the constructor writes with such an address. Initcode is
 reconstructed from the constant bytes written to the start of the creation buffer,
 whether copied with `data_copy` or stored as words. `transfer` and `send` forward only
-the stipend, which cannot write storage. Targets chosen by the deployer or an owner
+the stipend, which cannot execute `SSTORE` but can execute `TSTORE`. These classifications
+are lint heuristics, not optimization proofs: a constant address may contain code on
+another chain or fork, and recognizing an initcode prefix does not establish the bytes
+deployed after ordered memory writes and constructor execution. In particular, the
+optimizer does not use created-code trust or the stipend to suppress callbacks.
+Targets chosen by the deployer or an owner
 still run their own code, so they remain reentrancy vectors. After a call that may
 call back, the analysis forgets every exact slot that some runtime entry writes.
 
@@ -452,22 +461,29 @@ serialized while it is active so output is deterministic.
 
 `StorageFacts` (`facts.rs`) snapshots the storage path analysis for one module and answers,
 for any instruction, which paths it may read or write. Internal calls answer with their
-callee's summary instantiated at the call site. Static calls write nothing. External calls
-whose target cannot call back (precompiles, and `new C()` or constant and immutable
-addresses whose known code has no call instructions) touch no storage of this contract. Any other call
-may re-enter and touch whatever a runtime entry touches. Delegate calls touch everything.
-Passes compute the facts at entry and do not consult them for instructions they create.
+callee's summary instantiated at the call site. Static calls write nothing but can observe
+storage through callbacks. Only fork-active precompiles are considered callback-free.
+Other external calls, including those reached through internal helpers, may read or write
+arbitrary storage. Limiting callbacks to this module's public functions is not sound when
+the code executes through delegatecall. Persistent and transient accesses are both included.
+Passes select candidate functions before querying summaries and never consult stale facts
+for instructions they create.
 Querying facts never changes bytecode by itself (`crates/solar/tests/it/dataflow.rs`).
 
-1. **Storage forwarding across calls** (`storage-load-cse`). A cached load survives a call
+1. **Storage-read inlining** (`inline-storage-reads`, gas mode). Small internal helpers
+   whose summaries overlap another read in the caller become inlining candidates. The
+   existing inliner retains its recursion, code growth, frame, and lifetime-cost checks.
+   Summaries affect profitability only; existing CSE independently proves that an exposed
+   load can be removed. Tests: `tests/ui/codegen/mir/inline-storage-reads/`.
+2. **Storage forwarding across calls** (`storage-load-cse`, experimental). A cached load survives a call
    whose footprint cannot write its paths. Before this, the pass forgot every load at a
    call. Test: `tests/ui/codegen/mir/storage-load-cse/across_calls.mir`.
-2. **Interprocedural and path-identity dead-store elimination** (`storage-dse`). A call
-   kills only the pending stores whose paths it may read; stores before a callee that
-   always ends the transaction are removed; stores to equal stable paths count as the same
+3. **Interprocedural and path-identity dead-store elimination** (`storage-dse`, experimental). A call
+   kills only the pending stores whose paths it may read; successful transaction termination
+   prevents a later overwrite from making an earlier store dead. Stores to equal stable paths count as the same
    slot even through different SSA slot values. Test:
    `tests/ui/codegen/mir/storage-dse/across_calls.mir`.
-3. **Guard removal** (`guard-elim`, gas mode only, after the late storage DSE). It finds an
+4. **Guard removal** (`guard-elim`, experimental, gas mode only, after the late storage DSE). It finds an
    exact-slot store and every restore of the slot's prior value that it dominates. If no
    instruction in between can call back into the contract or touch the slot in another
    way, it deletes both stores and replaces reads with the stored value. The entry check
@@ -475,42 +491,65 @@ Querying facts never changes bytecode by itself (`crates/solar/tests/it/dataflow
    `tests/ui/codegen/mir/guard-elim/guard_elim.mir` and `runtime.sol`, a run-call test
    in which a guard around a call that can call back keeps reverting with `locked`.
 
-Cross-function check elimination (feeding interval contexts into `check-elim`) is not
-implemented.
+The last three extensions require `-Zdataflow-optimizations`; the pre-existing storage
+CSE/DSE behavior remains enabled without it. Cross-function check elimination (feeding
+interval contexts into `check-elim`) is not implemented.
 
 ### Measured results
 
-Runtime benchmark suite (`benches/runtime/benchmark.py --suite all --gas --gas-profile
-hot`, baseline `8f8a48994`, candidate `f52073a41`): runtime gas totals 35,183,821 in both
-runs over the 23 comparable cases, a 0% change, and runtime bytes are unchanged in every
-case. `uniswap-v2-pair` fails to compile in both runs (Yul `chainid` without
-parentheses). The final MIR of the corpus contains only 137 `sload` and 82 `sstore`
-instructions in total, and none of them match the patterns above: no guarded region, no
-load reused after a call, no dead store across a call.
+The existing OpenZeppelin VestingWallet workload provides a production-contract example
+of storage-read inlining. Compared with base `8f8a48994`, with the archived input's normal
+optimizer settings and the `hot` gas profile:
 
-Targeted contracts, measured on anvil with `-O gas`:
+| Measurement | Base | Candidate | Delta |
+| --- | ---: | ---: | ---: |
+| `releasable()` transaction, each of two repetitions | 23,746 | 23,601 | -145 gas (-0.61%) |
+| `vestedAmount` transactions, each of fourteen calls | varies | base + 11 | +11 gas |
+| Sum of the sixteen measured transactions | 379,470 | 379,334 | -136 gas (-0.04%) |
+| Runtime bytecode | 1,498 | 1,521 | +23 bytes (+1.54%) |
+| Deployment | 407,602 | 411,674 | +4,072 gas (+1.00%) |
 
-| Contract | Call | Before | After | Saved |
-| --- | --- | ---: | ---: | ---: |
-| `nonReentrant` counter, call target cannot call back | `deposit` (first) | 71,113 | 70,774 | 339 |
-| same | `deposit` (warm) | 36,913 | 36,574 | 339 |
-| same | `bumpAndRead` | 31,317 | 31,108 | 209 |
-| store forwarding across an internal call | `writes(3)` (first) | 89,052 | 88,902 | 150 |
-| same | `writes(3)` (warm) | 30,202 | 30,002 | 200 |
+The emitted MIR has one load of the released-ETH slot in the inlined `releasable` path;
+without this transformation the helper and its caller load it separately. This is a
+small measured tradeoff, not evidence of broad gas savings. The experimental guard/CSE/DSE
+extensions have no demonstrated gas benefit on the existing production workloads.
 
-These are 0.2% to 0.7% of the transaction. Every transaction pays 21,000 intrinsic gas. A
-warm reload costs 100 gas, and after EIP-2200/3529 refunds a set/restore pair costs
-about 200 gas plus the pushes and jumps it needs. Storage transforms therefore cannot save
-10% of a transaction's gas unless a loop repeats the eliminated accesses.
+Across the full corpus, all 23 runtime workloads and their 416 observations passed,
+as did all nine compilation-only projects. Comparable gas totaled 16,823,412 before
+and 16,823,276 after. The 22 gas/bytecode-dependent LibString brutalizer calls are
+excluded from gas comparisons, not from execution checks. The Uniswap v2 fixture
+is incompatible with the pinned Solidity parser (`chainid` without parentheses)
+and is not counted as a passing workload. Equal-weight geometric-mean runtime size
+increased 0.04%; the other changed runtime sizes were Governor +78 bytes, LibString
++25, SignatureChecker +2, and LilWeb3 Fractional -63. No other comparable runtime
+gas changed. Single compile samples do not establish a compiler-speed improvement;
+CodSpeed and repeated same-profile measurements are the compile-speed acceptance checks.
+
+Local CLI wall-time measurements used frozen debug binaries, one thread, all-function
+codegen, two warmups and nine interleaved samples, with no concurrent builds or benchmarks.
+Median `chains` compilation was 232.60 ms on the base and 237.14 ms on this revision
+(+1.95%); the reviewed head `d62e8a058` took 315.23 ms. The LilWeb3 project measured
+93.46 ms on base and 91.08 ms on this revision. These are wall-clock measurements,
+not CodSpeed's simulated instruction counts, and should not be treated as interchangeable.
+
+Reproduce with separate frozen base and candidate compiler binaries using
+`benches/runtime/benchmark.py --mode runtime compile-time --suite all --gas --gas-profile hot
+--start-anvil`, saving results and artifacts for each, then compare them with
+`benches/runtime/benchmark-compare.py`. The runner defaults to Solar only. Saved reference
+results can be supplied with `--reference-results`; no reference compiler need run locally.
+
+A warm reload costs 100 gas, but guard-removal savings depend on initial slot values,
+warmness, and the transaction's refund cap. Refunds do not imply a universal 200-gas
+set/restore cost or a sub-10% upper bound on transaction savings.
 
 ## Milestones
 
 | Milestone | Scope | Status |
 | --- | --- | --- |
 | M0 | This design | done |
-| M1 | Framework core, storage paths, taint, reentrancy with path-sensitive guards, cross-contract trust, `-Zdataflow` dumps, Slither #515 and Sailfish tests | done |
-| M2 | Abstract-domain plug-in API with intervals, rounding direction, and units, NatSpec seeds, and narrowing | done |
-| M3 | Storage facts for passes; storage forwarding across calls, interprocedural DSE, guard removal, with runtime tests and benchmark measurements | done |
+| M1 | Framework core, storage paths, taint, reentrancy with path-sensitive guards, `-Zdataflow` dumps, Slither #515 and Sailfish tests | implemented; diagnostics experimental |
+| M2 | Abstract-domain plug-in API with intervals, rounding direction, and units, NatSpec seeds, and narrowing | implemented; not used as optimization proofs |
+| M3 | Storage-read inlining and experimental storage forwarding, DSE, and guard removal | partial; three production-corpus gas wins not established |
 | Later | Cross-function check elimination; summaries for public library functions reached through `delegatecall`; privileged origins through role mappings | planned |
 
 ## Limitations
@@ -525,5 +564,9 @@ about 200 gas plus the pushes and jumps it needs. Storage transforms therefore c
   are not guards.
 - Targets enabled by privileged accounts, such as registered oracles, are untrusted.
 - Taint through memory is one set per function.
-- The storage layout assumptions are those of solc. Assembly that writes computed
-  slots aliases every path.
+- Hash inputs are assumed collision-free. Absolute slots may be known hash outputs;
+  unconstrained offset arithmetic can wrap. Variable-length mapping keys are unknown
+  because the pointer to their bytes is not a key identity. Unbounded regions may alias
+  arbitrary absolute slots.
+- Created-code trust in the lint is heuristic, not a proof of callback freedom. Optimizers
+  treat created targets as opaque and external callbacks as accessing arbitrary storage.

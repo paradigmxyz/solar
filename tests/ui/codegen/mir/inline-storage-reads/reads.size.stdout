@@ -1,0 +1,168 @@
+- // === ROOT/tests/ui/codegen/mir/inline-storage-reads/reads.mir (before inline-storage-reads) ===
++ // === ROOT/tests/ui/codegen/mir/inline-storage-reads/reads.mir (after inline-storage-reads) ===
+  @module InlineStorageReads
+  fn @read_and_add(arg0: i256) -> i256 {
+    bb0:
+      v0 = sload 0
+      v1 = add v0, arg0
+      ret v1
+  }
+  
+  fn @same_slot(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @read_and_add, arg0
+      v1 = sload 0
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @other_slot(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @read_and_add, arg0
+      v1 = sload 1
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @write_then_read(arg0: i256) -> i256 {
+    bb0:
+      sstore 0, arg0
+      v0 = sload 0
+      ret v0
+  }
+  
+  fn @write_barrier(arg0: i256) -> i256 {
+    bb0:
+      v0 = sload 0
+      v1 = icall @write_then_read, arg0
+      v2 = sload 0
+      v3 = add v0, v2
+      ret v3
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/inline-storage-reads/reads.mir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/inline-storage-reads/reads.mir (after cfg-simplify) ===
+  @module InlineStorageReads
+  fn @read_and_add(arg0: i256) -> i256 {
+    bb0:
+      v0 = sload 0
+      v1 = add v0, arg0
+      ret v1
+  }
+  
+  fn @same_slot(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @read_and_add, arg0
+      v1 = sload 0
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @other_slot(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @read_and_add, arg0
+      v1 = sload 1
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @write_then_read(arg0: i256) -> i256 {
+    bb0:
+      sstore 0, arg0
+      v0 = sload 0
+      ret v0
+  }
+  
+  fn @write_barrier(arg0: i256) -> i256 {
+    bb0:
+      v0 = sload 0
+      v1 = icall @write_then_read, arg0
+      v2 = sload 0
+      v3 = add v0, v2
+      ret v3
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/inline-storage-reads/reads.mir (before cse) ===
++ // === ROOT/tests/ui/codegen/mir/inline-storage-reads/reads.mir (after cse) ===
+  @module InlineStorageReads
+  fn @read_and_add(arg0: i256) -> i256 {
+    bb0:
+      v0 = sload 0
+      v1 = add v0, arg0
+      ret v1
+  }
+  
+  fn @same_slot(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @read_and_add, arg0
+      v1 = sload 0
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @other_slot(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @read_and_add, arg0
+      v1 = sload 1
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @write_then_read(arg0: i256) -> i256 {
+    bb0:
+      sstore 0, arg0
+      v0 = sload 0
+      ret v0
+  }
+  
+  fn @write_barrier(arg0: i256) -> i256 {
+    bb0:
+      v0 = sload 0
+      v1 = icall @write_then_read, arg0
+      v2 = sload 0
+      v3 = add v0, v2
+      ret v3
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/inline-storage-reads/reads.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/inline-storage-reads/reads.mir (after dce) ===
+  @module InlineStorageReads
+  fn @read_and_add(arg0: i256) -> i256 {
+    bb0:
+      v0 = sload 0
+      v1 = add v0, arg0
+      ret v1
+  }
+  
+  fn @same_slot(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @read_and_add, arg0
+      v1 = sload 0
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @other_slot(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @read_and_add, arg0
+      v1 = sload 1
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @write_then_read(arg0: i256) -> i256 {
+    bb0:
+      sstore 0, arg0
+      v0 = sload 0
+      ret v0
+  }
+  
+  fn @write_barrier(arg0: i256) -> i256 {
+    bb0:
+      v0 = sload 0
+      v1 = icall @write_then_read, arg0
+      v2 = sload 0
+      v3 = add v0, v2
+      ret v3
+  }
+  

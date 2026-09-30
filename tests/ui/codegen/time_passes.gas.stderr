@@ -69,6 +69,7 @@ time: <TIME>	MIR TimePasses word-sequence changed=false
 time: <TIME>	MIR TimePasses cfg-simplify changed=false
 time: <TIME>	MIR TimePasses memory-dse changed=false
 time: <TIME>	MIR TimePasses inline-immutable-leaves changed=false
+time: <TIME>	MIR TimePasses inline-storage-reads changed=false
 time: <TIME>	MIR TimePasses cse changed=false
 time: <TIME>	MIR TimePasses storage-pre changed=false
 time: <TIME>	MIR TimePasses check-elim changed=false

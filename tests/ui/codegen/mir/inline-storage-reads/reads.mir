@@ -1,0 +1,60 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=inline-storage-reads,cfg-simplify,cse,dce
+//@[size] compile-flags: -Osize -Zmir-pipeline=inline-storage-reads,cfg-simplify,cse,dce
+//@[gas] filecheck: --check-prefix=GAS
+//@[size] filecheck: --check-prefix=SIZE
+@module InlineStorageReads
+
+fn @read_and_add(arg0: i256) -> i256 {
+  bb0:
+    v0 = sload 0
+    v1 = add v0, arg0
+    ret v1
+}
+
+// A summary is only an inlining hint. CSE separately proves the exposed load redundant.
+// GAS-LABEL: fn @same_slot
+// GAS: - v0 = icall @read_and_add
+// GAS: sload 0
+// SIZE-LABEL: fn @same_slot
+// SIZE: v0 = icall @read_and_add
+fn @same_slot(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @read_and_add, arg0
+    v1 = sload 0
+    v2 = add v0, v1
+    ret v2
+}
+
+// Distinct reads do not justify cloning a shared helper.
+// GAS-LABEL: fn @other_slot
+// GAS: v0 = icall @read_and_add
+// SIZE-LABEL: fn @other_slot
+// SIZE: v0 = icall @read_and_add
+fn @other_slot(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @read_and_add, arg0
+    v1 = sload 1
+    v2 = add v0, v1
+    ret v2
+}
+
+fn @write_then_read(arg0: i256) -> i256 {
+  bb0:
+    sstore 0, arg0
+    v0 = sload 0
+    ret v0
+}
+
+// An intervening write must still invalidate the old load after inlining.
+// GAS-LABEL: fn @write_barrier
+// GAS: - v1 = icall @write_then_read
+// GAS: + sstore 0, arg0
+fn @write_barrier(arg0: i256) -> i256 {
+  bb0:
+    v0 = sload 0
+    v1 = icall @write_then_read, arg0
+    v2 = sload 0
+    v3 = add v0, v2
+    ret v3
+}

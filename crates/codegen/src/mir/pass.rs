@@ -40,6 +40,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &if_convert::IfConvert,
     &inline::InlineImmutableLeaves,
     &inline::InlineMemoryWrappers,
+    &inline::InlineStorageReads,
     &inline_dispatch::InlineDispatch,
     &inline::SpecializeFunctionPointers,
     &specialize::Specialize,
@@ -294,6 +295,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &memory_dse::MemoryDse,
     // Check elimination and CFG cleanup expose straight-line immutable helpers.
     &inline::InlineImmutableLeaves,
+    // ABI lowering and CFG cleanup expose callable bodies without trivial phis.
+    // Storage summaries identify helpers that can expose repeated reads to CSE.
+    &GasOnly::new(inline::InlineStorageReads),
     // Late CSE reduces runtime gas after aggregate lowering, but can grow
     // bytecode through longer live ranges, so keep it out of `-Osize`.
     &GasOnly::new(cse::Cse),

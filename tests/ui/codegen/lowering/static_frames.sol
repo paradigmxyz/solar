@@ -21,7 +21,7 @@ contract SF {
     // CHECK: return
     // The allocating entry initializes its reachable frame floor.
     // CHECK: [[TOP]]:
-    // CHECK-NEXT: push 352
+    // CHECK-NEXT: push 320
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // Static locals use fixed addresses without a dynamic-frame header.
@@ -32,7 +32,7 @@ contract SF {
     // Recursive calls reserve dynamic frames from the free-memory pointer.
     // CHECK: push 160
     // CHECK-NEXT: mload
-    // CHECK: push 288
+    // CHECK: push 256
     // CHECK-NEXT: add
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
