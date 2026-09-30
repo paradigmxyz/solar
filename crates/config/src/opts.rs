@@ -472,6 +472,11 @@ pub struct UnstableOpts {
     )]
     pub dataflow_k: usize,
 
+    /// Enable experimental dataflow-based storage and guard optimizations.
+    /// These transforms are under soundness review and are disabled by default.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub dataflow_optimizations: bool,
+
     /// Drop the compiler context after compilation.
     /// Library callers can enable this to reclaim memory between compilations.
     #[cfg_attr(feature = "clap", arg(skip))]

@@ -1,0 +1,18 @@
+//@ compile-flags: -Zdataflow=intervals -Zmir-pipeline=none
+//@ filecheck:
+@module ParallelPhis
+
+// Loop phis are simultaneous assignments: the swap alternates (0, 1) and (1, 0).
+// CHECK-LABEL: fn @swap:
+// CHECK: v0 = phi {{.*}} ; [0, 1]
+// CHECK: v1 = phi {{.*}} ; [0, 1]
+fn @swap(arg0: i1) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb1: v1]
+    v1 = phi [bb0: 1], [bb1: v0]
+    jumpi arg0, bb1, bb2
+  bb2:
+    ret v1
+}

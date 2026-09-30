@@ -9,16 +9,17 @@
 //! a later `gas` read observes their cost and warmness effects, including
 //! observations in predecessor blocks and transitive callees.
 //!
-//! Calls invalidate only what the dataflow framework's storage facts say they may
+//! With `-Zdataflow-optimizations`, calls invalidate only what the experimental
+//! dataflow framework's storage facts say they may
 //! write. An internal call writes its callee's summarized footprint instantiated
 //! for its storage-pointer arguments, which keeps loads of other fields, mapping
 //! entries, and slots available across helpers that previously forgot every
 //! symbolic slot. A static call cannot write state. A call whose target runs no
-//! code that can call back, such as code created here without call instructions,
-//! leaves this contract's storage unchanged. Any other external call may re-enter
-//! and write what some external entry of the module writes, so loads of slots no
-//! entry writes survive it. Paths compare structurally under the storage layout
-//! assumptions of those facts.
+//! code that can call back, such as an active precompile, leaves this contract's
+//! storage unchanged. Any other external call may re-enter and write arbitrary
+//! slots, including through internal helpers and execution via delegatecall.
+//! Created-code provenance is not used as an optimization proof. Paths compare
+//! structurally under the storage layout assumptions of those facts.
 
 use crate::mir::{
     BlockId, Callee, Function, InstId, InstKind, Module, StorageAlias, ValueId,
@@ -48,14 +49,33 @@ impl MirPass for StorageLoadCse {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let mut selected = DenseBitSet::new_empty(module.functions.len());
-        let mut has_calls = false;
+        let mut fact_candidates = DenseBitSet::new_empty(module.functions.len());
         for (id, func) in module.functions.iter_enumerated() {
             if func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::SLoad(..))) {
                 selected.insert(id);
-                has_calls |= func.instructions().any(|inst| is_call(&func.inst(inst).kind));
+                // Facts can only help a local cache when a load follows a storage access
+                // and an intervening call in the same block.
+                if gcx.sess.opts.unstable.dataflow_optimizations
+                    && func.blocks.iter().any(|block| {
+                        let mut cached = false;
+                        let mut crossed_call = false;
+                        for &inst in &block.instructions {
+                            match &func.inst(inst).kind {
+                                InstKind::SLoad(_) if crossed_call => return true,
+                                InstKind::SLoad(_) | InstKind::SStore(..) => cached = true,
+                                kind if cached && is_call(kind) => crossed_call = true,
+                                _ => {}
+                            }
+                        }
+                        false
+                    })
+                {
+                    fact_candidates.insert(id);
+                }
             }
         }
-        let facts = has_calls.then(|| StorageFacts::compute(module, gcx.sess.opts.evm_version));
+        let facts = (!fact_candidates.is_empty())
+            .then(|| StorageFacts::compute(module, gcx.sess.opts.evm_version, &fact_candidates));
         run_selected_function_pass_with_alias_and_cfg(
             module,
             analyses,

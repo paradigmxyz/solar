@@ -6,6 +6,7 @@
 // CHECK: fn @withdraw:
 // CHECK: call {{.*}}; call to caller tslot(0)=1
 // CHECK-NOT: finding:
+// CHECK: finding: tod @withdraw
 contract TransientVault {
     mapping(address => uint256) balances;
 
@@ -21,6 +22,7 @@ contract TransientVault {
     function withdraw() external nonReentrant {
         uint256 amount = balances[msg.sender];
         (bool ok, ) = msg.sender.call{value: amount}("");
+        //~^ WARN: possible transaction-order dependence: the value of a transfer in `withdraw` depends on storage written by `deposit`
         require(ok);
         balances[msg.sender] = 0;
     }

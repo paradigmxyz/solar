@@ -4,7 +4,7 @@
 //! Slot computations are pure, so a value's paths do not depend on the program point and
 //! one memoized walk over its definition suffices; phis and selects join their inputs, and
 //! loop-carried slot arithmetic widens to the unknown path. Formal parameters start as
-//! [`PathNode::Param`](super::storage_path::PathNode::Param) in the most general context,
+//! [`PathNode::Param`] in the most general context,
 //! so a callee's summary is relative to its storage-pointer parameters and each caller
 //! substitutes its actual paths: `setA(s.x)` writes `slot(0).1` and `L.pick(x, y, c).b`
 //! writes `{slot(0).1, slot(4).1}`. Returned storage pointers are summarized the same way.
@@ -418,11 +418,14 @@ impl FunctionCx<'_> {
             Value::Undef(_) | Value::Error(_) => return PathSet::unknown(),
         };
         match &self.func.inst(inst).kind {
-            &InstKind::MappingSlot(key, slot)
-            | &InstKind::MappingSlotMemory(key, slot)
-            | &InstKind::MappingSlotCalldata(key, slot) => {
+            &InstKind::MappingSlot(key, slot) => {
                 let key = self.key(key);
                 self.map_paths(engine, slot, |base| PathNode::Mapping { base, key })
+            }
+            // Dynamic keys hash their contents, not their pointer. Memory can change
+            // between uses, and an empty key hashes just the base (like array data).
+            InstKind::MappingSlotMemory(..) | InstKind::MappingSlotCalldata(..) => {
+                PathSet::unknown()
             }
             &InstKind::StorageArrayDataSlot(slot) => {
                 self.map_paths(engine, slot, |base| PathNode::ArrayData { base })
@@ -443,9 +446,7 @@ impl FunctionCx<'_> {
                     .collect()
             }
             &InstKind::Add(a, b) => self.add_paths(engine, a, b),
-            &InstKind::Zext(inner) | &InstKind::Trunc(inner, _) | &InstKind::Bitcast(inner) => {
-                self.paths(engine, inner)
-            }
+            &InstKind::Zext(inner) | &InstKind::Bitcast(inner) => self.paths(engine, inner),
             InstKind::Phi(incoming) => {
                 let incoming = incoming.clone();
                 let mut paths = PathSet::default();

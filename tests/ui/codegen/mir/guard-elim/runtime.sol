@@ -3,15 +3,13 @@
 //@ run-call: isLocked => false
 //@ run-call: bumpAndRead => 1
 //@ run-call-fail: reenterSelf => Error("locked")
-//@[opt] compile-flags: -Ogas -Zdump=mir
+//@[opt] compile-flags: -Ogas -Zdump=mir -Zdataflow-optimizations
 //@[opt] filecheck: --check-prefix=MIR
-// A Uniswap-style lock around calls that cannot call back is removed in gas mode: the
-// helper contract is created here and its code has no call instructions. A read of the
-// lock inside the region sees the marker, and a guarded function that calls back into
-// this contract keeps its lock and still reverts when re-entered.
+// Created contracts remain opaque until deployed runtime provenance is proved. Reads of
+// the lock see the marker, and a guarded callback still reverts when re-entered.
 
 // MIR-LABEL: fn @deposit(
-// MIR-NOT: sstore 0,
+// MIR: sstore 0, 0
 // MIR: ret
 // MIR-LABEL: fn @reenterSelf(
 // MIR: sstore 0, 0

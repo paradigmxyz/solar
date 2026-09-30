@@ -59,8 +59,8 @@
 +     v0 = sload 9 !metadata(storage=slot(9))
       v1 = call 0, arg0, 0, 0, 0, 0, 0
 -     v2 = sload 9
--     v3 = add v0, v2
-+     v3 = add v0, v0
++     v2 = sload 9 !metadata(storage=slot(9))
+      v3 = add v0, v2
       ret v3
   }
   

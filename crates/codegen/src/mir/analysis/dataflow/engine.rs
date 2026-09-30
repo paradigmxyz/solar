@@ -114,12 +114,14 @@ pub(crate) trait Analysis {
     fn apply_edge(&mut self, _func: &Function, _edge: &Edge, _state: &mut Self::Domain) {}
 
     /// Binds one phi of `edge.to` to its incoming value on `edge`.
+    /// Read incoming values from `source`, the snapshot before any phi on this edge is bound.
     fn apply_phi(
         &mut self,
         _func: &Function,
         _phi: InstId,
         _incoming: ValueId,
         _edge: &Edge,
+        _source: &Self::Domain,
         _state: &mut Self::Domain,
     ) {
     }
@@ -266,9 +268,10 @@ fn solve_forward<A: Analysis>(
         for edge in outgoing_edges(func, block) {
             let mut edge_state = state.clone();
             analysis.apply_edge(func, &edge, &mut edge_state);
+            let source = edge_state.clone();
             for phi in block_phis(func, edge.to) {
                 if let Some(incoming) = phi_incoming(func, phi, block) {
-                    analysis.apply_phi(func, phi, incoming, &edge, &mut edge_state);
+                    analysis.apply_phi(func, phi, incoming, &edge, &source, &mut edge_state);
                 }
             }
             let target = edge.to;
@@ -331,7 +334,7 @@ fn solve_backward<A: Analysis>(
             let mut edge_state = state.clone();
             for phi in block_phis(func, block) {
                 if let Some(incoming) = phi_incoming(func, phi, pred) {
-                    analysis.apply_phi(func, phi, incoming, &edge, &mut edge_state);
+                    analysis.apply_phi(func, phi, incoming, &edge, &state, &mut edge_state);
                 }
             }
             analysis.apply_edge(func, &edge, &mut edge_state);
@@ -388,9 +391,17 @@ pub(crate) fn narrow<A: Analysis>(
                 for edge in outgoing_edges(func, pred).into_iter().filter(|edge| edge.to == block) {
                     let mut edge_state = state.clone();
                     analysis.apply_edge(func, &edge, &mut edge_state);
+                    let source = edge_state.clone();
                     for phi in block_phis(func, block) {
                         if let Some(incoming) = phi_incoming(func, phi, pred) {
-                            analysis.apply_phi(func, phi, incoming, &edge, &mut edge_state);
+                            analysis.apply_phi(
+                                func,
+                                phi,
+                                incoming,
+                                &edge,
+                                &source,
+                                &mut edge_state,
+                            );
                         }
                     }
                     entry.join(&edge_state);

@@ -14,12 +14,14 @@
 //! stores without discarding preserved fields. A `gas` read clears both
 //! forward and backward facts so measured storage writes remain explicit.
 //!
-//! Calls use the dataflow framework's storage facts. Crossing a call backward kills
+//! With `-Zdataflow-optimizations`, calls use the experimental framework's storage facts.
+//! Crossing a call backward kills
 //! only the overwrite facts its footprint may read, so a store stays dead across a
 //! helper that reads other storage; a call whose callee may end the transaction
 //! successfully kills every fact, because the later overwrite may never run.
-//! External calls that may re-enter read what some external entry of the module
-//! reads. Forward equal-store removal keeps stored values its footprint cannot write.
+//! External calls that may re-enter can read arbitrary slots, including callbacks
+//! reached through internal helpers. Forward equal-store removal keeps stored values
+//! its footprint cannot write.
 
 use crate::mir::{
     BlockId, Callee, Function, InstId, InstKind, Module, StorageAlias, Terminator, ValueId,
@@ -57,15 +59,26 @@ impl MirPass for StorageDse {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let mut selected = DenseBitSet::new_empty(module.functions.len());
-        let mut has_calls = false;
+        let mut fact_candidates = DenseBitSet::new_empty(module.functions.len());
         for (id, func) in module.functions.iter_enumerated() {
             if func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::SStore(..)))
             {
                 selected.insert(id);
-                has_calls |= func.instructions().any(|inst| is_call(&func.inst(inst).kind));
+                if gcx.sess.opts.unstable.dataflow_optimizations
+                    && func
+                        .instructions()
+                        .filter(|&inst| matches!(func.inst(inst).kind, InstKind::SStore(..)))
+                        .take(2)
+                        .count()
+                        == 2
+                    && func.instructions().any(|inst| is_call(&func.inst(inst).kind))
+                {
+                    fact_candidates.insert(id);
+                }
             }
         }
-        let facts = has_calls.then(|| StorageFacts::compute(module, gcx.sess.opts.evm_version));
+        let facts = (!fact_candidates.is_empty())
+            .then(|| StorageFacts::compute(module, gcx.sess.opts.evm_version, &fact_candidates));
         run_selected_function_pass_with_alias_and_cfg(
             module,
             analyses,

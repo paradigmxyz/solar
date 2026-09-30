@@ -1,0 +1,27 @@
+//@ revisions: berlin cancun
+//@[berlin] compile-flags: -Zmir-pipeline=guard-elim -Zdataflow-optimizations --evm-version=berlin
+//@[cancun] compile-flags: -Zmir-pipeline=guard-elim -Zdataflow-optimizations --evm-version=cancun
+//@[berlin] filecheck: --check-prefix=BERLIN
+//@[cancun] filecheck: --check-prefix=CANCUN
+@module PrecompileForks
+
+// Address 10 is arbitrary code before Cancun, not a callback-free precompile.
+// BERLIN-LABEL: fn @lock
+// BERLIN: sstore 0, 2
+// BERLIN: sstore 0, 1
+// CANCUN-LABEL: fn @lock
+// CANCUN: - sstore 0, 2
+// CANCUN: - sstore 0, 1
+fn @lock() {
+  bb0:
+    v0 = sload 0
+    v1 = eq v0, 1
+    jumpi v1, bb1, bb2
+  bb1:
+    sstore 0, 2
+    v2 = call 100000, 10, 0, 0, 0, 0, 0
+    sstore 0, 1
+    ret
+  bb2:
+    revert 0, 0
+}

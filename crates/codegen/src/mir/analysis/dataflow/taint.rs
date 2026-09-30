@@ -505,9 +505,10 @@ impl Analysis for TaintTransfer<'_, '_, '_> {
         phi: InstId,
         incoming: ValueId,
         _edge: &engine::Edge,
+        source: &TaintState,
         state: &mut TaintState,
     ) {
-        let taint = self.value_taint(func, state, incoming);
+        let taint = self.value_taint(func, source, incoming);
         if let Some(result) = func.inst_result_value(phi)
             && !taint.is_empty()
         {

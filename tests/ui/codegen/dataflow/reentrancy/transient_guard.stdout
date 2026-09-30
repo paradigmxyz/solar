@@ -20,3 +20,4 @@ fn @deposit:
   bb5:
     tstore 0, 0  ; write transient slot(0) if entry(tslot(0)) == 0
   exit: tslot(0)=0 requires entry(tslot(0)) == 0
+finding: tod @withdraw call#0.12: value depends on slot(0)[caller] written by @deposit

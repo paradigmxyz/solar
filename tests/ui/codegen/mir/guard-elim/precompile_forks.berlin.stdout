@@ -1,0 +1,17 @@
+- // === ROOT/tests/ui/codegen/mir/guard-elim/precompile_forks.mir (before guard-elim) ===
++ // === ROOT/tests/ui/codegen/mir/guard-elim/precompile_forks.mir (after guard-elim) ===
+  @module PrecompileForks
+  fn @lock() {
+    bb0:
+      v0 = sload 0
+      v1 = eq v0, 1
+      jumpi v1, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      sstore 0, 2
+      v2 = call 0x186a0, 10, 0, 0, 0, 0, 0
+      sstore 0, 1
+      ret
+  }
+  

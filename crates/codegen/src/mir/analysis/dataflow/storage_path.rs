@@ -15,10 +15,9 @@
 //! example after `c ? a : b`; a [`PathSet`] keeps up to [`MAX_PATHS`] alternatives and
 //! degrades to [`PathNode::Unknown`], which aliases every slot.
 //!
-//! Alias queries assume Keccak-256 is collision free and that hashed locations lie far from
-//! both the low absolute slots and each other, the same assumptions solc's storage layout
-//! makes. Offsets added to a location are assumed not to wrap around the slot space; the
-//! frontend's bounds checks establish this for array indices. Keys are compared per
+//! Alias queries assume Keccak-256 is collision free for distinct hash inputs. Absolute
+//! slots may contain known hash outputs, and arithmetic offsets may wrap; neither is
+//! considered disjoint from a hash without a proof. Keys are compared per
 //! [`Activation`]: within one function activation the same SSA value denotes the same word,
 //! while accesses from different transactions or reentrant calls only share constants.
 
@@ -117,7 +116,7 @@ enum Root {
     Absolute,
     Hash(PathId),
     Param(ArgIdx),
-    Region(PathId),
+    Region,
     Unknown,
 }
 
@@ -380,9 +379,10 @@ impl PathTable {
         let (root_b, offset_b) = self.decompose(b);
         match (&root_a, &root_b) {
             (Root::Unknown, _) | (_, Root::Unknown) => AliasResult::MayAlias,
-            (&Root::Region(base), _) => self.region_alias(base, b, activation),
-            (_, &Root::Region(base)) => self.region_alias(base, a, activation),
-            (Root::Param(x), Root::Param(y)) if x == y => {
+            // Unbounded regions include hash-derived slots and offsets. Without length
+            // bounds they cannot be proved disjoint from an arbitrary word address.
+            (Root::Region, _) | (_, Root::Region) => AliasResult::MayAlias,
+            (Root::Param(x), Root::Param(y)) if x == y && activation == Activation::Same => {
                 Self::offset_alias(&offset_a, &offset_b, activation)
             }
             (Root::Param(_), _) | (_, Root::Param(_)) => AliasResult::MayAlias,
@@ -390,19 +390,19 @@ impl PathTable {
                 Self::offset_alias(&offset_a, &offset_b, activation)
             }
             (Root::Absolute, Root::Hash(_)) | (Root::Hash(_), Root::Absolute) => {
-                AliasResult::NoAlias
+                // A literal can be the hash's known output. Collision resistance says
+                // nothing about comparing a hash with an arbitrary absolute slot.
+                AliasResult::MayAlias
             }
             (&Root::Hash(x), &Root::Hash(y)) => match self.hash_alias(x, y, activation) {
-                AliasResult::NoAlias => AliasResult::NoAlias,
-                AliasResult::MustAlias => Self::offset_alias(&offset_a, &offset_b, activation),
-                AliasResult::MayAlias | AliasResult::PartialAlias => {
-                    // Distinct hashes are far apart, so definitely different offsets from
-                    // either one or two roots never meet.
-                    match Self::offset_alias(&offset_a, &offset_b, activation) {
-                        AliasResult::NoAlias => AliasResult::NoAlias,
-                        _ => AliasResult::MayAlias,
-                    }
+                AliasResult::NoAlias
+                    if Self::offset_alias(&offset_a, &offset_b, activation)
+                        == AliasResult::MustAlias =>
+                {
+                    AliasResult::NoAlias
                 }
+                AliasResult::MustAlias => Self::offset_alias(&offset_a, &offset_b, activation),
+                _ => AliasResult::MayAlias,
             },
         }
     }
@@ -428,7 +428,8 @@ impl PathTable {
 
     fn has_keys(&self, path: PathId) -> bool {
         match self.nodes[path] {
-            PathNode::Unknown | PathNode::Slot(_) | PathNode::Param(_) => false,
+            PathNode::Unknown | PathNode::Slot(_) => false,
+            PathNode::Param(_) => true,
             PathNode::Mapping { base, key } => {
                 !matches!(key, KeyTerm::Const(_)) || self.has_keys(base)
             }
@@ -452,8 +453,8 @@ impl PathTable {
             PathNode::Mapping { .. } | PathNode::ArrayData { .. } => {
                 (Root::Hash(path), Offset { constant: U256::ZERO, terms: SmallVec::new() })
             }
-            PathNode::Region { base } => {
-                (Root::Region(base), Offset { constant: U256::ZERO, terms: SmallVec::new() })
+            PathNode::Region { .. } => {
+                (Root::Region, Offset { constant: U256::ZERO, terms: SmallVec::new() })
             }
             PathNode::Unknown => {
                 (Root::Unknown, Offset { constant: U256::ZERO, terms: SmallVec::new() })
@@ -527,48 +528,12 @@ impl PathTable {
                 AliasResult::NoAlias
             };
         }
-        // Elements of the same stride never overlap in different fields of one element.
-        let strides_match = a.terms.len() == b.terms.len()
-            && a.terms.iter().zip(&b.terms).all(|(&(_, sa), &(_, sb))| sa == sb);
-        if strides_match
-            && let Some(&(_, stride)) = a.terms.last()
-            && stride > 1
-        {
-            let stride = U256::from(stride);
-            if a.constant < stride && b.constant < stride && a.constant != b.constant {
-                return AliasResult::NoAlias;
-            }
-        }
+        // Different indices may wrap modulo 2^256. A source array bound is not
+        // available here, so differing fields alone do not prove disjointness.
         if a.terms.is_empty() && b.terms.is_empty() {
             return AliasResult::NoAlias;
         }
         AliasResult::MayAlias
-    }
-
-    fn region_alias(&self, base: PathId, other: PathId, activation: Activation) -> AliasResult {
-        let mut current = Some(other);
-        while let Some(path) = current {
-            if self.may_alias_non_region(path, base, activation) {
-                return AliasResult::MayAlias;
-            }
-            current = match self.nodes[path] {
-                PathNode::Mapping { base, .. }
-                | PathNode::ArrayData { base }
-                | PathNode::Element { base, .. }
-                | PathNode::Field { base, .. }
-                | PathNode::Region { base } => Some(base),
-                PathNode::Slot(_) | PathNode::Param(_) | PathNode::Unknown => None,
-            };
-        }
-        AliasResult::NoAlias
-    }
-
-    fn may_alias_non_region(&self, a: PathId, b: PathId, activation: Activation) -> bool {
-        match (self.nodes[a], self.nodes[b]) {
-            (PathNode::Region { base }, _) => self.may_alias_non_region(base, b, activation),
-            (_, PathNode::Region { base }) => self.may_alias_non_region(a, base, activation),
-            _ => self.may_alias(a, b, activation),
-        }
     }
 
     /// Displays `path`, naming local keys through `func` when given.
@@ -768,12 +733,12 @@ mod tests {
     fn fields_of_one_mapping_entry_are_disjoint() {
         let mut table = PathTable::default();
         let base = table.slot(U256::from(3));
-        let a = mapping(&mut table, base, KeyTerm::Any);
-        let b = mapping(&mut table, base, KeyTerm::Any);
+        let a = mapping(&mut table, base, KeyTerm::Caller);
+        let b = mapping(&mut table, base, KeyTerm::Caller);
         let a0 = field(&mut table, a, U256::ZERO);
         let b1 = field(&mut table, b, U256::from(1));
         assert_eq!(table.alias(a0, b1, Activation::Same), AliasResult::NoAlias);
-        assert_eq!(table.alias(a0, b, Activation::Same), AliasResult::MayAlias);
+        assert_eq!(table.alias(a0, b, Activation::Same), AliasResult::MustAlias);
     }
 
     #[test]
@@ -790,7 +755,7 @@ mod tests {
         assert_eq!(table.alias(c, d, Activation::Different), AliasResult::NoAlias);
         assert_eq!(table.alias(a, a, Activation::Same), AliasResult::MustAlias);
         assert_eq!(table.alias(a, a, Activation::Different), AliasResult::MayAlias);
-        assert_eq!(table.alias(a, m1, Activation::Same), AliasResult::NoAlias);
+        assert_eq!(table.alias(a, m1, Activation::Same), AliasResult::MayAlias);
     }
 
     #[test]
@@ -811,7 +776,7 @@ mod tests {
     }
 
     #[test]
-    fn regions_cover_derived_paths_only() {
+    fn regions_may_alias_absolute_slots() {
         let mut table = PathTable::default();
         let bytes = table.slot(U256::from(4));
         let region = table.intern(PathNode::Region { base: bytes });
@@ -819,7 +784,7 @@ mod tests {
         let other = table.slot(U256::from(5));
         assert!(table.may_alias(region, data, Activation::Same));
         assert!(table.may_alias(region, bytes, Activation::Same));
-        assert!(!table.may_alias(region, other, Activation::Same));
+        assert!(table.may_alias(region, other, Activation::Same));
     }
 
     #[test]
@@ -832,5 +797,33 @@ mod tests {
         assert!(!set.is_unknown());
         assert!(set.insert(table.slot(U256::from(100))));
         assert!(set.is_unknown());
+    }
+
+    #[test]
+    fn unknown_keys_and_wrapping_offsets_may_overlap() {
+        let mut table = PathTable::default();
+        let base = table.slot(U256::ZERO);
+        let a = mapping(&mut table, base, KeyTerm::Any);
+        let b = field(&mut table, a, U256::from(1));
+        assert_eq!(table.alias(a, b, Activation::Same), AliasResult::MayAlias);
+
+        // 3 * inverse(3) wraps to 1: different fields of unconstrained indices
+        // need not be disjoint in the EVM's modular slot arithmetic.
+        let offset = |constant, index| Offset {
+            constant: U256::from(constant),
+            terms: smallvec::smallvec![(KeyTerm::Arg(ArgIdx::from_usize(index)), 3)],
+        };
+        assert_eq!(
+            PathTable::offset_alias(&offset(0, 0), &offset(1, 1), Activation::Same),
+            AliasResult::MayAlias,
+        );
+    }
+
+    #[test]
+    fn parameters_can_differ_between_activations() {
+        let mut table = PathTable::default();
+        let param = table.param(ArgIdx::from_usize(0));
+        assert_eq!(table.alias(param, param, Activation::Same), AliasResult::MustAlias);
+        assert_eq!(table.alias(param, param, Activation::Different), AliasResult::MayAlias);
     }
 }

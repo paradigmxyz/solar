@@ -1,4 +1,4 @@
-//@compile-flags: -Zmir-pipeline=storage-dse
+//@compile-flags: -Zmir-pipeline=storage-dse -Zdataflow-optimizations
 //@filecheck:
 // Crossing a call backward kills only the overwrite facts its footprint may read.
 @module AcrossCalls
@@ -64,7 +64,7 @@ fn @touch_other(arg0: i256) {
 }
 
 // The two stores compute `bal[msg.sender]` separately; their storage paths are equal and
-// stable, so the first store is overwritten across a call that writes another mapping.
+// stable. The helper only writes, so it cannot observe the first store even if it aliases.
 // CHECK-LABEL: {{^[ +].*}}fn @dead_through_recomputed_slot{{[( ]}}
 // CHECK: - sstore {{v[0-9]+}}, 1
 // CHECK: + sstore {{v[0-9]+}}, 2

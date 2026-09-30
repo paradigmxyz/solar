@@ -1,4 +1,4 @@
-//@compile-flags: -Zmir-pipeline=guard-elim
+//@compile-flags: -Zmir-pipeline=guard-elim -Zdataflow-optimizations
 //@filecheck:
 // A lock set and restored around code that cannot observe it is removed; the check stays.
 @module GuardElim
@@ -16,12 +16,12 @@ fn @reads_lock() -> i256 {
     ret v0
 }
 
-// require(unlocked == 1); unlocked = 0; ...; unlocked = 1
+// A hashed write can alias a known absolute slot; retain the guard around it.
 // CHECK-LABEL: {{^[ +].*}}fn @uniswap_lock{{[( ]}}
 // CHECK: v0 = sload 0
-// CHECK: - sstore 0, 0
+// CHECK: {{^ }}{{.*}}sstore 0, 0
 // CHECK: icall @helper, arg0
-// CHECK: - sstore 0, 1
+// CHECK: {{^ }}{{.*}}sstore 0, 1
 fn @uniswap_lock(arg0: i256) [selector=0x00000001] {
   bb0:
     v0 = sload 0

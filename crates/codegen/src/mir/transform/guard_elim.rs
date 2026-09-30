@@ -8,8 +8,8 @@
 //! discards the write. The pass then deletes the set and every restore, and replaces reads
 //! of the slot inside the region with the stored marker value. The guard's check stays,
 //! so the function still reverts when entered while another guarded region holds the lock.
-//! On the EVM this saves the dirty write and the restore; the refund for restoring the
-//! original value otherwise recovers most of their cost.
+//! The gas saved depends on the original slot value, warmness, and the transaction's
+//! refund cap; refunds do not provide a general bound on optimization savings.
 //!
 //! The analysis runs in three steps:
 //!
@@ -27,10 +27,11 @@
 //!   never rewritten.
 //! - Functions that observe gas are skipped, like the other storage eliminations.
 //!
-//! Only guards whose calls run no code that can call back qualify: calls to precompiles,
-//! internal helpers, or contracts created here without call instructions. Run in gas mode
-//! after storage forwarding and dead-store elimination, when packed read-modify-write
-//! sequences are explicit.
+//! Only guards whose calls run no code that can call back qualify: calls to active
+//! precompiles and internal helpers without transitive callbacks or accesses to the lock.
+//! Created contracts remain opaque. The experimental pass requires
+//! `-Zdataflow-optimizations` and gas mode, and runs after storage forwarding and
+//! dead-store elimination, when packed read-modify-write sequences are explicit.
 
 use crate::mir::{
     BlockId, Function, InstId, InstKind, Module, Terminator, ValueId,
@@ -66,22 +67,29 @@ impl MirPass for GuardElim {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        if !gcx.sess.opts.unstable.dataflow_optimizations {
+            return false;
+        }
         let mut selected = DenseBitSet::new_empty(module.functions.len());
         for (id, func) in module.functions.iter_enumerated() {
-            let stores = func
-                .instructions()
-                .filter(|&inst| {
-                    matches!(func.inst(inst).kind, InstKind::SStore(..) | InstKind::TStore(..))
-                })
-                .count();
-            if stores >= 2 {
+            // The transform only accepts exact slots. A set/restore candidate needs
+            // two stores to the same constant slot in the same address space.
+            let mut slots = FxHashSet::default();
+            if func.instructions().any(|inst| {
+                let (slot, transient) = match func.inst(inst).kind {
+                    InstKind::SStore(slot, _) => (slot, false),
+                    InstKind::TStore(slot, _) => (slot, true),
+                    _ => return false,
+                };
+                func.value_u256(slot).is_some_and(|slot| !slots.insert((slot, transient)))
+            }) {
                 selected.insert(id);
             }
         }
         if selected.is_empty() {
             return false;
         }
-        let facts = StorageFacts::compute(module, gcx.sess.opts.evm_version);
+        let facts = StorageFacts::compute(module, gcx.sess.opts.evm_version, &selected);
         run_selected_function_pass_with_alias_and_cfg(
             module,
             analyses,
@@ -125,7 +133,6 @@ impl Transfer<'_> {
                         state.write(SlotKey { transient, slot }, SymWord::UNKNOWN);
                     }
                 }
-                None if self.facts.is_hashed(path) => {}
                 None => state.clobber(Clobber::All),
             }
         }
@@ -207,13 +214,16 @@ impl Analysis for Transfer<'_> {
         phi: InstId,
         incoming: ValueId,
         _edge: &Edge,
+        source: &Self::Domain,
         state: &mut Self::Domain,
     ) {
-        let Reachable::State(current) = state else { return };
+        let (Reachable::State(current), Reachable::State(source)) = (state, source) else { return };
         if let (Some(result), Some(value)) =
-            (func.inst_result_value(phi), current.value(func, incoming))
+            (func.inst_result_value(phi), source.value(func, incoming))
         {
             current.values.insert(result, value);
+        } else if let Some(result) = func.inst_result_value(phi) {
+            current.values.remove(&result);
         }
     }
 }

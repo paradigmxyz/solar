@@ -1,0 +1,6 @@
+warning: possible transaction-order dependence: the value of a transfer in `withdraw` depends on storage written by `deposit`
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/transient_guard.sol:LL:CC
+   │
+LL │         (bool ok, ) = msg.sender.call{value: amount}("");
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+

@@ -6,7 +6,7 @@
 //! event carries its storage path (see [`storage_path`](super::storage_path)), the external
 //! calls that may precede it, and a guard: must facts about entry slot values and `caller`
 //! under which it executes, computed by the path-sensitive
-//! [`SlotState`](super::slot_state::SlotState) domain. Internal calls instantiate callee
+//! [`SlotState`] domain. Internal calls instantiate callee
 //! events: paths through the storage-pointer arguments, guards and call-site slot values
 //! through the caller's current state, and the callee's exit state and normal-return
 //! precondition into the caller's state. An OpenZeppelin `_nonReentrantBefore()` therefore
@@ -636,6 +636,23 @@ pub(crate) fn target_provenance(
 /// Returns whether `address` is a precompile: its call runs no contract code.
 pub(crate) fn is_precompile(address: U256) -> bool {
     (U256::from(1)..=U256::from(0x11)).contains(&address) || address == U256::from(0x100)
+}
+
+/// Returns whether the selected fork activates a precompile at `address`.
+pub(crate) fn is_precompile_at(address: U256, evm_version: EvmVersion) -> bool {
+    let limit = if evm_version >= EvmVersion::Prague {
+        0x11
+    } else if evm_version >= EvmVersion::Cancun {
+        0x0a
+    } else if evm_version >= EvmVersion::Istanbul {
+        9
+    } else if evm_version >= EvmVersion::Byzantium {
+        8
+    } else {
+        4
+    };
+    (U256::from(1)..=U256::from(limit)).contains(&address)
+        || (evm_version >= EvmVersion::Osaka && address == U256::from(0x100))
 }
 
 impl Transfer<'_, '_, '_> {
@@ -1323,13 +1340,16 @@ impl Analysis for Transfer<'_, '_, '_> {
         phi: InstId,
         incoming: ValueId,
         _edge: &Edge,
+        source: &Self::Domain,
         state: &mut Self::Domain,
     ) {
-        let Reachable::State(current) = state else { return };
+        let (Reachable::State(current), Reachable::State(source)) = (state, source) else { return };
         if let (Some(result), Some(value)) =
-            (func.inst_result_value(phi), current.value(func, incoming))
+            (func.inst_result_value(phi), source.value(func, incoming))
         {
             current.values.insert(result, value);
+        } else if let Some(result) = func.inst_result_value(phi) {
+            current.values.remove(&result);
         }
     }
 }

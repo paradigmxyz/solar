@@ -424,10 +424,11 @@ impl<D: Seeded> Analysis for Transfer<'_, '_, D> {
         phi: InstId,
         incoming: ValueId,
         _edge: &Edge,
+        source: &Self::Domain,
         state: &mut Self::Domain,
     ) {
-        let Reachable::State(current) = state else { return };
-        let value = self.value(func, current, incoming);
+        let (Reachable::State(current), Reachable::State(source)) = (state, source) else { return };
+        let value = self.value(func, source, incoming);
         if let Some(result) = func.inst_result_value(phi) {
             current.0.insert(result, value);
         }

@@ -1,0 +1,76 @@
+//@ compile-flags: -Zmir-pipeline=guard-elim -Zdataflow-optimizations
+//@ filecheck:
+@module CallBarriers
+
+fn @read_transient() -> i256 {
+  bb0:
+    v0 = tload 0
+    ret v0
+}
+
+// A helper observes the transient marker, even when it never accesses persistent storage.
+// CHECK-LABEL: fn @transient_reader(
+// CHECK-NOT: {{^-}}
+// CHECK: tstore 0, 1
+// CHECK-NOT: {{^-}}
+// CHECK: tstore 0, 0
+fn @transient_reader() -> i256 [selector=0x00000001] {
+  bb0:
+    v0 = tload 0
+    v1 = eq v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    tstore 0, 1
+    v2 = icall @read_transient
+    tstore 0, 0
+    ret v2
+  bb2:
+    revert 0, 0
+}
+
+fn @callback(arg0: i256) {
+  bb0:
+    v0 = call 100000, arg0, 0, 0, 0, 0, 0
+    ret
+}
+
+// An internal helper can call back while the lock is held.
+// CHECK-LABEL: fn @indirect_callback(
+// CHECK-NOT: {{^-}}
+// CHECK: sstore 0, 1
+// CHECK-NOT: {{^-}}
+// CHECK: sstore 0, 0
+fn @indirect_callback(arg0: i256) [selector=0x00000002] {
+  bb0:
+    v0 = sload 0
+    v1 = eq v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    sstore 0, 1
+    icall @callback, arg0
+    sstore 0, 0
+    ret
+  bb2:
+    revert 0, 0
+}
+
+// A memory write after CREATE cannot establish what initcode CREATE executed.
+// CHECK-LABEL: fn @creation_memory(
+// CHECK-NOT: {{^-}}
+// CHECK: sstore 0, 1
+// CHECK-NOT: {{^-}}
+// CHECK: sstore 0, 0
+fn @creation_memory(arg0: i256) [selector=0x00000003] {
+  bb0:
+    v0 = sload 0
+    v1 = eq v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    sstore 0, 1
+    v2 = create 0, arg0, 32
+    mstore arg0, 0
+    sstore 0, 0
+    ret
+  bb2:
+    revert 0, 0
+}

@@ -22,9 +22,9 @@
     bb2:
       revert 0, 0
     bb1:
--     sstore 0, 0
+      sstore 0, 0
       icall @helper, arg0
--     sstore 0, 1
+      sstore 0, 1
       stop
   }
   

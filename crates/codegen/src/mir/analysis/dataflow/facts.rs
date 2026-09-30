@@ -6,25 +6,27 @@
 //! whole address space. External calls answer with what they can cause:
 //!
 //! - a static call cannot change state, but a view it re-enters may read storage;
-//! - a call whose target runs no code that can call back, such as a precompile or code compiled
-//!   here without call instructions, touches none of this contract's storage;
-//! - any other call may re-enter this contract, which can then read and write whatever some
-//!   function of the module reads and writes.
+//! - a call to an active precompile touches none of this contract's storage;
+//! - any other call may read and write arbitrary storage through callbacks. This includes internal
+//!   helpers that transitively call foreign code, and execution via delegatecall where a callback
+//!   can reach code outside this module.
 //!
 //! Delegate calls run foreign code against this storage and access everything. The facts
 //! use the storage layout assumptions of [`storage_path`](super::storage_path) and are only
-//! valid for the MIR they were computed from; passes compute them at entry and must not
-//! consult them for instructions they create.
+//! valid for the MIR they were computed from; experimental passes compute them at entry and must
+//! not consult them for instructions they create.
 
 use super::{
-    interproc::ContextPolicy,
-    reentrancy::{self, CallKind, Trust},
-    storage::FunctionStorage,
+    interproc::{ContextPolicy, SummaryEngine},
+    reentrancy::{self, CallKind},
+    storage::{FunctionStorage, StorageAnalysis},
     storage_path::{Activation, PathId, PathTable},
 };
-use crate::mir::{Function, InstId, MangledSymbol, Module};
+use crate::mir::{
+    Callee, Function, FunctionId, InstId, InstKind, MangledSymbol, Module, analysis::CallGraphInfo,
+};
 use solar_config::EvmVersion;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use std::sync::Arc;
 
 /// The storage an instruction may access.
@@ -42,11 +44,13 @@ pub(crate) struct Footprint<'a> {
 }
 
 /// Precomputed call behavior of one function's instructions.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 struct FunctionFacts {
     storage: FunctionStorage,
     /// External calls and whether their target may run code that calls back.
     external_calls: FxHashMap<InstId, (CallKind, bool)>,
+    /// Internal calls that can transitively transfer control to foreign code.
+    callback_calls: DenseBitSet<InstId>,
 }
 
 /// Storage facts of a module, shared by function passes.
@@ -54,72 +58,95 @@ struct FunctionFacts {
 pub(crate) struct StorageFacts {
     table: PathTable,
     functions: FxHashMap<MangledSymbol, FunctionFacts>,
-    /// Everything any function of the module may read or write, for reentrant calls.
-    all_reads: Option<Vec<PathId>>,
-    all_writes: Option<Vec<PathId>>,
 }
 
 impl StorageFacts {
     /// Analyzes `module`.
-    pub(crate) fn compute(module: &Module, evm_version: EvmVersion) -> Arc<Self> {
-        let mut storage = super::storage::analyze_module(module, ContextPolicy::INSENSITIVE);
-        let entries = reentrancy::runtime_entries(module);
-        let module_facts = reentrancy::module_facts(module, &mut storage, &entries, evm_version);
-        // Reentrant calls run external entries, whose summaries include their callees.
-        let mut roots = entries.clone();
-        roots.extend(module.dispatch_entry());
-        if roots.is_empty() {
-            roots.extend(module.iter_functions().map(|(func, _)| func));
-        }
-        let mut all_reads = Some(Vec::new());
-        let mut all_writes = Some(Vec::new());
-        for &root in &roots {
-            if module.function(root).blocks.is_empty() {
-                continue;
+    pub(crate) fn compute(
+        module: &Module,
+        evm_version: EvmVersion,
+        selected: &DenseBitSet<FunctionId>,
+    ) -> Arc<Self> {
+        let mut storage =
+            SummaryEngine::new(module, StorageAnalysis::new(module), ContextPolicy::INSENSITIVE);
+        let graph = CallGraphInfo::new(module);
+        let mut callbacks = DenseBitSet::new_empty(module.functions.len());
+        for (func, function) in module.iter_functions() {
+            if function.blocks.is_empty()
+                || function
+                    .instructions()
+                    .any(|inst| reentrancy::call_operands(&function.inst(inst).kind).is_some())
+            {
+                callbacks.insert(func);
             }
-            let context = storage.general_context(root);
-            let summary = storage.summary(root, &context);
-            let table = &mut storage.analysis.table;
-            for (all, paths) in [
-                (&mut all_reads, summary.reads.iter().chain(&summary.transient_reads)),
-                (&mut all_writes, summary.writes.iter().chain(&summary.transient_writes)),
-            ] {
-                for &path in paths {
-                    let erased = table.erase_keys(path);
-                    if erased == PathTable::UNKNOWN || table.is_relative(erased) {
-                        *all = None;
-                    } else if let Some(all) = all
-                        && !all.contains(&erased)
-                    {
-                        all.push(erased);
-                    }
+        }
+        loop {
+            let mut changed = false;
+            for (func, _) in module.iter_functions() {
+                if !callbacks.contains(func) && graph.callees(func).any(|f| callbacks.contains(f)) {
+                    changed |= callbacks.insert(func);
                 }
+            }
+            if !changed {
+                break;
             }
         }
         let mut functions = FxHashMap::default();
         for (func, function) in module.iter_functions() {
-            if function.blocks.is_empty() {
+            if !selected.contains(func) || function.blocks.is_empty() {
                 continue;
             }
             let context = storage.general_context(func);
             let _ = storage.summary(func, &context);
-            let table = &mut storage.analysis.table;
-            let Some(results) =
+            let Some(mut results) =
                 storage.analysis.functions.get(&(func, context)).map(|results| (**results).clone())
             else {
                 continue;
             };
-            let external_calls =
-                external_calls(module, &module_facts, table, function, &results, evm_version);
-            functions.insert(function.name, FunctionFacts { storage: results, external_calls });
+            // Footprints conservatively combine the two address spaces. Ignoring transient
+            // accesses is unsound for guard elimination across internal calls.
+            let external_calls = external_calls(function, evm_version);
+            let mut callback_calls = DenseBitSet::new_empty(function.num_insts());
+            for inst in function.instructions() {
+                if let InstKind::ICall { function: Callee::Function(callee), .. } =
+                    function.inst(inst).kind
+                    && callbacks.contains(callee)
+                {
+                    callback_calls.insert(inst);
+                }
+                if let Some(access) = results.accesses.get_mut(&inst)
+                    && !matches!(
+                        function.inst(inst).kind,
+                        InstKind::SLoad(..)
+                            | InstKind::SStore(..)
+                            | InstKind::TLoad(..)
+                            | InstKind::TStore(..)
+                    )
+                {
+                    access.reads.extend_from_slice(&access.transient_reads);
+                    access.writes.extend_from_slice(&access.transient_writes);
+                }
+            }
+            functions.insert(
+                function.name,
+                FunctionFacts { storage: results, external_calls, callback_calls },
+            );
         }
-        Arc::new(Self { table: storage.analysis.table, functions, all_reads, all_writes })
+        Arc::new(Self { table: storage.analysis.table, functions })
     }
 
     /// Returns the storage `inst` of `func` may access, or `None` when the facts do not
     /// describe it.
     pub(crate) fn footprint(&self, func: &Function, inst: InstId) -> Option<Footprint<'_>> {
         let facts = self.functions.get(&func.name)?;
+        if facts.callback_calls.contains(inst) {
+            return Some(Footprint {
+                reads: None,
+                writes: None,
+                terminates: facts.storage.terminating_calls.contains(&inst),
+                reentrant: true,
+            });
+        }
         if let Some(&(kind, calls_back)) = facts.external_calls.get(&inst) {
             if matches!(kind, CallKind::DelegateCall | CallKind::CallCode) {
                 return Some(Footprint {
@@ -137,10 +164,11 @@ impl StorageFacts {
                     reentrant: true,
                 });
             }
-            let static_call = matches!(kind, CallKind::StaticCall | CallKind::Stipend);
+            // A stipend is not a static context: TSTORE is allowed below 2300 gas.
+            let static_call = matches!(kind, CallKind::StaticCall);
             return Some(Footprint {
-                reads: self.all_reads.as_deref(),
-                writes: if static_call { Some(&[]) } else { self.all_writes.as_deref() },
+                reads: None,
+                writes: if static_call { Some(&[]) } else { None },
                 terminates: false,
                 reentrant: true,
             });
@@ -185,11 +213,6 @@ impl StorageFacts {
         self.table.as_slot(path)
     }
 
-    /// Returns whether `path` lies in a hashed area, which never overlaps absolute slots.
-    pub(crate) fn is_hashed(&self, path: PathId) -> bool {
-        self.table.is_hashed(path)
-    }
-
     /// Returns whether a path accessed at one point may alias any path of a footprint.
     pub(crate) fn may_touch(
         &self,
@@ -208,39 +231,19 @@ impl StorageFacts {
 
 /// Classifies the external calls of `function` by whether their target may call back.
 fn external_calls(
-    module: &Module,
-    facts: &reentrancy::ModuleFacts,
-    table: &mut PathTable,
     function: &Function,
-    storage: &FunctionStorage,
     evm_version: EvmVersion,
 ) -> FxHashMap<InstId, (CallKind, bool)> {
     let mut calls = FxHashMap::default();
     for inst in function.instructions() {
         let kind = &function.inst(inst).kind;
         let Some(operands) = reentrancy::call_operands(kind) else { continue };
-        let target = match (operands.kind, operands.target) {
-            (CallKind::Create, _) | (_, None) => reentrancy::Provenance::Unknown,
-            (_, Some(target)) => {
-                reentrancy::target_provenance(module, storage, function, target, evm_version, 0)
-            }
-        };
-        let target = match (operands.kind, kind) {
-            (CallKind::Create, crate::mir::InstKind::Create(_, offset, _))
-            | (CallKind::Create, crate::mir::InstKind::Create2(_, offset, _, _)) => {
-                reentrancy::created_provenance(module, function, *offset, evm_version)
-            }
-            _ => target,
-        };
-        let calls_back = match target {
-            reentrancy::Provenance::Constant(address)
-                if address.is_zero() || reentrancy::is_precompile(address) =>
-            {
-                false
-            }
-            // A function argument may be anything; `This` re-enters by definition.
-            target => facts.code_trust(table, target) != Some(Trust::NoCallback),
-        };
+        // Initcode prefixes and constructor assignments do not prove deployed runtime
+        // behavior. Only active precompiles have an independently known implementation.
+        let calls_back = !operands
+            .target
+            .and_then(|target| function.value_u256(target))
+            .is_some_and(|address| reentrancy::is_precompile_at(address, evm_version));
         calls.insert(inst, (operands.kind, calls_back));
     }
     calls
