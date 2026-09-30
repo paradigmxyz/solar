@@ -5,6 +5,7 @@ use crate::{
     backend::evm::{DebugInstruction, ir},
     link::{Library, LibraryRelocation, LibraryTable, RelocatableBytecode},
     mir::{Module, lower, pass::run_pipeline},
+    secir::{self, ContractFacts},
 };
 use alloy_primitives::Bytes;
 use either::Either;
@@ -46,6 +47,8 @@ pub struct ContractArtifact {
     /// Captured MIR, built under `-O none` when no explicit pipeline is configured and
     /// post-pipeline otherwise.
     pub mir: Option<Module>,
+    /// Security facts computed from the built MIR, before any pass pipeline runs.
+    pub secir: Option<ContractFacts>,
     /// Final deployment-prefix EVM IR immediately before byte emission.
     pub deployment_evm_ir: Option<ir::Module>,
     /// Final runtime EVM IR immediately before byte emission.
@@ -160,6 +163,7 @@ impl ContractSelection {
 /// Contracts in `capture_evm_ir` retain their final EVM IR in the returned artifact.
 /// Values returned by `runtime_data` are emitted as trailing runtime program data.
 /// Contracts in `capture_debug_info` retain final instruction locations.
+/// Contracts in `capture_secir` retain [security facts](crate::secir) computed from built MIR.
 pub fn generate_contract_bytecodes(
     gcx: Gcx<'_>,
     contracts: &ContractSelection,
@@ -167,10 +171,12 @@ pub fn generate_contract_bytecodes(
     capture_evm_ir: &ContractSelection,
     runtime_data: Option<&RuntimeDataFn<'_>>,
     capture_debug_info: &ContractSelection,
+    capture_secir: &ContractSelection,
 ) -> Result<FxHashMap<ContractId, ContractArtifact>> {
     let captures = ContractCaptures {
         bytecode: contracts,
         mir: capture_mir,
+        secir: capture_secir,
         evm_ir: capture_evm_ir,
         runtime_data,
         debug_info: capture_debug_info,
@@ -182,6 +188,7 @@ pub fn generate_contract_bytecodes(
     requested.union_with(capture_mir);
     requested.union_with(capture_evm_ir);
     requested.union_with(capture_debug_info);
+    requested.union_with(capture_secir);
     let graph = ContractGraph::discover(gcx, &requested)?;
     let contract_count = gcx.hir.contract_ids().len();
     let artifacts =
@@ -254,6 +261,7 @@ pub fn generate_contract_bytecodes(
 struct ContractCaptures<'a> {
     bytecode: &'a ContractSelection,
     mir: &'a ContractSelection,
+    secir: &'a ContractSelection,
     evm_ir: &'a ContractSelection,
     runtime_data: Option<&'a RuntimeDataFn<'a>>,
     debug_info: &'a ContractSelection,
@@ -451,6 +459,8 @@ fn generate_contract_bytecode(
     let mut module =
         lower::lower_contract(gcx, contract_id, &child_bytecodes, captures.sema_errored);
     gcx.dcx().has_errors()?;
+    let secir =
+        captures.secir.contains(contract_id).then(|| secir::analyze(gcx, contract_id, &module));
     let capture_mir = captures.mir.contains(contract_id);
     let needs_backend = captures.bytecode.contains(contract_id)
         || captures.evm_ir.contains(contract_id)
@@ -547,6 +557,7 @@ fn generate_contract_bytecode(
         deployment_link_references,
         runtime_link_references,
         mir,
+        secir,
         deployment_evm_ir: artifact.deployment_evm_ir,
         runtime_evm_ir: artifact.runtime_evm_ir,
         deployment_debug_info: artifact.deployment_debug_info,

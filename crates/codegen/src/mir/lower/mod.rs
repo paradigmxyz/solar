@@ -9,8 +9,12 @@ mod function;
 mod storage;
 mod types;
 
+use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
-use solar_sema::{Gcx, hir::ContractId};
+use solar_sema::{
+    Gcx,
+    hir::{ContractId, VariableId},
+};
 
 use crate::mir::Module;
 
@@ -29,4 +33,33 @@ pub fn lower_contract(
     sema_errored: bool,
 ) -> Module {
     contract::lower(gcx, contract_id, child_bytecodes, sema_errored)
+}
+
+/// A state variable's storage location.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct StateVariableSlot {
+    pub(crate) variable: VariableId,
+    pub(crate) slot: U256,
+    pub(crate) offset: u8,
+    pub(crate) transient: bool,
+}
+
+/// Returns the storage locations of every state variable visible to a contract, ordered by
+/// location.
+pub(crate) fn state_variable_slots(
+    gcx: Gcx<'_>,
+    contract_id: ContractId,
+) -> Vec<StateVariableSlot> {
+    let layout = storage::StorageLayout::for_contract(gcx, contract_id);
+    let mut slots = layout
+        .variables()
+        .map(|(variable, slot, offset, transient)| StateVariableSlot {
+            variable,
+            slot,
+            offset,
+            transient,
+        })
+        .collect::<Vec<_>>();
+    slots.sort_by_key(|slot| (slot.transient, slot.slot, slot.offset));
+    slots
 }
