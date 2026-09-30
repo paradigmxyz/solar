@@ -20,6 +20,10 @@
 //! call sites that targeted a wrapped function are retargeted to its extracted
 //! raw-return body, so internal calls to public functions keep their convention.
 //!
+//! Calldata aggregates that repeat across parameters, or dynamic tuples that repeat anywhere
+//! inside them, decode through shared helpers; tuple helpers take the base of their enclosing
+//! tuple so enclosing decoders can call them for nested values.
+//!
 //! Unsupported return layouts fail the preflight checks. The pass reports an error if
 //! any external entry still has an implicit ABI or any `abi_decode` remains afterward.
 //! Argument-free functions that only return a short literal use direct fixed-buffer stores;
@@ -605,14 +609,8 @@ impl LowerAbiCx {
             }
         }
 
-        let mut memory_types = memory_type_counts
-            .into_iter()
-            .filter_map(|(ty, (count, first))| (count >= 2).then_some((first, ty)))
-            .collect::<Vec<_>>();
-        memory_types.sort_by_key(|(first, ty)| (abi_param_type_depth(ty), *first));
-
         let mut memory_type_helpers = FxHashMap::default();
-        for (_, ty) in memory_types {
+        for ty in repeated_types(memory_type_counts) {
             let helper = synthesize_memory_decode_helper(
                 self.revert_strings,
                 module,
@@ -733,21 +731,15 @@ impl LowerAbiCx {
             let Some(layout) = func.abi_params.as_ref() else { continue };
             for (ty, &arg_type) in layout.types.iter().zip(&func.params) {
                 if !ty.is_scalar_word() && matches!(arg_type, MirType::MemoryObject(_)) {
+                    // `count_dynamic_tuple_types` counts a dynamic tuple itself.
                     if !(matches!(ty, AbiParamType::Tuple(_)) && ty.has_dynamic_child()) {
-                        let first = counts.len();
-                        let count = counts.entry(ty.clone()).or_insert((0, first));
-                        count.0 = count.0.saturating_add(1).min(2);
+                        count_type(&mut counts, ty, 1);
                     }
                     count_dynamic_tuple_types(ty, 1, &mut counts);
                 }
             }
         }
-        let mut types = counts
-            .into_iter()
-            .filter_map(|(ty, (count, first))| (count >= 2).then_some((first, ty)))
-            .collect::<Vec<_>>();
-        types.sort_by_key(|(first, ty)| (abi_param_type_depth(ty), *first));
-        for (_, ty) in types {
+        for ty in repeated_types(counts) {
             let helper = self.synthesize_calldata_aggregate_type_helper(module, ty.clone());
             self.aggregate_type_helpers.insert(ty, helper);
         }
@@ -761,13 +753,11 @@ impl LowerAbiCx {
         let mut function = Function::new(Ident::with_dummy_span(sym::decode_calldata_type));
         {
             let mut builder = self.builder(&mut function);
+            // fn @decode_calldata_type(head, tuple_base) -> T { ret decode T at head }
+            // fn @decode_calldata_type(head) -> T { ret decode T at head, tuple_base = 4 }
             let head = builder.add_param(MirType::I256);
-            // Only tuples decode nested in other values; the rest read the argument tuple at 4.
-            let tuple_base = if matches!(ty, AbiParamType::Tuple(_)) {
-                builder.add_param(MirType::I256)
-            } else {
-                builder.imm(4)
-            };
+            let tuple_base =
+                if decodes_nested(&ty) { builder.add_param(MirType::I256) } else { builder.imm(4) };
             let input_end = builder.calldatasize();
             let mut current = builder.current_block();
             let helpers = &self.aggregate_type_helpers;
@@ -1430,6 +1420,7 @@ impl LowerAbiCx {
                                 && matches!(arg_type, MirType::MemoryObject(_))
                                 && let Some(&helper) = self.aggregate_type_helpers.get(ty)
                             {
+                                // value = icall @decode_calldata_type, head[, tuple_base]
                                 let args = calldata_type_helper_args(ty, head, tuple_base);
                                 let value = builder.icall(helper, args, arg_type);
                                 logical_values[index] = Some(value);
@@ -1452,6 +1443,7 @@ impl LowerAbiCx {
                             && matches!(arg_type, MirType::MemoryObject(_))
                             && let Some(&helper) = self.aggregate_type_helpers.get(ty)
                         {
+                            // value = icall @decode_calldata_type, head[, tuple_base]
                             let args = calldata_type_helper_args(ty, head, tuple_base);
                             builder.icall(helper, args, arg_type)
                         } else if !constructor
@@ -1735,8 +1727,7 @@ impl LowerAbiCx {
         // member decodes inline when reasons are encoded. A calldata helper decodes a fresh,
         // fully validated memory struct.
         if (constructor
-            || (is_dynamic
-                && matches!(ty, crate::mir::AbiParamType::Tuple(_))
+            || (decodes_nested(ty)
                 && !allow_alias
                 && validate_array_elements
                 && arg_type == ty.mir_type()))
@@ -1745,14 +1736,15 @@ impl LowerAbiCx {
                 || offset_reason == RevertReason::InvalidTupleOffset)
             && let Some(&helper) = helpers.and_then(|helpers| helpers.get(ty))
         {
+            // A calldata helper reads its input end from `calldatasize` itself.
+            let args = if constructor {
+                vec![head, tuple_base, input_end]
+            } else {
+                calldata_type_helper_args(ty, head, tuple_base)
+            };
             // word_arguments = ptrtoint pointer_arguments to i256
             // decoded = icall helper, word_arguments
-            // A calldata helper reads its input end from `calldatasize` itself.
-            let args = [head, tuple_base, input_end]
-                .into_iter()
-                .take(if constructor { 3 } else { 2 })
-                .map(|value| builder.cast(value, MirType::I256))
-                .collect();
+            let args = args.into_iter().map(|value| builder.cast(value, MirType::I256)).collect();
             return builder.icall(helper, args, ty.mir_type());
         }
         if !constructor
@@ -3145,14 +3137,40 @@ fn decode_memory_tuple(
     Some(values)
 }
 
-/// Returns the arguments of a shared calldata decoder, which takes the enclosing tuple base only
-/// for tuples.
+/// Returns whether shared calldata decoders also decode `ty` nested in other values, which makes
+/// its decoder take the base of the enclosing tuple.
+fn decodes_nested(ty: &AbiParamType) -> bool {
+    matches!(ty, AbiParamType::Tuple(_)) && ty.is_dynamic()
+}
+
+/// Returns the arguments of the shared calldata decoder of `ty`.
 fn calldata_type_helper_args(
     ty: &AbiParamType,
     head: ValueId,
     tuple_base: ValueId,
 ) -> Vec<ValueId> {
-    if matches!(ty, AbiParamType::Tuple(_)) { vec![head, tuple_base] } else { vec![head] }
+    if decodes_nested(ty) { vec![head, tuple_base] } else { vec![head] }
+}
+
+/// Adds `occurrences` to the use count of `ty`, saturating at two.
+fn count_type(
+    counts: &mut FxHashMap<AbiParamType, (usize, usize)>,
+    ty: &AbiParamType,
+    occurrences: usize,
+) {
+    let first = counts.len();
+    let count = counts.entry(ty.clone()).or_insert((0, first));
+    count.0 = count.0.saturating_add(occurrences).min(2);
+}
+
+/// Returns the types counted at least twice, inner types before the types that contain them.
+fn repeated_types(counts: FxHashMap<AbiParamType, (usize, usize)>) -> Vec<AbiParamType> {
+    let mut types = counts
+        .into_iter()
+        .filter_map(|(ty, (count, first))| (count >= 2).then_some((first, ty)))
+        .collect::<Vec<_>>();
+    types.sort_by_key(|(first, ty)| (abi_param_type_depth(ty), *first));
+    types.into_iter().map(|(_, ty)| ty).collect()
 }
 
 fn count_dynamic_tuple_types(
@@ -3171,9 +3189,7 @@ fn count_dynamic_tuple_types(
         }
         AbiParamType::Tuple(fields) => {
             if ty.has_dynamic_child() {
-                let first = counts.len();
-                let count = counts.entry(ty.clone()).or_insert((0, first));
-                count.0 = count.0.saturating_add(occurrences).min(2);
+                count_type(counts, ty, occurrences);
             }
             for field in fields {
                 count_dynamic_tuple_types(field, occurrences, counts);

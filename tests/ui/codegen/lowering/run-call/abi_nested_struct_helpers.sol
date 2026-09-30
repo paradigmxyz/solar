@@ -10,9 +10,11 @@
 // LOWERED: icall @[[PAIR:decode_calldata_type[.0-9]*]], 4, 4
 // LOWERED-LABEL: fn @pairs()
 // LOWERED: icall @[[PAIR]], {{v[0-9]+}}, {{v[0-9]+}}
-// LOWERED: fn @[[PAIR]](
-// LOWERED-COUNT-2: icall @decode_calldata_type
-// LOWERED: ret
+// LOWERED: {{^}}fn @[[PAIR]](
+// LOWERED-NOT: {{^}}fn @
+// LOWERED: icall @[[ITEM:decode_calldata_type[.0-9]*]],
+// LOWERED-NOT: {{^}}fn @
+// LOWERED: icall @[[ITEM]],
 contract NestedStructHelpers {
     struct Item {
         uint256 id;

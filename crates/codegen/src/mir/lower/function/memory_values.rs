@@ -5,6 +5,10 @@ use crate::link::{CodeKind, ContractCode, QualifiedName};
 
 const MIN_BULK_ZERO_STRUCT_FIELDS: usize = 4;
 
+/// Default structs with fewer value fields than this are built inline: one allocation and a few
+/// stores cost less than calling a shared constructor.
+const MIN_SHARED_DEFAULT_STRUCT_FIELDS: usize = 4;
+
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_array(
         &mut self,
@@ -66,7 +70,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let preheader = self.builder.current_block();
         let allocate = self.builder.create_block();
         let merge = self.builder.create_block();
-        // if value == 0 { allocated = default_object(element) }
+        // if value == 0 { allocated = default_object(element) or icall @default_struct_N }
         self.builder.branch(is_null, allocate, merge);
 
         self.builder.switch_to_block(allocate);
@@ -83,16 +87,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Allocates the default object of an array element that was never assigned.
     ///
     /// Every read of a struct element can reach this path, so structs share one constructor
-    /// instead of repeating it at each read. A few value fields cost less inline than a call.
+    /// instead of repeating it at each read.
     fn default_element_object(&mut self, element: Ty<'gcx>) -> Option<ValueId> {
         let TyKind::Struct(id) = element.peel_refs().kind else {
             return self.default_object(element);
         };
         let fields = self.cx.gcx.hir.strukt(id).fields;
-        let small = fields.len() < MIN_BULK_ZERO_STRUCT_FIELDS
-            && fields.iter().all(|&field| {
-                self.types.memory_layout(self.cx.gcx.type_of_item(field.into())).is_none()
-            });
+        let small = fields.len() < MIN_SHARED_DEFAULT_STRUCT_FIELDS
+            && fields
+                .iter()
+                .all(|&field| self.cx.gcx.type_of_item(field.into()).peel_refs().is_value_type());
         if small {
             return self.default_object(element);
         }
