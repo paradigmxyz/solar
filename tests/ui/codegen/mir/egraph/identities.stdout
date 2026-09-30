@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/identities.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/identities.mir (after egraph) ===
   @module Identities
-  types:
+  @types
     struct0: {i256, i256}
     struct1: {struct0, i256}
     struct2: {i256, i256, i256}

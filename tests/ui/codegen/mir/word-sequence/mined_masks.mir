@@ -3,7 +3,7 @@
 //@[size] compile-flags: -Osize -Zmir-pipeline=word-sequence,dce
 @module MinedMasks
 
-types:
+@types
   struct0: {i256, i256}
   struct1: {i256, i256, i1}
 

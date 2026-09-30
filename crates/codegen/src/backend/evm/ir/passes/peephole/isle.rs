@@ -314,8 +314,8 @@ impl<'a> PeepContext<'a> {
     }
 
     /// Returns the edit to apply to the tail of the block, when a rule matches.
-    pub(super) fn select<const LATE: bool>(&mut self) -> Option<Rewrite> {
-        if !LATE {
+    pub(super) fn select(&mut self, late: bool) -> Option<Rewrite> {
+        if !late {
             return self.final_rewrite().or_else(|| self.select_by_tail());
         }
         if self.instructions.len() < 5 || raw_opcode(self.instructions.last()?) != Some(SUB) {

@@ -301,7 +301,7 @@ const DIRECT_REUSE_LIVE_BUDGET: usize = 12;
 /// instead of reloading it.
 struct MemoryReuseFacts {
     liveness: Liveness,
-    definitions: FxHashMap<InstId, BlockId>,
+    definitions: IndexVec<InstId, Option<BlockId>>,
     loops: LoopInfo,
 }
 
@@ -426,7 +426,8 @@ struct PhiExpressionCandidate {
 
 struct PhiSinkContext<'a> {
     dominators: &'a DominatorTree,
-    inst_blocks: &'a FxHashMap<InstId, BlockId>,
+    /// Built on first use: most phis have no sinkable incoming expressions.
+    inst_blocks: &'a OnceCell<IndexVec<InstId, Option<BlockId>>>,
     replacements: &'a FxHashMap<ValueId, ValueId>,
 }
 
@@ -535,7 +536,7 @@ impl CommonSubexprEliminator {
             return;
         }
 
-        let inst_blocks = func.inst_blocks();
+        let inst_blocks = OnceCell::new();
         let replacements = FxHashMap::default();
         let ctx = PhiSinkContext {
             dominators: cfg.dominators(),
@@ -627,7 +628,7 @@ impl CommonSubexprEliminator {
                     func,
                     &source_inst.kind,
                     block_id,
-                    ctx.inst_blocks,
+                    ctx.inst_blocks.get_or_init(|| func.inst_block_table()),
                     ctx.dominators,
                 )
             {
@@ -766,13 +767,14 @@ impl CommonSubexprEliminator {
         }
         let facts = reuse.get_or_init(|| MemoryReuseFacts {
             liveness: Liveness::compute_live_sets(func),
-            definitions: func.inst_blocks(),
+            definitions: func.inst_block_table(),
             loops: LoopAnalyzer::new().analyze_structure(func),
         });
         let Some(header) = facts.loops.block_to_loop.get(&block) else { return true };
         let Some(loop_info) = facts.loops.loops.get(header) else { return true };
+        let home = |inst: InstId| facts.definitions.get(inst).copied().flatten();
         let Value::Inst(cached_inst) = func.value(cached) else { return true };
-        if facts.definitions.get(cached_inst) == Some(&block) {
+        if home(*cached_inst) == Some(block) {
             return true;
         }
         if facts.liveness.live_in(block).contains(cached) {
@@ -781,16 +783,14 @@ impl CommonSubexprEliminator {
         // The word crosses exactly one edge from its defining block, as after
         // a compare-and-branch on it; the scheduler keeps it resident when few
         // other words are live here.
-        if let Some(&home) = facts.definitions.get(cached_inst)
+        if let Some(home) = home(*cached_inst)
             && ctx.predecessors[block].contains(&home)
             && facts.liveness.live_in(block).count() < DIRECT_REUSE_LIVE_BUDGET
         {
             return true;
         }
         kind.operands().into_iter().all(|operand| match func.value(operand) {
-            Value::Inst(inst) => {
-                facts.definitions.get(inst).is_some_and(|home| !loop_info.blocks.contains(*home))
-            }
+            Value::Inst(inst) => home(*inst).is_some_and(|home| !loop_info.blocks.contains(home)),
             _ => true,
         })
     }
@@ -1404,7 +1404,7 @@ impl CommonSubexprEliminator {
         func: &Function,
         kind: &InstKind,
         block_id: BlockId,
-        inst_blocks: &FxHashMap<InstId, BlockId>,
+        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
         dominators: &DominatorTree,
     ) -> bool {
         kind.operands().into_iter().all(|value| {
@@ -1416,14 +1416,16 @@ impl CommonSubexprEliminator {
         func: &Function,
         value: ValueId,
         block_id: BlockId,
-        inst_blocks: &FxHashMap<InstId, BlockId>,
+        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
         dominators: &DominatorTree,
     ) -> bool {
         match func.value(value) {
             Value::Immediate(_) | Value::Arg(_) | Value::Undef(_) | Value::Error(_) => true,
             Value::Inst(inst_id) => inst_blocks
-                .get(inst_id)
-                .is_some_and(|&def_block| dominators.dominates(def_block, block_id)),
+                .get(*inst_id)
+                .copied()
+                .flatten()
+                .is_some_and(|def_block| dominators.dominates(def_block, block_id)),
         }
     }
 

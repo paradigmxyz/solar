@@ -1,0 +1,14 @@
+//@ compile-flags: -O none -Zevm-ir-pipeline=pack-data
+//@ filecheck:
+@module size_only_block
+@data
+  child_0: creation_code "child.sol:Child"
+
+// A block that only pushes a data size still keeps its deferred entry.
+// CHECK: child_0: creation_code "child.sol:Child"
+// CHECK: push_data_size child_0
+bb0:
+  push_data_size child_0
+  push 0
+  mstore
+  stop

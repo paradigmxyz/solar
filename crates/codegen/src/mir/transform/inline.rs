@@ -81,11 +81,7 @@ use crate::{
 };
 use smallvec::SmallVec;
 use solar_ast::StateMutability;
-use solar_data_structures::{
-    bit_set::{DenseBitSet, GrowableBitSet},
-    index::IndexVec,
-    map::FxHashMap,
-};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
 /// Module pass for metadata-backed MIR inlining.
@@ -1357,7 +1353,7 @@ fn scalar_stack_peak(func: &Function) -> usize {
     let liveness = Liveness::compute_live_sets(func);
     let mut peak = 0;
     for (block, body) in func.blocks.iter_enumerated() {
-        let mut live = liveness.live_out(block).clone();
+        let mut live = DenseBitSet::from(liveness.live_out(block));
         if let Some(term) = &body.terminator {
             term.visit_operands(|value| {
                 live.insert(value);
@@ -1382,7 +1378,7 @@ fn scalar_stack_peak(func: &Function) -> usize {
 /// Caller words that survive the internal call and overlap an inline expansion.
 fn surviving_call_words(func: &Function, liveness: &Liveness, site: CallSite) -> usize {
     let body = &func.blocks[site.block];
-    let mut live = liveness.live_out(site.block).clone();
+    let mut live = DenseBitSet::from(liveness.live_out(site.block));
     if let Some(term) = &body.terminator {
         term.visit_operands(|value| {
             live.insert(value);
@@ -1402,7 +1398,7 @@ fn surviving_call_words(func: &Function, liveness: &Liveness, site: CallSite) ->
     live_word_count(func, &live)
 }
 
-fn live_word_count(func: &Function, live: &GrowableBitSet<ValueId>) -> usize {
+fn live_word_count(func: &Function, live: &DenseBitSet<ValueId>) -> usize {
     live.iter().filter(|&value| matches!(func.value(value), Value::Arg(_) | Value::Inst(_))).count()
 }
 
@@ -1596,10 +1592,11 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
     let target = Target::new(gcx);
     let seq =
         |codes: &[u8]| codes.iter().map(|&code| target.opcode(code)).fold(Cost::ZERO, Cost::plus);
-    if select::opcode_lowering(&kind.op()).is_some()
-        && !matches!(kind, InstKind::ICall { .. } | InstKind::LoadImmutable(_))
-    {
-        return (target.op(&kind.op(), |_| None), 1);
+    if !matches!(kind, InstKind::ICall { .. } | InstKind::LoadImmutable(_)) {
+        let op = kind.op();
+        if select::opcode_lowering(&op).is_some() {
+            return (target.op(&op, |_| None), 1);
+        }
     }
     let code = match kind {
         InstKind::Ne(..) => seq(&[op::EQ, op::ISZERO]),
@@ -1711,6 +1708,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         // A pushed offset into the immutables area and the store.
         InstKind::StoreImmutable(..) => seq(&[op::PUSH2, op::MSTORE]),
         InstKind::DataCopy(..) => seq(&[op::CODECOPY]),
+        InstKind::DataSize(..) => seq(&[op::PUSH2]),
         // Zero by copying from beyond the end of calldata.
         InstKind::MemoryZero(..) => seq(&[op::CALLDATASIZE, op::CALLDATACOPY]),
         InstKind::ConstructorArgsBase => seq(&[op::PUSH2]),

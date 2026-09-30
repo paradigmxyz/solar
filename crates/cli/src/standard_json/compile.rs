@@ -3,9 +3,9 @@
 use super::{
     data::{
         BytecodeOutput, CompilerInput, CompilerOutput, ContractOutput, DebugInfoComponent,
-        DebugSettings, EthdebugOutput, EvmOutput, FxIndexMap, MetadataHash, OffsetLength,
-        OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings, SourceOutput,
-        StandardJsonReadCallback, optimizer_settings, print_standard_json_stats,
+        DebugSettings, EthdebugOutput, EvmOutput, FxIndexMap, MetadataHash, MetadataSettings,
+        OffsetLength, OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings,
+        SourceOutput, StandardJsonReadCallback, optimizer_settings, print_standard_json_stats,
         strip_json_comments,
     },
     metadata::Metadata,
@@ -60,7 +60,9 @@ pub fn compile_standard_json(
     } else {
         Cow::Borrowed(input)
     };
-    match serde_json::from_str::<CompilerInput<'_>>(&input) {
+    let parsed = tracing::debug_span!("parse_input")
+        .in_scope(|| serde_json::from_str::<CompilerInput<'_>>(&input));
+    match parsed {
         Ok(compiler_input) => {
             if opts.unstable.standard_json_stats {
                 print_standard_json_stats(&input, &compiler_input);
@@ -85,12 +87,12 @@ pub fn compile_standard_json(
 pub(crate) fn run(opts: CompileOpts) -> io::Result<()> {
     let mut stdout = io::BufWriter::new(io::stdout());
     let mut input = String::new();
-    let result = match opts.input.as_slice() {
+    let result = tracing::debug_span!("read_input").in_scope(|| match opts.input.as_slice() {
         [] => io::stdin().read_to_string(&mut input),
         [arg] if arg == "-" => io::stdin().read_to_string(&mut input),
         [path] => File::open(path).and_then(|mut file| file.read_to_string(&mut input)),
         _ => unreachable!("standard JSON input count is validated during argument parsing"),
-    };
+    });
     match result {
         Ok(_) => compile_standard_json(&input, opts, None, &mut stdout)?,
         Err(e) => standard_json_error_output(
@@ -124,6 +126,7 @@ fn write_empty_standard_json_output(
     finish_standard_json_output(&mut output, source_map, opts, &diagnostics, out)
 }
 
+#[tracing::instrument(name = "write_output", level = "debug", skip_all)]
 fn finish_standard_json_output<'a>(
     output: &mut CompilerOutput<'a>,
     source_map: Arc<SourceMap>,
@@ -346,12 +349,33 @@ fn compile(
                     .as_ref()
                     .map(|metadata| |contract_id| metadata.runtime_data(contract_id));
                 let runtime_data = runtime_data.as_ref().map(|data| data as &RuntimeDataFn<'_>);
-                let bytecodes = crate::emit::emit_requested(
-                    compiler,
-                    bytecode_contracts,
-                    runtime_data,
-                    debug_info_contracts,
-                )?;
+                let emit = |bytecode_contracts| {
+                    crate::emit::emit_requested(
+                        compiler,
+                        bytecode_contracts,
+                        runtime_data,
+                        debug_info_contracts,
+                    )
+                };
+                let bytecodes = if gcx.sess.is_parallel()
+                    && let Some(contract_metadata) = &contract_metadata
+                    && let Some(metadata_contracts) = requested_metadata_contracts(
+                        gcx,
+                        output_selection,
+                        &bytecode_contracts,
+                        *metadata,
+                    ) {
+                    // Metadata does not depend on bytecode, so compute it while codegen leaves
+                    // workers idle.
+                    gcx.sess
+                        .join(
+                            || emit(bytecode_contracts),
+                            || contract_metadata.precompute(&metadata_contracts),
+                        )
+                        .0
+                } else {
+                    emit(bytecode_contracts)
+                }?;
 
                 gcx.dcx().has_errors()?;
 
@@ -368,31 +392,32 @@ fn compile(
                 });
                 let compilation_id = compilation.as_ref().map(EthdebugCompilation::id);
 
-                let contract_outputs = gcx
-                    .hir
-                    .par_contracts_enumerated()
-                    .filter_map(|(contract_id, contract)| {
-                        let source = gcx.hir.source(contract.source);
-                        let source_name = standard_json_source_name(&source.file.name);
-                        let contract_name = contract.name.as_str();
-                        let contract_selection =
-                            output_selection.contract(&source_name, contract_name);
-                        let contract_output = make_contract_output(
-                            gcx,
-                            contract_id,
-                            contract_selection,
-                            bytecodes.as_ref(),
-                            contract_metadata.as_ref(),
-                            compilation_id,
-                            source_map_encoder.as_ref(),
-                        );
-                        (!contract_output.is_empty()).then_some((
-                            source_name,
-                            contract_name,
-                            contract_output,
-                        ))
-                    })
-                    .collect::<Vec<_>>();
+                let contract_outputs = tracing::debug_span!("contract_outputs").in_scope(|| {
+                    gcx.hir
+                        .par_contracts_enumerated()
+                        .filter_map(|(contract_id, contract)| {
+                            let source = gcx.hir.source(contract.source);
+                            let source_name = standard_json_source_name(&source.file.name);
+                            let contract_name = contract.name.as_str();
+                            let contract_selection =
+                                output_selection.contract(&source_name, contract_name);
+                            let contract_output = make_contract_output(
+                                gcx,
+                                contract_id,
+                                contract_selection,
+                                bytecodes.as_ref(),
+                                contract_metadata.as_ref(),
+                                compilation_id,
+                                source_map_encoder.as_ref(),
+                            );
+                            (!contract_output.is_empty()).then_some((
+                                source_name,
+                                contract_name,
+                                contract_output,
+                            ))
+                        })
+                        .collect::<Vec<_>>()
+                });
                 for (source_name, contract_name, contract_output) in contract_outputs {
                     output
                         .contracts
@@ -512,6 +537,7 @@ fn disallowed_io(path: &Path) -> io::Error {
     )
 }
 
+#[tracing::instrument(name = "source_outputs", level = "debug", skip_all)]
 fn source_outputs_from_compiler(
     compiler: &solar_sema::CompilerRef<'_>,
 ) -> FxIndexMap<String, SourceOutput> {
@@ -691,10 +717,11 @@ fn make_bytecode_output(
         });
         let mut by_source = FxIndexMap::<String, FxIndexMap<String, Vec<OffsetLength>>>::default();
         for reference in references {
+            let (source, name) = reference.library.split();
             by_source
-                .entry(reference.source.clone())
+                .entry(source.to_string())
                 .or_default()
-                .entry(reference.name.clone())
+                .entry(name.to_string())
                 .or_default()
                 .push(OffsetLength { start: reference.start, length: 20 });
         }
@@ -763,6 +790,41 @@ fn requested_bytecode_contracts(
         }
     }
     contracts
+}
+
+/// Returns the contracts whose metadata is requested directly or hashed into their bytecode,
+/// or `None` if no contracts need metadata.
+fn requested_metadata_contracts(
+    gcx: solar_sema::Gcx<'_>,
+    output_selection: &OutputSelection<'_>,
+    bytecode_contracts: &ContractSelection,
+    metadata: MetadataSettings,
+) -> Option<Vec<ContractId>> {
+    let requests_metadata = output_selection.requests_metadata();
+    let hashes_metadata = metadata.append_cbor
+        && metadata.bytecode_hash.value != MetadataHash::None
+        && !bytecode_contracts.is_empty();
+    if !requests_metadata && !hashes_metadata {
+        return None;
+    }
+    let mut contracts = ContractSelection::empty(gcx);
+    if hashes_metadata {
+        contracts.union_with(bytecode_contracts);
+    }
+    if requests_metadata {
+        for (contract_id, contract) in gcx.hir.contracts_enumerated() {
+            let source = gcx.hir.source(contract.source);
+            let source_name = standard_json_source_name(&source.file.name);
+            if output_selection
+                .contract(&source_name, contract.name.as_str())
+                .contains(OutputSelectionFlags::METADATA)
+            {
+                contracts.insert(contract_id);
+            }
+        }
+    }
+    let contracts = contracts.into_iter(gcx).collect::<Vec<_>>();
+    (!contracts.is_empty()).then_some(contracts)
 }
 
 fn requested_debug_info_contracts(

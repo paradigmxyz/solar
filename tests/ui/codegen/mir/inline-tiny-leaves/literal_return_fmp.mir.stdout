@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/literal_return_fmp.sol:LiteralReturnFmp ===
 @module LiteralReturnFmp
-types:
+@types
   struct0: {memorybytes, memorybytes}
 
 fn @retainedLiteral() -> struct0 [selector=0xe174bc9a, pure, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {

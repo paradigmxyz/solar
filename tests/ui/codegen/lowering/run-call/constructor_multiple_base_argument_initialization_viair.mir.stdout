@@ -28,7 +28,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_multiple_base_argument_initialization_viair.sol:ConstructorMultipleBaseArgumentInitialization ===
 @module ConstructorMultipleBaseArgumentInitialization
-types:
+@types
   struct0: {i256, i256}
 
 fn @constructor() [constructor] {

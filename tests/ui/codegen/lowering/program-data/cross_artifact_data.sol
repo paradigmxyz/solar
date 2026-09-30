@@ -6,14 +6,14 @@
 //@[mir] compile-flags: -O none -Zdump=mir
 //@[mir] filecheck: --check-prefix=MIR
 
-// MIR-LABEL: data:
+// MIR-LABEL: @data
 // MIR: literal_0: hex"aaaaaaaa
 // MIR: literal_1: hex"11111111
 // CONSTRUCTOR-LABEL: @module C_deployment
-// CONSTRUCTOR: @data literal_0 hex"aaaaaaaa
-// CONSTRUCTOR-NOT: @data literal_1
+// CONSTRUCTOR: literal_0: hex"aaaaaaaa
+// CONSTRUCTOR-NOT: literal_1
 // RUNTIME-LABEL: @module C_runtime
-// RUNTIME: @data literal_0 hex"11111111
+// RUNTIME: literal_0: hex"11111111
 // RUNTIME-NOT: aaaaaaaa
 contract C {
     event ConstructorData(bytes data);

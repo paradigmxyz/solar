@@ -3,7 +3,7 @@
 //@[lower] compile-flags: -Zmir-pipeline=lower-structs
 @module StructValues
 
-types:
+@types
   struct0: {i256, i1}
   struct1: {struct0, i256}
   struct2: {}

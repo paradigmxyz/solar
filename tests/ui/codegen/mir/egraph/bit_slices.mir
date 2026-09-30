@@ -2,7 +2,7 @@
 @module BitSlices
 
 // Constant shift chains saturate at 256, including addition overflow.
-types:
+@types
   struct0: {i256, i256, i256}
   struct1: {i256, i256}
   struct2: {i256, i256, i256, i256}

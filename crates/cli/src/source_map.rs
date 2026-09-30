@@ -3,7 +3,7 @@
 use core::fmt::NumBuffer;
 use solar_codegen::backend::evm::{DebugFunctionExit, DebugInstruction, op};
 use solar_data_structures::map::{FxHashMap, FxHashSet};
-use solar_interface::BytePos;
+use solar_interface::{BytePos, source_map::SourceMapFiles};
 use solar_sema::{Gcx, hir::SourceId};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -44,9 +44,10 @@ impl SourceMapEncoder {
             .filter(|instruction| instruction.function_invoke.is_some())
             .map(|instruction| instruction.offset)
             .collect::<FxHashSet<_>>();
+        let files = gcx.sess.source_map().files();
         let entries = instructions.iter().enumerate().map(|(index, instruction)| {
             self.entry(
-                gcx,
+                &files,
                 bytecode,
                 &function_entries,
                 instructions.get(index.wrapping_sub(1)),
@@ -58,7 +59,7 @@ impl SourceMapEncoder {
 
     fn entry(
         &self,
-        gcx: Gcx<'_>,
+        files: &SourceMapFiles<'_>,
         bytecode: &[u8],
         function_entries: &FxHashSet<u32>,
         previous: Option<&DebugInstruction>,
@@ -76,7 +77,7 @@ impl SourceMapEncoder {
             _ => None,
         }
         .and_then(|span| {
-            let source = gcx.sess.source_map().span_to_source(span).ok()?;
+            let source = files.span_to_source(span).ok()?;
             let source_id = *self.source_ids.get(&source.file.start_pos)?;
             Some((source.data.start as i64, source.data.len() as i64, source_id.index() as i64))
         });

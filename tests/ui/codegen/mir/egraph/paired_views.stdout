@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/paired_views.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/paired_views.mir (after egraph) ===
   @module PairedViews
-  types:
+  @types
     struct0: {i256, i256, i1}
   
   fn @equal_complements(arg0: i256, arg1: i256) -> i1 {
@@ -55,7 +55,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/paired_views.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/paired_views.mir (after dce) ===
   @module PairedViews
-  types:
+  @types
     struct0: {i256, i256, i1}
   
   fn @equal_complements(arg0: i256, arg1: i256) -> i1 {

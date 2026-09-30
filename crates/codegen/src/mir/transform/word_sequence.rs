@@ -74,18 +74,24 @@ fn legal(op: &Op, target: Target) -> bool {
             op::definition(opcode).is_some_and(|def| def.is_available(target.evm_version()))
         });
     }
-    op.into_kind().is_some_and(|kind| kind.effect_kind() == EffectKind::Pure)
-        && select::opcode_lowering(op).is_some_and(|lowering| {
-            matches!(
-                lowering,
-                select::OpcodeLowering::Unary { .. } | select::OpcodeLowering::Binary { .. }
-            ) && op::definition(lowering.opcode())
-                .is_some_and(|def| def.is_available(target.evm_version()))
-        })
+    select::opcode_lowering(op).is_some_and(|lowering| {
+        matches!(
+            lowering,
+            select::OpcodeLowering::Unary { .. } | select::OpcodeLowering::Binary { .. }
+        ) && op::definition(lowering.opcode())
+            .is_some_and(|def| def.is_available(target.evm_version()))
+    }) && op.into_kind().is_some_and(|kind| kind.effect_kind() == EffectKind::Pure)
 }
 
 fn removable(func: &Function, inst: &Instruction, target: Target) -> bool {
-    let scalar_select = match inst.kind.op() {
+    // Selects and legal operations are pure, so other instructions need no view.
+    if inst.kind.effect_kind() != EffectKind::Pure
+        || inst.metadata.effect().is_some_and(|effect| effect != EffectKind::Pure)
+    {
+        return false;
+    }
+    let op = inst.kind.op();
+    let scalar_select = match op {
         Op::Select { true_val, false_val, .. } => {
             [inst.result_ty, func.value_ty(true_val), func.value_ty(false_val)]
                 .into_iter()
@@ -93,8 +99,7 @@ fn removable(func: &Function, inst: &Instruction, target: Target) -> bool {
         }
         _ => false,
     };
-    inst.metadata.effect().is_none_or(|effect| effect == EffectKind::Pure)
-        && (legal(&inst.kind.op(), target) || scalar_select)
+    scalar_select || legal(&op, target)
 }
 
 fn operation_cost(
@@ -245,14 +250,14 @@ fn emit_recipe(
 }
 
 fn run(func: &mut Function, target: Target) -> bool {
-    let mut uses = super::egraph::use_counts(func);
+    let mut uses = None;
     let mut changed = false;
     for block in func.blocks.indices().collect::<Vec<_>>() {
         let original = std::mem::take(&mut func.blocks[block].instructions);
         let mut ordered = Vec::with_capacity(original.len());
         let mut seen = FxHashSet::default();
         let mut deleted = FxHashSet::default();
-        for inst in original {
+        for &inst in &original {
             if !removable(func, func.inst(inst), target) {
                 let instruction = func.inst(inst);
                 if instruction.kind.effect_kind() != EffectKind::Pure
@@ -271,8 +276,16 @@ fn run(func: &mut Function, target: Target) -> bool {
             let mut best = None;
             for recipe in isle::alternatives(func, &seen, &op, target) {
                 if let Some((after, leaves)) = recipe.cost_and_leaves(func, target) {
+                    // Nothing changed before the first count; this block is detached.
+                    let uses = uses.get_or_insert_with(|| {
+                        let mut uses = super::egraph::use_counts(func);
+                        for &inst in &original {
+                            func.inst(inst).visit_operands(|operand| uses[operand] += 1);
+                        }
+                        uses
+                    });
                     let mut dead = FxHashSet::default();
-                    collect_dead(func, &op, &uses, &seen, &leaves, target, &mut dead);
+                    collect_dead(func, &op, uses, &seen, &leaves, target, &mut dead);
                     let empty = FxHashMap::default();
                     let before = operation_cost(func, &op, target, &empty)
                         + dead
@@ -289,6 +302,7 @@ fn run(func: &mut Function, target: Target) -> bool {
                 }
             }
             if let Some((recipe, _, dead)) = best {
+                let uses = uses.as_mut().expect("a recipe was costed");
                 // Remove dead single-use producers; insert recipe children; retain the root.
                 for old in std::iter::once(inst).chain(dead.iter().copied()) {
                     func.inst(old).visit_operands(|operand| {

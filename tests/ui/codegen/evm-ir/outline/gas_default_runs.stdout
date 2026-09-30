@@ -1,0 +1,53 @@
+- // === ROOT/tests/ui/codegen/evm-ir/outline/gas_default_runs.evmir (before outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/gas_default_runs.evmir (after outline) ===
+  @module GasDefaultRunsOutline
+  bb0:
+-   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+-   push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba987654321
+-   add
+-   push 0xf1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f
+-   mul
+-   pop
+-   jump bb1
++   push bb5
++   jump bb4
+  bb1:
+-   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+-   push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba987654321
+-   add
+-   push 0xf1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f
+-   mul
+-   pop
+-   jump bb2
++   push bb6
++   jump bb4
+  bb2:
+-   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+-   push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba987654321
+-   add
+-   push 0xf1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f
+-   mul
+-   pop
+-   jump bb3
++   push bb7
++   jump bb4
+  bb3:
++   push bb8
++   jump bb4
++ bb4:
+    push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba987654321
+    add
+    push 0xf1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f
+    mul
+    pop
++   jump
++ bb5 [continuation]:
++   jump bb1
++ bb6 [continuation]:
++   jump bb2
++ bb7 [continuation]:
++   jump bb3
++ bb8 [continuation]:
+    stop
+  

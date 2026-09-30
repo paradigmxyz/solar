@@ -5,15 +5,22 @@ use super::{
     data::{MetadataHash, Settings, optimizer_settings},
 };
 use alloy_primitives::{Bytes, keccak256};
+use rayon::prelude::*;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use solar_config::{RevertStrings, version::SEMVER_VERSION};
-use solar_data_structures::{bit_set::GrowableBitSet, index::IndexVec};
+use solar_data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    index::IndexVec,
+};
 use solar_sema::{
     Gcx,
     hir::{ContractId, SourceId},
 };
-use std::sync::{LazyLock, OnceLock};
+use std::{
+    cmp::Reverse,
+    sync::{LazyLock, OnceLock},
+};
 
 const INVALID: u8 = 0xfe;
 const IPFS_MULTIHASH_LEN: usize = 34;
@@ -46,6 +53,7 @@ pub(super) struct Metadata<'a, 'input, 'gcx> {
 }
 
 impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
+    #[tracing::instrument(name = "metadata", level = "debug", skip_all)]
     pub(super) fn new(gcx: Gcx<'gcx>, settings: &'a Settings<'input>) -> Self {
         let contracts =
             std::iter::repeat_n(OnceLock::new(), gcx.hir.contract_ids().len()).collect();
@@ -53,6 +61,27 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
         let referenced_sources =
             std::iter::repeat_n(OnceLock::new(), gcx.hir.source_ids().len()).collect();
         Self { gcx, settings, contracts, sources, referenced_sources }
+    }
+
+    /// Computes the metadata of `contracts` in parallel, hashing each referenced source once.
+    #[tracing::instrument(name = "precompute_metadata", level = "debug", skip_all)]
+    pub(super) fn precompute(&self, contracts: &[ContractId]) {
+        let mut sources = DenseBitSet::new_empty(self.sources.len());
+        for &contract_id in contracts {
+            for &source_id in self.referenced_sources(self.gcx.hir.contract(contract_id).source) {
+                sources.insert(source_id);
+            }
+        }
+        // Hash every source before building contract metadata, which blocks on missing hashes.
+        // Start with the largest sources, one task each, so no large source starts last.
+        let mut sources = sources.iter().collect::<Vec<_>>();
+        sources.sort_unstable_by_key(|&id| Reverse(self.gcx.hir.source(id).file.src.len()));
+        sources.into_par_iter().with_max_len(1).for_each(|source_id| {
+            self.source(source_id);
+        });
+        contracts.par_iter().for_each(|&contract_id| {
+            self.json(contract_id);
+        });
     }
 
     pub(super) fn json(&self, contract_id: ContractId) -> &str {

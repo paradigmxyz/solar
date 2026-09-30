@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_struct_copy.sol:StorageStructCopy ===
 @module StorageStructCopy
-types:
+@types
   struct0: {i256, i256}
 
 fn @constructor() [constructor] {

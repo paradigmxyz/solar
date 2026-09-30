@@ -13,9 +13,7 @@ use crate::{
         },
     },
     link::LibraryId,
-    mir::{
-        DataRef as MirDataRef, ImmutableId, Module as MirModule, TypeSize, memory::EvmMemoryLayout,
-    },
+    mir::{ImmutableId, Module as MirModule, TypeSize, memory::EvmMemoryLayout},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -39,6 +37,9 @@ impl<'gcx> Assembler<'gcx> {
                 .dcx()
                 .err("cannot assemble unresolved `push_deferred` instruction")
                 .emit());
+        }
+        if module.data.iter().any(|data| data.bytes.known().is_none()) {
+            return Err(gcx.dcx().err("cannot assemble unlinked deferred program data").emit());
         }
         debug_assert!(ir::verify::Verifier::is_valid(&module));
 
@@ -130,24 +131,24 @@ impl<'gcx> Assembler<'gcx> {
     pub(crate) fn load_data(&mut self, module: &MirModule) {
         assert!(self.program.data.is_empty(), "EVM IR data must be empty before loading MIR data");
         self.program.libraries = module.libraries.clone();
-        self.program.data = module
-            .iter_data()
-            .map(|(id, data)| ir::Data {
-                bytes: data.clone(),
-                library_relocations: module.data_library_relocations(id).to_vec(),
-                name: module.data_name(id),
-                emit_in_runtime: self.artifact_kind == ArtifactKind::Runtime
-                    && module.data_is_emitted_in_runtime(id),
-            })
-            .collect();
+        self.program.data = module.data.clone();
+        // Only the runtime artifact ends with the runtime's trailing data.
+        if self.artifact_kind != ArtifactKind::Runtime {
+            for data in &mut self.program.data {
+                data.emit_in_runtime = false;
+            }
+        }
     }
 
     /// Emits a relocatable constant-data address push.
-    pub(crate) fn emit_push_data(&mut self, data: MirDataRef) {
-        self.push_ir_instruction(ir::Instruction::push_data(ir::DataRef::new(
-            ir::DataId::from_usize(data.id.index()),
-            data.offset,
-        )));
+    pub(crate) fn emit_push_data(&mut self, data: ir::DataRef) {
+        self.push_ir_instruction(ir::Instruction::push_data(data));
+    }
+
+    /// Emits a size derived from a data length, which final assembly supplies.
+    pub(crate) fn emit_push_data_size(&mut self, size: ir::DataSize) {
+        // push_data_size data, addend[, aligned]
+        self.push_ir_instruction(ir::Instruction::push_data_size(size));
     }
 
     /// Returns optimistic and block-layout byte sizes for the entry trace through

@@ -11,7 +11,7 @@ use crate::{
     backend::evm::{
         DebugFunction, DebugFunctionExit, DebugInstruction, DebugSpans, ir, op, op::WORD_BYTES,
     },
-    link::LibraryRelocation,
+    link::{EmbeddedBytecodes, LibraryRelocation, LibraryTable},
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::U256;
@@ -99,7 +99,7 @@ pub(in crate::backend) struct PreparedAssembly {
 }
 
 /// Relocating assembler for finalized EVM IR.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) gcx: Gcx<'gcx>,
     /// Artifact whose labels are being laid out.
@@ -108,8 +108,6 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) program: ir::Module,
     /// Whether `program` already has explicit EVM IR terminators.
     pub(in crate::backend) program_is_finalized: bool,
-    /// Pass history at the shared input to gas-first and size-rescue outlining.
-    pub(in crate::backend) outlining: Option<ir::OutliningCheckpoint>,
     /// Block currently receiving emitted instructions.
     pub(in crate::backend) current_block: Option<ir::BlockId>,
     /// Source span attached to newly emitted EVM IR operations.
@@ -147,6 +145,17 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) next_deferred_alloc: IdCounter<DeferredAlloc>,
     /// Final placement of deferred allocations.
     pub(in crate::backend) deferred_allocations: FxHashMap<DeferredAlloc, DeferredAllocResolution>,
+    /// EVM IR after its pipeline, waiting to be linked and lowered.
+    pub(in crate::backend) optimized: Option<OptimizedProgram>,
+}
+
+/// EVM IR after its pipeline and legalization, before lowering to primitive assembly.
+#[derive(Debug)]
+pub(in crate::backend) struct OptimizedProgram {
+    pub(in crate::backend) program: ir::Module,
+    pub(in crate::backend) labels: Vec<Option<Label>>,
+    /// Whether the pipeline reported an error.
+    pub(in crate::backend) failed: bool,
 }
 
 /// Final lowering selected for a deferred allocation.
@@ -165,7 +174,6 @@ impl<'gcx> Assembler<'gcx> {
             artifact_kind: ArtifactKind::Runtime,
             program: ir::Module::new(sym::asm),
             program_is_finalized: false,
-            outlining: None,
             current_block: None,
             current_source_spans: DebugSpans::new(),
             current_modifier_depth: 0,
@@ -184,6 +192,7 @@ impl<'gcx> Assembler<'gcx> {
             alloc_relocations: Vec::new(),
             next_deferred_alloc: IdCounter::new(),
             deferred_allocations: FxHashMap::default(),
+            optimized: None,
         }
     }
 
@@ -192,7 +201,6 @@ impl<'gcx> Assembler<'gcx> {
         self.artifact_kind = ArtifactKind::Runtime;
         self.program.clear();
         self.program_is_finalized = false;
-        self.outlining = None;
         self.current_block = None;
         self.current_source_spans.clear();
         self.current_modifier_depth = 0;
@@ -211,6 +219,7 @@ impl<'gcx> Assembler<'gcx> {
         self.alloc_relocations.clear();
         self.next_deferred_alloc.clear();
         self.deferred_allocations.clear();
+        self.optimized = None;
     }
 
     /// Sets the artifact context used by conservative layout estimates.
@@ -223,11 +232,6 @@ impl<'gcx> Assembler<'gcx> {
     /// Sets the source module name carried by emitted EVM IR.
     pub(crate) fn set_evm_ir_name(&mut self, name: Symbol) {
         self.program.set_name(Symbol::intern(&format!("{name}_{}", self.artifact_kind.name())));
-    }
-
-    /// Enables size-oriented outlining for an oversized gas-mode runtime.
-    pub(crate) fn set_enable_size_outlining(&mut self, enable: bool) {
-        self.program.enable_size_outlining = enable;
     }
 
     /// Returns the conservative indexed-jump target width for this artifact.
@@ -282,7 +286,26 @@ impl<'gcx> Assembler<'gcx> {
         capture_evm_ir: bool,
         capture_debug_info: bool,
     ) -> AssembledCode {
-        let prepared = self.prepare(capture_evm_ir, capture_debug_info);
+        self.optimize();
+        self.assemble_linked(
+            &EmbeddedBytecodes::default(),
+            &mut LibraryTable::default(),
+            capture_evm_ir,
+            capture_debug_info,
+        )
+    }
+
+    /// Links embedded contract bytecode into the optimized program, then lowers and
+    /// assembles it and clears the assembler.
+    pub(in crate::backend) fn assemble_linked(
+        &mut self,
+        bytecodes: &EmbeddedBytecodes,
+        libraries: &mut LibraryTable,
+        capture_evm_ir: bool,
+        capture_debug_info: bool,
+    ) -> AssembledCode {
+        let prepared =
+            self.prepare_linked(bytecodes, libraries, capture_evm_ir, capture_debug_info);
         let result = self.assemble_owned(prepared, &[]);
         self.clear();
         result
@@ -296,6 +319,7 @@ impl<'gcx> Assembler<'gcx> {
         self.assemble_owned(prepared.clone(), deferred_values)
     }
 
+    #[tracing::instrument(name = "assemble", level = "debug", skip_all)]
     fn assemble_owned(
         &mut self,
         prepared: PreparedAssembly,
@@ -467,7 +491,7 @@ impl<'gcx> Assembler<'gcx> {
                 }
                 AsmInstKind::Data(data) => {
                     data_offsets.insert(data, offset);
-                    offset += program.data[data].bytes.len();
+                    offset += program.data[data].bytes.linked().len();
                 }
             }
         }
@@ -592,7 +616,7 @@ impl<'gcx> Assembler<'gcx> {
                             }
                         }),
                     );
-                    out.bytecode.extend_from_slice(&program.data[data].bytes);
+                    out.bytecode.extend_from_slice(program.data[data].bytes.linked());
                 }
             }
         }
@@ -612,7 +636,7 @@ fn resolve_data_offset(
     data_ref: assembly::DataRefId,
 ) -> usize {
     let data = program.data_refs[data_ref];
-    let data_size = program.data[data.id].bytes.len();
+    let data_size = program.data[data.id].bytes.linked().len();
     assert!(
         data.offset as usize <= data_size,
         "program data offset {} exceeds data size {data_size}",

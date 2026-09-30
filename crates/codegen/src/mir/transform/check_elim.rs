@@ -574,7 +574,7 @@ impl<'a> CheckEliminator<'a> {
         }
         let mut proven = Vec::new();
         let (mut folds, mut checks) =
-            self.collect_folds(func, &cfg, &preds, &facts, &candidates, &mut proven);
+            self.collect_folds(func, &cfg, &preds, &facts, &candidates, &mut proven, selected);
         if !proven.is_empty() {
             // The invariant is available wherever the phi is: attach it to the
             // header's entry facts and index it for transitive queries.
@@ -597,20 +597,8 @@ impl<'a> CheckEliminator<'a> {
             self.relation_index = None;
             self.reverse_index = None;
             self.strict_lower_bounds = None;
-            (folds, checks) = self.collect_folds(func, &cfg, &preds, &facts, &[], &mut Vec::new());
-        }
-        if let Some((selected, reverting)) = selected {
-            folds.retain(|&(block, keep)| {
-                if selected.contains(block)
-                    && let Some(Terminator::Branch { then_block, else_block, .. }) =
-                        func.blocks[block].terminator
-                {
-                    let discarded = if keep == then_block { else_block } else { then_block };
-                    leads_to_revert(func, discarded, reverting)
-                } else {
-                    false
-                }
-            });
+            (folds, checks) =
+                self.collect_folds(func, &cfg, &preds, &facts, &[], &mut Vec::new(), selected);
         }
         self.ranges.clear();
         self.relations.clear();
@@ -639,7 +627,9 @@ impl<'a> CheckEliminator<'a> {
     /// Walks the dominator tree, recording edge and check facts. Returns branch folds and
     /// proven passing checks to remove.
     /// `candidates` whose update is proven wrap-free in its defining block's
-    /// scope are appended to `proven`.
+    /// scope are appended to `proven`. With `selected`, only folds of selected branches whose
+    /// discarded arm reverts are evaluated and returned; evaluation records no facts.
+    #[allow(clippy::too_many_arguments)]
     fn collect_folds(
         &mut self,
         func: &Function,
@@ -648,6 +638,7 @@ impl<'a> CheckEliminator<'a> {
         facts: &IndexVec<BlockId, Facts>,
         candidates: &[MonotonePhi],
         proven: &mut Vec<MonotonePhi>,
+        selected: Option<(&DenseBitSet<BlockId>, &FxHashSet<FunctionId>)>,
     ) -> (Vec<(BlockId, BlockId)>, DenseBitSet<InstId>) {
         enum Walk {
             Enter(BlockId),
@@ -720,7 +711,16 @@ impl<'a> CheckEliminator<'a> {
                     if let Some(Terminator::Branch { condition, then_block, else_block }) =
                         func.blocks[block].terminator.as_ref()
                         && then_block != else_block
+                        && selected.is_none_or(|(selected, reverting)| {
+                            selected.contains(block)
+                                && (leads_to_revert(func, *then_block, reverting)
+                                    || leads_to_revert(func, *else_block, reverting))
+                        })
                         && let Some(truth) = self.eval_truth(func, *condition, MAX_DEPTH)
+                        && selected.is_none_or(|(_, reverting)| {
+                            let discarded = if truth { *else_block } else { *then_block };
+                            leads_to_revert(func, discarded, reverting)
+                        })
                     {
                         folds.push((block, if truth { *then_block } else { *else_block }));
                     }
@@ -756,7 +756,7 @@ impl<'a> CheckEliminator<'a> {
         relevant: &DenseBitSet<ValueId>,
     ) -> IndexVec<BlockId, Facts> {
         const MAX_ROUNDS: usize = 8;
-        let definitions = func.inst_blocks();
+        let definitions = func.inst_block_table();
         // A predicate consumed only by this branch cannot be queried after the edge.
         // Preserve its operand facts, but do not copy the dead predicate's own range
         // through every later block. Single-use ISZERO chains have the same property.
@@ -789,6 +789,7 @@ impl<'a> CheckEliminator<'a> {
         let mut cx = Self::new(self.immutable_ranges);
         cx.universal_relations.clone_from(&self.universal_relations);
         let mut pending = cfg.reachable().clone();
+        let mut visited = DenseBitSet::new_empty(func.blocks.len());
         for _ in 0..MAX_ROUNDS {
             let mut changed = false;
             for &block in cfg.rpo() {
@@ -831,7 +832,7 @@ impl<'a> CheckEliminator<'a> {
                             cx.ranges.remove(value);
                         }
                         let available = |value| match func.value(value) {
-                            Value::Inst(inst) => definitions.get(inst).is_some_and(|&home| {
+                            Value::Inst(inst) => definitions[*inst].is_some_and(|home| {
                                 home != block && cfg.dominators().dominates(home, block)
                             }),
                             _ => true,
@@ -865,6 +866,10 @@ impl<'a> CheckEliminator<'a> {
                     }
                 }
                 let entry = merged.unwrap_or_default();
+                // The exit facts depend only on the entry facts.
+                if !visited.insert(block) && entries[block] == entry {
+                    continue;
+                }
                 cx.ranges.clone_from(&entry.ranges);
                 cx.relations.clone_from(&entry.relations);
                 cx.strict_lower_bounds = None;
@@ -1938,7 +1943,7 @@ fn monotone_phi_candidates(
     if cyclic.is_empty() {
         return candidates;
     }
-    let definitions = func.inst_blocks();
+    let definitions = func.inst_block_table();
     let dominators = cfg.dominators();
     for header in cyclic.iter() {
         for &inst in &func.blocks[header].instructions {
@@ -1971,7 +1976,7 @@ fn monotone_phi_candidates(
             if !const_of(func, step).is_some_and(|step| !step.is_zero()) {
                 continue;
             }
-            let Some(&home) = definitions.get(next_inst) else { continue };
+            let Some(home) = definitions[*next_inst] else { continue };
             candidates.push(MonotonePhi { header, value, initial, next, step, home, decreasing });
         }
     }

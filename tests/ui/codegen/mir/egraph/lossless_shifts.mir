@@ -3,7 +3,7 @@
 //@[size] compile-flags: -Osize -Zmir-pipeline=egraph,dce
 @module LosslessShifts
 
-types:
+@types
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
   struct2: {i256, i256, i256, i256, i256, i256}
