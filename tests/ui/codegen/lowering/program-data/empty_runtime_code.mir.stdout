@@ -48,26 +48,25 @@ fn @deploy() -> i256 [selector=0x775c300c, abi_params=[], abi_returns=[word<bool
   bb0:
     v0 = abi_encode []
     v1 = data_size EmptyRuntime_initcode_1
-    v2 = data_size EmptyRuntime_initcode_1
-    v3 = data_size EmptyRuntime_initcode_1, 31, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
-    v5 = ptrtoint memptr v4 to i256
-    data_copy EmptyRuntime_initcode_1, v5, v1
-    v6 = slice_ptr v0
-    v7 = ptrtoint memptr v4 to i256
-    v8 = add v7, v1
-    mcopy v8, v6, 0 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
-    v10 = create 0, v9, v2
-    v11 = zext i160 v10 to i256
-    v12 = ne v11, 0
-    jumpi v12, bb2, bb1
+    v2 = data_size EmptyRuntime_initcode_1, 31, aligned
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v4 = ptrtoint memptr v3 to i256
+    data_copy EmptyRuntime_initcode_1, v4, v1
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, v1
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = zext i160 v10 to i256
-    v14 = extcodesize v13
-    v15 = eq v14, 0
-    v16 = zext i1 v15 to i256
-    ret v16
+    v12 = zext i160 v9 to i256
+    v13 = extcodesize v12
+    v14 = eq v13, 0
+    v15 = zext i1 v14 to i256
+    ret v15
 }

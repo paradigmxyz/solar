@@ -239,63 +239,62 @@ fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[
   bb0:
     v0 = abi_encode []
     v1 = data_size Callee_initcode_0
-    v2 = data_size Callee_initcode_0
-    v3 = data_size Callee_initcode_0, 31, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
-    v5 = ptrtoint memptr v4 to i256
-    data_copy Callee_initcode_0, v5, v1
-    v6 = slice_ptr v0
-    v7 = ptrtoint memptr v4 to i256
-    v8 = add v7, v1
-    mcopy v8, v6, 0 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
-    v10 = create 0, v9, v2
-    v11 = zext i160 v10 to i256
-    v12 = ne v11, 0
-    jumpi v12, bb2, bb1
+    v2 = data_size Callee_initcode_0, 31, aligned
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v4 = ptrtoint memptr v3 to i256
+    data_copy Callee_initcode_0, v4, v1
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, v1
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = gas
-    v14 = abi_encode [], selector 0x462bb00400000000000000000000000000000000000000000000000000000000
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = zext i160 v10 to i256
-    v18 = staticcall v13, v17, v15, v16, 0, 0
-    jumpi v18, bb4, bb3
+    v12 = gas
+    v13 = abi_encode [], selector 0x462bb00400000000000000000000000000000000000000000000000000000000
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = zext i160 v9 to i256
+    v17 = staticcall v12, v16, v14, v15, 0, 0
+    jumpi v17, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v19 = icall returndata_bytes<>
-    v20 = abi_decode [array<_, u256>], v19
-    v21 = memory_object_len memoryarray, v20
+    v18 = icall returndata_bytes<>
+    v19 = abi_decode [array<_, u256>], v18
+    v20 = memory_object_len memoryarray, v19
     jump bb5
   bb5:
-    v22 = phi [bb4: 0], [bb7: v33]
-    v23 = phi [bb4: v21], [bb7: v23]
-    v24 = phi [bb4: v20], [bb7: v24]
-    v25 = phi [bb4: 0], [bb7: v32]
-    v26 = memory_object_len memoryarray, v24
-    v27 = lt v22, v26
-    jumpi v27, bb8, bb9
+    v21 = phi [bb4: 0], [bb7: v32]
+    v22 = phi [bb4: v20], [bb7: v22]
+    v23 = phi [bb4: v19], [bb7: v23]
+    v24 = phi [bb4: 0], [bb7: v31]
+    v25 = memory_object_len memoryarray, v23
+    v26 = lt v21, v25
+    jumpi v26, bb8, bb9
   bb9:
     jump bb6
   bb6:
-    v34 = insert_value struct0, undef struct0, 0, v23
-    v35 = insert_value struct0, v34, 1, v25
-    ret v35
+    v33 = insert_value struct0, undef struct0, 0, v22
+    v34 = insert_value struct0, v33, 1, v24
+    ret v34
   bb8:
-    v28 = memory_object_len memoryarray, v24
-    v29 = lt v22, v28
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = memory_object_load_element memoryarray<1>, v24, v22
-    v32 = checked_add u256, v25, v31
+    v27 = memory_object_len memoryarray, v23
+    v28 = lt v21, v27
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    v30 = memory_object_load_element memoryarray<1>, v23, v21
+    v31 = checked_add u256, v24, v30
     jump bb10
   bb10:
     jump bb7
   bb7:
-    v33 = checked_add u256, v22, 1
+    v32 = checked_add u256, v21, 1
     jump bb5
 }
 
@@ -311,45 +310,44 @@ fn @strFirstAndLen() -> struct0 [selector=0x2b10ead6, abi_params=[], abi_returns
   bb0:
     v0 = abi_encode []
     v1 = data_size Callee_initcode_0
-    v2 = data_size Callee_initcode_0
-    v3 = data_size Callee_initcode_0, 31, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
-    v5 = ptrtoint memptr v4 to i256
-    data_copy Callee_initcode_0, v5, v1
-    v6 = slice_ptr v0
-    v7 = ptrtoint memptr v4 to i256
-    v8 = add v7, v1
-    mcopy v8, v6, 0 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
-    v10 = create 0, v9, v2
-    v11 = zext i160 v10 to i256
-    v12 = ne v11, 0
-    jumpi v12, bb2, bb1
+    v2 = data_size Callee_initcode_0, 31, aligned
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v4 = ptrtoint memptr v3 to i256
+    data_copy Callee_initcode_0, v4, v1
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, v1
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = gas
-    v14 = abi_encode [], selector 0xb8c9e4ed00000000000000000000000000000000000000000000000000000000
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = zext i160 v10 to i256
-    v18 = staticcall v13, v17, v15, v16, 0, 0
-    jumpi v18, bb4, bb3
+    v12 = gas
+    v13 = abi_encode [], selector 0xb8c9e4ed00000000000000000000000000000000000000000000000000000000
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = zext i160 v9 to i256
+    v17 = staticcall v12, v16, v14, v15, 0, 0
+    jumpi v17, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v19 = icall returndata_bytes<>
-    v20 = abi_decode [bytes], v19
-    v21 = memory_object_len memorybytes, v20
-    v22 = lt 0, v21
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = memory_object_load_byte memorybytes, v20, 0
-    v25 = shl 248, v24
-    v26 = memory_object_len memorybytes, v20
-    v27 = insert_value struct0, undef struct0, 0, v25
-    v28 = insert_value struct0, v27, 1, v26
-    ret v28
+    v18 = icall returndata_bytes<>
+    v19 = abi_decode [bytes], v18
+    v20 = memory_object_len memorybytes, v19
+    v21 = lt 0, v20
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = memory_object_load_byte memorybytes, v19, 0
+    v24 = shl 248, v23
+    v25 = memory_object_len memorybytes, v19
+    v26 = insert_value struct0, undef struct0, 0, v24
+    v27 = insert_value struct0, v26, 1, v25
+    ret v27
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:BytesCaller ===
@@ -361,37 +359,36 @@ fn @bytesRoundTrip() -> i256 [selector=0x9700a482, abi_params=[], abi_returns=[w
   bb0:
     v0 = abi_encode []
     v1 = data_size Callee_initcode_0
-    v2 = data_size Callee_initcode_0
-    v3 = data_size Callee_initcode_0, 31, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
-    v5 = ptrtoint memptr v4 to i256
-    data_copy Callee_initcode_0, v5, v1
-    v6 = slice_ptr v0
-    v7 = ptrtoint memptr v4 to i256
-    v8 = add v7, v1
-    mcopy v8, v6, 0 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
-    v10 = create 0, v9, v2
-    v11 = zext i160 v10 to i256
-    v12 = ne v11, 0
-    jumpi v12, bb2, bb1
+    v2 = data_size Callee_initcode_0, 31, aligned
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v4 = ptrtoint memptr v3 to i256
+    data_copy Callee_initcode_0, v4, v1
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, v1
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = gas
-    v14 = abi_encode [], selector 0xbcd3b3300000000000000000000000000000000000000000000000000000000
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = zext i160 v10 to i256
-    v18 = staticcall v13, v17, v15, v16, 0, 0
-    jumpi v18, bb4, bb3
+    v12 = gas
+    v13 = abi_encode [], selector 0xbcd3b3300000000000000000000000000000000000000000000000000000000
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = zext i160 v9 to i256
+    v17 = staticcall v12, v16, v14, v15, 0, 0
+    jumpi v17, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v19 = icall returndata_bytes<>
-    v20 = abi_decode [bytes], v19
-    v21 = memory_object_len memorybytes, v20
-    ret v21
+    v18 = icall returndata_bytes<>
+    v19 = abi_decode [bytes], v18
+    v20 = memory_object_len memorybytes, v19
+    ret v20
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:FixedCaller ===
@@ -403,61 +400,60 @@ fn @fixedSum() -> i256 [selector=0x1f080ca7, abi_params=[], abi_returns=[word], 
   bb0:
     v0 = abi_encode []
     v1 = data_size Callee_initcode_0
-    v2 = data_size Callee_initcode_0
-    v3 = data_size Callee_initcode_0, 31, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
-    v5 = ptrtoint memptr v4 to i256
-    data_copy Callee_initcode_0, v5, v1
-    v6 = slice_ptr v0
-    v7 = ptrtoint memptr v4 to i256
-    v8 = add v7, v1
-    mcopy v8, v6, 0 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
-    v10 = create 0, v9, v2
-    v11 = zext i160 v10 to i256
-    v12 = ne v11, 0
-    jumpi v12, bb2, bb1
+    v2 = data_size Callee_initcode_0, 31, aligned
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v4 = ptrtoint memptr v3 to i256
+    data_copy Callee_initcode_0, v4, v1
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, v1
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = gas
-    v14 = abi_encode [], selector 0x8695275000000000000000000000000000000000000000000000000000000000
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = alloc raw, exact, uninitialized, infallible, 96
-    v18 = zext i160 v10 to i256
-    v19 = ptrtoint memptr v17 to i256
-    v20 = staticcall v13, v18, v15, v16, v19, 96
-    jumpi v20, bb4, bb3
+    v12 = gas
+    v13 = abi_encode [], selector 0x8695275000000000000000000000000000000000000000000000000000000000
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = alloc raw, exact, uninitialized, infallible, 96
+    v17 = zext i160 v9 to i256
+    v18 = ptrtoint memptr v16 to i256
+    v19 = staticcall v12, v17, v14, v15, v18, 96
+    jumpi v19, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v21 = returndatasize
-    v22 = lt v21, 96
-    icall revert_if<tuple_data_too_short>, v22
-    v23 = not 31
-    v24 = and 159, v23
-    v25 = alloc memorybytes, exact, uninitialized, infallible, v24
-    set_memory_object_len memorybytes, v25, 96
-    v26 = ptrtoint memptr v17 to i256
-    v27 = make_memory_slice v26, 96
-    memory_object_copy_from_slice memorybytes, v25, v27
-    v28 = abi_decode [array<3, u256>], v25
-    v29 = lt 0, 3
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = memory_object_load_element memoryfixedarray<3, 1>, v28, 0
-    v32 = lt 1, 3
-    v33 = eq v32, false
-    icall panic_if<0x32>, v33
-    v34 = memory_object_load_element memoryfixedarray<3, 1>, v28, 1
-    v35 = checked_add u256, v31, v34
-    v36 = lt 2, 3
-    v37 = eq v36, false
-    icall panic_if<0x32>, v37
-    v38 = memory_object_load_element memoryfixedarray<3, 1>, v28, 2
-    v39 = checked_add u256, v35, v38
-    ret v39
+    v20 = returndatasize
+    v21 = lt v20, 96
+    icall revert_if<tuple_data_too_short>, v21
+    v22 = not 31
+    v23 = and 159, v22
+    v24 = alloc memorybytes, exact, uninitialized, infallible, v23
+    set_memory_object_len memorybytes, v24, 96
+    v25 = ptrtoint memptr v16 to i256
+    v26 = make_memory_slice v25, 96
+    memory_object_copy_from_slice memorybytes, v24, v26
+    v27 = abi_decode [array<3, u256>], v24
+    v28 = lt 0, 3
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    v30 = memory_object_load_element memoryfixedarray<3, 1>, v27, 0
+    v31 = lt 1, 3
+    v32 = eq v31, false
+    icall panic_if<0x32>, v32
+    v33 = memory_object_load_element memoryfixedarray<3, 1>, v27, 1
+    v34 = checked_add u256, v30, v33
+    v35 = lt 2, 3
+    v36 = eq v35, false
+    icall panic_if<0x32>, v36
+    v37 = memory_object_load_element memoryfixedarray<3, 1>, v27, 2
+    v38 = checked_add u256, v34, v37
+    ret v38
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:StringElementCaller ===
@@ -469,37 +465,36 @@ fn @stringElem() -> i256 [selector=0x8eb2047c, abi_params=[], abi_returns=[word]
   bb0:
     v0 = abi_encode []
     v1 = data_size Callee_initcode_0
-    v2 = data_size Callee_initcode_0
-    v3 = data_size Callee_initcode_0, 31, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
-    v5 = ptrtoint memptr v4 to i256
-    data_copy Callee_initcode_0, v5, v1
-    v6 = slice_ptr v0
-    v7 = ptrtoint memptr v4 to i256
-    v8 = add v7, v1
-    mcopy v8, v6, 0 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
-    v10 = create 0, v9, v2
-    v11 = zext i160 v10 to i256
-    v12 = ne v11, 0
-    jumpi v12, bb2, bb1
+    v2 = data_size Callee_initcode_0, 31, aligned
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v4 = ptrtoint memptr v3 to i256
+    data_copy Callee_initcode_0, v4, v1
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, v1
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = gas
-    v14 = abi_encode [], selector 0x17d7de7c00000000000000000000000000000000000000000000000000000000
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = zext i160 v10 to i256
-    v18 = staticcall v13, v17, v15, v16, 0, 0
-    jumpi v18, bb4, bb3
+    v12 = gas
+    v13 = abi_encode [], selector 0x17d7de7c00000000000000000000000000000000000000000000000000000000
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = zext i160 v9 to i256
+    v17 = staticcall v12, v16, v14, v15, 0, 0
+    jumpi v17, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v19 = icall returndata_bytes<>
-    v20 = abi_decode [bytes], v19
-    v21 = memory_object_len memorybytes, v20
-    ret v21
+    v18 = icall returndata_bytes<>
+    v19 = abi_decode [bytes], v18
+    v20 = memory_object_len memorybytes, v19
+    ret v20
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:NestedCaller ===
@@ -511,55 +506,54 @@ fn @nestedSum() -> i256 [selector=0x002c8096, abi_params=[], abi_returns=[word],
   bb0:
     v0 = abi_encode []
     v1 = data_size Callee_initcode_0
-    v2 = data_size Callee_initcode_0
-    v3 = data_size Callee_initcode_0, 31, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
-    v5 = ptrtoint memptr v4 to i256
-    data_copy Callee_initcode_0, v5, v1
-    v6 = slice_ptr v0
-    v7 = ptrtoint memptr v4 to i256
-    v8 = add v7, v1
-    mcopy v8, v6, 0 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
-    v10 = create 0, v9, v2
-    v11 = zext i160 v10 to i256
-    v12 = ne v11, 0
-    jumpi v12, bb2, bb1
+    v2 = data_size Callee_initcode_0, 31, aligned
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v4 = ptrtoint memptr v3 to i256
+    data_copy Callee_initcode_0, v4, v1
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, v1
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = gas
-    v14 = abi_encode [], selector 0x2ec6845100000000000000000000000000000000000000000000000000000000
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = zext i160 v10 to i256
-    v18 = staticcall v13, v17, v15, v16, 0, 0
-    jumpi v18, bb4, bb3
+    v12 = gas
+    v13 = abi_encode [], selector 0x2ec6845100000000000000000000000000000000000000000000000000000000
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = zext i160 v9 to i256
+    v17 = staticcall v12, v16, v14, v15, 0, 0
+    jumpi v17, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v19 = icall returndata_bytes<>
-    v20 = abi_decode [array<_, array<_, u256>>], v19
-    v21 = memory_object_len memoryarray, v20
-    v22 = lt 0, v21
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = memory_object_load_element memoryarray<1>, v20, 0
-    v25 = inttoptr i256 v24 to memoryarray
-    v26 = eq v24, 0
-    jumpi v26, bb5, bb6
+    v18 = icall returndata_bytes<>
+    v19 = abi_decode [array<_, array<_, u256>>], v18
+    v20 = memory_object_len memoryarray, v19
+    v21 = lt 0, v20
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = memory_object_load_element memoryarray<1>, v19, 0
+    v24 = inttoptr i256 v23 to memoryarray
+    v25 = eq v23, 0
+    jumpi v25, bb5, bb6
   bb5:
-    v27 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v27, 0
-    v28 = ptrtoint memoryarray v27 to i256
-    memory_object_store_element memoryarray<1>, v20, 0, v28
+    v26 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v26, 0
+    v27 = ptrtoint memoryarray v26 to i256
+    memory_object_store_element memoryarray<1>, v19, 0, v27
     jump bb6
   bb6:
-    v29 = phi [bb4: v25], [bb5: v27]
-    v30 = memory_object_len memoryarray, v29
-    v31 = lt 0, v30
-    v32 = eq v31, false
-    icall panic_if<0x32>, v32
-    v33 = memory_object_load_element memoryarray<1>, v29, 0
-    ret v33
+    v28 = phi [bb4: v24], [bb5: v26]
+    v29 = memory_object_len memoryarray, v28
+    v30 = lt 0, v29
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = memory_object_load_element memoryarray<1>, v28, 0
+    ret v32
 }

@@ -14,52 +14,51 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
   bb0:
     v0 = abi_encode []
     v1 = data_size Implementation_initcode_0
-    v2 = data_size Implementation_initcode_0
-    v3 = data_size Implementation_initcode_0, 31, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
-    v5 = ptrtoint memptr v4 to i256
-    data_copy Implementation_initcode_0, v5, v1
-    v6 = slice_ptr v0
-    v7 = ptrtoint memptr v4 to i256
-    v8 = add v7, v1
-    mcopy v8, v6, 0 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
-    v10 = create 0, v9, v2
-    v11 = zext i160 v10 to i256
-    v12 = ne v11, 0
-    jumpi v12, bb2, bb1
+    v2 = data_size Implementation_initcode_0, 31, aligned
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v4 = ptrtoint memptr v3 to i256
+    data_copy Implementation_initcode_0, v4, v1
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, v1
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = zext i160 v10 to i256
-    v14 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v14, 15
-    v15 = memory_object_data memorybytes, v14
-    v16 = ptrtoint memptr v15 to i256
-    mstore v16, 0x112233445566778899aabbccddeeff0000000000000000000000000000000000
-    v17 = zext i160 v10 to i256
-    v18 = shl 0, 1
-    v19 = icall @_cloneDeterministic, v17, v14, v18
-    v20 = trunc i256 v19 to i160
-    v21 = gas
-    v22 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
-    v23 = slice_ptr v22
-    v24 = slice_len v22
-    v25 = zext i160 v20 to i256
-    v26 = staticcall v21, v25, v23, v24, 0, 32
-    jumpi v26, bb4, bb3
+    v12 = zext i160 v9 to i256
+    v13 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v13, 15
+    v14 = memory_object_data memorybytes, v13
+    v15 = ptrtoint memptr v14 to i256
+    mstore v15, 0x112233445566778899aabbccddeeff0000000000000000000000000000000000
+    v16 = zext i160 v9 to i256
+    v17 = shl 0, 1
+    v18 = icall @_cloneDeterministic, v16, v13, v17
+    v19 = trunc i256 v18 to i160
+    v20 = gas
+    v21 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
+    v22 = slice_ptr v21
+    v23 = slice_len v21
+    v24 = zext i160 v19 to i256
+    v25 = staticcall v20, v24, v22, v23, 0, 32
+    jumpi v25, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v27 = returndatasize
-    v28 = lt v27, 32
-    icall revert_if<tuple_data_too_short>, v28
-    v29 = add 0, 0
-    v30 = mload v29
-    v31 = add 0, 0
-    v32 = mload v31
-    v33 = eq v32, 7
-    icall require<short_string>, v33, 5, 0x70726f7879000000000000000000000000000000000000000000000000000000
+    v26 = returndatasize
+    v27 = lt v26, 32
+    icall revert_if<tuple_data_too_short>, v27
+    v28 = add 0, 0
+    v29 = mload v28
+    v30 = add 0, 0
+    v31 = mload v30
+    v32 = eq v31, 7
+    icall require<short_string>, v32, 5, 0x70726f7879000000000000000000000000000000000000000000000000000000
     ret 1
 }
 

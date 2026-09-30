@@ -34,56 +34,54 @@ fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = data_size GasReceiver_initcode_0
-    v2 = data_size GasReceiver_initcode_0
-    v3 = data_size GasReceiver_initcode_0, 31, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
-    v5 = ptrtoint memptr v4 to i256
-    data_copy GasReceiver_initcode_0, v5, v1
-    v6 = slice_ptr v0
-    v7 = ptrtoint memptr v4 to i256
-    v8 = add v7, v1
-    mcopy v8, v6, 0 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
-    v10 = create 0, v9, v2
-    v11 = zext i160 v10 to i256
-    v12 = ne v11, 0
-    jumpi v12, bb2, bb1
+    v2 = data_size GasReceiver_initcode_0, 31, aligned
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v4 = ptrtoint memptr v3 to i256
+    data_copy GasReceiver_initcode_0, v4, v1
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, v1
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = sload 0 !metadata(storage=slot(0))
-    v14 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v15 = and v13, v14
-    v16 = zext i160 v10 to i256
-    v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
-    v18 = or v15, v17
-    sstore 0, v18 !metadata(storage=slot(0))
-    v19 = abi_encode []
-    v20 = data_size RevertReceiver_initcode_1
-    v21 = data_size RevertReceiver_initcode_1
-    v22 = data_size RevertReceiver_initcode_1, 31, aligned
-    v23 = alloc raw, exact, uninitialized, infallible, v22
-    v24 = ptrtoint memptr v23 to i256
-    data_copy RevertReceiver_initcode_1, v24, v20
-    v25 = slice_ptr v19
-    v26 = ptrtoint memptr v23 to i256
-    v27 = add v26, v20
-    mcopy v27, v25, 0 !metadata(memory=heap)
-    v28 = ptrtoint memptr v23 to i256
-    v29 = create 0, v28, v21
-    v30 = zext i160 v29 to i256
-    v31 = ne v30, 0
-    jumpi v31, bb4, bb3
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = and v12, v13
+    v15 = zext i160 v9 to i256
+    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
+    v17 = or v14, v16
+    sstore 0, v17 !metadata(storage=slot(0))
+    v18 = abi_encode []
+    v19 = data_size RevertReceiver_initcode_1
+    v20 = data_size RevertReceiver_initcode_1, 31, aligned
+    v21 = alloc raw, exact, uninitialized, infallible, v20
+    v22 = ptrtoint memptr v21 to i256
+    data_copy RevertReceiver_initcode_1, v22, v19
+    v23 = slice_ptr v18
+    v24 = ptrtoint memptr v21 to i256
+    v25 = add v24, v19
+    mcopy v25, v23, 0 !metadata(memory=heap)
+    v26 = ptrtoint memptr v21 to i256
+    v27 = create 0, v26, v19
+    v28 = zext i160 v27 to i256
+    v29 = ne v28, 0
+    jumpi v29, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v32 = sload 1 !metadata(storage=slot(1))
-    v33 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v34 = and v32, v33
-    v35 = zext i160 v29 to i256
-    v36 = and v35, 0xffffffffffffffffffffffffffffffffffffffff
-    v37 = or v34, v36
-    sstore 1, v37 !metadata(storage=slot(1))
+    v30 = sload 1 !metadata(storage=slot(1))
+    v31 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v32 = and v30, v31
+    v33 = zext i160 v27 to i256
+    v34 = and v33, 0xffffffffffffffffffffffffffffffffffffffff
+    v35 = or v32, v34
+    sstore 1, v35 !metadata(storage=slot(1))
     ret
 }
 

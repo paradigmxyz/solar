@@ -131,103 +131,100 @@ fn @deploysRevertingRuntime() -> i256 [selector=0x7c2d5470, abi_params=[], abi_r
   bb0:
     v0 = abi_encode []
     v1 = data_size A_initcode_3
-    v2 = data_size A_initcode_3
-    v3 = data_size A_initcode_3, 31, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
-    v5 = ptrtoint memptr v4 to i256
-    data_copy A_initcode_3, v5, v1
-    v6 = slice_ptr v0
-    v7 = ptrtoint memptr v4 to i256
-    v8 = add v7, v1
-    mcopy v8, v6, 0 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
-    v10 = create 0, v9, v2
-    v11 = zext i160 v10 to i256
-    v12 = ne v11, 0
-    jumpi v12, bb2, bb1
+    v2 = data_size A_initcode_3, 31, aligned
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v4 = ptrtoint memptr v3 to i256
+    data_copy A_initcode_3, v4, v1
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, v1
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = zext i160 v10 to i256
-    v14 = gas
-    v15 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v15, 4
-    v16 = memory_object_data memorybytes, v15
-    v17 = ptrtoint memptr v16 to i256
-    mstore v17, 0xdeadbeef00000000000000000000000000000000000000000000000000000000
-    v18 = address_call v10, v15, gas v14
-    v19 = zext i160 v10 to i256
-    v20 = extcodesize v19
-    v21 = gt v20, 0
-    jumpi v21, bb3, bb4
+    v12 = zext i160 v9 to i256
+    v13 = gas
+    v14 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v14, 4
+    v15 = memory_object_data memorybytes, v14
+    v16 = ptrtoint memptr v15 to i256
+    mstore v16, 0xdeadbeef00000000000000000000000000000000000000000000000000000000
+    v17 = address_call v9, v14, gas v13
+    v18 = zext i160 v9 to i256
+    v19 = extcodesize v18
+    v20 = gt v19, 0
+    jumpi v20, bb3, bb4
   bb4:
     jump bb5
   bb3:
-    v22 = eq v18, false
+    v21 = eq v17, false
     jump bb5
   bb5:
-    v23 = phi [bb3: v22], [bb4: false]
-    v24 = zext i1 v23 to i256
-    ret v24
+    v22 = phi [bb3: v21], [bb4: false]
+    v23 = zext i1 v22 to i256
+    ret v23
 }
 
 fn @hasCode() -> i256 [selector=0xfffc60a2, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = data_size A_initcode_3
-    v2 = data_size A_initcode_3
-    v3 = data_size A_initcode_3, 31, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
-    v5 = ptrtoint memptr v4 to i256
-    data_copy A_initcode_3, v5, v1
-    v6 = slice_ptr v0
-    v7 = ptrtoint memptr v4 to i256
-    v8 = add v7, v1
-    mcopy v8, v6, 0 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
-    v10 = create 0, v9, v2
-    v11 = zext i160 v10 to i256
-    v12 = ne v11, 0
-    jumpi v12, bb2, bb1
+    v2 = data_size A_initcode_3, 31, aligned
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v4 = ptrtoint memptr v3 to i256
+    data_copy A_initcode_3, v4, v1
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, v1
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = zext i160 v10 to i256
-    v14 = zext i160 v10 to i256
-    v15 = extcodesize v14
-    v16 = ne v15, 0
-    v17 = zext i1 v16 to i256
-    ret v17
+    v12 = zext i160 v9 to i256
+    v13 = zext i160 v9 to i256
+    v14 = extcodesize v13
+    v15 = ne v14, 0
+    v16 = zext i1 v15 to i256
+    ret v16
 }
 
 fn @rejectsCalls() -> i256 [selector=0x99b623b6, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = data_size A_initcode_3
-    v2 = data_size A_initcode_3
-    v3 = data_size A_initcode_3, 31, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
-    v5 = ptrtoint memptr v4 to i256
-    data_copy A_initcode_3, v5, v1
-    v6 = slice_ptr v0
-    v7 = ptrtoint memptr v4 to i256
-    v8 = add v7, v1
-    mcopy v8, v6, 0 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
-    v10 = create 0, v9, v2
-    v11 = zext i160 v10 to i256
-    v12 = ne v11, 0
-    jumpi v12, bb2, bb1
+    v2 = data_size A_initcode_3, 31, aligned
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v4 = ptrtoint memptr v3 to i256
+    data_copy A_initcode_3, v4, v1
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, v1
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = zext i160 v10 to i256
-    v14 = gas
-    v15 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v15, 0
-    v16 = memory_object_data memorybytes, v15
-    v17 = address_call v10, v15, gas v14
-    v18 = eq v17, false
-    v19 = zext i1 v18 to i256
-    ret v19
+    v12 = zext i160 v9 to i256
+    v13 = gas
+    v14 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v14, 0
+    v15 = memory_object_data memorybytes, v14
+    v16 = address_call v9, v14, gas v13
+    v17 = eq v16, false
+    v18 = zext i1 v17 to i256
+    ret v18
 }

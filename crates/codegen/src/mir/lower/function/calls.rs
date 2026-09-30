@@ -345,10 +345,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let (total_len, allocation_size) = if let Some(len) = static_len {
             // total_len = data_size initcode(C), len
             // allocation_size = data_size initcode(C), len + 31, aligned
-            (
-                self.builder.data_size(bytecode, len, false),
-                self.builder.data_size(bytecode, len + 31, true),
-            )
+            let total_len = if len == 0 {
+                bytecode_len_value
+            } else {
+                self.builder.data_size(bytecode, len, false)
+            };
+            (total_len, self.builder.data_size(bytecode, len + 31, true))
         } else {
             // total_len = checked_add len, encoded_len
             // allocation_size = checked_add(total_len, 31) & ~31
