@@ -10,30 +10,30 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/calldata_bytes_try_lowering.sol:Test ===
 @module Test
 @phase lowered
-types:
-  struct0: {i256, i256}
+@types
+  struct0: {i1, i256}
 
 fn @try1() [selector=0x7c4fe00c, abi_wrapper, pure] {
   bb0:
-    v24 = calldatasize
-    v25 = lt v24, 68
-    jumpi v25, bb1, bb2
+    v23 = calldatasize
+    v24 = lt v23, 68
+    jumpi v24, bb1, bb2
   bb2:
-    v26 = icall @decode_calldata_slice, 4
-    v27 = calldataload v26
-    v28 = add v26, 32
+    v25 = icall @decode_calldata_slice
+    v26 = calldataload v25
+    v27 = add v25, 32
     v1 = add arg1, 1
     v2 = eq v1, 0
-    v3 = gt v1, v27
+    v3 = gt v1, v26
     v4 = or v2, v3
     v6 = eq v4, false
-    v20 = zext i1 v6 to i256
-    v7 = mul v20, arg1
-    v9 = add v28, v7
+    v19 = zext i1 v6 to i256
+    v7 = mul v19, arg1
+    v9 = add v27, v7
     v10 = calldataload v9
-    v11 = mul v20, v10
+    v11 = mul v19, v10
     v12 = and v11, 0xff00000000000000000000000000000000000000000000000000000000000000
-    mstore 128, v20
+    mstore 128, v19
     mstore 160, v12
     returndata 128, 64
   bb1:
@@ -42,25 +42,25 @@ fn @try1() [selector=0x7c4fe00c, abi_wrapper, pure] {
 
 fn @try4() [selector=0x7f498037, abi_wrapper, pure] {
   bb0:
-    v24 = calldatasize
-    v25 = lt v24, 68
-    jumpi v25, bb1, bb2
+    v23 = calldatasize
+    v24 = lt v23, 68
+    jumpi v24, bb1, bb2
   bb2:
-    v26 = icall @decode_calldata_slice, 4
-    v27 = calldataload v26
-    v28 = add v26, 32
+    v25 = icall @decode_calldata_slice
+    v26 = calldataload v25
+    v27 = add v25, 32
     v1 = add arg1, 4
     v2 = lt v1, arg1
-    v3 = gt v1, v27
+    v3 = gt v1, v26
     v4 = or v2, v3
     v6 = eq v4, false
-    v20 = zext i1 v6 to i256
-    v7 = mul v20, arg1
-    v9 = add v28, v7
+    v19 = zext i1 v6 to i256
+    v7 = mul v19, arg1
+    v9 = add v27, v7
     v10 = calldataload v9
-    v11 = mul v20, v10
+    v11 = mul v19, v10
     v12 = and v11, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, v20
+    mstore 128, v19
     mstore 160, v12
     returndata 128, 64
   bb1:
@@ -69,24 +69,24 @@ fn @try4() [selector=0x7f498037, abi_wrapper, pure] {
 
 fn @try32() [selector=0xf00ebb05, abi_wrapper, pure] {
   bb0:
-    v23 = calldatasize
-    v24 = lt v23, 68
-    jumpi v24, bb1, bb2
+    v22 = calldatasize
+    v23 = lt v22, 68
+    jumpi v23, bb1, bb2
   bb2:
-    v25 = icall @decode_calldata_slice, 4
-    v26 = calldataload v25
-    v27 = add v25, 32
+    v24 = icall @decode_calldata_slice
+    v25 = calldataload v24
+    v26 = add v24, 32
     v1 = add arg1, 32
     v2 = lt v1, arg1
-    v3 = gt v1, v26
+    v3 = gt v1, v25
     v4 = or v2, v3
     v6 = eq v4, false
-    v19 = zext i1 v6 to i256
-    v7 = mul v19, arg1
-    v9 = add v27, v7
+    v18 = zext i1 v6 to i256
+    v7 = mul v18, arg1
+    v9 = add v26, v7
     v10 = calldataload v9
-    v11 = mul v19, v10
-    mstore 128, v19
+    v11 = mul v18, v10
+    mstore 128, v18
     mstore 160, v11
     returndata 128, 64
   bb1:
@@ -95,24 +95,24 @@ fn @try32() [selector=0xf00ebb05, abi_wrapper, pure] {
 
 fn @tryWord() [selector=0xdc133dec, abi_wrapper, pure] {
   bb0:
-    v23 = calldatasize
-    v24 = lt v23, 68
-    jumpi v24, bb1, bb2
+    v22 = calldatasize
+    v23 = lt v22, 68
+    jumpi v23, bb1, bb2
   bb2:
-    v25 = icall @decode_calldata_slice, 4
-    v26 = calldataload v25
-    v27 = add v25, 32
+    v24 = icall @decode_calldata_slice
+    v25 = calldataload v24
+    v26 = add v24, 32
     v1 = add arg1, 32
     v2 = lt v1, arg1
-    v3 = gt v1, v26
+    v3 = gt v1, v25
     v4 = or v2, v3
     v6 = eq v4, false
-    v19 = zext i1 v6 to i256
-    v7 = mul v19, arg1
-    v9 = add v27, v7
+    v18 = zext i1 v6 to i256
+    v7 = mul v18, arg1
+    v9 = add v26, v7
     v10 = calldataload v9
-    v11 = mul v19, v10
-    mstore 128, v19
+    v11 = mul v18, v10
+    mstore 128, v18
     mstore 160, v11
     returndata 128, 64
   bb1:
@@ -121,60 +121,56 @@ fn @tryWord() [selector=0xdc133dec, abi_wrapper, pure] {
 
 fn @tryTwo() [selector=0x2031ea5c, abi_wrapper, pure] {
   bb0:
-    v24 = calldatasize
-    v25 = lt v24, 100
-    jumpi v25, bb1, bb2
+    v23 = calldatasize
+    v24 = lt v23, 100
+    jumpi v24, bb1, bb2
   bb2:
-    v26 = icall @decode_calldata_slice, 4
-    v27 = calldataload v26
-    v28 = add v26, 32
-    v30 = calldataload 36
-    v31 = add v30, 4
-    v32 = add v31, 32
-    v33 = gt v30, 0xffffffffffffffff
-    v34 = gt v32, v24
-    v35 = or v33, v34
-    jumpi v35, bb1, bb3
+    v25 = icall @decode_calldata_slice
+    v26 = calldataload v25
+    v27 = add v25, 32
+    v29 = calldataload 36
+    v30 = add v29, 4
+    v31 = add v30, 32
+    v32 = gt v29, 0xffffffffffffffff
+    v33 = gt v31, v23
+    v34 = or v32, v33
+    v36 = calldataload v30
+    v38 = sub v23, v31
+    v39 = gt v36, v38
+    v46 = or v34, v39
+    jumpi v46, bb1, bb3
   bb3:
-    v37 = calldataload v31
-    v39 = sub v24, v32
-    v40 = gt v37, v39
-    jumpi v40, bb1, bb4
-  bb4:
     v1 = add arg2, 4
     v2 = lt v1, arg2
-    v3 = gt v1, v27
+    v3 = gt v1, v26
     v4 = or v2, v3
     v6 = eq v4, false
-    v20 = zext i1 v6 to i256
-    v7 = mul v20, arg2
-    v9 = add v28, v7
+    v19 = zext i1 v6 to i256
+    v7 = mul v19, arg2
+    v9 = add v27, v7
     v10 = calldataload v9
-    v11 = mul v20, v10
+    v11 = mul v19, v10
     v12 = and v11, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, v20
+    mstore 128, v19
     mstore 160, v12
     returndata 128, 64
   bb1:
     revert 0, 0
 }
 
-fn @decode_calldata_slice(arg0: i256) -> i256 {
+fn @decode_calldata_slice() -> i256 {
   bb0:
     v0 = calldatasize
-    v1 = calldataload arg0
+    v1 = calldataload 4
     v2 = add v1, 4
     v3 = add v2, 32
     v4 = gt v1, 0xffffffffffffffff
     v5 = gt v3, v0
     v6 = or v4, v5
-    v7 = zext i1 v6 to i256
     v8 = calldataload v2
     v10 = sub v0, v3
     v11 = gt v8, v10
-    v12 = zext i1 v11 to i256
-    v13 = or v7, v12
-    v14 = ne v13, 0
+    v14 = or v6, v11
     jumpi v14, bb1, bb2
   bb2:
     ret v2

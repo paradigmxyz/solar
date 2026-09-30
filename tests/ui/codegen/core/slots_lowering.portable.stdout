@@ -39,21 +39,20 @@ fn @put() [selector=0x94f47146, abi_wrapper] {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36
-    jumpi v2, bb1, bb2
-  bb2:
     v3 = calldataload 4
     v4 = add v3, 4
     v5 = add v4, 32
     v6 = gt v3, 0xffffffffffffffff
     v7 = gt v5, v1
     v8 = or v6, v7
-    jumpi v8, bb1, bb3
-  bb3:
+    v32 = or v2, v8
+    jumpi v32, bb1, bb2
+  bb2:
     v10 = calldataload v4
     v12 = add v10, 63
     v13 = lt v12, v10
-    jumpi v13, bb4, bb5
-  bb5:
+    jumpi v13, bb3, bb4
+  bb4:
     v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v26 = mload 64 !metadata(memory=scratch)
     v16 = inttoptr i256 v26 to memptr !metadata(memory=scratch)
@@ -61,19 +60,19 @@ fn @put() [selector=0x94f47146, abi_wrapper] {
     v28 = lt v27, v26
     v29 = gt v27, 0xffffffffffffffff
     v30 = or v28, v29
-    jumpi v30, bb4, bb7
-  bb7:
+    jumpi v30, bb3, bb6
+  bb6:
     mstore 64, v27 !metadata(memory=scratch)
     mstore v26, v10
     v17 = sub v1, v5
     v18 = gt v10, v17
-    jumpi v18, bb1, bb6
-  bb6:
+    jumpi v18, bb1, bb5
+  bb5:
     v21 = add v26, 32
     calldatacopy v21, v5, v10
     icall @storeBytes, v16, v10
     stop
-  bb4:
+  bb3:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36

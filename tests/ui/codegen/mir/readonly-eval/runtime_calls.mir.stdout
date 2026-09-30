@@ -20,9 +20,9 @@ fn @nonemptyBytes() -> i256 [selector=0xe23ba52c, pure, abi_params=[], abi_retur
     ret v3
 }
 
-fn @isEmpty(arg0: memorybytes) -> i256 [inline_assembly, pure] {
+fn @isEmpty(arg0: memptr) -> i256 [inline_assembly, pure] {
   bb0:
-    v0 = ptrtoint memorybytes arg0 to i256
+    v0 = ptrtoint memptr arg0 to i256
     v1 = mload v0
     v2 = eq v1, 0
     v3 = zext i1 v2 to i256
@@ -35,7 +35,7 @@ fn @constantWord() -> i256 [selector=0xf7bfd103, inline_assembly, pure, abi_para
     v1 = and 95, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 32
-    v3 = ptrtoint memorybytes v2 to i256
+    v3 = ptrtoint memptr v2 to i256
     v4 = add v3, 32
     mstore v4, 42
     v5 = icall @read, v2
@@ -48,7 +48,7 @@ fn @dynamicWord(arg0: i256) -> i256 [selector=0x0c872375, inline_assembly, pure,
     v1 = and 95, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 32
-    v3 = ptrtoint memorybytes v2 to i256
+    v3 = ptrtoint memptr v2 to i256
     v4 = add v3, 32
     mstore v4, arg0
     v5 = icall @read, v2
@@ -61,7 +61,7 @@ fn @afterOverwrite(arg0: i256) -> i256 [selector=0xb7519bca, inline_assembly, pu
     v1 = and 95, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 32
-    v3 = ptrtoint memorybytes v2 to i256
+    v3 = ptrtoint memptr v2 to i256
     v4 = add v3, 32
     mstore v4, 42
     icall @overwrite, v2, arg0
@@ -80,39 +80,39 @@ fn @constantShort() -> i256 [selector=0xe64f6587, pure, abi_params=[], abi_retur
     ret v3
 }
 
-fn @dynamicShort(arg0: memorybytes) -> i256 [selector=0x5def3fed, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @dynamicShort(arg0: memptr) -> i256 [selector=0x5def3fed, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = icall @short, arg0
     ret v0
 }
 
-fn @read(arg0: memorybytes) -> i256 [inline_assembly, pure] {
+fn @read(arg0: memptr) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = eq v0, 32
     v2 = eq v1, false
     icall revert_if<empty>, v2
-    v3 = ptrtoint memorybytes arg0 to i256
+    v3 = ptrtoint memptr arg0 to i256
     v4 = add v3, 32
     v5 = mload v4
     ret v5
 }
 
-fn @short(arg0: memorybytes) -> i256 [inline_assembly, pure] {
+fn @short(arg0: memptr) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = lt v0, 32
     v2 = eq v1, false
     icall revert_if<empty>, v2
-    v3 = ptrtoint memorybytes arg0 to i256
+    v3 = ptrtoint memptr arg0 to i256
     v4 = mload v3
     v5 = not 0
-    v6 = ptrtoint memorybytes arg0 to i256
+    v6 = ptrtoint memptr arg0 to i256
     v7 = mload v6
     v8 = sub 32, v7
     v9 = mul v8, 8
     v10 = shl v9, v5
-    v11 = ptrtoint memorybytes arg0 to i256
+    v11 = ptrtoint memptr arg0 to i256
     v12 = add v11, 32
     v13 = mload v12
     v14 = and v13, v10
@@ -120,9 +120,9 @@ fn @short(arg0: memorybytes) -> i256 [inline_assembly, pure] {
     ret v15
 }
 
-fn @overwrite(arg0: memorybytes, arg1: i256) [inline_assembly, pure] {
+fn @overwrite(arg0: memptr, arg1: i256) [inline_assembly, pure] {
   bb0:
-    v0 = ptrtoint memorybytes arg0 to i256
+    v0 = ptrtoint memptr arg0 to i256
     v1 = add v0, 32
     mstore v1, arg1
     ret

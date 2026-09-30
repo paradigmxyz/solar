@@ -37,9 +37,9 @@ fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word],
     ret v0
 }
 
-fn @constructor(arg0: memoryfixedarray) [constructor, inline_assembly, abi_params=[array<1, function>]] {
+fn @constructor(arg0: memptr) [constructor, inline_assembly, abi_params=[array<1, function>]] {
   bb0:
-    v0 = ptrtoint memoryfixedarray arg0 to i256
+    v0 = ptrtoint memptr arg0 to i256
     v1 = mload v0
     sstore 0, v1 !metadata(storage=slot(0))
     ret
@@ -96,7 +96,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
 fn @fArray() -> i1 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    v1 = ptrtoint memoryfixedarray v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 32
     v2 = address
     v3 = zext i160 v2 to i256

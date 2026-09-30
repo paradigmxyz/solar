@@ -8,10 +8,10 @@
 
 // === ROOT/tests/ui/codegen/core/abi_runtime.sol:Test ===
 @module Test
-types:
-  struct0: {i256, i256}
+@types
+  struct0: {i1, i256}
 
-fn @call(arg0: i256, arg1: i256) -> memorybytes [selector=0x3bd9ef28, pure, abi_params=[address, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @call(arg0: i160, arg1: i256) -> memptr [selector=0x3bd9ef28, pure, abi_params=[address, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = checked_mul u256, 2, 32
     v1 = checked_add u256, 4, v0
@@ -34,7 +34,7 @@ fn @call(arg0: i256, arg1: i256) -> memorybytes [selector=0x3bd9ef28, pure, abi_
     ret v6
 }
 
-fn @pair(arg0: i256, arg1: i256) -> memorybytes [selector=0x586a9e7b, pure, abi_params=[i256, bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @pair(arg0: i256, arg1: i1) -> memptr [selector=0x586a9e7b, pure, abi_params=[i256, bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = checked_mul u256, 2, 32
     v1 = add v0, 63
@@ -49,7 +49,7 @@ fn @pair(arg0: i256, arg1: i256) -> memorybytes [selector=0x586a9e7b, pure, abi_
     ret v5
 }
 
-fn @keepsSurroundings() -> memorybytes [selector=0x348ffada, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @keepsSurroundings() -> memptr [selector=0x348ffada, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = checked_add u256, 2, 32
     v1 = checked_add u256, v0, 2
@@ -110,7 +110,7 @@ fn @fitsReport(arg0: i256) -> struct0 [selector=0x4ddbd45d, pure, abi_params=[u2
     ret v10
 }
 
-fn @overflows() -> memorybytes [selector=0x1df0e3d8, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @overflows() -> memptr [selector=0x1df0e3d8, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
@@ -121,7 +121,7 @@ fn @overflows() -> memorybytes [selector=0x1df0e3d8, pure, abi_params=[], abi_re
     ret v2
 }
 
-fn @writeBytes4(arg0: memorybytes, arg1: i256, arg2: i256) [pure] {
+fn @writeBytes4(arg0: memptr, arg1: i256, arg2: i256) [pure] {
   bb0:
     jump bb1
   bb1:
@@ -156,7 +156,7 @@ fn @writeBytes4(arg0: memorybytes, arg1: i256, arg2: i256) [pure] {
     jump bb1
 }
 
-fn @writeBytes32(arg0: memorybytes, arg1: i256, arg2: i256) [pure] {
+fn @writeBytes32(arg0: memptr, arg1: i256, arg2: i256) [pure] {
   bb0:
     jump bb1
   bb1:
@@ -191,7 +191,7 @@ fn @writeBytes32(arg0: memorybytes, arg1: i256, arg2: i256) [pure] {
     jump bb1
 }
 
-fn @encodeInto.7(arg0: memorybytes, arg1: i256, arg2: i256) -> i256 [pure] {
+fn @encodeInto.7(arg0: memptr, arg1: i256, arg2: i256) -> i256 [pure] {
   bb0:
     v0 = shl 0, arg2
     v1 = memory_object_len memorybytes, arg0
@@ -208,7 +208,7 @@ fn @encodeInto.7(arg0: memorybytes, arg1: i256, arg2: i256) -> i256 [pure] {
     ret 32
 }
 
-fn @encodeInto.8(arg0: memorybytes, arg1: i256, arg2: i256) -> i256 [pure] {
+fn @encodeInto.8(arg0: memptr, arg1: i256, arg2: i256) -> i256 [pure] {
   bb0:
     v0 = shl 0, arg2
     v1 = memory_object_len memorybytes, arg0
@@ -225,35 +225,34 @@ fn @encodeInto.8(arg0: memorybytes, arg1: i256, arg2: i256) -> i256 [pure] {
     ret 32
 }
 
-fn @encodeInto.9(arg0: memorybytes, arg1: i256, arg2: i256) -> i256 [pure] {
+fn @encodeInto.9(arg0: memptr, arg1: i256, arg2: i160) -> i256 [pure] {
   bb0:
-    v0 = trunc i256 arg2 to i160
-    v1 = zext i160 v0 to i256
-    v2 = shl 0, v1
-    v3 = memory_object_len memorybytes, arg0
-    v4 = add arg1, 32
-    v5 = lt v4, arg1
-    v6 = gt v4, v3
-    v7 = or v5, v6
-    v8 = zext i1 v7 to i256
-    icall panic_if<0x32>, v7
-    v9 = memory_object_data memorybytes, arg0
-    v10 = ptrtoint memptr v9 to i256
-    v11 = add v10, arg1
-    memory_object_store_word memorybytes, arg0, arg1, v2
+    v0 = zext i160 arg2 to i256
+    v1 = shl 0, v0
+    v2 = memory_object_len memorybytes, arg0
+    v3 = add arg1, 32
+    v4 = lt v3, arg1
+    v5 = gt v3, v2
+    v6 = or v4, v5
+    v7 = zext i1 v6 to i256
+    icall panic_if<0x32>, v6
+    v8 = memory_object_data memorybytes, arg0
+    v9 = ptrtoint memptr v8 to i256
+    v10 = add v9, arg1
+    memory_object_store_word memorybytes, arg0, arg1, v1
     ret 32
 }
 
-fn @encodeInto.10(arg0: memorybytes, arg1: i256, arg2: i256) -> i256 [pure] {
+fn @encodeInto.10(arg0: memptr, arg1: i256, arg2: i1) -> i256 [pure] {
   bb0:
-    v0 = ne arg2, 0
-    jumpi v0, bb1, bb2
+    jumpi arg2, bb1, bb2
   bb2:
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v1 = phi [bb1: 1], [bb2: 0]
+    v0 = phi [bb1: i8 1], [bb2: i8 0]
+    v1 = zext i8 v0 to i256
     v2 = shl 0, v1
     v3 = memory_object_len memorybytes, arg0
     v4 = add arg1, 32
@@ -269,7 +268,7 @@ fn @encodeInto.10(arg0: memorybytes, arg1: i256, arg2: i256) -> i256 [pure] {
     ret 32
 }
 
-fn @encodeSelectorInto(arg0: memorybytes, arg1: i256, arg2: i256) -> i256 [pure] {
+fn @encodeSelectorInto(arg0: memptr, arg1: i256, arg2: i256) -> i256 [pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = add arg1, 4
@@ -289,29 +288,27 @@ fn @encodeSelectorInto(arg0: memorybytes, arg1: i256, arg2: i256) -> i256 [pure]
     ret 4
 }
 
-fn @tryEncodeInto(arg0: memorybytes, arg1: i256, arg2: i256) -> struct0 [pure] {
+fn @tryEncodeInto(arg0: memptr, arg1: i256, arg2: i256) -> struct0 [pure] {
   bb0:
     v0 = icall @fits, arg0, arg1, 32
-    v1 = eq v0, 0
+    v1 = eq v0, false
     v2 = eq v1, false
     v3 = eq v2, false
     jumpi v3, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v7 = icall @encodeInto.7, arg0, arg1, arg2
-    v8 = zext i1 1 to i256
-    v9 = insert_value struct0, undef struct0, 0, v8
-    v10 = insert_value struct0, v9, 1, v7
-    ret v10
+    v6 = icall @encodeInto.7, arg0, arg1, arg2
+    v7 = insert_value struct0, undef struct0, 0, true
+    v8 = insert_value struct0, v7, 1, v6
+    ret v8
   bb1:
-    v4 = zext i1 0 to i256
-    v5 = insert_value struct0, undef struct0, 0, v4
-    v6 = insert_value struct0, v5, 1, 0
-    ret v6
+    v4 = insert_value struct0, undef struct0, 0, false
+    v5 = insert_value struct0, v4, 1, 0
+    ret v5
 }
 
-fn @fits(arg0: memorybytes, arg1: i256, arg2: i256) -> i256 [pure] {
+fn @fits(arg0: memptr, arg1: i256, arg2: i256) -> i1 [pure] {
   bb0:
     v0 = add arg1, arg2
     v1 = lt v0, arg1
@@ -319,12 +316,10 @@ fn @fits(arg0: memorybytes, arg1: i256, arg2: i256) -> i256 [pure] {
   bb2:
     jump bb3
   bb3:
-    v3 = memory_object_len memorybytes, arg0
-    v4 = gt v0, v3
-    v5 = eq v4, false
-    v6 = zext i1 v5 to i256
-    ret v6
+    v2 = memory_object_len memorybytes, arg0
+    v3 = gt v0, v2
+    v4 = eq v3, false
+    ret v4
   bb1:
-    v2 = zext i1 0 to i256
-    ret v2
+    ret false
 }

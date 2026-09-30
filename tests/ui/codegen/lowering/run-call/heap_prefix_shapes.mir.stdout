@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256}
 
-fn @addNegative(arg0: i256) -> i256 [selector=0x672d5378, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @addNegative(arg0: i256) -> i256 [selector=0x672d5378, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = add arg0, 1
     v1 = icall @pair.4
@@ -14,7 +14,7 @@ fn @addNegative(arg0: i256) -> i256 [selector=0x672d5378, pure, abi_params=[u256
     ret v4
 }
 
-fn @addNegativeFirst(arg0: i256) -> i256 [selector=0x62e6d0ca, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @addNegativeFirst(arg0: i256) -> i256 [selector=0x62e6d0ca, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = add arg0, 1
     v1 = icall @pair.5
@@ -25,7 +25,7 @@ fn @addNegativeFirst(arg0: i256) -> i256 [selector=0x62e6d0ca, pure, abi_params=
     ret v4
 }
 
-fn @byteStore(arg0: i256) -> i256 [selector=0x072e82c0, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @byteStore(arg0: i256) -> i256 [selector=0x072e82c0, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = add arg0, 1
     v1 = icall @pair.6
@@ -36,7 +36,7 @@ fn @byteStore(arg0: i256) -> i256 [selector=0x072e82c0, pure, abi_params=[u256],
     ret v4
 }
 
-fn @callOutput(arg0: i256) -> i256 [selector=0x9b878558, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @callOutput(arg0: i256) -> i256 [selector=0x9b878558, inline_assembly, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = add arg0, 1
     v1 = icall @pair.7
@@ -50,7 +50,7 @@ fn @callOutput(arg0: i256) -> i256 [selector=0x9b878558, view, abi_params=[u256]
     ret v7
 }
 
-fn @pair.4() -> struct0 {
+fn @pair.4() -> struct0 [inline_assembly] {
   bb0:
     v0 = not 159
     v1 = mload 64 !metadata(memory=scratch)
@@ -60,7 +60,7 @@ fn @pair.4() -> struct0 {
     ret v4
 }
 
-fn @pair.5() -> struct0 {
+fn @pair.5() -> struct0 [inline_assembly] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = not 159
@@ -70,7 +70,7 @@ fn @pair.5() -> struct0 {
     ret v4
 }
 
-fn @pair.6() -> struct0 {
+fn @pair.6() -> struct0 [inline_assembly] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = sub v0, 160
@@ -79,7 +79,7 @@ fn @pair.6() -> struct0 {
     ret v3
 }
 
-fn @pair.7() -> struct0 {
+fn @pair.7() -> struct0 [inline_assembly] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = sub v0, 160

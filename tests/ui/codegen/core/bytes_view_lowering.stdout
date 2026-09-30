@@ -10,12 +10,12 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/bytes_view_lowering.sol:Test ===
 @module Test
 @phase lowered
-types:
+@types
   struct0: {i256, i256}
 
 fn @viewed() [selector=0xd3855add, abi_wrapper, pure] {
   bb0:
-    v42 = icall @decode_calldata_type, 4
+    v42 = icall @decode_calldata_type
     v46 = ptrtoint memptr v42 to i256
     v0 = mload v46
     v3 = lt v0, 5
@@ -36,7 +36,7 @@ fn @viewed() [selector=0xd3855add, abi_wrapper, pure] {
 
 fn @copied() [selector=0x08d930ef, abi_wrapper, pure] {
   bb0:
-    v48 = icall @decode_calldata_type, 4
+    v48 = icall @decode_calldata_type
     v64 = ptrtoint memptr v48 to i256
     v0 = mload v64
     v3 = lt v0, 5
@@ -56,7 +56,7 @@ fn @copied() [selector=0x08d930ef, abi_wrapper, pure] {
     mstore v72, 5
     v53 = add v72, 32
     mcopy v53, v66, 5
-    v21 = add v72, 33
+    v21 = add v53, 1
     v22 = mload v21
     v23 = and v22, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v24 = mload v64
@@ -106,10 +106,10 @@ fn @revert_stub() {
     revert 28, 36
 }
 
-fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
+fn @decode_calldata_type() -> memptr [may_return_memory] {
   bb0:
     v0 = calldatasize
-    v1 = calldataload arg0
+    v1 = calldataload 4
     v2 = add v1, 4
     v3 = add v2, 32
     v4 = gt v1, 0xffffffffffffffff

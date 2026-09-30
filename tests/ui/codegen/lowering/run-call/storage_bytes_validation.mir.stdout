@@ -21,14 +21,14 @@ fn @unusedInvalidCopy() [selector=0x6ec2db3e, inline_assembly, abi_params=[], ab
     ret
 }
 
-fn @invalidShort() -> memorybytes [selector=0xa647fa44, inline_assembly, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @invalidShort() -> memptr [selector=0xa647fa44, inline_assembly, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = load_storage_bytes 0
     ret v0
 }
 
-fn @invalidLong() -> memorybytes [selector=0x540f7c10, inline_assembly, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @invalidLong() -> memptr [selector=0x540f7c10, inline_assembly, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = load_storage_bytes 0

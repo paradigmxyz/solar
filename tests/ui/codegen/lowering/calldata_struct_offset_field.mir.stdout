@@ -191,7 +191,7 @@ fn @sum(arg0: calldataslice) -> i256 [selector=0x06889ec9, pure, abi_params=[tup
     ret v152
 }
 
-fn @first(arg0: calldataslice) -> i256 [selector=0x0e2e2b05, pure, abi_params=[tuple<array<_, u256>, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @first(arg0: calldataslice) -> i256 [selector=0x0e2e2b05, inline_assembly, pure, abi_params=[tuple<array<_, u256>, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0

@@ -32,9 +32,9 @@ fn @failWith(arg0: i256) -> i256 [pure] {
     invalid
 }
 
-fn @finish(arg0: memorybytes) [pure] {
+fn @finish(arg0: memptr) [pure] {
   bb0:
-    v0 = ptrtoint memorybytes arg0 to i256
+    v0 = ptrtoint memptr arg0 to i256
     v1 = sub v0, 32
     mstore v1, 32
     v2 = memory_object_len memorybytes, arg0
@@ -62,27 +62,26 @@ fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[u256], abi
     ret v1
 }
 
-fn @early(arg0: i256) -> memorybytes [selector=0x0e87c305, pure, abi_params=[bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @early(arg0: i1) -> memptr [selector=0x0e87c305, pure, abi_params=[bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = ne arg0, 0
-    jumpi v0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v1, 5
-    v2 = memory_object_data memorybytes, v1
-    v3 = ptrtoint memptr v2 to i256
-    mstore v3, 0x6561726c79000000000000000000000000000000000000000000000000000000
-    icall @finish, v1
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v0, 5
+    v1 = memory_object_data memorybytes, v0
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x6561726c79000000000000000000000000000000000000000000000000000000
+    icall @finish, v0
     jump bb3
   bb3:
-    v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v4, 4
-    v5 = memory_object_data memorybytes, v4
-    v6 = ptrtoint memptr v5 to i256
-    mstore v6, 0x6c61746500000000000000000000000000000000000000000000000000000000
-    ret v4
+    v3 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v3, 4
+    v4 = memory_object_data memorybytes, v3
+    v5 = ptrtoint memptr v4 to i256
+    mstore v5, 0x6c61746500000000000000000000000000000000000000000000000000000000
+    ret v3
 }
 
 fn @pick(arg0: i256) -> i256 [selector=0x7701ea4a, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -113,12 +112,12 @@ fn @guarded(arg0: i256) -> i256 [selector=0x5e284975, abi_params=[u256], abi_ret
     ret v2
 }
 
-fn @abiEncoded(arg0: memorybytes) [inline_assembly, pure] {
+fn @abiEncoded(arg0: memptr) [inline_assembly, pure] {
   bb0:
     v0 = abi_encode [memory_bytes], object, args arg0
-    v1 = ptrtoint memorybytes v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     v2 = mload v1
-    v3 = ptrtoint memorybytes v0 to i256
+    v3 = ptrtoint memptr v0 to i256
     v4 = add v3, 32
     returndata v4, v2
 }

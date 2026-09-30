@@ -11,14 +11,13 @@
 - // === ROOT/tests/ui/codegen/mir/element-cleanup/address_helpers.sol:Clean (before element-cleanup) ===
 + // === ROOT/tests/ui/codegen/mir/element-cleanup/address_helpers.sol:Clean (after element-cleanup) ===
   @module Clean
-  fn @hasDuplicate.0(arg0: memoryarray) -> i256 [selector=0x64c20abc, pure, abi_params=[array<_, address>], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  fn @hasDuplicate.0(arg0: memptr) -> i1 [selector=0x64c20abc, pure, abi_params=[array<_, address>], abi_returns=[word<bool>], abi_return_params=[bool]] {
     bb0:
       v0 = icall @core_array_has_duplicate_address, arg0
-      v1 = zext i1 v0 to i256
-      ret v1
+      ret v0
   }
   
-  fn @hasDuplicate.1(arg0: memoryarray) -> i256 [pure] {
+  fn @hasDuplicate.1(arg0: memptr) -> i1 [pure] {
     bb0:
       v0 = memory_object_len memoryarray, arg0
       v1 = lt v0, 2
@@ -28,137 +27,134 @@
     bb3:
       jump bb4
     bb4:
-      v3 = phi [bb3: arg0], [bb8: v3]
-      v4 = phi [bb3: 0], [bb8: v4]
-      v5 = phi [bb3: 1], [bb8: v9]
-      v6 = memory_object_len memoryarray, v3
-      v7 = checked_mul u256, v6, 2
-      v8 = lt v5, v7
-      jumpi v8, bb6, bb7
+      v2 = phi [bb3: arg0], [bb8: v2]
+      v3 = phi [bb3: 0], [bb8: v3]
+      v4 = phi [bb3: 1], [bb8: v8]
+      v5 = memory_object_len memoryarray, v2
+      v6 = checked_mul u256, v5, 2
+      v7 = lt v4, v6
+      jumpi v7, bb6, bb7
     bb7:
       jump bb5
     bb5:
-      v10 = mul v5, 1
-      v11 = eq 1, 0
-      v12 = div v10, 1
-      v13 = eq v12, v5
-      v14 = or v11, v13
-      v15 = zext i1 v14 to i256
-      v16 = eq v15, 0
-      icall panic_if<0x41>, v16
-      v17 = add v10, 1
-      v18 = lt v17, v10
-      icall panic_if<0x41>, v18
-      v19 = mul v17, 32
-      v20 = eq 32, 0
-      v21 = div v19, 32
-      v22 = eq v21, v17
-      v23 = or v20, v22
-      v24 = zext i1 v23 to i256
-      v25 = eq v24, 0
-      icall panic_if<0x41>, v25
-      v26 = alloc memoryarray<1>, exact, zeroed, panic, v19
-      set_memory_object_len memoryarray, v26, v5
-      v27 = checked_sub u256, v5, 1
-      v28 = memory_object_len memoryarray, v3
+      v9 = mul v4, 1
+      v10 = eq 1, 0
+      v11 = div v9, 1
+      v12 = eq v11, v4
+      v13 = or v10, v12
+      v14 = zext i1 v13 to i256
+      v15 = eq v14, 0
+      icall panic_if<0x41>, v15
+      v16 = add v9, 1
+      v17 = lt v16, v9
+      icall panic_if<0x41>, v17
+      v18 = mul v16, 32
+      v19 = eq 32, 0
+      v20 = div v18, 32
+      v21 = eq v20, v16
+      v22 = or v19, v21
+      v23 = zext i1 v22 to i256
+      v24 = eq v23, 0
+      icall panic_if<0x41>, v24
+      v25 = alloc memoryarray<1>, exact, zeroed, panic, v18
+      set_memory_object_len memoryarray, v25, v4
+      v26 = checked_sub u256, v4, 1
+      v27 = memory_object_len memoryarray, v2
       jump bb9
     bb9:
-      v29 = phi [bb5: v3], [bb13: v46]
-      v30 = phi [bb5: v5], [bb13: v47]
-      v31 = phi [bb5: v27], [bb13: v48]
-      v32 = phi [bb5: v4], [bb13: v50]
-      v33 = phi [bb5: v26], [bb13: v51]
-      v34 = phi [bb5: v28], [bb13: v52]
-      v35 = ne v34, 0
-      jumpi v35, bb11, bb12
+      v28 = phi [bb5: v2], [bb13: v45]
+      v29 = phi [bb5: v4], [bb13: v46]
+      v30 = phi [bb5: v26], [bb13: v47]
+      v31 = phi [bb5: v3], [bb13: v49]
+      v32 = phi [bb5: v25], [bb13: v50]
+      v33 = phi [bb5: v27], [bb13: v51]
+      v34 = ne v33, 0
+      jumpi v34, bb11, bb12
     bb12:
       jump bb10
     bb10:
-      v81 = zext i1 0 to i256
-      ret v81
+      ret false
     bb11:
-      v36 = checked_sub u256, v34, 1
-      v37 = memory_object_len memoryarray, v29
-      v38 = lt v36, v37
-      v39 = eq v38, false
-      icall panic_if<0x32>, v39
-      v40 = memory_object_load_element memoryarray<1>, v29, v36
-      v41 = trunc i256 v40 to i160
+      v35 = checked_sub u256, v33, 1
+      v36 = memory_object_len memoryarray, v28
+      v37 = lt v35, v36
+      v38 = eq v37, false
+      icall panic_if<0x32>, v38
+      v39 = memory_object_load_element memoryarray<1>, v28, v35
+      v40 = trunc i256 v39 to i160
+      v41 = zext i160 v40 to i256
       v42 = not 188
-      v43 = zext i160 v41 to i256
-      v44 = icall checked_mulmod<>, v43, 0x100000000000000000000000000000051, v42
-      v45 = and v44, v31
+      v43 = icall checked_mulmod<>, v41, 0x100000000000000000000000000000051, v42
+      v44 = and v43, v30
       jump bb14
     bb14:
+      v45 = phi [bb11: v28], [bb18: v45]
       v46 = phi [bb11: v29], [bb18: v46]
       v47 = phi [bb11: v30], [bb18: v47]
-      v48 = phi [bb11: v31], [bb18: v48]
-      v49 = phi [bb11: v45], [bb18: v76]
+      v48 = phi [bb11: v44], [bb18: v74]
+      v49 = phi [bb11: v31], [bb18: v49]
       v50 = phi [bb11: v32], [bb18: v50]
-      v51 = phi [bb11: v33], [bb18: v51]
-      v52 = phi [bb11: v36], [bb18: v52]
-      v53 = memory_object_len memoryarray, v51
-      v54 = lt v49, v53
-      v55 = eq v54, false
-      icall panic_if<0x32>, v55
-      v56 = memory_object_load_element memoryarray<1>, v51, v49
-      v57 = ne v56, 0
-      jumpi v57, bb16, bb17
+      v51 = phi [bb11: v35], [bb18: v51]
+      v52 = memory_object_len memoryarray, v50
+      v53 = lt v48, v52
+      v54 = eq v53, false
+      icall panic_if<0x32>, v54
+      v55 = memory_object_load_element memoryarray<1>, v50, v48
+      v56 = ne v55, 0
+      jumpi v56, bb16, bb17
     bb17:
       jump bb15
     bb15:
-      v77 = checked_add u256, v52, 1
-      v78 = memory_object_len memoryarray, v51
-      v79 = lt v49, v78
-      v80 = eq v79, false
-      icall panic_if<0x32>, v80
-      memory_object_store_element memoryarray<1>, v51, v49, v77
+      v75 = checked_add u256, v51, 1
+      v76 = memory_object_len memoryarray, v50
+      v77 = lt v48, v76
+      v78 = eq v77, false
+      icall panic_if<0x32>, v78
+      memory_object_store_element memoryarray<1>, v50, v48, v75
       jump bb13
     bb13:
       jump bb9
     bb16:
-      v58 = memory_object_len memoryarray, v51
-      v59 = lt v49, v58
-      v60 = eq v59, false
-      icall panic_if<0x32>, v60
-      v61 = memory_object_load_element memoryarray<1>, v51, v49
-      v62 = checked_sub u256, v61, 1
-      v63 = memory_object_len memoryarray, v46
-      v64 = lt v62, v63
-      v65 = eq v64, false
-      icall panic_if<0x32>, v65
-      v66 = memory_object_load_element memoryarray<1>, v46, v62
-      v67 = trunc i256 v66 to i160
-      v68 = memory_object_len memoryarray, v46
-      v69 = lt v52, v68
-      v70 = eq v69, false
-      icall panic_if<0x32>, v70
-      v71 = memory_object_load_element memoryarray<1>, v46, v52
-      v72 = trunc i256 v71 to i160
-      v73 = eq v67, v72
-      jumpi v73, bb19, bb20
+      v57 = memory_object_len memoryarray, v50
+      v58 = lt v48, v57
+      v59 = eq v58, false
+      icall panic_if<0x32>, v59
+      v60 = memory_object_load_element memoryarray<1>, v50, v48
+      v61 = checked_sub u256, v60, 1
+      v62 = memory_object_len memoryarray, v45
+      v63 = lt v61, v62
+      v64 = eq v63, false
+      icall panic_if<0x32>, v64
+      v65 = memory_object_load_element memoryarray<1>, v45, v61
+      v66 = trunc i256 v65 to i160
+      v67 = memory_object_len memoryarray, v45
+      v68 = lt v51, v67
+      v69 = eq v68, false
+      icall panic_if<0x32>, v69
+      v70 = memory_object_load_element memoryarray<1>, v45, v51
+      v71 = trunc i256 v70 to i160
+      v72 = eq v66, v71
+      jumpi v72, bb19, bb20
     bb20:
       jump bb21
     bb21:
-      v75 = checked_add u256, v49, 1
-      v76 = and v75, v48
+      v73 = checked_add u256, v48, 1
+      v74 = and v73, v47
       jump bb18
     bb18:
       jump bb14
     bb19:
-      v74 = zext i1 1 to i256
-      ret v74
+      ret true
     bb6:
-      v9 = checked_mul u256, v5, 2
+      v8 = checked_mul u256, v4, 2
       jump bb8
     bb8:
       jump bb4
     bb1:
-      v2 = zext i1 0 to i256
-      ret v2
+      ret false
   }
   
-  fn @core_array_has_duplicate_address(arg0: memoryarray) -> i1 {
+  fn @core_array_has_duplicate_address(arg0: memptr) -> i1 {
     bb0:
       v0 = memory_object_len memoryarray, arg0
       v1 = lt v0, 2
@@ -275,14 +271,14 @@
 - // === ROOT/tests/ui/codegen/mir/element-cleanup/address_helpers.sol:Dirty (before element-cleanup) ===
 + // === ROOT/tests/ui/codegen/mir/element-cleanup/address_helpers.sol:Dirty (after element-cleanup) ===
   @module Dirty
-  fn @hasDuplicate.0(arg0: memoryarray) -> i256 [selector=0x7cf7d2f5, inline_assembly, pure, abi_params=[array<_, u256>], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  fn @hasDuplicate.0(arg0: memptr) -> i1 [selector=0x7cf7d2f5, inline_assembly, pure, abi_params=[array<_, u256>], abi_returns=[word<bool>], abi_return_params=[bool]] {
     bb0:
-      v0 = icall @core_array_has_duplicate_address, arg0
-      v1 = zext i1 v0 to i256
+      v0 = ptrtoint memptr arg0 to i256
+      v1 = icall @core_array_has_duplicate_address, arg0
       ret v1
   }
   
-  fn @hasDuplicate.1(arg0: memoryarray) -> i256 [pure] {
+  fn @hasDuplicate.1(arg0: memptr) -> i1 [pure] {
     bb0:
       v0 = memory_object_len memoryarray, arg0
       v1 = lt v0, 2
@@ -292,137 +288,134 @@
     bb3:
       jump bb4
     bb4:
-      v3 = phi [bb3: arg0], [bb8: v3]
-      v4 = phi [bb3: 0], [bb8: v4]
-      v5 = phi [bb3: 1], [bb8: v9]
-      v6 = memory_object_len memoryarray, v3
-      v7 = checked_mul u256, v6, 2
-      v8 = lt v5, v7
-      jumpi v8, bb6, bb7
+      v2 = phi [bb3: arg0], [bb8: v2]
+      v3 = phi [bb3: 0], [bb8: v3]
+      v4 = phi [bb3: 1], [bb8: v8]
+      v5 = memory_object_len memoryarray, v2
+      v6 = checked_mul u256, v5, 2
+      v7 = lt v4, v6
+      jumpi v7, bb6, bb7
     bb7:
       jump bb5
     bb5:
-      v10 = mul v5, 1
-      v11 = eq 1, 0
-      v12 = div v10, 1
-      v13 = eq v12, v5
-      v14 = or v11, v13
-      v15 = zext i1 v14 to i256
-      v16 = eq v15, 0
-      icall panic_if<0x41>, v16
-      v17 = add v10, 1
-      v18 = lt v17, v10
-      icall panic_if<0x41>, v18
-      v19 = mul v17, 32
-      v20 = eq 32, 0
-      v21 = div v19, 32
-      v22 = eq v21, v17
-      v23 = or v20, v22
-      v24 = zext i1 v23 to i256
-      v25 = eq v24, 0
-      icall panic_if<0x41>, v25
-      v26 = alloc memoryarray<1>, exact, zeroed, panic, v19
-      set_memory_object_len memoryarray, v26, v5
-      v27 = checked_sub u256, v5, 1
-      v28 = memory_object_len memoryarray, v3
+      v9 = mul v4, 1
+      v10 = eq 1, 0
+      v11 = div v9, 1
+      v12 = eq v11, v4
+      v13 = or v10, v12
+      v14 = zext i1 v13 to i256
+      v15 = eq v14, 0
+      icall panic_if<0x41>, v15
+      v16 = add v9, 1
+      v17 = lt v16, v9
+      icall panic_if<0x41>, v17
+      v18 = mul v16, 32
+      v19 = eq 32, 0
+      v20 = div v18, 32
+      v21 = eq v20, v16
+      v22 = or v19, v21
+      v23 = zext i1 v22 to i256
+      v24 = eq v23, 0
+      icall panic_if<0x41>, v24
+      v25 = alloc memoryarray<1>, exact, zeroed, panic, v18
+      set_memory_object_len memoryarray, v25, v4
+      v26 = checked_sub u256, v4, 1
+      v27 = memory_object_len memoryarray, v2
       jump bb9
     bb9:
-      v29 = phi [bb5: v3], [bb13: v46]
-      v30 = phi [bb5: v5], [bb13: v47]
-      v31 = phi [bb5: v27], [bb13: v48]
-      v32 = phi [bb5: v4], [bb13: v50]
-      v33 = phi [bb5: v26], [bb13: v51]
-      v34 = phi [bb5: v28], [bb13: v52]
-      v35 = ne v34, 0
-      jumpi v35, bb11, bb12
+      v28 = phi [bb5: v2], [bb13: v45]
+      v29 = phi [bb5: v4], [bb13: v46]
+      v30 = phi [bb5: v26], [bb13: v47]
+      v31 = phi [bb5: v3], [bb13: v49]
+      v32 = phi [bb5: v25], [bb13: v50]
+      v33 = phi [bb5: v27], [bb13: v51]
+      v34 = ne v33, 0
+      jumpi v34, bb11, bb12
     bb12:
       jump bb10
     bb10:
-      v81 = zext i1 0 to i256
-      ret v81
+      ret false
     bb11:
-      v36 = checked_sub u256, v34, 1
-      v37 = memory_object_len memoryarray, v29
-      v38 = lt v36, v37
-      v39 = eq v38, false
-      icall panic_if<0x32>, v39
-      v40 = memory_object_load_element memoryarray<1>, v29, v36
-      v41 = trunc i256 v40 to i160
+      v35 = checked_sub u256, v33, 1
+      v36 = memory_object_len memoryarray, v28
+      v37 = lt v35, v36
+      v38 = eq v37, false
+      icall panic_if<0x32>, v38
+      v39 = memory_object_load_element memoryarray<1>, v28, v35
+      v40 = trunc i256 v39 to i160
+      v41 = zext i160 v40 to i256
       v42 = not 188
-      v43 = zext i160 v41 to i256
-      v44 = icall checked_mulmod<>, v43, 0x100000000000000000000000000000051, v42
-      v45 = and v44, v31
+      v43 = icall checked_mulmod<>, v41, 0x100000000000000000000000000000051, v42
+      v44 = and v43, v30
       jump bb14
     bb14:
+      v45 = phi [bb11: v28], [bb18: v45]
       v46 = phi [bb11: v29], [bb18: v46]
       v47 = phi [bb11: v30], [bb18: v47]
-      v48 = phi [bb11: v31], [bb18: v48]
-      v49 = phi [bb11: v45], [bb18: v76]
+      v48 = phi [bb11: v44], [bb18: v74]
+      v49 = phi [bb11: v31], [bb18: v49]
       v50 = phi [bb11: v32], [bb18: v50]
-      v51 = phi [bb11: v33], [bb18: v51]
-      v52 = phi [bb11: v36], [bb18: v52]
-      v53 = memory_object_len memoryarray, v51
-      v54 = lt v49, v53
-      v55 = eq v54, false
-      icall panic_if<0x32>, v55
-      v56 = memory_object_load_element memoryarray<1>, v51, v49
-      v57 = ne v56, 0
-      jumpi v57, bb16, bb17
+      v51 = phi [bb11: v35], [bb18: v51]
+      v52 = memory_object_len memoryarray, v50
+      v53 = lt v48, v52
+      v54 = eq v53, false
+      icall panic_if<0x32>, v54
+      v55 = memory_object_load_element memoryarray<1>, v50, v48
+      v56 = ne v55, 0
+      jumpi v56, bb16, bb17
     bb17:
       jump bb15
     bb15:
-      v77 = checked_add u256, v52, 1
-      v78 = memory_object_len memoryarray, v51
-      v79 = lt v49, v78
-      v80 = eq v79, false
-      icall panic_if<0x32>, v80
-      memory_object_store_element memoryarray<1>, v51, v49, v77
+      v75 = checked_add u256, v51, 1
+      v76 = memory_object_len memoryarray, v50
+      v77 = lt v48, v76
+      v78 = eq v77, false
+      icall panic_if<0x32>, v78
+      memory_object_store_element memoryarray<1>, v50, v48, v75
       jump bb13
     bb13:
       jump bb9
     bb16:
-      v58 = memory_object_len memoryarray, v51
-      v59 = lt v49, v58
-      v60 = eq v59, false
-      icall panic_if<0x32>, v60
-      v61 = memory_object_load_element memoryarray<1>, v51, v49
-      v62 = checked_sub u256, v61, 1
-      v63 = memory_object_len memoryarray, v46
-      v64 = lt v62, v63
-      v65 = eq v64, false
-      icall panic_if<0x32>, v65
-      v66 = memory_object_load_element memoryarray<1>, v46, v62
-      v67 = trunc i256 v66 to i160
-      v68 = memory_object_len memoryarray, v46
-      v69 = lt v52, v68
-      v70 = eq v69, false
-      icall panic_if<0x32>, v70
-      v71 = memory_object_load_element memoryarray<1>, v46, v52
-      v72 = trunc i256 v71 to i160
-      v73 = eq v67, v72
-      jumpi v73, bb19, bb20
+      v57 = memory_object_len memoryarray, v50
+      v58 = lt v48, v57
+      v59 = eq v58, false
+      icall panic_if<0x32>, v59
+      v60 = memory_object_load_element memoryarray<1>, v50, v48
+      v61 = checked_sub u256, v60, 1
+      v62 = memory_object_len memoryarray, v45
+      v63 = lt v61, v62
+      v64 = eq v63, false
+      icall panic_if<0x32>, v64
+      v65 = memory_object_load_element memoryarray<1>, v45, v61
+      v66 = trunc i256 v65 to i160
+      v67 = memory_object_len memoryarray, v45
+      v68 = lt v51, v67
+      v69 = eq v68, false
+      icall panic_if<0x32>, v69
+      v70 = memory_object_load_element memoryarray<1>, v45, v51
+      v71 = trunc i256 v70 to i160
+      v72 = eq v66, v71
+      jumpi v72, bb19, bb20
     bb20:
       jump bb21
     bb21:
-      v75 = checked_add u256, v49, 1
-      v76 = and v75, v48
+      v73 = checked_add u256, v48, 1
+      v74 = and v73, v47
       jump bb18
     bb18:
       jump bb14
     bb19:
-      v74 = zext i1 1 to i256
-      ret v74
+      ret true
     bb6:
-      v9 = checked_mul u256, v5, 2
+      v8 = checked_mul u256, v4, 2
       jump bb8
     bb8:
       jump bb4
     bb1:
-      v2 = zext i1 0 to i256
-      ret v2
+      ret false
   }
   
-  fn @core_array_has_duplicate_address(arg0: memoryarray) -> i1 {
+  fn @core_array_has_duplicate_address(arg0: memptr) -> i1 {
     bb0:
       v0 = memory_object_len memoryarray, arg0
       v1 = lt v0, 2

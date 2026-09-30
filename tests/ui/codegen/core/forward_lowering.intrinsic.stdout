@@ -10,27 +10,27 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/forward_lowering.sol:Test ===
 @module Test
 @phase lowered
-immutables:
+@immutables
   implementation: u160
 
 fn @fallback() [abi_wrapper, fallback, payable] {
   bb0:
-    v0 = loadimmutable implementation
-    v1 = calldatasize
-    calldatacopy 0, 0, v1
-    v5 = gas
-    v6 = delegatecall v5, v0, 0, v1, 0, 0
-    jumpi v6, bb1, bb2
+    v0: i256 = loadimmutable implementation
+    v2 = calldatasize
+    calldatacopy 0, 0, v2
+    v6 = gas
+    v8 = delegatecall v6, v0, 0, v2, 0, 0
+    jumpi v8, bb1, bb2
   bb2:
+    v11 = returndatasize
+    returndatacopy 0, 0, v11 !metadata(memory=abi_return)
+    v12 = returndatasize
+    revert 0, v12
+  bb1:
     v9 = returndatasize
     returndatacopy 0, 0, v9 !metadata(memory=abi_return)
     v10 = returndatasize
-    revert 0, v10
-  bb1:
-    v7 = returndatasize
-    returndatacopy 0, 0, v7 !metadata(memory=abi_return)
-    v8 = returndatasize
-    returndata 0, v8
+    returndata 0, v10
 }
 
 fn @constructor() [abi_wrapper, constructor] {
@@ -39,9 +39,8 @@ fn @constructor() [abi_wrapper, constructor] {
     v3 = ne v2, 0
     jumpi v3, bb2, bb1
   bb1:
-    v0 = address
-    v1 = zext i160 v0 to i256
-    mstore 192, v1
+    v0: i256 = address
+    mstore 192, v0
     ret
   bb2:
     revert 0, 0

@@ -30,7 +30,7 @@ fn @nestedDifference(arg0: i256, arg1: i256) -> i256 [selector=0x8fb9c59b, pure,
     ret v1
 }
 
-fn @invert(arg0: i256) -> i256 [selector=0x7351ee37, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @invert(arg0: i256) -> i256 [selector=0x7351ee37, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = not 0
     v1 = sub v0, arg0
@@ -65,26 +65,26 @@ fn @toggleFlags(arg0: i256) -> i256 [selector=0x25ac3f2f, pure, abi_params=[u256
     ret v1
 }
 
-fn @page(arg0: i256, arg1: i256) -> i256 [selector=0xebb9e69c, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @page(arg0: i256, arg1: i256) -> i256 [selector=0xebb9e69c, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = shl arg1, 1
     v1 = div arg0, v0
     ret v1
 }
 
-fn @normalized(arg0: i256) -> i256 [selector=0x7c65a6f0, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @normalized(arg0: i256) -> i256 [selector=0x7c65a6f0, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = div arg0, arg0
     ret v0
 }
 
-fn @emptyPower(arg0: i256) -> i256 [selector=0x27620125, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @emptyPower(arg0: i256) -> i256 [selector=0x27620125, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = exp 0, arg0
     ret v0
 }
 
-fn @negate(arg0: i256) -> i256 [selector=0x25b832d9, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[i256]] {
+fn @negate(arg0: i256) -> i256 [selector=0x25b832d9, inline_assembly, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = not 0
     v1 = sdiv arg0, v0
@@ -115,7 +115,7 @@ fn @reduceMul(arg0: i256, arg1: i256) -> i256 [selector=0xe74637c7, pure, abi_pa
     ret v0
 }
 
-fn @belowBucket(arg0: i256, arg1: i256) -> i256 [selector=0xfb5d3534, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @belowBucket(arg0: i256, arg1: i256) -> i256 [selector=0xfb5d3534, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = div arg0, arg1
     v1 = eq v0, 0
@@ -123,7 +123,7 @@ fn @belowBucket(arg0: i256, arg1: i256) -> i256 [selector=0xfb5d3534, pure, abi_
     ret v2
 }
 
-fn @nestedQuotient(arg0: i256) -> i256 [selector=0x82768581, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @nestedQuotient(arg0: i256) -> i256 [selector=0x82768581, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = div arg0, 7
     v1 = div v0, 3
@@ -164,14 +164,14 @@ fn @highSign(arg0: i256) -> i256 [selector=0x6d444306, pure, abi_params=[i256], 
     ret v0
 }
 
-fn @signMask(arg0: i256) -> i256 [selector=0xa9e59b2f, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @signMask(arg0: i256) -> i256 [selector=0xa9e59b2f, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = signextend 0, arg0
     v1 = and v0, 255
     ret v1
 }
 
-fn @highByte(arg0: i256) -> i256 [selector=0xda715bfd, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @highByte(arg0: i256) -> i256 [selector=0xda715bfd, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = signextend 0, arg0
     v1 = shr 248, v0
@@ -221,7 +221,7 @@ fn @sarOnes(arg0: i256) -> i256 [selector=0xa65bff8d, pure, abi_params=[u256], a
     ret v0
 }
 
-fn @signedMinQuotient(arg0: i256) -> i256 [selector=0xd828c064, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[i256]] {
+fn @signedMinQuotient(arg0: i256) -> i256 [selector=0xd828c064, inline_assembly, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = shl 255, 1
     v1 = sdiv arg0, v0
@@ -296,7 +296,7 @@ fn @extractMasked(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xe932a7
     ret v2
 }
 
-fn @signedAligned(arg0: i256) -> i256 [selector=0xb80873c6, pure, abi_params=[i256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @signedAligned(arg0: i256) -> i256 [selector=0xb80873c6, inline_assembly, pure, abi_params=[i256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = smod arg0, 256
     v1 = eq v0, 0
@@ -340,21 +340,21 @@ fn @minimumOnly(arg0: i256) -> i1 [selector=0x7b5aceb5, pure, abi_params=[i256],
     ret v1
 }
 
-fn @alternatingSign(arg0: i256) -> i256 [selector=0x85436958, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @alternatingSign(arg0: i256) -> i256 [selector=0x85436958, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = not 0
     v1 = exp v0, arg0
     ret v1
 }
 
-fn @signedTopByte(arg0: i256) -> i256 [selector=0x22097a71, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
+fn @signedTopByte(arg0: i256) -> i256 [selector=0x22097a71, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = shr 248, arg0
     v1 = signextend 0, v0
     ret v1
 }
 
-fn @firstRingIndex(arg0: i256) -> i256 [selector=0xecdb4dbe, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @firstRingIndex(arg0: i256) -> i256 [selector=0xecdb4dbe, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mod 1, arg0
     ret v0

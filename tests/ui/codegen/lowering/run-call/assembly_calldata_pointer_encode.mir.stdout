@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/assembly_calldata_pointer_encode.sol:AssemblyCalldataPointerEncode ===
 @module AssemblyCalldataPointerEncode
-fn @arrayCopy() -> memoryfixedarray [selector=0xb192499e, inline_assembly, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @arrayCopy() -> memptr [selector=0xb192499e, inline_assembly, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
     v0 = make_calldata_slice 4, 2
     v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v2 = ptrtoint memoryfixedarray v1 to i256
+    v2 = ptrtoint memptr v1 to i256
     memory_zero v2, 64
     v3 = slice_ptr v0
     v4 = calldatasize
@@ -17,7 +17,7 @@ fn @arrayCopy() -> memoryfixedarray [selector=0xb192499e, inline_assembly, pure,
     ret v7
 }
 
-fn @bytesCopy() -> memorybytes [selector=0x6310efb6, inline_assembly, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @bytesCopy() -> memptr [selector=0x6310efb6, inline_assembly, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = make_calldata_slice 0, 0
     v1 = slice_ptr v0

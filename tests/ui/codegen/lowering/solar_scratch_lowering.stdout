@@ -19,9 +19,9 @@ fn @digests() [selector=0xcf8609a5, abi_wrapper, pure] {
     mstore v29, 96
     v28 = add v29, 32
     mstore v28, v0
-    v19 = add v29, 64
+    v19 = add v28, 32
     mstore v19, arg1
-    v21 = add v29, 96
+    v21 = add v28, 64
     mstore v21, v2
     v7 = keccak256 v28, 96
     mstore 64, v29 !metadata(memory=scratch)
@@ -47,9 +47,9 @@ fn @plain() [selector=0xccaeaff0, abi_wrapper, pure] {
     mstore v28, 96
     v27 = add v28, 32
     mstore v27, v3
-    v18 = add v28, 64
+    v18 = add v27, 32
     mstore v18, arg1
-    v20 = add v28, 96
+    v20 = add v27, 64
     mstore v20, v1
     v6 = keccak256 v27, 96
     v8 = add v3, 1

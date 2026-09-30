@@ -14,35 +14,34 @@ fn @hash() [selector=0x00d07523, abi_wrapper, pure] {
   bb0:
     v10 = calldatasize
     v11 = lt v10, 100
-    jumpi v11, bb3, bb4
-  bb4:
     v12 = calldataload 4
     v13 = add v12, 4
     v14 = add v13, 32
     v15 = gt v12, 0xffffffffffffffff
     v16 = gt v14, v10
     v17 = or v15, v16
-    jumpi v17, bb3, bb5
-  bb5:
+    v45 = or v11, v17
+    jumpi v45, bb3, bb4
+  bb4:
     v19 = calldataload v13
     v21 = add v19, 63
     v22 = lt v21, v19
-    jumpi v22, bb6, bb7
-  bb7:
+    jumpi v22, bb5, bb6
+  bb6:
     v24 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v39 = mload 64 !metadata(memory=scratch)
     v40 = add v39, v24
     v41 = lt v40, v39
     v42 = gt v40, 0xffffffffffffffff
     v43 = or v41, v42
-    jumpi v43, bb6, bb9
-  bb9:
+    jumpi v43, bb5, bb8
+  bb8:
     mstore 64, v40 !metadata(memory=scratch)
     mstore v39, v19
     v26 = sub v10, v14
     v27 = gt v19, v26
-    jumpi v27, bb3, bb8
-  bb8:
+    jumpi v27, bb3, bb7
+  bb7:
     v32 = add v39, 32
     calldatacopy v32, v14, v19
     v1 = add arg1, arg2
@@ -59,7 +58,7 @@ fn @hash() [selector=0x00d07523, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
     revert 28, 36
-  bb6:
+  bb5:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36

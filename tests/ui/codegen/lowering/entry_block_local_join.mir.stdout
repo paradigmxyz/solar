@@ -15,7 +15,7 @@ fn @b() -> i256 [selector=0x4df7e3d0, pure, abi_params=[], abi_returns=[word], a
     ret 0
 }
 
-fn @d() -> i256 [selector=0x8a054ac2, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @d() -> i256 [selector=0x8a054ac2, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = calldatasize
     switch v0, default bb4, [4 => bb2, 5 => bb3]

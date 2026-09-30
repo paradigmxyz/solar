@@ -1,29 +1,29 @@
 // === ROOT/tests/ui/codegen/core/view_parameter_lowering.sol:Test ===
 @module Test
 @phase lowered
-types:
+@types
   struct0: {i256, i256}
 
 fn @checksum.0(arg0: i256, arg1: i256) -> struct0 [may_return_memory, pure, return_abi=[i256, i256]] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb5: v21]
-    v1 = phi [bb0: 0], [bb5: v23]
+    v0 = phi [bb0: 0], [bb5: v23]
+    v1 = phi [bb0: 0], [bb5: v25]
     v5 = lt v1, arg1
     jumpi v5, bb3, bb2
   bb2:
-    v18 = keccak256 arg0, arg1
-    ret v18, v0
+    v20 = keccak256 arg0, arg1
+    ret v20, v0
   bb3:
-    v26 = add arg0, v1
-    v10 = mload v26
+    v28 = add arg0, v1
+    v10 = mload v28
     v11 = byte 0, v10
-    v21 = add v0, v11
-    v22 = lt v21, v0
-    jumpi v22, bb4, bb5
+    v23 = add v0, v11
+    v24 = lt v23, v0
+    jumpi v24, bb4, bb5
   bb5:
-    v23 = add v1, 1
+    v25 = add v1, 1
     jump bb1
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -33,61 +33,52 @@ fn @checksum.0(arg0: i256, arg1: i256) -> struct0 [may_return_memory, pure, retu
 
 fn @ofCalldata() [selector=0x41db85e5, abi_wrapper, pure] {
   bb0:
-    v39 = calldatasize
-    v41 = calldataload 4
-    v42 = add v41, 4
-    v43 = add v42, 32
-    v44 = gt v41, 0xffffffffffffffff
-    v45 = gt v43, v39
-    v46 = or v44, v45
-    v47 = zext i1 v46 to i256
-    v48 = calldataload v42
-    v50 = sub v39, v43
-    v51 = gt v48, v50
-    v52 = zext i1 v51 to i256
-    v53 = or v47, v52
-    v54 = ne v53, 0
-    jumpi v54, bb1, bb7
-  bb7:
-    v8 = add v43, v48
-    v9 = lt v8, v43
-    v10 = lt v48, 32
-    v11 = or v9, v10
-    jumpi v11, bb1, bb2
+    v36 = calldatasize
+    v38 = calldataload 4
+    v39 = add v38, 4
+    v40 = add v39, 32
+    v41 = gt v38, 0xffffffffffffffff
+    v42 = gt v40, v36
+    v43 = or v41, v42
+    v45 = calldataload v39
+    v47 = sub v36, v40
+    v48 = gt v45, v47
+    v51 = or v43, v48
+    v8 = add v40, v45
+    v9 = slt v45, 32
+    v64 = or v51, v9
+    jumpi v64, bb1, bb2
   bb2:
-    v66 = mload 64 !metadata(memory=scratch)
-    v15 = calldataload v43
-    v16 = add v43, v15
-    v17 = add v16, 32
-    v18 = gt v15, 0xffffffffffffffff
-    v19 = gt v17, v8
-    v20 = or v18, v19
-    jumpi v20, bb1, bb3
+    v63 = mload 64 !metadata(memory=scratch)
+    v12 = calldataload v40
+    v13 = add v40, v12
+    v14 = add v13, 32
+    v15 = gt v12, 0xffffffffffffffff
+    v16 = gt v14, v8
+    v17 = or v15, v16
+    jumpi v17, bb1, bb3
   bb3:
-    v22 = calldataload v16
-    v24 = gt v22, 0xffffffffffffffff
-    v25 = add v22, 63
-    v27 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v28 = add v66, v27
-    v29 = lt v28, v66
-    v30 = gt v28, 0xffffffffffffffff
-    v31 = or v24, v29
-    v32 = zext i1 v31 to i256
-    v33 = zext i1 v30 to i256
-    v34 = or v32, v33
-    v35 = ne v34, 0
-    jumpi v35, bb4, bb5
+    v19 = calldataload v13
+    v21 = gt v19, 0xffffffffffffffff
+    v22 = add v19, 63
+    v24 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v25 = add v63, v24
+    v27 = gt v25, 0xffffffffffffffff
+    v26 = lt v25, v63
+    v28 = or v21, v26
+    v32 = or v28, v27
+    jumpi v32, bb4, bb5
   bb5:
-    v36 = sub v8, v17
-    v37 = gt v22, v36
-    jumpi v37, bb1, bb6
+    v33 = sub v8, v14
+    v34 = gt v19, v33
+    jumpi v34, bb1, bb6
   bb6:
-    v59 = icall @checksum.3, v17, v22
-    v63 = mload 32 !metadata(memory=scratch)
-    v61 = add v63, 32
-    v62 = mload v61
-    mstore 128, v59
-    mstore 160, v62
+    v56 = icall @checksum.3, v14, v19
+    v60 = mload 32 !metadata(memory=scratch)
+    v58 = add v60, 32
+    v59 = mload v58
+    mstore 128, v56
+    mstore 160, v59
     returndata 128, 64
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -148,24 +139,24 @@ fn @checksum.3(arg0: i256, arg1: i256) -> struct0 [pure, return_abi=[i256, i256]
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb5: v24]
-    v1 = phi [bb0: 0], [bb5: v26]
+    v0 = phi [bb0: 0], [bb5: v26]
+    v1 = phi [bb0: 0], [bb5: v28]
     v5 = lt v1, arg1
     jumpi v5, bb3, bb2
   bb2:
-    v30 = mload 64 !metadata(memory=scratch)
-    calldatacopy v30, arg0, arg1
-    v21 = keccak256 v30, arg1
-    ret v21, v0
+    v32 = mload 64 !metadata(memory=scratch)
+    calldatacopy v32, arg0, arg1
+    v23 = keccak256 v32, arg1
+    ret v23, v0
   bb3:
-    v29 = add arg0, v1
-    v10 = calldataload v29
+    v31 = add arg0, v1
+    v10 = calldataload v31
     v11 = byte 0, v10
-    v24 = add v0, v11
-    v25 = lt v24, v0
-    jumpi v25, bb4, bb5
+    v26 = add v0, v11
+    v27 = lt v26, v0
+    jumpi v27, bb4, bb5
   bb5:
-    v26 = add v1, 1
+    v28 = add v1, 1
     jump bb1
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

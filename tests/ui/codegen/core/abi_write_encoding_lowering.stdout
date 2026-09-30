@@ -8,7 +8,7 @@
 
 // === ROOT/tests/ui/codegen/core/abi_write_encoding_lowering.sol:Test ===
 @module Test
-fn @place(arg0: memorybytes, arg1: i256, arg2: memorybytes) -> i256 [selector=0x8be11e14, pure, abi_params=[bytes, u256, bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @place(arg0: memptr, arg1: i256, arg2: memptr) -> i256 [selector=0x8be11e14, pure, abi_params=[bytes, u256, bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word, memory_bytes], scratch, args arg1, arg2
     v1 = slice_len v0
@@ -28,7 +28,7 @@ fn @place(arg0: memorybytes, arg1: i256, arg2: memorybytes) -> i256 [selector=0x
     ret v1
 }
 
-fn @copied(arg0: memorybytes, arg1: i256, arg2: memorybytes) -> i256 [selector=0x32b97286, pure, abi_params=[bytes, u256, bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @copied(arg0: memptr, arg1: i256, arg2: memptr) -> i256 [selector=0x32b97286, pure, abi_params=[bytes, u256, bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word, memory_bytes], object, args arg1, arg2
     v1 = memory_object_len memorybytes, v0
@@ -48,7 +48,7 @@ fn @copied(arg0: memorybytes, arg1: i256, arg2: memorybytes) -> i256 [selector=0
     ret v1
 }
 
-fn @copyInto(arg0: memorybytes, arg1: i256, arg2: memorybytes, arg3: i256, arg4: i256) [pure] {
+fn @copyInto(arg0: memptr, arg1: i256, arg2: memptr, arg3: i256, arg4: i256) [pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = gt arg4, v0
@@ -186,7 +186,7 @@ fn @_outOfBounds() -> i256 [pure] {
     ret v4
 }
 
-fn @writeEncoding(arg0: memorybytes, arg1: i256, arg2: memorybytes) -> i256 [pure] {
+fn @writeEncoding(arg0: memptr, arg1: i256, arg2: memptr) -> i256 [pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg2
     v1 = memory_object_len memorybytes, arg0

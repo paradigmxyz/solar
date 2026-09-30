@@ -57,35 +57,34 @@ fn @put() [selector=0x94f47146, abi_wrapper] {
   bb0:
     v28 = calldatasize
     v29 = lt v28, 36
-    jumpi v29, bb9, bb10
-  bb10:
     v30 = calldataload 4
     v31 = add v30, 4
     v32 = add v31, 32
     v33 = gt v30, 0xffffffffffffffff
     v34 = gt v32, v28
     v35 = or v33, v34
-    jumpi v35, bb9, bb11
-  bb11:
+    v63 = or v29, v35
+    jumpi v63, bb9, bb10
+  bb10:
     v37 = calldataload v31
     v39 = add v37, 63
     v40 = lt v39, v37
-    jumpi v40, bb12, bb13
-  bb13:
+    jumpi v40, bb11, bb12
+  bb12:
     v42 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v57 = mload 64 !metadata(memory=scratch)
     v58 = add v57, v42
     v59 = lt v58, v57
     v60 = gt v58, 0xffffffffffffffff
     v61 = or v59, v60
-    jumpi v61, bb12, bb15
-  bb15:
+    jumpi v61, bb11, bb14
+  bb14:
     mstore 64, v58 !metadata(memory=scratch)
     mstore v57, v37
     v44 = sub v28, v32
     v45 = gt v37, v44
-    jumpi v45, bb9, bb14
-  bb14:
+    jumpi v45, bb9, bb13
+  bb13:
     v49 = add v57, 32
     calldatacopy v49, v32, v37
     mstore 0, 0 !metadata(memory=scratch)
@@ -128,7 +127,7 @@ fn @put() [selector=0x94f47146, abi_wrapper] {
     jump bb1
   bb6:
     tail_call @revert_stub
-  bb12:
+  bb11:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36
