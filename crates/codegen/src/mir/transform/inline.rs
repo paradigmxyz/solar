@@ -1842,6 +1842,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         // A pushed offset into the immutables area and the store.
         InstKind::StoreImmutable(..) => seq(&[op::PUSH2, op::MSTORE]),
         InstKind::DataCopy(..) => seq(&[op::CODECOPY]),
+        InstKind::DataSize(..) => seq(&[op::PUSH2]),
         // Zero by copying from beyond the end of calldata.
         InstKind::MemoryZero(..) => seq(&[op::CALLDATASIZE, op::CALLDATACOPY]),
         InstKind::ConstructorArgsBase => seq(&[op::PUSH2]),

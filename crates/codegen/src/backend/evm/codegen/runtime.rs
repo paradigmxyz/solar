@@ -1,9 +1,9 @@
 //! Runtime emission, retry policies, and whole-program stack limits.
 
 use super::{
-    ArtifactKind, BlockId, CallGraphInfo, DenseBitSet, EvmCodegen, FunctionId, GeneratedCode,
-    IndexVec, Liveness, MAX_STACK_DEPTH, MirPhase, Module, OptimizationMode, Terminator, index_vec,
-    run_pipeline,
+    ArtifactKind, BlockId, CallGraphInfo, DenseBitSet, EmbeddedBytecodes, EvmCodegen, FunctionId,
+    GeneratedCode, IndexVec, LibraryTable, Liveness, MAX_STACK_DEPTH, MirPhase, Module,
+    OptimizationMode, Terminator, index_vec, run_pipeline,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -12,102 +12,82 @@ impl<'gcx> EvmCodegen<'gcx> {
         let _changed = run_pipeline(self.gcx, module, None);
     }
 
-    /// Generates runtime bytecode for a module.
-    pub(super) fn generate_runtime_code(
+    /// Schedules the runtime code of a module into the assembler's EVM IR.
+    #[tracing::instrument(
+        name = "stack_scheduling",
+        level = "debug",
+        skip_all,
+        fields(artifact = "runtime")
+    )]
+    pub(super) fn schedule_runtime_code(
         &mut self,
         module: &crate::mir::LoweredModule<'_>,
         call_graph: &CallGraphInfo,
-    ) -> GeneratedCode {
+    ) {
         assert_eq!(
             module.phase(),
             MirPhase::Lowered,
             "EVM codegen requires MIR in the final phase"
         );
-        let runtime_code_size_limit = self.gcx.sess.opts.evm_version.runtime_code_size_limit();
-        let may_need_code_size_rescue = self.gcx.sess.opts.optimization.is_gas();
-        let mut code_size_rescue = false;
-        let mut gas_first_result = None;
-        {
-            let mut preserve_caller_stack =
-                !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None);
-            let mut runtime_stack_args = true;
-            let mut stack_returns_enabled = true;
-            self.disabled_stack_only_functions.clear_to(module.functions.len());
-            loop {
-                let disabled_stack_only_functions = self.disabled_stack_only_functions.count();
-                self.reset_runtime_codegen(module);
-                self.preserve_caller_stack = preserve_caller_stack;
-                self.runtime_stack_args = runtime_stack_args;
-                self.stack_returns_enabled = stack_returns_enabled;
-
-                if !module.functions.is_empty() {
-                    self.emit_runtime(module, call_graph);
-                }
-
-                if self.disabled_stack_only_functions.count() > disabled_stack_only_functions {
-                    continue;
-                }
-                let stack_fits = self.caller_stack_prefixes_fit(module, MAX_STACK_DEPTH);
-                if !stack_fits && !self.icall_stack_edges.is_empty() {
-                    if preserve_caller_stack {
-                        preserve_caller_stack = false;
-                        continue;
-                    }
-                    if runtime_stack_args {
-                        runtime_stack_args = false;
-                        continue;
-                    }
-                    if stack_returns_enabled {
-                        stack_returns_enabled = false;
-                        continue;
-                    }
-                }
-                if !stack_fits {
-                    self.report_stack_limit_error();
-                }
-                break;
-            }
-        }
-        // Both outlining policies share the same scheduled and structurally simplified input.
-        if may_need_code_size_rescue && runtime_code_size_limit.is_some() {
-            self.asm.prepare_outlining();
-            if self.gcx.dcx().has_errors().is_err() {
-                return GeneratedCode::default();
-            }
-        }
-        let mut original = (may_need_code_size_rescue && runtime_code_size_limit.is_some())
-            .then(|| self.asm.clone());
+        let mut preserve_caller_stack =
+            !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None);
+        let mut runtime_stack_args = true;
+        let mut stack_returns_enabled = true;
+        self.disabled_stack_only_functions.clear_to(module.functions.len());
         loop {
-            self.asm.set_enable_size_outlining(code_size_rescue);
+            let disabled_stack_only_functions = self.disabled_stack_only_functions.count();
+            self.reset_runtime_codegen(module);
+            self.preserve_caller_stack = preserve_caller_stack;
+            self.runtime_stack_args = runtime_stack_args;
+            self.stack_returns_enabled = stack_returns_enabled;
 
-            let result =
-                self.asm.assemble_with_captures(self.capture_evm_ir, self.capture_debug_info);
-            if may_need_code_size_rescue
-                && !code_size_rescue
-                && let Some(limit) = runtime_code_size_limit
-                && result.bytecode.len() > limit
-                && result.bytecode.len() <= limit * 2
-            {
-                gas_first_result = Some(result);
-                code_size_rescue = true;
-                self.asm = original.take().expect("size rescue retains scheduled EVM IR");
+            if !module.functions.is_empty() {
+                self.emit_runtime(module, call_graph);
+            }
+
+            if self.disabled_stack_only_functions.count() > disabled_stack_only_functions {
                 continue;
             }
-            let result = if code_size_rescue
-                && result.bytecode.len()
-                    > runtime_code_size_limit.expect("code-size rescue requires a size limit")
-            {
-                gas_first_result.take().expect("code-size rescue must retain the gas-first runtime")
-            } else {
-                result
-            };
-            self.runtime_immutable_refs = result.immutable_refs;
-            return GeneratedCode {
-                bytecode: result.bytecode,
-                library_relocations: result.library_relocations,
-                evm_ir: result.evm_ir,
-                debug_info: result.debug_info,
-            };
+            let stack_fits = self.caller_stack_prefixes_fit(module, MAX_STACK_DEPTH);
+            if !stack_fits && !self.icall_stack_edges.is_empty() {
+                if preserve_caller_stack {
+                    preserve_caller_stack = false;
+                    continue;
+                }
+                if runtime_stack_args {
+                    runtime_stack_args = false;
+                    continue;
+                }
+                if stack_returns_enabled {
+                    stack_returns_enabled = false;
+                    continue;
+                }
+            }
+            if !stack_fits {
+                self.report_stack_limit_error();
+            }
+            break;
+        }
+    }
+
+    /// Links embedded bytecode into the optimized runtime code and assembles it.
+    pub(super) fn assemble_runtime_code(
+        &mut self,
+        bytecodes: &EmbeddedBytecodes,
+        libraries: &mut LibraryTable,
+    ) -> GeneratedCode {
+        let result = self.asm.assemble_linked(
+            bytecodes,
+            libraries,
+            self.capture_evm_ir,
+            self.capture_debug_info,
+        );
+        self.runtime_immutable_refs = result.immutable_refs;
+        GeneratedCode {
+            bytecode: result.bytecode,
+            library_relocations: result.library_relocations,
+            evm_ir: result.evm_ir,
+            debug_info: result.debug_info,
         }
     }
 

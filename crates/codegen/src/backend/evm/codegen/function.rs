@@ -11,7 +11,7 @@ use super::{
     stack::layout::LIVE_JOIN_LAYOUT_LIMIT,
 };
 use crate::{mir::Callee, target::Target};
-use std::{cell::LazyCell, rc::Rc};
+use std::{cell::LazyCell, sync::Arc};
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Splits phi-carrying edges out of multi-successor predecessors when a
@@ -111,6 +111,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Generates the body of a function.
+    #[tracing::instrument(name = "function", level = "trace", skip_all, fields(name = %func.name))]
     pub(super) fn generate_function_body(&mut self, func_id: FunctionId, func: &Function) {
         let stack_only_disabled_at_entry = self.stack_only_function_disabled(func_id);
         let report_missing_spill_home = self.gcx.sess.opts.unstable.assert_planned_edge_spill_home;
@@ -118,7 +119,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.emitting_entry.then(|| Liveness::compute_block_local_for_codegen(func)).flatten();
         let whole_function_liveness = block_local_liveness.is_none();
         let liveness =
-            block_local_liveness.map_or_else(|| self.function_liveness(func_id, func), Rc::new);
+            block_local_liveness.map_or_else(|| self.function_liveness(func_id, func), Arc::new);
         let liveness = &*liveness;
         let cross_block_live = OnceCell::new();
         let mut function_returns = FxHashSet::default();
@@ -141,7 +142,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else if whole_function_liveness {
             Some(self.stack_phi_plan(func_id, func, liveness))
         } else {
-            Some(Rc::new(StackPhiPlan::analyze(
+            Some(Arc::new(StackPhiPlan::analyze(
                 func,
                 liveness,
                 &self.cold_functions,

@@ -279,8 +279,10 @@ delegatecall, contract creation, or cross-contract (a call into compiled code th
 itself calls out).
 
 The experimental lint classifies a call as unable to call back when its target is a precompile, the zero address, or code
-compiled here without call instructions: created with `new`, or held in an immutable
-or a slot that only the constructor writes with such an address. Initcode is
+compiled here without call instructions: held in an immutable
+or a slot that only the constructor writes with such an address. Deferred bytecode from
+`new C()` is opaque before final linking and is conservatively allowed to call back.
+For literal buffers, initcode is
 reconstructed from the constant bytes written to the start of the creation buffer,
 whether copied with `data_copy` or stored as words. `transfer` and `send` forward only
 the stipend, which cannot execute `SSTORE` but can execute `TSTORE`. These classifications
@@ -298,13 +300,10 @@ and an entry is owner-only when all its writes and calls require `caller` to equ
 privileged origin. Starting from every compared origin lets an owner slot that only the
 owner can change stay privileged.
 
-On the archived project inputs in `testdata/projects/`, excluding test directories and
-`.t.sol` files, the lint reports 18 findings for OpenZeppelin 5.6.1 (several in mocks
-built to reenter, such as `ReentrancyTransientMock` and `ERC20Reentrant`), 18 for
-Seaport 1.6, 8 for Morpho Blue 1.0.0, 7 for Solady 0.1.26, and 1 for Uniswap v4 core.
-Seaport's guard chooses between `sstore` and `tstore` at runtime, and Morpho relies on
-owner-enabled rate models, so those findings reflect limitations described below rather
-than confirmed bugs.
+Findings on the archived project inputs are not confirmed bugs. For example, Seaport's
+guard chooses between `sstore` and `tstore` at runtime, Morpho relies on owner-enabled
+rate models, and opaque created helpers may produce conservative false positives.
+`QuietFactory` and `QuietVault` explicitly test this last limitation.
 
 Transaction-order dependence is reported when the value or recipient of a value
 transfer in a non-owner-only entry depends on storage that another entry writes.

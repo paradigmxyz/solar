@@ -3,7 +3,7 @@
 //@[size] compile-flags: -Osize -Zmir-pipeline=egraph,dce
 @module MinedMasks
 
-types:
+@types
   struct0: {i256, i256}
 
 fn @high_mask(arg0: i256) -> i256 {

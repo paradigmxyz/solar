@@ -1,7 +1,7 @@
 //@compile-flags: -Zmir-pipeline=egraph
 //@filecheck:
 @module GvnLoadImmutable
-immutables:
+@immutables
   first: u256
   second: u256
 

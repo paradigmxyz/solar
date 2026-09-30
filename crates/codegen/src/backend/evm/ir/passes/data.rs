@@ -4,17 +4,25 @@
 //! changing code. `pack-data` also finds literal memory-store runs that can become `CODECOPY`,
 //! scores the instruction and data-pool cost in the selected optimization mode, then interns the
 //! accepted bytes. Both passes leave a module alone when `CODESIZE` can observe the changed data
-//! layout. Pooling uses bounded substring search to avoid quadratic compile time on large data
-//! sets. Library relocations must match within a shared range; literal stores never share
-//! relocatable bytes.
+//! layout, or when a data address may reach anything but a `CODECOPY` that stays inside its
+//! entry. The scan tracks each block's stack and follows addresses through a few unconditional
+//! jumps, since shared tails can move a copy into another block. Pooling uses bounded substring
+//! search to avoid quadratic compile time on large data sets. Library relocations must match
+//! within a shared range; literal stores never share relocatable bytes.
+//!
+//! Deferred contract bytecode stays opaque in the pipeline: each deferred entry keeps its own
+//! storage, and a `push_data_size` counts as a reference that bounds a copy of its entry's exact
+//! length. Final assembly links the bytes in, folds the sizes into literals, and runs
+//! `pack-existing-data` once more so linked bytecode can share storage, such as runtime code
+//! inside the creation code that contains it.
 
 use super::{EvmPass, utils::instruction_size_lower_bound};
 use crate::{
     backend::evm::{
         data_copy_cost, data_copy_gas, data_copy_is_profitable,
         ir::{
-            BlockId, Data, DataId, DataRef, Instruction, Module, PushValue,
-            immediate_materialization_cost,
+            BlockId, Data, DataId, DataRef, DataSize, Instruction, Module, PushValue, Terminator,
+            TerminatorKind, immediate_materialization_cost,
         },
         op::{self, WORD_BYTES},
     },
@@ -32,6 +40,9 @@ const MAX_DATA_SUBSTRING_ENTRIES: usize = 1024;
 
 /// Bounds rewrites whose local cost does not model lost global code sharing.
 const MAX_SHARED_DATA_COPY_SITES: usize = 4;
+
+/// Bounds the unconditional jumps followed from a block to find where its data addresses are used.
+const MAX_DATA_JUMP_HOPS: usize = 4;
 
 pub(super) struct PackExistingData;
 
@@ -126,17 +137,16 @@ impl Improvement {
 
 impl DataPool {
     fn new(data: &IndexVec<DataId, Data>) -> Self {
+        // Relocated and deferred bytes are not final, so constants never share them.
+        let literals = || {
+            data.iter_enumerated().filter_map(|(id, data)| {
+                data.library_relocations.is_empty().then_some(())?;
+                Some((id, data.bytes.known()?.clone()))
+            })
+        };
         Self {
-            entries: data
-                .iter_enumerated()
-                .filter(|(_, data)| data.library_relocations.is_empty())
-                .map(|(id, data)| PoolEntry { id, bytes: data.bytes.clone() })
-                .collect(),
-            exact: data
-                .iter_enumerated()
-                .filter(|(_, data)| data.library_relocations.is_empty())
-                .map(|(id, data)| (data.bytes.clone(), DataRef::new(id, 0)))
-                .collect(),
+            entries: literals().map(|(id, bytes)| PoolEntry { id, bytes }).collect(),
+            exact: literals().map(|(id, bytes)| (bytes, DataRef::new(id, 0))).collect(),
         }
     }
 
@@ -160,12 +170,7 @@ impl DataPool {
         if let Placement::Existing(data) = placement {
             return data;
         }
-        let id = module.data.push(Data {
-            bytes: bytes.clone(),
-            name: Some(sym::literal),
-            emit_in_runtime: false,
-            library_relocations: Vec::new(),
-        });
+        let id = module.data.push(Data::new(bytes.clone(), Some(sym::literal)));
         self.entries.push(PoolEntry { id, bytes: bytes.clone() });
         self.exact.insert(bytes, DataRef::new(id, 0));
         DataRef::new(id, 0)
@@ -347,6 +352,11 @@ fn is_profitable(gcx: Gcx<'_>, improvement: Improvement) -> bool {
     data_copy_is_profitable(gcx.sess.opts.optimization, improvement.runtime_gas, improvement.bytes)
 }
 
+/// Shares storage between data entries after deferred data is linked in.
+pub(in crate::backend) fn pack_linked_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
+    PackExistingData.run_pass(gcx, module)
+}
+
 fn pack_existing_data(module: &mut Module, allow_subslices: bool) -> bool {
     if module.data.is_empty() {
         return false;
@@ -382,7 +392,8 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
         return false;
     }
     referenced.sort_unstable_by(|&a, &b| {
-        module.data[b].bytes.len().cmp(&module.data[a].bytes.len()).then_with(|| a.cmp(&b))
+        let len = |id: DataId| module.data[id].bytes.known().map_or(0, |bytes| bytes.len());
+        len(b).cmp(&len(a)).then_with(|| a.cmp(&b))
     });
 
     let mut packed = IndexVec::<DataId, Data>::new();
@@ -391,24 +402,28 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
     let mut remap = FxHashMap::default();
     for old_id in referenced {
         let data = &module.data[old_id];
-        let key = (data.bytes.clone(), data.library_relocations.clone());
-        let data_ref = if data.emit_in_runtime {
-            let id = packed.push(data.clone());
-            sources.push(old_id);
+        // Deferred bytes are not known yet, so they are never shared.
+        let key = (data.bytes.known())
+            .filter(|_| !data.emit_in_runtime)
+            .map(|bytes| (bytes.clone(), data.library_relocations.clone()));
+        let data_ref = if let Some(key) = &key
+            && let Some(&id) = exact.get(key)
+        {
             DataRef::new(id, 0)
-        } else if let Some(&id) = exact.get(&key) {
-            DataRef::new(id, 0)
-        } else if let Some(data_ref) = (allow_subslices
-            && references.subslice_safe[old_id]
-            && module.data.len() < MAX_DATA_SUBSTRING_ENTRIES)
-            .then(|| find_data(&packed, &sources, data, old_id))
-            .flatten()
+        } else if key.is_some()
+            && let Some(data_ref) = (allow_subslices
+                && references.subslice_safe[old_id]
+                && module.data.len() < MAX_DATA_SUBSTRING_ENTRIES)
+                .then(|| find_data(&packed, &sources, data, old_id))
+                .flatten()
         {
             data_ref
         } else {
             let id = packed.push(data.clone());
             sources.push(old_id);
-            exact.insert(key, id);
+            if let Some(key) = key {
+                exact.insert(key, id);
+            }
             DataRef::new(id, 0)
         };
         if packed[data_ref.id].name.is_none() {
@@ -435,10 +450,16 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
     module.data = ordered;
     for block in &mut module.blocks {
         for inst in &mut block.instructions {
-            if let Some(PushValue::Data(data)) = &mut inst.value {
-                let base = remap[&data.id];
-                data.id = base.id;
-                data.offset = data.offset.checked_add(base.offset).expect("data offset overflow");
+            match &mut inst.value {
+                Some(PushValue::Data(data)) => {
+                    let base = remap[&data.id];
+                    data.id = base.id;
+                    data.offset =
+                        data.offset.checked_add(base.offset).expect("data offset overflow");
+                }
+                // Deferred data keeps its own entry.
+                Some(PushValue::DataSize(size)) => size.data = remap[&size.data].id,
+                _ => {}
             }
         }
     }
@@ -451,13 +472,14 @@ fn find_data(
     needle: &Data,
     needle_id: DataId,
 ) -> Option<DataRef> {
-    let mut finder = NeedleFinder::new(&needle.bytes);
+    let needle_bytes = needle.bytes.known()?;
+    let mut finder = NeedleFinder::new(needle_bytes);
     data.iter_enumerated().find_map(|(id, known)| {
         if sources[id] >= needle_id {
             return None;
         }
-        let offset = finder.find(&known.bytes)?;
-        let end = offset + needle.bytes.len();
+        let offset = finder.find(known.bytes.known()?)?;
+        let end = offset + needle_bytes.len();
         let compatible = known
             .library_relocations
             .iter()
@@ -474,6 +496,7 @@ enum DataStackValue {
     Unknown,
     Immediate(usize),
     Data(DataRef),
+    Size(DataSize),
 }
 
 struct DataReferences {
@@ -536,8 +559,12 @@ fn scan_data_references(
     let mut references = DataReferences::new(module);
     let mut stack = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
-        // The stack starts empty, so without a data push no slot can hold a data address.
-        let has_data = block.instructions.iter().any(|inst| inst.pushed_data().is_some());
+        // The stack starts empty, so without a data push no slot can hold a data address
+        // or size.
+        let has_data = block
+            .instructions
+            .iter()
+            .any(|inst| inst.pushed_data().is_some() || inst.pushed_data_size().is_some());
         for (index, inst) in block.instructions.iter().enumerate() {
             visit(block_id, index, &block.instructions);
             if has_data {
@@ -547,6 +574,22 @@ fn scan_data_references(
             }
         }
         if has_data {
+            // Shared tails can move a copy behind a jump, so follow data addresses that
+            // survive an unconditional jump into its target with this path's stack.
+            let mut terminator = &block.terminator;
+            for _ in 0..MAX_DATA_JUMP_HOPS {
+                let Some(Terminator { kind: TerminatorKind::Jump(target), .. }) = terminator else {
+                    break;
+                };
+                if !stack.iter().any(|value| matches!(value, DataStackValue::Data(_))) {
+                    break;
+                }
+                let target = &module.blocks[*target];
+                for inst in &target.instructions {
+                    track_data_reference(module, inst, &mut stack, &mut references);
+                }
+                terminator = &target.terminator;
+            }
             mark_stack_data_unsafe(&stack, &mut references.subslice_safe);
             stack.clear();
         }
@@ -566,6 +609,11 @@ fn track_data_reference(
     if let Some(data) = inst.pushed_data() {
         references.counts[data.id] += 1;
         stack.push(DataStackValue::Data(data));
+        return;
+    }
+    if let Some(size) = inst.pushed_data_size() {
+        references.counts[size.data] += 1;
+        stack.push(DataStackValue::Size(size));
         return;
     }
     if let Some(value) = inst.concrete_immediate() {
@@ -623,11 +671,11 @@ fn track_data_reference(
         let DataStackValue::Data(data) = value else { continue };
         let bounded = inst.opcode == op::CODECOPY
             && index == 1
-            && matches!(
-                stack.get(stack.len() - 3),
-                Some(DataStackValue::Immediate(size))
-                    if data_copy_is_bounded(module, *data, *size)
-            );
+            && match stack.get(stack.len() - 3) {
+                Some(DataStackValue::Immediate(size)) => data_copy_is_bounded(module, *data, *size),
+                Some(DataStackValue::Size(size)) => size.is_length_of(*data),
+                _ => false,
+            };
         if !bounded {
             references.subslice_safe[data.id] = false;
         }
@@ -652,7 +700,8 @@ fn ensure_stack_depth(stack: &mut Vec<DataStackValue>, depth: usize) {
 
 fn data_copy_is_bounded(module: &Module, data: DataRef, size: usize) -> bool {
     module.data.get(data.id).is_some_and(|entry| {
-        (data.offset as usize).checked_add(size).is_some_and(|end| end <= entry.bytes.len())
+        let end = (data.offset as usize).checked_add(size);
+        end.zip(entry.bytes.known()).is_some_and(|(end, bytes)| end <= bytes.len())
     })
 }
 

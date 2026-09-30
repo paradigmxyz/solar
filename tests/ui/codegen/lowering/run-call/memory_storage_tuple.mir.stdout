@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_storage_tuple.sol:MixedMemoryTuple ===
 @module MixedMemoryTuple
-types:
+@types
   struct0: {i256, i256}
 
 fn @f() -> struct0 [view] {

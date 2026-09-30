@@ -1126,9 +1126,18 @@ pub(crate) fn created_provenance(
     for inst in func.instructions() {
         match func.inst(inst).kind {
             InstKind::DataCopy(data, dest, size) => {
-                if let (Some(start), Some(size), Some(content)) =
-                    (offset_of(dest), func.value_u64(size), module.get_data(data.id))
+                // Child bytecode is linked after MIR analysis. Do not interpret later
+                // literal writes as a complete initcode prefix when this copy is opaque.
+                if offset_of(dest).is_some()
+                    && module.data.get(data.id).is_some_and(|data| data.bytes.known().is_none())
                 {
+                    return Provenance::Created { calls_out: true };
+                }
+                if let (Some(start), Some(size), Some(content)) = (
+                    offset_of(dest),
+                    func.value_u64(size),
+                    module.data.get(data.id).and_then(|data| data.bytes.known()),
+                ) {
                     let from = data.offset as usize;
                     for (i, &byte) in content.iter().skip(from).take(size as usize).enumerate() {
                         bytes.insert(start + i as u64, byte);
@@ -1192,7 +1201,7 @@ fn display_provenance<'a>(
         Provenance::This => write!(f, "to this"),
         Provenance::Immutable(id) => write!(f, "to immutable{}", id.index()),
         Provenance::Storage(path) => write!(f, "to sload({})", table.display(path, Some(func))),
-        Provenance::Created { calls_out: true } => write!(f, "of code that calls out"),
+        Provenance::Created { calls_out: true } => write!(f, "of code that may call out"),
         Provenance::Created { calls_out: false } => write!(f, "of code without calls"),
         Provenance::Library => write!(f, "to library"),
         Provenance::Arg(index) => write!(f, "to arg{}", index.index()),

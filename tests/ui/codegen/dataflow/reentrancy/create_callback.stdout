@@ -7,7 +7,7 @@ fn @constructor:
 fn @spawn:
   bb0:
     v0 = sload 0  ; read slot(0)
-    v12 = create 0, v11, 77  ; create of code that calls out
+    v12 = create 0, v11, v4  ; create of code that may call out
   bb2:
     v15 = sload 0  ; read slot(0) after call#0.15
     sstore 0, v16  ; write slot(0) after call#0.15
@@ -22,8 +22,9 @@ fn @constructor:
 fn @spawn:
   bb0:
     v0 = sload 0  ; read slot(0)
-    v12 = create 0, v11, 29  ; create of code without calls
+    v12 = create 0, v11, v4  ; create of code that may call out
   bb2:
     v15 = sload 0  ; read slot(0) after call#0.15
     sstore 0, v16  ; write slot(0) after call#0.15
   exit: slot(0)=?
+finding: reentrancy contract creation @spawn call#0.15: writes slot(0) after the call; reentrant @spawn reads slot(0) (stale read)

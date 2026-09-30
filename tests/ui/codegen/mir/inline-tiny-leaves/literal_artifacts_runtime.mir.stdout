@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/literal_artifacts_runtime.sol:LiteralArtifacts ===
 @module LiteralArtifacts
-immutables:
+@immutables
   initial: bytes32
 
 fn @constructor() [constructor] {

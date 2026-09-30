@@ -285,6 +285,7 @@ fn write_pipeline_output(
         .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())
 }
 
+#[tracing::instrument(name = "combined_json", level = "debug", skip_all)]
 fn emit_combined_json(
     gcx: Gcx<'_>,
     artifacts: Option<&FxHashMap<ContractId, ContractArtifact>>,
@@ -389,6 +390,7 @@ fn emit_combined_json(
     write_output_json(gcx, &output, codegen_requested || output.ethdebug.is_some())
 }
 
+#[tracing::instrument(name = "write_output", level = "debug", skip_all)]
 fn write_output_json<T: serde::Serialize>(
     gcx: Gcx<'_>,
     output: &T,

@@ -4,6 +4,8 @@
 
 use solar_data_structures::newtype_index;
 
+pub(crate) use crate::link::{Data, DataBytes, DataId, DataRef, DataSize};
+
 pub(crate) mod analysis;
 pub(crate) mod immutable;
 pub mod lower;
@@ -110,22 +112,6 @@ newtype_index! {
 
     /// A unique identifier for an immutable in the MIR module.
     pub(crate) struct ImmutableId;
-
-    /// A unique identifier for constant data in the MIR module.
-    pub(crate) struct DataId;
-}
-
-/// A relocatable reference to a byte within a MIR data entry.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct DataRef {
-    pub(crate) id: DataId,
-    pub(crate) offset: u32,
-}
-
-impl DataRef {
-    pub(crate) const fn new(id: DataId, offset: u32) -> Self {
-        Self { id, offset }
-    }
 }
 
 impl BlockId {
@@ -151,7 +137,6 @@ impl BlockId {
 mod round_trip {
     use super::Module;
     use crate::mir::lower;
-    use solar_data_structures::map::FxHashMap;
     use solar_interface::{ColorChoice, Session};
     use solar_sema::Compiler;
     use std::{
@@ -351,14 +336,12 @@ mod round_trip {
             let ControlFlow::Continue(()) = c.lower_asts()? else { return Ok(()) };
             let ControlFlow::Continue(()) = c.analysis()? else { return Ok(()) };
             let gcx = c.gcx();
-            let empty = FxHashMap::default();
             for id in gcx.hir.contract_ids() {
                 let contract = gcx.hir.contract(id);
                 if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
                     continue;
                 }
-                let module =
-                    lower::lower_contract(gcx, id, &empty, gcx.dcx().has_errors().is_err());
+                let module = lower::lower_contract(gcx, id);
                 let errors_before = gcx.dcx().err_count();
                 super::validate(gcx.dcx(), &module);
                 if gcx.dcx().err_count() != errors_before {
@@ -427,14 +410,12 @@ mod round_trip {
             };
 
             let gcx = c.gcx();
-            let empty = FxHashMap::default();
             for id in gcx.hir.contract_ids() {
                 let contract = gcx.hir.contract(id);
                 if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
                     continue;
                 }
-                let module =
-                    lower::lower_contract(gcx, id, &empty, gcx.dcx().has_errors().is_err());
+                let module = lower::lower_contract(gcx, id);
                 if let Err(e) = check_round_trip_module(gcx.sess, &module) {
                     result = Err(format!("contract `{}`: {e}", contract.name));
                     return Ok(());

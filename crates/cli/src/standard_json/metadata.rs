@@ -53,6 +53,7 @@ pub(super) struct Metadata<'a, 'input, 'gcx> {
 }
 
 impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
+    #[tracing::instrument(name = "metadata", level = "debug", skip_all)]
     pub(super) fn new(gcx: Gcx<'gcx>, settings: &'a Settings<'input>) -> Self {
         let contracts =
             std::iter::repeat_n(OnceLock::new(), gcx.hir.contract_ids().len()).collect();
@@ -63,6 +64,7 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
     }
 
     /// Computes the metadata of `contracts` in parallel, hashing each referenced source once.
+    #[tracing::instrument(name = "precompute_metadata", level = "debug", skip_all)]
     pub(super) fn precompute(&self, contracts: &[ContractId]) {
         let mut sources = DenseBitSet::new_empty(self.sources.len());
         for &contract_id in contracts {

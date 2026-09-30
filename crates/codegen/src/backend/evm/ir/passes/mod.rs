@@ -215,21 +215,11 @@ fn run_passes_inner(
     validate_each: bool,
     name: Option<&str>,
 ) -> bool {
-    run_passes_with_history(gcx, module, passes, validate_each, name, &mut Vec::new())
-}
-
-fn run_passes_with_history(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    passes: &[&dyn EvmPass],
-    validate_each: bool,
-    name: Option<&str>,
-    unchanged: &mut Vec<PassCacheKey>,
-) -> bool {
     let output_name =
         name.map(ToOwned::to_owned).unwrap_or_else(|| pipeline_output_name(gcx, module.name()));
     let explicit = name.is_some();
     let mut changed = false;
+    let mut unchanged = Vec::<PassCacheKey>::new();
     for pass in passes {
         let pass_name = pass.name();
         let before =
@@ -248,7 +238,9 @@ fn run_passes_with_history(
             debug_assert!(unchanged.iter().filter(|entry| **entry == cache_key).count() <= 1);
             let target_support_before = (!cached && validate_each && should_validate_ir(gcx))
                 .then(|| super::verify::Verifier::new(gcx).target_support_snapshot(module));
-            let pass_changed = !cached && pass.run_pass(gcx, module);
+            let pass_changed = !cached
+                && tracing::trace_span!("evm_ir_pass", pass = pass_name)
+                    .in_scope(|| pass.run_pass(gcx, module));
             if pass_changed {
                 unchanged.clear();
             } else if !cached {
@@ -350,46 +342,6 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
         }
     }
     changed
-}
-
-/// The unchanged-pass history at the first policy-dependent stage of the default pipeline.
-#[derive(Clone, Debug)]
-pub(crate) struct OutliningCheckpoint {
-    next_pass: usize,
-    unchanged: Vec<PassCacheKey>,
-}
-
-impl OutliningCheckpoint {
-    pub(crate) fn prepare(gcx: Gcx<'_>, module: &mut Module) -> Self {
-        let next_pass = DEFAULT_PIPELINE
-            .iter()
-            .position(|pass| (*pass).type_id() == TypeId::of::<outline::Outline>())
-            .expect("default pipeline contains outlining");
-        let mut checkpoint = Self { next_pass, unchanged: Vec::new() };
-        super::verify::Verifier::new(gcx).verify_before_pipeline(module);
-        if gcx.dcx().has_errors().is_ok() {
-            let _ = run_passes_with_history(
-                gcx,
-                module,
-                &DEFAULT_PIPELINE[..next_pass],
-                true,
-                None,
-                &mut checkpoint.unchanged,
-            );
-        }
-        checkpoint
-    }
-
-    pub(crate) fn resume(mut self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        run_passes_with_history(
-            gcx,
-            module,
-            &DEFAULT_PIPELINE[self.next_pass..],
-            true,
-            None,
-            &mut self.unchanged,
-        )
-    }
 }
 
 #[cfg(test)]

@@ -6,7 +6,7 @@ fn @forward:
 // === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/cross_contract.sol:Vault ===
 fn @constructor:
   bb0:
-    v9 = create 0, v8, 116  ; create of code that calls out
+    v9 = create 0, v8, v1  ; create of code that may call out
   exit:
 fn @withdraw:
   bb0:
@@ -30,8 +30,8 @@ fn @bump:
 // === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/cross_contract.sol:QuietVault ===
 fn @constructor:
   bb0:
-    v9 = create 0, v8, 71  ; create of code without calls
-  exit:
+    v9 = create 0, v8, v1  ; create of code that may call out
+  exit: slot(1)=?
 fn @withdraw:
   bb0:
     v0 = sload 1  ; read slot(1)
@@ -47,3 +47,4 @@ fn @deposit:
     v4 = sload v3  ; read slot(0)[caller]
     sstore v3, v5  ; write slot(0)[caller]
   exit:
+finding: reentrancy cross-contract @withdraw call#1.20: writes slot(0)[caller] after the call; reentrant @deposit reads slot(0)[caller] (stale read)

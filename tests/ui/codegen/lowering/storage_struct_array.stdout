@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_struct_array.sol:StorageStructArray ===
 @module StorageStructArray
-types:
+@types
   struct0: {i256, i256}
 
 fn @setS(arg0: i256, arg1: i256, arg2: i256) [selector=0x200618df, abi_params=[u256, u256, u256], abi_returns=[], abi_return_params=[]] {

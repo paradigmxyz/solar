@@ -11,27 +11,27 @@ fn @bump() -> i256 [selector=0x68110b2f, abi_params=[], abi_returns=[word], abi_
 
 // === ROOT/tests/ui/codegen/mir/guard-elim/runtime.sol:Guarded ===
 @module Guarded
-data:
-  Counter_initcode_0: hex"34600d5760648060115f395ff35b5f5ffd341515601c575f3560e01c806368110b2f14601857601c565b6020565b5f5ffd5b5f54600181018060a0528060a05281811091505060525760a0518060a0525f555f546080526020608001608090036080f35b634e487b715f5260116020526024601cfd"
+@data
+  Counter_creation_code_0: creation_code "ROOT/tests/ui/codegen/mir/guard-elim/runtime.sol:Counter"
 
-immutables:
+@immutables
   counter: u256
 
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 148, v1
+    v1 = datasize Counter_creation_code_0
+    v2 = datasize Counter_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy Counter_initcode_0, v4, 117
+    datacopy Counter_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 117
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 117
+    v9 = create 0, v8, v1
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1

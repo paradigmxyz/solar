@@ -35,10 +35,10 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/mir/guard-elim/runtime.sol:Guarded ===
 @module Guarded
 @phase lowered
-data:
-  Counter_initcode_0: hex"34600d57603e8060115f395ff35b5f5ffd346028575f3560e01c806368110b2f036028575f546001018015602c57805f5560805260206080f35b5f5ffd5b634e487b715f5260116020526024601cfd"
+@data
+  Counter_creation_code_0: creation_code "ROOT/tests/ui/codegen/mir/guard-elim/runtime.sol:Counter"
 
-immutables:
+@immutables
   counter: u160
 
 fn @constructor() [abi_wrapper, constructor] {
@@ -48,13 +48,17 @@ fn @constructor() [abi_wrapper, constructor] {
     jumpi v16, bb4, bb1
   bb1:
     sstore 0, 1 !metadata(storage=slot(0))
+    v22 = mload 64 !metadata(memory=scratch)
+    v23 = add v22, 32
+    mstore 64, v23 !metadata(memory=scratch)
+    mstore v22, 0
+    v1 = datasize Counter_creation_code_0
+    v2 = datasize Counter_creation_code_0, 31, aligned
     v24 = mload 64 !metadata(memory=scratch)
-    v25 = add v24, 128
+    v25 = add v24, v2
     mstore 64, v25 !metadata(memory=scratch)
-    mstore v24, 0
-    v23 = add v24, 32
-    data_copy Counter_initcode_0, v23, 79
-    v9 = create 0, v23, 79
+    datacopy Counter_creation_code_0, v24, v1
+    v9 = create 0, v24, v1
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb3, bb2

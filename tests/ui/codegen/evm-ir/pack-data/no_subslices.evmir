@@ -1,12 +1,15 @@
 //@ compile-flags: -O none -Zevm-ir-pipeline=pack-data
 //@ filecheck:
 @module no_subslices
+@data
+  small_0: hex"2233"
+  container_1: hex"11223344"
 
 // Required data cleanup at `-O none` removes no live bytes but must not alter
 // a data reference's entry or offset.
+// CHECK: small_0: hex"2233"
+// CHECK: container_1: hex"11223344"
 // CHECK: push_data small_0
-// CHECK: @data small_0 hex"2233"
-// CHECK: @data container_1 hex"11223344"
 bb0:
   push 2
   push_data small_0
@@ -17,6 +20,3 @@ bb0:
   push 32
   codecopy
   stop
-
-@data small_0 hex"2233"
-@data container_1 hex"11223344"

@@ -399,12 +399,7 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
 /// `name` overrides the module name in pass output. The canonical pipeline advances the module
 /// through semantic optimization, representation conversion, and word optimization. Individual
 /// passes preserve the phase except the checked completion of `lower-evm-shaped`.
-#[tracing::instrument(
-    name = "mir_pipeline",
-    level = "debug",
-    skip_all,
-    fields(module = %module.name),
-)]
+#[tracing::instrument(name = "mir_pipeline", level = "debug", skip_all)]
 #[must_use]
 pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
     if let Some(value) = gcx.sess.opts.unstable.mir_pipeline.as_deref() {

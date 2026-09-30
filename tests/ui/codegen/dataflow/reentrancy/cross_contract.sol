@@ -2,8 +2,8 @@
 //@ filecheck:
 // Cross-contract reasoning. `Vault` calls a relay it created; the relay's code calls an
 // untrusted address, so control can return into `Vault` and the call is a reentrancy
-// vector. `QuietVault` calls a created helper whose code has no call instructions, so the
-// call cannot reenter and its lock state survives the call.
+// vector. Deferred bytecode keeps the quiet helper opaque too: QuietVault documents a
+// known false positive pending sound callback-free constructor/runtime provenance.
 
 // CHECK-LABEL: :Vault ===
 // CHECK: finding: reentrancy cross-contract @withdraw {{.*}} writes slot(0)[caller] after the call
@@ -11,7 +11,7 @@
 // CHECK: call {{.*}}; call to immutable0 slot(1)=1
 // CHECK: sstore 1, 0 {{.*}}
 // CHECK: exit: slot(1)=0
-// CHECK-NOT: finding:
+// CHECK: finding: reentrancy cross-contract @withdraw
 interface IHook {
     function ping() external;
 }
@@ -57,6 +57,7 @@ contract QuietVault {
         lock = 1;
         require(balances[msg.sender] > 0);
         counter.bump();
+        //~^ WARN: possible cross-contract reentrancy: `withdraw` writes storage after an external call
         balances[msg.sender] = 0;
         lock = 0;
     }

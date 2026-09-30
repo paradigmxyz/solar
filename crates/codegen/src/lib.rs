@@ -23,7 +23,10 @@ pub use contract::{
 };
 
 mod link;
-pub use link::{Library, LibraryId, LibraryRelocation, LibraryTable, RelocatableBytecode};
+pub use link::{
+    ContractBytecodes, EmbeddedBytecodes, LibraryId, LibraryRelocation, LibraryTable,
+    QualifiedName, RelocatableBytecode,
+};
 
 mod ir_parse;
 mod source_info;
