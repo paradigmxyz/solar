@@ -1029,8 +1029,9 @@ impl InstKind {
             // Module and builtin signatures are checked by the validator.
             Self::ICall { .. } => true,
             _ => {
-                self.op_def().result != super::ResultKind::Custom
-                    && self.op_def().result.default_type() == result
+                let kind = self.op_def().result;
+                kind != super::ResultKind::Custom
+                    && result.map_or(!kind.produces_value(), |ty| kind.admits_type(ty))
             }
         }
     }

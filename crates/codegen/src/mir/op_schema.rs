@@ -99,6 +99,8 @@ pub(crate) enum ResultKind {
     None,
     /// A 256-bit integer.
     I256,
+    /// A 256-bit word read from memory: an integer, or a pointer when the loaded field holds one.
+    Word,
     /// A raw memory pointer.
     MemPtr,
     /// A 160-bit integer.
@@ -115,7 +117,7 @@ impl ResultKind {
     pub(crate) const fn default_type(self) -> Option<MirType> {
         match self {
             Self::None | Self::Custom => None,
-            Self::I256 => Some(MirType::I256),
+            Self::I256 | Self::Word => Some(MirType::I256),
             Self::MemPtr => Some(MirType::MemPtr),
             Self::I160 => Some(MirType::I160),
             Self::I1 => Some(MirType::I1),
@@ -130,7 +132,8 @@ impl ResultKind {
 
     /// Checks the exact result type; scalar conversions require explicit instructions.
     pub(crate) fn admits_type(self, ty: MirType) -> bool {
-        self.default_type().is_none_or(|expected| expected == ty)
+        (self == Self::Word && ty == MirType::MemPtr)
+            || self.default_type().is_none_or(|expected| expected == ty)
     }
 }
 
@@ -1552,7 +1555,7 @@ define_mir_ops! {
     /// Load one direct struct field without exposing its physical address.
     #[mir_op(
         mnemonic = "memory_object_load_field",
-        result = I256,
+        result = Word,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::MEMORY_OBJECT,
@@ -1592,7 +1595,7 @@ define_mir_ops! {
     /// Load one array element without exposing its physical address.
     #[mir_op(
         mnemonic = "memory_object_load_element",
-        result = I256,
+        result = Word,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::MEMORY_OBJECT,

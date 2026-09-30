@@ -202,21 +202,19 @@ fn @distinctDynamicReturns() -> i256 [selector=0x56c7de2c, abi_params=[], abi_re
     v12 = insert_value struct0, v11, 1, v10
     v13 = extract_value struct0, v12, 0
     v14 = extract_value struct0, v12, 1
-    v15 = memory_object_load_field memorystruct<1>, v13, 0
-    v16 = inttoptr i256 v15 to memptr
-    v17 = memory_object_len memoryarray, v16
-    v18 = lt 0, v17
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    memory_object_store_element memoryarray<1>, v16, 0, 9
-    v20 = memory_object_load_field memorystruct<1>, v14, 0
-    v21 = inttoptr i256 v20 to memptr
-    v22 = memory_object_len memoryarray, v21
-    v23 = lt 0, v22
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = memory_object_load_element memoryarray<1>, v21, 0
-    ret v25
+    v15 = memory_object_load_field memorystruct<1>, v13, 0, memptr
+    v16 = memory_object_len memoryarray, v15
+    v17 = lt 0, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    memory_object_store_element memoryarray<1>, v15, 0, 9
+    v19 = memory_object_load_field memorystruct<1>, v14, 0, memptr
+    v20 = memory_object_len memoryarray, v19
+    v21 = lt 0, v20
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = memory_object_load_element memoryarray<1>, v19, 0
+    ret v23
 }
 
 fn @fallback() [fallback] {

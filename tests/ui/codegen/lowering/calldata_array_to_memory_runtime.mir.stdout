@@ -55,17 +55,15 @@ fn @viaStructLiteral(arg0: i256, arg1: calldataslice, arg2: calldataslice) -> i2
     v37 = ptrtoint memptr v35 to i256
     memory_object_store_field memorystruct<3>, v0, 2, v37
     v38 = memory_object_load_field memorystruct<3>, v0, 0
-    v39 = memory_object_load_field memorystruct<3>, v0, 1
-    v40 = inttoptr i256 v39 to memptr
-    v41 = memory_object_len memoryarray, v40
-    v42 = checked_mul u256, v41, 10
-    v43 = checked_add u256, v38, v42
-    v44 = memory_object_load_field memorystruct<3>, v0, 2
-    v45 = inttoptr i256 v44 to memptr
-    v46 = memory_object_len memorybytes, v45
-    v47 = checked_mul u256, v46, 100
-    v48 = checked_add u256, v43, v47
-    ret v48
+    v39 = memory_object_load_field memorystruct<3>, v0, 1, memptr
+    v40 = memory_object_len memoryarray, v39
+    v41 = checked_mul u256, v40, 10
+    v42 = checked_add u256, v38, v41
+    v43 = memory_object_load_field memorystruct<3>, v0, 2, memptr
+    v44 = memory_object_len memorybytes, v43
+    v45 = checked_mul u256, v44, 100
+    v46 = checked_add u256, v42, v45
+    ret v46
 }
 
 fn @viaDeclaration(arg0: calldataslice) -> i256 [selector=0xcd64a752, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {

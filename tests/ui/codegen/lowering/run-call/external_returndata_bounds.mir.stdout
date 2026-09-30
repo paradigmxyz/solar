@@ -12,22 +12,18 @@ fn @aggregate() -> memptr [selector=0xaf36778b, pure, abi_params=[], abi_returns
     v5 = ptrtoint memptr v1 to i256
     memory_object_store_field memorystruct<2>, v0, 0, v5
     memory_object_store_field memorystruct<2>, v0, 1, 0
-    v6 = memory_object_load_field memorystruct<2>, v0, 0
-    v7 = inttoptr i256 v6 to memptr
-    v8 = memory_object_load_field memorystruct<1>, v7, 0
-    v9 = inttoptr i256 v8 to memptr
-    v10 = lt 0, 2
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    memory_object_store_element memoryfixedarray<2, 1>, v9, 0, 11
-    v12 = memory_object_load_field memorystruct<2>, v0, 0
-    v13 = inttoptr i256 v12 to memptr
-    v14 = memory_object_load_field memorystruct<1>, v13, 0
-    v15 = inttoptr i256 v14 to memptr
-    v16 = lt 1, 2
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    memory_object_store_element memoryfixedarray<2, 1>, v15, 1, 22
+    v6 = memory_object_load_field memorystruct<2>, v0, 0, memptr
+    v7 = memory_object_load_field memorystruct<1>, v6, 0, memptr
+    v8 = lt 0, 2
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    memory_object_store_element memoryfixedarray<2, 1>, v7, 0, 11
+    v10 = memory_object_load_field memorystruct<2>, v0, 0, memptr
+    v11 = memory_object_load_field memorystruct<1>, v10, 0, memptr
+    v12 = lt 1, 2
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    memory_object_store_element memoryfixedarray<2, 1>, v11, 1, 22
     memory_object_store_field memorystruct<2>, v0, 1, 33
     ret v0
 }
@@ -52,29 +48,25 @@ fn @dirtyAddress() -> i256 [selector=0x986597e5, pure, abi_params=[], abi_return
 
 fn @check(arg0: memptr) -> i256 [pure] {
   bb0:
-    v0 = memory_object_load_field memorystruct<2>, arg0, 0
-    v1 = inttoptr i256 v0 to memptr
-    v2 = memory_object_load_field memorystruct<1>, v1, 0
-    v3 = inttoptr i256 v2 to memptr
-    v4 = lt 0, 2
-    v5 = eq v4, false
-    icall panic_if<0x32>, v5
-    v6 = memory_object_load_element memoryfixedarray<2, 1>, v3, 0
-    v7 = eq v6, 11
-    icall require<short_string>, v7, 5, 0x6669727374000000000000000000000000000000000000000000000000000000
-    v8 = memory_object_load_field memorystruct<2>, arg0, 0
-    v9 = inttoptr i256 v8 to memptr
-    v10 = memory_object_load_field memorystruct<1>, v9, 0
-    v11 = inttoptr i256 v10 to memptr
-    v12 = lt 1, 2
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    v14 = memory_object_load_element memoryfixedarray<2, 1>, v11, 1
-    v15 = eq v14, 22
-    icall require<short_string>, v15, 6, 0x7365636f6e640000000000000000000000000000000000000000000000000000
-    v16 = memory_object_load_field memorystruct<2>, arg0, 1
-    v17 = eq v16, 33
-    icall require<short_string>, v17, 3, 0x7461670000000000000000000000000000000000000000000000000000000000
+    v0 = memory_object_load_field memorystruct<2>, arg0, 0, memptr
+    v1 = memory_object_load_field memorystruct<1>, v0, 0, memptr
+    v2 = lt 0, 2
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = memory_object_load_element memoryfixedarray<2, 1>, v1, 0
+    v5 = eq v4, 11
+    icall require<short_string>, v5, 5, 0x6669727374000000000000000000000000000000000000000000000000000000
+    v6 = memory_object_load_field memorystruct<2>, arg0, 0, memptr
+    v7 = memory_object_load_field memorystruct<1>, v6, 0, memptr
+    v8 = lt 1, 2
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = memory_object_load_element memoryfixedarray<2, 1>, v7, 1
+    v11 = eq v10, 22
+    icall require<short_string>, v11, 6, 0x7365636f6e640000000000000000000000000000000000000000000000000000
+    v12 = memory_object_load_field memorystruct<2>, arg0, 1
+    v13 = eq v12, 33
+    icall require<short_string>, v13, 3, 0x7461670000000000000000000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -176,15 +168,13 @@ fn @projectedAggregate() -> i256 [selector=0xec2041b8, abi_params=[], abi_return
     set_memory_object_len memorybytes, v29, v24
     memory_object_copy_from_slice memorybytes, v29, v23
     v30 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v29
-    v31 = memory_object_load_field memorystruct<2>, v30, 0
-    v32 = inttoptr i256 v31 to memptr
-    v33 = memory_object_load_field memorystruct<1>, v32, 0
-    v34 = inttoptr i256 v33 to memptr
-    v35 = lt 1, 2
-    v36 = eq v35, false
-    icall panic_if<0x32>, v36
-    v37 = memory_object_load_element memoryfixedarray<2, 1>, v34, 1
-    ret v37
+    v31 = memory_object_load_field memorystruct<2>, v30, 0, memptr
+    v32 = memory_object_load_field memorystruct<1>, v31, 0, memptr
+    v33 = lt 1, 2
+    v34 = eq v33, false
+    icall panic_if<0x32>, v34
+    v35 = memory_object_load_element memoryfixedarray<2, 1>, v32, 1
+    ret v35
 }
 
 fn @functionPointerAggregate() -> i256 [selector=0xebe6d175, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

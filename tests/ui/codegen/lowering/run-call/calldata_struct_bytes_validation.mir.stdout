@@ -45,12 +45,11 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xd1ee4a1a, pure, abi_params=[tu
     icall revert_if<calldata_tail_too_short>, v31
     v32 = calldataload v28
     memory_object_store_field memorystruct<2>, v1, 1, v32
-    v33 = memory_object_load_field memorystruct<2>, v1, 0
-    v34 = inttoptr i256 v33 to memptr
-    v35 = memory_object_len memorybytes, v34
-    v36 = memory_object_load_field memorystruct<2>, v1, 1
-    v37 = checked_add u256, v35, v36
-    ret v37
+    v33 = memory_object_load_field memorystruct<2>, v1, 0, memptr
+    v34 = memory_object_len memorybytes, v33
+    v35 = memory_object_load_field memorystruct<2>, v1, 1
+    v36 = checked_add u256, v34, v35
+    ret v36
 }
 
 fn @encodeField(arg0: calldataslice) -> i256 [selector=0xbd1dd83b, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[u256]] {

@@ -50,18 +50,16 @@ fn @get(arg0: i256) -> struct0 [selector=0x9507d39a, view, abi_params=[u256], ab
     v10 = sload v9 !metadata(storage=offset(v0, 3))
     memory_object_store_field memorystruct<3>, v1, 2, v10
     v11 = memory_object_load_field memorystruct<3>, v1, 0
-    v12 = memory_object_load_field memorystruct<3>, v1, 1
-    v13 = inttoptr i256 v12 to memptr
-    v14 = memory_object_load_field memorystruct<2>, v13, 0
-    v15 = memory_object_load_field memorystruct<3>, v1, 1
-    v16 = inttoptr i256 v15 to memptr
-    v17 = memory_object_load_field memorystruct<2>, v16, 1
-    v18 = memory_object_load_field memorystruct<3>, v1, 2
-    v19 = insert_value struct0, undef struct0, 0, v11
-    v20 = insert_value struct0, v19, 1, v14
-    v21 = insert_value struct0, v20, 2, v17
-    v22 = insert_value struct0, v21, 3, v18
-    ret v22
+    v12 = memory_object_load_field memorystruct<3>, v1, 1, memptr
+    v13 = memory_object_load_field memorystruct<2>, v12, 0
+    v14 = memory_object_load_field memorystruct<3>, v1, 1, memptr
+    v15 = memory_object_load_field memorystruct<2>, v14, 1
+    v16 = memory_object_load_field memorystruct<3>, v1, 2
+    v17 = insert_value struct0, undef struct0, 0, v11
+    v18 = insert_value struct0, v17, 1, v13
+    v19 = insert_value struct0, v18, 2, v15
+    v20 = insert_value struct0, v19, 3, v16
+    ret v20
 }
 
 fn @clear(arg0: i256) [selector=0xc0fe1af8, abi_params=[u256], abi_returns=[], abi_return_params=[]] {

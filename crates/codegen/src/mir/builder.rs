@@ -576,10 +576,13 @@ impl<'a> FunctionBuilder<'a> {
             // operand = zext integer or ptrtoint pointer to i256
             kind.visit_operands_mut(|value| *value = self.cast(*value, MirType::I256));
         }
+        let result = kind.op_def().result;
         let produced = if boolean_bitwise {
             MirType::I1
+        } else if result.admits_type(requested) {
+            requested
         } else {
-            kind.op_def().result.default_type().unwrap_or(requested)
+            result.default_type().unwrap_or(requested)
         };
         // result = op operands
         // requested = cast result

@@ -141,59 +141,55 @@ fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<
   bb2:
     v32 = icall returndata_bytes<>
     v33 = abi_decode [tuple<array<_, function>>], v32
-    v34 = memory_object_load_field memorystruct<1>, v33, 0
-    v35 = inttoptr i256 v34 to memptr
-    v36 = memory_object_len memoryarray, v35
-    v37 = eq v36, 3
-    v38 = eq v37, false
-    icall revert_if<empty>, v38
-    v39 = memory_object_load_field memorystruct<1>, v33, 0
-    v40 = inttoptr i256 v39 to memptr
-    v41 = memory_object_len memoryarray, v40
-    v42 = lt 0, v41
-    v43 = eq v42, false
-    icall panic_if<0x32>, v43
-    v44 = memory_object_load_element memoryarray<1>, v40, 0
-    v45 = shr 64, v44
-    v46 = address
-    v47 = zext i160 v46 to i256
-    v48 = shl 32, v47
-    v49 = or v48, 0xd24c5a36
-    v50 = eq v45, v49
-    v51 = eq v50, false
-    icall revert_if<empty>, v51
-    v52 = memory_object_load_field memorystruct<1>, v33, 0
-    v53 = inttoptr i256 v52 to memptr
-    v54 = memory_object_len memoryarray, v53
-    v55 = lt 1, v54
-    v56 = eq v55, false
-    icall panic_if<0x32>, v56
-    v57 = memory_object_load_element memoryarray<1>, v53, 1
-    v58 = shr 64, v57
-    v59 = address
-    v60 = zext i160 v59 to i256
-    v61 = shl 32, v60
-    v62 = or v61, 0xc5337ed4
-    v63 = eq v58, v62
-    v64 = eq v63, false
-    icall revert_if<empty>, v64
-    v65 = memory_object_load_field memorystruct<1>, v33, 0
-    v66 = inttoptr i256 v65 to memptr
-    v67 = memory_object_len memoryarray, v66
-    v68 = lt 2, v67
-    v69 = eq v68, false
-    icall panic_if<0x32>, v69
-    v70 = memory_object_load_element memoryarray<1>, v66, 2
-    v71 = shr 64, v70
-    v72 = address
-    v73 = zext i160 v72 to i256
-    v74 = shl 32, v73
-    v75 = or v74, 0xafb0db5f
-    v76 = eq v71, v75
-    v77 = eq v76, false
-    icall revert_if<empty>, v77
-    v78 = zext i1 1 to i256
-    ret v78
+    v34 = memory_object_load_field memorystruct<1>, v33, 0, memptr
+    v35 = memory_object_len memoryarray, v34
+    v36 = eq v35, 3
+    v37 = eq v36, false
+    icall revert_if<empty>, v37
+    v38 = memory_object_load_field memorystruct<1>, v33, 0, memptr
+    v39 = memory_object_len memoryarray, v38
+    v40 = lt 0, v39
+    v41 = eq v40, false
+    icall panic_if<0x32>, v41
+    v42 = memory_object_load_element memoryarray<1>, v38, 0
+    v43 = shr 64, v42
+    v44 = address
+    v45 = zext i160 v44 to i256
+    v46 = shl 32, v45
+    v47 = or v46, 0xd24c5a36
+    v48 = eq v43, v47
+    v49 = eq v48, false
+    icall revert_if<empty>, v49
+    v50 = memory_object_load_field memorystruct<1>, v33, 0, memptr
+    v51 = memory_object_len memoryarray, v50
+    v52 = lt 1, v51
+    v53 = eq v52, false
+    icall panic_if<0x32>, v53
+    v54 = memory_object_load_element memoryarray<1>, v50, 1
+    v55 = shr 64, v54
+    v56 = address
+    v57 = zext i160 v56 to i256
+    v58 = shl 32, v57
+    v59 = or v58, 0xc5337ed4
+    v60 = eq v55, v59
+    v61 = eq v60, false
+    icall revert_if<empty>, v61
+    v62 = memory_object_load_field memorystruct<1>, v33, 0, memptr
+    v63 = memory_object_len memoryarray, v62
+    v64 = lt 2, v63
+    v65 = eq v64, false
+    icall panic_if<0x32>, v65
+    v66 = memory_object_load_element memoryarray<1>, v62, 2
+    v67 = shr 64, v66
+    v68 = address
+    v69 = zext i160 v68 to i256
+    v70 = shl 32, v69
+    v71 = or v70, 0xafb0db5f
+    v72 = eq v67, v71
+    v73 = eq v72, false
+    icall revert_if<empty>, v73
+    v74 = zext i1 1 to i256
+    ret v74
 }
 
 fn @random1() [selector=0xd24c5a36, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {

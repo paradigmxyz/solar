@@ -222,36 +222,34 @@ fn @pushAndReadSelectors() -> struct1 [selector=0x5c0d845c, abi_params=[], abi_r
     jump bb4
   bb4:
     v29 = phi [bb2: v25], [bb3: v27]
-    v30 = memory_object_load_field memorystruct<2>, v29, 1
-    v31 = inttoptr i256 v30 to memptr
-    v32 = memory_object_len memoryarray, v31
-    v33 = memory_object_len memoryarray, v19
-    v34 = lt 0, v33
-    v35 = eq v34, false
-    icall panic_if<0x32>, v35
-    v36 = memory_object_load_element memoryarray<1>, v19, 0
-    v37 = inttoptr i256 v36 to memptr
-    v38 = eq v36, 0
-    jumpi v38, bb5, bb6
+    v30 = memory_object_load_field memorystruct<2>, v29, 1, memptr
+    v31 = memory_object_len memoryarray, v30
+    v32 = memory_object_len memoryarray, v19
+    v33 = lt 0, v32
+    v34 = eq v33, false
+    icall panic_if<0x32>, v34
+    v35 = memory_object_load_element memoryarray<1>, v19, 0
+    v36 = inttoptr i256 v35 to memptr
+    v37 = eq v35, 0
+    jumpi v37, bb5, bb6
   bb5:
-    v39 = icall @default_struct_0
-    v40 = ptrtoint memptr v39 to i256
-    memory_object_store_element memoryarray<1>, v19, 0, v40
+    v38 = icall @default_struct_0
+    v39 = ptrtoint memptr v38 to i256
+    memory_object_store_element memoryarray<1>, v19, 0, v39
     jump bb6
   bb6:
-    v41 = phi [bb4: v37], [bb5: v39]
-    v42 = memory_object_load_field memorystruct<2>, v41, 1
-    v43 = inttoptr i256 v42 to memptr
-    v44 = memory_object_len memoryarray, v43
-    v45 = lt 0, v44
-    v46 = eq v45, false
-    icall panic_if<0x32>, v46
-    v47 = memory_object_load_element memoryarray<1>, v43, 0
-    v48 = and v47, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v49 = insert_value struct1, undef struct1, 0, v20
-    v50 = insert_value struct1, v49, 1, v32
-    v51 = insert_value struct1, v50, 2, v48
-    ret v51
+    v40 = phi [bb4: v36], [bb5: v38]
+    v41 = memory_object_load_field memorystruct<2>, v40, 1, memptr
+    v42 = memory_object_len memoryarray, v41
+    v43 = lt 0, v42
+    v44 = eq v43, false
+    icall panic_if<0x32>, v44
+    v45 = memory_object_load_element memoryarray<1>, v41, 0
+    v46 = and v45, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v47 = insert_value struct1, undef struct1, 0, v20
+    v48 = insert_value struct1, v47, 1, v31
+    v49 = insert_value struct1, v48, 2, v46
+    ret v49
 }
 
 fn @load_storage_packed_array_20_0(arg0: i256) -> memptr {
