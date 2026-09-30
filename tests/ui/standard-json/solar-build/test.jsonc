@@ -10,10 +10,10 @@
 // CHECK: "evmVersion": "cancun",
 // CHECK: "coreIntrinsics": true
 // CHECK: "coreModules": {
-// CHECK-DAG: "solar:core/v1/Arrays.sol": "0x{{[0-9a-f]+}}"
-// CHECK-DAG: "solar:core/v1/Buffers.sol": "0x{{[0-9a-f]+}}"
-// CHECK-DAG: "solar:core/v1/Bytes.sol": "0x{{[0-9a-f]+}}"
-// CHECK-DAG: "solar:core/v1/Strings.sol": "0x{{[0-9a-f]+}}"
+// CHECK-DAG: "solar:core/Arrays.sol": "0x{{[0-9a-f]+}}"
+// CHECK-DAG: "solar:core/Buffers.sol": "0x{{[0-9a-f]+}}"
+// CHECK-DAG: "solar:core/Bytes.sol": "0x{{[0-9a-f]+}}"
+// CHECK-DAG: "solar:core/Strings.sol": "0x{{[0-9a-f]+}}"
 {
   "language": "Solidity",
   "settings": {

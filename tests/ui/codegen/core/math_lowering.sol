@@ -12,7 +12,7 @@
 // INTRINSIC-NOT: icall @mul512
 // PORTABLE-LABEL: fn @mul512
 // PORTABLE: mulmod
-import {Math, Rounding} from "solar:core/v1/Math.sol";
+import {Math, Rounding} from "solar:core/Math.sol";
 
 contract Test {
     function mul512(uint256 x, uint256 y) public pure returns (uint256 high, uint256 low) {

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Arrays} from "solar:core/v1/Arrays.sol";
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Arrays} from "solar:core/Arrays.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 /// @notice Output being assembled. Its fields belong to `Buffers`; read the
 /// result through `finish`.
@@ -40,7 +40,7 @@ struct Int256Builder {
 }
 
 /// @notice Builders for output whose length is not known until it is written.
-/// @dev Compiler-owned module, imported as `solar:core/v1/Buffers.sol`. The
+/// @dev Compiler-owned module, imported as `solar:core/Buffers.sol`. The
 /// capacity given to `create` is a hint: an append that does not fit
 /// allocates at least twice the space and moves what was written, so appends
 /// never write outside the builder and never fail for lack of room. `finish`

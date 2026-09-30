@@ -1,7 +1,7 @@
 //@ compile-flags: -Ogas -Zdump=mir
 //@ filecheck:
 
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 contract Test {
     using Bytes for bytes;

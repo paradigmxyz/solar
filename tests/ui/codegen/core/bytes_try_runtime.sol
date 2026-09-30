@@ -20,7 +20,7 @@
 // `tryReadBytesN` is the read that answers instead of reverting: `false` and
 // zero when the width does not lie inside the buffer, whatever follows it in
 // memory.
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 contract Test {
     function try1(bytes memory b, uint256 offset) public pure returns (bool, bytes1) {

@@ -34,7 +34,7 @@
 // output in a `ByteBuilder`, which grows when escapes make the text longer;
 // its input and output go through `bytes` here so that control characters
 // survive the directive.
-import {Strings} from "solar:core/v1/Strings.sol";
+import {Strings} from "solar:core/Strings.sol";
 
 contract Test {
     function decimal(uint256 value) public pure returns (string memory) {

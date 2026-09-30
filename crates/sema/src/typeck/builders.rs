@@ -1,4 +1,4 @@
-//! Encapsulation of the builders of `solar:core/v1/Buffers.sol`.
+//! Encapsulation of the builders of `solar:core/Buffers.sol`.
 //!
 //! A `ByteBuilder` or `WordBuilder` keeps what was written apart from the capacity behind it:
 //! `append` writes below `used`, and `finish` returns exactly the written part. Code outside the
@@ -29,7 +29,7 @@ use solar_interface::{Span, source_map::FileName};
 use std::ops::ControlFlow;
 
 /// The module that owns the builders.
-const BUFFERS: &str = "solar:core/v1/Buffers.sol";
+const BUFFERS: &str = "solar:core/Buffers.sol";
 
 pub(super) fn check(gcx: Gcx<'_>) {
     for source in gcx.hir.source_ids() {

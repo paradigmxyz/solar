@@ -13,7 +13,7 @@
 // Encoding into memory the caller owns. A word write pads a narrow value, a
 // selector write takes four bytes, every write is bounds checked against the
 // buffer, and bytes outside the encoded range keep whatever they held.
-import {Abi} from "solar:core/v1/Abi.sol";
+import {Abi} from "solar:core/Abi.sol";
 
 contract Test {
     /// A call payload built in place: selector, then one word per argument.

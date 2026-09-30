@@ -30,7 +30,7 @@
 // INTRINSIC: stop
 // INTRINSIC: sstore [[SLOT]], {{v[0-9]+}}
 // INTRINSIC-NOT: keccak256
-import {Slots} from "solar:core/v1/Slots.sol";
+import {Slots} from "solar:core/Slots.sol";
 
 contract Test {
     Slots.Root root;

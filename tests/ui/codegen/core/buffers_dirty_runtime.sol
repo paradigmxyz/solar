@@ -33,7 +33,7 @@
 // program can do with the result sees the difference: conversions, hashes,
 // encodings, concatenation and storage all read only what was written, and
 // return what a zeroed backing returns.
-import {Buffers, ByteBuilder, WordBuilder} from "solar:core/v1/Buffers.sol";
+import {Buffers, ByteBuilder, WordBuilder} from "solar:core/Buffers.sol";
 
 contract Test {
     using Buffers for ByteBuilder;

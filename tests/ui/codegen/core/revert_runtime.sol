@@ -10,7 +10,7 @@
 // `Revert.raw` reverts with its argument as the whole payload, no encoding
 // around it. The intrinsic is the revert terminator over the buffer's range;
 // the shipped body is the same terminator written in assembly.
-import {Revert} from "solar:core/v1/Revert.sol";
+import {Revert} from "solar:core/Revert.sol";
 
 contract Test {
     function boom(bytes memory data) public pure {

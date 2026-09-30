@@ -1,4 +1,4 @@
-// === <solar:core/v1/Bytes.sol>:Bytes ===
+// === <solar:core/Bytes.sol>:Bytes ===
 @module Bytes
 @phase lowered
 @library
@@ -7,7 +7,7 @@ fn @entry() [entry] {
     revert 0, 0
 }
 
-// === <solar:core/v1/Calls.sol>:Calls ===
+// === <solar:core/Calls.sol>:Calls ===
 @module Calls
 @phase lowered
 @library
@@ -16,7 +16,7 @@ fn @entry() [entry] {
     revert 0, 0
 }
 
-// === <solar:core/v1/Create.sol>:Create ===
+// === <solar:core/Create.sol>:Create ===
 @module Create
 @phase lowered
 @library

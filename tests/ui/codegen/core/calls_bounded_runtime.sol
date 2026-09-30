@@ -43,8 +43,8 @@
 // CHECK: = staticcall {{v[0-9]+}}, 4, {{v[0-9]+}}, 64, 0, 0
 // CHECK: mstore 64,
 // CHECK: returndatacopy
-import {Calls} from "solar:core/v1/Calls.sol";
-import {Create} from "solar:core/v1/Create.sol";
+import {Calls} from "solar:core/Calls.sol";
+import {Create} from "solar:core/Create.sol";
 
 contract Test {
     function bounded(bytes memory initcode, uint256 maxCopy)

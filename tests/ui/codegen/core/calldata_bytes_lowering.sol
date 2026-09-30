@@ -15,7 +15,7 @@
 // INTRINSIC-NOT: icall @copyInto
 // PORTABLE-LABEL: fn @read4
 // PORTABLE: byte
-import {CalldataBytes} from "solar:core/v1/CalldataBytes.sol";
+import {CalldataBytes} from "solar:core/CalldataBytes.sol";
 
 contract Test {
     function read1(bytes calldata b, uint256 offset) public pure returns (bytes1) {

@@ -4,7 +4,7 @@
 //@[portable] compile-flags: -Ogas -Zdump=mir -Zno-core-intrinsics
 //@[portable] filecheck: --check-prefix=PORTABLE
 
-import {Arrays} from "solar:core/v1/Arrays.sol";
+import {Arrays} from "solar:core/Arrays.sol";
 
 contract Test {
     using Arrays for uint256[];

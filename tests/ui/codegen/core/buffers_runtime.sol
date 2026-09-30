@@ -15,7 +15,7 @@
 // past it, so the allocation that follows the builder keeps its bytes.
 // `finish` hands the bytes over and leaves the builder empty; using a builder
 // after that is rejected, as `buffers_finish.sol` shows.
-import {Buffers, ByteBuilder} from "solar:core/v1/Buffers.sol";
+import {Buffers, ByteBuilder} from "solar:core/Buffers.sol";
 
 contract Test {
     using Buffers for ByteBuilder;

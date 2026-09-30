@@ -23,7 +23,7 @@
 // callers pass a view as it is and a `bytes` object as the slice of its bytes,
 // with no copy, and the function reads it in place. Other compilers pass the
 // object, which the `portable` revision runs, with the same results.
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 library Count {
     /// @custom:solar-view b

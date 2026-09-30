@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 /// @notice External calls whose output lands in a buffer the caller owns, or
 /// ends the current call.
-/// @dev Compiler-owned module, imported as `solar:core/v1/Calls.sol`.
+/// @dev Compiler-owned module, imported as `solar:core/Calls.sol`.
 /// `target.call(payload)` copies the whole response into fresh memory;
 /// `callInto` and its siblings copy at most `output.length` bytes of it into
 /// `output`, report how many arrived and how many there were, and leave the

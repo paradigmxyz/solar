@@ -54,7 +54,7 @@
 // remainder that borrows from the high word, and a floor of the largest word
 // whose rounding up has nowhere to go. The `wrapping` operations are modular
 // by name.
-import {Math, Rounding} from "solar:core/v1/Math.sol";
+import {Math, Rounding} from "solar:core/Math.sol";
 
 contract Test {
     function mul512(uint256 x, uint256 y) public pure returns (uint256 high, uint256 low) {

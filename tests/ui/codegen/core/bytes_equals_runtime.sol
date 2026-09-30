@@ -38,8 +38,8 @@
 // byte, in the last bit of the last byte, and a length that differs by one.
 // A `WordBuilder` collects a `uint256[]` whose length is not known up front
 // and hands it over without a copy.
-import {Buffers, WordBuilder} from "solar:core/v1/Buffers.sol";
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Buffers, WordBuilder} from "solar:core/Buffers.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 contract Test {
     using Buffers for WordBuilder;

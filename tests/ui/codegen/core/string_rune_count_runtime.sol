@@ -39,7 +39,7 @@
 //@ run-call: sweep 128; gas=16000000 => true
 //@ run-call: sweep 200; gas=16000000 => true
 
-import {Strings} from "solar:core/v1/Strings.sol";
+import {Strings} from "solar:core/Strings.sol";
 
 contract Test {
     // The count is lowered in place: a lead's top six bits select a nibble of

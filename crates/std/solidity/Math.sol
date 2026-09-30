@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Bits} from "solar:core/v1/Bits.sol";
+import {Bits} from "solar:core/Bits.sol";
 
 /// @notice How `Math.mulDiv` rounds a quotient that is not exact.
 enum Rounding {
@@ -11,7 +11,7 @@ enum Rounding {
 
 /// @notice Full-width multiplication and division, and arithmetic that wraps
 /// by name.
-/// @dev Compiler-owned module, imported as `solar:core/v1/Math.sol`.
+/// @dev Compiler-owned module, imported as `solar:core/Math.sol`.
 /// `mul512` and `mulDiv` never lose the high half of a product: `mulDiv`
 /// reverts with `Panic(0x12)` when the denominator is zero and with
 /// `Panic(0x11)` when the rounded quotient does not fit 256 bits, and is

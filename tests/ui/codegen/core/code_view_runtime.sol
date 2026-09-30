@@ -18,8 +18,8 @@
 // code, and of a range inside another view; `read` and `copyInto` copy it,
 // checking the range against the code again, so a view that arrives from
 // outside, here one of an account without code, fails where it is read.
-import {Code, CodeView} from "solar:core/v1/Code.sol";
-import {Create} from "solar:core/v1/Create.sol";
+import {Code, CodeView} from "solar:core/Code.sol";
+import {Create} from "solar:core/Create.sol";
 
 contract Test {
     function viewed(bytes memory initcode, uint256 start, uint256 count)

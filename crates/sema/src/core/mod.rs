@@ -1,6 +1,6 @@
 //! Compiler-owned modules under the reserved `solar:core/` import prefix.
 //!
-//! A source importing `solar:core/v1/Bytes.sol` gets the text embedded here,
+//! A source importing `solar:core/Bytes.sol` gets the text `solar-std` embeds,
 //! never a file: the prefix is intercepted before file resolution, so neither
 //! a remapping nor a file on disk can stand in for a module, and a source unit
 //! supplied under one of these names is set aside in favour of the module.
@@ -26,51 +26,7 @@ use solar_interface::{
 };
 use std::sync::OnceLock;
 
-/// The import prefix reserved for compiler-owned modules.
-pub const PREFIX: &str = "solar:core/";
-
-/// One compiler-owned module.
-#[derive(Debug)]
-pub struct CoreModule {
-    /// The import path, which is also the module's source file name.
-    pub path: &'static str,
-    /// The module's Solidity source.
-    pub source: &'static str,
-}
-
-/// Every compiler-owned module.
-pub const MODULES: &[CoreModule] = &[
-    CoreModule { path: "solar:core/v1/Bytes.sol", source: include_str!("v1/Bytes.sol") },
-    CoreModule { path: "solar:core/v1/Arrays.sol", source: include_str!("v1/Arrays.sol") },
-    CoreModule { path: "solar:core/v1/WordArrays.sol", source: include_str!("v1/WordArrays.sol") },
-    CoreModule { path: "solar:core/v1/Revert.sol", source: include_str!("v1/Revert.sol") },
-    CoreModule { path: "solar:core/v1/Hash.sol", source: include_str!("v1/Hash.sol") },
-    CoreModule { path: "solar:core/v1/Create.sol", source: include_str!("v1/Create.sol") },
-    CoreModule { path: "solar:core/v1/Code.sol", source: include_str!("v1/Code.sol") },
-    CoreModule { path: "solar:core/v1/Calls.sol", source: include_str!("v1/Calls.sol") },
-    CoreModule { path: "solar:core/v1/Bits.sol", source: include_str!("v1/Bits.sol") },
-    CoreModule { path: "solar:core/v1/Math.sol", source: include_str!("v1/Math.sol") },
-    CoreModule { path: "solar:core/v1/Cast.sol", source: include_str!("v1/Cast.sol") },
-    CoreModule {
-        path: "solar:core/v1/Precompiles.sol",
-        source: include_str!("v1/Precompiles.sol"),
-    },
-    CoreModule { path: "solar:core/v1/Buffers.sol", source: include_str!("v1/Buffers.sol") },
-    CoreModule {
-        path: "solar:core/v1/CalldataBytes.sol",
-        source: include_str!("v1/CalldataBytes.sol"),
-    },
-    CoreModule { path: "solar:core/v1/Strings.sol", source: include_str!("v1/Strings.sol") },
-    CoreModule { path: "solar:core/v1/Abi.sol", source: include_str!("v1/Abi.sol") },
-    CoreModule {
-        path: "solar:core/v1/codecs/Base64.sol",
-        source: include_str!("v1/codecs/Base64.sol"),
-    },
-    CoreModule { path: "solar:core/v1/codecs/Hex.sol", source: include_str!("v1/codecs/Hex.sol") },
-    CoreModule { path: "solar:core/v1/Slots.sol", source: include_str!("v1/Slots.sol") },
-    CoreModule { path: "solar:core/v1/Return.sol", source: include_str!("v1/Return.sol") },
-    CoreModule { path: "solar:core/v1/Build.sol", source: include_str!("v1/Build.sol") },
-];
+pub use solar_std::{MODULES, Module as CoreModule, PREFIX};
 
 /// Whether `path` lies under the reserved prefix.
 pub fn is_reserved_path(path: &str) -> bool {
@@ -347,20 +303,20 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
     static ABI: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static BUFFERS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     match path {
-        "solar:core/v1/codecs/Hex.sol" => Some(HEX.get_or_init(|| {
+        "solar:core/codecs/Hex.sol" => Some(HEX.get_or_init(|| {
             // `decode` is library code.
             FxHashMap::from_iter([
                 (sym::encode, CoreIntrinsic::HexEncode),
                 (Symbol::intern("encodePrefixed"), CoreIntrinsic::HexEncodePrefixed),
             ])
         })),
-        "solar:core/v1/codecs/Base64.sol" => Some(BASE64.get_or_init(|| {
+        "solar:core/codecs/Base64.sol" => Some(BASE64.get_or_init(|| {
             FxHashMap::from_iter([
                 (sym::encode, CoreIntrinsic::Base64Encode),
                 (sym::decode, CoreIntrinsic::Base64Decode),
             ])
         })),
-        "solar:core/v1/Bytes.sol" => Some(BYTES.get_or_init(|| {
+        "solar:core/Bytes.sol" => Some(BYTES.get_or_init(|| {
             // The names are built here, so each family shares one
             // definition instead of a symbol per width.
             let mut table = FxHashMap::default();
@@ -387,12 +343,12 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
             table.insert(sym::slice, CoreIntrinsic::Slice);
             table
         })),
-        "solar:core/v1/Arrays.sol" => Some(ARRAYS.get_or_init(|| {
+        "solar:core/Arrays.sol" => Some(ARRAYS.get_or_init(|| {
             // Every overload shares the name; the lowering reads the array
             // kind off the declared parameter type.
             FxHashMap::from_iter([(sym::truncate, CoreIntrinsic::Truncate)])
         })),
-        "solar:core/v1/WordArrays.sol" => Some(WORD_ARRAYS.get_or_init(|| {
+        "solar:core/WordArrays.sol" => Some(WORD_ARRAYS.get_or_init(|| {
             FxHashMap::from_iter([
                 (sym::groupSum, CoreIntrinsic::ArrayGroupSum),
                 (Symbol::intern("hasDuplicate"), CoreIntrinsic::ArrayHasDuplicate),
@@ -404,7 +360,7 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (sym::copy, CoreIntrinsic::ArrayCopy),
             ])
         })),
-        "solar:core/v1/Strings.sol" => Some(STRINGS.get_or_init(|| {
+        "solar:core/Strings.sol" => Some(STRINGS.get_or_init(|| {
             FxHashMap::from_iter([
                 (Symbol::intern("replace"), CoreIntrinsic::StringReplace),
                 (Symbol::intern("indicesOf"), CoreIntrinsic::StringIndicesOf),
@@ -430,17 +386,17 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (Symbol::intern("unpackTwo"), CoreIntrinsic::StringUnpackTwo),
             ])
         })),
-        "solar:core/v1/Revert.sol" => Some(
+        "solar:core/Revert.sol" => Some(
             REVERT.get_or_init(|| FxHashMap::from_iter([(sym::raw, CoreIntrinsic::RevertRaw)])),
         ),
-        "solar:core/v1/Return.sol" => Some(RETURN.get_or_init(|| {
+        "solar:core/Return.sol" => Some(RETURN.get_or_init(|| {
             // Every `abiEncoded` overload shares the name; the lowering reads the parameter type.
             FxHashMap::from_iter([
                 (sym::abiEncoded, CoreIntrinsic::ReturnAbiEncoded),
                 (sym::raw, CoreIntrinsic::ReturnRaw),
             ])
         })),
-        "solar:core/v1/Slots.sol" => Some(SLOTS.get_or_init(|| {
+        "solar:core/Slots.sol" => Some(SLOTS.get_or_init(|| {
             FxHashMap::from_iter([
                 (sym::load, CoreIntrinsic::SlotsLoad),
                 (sym::store, CoreIntrinsic::SlotsStore),
@@ -449,10 +405,10 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (sym::loadBytes, CoreIntrinsic::SlotsLoadBytes),
             ])
         })),
-        "solar:core/v1/Hash.sol" => Some(HASH.get_or_init(|| {
+        "solar:core/Hash.sol" => Some(HASH.get_or_init(|| {
             FxHashMap::from_iter([(sym::keccak256Range, CoreIntrinsic::Keccak256Range)])
         })),
-        "solar:core/v1/Create.sol" => Some(CREATE.get_or_init(|| {
+        "solar:core/Create.sol" => Some(CREATE.get_or_init(|| {
             // `predict2` is arithmetic and stays a call to its body.
             FxHashMap::from_iter([
                 (sym::deploy, CoreIntrinsic::Deploy),
@@ -462,14 +418,14 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (sym::tryDeployInto, CoreIntrinsic::TryDeployInto),
             ])
         })),
-        "solar:core/v1/Code.sol" => Some(CODE.get_or_init(|| {
+        "solar:core/Code.sol" => Some(CODE.get_or_init(|| {
             // Both overloads of each share a name; the lowering reads the operand count.
             FxHashMap::from_iter([
                 (sym::copyInto, CoreIntrinsic::CodeCopyInto),
                 (sym::read, CoreIntrinsic::CodeRead),
             ])
         })),
-        "solar:core/v1/Bits.sol" => Some(BITS.get_or_init(|| {
+        "solar:core/Bits.sol" => Some(BITS.get_or_init(|| {
             // `popCount` has no instruction to lower to.
             FxHashMap::from_iter([
                 (sym::leadingZeros, CoreIntrinsic::LeadingZeros),
@@ -477,7 +433,7 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (sym::trailingZeros, CoreIntrinsic::TrailingZeros),
             ])
         })),
-        "solar:core/v1/Calls.sol" => Some(CALLS.get_or_init(|| {
+        "solar:core/Calls.sol" => Some(CALLS.get_or_init(|| {
             FxHashMap::from_iter([
                 (sym::callInto, CoreIntrinsic::CallInto),
                 (sym::staticCallInto, CoreIntrinsic::StaticCallInto),
@@ -488,7 +444,7 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (sym::forwardDelegate, CoreIntrinsic::ForwardDelegate),
             ])
         })),
-        "solar:core/v1/CalldataBytes.sol" => Some(CALLDATA_BYTES.get_or_init(|| {
+        "solar:core/CalldataBytes.sol" => Some(CALLDATA_BYTES.get_or_init(|| {
             let mut table = FxHashMap::default();
             for width in 1..=32u8 {
                 table.insert(
@@ -505,7 +461,7 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
             table.insert(sym::copyInto, CoreIntrinsic::CalldataCopyInto);
             table
         })),
-        "solar:core/v1/Math.sol" => Some(MATH.get_or_init(|| {
+        "solar:core/Math.sol" => Some(MATH.get_or_init(|| {
             // `mulDiv` is a long division and stays a call to its body.
             FxHashMap::from_iter([
                 (sym::mul512, CoreIntrinsic::Mul512),
@@ -514,10 +470,10 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (sym::wrappingMul, CoreIntrinsic::WrappingMul),
             ])
         })),
-        "solar:core/v1/Build.sol" => Some(
+        "solar:core/Build.sol" => Some(
             BUILD.get_or_init(|| FxHashMap::from_iter([(sym::gasFirst, CoreIntrinsic::GasFirst)])),
         ),
-        "solar:core/v1/Buffers.sol" => Some(BUFFERS.get_or_init(|| {
+        "solar:core/Buffers.sol" => Some(BUFFERS.get_or_init(|| {
             // Every other function is library code; the backing is what no code can read before
             // it is written.
             FxHashMap::from_iter([
@@ -528,7 +484,7 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (sym::_int256Backing, CoreIntrinsic::BuilderBacking),
             ])
         })),
-        "solar:core/v1/Abi.sol" => Some(ABI.get_or_init(|| {
+        "solar:core/Abi.sol" => Some(ABI.get_or_init(|| {
             // The word writers are library code over `Bytes`.
             FxHashMap::from_iter([
                 (sym::writeEncoding, CoreIntrinsic::WriteEncoding),
@@ -550,7 +506,7 @@ mod tests {
     use solar_interface::{ColorChoice, Session};
     use std::path::PathBuf;
 
-    const MAIN: &str = r#"import {Bytes} from "solar:core/v1/Bytes.sol"; contract C {}"#;
+    const MAIN: &str = r#"import {Bytes} from "solar:core/Bytes.sol"; contract C {}"#;
 
     /// Parses `main.sol`, which imports `Bytes`, after `load` registers other sources, and
     /// returns the errors emitted.
@@ -578,14 +534,14 @@ mod tests {
     fn loaded_module_must_be_exact() {
         let errors = parse_errors(|pcx, _| {
             let _ = pcx.par_load_files_with_contents([(
-                "solar:core/v1/Bytes.sol".to_string(),
+                "solar:core/Bytes.sol".to_string(),
                 FORGED.to_string(),
             )]);
         });
         assert_data_eq!(
             errors,
             str![[r#"
-error: source `solar:core/v1/Bytes.sol` is reserved for a compiler module
+error: source `solar:core/Bytes.sol` is reserved for a compiler module
   │
   ╰ note: names under `solar:core/` identify the modules this compiler provides, so a source under one must be that module's exact text
 
@@ -598,14 +554,14 @@ error: source `solar:core/v1/Bytes.sol` is reserved for a compiler module
     fn unknown_reserved_name() {
         let errors = parse_errors(|pcx, _| {
             let _ = pcx.par_load_files_with_contents([(
-                "solar:core/v1/Fake.sol".to_string(),
+                "solar:core/Fake.sol".to_string(),
                 FORGED.to_string(),
             )]);
         });
         assert_data_eq!(
             errors,
             str![[r#"
-error: source `solar:core/v1/Fake.sol` is reserved for a compiler module
+error: source `solar:core/Fake.sol` is reserved for a compiler module
   │
   ╰ note: names under `solar:core/` identify the modules this compiler provides, so a source under one must be that module's exact text
 
@@ -617,14 +573,12 @@ error: source `solar:core/v1/Fake.sol` is reserved for a compiler module
     #[test]
     fn import_rejects_preloaded_text() {
         let errors = parse_errors(|_, sess| {
-            sess.source_map()
-                .new_source_file("solar:core/v1/Bytes.sol".to_string(), FORGED)
-                .unwrap();
+            sess.source_map().new_source_file("solar:core/Bytes.sol".to_string(), FORGED).unwrap();
         });
         assert_data_eq!(
             errors,
             str![[r#"
-error: source `solar:core/v1/Bytes.sol` is reserved for a compiler module
+error: source `solar:core/Bytes.sol` is reserved for a compiler module
   │
   ╰ note: names under `solar:core/` identify the modules this compiler provides, so a source under one must be that module's exact text
 
@@ -636,7 +590,7 @@ error: source `solar:core/v1/Bytes.sol` is reserved for a compiler module
     #[test]
     fn exact_copy_is_the_module() {
         let errors = parse_errors(|pcx, _| {
-            let module = lookup("solar:core/v1/Bytes.sol").unwrap();
+            let module = lookup("solar:core/Bytes.sol").unwrap();
             pcx.par_load_files_with_contents([(module.path.to_string(), module.source)]).unwrap();
         });
         assert_data_eq!(errors, str![""]);

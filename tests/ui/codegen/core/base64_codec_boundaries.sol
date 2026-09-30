@@ -184,8 +184,8 @@
 //@ run-call: discard "AAAA" => true
 //@ run-call-fail: discard "AA!A" => 0xa164f8fe
 
-import {Base64} from "solar:core/v1/codecs/Base64.sol";
-import {Arrays} from "solar:core/v1/Arrays.sol";
+import {Base64} from "solar:core/codecs/Base64.sol";
+import {Arrays} from "solar:core/Arrays.sol";
 
 contract Test {
     // Dirty bytes after the logical end must not affect either tail. Repeated

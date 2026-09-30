@@ -74,7 +74,7 @@
 // path from 96 bytes. `decode` is strict: either alphabet, with or without
 // padding, and `InvalidBase64()` for a character outside both, padding
 // anywhere but the end of a padded input, or a length no encoding has.
-import {Base64} from "solar:core/v1/codecs/Base64.sol";
+import {Base64} from "solar:core/codecs/Base64.sol";
 
 contract Test {
     // CHECK-LABEL: fn @encode.

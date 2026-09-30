@@ -15,7 +15,7 @@
 // original sender, so `whoAmI` counts in the proxy and sees the caller. A
 // target with no fallback rejects empty calldata with no revert data, which
 // comes back as it is.
-import {Calls} from "solar:core/v1/Calls.sol";
+import {Calls} from "solar:core/Calls.sol";
 import {ForwardTarget} from "./auxiliary/forward_target.sol";
 
 contract Proxy {

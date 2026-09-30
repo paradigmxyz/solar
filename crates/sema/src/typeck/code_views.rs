@@ -1,4 +1,4 @@
-//! Opacity of the `CodeView` of `solar:core/v1/Code.sol`.
+//! Opacity of the `CodeView` of `solar:core/Code.sol`.
 //!
 //! `Code.slice` makes a view only of a range that lies inside an account's code, and packs the
 //! account and the range into one word. Code outside the module that wraps a word into a view or
@@ -18,7 +18,7 @@ use solar_interface::{Span, source_map::FileName};
 use std::ops::ControlFlow;
 
 /// The module that owns `CodeView`.
-const CODE: &str = "solar:core/v1/Code.sol";
+const CODE: &str = "solar:core/Code.sol";
 
 pub(super) fn check(gcx: Gcx<'_>) {
     // Most compilations never import the module.

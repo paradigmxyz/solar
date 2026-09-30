@@ -6,8 +6,8 @@
 // what it returns as the code. Only contracts that can be deployed are
 // checked, and a call through an internal function pointer can reach every
 // function whose value the contract takes.
-import {Calls} from "solar:core/v1/Calls.sol";
-import {Return} from "solar:core/v1/Return.sol";
+import {Calls} from "solar:core/Calls.sol";
+import {Return} from "solar:core/Return.sol";
 
 type Price is uint256;
 

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 /// @notice Ending the current call successfully from any function.
-/// @dev Compiler-owned module, imported as `solar:core/v1/Return.sol`. A
+/// @dev Compiler-owned module, imported as `solar:core/Return.sol`. A
 /// `return` statement leaves only the function it is in; these end the whole
 /// call, the way `Revert.raw` ends it with a failure. Nothing after a call to
 /// them runs. `abiEncoded` returns its argument encoded as the single result

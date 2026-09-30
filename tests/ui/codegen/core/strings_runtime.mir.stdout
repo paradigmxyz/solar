@@ -1,16 +1,16 @@
-// === <solar:core/v1/Arrays.sol>:Arrays ===
+// === <solar:core/Arrays.sol>:Arrays ===
 @module Arrays
 @library
 
-// === <solar:core/v1/Bytes.sol>:Bytes ===
+// === <solar:core/Bytes.sol>:Bytes ===
 @module Bytes
 @library
 
-// === <solar:core/v1/Buffers.sol>:Buffers ===
+// === <solar:core/Buffers.sol>:Buffers ===
 @module Buffers
 @library
 
-// === <solar:core/v1/Strings.sol>:Strings ===
+// === <solar:core/Strings.sol>:Strings ===
 @module Strings
 @library
 

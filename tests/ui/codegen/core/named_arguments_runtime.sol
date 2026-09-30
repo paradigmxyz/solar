@@ -7,9 +7,9 @@
 //@ run-call: read 0x0011223344 => 0x11223344
 //@ run-call: ordered => 0x11223344, 12
 //@ run-call: encodingFirst 7 => 0x0000000000000000000000000000000000000000000000000000000000000007, 32
-import {Abi} from "solar:core/v1/Abi.sol";
-import {Bytes} from "solar:core/v1/Bytes.sol";
-import {Strings} from "solar:core/v1/Strings.sol";
+import {Abi} from "solar:core/Abi.sol";
+import {Bytes} from "solar:core/Bytes.sol";
+import {Strings} from "solar:core/Strings.sol";
 
 // Named arguments bind by name, not by their order in the call, and evaluate
 // in source order, for the compiler-owned modules as for any other function.

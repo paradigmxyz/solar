@@ -22,7 +22,7 @@
 // INTRINSIC: returndata {{[0-9]+}}, 32
 // PORTABLE-LABEL: fn @fixedSize
 // PORTABLE: mstore 64
-import {Abi} from "solar:core/v1/Abi.sol";
+import {Abi} from "solar:core/Abi.sol";
 
 contract Test {
     function fixedSize(uint256 a, address b) public pure returns (uint256) {

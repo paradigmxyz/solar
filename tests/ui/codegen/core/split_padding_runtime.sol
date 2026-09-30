@@ -4,7 +4,7 @@
 //@[size] compile-flags: -Osize
 //@ run-call: payloads "abc" => [0x6100000000000000000000000000000000000000000000000000000000000000, 0x6200000000000000000000000000000000000000000000000000000000000000, 0x6300000000000000000000000000000000000000000000000000000000000000]
 //@ run-call: payloads "" => []
-import {Strings} from "solar:core/v1/Strings.sol";
+import {Strings} from "solar:core/Strings.sol";
 
 // Splitting on an empty delimiter gives one-byte strings. Like the body's
 // `new bytes(1)`, each payload word holds its byte and zero padding, not the

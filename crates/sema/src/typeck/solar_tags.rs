@@ -21,7 +21,7 @@ pub(super) fn check(gcx: Gcx<'_>) {
 }
 
 /// Checks that every `@custom:solar-view` declaration has a shape a view has: a `bytes memory`
-/// variable initialized by `Bytes.slice` from `solar:core/v1/Bytes.sol`, a declaration initialized
+/// variable initialized by `Bytes.slice` from `solar:core/Bytes.sol`, a declaration initialized
 /// by `abi.decode` of `bytes` in memory or calldata, whose variables of memory reference types are
 /// the views, or a memory reference variable initialized by a view or by an element or a field of
 /// one.

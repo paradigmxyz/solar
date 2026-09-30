@@ -46,7 +46,7 @@
 // boundaries, needles up to 40 bytes including ones of at least a word, and
 // `from` at both ends, in the middle, and past the subject. Needles are cut from the
 // subject, so most searches find something, and mutated so some do not.
-import {Strings} from "solar:core/v1/Strings.sol";
+import {Strings} from "solar:core/Strings.sol";
 
 contract Test {
     // Each direction is one shared helper.

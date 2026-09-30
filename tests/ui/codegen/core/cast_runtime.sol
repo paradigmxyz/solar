@@ -24,7 +24,7 @@
 // `Cast` narrows a value or fails with the overflow panic; it never drops
 // bits. Each width is checked at both of its edges, signed ones on both sides
 // of zero.
-import {Cast} from "solar:core/v1/Cast.sol";
+import {Cast} from "solar:core/Cast.sol";
 
 contract Test {
     function u8(uint256 x) public pure returns (uint8) {

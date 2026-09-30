@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 /// @notice Deploying supplied initcode.
-/// @dev Compiler-owned module, imported as `solar:core/v1/Create.sol`.
+/// @dev Compiler-owned module, imported as `solar:core/Create.sol`.
 /// `new C()` deploys a contract the compiler knows; these deploy whatever
 /// bytes they are given, which clone factories and code-storage libraries
 /// build at runtime. A failed creation reverts with `DeploymentFailed()`.

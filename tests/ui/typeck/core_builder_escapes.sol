@@ -1,6 +1,6 @@
 // Encoding or storing a builder would copy its capacity as well, bytes that
 // were never written, so a builder stays in memory and out of the ABI.
-import {Buffers, ByteBuilder, WordBuilder} from "solar:core/v1/Buffers.sol";
+import {Buffers, ByteBuilder, WordBuilder} from "solar:core/Buffers.sol";
 
 contract Test {
     ByteBuilder stored; //~ ERROR: a `ByteBuilder` cannot be stored or encoded

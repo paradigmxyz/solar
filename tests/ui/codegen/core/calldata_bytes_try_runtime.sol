@@ -18,7 +18,7 @@
 
 // `CalldataBytes.tryReadBytesN` answers instead of reverting: `false` and zero
 // when the width does not lie inside the slice, whatever calldata follows it.
-import {CalldataBytes} from "solar:core/v1/CalldataBytes.sol";
+import {CalldataBytes} from "solar:core/CalldataBytes.sol";
 
 contract Test {
     function try1(bytes calldata b, uint256 offset) public pure returns (bool, bytes1) {

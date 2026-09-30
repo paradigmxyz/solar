@@ -1,10 +1,10 @@
-- // === <solar:core/v1/Arrays.sol>:Arrays (before element-cleanup) ===
-+ // === <solar:core/v1/Arrays.sol>:Arrays (after element-cleanup) ===
+- // === <solar:core/Arrays.sol>:Arrays (before element-cleanup) ===
++ // === <solar:core/Arrays.sol>:Arrays (after element-cleanup) ===
   @module Arrays
   @library
   
-- // === <solar:core/v1/WordArrays.sol>:WordArrays (before element-cleanup) ===
-+ // === <solar:core/v1/WordArrays.sol>:WordArrays (after element-cleanup) ===
+- // === <solar:core/WordArrays.sol>:WordArrays (before element-cleanup) ===
++ // === <solar:core/WordArrays.sol>:WordArrays (after element-cleanup) ===
   @module WordArrays
   @library
   

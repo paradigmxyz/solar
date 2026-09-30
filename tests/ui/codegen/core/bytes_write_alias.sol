@@ -6,7 +6,7 @@
 //@ run-call: doubledTwice 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021 => 0x04080c1014181c2024282c3034383c4044484c5054585c6064686c7074787c8021
 //@ run-call: doubled 0x => 0x
 
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 contract BytesWriteAlias {
     function doubled(bytes memory a) external pure returns (bytes memory) {

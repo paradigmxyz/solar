@@ -121,7 +121,7 @@
 // run every case: exact matches and single-bit mismatches at the first, middle
 // and last byte across word boundaries, empty needles at and past the end, and
 // ranges that do not fit, including an offset that wraps.
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 contract EqualsAt {
     function at(bytes memory a, uint256 offset, bytes memory b) public pure returns (bool) {

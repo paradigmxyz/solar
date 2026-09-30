@@ -1,4 +1,4 @@
-// === <solar:core/v1/Return.sol>:Return ===
+// === <solar:core/Return.sol>:Return ===
 @module Return
 @phase lowered
 @library

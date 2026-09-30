@@ -16,7 +16,7 @@
 //@ run-call: firstZero 0x6162630000000000000000000000000000000000000000000000000000000000 => 3
 //@ run-call: firstZero 0x6161616161616161616161616161616161616161616161616161616161616161 => 32
 
-import {Build} from "solar:core/v1/Build.sol";
+import {Build} from "solar:core/Build.sol";
 
 contract Test {
     // The body answers true for other compilers; this one answers whether the

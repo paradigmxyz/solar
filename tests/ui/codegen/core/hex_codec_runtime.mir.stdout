@@ -1,8 +1,8 @@
-// === <solar:core/v1/Bytes.sol>:Bytes ===
+// === <solar:core/Bytes.sol>:Bytes ===
 @module Bytes
 @library
 
-// === <solar:core/v1/codecs/Hex.sol>:Hex ===
+// === <solar:core/codecs/Hex.sol>:Hex ===
 @module Hex
 @library
 

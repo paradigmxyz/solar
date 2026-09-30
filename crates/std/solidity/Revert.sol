@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 /// @notice Reverting with exact bytes.
-/// @dev Compiler-owned module, imported as `solar:core/v1/Revert.sol`.
+/// @dev Compiler-owned module, imported as `solar:core/Revert.sol`.
 /// `revert(string(data))` ABI-encodes its argument as an `Error(string)`;
 /// `raw` reverts with `data` itself, which is what bubbling another call's
 /// revert data or returning a pre-encoded error needs. The body is one

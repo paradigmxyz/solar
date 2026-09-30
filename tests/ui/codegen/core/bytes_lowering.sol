@@ -4,7 +4,7 @@
 //@[portable] compile-flags: -Ogas -Zdump=mir -Zno-core-intrinsics
 //@[portable] filecheck: --check-prefix=PORTABLE
 
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 contract Test {
     using Bytes for bytes;

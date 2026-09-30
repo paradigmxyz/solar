@@ -1,7 +1,7 @@
 //@ compile-flags: -Ogas -Zmir-pipeline=none -Zdump=mir
 //@ filecheck:
 
-import {Abi} from "solar:core/v1/Abi.sol";
+import {Abi} from "solar:core/Abi.sol";
 
 contract Test {
     // An encoding written as the argument is staged past the free memory

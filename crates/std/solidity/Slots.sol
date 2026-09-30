@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 /// @notice Storage words laid out from a root slot, the way a dynamic storage
 /// array lays out its elements.
-/// @dev Compiler-owned module, imported as `solar:core/v1/Slots.sol`. A `Root`
+/// @dev Compiler-owned module, imported as `solar:core/Slots.sol`. A `Root`
 /// occupies one slot like any one-word struct. Word `index` of the region it
 /// roots is the slot `keccak256(slot) + index`, where a dynamic array stored
 /// at that slot keeps its elements. Unlike an array's length, the root word is

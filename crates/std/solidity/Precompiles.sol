@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 /// @notice Calls to the arithmetic precompiles that say whether they worked.
-/// @dev Compiler-owned module, imported as `solar:core/v1/Precompiles.sol`.
+/// @dev Compiler-owned module, imported as `solar:core/Precompiles.sol`.
 /// A precompile that rejects its input, or a chain that lacks it, leaves the
 /// caller's output memory untouched, and code that does not look reads
 /// whatever was there. Every wrapper here reports `success` separately from

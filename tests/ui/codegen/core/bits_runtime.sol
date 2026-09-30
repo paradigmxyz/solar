@@ -38,7 +38,7 @@
 // branch-free search finished by a table. The third revision compiles for a
 // target without the instruction, where the intrinsic has to stand down by
 // itself. `sweep` walks every bit position through all four functions.
-import {Bits} from "solar:core/v1/Bits.sol";
+import {Bits} from "solar:core/Bits.sol";
 
 contract Test {
     function leading(uint256 x) public pure returns (uint256) {

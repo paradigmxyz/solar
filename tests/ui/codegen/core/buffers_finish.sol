@@ -3,7 +3,7 @@
 // `Buffers.finish` returns what a builder holds and empties it, so a builder
 // is finished once, after its last append: every use of a builder on a path
 // after `finish` emptied it is rejected.
-import {AddressBuilder, Buffers, ByteBuilder, WordBuilder} from "solar:core/v1/Buffers.sol";
+import {AddressBuilder, Buffers, ByteBuilder, WordBuilder} from "solar:core/Buffers.sol";
 
 contract Test {
     using Buffers for ByteBuilder;

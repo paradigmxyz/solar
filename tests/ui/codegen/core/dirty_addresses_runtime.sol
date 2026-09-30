@@ -20,7 +20,7 @@
 //@ run-call: sortWords [3, 0x10000000000000000000000000000000000000002, 1] => [1, 2, 3]
 //@ run-call: unionWords [1, 3], [2, 0x10000000000000000000000000000000000000004] => [1, 2, 3, 4]
 //@ run-call: differenceWords [1, 0x10000000000000000000000000000000000000005], [2] => [1, 5]
-import {WordArrays} from "solar:core/v1/WordArrays.sol";
+import {WordArrays} from "solar:core/WordArrays.sol";
 
 // Inline assembly can leave the upper bits of an `address[]` element dirty.
 // The module's bodies compare the addresses the elements hold, as their

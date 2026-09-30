@@ -1,4 +1,4 @@
-// === <solar:core/v1/Arrays.sol>:Arrays ===
+// === <solar:core/Arrays.sol>:Arrays ===
 @module Arrays
 @phase lowered
 @library
@@ -7,7 +7,7 @@ fn @entry() [entry] {
     revert 0, 0
 }
 
-// === <solar:core/v1/Bytes.sol>:Bytes ===
+// === <solar:core/Bytes.sol>:Bytes ===
 @module Bytes
 @phase lowered
 @library
@@ -16,7 +16,7 @@ fn @entry() [entry] {
     revert 0, 0
 }
 
-// === <solar:core/v1/Buffers.sol>:Buffers ===
+// === <solar:core/Buffers.sol>:Buffers ===
 @module Buffers
 @phase lowered
 @library
@@ -25,7 +25,7 @@ fn @entry() [entry] {
     revert 0, 0
 }
 
-// === <solar:core/v1/Strings.sol>:Strings ===
+// === <solar:core/Strings.sol>:Strings ===
 @module Strings
 @phase lowered
 @library

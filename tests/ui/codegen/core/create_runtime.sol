@@ -17,7 +17,7 @@
 // initcode here returns four bytes of runtime code, or is `INVALID`.
 // `predict2` is arithmetic and must agree with what `deploy2` did. The `try`
 // variants report the failure instead: `false` and the zero address.
-import {Create} from "solar:core/v1/Create.sol";
+import {Create} from "solar:core/Create.sol";
 
 contract Test {
     function spawn(bytes memory initcode) public returns (bytes memory) {

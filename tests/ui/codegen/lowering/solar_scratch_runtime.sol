@@ -14,7 +14,7 @@
 // memory a tagged block allocates is reused after it, while objects allocated
 // before the block, like `kept`, and those after it stay intact. A `return`
 // out of the block keeps its memory.
-import {Bytes} from "solar:core/v1/Bytes.sol";
+import {Bytes} from "solar:core/Bytes.sol";
 
 contract Test {
     using Bytes for bytes;

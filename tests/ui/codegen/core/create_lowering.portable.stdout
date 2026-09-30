@@ -1,4 +1,4 @@
-// === <solar:core/v1/Create.sol>:Create ===
+// === <solar:core/Create.sol>:Create ===
 @module Create
 @phase lowered
 @library
