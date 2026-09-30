@@ -371,7 +371,7 @@ pub struct EvmCodegen<'gcx> {
     /// Their callers may safely use the result as a dynamic forwarding-buffer base.
     heap_pointer_return_functions: DenseBitSet<FunctionId>,
     /// Runtime code of a scheduled module, waiting for embedded bytecode to be linked in.
-    pending_runtime: Option<PendingRuntime<'gcx>>,
+    pending_runtime: Option<PendingRuntime>,
     /// Whether the current function has canonical cross-block argument layouts.
     global_stack_active: bool,
     /// Calldata words physically identical to arguments in the active global
@@ -616,10 +616,8 @@ impl<'gcx> EvmCodegen<'gcx> {
 }
 
 /// Runtime code whose EVM IR pipeline has run in the assembler, waiting for embedded bytecode.
-struct PendingRuntime<'gcx> {
+struct PendingRuntime {
     call_graph: CallGraphInfo,
-    /// Scheduled runtime to retry with size outlining if the linked runtime exceeds EIP-170.
-    size_rescue: Option<Assembler<'gcx>>,
 }
 
 /// The artifact produced by the EVM backend.

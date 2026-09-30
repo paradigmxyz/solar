@@ -14,24 +14,6 @@ use crate::{
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 
 impl Assembler<'_> {
-    /// Prepares the common input for gas-first codegen and its size-outlining retry.
-    pub(in crate::backend) fn prepare_outlining(&mut self) {
-        let opts = &self.gcx.sess.opts.unstable;
-        if opts.evm_ir_pipeline.is_some()
-            || opts.time_passes
-            || opts.print_after_each
-            || opts.pass_diff
-        {
-            return;
-        }
-        let Some((mut program, labels)) = self.finish_evm_ir() else { return };
-        ir::builder::resolve_known_deferred_constants(&mut program, &self.deferred_values);
-        self.outlining = Some(ir::OutliningCheckpoint::prepare(self.gcx, &mut program));
-        self.program = program;
-        self.block_labels = labels;
-        self.program_is_finalized = true;
-    }
-
     /// Runs the EVM IR pipeline over the emitted program and keeps the result for
     /// [`Self::prepare_linked`].
     #[tracing::instrument(
@@ -53,11 +35,7 @@ impl Assembler<'_> {
         let errors_before = self.gcx.dcx().err_count();
         let gcx = self.gcx;
         let succeeded = || gcx.dcx().err_count() == errors_before;
-        let _changed = if let Some(checkpoint) = self.outlining.take() {
-            checkpoint.resume(self.gcx, program)
-        } else {
-            ir::run_pipeline(self.gcx, program, None)
-        };
+        let _changed = ir::run_pipeline(self.gcx, program, None);
         if !succeeded() {
             return false;
         }

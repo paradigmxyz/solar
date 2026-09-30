@@ -80,11 +80,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         // First schedule the runtime code and run its EVM IR pipeline. Only final
         // assembly waits for the bytecode of contracts it embeds.
         self.schedule_runtime_code(&lowered, &call_graph);
-        let size_rescue = self.optimize_runtime_code();
+        self.asm.optimize();
         if self.gcx.dcx().has_errors().is_err() {
             return false;
         }
-        self.pending_runtime = Some(PendingRuntime { call_graph, size_rescue });
+        self.pending_runtime = Some(PendingRuntime { call_graph });
         true
     }
 
@@ -95,11 +95,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         module: &Module,
         bytecodes: &EmbeddedBytecodes,
     ) -> EvmArtifact {
-        let PendingRuntime { call_graph, size_rescue } =
+        let PendingRuntime { call_graph } =
             self.pending_runtime.take().expect("module must be scheduled first");
         debug_assert_eq!(module.phase(), MirPhase::Lowered);
         let mut libraries = module.libraries.clone();
-        let runtime_code = self.assemble_runtime_code(size_rescue, bytecodes, &mut libraries);
+        let runtime_code = self.assemble_runtime_code(bytecodes, &mut libraries);
         let runtime_len = runtime_code.bytecode.len();
         let immutable_refs = std::mem::take(&mut self.runtime_immutable_refs);
 
