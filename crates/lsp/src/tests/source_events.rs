@@ -1,4 +1,5 @@
 use super::*;
+use crate::workspace::WorkspaceEditError;
 use lsp_types::{CreateFilesParams, DeleteFilesParams, FileCreate, FileDelete};
 
 #[tokio::test(flavor = "current_thread")]
@@ -179,7 +180,7 @@ async fn watched_nested_repository_marker_create_prunes_cached_sources() {
     let nested_source = project.path("/src/nested/Nested.sol");
     let marker = project.path("/src/nested/.git");
     let config = Arc::new(project.config());
-    assert!(config.workspace_edit_scope().allows(&nested_source));
+    config.workspace_edit_scope().check(&nested_source).unwrap();
     assert_eq!(
         config.tracked_source_files_under(std::slice::from_ref(&nested_root)),
         std::slice::from_ref(&nested_source)
@@ -202,8 +203,11 @@ async fn watched_nested_repository_marker_create_prunes_cached_sources() {
     ));
     assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
     assert!(state.config.tracked_source_files_under(&[nested_root]).is_empty());
-    assert!(!state.config.workspace_edit_scope().allows(&nested_source));
-    assert!(config.workspace_edit_scope().allows(&nested_source));
+    assert!(matches!(
+        state.config.workspace_edit_scope().check(&nested_source),
+        Err(WorkspaceEditError::Dependency)
+    ));
+    config.workspace_edit_scope().check(&nested_source).unwrap();
     state.analysis_scheduler.tasks.lock().cancel();
 }
 
@@ -233,7 +237,7 @@ async fn watched_nested_repository_marker_is_ignored_when_policy_is_disabled() {
     );
     let marker = project.path("/src/nested/.git");
     let nested_source = project.path("/src/nested/Nested.sol");
-    assert!(config.workspace_edit_scope().allows(&nested_source));
+    config.workspace_edit_scope().check(&nested_source).unwrap();
     project.write_file("/src/nested/.git", "gitdir: elsewhere");
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.config = Arc::new(config);
@@ -251,7 +255,7 @@ async fn watched_nested_repository_marker_is_ignored_when_policy_is_disabled() {
         ControlFlow::Continue(())
     ));
     assert_eq!(state.analysis_version.load(Ordering::Acquire), 0);
-    assert!(state.config.workspace_edit_scope().allows(&nested_source));
+    state.config.workspace_edit_scope().check(&nested_source).unwrap();
     assert_eq!(
         state.config.tracked_source_files_under(&[project.path("/src/nested")]),
         [nested_source]
@@ -279,7 +283,10 @@ async fn watched_nested_repository_marker_delete_restores_nested_project() {
     let nested_source = project.path("/packages/app/src/Nested.sol");
     let marker = project.path("/packages/app/.git");
     let config = Arc::new(project.config());
-    assert!(!config.workspace_edit_scope().allows(&nested_source));
+    assert!(matches!(
+        config.workspace_edit_scope().check(&nested_source),
+        Err(WorkspaceEditError::Dependency)
+    ));
     assert!(config.tracked_source_files_under(std::slice::from_ref(&packages_root)).is_empty());
     std::fs::remove_file(&marker).unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
@@ -298,8 +305,11 @@ async fn watched_nested_repository_marker_delete_restores_nested_project() {
         ControlFlow::Continue(())
     ));
     assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
-    assert!(state.config.workspace_edit_scope().allows(&nested_source));
-    assert!(!config.workspace_edit_scope().allows(&nested_source));
+    state.config.workspace_edit_scope().check(&nested_source).unwrap();
+    assert!(matches!(
+        config.workspace_edit_scope().check(&nested_source),
+        Err(WorkspaceEditError::Dependency)
+    ));
     assert_eq!(state.config.tracked_source_files_under(&[packages_root]), [nested_source]);
     state.analysis_scheduler.tasks.lock().cancel();
 }
