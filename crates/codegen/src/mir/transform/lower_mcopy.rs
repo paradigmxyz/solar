@@ -37,8 +37,9 @@ use solar_sema::Gcx;
 ///
 /// Copies whose destination starts above their source run backward; all other
 /// copies run forward. A masked partial-word merge ensures that the lowering
-/// changes exactly `len` bytes. Pointer provenance selects a direction at
-/// compile time for disjoint allocations and constant offsets; unknown pointer
+/// changes exactly `len` bytes; a length that is provably a multiple of 32, such
+/// as a word array's `len << 5`, copies whole words and needs no merge. Pointer provenance selects
+/// a direction at compile time for disjoint allocations and constant offsets; unknown pointer
 /// relationships retain a runtime direction check.
 pub(crate) struct LowerMCopy;
 
@@ -356,10 +357,35 @@ fn emit_copy_loop(
     builder.branch(empty, continuation, copy);
     builder.switch_to_block(copy);
 
+    let whole_words = is_whole_words(builder.func(), len, 0);
     match direction {
-        CopyDirection::Forward => emit_forward_copy(builder, dest, src, len, continuation, copy),
-        CopyDirection::Reverse => emit_reverse_copy(builder, dest, src, len, continuation),
-        CopyDirection::Dynamic => emit_dynamic_copy(builder, dest, src, len, continuation),
+        CopyDirection::Forward => {
+            emit_forward_copy(builder, dest, src, len, whole_words, continuation, copy)
+        }
+        CopyDirection::Reverse => {
+            emit_reverse_copy(builder, dest, src, len, whole_words, continuation)
+        }
+        CopyDirection::Dynamic => {
+            emit_dynamic_copy(builder, dest, src, len, whole_words, continuation)
+        }
+    }
+}
+
+/// Returns whether `len` is provably a multiple of 32.
+fn is_whole_words(func: &Function, len: ValueId, depth: usize) -> bool {
+    if let Some(len) = func.value_u256(len) {
+        return len.as_limbs()[0] % 32 == 0;
+    }
+    let Value::Inst(inst) = func.value(len) else { return false };
+    if depth >= 4 {
+        return false;
+    }
+    let whole = |value| is_whole_words(func, value, depth + 1);
+    match func.inst(*inst).kind {
+        InstKind::Shl(shift, _) => func.value_u64(shift).is_some_and(|shift| shift >= 5),
+        InstKind::Mul(a, b) | InstKind::And(a, b) => whole(a) || whole(b),
+        InstKind::Add(a, b) | InstKind::Sub(a, b) => whole(a) && whole(b),
+        _ => false,
     }
 }
 
@@ -369,29 +395,33 @@ fn emit_forward_copy(
     dest: ValueId,
     src: ValueId,
     len: ValueId,
+    whole_words: bool,
     continuation: BlockId,
     entry: BlockId,
 ) {
     let forward_head = builder.create_block();
     let forward_body = builder.create_block();
-    let forward_tail_check = builder.create_block();
-    let partial_block = builder.create_block();
 
-    // full = len & ~31
+    // full = whole_words ? len : len & ~31
     // jump forward_head
     let zero = builder.imm(0);
     let word_size = builder.imm(32);
-    let thirty_one = builder.imm(31);
-    let not_thirty_one = builder.not(thirty_one);
-    let full = builder.and(len, not_thirty_one);
+    let full = if whole_words {
+        len
+    } else {
+        let thirty_one = builder.imm(31);
+        let not_thirty_one = builder.not(thirty_one);
+        builder.and(len, not_thirty_one)
+    };
     builder.jump(forward_head);
 
     // forward_offset = phi(entry: 0, forward_body: forward_next)
     // remaining = forward_offset < full
-    // branch remaining, forward_body, forward_tail_check
+    // branch remaining, forward_body, whole_words ? continuation : forward_tail_check
     builder.switch_to_block(forward_head);
     let forward_offset = builder.phi(vec![(entry, zero)]);
     let remaining = builder.lt(forward_offset, full);
+    let forward_tail_check = if whole_words { continuation } else { builder.create_block() };
     builder.branch(remaining, forward_body, forward_tail_check);
 
     // word = mload(src + forward_offset)
@@ -406,10 +436,14 @@ fn emit_forward_copy(
     let forward_next = builder.add(forward_offset, word_size);
     builder.add_phi_incoming(forward_offset, forward_body, forward_next);
     builder.jump(forward_head);
+    if whole_words {
+        return;
+    }
 
     // has_partial = full < len
     // branch has_partial, partial_block, continuation
     builder.switch_to_block(forward_tail_check);
+    let partial_block = builder.create_block();
     let has_partial = builder.lt(full, len);
     builder.branch(has_partial, partial_block, continuation);
 
@@ -423,35 +457,45 @@ fn emit_reverse_copy(
     dest: ValueId,
     src: ValueId,
     len: ValueId,
+    whole_words: bool,
     continuation: BlockId,
 ) {
-    let partial_check = builder.create_block();
     let reverse_head = builder.create_block();
     let reverse_body = builder.create_block();
-    let partial_block = builder.create_block();
-
-    // full = len & ~31
-    // has_partial = full < len
-    // branch has_partial, partial_block, partial_check
     let word_size = builder.imm(32);
-    let thirty_one = builder.imm(31);
-    let not_thirty_one = builder.not(thirty_one);
-    let full = builder.and(len, not_thirty_one);
-    let has_partial = builder.lt(full, len);
-    builder.branch(has_partial, partial_block, partial_check);
 
-    // jump reverse_head
-    builder.switch_to_block(partial_check);
-    builder.jump(reverse_head);
+    let incoming = if whole_words {
+        // jump reverse_head
+        let entry = builder.current_block();
+        builder.jump(reverse_head);
+        vec![(entry, len)]
+    } else {
+        let partial_check = builder.create_block();
+        let partial_block = builder.create_block();
 
-    builder.switch_to_block(partial_block);
-    emit_partial_copy(builder, dest, src, len, full, reverse_head);
+        // full = len & ~31
+        // has_partial = full < len
+        // branch has_partial, partial_block, partial_check
+        let thirty_one = builder.imm(31);
+        let not_thirty_one = builder.not(thirty_one);
+        let full = builder.and(len, not_thirty_one);
+        let has_partial = builder.lt(full, len);
+        builder.branch(has_partial, partial_block, partial_check);
 
-    // reverse_offset = phi(partial_check: full, partial_block: full, reverse_body: reverse_next)
+        // jump reverse_head
+        builder.switch_to_block(partial_check);
+        builder.jump(reverse_head);
+
+        builder.switch_to_block(partial_block);
+        emit_partial_copy(builder, dest, src, len, full, reverse_head);
+        vec![(partial_check, full), (partial_block, full)]
+    };
+
+    // reverse_offset = phi(incoming..., reverse_body: reverse_next)
     // done = reverse_offset == 0
     // branch done, continuation, reverse_body
     builder.switch_to_block(reverse_head);
-    let reverse_offset = builder.phi(vec![(partial_check, full), (partial_block, full)]);
+    let reverse_offset = builder.phi(incoming);
     let done = builder.eq_zero(reverse_offset);
     builder.branch(done, continuation, reverse_body);
 
@@ -475,6 +519,7 @@ fn emit_dynamic_copy(
     dest: ValueId,
     src: ValueId,
     len: ValueId,
+    whole_words: bool,
     continuation: BlockId,
 ) {
     let forward = builder.create_block();
@@ -486,10 +531,10 @@ fn emit_dynamic_copy(
     builder.branch(copy_backward, reverse, forward);
 
     builder.switch_to_block(forward);
-    emit_forward_copy(builder, dest, src, len, continuation, forward);
+    emit_forward_copy(builder, dest, src, len, whole_words, continuation, forward);
 
     builder.switch_to_block(reverse);
-    emit_reverse_copy(builder, dest, src, len, continuation);
+    emit_reverse_copy(builder, dest, src, len, whole_words, continuation);
 }
 
 /// Emits an exact masked copy of the final partial word.

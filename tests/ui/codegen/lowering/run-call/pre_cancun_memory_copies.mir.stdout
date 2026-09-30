@@ -1,0 +1,126 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/pre_cancun_memory_copies.sol:PreCancunMemoryCopies ===
+@module PreCancunMemoryCopies
+fn @words() -> i256 [selector=0xf2c31bd9, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    set_memory_object_len memoryarray, v0, 3
+    v1 = memory_object_len memoryarray, v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    memory_object_store_element memoryarray<1>, v0, 0, 1
+    v4 = memory_object_len memoryarray, v0
+    v5 = lt 1, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    memory_object_store_element memoryarray<1>, v0, 1, 2
+    v7 = memory_object_len memoryarray, v0
+    v8 = lt 2, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    memory_object_store_element memoryarray<1>, v0, 2, 3
+    v10 = abi_encode [memory_array<word>], scratch, args v0
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = keccak256 v11, v12
+    v14 = keccak256_packed (u256 32, u256 3, u256 1, u256 2, u256 3)
+    v15 = eq v13, v14
+    v16 = zext i1 v15 to i256
+    ret v16
+}
+
+fn @bytesTail() -> i256 [selector=0x56818b01, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = not 31
+    v1 = and 96, v0
+    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    set_memory_object_len memorybytes, v2, 33
+    jump bb1
+  bb1:
+    v3 = phi [bb0: v2], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v14]
+    v5 = phi [bb0: 0], [bb3: v5]
+    v6 = lt v4, 33
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v15 = abi_encode [memory_bytes], object, args v3
+    v16 = ptrtoint memorybytes v15 to i256
+    v17 = add v16, 128
+    v18 = mload v17
+    v19 = memory_object_len memorybytes, v15
+    v20 = eq v19, 128
+    jumpi v20, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v21 = memory_object_len memorybytes, v15
+    v22 = lt 64, v21
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    v24 = memory_object_load_byte memorybytes, v15, 64
+    v25 = shl 248, v24
+    v26 = eq v25, 0x100000000000000000000000000000000000000000000000000000000000000
+    jump bb9
+  bb9:
+    v27 = phi [bb7: v26], [bb8: false]
+    jumpi v27, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    v28 = shl 248, 33
+    v29 = eq v18, v28
+    jump bb12
+  bb12:
+    v30 = phi [bb10: v29], [bb11: false]
+    v31 = zext i1 v30 to i256
+    ret v31
+  bb4:
+    v7 = checked_add u256, v4, 1
+    v8 = and v7, 255
+    v9 = shl 248, v8
+    v10 = memory_object_len memorybytes, v3
+    v11 = lt v4, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = byte 0, v9
+    memory_object_store_byte memorybytes, v3, v4, v13
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v14 = checked_add u256, v4, 1
+    jump bb1
+}
+
+fn @concat() -> i256 [selector=0x6bdbf8e6, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v0, 33
+    v1 = memory_object_data memorybytes, v0
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    v3 = ptrtoint memptr v1 to i256
+    v4 = add v3, 32
+    mstore v4, 0x2100000000000000000000000000000000000000000000000000000000000000
+    v5 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v5, 2
+    v6 = memory_object_data memorybytes, v5
+    v7 = ptrtoint memptr v6 to i256
+    mstore v7, 0x2223000000000000000000000000000000000000000000000000000000000000
+    v8 = icall concat<memorybytes, memorybytes>, v0, v5
+    v9 = memory_object_len memorybytes, v8
+    v10 = eq v9, 35
+    jumpi v10, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v11 = keccak256_bytes v8
+    v12 = eq v11, 0x6af3077298100e75aa14e950ca068835b7f2b5fdaaebc811322ad87e3c5d271a
+    jump bb3
+  bb3:
+    v13 = phi [bb1: v12], [bb2: false]
+    v14 = zext i1 v13 to i256
+    ret v14
+}
