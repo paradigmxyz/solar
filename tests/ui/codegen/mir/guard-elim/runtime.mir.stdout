@@ -1,0 +1,158 @@
+// === ROOT/tests/ui/codegen/mir/guard-elim/runtime.sol:Counter ===
+@module Counter
+fn @bump() -> i256 [selector=0x68110b2f, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = checked_add u256, v0, 1
+    sstore 0, v1 !metadata(storage=slot(0))
+    v2 = sload 0 !metadata(storage=slot(0))
+    ret v2
+}
+
+// === ROOT/tests/ui/codegen/mir/guard-elim/runtime.sol:Guarded ===
+@module Guarded
+data:
+  Counter_initcode_0: hex"34600d5760648060115f395ff35b5f5ffd341515601c575f3560e01c806368110b2f14601857601c565b6020565b5f5ffd5b5f54600181018060a0528060a05281811091505060525760a0518060a0525f555f546080526020608001608090036080f35b634e487b715f5260116020526024601cfd"
+
+immutables:
+  counter: u256
+
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 1 !metadata(storage=slot(0))
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 148, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v4 = ptrtoint memptr v3 to i256
+    data_copy Counter_initcode_0, v4, 117
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, 117
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, 117
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v12 = zext i160 v9 to i256
+    storeimmutable counter, v12
+    ret
+}
+
+fn @deposit(arg0: i256) -> i256 [selector=0xb6b55f25, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = eq v0, 1
+    icall require<short_string>, v1, 6, 0x6c6f636b65640000000000000000000000000000000000000000000000000000
+    sstore 0, 0 !metadata(storage=slot(0))
+    v2 = caller
+    v3 = zext i160 v2 to i256
+    v4 = mapping_slot v3, 1
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    v6 = checked_add u256, v5, arg0
+    sstore v4, v6 !metadata(storage=symbolic(v4))
+    v7 = loadimmutable counter
+    v8 = gas
+    v9 = abi_encode [], selector 0x68110b2f00000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = call v8, v7, 0, v10, v11, 0, 32
+    jumpi v12, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v13 = returndatasize
+    v14 = lt v13, 32
+    icall revert_if<tuple_data_too_short>, v14
+    v15 = add 0, 0
+    v16 = mload v15
+    v17 = add 0, 0
+    v18 = mload v17
+    v19 = caller
+    v20 = zext i160 v19 to i256
+    v21 = mapping_slot v20, 1
+    v22 = sload v21 !metadata(storage=symbolic(v21))
+    v23 = sload 0 !metadata(storage=slot(0))
+    v24 = checked_add u256, v22, v23
+    jump bb2
+  bb2:
+    sstore 0, 1 !metadata(storage=slot(0))
+    jump bb1
+  bb1:
+    ret v24
+}
+
+fn @isLocked() -> i256 [selector=0xa4e2d634, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = eq v0, 0
+    v2 = zext i1 v1 to i256
+    ret v2
+}
+
+fn @bumpAndRead() -> i256 [selector=0x5e13e3fa, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = eq v0, 1
+    icall require<short_string>, v1, 6, 0x6c6f636b65640000000000000000000000000000000000000000000000000000
+    sstore 0, 0 !metadata(storage=slot(0))
+    v2 = loadimmutable counter
+    v3 = gas
+    v4 = abi_encode [], selector 0x68110b2f00000000000000000000000000000000000000000000000000000000
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = call v3, v2, 0, v5, v6, 0, 32
+    jumpi v7, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v8 = returndatasize
+    v9 = lt v8, 32
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = add 0, 0
+    v11 = mload v10
+    v12 = add 0, 0
+    v13 = mload v12
+    jump bb2
+  bb2:
+    sstore 0, 1 !metadata(storage=slot(0))
+    jump bb1
+  bb1:
+    ret v13
+}
+
+fn @reenterSelf() [selector=0x1d45d862, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = eq v0, 1
+    icall require<short_string>, v1, 6, 0x6c6f636b65640000000000000000000000000000000000000000000000000000
+    sstore 0, 0 !metadata(storage=slot(0))
+    v2 = address
+    v3 = gas
+    v4 = abi_encode [word], selector 0xb6b55f2500000000000000000000000000000000000000000000000000000000, args 1
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = zext i160 v2 to i256
+    v8 = call v3, v7, 0, v5, v6, 0, 32
+    jumpi v8, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v9 = returndatasize
+    v10 = lt v9, 32
+    icall revert_if<tuple_data_too_short>, v10
+    v11 = add 0, 0
+    v12 = mload v11
+    v13 = add 0, 0
+    v14 = mload v13
+    jump bb2
+  bb2:
+    sstore 0, 1 !metadata(storage=slot(0))
+    jump bb1
+  bb1:
+    ret
+}

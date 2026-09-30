@@ -63,6 +63,7 @@ time: <TIME>	MIR TimePasses lower-abi-encode changed=false
 time: <TIME>	MIR TimePasses lower-aggregates changed=false
 time: <TIME>	MIR TimePasses storage-load-cse changed=false
 time: <TIME>	MIR TimePasses storage-dse changed=false
+time: <TIME>	MIR TimePasses guard-elim changed=false
 time: <TIME>	MIR TimePasses egraph changed=false
 time: <TIME>	MIR TimePasses word-sequence changed=false
 time: <TIME>	MIR TimePasses cfg-simplify changed=false

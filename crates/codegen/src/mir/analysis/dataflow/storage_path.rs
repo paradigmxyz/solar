@@ -154,11 +154,6 @@ impl PathTable {
         self.ids.get(&node).copied()
     }
 
-    /// Returns the node of `path`.
-    pub(crate) fn node(&self, path: PathId) -> PathNode {
-        self.nodes[path]
-    }
-
     /// Interns `node` after canonicalizing constant offsets.
     pub(crate) fn intern(&mut self, node: PathNode) -> PathId {
         let node = match node {
@@ -340,6 +335,31 @@ impl PathTable {
                 let base = self.erase_keys(base);
                 self.intern(PathNode::Region { base })
             }
+        }
+    }
+
+    /// Returns whether `path` names one slot whose keys cannot change within an activation:
+    /// constants, `caller`, and formal parameters, with no unknown parts.
+    pub(crate) fn is_stable(&self, path: PathId) -> bool {
+        let stable =
+            |key: KeyTerm| matches!(key, KeyTerm::Const(_) | KeyTerm::Caller | KeyTerm::Arg(_));
+        match self.nodes[path] {
+            PathNode::Slot(_) | PathNode::Param(_) => true,
+            PathNode::Unknown | PathNode::Region { .. } => false,
+            PathNode::Mapping { base, key } => stable(key) && self.is_stable(base),
+            PathNode::Element { base, index, .. } => stable(index) && self.is_stable(base),
+            PathNode::ArrayData { base } | PathNode::Field { base, .. } => self.is_stable(base),
+        }
+    }
+
+    /// Returns whether `path` lies in a hashed area: a mapping entry or array data.
+    pub(crate) fn is_hashed(&self, path: PathId) -> bool {
+        match self.nodes[path] {
+            PathNode::Mapping { .. } | PathNode::ArrayData { .. } => true,
+            PathNode::Field { base, .. }
+            | PathNode::Element { base, .. }
+            | PathNode::Region { base } => self.is_hashed(base),
+            PathNode::Slot(_) | PathNode::Param(_) | PathNode::Unknown => false,
         }
     }
 

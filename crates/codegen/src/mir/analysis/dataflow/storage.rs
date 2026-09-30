@@ -78,6 +78,8 @@ pub(crate) struct FunctionStorage {
     pub(crate) accesses: FxHashMap<InstId, Accesses>,
     /// Actual argument paths and keys of each internal call.
     pub(crate) call_args: FxHashMap<InstId, StorageEntry>,
+    /// Internal calls whose callee may end the transaction successfully.
+    pub(crate) terminating_calls: FxHashSet<InstId>,
 }
 
 /// A function's storage footprint.
@@ -93,6 +95,9 @@ pub(crate) struct StorageSummary {
     pub(crate) transient_writes: BTreeSet<PathId>,
     /// Paths of each returned component.
     pub(crate) returns: SmallVec<[PathSet; 1]>,
+    /// Whether the function may end the transaction successfully, with `stop`, `return`, or
+    /// `selfdestruct`, directly or in a callee.
+    pub(crate) terminates: bool,
 }
 
 impl JoinSemiLattice for StorageSummary {
@@ -121,6 +126,7 @@ impl JoinSemiLattice for StorageSummary {
         for (mine, theirs) in self.returns.iter_mut().zip(&other.returns) {
             changed |= mine.join(theirs);
         }
+        changed |= self.terminates.join(&other.terminates);
         changed
     }
 }
@@ -202,6 +208,7 @@ impl InterproceduralAnalysis for StorageAnalysis {
             transient_reads: unknown.clone(),
             transient_writes: unknown,
             returns: smallvec::smallvec![PathSet::unknown()],
+            terminates: true,
         }
     }
 
@@ -218,8 +225,10 @@ impl InterproceduralAnalysis for StorageAnalysis {
             context,
             values: FxHashMap::default(),
             active: FxHashSet::default(),
+            cycle_heads: FxHashSet::default(),
             call_args: FxHashMap::default(),
             call_returns: FxHashMap::default(),
+            terminating_calls: FxHashSet::default(),
         };
         let cfg = CfgInfo::new(function);
         let alias = AliasAnalysis::new(function);
@@ -239,6 +248,17 @@ impl InterproceduralAnalysis for StorageAnalysis {
                 let (callee_summary, instantiate) = cx.callee_summary(engine, site, *callee, args);
                 let access = cx.instantiate_accesses(engine, &callee_summary, args, instantiate);
                 merge_accesses(&mut summary, &access);
+                summary.terminates |= callee_summary.terminates;
+            }
+            if matches!(
+                function.blocks[block].terminator,
+                Some(
+                    Terminator::Stop
+                        | Terminator::ReturnData { .. }
+                        | Terminator::SelfDestruct { .. }
+                )
+            ) {
+                summary.terminates = true;
             }
             if let Some(Terminator::Return { values }) = &function.blocks[block].terminator {
                 let components = cx.return_components(engine, values);
@@ -264,7 +284,12 @@ impl InterproceduralAnalysis for StorageAnalysis {
         for paths in &mut summary.returns {
             *paths = paths.iter().map(|path| table.generalize(path, func)).collect();
         }
-        let results = FunctionStorage { accesses, call_args: cx.call_args };
+        summary.terminates |= !cx.terminating_calls.is_empty();
+        let results = FunctionStorage {
+            accesses,
+            call_args: cx.call_args,
+            terminating_calls: cx.terminating_calls,
+        };
         engine.analysis.functions.insert((func, context.clone()), Rc::new(results));
         summary
     }
@@ -296,8 +321,11 @@ struct FunctionCx<'a> {
     context: &'a Context<StorageEntry>,
     values: FxHashMap<ValueId, PathSet>,
     active: FxHashSet<ValueId>,
+    /// Values whose cycle answered optimistically and is still being computed.
+    cycle_heads: FxHashSet<ValueId>,
     call_args: FxHashMap<InstId, StorageEntry>,
     call_returns: FxHashMap<InstId, SmallVec<[PathSet; 1]>>,
+    terminating_calls: FxHashSet<InstId>,
 }
 
 impl FunctionCx<'_> {
@@ -340,13 +368,30 @@ impl FunctionCx<'_> {
             return paths.clone();
         }
         if !self.active.insert(value) {
-            // A cyclic slot computation, such as a pointer stepped in a loop.
-            return PathSet::unknown();
+            // A cycle: phis that only carry the value around a loop add nothing, so answer
+            // optimistically with no paths. Operations that derive a new location from an
+            // empty base widen to the unknown path, so a pointer stepped in a loop does.
+            self.cycle_heads.insert(value);
+            return PathSet::default();
         }
         let paths = self.compute_paths(engine, value);
         self.active.remove(&value);
-        self.values.insert(value, paths.clone());
+        self.cycle_heads.remove(&value);
+        // A value computed from an optimistic cycle answer is only final at its head.
+        if self.cycle_heads.is_empty() {
+            self.values.insert(value, paths.clone());
+        }
         paths
+    }
+
+    /// Returns the paths an access through `value` touches; never empty.
+    fn access_paths(
+        &mut self,
+        engine: &mut SummaryEngine<'_, StorageAnalysis>,
+        value: ValueId,
+    ) -> PathSet {
+        let paths = self.paths(engine, value);
+        if paths.is_empty() { PathSet::unknown() } else { paths }
     }
 
     fn compute_paths(
@@ -385,6 +430,9 @@ impl FunctionCx<'_> {
             &InstKind::StorageArrayElementSlot { slot, index, element_slots } => {
                 let index = self.key(index);
                 let bases = self.paths(engine, slot);
+                if bases.is_empty() {
+                    return PathSet::unknown();
+                }
                 let table = &mut engine.analysis.table;
                 bases
                     .iter()
@@ -435,6 +483,9 @@ impl FunctionCx<'_> {
         build: impl Fn(PathId) -> PathNode,
     ) -> PathSet {
         let bases = self.paths(engine, base);
+        if bases.is_empty() {
+            return PathSet::unknown();
+        }
         let table = &mut engine.analysis.table;
         bases.iter().map(|base| table.intern(build(base))).collect()
     }
@@ -597,7 +648,7 @@ impl FunctionCx<'_> {
         args: &[ValueId],
     ) -> (StorageSummary, bool) {
         let entry = StorageEntry {
-            args: args.iter().map(|&arg| self.paths(engine, arg)).collect(),
+            args: args.iter().map(|&arg| self.access_paths(engine, arg)).collect(),
             keys: args.iter().map(|&arg| self.key(arg)).collect(),
         };
         if let Some(inst) = site.inst {
@@ -617,7 +668,8 @@ impl FunctionCx<'_> {
         args: &[ValueId],
         instantiate: bool,
     ) -> Accesses {
-        let actual_args = args.iter().map(|&arg| self.paths(engine, arg)).collect::<Vec<_>>();
+        let actual_args =
+            args.iter().map(|&arg| self.access_paths(engine, arg)).collect::<Vec<_>>();
         let actual_keys = args.iter().map(|&arg| self.key(arg)).collect::<Vec<_>>();
         let table = &mut engine.analysis.table;
         let mut map = |paths: &BTreeSet<PathId>| {
@@ -653,13 +705,15 @@ impl FunctionCx<'_> {
         let mut accesses = Accesses::default();
         let kind = &self.func.inst(inst).kind;
         match kind {
-            &InstKind::SLoad(slot) => accesses.reads.extend(self.paths(engine, slot).iter()),
-            &InstKind::SStore(slot, _) => accesses.writes.extend(self.paths(engine, slot).iter()),
+            &InstKind::SLoad(slot) => accesses.reads.extend(self.access_paths(engine, slot).iter()),
+            &InstKind::SStore(slot, _) => {
+                accesses.writes.extend(self.access_paths(engine, slot).iter());
+            }
             &InstKind::TLoad(slot) => {
-                accesses.transient_reads.extend(self.paths(engine, slot).iter());
+                accesses.transient_reads.extend(self.access_paths(engine, slot).iter());
             }
             &InstKind::TStore(slot, _) => {
-                accesses.transient_writes.extend(self.paths(engine, slot).iter());
+                accesses.transient_writes.extend(self.access_paths(engine, slot).iter());
             }
             InstKind::ICall { function: Callee::Function(callee), args } => {
                 let (callee, args) = (*callee, args.clone());
@@ -667,7 +721,7 @@ impl FunctionCx<'_> {
                 let (summary, instantiate) = self.callee_summary(engine, site, callee, &args);
                 let returns = if instantiate {
                     let actual_args =
-                        args.iter().map(|&arg| self.paths(engine, arg)).collect::<Vec<_>>();
+                        args.iter().map(|&arg| self.access_paths(engine, arg)).collect::<Vec<_>>();
                     let actual_keys = args.iter().map(|&arg| self.key(arg)).collect::<Vec<_>>();
                     let table = &mut engine.analysis.table;
                     summary
@@ -685,6 +739,9 @@ impl FunctionCx<'_> {
                     summary.returns.clone()
                 };
                 self.call_returns.insert(inst, returns);
+                if summary.terminates {
+                    self.terminating_calls.insert(inst);
+                }
                 accesses = self.instantiate_accesses(engine, &summary, &args, instantiate);
             }
             InstKind::DelegateCall { .. }
@@ -718,7 +775,7 @@ impl FunctionCx<'_> {
                             }
                             Access::Any(AddressSpace::Storage) => match root {
                                 Some(root) => {
-                                    let bases = self.paths(engine, root);
+                                    let bases = self.access_paths(engine, root);
                                     let table = &mut engine.analysis.table;
                                     bases
                                         .iter()
@@ -758,7 +815,7 @@ impl FunctionCx<'_> {
     ) -> PathSet {
         match alias {
             StorageAlias::Slot(slot) => PathSet::single(engine.analysis.table.slot(slot)),
-            StorageAlias::Symbolic(value) => self.paths(engine, value),
+            StorageAlias::Symbolic(value) => self.access_paths(engine, value),
             StorageAlias::Offset { base, offset } => {
                 self.map_paths(engine, base, |base| PathNode::Field { base, offset })
             }

@@ -149,8 +149,11 @@ impl<'a> Analysis for Transfer<'a> {
         let state = &mut state.live;
         let kind = &func.inst(inst).kind;
         let accesses = self.storage.accesses.get(&inst);
-        // Code that may run elsewhere, including reentrant views, may read anything.
-        if super::reentrancy::call_operands(kind).is_some() {
+        // Code that may run elsewhere, including reentrant views, may read anything, and a
+        // callee that ends the transaction keeps every earlier write.
+        if super::reentrancy::call_operands(kind).is_some()
+            || self.storage.terminating_calls.contains(&inst)
+        {
             *state = Live::everything();
             return;
         }

@@ -19,7 +19,7 @@
 //! or storage-pointer parameters clobber the tracked state conservatively.
 
 use super::lattice::JoinSemiLattice;
-use crate::mir::{FunctionId, ImmutableId, InstId, ValueId};
+use crate::mir::{Builtin, Callee, Function, FunctionId, ImmutableId, InstId, InstKind, ValueId};
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
 use std::{
@@ -103,7 +103,7 @@ impl SymWord {
     }
 
     /// Returns whether every bit is either known or copied from an entry value.
-    fn is_determined(&self) -> bool {
+    pub(crate) fn is_determined(&self) -> bool {
         self.known | self.entry.map_or(U256::ZERO, |entry| entry.mask) == U256::MAX
     }
 
@@ -722,8 +722,101 @@ impl SlotState {
         }
     }
 
+    /// Returns what is known about the result of `inst`, whose storage load, if any, reads
+    /// the exact slot `loaded`.
+    pub(crate) fn evaluate(
+        &self,
+        func: &Function,
+        inst: InstId,
+        loaded: Option<SlotKey>,
+    ) -> Option<Val> {
+        let current = self;
+        let value = |value| current.value(func, value);
+        let kind = &func.inst(inst).kind;
+        match *kind {
+            InstKind::SLoad(_) | InstKind::TLoad(_) => {
+                loaded.map(|slot| Val::Word(current.current(slot)))
+            }
+            InstKind::Caller => Some(Val::Caller),
+            InstKind::LoadImmutable(id) => Some(Val::Immutable(id)),
+            InstKind::Zext(x) | InstKind::Bitcast(x) => value(x),
+            InstKind::Trunc(x, bits) => match value(x) {
+                Some(Val::Word(word)) => Some(Val::Word(word.trunc(bits))),
+                Some(fact @ (Val::Caller | Val::Immutable(_))) if bits >= 160 => Some(fact),
+                Some(fact @ Val::Pred(_)) => Some(fact),
+                _ => None,
+            },
+            InstKind::And(x, y) => match (value(x), value(y)) {
+                (Some(Val::Word(a)), Some(Val::Word(b))) => Some(Val::Word(a.and(b))),
+                (Some(fact @ (Val::Caller | Val::Immutable(_))), Some(Val::Word(mask)))
+                | (Some(Val::Word(mask)), Some(fact @ (Val::Caller | Val::Immutable(_))))
+                    if mask.as_constant().is_some_and(|mask| {
+                        let address = (U256::from(1) << 160) - U256::from(1);
+                        mask & address == address
+                    }) =>
+                {
+                    Some(fact)
+                }
+                _ => None,
+            },
+            InstKind::Or(x, y) => match (value(x), value(y)) {
+                (Some(a), Some(b)) => match (a.word(), b.word()) {
+                    (Some(a), Some(b)) => Some(Val::Word(a.or(b))),
+                    _ => None,
+                },
+                _ => None,
+            },
+            InstKind::Xor(x, y) => {
+                match (value(x).and_then(Val::word), value(y).and_then(Val::word)) {
+                    (Some(a), Some(b)) => Some(Val::Word(a.xor(b))),
+                    _ => None,
+                }
+            }
+            InstKind::Not(x) => value(x).and_then(Val::word).map(|word| Val::Word(word.not())),
+            InstKind::Shr(shift, x) => {
+                match (func.value_u64(shift), value(x).and_then(Val::word)) {
+                    (Some(shift), Some(word)) => Some(Val::Word(word.shr(shift.min(256) as usize))),
+                    _ => None,
+                }
+            }
+            InstKind::Shl(shift, x) => {
+                match (func.value_u64(shift), value(x).and_then(Val::word)) {
+                    (Some(shift), Some(word)) => Some(Val::Word(word.shl(shift.min(256) as usize))),
+                    _ => None,
+                }
+            }
+            InstKind::Eq(x, y) => equality(value(x), value(y)).map(Val::Pred),
+            InstKind::Ne(x, y) => equality(value(x), value(y)).map(|pred| Val::Pred(pred.negate())),
+            _ => None,
+        }
+    }
+
+    /// Returns the condition a passing check or requirement establishes.
+    pub(crate) fn check_assumption(&self, func: &Function, kind: &InstKind) -> Option<Pred> {
+        let (cond, holds) = match kind {
+            InstKind::ICall { function: Callee::Builtin(Builtin::Check { is_zero, .. }), args } => {
+                (*args.first()?, *is_zero)
+            }
+            InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), args } => {
+                (*args.first()?, true)
+            }
+            _ => return None,
+        };
+        let pred = self.condition(func, cond)?;
+        Some(if holds { pred } else { pred.negate() })
+    }
+
+    /// Returns the condition an `i1` value stands for.
+    pub(crate) fn condition(&self, func: &Function, value: ValueId) -> Option<Pred> {
+        match self.value(func, value)? {
+            Val::Pred(pred) => Some(pred),
+            Val::Word(word) => word.as_constant().map(|value| Pred::Const(!value.is_zero())),
+            Val::Caller | Val::Immutable(_) => None,
+        }
+    }
+
     /// Returns what is known about `value`.
-    pub(crate) fn value(&self, func: &crate::mir::Function, value: ValueId) -> Option<Val> {
+    pub(crate) fn value(&self, func: &Function, value: ValueId) -> Option<Val> {
         if let Some(constant) = func.value_u256(value) {
             return Some(Val::Word(SymWord::constant(constant)));
         }

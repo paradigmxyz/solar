@@ -1,0 +1,160 @@
+//@compile-flags: -Zmir-pipeline=guard-elim
+//@filecheck:
+// A lock set and restored around code that cannot observe it is removed; the check stays.
+@module GuardElim
+
+fn @helper(arg0: i256) {
+  bb0:
+    v0 = mapping_slot arg0, 3
+    sstore v0, 1
+    ret
+}
+
+fn @reads_lock() -> i256 {
+  bb0:
+    v0 = sload 0
+    ret v0
+}
+
+// require(unlocked == 1); unlocked = 0; ...; unlocked = 1
+// CHECK-LABEL: {{^[ +].*}}fn @uniswap_lock{{[( ]}}
+// CHECK: v0 = sload 0
+// CHECK: - sstore 0, 0
+// CHECK: icall @helper, arg0
+// CHECK: - sstore 0, 1
+fn @uniswap_lock(arg0: i256) [selector=0x00000001] {
+  bb0:
+    v0 = sload 0
+    v1 = eq v0, 1
+    jumpi v1, bb1, bb2
+  bb1:
+    sstore 0, 0
+    icall @helper, arg0
+    sstore 0, 1
+    stop
+  bb2:
+    revert 0, 0
+}
+
+// A read of the lock inside the region becomes the stored marker.
+// CHECK-LABEL: {{^[ +].*}}fn @read_inside{{[( ]}}
+// CHECK: - sstore 0, 0
+// CHECK-NEXT: - {{v[0-9]+}} = sload 0
+// CHECK-NEXT: - sstore 1, {{v[0-9]+}}
+// CHECK-NEXT: - sstore 0, 1
+// CHECK-NEXT: + sstore 1, 0
+fn @read_inside() [selector=0x00000002] {
+  bb0:
+    v0 = sload 0
+    v1 = eq v0, 1
+    jumpi v1, bb1, bb2
+  bb1:
+    sstore 0, 0
+    v2 = sload 0
+    sstore 1, v2
+    sstore 0, 1
+    returndata 0, 0
+  bb2:
+    revert 0, 0
+}
+
+// An external call may re-enter while the lock is held.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_around_call{{[( ]}}
+// CHECK-NOT: {{^-}}
+// CHECK: {{^ }}{{.*}}sstore 0, 0
+// CHECK-NOT: {{^-}}
+// CHECK: {{^ }}{{.*}}sstore 0, 1
+fn @keep_around_call(arg0: i256) [selector=0x00000003] {
+  bb0:
+    v0 = sload 0
+    v1 = eq v0, 1
+    jumpi v1, bb1, bb2
+  bb1:
+    sstore 0, 0
+    v2 = call 0, arg0, 0, 0, 0, 0, 0
+    sstore 0, 1
+    stop
+  bb2:
+    revert 0, 0
+}
+
+// A callee that reads the lock observes the marker.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_for_reader{{[( ]}}
+// CHECK-NOT: {{^-}}
+// CHECK: {{^ }}{{.*}}sstore 0, 0
+// CHECK-NOT: {{^-}}
+// CHECK: {{^ }}{{.*}}sstore 0, 1
+fn @keep_for_reader() [selector=0x00000004] {
+  bb0:
+    v0 = sload 0
+    v1 = eq v0, 1
+    jumpi v1, bb1, bb2
+  bb1:
+    sstore 0, 0
+    v2 = icall @reads_lock
+    sstore 0, 1
+    stop
+  bb2:
+    revert 0, 0
+}
+
+// One exit keeps the marker, so the set is observable afterwards.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_without_restore{{[( ]}}
+// CHECK-NOT: {{^-}}
+// CHECK: {{^ }}{{.*}}sstore 0, 0
+// CHECK-NOT: {{^-}}
+// CHECK: {{^ }}{{.*}}sstore 0, 1
+fn @keep_without_restore(arg0: i1) [selector=0x00000005] {
+  bb0:
+    v0 = sload 0
+    v1 = eq v0, 1
+    jumpi v1, bb1, bb4
+  bb1:
+    sstore 0, 0
+    jumpi arg0, bb2, bb3
+  bb2:
+    sstore 0, 1
+    stop
+  bb3:
+    stop
+  bb4:
+    revert 0, 0
+}
+
+// Without a check, the original value is unknown and a restore cannot be recognized.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_unknown_original{{[( ]}}
+// CHECK-NOT: {{^-}}
+// CHECK: {{^ }}{{.*}}sstore 0, 0
+// CHECK-NOT: {{^-}}
+// CHECK: {{^ }}{{.*}}sstore 0, 1
+fn @keep_unknown_original() [selector=0x00000006] {
+  bb0:
+    sstore 0, 0
+    sstore 0, 1
+    stop
+}
+
+// A packed flag keeps its other bits: the restore rewrites the entry's bits exactly.
+// CHECK-LABEL: {{^[ +].*}}fn @packed_flag{{[( ]}}
+// CHECK: - sstore 2, [[SET:v[0-9]+]]
+// CHECK-NEXT: - {{v[0-9]+}} = sload 2
+// CHECK: - sstore 2, {{v[0-9]+}}
+// CHECK-NEXT: + {{v[0-9]+}} = and [[SET]], {{v[0-9]+}}
+fn @packed_flag() [selector=0x00000007] {
+  bb0:
+    v0 = sload 2
+    v1 = and v0, 255
+    v2 = eq v1, 0
+    jumpi v2, bb1, bb2
+  bb1:
+    v3 = not 255
+    v4 = and v0, v3
+    v5 = or v4, 1
+    sstore 2, v5
+    v6 = sload 2
+    v7 = and v6, v3
+    sstore 2, v7
+    stop
+  bb2:
+    revert 0, 0
+}

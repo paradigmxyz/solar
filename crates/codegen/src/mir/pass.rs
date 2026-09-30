@@ -59,6 +59,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &word_sequence::WordSequence,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
+    &guard_elim::GuardElim,
     &load_pre::LoadPre::All,
     &load_pre::LoadPre::Storage,
     &loop_canonicalize::LoopCanonicalize,
@@ -285,6 +286,8 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // whole words before deleting the overwritten stores, then simplify masks.
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
+    // With packed lock updates explicit, drop reentrancy locks that no call can observe.
+    &GasOnly::new(guard_elim::GuardElim),
     &egraph::Egraph,
     &word_sequence::WordSequence,
     &cfg_simplify::CfgSimplify,

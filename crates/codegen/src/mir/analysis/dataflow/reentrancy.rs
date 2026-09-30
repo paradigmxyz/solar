@@ -46,7 +46,6 @@ use super::{
     lattice::{JoinSemiLattice, Reachable},
     slot_state::{
         CallId, Clobber, Constraint, Guard, Origin, Pred, SlotKey, SlotState, SymWord, Val,
-        equality,
     },
     storage::{FunctionStorage, StorageEntry},
     storage_path::{Activation, PathId, PathSet, PathTable},
@@ -374,7 +373,7 @@ pub(crate) struct ModuleFacts {
 
 impl ModuleFacts {
     /// Returns the trust of a target that does not depend on privileged accounts, if known.
-    fn code_trust(&self, table: &mut PathTable, target: Provenance) -> Option<Trust> {
+    pub(crate) fn code_trust(&self, table: &mut PathTable, target: Provenance) -> Option<Trust> {
         match target {
             Provenance::Constant(address) if address.is_zero() || is_precompile(address) => {
                 Some(Trust::NoCallback)
@@ -539,9 +538,12 @@ struct Transfer<'a, 'e, 'm> {
 
 /// Operands of one external call.
 pub(crate) struct CallOperands {
-    kind: CallKind,
-    target: Option<ValueId>,
-    value: Option<ValueId>,
+    /// How the call transfers control.
+    pub(crate) kind: CallKind,
+    /// The target address, absent for creations.
+    pub(crate) target: Option<ValueId>,
+    /// The transferred value, if any.
+    pub(crate) value: Option<ValueId>,
 }
 
 /// Returns the call operands of an external call or creation.
@@ -590,8 +592,49 @@ pub(crate) fn call_operands(kind: &InstKind) -> Option<CallOperands> {
     })
 }
 
+/// Returns where a call target address comes from.
+pub(crate) fn target_provenance(
+    module: &Module,
+    storage: &FunctionStorage,
+    func: &Function,
+    value: ValueId,
+    evm_version: EvmVersion,
+    depth: usize,
+) -> Provenance {
+    if depth > 16 {
+        return Provenance::Unknown;
+    }
+    let recurse = |value| target_provenance(module, storage, func, value, evm_version, depth + 1);
+    match func.value(value) {
+        Value::Immediate(imm) => imm.as_u256().map_or(Provenance::Unknown, Provenance::Constant),
+        Value::Arg(index) => Provenance::Arg(*index),
+        Value::Undef(_) | Value::Error(_) => Provenance::Unknown,
+        Value::Inst(inst) => match func.inst(*inst).kind {
+            InstKind::Zext(x)
+            | InstKind::Trunc(x, _)
+            | InstKind::Bitcast(x)
+            | InstKind::IntToPtr(x)
+            | InstKind::PtrToInt(x, _) => recurse(x),
+            InstKind::And(x, y) if func.value_u256(y).is_some() => recurse(x),
+            InstKind::And(x, y) if func.value_u256(x).is_some() => recurse(y),
+            InstKind::Address => Provenance::This,
+            InstKind::Caller => Provenance::Caller,
+            InstKind::LoadImmutable(id) => Provenance::Immutable(id),
+            InstKind::LibraryAddress(_) => Provenance::Library,
+            InstKind::SLoad(_) => match storage.accesses.get(inst) {
+                Some(access) if access.reads.len() == 1 => Provenance::Storage(access.reads[0]),
+                _ => Provenance::Unknown,
+            },
+            InstKind::Create(_, offset, _) | InstKind::Create2(_, offset, _, _) => {
+                created_provenance(module, func, offset, evm_version)
+            }
+            _ => Provenance::Unknown,
+        },
+    }
+}
+
 /// Returns whether `address` is a precompile: its call runs no contract code.
-fn is_precompile(address: U256) -> bool {
+pub(crate) fn is_precompile(address: U256) -> bool {
     (U256::from(1)..=U256::from(0x11)).contains(&address) || address == U256::from(0x100)
 }
 
@@ -619,7 +662,7 @@ impl Transfer<'_, '_, '_> {
                 state.clobber(Clobber::All);
             } else if table.is_relative(path) {
                 state.clobber(Clobber::Relative);
-            } else if !is_hashed(table, path) {
+            } else if !table.is_hashed(path) {
                 // An element of an absolute array may overlap any tracked slot.
                 state.clobber(Clobber::All);
             }
@@ -628,49 +671,14 @@ impl Transfer<'_, '_, '_> {
 
     /// Returns the provenance of a call target address.
     fn provenance(&mut self, func: &Function, value: ValueId, depth: usize) -> Provenance {
-        if depth > 16 {
-            return Provenance::Unknown;
-        }
-        match func.value(value) {
-            Value::Immediate(imm) => {
-                imm.as_u256().map_or(Provenance::Unknown, Provenance::Constant)
-            }
-            Value::Arg(index) => Provenance::Arg(*index),
-            Value::Undef(_) | Value::Error(_) => Provenance::Unknown,
-            Value::Inst(inst) => match func.inst(*inst).kind {
-                InstKind::Zext(x)
-                | InstKind::Trunc(x, _)
-                | InstKind::Bitcast(x)
-                | InstKind::IntToPtr(x)
-                | InstKind::PtrToInt(x, _) => self.provenance(func, x, depth + 1),
-                InstKind::And(x, y) => {
-                    if func.value_u256(y).is_some() {
-                        self.provenance(func, x, depth + 1)
-                    } else if func.value_u256(x).is_some() {
-                        self.provenance(func, y, depth + 1)
-                    } else {
-                        Provenance::Unknown
-                    }
-                }
-                InstKind::Address => Provenance::This,
-                InstKind::Caller => Provenance::Caller,
-                InstKind::LoadImmutable(id) => Provenance::Immutable(id),
-                InstKind::LibraryAddress(_) => Provenance::Library,
-                InstKind::SLoad(_) => match self.storage.accesses.get(inst) {
-                    Some(access) if access.reads.len() == 1 => Provenance::Storage(access.reads[0]),
-                    _ => Provenance::Unknown,
-                },
-                InstKind::Create(_, offset, _) | InstKind::Create2(_, offset, _, _) => {
-                    created_provenance(
-                        self.engine.module,
-                        func,
-                        offset,
-                        self.engine.analysis.evm_version,
-                    )
-                }
-                _ => Provenance::Unknown,
-            },
-        }
+        target_provenance(
+            self.engine.module,
+            self.storage,
+            func,
+            value,
+            self.engine.analysis.evm_version,
+            depth,
+        )
     }
 
     fn record(&mut self, inst: InstId, fact: impl fmt::Display) {
@@ -1010,17 +1018,6 @@ impl Transfer<'_, '_, '_> {
     }
 }
 
-fn is_hashed(table: &PathTable, path: PathId) -> bool {
-    use super::storage_path::PathNode;
-    match table.node(path) {
-        PathNode::Mapping { .. } | PathNode::ArrayData { .. } => true,
-        PathNode::Field { base, .. }
-        | PathNode::Element { base, .. }
-        | PathNode::Region { base } => is_hashed(table, base),
-        PathNode::Slot(_) | PathNode::Param(_) | PathNode::Unknown => false,
-    }
-}
-
 fn conjoin(a: &Guard, b: &Guard) -> Guard {
     let mut guard = a.clone();
     for (key, constraint) in &b.conds {
@@ -1077,7 +1074,7 @@ fn compose_val(value: Val, state: &SlotState) -> Option<Val> {
 /// words. Only the contiguous prefix of constant bytes is decoded; constructor arguments
 /// follow it and are never executed as code, because compiled constructors only jump to
 /// their own labels.
-fn created_provenance(
+pub(crate) fn created_provenance(
     module: &Module,
     func: &Function,
     offset: ValueId,
@@ -1217,7 +1214,7 @@ impl Analysis for Transfer<'_, '_, '_> {
         let Reachable::State(current) = state else { return };
         let result = func.inst_result_value(inst);
         let value = |current: &SlotState, value| current.value(func, value);
-        let fact = match *kind {
+        let loaded = match *kind {
             InstKind::SLoad(_) | InstKind::TLoad(_) => {
                 let transient = matches!(kind, InstKind::TLoad(_));
                 let access = self.storage.accesses.get(&inst);
@@ -1225,69 +1222,13 @@ impl Analysis for Transfer<'_, '_, '_> {
                     if transient { access.transient_reads.clone() } else { access.reads.clone() }
                 });
                 match paths.as_deref() {
-                    Some(&[path]) => {
-                        self.slot_of(path, transient).map(|slot| Val::Word(current.current(slot)))
-                    }
+                    Some(&[path]) => self.slot_of(path, transient),
                     _ => None,
                 }
-            }
-            InstKind::Caller => Some(Val::Caller),
-            InstKind::LoadImmutable(id) => Some(Val::Immutable(id)),
-            InstKind::Zext(x) | InstKind::Bitcast(x) => value(current, x),
-            InstKind::Trunc(x, bits) => match value(current, x) {
-                Some(Val::Word(word)) => Some(Val::Word(word.trunc(bits))),
-                Some(fact @ (Val::Caller | Val::Immutable(_))) if bits >= 160 => Some(fact),
-                Some(fact @ Val::Pred(_)) => Some(fact),
-                _ => None,
-            },
-            InstKind::And(x, y) => match (value(current, x), value(current, y)) {
-                (Some(Val::Word(a)), Some(Val::Word(b))) => Some(Val::Word(a.and(b))),
-                (Some(fact @ (Val::Caller | Val::Immutable(_))), Some(Val::Word(mask)))
-                | (Some(Val::Word(mask)), Some(fact @ (Val::Caller | Val::Immutable(_))))
-                    if mask.as_constant().is_some_and(|mask| {
-                        let address = (U256::from(1) << 160) - U256::from(1);
-                        mask & address == address
-                    }) =>
-                {
-                    Some(fact)
-                }
-                _ => None,
-            },
-            InstKind::Or(x, y) => match (value(current, x), value(current, y)) {
-                (Some(a), Some(b)) => match (a.word(), b.word()) {
-                    (Some(a), Some(b)) => Some(Val::Word(a.or(b))),
-                    _ => None,
-                },
-                _ => None,
-            },
-            InstKind::Xor(x, y) => {
-                match (value(current, x).and_then(Val::word), value(current, y).and_then(Val::word))
-                {
-                    (Some(a), Some(b)) => Some(Val::Word(a.xor(b))),
-                    _ => None,
-                }
-            }
-            InstKind::Not(x) => {
-                value(current, x).and_then(Val::word).map(|word| Val::Word(word.not()))
-            }
-            InstKind::Shr(shift, x) => {
-                match (func.value_u64(shift), value(current, x).and_then(Val::word)) {
-                    (Some(shift), Some(word)) => Some(Val::Word(word.shr(shift.min(256) as usize))),
-                    _ => None,
-                }
-            }
-            InstKind::Shl(shift, x) => {
-                match (func.value_u64(shift), value(current, x).and_then(Val::word)) {
-                    (Some(shift), Some(word)) => Some(Val::Word(word.shl(shift.min(256) as usize))),
-                    _ => None,
-                }
-            }
-            InstKind::Eq(x, y) => equality(value(current, x), value(current, y)).map(Val::Pred),
-            InstKind::Ne(x, y) => {
-                equality(value(current, x), value(current, y)).map(|pred| Val::Pred(pred.negate()))
             }
             _ => None,
         };
+        let fact = current.evaluate(func, inst, loaded);
         if let (Some(result), Some(fact)) = (result, fact) {
             current.values.insert(result, fact);
         }
@@ -1337,29 +1278,11 @@ impl Analysis for Transfer<'_, '_, '_> {
         }
 
         // Checks and requirements continue only when they pass.
-        let assumption = match kind {
-            InstKind::ICall { function: Callee::Builtin(Builtin::Check { is_zero, .. }), args } => {
-                args.first().map(|&cond| (cond, *is_zero))
-            }
-            InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), args } => {
-                args.first().map(|&cond| (cond, true))
-            }
-            _ => None,
-        };
-        if let Some((cond, holds)) = assumption {
-            let pred = match value(current, cond) {
-                Some(Val::Pred(pred)) => Some(pred),
-                Some(Val::Word(word)) => {
-                    word.as_constant().map(|value| Pred::Const(!value.is_zero()))
-                }
-                _ => None,
-            };
-            if let Some(pred) = pred
-                && !current.assume(if holds { pred } else { pred.negate() })
-            {
-                *state = Reachable::Unreachable;
-                return;
-            }
+        if let Some(pred) = current.check_assumption(func, kind)
+            && !current.assume(pred)
+        {
+            *state = Reachable::Unreachable;
+            return;
         }
 
         if kind.effect_kind() == EffectKind::Log && self.recording {
@@ -1386,19 +1309,11 @@ impl Analysis for Transfer<'_, '_, '_> {
 
     fn apply_edge(&mut self, func: &Function, edge: &Edge, state: &mut Self::Domain) {
         let Reachable::State(current) = state else { return };
-        if let EdgeCondition::Branch { condition, taken } = edge.condition {
-            let pred = match current.value(func, condition) {
-                Some(Val::Pred(pred)) => Some(pred),
-                Some(Val::Word(word)) => {
-                    word.as_constant().map(|value| Pred::Const(!value.is_zero()))
-                }
-                _ => None,
-            };
-            if let Some(pred) = pred
-                && !current.assume(if taken { pred } else { pred.negate() })
-            {
-                *state = Reachable::Unreachable;
-            }
+        if let EdgeCondition::Branch { condition, taken } = edge.condition
+            && let Some(pred) = current.condition(func, condition)
+            && !current.assume(if taken { pred } else { pred.negate() })
+        {
+            *state = Reachable::Unreachable;
         }
     }
 
@@ -1473,7 +1388,7 @@ pub(crate) fn analyze_module<'m>(
 ) -> (SummaryEngine<'m, ReentrancyAnalysis<'m>>, Vec<Finding>) {
     let mut taint = super::taint::analyze_module(module, policy);
     let entries = runtime_entries(module);
-    let facts = module_facts(module, &mut taint, &entries, evm_version);
+    let facts = module_facts(module, &mut taint.analysis.storage, &entries, evm_version);
     let analysis = ReentrancyAnalysis {
         taint,
         facts: Rc::new(facts),
@@ -1492,7 +1407,7 @@ pub(crate) fn analyze_module<'m>(
     (engine, findings)
 }
 
-fn runtime_entries(module: &Module) -> Vec<FunctionId> {
+pub(crate) fn runtime_entries(module: &Module) -> Vec<FunctionId> {
     module
         .iter_functions()
         .filter(|(_, function)| {
@@ -1506,13 +1421,12 @@ fn runtime_entries(module: &Module) -> Vec<FunctionId> {
         .collect()
 }
 
-fn module_facts(
+pub(crate) fn module_facts(
     module: &Module,
-    taint: &mut SummaryEngine<'_, TaintAnalysis<'_>>,
+    storage: &mut SummaryEngine<'_, super::storage::StorageAnalysis>,
     entries: &[FunctionId],
     evm_version: EvmVersion,
 ) -> ModuleFacts {
-    let storage = &mut taint.analysis.storage;
     let mut facts = ModuleFacts { entries: entries.to_vec(), ..ModuleFacts::default() };
     for &entry in entries {
         let context = storage.general_context(entry);
@@ -1524,7 +1438,7 @@ fn module_facts(
                     Some(slot) => {
                         facts.runtime_written.insert(SlotKey { transient, slot });
                     }
-                    None => facts.runtime_writes_unknown |= !is_hashed(table, path),
+                    None => facts.runtime_writes_unknown |= !table.is_hashed(path),
                 }
             }
         }

@@ -23,6 +23,7 @@
 //! See `docs/DATAFLOW.md` for the design, the sources it draws on, and its limitations.
 
 pub(crate) mod engine;
+pub(crate) mod facts;
 pub(crate) mod interproc;
 pub(crate) mod interval;
 pub(crate) mod lattice;

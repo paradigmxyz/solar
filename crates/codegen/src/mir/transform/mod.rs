@@ -15,6 +15,7 @@ pub(crate) mod element_cleanup;
 pub(crate) mod evm_inst_schedule;
 pub(crate) mod frame_promotion;
 pub(crate) mod function_compaction;
+pub(crate) mod guard_elim;
 pub(crate) mod if_convert;
 pub(crate) mod indvar_simplify;
 pub(crate) mod inline;
