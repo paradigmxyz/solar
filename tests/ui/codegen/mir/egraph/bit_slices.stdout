@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (after egraph) ===
   @module BitSlices
-  types:
+  @types
     struct0: {i256, i256, i256}
     struct1: {i256, i256}
     struct2: {i256, i256, i256, i256}
@@ -147,7 +147,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (after dce) ===
   @module BitSlices
-  types:
+  @types
     struct0: {i256, i256, i256}
     struct1: {i256, i256}
     struct2: {i256, i256, i256, i256}

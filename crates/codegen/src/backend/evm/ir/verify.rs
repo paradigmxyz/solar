@@ -301,6 +301,30 @@ impl<'a> Verifier<'a> {
                 encoding if encoding == Instruction::ENCODED_PUSH | Instruction::IMMUTABLE => {
                     self.verify_immutable_id(block_id, inst, value);
                 }
+                encoding if encoding == Instruction::ENCODED_PUSH | Instruction::DATA_SIZE => {
+                    let PushValue::DataSize(size) = value else {
+                        self.error_in_block(block_id, "`push_data_size` must carry a data size");
+                        return;
+                    };
+                    match module.data.get(size.data) {
+                        None => {
+                            self.error_in_block(
+                                block_id,
+                                format_args!(
+                                    "program data `{}` is out of range",
+                                    size.data.index()
+                                ),
+                            );
+                        }
+                        Some(data) if data.bytes.known().is_some() => {
+                            self.error_in_block(
+                                block_id,
+                                "`push_data_size` requires deferred data",
+                            );
+                        }
+                        Some(_) => {}
+                    }
+                }
                 encoding if encoding == Instruction::ENCODED_PUSH | Instruction::DATA => {
                     let PushValue::Data(data) = value else {
                         self.error_in_block(block_id, "`push_data` must carry a data ID");
@@ -311,13 +335,15 @@ impl<'a> Verifier<'a> {
                             block_id,
                             format_args!("program data `{}` is out of range", data.id.index()),
                         );
-                    } else if data.offset as usize > module.data[data.id].bytes.len() {
+                    } else if let len =
+                        module.data[data.id].bytes.known().map_or(0, |bytes| bytes.len())
+                        && data.offset as usize > len
+                    {
                         self.error_in_block(
                             block_id,
                             format_args!(
-                                "program data offset `{}` exceeds data size `{}`",
-                                data.offset,
-                                module.data[data.id].bytes.len()
+                                "program data offset `{}` exceeds data size `{len}`",
+                                data.offset
                             ),
                         );
                     }

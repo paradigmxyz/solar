@@ -1,7 +1,7 @@
 //@compile-flags: -Zmir-pipeline=cse
 //@filecheck:
 @module CseGlobalLoads
-immutables:
+@immutables
   value: u256
 
 // CHECK-LABEL: {{^[ +].*}}fn @dominating_mload{{[( ]}}

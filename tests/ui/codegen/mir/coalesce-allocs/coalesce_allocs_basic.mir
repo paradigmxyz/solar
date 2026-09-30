@@ -1,7 +1,7 @@
 //@compile-flags: -Zmir-pipeline=coalesce-allocs
 //@filecheck:
 @module CoalesceAllocsBasic
-immutables:
+@immutables
   stored: u256
 
 // Three consecutive constant-size allocations fuse into one bump of the

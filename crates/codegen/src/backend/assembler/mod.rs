@@ -11,7 +11,7 @@ use crate::{
     backend::evm::{
         DebugFunction, DebugFunctionExit, DebugInstruction, DebugSpans, ir, op, op::WORD_BYTES,
     },
-    link::LibraryRelocation,
+    link::{EmbeddedBytecodes, LibraryRelocation, LibraryTable},
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::U256;
@@ -145,6 +145,17 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) next_deferred_alloc: IdCounter<DeferredAlloc>,
     /// Final placement of deferred allocations.
     pub(in crate::backend) deferred_allocations: FxHashMap<DeferredAlloc, DeferredAllocResolution>,
+    /// EVM IR after its pipeline, waiting to be linked and lowered.
+    pub(in crate::backend) optimized: Option<OptimizedProgram>,
+}
+
+/// EVM IR after its pipeline and legalization, before lowering to primitive assembly.
+#[derive(Debug)]
+pub(in crate::backend) struct OptimizedProgram {
+    pub(in crate::backend) program: ir::Module,
+    pub(in crate::backend) labels: Vec<Option<Label>>,
+    /// Whether the pipeline reported an error.
+    pub(in crate::backend) failed: bool,
 }
 
 /// Final lowering selected for a deferred allocation.
@@ -181,6 +192,7 @@ impl<'gcx> Assembler<'gcx> {
             alloc_relocations: Vec::new(),
             next_deferred_alloc: IdCounter::new(),
             deferred_allocations: FxHashMap::default(),
+            optimized: None,
         }
     }
 
@@ -207,6 +219,7 @@ impl<'gcx> Assembler<'gcx> {
         self.alloc_relocations.clear();
         self.next_deferred_alloc.clear();
         self.deferred_allocations.clear();
+        self.optimized = None;
     }
 
     /// Sets the artifact context used by conservative layout estimates.
@@ -273,7 +286,26 @@ impl<'gcx> Assembler<'gcx> {
         capture_evm_ir: bool,
         capture_debug_info: bool,
     ) -> AssembledCode {
-        let prepared = self.prepare(capture_evm_ir, capture_debug_info);
+        self.optimize();
+        self.assemble_linked(
+            &EmbeddedBytecodes::default(),
+            &mut LibraryTable::default(),
+            capture_evm_ir,
+            capture_debug_info,
+        )
+    }
+
+    /// Links embedded contract bytecode into the optimized program, then lowers and
+    /// assembles it and clears the assembler.
+    pub(in crate::backend) fn assemble_linked(
+        &mut self,
+        bytecodes: &EmbeddedBytecodes,
+        libraries: &mut LibraryTable,
+        capture_evm_ir: bool,
+        capture_debug_info: bool,
+    ) -> AssembledCode {
+        let prepared =
+            self.prepare_linked(bytecodes, libraries, capture_evm_ir, capture_debug_info);
         let result = self.assemble_owned(prepared, &[]);
         self.clear();
         result
@@ -458,7 +490,7 @@ impl<'gcx> Assembler<'gcx> {
                 }
                 AsmInstKind::Data(data) => {
                     data_offsets.insert(data, offset);
-                    offset += program.data[data].bytes.len();
+                    offset += program.data[data].bytes.linked().len();
                 }
             }
         }
@@ -583,7 +615,7 @@ impl<'gcx> Assembler<'gcx> {
                             }
                         }),
                     );
-                    out.bytecode.extend_from_slice(&program.data[data].bytes);
+                    out.bytecode.extend_from_slice(program.data[data].bytes.linked());
                 }
             }
         }
@@ -603,7 +635,7 @@ fn resolve_data_offset(
     data_ref: assembly::DataRefId,
 ) -> usize {
     let data = program.data_refs[data_ref];
-    let data_size = program.data[data.id].bytes.len();
+    let data_size = program.data[data.id].bytes.linked().len();
     assert!(
         data.offset as usize <= data_size,
         "program data offset {} exceeds data size {data_size}",

@@ -5,7 +5,7 @@
 // into guarded library entries: only a `@library` module carries the guard.
 @module NamedImmutable
 @phase semantic
-immutables:
+@immutables
   library_deploy_address: address
 
 // CHECK-LABEL: {{^[ +].*}}after lower-dispatch

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_named_immutable.mir (before lower-dispatch) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_named_immutable.mir (after lower-dispatch) ===
   @module NamedImmutable
-  immutables:
+  @immutables
     library_deploy_address: address
   
   fn @write() [selector=0x00000002, abi_wrapper] {

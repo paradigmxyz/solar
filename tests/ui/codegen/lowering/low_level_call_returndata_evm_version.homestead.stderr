@@ -1,0 +1,8 @@
+error: codegen cannot bind low-level call returndata before Byzantium
+   ╭▸ ROOT/tests/ui/codegen/lowering/low_level_call_returndata_evm_version.sol:LL:CC
+   │
+LL │         (, bytes memory data) = target.call("");
+   ╰╴                                ━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

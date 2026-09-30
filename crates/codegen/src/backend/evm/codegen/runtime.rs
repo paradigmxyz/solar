@@ -1,9 +1,9 @@
 //! Runtime emission, retry policies, and whole-program stack limits.
 
 use super::{
-    ArtifactKind, BlockId, CallGraphInfo, DenseBitSet, EvmCodegen, FunctionId, GeneratedCode,
-    IndexVec, Liveness, MAX_STACK_DEPTH, MirPhase, Module, OptimizationMode, Terminator, index_vec,
-    run_pipeline,
+    ArtifactKind, BlockId, CallGraphInfo, DenseBitSet, EmbeddedBytecodes, EvmCodegen, FunctionId,
+    GeneratedCode, IndexVec, LibraryTable, Liveness, MAX_STACK_DEPTH, MirPhase, Module,
+    OptimizationMode, Terminator, index_vec, run_pipeline,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -12,12 +12,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         let _changed = run_pipeline(self.gcx, module, None);
     }
 
-    /// Generates runtime bytecode for a module.
-    pub(super) fn generate_runtime_code(
+    /// Schedules the runtime code of a module into the assembler's EVM IR.
+    pub(super) fn schedule_runtime_code(
         &mut self,
         module: &crate::mir::LoweredModule<'_>,
         call_graph: &CallGraphInfo,
-    ) -> GeneratedCode {
+    ) {
         assert_eq!(
             module.phase(),
             MirPhase::Lowered,
@@ -62,7 +62,20 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             break;
         }
-        let result = self.asm.assemble_with_captures(self.capture_evm_ir, self.capture_debug_info);
+    }
+
+    /// Links embedded bytecode into the optimized runtime code and assembles it.
+    pub(super) fn assemble_runtime_code(
+        &mut self,
+        bytecodes: &EmbeddedBytecodes,
+        libraries: &mut LibraryTable,
+    ) -> GeneratedCode {
+        let result = self.asm.assemble_linked(
+            bytecodes,
+            libraries,
+            self.capture_evm_ir,
+            self.capture_debug_info,
+        );
         self.runtime_immutable_refs = result.immutable_refs;
         GeneratedCode {
             bytecode: result.bytecode,

@@ -350,6 +350,7 @@ fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
             Some(PushValue::Library(_)) => 21,
             Some(PushValue::Block(_)) => 3,
             Some(PushValue::Data(_)) => 4,
+            Some(PushValue::DataSize(size)) => selected_len(gcx, size.bound()),
             _ => 1,
         }
     } else if let Some(stack_op) = inst.as_stack_op() {

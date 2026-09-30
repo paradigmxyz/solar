@@ -4,7 +4,7 @@
 //! [`Module`] and lowers it to a target artifact. Other backends implement
 //! [`Backend`] to plug in; [`EvmCodegen`](crate::EvmCodegen) is the reference.
 
-use crate::mir::Module;
+use crate::{link::EmbeddedBytecodes, mir::Module};
 
 pub(crate) mod assembler;
 
@@ -15,7 +15,8 @@ pub trait Backend {
     /// The artifact this backend produces from a module.
     type Output;
 
-    /// Lowers a module to this backend's output artifact. Takes `&mut` so the
-    /// backend can run its own target-specific passes over the MIR first.
-    fn lower_module(&mut self, module: &mut Module) -> Self::Output;
+    /// Lowers a module to this backend's output artifact, linking in the bytecode of the
+    /// contracts it embeds. Takes `&mut` so the backend can run its own target-specific
+    /// passes over the MIR first.
+    fn lower_module(&mut self, module: &mut Module, bytecodes: &EmbeddedBytecodes) -> Self::Output;
 }

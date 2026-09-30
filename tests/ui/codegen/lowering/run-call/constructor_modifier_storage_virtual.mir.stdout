@@ -25,7 +25,7 @@ fn @value() -> i256 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_storage_virtual.sol:ConstructorModifierStorageVirtual ===
 @module ConstructorModifierStorageVirtual
-types:
+@types
   struct0: {i256, i256}
 
 fn @value() -> i256 [pure] {
