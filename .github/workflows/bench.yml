@@ -28,7 +28,7 @@ env:
   RUSTC_WRAPPER: "sccache"
   SOLC_VERSION: ${{ inputs.solc_version || '0.8.37' }}
   SOLX_VERSION: '0.1.8'
-  OKSOLC_REVISION: 990c42d727e1aacf3d9bce1f290ee31b17babc2b
+  OKSOLC_REVISION: a59339132a1aecc8594a34cbba6b5a1bffbeeca8
 
 jobs:
   codegen-runtime:
@@ -126,16 +126,6 @@ jobs:
         working-directory: target/oksolc
         run: |
           set -euo pipefail
-          # The benchmarks do not use the embedded browser UI.
-          python3 - <<'PYBUILD'
-          from pathlib import Path
-          path = Path("build.zig")
-          source = path.read_text()
-          browser = '@import("build_support/browser.zig").build(b, cli_module);'
-          assert source.count(browser) == 1, "oksolc browser build hook changed"
-          source = source.replace(browser, 'cli_module.addAnonymousImport("browser_app", .{ .root_source_file = b.addWriteFiles().add("app.js", "") });')
-          path.write_text(source)
-          PYBUILD
           zig build build-cli -Doptimize=ReleaseFast -Dcpu=baseline -j4
 
       - name: Check oksolc

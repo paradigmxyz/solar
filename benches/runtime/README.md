@@ -49,12 +49,12 @@ runs it only on pushes to main. Its measurements appear alongside solc in the Ma
 
 Pass `--oksolc PATH` to include [oksolc](https://github.com/okcontract/oksolc) with the same
 compilation, gas, runtime checks, and artifacts. CI builds revision
-`990c42d727e1aacf3d9bce1f290ee31b17babc2b` with Zig 0.16.0 in ReleaseFast mode and runs it on
+`a59339132a1aecc8594a34cbba6b5a1bffbeeca8` with Zig 0.16.0 in ReleaseFast mode and runs it on
 main, PRs, and manual runs. CI caches the executable by revision, Zig version, OS, architecture,
 and build settings, skipping its shallow checkout and build on a cache hit. The build targets
 the baseline CPU for its architecture so the cached executable works across runners.
-This benchmark build replaces the embedded browser JavaScript with an empty asset, skipping
-the browser bundler and type checker without changing the compiler or Standard JSON CLI.
+The upstream build disables the browser UI by default, so no source patch, TypeScript,
+or Bun is needed.
 Oksolc uses `standard-json --no-cache --parallel --jobs 8 -`:
 eight workers match Solar's default, and disabling its persistent cache keeps repeated samples
 measuring compilation. Use `--oksolc-jobs N` to change its worker count locally. Inputs retain
