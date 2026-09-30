@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_return_pointer_multi.sol:StorageReturnPointerMulti ===
 @module StorageReturnPointerMulti
-types:
+@types
   struct0: {i256, i256}
 
 fn @refs() -> struct0 [view] {

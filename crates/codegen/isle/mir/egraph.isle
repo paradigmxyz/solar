@@ -641,6 +641,10 @@
 (rule 8 (simplify (Op.Lt (clz _) (iconst b))) (if-let true (u256_gt b 256)) (imm_bool true))
 ;; a < a => 0
 (rule 6 (simplify (Op.Lt a a)) (imm_bool false))
+;; a + c < a => 0, when a < -c, so the sum cannot wrap
+(rule 4 (simplify (Op.Lt (add a (iconst c)) a))
+    (if-let true (below_const a (u256_neg c)))
+    (imm_bool false))
 ;; _ < 0 => 0
 (rule 5 (simplify (Op.Lt _ (zero))) (imm_bool false))
 ;; b < c => 1, when b is boolean and constant c > 1

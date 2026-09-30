@@ -1,6 +1,9 @@
 - // === ROOT/tests/ui/codegen/evm-ir/pack-data/single_words.evmir (before pack-data) ===
 + // === ROOT/tests/ui/codegen/evm-ir/pack-data/single_words.evmir (after pack-data) ===
   @module single_words
++ @data
++   literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
++ 
   bb0:
     push 128
 -   push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
@@ -21,6 +24,4 @@
 +   dup 3
 +   codecopy
     stop
-+ 
-+ @data literal_0 hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
   

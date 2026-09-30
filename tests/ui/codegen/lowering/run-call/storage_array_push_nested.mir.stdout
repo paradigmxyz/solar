@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_nested.sol:StorageArrayPushNested ===
 @module StorageArrayPushNested
-data:
+@data
   literal_0: hex"61626364656667686162636465666768616263646566676861626364656667686162636465666768616263646566676861626364656667686162636465666768"
 
 fn @pushEmpty() -> i256 [selector=0x19d30117, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -429,7 +429,7 @@ fn @pushBytes() -> i256 [selector=0x7a248eac, abi_params=[], abi_returns=[word],
     set_memory_object_len memorybytes, v16, 64
     v17 = memory_object_data memorybytes, v16
     v18 = ptrtoint memptr v17 to i256
-    data_copy literal_0, v18, 64
+    datacopy literal_0, v18, 64
     v19 = sload 2 !metadata(storage=slot(2))
     v20 = gt v19, 0xffffffffffffffff
     icall panic_if<0x41>, v20

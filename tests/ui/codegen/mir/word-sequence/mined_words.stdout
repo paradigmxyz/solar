@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (after egraph) ===
   @module MinedWords
-  types:
+  @types
     struct0: {i256, i256}
   
   fn @odd(arg0: i256) -> i256 {
@@ -31,7 +31,7 @@
 - // === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (before word-sequence) ===
 + // === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (after word-sequence) ===
   @module MinedWords
-  types:
+  @types
     struct0: {i256, i256}
   
   fn @odd(arg0: i256) -> i256 {
@@ -60,7 +60,7 @@
 - // === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (after dce) ===
   @module MinedWords
-  types:
+  @types
     struct0: {i256, i256}
   
   fn @odd(arg0: i256) -> i256 {

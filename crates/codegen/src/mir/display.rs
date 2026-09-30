@@ -446,8 +446,8 @@ fn display_inst_kind<'a>(
             write!(f, ", {}", display_val(*value, func))
         }
         InstKind::LibraryAddress(id) => {
-            if let Some(library) = module.and_then(|module| module.libraries.get(*id)) {
-                write!(f, "library_address {library}")
+            if let Some(module) = module {
+                write!(f, "library_address {}", module.libraries.display_ref(*id))
             } else {
                 write!(f, "library_address {id:?}")
             }
@@ -456,13 +456,17 @@ fn display_inst_kind<'a>(
             write!(f, "loadimmutable {}", display_immutable_ref(*id, module))
         }
         InstKind::DataCopy(id, dest, size) => {
-            let name = module.and_then(|module| module.data_name(id.id));
+            let name = module.and_then(|module| module.data[id.id].name);
             write!(
                 f,
-                "data_copy {}",
+                "datacopy {}",
                 crate::utils::display_data_ref(name, id.id.index(), id.offset)
             )?;
             write!(f, ", {}, {}", display_val(*dest, func), display_val(*size, func))
+        }
+        InstKind::DataSize(size) => {
+            let name = module.and_then(|module| module.data[size.data].name);
+            write!(f, "datasize {}", crate::utils::display_data_size(name, *size))
         }
         InstKind::Alloc { size, kind, semantics } => {
             let kind = match kind {

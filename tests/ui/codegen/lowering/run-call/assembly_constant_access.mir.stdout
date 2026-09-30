@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/assembly_constant_access.sol:AssemblyConstantAccess ===
 @module AssemblyConstantAccess
-types:
+@types
   struct0: {i256, i256, i256, i256, i256}
   struct1: {i256, i256}
 

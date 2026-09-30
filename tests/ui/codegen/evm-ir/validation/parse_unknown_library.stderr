@@ -1,0 +1,8 @@
+error: unknown library `L_1`
+   ╭▸ ROOT/tests/ui/codegen/evm-ir/validation/parse_unknown_library.evmir:LL:CC
+   │
+LL │   push_library L_1
+   ╰╴               ━━━
+
+error: aborting due to 1 previous error
+

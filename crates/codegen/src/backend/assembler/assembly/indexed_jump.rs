@@ -793,6 +793,8 @@ fn estimated_block_size(
                 usize::from(block_target_width) + 1
             } else if inst.pushed_data().is_some() {
                 4
+            } else if let Some(size) = inst.pushed_data_size() {
+                push_len(evm_version, size.bound())
             } else {
                 unreachable!("push must carry a value")
             }

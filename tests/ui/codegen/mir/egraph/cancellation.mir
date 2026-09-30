@@ -2,7 +2,7 @@
 @module Cancellation
 
 // Cancellation is modulo 2^256; no no-overflow fact is needed.
-types:
+@types
   struct0: {i256, i256, i256, i256}
   struct1: {i1, i1}
   struct2: {i256, i1}

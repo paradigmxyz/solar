@@ -17,13 +17,15 @@ use super::{
 };
 use crate::{
     backend::assembler::{self, assembly},
-    link::{LibraryId, LibraryRelocation, LibraryTable, RelocatableBytecode},
+    link::{EmbeddedBytecodes, LibraryId, LibraryTable, RelocatableBytecode},
     mir::{ImmutableId, TypeSize},
 };
-use alloy_primitives::{Bytes, U256};
+use alloy_primitives::U256;
 use solar_data_structures::{index::IndexVec, newtype_index};
 use solar_interface::{Span, Symbol};
 use std::fmt;
+
+pub(crate) use crate::link::{Data, DataBytes, DataId, DataRef, DataSize};
 
 pub(in crate::backend) mod builder;
 mod display;
@@ -41,6 +43,7 @@ pub(in crate::backend) use passes::{
     compact_pushes::{
         ImmediateMaterialization, ImmediateMaterializationOp, immediate_materialization_len,
     },
+    data::pack_linked_data,
     legalize_shifts,
 };
 
@@ -52,32 +55,6 @@ pub fn validate(gcx: solar_sema::Gcx<'_>, module: &Module) {
 newtype_index! {
     /// A unique identifier for a basic block in EVM IR.
     pub(crate) struct BlockId;
-
-    /// A constant byte string appended to the assembled program.
-    pub(crate) struct DataId;
-}
-
-/// A relocatable reference to a byte within an EVM IR data entry.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct DataRef {
-    pub(crate) id: DataId,
-    pub(crate) offset: u32,
-}
-
-/// One constant byte string and its optional display name.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct Data {
-    pub(crate) bytes: Bytes,
-    pub(crate) name: Option<Symbol>,
-    pub(crate) emit_in_runtime: bool,
-    /// Identities and byte offsets of unresolved library addresses in this data.
-    pub(crate) library_relocations: Vec<LibraryRelocation>,
-}
-
-impl DataRef {
-    pub(crate) const fn new(id: DataId, offset: u32) -> Self {
-        Self { id, offset }
-    }
 }
 
 impl BlockId {
@@ -108,6 +85,48 @@ pub struct Module {
 }
 
 impl Module {
+    /// Links embedded contract bytecode into deferred data, interning the bytecode's libraries
+    /// into `libraries`.
+    ///
+    /// Returns whether any data was linked.
+    pub(in crate::backend) fn link(
+        &mut self,
+        bytecodes: &EmbeddedBytecodes,
+        libraries: &mut LibraryTable,
+    ) -> bool {
+        let mut linked = false;
+        for data in &mut self.data {
+            let DataBytes::Deferred(code) = data.bytes else { continue };
+            // d: creation_code|runtime_code C
+            // => d: hex"<code(C)>" library_relocations [..]
+            let bytecode = code.bytecode(bytecodes);
+            assert!(
+                u32::try_from(bytecode.bytes.len()).is_ok(),
+                "embedded bytecode length exceeds `u32`"
+            );
+            data.bytes = DataBytes::Known(bytecode.bytes.clone());
+            data.library_relocations = bytecode.relocations_in(libraries);
+            linked = true;
+        }
+        if linked {
+            self.libraries = libraries.clone();
+        }
+        linked
+    }
+
+    /// Pushes each size derived from a data length as a literal. All data must be linked.
+    pub(in crate::backend) fn fold_data_sizes(&mut self) {
+        for block in &mut self.blocks {
+            for inst in &mut block.instructions {
+                // push_data_size d, addend[, aligned] => push (len(d) + addend) [& ~31]
+                if let Some(size) = inst.pushed_data_size() {
+                    let value = size.value(self.data[size.data].bytes.linked().len());
+                    inst.replace_preserving_metadata(Instruction::push_value(value));
+                }
+            }
+        }
+    }
+
     /// Lowers this EVM IR module to bytecode, retaining unresolved library addresses.
     pub fn into_bytecode(
         self,
@@ -284,6 +303,7 @@ impl Instruction {
     const DEFERRED: u8 = 2;
     const IMMUTABLE: u8 = 4;
     const DATA: u8 = 8;
+    const DATA_SIZE: u8 = 16;
 
     /// Creates an instruction for an EVM opcode.
     #[must_use]
@@ -365,6 +385,12 @@ impl Instruction {
     #[must_use]
     pub(crate) fn push_data(data: DataRef) -> Self {
         Self::encoded_push(PushValue::Data(data), Self::ENCODED_PUSH | Self::DATA)
+    }
+
+    /// Creates an encoded push of a size derived from a program-data length.
+    #[must_use]
+    pub(crate) fn push_data_size(size: DataSize) -> Self {
+        Self::encoded_push(PushValue::DataSize(size), Self::ENCODED_PUSH | Self::DATA_SIZE)
     }
 
     /// Creates an encoded push whose operand will be supplied by an assembler
@@ -468,6 +494,28 @@ impl Instruction {
         }
     }
 
+    /// Returns whether a repeated push of this value may reuse an earlier copy through `DUP`:
+    /// a nonzero immediate, which `PUSH0` does not already encode in one byte, or a size
+    /// derived from a data length.
+    #[must_use]
+    pub(in crate::backend) fn is_duplicable_push(&self) -> bool {
+        self.deferred_push().is_none()
+            && match self.value {
+                Some(PushValue::Immediate(value)) => !value.is_zero(),
+                Some(PushValue::DataSize(_)) => true,
+                _ => false,
+            }
+    }
+
+    /// Returns the program-data size carried by this push instruction, if any.
+    #[must_use]
+    pub(in crate::backend) const fn pushed_data_size(&self) -> Option<DataSize> {
+        match self.value {
+            Some(PushValue::DataSize(size)) => Some(size),
+            _ => None,
+        }
+    }
+
     /// Returns the generated opcode definition for this instruction.
     #[must_use]
     pub(crate) const fn definition(&self) -> Option<&'static op::OpDef> {
@@ -491,6 +539,9 @@ impl Instruction {
                     f.write_str("push_immutable")
                 }
                 encoding if encoding == Self::ENCODED_PUSH | Self::DATA => f.write_str("push_data"),
+                encoding if encoding == Self::ENCODED_PUSH | Self::DATA_SIZE => {
+                    f.write_str("push_data_size")
+                }
                 _ => op::fmt(self.opcode, f),
             },
         })
@@ -740,6 +791,8 @@ enum PushValue {
     Block(BlockId),
     /// Constant program-data reference.
     Data(DataRef),
+    /// Size derived from a program-data length, supplied during final assembly.
+    DataSize(DataSize),
 }
 
 /// Metadata carried by instructions and terminators.

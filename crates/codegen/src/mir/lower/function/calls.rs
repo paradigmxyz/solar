@@ -1,7 +1,10 @@
 //! Function calls, conversions, and call-target resolution.
 
 use super::*;
-use crate::{link::Library, mir::Immediate};
+use crate::{
+    link::{CodeKind, QualifiedName},
+    mir::Immediate,
+};
 
 #[derive(Clone, Copy)]
 pub(super) struct ExternalReturnPlan {
@@ -266,25 +269,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
-        let contract = self.cx.gcx.hir.contract(contract_id);
-        let bytecode = self
-            .cx
-            .child_bytecodes
-            .get(&contract_id)
-            .and_then(super::super::data::ContractBytecodes::deployment)
-            .ok_or_else(|| {
-                self.cx
-                    .gcx
-                    .dcx()
-                    .err(format!(
-                        "codegen is missing creation bytecode for `new {}`",
-                        contract.name
-                    ))
-                    .span(ty.span)
-                    .note("the deployed contract did not compile or was not lowered first")
-                    .emit()
-            });
-        let Ok(bytecode) = bytecode else { return None };
+        let bytecode = self.contract_code(ty.span, contract_id, CodeKind::Creation)?;
 
         let mut call_value = self.builder.imm(U256::ZERO);
         let mut salt = None;
@@ -309,7 +294,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
 
-        let (parameters, parameter_names) = contract
+        let (parameters, parameter_names) = self
+            .cx
+            .gcx
+            .hir
+            .contract(contract_id)
             .ctor
             .map(|id| {
                 let constructor = self.cx.gcx.hir.function(id);
@@ -344,32 +333,39 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // arguments = abi_encode(constructor_args)
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         let encoded = self.builder.abi_encode(Arc::clone(&layout), None, values.into_boxed_slice());
-        let encoded_len = if layout.types.iter().any(AbiType::is_dynamic) {
-            self.builder.slice_len(encoded)
-        } else {
-            self.builder.imm(layout.head_size())
+        let static_len = (!layout.types.iter().any(AbiType::is_dynamic))
+            .then(|| layout.head_size())
+            .filter(|&len| EvmMemoryLayout::align_word(len).is_some());
+        let encoded_len = match static_len {
+            Some(len) => self.builder.imm(len),
+            None => self.builder.slice_len(encoded),
         };
 
-        let bytecode_len = u64::try_from(bytecode.bytes.len()).ok()?;
-        let bytecode_len_value = self.builder.imm(bytecode_len);
-        let total_len = self.builder.checked_add(bytecode_len_value, encoded_len);
+        // len = datasize initcode(C)
+        let bytecode_len_value = self.builder.data_size(bytecode, 0, false);
         // CREATE consumes a raw byte range, so do not reserve a semantic bytes
         // header that no later operation can observe.
-        let padding = self.builder.imm(31);
-        let rounded_len = self.builder.checked_add(total_len, padding);
-        let mask = self.builder.not(padding);
-        let allocation_size = self.builder.and(rounded_len, mask);
+        let (total_len, allocation_size) = if let Some(len) = static_len {
+            // total_len = datasize initcode(C), len
+            // allocation_size = datasize initcode(C), len + 31, aligned
+            let total_len = if len == 0 {
+                bytecode_len_value
+            } else {
+                self.builder.data_size(bytecode, len, false)
+            };
+            (total_len, self.builder.data_size(bytecode, len + 31, true))
+        } else {
+            // total_len = checked_add len, encoded_len
+            // allocation_size = checked_add(total_len, 31) & ~31
+            let total_len = self.builder.checked_add(bytecode_len_value, encoded_len);
+            let padding = self.builder.imm(31);
+            let rounded_len = self.builder.checked_add(total_len, padding);
+            (total_len, self.builder.mask_padded_size(rounded_len))
+        };
         let data = self.builder.alloc_raw(allocation_size, AllocationSemantics::INTERNAL);
 
-        super::super::data::copy_bytecode_to_memory(
-            self.cx.gcx,
-            self.cx.module,
-            &mut self.builder,
-            data,
-            bytecode,
-            bytecode.bytes.len(),
-            super::super::data::contract_bytecode_data_name(self.cx.gcx, contract_id, true),
-        );
+        // datacopy initcode(C), data, len
+        self.builder.data_copy(DataRef::new(bytecode, 0), data, bytecode_len_value);
         let encoded_ptr = self.builder.slice_ptr(encoded);
         let copy_dest = self.builder.add(data, bytecode_len_value);
         // init = creation_bytecode ++ arguments
@@ -1106,14 +1102,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .builder
                 .alloc_value(Value::Immediate(Immediate::for_type(Some(MirType::I160), address)));
         }
-        let contract = self.cx.gcx.hir.contract(contract_id);
-        let source = self.cx.gcx.hir.source(contract.source).file.name.display().to_string();
-
-        let library = self
-            .cx
-            .module
-            .libraries
-            .intern(Library { source: Symbol::intern(&source), name: contract.name.name });
+        let library =
+            self.cx.module.libraries.intern(QualifiedName::of_contract(self.cx.gcx, contract_id));
         // result = library_address source:library
         self.builder.library_address(library)
     }

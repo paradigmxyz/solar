@@ -5,7 +5,7 @@
 // Both XOR definitions retain NOT alternatives; matching either one is insufficient.
 // CHECK-LABEL: fn @equal_complements
 // CHECK: + {{v[0-9]+}} = eq arg0, arg1
-types:
+@types
   struct0: {i256, i256, i1}
 
 fn @equal_complements(arg0: i256, arg1: i256) -> i1 {

@@ -2,7 +2,7 @@
 //@ filecheck:
 @module MemoryReturn
 
-types:
+@types
   struct0: {memoryslice, i256}
   struct1: {struct0, i1}
 

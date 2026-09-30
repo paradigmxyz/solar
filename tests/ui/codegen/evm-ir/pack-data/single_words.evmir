@@ -2,6 +2,7 @@
 //@ filecheck:
 @module single_words
 
+// CHECK: literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: {{^[ +].*}}push 32
 // CHECK-NEXT: {{^[ +].*}}push_data literal_0
@@ -26,5 +27,3 @@ bb1:
   dup 2
   mstore
   stop
-
-// CHECK: @data literal_0 hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"

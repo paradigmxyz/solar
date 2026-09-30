@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-structs/values.mir (before none) ===
 + // === ROOT/tests/ui/codegen/mir/lower-structs/values.mir (after none) ===
   @module StructValues
-  types:
+  @types
     struct0: {i256, i1}
     struct1: {struct0, i256}
     struct2: {}

@@ -1,0 +1,8 @@
+//~? ERROR: EVM IR verification failed: block 0: `push_data_size` requires deferred data
+@module module
+@data
+  literal_0: hex"aa"
+
+bb0:
+  push_data_size literal_0
+  stop

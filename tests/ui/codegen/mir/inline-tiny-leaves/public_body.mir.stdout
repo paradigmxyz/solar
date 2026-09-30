@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/public_body.sol:PublicBody ===
 @module PublicBody
 @phase lowered
-immutables:
+@immutables
   _start: u256
 
 fn @constructor(arg0: i256) [abi_wrapper, constructor] {

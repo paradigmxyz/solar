@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_length_access.sol:C ===
 @module C
-types:
+@types
   struct0: {i256, i256, i256}
   struct1: {i256, i256}
 
