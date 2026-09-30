@@ -2,9 +2,9 @@
 
 use super::{
     super::{
-        AliasAnalysis, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap,
-        FxHashSet, InstId, InstKind, MemoryBase, MemoryRegion, MirType, Module, Terminator, U256,
-        Value, ValueId, spill_base::WriteSize,
+        AliasAnalysis, ArtifactKind, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function,
+        FunctionId, FxHashMap, FxHashSet, InstId, InstKind, MemoryBase, MemoryRegion, MirType,
+        Module, Terminator, U256, Value, ValueId, spill_base::WriteSize,
     },
     SPILL_HAZARD_BOUND,
 };
@@ -41,12 +41,52 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let below_spills = func.value_u64(dest).is_some_and(|dest| {
                     let mut visiting = DenseBitSet::new_empty(func.num_values());
                     Self::value_u64_upper_bound(func, size, &mut visiting)
+                        .or_else(|| Self::guarded_upper_bound(func, inst_id, size))
                         .and_then(|size| dest.checked_add(size))
                         .is_some_and(|end| end <= EvmMemoryLayout::HEAP_START)
                 });
                 (!below_spills).then_some(dest)
             }
         }
+    }
+
+    /// Returns the bound on `value` set by the switch case or equality branch that is the only
+    /// way into the block of `inst`, through a chain of single-predecessor blocks. For example,
+    /// solmate copies `returndatasize()` bytes only under `case 32`.
+    fn guarded_upper_bound(func: &Function, inst: InstId, value: ValueId) -> Option<u64> {
+        let (mut block, _) =
+            func.blocks.iter_enumerated().find(|(_, block)| block.instructions.contains(&inst))?;
+        let mut visited = DenseBitSet::new_empty(func.blocks.len());
+        while visited.insert(block) {
+            let &[pred] = func.blocks[block].predecessors.as_slice() else { return None };
+            match func.blocks[pred].terminator.as_ref()? {
+                Terminator::Switch { value: scrutinee, default, cases }
+                    if *scrutinee == value && *default != block =>
+                {
+                    return cases
+                        .iter()
+                        .filter(|&&(_, target)| target == block)
+                        .map(|&(case, _)| func.value_u64(case))
+                        .try_fold(0, |bound, case| Some(bound.max(case?)));
+                }
+                Terminator::Branch { condition, then_block, else_block }
+                    if *then_block == block && *else_block != block =>
+                {
+                    if let Value::Inst(def) = func.value(*condition)
+                        && let InstKind::Eq(left, right) = func.inst(*def).kind
+                        && let Some(other) = (left == value)
+                            .then_some(right)
+                            .or_else(|| (right == value).then_some(left))
+                        && let Some(bound) = func.value_u64(other)
+                    {
+                        return Some(bound);
+                    }
+                }
+                _ => {}
+            }
+            block = pred;
+        }
+        None
     }
 
     /// Whether `pointer` is a phi that enters from an address below the spill area and is
@@ -66,7 +106,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Returns a conservative upper bound for a small integer expression.
-    fn value_u64_upper_bound(
+    pub(in crate::backend::evm::codegen) fn value_u64_upper_bound(
         func: &Function,
         value: ValueId,
         visiting: &mut DenseBitSet<ValueId>,
@@ -83,6 +123,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                     Self::value_u64_upper_bound(func, if_true, visiting)?
                         .max(Self::value_u64_upper_bound(func, if_false, visiting)?),
                 ),
+                InstKind::And(left, right) => {
+                    match (
+                        Self::value_u64_upper_bound(func, left, visiting),
+                        Self::value_u64_upper_bound(func, right, visiting),
+                    ) {
+                        (Some(left), Some(right)) => Some(left.min(right)),
+                        (bound, None) | (None, bound) => bound,
+                    }
+                }
                 _ => None,
             },
             Value::Arg(_) | Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => None,
@@ -104,6 +153,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
     ) -> FxHashSet<InstId> {
         let mut hazards = self.direct_spill_hazard_insts(func);
+        // Creation code runs with empty calldata, so a copy of `calldatasize()` bytes writes
+        // nothing.
+        if self.asm.artifact_kind == ArtifactKind::Constructor {
+            hazards.retain(|&inst| {
+                !matches!(Self::memory_write(func, inst), Some((_, WriteSize::Value(size)))
+                    if matches!(func.value(size), Value::Inst(def)
+                        if matches!(func.inst(*def).kind, InstKind::CalldataSize)))
+            });
+        }
         hazards.extend(func.instructions().filter(|&inst_id| {
             matches!(func.inst(inst_id).kind, InstKind::ICall {
                 function: Callee::Function(callee), ..

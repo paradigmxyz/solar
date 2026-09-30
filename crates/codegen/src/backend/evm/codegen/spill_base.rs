@@ -35,13 +35,13 @@
 //! rebuild from arguments and immediates afterwards. After the call, the base moves above
 //! `msize()`, the function stores the carried values that had slots there again, since blocks
 //! emitted earlier may reload them, and it stores and pops the words above any value still out
-//! of reach. A call to a function that may make a variable-length low-memory write before
-//! returning counts as such a write in its caller too.
+//! of reach. A call to a function that may make a variable-length write to a low constant
+//! address before returning counts as such a write in its caller too.
 //!
 //! NOTE: A recursive function's frame pointer lives at a fixed word that no move can protect;
 //! codegen reports an error for a write in the function itself that may cover it, but does not
-//! detect a callee's write over it. A callee's sweeping word store does not count as a write in
-//! its caller.
+//! detect a callee's write over it. A callee's write through a computed pointer or a sweeping
+//! word store does not count as a write in its caller.
 
 use super::{
     ArgIdx, BlockId, CfgInfo, DeferredConst, DenseBitSet, DynamicSpillBase, EvmCodegen,
@@ -603,10 +603,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         let [mut free_memory, mut unowned, mut heap, mut hazards] =
             std::array::from_fn(|_| DenseBitSet::new_empty(module.functions.len()));
         // A hazard on a path that ends the call frame cannot reach the caller's spills.
-        // NOTE: Only variable-length writes count. A sweeping word store is usually bounded in
-        // ways the hazard analysis cannot see, such as a byte scan over scratch space, and
-        // counting it would give every caller a dynamic spill base. An unbounded sweep in a
-        // callee can therefore still overwrite its caller's spill slots.
+        // NOTE: Only writes to an address with a constant bound count, as in forwarding helpers
+        // that copy to `0`. A write through a pointer argument or a computed pointer is almost
+        // always to the heap, and a sweeping word store is usually bounded in ways the hazard
+        // analysis cannot see, such as a byte scan over scratch space; counting them would give
+        // their callers a dynamic spill base. Such a callee write that does reach low memory can
+        // still overwrite its caller's spill slots.
         let returning = module
             .functions
             .iter()
@@ -615,7 +617,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (func_id, func) in module.functions.iter_enumerated() {
             let mut direct = self.direct_spill_hazard_insts(func);
             direct.retain(|&inst| {
-                !matches!(func.inst(inst).kind, InstKind::MStore(..) | InstKind::MStore8(..))
+                Self::dynamic_spill_write_dest(func, inst).is_some_and(|dest| {
+                    let mut visiting = DenseBitSet::new_empty(func.num_values());
+                    Self::value_u64_upper_bound(func, dest, &mut visiting).is_some()
+                })
             });
             if func.blocks.iter_enumerated().any(|(block_id, block)| {
                 returning[func_id].contains(block_id)
@@ -839,48 +844,43 @@ impl<'gcx> EvmCodegen<'gcx> {
         let pending = &func.blocks[block].instructions[inst_idx..];
         // An internal function reloads an argument from its moved frame only if it carries it.
         let arg_is_live = |value| liveness.is_used_at_or_after(value, block, inst_idx + 1);
-        let spills = &self.scheduler.spills;
-        for value in self.values_read_at_or_after(func, liveness, block, inst_idx + 1).iter() {
+        let mut seen = DenseBitSet::new_empty(func.num_values());
+        for value in func.live_values() {
             let on_stack = self.scheduler.stack.contains(value);
-            // A later block may reload a slot stored on another path, so stored values count too.
-            let in_slot = spills.is_stored(value) || spills.is_reloadable(value);
             if Some(value) == result
                 || Some(value) == spill_base
                 || matches!(func.value(value), Value::Arg(_))
                 || matches!(func.value(value), Value::Inst(def) if pending.contains(def))
-                || !(on_stack || in_slot || self.scheduler.should_recompute_unstored_spill(value))
+                || !liveness.is_used_at_or_after(value, block, inst_idx + 1)
+                || !(on_stack || self.scheduler.spills.get(value).is_some())
                 || !(on_stack || self.scheduler.can_emit_value(value, func))
+                || !seen.insert(value)
             {
                 continue;
             }
-            // Rebuild a value after the call, unless a slot holds it or it needs an argument
-            // that nothing carries.
-            if !in_slot
-                && rebuildable.as_ref().is_some_and(|set| set.contains(value))
-                && (!self.in_internal_function
-                    || Self::operand_args(func, value).into_iter().all(arg_is_live))
-            {
-                recomputed.push(value);
-            } else {
-                values.push(value);
-            }
+            // Rebuild a value after the call when nothing in its computation has a slot a later
+            // block could reload, and it needs no argument that nothing carries.
+            let rebuilt = rebuildable.as_ref().is_some_and(|set| set.contains(value))
+                && Self::operand_tree(func, value).into_iter().all(|operand| {
+                    match func.value(operand) {
+                        Value::Arg(_) => !self.in_internal_function || arg_is_live(operand),
+                        Value::Inst(_) => self.scheduler.spills.get(operand).is_none(),
+                        _ => true,
+                    }
+                });
+            if rebuilt { recomputed.push(value) } else { values.push(value) }
         }
         // A rebuilt value recomputes its operands too.
-        let mut visited = DenseBitSet::new_empty(func.num_values());
-        while let Some(value) = recomputed.pop() {
-            if visited.insert(value)
-                && let Value::Inst(def) = func.value(value)
+        for value in recomputed.into_iter().flat_map(|value| Self::operand_tree(func, value)) {
+            if matches!(func.value(value), Value::Inst(_))
+                && self.scheduler.spills.get(value).is_none()
             {
                 let spills = &mut self.scheduler.spills;
-                if !spills.is_stored(value) && !spills.is_reloadable(value) {
-                    spills.allocate(value);
-                    spills.mark_recomputable(value);
-                }
-                recomputed.extend(func.inst(*def).kind.operands());
+                spills.allocate(value);
+                spills.mark_recomputable(value);
             }
         }
         if self.in_internal_function {
-            let mut seen = DenseBitSet::new_empty(func.num_values());
             values.extend(func.live_values().filter(|&value| {
                 Some(value) != result
                     && matches!(func.value(value), Value::Arg(_))
@@ -933,22 +933,20 @@ impl<'gcx> EvmCodegen<'gcx> {
         read
     }
 
-    /// Returns the arguments that `value` is computed from.
-    fn operand_args(func: &Function, value: ValueId) -> Vec<ValueId> {
+    /// Returns `value` and every value it is computed from.
+    fn operand_tree(func: &Function, value: ValueId) -> Vec<ValueId> {
         let mut visited = DenseBitSet::new_empty(func.num_values());
-        let mut args = Vec::new();
+        let mut tree = Vec::new();
         let mut worklist = vec![value];
         while let Some(value) = worklist.pop() {
-            if !visited.insert(value) {
-                continue;
-            }
-            match func.value(value) {
-                Value::Arg(_) => args.push(value),
-                Value::Inst(def) => worklist.extend(func.inst(*def).kind.operands()),
-                _ => {}
+            if visited.insert(value) {
+                tree.push(value);
+                if let Value::Inst(def) = func.value(value) {
+                    worklist.extend(func.inst(*def).kind.operands());
+                }
             }
         }
-        args
+        tree
     }
 
     /// Returns whether the values carried across an internal call stay within stack reach with

@@ -751,6 +751,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 {
                     let slot = if let Some(slot) = self.scheduler.reloadable_spill(arg) {
                         slot
+                    } else if deep_carry && self.scheduler.stack.contains(arg) {
+                        // A carried argument keeps its stack copy.
+                        self.spill_value_if_needed(func, arg);
+                        self.scheduler.reloadable_spill(arg).expect("stored carried argument")
                     } else {
                         self.emit_value(func, arg);
                         self.spill_value_if_needed(func, arg);

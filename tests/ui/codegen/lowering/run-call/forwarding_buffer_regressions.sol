@@ -23,6 +23,9 @@
 //@ run-call: WideBranchHarness::run => 1
 //@ run-call: BuriedMoveHarness::run => 1
 //@ run-call: RebuiltArgumentHarness::run => 1
+//@ run-call: ReservedSlotHarness::run => 1
+//@ run-call: CarriedStackArgHarness::run => 1
+//@ run-call: ConstructorCopyHelperHarness::run => 1
 
 // Reduced regressions for the dynamic spill base. Expected results come from a model of each
 // program, not from compiling it.
@@ -1142,6 +1145,159 @@ contract RebuiltArgumentHarness {
                 && w == 0x30a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced69a,
             "rebuilt argument"
         );
+        return 1;
+    }
+}
+
+function loadCalldata(uint256 o) pure returns (uint256 x) {
+    assembly { x := calldataload(o) }
+}
+
+function loadStorage(uint256 o) view returns (uint256 x) {
+    assembly { x := sload(o) }
+}
+
+function maybeCopy(uint256, uint256) pure {
+    if (loadCalldata(4) & 1 == 1) {
+        assembly { calldatacopy(256, 0, calldatasize()) }
+    }
+}
+
+// `v115` has a slot that the join after the branch reloads, so a carried call must keep it
+// rather than rebuild it.
+contract ReservedSlot {
+    fallback() external {
+        unchecked {
+            uint256 v101 = loadCalldata(132) + loadCalldata(68);
+            uint256 v104 = v101 >> 152;
+            uint256 v115 = (loadCalldata(132) - v104) * v104;
+            if (loadCalldata(36) & 1 != 1) {
+                maybeCopy(loadStorage(0), 0);
+            }
+            maybeCopy(0, loadStorage(0));
+            assembly {
+                mstore(0, v115)
+                return(0, 32)
+            }
+        }
+    }
+}
+
+contract ReservedSlotHarness {
+    function run() external returns (uint256) {
+        (bool success, bytes memory result) = address(new ReservedSlot()).call(
+            abi.encodePacked(bytes4(0), uint256(0), uint256(0), uint256(1 << 200), uint256(0), uint256(1 << 201))
+        );
+        require(
+            success
+                && abi.decode(result, (uint256))
+                    == 0x05fffffffffffffffffffffffffffffffffffff7000000000000000000000000,
+            "reserved slot"
+        );
+        return 1;
+    }
+}
+
+function copyThenMix(uint256 p0, uint256 p1, uint256 p2, uint256 p3)
+    view
+    returns (uint256, uint256, uint256)
+{
+    unchecked {
+        uint256 v1 = ((loadCalldata(36) << 56) - (p1 | loadStorage(2))) + ((p0 >> 48) & p3);
+        assembly { calldatacopy(0, 0, calldatasize()) }
+        return (v1 * (p2 * p0), p3 >> 129, (loadStorage(0) - p3) - (p2 | p0));
+    }
+}
+
+// A carried value is also a stack-passed argument of a call that carries more words than
+// `DUP` reaches.
+contract CarriedStackArg {
+    fallback() external {
+        unchecked {
+            uint256 v101 = 1;
+            uint256 v102 = v101;
+            uint256 v103 = v102 * v101;
+            uint256 v104 = loadStorage(4) + v102;
+            uint256 v105 = v102 + v103;
+            uint256 v106 = v103 >> 69;
+            uint256 v107 = v103;
+            uint256 v108 = v107 * loadStorage(5);
+            uint256 v109 = v104 * loadCalldata(132);
+            uint256 v110 = loadStorage(2) | v102;
+            uint256 v112 = v103;
+            uint256 v114 = v108;
+            uint256 v115 = loadCalldata(4) >> 85;
+            uint256 v116 = 7 - loadStorage(7);
+            uint256 v117 = v107 + loadCalldata(68);
+            uint256 v118 = v115 ^ v105;
+            uint256 v119 = v117 | v104;
+            uint256 v120 = v110 >> 47;
+            uint256 v121 = v105 | (v117 ^ v110);
+            uint256 v122 = ((v110 * loadStorage(0)) ^ (v109 | v110)) << 184;
+            uint256 v124 = ((v122 + v107) | v117) ^ (v103 >> 169);
+            copyThenMix(
+                v121 - (v106 & loadStorage(5)),
+                v120 | (v117 | loadStorage(4)),
+                (v112 + v105) ^ (v110 >> 26),
+                v107
+            );
+            v114 = v115 & (v124 * (v101 + v121));
+            // The copy clobbered the free-memory pointer, so write the words at fixed addresses.
+            assembly {
+                mstore(96, v104)
+                mstore(256, v109)
+                mstore(288, v110)
+                mstore(416, v114)
+                mstore(480, v116)
+                mstore(512, v117)
+                mstore(544, v118)
+                mstore(576, v119)
+                mstore(608, v120)
+                mstore(672, v122)
+                return(0, 704)
+            }
+        }
+    }
+}
+
+contract CarriedStackArgHarness {
+    function run() external returns (uint256) {
+        (bool success, bytes memory result) = address(new CarriedStackArg()).call(patterned());
+        uint256[10] memory offsets = [uint256(96), 256, 288, 416, 480, 512, 544, 576, 608, 672];
+        bytes memory words;
+        for (uint256 i; i < offsets.length; i++) {
+            uint256 offset = offsets[i];
+            uint256 word;
+            assembly { word := mload(add(add(result, 0x20), offset)) }
+            words = abi.encodePacked(words, word);
+        }
+        require(
+            success && result.length == 704
+                && keccak256(words)
+                    == 0x5791593b835be4534943adb252131414d2e61362e1adc551315a4d1dd80cc246,
+            "carried stack arg"
+        );
+        return 1;
+    }
+}
+
+contract ConstructorCopyHelper {
+    uint256 public x;
+
+    function h(uint256 a, uint256 b) internal pure returns (uint256) {
+        assembly { calldatacopy(0, 0, calldatasize()) }
+        return a * b + 1;
+    }
+
+    // Creation code runs with empty calldata, so the copy writes nothing.
+    constructor(uint256 a) {
+        x = h(a, a + 2);
+    }
+}
+
+contract ConstructorCopyHelperHarness {
+    function run() external returns (uint256) {
+        require(new ConstructorCopyHelper(5).x() == 36, "constructor copy helper");
         return 1;
     }
 }
